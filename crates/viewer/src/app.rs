@@ -648,6 +648,12 @@ impl ViewerApp {
         // report of a theme applied too late.
         apply_polarity(&cc.egui_ctx, theme.polarity);
 
+        // And the numeric rule onto both of the context's styles, so a
+        // field that never reached `widgets::number_field` still says
+        // what it holds. See that function's neighbour for why this is
+        // a default rather than a check.
+        crate::widgets::install_number_formatter(&cc.egui_ctx);
+
         let render_state = cc
             .wgpu_render_state
             .as_ref()

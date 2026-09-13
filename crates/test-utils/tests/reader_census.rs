@@ -180,6 +180,11 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/profile/tests/fillet_recourse_followability.rs",
+        disposition: Shared, // the fillet gate census takes the nine predicate
+                             // names from sugar.rs, code+literal view
+    },
+    Entry {
         path: "crates/profile/tests/generic_replay.rs",
         disposition: Shared, // the stored-form exemption held against seg.rs's
                              // own predicate names, code+literal view
