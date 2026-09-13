@@ -76,3 +76,35 @@ no query or build changes). The pin is `viewer`'s `index_memo`
 differential against a single-level reference, tie-break row
 included. A finding on `docm`'s ground went to its slate:
 `work/docm/pick-grazing-ray-answer-depends-on-candidate-order.md`.
+
+## PERF-11 lands on PROPS/TOPO ground (2026-09-13)
+
+**Announcing a `crates/topo/src/props.rs` edit in PROPS' territory**
+(`work/README.md`: the owner is told where the change lands). Unit
+`PERF-11` (branch `perf/11-props-walks`) makes the two per-face walks
+PERF-8 left serial the same D9 idiom-1-then-idiom-2 shape as
+`mass_properties_impl`:
+
+- `classify_shells_of`'s per-shell face loop is now `decide_faces` over
+  the shell's faces through the same `reporting_hook`, with `fold_runs`
+  as the sequential arena-order half. No new spelling of either idiom;
+  the shell sums and the sign reads are byte-identical.
+- `SignCertificate::refine_to_target` resumes its open faces as an
+  indexed map into one slot per face, each under a detached K-funnel
+  frame, and walks those slots sequentially in arena order — so the
+  refusal it names is still the FIRST refusal in arena order, resumed
+  or already outstanding, and a symbolic session keeps the serial walk.
+
+Pins: new thread-count goldens for the census
+(`crates/sweep/tests/shell_census_is_thread_count_invariant.rs`, cut on
+the merge base) and the continuation's refusal-parity and
+piece-evaluation rows at an explicit one and four threads
+(`continuation_is_thread_count_invariant.rs`). Measured: the round
+spout's continuation 15.3 s → 4.1 s and the whole tour 24.0 s →
+12.5 s at four threads; `quintic_prism`'s continuation 8.3 s → 2.1 s.
+Evidence added to two open items rather than new rows:
+`quadrature-setup-is-re-derived-per-round-window` (the open-face census
+over the tour's 61 gated stops, and the setup term's 8–99% share) and
+`parallel-map-costs-a-fixed-price-on-a-cheap-body` (the census's own
+sub-millisecond regression on the heat sink, and the observation that
+the grain that would repay it there is the shell).

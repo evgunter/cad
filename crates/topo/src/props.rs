@@ -527,55 +527,123 @@ impl<T: Decide + geom_core::CertifiedBounds> SignCertificate<'_, T> {
     /// first refusal it reaches, resumed or already outstanding, which
     /// is the reporting walk's own rule.
     ///
-    /// **What it COSTS to keep that rule**: a face after the first
-    /// refusing one is not resumed, exactly as the reporting walk
-    /// never runs it. The rounds this certificate already paid for it
-    /// are not re-run either — they are simply not continued.
+    /// **How the rule survives a parallel resumption.** The open faces
+    /// are resumed by an indexed parallel map into one slot per face in
+    /// ARENA order (D9's addendum, idiom 1, as [`decide_faces`]), each
+    /// under a detached K-funnel frame; the walk over those slots is
+    /// sequential in that order (idiom 2) and returns at the first
+    /// refusal it reaches, resumed or already outstanding. So the face
+    /// named is still the first refusing face in arena order, and the
+    /// verdict log, the escalation log and the `probe` sample
+    /// population are the serial continuation's at any thread count —
+    /// every recording up to and including the refusing face spliced in
+    /// order, every one after it dropped with the resumption it came
+    /// with. Under a symbolic session the continuation is the SERIAL
+    /// walk instead, for [`decide_faces`]'s reason: the session's
+    /// receipt and the shape report are written in place and no splice
+    /// can take them back.
+    ///
+    /// **What the failure path costs**: the rounds of the open faces
+    /// after the refusing one, run and thrown away. That is the latency
+    /// of a REFUSAL and never of an answer, and it is bounded by the
+    /// faces a certificate leaves open — on the tour's 61 gated stops,
+    /// 58 leave none at all, two leave two, and one leaves eight of
+    /// ten.
     ///
     /// **What the continuation costs against one measurement.** The
     /// piece evaluations compose exactly, but each entry into a face's
     /// lane re-derives that face's round-independent SETUP — the
     /// derivative grids, the block hulls, the last round's cut lists
-    /// and the bound read off them — because a `RoundWindow` enters
-    /// the lane at its front door. **What that costs depends on
-    /// whether the sign settled early**, which is a property of the
-    /// body rather than of this call: a certificate whose `settle`
-    /// ran the schedule to its end leaves no face open, so the
-    /// continuation re-enters no lane and gate-then-continue is 1.0×
-    /// one measurement; a certificate that stopped part-way pays the
-    /// setup again for every face it left open, and
-    /// gate-then-continue is 1.3–1.8× one measurement in wall time on
-    /// the bodies measured. Both are against the two full quadratures
-    /// it replaces. Reusing a face's setup across windows would remove
-    /// the second case and is `work/perf/`'s
-    /// `quadrature-setup-is-re-derived-per-round-window`.
+    /// and the bound read off them — because a `RoundWindow` enters the
+    /// lane at its front door. **What that costs depends on whether the
+    /// sign settled early**, which is a property of the body rather
+    /// than of this call: a certificate whose `settle` ran the schedule
+    /// to its end leaves no face open, so the continuation re-enters no
+    /// lane and gate-then-continue is 1.0× one measurement; a
+    /// certificate that stopped part-way pays the setup again for every
+    /// face it left open, which is between 8% and 99% of the
+    /// continuation's serial time on the bodies measured. Reusing a
+    /// face's setup across windows would remove that term and is
+    /// `work/perf/`'s `quadrature-setup-is-re-derived-per-round-window`;
+    /// the map above divides it by the width instead of removing it.
     ///
     /// # Errors
     ///
     /// [`MassPropsError`], as [`crate::mass_properties`].
-    pub fn refine_to_target(mut self) -> Result<MassProperties<T>, MassPropsError> {
-        for i in 0..self.runs.len() {
-            if let Some(round) = self.runs[i].open_at {
-                self.runs[i] = face_flux(
-                    self.body,
-                    self.runs[i].face,
-                    self.band,
-                    &certified_hook::<T>,
-                    self.tol,
-                    RoundWindow {
-                        first: round + 1,
-                        last: usize::MAX,
-                    },
-                )?;
+    pub fn refine_to_target(self) -> Result<MassProperties<T>, MassPropsError> {
+        let Self {
+            body,
+            band,
+            tol,
+            mut runs,
+            refused: _,
+        } = self;
+        let resume = |face, round: usize| {
+            face_flux(
+                body,
+                face,
+                band,
+                &certified_hook::<T>,
+                tol,
+                RoundWindow {
+                    first: round + 1,
+                    last: usize::MAX,
+                },
+            )
+        };
+        // The serial continuation, for exactly the reason
+        // [`decide_faces`]'s serial arm exists: under a symbolic
+        // session a decision writes the session's receipt and the
+        // shape report in place, so a face resumed past the point this
+        // walk stops inflates both with no way to take it back.
+        if !decisions_are_thread_portable() {
+            for run in &mut runs {
+                if let Some(round) = run.open_at {
+                    *run = resume(run.face, round)?;
+                }
+                if let Some(source) = run.refusal.clone() {
+                    return Err(MassPropsError::Face {
+                        face: run.face,
+                        source,
+                    });
+                }
             }
-            if let Some(source) = self.runs[i].refusal.clone() {
+            return Ok(fold_runs(&runs).0);
+        }
+        // **Idiom 1 then idiom 2**, as the walks this certificate came
+        // from: one slot per face in ARENA order, holding that face's
+        // resumption and everything its lane recorded while it was
+        // taken (`geom_core::k_stats::detached`) — or nothing, for a
+        // face with no round left to resume at. Nothing is combined
+        // across slots in the map.
+        use rayon::prelude::*;
+        let decided: Vec<Option<FaceDecision<T>>> = runs
+            .par_iter()
+            .map(|run| {
+                run.open_at
+                    .map(|round| geom_core::k_stats::detached(|| resume(run.face, round)))
+            })
+            .collect();
+        // The sequential half, and it carries the refusal rule: the
+        // walk splices each resumption's recording in arena order and
+        // returns at the FIRST refusal it reaches — the resumed face's
+        // own, or one already outstanding on a face it did not resume.
+        // A face after that one is never reached, so its recording is
+        // dropped on the floor with the resumption it came with,
+        // exactly as the serial walk never took it.
+        for (i, slot) in decided.into_iter().enumerate() {
+            if let Some((run, recording)) = slot {
+                geom_core::k_stats::splice(recording);
+                runs[i] = run?;
+            }
+            if let Some(source) = runs[i].refusal.clone() {
                 return Err(MassPropsError::Face {
-                    face: self.runs[i].face,
+                    face: runs[i].face,
                     source,
                 });
             }
         }
-        Ok(fold_runs(&self.runs).0)
+        Ok(fold_runs(&runs).0)
     }
 
     /// The refusal a target-level reading of this body earns, if any —
@@ -1374,19 +1442,19 @@ pub fn classify_shells_of<T: PropsQuadLane>(
         if !shells.contains(&shell_key) {
             continue;
         }
-        let mut flux = T::zero();
-        let mut area = T::zero();
-        let mut flux_pad = 0.0f64;
-        let mut area_pad = 0.0f64;
-        for &face_key in &shell.faces {
-            let props = |source| ShellClassifyError::Props {
-                shell: shell_key,
-                source,
-            };
-            // The per-shell walk reads at the REPORTING level: a shell
-            // role is a claim about a volume, and its faces run their
-            // whole schedules.
-            let run = face_flux(
+        let props = |source| ShellClassifyError::Props {
+            shell: shell_key,
+            source,
+        };
+        // The per-shell walk reads at the REPORTING level: a shell role
+        // is a claim about a volume, and its faces run their whole
+        // schedules. Same walk as [`mass_properties_impl`], through the
+        // same [`decide_faces`] and the same hook, restricted to this
+        // shell's faces — idiom 1 into one slot per face in the
+        // shell's own order, then the sequential fold of [`fold_runs`]
+        // in that order (idiom 2).
+        let runs = decide_faces(&shell.faces, |&face_key| {
+            face_flux(
                 body,
                 face_key,
                 band,
@@ -1394,23 +1462,17 @@ pub fn classify_shells_of<T: PropsQuadLane>(
                 tol,
                 RoundWindow::SCHEDULE,
             )
-            .map_err(props)?;
-            // As at [`mass_properties_impl`]: unreachable from the
-            // hook above, and what keeps this walk correct for the
-            // hook signature rather than for one hook.
-            if let Some(source) = run.refusal {
-                return Err(props(MassPropsError::Face {
-                    face: face_key,
-                    source,
-                }));
-            }
-            flux = flux + run.contribution.flux;
-            area = area + run.contribution.area;
-            flux_pad += run.contribution.flux_pad;
-            area_pad += run.contribution.area_pad;
+        })
+        .map_err(props)?;
+        // As at [`mass_properties_impl`]: unreachable from the hook
+        // above, and what keeps this walk correct for the hook
+        // signature rather than for one hook.
+        let (sums, refused) = fold_runs(&runs);
+        if let Some((face, source)) = refused {
+            return Err(props(MassPropsError::Face { face, source }));
         }
-        let volume = flux / T::from_f64(3.0);
-        let volume_pad = flux_pad / 3.0;
+        let (area, area_pad) = (sums.surface_area, sums.area_pad);
+        let (volume, volume_pad) = (sums.volume, sums.volume_pad);
         // The named sign read — ONE funnel site, evaluated at a
         // bracket end. `V/A` is a length (check 7's margin
         // convention): the mean displacement of this shell's boundary

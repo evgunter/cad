@@ -277,7 +277,11 @@ by PERF-8 — an indexed map over faces into arena-order slots, each face
 under a detached K-funnel frame (`geom_core::k_stats::detached`) whose
 recording the arena-order fold splices back, so the verdict log, the
 escalation log and the `probe` sample population are the serial walk's
-at any thread count.
+at any thread count. PERF-11 put the module's other two per-face walks
+on the same pair — `classify_shells_of`'s per-shell face loop through
+the same `decide_faces`, and `SignCertificate::refine_to_target`'s
+continuation as one slot per face walked sequentially in arena order,
+which is what keeps the refusal it names the first in that order.
 
 `mesh::tessellate`'s per-face dispatch is the per-face tessellation
 target, built by PERF-7 — the same pair of idioms, over the face arena:
