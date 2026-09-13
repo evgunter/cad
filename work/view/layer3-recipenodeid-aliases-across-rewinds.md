@@ -26,7 +26,7 @@ Per-frame `reconcile`/`standing` guards the deleted-node case only; it cannot di
 
 ## Ruled — DI1 (2026-09-04)
 
-`docs/DOCM-IDENTITY-DESIGN.md` DI1 adjudicates the candidate directions
+`crates/editor-core/IDENTITY.md` DI1 adjudicates the candidate directions
 above and hands the build here. The rule, one for every holder: **an id
 denotes the same node iff the current history entry descends from the
 entry that minted it, in the same history, and the node is live.** A

@@ -20,7 +20,7 @@ sentence names the wrong file:
 
 | File | What is now wrong |
 |---|---|
-| `docs/DOCM-IDENTITY-DESIGN.md:112` | cites `session.rs:3030` and `:2321` past the file's last line; both doors are still in `session.rs`, but the probe the second one is about is now split with `session/probe.rs`, so the subject is in two files and the citation names neither |
+| `crates/editor-core/IDENTITY.md` (was `docs/DOCM-IDENTITY-DESIGN.md:112`) | cited `session.rs:3030` and `:2321` past the file's last line; both doors are still in `session.rs`, but the probe the second one is about is now split with `session/probe.rs`, so the subject is in two files and the citation named neither. Discharged at DOCM's exit: the page names both doors and carries no line numbers |
 | `docs/BOOL-10-SPEC.md:62,159` | names "`app.rs`'s tool palette" as the viewer's arm for the verb; `PathVerb` and its `ALL` table are in `forms.rs`, and what draws them is in `widgets.rs` and `pane/create.rs` |
 | `work/code-quality/viewer-pathverb-all-hand-written-seventeen.md:19` | "`app.rs:514` declares `enum PathVerb`" — it is `forms.rs` now |
 | `work/chrome/viewer-const-all-tables-have-no-exhaustiveness-guard.md:14` | the three `const ALL` tables cited in `app.rs` are in `forms.rs` |
@@ -85,7 +85,7 @@ that found this.
 
 The rest is other programs' (`docs/prompts/implementer-discipline.md`
 §6). Named here so the announce is a list and not a sentence:
-`docs/DOCM-IDENTITY-DESIGN.md:112` (DOCM),
+`crates/editor-core/IDENTITY.md`, discharged at DOCM's exit (DOCM),
 `docs/BOOL-10-SPEC.md:62,159` (S-BOOL),
 `work/code-quality/viewer-pathverb-all-hand-written-seventeen.md:19`,
 `work/chrome/viewer-const-all-tables-have-no-exhaustiveness-guard.md:14`

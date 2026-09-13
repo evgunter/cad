@@ -206,8 +206,8 @@ So the chain goes, not the link:
   (`commit_action`), and the other twenty rims survive. `Loft`'s
   `profiles` list is the same shape and takes the same edit; nothing
   else in the vocabulary is a list.
-- The viewer's combining doors gain a union seat that takes N body
-  picks; that build is CHROME's.
+- The viewer's combining doors take a union seat of N body picks —
+  CHROME's build, not in the tree today.
 - **A declaration channel, in member space.** Two members that touch
   refuse `UndeclaredContact` exactly as a pair boolean's operands do,
   and the union carries the same recourse: `Node::Union { members,
