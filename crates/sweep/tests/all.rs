@@ -130,6 +130,8 @@ mod verbs_shell;
 
 #[path = "bitdump.rs"]
 mod bitdump;
+#[path = "closed_chain_junctions.rs"]
+mod closed_chain_junctions;
 #[path = "blend1_r1_probes.rs"]
 mod blend1_r1_probes;
 #[path = "blend2_r2_probes.rs"]

@@ -1189,3 +1189,91 @@ pub fn rod_section_cut(big_r: f64, flat: f64, r: f64) -> f64 {
     let phi = theta - (flat / big_r).acos();
     0.5 * twice - 0.5 * r.powi(2) * theta + 0.5 * big_r.powi(2) * (phi - phi.sin())
 }
+
+/// **A disc authored as `n` equal arcs, extruded `h` along `+z`** — a
+/// cylinder of radius `r` whose two rims are each a closed chain of
+/// `n` links meeting at `n` junctions, and whose wall is `n` faces of
+/// ONE cylinder surface. Every closed-rim suite's revolve fixture
+/// splits its rim at exactly one seam (two arcs), so the N-link closed
+/// chain for `N ≥ 3` is this builder's shape and no other's.
+///
+/// The arcs start at azimuth 0 and run counter-clockwise; each spans
+/// `2π/n`, so its bulge is `tan(π/(2n))` (a bulge is `tan(θ/4)` for
+/// an arc of turning `θ`). `n = 2` is the two-semicircle rim the other
+/// suites build.
+///
+/// # Panics
+///
+/// On `n < 2` — one vertex cannot author a closed loop — or an invalid
+/// profile, both fixture bugs.
+#[must_use]
+pub fn disc_of_arcs(n: usize, r: f64, h: f64, tol: Tol) -> Body<f64> {
+    prism(arc_polygon(n, r, Point2::new(0.0, 0.0)), h, tol)
+}
+
+/// **A block with an `n`-arc bore through it**: the `l × l × h` block
+/// with a corner at the origin, bored on its centre by a circle of
+/// radius `r` authored as `n` equal arcs — the material-adding twin
+/// of [`disc_of_arcs`]. Each of its two bore rims is a closed chain
+/// of `n` links on the cap's RING, concave at every link.
+///
+/// # Panics
+///
+/// As [`disc_of_arcs`]: `n < 2`, or `r` reaching the block's sides,
+/// are fixture bugs.
+#[must_use]
+pub fn bored_block_of_arcs(n: usize, l: f64, h: f64, r: f64, tol: Tol) -> Body<f64> {
+    assert!(2.0 * r < l, "the bore must clear the block's sides");
+    let outer = ProfileLoop::new(
+        [(0.0, 0.0), (l, 0.0), (l, l), (0.0, l)]
+            .into_iter()
+            .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
+            .collect(),
+    );
+    let hole = ProfileLoop::new(arc_polygon(n, r, Point2::new(l / 2.0, l / 2.0)));
+    let profile = Profile::new(SketchPlane::xy(), vec![outer, hole])
+        .validate(tol)
+        .expect("the bored block's profile is a valid pair of loops");
+    extrude(&profile, Extrusion::Distance(h), tol)
+        .expect("the bored block extrudes")
+        .body
+}
+
+/// The `n` bulged vertices of a circle of radius `r` about `c`,
+/// authored as `n` equal arcs starting at azimuth 0.
+fn arc_polygon(n: usize, r: f64, c: Point2<f64>) -> Vec<ProfileVertex<f64>> {
+    assert!(n >= 2, "a closed loop of arcs needs at least two vertices");
+    let bulge = (core::f64::consts::PI / (2.0 * n as f64)).tan();
+    (0..n)
+        .map(|i| {
+            let th = 2.0 * core::f64::consts::PI * (i as f64) / (n as f64);
+            ProfileVertex::new(Point2::new(c.x + r * th.cos(), c.y + r * th.sin()), bulge)
+        })
+        .collect()
+}
+
+/// **The circle rim at station `z` of a body poled along `+z`**, as
+/// [`topo::query::rim_of`] hands it back: every arc whose stored
+/// carrier is a circle centred at `z`, seeded from the first such arc
+/// in key order. The z-poled twin of [`rim_arcs_at`]'s scan, for the
+/// extruded fixtures above, whose stations are `center.z`.
+///
+/// # Panics
+///
+/// If no arc sits at that station, or the arcs there are not one rim —
+/// statements about the fixture, louder as a panic.
+#[must_use]
+pub fn z_rim_at(body: &Body<f64>, z: f64) -> Vec<EdgeKey> {
+    let seed = body
+        .edges()
+        .find_map(|(k, e)| {
+            let c = body.get_curve_geom(e.curve)?.certified()?;
+            match c.carrier() {
+                geom::Curve3::Circle { center, .. } if (center.z - z).abs() < 1e-9 => Some(k),
+                _ => None,
+            }
+        })
+        .unwrap_or_else(|| panic!("an arc at station z = {z}"));
+    topo::query::rim_of(body, seed)
+        .unwrap_or_else(|e| panic!("the rim at station z = {z} is one rim, got {e}"))
+}
