@@ -198,13 +198,6 @@ pub enum EscalationSite {
         /// Index of the loop in [`Profile::loops`].
         loop_index: usize,
     },
-    /// While constructing a fillet corner (the `sugar` trim helpers
-    /// behind the PATHS `.fillet(r)` door — the only decisions
-    /// construction sugar takes: the leg-fit and corner-side extent
-    /// gates against the exact-order band, and, on the arc-leg path, the
-    /// lever-arm, corner-turn and offset-carrier gates against the run's
-    /// linear band). The escalation's `source` names which.
-    Fillet,
 }
 
 impl fmt::Display for EscalationSite {
@@ -213,7 +206,6 @@ impl fmt::Display for EscalationSite {
             Self::Segment(s) => write!(f, "at {s}"),
             Self::SegmentPair(a, b) => write!(f, "between {a} and {b}"),
             Self::Loop { loop_index } => write!(f, "on loop {loop_index}"),
-            Self::Fillet => f.write_str("in the fillet constructor's gates"),
         }
     }
 }
@@ -317,30 +309,34 @@ impl fmt::Display for NoCornerReason {
     }
 }
 
-/// The recourse for an in-band corner **turn**, where the constructor
-/// has admitted it cannot classify the margin and therefore cannot say
-/// which of the two degenerate corner classes it is looking at
-/// (smooth-tangent, whose recourse is declaring the tangency, or
-/// reverse-tangent — a cusp, which the kernel refuses; #131 is the
-/// tabled front door).
+/// The recourse for an in-band corner **turn**.
 ///
-/// Deliberately names both doors. The two-tolerance discipline asks for
-/// one sentence per user situation, and the situation here is precisely
-/// "this corner is degenerate and which kind is below the tolerance" —
-/// rendering either single-class sentence would assert the very thing
-/// the escalation declined to decide.
+/// **The margin is LEVERED, and that is what the sentence has to be
+/// true of.** `fillet_corner_turn` classifies `sin φ · arm` — the sine
+/// of the angle between the legs times the shorter leg's own extent
+/// (`Margin::levered`, `sugar::arc_fillet_corner`'s gate (2)) — so the
+/// band admits two different user situations, and a sentence that
+/// named only the first would be false at the second:
 ///
-/// **No caller reads this sentence.** It is written by one Display arm
-/// — [`ProfileError::Escalated`] at [`EscalationSite::Fillet`] — that
-/// nothing constructs, and the gate's own in-band verdict leaves
-/// through `PathError::Escalated`, which has no fillet arm. The same is
-/// true of all six `FILLET_*_RECOURSE` sentences here;
-/// `profile/tests/fillet_recourse_followability.rs` measures each one
-/// at its own door, follows the request it endorses, and pins the
-/// render rule against the day a producer lands. This one's row is
-/// `the_turn_in_band_recourse_is_followed_by_moving_the_geometry`,
-/// which also records that the near-degenerate turn escalates under
-/// `path_corner_turn`, not the `fillet_corner_turn` this arm keys on.
+/// - **the angle is degenerate**: the legs run smoothly into each other
+///   (recourse: declare the tangency) or reverse into a cusp (which the
+///   kernel refuses; #131 is the tabled front door), and which of the
+///   two is itself below the tolerance;
+/// - **the angle is real and the LEG is short**: a leg whose extent is a
+///   few ε carries a 64° turn into the band while the angle is nothing
+///   like degenerate. The lever there is the leg's extent, and the same
+///   corner with a leg long enough to take the setback builds.
+///
+/// Both are reachable through the public door and both are pinned
+/// (`profile/tests/fillet_recourse_followability.rs`'s
+/// `the_turn_in_band_recourse_names_both_of_its_situations`, and the two
+/// reviewer rows it cites), so the sentence names both levers and the
+/// tolerance, which is true at either.
+///
+/// Reaches the caller through [`crate::PathError::Escalated`]'s fillet
+/// arm, which selects it with [`fillet_recourse_for`]; that is where all
+/// six `FILLET_*_RECOURSE` sentences are rendered.
+/// Gates: `fillet_corner_turn`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(
@@ -349,11 +345,14 @@ impl fmt::Display for NoCornerReason {
      `test-support`; interior in every other build"
     )
 )]
-pub const FILLET_TURN_INBAND_RECOURSE: &str = "this corner is degenerate at any precision you could care about, and which kind is below \
-     the tolerance: if the legs run smoothly into each other, keep them and declare the \
-     tangency (the joint's index in the loop's tangent_joints); if they double back, that is a cusp and the \
-     kernel refuses it; otherwise move the geometry so a real corner exists (or lower \
-     the tolerance)";
+pub const FILLET_TURN_INBAND_RECOURSE: &str = "this corner's turn is metered through its lever arm — the sine of the angle between the \
+     legs times the shorter leg's extent — so either the angle is degenerate at any precision \
+     you could care about, and which kind is below the tolerance, or the angle is real and the \
+     leg is too short to state it: if the legs run smoothly into each other, keep them and \
+     declare the tangency (the joint's index in the loop's tangent_joints); if they double back, \
+     that is a cusp and the kernel refuses it; if the angle is real, give the shorter leg a \
+     longer extent, which is the lever a leg of a few tolerances does not have; otherwise move \
+     the geometry so a real corner exists (or lower the tolerance)";
 
 /// The recourse for a corner that admits no tangent circle of the
 /// requested radius — one sentence for the definite refusal and for the
@@ -363,9 +362,11 @@ pub const FILLET_TURN_INBAND_RECOURSE: &str = "this corner is degenerate at any 
 /// whether a corner of this radius exists on the corner side at all
 /// (review MINOR-1).
 ///
-/// Unreachable as rendered prose (see [`FILLET_TURN_INBAND_RECOURSE`]);
-/// followed to a build by the row named
-/// `the_no_corner_recourse_reduces_to_a_radius_that_builds`.
+/// Selected by [`fillet_recourse_for`] and rendered by
+/// [`crate::PathError::Escalated`]'s fillet arm. Followed to a build by
+/// the rows named `the_no_corner_recourse_reduces_to_a_radius_that_builds`
+/// and `the_offset_clearance_recourse_reaches_the_caller_and_reduces`.
+/// Gates: `fillet_offset_line_circle`, `fillet_offset_circles_external`, `fillet_offset_circles_internal`, `fillet_leg_reach`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(
@@ -383,15 +384,30 @@ pub const FILLET_NO_CORNER_RECOURSE: &str =
 /// escalation of `fillet_offset_lever` alike (D4 ¶1's clause (iv): a new
 /// definite arm inherits its in-band sibling's one story).
 ///
-/// It names the lever the user can actually move. ρ = R − σ·τ·r collapses
-/// when the fillet radius approaches the leg's own carrier radius on the
-/// side the corner turns toward, and everything else in the threshold is
-/// the corner's scale, which the author usually cannot trade.
+/// It names the lever the user can actually move, **and the direction
+/// and bound of it**. ρ = R − σ·τ·r collapses when the fillet radius
+/// approaches the leg's own carrier radius on the side the corner turns
+/// toward, so moving the radius away from that carrier radius is the
+/// direction. The threshold is `C·u·R₂·scale²/(d·ε)`
+/// (`sugar::ArcCarrier::offset_circles`) and its `scale²` carries ρ², so
+/// where the offset radius itself dominates the corner's magnitude the
+/// threshold grows faster than the lever does and the window closes:
+/// past it a larger move refuses again, definitely. The sentence says
+/// so rather than promising a direction without a bound.
 ///
-/// Unreachable as rendered prose (see [`FILLET_TURN_INBAND_RECOURSE`]),
-/// and the gate itself has no default-tolerance witness; both are
-/// recorded by the row named
-/// `the_offset_lever_recourse_has_no_default_tolerance_witness`.
+/// Selected by [`fillet_recourse_for`] and rendered by
+/// [`crate::PathError::Escalated`]'s fillet arm. **The gate IS reachable
+/// in band through the public door, at every tolerance the run can be
+/// given** — two independent fixtures reach it, a mixed-winding lens
+/// whose centres sit `d = R + r` apart and a two-lobe scene whose
+/// carrier radius is solved from ε — and the rows are
+/// `the_offset_lever_recourse_reaches_the_caller_at_its_own_site` here
+/// plus the two reviewer rows it cites. At the lens site the sentence's
+/// request builds and validates; at the ε-solved scene the lens is so
+/// shallow that what the door emits has an `arc_span` of its own in the
+/// band, so there the request builds and does not validate — recorded at
+/// the row rather than smoothed over.
+/// Gates: `fillet_offset_lever`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(
@@ -403,8 +419,11 @@ pub const FILLET_NO_CORNER_RECOURSE: &str =
 pub const FILLET_OFFSET_LEVER_RECOURSE: &str = "the tangent point is recovered by projecting the fillet's centre back onto that leg's \
      carrier, and the projection divides by the offset radius rho = R - sigma*tau*r, so a \
      fillet radius this close to the leg's carrier radius cannot place the tangent point \
-     within tolerance: move the fillet radius away from that leg's carrier radius, or bring \
-     the corner's carriers closer together (or lower the tolerance)";
+     within tolerance: move the fillet radius away from that leg's carrier radius — that is \
+     the direction, and the window is bounded, because the threshold this lever is measured \
+     against grows as the corner's squared scale and that scale carries rho itself, so on a \
+     scene rho already dominates a larger move refuses again. Where it does, what is left is \
+     to bring the corner's carriers closer together, or lower the tolerance";
 
 /// The recourse for a fillet radius sitting within the band of a leg's
 /// own carrier radius, where the sign of ρ = R − σ·τ·r — and with it
@@ -420,9 +439,11 @@ pub const FILLET_OFFSET_LEVER_RECOURSE: &str = "the tangent point is recovered b
 /// two situations are the same degenerate one: a fillet radius equal to
 /// the leg's carrier radius.
 ///
-/// Unreachable as rendered prose (see [`FILLET_TURN_INBAND_RECOURSE`]);
-/// the bound it endorses is followed to a build by the row named
+/// Selected by [`fillet_recourse_for`] and rendered by
+/// [`crate::PathError::Escalated`]'s fillet arm; the bound it endorses is
+/// followed to a build by the row named
 /// `the_enclosing_recourse_endorses_a_bound_that_builds`.
+/// Gates: `fillet_enclosing_carrier`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(
@@ -441,9 +462,11 @@ pub const FILLET_ENCLOSING_RECOURSE: &str = "on the side the corner turns toward
 /// The recourse for a radius whose tangent points fall outside their
 /// legs — shared by the definite refusal and the in-band escalation.
 ///
-/// Unreachable as rendered prose (see [`FILLET_TURN_INBAND_RECOURSE`]);
-/// both its clauses are followed by the row named
+/// Selected by [`fillet_recourse_for`] and rendered by
+/// [`crate::PathError::Escalated`]'s fillet arm; both its clauses are
+/// followed by the row named
 /// `the_fit_recourse_is_followed_by_a_smaller_radius_and_by_longer_legs`.
+/// Gates: `fillet_leg_fit`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(
@@ -545,9 +568,11 @@ pub const FILLET_STORED_FORM_INBAND_RECOURSE: &str = "this run cannot say whethe
 
 /// The recourse for a fillet leg with no extent to round against.
 ///
-/// Unreachable as rendered prose (see [`FILLET_TURN_INBAND_RECOURSE`]);
-/// followed to a build by the row named
+/// Selected by [`fillet_recourse_for`] and rendered by
+/// [`crate::PathError::Escalated`]'s fillet arm; followed to a build by
+/// the row named
 /// `the_leg_extent_recourse_is_followed_by_giving_the_leg_an_extent`.
+/// Gates: `fillet_corner_arm`.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(
@@ -558,6 +583,46 @@ pub const FILLET_STORED_FORM_INBAND_RECOURSE: &str = "this run cannot say whethe
 )]
 pub const FILLET_LEG_EXTENT_RECOURSE: &str = "give the leg a real extent (a non-degenerate chord, or an arc carrier with a positive \
      radius and a non-zero sweep) — a leg with no extent has no direction to be tangent to";
+
+/// **The one map from a fillet gate's name to the sentence it owes its
+/// caller.** `Some` exactly on the nine `fillet_*` predicate names the
+/// construction sugar decides; `None` on every other name, including
+/// the stored-form read's own classifications and the junction keys,
+/// which have their own recourses.
+///
+/// Several names share a sentence, and the sharing is the D4 ¶1
+/// addendum at work — one message and one recourse per user SITUATION,
+/// not per predicate. The three offset-carrier clearances and the
+/// corner-side reach gate are all one situation ("no corner of this
+/// radius exists here"), and the two fit gates are the other ("the
+/// radius does not fit the legs it was asked to round").
+///
+/// This function is the only place the mapping is spelled. The door's
+/// `Display` ([`crate::PathError::Escalated`]) reads it; nothing copies
+/// it.
+#[must_use]
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub fn fillet_recourse_for(predicate: &str) -> Option<&'static str> {
+    Some(match predicate {
+        "fillet_corner_turn" => FILLET_TURN_INBAND_RECOURSE,
+        "fillet_corner_arm" => FILLET_LEG_EXTENT_RECOURSE,
+        "fillet_offset_line_circle"
+        | "fillet_offset_circles_external"
+        | "fillet_offset_circles_internal"
+        | "fillet_leg_reach" => FILLET_NO_CORNER_RECOURSE,
+        "fillet_leg_fit" => FILLET_FIT_RECOURSE,
+        "fillet_offset_lever" => FILLET_OFFSET_LEVER_RECOURSE,
+        "fillet_enclosing_carrier" => FILLET_ENCLOSING_RECOURSE,
+        _ => return None,
+    })
+}
 
 /// Typed validation failure — the closed error enum of
 /// [`Profile::validate`] (D4 ¶3: every failure is typed and actionable;
@@ -797,51 +862,6 @@ impl fmt::Display for ProfileError {
                         " — near-tangency: the PATHS .fillet(r) door computes and \
                          declares an exact tangency (declared tangency is verified)",
                     )?;
-                }
-                // The fillet constructor's riders (M5 S2): each in-band
-                // fillet predicate renders the SAME recourse sentence as
-                // its definite refusal — one message and one recourse per
-                // user situation below eps_input, the margin riding the
-                // payload (D4 ¶1 addendum; M5 S6's shape, composed
-                // from these shared carriers).
-                if matches!(site, EscalationSite::Fillet) {
-                    match source.predicate {
-                        Some("fillet_corner_turn") => {
-                            write!(f, " — {FILLET_TURN_INBAND_RECOURSE}")?;
-                        }
-                        Some("fillet_corner_arm") => {
-                            write!(f, " — {FILLET_LEG_EXTENT_RECOURSE}")?;
-                        }
-                        // `fillet_leg_reach` belongs with the offset
-                        // clearances, not with the fit gate (review
-                        // MINOR-1): its situation is whether a corner of
-                        // this radius exists on the corner side, and its
-                        // definite refusal is the path door's
-                        // `CornerReason::NoTangentCircle`, so the trio
-                        // renders one sentence end to end.
-                        Some(
-                            "fillet_offset_line_circle"
-                            | "fillet_offset_circles_external"
-                            | "fillet_offset_circles_internal"
-                            | "fillet_leg_reach",
-                        ) => {
-                            write!(f, " — {FILLET_NO_CORNER_RECOURSE}")?;
-                        }
-                        Some("fillet_leg_fit") => {
-                            write!(f, " — {FILLET_FIT_RECOURSE}")?;
-                        }
-                        // The conditioning gate's in-band arm (M8): the
-                        // same one story as its definite sibling
-                        // `PathError::FilletOffsetLeverTooShort`, per
-                        // D4 ¶1 (iv).
-                        Some("fillet_offset_lever") => {
-                            write!(f, " — {FILLET_OFFSET_LEVER_RECOURSE}")?;
-                        }
-                        Some("fillet_enclosing_carrier") => {
-                            write!(f, " — {FILLET_ENCLOSING_RECOURSE}")?;
-                        }
-                        _ => {}
-                    }
                 }
                 Ok(())
             }
