@@ -1,11 +1,16 @@
 # M10 — exit walk
 
-STATUS: **PROPOSED FOR RATIFICATION** (re-cut 2026-09-12; first cut
-2026-09-03 and made a DRAFT the same day on Ev's ruling that the
-program stays open until certification is parameter-aware — "that's
-the whole point of this machinery"; an `[ev]` PR — a program is
-closed when its exit walk is ratified, and this walk is to be M10's
-done-state of record). Every claim below is answered from main:
+STATUS: **RATIFIED** (Ev, in-chat 2026-09-13, on PR #1700: approve the
+walk and do the exit sweep — the orchestrator that cut it had stopped,
+and a successor session carried out the ratification and the sweep in
+one PR. Re-cut 2026-09-12; first cut 2026-09-03 and made a DRAFT the
+same day on Ev's ruling that the program stays open until certification
+is parameter-aware — "that's the whole point of this machinery"; an
+`[ev]` PR — a program is closed when its exit walk is ratified, and
+this walk is M10's done-state of record. It is deleted with the
+tracker directory in the sweep that follows this ratification and is
+recoverable at the SHA `docs/DOC-LEDGER.md` sweep 13 names). Every
+claim below is answered from main:
 M10-D (#1146), M10-DI (#1154), M10-1 (#1147), M10-P (#1174), M10-2
 (#1213), M10-3 (#1231), M10-4 (#1627), M10-5 (#1638), M10-6 (#1685),
 M10-7 (#1725), M10-8 (#1828), M10-9 (#2048) and M10-10 (#2100) are
