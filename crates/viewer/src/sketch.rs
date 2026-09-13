@@ -30,6 +30,9 @@
 //! layer's questions, asked at replay — by the edit door on commit,
 //! and by [`preview`] before it, which is the same ladder run for the
 //! picture instead of for the verdict.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
     Datum, DatumValue, Dimension, DimensionError, Doc, Evaluation, Expr, LoopProgram, Node,
@@ -473,15 +476,23 @@ fn program_step(step: &PathStep, n: Notation) -> Result<ProgramStep, DimensionEr
 /// It reads the LANDED value rather than resolving the frame's
 /// expressions again: this is a picture, the evaluation already
 /// produced the placement, and a second derivation is a second answer
-/// waiting to disagree with the first. (The kernel's own f64 read is a
-/// different question — see `wire::profile_plane_f64` — and is about
-/// structure selection, not about drawing.)
+/// waiting to disagree with the first. The kernel reads by that same
+/// rule and asks a different question: `wire::profile_plane_f64` takes
+/// the `f64` placement the frame's own evaluation minted and carried
+/// (`NodeValue::placement`), which is for structure selection and not
+/// for drawing. The two differ in WHICH answer they take off the
+/// frame's value, not in whether they take one.
 pub fn frame_placement(
     doc: &Doc<ProfileProgram>,
     evaluation: &Evaluation<f64>,
     frame: RecipeNodeId,
 ) -> Option<SketchPlane<f64>> {
-    if !matches!(doc.node(frame), Some(Node::Datum(Datum::Frame { .. }))) {
+    // Either frame kind: what is drawn is the landed VALUE, which both
+    // produce.
+    if !matches!(
+        doc.node(frame),
+        Some(Node::Datum(Datum::Frame { .. } | Datum::FaceFrame { .. }))
+    ) {
         return None;
     }
     let ValuePayload::Datum(DatumValue::Frame { origin, u, v }) = &evaluation.value(frame)?.payload
@@ -501,7 +512,12 @@ pub fn frames(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
     doc.order()
         .iter()
         .copied()
-        .filter(|id| matches!(doc.node(*id), Some(Node::Datum(Datum::Frame { .. }))))
+        .filter(|id| {
+            matches!(
+                doc.node(*id),
+                Some(Node::Datum(Datum::Frame { .. } | Datum::FaceFrame { .. }))
+            )
+        })
         .collect()
 }
 
@@ -634,6 +650,13 @@ pub enum PreviewError {
     },
 }
 
+// The preview's sentence is about the step the author is looking at,
+// so both halves of the (state, verb) pair are named in the author's
+// vocabulary: the verb through `profile::Verb`'s own `Display` — the
+// same word the row's combo shows, so a verb cannot be picked under
+// one name and refused under another — and the state through
+// [`tip_state_words`]. `profile`'s `ReplayError` renders the same pair
+// as the table's COORDINATE and says there why that sentence differs.
 impl core::fmt::Display for PreviewError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -647,7 +670,7 @@ impl core::fmt::Display for PreviewError {
             } => match verb {
                 Some(verb) => write!(
                     f,
-                    "loop {loop_} step {step}: {verb:?} is not well-typed there — the tip is {}",
+                    "loop {loop_} step {step}: {verb} is not well-typed there — the tip is {}",
                     tip_state_words(*state)
                 ),
                 None => write!(
@@ -999,7 +1022,7 @@ fn arc_points(radius: f64, theta: f64, chord: f64) -> usize {
     ((theta.abs() / step).ceil() as usize).clamp(1, MAX_ARC_POINTS)
 }
 
-/// **How big the tip marks in a profile preview are**/// **How big the tip marks in a profile preview are**, in sketch-plane
+/// **How big the tip marks in a profile preview are**, in sketch-plane
 /// metres: a fraction of the whole preview's extent.
 ///
 /// Relative rather than absolute because a preview has no fixed scale

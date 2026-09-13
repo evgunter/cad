@@ -399,7 +399,7 @@ fn enveloped_residual_sup(
                 let u = ua + (ub - ua) * f64::from(i) / f64::from(k - 1);
                 for j in 0..k {
                     let v = va + (vb - va) * f64::from(j) / f64::from(k - 1);
-                    let p = patch.eval_in_span(win, u, v);
+                    let p = win.eval_in_span(u, v);
                     let r = geom_brep::implicit_residual(candidate, p).abs();
                     // NaN-propagating max: a poison residual must not
                     // be masked by an earlier finite one.

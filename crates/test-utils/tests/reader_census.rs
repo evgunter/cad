@@ -63,8 +63,8 @@ enum Disposition {
     /// The home itself.
     Home,
     /// Reads Rust source through something other than
-    /// [`test_utils::source`] — a hand-rolled reader, or one of
-    /// `topo`'s two crate-private blankers. The payload names the
+    /// [`test_utils::source`] — a hand-rolled reader, or raw text with
+    /// no reader at all. The payload names the
     /// track that owes the conversion, **or `unowned` where the
     /// partition has no track for the file**; an unowned entry is not
     /// an exemption, it is a second finding stacked on the first, and
@@ -92,15 +92,28 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/editor-core/src/eval/mod.rs",
-        disposition: Shared, // node-tag-space census, code view
+        disposition: Shared, // node-kind vocabulary census, code view
+    },
+    Entry {
+        path: "crates/editor-core/src/verbs/mod.rs",
+        disposition: Shared, // the two-Verb naming convention, code view
     },
     Entry {
         path: "crates/editor-core/tests/all.rs",
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/editor-core/tests/docm1_face_frame.rs",
+        disposition: Shared, // the two read-door module docs, prose view
+    },
+    Entry {
         path: "crates/editor-core/tests/docm4_evaluation_identity.rs",
         disposition: Shared, // Evaluation-literal census, code view
+    },
+    Entry {
+        path: "crates/editor-core/tests/docm5_subject.rs",
+        disposition: Shared, // the landing's gather call sites and the no-sharing
+                             // needles, code view
     },
     Entry {
         path: "crates/editor-core/tests/fix_loop_polygon_expr.rs",
@@ -113,6 +126,12 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/editor-core/tests/m10_3_r2_probes_interval.rs",
         disposition: Shared, // unreachable-variant scan, code view
+    },
+    Entry {
+        path: "crates/editor-core/tests/wire_operand_door.rs",
+        disposition: Shared, // operand-door and expected-phrase census over
+                             // eval/wire.rs and verbs/split.rs, code and
+                             // code-and-literals views
     },
     Entry {
         path: "crates/geom-brep/tests/all.rs",
@@ -149,15 +168,36 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/pncad-py/src/tests.rs",
-        disposition: Shared, // the tag table in src/tags.rs: code view to locate, literal to read
+        disposition: Shared, // the tag table in src/tags.rs: code view to locate, literal to
+                             // read; the kind words in src/node_kind.rs: literal view alone
     },
     Entry {
         path: "crates/pncad/tests/all.rs",
-        disposition: Unconverted("Track E, issue #763 — `code_without_comments`, line-based"),
+        disposition: Shared, // the facade boundary guards, code and literal views
     },
     Entry {
         path: "crates/profile/tests/all.rs",
         disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/profile/tests/fillet_recourse_followability.rs",
+        disposition: Shared, // the fillet gate census takes the nine predicate
+                             // names from sugar.rs, code+literal view
+    },
+    Entry {
+        path: "crates/profile/tests/generic_replay.rs",
+        disposition: Shared, // the stored-form exemption held against seg.rs's
+                             // own predicate names, code+literal view
+    },
+    Entry {
+        path: "crates/profile/tests/r2_bool9_review_probes.rs",
+        disposition: Shared, // the value-equal row's ceiling is asserted to
+                             // EXIST in lift_census.rs, code+literal view
+    },
+    Entry {
+        path: "crates/profile/tests/raw_door_census.rs",
+        disposition: Shared, // production-writer census + the raw door's own
+                             // gate, code+literal view
     },
     Entry {
         path: "crates/profile/tests/seal.rs",
@@ -192,6 +232,19 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/sweep/tests/review_blend5_r5_probes.rs",
+        disposition: Shared, // the doc citations and the rows they name,
+                             // prose and code views
+    },
+    Entry {
+        path: "crates/sweep/tests/review_fillet_split_r2_probes.rs",
+        disposition: Shared, // the seam's and open bands' visibility census, code view
+    },
+    Entry {
+        path: "crates/sweep/tests/review_fillet_t_r1_probes.rs",
+        disposition: Shared, // the blend surgery's one `kef` door, code view
+    },
+    Entry {
         path: "crates/test-utils/src/source.rs",
         disposition: Home,
     },
@@ -201,7 +254,10 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/topo/src/boolean/boxes.rs",
-        disposition: Unconverted("Track Q — reads through topo's private `source_walk::CodeOnly`"),
+        disposition: Unconverted(
+            "Track Q — reaches the shared lexer only through `source_walk::CodeOnly`, \
+             topo's handle on it; the direct call is Track Q's to make",
+        ),
     },
     Entry {
         path: "crates/topo/src/chord_join.rs",
@@ -209,19 +265,19 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/topo/src/face_normal.rs",
-        disposition: Unconverted("Track Q — raw text, plus topo's private `fixtures::code_only`"),
+        disposition: Unconverted("Track Q — raw text"),
     },
     Entry {
-        path: "crates/topo/src/fixtures.rs",
-        disposition: Unconverted("unowned — `code_only`, the second topo blanker"),
+        path: "crates/topo/src/live.rs",
+        disposition: Shared, // the `Live` door guard, code view carved by `balanced_end`
     },
     Entry {
         path: "crates/topo/src/review_d18.rs",
-        disposition: Unconverted("Track P — raw text and a `\n    }\n` body carve"),
+        disposition: Shared, // the announcing body, code view carved by `balanced_end`
     },
     Entry {
         path: "crates/topo/src/review_d18_probes.rs",
-        disposition: Unconverted("Track P — line-leading `//` only"),
+        disposition: Shared, // `unreachable!` message texts, literal view
     },
     Entry {
         path: "crates/topo/src/sector_shape.rs",
@@ -229,7 +285,11 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/topo/src/source_walk.rs",
-        disposition: Unconverted("unowned — `CodeOnly`, the other topo blanker"),
+        disposition: Shared, // the mutation-door walk, code view
+    },
+    Entry {
+        path: "crates/topo/src/surgery.rs",
+        disposition: Shared, // `Body`'s surgery-depth field declaration, code view
     },
     Entry {
         path: "crates/topo/tests/all.rs",
@@ -238,6 +298,10 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/topo/tests/quad_lane_is_the_certified_lane.rs",
         disposition: Shared, // the props.rs lane impls, code view: their bodies ARE the pin
+    },
+    Entry {
+        path: "crates/topo/tests/shell_tolerance_chain.rs",
+        disposition: Shared, // the shell offset chain's signatures, code view
     },
     Entry {
         path: "crates/verbs/tests/all.rs",
@@ -254,6 +318,22 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/viewer/tests/all.rs",
         disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/viewer/tests/frame_policy.rs",
+        disposition: Shared, // the README's badge-door and store-read counts, code view
+    },
+    Entry {
+        path: "crates/viewer/tests/gesture_table.rs",
+        disposition: Shared, // the cancel doors' chrome reader, code view
+    },
+    Entry {
+        path: "crates/viewer/tests/landing_gathers.rs",
+        disposition: Shared, // the gather counter's three gated sites, code view
+    },
+    Entry {
+        path: "tools/k-lint/tests/predicate_roster.rs",
+        disposition: Shared, // roster pinned to the kernel's mint: code view to locate, literal view to read
     },
     Entry {
         path: "tools/tess-meter/tests/derivations.rs",
@@ -612,7 +692,7 @@ fn the_unconverted_readers_are_the_ones_this_tree_still_owes() {
 /// The number of sites still reading Rust source through something
 /// other than [`test_utils::source`]. **Hand-synced with the ledger
 /// above, and it goes one way.**
-const UNCONVERTED_TODAY: usize = 9;
+const UNCONVERTED_TODAY: usize = 4;
 
 /// The languages other than Rust that a guard in this tree reads. **A
 /// `NotRust` line must name one of these**, because free text is what

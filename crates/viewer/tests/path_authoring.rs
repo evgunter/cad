@@ -194,6 +194,14 @@ fn an_illegal_walk_refuses_at_the_preview_and_at_the_door() {
         ),
         "{refusal}",
     );
+    // The sentence is about the step the author wrote, so it names the
+    // verb the way they wrote it — `profile::Verb`'s own `Display`,
+    // which is the word the row's combo offers — and not the variant
+    // identifier, which is what the table-COORDINATE sentence renders
+    // (`profile`'s `ReplayError`).
+    let said = refusal.to_string();
+    assert!(said.contains("tangent"), "{said}");
+    assert!(!said.contains("Tangent"), "{said}");
 
     let mut session = session(tol);
     let plane = common::xy_frame_in(&mut session);

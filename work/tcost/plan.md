@@ -3,19 +3,20 @@
 **STATUS: OPEN (2026-09-02).** Opened on Ev's direction (in-chat,
 2026-09-02): speed up the test suite "without too much cost to its
 power to detect defects", with the six levers in the charter below
-named as in scope, Opus subagents implementing, and the review split
-in §Review ruled in the same conversation. Live state is
-`work/tcost/log.md`'s tail, never this file.
+named as in scope and Opus subagents implementing. The review split
+ruled in that same conversation was superseded on 2026-09-12; §Review
+carries what binds today. Live state is `work/tcost/log.md`'s tail,
+never this file.
 
 Branch prefix (the #396 convention): **`tcost/`** — unit branches
 `tcost/<unit>-<slug>`, orchestrator branch `tcost/orchestrator` (the
 harness-designated session branch carries the opening PR and is
 otherwise unused, per the S-CERT/S-QA/S-MESH precedent). Away-channel
-tag `(S-TCOST orchestrator)`. A/B ordinal band **S-TCOST =
-1400–1499**, claimed in `docs/MODEL-AB-LOG.md`'s banding entry in this
-same PR, per that entry's rule; A/B implementer blocks are named
-`TCOST-KB<n>` (unit names occupy `TCOST-<n>`, kernel units
-`TCOST-K<n>`, build-side units `TCOST-B<n>`).
+tag `(S-TCOST orchestrator)`. Unit names occupy `TCOST-<n>`, kernel
+units `TCOST-K<n>`, build-side units `TCOST-B<n>`. The A/B ordinal band
+**S-TCOST = 1400–1499** is claimed and closed — three ordinals drawn
+(1400–1402) and no more, since the protocol is off for this program
+(§Review); `docs/MODEL-AB-LOG.md`'s banding entry is the record.
 
 ## Charter (Ev, in-chat, 2026-09-02 — in substance)
 
@@ -37,7 +38,7 @@ name:
 Ruled with the charter (Ev, in-chat, same day, on the orchestrator's
 three questions): units land as **their own PRs**, merged to main by
 this orchestrator; **build-side levers are in scope too** (what makes
-the test-binary build slow, under the same review split); the
+the test-binary build slow, under whatever §Review binds); the
 per-file gate mechanism (lever 3) is **self-merged** with a full
 writeup as an elaboration of the ratified gating rule, reviewed
 retroactively.
@@ -134,37 +135,48 @@ the row that now owns each claim.
   the timing census's top families.
 - **TCOST-K<n>** — kernel-logic units: where the census shows a test
   is slow because the CODE it exercises is slow in a way the real
-  program pays too, the fix is a kernel change and runs under the
-  A/B protocol (§Review).
+  program pays too, the fix is a kernel change. Touching the kernel no
+  longer decides the review track by itself — §Review does, on the
+  unit's risk of being wrong.
 - **TCOST-B<n>… build-side** — cut from the build profile: test-code
   volume, generic instantiations in test code, dev-dependency graph.
   Any change to CI's build knobs (profile, cache, sharding) is out of
   this program unless a unit's measurement makes the case, and then
   it is its own PR with its own hosted measurement.
 
-## Review (Ev, in-chat, 2026-09-02)
+## Review (Ev, in-chat, 2026-09-12 — supersedes the 2026-09-02 split)
 
-Two tracks, decided per unit by what the diff touches:
+**The A/B protocol is off for this program.** Ev, in-chat 2026-09-12, on
+handing the program to a new orchestrator: *"don't use the AB protocol
+and just do style reviews unless it's a unit with high risk of being
+wrong which deserves a full review"*. So there is **one default and one
+exception**, and the axis that decides between them is no longer what
+the diff touches:
 
-- **Test-only changes** (`crates/*/tests/`, `#[cfg(test)]` modules,
-  `scripts/`, workflow wiring for the gate): Opus implementer; a
-  **light style review by Opus over a BATCH of several units**
-  (`docs/prompts/reviewer-style-lane.md` by path, plus the batch's
-  claims: every retired claim has a named owner, no assertion
-  weakened, labels unambiguous, the before/after is hosted). **Not
-  recorded in `docs/MODEL-AB-LOG.md`** — these are not
-  implementation rows.
-- **Changes to underlying logic** that makes a test (and the real
-  program) slow: a binding spec, then the standard v6 unit — arm
-  drawn per the current block rule in `docs/MODEL-AB-LOG.md` (read on
-  main at each dispatch), ordinal claimed on main at review dispatch
-  from band 1400–1499, cross-model dual review with the union fix
-  pass, record-at-merge with per-phase tokens/wall-clock, blinding
-  discipline verbatim (no `Co-Authored-By` in lane commits; no
-  arm-naming surface a reviewer reads).
+- **Default: a style review** (`docs/prompts/reviewer-style-lane.md` by
+  path), plus the unit's own claims to falsify. No arm is drawn, no
+  ordinal is claimed, nothing is recorded in `docs/MODEL-AB-LOG.md`.
+  Band 1400–1499 stays claimed and closed on its three drawn ordinals
+  (1400–1402, TCOST-K1/K2/K3); that entry carries the ruling.
+- **Exception: a full review**, where the unit carries a **high risk of
+  being WRONG**. Risk of being wrong is not the same as touching the
+  kernel and not the same as being large — it is whether a defect could
+  land and go unseen. What raises it here: a claim of bit-identical
+  output that only a digest can check, a refusal class that must not
+  move, a change to what CI RUNS (a gate or a partition can drop tests
+  and read as a faster run), and a measurement whose conclusion inverts
+  on the figure being right. A test-only diff can qualify on any of
+  those, and a kernel diff can fail to.
+
+The old split — test-only units batched into one light style review,
+kernel-logic units run as the standard v6 dual from band 1400–1499 — is
+retired with this entry. The orchestrator names which track a unit gets
+**in its dispatch**, with the reason, so a reviewer knows what standard
+is being applied to them.
 
 Hosted CI is the only gate. Implementer dispatches point at
-`docs/prompts/implementer-discipline.md` by path.
+`docs/prompts/implementer-discipline.md` by path; reviewer dispatches
+point at `docs/prompts/reviewer-style-lane.md` by path.
 
 ## Process
 

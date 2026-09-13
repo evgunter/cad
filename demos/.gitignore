@@ -1,8 +1,10 @@
 # Demo-local build/venv/output artifacts. Only the tour/wild sources,
-# render scripts, the rendered PNGs under renders*/ and the UV lane's
-# SVG sheet (renders-uv/montage-uv.svg — text, so it diffs) are
-# tracked. The UV lane's per-face cells live under out/uv/ and are not:
-# there are ~1000 of them, and the sheet is the artifact worth keeping.
+# render scripts, the rendered PNGs under renders*/ and the two
+# renderer-free lanes' SVG sheets (renders-uv/montage-uv.svg and
+# renders-mc/plate-density.svg — text, so they diff) are tracked. The
+# UV lane's per-face cells live under out/uv/ and are not: there are
+# ~1000 of them, and the sheet is the artifact worth keeping. The MC
+# lane's own out/mc/ is the same story with one file.
 # (`out/` matches at any depth, so demos/wild/out/ is covered too.)
 tour/target/
 wild/target/
@@ -14,3 +16,18 @@ renders-freecad/*.fail.txt
 # and the per-scene FreeCAD logs; spelled out because they are the
 # only place an in-flight pass exists.
 out/freecad-logs/
+
+# THE GUI LANE IS AN ALLOWLIST, and it is the only lane here that needs
+# to be. A CLEAN pass needs no rule at all: it stages under out/gui,
+# which `out/` above already covers at any depth, and publishes PNG and
+# nothing else. This is about the other passes. It is the one lane that
+# drives a real application — an X server, a window, a screen grabber —
+# so what an interrupted or failed one can leave beside the cells is
+# open-ended, and the re-baseline action runs `git add -A --
+# demos/renders-gui/` on every hosted run: whatever is there is
+# COMMITTED, and then registers as drift on every run after that.
+# Naming the scratch instead would mean naming it before it exists. The
+# cost is the loud half of the trade: a new kind of cell that belongs in
+# the repo is not committed until it is admitted here.
+renders-gui/*
+!renders-gui/*.png

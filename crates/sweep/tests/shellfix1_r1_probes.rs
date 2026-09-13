@@ -18,6 +18,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::census::{genus_of, rings_of};
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
@@ -26,8 +27,6 @@ use topo::{Body, FaceKey, LoopBoundary, ShellError};
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
-
-const FIT_TOL: f64 = 1e-6;
 
 fn polygon(pts: &[(f64, f64)]) -> ProfileLoop<f64> {
     ProfileLoop::new(
@@ -88,25 +87,6 @@ fn plane_chart_at_z(body: &Body<f64>, z: f64) -> Vec<FaceKey> {
         .collect()
 }
 
-/// **One of NINE copies of this helper across five crates (#1123).**
-/// `demos/tour` is a separate workspace and an integration test cannot
-/// import a binary's module, so no existing home covers them all; the
-/// issue carries the list and the shared-test-support fix.
-fn rings_of(body: &Body<f64>) -> usize {
-    body.faces().map(|(_, f)| f.rings.len()).sum()
-}
-
-fn genus_of(body: &Body<f64>) -> i64 {
-    let (v, e, f) = (
-        body.vertices().count() as i64,
-        body.edges().count() as i64,
-        body.faces().count() as i64,
-    );
-    let chi = v - e + f - rings_of(body) as i64;
-    assert!(chi % 2 == 0, "v - e + f - r = {chi} is ODD");
-    body.shells().count() as i64 - chi / 2
-}
-
 /// The whole-body coherence bar: tier 3, meshes at two budgets, and a
 /// closed-form volume when one is given. "Never a validated wrong
 /// body" is exactly this set.
@@ -159,7 +139,7 @@ fn p1_partial_revolve_cap_is_never_a_validated_wrong_body() {
     let chart = plane_chart_at_y(&body, 0.4);
     println!("[p1] wedge cap chart: {} face(s)", chart.len());
     assert!(!chart.is_empty(), "the wedge has a top cap");
-    match topo::shell_open(&body, 0.05, &chart, FIT_TOL, Tol::witness()) {
+    match topo::shell_open(&body, 0.05, &chart, Tol::witness()) {
         Err(e) => println!("[p1] REFUSED typed: {e}"),
         Ok(topo::Shelled { body: cup, .. }) => {
             println!(
@@ -204,7 +184,7 @@ fn p2_counterbore_mouth_two_half_annuli_split_into_two_rims() {
     // merge whose leftover duplicate is anchored at BOTH ends) stays
     // door-unreachable here. Pinned as the typed refusal it is: never
     // a validated wrong body.
-    match topo::shell_open(&body, t, &chart, FIT_TOL, Tol::witness()) {
+    match topo::shell_open(&body, t, &chart, Tol::witness()) {
         Err(ShellError::OpenFacesDisconnect { components, .. }) => {
             println!("[p2] refused typed at the designation gate: {components} components");
             assert_eq!(components, 2);
@@ -289,7 +269,7 @@ fn p3_vase_opened_at_its_bottom_mints_one_annular_rim() {
     ]);
     let chart = plane_chart_at_y(&body, 0.0);
     assert_eq!(chart.len(), 2, "the base is two half-discs");
-    let cup = topo::shell_open(&body, t, &chart, FIT_TOL, Tol::witness())
+    let cup = topo::shell_open(&body, t, &chart, Tol::witness())
         .unwrap_or_else(|e| panic!("[p3] the vase opens at its base, got {e}"))
         .body;
     assert_eq!(cup.shells().count(), 1);
@@ -323,7 +303,7 @@ fn p4_annular_split_holds_on_fresh_radii() {
     let body = revolved_full(&[(ri, 0.0), (ro, 0.0), (ro, h), (ri, h)]);
     let chart = plane_chart_at_y(&body, h);
     assert_eq!(chart.len(), 1, "a closed off-axis meridian closes its seam");
-    let cup = topo::shell_open(&body, t, &chart, FIT_TOL, Tol::witness())
+    let cup = topo::shell_open(&body, t, &chart, Tol::witness())
         .unwrap_or_else(|e| panic!("[p4] the tube opens, got {e}"))
         .body;
     assert_eq!(cup.shells().count(), 1);
@@ -364,7 +344,7 @@ fn p5_two_holed_designation_refuses_typed() {
         2,
         "carrying two holes"
     );
-    match topo::shell_open(&body, t, &top, FIT_TOL, Tol::witness()) {
+    match topo::shell_open(&body, t, &top, Tol::witness()) {
         Err(ShellError::OpenFaceRimNotExpressible { what, .. }) => {
             println!("[p5] refused: {what}");
             assert!(
@@ -403,7 +383,7 @@ fn p6_single_square_hole_splits_on_line_carriers() {
     let body = extruded(vec![outer, hole], h);
     let top = plane_chart_at_z(&body, h);
     assert_eq!(top.len(), 1);
-    match topo::shell_open(&body, t, &top, FIT_TOL, Tol::witness()) {
+    match topo::shell_open(&body, t, &top, Tol::witness()) {
         Err(e) => {
             // A refusal here is a FINDING (an undisclosed narrowing to
             // circular splits) — record it loudly.
@@ -455,7 +435,7 @@ fn p7_thickness_gate_shields_check_9s_band_at_this_door() {
     let top = plane_chart_at_z(&body, 4.0);
     // In the band or below: the thickness gate refuses first.
     for t in [3e-7, 5e-6] {
-        match topo::shell_open(&body, t, &top, FIT_TOL, Tol::witness()) {
+        match topo::shell_open(&body, t, &top, Tol::witness()) {
             Err(ShellError::Thickness { .. }) => println!("[p7] t = {t}: thickness gate"),
             Err(e) => println!("[p7] t = {t}: refused elsewhere: {e}"),
             Ok(topo::Shelled { body: cup, .. }) => {
@@ -467,7 +447,7 @@ fn p7_thickness_gate_shields_check_9s_band_at_this_door() {
     // At the escalation floor: certifiably positive, must build, and
     // the ring at 1e-5 from the outer loop must NOT trip check 9.
     let t = 2e-5;
-    let cup = topo::shell_open(&body, t, &top, FIT_TOL, Tol::witness())
+    let cup = topo::shell_open(&body, t, &top, Tol::witness())
         .unwrap_or_else(|e| panic!("[p7] t = {t} is certifiably positive, got {e}"))
         .body;
     assert_eq!(
@@ -478,22 +458,37 @@ fn p7_thickness_gate_shields_check_9s_band_at_this_door() {
 }
 
 // ---------------------------------------------------------------------
-// P8 — the #1056 hollow-operand gate still fires after the rewrite.
+// P8 — a hollow operand after the rewrite: every boundary thickens
+// (issue #1056's ruling), one thin solid per operand shell, and the
+// operand's own faces and shells survive under their keys.
 // ---------------------------------------------------------------------
 
 #[test]
-fn p8_hollow_operand_still_refuses_typed() {
+fn p8_hollow_operand_thickens_every_boundary() {
     let body = extruded(
         vec![polygon(&[(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.0, 3.0)])],
         4.0,
     );
-    let sealed = topo::shell(&body, 0.25, FIT_TOL, Tol::witness())
+    let sealed = topo::shell(&body, 0.25, Tol::witness())
         .expect("seals")
         .body;
-    let e =
-        topo::shell(&sealed, 0.05, FIT_TOL, Tol::witness()).expect_err("a hollow operand refuses");
+    let shelled = topo::shell(&sealed, 0.05, Tol::witness())
+        .expect("a hollow operand thickens every boundary")
+        .body;
+    assert_coherent("p8 shell of a hollow", &shelled, None);
+    assert_eq!(shelled.solids().count(), 2);
+    assert_eq!(shelled.shells().count(), 4);
+    for (face, data) in sealed.faces() {
+        let got = shelled
+            .get_face(face)
+            .unwrap_or_else(|| panic!("operand face {face:?} survives under its key"));
+        assert_eq!(got.shell, data.shell, "{face:?} keeps its shell");
+    }
+    let props = topo::mass_properties(&shelled, Tol::witness()).expect("props");
+    let want = (2.0 * 3.0 * 4.0 - 1.9 * 2.9 * 3.9) + (1.6 * 2.6 * 3.6 - 1.5 * 2.5 * 3.5);
     assert!(
-        matches!(e, ShellError::OperandAlreadyHollow { shells: 2 }),
-        "got {e}"
+        (props.volume - want).abs() <= 1e-12,
+        "got {}, want {want}",
+        props.volume
     );
 }

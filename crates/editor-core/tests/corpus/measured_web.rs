@@ -29,7 +29,7 @@
 use editor_core::UnitSym;
 use editor_core::{
     AssertionDir, Dimension, DocEdit, DocParam, Expr, LoopProgram, MeasureExpr, MeasurePrimitive,
-    MeasureRef, Node, ParamName, ProfileProgram,
+    Node, ParamName, ProfileProgram, SitedRef,
 };
 use geom_core::Tol;
 
@@ -126,7 +126,7 @@ pub fn document() -> CorpusDoc {
         .expect("the surface-kind atom is exact");
         faces.sort();
         assert!(!faces.is_empty(), "a hole extrude has a cylindrical wall");
-        MeasureRef::new(node, faces.remove(0))
+        SitedRef::new(node, faces.remove(0))
     };
     let radius = || MeasureExpr::value(Expr::param(ParamName::new(HOLE_R), Dimension::Length));
     let web = MeasureExpr::sub(

@@ -55,6 +55,9 @@
 //! So a chain of twenty booleans cutting features out of one solid
 //! draws as one column with its tools one level in, rather than a
 //! staircase twenty levels wide.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use std::collections::BTreeMap;
 
@@ -166,15 +169,18 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Union { .. } => "Union",
         Node::Split { .. } => "Split",
         Node::Pattern { .. } => "Pattern",
+        Node::Part { .. } => "Part",
         Node::PlacedUnion { .. } => "PlacedUnion",
         Node::Datum(Datum::Plane { .. }) => "Datum plane",
         Node::Datum(Datum::Frame { .. }) => "Datum frame",
+        Node::Datum(Datum::FaceFrame { .. }) => "Datum frame (on face)",
         Node::Datum(Datum::AxisInPlane { .. }) => "Datum axis (in sketch)",
         Node::Datum(Datum::Axis { .. }) => "Datum axis",
         Node::Datum(Datum::Point { .. }) => "Datum point",
         Node::Declare { .. } => "Declare",
         Node::Fillet { .. } => "Fillet",
         Node::Chamfer { .. } => "Chamfer",
+        Node::Shell { .. } => "Shell",
         Node::Tube { .. } => "Tube",
         Node::HollowTube { .. } => "HollowTube",
         Node::Loft { .. } => "Loft",
@@ -257,7 +263,7 @@ fn status_of(id: RecipeNodeId, evaluation: Option<&Evaluation<f64>>) -> RowStatu
         None => RowStatus::Unevaluated,
         Some(NodeResult::Ok(_)) => RowStatus::Ok,
         Some(NodeResult::Failed(error)) => {
-            downstream_of_mate(id, error, ev).unwrap_or_else(|| RowStatus::Failed {
+            downstream_of_mate(id, error).unwrap_or_else(|| RowStatus::Failed {
                 message: error.to_string(),
             })
         }
@@ -269,7 +275,7 @@ fn status_of(id: RecipeNodeId, evaluation: Option<&Evaluation<f64>>) -> RowStatu
 /// was.
 ///
 /// Named rather than composed inside a render pass, so the wording has
-/// one home and can be asserted on (`app::indeterminate_wording`'s
+/// one home and can be asserted on ([`crate::app::indeterminate_wording`]'s
 /// rule). Honest for BOTH of [`RowStatus::Poisoned`]'s producers
 /// because both point at a row this same tree badges `Failed`, where
 /// the payload's own words are read once instead of once per row the
@@ -299,7 +305,7 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> RowStatus {
             message: None,
         };
     };
-    downstream_of_mate(through, error, ev).unwrap_or(RowStatus::Poisoned {
+    downstream_of_mate(through, error).unwrap_or(RowStatus::Poisoned {
         through,
         message: Some(downstream_wording(through)),
     })
@@ -321,7 +327,9 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::Indeterminate { mate, .. }
         | MateFault::Under { mate, .. }
         | MateFault::DanglingHead { mate, .. }
+        | MateFault::PlacerRefused { mate, .. }
         | MateFault::SelfMate { mate, .. }
+        | MateFault::PartSelectsAnotherCopy { mate, .. }
         | MateFault::Unleverable { mate, .. } => vec![*mate],
         // Neither names a mate: no band, no decisions, so no mate is
         // more at fault than any other; and a solve read against the
@@ -345,23 +353,18 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
 /// The downstream reading of a node's own `Failed`, when a mate
 /// refusal reached it without naming it.
 ///
-/// `None` — the row keeps its own `Failed` — on every guard below,
-/// of which the last is the load-bearing one: no mate the fault names
-/// is failing in THIS evaluation.
+/// `None` — the row keeps its own `Failed` — when the failure is not
+/// a mate refusal, when the fault names this very node, and when it
+/// names no mate at all.
 ///
-/// That guard keeps [`RowStatus::Poisoned`]'s walkable-in-one-hop
-/// invariant true here rather than assumed. What it catches is a named
-/// mate reading `Ok` — the only other reading available, since mates
-/// are DAG leaves and so are never `Poisoned` — which happens in the
-/// very evaluation carrying the fault, because a mate's memo key does
-/// not carry the solve and a cluster that breaks around an unedited
-/// mate does not re-run it. Pointing at a green row would send the
-/// user nowhere and drop the message they can act on.
-fn downstream_of_mate(
-    id: RecipeNodeId,
-    error: &NodeError,
-    ev: &Evaluation<f64>,
-) -> Option<RowStatus> {
+/// **The blame is read directly**, and [`RowStatus::Poisoned`]'s
+/// walkable-in-one-hop invariant holds because the kernel's answer is
+/// consistent: a mate's content key carries the solve's answer, so a
+/// mate the fault names is `Failed` in the evaluation carrying that
+/// fault — never `Ok` off a stale memo, and never `Poisoned`, since
+/// mates are DAG leaves. A row here that pointed at a green row would
+/// be that inconsistency surfacing, not a case to absorb.
+fn downstream_of_mate(id: RecipeNodeId, error: &NodeError) -> Option<RowStatus> {
     let NodeErrorKind::Mate(fault) = &error.kind else {
         return None;
     };
@@ -369,11 +372,8 @@ fn downstream_of_mate(
     if blamed.contains(&id) {
         return None;
     }
-    // The first named mate the run agrees is failing, in the fault's
-    // own order.
-    let through = blamed
-        .into_iter()
-        .find(|mate| ev.result(*mate).and_then(NodeResult::error).is_some())?;
+    // The first mate the fault names, in the fault's own order.
+    let through = blamed.into_iter().next()?;
     Some(RowStatus::Poisoned {
         through,
         message: Some(downstream_wording(through)),

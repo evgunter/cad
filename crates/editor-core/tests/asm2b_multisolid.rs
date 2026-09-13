@@ -273,11 +273,12 @@ fn row3_doubly_wrapped_names_are_distinct_and_resolve_to_their_own_copy() {
                 kind: vertex.kind,
                 node: *outer,
                 path: vec![RoleSeg::InPart {
-                    of: Box::new(StableName {
+                    of: StableName {
                         kind: inner.kind,
                         node: *inner_node,
                         path: inner.path.clone(),
-                    }),
+                    }
+                    .into(),
                 }],
             };
             let p = editor_core::vertex_position(&ev, *outer, &name).expect("resolves");
@@ -416,7 +417,7 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
 /// gained one and its later nodes renumbered. The VOLUME bits and the
 /// solid count beside it are id-free and did not move, which is the
 /// half of this row that is about geometry.
-const SINGLE_SOLID_NAMES_DIGEST: u64 = 3_440_459_595_981_973_281;
+const SINGLE_SOLID_NAMES_DIGEST: u64 = 12_797_213_003_754_103_475;
 const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_904; // 2.0
 
 #[test]

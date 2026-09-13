@@ -32,16 +32,12 @@ fn interval_lane_skipped_no_certified_coverage_here() {
 
 #[cfg(feature = "interval")]
 mod certified {
-    use geom_core::{Band, Decide, Interval, MarginDiag, Real, Sign, Tol, Vec3};
+    use crate::common::approx::band;
+    use geom_core::{Decide, Interval, MarginDiag, Real, Sign, Vec3};
     use sweep::blend::BlendError;
     use sweep::blend::battery::{chain_g1, face_clearance};
     use sweep::blend::surgery::ring_clearance_for_tests as ring_clearance;
     use topo::{FaceKey, VertexKey};
-
-    fn band() -> Band {
-        let tol = Tol::witness();
-        Band::new(tol.eps(), tol.k() * tol.eps()).unwrap()
-    }
 
     /// The SAME kind of reading — a point bracket — becomes a
     /// different `MarginDiag` variant depending on which twin carries

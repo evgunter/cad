@@ -25,8 +25,7 @@
 //! `FILLET3_RING_RECOURSE` are both front-door reachable, on a
 //! non-circular ring and off the clearance screen's sample lattice
 //! respectively, and `review_fillet_e2_probes.rs` holds both witnesses
-//! (`work/fillet/geometry-recourse-dead-at-line-ring.md`,
-//! `work/fillet/ring-clearance-reaches-front-door-off-lattice.md`).
+//! (issue 1278's dead-recourse class, and PR 1753's).
 //! Wording a fixture's reach as a door's reach is what hid them.
 //!
 //! Three constants are held composed elsewhere and are not duplicated
@@ -64,10 +63,11 @@ use sweep::blend::{
     FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
 };
 use sweep::test_support::{
-    closed_plane_sphere_rim, cube, dome, prism, rim_arcs_at, spool, waisted,
+    ROD_FILLET, cube, dome, one_edge_rim_at, prism, realized, rim_arcs_at, rod_creases,
+    rod_with_flat, spool, waisted,
 };
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::boolean::{BooleanDeclarations, BooleanOp, SweepStrategy, boolean_op_with};
+use topo::boolean::BooleanOp;
 use topo::{Body, EdgeKey, query, validate_geometric};
 
 fn tol() -> Tol {
@@ -84,19 +84,7 @@ fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
 
 /// `a ∖ b`, the one boolean these rows use.
 fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
-    boolean_op_with(
-        BooleanOp::Subtract,
-        a,
-        b,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        tol(),
-    )
-    .expect("the subtraction runs")
-    .body()
-    .expect("the subtraction leaves a body")
-    .body
-    .clone()
+    realized(BooleanOp::Subtract, a, b, tol())
 }
 
 /// A radius-0.3 ball centred at `c`. Same body the review probe dimples
@@ -233,7 +221,7 @@ fn carries(err: &BlendError, recourse: &str, what: &str) {
 #[test]
 fn the_radius_recourse_reduces_to_a_radius_that_builds() {
     let body = dome(1.0, tol());
-    let rim = [closed_plane_sphere_rim(&body, 1.0)];
+    let rim = [one_edge_rim_at(&body, 1.0, 0.0)];
     let err = refusal(&body, &rim, 2.0, "r = 2 on a unit sphere's rim", false);
     assert!(
         matches!(err, BlendError::RadiusHeadroom { .. }),
@@ -298,7 +286,7 @@ fn the_tangential_recourse_names_a_definite_angle_edge_that_builds() {
     carries(&err, FILLET3_TANGENTIAL_RECOURSE, "tangential edge");
     builds(
         &body,
-        &[closed_plane_sphere_rim(&body, 1.0)],
+        &[one_edge_rim_at(&body, 1.0, 0.0)],
         0.1,
         "the definite-angle edge",
     );
@@ -391,37 +379,74 @@ fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
 }
 
 /// **`FILLET3_ASSEMBLY_RECOURSE` — the refusal it rides carries it, and
-/// every door it names is executed.**
+/// every door it names is executed.** Four of them, since the closed
+/// clause gained its "one face carries every arc" half.
 ///
-/// The refusal: the REPAIRED lantern (`merge_coplanar_faces` fuses each
-/// pole cap's two half-disks into one face, as every boolean consumer
-/// must), whose neck rim then has both arcs on ONE plane face, routes to
-/// the ladder and refuses on its ring gate — exactly the exception the
-/// closed clause states ("where each support face carries one arc of
-/// the rim"), so the sentence is true at the site that carries it. The
-/// sentence names three requests that carve, and each is built here:
+/// The refusal: an OPEN chain whose supports are not plane–plane (the
+/// edge between a wedge wall and the sphere zone of a PARTIAL revolve),
+/// which has no built termination — the sentence's own open-chain
+/// clause, so it is true at the site that carries it.
+///
+/// The sentence names four requests that carve, and each is built here:
 /// open plane–plane links ending at fully-requested trivalent corners
-/// (the cube), a closed circular plane–sphere rim (the dome's equator),
-/// and — the "either material side" half — a CONCAVE closed rim (the
-/// waisted revolve's waist, whose band adds material).
+/// (the cube whole), a closed circular plane–sphere rim (the dome's
+/// equator), the "either material side" half via a CONCAVE closed rim
+/// (the waisted revolve's waist, whose band adds material), and the
+/// "one face carries every arc" half via the REPAIRED lantern's neck
+/// (`merge_coplanar_faces` fuses each pole cap's two half-disks into
+/// one face, as every boolean consumer must, leaving both arcs on ONE
+/// plane face with trivalent crossings).
 ///
 /// What is NOT pinned: the open-chain clause says "on either material
 /// side", and the concave side would need an all-plane concave
 /// trivalent corner, which no fixture here builds.
 #[test]
-fn the_assembly_recourse_names_two_doors_that_both_carve() {
-    let mut repaired = sweep::test_support::lantern(tol());
-    repaired
-        .merge_coplanar_faces(tol())
-        .expect("the pole-split caps repair");
-    let neck = rim_arcs_at(&repaired, 1.0, 0.0);
-    assert_eq!(neck.len(), 2, "the repaired neck rim is still two arcs");
-    let err = refusal(&repaired, &neck, 0.05, "the repaired neck rim", false);
+fn the_assembly_recourse_names_four_doors_that_all_carve() {
+    // A PARTIAL revolve of the dome profile: its wedge walls are planes
+    // and its zone wall is a sphere, so the edge between them is an OPEN
+    // chain whose supports are not plane–plane — the termination clause
+    // of the sentence ("open chains are single plane–plane links").
+    let wedge = sweep::test_support::revolved_about_y(
+        sweep::test_support::dome_profile(1.0),
+        sweep::Revolution::Partial(core::f64::consts::FRAC_PI_2),
+        tol(),
+    );
+    // The plane–SPHERE edge specifically: the wedge's bore is a
+    // cylinder, and its edge against a wedge wall is a RULED crease
+    // ending in the two transverse caps — a chain the open door now
+    // carves — so "any plane–curved edge" no longer names a refusal.
+    let open_curved = query::all_edges(&wedge)
+        .into_iter()
+        .find(|&e| {
+            query::edge_adjacent_matches(
+                &wedge,
+                e,
+                query::SurfaceKindSet::just(geom_brep::SurfaceKind::Plane),
+                query::SurfaceKindSet::just(geom_brep::SurfaceKind::Sphere),
+            )
+        })
+        .expect("a wedge has an edge between a flat wall and the sphere zone");
+    let err = refusal(
+        &wedge,
+        &[open_curved],
+        0.05,
+        "an open plane–sphere chain",
+        false,
+    );
+    // The refusal is pinned by its exact detail, not by a substring that
+    // several other `UnsupportedChain` arms also satisfy.
     assert!(
-        matches!(&err, BlendError::UnsupportedChain { detail, .. } if detail.contains("ring")),
-        "one plane face hosting both arcs routes to the ladder, whose ring gate refuses: {err:?}"
+        matches!(&err, BlendError::UnsupportedChain { detail, .. }
+            if *detail == "an open chain's supports are neither plane–plane nor a ruled cylinder \
+                 pair (the trivalent corner patch and the transverse cut-off are the only \
+                 terminations built)"),
+        "an open chain whose supports are neither plane–plane nor ruled has no built \
+         termination: {err:?}"
     );
     carries(&err, FILLET3_ASSEMBLY_RECOURSE, "unsupported chain");
+
+    let d = dome(1.0, tol());
+    let equator = one_edge_rim_at(&d, 1.0, 0.0);
 
     let boxy = cube(1.0, tol());
     builds(
@@ -430,13 +455,7 @@ fn the_assembly_recourse_names_two_doors_that_both_carve() {
         0.1,
         "single plane–plane links at fully-requested corners",
     );
-    let d = dome(1.0, tol());
-    builds(
-        &d,
-        &[closed_plane_sphere_rim(&d, 1.0)],
-        0.1,
-        "a closed circular plane–sphere rim",
-    );
+    builds(&d, &[equator], 0.1, "a closed circular plane–sphere rim");
     let body = waisted(tol());
     let waist = rim_arcs_at(&body, 0.5, 0.5);
     assert_eq!(waist.len(), 2, "the waist rim is seam-split");
@@ -445,6 +464,18 @@ fn the_assembly_recourse_names_two_doors_that_both_carve() {
         &waist,
         0.05,
         "a concave closed rim, on the other material side",
+    );
+    let mut repaired = sweep::test_support::lantern(tol());
+    repaired
+        .merge_coplanar_faces(tol())
+        .expect("the pole-split caps repair");
+    let neck = rim_arcs_at(&repaired, 1.0, 0.0);
+    assert_eq!(neck.len(), 2, "the repaired neck rim is still two arcs");
+    builds(
+        &repaired,
+        &neck,
+        0.05,
+        "a closed rim whose ONE host face carries every arc",
     );
 }
 
@@ -476,18 +507,23 @@ fn the_body_recourse_names_a_single_solid_that_builds() {
     );
 }
 
-/// **`FILLET3_SPINE_KIND_RECOURSE` — "a chain whose support pairs have
-/// analytic blend arms (plane–plane or plane–sphere)".**
+/// **`FILLET3_SPINE_KIND_RECOURSE` — four support kinds, then two
+/// families they may meet in.**
 ///
-/// The spool's outer wall is a torus, whose pairs the arm table does
-/// not carry. The plane–plane chain the sentence names is built here
-/// and carves.
+/// The spool's outer wall is a TORUS, a kind no arm traces, so it
+/// reaches the refusal that carries the sentence.
 ///
-/// The sentence names a NARROWER set than the table now holds — the
-/// refusal's own payload rosters cylinder and cone pairs too — so
-/// following it succeeds while under-describing the door. That
-/// mismatch is a finding for the door inventory, not a dead recourse,
-/// and is left as measured.
+/// **What this row pins is that a representative request of each
+/// family BUILDS**, which is the followability bar: the dome's
+/// plane–sphere rim for the coaxial family, and the rod's
+/// cylinder–plane crease — the ruled door's own pair, terminating in
+/// transverse caps — for the ruled one. It is deliberately not a
+/// completeness check over the arm table: whether the sentence names a
+/// kind and a family for EVERY arm is decided by reading the table,
+/// which
+/// `verbs_arms2_arms::the_spine_kind_recourse_names_a_family_for_every_arm`
+/// does. A clause naming a door that does not open is caught here; a
+/// door the sentence forgets to name is caught there.
 #[test]
 fn the_spine_kind_recourse_names_an_analytic_pair_that_builds() {
     let s = spool(Revolution::Full, tol());
@@ -507,12 +543,24 @@ fn the_spine_kind_recourse_names_an_analytic_pair_that_builds() {
     let err = refusal(&s, &torus_edges[..1], 0.05, "a torus-supported edge", false);
     carries(&err, FILLET3_SPINE_KIND_RECOURSE, "spine unsupported");
 
-    let boxy = cube(1.0, tol());
+    let coaxial = dome(1.0, tol());
     builds(
-        &boxy,
-        &query::all_edges(&boxy),
+        &coaxial,
+        &[one_edge_rim_at(&coaxial, 1.0, 0.0)],
         0.1,
-        "a plane–plane chain (the pair the sentence names)",
+        "a rim between two coaxial surfaces of revolution",
+    );
+
+    // The ruled family's own pair, not a cube edge: a caller reading
+    // "a ruling shared by two supports that are each a plane or a
+    // cylinder" and holding a rod requests its cylinder–plane creases,
+    // which carve between transverse caps.
+    let rod = rod_with_flat(tol());
+    builds(
+        &rod,
+        &rod_creases(&rod),
+        ROD_FILLET,
+        "a straight edge along a ruling shared by a cylinder and a plane",
     );
 }
 
@@ -527,7 +575,7 @@ fn the_chamfer_arm_recourse_names_a_plane_plane_pair_that_chamfers() {
     let d = dome(1.0, tol());
     let err = refusal(
         &d,
-        &[closed_plane_sphere_rim(&d, 1.0)],
+        &[one_edge_rim_at(&d, 1.0, 0.0)],
         0.1,
         "chamfering a plane–sphere rim",
         true,
@@ -663,7 +711,7 @@ fn a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of() {
 #[test]
 fn the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_first() {
     let body = dome(1.0, tol());
-    let rim = [closed_plane_sphere_rim(&body, 1.0)];
+    let rim = [one_edge_rim_at(&body, 1.0, 0.0)];
     let (mut built, mut clearance) = (0, 0);
     for r in [0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7] {
         match fillet_edges(&body, &rim, r, tol()).map_err(|e| e.error) {
@@ -743,7 +791,7 @@ fn the_convexity_recourse_has_no_witness_in_this_suite() {
 /// builds.**
 ///
 /// The refusal is reached at a support face's non-circular RING:
-/// `review_fillet_e2_probes::the_geometry_recourse_reaches_the_front_door_at_a_line_ring_and_cannot_be_followed`
+/// `review_fillet_e2_probes::the_geometry_recourse_reaches_the_front_door_at_a_line_ring`
 /// is the witness — a square pocket through a cube's top face, the
 /// twelve outer edges refused at every radius, because `ring_circle`
 /// reads circle rings only.
@@ -829,8 +877,7 @@ fn the_geometry_recourse_names_a_ring_and_an_order_that_builds() {
 ///
 /// That premise — axis alignment — is the whole content of the row, and
 /// stating it as a property of the door is what made this suite file
-/// the ring recourse unreachable
-/// (`work/fillet/ring-clearance-reaches-front-door-off-lattice.md`).
+/// the ring recourse unreachable (PR 1753).
 #[test]
 fn the_ring_recourse_is_screened_first_on_a_lattice_aligned_dimple() {
     let dimpled = subtract(&cube(1.0, tol()), &ball_at(Vec3::new(0.5, 0.5, 1.1)));

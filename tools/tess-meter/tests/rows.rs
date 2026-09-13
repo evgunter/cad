@@ -13,7 +13,9 @@ use geom_core::{Affine3, Point2, Tol, Vec3};
 use mesh::budget::{self, FaceMeasure, Mode};
 use profile::{ProfileLoop, RawLoop as _};
 use sweep::loft_body;
-use tess_meter::{Bound, Chart, Sizing, best_split_cells, divisions, face_rows};
+use tess_meter::{
+    Bound, Chart, FaceName, FaceNames, Sizing, best_split_cells, divisions, face_rows,
+};
 use test_utils::vacuity::Exposure;
 use topo::Body;
 
@@ -47,7 +49,7 @@ fn every_face_gets_a_row_and_only_nurbs_faces_get_sizing() {
     budget::arm(Mode::Sizing);
     let mesh = mesh::tessellate(&body, 6e-3, tol).expect("tessellates");
     let measures = budget::take();
-    let rows = face_rows(6e-3, &body, &mesh, &measures);
+    let rows = face_rows(6e-3, &body, &mesh, &measures, None);
 
     assert_eq!(
         rows.len(),
@@ -163,7 +165,7 @@ fn an_off_lane_face_gets_an_empty_tailed_row() {
     budget::arm(Mode::Sizing);
     let mesh = mesh::tessellate(&body, 6e-3, tol).expect("tessellates");
     let measures = budget::take();
-    let rows = face_rows(6e-3, &body, &mesh, &measures);
+    let rows = face_rows(6e-3, &body, &mesh, &measures, None);
     assert_eq!(rows.len(), body.faces().count());
 
     let caps: Vec<_> = rows.iter().filter(|r| r.chart == Chart::Plane).collect();
@@ -208,7 +210,7 @@ fn a_face_measured_twice_refuses() {
     let mesh = mesh::tessellate(&body, 6e-3, tol).expect("tessellates");
     let mut measures = budget::take();
     measures.push(measures[0].clone());
-    let _ = face_rows(6e-3, &body, &mesh, &measures);
+    let _ = face_rows(6e-3, &body, &mesh, &measures, None);
 }
 
 /// **A sized-lane face no measurement covers is a REFUSAL, not an
@@ -237,7 +239,7 @@ fn a_sized_lane_face_with_no_measurement_refuses() {
     let tol = Tol::witness();
     let body = loft_prism(tol);
     let mesh = mesh::tessellate(&body, 6e-3, tol).expect("tessellates");
-    let _ = face_rows(6e-3, &body, &mesh, &[]);
+    let _ = face_rows(6e-3, &body, &mesh, &[], None);
 }
 
 /// The chordal tolerance every row in this file is measured at.
@@ -324,7 +326,7 @@ fn the_reported_cells_are_the_split_derivation_at_the_calls_sizing_target() {
     budget::arm(Mode::Sizing);
     let mesh = mesh::tessellate(&body, ROW_DELTA, tol).expect("tessellates");
     let measures = budget::take();
-    let rows = face_rows(ROW_DELTA, &body, &mesh, &measures);
+    let rows = face_rows(ROW_DELTA, &body, &mesh, &measures, None);
     let delta_s = sizing_target(ROW_DELTA);
 
     let mut seen = Exposure::new("δ_s sensitivity");
@@ -392,5 +394,65 @@ fn the_reported_cells_are_the_split_derivation_at_the_calls_sizing_target() {
         1,
         "an equality that holds at every sizing target cannot see a retune of the one \
          `columns()` passes",
+    );
+}
+
+/// **A name table the caller hands over covers every face, or it is
+/// not this body's table** — and the whole point of a name column is
+/// that its token belongs to the face on its row.
+///
+/// `None` is the honest absence and is a row (the tour's scenes that
+/// hold no evaluation write it); a table with a hole in it is the
+/// other thing, because an N4 table names every boundary entity of the
+/// node's output body, so a miss means the caller paired an evaluation
+/// with a body that did not come out of it — and then every name it
+/// DID carry is on the wrong face.
+#[test]
+#[should_panic(expected = "is another body's table")]
+fn a_name_table_that_misses_a_face_refuses() {
+    let tol = Tol::witness();
+    let body = loft_prism(tol);
+    budget::arm(Mode::Sizing);
+    let mesh = mesh::tessellate(&body, ROW_DELTA, tol).expect("tessellates");
+    let measures = budget::take();
+    let mut names: FaceNames = body
+        .faces()
+        .map(|(k, _)| (k, FaceName::new(format!("{k:?}")).expect("one field")))
+        .collect();
+    let dropped = *names.keys().next().expect("the body has faces");
+    names.remove(&dropped);
+    let _ = face_rows(ROW_DELTA, &body, &mesh, &measures, Some(&names));
+}
+
+/// The same table, whole: every row carries the name of ITS face, and
+/// no row carries another's.
+#[test]
+fn a_whole_name_table_names_every_row_and_names_it_once() {
+    let tol = Tol::witness();
+    let body = loft_prism(tol);
+    budget::arm(Mode::Sizing);
+    let mesh = mesh::tessellate(&body, ROW_DELTA, tol).expect("tessellates");
+    let measures = budget::take();
+    let names: FaceNames = body
+        .faces()
+        .map(|(k, _)| (k, FaceName::new(format!("{k:?}")).expect("one field")))
+        .collect();
+    let rows = face_rows(ROW_DELTA, &body, &mesh, &measures, Some(&names));
+    let mut seen = std::collections::HashSet::new();
+    for (row, patch) in rows.iter().zip(&mesh.patches) {
+        let want = names.get(&patch.face).expect("the table is whole");
+        assert_eq!(
+            row.name.as_ref(),
+            Some(want),
+            "row {} wears another face's name",
+            row.face
+        );
+        assert!(seen.insert(row.name.clone()), "a name reached two rows");
+    }
+    // …and the unnamed call is the other outcome, on the same body.
+    let plain = face_rows(ROW_DELTA, &body, &mesh, &measures, None);
+    assert!(
+        plain.iter().all(|r| r.name.is_none()),
+        "a caller with no name source writes no names"
     );
 }

@@ -61,28 +61,26 @@
 //! parse it; through this surface the verdict is the only door that
 //! answers "what kind of thing is this stored name".
 //!
-//! **A failure crosses as one word plus prose, and that is a
-//! measured limit, not an oversight.** `ResolveError`,
-//! `ResolutionFailure` and `ResolveIndeterminate` are DECIDED absent
-//! from the façade — `crates/pncad/tests/all.rs`'s `NOT_CARRIED`,
-//! "Naming interior", which records that the resolution VERDICT left
-//! that family at GUI-2 as exactly three names and that
-//! "`Resolution`'s arms answer it ... through pattern matching and
-//! `Display`, without naming a payload type". So this module matches
-//! the three arms it can name and reads `detail` off the kernel's own
-//! `Display`; there is no `vanished` / `ambiguous` / `node_gone`
-//! discriminant to forward, and inventing one — by parsing prose, or
-//! by re-deriving the ladder here — would be a second implementation
-//! of a kernel decision. The gap is banked as
-//! `work/lib/resolution-failure-arms-are-unmatchable-under-resolution.md`;
-//! it is a façade question, not one a binding unit closes.
+//! **A failure crosses as TWO words plus prose**, and the two are
+//! kept apart on purpose. `status` is the state — one of three,
+//! exhaustible, and the thing whose repairs are opposite ends of the
+//! document. `variant` is the arm underneath it: `vanished` /
+//! `ambiguous` / `node_gone` under a failure, `target_failed` /
+//! `target_poisoned` / `target_not_evaluated` under an
+//! indeterminate. A caller that only branches on the state never has
+//! to learn the second vocabulary; one offering a repair does, because
+//! a tie is refined among candidates and a stranded name is rebound.
+//!
+//! `detail` stays the kernel's own prose beside them, and nothing here
+//! parses it — the discriminant comes from matching the payload types,
+//! which the façade carries.
 
 use pyo3::prelude::*;
 
 use crate::py::doc::{NodeId, name_text};
 use crate::py::select::EntityKind;
 use crate::py::select::entity_kind;
-use crate::tags::resolution_status_tag;
+use crate::tags::{resolution_status_tag, resolve_error_tag, resolve_indeterminate_tag};
 use pncad::select as s;
 
 /// **A stored name's standing in one evaluation** — the question
@@ -98,6 +96,19 @@ pub(crate) struct Resolution {
     /// `"resolved"`, `"failed"` or `"indeterminate"`.
     #[pyo3(get)]
     status: &'static str,
+    /// WHICH failure, under the two states that have arms: the
+    /// kernel's own `vanished` / `ambiguous` / `node_gone` and
+    /// `target_failed` / `target_poisoned` / `target_not_evaluated`.
+    /// `None` when resolved, which is the state with nothing to say
+    /// here.
+    ///
+    /// Kept apart from `status` rather than folded into it: the three
+    /// states are what a caller must handle, and the six arms are what
+    /// a caller offering a REPAIR reads — a tie is refined among
+    /// `offers`, a stranded name is rebound, an indeterminate one is
+    /// left alone until its node evaluates.
+    #[pyo3(get)]
+    variant: Option<&'static str>,
     /// The node whose table carries the name — the FIRST in
     /// evaluation order, which need not be the node that minted it.
     /// `None` unless resolved.
@@ -146,15 +157,15 @@ impl Resolution {
 ///
 /// The match is EXHAUSTIVE with no wildcard: an arm added kernel-side
 /// arrives here as a compile error rather than as a silently
-/// unprojected state. The three arms' payload TYPES are not nameable
-/// through the façade (module docs), which is why the bindings below
-/// read fields and `Display` off values whose types this file never
-/// spells.
+/// unprojected state. So are the two the tag maps run over, one rung
+/// down, which is what makes `variant` a closed vocabulary rather
+/// than a best effort.
 pub(crate) fn resolution(py: Python<'_>, verdict: &s::Resolution) -> PyResult<Resolution> {
     let status = resolution_status_tag(verdict);
     match verdict {
         s::Resolution::Resolved(found) => Ok(Resolution {
             status,
+            variant: None,
             node: Some(NodeId(found.node)),
             body: Some(found.entity.body),
             kind: Some(entity_kind(found.entity.key.kind())),
@@ -163,6 +174,7 @@ pub(crate) fn resolution(py: Python<'_>, verdict: &s::Resolution) -> PyResult<Re
         }),
         s::Resolution::Failed(failure) => Ok(Resolution {
             status,
+            variant: Some(resolve_error_tag(&failure.error)),
             node: None,
             body: None,
             kind: None,
@@ -177,6 +189,7 @@ pub(crate) fn resolution(py: Python<'_>, verdict: &s::Resolution) -> PyResult<Re
         }),
         s::Resolution::Indeterminate(cause) => Ok(Resolution {
             status,
+            variant: Some(resolve_indeterminate_tag(cause)),
             node: None,
             body: None,
             kind: None,

@@ -31,16 +31,12 @@ fn interval_lane_skipped_no_certified_coverage_here() {
 
 #[cfg(feature = "interval")]
 mod certified {
-    use geom_core::{Band, Interval, MarginDiag, Real, Sign, Tol};
+    use crate::common::approx::band;
+    use geom_core::{Interval, MarginDiag, Real, Sign};
     use sweep::blend::BlendError;
     use sweep::blend::battery::spine_regularity;
     use sweep::blend::surgery::ring_clearance_for_tests as ring_clearance;
     use topo::FaceKey;
-
-    fn band() -> Band {
-        let tol = Tol::witness();
-        Band::new(tol.eps(), tol.k() * tol.eps()).unwrap()
-    }
 
     /// A THIN enclosure — a point bracket, which is what an exact
     /// datum is at this scalar — still reports as an ENCLOSURE, with

@@ -1065,8 +1065,8 @@ mod tests {
         assert_eq!(surface_kind(&placeholder), "nurbs placeholder");
 
         let patch = geom::NurbsSurface::new(
-            KnotVector::unit_segment(1),
-            KnotVector::unit_segment(1),
+            KnotVector::unit_segment(core::num::NonZeroUsize::MIN),
+            KnotVector::unit_segment(core::num::NonZeroUsize::MIN),
             vec![
                 Point3::new(0.0, 0.0, 0.0),
                 Point3::new(0.0, 1.0, 0.0),
@@ -1095,8 +1095,8 @@ mod tests {
         );
 
         let rational = geom::NurbsSurface::new(
-            KnotVector::unit_segment(1),
-            KnotVector::unit_segment(1),
+            KnotVector::unit_segment(core::num::NonZeroUsize::MIN),
+            KnotVector::unit_segment(core::num::NonZeroUsize::MIN),
             patch.control().to_vec(),
             vec![1.0, 2.0, 1.0, 1.0],
         )

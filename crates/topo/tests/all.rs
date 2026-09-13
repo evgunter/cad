@@ -126,6 +126,10 @@ mod mate8_witness_schedule;
 mod mate9_crossing_rung;
 #[path = "merge_skip.rs"]
 mod merge_skip;
+#[path = "mesh12_parse_vs_certification.rs"]
+mod mesh12_parse_vs_certification;
+#[path = "mesh12_rim_row_reach.rs"]
+mod mesh12_rim_row_reach;
 #[path = "mesh8_coherence.rs"]
 mod mesh8_coherence;
 #[path = "quad_lane_is_the_certified_lane.rs"]
@@ -142,6 +146,8 @@ mod r1_mate8_decomp_probe;
 mod r1_mate8_probes;
 #[path = "r2_probes.rs"]
 mod r2_probes;
+#[path = "readback_sense_kind.rs"]
+mod readback_sense_kind;
 #[path = "review_m1_pr5.rs"]
 mod review_m1_pr5;
 #[path = "review_m2_pr3.rs"]
@@ -202,8 +208,12 @@ mod rim_dim_review_probes;
 mod seat3_flush_detector;
 #[path = "shell_roles.rs"]
 mod shell_roles;
+#[path = "shell_tolerance_chain.rs"]
+mod shell_tolerance_chain;
 #[path = "solid_separation.rs"]
 mod solid_separation;
+#[path = "trim_3_chart_bound.rs"]
+mod trim_3_chart_bound;
 #[path = "void_door.rs"]
 mod void_door;
 
@@ -231,3 +241,12 @@ mod verbs_cylsph_tangent_residuals;
 mod verbs_f7_collinear_seam;
 #[path = "verbs_f7_r2_probes.rs"]
 mod verbs_f7_r2_probes;
+
+#[path = "rim_of.rs"]
+mod rim_of;
+
+#[path = "rim_of_r1_probes.rs"]
+mod rim_of_r1_probes;
+
+#[path = "r2_rim_probes.rs"]
+mod r2_rim_probes;

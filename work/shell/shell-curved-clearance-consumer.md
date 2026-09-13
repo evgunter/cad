@@ -4,7 +4,7 @@ kind: issue
 title: where a curved wall-clearance gate can call the E7 engine from (the shell verb sits below it)
 status: open
 opened: 2026-09-03
-refs: [shell-curved-wall-clearance-window, M10-5, 1055, 1191]
+refs: [shell-curved-wall-clearance-window, 1638, 1055, 1191]
 ---
 
 ## The valve M10-5 left open
@@ -69,7 +69,7 @@ either option is chosen:
 
 `crates/topo/src/shell.rs` (the gate site, which cites 1055 by name)
 and `crates/editor-core/src/clearance.rs` (the evaluator). Rides with
-`work/verbs/shell-curved-wall-clearance-window.md`, which is the
+`work/shell/shell-curved-wall-clearance-window.md`, which is the
 issue-1055 record and stays parked until this is answered.
 
 ## The question for Ev (SHELL orchestrator, 2026-09-04)

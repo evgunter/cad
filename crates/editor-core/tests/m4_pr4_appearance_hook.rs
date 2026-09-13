@@ -140,7 +140,7 @@ fn gap_fixture() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, StableName) {
             declare: None,
         },
     );
-    let cap = name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::Top));
+    let cap = name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
     let doc = set(doc, cap.clone(), red());
     (doc, a, uni, cap)
 }
@@ -207,7 +207,7 @@ fn node_gone_loss_enriches_with_the_derived_deletion_edit() {
         0.0,
         1.0,
     );
-    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Top));
+    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     let doc = set(doc, cap.clone(), red());
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: ext });
     let ev = run(&doc);
@@ -398,7 +398,7 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
         0.0,
         1.0,
     );
-    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Top));
+    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     let doc2 = set(doc2, cap, red());
     let cancel = CancelToken::new();
     cancel.cancel();
@@ -568,7 +568,7 @@ fn suggestion_map_is_total_over_the_store() {
         0.0,
         1.0,
     );
-    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Top));
+    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     let doc = set(doc, cap.clone(), red());
     let ev = run(&doc);
     let suggestions = appearance_rebind_suggestions(doc.appearance(), &ev);

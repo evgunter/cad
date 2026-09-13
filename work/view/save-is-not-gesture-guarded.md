@@ -2,9 +2,10 @@
 id: save-is-not-gesture-guarded
 kind: issue
 title: Save is not gesture-guarded while Open is, one function apart, and nothing says whether that is a decision
-status: open
+status: closed
 opened: 2026-09-04
-refs: [viewer-session-god-module-split, two-gestures-can-be-in-flight-together]
+refs: [viewer-session-god-module-split, two-gestures-can-be-in-flight-together, save-permitted-row-argues-only-half-of-save]
+closed: 2026-09-04
 ---
 
 
@@ -19,8 +20,8 @@ Found by the whole-file read that opened
 2586, 2599, 2610, 2684, 2713, 2778, 2805, 2821, 2840, 2854, 2875,
 2902, 2925, 2951, 2988.
 
-`open` (`session.rs:2712`) carries the guard. `save`
-(`session.rs:2750`) does not, thirty-eight lines later. So a save
+`open` (`session.rs:1070`) carries the guard. `save`
+(`session.rs:1105`) does not, thirty-five lines later. So a save
 during a slot drag persists the history while a scratch document is on
 screen.
 
@@ -80,3 +81,79 @@ closes as answered rather than fixed.
 ## Home
 
 VIEW's: `crates/viewer/src/session.rs`, and unit 1's ground.
+
+
+## Citations re-pointed, and one CLAIM retired (VIEW orchestrator, 2026-09-04)
+
+`file:line` citations above are corrected in place against the
+post-split tree, so a reader who remembers the old numbers can tell a
+re-point from a claim change.
+
+**One of them was not a re-point.** "What happens" describes 23
+`if self.gesture.is_some()` guards at 23 call sites, and says `open`
+carries one where `save` does not. **That tree is gone.** VIEW-1b
+replaced the guards with one exhaustive table
+(`SessionOp::permitted_during_value_gesture`,
+`crates/viewer/src/session/op.rs:586`) checked once in `perform`; two
+`self.gesture.is_some()` reads survive in `session.rs` and neither is
+a dispatch guard. `open`'s asymmetry is now stated in its doc comment
+(`session.rs:1065-1069`) and its answer is a row in the table, not a
+line in the function.
+
+So the numbers above are right and the mechanism sentence around them
+is not. That is the expensive half of
+`stale-file-citations-after-the-split` — the CLAIM going stale rather
+than the number — found in this program's own file while paying the
+cheap half, which is the second time in two days that this program's
+prose has outrun its tree. Read "What happens" as the 2026-09-04
+finding that opened the item; **"What VIEW-1b established" below is the
+current state**, and what is still open is stated there and only there.
+
+## Adjudicated and CLOSED as answered (VIEW orchestrator, 2026-09-04)
+
+The item said outright that if neither of its two remaining questions
+survived scrutiny it *"closes as answered rather than fixed"*. Both were
+taken against the tree today. Neither survives.
+
+**Q — does the committed-history argument cover every writer? A
+save-as into a new directory rebinds the resolver.** It happens
+(`session.rs`, `save`): on a save-as whose parent differs from the
+current one, `save` rebinds `self.resolver` and calls
+`request_eval()`. So `save` has a second effect and the table's
+argument — *"writes the COMMITTED history and so ignores a preview
+that is not in it"* (`session/op.rs:642-645`) — is about the first
+one only.
+
+**It is nonetheless sound, by a route nobody had written down.**
+`request_eval` submits `self.doc()`, which mid-gesture is the
+**scratch**, i.e. the preview. So a save-as into a new directory
+re-evaluates *the document that is actually on screen* against the
+directory the file now lives in — which is the directory rule doing
+exactly what it says, applied to the shown document rather than to the
+committed one. Nothing writes the preview to disk: `docio::save_path`
+takes `&self.history`. The gesture is untouched — neither
+`self.gesture` nor `self.scratch` is cleared — so the drag continues
+against a re-resolved preview, which is the honest answer and not a
+half-acted state.
+
+**Q — should the tree say anything while a save happens mid-drag?** It
+already does, and it is not a special case. `frame::acts` excludes only
+`SessionOp::Hover` (`frame.rs:104-106`), so `Save` acts, and a clean
+save clears the status line through `batch_status` like every other
+successful op. There is no silence here to fix.
+
+**So `Save`'s row is right, and the asymmetry with `Open` that opened
+this item is not a defect** — VIEW-1b already established why (`Open`
+replaces the document the drag previews against; `Save` does not), and
+the two questions that survived that establishment are now answered
+too.
+
+**One residue, and it gets a file rather than this paragraph.** The
+argument written beside the table row covers `save_path` and not the
+resolver rebind, so a reader checking whether `Save`'s `true` is
+justified reads a reason that does not reach the whole function.
+That is a one-comment fix and it is filed as
+`save-permitted-row-argues-only-half-of-save`, because
+`work/README.md` is explicit that a residue disclosed inside a closing
+item's prose reads as a record of work done and dies with this
+directory.

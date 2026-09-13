@@ -73,3 +73,30 @@ against eps_in 1e-5), and `#389`'s gap mechanism is a
 control-order-reversed wall column — the adoption Line-column
 candidate (the spec's disclosed contingency) is what hands it a
 candidate.
+
+## EXCH-E1 cut and dispatched in parallel (2026-09-04)
+
+While EXCH-H1's fix lane works its coarse-band red, the E tail
+starts: `EXCH-E1` (`exch/d343-typed-payloads`) executes Track U's
+`D343` with its two riders — disjoint files from H1
+(`error.rs`, `step-export/lib.rs`, `writer.rs` against H1's
+`recognize_curve`/`adopt`/`pcurve_cache`), so the lanes cannot
+conflict. E build, single style review, no A/B row (FILLET's E1–E3
+the precedent; dispatched opus, model choice free outside the
+experiment). H1 process note for the record: the first implementer
+was killed by the account's 5h usage limit mid-fix and its resume
+wedged on an orphaned build; a fresh same-arm lane finished the
+takeover with the predecessor's uncommitted diff preserved as
+evidence (`exch-h1-predecessor-wip.patch`) — annotate on the A/B row
+at merge. Unit-2 spec recon runs in the background against main.
+
+## Announced seam from PROPS (2026-09-06): every STEP fixture's `DIRECTION` `u_ref` records re-bless with the sign-hull unit
+
+`docs/PROPS-SIGN-HULL-SPEC.md` (branch `props/sign-hull`) changes
+`Vec3::orthonormal_basis` to cross the normal with a decided world axis
+(Ev's option-1 ruling on #1944). Every stored `u_ref` changes, so every
+`u_ref` `DIRECTION` record in `crates/step-export/tests/fixtures/*.step`
+re-blesses once, each with a locus-invariance receipt (origin and
+normal bit-identical) in the PR; `step-import/src/recognize.rs:228`
+is re-read for an assumption about the old frame, not re-spelled.
+Announced by the spec §Seams. Signed (PROPS orchestrator).

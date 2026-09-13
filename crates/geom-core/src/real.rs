@@ -66,6 +66,102 @@
 use core::fmt::Debug;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
+/// **What the registered-identity door did with one registration**
+/// ([`crate::Sym::register_equal`], ERROR-DESIGN E12's provenance reserve).
+///
+/// Every arm is a REFUSAL or a record, and none of them is silent:
+/// the door answers what it did, so a registrant that wanted to be
+/// loud can be and a pin can read it.
+///
+/// **Six flat arms over two axes, and that is a decision** (a review
+/// flagged the flattening; this is the call). The axes are the WITNESS
+/// — did the value channel find the two values one real: witnessed,
+/// contradicted, or unable to say — and the REGISTRY — recorded,
+/// already there, refused as cyclic, or not consulted. A struct of two
+/// fields would name them separately and would also make
+/// `{Contradicted, Recorded}` spellable, which is a state the door must
+/// never be in; a registrant would then match twice to learn one thing.
+/// The six arms are exactly the reachable combinations, so the
+/// impossible ones cannot be written down, and a call site reads one
+/// answer. The cost, stated: "was this refused?" is a two-arm match
+/// rather than a field read, and every registrant pays it by hand
+/// (`work/sym/sym-registration-flattens-two-axes`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SymRegistration {
+    /// Recorded: from here on the two nodes denote one function of the
+    /// parameters in this session's EARLY normal form, and a decision
+    /// that rests on the record is counted [`crate::SymCounts::registered`].
+    Recorded,
+    /// Already recorded — the same two nodes, or two nodes the registry
+    /// already resolves to one. Idempotent, and cheap: nothing is
+    /// invalidated.
+    Already,
+    /// **REFUSED, typed: the two values are not one real.** The lane
+    /// scalar's own witness said so — certified enclosures that do not
+    /// MEET at [`crate::Interval`], `f64` values apart by more than
+    /// [`WITNESS_REL`] of the larger magnitude — so the constructor did not
+    /// build what it claims. Nothing is recorded, the registry is
+    /// unchanged, and every decision that would have rested on the
+    /// record stays numeric.
+    Contradicted,
+    /// **REFUSED, typed: the registration would close a cycle** — the
+    /// right node's expression already contains the left one, so
+    /// aliasing them would make the normal form's walk non-terminating.
+    /// (`form_in`'s termination argument is structural: a node's id is
+    /// a hash of its children's, so a cycle needs a hash preimage. The
+    /// registry is the one thing that could introduce one by hand, and
+    /// this arm is what keeps that argument true.)
+    Cyclic,
+    /// **The claim was witnessed and nothing was recorded.** Either the
+    /// scalar tracks no expressions (`f64`, `Interval`, `Probe`: there
+    /// is nothing at a bare scalar to record an identity ABOUT), or
+    /// there is one and nowhere to put it — no session installed, the
+    /// tier off at a zero-term budget, or [`crate::SymRules::registered`]
+    /// off.
+    Witnessed,
+    /// **This scalar's value channel cannot witness the claim**, so
+    /// nothing is claimed and nothing is recorded — the default arm of
+    /// [`Real::register_equal`] and what every scalar that tracks no
+    /// expressions answers. A poisoned value answers this too: an
+    /// expression with no value witnesses nothing.
+    Unwitnessed,
+}
+
+/// **The `f64` witness's slack: RELATIVE to the larger magnitude,
+/// floored at one — and DELIBERATELY not the run's ε.**
+///
+/// It gates whether a registration is RECORDED and nothing else:
+/// nothing is certified by it, no margin is classified against it, and
+/// a registration it admits is still an axiom whose soundness rests on
+/// the registrant's proof ([`Real::register_equal`]).
+///
+/// **Why it is not `Tol`'s ε, which a review asked for and this pass
+/// tried.** Two reasons, and the second is measured:
+///
+/// 1. **`Tol::witness()` in library code is an ambient read**, and
+///    `scripts/gates/witness-not-ambient.sh` forbids it for a reason
+///    that outranks this preference: the run's ε is an entry-point
+///    commitment, taken as a `tol: Tol` parameter and passed down. The
+///    door has no tolerance parameter — `Real::register_equal(self,
+///    other)` is called from generic constructor code that has none
+///    either — so making the slack ε-derived means threading `Tol`
+///    through the swept/revolve pipeline or putting one on the
+///    symbolic session. Both are real changes and neither belongs in a
+///    fix pass.
+/// 2. **An ABSOLUTE slack is wrong far from the origin.** ε is a length
+///    in metres; a rim at coordinates of 10⁹ carries `f64` rounding of
+///    ~10⁻⁷, so an absolute ε refuses a true identity and the
+///    registrants' `debug_assert!`s fire. Measured, not reasoned: the
+///    absolute spelling turned `mesh`'s far-placement ball probe and
+///    `sweep`'s tube-wall radii probe red in the `f64` lane.
+///
+/// So the slack stays relative and ε-independent, and the limit is
+/// FILED rather than hidden
+/// (`work/sym/the-witness-slack-is-eps-independent`): at a tight ε row
+/// this threshold is many band-widths loose, which weakens the witness
+/// exactly where the review said it does.
+pub const WITNESS_REL: f64 = 1e-9;
+
 /// The scalar type the geometry evaluation layer is generic over.
 ///
 /// See the [module docs](self) for the design rationale: the deliberately
@@ -141,6 +237,70 @@ pub trait Real:
     /// margins keep going through `Decide`, whose poison arm carries
     /// the diagnostic; this method never replaces one.
     fn is_poison(self) -> bool;
+
+    /// **The registered-identity door's hook** (M10-9; ERROR-DESIGN
+    /// E12's "kept in reserve — discharge by provenance"): a
+    /// constructor generic over `T: Real` states that the two values
+    /// it holds are ONE real, because the construction it just
+    /// performed guarantees it — a swept arc's `‖q − c‖` and its
+    /// radius, say. The scalar decides what, if anything, that is worth
+    /// to it.
+    ///
+    /// **The default records nothing and claims nothing**
+    /// ([`crate::sym::SymRegistration::Unwitnessed`]), which is what
+    /// every scalar that tracks no expressions wants; the value channel
+    /// is untouched at every scalar, including the one that does. Two
+    /// jobs are behind the one method and the split is per scalar:
+    ///
+    /// - a scalar whose value channel can WITNESS the claim answers
+    ///   [`crate::sym::SymRegistration::Witnessed`] or, when the two
+    ///   values are not the same real,
+    ///   [`crate::sym::SymRegistration::Contradicted`] — `f64` and
+    ///   [`crate::Probe`] by a point tolerance
+    ///   ([`WITNESS_REL`]), [`crate::Interval`] by whether
+    ///   the two certified enclosures MEET. Neither records anything:
+    ///   there is no expression at a bare scalar to record it about;
+    /// - [`crate::Sym`] asks its own lane scalar that question first
+    ///   and, on a witness, RECORDS the identity in the installed
+    ///   session, where the symbolic tier's early normal form consults
+    ///   it (`crate::sym`'s module docs).
+    ///
+    /// **WHAT THE WITNESS IS WORTH, exactly** — the contract this
+    /// method's first cut overstated, corrected by two reviews taken by
+    /// execution. A registration is an AXIOM; its soundness rests on
+    /// the REGISTRANT'S PROOF and on nothing here. The witness refuses
+    /// only a lie visible AT THE POINT (`f64`, `Probe`) or one whose
+    /// two certified enclosures are DISJOINT over the box
+    /// (`Interval`) — and "the enclosures meet" is satisfied by every
+    /// coincidence, so `x² ≡ x` over `[0.9, 1.1]` is recorded, and a
+    /// registration false by a geometric amount is recorded as soon as
+    /// the box is wide enough for the two enclosures to overlap. **The
+    /// door cannot tell an identity from a coincidence.** That is why
+    /// the spec requires each registrant to carry a theorem in its doc
+    /// comment (claim 9), and why the witness is loosest exactly where
+    /// the numeric-first shield is weakest — a residual whose two sides
+    /// are dependency-widened straddles zero for the same reason its
+    /// two enclosures meet. The rows that establish this are
+    /// `geom-core/tests/m10_9_witness_limits_interval.rs`.
+    ///
+    /// **WHERE IT MAY BE CALLED.** This method hands every generic
+    /// `T: Real` body a value COMPARISON — the capability
+    /// evaluation-code discipline exists to keep out of that position,
+    /// and one that adds no bound for `no-extra-real-bounds` to see. It
+    /// is therefore allowlisted by SITE:
+    /// `scripts/gates/register-equal-allowlist.sh` names the
+    /// constructors that may call it, and a new call site fails that
+    /// gate until it is ratified there with its theorem. It is not a
+    /// general-purpose equality and must never stand in for one.
+    ///
+    /// `#[must_use]`: a refusal a caller drops is a lie nobody sees.
+    /// The registrant handles the typed answer; a refusal is also
+    /// counted in the session's receipt
+    /// ([`crate::SymCounts::registrations_refused`]).
+    #[must_use]
+    fn register_equal(self, _other: Self) -> SymRegistration {
+        SymRegistration::Unwitnessed
+    }
 
     /// Raises `self` to an integer power by exponentiation by squaring;
     /// `n < 0` computes the reciprocal of `self.powi(|n|)`, and `n == 0`
@@ -422,6 +582,154 @@ pub trait Real:
     }
 }
 
+/// **Is `x` a finite number at this scalar?** — asked through the
+/// value channel every [`Real`] has, with no bracket read and no
+/// threshold invented.
+///
+/// A finite value less itself is exactly zero; `∞ − ∞` and `NaN − NaN`
+/// are the scalar's poison ([`Real::is_poison`]). So the
+/// self-difference IS the question, which is why the equal-operands
+/// lint is allowed here and nowhere near it. An enclosure answers YES
+/// however wide it is (a finite interval's self-difference is a finite
+/// interval around zero, and an enclosure whose upper end overflowed
+/// still contains its truth) — the honest scope: this catches the
+/// point scalars, which is where an infinite length turns into a
+/// definite wrong answer.
+///
+/// **It is a statement about a SCALAR, and it sits at the bottom
+/// because every crate that has directions has to be able to ask it.**
+/// The arithmetic whose failure mode it names is
+/// [`Vec3::normalize`](crate::Vec3::normalize)'s, which is the
+/// neighbour to read it beside: components beyond ~1e154 overflow the
+/// norm to ∞, the ∞ length reads maximally DEFINITE to
+/// [`Decide`](crate::Decide), and the division collapses the direction
+/// to the zero vector. A home in
+/// a geometry crate above this one puts the single spelling out of
+/// reach of the crates below it — `profile` depends on this crate
+/// alone — and a rule with two spellings is two rules.
+///
+/// **Every decide-then-normalize direction door in the workspace asks
+/// this first**, and the claim is the enumeration, not a generality:
+///
+/// - `topo::query::decide_unit_direction` — the one
+///   [`Margin::norm3`](crate::Margin::norm3) spelling, behind the
+///   datum door and the evaluation layer's `unit()`;
+/// - this crate's own [`linalg::frame`](crate::linalg::frame)
+///   `definitely_positive`, the one funnel its four normalizing sites
+///   share;
+/// - `sweep`'s `revolve::axis::AxisFrame::build`;
+/// - `topo`'s `sector_shape`, which asks it of each bounding chord
+///   separately because its arm is their `min` and [`Real::min`]
+///   propagates `NaN` but not infinity, so a `min` hides an
+///   OVERFLOWED chord behind a finite one;
+/// - `profile`'s two 2-D director doors (`unit_from_components`,
+///   `arc_fillet::carrier_tangent`).
+///
+/// Each refuses with its own typed arm, naming the recourse its own
+/// caller can reach: the question is one question, but what a caller
+/// can DO about an overflowed direction differs by door — a spelled
+/// component pair is divided through for free, a derived displacement
+/// is not.
+///
+/// **This roster is hand-kept and nothing enforces it.** It is a
+/// five-door cross-crate claim living in a leaf crate that cannot see
+/// four of them, so it is exactly as current as the last person to
+/// edit it. Treat it as a reading aid, not as a census; the census
+/// that is checked is `docs/K-REPORT.md`'s, and it is about decided
+/// names rather than about this question.
+///
+/// **The declined half of the family: normalize-without-deciding.**
+/// A site that normalizes a vector whose length it never decides at
+/// all is a different shape — there is no sign question in front of
+/// it to put this one before — and closing it is not this predicate's
+/// job as things stand. Known instances, and the count is a floor
+/// rather than a total because nothing sweeps for them:
+/// `editor-core`'s `clearance::chart_frame` (a bracket read of the
+/// normalized OUTPUT) and `geom-brep`'s `enters::enters_material`,
+/// which decides a caller-supplied arm and then normalizes a `dir`
+/// whose own length is never asked about — a `pub` door. Filed as
+/// `work/fix/normalize-without-the-length-question-two-more-sites`.
+pub fn is_finite_length<T: Real>(x: T) -> bool {
+    #[allow(clippy::eq_op)]
+    let residual = x - x;
+    !residual.is_poison()
+}
+
+/// **Did this length UNDERFLOW to zero?** — the other end of
+/// [`is_finite_length`]'s arithmetic, asked through the same value
+/// channel, with no bracket read and no threshold invented.
+///
+/// `len` is a vector's computed norm and `witness` the largest
+/// absolute value among the components it was computed from. **That
+/// pairing is the contract**, and it is what makes the two divisions
+/// below a decision: the norm is never smaller than the largest
+/// component and never larger than `√n` times it, so `len / witness`
+/// and `witness / len` are both bounded ratios — unless `len` came
+/// out exactly zero. Then `witness / len` is `±∞` if the vector has
+/// any nonzero component, and the scalar's poison (`0/0`) if it does
+/// not, which is exactly the two cases this question separates:
+///
+/// - **the length underflowed** — components below ~1e-162 at `f64`
+///   square to zero, so `norm_squared` and the norm are exactly zero
+///   for a vector that has a perfectly good direction. Dividing by
+///   that norm blows the direction up to `±∞`
+///   ([`Vec3::normalize`](crate::Vec3::normalize)'s underflow note);
+/// - **the vector is the zero vector**, which really does name no
+///   direction.
+///
+/// No tolerance separates them and no tolerance recovers the first:
+/// the squared norm is zero at every ε, so a door that decides the
+/// length's sign answers `Zero` either way. The only recourse for an
+/// underflowed direction is the overflow end's — scale the geometry
+/// into the session's range — which is why the two are different
+/// facts about the input and get different refusals.
+///
+/// **Ask it AFTER [`is_finite_length`], never instead of it.** A
+/// poisoned or overflowed length makes both ratios non-finite for
+/// reasons that have nothing to do with underflow, so this question
+/// is only meaningful once the length is known to be a finite number.
+///
+/// **The witness is derived, never invented**:
+/// [`Vec2::norm_witness`](crate::Vec2::norm_witness) and
+/// [`Vec3::norm_witness`](crate::Vec3::norm_witness) are the two
+/// doors that spell it, and a caller that reaches past them is making
+/// a claim this signature cannot check.
+///
+/// **Which doors ask it**, and the claim is the enumeration rather
+/// than a generality — hand-kept, like its sibling's roster, and
+/// exactly as current as the last person to edit it:
+///
+/// - `topo::query::decide_unit_direction`, behind the datum door and
+///   the evaluation layer's `unit()`;
+/// - this crate's own [`linalg::frame`](crate::linalg::frame)
+///   `definitely_positive`, the one funnel its four normalizing sites
+///   share;
+/// - `sweep`'s `revolve::axis::AxisFrame::build`;
+/// - `topo`'s `sector_shape`, per bounding CHORD rather than of the
+///   arm — the arm is the two chords' `min`, which has no witness of
+///   its own and which an underflowed chord always wins, so asking the
+///   arm would refuse without ever naming the cause.
+/// - `profile`'s `path::arc_fillet::carrier_tangent`, of the anchor's
+///   displacement from the arc centre.
+///
+/// `profile`'s OTHER 2-D director door, `unit_from_components`, asks
+/// [`is_finite_length`] and deliberately not this: the pair it refuses
+/// is SPELLED by the caller rather than derived, so its existing
+/// `ZeroDirection` sentence is true of an underflowed pair and its
+/// recourse — scale the components up, which costs nothing because only
+/// their ratio is read — is already the one that works. A new arm there
+/// would separate two inputs that want the same answer.
+///
+/// **It bites at the point scalars, exactly as the finiteness
+/// question does.** At an interval scalar a norm whose lower end
+/// underflowed still ENCLOSES the true length — `[0, 3.1e-162]` for a
+/// `1e-180` component, not `[0, 0]` — so `witness / len` is an
+/// unbounded enclosure rather than poison, the answer is `false`, and
+/// the enclosure lane goes on deciding against the band as before.
+pub fn is_underflowed_length<T: Real>(len: T, witness: T) -> bool {
+    is_finite_length(len / witness) && !is_finite_length(witness / len)
+}
+
 /// Bracket extraction off a scalar — deliberately a separate trait, never
 /// folded into [`Real`], and **not** the certification door.
 ///
@@ -445,6 +753,18 @@ pub trait Real:
 /// `scripts/gates/bounds-allowlist.sh` exists to catch, and the compound
 /// form is what that gate greps for.
 ///
+/// **A NAMED compound bound is the same obligation as the literal
+/// spelling.** A trait that gathers a decision door and a bracket door
+/// under one name — `trait ArcCarrierScalar: Decide + Bounds`,
+/// `trait EvalScalar: Decide + … + Bounds` — hands every `T: ThatName`
+/// exactly the parameter this rule refuses, written so that no
+/// `+ Bounds` appears at the use site. The rule reads through the name:
+/// declaring one IS writing a compound bound and needs a ratification
+/// of its own, at whichever home that ruling has — this ledger, or the
+/// declaring file's own module docs, which is where
+/// `ArcCarrierScalar`'s LIB-G2 LB3 lives — and every use of the name
+/// carries the obligation the name gathers.
+///
 /// **Brackets never decide**, and that is checked before any necessity
 /// argument is weighed. Every topology-determining branch stays a
 /// [`Decide`](crate::predicate::Decide) call site — a trilean, with its
@@ -467,9 +787,12 @@ pub trait Real:
 /// obligation because it DELEGATES to already-listed doors
 /// (`sweep::blend::build`'s `fillet_edges`/`chamfer_edges`; since the
 /// boolean's migration also `topo::boolean_op_with`, itself listed
-/// under the M5 PR 8 BVH candidate-generation allowance), passing
-/// its operands and parameters through unchanged, and therefore
-/// inherits their signatures rather than widening the rule's reach.
+/// under the M5 PR 8 BVH candidate-generation allowance; since the
+/// sweeps' and the split's migrations also `sweep::extrude`,
+/// `sweep::revolve` and `topo::split`, the last of which asks for no
+/// [`Bounds`] at all), passing its operands and parameters through
+/// unchanged, and therefore inherits their signatures rather than
+/// widening the rule's reach.
 ///
 /// **It clears the first thing an entry owes** — that its reads stay
 /// on the prune/report side — vacuously and checkably: the file
@@ -508,6 +831,31 @@ pub trait Real:
 /// The seam did not widen here; it acquired a file. The refusing-lane
 /// question is answered where it was already answered: the PR 12 entry
 /// above, under the delegation rule, for the doors this one calls.
+///
+/// **The file now carries TWO compound headers, and the second is the
+/// answer to the paragraph above rather than an exception to it**
+/// (SEAT-9). `verbs::run`'s shell door delegates to `topo::shell_open`,
+/// which is `Decide + PropsQuadLane + `[`CertifiedBounds`] — already
+/// allowlisted, at `topo/src/shell.rs`, under the 2026-09-02 certified
+/// at-rest entry — so the delegation rule covers it on the same terms
+/// as the first header: the shell arm passes its operand, its thickness
+/// and its designation through unchanged, reads no bracket, and decides
+/// nothing in or out of the trilean. What it does NOT do is ride the
+/// first header, and that is the point of writing it separately: the
+/// paragraph above records that tightening `Decide + Bounds +
+/// PcurveFittedLane` to a certifying bound breaks
+/// `editor_core::eval::wire`'s `Dual`-instantiated blend lowering, so
+/// the two bounds cannot be merged. They are two `impl` blocks, each
+/// asking for exactly what its callee asks for, and the `Dual` caller
+/// stays green by construction — it names `Verb::run`, in the block
+/// that did not move. The WEAKEST-bound test is the callee's own
+/// signature: dropping any of the three does not compile, and there is
+/// no tighter one to show failing because this IS the tighter one, held
+/// away from the lane that cannot take it.
+///
+/// The "no bracket read at all" clearance above still describes the
+/// whole file, and it is still a review-time measurement rather than a
+/// guarded invariant, for the reason that paragraph gives.
 ///
 /// # Semantics
 ///
@@ -647,6 +995,26 @@ pub mod bounds_allowlist {
     //! constructor beside its invariants plus a query driver over the C10
     //! tree, deciding no topology.
     //!
+    //! `topo::census` — the at-rest census's BVH pre-filter — falls under
+    //! this entry on the same terms: `census::Trees` builds the C10 tree's
+    //! item boxes through the certified box constructors (`face_box`,
+    //! `edge_box`, a vertex point widened by the sweep pad) and
+    //! `census::Candidates` drives the tree's queries, deciding nothing —
+    //! the exact sweeps that follow decide. The weakest bound that works
+    //! is `Decide + Bounds`: the tree's boxes are `f64` brackets read
+    //! through `Bounds::lo`/`hi` (`bvh::Aabb::from_points`), and the
+    //! census is decision code on the same scalar. Sole `Bounds` fails —
+    //! the sweeps call the funnel — and sole `Decide` fails — no box can
+    //! be read without the bracket, so there is no tree to query. The
+    //! bound rides the three `validate` doors that reach the census
+    //! (`validate_pseudomanifold`, `validate_pseudomanifold_certificate`,
+    //! and the `via` they share) as a REACHABILITY ride only: those
+    //! doors are validators, not driver code, and carry `T: Bounds`
+    //! because the census cannot be reached except through them — the
+    //! first time this amendment's bound rides onto a non-driver public
+    //! door, said plainly so the next ride is argued rather than
+    //! inherited.
+    //!
     //! `Separation::of`, `Separation::certify` and `image` carry **no**
     //! [`CertifiedEnclosure`](super::CertifiedEnclosure), and their box NON-overlap answer is a GRANT
     //! (`certify`'s own doc: *"`Ok(())` is the certificate"*, and
@@ -673,6 +1041,22 @@ pub mod bounds_allowlist {
     //! dual impl instantiates none of it, and the `quad_lane::*` signatures
     //! carry [`CertifiedEnclosure`](super::CertifiedEnclosure) as a third term, which no `Dual` has.
     //!
+    //! **Re-counted when the certified half grew a LEVEL** (tier 3's +V
+    //! check certifying a sign rather than a precision). Nothing about the
+    //! seam's scope moved: the certified quadrature is entered over a round
+    //! WINDOW now, so where one function took the compound bound there are
+    //! a hook, a windowed walk and the certificate type that walk hands
+    //! back — every one of them the same lane, the same bound and the same
+    //! argument, and the `Decide` half is still what the `props_quad_*`
+    //! funnel needs while the bracket half is still what the C9 ring reads.
+    //! The weakest bound that works is unchanged and so is the evidence
+    //! that the next tighter one fails: drop the bracket term and the
+    //! windowed walk cannot form `RingInterval::from_certified`; drop
+    //! `Decide` and no round can be accepted. The certificate type is
+    //! PUBLIC and carries the bound for the same reason its walk does —
+    //! it resumes that walk, so what it may read and what it may decide
+    //! are the walk's, scalar for scalar.
+    //!
     //! **M5 PR 12 (orchestrator ruling 2026-08-03 applying the PR 11
     //! precedent; retroactive Ev review per the self-merge convention) — the
     //! edge-blend battery**, `sweep::blend::{battery, surgery, build}`: it
@@ -683,6 +1067,12 @@ pub mod bounds_allowlist {
     //! VERBS-CHAMFER both edge-blend front doors sit here: `chamfer_edges` is
     //! written inside these same three files deliberately, so the
     //! ratification covers the shared lane rather than a fourth file.
+    //! Re-scoped 2026-09-05 (FILLET-SPLIT, under Ev's ruling on PR 1916 that
+    //! a move with no design implication needs no ask): the two open bands'
+    //! carves left `surgery.rs` for `blend/open/planar.rs` and
+    //! `blend/open/ruled.rs` unchanged, so this one seam is now spelled
+    //! over five files — the file list is the entry's spelling, the seam is
+    //! the ratified thing, and nothing about its scope was extended.
     //!
     //! It is the one allowlisted seam with **no refusing lane**, and the
     //! written reason it needs none is the delegation rule below: every
@@ -727,13 +1117,48 @@ pub mod bounds_allowlist {
     //! plane × NURBS declare-and-check edge lane and the narrowest possible
     //! extension of M6-2: it DELEGATES to the already-listed `certify_rung3`
     //! door with a **declared** carrier instead of a marched one, inheriting
-    //! that door's signature rather than widening the rule's reach, and
-    //! splits in the ratified shape (`EdgeNurbsLane`, refusing at a dual). It
+    //! that door's signature rather than widening the rule's reach. It
     //! is what keeps `Bounds` off `topo`'s DEFAULT doors: the lane is a
     //! SEPARATE door whose own impl block carries the lane bound
     //! (`Body::set_edge_curve_nurbs_lane`), with `_via(…, f)` parameterising
     //! the shared machinery. Injection moves a bound onto a narrower
     //! signature; it does not remove one.
+    //!
+    //! **2026-09-02, amending the entry above rather than adding a row — the
+    //! lane's split is a BOUND, not a trait.** This lane's static split was
+    //! spelled as a `Decide` subtrait with three forwarding impls and a
+    //! refusing `Dual` one. The trait is deleted: the shared certified body
+    //! is the free function `geom_brep::plane_nurbs_limbs`, at
+    //! `Decide + `[`Bounds`](super::Bounds)` + `[`CertifiedEnclosure`](super::CertifiedEnclosure)
+    //! exactly as before, and the two DOORS that name it carry
+    //! `Decide + `[`CertifiedBounds`](super::CertifiedBounds) —
+    //! `geom_brep::certify`'s `certify_nurbs_lane`/`recertify_nurbs_lane`
+    //! impl block and `topo::euler`'s `set_edge_curve_nurbs_lane` door. Both
+    //! files join this allowlist for that reason and no other; the
+    //! per-file scope consequence is real and is the price of writing the
+    //! obligation where a grep can read it, which is the whole point of
+    //! retiring the trait name. **The compound is forced rather than
+    //! preferred**: [`Decide`](crate::Decide) descends from `SpanLocate` and
+    //! [`Bounds`](super::Bounds) from [`Real`](super::Real), so no sole bound in
+    //! the tree spells "decides AND may certify" — the next tighter spelling
+    //! is not a weaker term but a missing one, and dropping either term stops
+    //! the door compiling. **What changed is the mechanism, not the
+    //! strictness**: a dual reached the trait and got
+    //! `PlaneNurbsRefusal::LaneUnsupported` at run time; now it cannot form
+    //! the call, and the refusal variant is retired with the impl that raised
+    //! it. **What a mixed pass does instead** is take the lane as an
+    //! ARGUMENT: `topo::validate`'s check 2 re-certifies through
+    //! `EdgeCurve::recertify_via`, whose `Option<NurbsLane>` the composed
+    //! certified entry fills and the structural half and the two lane-keeping
+    //! at-rest passes leave empty — the M7-8 class is then not re-derived
+    //! and, being outside those doors' rights, not reported either
+    //! (`EdgeCurve::needs_nurbs_lane` is where that question is asked).
+    //! **The symbolic tier needs no arm of its own and gains none**:
+    //! `Sym<T>` implements [`Bounds`](super::Bounds),
+    //! [`CertifiedEnclosure`](super::CertifiedEnclosure) and
+    //! [`Decide`](crate::Decide) exactly when its base scalar does, so it
+    //! satisfies the free function's signature for every certifying base —
+    //! which is what the deleted trait's symbolic impl said with an impl.
     //!
     //! **M9-2 PR-1 (under the PR 11 precedent; retroactive Ev review) —
     //! `topo::chart_region`**, the chart-region overlap predicate: it decides
@@ -1116,6 +1541,32 @@ impl Real for f64 {
         self.is_nan()
     }
 
+    /// **The witness at a point** ([`Real::register_equal`]): `f64`
+    /// tracks no expression, so there is nothing to record — what it
+    /// can do is say whether the two values ARE the same real, which is
+    /// the half of the door's contract that keeps a constructor from
+    /// stating something it did not build.
+    ///
+    /// The comparison is relative to the larger magnitude, floored at
+    /// one, at [`WITNESS_REL`] (whose docs argue the number and say why
+    /// it is not the run's ε). A poisoned value witnesses nothing: NaN
+    /// is not a real, so no claim about it is checkable.
+    ///
+    /// It catches a lie AT THE POINT and nothing else — a claim true at
+    /// the nominal and false elsewhere passes here as it passes at
+    /// every scalar ([`Real::register_equal`]'s contract).
+    fn register_equal(self, other: Self) -> SymRegistration {
+        if self.is_nan() || other.is_nan() {
+            return SymRegistration::Unwitnessed;
+        }
+        let scale = self.abs().max(other.abs()).max(1.0);
+        if (self - other).abs() <= WITNESS_REL * scale {
+            SymRegistration::Witnessed
+        } else {
+            SymRegistration::Contradicted
+        }
+    }
+
     /// [`powi_by_squaring`] behind a poison guard: `NaN⁰` is NaN, not 1 —
     /// the generic `n == 0` shortcut would launder f64's only poison
     /// representation into an exact 1 (the trait's poison-propagation
@@ -1230,6 +1681,74 @@ impl Real for f64 {
 mod tests {
     use super::*;
     use proptest::prelude::*;
+
+    /// The finiteness predicate answers the VALUE channel at every
+    /// scalar, and the interval arm is the one that would be wrong if
+    /// the self-difference were replaced by a bracket read: an
+    /// enclosure whose upper end overflowed still contains its truth,
+    /// so it is finite-as-a-value and only poison is not.
+    #[test]
+    fn is_finite_length_reads_the_value_channel() {
+        for x in [0.0, 1.0, -1e300, f64::MAX, f64::MIN_POSITIVE] {
+            assert!(is_finite_length(x), "{x} is a finite number");
+        }
+        for x in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            assert!(!is_finite_length(x), "{x} is not a finite number");
+        }
+        // The dual scalar answers about its VALUE: a finite value with
+        // any tangent is finite, a poisoned value is not.
+        assert!(is_finite_length(crate::Dual64::variable(3.0)));
+        assert!(!is_finite_length(crate::Dual64::constant(f64::INFINITY)));
+        // The overflow the predicate exists to catch, executed: the
+        // norm of a 1e200 component is not a number a direction can be
+        // divided by.
+        assert!(!is_finite_length(
+            crate::Vec3::new(1e200_f64, 0.0, 0.0).norm()
+        ));
+    }
+
+    /// The underflow predicate separates the two ways a norm comes
+    /// out zero, and the rows that matter are the ones a length
+    /// comparison alone cannot tell apart: a direction whose squared
+    /// norm fell out of the format, and the zero vector.
+    ///
+    /// The witness is always the largest |component|, which is the
+    /// pairing the predicate's contract names.
+    #[test]
+    fn is_underflowed_length_separates_underflow_from_the_zero_vector() {
+        fn ask(v: crate::Vec3<f64>) -> bool {
+            let w = Real::max(Real::max(v.x.abs(), v.y.abs()), v.z.abs());
+            is_underflowed_length(v.norm(), w)
+        }
+        // Underflowed: a direction, no length. The last two are
+        // SUBNORMAL components, where a predicate that tested
+        // `< f64::MIN_POSITIVE` instead of the value channel would
+        // have to choose a threshold.
+        for v in [
+            crate::Vec3::new(1e-180_f64, 0.0, 0.0),
+            crate::Vec3::new(1e-180_f64, 1e-180, 1e-180),
+            crate::Vec3::new(0.0, -1e-200_f64, 0.0),
+            crate::Vec3::new(1e-320_f64, 0.0, 0.0),
+            crate::Vec3::new(f64::from_bits(1), 0.0, 0.0),
+        ] {
+            assert!(ask(v), "{v:?} has a direction and an underflowed norm");
+            // …and the normalization it would otherwise be handed is
+            // exactly the blown-up one the refusal exists to prevent.
+            assert!(!v.normalize().norm().is_finite());
+        }
+        // Not underflowed: the zero vector really has no direction,
+        // and every length that is merely SMALL is still a length —
+        // 1e-30 squares to 1e-60, which the format holds.
+        for v in [
+            crate::Vec3::new(0.0_f64, 0.0, 0.0),
+            crate::Vec3::new(1e-30_f64, 0.0, 0.0),
+            crate::Vec3::new(1e-160_f64, 1e-170, 0.0),
+            crate::Vec3::new(1.0_f64, 2.0, 3.0),
+            crate::Vec3::new(1e200_f64, 0.0, 0.0),
+        ] {
+            assert!(!ask(v), "{v:?} did not underflow");
+        }
+    }
 
     // f64 has *inherent* sin/min/... (std) that shadow the trait methods on
     // method-call syntax, so tests invoke the trait explicitly (`Real::sin`)

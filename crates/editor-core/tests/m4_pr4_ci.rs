@@ -50,7 +50,7 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 // diagnosed names shifted. The five row SHAPES are unchanged and were
 // re-read before this pin moved (flip-vanish → RecipeEdit/NodeChanged,
 // cascade → Cascade, structural-param, node-gone, ambiguous).
-const DIAGNOSIS_DIGEST: u64 = 0xd79c_36c0_c930_a012;
+const DIAGNOSIS_DIGEST: u64 = 0xf745_47d1_c387_f440;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

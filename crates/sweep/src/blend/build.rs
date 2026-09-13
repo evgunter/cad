@@ -28,9 +28,10 @@
 //! derivation that is about a SOURCE body rather than about the
 //! mutation: a face's boundary cycle, a vertex's face orbit, a
 //! planar face's outward normal, and the per-corner chart derivation
-//! ([`octant_chart`]) the surgery reads at each trivalent corner.
+//! ([`octant_chart`]) the planar open band's corner plan
+//! (`open::planar::corner_plan`) reads at each trivalent corner.
 //! The corner's ORIENTATION bit is not derived here at all: it is
-//! whatever its admitted links carry, which the surgery reads off
+//! whatever its admitted links carry, which the blank phase reads off
 //! `Corner`'s own field.
 //!
 //! # Naming
@@ -199,7 +200,7 @@ fn repeated_edge_gate(edges: &[EdgeKey]) -> Result<(), BlendError> {
 /// The rule is a bracket read — `lo() > 0` — and nothing else: it
 /// screens a size that is not positive AT ALL, and says nothing about
 /// a positive size below the band's zero
-/// (`work/fillet/blend-size-gate-unmetered-under-epsilon.md` owns
+/// (`work/props/blend-size-gate-unmetered-under-epsilon.md` owns
 /// that). Written through `partial_cmp` rather than `<= 0` so the
 /// INCOMPARABLE case is an arm and not an accident: a poisoned size is
 /// not definitely positive either, and it refuses here with the other
@@ -265,7 +266,7 @@ pub(super) fn vertex_faces<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Opti
 /// **That the two tokens are ONE corner's is checked, not assumed** —
 /// no type says it, and [`CornerLinks`] proves only that a link
 /// terminates at its vertex. Today's one call site pairs them by
-/// construction ([`super::surgery`]'s corner plan), so the check
+/// construction ([`super::open::planar`]'s corner plan), so the check
 /// cannot fire; it guards future mis-wiring, and this value is worth
 /// guarding because it fails silently — a wrong `u_ref`/`axis` still
 /// closes and still passes tiers 1 and 2.
@@ -524,7 +525,7 @@ mod tests {
     /// excluding two faces from three still names a face.
     ///
     /// **Today's one production call site pairs them by construction**
-    /// (`surgery`'s corner plan derives both from one vertex), so this
+    /// (`open::planar`'s corner plan derives both from one vertex), so this
     /// is not a live defect being pinned — it is the check that keeps
     /// a future caller from assembling them further apart and getting
     /// no complaint. That direction matters here because the value is

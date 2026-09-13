@@ -10,9 +10,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
+use crate::common::approx::band;
 use geom_brep::SurfaceKind;
 use geom_brep::intersect::route;
-use geom_core::{Band, Point2, Tol, Vec2};
+use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::Body;
@@ -20,12 +21,6 @@ use topo::Body;
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-
-const FIT_TOL: f64 = 1e-6;
 
 /// A meridian loop revolved a full turn about the `y` axis.
 fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
@@ -291,7 +286,7 @@ fn cavity_report(what: &str, body: &Body<f64>, t: f64) {
             .get_face(m.faces[0])
             .and_then(|f| one.get_surface(f.surface))
             .cloned();
-        match topo::replace_faces_offset(&mut one, &m.faces, m.distance, 1e-6, band(), tol) {
+        match topo::replace_faces_offset(&mut one, &m.faces, m.distance, band(), tol) {
             Ok(()) => {
                 let after = one
                     .get_face(m.faces[0])
@@ -325,7 +320,7 @@ fn sf2b_bellied_pot_sealed_and_opened() {
     let tol = Tol::witness();
     let t = 1.0 / 128.0;
     let body = bellied_pot();
-    match topo::shell(&body, t, FIT_TOL, tol) {
+    match topo::shell(&body, t, tol) {
         Ok(topo::Shelled { body: p, .. }) => println!(
             "[pot] SEALED hollows: {} shells, props {:?}",
             p.shells().count(),
@@ -342,7 +337,7 @@ fn sf2b_bellied_pot_sealed_and_opened() {
         .map(|(k, _)| k)
         .collect();
     println!("[pot] mouth chart: {} face(s)", mouth.len());
-    match topo::shell_open(&body, t, &mouth, FIT_TOL, tol) {
+    match topo::shell_open(&body, t, &mouth, tol) {
         Ok(topo::Shelled { body: p, .. }) => println!(
             "[pot] OPENED: {} shells, props {:?}",
             p.shells().count(),
@@ -367,7 +362,7 @@ fn sf2b_head_measurement() {
         ("the drum", drum()),
     ] {
         println!("=== {what} ===");
-        match topo::shell(&body, t, FIT_TOL, tol) {
+        match topo::shell(&body, t, tol) {
             Ok(_) => println!("  HOLLOWS"),
             Err(e) => {
                 println!("  Display: {e}");

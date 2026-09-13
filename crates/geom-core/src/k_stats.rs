@@ -20,50 +20,114 @@
 //! level.
 //!
 //! Cost on the production path: one thread-local `Cell` write per
-//! decision, plus — **whenever a verdict log is installed** — one
-//! `Vec` push per definite outcome (see [`start_verdict_log`] and
-//! `decide`'s own contract below, which has always said this). That
+//! decision, plus — **inside an open [`Bracket`]** — one `Vec` push per
+//! outcome, definite or not (see `decide`'s own contract below). That
 //! caveat is not hypothetical: `editor_core`'s evaluator brackets
-//! **every node evaluation** in a verdict log (NAMING-DESIGN N5, so
-//! the verdict-diff engine can attribute flips), and retains the
-//! result on the node. So production *does* record, on the one path
-//! that asks to.
+//! **every node evaluation** (NAMING-DESIGN N5, so the verdict-diff
+//! engine can attribute flips), and retains the result on the node. So
+//! production *does* record, on the one path that asks to.
 //!
-//! **`VERDICTS` is not part of the `probe` lane and must not be gated
-//! on it.** The K-telemetry sink is `SINK`, which *is* feature-gated;
-//! `VERDICTS` merely shares this funnel because this is where decisions
-//! pass. Its consumer is production editor-core code —
-//! `resolve::vdiff` reads `NodeValue::verdicts` to compare per-predicate
-//! sign populations and emit `NodeVerdictDelta`'s flips and
-//! divergences. Putting it behind `probe` would not reduce recording;
-//! it would hand the verdict-diff engine empty logs in every default
-//! build and silently stop it attributing flips. The name is the
-//! confusing part, not the design.
+//! **The verdict log is a bracket with a stack.** [`Bracket::open`]
+//! pushes an empty frame onto this thread's frame stack; every
+//! decision the funnel classifies while that frame is the innermost
+//! open one lands in it — a definite sign as a [`Verdict`], an
+//! indeterminate outcome as an [`Escalation`] carrying the
+//! [`Indeterminate`] the predicate produced — and [`Bracket::finish`]
+//! pops the frame and hands both channels back as a [`Recorded`]. The
+//! shape is what makes the two hard cases correct by construction
+//! rather than by comment:
 //!
-//! Paths that never install a log (STL export, step-import, the demos)
-//! still pay the `RefCell` borrow check per decision. Gating *that* on
-//! a `Cell<bool>` is a live optimization and is orthogonal to any
-//! feature — it behaves identically in every build configuration.
+//! - **Nesting.** An evaluation that evaluates another document inside
+//!   one of its own ops (an instantiated part) opens an inner bracket
+//!   per inner node, on top of the outer node's frame. Each inner node
+//!   pops its own frame into its own value; the outer frame is never
+//!   overwritten and receives exactly the outer op's own decisions. The
+//!   same holds for a rayon worker that steals another task while
+//!   waiting on a join: the stolen task runs to completion inside the
+//!   join, so its frames sit strictly above the waiting task's and are
+//!   gone before it resumes. **That is now load-bearing rather than
+//!   hypothetical** — `topo::props` joins inside an open bracket — and
+//!   it carries an OBLIGATION on the stealer, not a guarantee from the
+//!   stack: a stolen task that decides WITHOUT opening a frame of its
+//!   own writes into whatever frame the waiting task left innermost,
+//!   which is the waiting task's. Every unit under a join through this
+//!   funnel therefore opens its own frame ([`detached`], or a
+//!   [`Bracket`] inside the mapped closure); the nesting argument above
+//!   is what makes that safe, and nothing enforces it. A frame is popped by the bracket that
+//!   pushed it, and only by it: every frame carries a per-thread unique
+//!   id the guard remembers, and a close pops the frame at the guard's
+//!   depth only when the ids agree. Brackets closed out of order are
+//!   therefore DEFINED, identically in every profile (this workspace
+//!   builds every profile with debug assertions on, so an assertion
+//!   would be a panic everywhere and untestable anywhere): an outer
+//!   bracket closed while an inner one is open takes its own frame and
+//!   discards the inner's with it; the inner's guard then finds another
+//!   frame — or none — at its depth and pops nothing, returning an
+//!   empty [`Recorded`]. What is lost is that guard's own recording;
+//!   nothing above or below moves, and a stale guard never returns a
+//!   later bracket's decisions.
+//! - **Thread confinement, and the two ways to live with it.** A
+//!   [`Bracket`] is `!Send` — it carries a `PhantomData<*const ()>` —
+//!   so the value that closes a frame cannot leave the thread whose
+//!   stack holds it; the compiler refuses the move. The stack itself is
+//!   thread-local, so work sent to a worker records on the worker or
+//!   nowhere, and idiom-1 parallelism has two shapes over that:
+//!   - **the unit opens its own bracket on the worker** (whole nodes on
+//!     one worker each: `editor_core`'s evaluator brackets inside the
+//!     mapped closure and returns the [`Recorded`] on the node), or
+//!   - **the unit records into a frame of its own and the caller's fold
+//!     splices it back** ([`detached`] / [`splice`]): the shape a walk
+//!     needs when the CALLER holds the bracket — `topo::props`' face
+//!     walk, whose bracket is the op's and whose units are faces.
 //!
-//! **OPEN OBLIGATION — this mechanism is on notice; see
-//! `docs/PERF-SCAN-2026-08.md` §2.** Delivering a production value by
-//! thread-local side effect makes the per-node bracket's correctness a
-//! comment rather than a type, and it has already failed once:
-//! [`start_verdict_log`] overwrites an installed log unconditionally,
-//! so a nested evaluation destroys its parent's — measured, an
-//! `InstantiatePart` node records **0** verdicts where the same
-//! geometry evaluated directly records 722. The obligation is that this
-//! is redone so verdicts are a returned value, or that the alternative
-//! is proven unaffordable in writing AND this mechanism is made
-//! structurally safe (RAII bracket, re-entry refused loudly, thread
-//! confinement enforced rather than asserted). **Which of those two is
-//! UNRESOLVED — left open deliberately at merge (Ev, 2026-08-16), not
-//! overlooked.** The nesting bug itself is not blocked on that choice
-//! and can be fixed directly. Do not add call sites that deepen the
-//! dependency on the current shape. [`start_verdict_log`] and
-//! [`take_verdict_log`] also touch the thread-local, and either named
-//! remedy (verdicts as a returned value, or an RAII bracket) has to
-//! change those two and their callers as well.
+//!   A map that does neither loses what its workers decided, and the
+//!   funnel cannot tell: see
+//!   `work/perf/rayon-maps-outside-props-lose-the-funnels-recordings.md`.
+//! - **Every path closes the frame.** [`Bracket`] pops in `Drop`, so a
+//!   bracket that leaves scope without `finish` — an early `return`, a
+//!   `?`, a panic unwinding through the op — still pops its frame, and
+//!   the thread's stack is empty again once the guard is gone. An
+//!   unbracketed state is unrepresentable: there is no call that
+//!   installs a log without producing the guard that removes it.
+//!
+//! **Why a bracket and not a returned value.** The funnel is reached
+//! from every deciding crate — 530 call sites in 82 files across seven
+//! crates, in 261 distinct functions of which 104 are public — from
+//! ops that carry no collector parameter. Returning verdicts as a value
+//! means threading a sink through every one of those signatures and
+//! every signature between an op's door and its predicates, and the
+//! `Decide` trait itself; the measurement and the decline are recorded
+//! in the PR that ratified this shape. The stack and the `!Send` guard
+//! buy the same two guarantees a returned value would — a nested
+//! evaluation cannot clobber its parent, and a frame cannot be read
+//! from another thread — as types, at the cost of one thread-local.
+//!
+//! **The frame stack is not part of the `probe` lane and must not be
+//! gated on it.** The K-telemetry sink is `SINK`, which *is*
+//! feature-gated; the frame stack merely shares this funnel because
+//! this is where decisions pass. Its consumer is production editor-core
+//! code — `resolve::vdiff` reads `NodeValue::verdicts` to compare
+//! per-predicate sign populations and emit `NodeVerdictDelta`'s flips
+//! and divergences, and `drive::classify` reads a node's escalations
+//! to tell a terminal sliver from a refinable indeterminacy without
+//! matching on the op's error enum. Putting it behind `probe` would not
+//! reduce recording; it would hand both consumers empty logs in every
+//! default build and silently stop them attributing anything.
+//!
+//! Paths that never open a bracket (STL export, step-import, the demos)
+//! still pay the `RefCell` borrow and an empty-stack check per
+//! decision.
+//!
+//! **What the escalation channel carries is the FUNNEL's escalations**:
+//! an [`Indeterminate`] that `classify` itself returned. A predicate
+//! that asks the funnel, receives a DEFINITE sign, and then mints an
+//! `Indeterminate` of its own (a collapsed lever arm decided `Zero`,
+//! say) hands its caller an escalation the log does not hold — the
+//! frame records the definite verdict and nothing else. Such an
+//! escalation reaches a consumer only through the op's error enum, so
+//! a consumer that reads the log must keep reading those arms too. The
+//! sites, and the unit that closes the gap, are
+//! `work/props/escalation-channel-misses-op-minted-indeterminates.md`.
 //!
 //! Recording happens through the [`Probe`] scalar: a transparent `f64`
 //! wrapper whose `Decide` implementation logs `(predicate, margin,
@@ -99,6 +163,8 @@
 //! monomorphization measurement that gate was cut on.
 
 use core::cell::{Cell, RefCell};
+use core::marker::PhantomData;
+use core::mem::ManuallyDrop;
 
 use crate::predicate::{Band, Decide, Indeterminate, Margin, Sign};
 // Only `Probe`'s impls name these.
@@ -120,10 +186,22 @@ thread_local! {
     /// The installed sample sink, if any.
     #[cfg(feature = "probe")]
     static SINK: RefCell<Option<Vec<MarginSample>>> = const { RefCell::new(None) };
-    /// The installed verdict-log sink, if any (NAMING-DESIGN N5:
+    /// The frame stack: one [`Frame`] per open [`Bracket`] on this
+    /// thread, innermost last (module docs; NAMING-DESIGN N5:
     /// evaluations record their verdict vectors so the verdict-diff
-    /// engine can attribute flips).
-    static VERDICTS: RefCell<Option<Vec<Verdict>>> = const { RefCell::new(None) };
+    /// engine can attribute flips). Empty whenever no bracket is open.
+    static FRAMES: RefCell<Vec<Frame>> = const { RefCell::new(Vec::new()) };
+    /// The id the next opened frame takes: unique per thread for the
+    /// life of the thread, so a guard can tell its own frame from any
+    /// frame that later occupies its depth.
+    static NEXT_FRAME_ID: Cell<u64> = const { Cell::new(0) };
+}
+
+/// One open bracket's frame: what it has recorded, and the id its guard
+/// holds.
+struct Frame {
+    id: u64,
+    recorded: Recorded,
 }
 
 /// Classifies `margin` against `band`, noting `name` for the recorder
@@ -133,24 +211,149 @@ thread_local! {
 /// This is the only place either recording channel is written, which
 /// is why the doors delegate rather than each carrying a copy: the
 /// `CURRENT` write is the recorder's name channel (read by `Probe`),
-/// and the verdict push is the evaluation-artifact channel (the log
-/// itself is installed and removed by [`start_verdict_log`] /
-/// [`take_verdict_log`], and read by the verdict-diff engine). A door
-/// cannot acquire one and miss the other.
+/// and the frame push is the evaluation-artifact channel (the frame is
+/// opened and closed by a [`Bracket`], and read by the verdict-diff
+/// engine and the subdivision driver). A door cannot acquire one and
+/// miss the other, and an outcome cannot reach one channel of the
+/// frame and miss the other: a definite sign is a [`Verdict`], an
+/// indeterminate one an [`Escalation`], in one decision order.
 fn classify<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign, Indeterminate> {
-    CURRENT.with(|c| c.set(name));
+    classify_in(name, margin, band, true)
+}
+
+/// **THE STAGED-CEILING DIAL** (`identity-pass-testing`, a test-only
+/// cargo feature — see this crate's manifest for why it is a feature
+/// and not a flag): the comma-separated predicate names whose
+/// INDETERMINATE answers pass as `Zero`.
+///
+/// It exists for one measurement and is worth stating plainly because
+/// it is the one thing this funnel must never do in a run that decides
+/// anything: it lets a document be driven AS IF a named identity
+/// residual were discharged, so "what would bound this document next"
+/// is a measurement instead of a guess. It walked the two-hole plate
+/// from `7.812e2 · ε` to `2.630e8 · ε` — four identity residuals, of
+/// which the first three were worth 2× between them and the fourth
+/// 1.68·10⁵×, and then a REAL assertion margin
+/// (`work/sym/plate-ceiling-is-now-the-scaffold-pushforward`); with the
+/// form-level algebra (rule D with A1's `atan2` fold for the chart's
+/// phase) all four are discharged and the shipped tier sits AT the
+/// walk's end — 0.2368, 0.2630, 0.2631 of the real study at the three
+/// ε rows with nothing passed, and passing any residual moves it by
+/// nothing (`m10_9_r2_probes_interval::r2_evidence_plate_ceiling_with_identities_passed`).
+/// The dial stays: it is how the NEXT document's walk is measured.
+///
+/// Process-global and empty by default. An evidence row sets it, reads
+/// its ceiling, and clears it; it is never set in a gating run, and
+/// with the feature off none of this compiles.
+#[cfg(feature = "identity-pass-testing")]
+static IDENTITY_PASS: std::sync::RwLock<String> = std::sync::RwLock::new(String::new());
+
+/// Sets [`IDENTITY_PASS`] (empty clears it). Test-only.
+///
+/// `doc(hidden)` for the reason `topo`'s failure-injection doors carry
+/// it: the doc job runs `--all-features`, so a rendered page here would
+/// advertise, in this crate's public API, the one call that makes the
+/// funnel answer `Zero` where it could not decide. It exists for the
+/// evidence rows named in [`IDENTITY_PASS`]'s docs and for nothing else.
+#[doc(hidden)]
+#[cfg(feature = "identity-pass-testing")]
+pub fn identity_pass_set(list: &str) {
+    // A poisoned lock is recovered rather than re-panicked: this is
+    // an evidence dial, and a test that panicked while holding it has
+    // already reported its own failure.
+    *IDENTITY_PASS
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = list.to_owned();
+}
+
+/// Whether the pass list names this predicate. Test-only.
+#[cfg(feature = "identity-pass-testing")]
+fn identity_pass(name: &str) -> bool {
+    let list = IDENTITY_PASS
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    !list.is_empty() && list.split(',').any(|n| n.trim() == name)
+}
+
+/// The one body behind [`classify`] and [`check_unlogged`]: the scoped
+/// name, the classification, and — for a certification predicate — the
+/// verdict-log push. `logged` is the only difference between the two
+/// doors, and it is an argument here rather than a second copy of the
+/// body so the "exactly one shipped `sign_within`" claim stays true by
+/// construction.
+fn classify_in<T: Decide>(
+    name: &'static str,
+    margin: T,
+    band: Band,
+    logged: bool,
+) -> Result<Sign, Indeterminate> {
+    // The name is SCOPED to this classification: it is restored on the
+    // way out, so a decision taken outside any named door (a bare
+    // `sign_within`, a comparison inside a builder) is recorded under
+    // the unnamed default and never charged to whichever predicate
+    // happened to classify last. M10-8's shape report was charging each
+    // replay's first decisions to the previous replay's last predicate
+    // until this was scoped (`assert_bound` read 9 decisions for 1).
+    let prev = CURRENT.with(|c| c.replace(name));
     let outcome = margin.sign_within(band).map_err(|e| e.with_predicate(name));
-    if let Ok(sign) = outcome {
-        VERDICTS.with(|v| {
-            if let Some(log) = v.borrow_mut().as_mut() {
-                log.push(Verdict {
-                    predicate: name,
-                    sign,
-                });
+    CURRENT.with(|c| c.set(prev));
+    // THE STAGED-CEILING DIAL, and it exists only under the test-only
+    // `identity-pass-testing` feature ([`IDENTITY_PASS`]): with the
+    // feature off there is no branch here at all, which is the whole
+    // reason it is a cargo feature rather than a runtime flag.
+    #[cfg(feature = "identity-pass-testing")]
+    let outcome = match outcome {
+        Err(_) if identity_pass(name) => Ok(Sign::Zero),
+        o => o,
+    };
+    // Both channels of the innermost open bracket — a definite sign as
+    // a verdict, an indeterminate outcome as an escalation — for a
+    // certification predicate; an evaluator check (`logged == false`)
+    // records neither, for the reason at `check_unlogged`.
+    if logged {
+        FRAMES.with(|f| {
+            if let Some(top) = f.borrow_mut().last_mut() {
+                match &outcome {
+                    Ok(sign) => top.recorded.verdicts.push(Verdict {
+                        predicate: name,
+                        sign: *sign,
+                    }),
+                    Err(source) => top
+                        .recorded
+                        .escalations
+                        .push(Escalation { source: *source }),
+                }
             }
         });
     }
     outcome
+}
+
+/// **An EVALUATOR check, named for the recorder and NOT logged as a
+/// verdict** — the door for a ruled decision that is not a
+/// certification predicate: the evaluator's finiteness check on every
+/// expression it produces (`editor_core::expr::refuse_non_finite`,
+/// ledger row F18). It classifies through the one body, so its K
+/// samples carry its name (they were charged to whichever predicate
+/// classified last until M10-8 scoped the name — 1,054 corpus rows at
+/// ε = 1e-6), and it stays OUT of the verdict log on purpose: the log is
+/// the verdict-diff engine's — the witness's certification verdicts
+/// against the leaf's, row for row — and the finiteness check fires
+/// once per expression evaluation, a count the two lanes do not share
+/// (routed through [`classify`], every M10-6 min-clearance box refused
+/// on a verdict-vector mismatch, the certification key moved, and no
+/// geometry had changed). Its refusal already reaches the consumer as
+/// `EvalError::NonFiniteResult`, so no verdict is lost by not logging
+/// one. `ledger_row` is the obligation [`decide_flagged`] carries: the
+/// audit row that argues why no `Margin` door fits the comparand.
+pub fn check_unlogged<T: Decide>(
+    name: &'static str,
+    margin: T,
+    band: Band,
+    ledger_row: &'static str,
+) -> Result<Sign, Indeterminate> {
+    let _ = ledger_row;
+    classify_in(name, margin, band, false)
 }
 
 /// The one classification funnel of the kernel: notes `name` for the
@@ -172,10 +375,9 @@ fn classify<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign
 /// seam.
 ///
 /// Cost on the production path: exactly one thread-local `Cell` write
-/// per decision (plus, when a verdict log is installed —
-/// [`start_verdict_log`] — one `Vec` push per definite outcome); the
-/// decision itself is `sign_within` verbatim, so outcomes are
-/// bit-identical to an unfunneled classification.
+/// per decision (plus, inside an open [`Bracket`], one `Vec` push per
+/// outcome); the decision itself is `sign_within` verbatim, so
+/// outcomes are bit-identical to an unfunneled classification.
 ///
 /// # Errors
 ///
@@ -276,23 +478,291 @@ pub struct Verdict {
     pub sign: Sign,
 }
 
-/// Installs a fresh, empty verdict log for the current thread
-/// (dropping any verdicts already recorded). Unlike [`start_recording`]
-/// (the K-experiment margin sink, [`Probe`]-only), the verdict log
-/// records through [`decide`] itself at ANY scalar — it is the
-/// evaluation-artifact channel NAMING-DESIGN N5's diagnosis diffing
-/// relies on ("both evaluations' verdict logs exist"). Indeterminate
-/// outcomes are not verdicts (they escalate typed instead of
-/// deciding) and are not logged.
-pub fn start_verdict_log() {
-    VERDICTS.with(|v| *v.borrow_mut() = Some(Vec::new()));
+/// One recorded indeterminate outcome: the funnel's static name and
+/// the [`Indeterminate`] the predicate produced, in the frame beside
+/// the verdicts and in the same decision order. What a consumer reads
+/// to answer "did any predicate here escalate, and on what margin"
+/// without matching on whichever op error enum carried the escalation
+/// out of the op.
+///
+/// The predicate's name rides `source.predicate`: the funnel attaches
+/// the name it was called with before recording, so on a recorded
+/// escalation it is always present ([`Escalation::predicate`] reads
+/// it), and a second copy beside it would be a second thing to keep
+/// equal.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Escalation {
+    /// The indeterminate outcome, with the funnel's name attached.
+    pub source: Indeterminate,
 }
 
-/// Removes the verdict log and returns everything recorded since
-/// [`start_verdict_log`]. Returns an empty vector if no log was
-/// installed on this thread.
-pub fn take_verdict_log() -> Vec<Verdict> {
-    VERDICTS.with(|v| v.borrow_mut().take()).unwrap_or_default()
+impl Escalation {
+    /// The predicate that escalated (the funnel's static name, the same
+    /// key [`Verdict::predicate`] carries). `classify` attaches it
+    /// before recording, so the fallback is unreachable through the
+    /// funnel and exists only because the field is an `Option`.
+    #[must_use]
+    pub fn predicate(&self) -> &'static str {
+        self.source.predicate.unwrap_or("<unnamed>")
+    }
+}
+
+/// Everything one [`Bracket`] recorded: both channels of its frame, in
+/// decision order. Empty by default, which is also what an empty frame
+/// is.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Recorded {
+    /// The definite decisions, in decision order.
+    pub verdicts: Vec<Verdict>,
+    /// The indeterminate outcomes, in decision order.
+    pub escalations: Vec<Escalation>,
+}
+
+/// The verdict-log bracket: a guard whose lifetime IS one frame on
+/// this thread's stack (module docs). [`Bracket::open`] pushes the
+/// frame; [`Bracket::finish`] pops it and returns what it recorded;
+/// dropping the guard pops it too, by any path including a panic
+/// unwinding through the bracketed code. Frames nest — a bracket
+/// opened inside another records into its own frame and leaves the
+/// outer one untouched.
+///
+/// `!Send` by construction (the `*const ()` phantom): a bracket closes
+/// the frame on the thread that opened it, and the compiler refuses to
+/// move it anywhere else — E0277, `Bracket` cannot be sent between
+/// threads safely:
+///
+/// ```compile_fail,E0277
+/// let bracket = geom_core::k_stats::Bracket::open();
+/// std::thread::spawn(move || drop(bracket));
+/// ```
+///
+/// The legal twin, differing in one respect — the same value held on
+/// the spawning thread while another thread runs — compiles, which is
+/// what makes the block above a pin on the `Send` bound rather than on
+/// some other error (stable rustdoc does not verify the error code):
+///
+/// ```
+/// let bracket = geom_core::k_stats::Bracket::open();
+/// std::thread::scope(|s| {
+///     s.spawn(|| ());
+/// });
+/// drop(bracket.finish());
+/// ```
+#[must_use = "a bracket records only while it is held; bind it, then `finish` it"]
+#[derive(Debug)]
+pub struct Bracket {
+    /// The index of this bracket's frame on the stack.
+    depth: usize,
+    /// The frame's per-thread unique id — what the close compares, so
+    /// a bracket only ever pops its own frame.
+    id: u64,
+    _confined: PhantomData<*const ()>,
+}
+
+impl Bracket {
+    /// Opens a fresh, empty frame on this thread's stack. Every
+    /// decision classified through the funnel from now until the
+    /// bracket is finished or dropped (and outside any inner bracket)
+    /// lands in it.
+    pub fn open() -> Self {
+        let id = NEXT_FRAME_ID.with(|n| {
+            let id = n.get();
+            n.set(id.wrapping_add(1));
+            id
+        });
+        let depth = FRAMES.with(|f| {
+            let mut frames = f.borrow_mut();
+            frames.push(Frame {
+                id,
+                recorded: Recorded::default(),
+            });
+            frames.len() - 1
+        });
+        Self {
+            depth,
+            id,
+            _confined: PhantomData,
+        }
+    }
+
+    /// Closes the frame and returns everything it recorded. Consumes
+    /// the bracket, so a frame is popped exactly once.
+    pub fn finish(self) -> Recorded {
+        // `Drop` would pop the frame a second time; skipping it is the
+        // whole reason for the wrapper.
+        let this = ManuallyDrop::new(self);
+        pop_frame(this.depth, this.id)
+    }
+}
+
+impl Drop for Bracket {
+    fn drop(&mut self) {
+        pop_frame(self.depth, self.id);
+    }
+}
+
+/// Pops the frame a bracket opened at `depth` with id `id`.
+///
+/// In order — the frame is the innermost one — this is a plain pop.
+/// Out of order it is DEFINED, the same in every profile (module
+/// docs): the frame at `depth` is this bracket's exactly when its id
+/// is `id`, in which case it is returned and every frame above it (an
+/// inner bracket still open) is discarded with it; any other frame
+/// there, or none, means this bracket's frame is already gone, and
+/// nothing is popped — an empty record comes back and the stack is
+/// untouched. A stale guard therefore never returns another bracket's
+/// decisions, and never removes another bracket's frame.
+fn pop_frame(depth: usize, id: u64) -> Recorded {
+    FRAMES.with(|f| {
+        let mut frames = f.borrow_mut();
+        if frames.get(depth).is_none_or(|frame| frame.id != id) {
+            return Recorded::default();
+        }
+        frames.truncate(depth + 1);
+        frames.pop().map(|frame| frame.recorded).unwrap_or_default()
+    })
+}
+
+/// **Everything one [`detached`] run recorded**, carried as a value so
+/// it can cross a thread — the composing half of the funnel.
+///
+/// A recording is made on the thread that decides. A walk that runs its
+/// units on rayon workers (D9 addendum idiom 1) therefore has its
+/// recordings scattered one per worker, in whatever order the schedule
+/// ran them; handing each unit's recording back as a value lets the
+/// walk's sequential fold [`splice`] them into the caller's frame and
+/// sink in ITS order, which is the order a serial walk would have
+/// recorded them in.
+///
+/// The two channels ride together for the reason `classify_in` writes
+/// them together: a consumer cannot take one and miss the other.
+///
+/// Neither `Clone` nor `Default`, deliberately, and `#[must_use]` on
+/// the door that mints one: a recording silently dropped, or spliced
+/// twice, is exactly the loss this type exists to close, so the type
+/// refuses to make either cheap. A caller that genuinely wants a
+/// recording read rather than spliced has [`Detached::recorded`].
+#[derive(Debug)]
+pub struct Detached {
+    recorded: Recorded,
+    #[cfg(feature = "probe")]
+    samples: Vec<MarginSample>,
+}
+
+impl Detached {
+    /// The verdict and escalation channels this run recorded, in
+    /// decision order.
+    #[must_use]
+    pub fn recorded(&self) -> &Recorded {
+        &self.recorded
+    }
+
+    /// The margin samples this run recorded, in decision order.
+    #[cfg(feature = "probe")]
+    #[must_use]
+    pub fn samples(&self) -> &[MarginSample] {
+        &self.samples
+    }
+}
+
+/// Installs a fresh sample sink for the [`detached`] run and restores
+/// the outer one when the guard goes — by any path, a panic unwinding
+/// through the run included, so a detached run can never leave another
+/// run's sink uninstalled.
+#[cfg(feature = "probe")]
+struct SinkSwap(Option<Vec<MarginSample>>);
+
+#[cfg(feature = "probe")]
+impl SinkSwap {
+    fn install() -> Self {
+        Self(SINK.with(|s| s.borrow_mut().replace(Vec::new())))
+    }
+
+    /// Takes what the run recorded; the outer sink goes back on drop.
+    fn finish(self) -> Vec<MarginSample> {
+        SINK.with(|s| s.borrow_mut().take()).unwrap_or_default()
+    }
+}
+
+#[cfg(feature = "probe")]
+impl Drop for SinkSwap {
+    fn drop(&mut self) {
+        SINK.with(|s| *s.borrow_mut() = self.0.take());
+    }
+}
+
+/// **Runs `work` on THIS thread under a frame and a sink of its own**,
+/// and hands back what it recorded beside its value.
+///
+/// The frame is a [`Bracket`], so everything the bracket contract says
+/// holds here: the frame is this thread's innermost while `work` runs,
+/// it is popped by every path including a panic, and an inner bracket
+/// `work` opens nests inside it. The sink is swapped the same way under
+/// `probe` — a run records into its own, and the outer one is back
+/// before this call returns.
+///
+/// Nothing about this call is parallel; it is the half that makes a
+/// parallel walk's recordings SURVIVE. The worker a face runs on has no
+/// open frame and no installed sink of the caller's, so its decisions
+/// would reach neither channel; under a detached frame they reach one
+/// this call owns, and [`splice`] puts them where the caller's own
+/// decisions went.
+#[must_use = "a detached run's recording reaches no channel unless it is spliced"]
+pub fn detached<R>(work: impl FnOnce() -> R) -> (R, Detached) {
+    let bracket = Bracket::open();
+    #[cfg(feature = "probe")]
+    let sink = SinkSwap::install();
+    let out = work();
+    #[cfg(feature = "probe")]
+    let samples = sink.finish();
+    let recorded = bracket.finish();
+    (
+        out,
+        Detached {
+            recorded,
+            #[cfg(feature = "probe")]
+            samples,
+        },
+    )
+}
+
+/// **Appends a detached run's recording to this thread's open frame and
+/// installed sink**, in the order the calls are made.
+///
+/// The composing half: a walk that decided its units on workers splices
+/// their recordings back in ITS order — arena order for a face walk —
+/// and the verdict log, the escalation log and the sample population
+/// are then what a walk that decided the same units one at a time on
+/// this thread would have produced, element for element.
+///
+/// No open frame, or no installed sink, and that channel is dropped —
+/// which is what the serial walk does too: a decision taken outside any
+/// bracket is recorded nowhere.
+pub fn splice(recording: Detached) {
+    let Detached {
+        recorded,
+        #[cfg(feature = "probe")]
+        samples,
+    } = recording;
+    FRAMES.with(|f| {
+        if let Some(top) = f.borrow_mut().last_mut() {
+            top.recorded.verdicts.extend(recorded.verdicts);
+            top.recorded.escalations.extend(recorded.escalations);
+        }
+    });
+    #[cfg(feature = "probe")]
+    SINK.with(|s| {
+        if let Some(sink) = s.borrow_mut().as_mut() {
+            sink.extend(samples);
+        }
+    });
+}
+
+/// How many brackets are open on this thread — the tests' witness that
+/// every path closes its frame.
+#[cfg(test)]
+fn open_frames() -> usize {
+    FRAMES.with(|f| f.borrow().len())
 }
 
 /// How a recorded classification came out.
@@ -317,6 +787,34 @@ pub enum SampleOutcome {
     /// about is the ratio of symbolic to numeric decisions, which is
     /// what the tier exists to move.
     SymbolicZero,
+    /// **The symbolic tier answered through a clause-3 fold**
+    /// (`crate::sym::SymRules::signed_root`): the margin's expression
+    /// is identically zero in the parameters GIVEN a sign the funnel
+    /// certified over the leaf's box — `sqrt(r²) = r` for a radius
+    /// whose enclosure is definitely positive. A theorem conditional on
+    /// a read value, so it is its own outcome beside
+    /// [`Self::SymbolicZero`] rather than folded into it: the ratio
+    /// between the two is the receipt for how much of a document's
+    /// discharge rests on that one value read. Like `SymbolicZero`,
+    /// never a rule sample — the margin was never classified against
+    /// the band.
+    SignGated,
+    /// **The symbolic tier answered through a REGISTERED IDENTITY**
+    /// (`crate::sym::Sym::register_equal`, ERROR-DESIGN E12's
+    /// provenance reserve): the margin's expression is zero once two of
+    /// its nodes are taken to be one real, because the constructor that
+    /// built them guarantees it — a swept arc's rim distance and its
+    /// radius. An AXIOM about the construction, verified at the leaf's
+    /// witness, and therefore its own outcome beside
+    /// [`Self::SymbolicZero`] and [`Self::SignGated`] rather than
+    /// folded into either: the tier's theorems rest on exact rational
+    /// arithmetic alone, and this one rests additionally on the
+    /// registrant's argument. Reading the three columns apart is how a
+    /// document's discharge is read honestly.
+    ///
+    /// Like both of them, never a rule sample — the margin was never
+    /// classified against the band.
+    Registered,
 }
 
 #[cfg(feature = "probe")]
@@ -328,13 +826,15 @@ impl SampleOutcome {
     /// prove the list is complete, so adding one without listing it
     /// here reds a test rather than leaving a silent hole in whatever
     /// derives from it.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 8] = [
         Self::Definite(Sign::Negative),
         Self::Definite(Sign::Zero),
         Self::Definite(Sign::Positive),
         Self::Indeterminate,
         Self::Invalid,
         Self::SymbolicZero,
+        Self::SignGated,
+        Self::Registered,
     ];
 
     /// **The one spelling of this outcome**, and the K sweep's CSV
@@ -358,6 +858,8 @@ impl SampleOutcome {
             Self::Indeterminate => "indeterminate",
             Self::Invalid => "invalid",
             Self::SymbolicZero => "symbolic_zero",
+            Self::SignGated => "sign_gated",
+            Self::Registered => "registered",
         }
     }
 }
@@ -413,10 +915,10 @@ fn record(margin: f64, band: Band, outcome: SampleOutcome) {
     });
 }
 
-/// **Re-tags the sample just recorded as [`SampleOutcome::SymbolicZero`]**
-/// — the symbolic tier's door into the SAME funnel population
-/// (`crate::sym`'s `Decide` impl calls it where the tier overrides the
-/// numeric answer).
+/// **Re-tags the sample just recorded as `outcome`** —
+/// [`SampleOutcome::SymbolicZero`] or [`SampleOutcome::SignGated`], the
+/// symbolic tier's door into the SAME funnel population (`crate::sym`'s
+/// `Decide` impl calls it where the tier overrides the numeric answer).
 ///
 /// A re-tag rather than a second `record`, and that is the whole design:
 /// `Sym<T>` asks its base scalar first (its domain refusal is clause 1
@@ -439,7 +941,7 @@ fn record(margin: f64, band: Band, outcome: SampleOutcome) {
 /// when the base scalar actually filled it ties the two together by
 /// construction.
 #[cfg(feature = "probe")]
-pub(crate) fn retag_symbolic_zero_at(mark: Option<usize>) {
+pub(crate) fn retag_at(mark: Option<usize>, outcome: SampleOutcome) {
     let Some(at) = mark else { return };
     SINK.with(|s| {
         if let Some(sink) = s.borrow_mut().as_mut()
@@ -453,13 +955,19 @@ pub(crate) fn retag_symbolic_zero_at(mark: Option<usize>) {
             && sink.len() == at + 1
             && let Some(mine) = sink.get_mut(at)
         {
-            mine.outcome = SampleOutcome::SymbolicZero;
+            mine.outcome = outcome;
         }
     });
 }
 
+/// The predicate name of the decision in flight — what [`Probe`]
+/// records a sample under, read here by `crate::sym`'s shape report.
+pub(crate) fn current_predicate() -> &'static str {
+    CURRENT.with(Cell::get)
+}
+
 /// **Where the next recorded sample will land**, or `None` when no sink
-/// is installed — the index [`retag_symbolic_zero_at`] re-tags.
+/// is installed — the index [`retag_at`] re-tags.
 ///
 /// Read BEFORE the base scalar decides, so the index names this
 /// decision's own row rather than whatever happens to be last later.
@@ -528,6 +1036,13 @@ impl core::ops::Neg for Probe {
 impl Real for Probe {
     fn from_f64(x: f64) -> Self {
         Self(x)
+    }
+
+    /// The recording scalar's value channel IS an `f64`, so the
+    /// registered-identity witness is `f64`'s verbatim
+    /// ([`Real::register_equal`]).
+    fn register_equal(self, other: Self) -> crate::sym::SymRegistration {
+        self.0.register_equal(other.0)
     }
 
     fn zero() -> Self {
@@ -639,7 +1154,7 @@ impl crate::real::CertifiedEnclosure for Probe {
 /// margin sample is emitted (span choice never drives topology).
 #[cfg(feature = "probe")]
 impl crate::spline::SpanLocate for Probe {
-    fn locate_spans(self, knots: &crate::spline::KnotVector) -> crate::spline::SpanSet {
+    fn locate_spans<'a>(self, knots: &'a crate::spline::KnotVector) -> crate::spline::SpanSet<'a> {
         crate::spline::SpanLocate::locate_spans(self.0, knots)
     }
 
@@ -677,6 +1192,10 @@ mod tests {
         Band::linear(Tol::witness()).unwrap()
     }
 
+    fn names(r: &Recorded) -> Vec<&'static str> {
+        r.verdicts.iter().map(|v| v.predicate).collect()
+    }
+
     /// [`SampleOutcome::ALL`] lists every variant, proven by matching on
     /// each one: a variant added without a roster entry stops compiling
     /// here rather than leaving whatever derives from `ALL` silently
@@ -693,7 +1212,9 @@ mod tests {
                 | SampleOutcome::Definite(Sign::Positive)
                 | SampleOutcome::Indeterminate
                 | SampleOutcome::Invalid
-                | SampleOutcome::SymbolicZero => true,
+                | SampleOutcome::SymbolicZero
+                | SampleOutcome::SignGated
+                | SampleOutcome::Registered => true,
             };
             assert!(seen, "{o:?} is listed in ALL");
         }
@@ -711,13 +1232,13 @@ mod tests {
     #[test]
     fn verdict_log_records_definite_signs_in_decision_order() {
         let b = band();
-        start_verdict_log();
+        let bracket = Bracket::open();
         assert_eq!(decide("vlog_a", Margin::of(1.0f64), b), Ok(Sign::Positive));
         assert_eq!(decide("vlog_b", Margin::of(-1.0f64), b), Ok(Sign::Negative));
         assert_eq!(decide("vlog_c", Margin::of(0.0f64), b), Ok(Sign::Zero));
-        let log = take_verdict_log();
+        let log = bracket.finish();
         assert_eq!(
-            log,
+            log.verdicts,
             vec![
                 Verdict {
                     predicate: "vlog_a",
@@ -733,33 +1254,346 @@ mod tests {
                 },
             ]
         );
+        assert!(log.escalations.is_empty());
     }
 
+    /// An indeterminate outcome is not a verdict; it is an escalation,
+    /// recorded in the same frame with the `Indeterminate` the
+    /// predicate produced, so a consumer reads it without matching on
+    /// whatever error the op wrapped it in. With no bracket open,
+    /// nothing records anywhere.
     #[test]
-    fn verdict_log_skips_indeterminate_outcomes_and_is_absent_by_default() {
+    fn indeterminate_outcomes_are_escalations_and_nothing_records_outside_a_bracket() {
         let b = band();
-        // No log installed: decisions record nothing, take is empty.
+        assert_eq!(open_frames(), 0);
+        // No bracket: decisions record nothing, and the stack stays empty.
         assert_eq!(decide("vlog_d", Margin::of(2.0f64), b), Ok(Sign::Positive));
-        assert!(take_verdict_log().is_empty());
-        // In-band margin escalates and is NOT a verdict.
-        start_verdict_log();
+        assert_eq!(open_frames(), 0);
+        let bracket = Bracket::open();
         let mid = f64::midpoint(b.zero(), b.escalate());
-        assert!(decide("vlog_e", Margin::of(mid), b).is_err());
+        let escalated = decide("vlog_e", Margin::of(mid), b).unwrap_err();
         assert_eq!(decide("vlog_f", Margin::of(-1.0f64), b), Ok(Sign::Negative));
-        let log = take_verdict_log();
-        assert_eq!(log.len(), 1);
-        assert_eq!(log[0].predicate, "vlog_f");
+        let log = bracket.finish();
+        assert_eq!(log.verdicts.len(), 1);
+        assert_eq!(log.verdicts[0].predicate, "vlog_f");
+        assert_eq!(log.escalations, vec![Escalation { source: escalated }]);
+        assert_eq!(log.escalations[0].predicate(), "vlog_e");
+        assert_eq!(log.escalations[0].source.predicate, Some("vlog_e"));
+        assert_eq!(open_frames(), 0);
     }
 
+    /// **The nesting row**: an inner bracket records into its own
+    /// frame and leaves the outer one exactly as it was, and the outer
+    /// frame receives only the decisions made outside the inner one.
     #[test]
-    fn verdict_log_reinstall_drops_prior_entries() {
+    fn a_nested_bracket_records_its_own_frame_and_leaves_the_outer_untouched() {
         let b = band();
-        start_verdict_log();
+        let outer = Bracket::open();
         decide("vlog_g", Margin::of(1.0f64), b).unwrap();
-        start_verdict_log();
+        let inner = Bracket::open();
+        assert_eq!(open_frames(), 2);
         decide("vlog_h", Margin::of(1.0f64), b).unwrap();
-        let log = take_verdict_log();
-        assert_eq!(log.len(), 1);
-        assert_eq!(log[0].predicate, "vlog_h");
+        let inner_log = inner.finish();
+        decide("vlog_i", Margin::of(-1.0f64), b).unwrap();
+        let outer_log = outer.finish();
+        assert_eq!(names(&inner_log), ["vlog_h"]);
+        assert_eq!(names(&outer_log), ["vlog_g", "vlog_i"]);
+        assert_eq!(open_frames(), 0);
+    }
+
+    /// A bracket dropped without `finish` still pops its frame: what it
+    /// recorded is gone, and the frame beneath it is the innermost
+    /// again.
+    #[test]
+    fn a_dropped_bracket_pops_its_frame() {
+        let b = band();
+        let outer = Bracket::open();
+        {
+            let _inner = Bracket::open();
+            decide("vlog_j", Margin::of(1.0f64), b).unwrap();
+            assert_eq!(open_frames(), 2);
+        }
+        assert_eq!(open_frames(), 1);
+        decide("vlog_k", Margin::of(1.0f64), b).unwrap();
+        let log = outer.finish();
+        assert_eq!(log.verdicts.len(), 1);
+        assert_eq!(log.verdicts[0].predicate, "vlog_k");
+        assert_eq!(open_frames(), 0);
+    }
+
+    /// A panic unwinding through a bracketed region pops the frame on
+    /// the way out (the guard's `Drop` runs during unwinding), so the
+    /// thread's stack is empty again once the panic is caught and the
+    /// next bracket starts from a clean stack.
+    #[test]
+    fn a_panic_unwinding_through_a_bracket_pops_its_frame() {
+        let b = band();
+        let unwound = std::panic::catch_unwind(|| {
+            let _bracket = Bracket::open();
+            decide("vlog_l", Margin::of(1.0f64), b).unwrap();
+            assert_eq!(open_frames(), 1);
+            panic!("unwinding through the bracket");
+        });
+        assert!(unwound.is_err());
+        assert_eq!(open_frames(), 0);
+        let after = Bracket::open();
+        decide("vlog_m", Margin::of(1.0f64), b).unwrap();
+        let log = after.finish();
+        assert_eq!(log.verdicts.len(), 1);
+        assert_eq!(log.verdicts[0].predicate, "vlog_m");
+    }
+
+    /// **Out-of-order closes are defined, in every profile.** The outer
+    /// bracket closed first takes its own frame and discards the open
+    /// inner one's; the inner guard, closed later on a stack that no
+    /// longer holds its frame, pops nothing and returns an empty record
+    /// — it never takes the frame beneath.
+    #[test]
+    fn an_outer_bracket_closed_first_discards_the_inner_frame_and_the_inner_pops_nothing() {
+        let b = band();
+        let base = Bracket::open();
+        decide("vlog_base", Margin::of(1.0f64), b).unwrap();
+        let outer = Bracket::open();
+        decide("vlog_p", Margin::of(1.0f64), b).unwrap();
+        let inner = Bracket::open();
+        decide("vlog_q", Margin::of(1.0f64), b).unwrap();
+        let got_outer = outer.finish();
+        assert_eq!(
+            names(&got_outer),
+            ["vlog_p"],
+            "the outer returns its own frame only"
+        );
+        assert_eq!(open_frames(), 1);
+        decide("vlog_after", Margin::of(1.0f64), b).unwrap();
+        let got_inner = inner.finish();
+        assert_eq!(got_inner, Recorded::default(), "the inner stole a frame");
+        assert_eq!(open_frames(), 1);
+        assert_eq!(names(&base.finish()), ["vlog_base", "vlog_after"]);
+        assert_eq!(open_frames(), 0);
+    }
+
+    /// The same rule through `Drop`: dropping the outer guard while the
+    /// inner is open truncates the inner away, and the inner finishes
+    /// empty.
+    #[test]
+    fn dropping_the_outer_first_truncates_the_inner() {
+        let b = band();
+        let outer = Bracket::open();
+        let inner = Bracket::open();
+        decide("vlog_r", Margin::of(1.0f64), b).unwrap();
+        drop(outer);
+        assert_eq!(open_frames(), 0);
+        assert_eq!(inner.finish(), Recorded::default());
+        assert_eq!(open_frames(), 0);
+    }
+
+    /// **A stale guard at a reused depth does not steal.** Close the
+    /// outer first, then open two fresh brackets so the stale guard's
+    /// depth is occupied again: the stale close finds a different frame
+    /// id there, returns empty, and the fresh brackets keep their own
+    /// decisions. The id, not the depth, is what a close compares.
+    #[test]
+    fn a_stale_guard_at_a_reused_depth_pops_nothing_and_the_later_bracket_keeps_its_decision() {
+        let b = band();
+        let a = Bracket::open();
+        let stale = Bracket::open();
+        decide("vlog_stale_own", Margin::of(1.0f64), b).unwrap();
+        let ra = a.finish();
+        assert!(ra.verdicts.is_empty(), "the outer recorded nothing itself");
+        let c = Bracket::open();
+        let d = Bracket::open();
+        decide("vlog_d_own", Margin::of(1.0f64), b).unwrap();
+        assert_eq!(stale.finish(), Recorded::default());
+        assert_eq!(open_frames(), 2, "the stale close moved the stack");
+        assert_eq!(names(&d.finish()), ["vlog_d_own"]);
+        assert!(names(&c.finish()).is_empty());
+        assert_eq!(open_frames(), 0);
+    }
+
+    /// Escalations recorded in an inner frame stay there; the outer
+    /// frame's escalation channel receives only its own.
+    #[test]
+    fn inner_escalations_do_not_leak_to_the_outer_frame() {
+        let b = band();
+        let mid = f64::midpoint(b.zero(), b.escalate());
+        let outer = Bracket::open();
+        decide("vlog_outer_esc", Margin::of(mid), b).unwrap_err();
+        let inner = Bracket::open();
+        decide("vlog_inner_esc", Margin::of(mid), b).unwrap_err();
+        decide("vlog_inner_ok", Margin::of(1.0f64), b).unwrap();
+        let inner_log = inner.finish();
+        decide("vlog_outer_ok", Margin::of(-1.0f64), b).unwrap();
+        let outer_log = outer.finish();
+        let esc = |r: &Recorded| {
+            r.escalations
+                .iter()
+                .map(Escalation::predicate)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(esc(&inner_log), ["vlog_inner_esc"]);
+        assert_eq!(names(&inner_log), ["vlog_inner_ok"]);
+        assert_eq!(esc(&outer_log), ["vlog_outer_esc"]);
+        assert_eq!(names(&outer_log), ["vlog_outer_ok"]);
+    }
+
+    /// The guard cannot cross a thread (the `compile_fail` block on
+    /// [`Bracket`]), but WORK can: a decision made on another thread
+    /// while this thread holds a bracket lands in no frame at all, the
+    /// stack being thread-local. This is the defect [`detached`] and
+    /// [`splice`] exist to close — a walk that runs its units on rayon
+    /// workers records nothing here unless each unit's recording is
+    /// handed back as a value — and the row below is what that loss
+    /// looks like with neither door used.
+    #[test]
+    fn work_on_another_thread_records_nowhere_while_this_thread_holds_a_bracket() {
+        let b = band();
+        let outer = Bracket::open();
+        decide("vlog_here", Margin::of(1.0f64), b).unwrap();
+        std::thread::scope(|s| {
+            s.spawn(|| {
+                decide("vlog_elsewhere", Margin::of(1.0f64), b).unwrap();
+            });
+        });
+        assert_eq!(names(&outer.finish()), ["vlog_here"]);
+    }
+
+    /// An untouched bracket finishes to the default record.
+    #[test]
+    fn an_untouched_bracket_finishes_default() {
+        assert_eq!(Bracket::open().finish(), Recorded::default());
+    }
+
+    /// A second bracket opened beside the first is a NESTED one, not a
+    /// replacement: the first keeps everything it recorded.
+    #[test]
+    fn opening_a_second_bracket_does_not_drop_the_first_frame() {
+        let b = band();
+        let first = Bracket::open();
+        decide("vlog_n", Margin::of(1.0f64), b).unwrap();
+        let second = Bracket::open();
+        decide("vlog_o", Margin::of(1.0f64), b).unwrap();
+        assert_eq!(second.finish().verdicts.len(), 1);
+        let log = first.finish();
+        assert_eq!(log.verdicts.len(), 1);
+        assert_eq!(log.verdicts[0].predicate, "vlog_n");
+    }
+    /// **A detached run's recording survives the thread it was taken
+    /// on** — the composing door's whole reason. The decision is made
+    /// on another thread, where no frame of this one's stack exists;
+    /// the recording comes back as a value and [`splice`] puts it in
+    /// the caller's frame.
+    #[test]
+    fn a_detached_run_on_another_thread_splices_into_this_frame() {
+        let b = band();
+        let outer = Bracket::open();
+        decide("vlog_before", Margin::of(1.0f64), b).unwrap();
+        let recording = std::thread::scope(|s| {
+            s.spawn(|| detached(|| decide("vlog_on_a_worker", Margin::of(1.0f64), b)).1)
+                .join()
+                .unwrap()
+        });
+        assert_eq!(
+            names(recording.recorded()),
+            ["vlog_on_a_worker"],
+            "the detached frame did not capture the worker's decision"
+        );
+        splice(recording);
+        decide("vlog_after", Margin::of(1.0f64), b).unwrap();
+        assert_eq!(
+            names(&outer.finish()),
+            ["vlog_before", "vlog_on_a_worker", "vlog_after"],
+            "the spliced recording did not land in the caller's decision order"
+        );
+    }
+
+    /// The order is the SPLICER's, not the schedule's: recordings
+    /// appended in the order the calls are made, whatever order they
+    /// were taken in. This is what makes an arena-order fold over
+    /// slots produce a serial walk's log.
+    #[test]
+    fn splice_appends_in_the_order_the_calls_are_made() {
+        let b = band();
+        let second = detached(|| decide("vlog_slot_1", Margin::of(1.0f64), b)).1;
+        let first = detached(|| decide("vlog_slot_0", Margin::of(1.0f64), b)).1;
+        let outer = Bracket::open();
+        splice(first);
+        splice(second);
+        assert_eq!(names(&outer.finish()), ["vlog_slot_0", "vlog_slot_1"]);
+    }
+
+    /// A detached run does not touch the frame it was opened under:
+    /// the caller's own decisions before and after are its own, and the
+    /// detached ones reach it only through [`splice`].
+    #[test]
+    fn a_detached_run_leaves_the_open_frame_alone() {
+        let b = band();
+        let outer = Bracket::open();
+        decide("vlog_mine", Margin::of(1.0f64), b).unwrap();
+        let (_, recording) = detached(|| decide("vlog_theirs", Margin::of(1.0f64), b));
+        let log = outer.finish();
+        assert_eq!(names(&log), ["vlog_mine"]);
+        assert_eq!(names(recording.recorded()), ["vlog_theirs"]);
+    }
+
+    /// Both channels travel: an indeterminate outcome taken inside a
+    /// detached run splices back as an escalation, not as a dropped
+    /// decision.
+    #[test]
+    fn a_detached_escalation_splices_as_an_escalation() {
+        let b = band();
+        let mid = f64::midpoint(b.zero(), b.escalate());
+        let (_, recording) = detached(|| decide("vlog_esc", Margin::of(mid), b));
+        let outer = Bracket::open();
+        splice(recording);
+        let log = outer.finish();
+        assert!(log.verdicts.is_empty(), "an escalation recorded a verdict");
+        assert_eq!(
+            log.escalations
+                .iter()
+                .map(Escalation::predicate)
+                .collect::<Vec<_>>(),
+            ["vlog_esc"]
+        );
+    }
+
+    /// **The sample population does not shrink**: a detached run's
+    /// samples reach the caller's sink, and the outer sink is back in
+    /// place while the run is going on — a run cannot record into it.
+    #[cfg(feature = "probe")]
+    #[test]
+    fn a_detached_run_splices_its_samples_into_the_callers_sink() {
+        let b = band();
+        let (_, recording) = detached(|| Probe(1.0).sign_within(b));
+        assert_eq!(
+            recording.samples().len(),
+            1,
+            "the detached sink took no sample"
+        );
+        start_recording();
+        let _ = Probe(2.0).sign_within(b);
+        splice(recording);
+        let _ = Probe(3.0).sign_within(b);
+        let got: Vec<f64> = take_samples().iter().map(|s| s.margin).collect();
+        assert_eq!(
+            got,
+            [2.0, 1.0, 3.0],
+            "the spliced samples did not land in the caller's order"
+        );
+    }
+
+    /// A detached run taken with no sink installed on the caller's
+    /// thread still records its own samples — which is the worker's
+    /// case exactly.
+    #[cfg(feature = "probe")]
+    #[test]
+    fn a_detached_run_records_samples_with_no_outer_sink() {
+        let b = band();
+        assert!(take_samples().is_empty(), "a sink was left installed");
+        let (_, recording) = detached(|| Probe(7.0).sign_within(b));
+        assert_eq!(recording.samples().len(), 1);
+        assert!(
+            take_samples().is_empty(),
+            "the detached sink was left installed on the caller"
+        );
     }
 }

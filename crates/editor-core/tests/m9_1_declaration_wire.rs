@@ -77,11 +77,11 @@ fn declaring_doc() -> (ProfileDoc, editor_core::RecipeNodeId) {
     let node: Node<editor_core::ProfileProgram> = Node::Declare {
         pairs: vec![
             (
-                (cap(a, CapEnd::Top), cap(b, CapEnd::Bottom)),
+                (cap(a, CapEnd::End), cap(b, CapEnd::Start)),
                 ContactClass::Rest,
             ),
             (
-                (cap(a, CapEnd::Bottom), cap(b, CapEnd::Top)),
+                (cap(a, CapEnd::Start), cap(b, CapEnd::End)),
                 ContactClass::Tangent,
             ),
         ],

@@ -19,23 +19,27 @@
 //!    disc loop into the bottom cap. Genus rises by one per hole.
 //! 3. **Sweep.** Per loop of the seed face (outer, then rings in
 //!    canonical hole order): one strut `mev` per vertex (the
-//!    `he1 == he2` case — raised vertex, `ExtrudedPoint` description),
+//!    `he1 == he2` case — swept vertex, `ExtrudedPoint` description),
 //!    then one side-quad `mef` per segment (the new edge is the **top
 //!    rim**, `PlacedSegment` at the translated placement; the new face
 //!    is the side wall, plane or cylinder — a CONCAVE arc's wall is
 //!    attached `sense: false`, M5 S11: its material lies outside the
 //!    carrier, against the chart normal), the last `mef` closing
-//!    against the first top rim. The original loop survives raised —
-//!    the swept face becomes the top cap.
+//!    against the first top rim. The original loop survives
+//!    translated by `w` — the swept face becomes the top cap.
 //! 4. **Joins.** Per strut: identical side-surface keys (cosurface
 //!    sharing) keep the conventional description structurally;
 //!    otherwise `classify_dihedral` at the strut midpoint decides —
 //!    Transverse upgrades to `Intersection` via `set_edge_curve`,
-//!    Smooth keeps `MappedCurve`, Indeterminate is a typed sliver
-//!    error.
+//!    Smooth descends one order through the must-carry rule over the
+//!    edge ([`geom_brep::must_carry_over_edge`] — the lane gate and
+//!    the certification schedule's interior stations, in its one home:
+//!    jet-determinate ⇒ `TangentIntersection`, under-determined ⇒ an
+//!    image in the previous wall's chart, in-band ⇒ the typed sliver),
+//!    Indeterminate is a typed sliver error.
 //! 5. **Top cap.** The seed face's surface (the honest `Nurbs`
-//!    placeholder since `mvfs`) is replaced by the raised loop's Newell
-//!    plane.
+//!    placeholder since `mvfs`) is replaced by the translated loop's
+//!    Newell plane.
 //! 6. **Rim upgrades.** With both cap planes in place, every cap–wall
 //!    rim edge (bottom and top, outer and ring loops) upgrades to
 //!    `Intersection { cap plane, side surface, witness }` through the
@@ -44,12 +48,12 @@
 //!    witness is the **carrier's mid-parameter point** (the S2 witness
 //!    contract: for arc rims the chord midpoint lies off the carrier by
 //!    the sagitta, so `carrier(mid)` is the only honest mint); the
-//!    certified carrier and interval are kept verbatim. Every rim of a
-//!    normal extrusion is definitely transverse (cap plane ⊥ wall), so
-//!    Transverse ⇒ upgrade is the only reachable arm; Smooth keeps the
-//!    conventional description (kept total per the D2 split, believed
-//!    unreachable here); Indeterminate is the typed
-//!    [`ExtrudeError::SliverRim`].
+//!    certified carrier and interval are kept verbatim. Transverse ⇒
+//!    upgrade; Smooth ⇒ the conventional description, an image at rest
+//!    in the wall's chart (D2's conventional split, as at the strut
+//!    join's under-determined case — the arm in `upgrade_rim` says
+//!    why the second-order rule has nothing to add there);
+//!    Indeterminate ⇒ the typed [`ExtrudeError::SliverRim`].
 //!
 //! Everything runs in a fixed, documented order (D9): loops outer
 //! first then holes in canonical order; per loop, struts in traversal
@@ -91,11 +95,16 @@ const SIDE_COSURFACE: CosurfaceNames = CosurfaceNames {
 /// How far (and which way) to extrude — the operation's second input.
 #[derive(Clone, Copy, Debug)]
 pub enum Extrusion<T: Real> {
-    /// An explicit extrusion vector in world meters. Must be
-    /// trilean-parallel to the sketch plane's normal (crate docs:
-    /// oblique extrusion is deferred past M2 and refused as a typed
-    /// error); a definite in-plane or sliver-normal vector is refused
-    /// likewise.
+    /// An explicit extrusion vector in world meters. The two direction
+    /// gates admit it when its in-plane component is definitely zero
+    /// (at most ε) AND its normal component is definitely nonzero (at
+    /// least `K·ε`) — which is a bound on the tilt, `1/K`, not
+    /// parallelism: an admitted vector may part from the sketch
+    /// normal, by more at a smaller K. A definite in-plane component
+    /// is [`ExtrudeError::ObliqueExtrusion`] (oblique extrusion is
+    /// deferred past M2, crate docs); a sliver-normal one is
+    /// [`ExtrudeError::DegenerateExtrusion`]; either in the band is
+    /// [`ExtrudeError::ExtrusionEscalated`].
     Vector(Vec3<T>),
     /// A signed distance along the sketch plane's normal `n = u × v`
     /// (meters): the extrusion vector is `n · d`. Positive extrudes
@@ -109,34 +118,54 @@ pub enum Extrusion<T: Real> {
 pub struct Extruded<T: Real> {
     /// The built body — a closed solid, tiers 1–2 by construction.
     ///
-    /// Tier 3 holds for every profile whose joints are transverse, but
-    /// NOT unconditionally: extruding a profile with a DECLARED cusp
-    /// joint (`.cusp()`) builds a body whose rim edge subtends material
-    /// wedge 0, and the at-rest gate refuses that undeclared
-    /// (`topo::ValidationError::UndeclaredCusp`) — correctly, because
-    /// this builder emits no contact record for the profile's
-    /// declaration. Such a body must be validated through
-    /// `topo::validate_geometric_declared` with the caller's own
-    /// declaration until the sweep lane emits one (the declaration-
-    /// emission handoff, MATE-3).
+    /// **Tier 3 holds for every body whose joints and cap rims classify
+    /// definitely transverse, and these two shapes are the whole of
+    /// what it does not cover** — both minted here and refused by
+    /// `topo::validate_geometric`:
+    ///
+    /// - a DECLARED cusp joint (`.cusp()`) gives a rim edge subtending
+    ///   material wedge 0, refused undeclared
+    ///   (`topo::ValidationError::UndeclaredCusp`) — correctly, because
+    ///   this builder emits no contact record for the profile's
+    ///   declaration. Validate such a body through
+    ///   `topo::validate_geometric_declared`, passing the caller's own
+    ///   declaration;
+    /// - a cap rim the dihedral lever reads definitely SMOOTH keeps the
+    ///   conventional description (`upgrade_rim`'s smooth arm) and is
+    ///   refused as `topo::ValidationError::SliverDihedral` under
+    ///   `material_wedge_side`: a smooth cap–wall pair has no material
+    ///   side. There is nothing to do at the door — the refusal is the
+    ///   honest verdict on that body — and the run's K is what decides
+    ///   whether an admitted extrusion can reach it (crate docs).
     pub body: Body<T>,
     /// The solid.
     pub solid: SolidKey,
     /// Its single shell.
     pub shell: ShellKey,
-    /// The top cap (the swept face — on the sketch plane translated by
-    /// the extrusion vector; carries the profile's canonical winding
-    /// when extruding along `+n`, crate docs).
+    /// The cap at the **far end of the sweep**: the swept face, on
+    /// the sketch plane translated by the extrusion vector `w`, its
+    /// outward normal along `w`. The name is an end of the sweep, not
+    /// a height — `w` is signed against the sketch normal (`n · d` for
+    /// [`Extrusion::Distance`]), so under `w · n < 0` this cap lies on
+    /// the `−n` side of the sketch plane. Which cap carries the
+    /// profile's canonical winding is a direction convention, stated
+    /// once in the [crate docs](crate).
     pub top: FaceKey,
-    /// The bottom cap (on the sketch plane).
+    /// The cap at the **near end of the sweep**: the face on the
+    /// sketch plane itself, its outward normal opposite `w`. The name
+    /// is an end of the sweep, not a height. Winding, as above: the
+    /// [crate docs](crate).
     pub bottom: FaceKey,
     /// Side-wall faces, per loop (outer first, then holes in canonical
     /// order), per segment in swept-traversal order.
     pub side_faces: Vec<Vec<FaceKey>>,
     /// Strut (join) edges, per loop, per vertex in swept-traversal
     /// order: strut `j` joins the side walls of segments `j − 1` and
-    /// `j`. Corner joins carry `Intersection` descriptions after the
-    /// upgrade pass; smooth joins keep `MappedCurve`.
+    /// `j`. After the upgrade pass a corner join carries
+    /// `Intersection`; a smooth join carries `TangentIntersection`
+    /// where the two walls' jet determines the locus and an image at
+    /// rest in the previous wall's chart where it does not (M5 PR 9 —
+    /// neither keeps the scaffolding `MappedCurve` the mint left).
     pub strut_edges: Vec<Vec<EdgeKey>>,
 }
 
@@ -385,6 +414,24 @@ impl<T: Real> SweptChord<T> for WallSeg<T> {
     }
 }
 
+/// **The strut's carrier, in one expression.** A strut is the ruling
+/// of the sweep through its seed vertex: the line from the vertex's
+/// bottom image along the extrusion direction, arc-length
+/// parameterized over `0..w_norm`. The mint writes it and the join
+/// pass RESTATES it when it re-describes the same edge — restating,
+/// never re-deriving, because `Curve3::line_between(q, q + w)`
+/// recomputes the direction and the interval from endpoints that need
+/// not be bitwise the ones the edge was minted with, which moves
+/// geometry in a pass whose whole contract is that only the
+/// DESCRIPTION moves. One expression is what makes "the same bits"
+/// a fact rather than three copies that agree today.
+fn strut_carrier<T: Real>(q_bottom: Point3<T>, w: Vec3<T>) -> Curve3<T> {
+    Curve3::Line {
+        origin: q_bottom,
+        dir: w.normalize(),
+    }
+}
+
 /// A strut-edge spec: `ExtrudedPoint` description, straight-line
 /// carrier from the bottom point along the extrusion vector,
 /// parameterized by arc length over `0..w_norm`.
@@ -407,10 +454,7 @@ fn extruded_strut_spec<T: Real>(
             place,
             vec: w,
         }),
-        carrier: Curve3::Line {
-            origin: q_bottom,
-            dir: w.normalize(),
-        },
+        carrier: strut_carrier(q_bottom, w),
         param_start: T::zero(),
         param_end: w_norm,
     }
@@ -428,10 +472,15 @@ struct LoopBase {
 /// The sketch placement is the profile's own
 /// ([`profile::SketchPlane`]); the extrusion vector or signed distance
 /// is classified against the plane normal per the crate docs' direction
-/// conventions. On success the returned body passes tiers 1–3
-/// (`topo::validate`, `validate_closed`, `validate_geometric`) — the
-/// caller re-validates at rest per the workspace convention; tier 1 is
-/// debug-asserted after every operator, tier 2 on the finished body.
+/// conventions. On success the returned body is closed and passes
+/// tiers 1–2 (`topo::validate`, `validate_closed`) by construction —
+/// the door runs its operators under one surgery scope
+/// (`topo::surgery`), so tier 1 is not re-derived per operator and the
+/// tier-2 debug assertion on the finished body, which subsumes it, is
+/// what this door pays — and passes tier 3 (`validate_geometric`)
+/// except in the two
+/// cases [`Extruded::body`] names. The caller re-validates at rest per
+/// the workspace convention.
 ///
 /// # Errors
 ///
@@ -500,7 +549,12 @@ pub fn extrude<T: Decide>(
     let outer = &loops[0];
     let qs = &points[0];
     let n = outer.len();
-    let mut body = Body::<T>::new();
+    // Under one surgery scope for the whole build: D1's tier-1
+    // postcondition is this door's, paid once over the finished body,
+    // not once per operator inside it (`topo::surgery`). The tier-2
+    // check below is what the door pays, and it subsumes tier 1.
+    let mut built = Body::<T>::new();
+    let mut body = built.begin_surgery();
     let seed = body.mvfs(qs[0])?;
     let mut hes = Vec::with_capacity(n);
     let first = body.mev(
@@ -630,14 +684,14 @@ pub fn extrude<T: Decide>(
     }
 
     // ---- Phase 5: the swept face survives as the top cap; attach its
-    // plane (raised outer loop in next order ⇒ outward normal along the
-    // extrusion). ----
-    let raised: Vec<Point3<T>> = cap_points(&loops[0], &points[0], place)
+    // plane (translated outer loop in next order ⇒ outward normal
+    // along the extrusion). ----
+    let far_loop: Vec<Point3<T>> = cap_points(&loops[0], &points[0], place)
         .iter()
         .map(|&q| q + w)
         .collect();
     let top_plane =
-        newell_plane(&raised, band).map_err(|source| ExtrudeError::CapPlane { source })?;
+        newell_plane(&far_loop, band).map_err(|source| ExtrudeError::CapPlane { source })?;
     let top_surface = body.set_face_surface(top_face, FaceSurface::New(top_plane))?;
 
     // ---- Phase 6: rim upgrades (module docs — the ratified rim
@@ -685,15 +739,16 @@ pub fn extrude<T: Decide>(
         }
     }
 
+    body.close_already_checked();
     #[cfg(debug_assertions)]
     debug_assert_eq!(
-        topo::validate_closed(&body),
+        topo::validate_closed(&built),
         Ok(()),
         "extrude postcondition: result is not tier-2 valid (kernel bug)",
     );
 
     Ok(Extruded {
-        body,
+        body: built,
         solid: seed.solid,
         shell: seed.shell,
         top: top_face,
@@ -748,7 +803,7 @@ fn sweep_loop<T: Decide>(
         );
     }
 
-    // Struts: one raised vertex per loop vertex, in traversal order.
+    // Struts: one swept vertex per loop vertex, in traversal order.
     let mut struts: Vec<MevCreated> = Vec::with_capacity(n);
     for j in 0..n {
         let m = body.mev(
@@ -848,7 +903,7 @@ fn sweep_loop<T: Decide>(
             // which silently moves the geometry in a pass whose whole
             // contract is that only the DESCRIPTION moves. The edge's
             // own certified curve is the only honest source.
-            describe_strut_at_rest(body, struts[j].edge, k_prev, tol)?;
+            body.describe_at_rest(struts[j].edge, k_prev, tol)?;
             continue;
         }
         let s_next = body
@@ -869,66 +924,60 @@ fn sweep_loop<T: Decide>(
                         s2: k_next,
                         witness: mid,
                     },
-                    carrier: Curve3::Line {
-                        origin: qs[j],
-                        dir: w.normalize(),
-                    },
+                    carrier: strut_carrier(qs[j], w),
                     param_start: T::zero(),
                     param_end: w_norm,
                 };
                 body.set_edge_curve(struts[j].edge, spec, tol)?;
             }
             Ok(DihedralClass::Smooth) => {
-                // OQ7's must-carry, applied at construction (M5 PR 9):
-                // a definitely-smooth join whose SECOND-ORDER
-                // separation is definite is a jet-determinate tangency
-                // (the surfaces determine the locus — the fillet-grade
-                // line–arc profile join), upgraded to
-                // `TangentIntersection` exactly as the transverse arm
-                // upgrades to `Intersection`. A zero-side second order
-                // (G2/under-determined) keeps the conventional
-                // description BY THE PREDICATE; in-band escalates as
-                // the same typed sliver (F6).
-                let jet = geom_brep::tangent_jet(&s_prev, &s_next, mid, w);
-                let arm = geom_brep::curvature_lever_arm(&s_prev, mid)
-                    .min(geom_brep::curvature_lever_arm(&s_next, mid))
-                    .min(w_norm);
-                let margin = Margin::sagitta(jet.kappa_rel.abs(), arm);
-                match geom_core::k_stats::decide("tangent_second_order", margin, band) {
-                    Ok(geom_core::Sign::Positive) => {
+                // OQ7's must-carry, applied at construction over the
+                // WHOLE strut: a definitely-smooth join the rule finds
+                // jet-determinate is a genuine tangency (the surfaces
+                // determine the locus — the fillet-grade line–arc
+                // profile join), upgraded to `TangentIntersection`
+                // exactly as the transverse arm upgrades to
+                // `Intersection`. Under-determined keeps the
+                // conventional description BY THE PREDICATE; in-band
+                // escalates as the same typed sliver (F6). The gate,
+                // the stations and the three-way policy are the
+                // rule's, not this arm's
+                // ([`geom_brep::must_carry_over_edge`]).
+                let carrier = strut_carrier(qs[j], w);
+                match geom_brep::must_carry_over_edge(
+                    &s_prev,
+                    &s_next,
+                    &carrier,
+                    T::zero(),
+                    w_norm,
+                    w_norm,
+                    band,
+                ) {
+                    geom_brep::MustCarryVerdict::JetDeterminate => {
                         let spec = EdgeCurveSpec {
                             description: EdgeDescriptionSpec::TangentIntersection {
                                 s1: k_prev,
                                 s2: k_next,
                                 witness: mid,
                             },
-                            carrier: Curve3::Line {
-                                origin: qs[j],
-                                dir: w.normalize(),
-                            },
+                            carrier,
                             param_start: T::zero(),
                             param_end: w_norm,
                         };
                         body.set_edge_curve(struts[j].edge, spec, tol)?;
                     }
-                    Ok(geom_core::Sign::Zero | geom_core::Sign::Negative) => {
-                        // Zero-side second order: the surfaces
-                        // under-determine the locus, so the strut
+                    geom_brep::MustCarryVerdict::UnderDetermined => {
+                        // The surfaces under-determine the locus — a
+                        // zero-side second order, or a pair outside
+                        // the certificate's lane — so the strut
                         // "keeps the conventional description BY THE
-                        // PREDICATE" — the sentence above, unchanged.
-                        // **This call is that sentence translated, not
-                        // a new policy.** Pre-U2 the conventional
-                        // description WAS the pushforward, so doing
-                        // nothing here spelled it faithfully; U2 made
-                        // the conventional form a chart image, and
-                        // spelling the same sentence now means saying
-                        // which chart. Leaving the arm empty through
-                        // the collapse is what made `extrude` the one
-                        // verb still handing back a body tier 3
-                        // refuses (D3's transience fence) — caught by
-                        // the default-mode battery on
-                        // `survives_dihedral_band_sweep_at_the_strut_arm`,
-                        // whose two walls are DISTINCT planes, so the
+                        // PREDICATE" — the sentence above.
+                        // The conventional form is a chart IMAGE, not
+                        // the scaffolding the mint left (D3's
+                        // transience fence), so spelling that sentence
+                        // means saying which chart.
+                        // `review_m2_pr4::survives_dihedral_band_sweep_at_the_strut_arm`
+                        // is the row, on two DISTINCT planes, so the
                         // same-key lane above never sees it.
                         //
                         // **Why `k_prev`, and why the pick is free.**
@@ -936,14 +985,13 @@ fn sweep_loop<T: Decide>(
                         // does, so the choice is argued rather than
                         // taken. An extruded wall is the sweep of its
                         // profile segment along `w`, hence RULED in
-                        // `w`; the strut is
-                        // `Line { origin: qs[j], dir: w.normalize() }`
+                        // `w`; the strut is [`strut_carrier`]
                         // — the ruling through the vertex the two
                         // segments SHARE. That ruling lies in both
                         // walls exactly, so either chart is a
                         // legitimate home and neither is a better
                         // statement about the locus.
-                        // `survives_dihedral_band_sweep_at_the_strut_arm`
+                        // `review_m2_pr4::survives_dihedral_band_sweep_at_the_strut_arm`
                         // demonstrates it rather than trusting this
                         // paragraph: it re-describes the same strut in
                         // the OTHER wall's chart and watches that
@@ -967,9 +1015,9 @@ fn sweep_loop<T: Decide>(
                         // strut against `k_next` — and it is benign
                         // here only because of the ruling argument
                         // above.
-                        describe_strut_at_rest(body, struts[j].edge, k_prev, tol)?;
+                        body.describe_at_rest(struts[j].edge, k_prev, tol)?;
                     }
-                    Err(source) => {
+                    geom_brep::MustCarryVerdict::InBand(source) => {
                         return Err(ExtrudeError::SliverJoin {
                             loop_index,
                             vertex_index: segs[j].chord.canonical_vertex,
@@ -993,37 +1041,6 @@ fn sweep_loop<T: Decide>(
         struts: struts.iter().map(|m| m.edge).collect(),
         top_rims,
     })
-}
-
-/// Re-states one strut as an image in `chart`, keeping its carrier and
-/// parameter interval verbatim (D3's transience fence: the scaffolding
-/// door is for edges whose surfaces do not exist yet, and this one's
-/// do now).
-///
-/// **The carrier is RESTATED, never rebuilt.** Re-deriving it from the
-/// endpoints (`line_between(q, q + w)`) recomputes the direction and
-/// the interval from a sum that need not be bitwise what the strut was
-/// minted with, which silently moves geometry in a pass whose whole
-/// contract is that only the DESCRIPTION moves. Through
-/// `at_rest_in_chart` the pushforward that scaffolded the strut stays
-/// beside it as the authority record, which is what keeps tier 3's
-/// prefer-intrinsic reading unchanged.
-fn describe_strut_at_rest<T: Decide>(
-    body: &mut Body<T>,
-    edge: topo::EdgeKey,
-    chart: topo::SurfaceKey,
-    tol: Tol,
-) -> Result<(), ExtrudeError> {
-    let curve = body
-        .get_edge(edge)
-        .and_then(|e| body.get_curve_geom(e.curve))
-        .and_then(topo::CurveGeom::certified)
-        .ok_or(EulerOpError::StaleKey {
-            key: topo::EntityId::Edge(edge),
-        })?;
-    let spec = curve.restated_spec().at_rest_in_chart(chart, false);
-    body.set_edge_curve(edge, spec, tol)?;
-    Ok(())
 }
 
 /// One loop's sweep products, in swept order (see [`sweep_loop`]).
@@ -1080,7 +1097,7 @@ fn side_surface<T: Decide>(
     match segs[j].chord.kind {
         SweptKind::Line => {
             // Quad corners in the side loop's next order starting at
-            // the raised start vertex: v_j′, v_j, v_{j+1}, v_{j+1}′.
+            // the swept start vertex: v_j′, v_j, v_{j+1}, v_{j+1}′.
             let corners = [qs[j] + w, qs[j], qs[(j + 1) % n], qs[(j + 1) % n] + w];
             let plane = newell_plane(&corners, band).map_err(|source| ExtrudeError::SidePlane {
                 loop_index,
@@ -1104,11 +1121,17 @@ fn side_surface<T: Decide>(
             // and deterministic either way: the residual gates bound
             // the drift and identical inputs replay identical bits.
             let c_world = place.transform_point(Point3::new(center.x, center.y, T::zero()));
+            let rim = qs[j] - c_world;
+            // The SAME rim identity the bottom rim carrier registers,
+            // at the same guarantee and through the same helper: this
+            // wall's `u_ref` is built from the same lamina vertex and
+            // the same extruded center (`swept::register_rim_identity`).
+            crate::swept::register_rim_identity(rim, radius);
             Ok(FaceSurface::New(Surface::Cylinder {
                 origin: c_world,
                 axis: turn_axis(turn, normal),
                 radius,
-                u_ref: (qs[j] - c_world).normalize(),
+                u_ref: rim.normalize(),
             }))
         }
     }
@@ -1125,10 +1148,10 @@ fn side_surface<T: Decide>(
 /// certified `set_edge_curve` door. `classify_dihedral` at the witness
 /// decides, metered through the edge's honest extent
 /// ([`geom_brep::edge_extent`] — the carrier diameter for near-closed
-/// arc rims, whose chord collapses): Transverse upgrades (the only
-/// reachable arm for a normal extrusion — cap plane ⊥ wall); Smooth
-/// keeps the conventional description (kept total per the D2 split);
-/// Indeterminate is the typed [`ExtrudeError::SliverRim`].
+/// arc rims, whose chord collapses): Transverse upgrades; Smooth keeps
+/// the conventional description, an image at rest in the wall's chart
+/// (the arm below); Indeterminate is the typed
+/// [`ExtrudeError::SliverRim`].
 #[allow(clippy::too_many_arguments)] // two call sites in one loop; the
 // arguments are the upgrade's fixed context, not a configuration
 // surface.
@@ -1163,7 +1186,8 @@ fn upgrade_rim<T: Decide>(
     // schedule's middle sample uses (t₀ + (t₁ − t₀)·½, exact dyadic
     // fraction), so the WitnessMidpoint residual is zero by
     // construction.
-    let witness = carrier.eval(t0 + (t1 - t0) * T::from_f64(0.5));
+    let t_mid = t0 + (t1 - t0) * T::from_f64(0.5);
+    let witness = carrier.eval(t_mid);
     let extent = geom_brep::edge_extent(&carrier, t0, t1, q_from.distance(q_to));
     let s_cap = body
         .get_surface(cap)
@@ -1192,17 +1216,21 @@ fn upgrade_rim<T: Decide>(
             body.set_edge_curve(edge, spec, tol)?;
             Ok(())
         }
-        // Believed unreachable for a normal extrusion (the cap plane is
-        // perpendicular to every wall along the rim); kept total per
-        // the D2 conventional split rather than papered over with a
-        // panic. What a Smooth rim is NOT is automatically valid: the
-        // prefer-intrinsic enforcement does exempt definitely-smooth
-        // edges, but tier 3's material arm reads the same edge again
-        // with the faces' senses put back, and a Smooth rim whose
-        // material sides oppose is a wedge-0/2π edge — legal only where
-        // declared (MATE-3). This arm builds it; the at-rest gate
-        // judges it.
-        Ok(DihedralClass::Smooth) => Ok(()),
+        // A definitely-smooth cap rim keeps the CONVENTIONAL
+        // description by the predicate (D2's conventional split, as at
+        // the strut join's under-determined case), and the at-rest gate
+        // refuses the body when the wedge has no material side. It rests
+        // in its WALL's chart — the chart swept from the rim's own
+        // carrier; the cap plane certifies too, and `fillet_h6_cap_rim`
+        // pins the choice. The second-order rule the sibling smooth arms
+        // read has nothing to say here: only plane pairs reach this arm
+        // (a cylinder wall's normal is radial about the sketch normal,
+        // so it is perpendicular to the cap's ±n at every rim point),
+        // and a plane pair's `κ_rel` is identically zero.
+        Ok(DihedralClass::Smooth) => {
+            body.describe_at_rest(edge, wall, tol)?;
+            Ok(())
+        }
         Err(source) => Err(ExtrudeError::SliverRim {
             loop_index,
             segment_index,

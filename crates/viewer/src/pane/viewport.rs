@@ -1,5 +1,7 @@
 //! The viewport pane: the wgpu surface, the pointer, and the overlays
 //! drawn over both.
+//!
+//! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
@@ -12,28 +14,156 @@ use crate::datums::{self, datum_view};
 use crate::frame::{self, IdStep};
 use crate::gpu::{IdQuery, ViewportCallback};
 use crate::input::{self, PointerButton, ViewportEvent, ViewportSize};
-use crate::pick::{self, PickIndex};
+use crate::marks;
+use crate::pickcache;
+use crate::pickindex::PickIndex;
 use crate::session::SessionOp;
 use crate::sketch::{heading, tip_mark};
 
-/// Land a fold: take the camera it reached, and either show the
-/// refusal that stopped it or clear the last one.
+/// Land a fold: take the camera it reached, and show the refusal that
+/// stopped it.
 ///
 /// **The one place a camera move becomes application state.** Both the
 /// toolbar's single operations and the viewport's event stream come
-/// through here, so "record the refusal, clear it on success" has one
-/// implementation.
-pub(crate) fn land(camera: &mut Camera, status: &mut Option<String>, folded: &camera::Folded) {
+/// through here, so what a fold says has one implementation.
+///
+/// What it says is [`frame::fold_status`]'s to decide, and a clean fold
+/// says NOTHING: a camera is the fastest-moving writer the status line
+/// has, and one that assigned the line on every clean fold would erase
+/// the news of whichever writer shares its frame — including, on the
+/// frame a document lands, the landing's own.
+pub(crate) fn land(
+    camera: &mut Camera,
+    notices: &mut Vec<frame::Message>,
+    status: &mut Option<frame::Message>,
+    folded: &camera::Folded,
+) {
     *camera = folded.camera;
-    *status = folded
-        .refused
-        .as_ref()
-        .map(|(op, error)| format!("camera: {error} (from {op})"));
+    // Both halves of the verdict, each by its own route
+    // ([`frame::deliver`]): a refused fold is NEWS and joins this
+    // frame's notices, where the ranking can weigh it against whatever
+    // else the frame produced; a clean fold RETIRES the camera
+    // sentence and reaches the field directly, because a notice cannot
+    // un-say anything.
+    frame::deliver(notices, status, frame::fold_status(folded));
 }
 
 /// Direction the light travels, world space; a unit vector over the
 /// viewer's left shoulder.
 const LIGHT_DIRECTION: [f32; 3] = [0.408_248_3, 0.408_248_3, -0.816_496_6];
+
+/// Which button of the viewer's vocabulary an `egui` button denotes,
+/// or `None` for one the viewer binds nothing to.
+///
+/// **The one place the toolkit's button set meets the viewer's**, and
+/// the two are deliberately not the same set. [`input::PointerButton`]
+/// names the buttons this viewer BINDS; `egui::PointerButton` names
+/// the buttons a mouse can report, side buttons included.
+///
+/// **A side button gets `None` because there is nothing for it to
+/// be.** [`input::InputMap`]'s four bindings are filled by the three
+/// main buttons; no preset, preferences key or API call can name a
+/// fifth; and the bindings follow mainstream CAD (`input`'s module
+/// docs), which has no side-button gesture. A variant for one would
+/// be a word of the vocabulary that no sentence could use — and on
+/// the web backend these two are the browser's back and forward.
+/// Binding them is a product decision, and it arrives as a variant on
+/// `input::PointerButton`, a binding field or preset that can name it,
+/// and an arm here that stops saying `None`.
+///
+/// **The compiler holds the SET, and nothing more.** This match names
+/// every `egui::PointerButton` and the enum is not `#[non_exhaustive]`,
+/// so an egui that grows a sixth button makes it non-exhaustive;
+/// [`egui_buttons`] is `NUM_POINTER_BUTTONS` long, so the same upgrade
+/// fails its length. A version bump is the only moment the toolkit's
+/// set can change, and it is the moment both of these fire. (Were egui
+/// to become `#[non_exhaustive]`, the match half dies — `_ => None` is
+/// then the only shape available — and the array's length is the whole
+/// hold. Say so here on the day it happens.)
+///
+/// **Which button pairs with which is held by a ROW, not by the
+/// compiler**, and it could not be otherwise: the pairing is a naming
+/// decision with nothing to derive it from. Swapping two arms here
+/// type-checks and changes what every mouse does.
+/// `tests::the_pairing_is_the_one_this_module_intends` is the second
+/// statement of the table that makes such an edit red, and the only
+/// thing in the tree that can.
+fn viewer_button(button: egui::PointerButton) -> Option<PointerButton> {
+    match button {
+        egui::PointerButton::Primary => Some(PointerButton::Primary),
+        egui::PointerButton::Secondary => Some(PointerButton::Secondary),
+        egui::PointerButton::Middle => Some(PointerButton::Middle),
+        egui::PointerButton::Extra1 | egui::PointerButton::Extra2 => None,
+    }
+}
+
+/// Every button `egui` can report.
+///
+/// A function rather than a `const` item, and its length is the
+/// toolkit's own `NUM_POINTER_BUTTONS`: the compiler counts this list
+/// against the declaration it mirrors, so it is not a hand-maintained
+/// membership list and wants no row on
+/// `crates/viewer/README.md`'s roster of those.
+fn egui_buttons() -> [egui::PointerButton; egui::NUM_POINTER_BUTTONS] {
+    [
+        egui::PointerButton::Primary,
+        egui::PointerButton::Secondary,
+        egui::PointerButton::Middle,
+        egui::PointerButton::Extra1,
+        egui::PointerButton::Extra2,
+    ]
+}
+
+/// The drag and click events this frame's pointer denotes.
+///
+/// **Every button the toolkit can report is asked**, and the ones the
+/// viewer binds nothing to are dropped by [`viewer_button`] rather
+/// than by omission: a button missing from this loop produces no
+/// event at all, which every reader downstream cannot tell from a
+/// button nobody pressed.
+///
+/// **Which click selects is [`input::InputMap::select_button`]'s to
+/// decide**, so a click of any bound button is produced and `pick`
+/// reads the binding. A click carries the cursor position, so one
+/// with no position is not an event.
+///
+/// Drags come before clicks: [`input::fold_events`] applies the camera
+/// in stream order and [`input::pick_stream`] reads the cursor in
+/// stream order.
+fn button_events(
+    response: &egui::Response,
+    shift: bool,
+    alt: bool,
+    pixels_per_point: f64,
+    cursor_px: Option<[f64; 2]>,
+) -> Vec<ViewportEvent> {
+    let mut drags = Vec::new();
+    let mut clicks = Vec::new();
+    for egui_button in egui_buttons() {
+        let Some(button) = viewer_button(egui_button) else {
+            continue;
+        };
+        if response.dragged_by(egui_button) {
+            let delta = response.drag_delta();
+            drags.push(ViewportEvent::Drag {
+                button,
+                shift,
+                alt,
+                delta_px: [
+                    f64::from(delta.x) * pixels_per_point,
+                    f64::from(delta.y) * pixels_per_point,
+                ],
+            });
+        }
+        if let Some(pos_px) = cursor_px
+            && response.clicked_by(egui_button)
+        {
+            clicks.push(ViewportEvent::Click { button, pos_px });
+        }
+    }
+    drags.append(&mut clicks);
+    drags
+}
 
 impl ViewerBehavior<'_> {
     /// The viewport pane: read the pointer, fold it into camera
@@ -47,29 +177,34 @@ impl ViewerBehavior<'_> {
             height_px: f64::from(rect.height()) * pixels_per_point,
         };
         let Some(aspect) = viewport.aspect() else {
+            // **A pane with no extent projects nothing, so it holds no
+            // projection refusal.** `view_projection` is not reached
+            // below, so the fault would otherwise be a claim about a
+            // camera nobody is asking to project — and unlike the
+            // sentence this replaced, a badge has no `Clear` to sweep
+            // it. Dragging a splitter to zero is an ordinary gesture.
+            //
+            // This closes that arm and NOT the one where the pane is
+            // not drawn at all, which needs a "the viewport did not
+            // draw this frame" latch and is
+            // `work/view/projection-fault-has-no-sweeper.md`.
+            *self.projection_fault = None;
             return;
         };
 
         let (shift, alt) = ui.input(|i| (i.modifiers.shift, i.modifiers.alt));
-        let mut events: Vec<ViewportEvent> = Vec::new();
-        for (egui_button, button) in [
-            (egui::PointerButton::Primary, PointerButton::Primary),
-            (egui::PointerButton::Secondary, PointerButton::Secondary),
-            (egui::PointerButton::Middle, PointerButton::Middle),
-        ] {
-            if response.dragged_by(egui_button) {
-                let delta = response.drag_delta();
-                events.push(ViewportEvent::Drag {
-                    button,
-                    shift,
-                    alt,
-                    delta_px: [
-                        f64::from(delta.x) * pixels_per_point,
-                        f64::from(delta.y) * pixels_per_point,
-                    ],
-                });
-            }
-        }
+        // The cursor, first: `hover_pos` is in screen POINTS, and the
+        // viewport speaks physical pixels from the pane's own top-left
+        // corner, so the two conversions happen here and everything
+        // below sees one convention. A click carries a position, so
+        // the button reading needs this before it can run.
+        let cursor_px = response.hover_pos().map(|pos| {
+            [
+                f64::from(pos.x - rect.min.x) * pixels_per_point,
+                f64::from(pos.y - rect.min.y) * pixels_per_point,
+            ]
+        });
+        let mut events = button_events(&response, shift, alt, pixels_per_point, cursor_px);
         if response.hovered() {
             let scroll = ui.input(|i| i.smooth_scroll_delta.y);
             if scroll != 0.0 {
@@ -80,24 +215,8 @@ impl ViewerBehavior<'_> {
                 });
             }
         }
-        // Cursor events, in the same stream. `hover_pos` is in screen
-        // POINTS; the viewport speaks physical pixels from the pane's
-        // own top-left corner, so the two conversions happen here and
-        // the mapping below sees one convention.
-        let cursor_px = response.hover_pos().map(|pos| {
-            [
-                f64::from(pos.x - rect.min.x) * pixels_per_point,
-                f64::from(pos.y - rect.min.y) * pixels_per_point,
-            ]
-        });
         match cursor_px {
             Some(pos_px) => {
-                if response.clicked_by(egui::PointerButton::Primary) {
-                    events.push(ViewportEvent::Click {
-                        button: PointerButton::Primary,
-                        pos_px,
-                    });
-                }
                 events.push(ViewportEvent::Hover { pos_px });
             }
             // Only when there is a hover to clear — the session's own
@@ -114,19 +233,21 @@ impl ViewerBehavior<'_> {
                 aspect,
             };
             let folded = camera::fold_recorded(self.camera, std::slice::from_ref(&fit));
-            land(self.camera, self.status, &folded);
+            land(self.camera, self.notices, self.status, &folded);
         }
 
         // ONE fold, the same one `map_stream` gives the tests.
         //
         // Landed only when the fold actually MOVED something: the
-        // stream now carries cursor events too, and a stream that
-        // denotes no camera operation is not a camera event — landing
-        // it would clear the status line on every frame the pointer is
-        // inside the viewport.
+        // stream carries cursor events too, and a stream that denotes
+        // no camera operation is not a camera event. `land` is where a
+        // camera MOVE becomes application state, so running it on a
+        // frame with no move would make that sentence false — see
+        // `frame::folded_moved`, which owns the rule and states what it
+        // does and does not buy now that a clean fold clears nothing.
         let folded = input::fold_events(&self.input, self.camera, viewport, &events);
         if frame::folded_moved(&folded) {
-            land(self.camera, self.status, &folded);
+            land(self.camera, self.notices, self.status, &folded);
         }
 
         // **One movement verdict for both picking paths.** The id
@@ -139,10 +260,18 @@ impl ViewerBehavior<'_> {
         // is inside the pane — true of every frame of a drag.
         let generation = self.index.map(PickIndex::generation);
         let step = self.id_log.step(cursor_px, generation);
+        // **A cursor event retires what the cursor last said.** The id
+        // log has just judged whether the outstanding pick question
+        // still describes this cursor and this picture; a message
+        // about what was under the cursor is stale on exactly that
+        // judgement, so `frame::cursor_status` reads it. It only ever
+        // expires — what the cursor has to SAY is raised below, where
+        // the two picking paths are compared.
+        frame::apply(self.status, frame::cursor_status(step));
 
         // The cursor path: actions in, session operations out. Every
         // step of it — the un-projection, the ray service, the miss
-        // rule — lives in `pick::PickIndex::op_for`, so this is the
+        // rule — lives in `pickindex::PickIndex::op_for`, so this is the
         // same path a headless test drives.
         let actions = input::pick_stream(&self.input, &events);
         // **An open tool narrows the priority rule, it does not
@@ -167,22 +296,29 @@ impl ViewerBehavior<'_> {
                     // is churn in the one log a test reads.
                     Ok(SessionOp::Hover(face)) if face.as_ref() == self.session.hover() => {}
                     Ok(op) => self.ops.push(op),
-                    Err(error) => *self.status = Some(error.to_string()),
+                    Err(error) => self.notices.push(frame::pick_refusal(&error)),
                 }
             }
+        } else if let Some(refusal) = pickcache::unindexed(&actions, self.indexing) {
+            // **Not indexed yet is not a miss.** There is no index to
+            // ask, because one is being built on its own seam, and a
+            // click that quietly did nothing here is the fail-quiet
+            // this window's indexing indicator would otherwise be
+            // painted over.
+            self.notices.push(frame::unindexed_refusal(&refusal));
         }
 
         // What to mark, as a pure function of what is drawn and what is
         // selected. Recomputed every frame; nothing retains it.
         let highlight = self
             .index
-            .map(|index| pick::highlight(index, self.session.selection(), self.session.hover()));
+            .map(|index| marks::highlight(index, self.session.selection(), self.session.hover()));
         // The edge half of the same question, and the same discipline:
         // recomputed every frame from state that lives in one place.
         let mut edges = self
             .index
             .map(|index| {
-                pick::edge_overlay(
+                marks::edge_overlay(
                     index,
                     self.display,
                     self.session.selection(),
@@ -316,10 +452,21 @@ impl ViewerBehavior<'_> {
             }
         }
 
+        // **Held, not said.** A view matrix that cannot be formed is
+        // true of this camera on every frame until it moves somewhere
+        // one can be, so it is a read the toolbar badges
+        // (`frame::projection_badge`) rather than a sentence. As a
+        // sentence it was written here, AFTER the toolbar had already
+        // painted the line, and `perform_batch` then ran after this
+        // pane — so on every frame whose batch acted cleanly the
+        // `Clear` took it before any frame drew it.
         let matrix = match self.camera.view_projection(aspect) {
-            Ok(matrix) => matrix,
+            Ok(matrix) => {
+                *self.projection_fault = None;
+                matrix
+            }
             Err(error) => {
-                *self.status = Some(format!("projection: {error}"));
+                *self.projection_fault = Some(error);
                 return;
             }
         };
@@ -358,7 +505,7 @@ impl ViewerBehavior<'_> {
                 from_ray.as_ref().map(|face| &face.name),
             )
         }) {
-            *self.status = Some(report.to_string());
+            self.notices.push(report.notice());
         }
 
         let id_query = match (step, cursor_px) {
@@ -396,5 +543,483 @@ impl ViewerBehavior<'_> {
                 id_query,
             },
         ));
+    }
+}
+
+/// **Where a real fold meets a real landing.**
+///
+/// The rules [`land`] obeys are values in [`crate::frame`] and are
+/// asserted there over hand-built values, because `frame` is a
+/// vocabulary and has to be testable with no session in existence.
+/// This module is the driver, so the rows that need one are here: the
+/// wiring — does `land` still ASK — and the composition the issue
+/// reproduces, a document landing with a fault on the same frame it
+/// books its own re-frame.
+#[cfg(test)]
+mod tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+
+    use eframe::egui;
+
+    use super::{button_events, egui_buttons, land, viewer_button};
+    use crate::camera::{Camera, CameraOp, fold_recorded};
+    use crate::frame::{self, product_badge};
+    use crate::input::{self, InputMap, PointerButton, ViewportEvent};
+    use crate::props::SlotValue;
+    use crate::scene;
+    use crate::session::{DocSession, SessionOp};
+    use pncad::document::SlotId;
+    use pncad::geom_core::Tol;
+
+    fn framed() -> Camera {
+        Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("the plate frames")
+    }
+
+    /// The re-frame `fit_on_scene` books when a document lands — the
+    /// operation the viewport folds and lands on that very frame.
+    fn the_re_frame_an_open_books() -> CameraOp {
+        CameraOp::Frame {
+            bounds: scene::plate_bounds(),
+            aspect: 16.0 / 9.0,
+        }
+    }
+
+    #[test]
+    fn landing_a_clean_fold_does_not_clear_a_message_it_did_not_write() {
+        let fit = the_re_frame_an_open_books();
+        let mut camera = framed();
+        let folded = fold_recorded(&camera, std::slice::from_ref(&fit));
+        assert!(folded.refused.is_none(), "the re-frame applies");
+
+        // A message about the DOCUMENT: a clean fold retires what the
+        // camera said and nothing else, so this row goes red if the
+        // expiry reaches past its own subject.
+        let landing =
+            frame::Message::new(frame::Subject::Document, "product: the landing's own news");
+        let mut status = Some(landing.clone());
+        let mut notices = Vec::new();
+        land(&mut camera, &mut notices, &mut status, &folded);
+        assert_eq!(camera, folded.camera, "the camera still lands");
+        assert_eq!(
+            status,
+            Some(landing),
+            "and the line is not the fold's to clear"
+        );
+    }
+
+    /// **A refused fold is NEWS, so it joins the frame rather than
+    /// writing the line.**
+    ///
+    /// It used to assign the field here, which is what this sweep
+    /// removed: `perform_batch` runs after the panes have drawn, so a
+    /// sentence written straight to the field was erased by the same
+    /// frame's accepted batch before the toolbar painted it. Going
+    /// through `notices` puts it in `frame::frame_status`'s rank 2,
+    /// where the batch's verdict can no longer outrank it.
+    ///
+    /// The older sentence on the line is left ALONE — a notice adds to
+    /// what the frame has to say and takes nothing away — and the
+    /// ranking is what decides between them.
+    #[test]
+    fn landing_a_refused_fold_is_news_and_joins_the_frames_notices() {
+        let mut camera = framed();
+        let refuses = CameraOp::Dolly { factor: 0.0 };
+        let folded = fold_recorded(&camera, std::slice::from_ref(&refuses));
+        let older = frame::Message::new(frame::Subject::Document, "older news");
+        let mut status = Some(older.clone());
+        let mut notices = Vec::new();
+        land(&mut camera, &mut notices, &mut status, &folded);
+
+        assert_eq!(
+            notices.len(),
+            1,
+            "a refused fold is one notice: {notices:?}"
+        );
+        let raised = notices.first().expect("the notice just asserted");
+        assert!(
+            raised.text().contains("camera:") && raised.text().contains("dolly by a factor"),
+            "{raised}"
+        );
+        assert_eq!(raised.subject(), frame::Subject::Camera);
+        assert_eq!(
+            status,
+            Some(older),
+            "and it writes nothing: the ranking decides, not the writer"
+        );
+    }
+
+    /// **The refusal is put on the line by the RANKING, not by hand.**
+    ///
+    /// The two frames are composed the way the frame loop composes
+    /// them: `land` on the first, then `frame::frame_status` over the
+    /// notices it produced and `frame::apply` for the verdict — which
+    /// is `perform_batch`'s own pair, with an empty batch because
+    /// navigating acts on nothing. Reaching into `notices` for the
+    /// message would assert the retirement against a sentence this row
+    /// placed rather than one the frame landed, and the subject is
+    /// exactly what the ranking decides: `frame::joined_subject`
+    /// answers `Document` for two notices that disagree, and the
+    /// `Expire(Camera)` below would then retire nothing. One notice is
+    /// the case where the two answers coincide, and that coincidence
+    /// is the row's premise rather than a step it skips.
+    #[test]
+    fn landing_a_clean_fold_retires_the_camera_refusal_it_landed_before() {
+        // The item's own reproduction, through the driver: refuse a
+        // camera operation, then navigate. Nothing acts, so nothing
+        // clears the line, and before the subject rule the refusal
+        // stayed for as long as the user orbited.
+        let mut camera = framed();
+        let refuses = CameraOp::Dolly { factor: 0.0 };
+        let mut status = None;
+        let folded = fold_recorded(&camera, std::slice::from_ref(&refuses));
+        let mut notices = Vec::new();
+        land(&mut camera, &mut notices, &mut status, &folded);
+        assert_eq!(notices.len(), 1, "the refusal is news the frame carries");
+
+        // The end of that frame: the ranking weighs what the frame
+        // said against a batch that did nothing, and the winner
+        // becomes the line.
+        frame::apply(&mut status, frame::frame_status(&notices, &[], None));
+        let landed = status.clone().expect("the ranking put the refusal up");
+        assert_eq!(
+            landed.subject(),
+            frame::Subject::Camera,
+            "and it is the RANKING that says what the line is about: {landed}"
+        );
+
+        let orbit = CameraOp::Orbit {
+            yaw: 0.2,
+            pitch: 0.1,
+        };
+        let folded = fold_recorded(&camera, std::slice::from_ref(&orbit));
+        assert!(folded.refused.is_none(), "the orbit applies");
+        let mut notices = Vec::new();
+        land(&mut camera, &mut notices, &mut status, &folded);
+        assert!(
+            notices.is_empty(),
+            "a clean fold has nothing to say: {notices:?}"
+        );
+        assert_eq!(
+            status, None,
+            "and the next camera event retires it, whatever that event says"
+        );
+    }
+
+    #[test]
+    fn a_gather_fault_the_tree_cannot_badge_outlives_the_open_that_raised_it() {
+        // The composition the issue reproduces, end to end and through
+        // the real doors: a landed pair whose product does not gather,
+        // and the re-frame that landing books, on one frame.
+        //
+        // The fault is built by hand rather than provoked, and that is
+        // the honest way round. A fault a document can REACH by an
+        // ordinary edit — a root driven to a zero distance — is a
+        // failed root, which the feature tree badges at the node and
+        // `product_badge` therefore declines. The faults this channel
+        // is for are gather-level and emission-level: they are not
+        // authorable from the panels, which is exactly why nothing else
+        // reports them.
+        let tol = Tol::witness();
+        let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        assert!(
+            session.product_fault().is_none(),
+            "the plate's own product gathers: {:?}",
+            session.product_fault()
+        );
+
+        // A landing that DOES fault, reached the way a user reaches it.
+        let outcome = session.perform(SessionOp::SetSlot {
+            node: extrude,
+            slot: SlotId::Distance,
+            value: SlotValue::Continuous(0.0),
+        });
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        session.pump();
+        let fault = session.product_fault().expect("the gather refuses");
+        // …and it is one the tree carries, so the badge stays silent
+        // and the tree row is the channel. Both halves asserted, since
+        // silence is only correct while the other channel speaks.
+        assert!(
+            product_badge(Some(fault)).is_none(),
+            "a failed root is the tree's to badge: {fault}"
+        );
+        assert!(
+            session
+                .tree_rows()
+                .iter()
+                .any(|row| matches!(row.status, crate::tree::RowStatus::Failed { .. })),
+            "and the tree does badge it"
+        );
+
+        // Now the frame the issue is about: the message the landing
+        // raised, and the re-frame the same landing booked. Whatever
+        // the line holds when the fit is landed, the fit is not what
+        // takes it away.
+        let mut camera = framed();
+        let fit = the_re_frame_an_open_books();
+        let folded = fold_recorded(&camera, std::slice::from_ref(&fit));
+        let raised = frame::Message::new(
+            frame::Subject::Document,
+            "product: two roots collide in the name table",
+        );
+        let mut status = Some(raised.clone());
+        let mut notices = Vec::new();
+        land(&mut camera, &mut notices, &mut status, &folded);
+        assert_eq!(
+            status,
+            Some(raised),
+            "the re-frame an Open books is not news and erases none"
+        );
+    }
+
+    /// A pane that senses what the viewport's does, driven by raw
+    /// `egui` events.
+    ///
+    /// The viewport pane itself needs a GPU, a session and a scene;
+    /// what the rows below are about is one function of it — the
+    /// translation from what the toolkit says the pointer did to the
+    /// vocabulary `input` consumes — so the probe allocates the same
+    /// [`egui::Sense`] over a bare `Ui` and reads that function.
+    struct Pane {
+        ctx: egui::Context,
+    }
+
+    /// Where the probe's pointer aims: the middle of its 800x600
+    /// screen, which is inside the pane the probe allocates.
+    const AIM: egui::Pos2 = egui::pos2(400.0, 300.0);
+
+    /// [`AIM`] in the pane's own physical pixels — the pane fills the
+    /// screen from its origin and the probe runs at one pixel per
+    /// point, so the two agree.
+    const AIM_PX: [f64; 2] = [400.0, 300.0];
+
+    impl Pane {
+        fn new() -> Self {
+            Self {
+                ctx: egui::Context::default(),
+            }
+        }
+
+        /// Run one frame and hand back the pointer events the viewport
+        /// would read from it.
+        fn frame(&self, events: Vec<egui::Event>) -> Vec<ViewportEvent> {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(800.0, 600.0),
+                )),
+                events,
+                ..Default::default()
+            };
+            let mut read = Vec::new();
+            let out = &mut read;
+            let mut output = self.ctx.clone().run_ui(input, |ui| {
+                let (rect, response) =
+                    ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
+                let cursor_px = response
+                    .hover_pos()
+                    .map(|pos| [f64::from(pos.x - rect.min.x), f64::from(pos.y - rect.min.y)]);
+                *out = button_events(&response, false, false, 1.0, cursor_px);
+            });
+            // A frame's texture upload is the caller's to apply; this
+            // probe paints nothing, and dropping it unapplied panics.
+            output.textures_delta.clear();
+            read
+        }
+
+        /// Lay the pane out and put the pointer on it. Two empty
+        /// frames first: egui interacts against the PREVIOUS frame's
+        /// widget rects, so nothing is hittable until one has been
+        /// laid out.
+        fn reach(&self) {
+            self.frame(Vec::new());
+            self.frame(Vec::new());
+            self.frame(vec![egui::Event::PointerMoved(AIM)]);
+        }
+    }
+
+    fn button(button: egui::PointerButton, pressed: bool, pos: egui::Pos2) -> egui::Event {
+        egui::Event::PointerButton {
+            pos,
+            button,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        }
+    }
+
+    /// Press and release without moving: what the toolkit calls a
+    /// click. The release frame is the one that reports it.
+    fn click(pane: &Pane, egui_button: egui::PointerButton) -> Vec<ViewportEvent> {
+        pane.reach();
+        pane.frame(vec![button(egui_button, true, AIM)]);
+        pane.frame(vec![button(egui_button, false, AIM)])
+    }
+
+    /// Press and move: what the toolkit calls a drag. The moving frame
+    /// is the one that reports it.
+    fn drag(pane: &Pane, egui_button: egui::PointerButton) -> Vec<ViewportEvent> {
+        pane.reach();
+        pane.frame(vec![button(egui_button, true, AIM)]);
+        pane.frame(vec![egui::Event::PointerMoved(AIM + egui::vec2(40.0, 0.0))])
+    }
+
+    /// **[`egui_buttons`] is every toolkit button exactly once, and
+    /// that is a THEOREM rather than a reading of the list.**
+    ///
+    /// Three facts compose to it. The array's length is
+    /// `egui::NUM_POINTER_BUTTONS`, which the compiler checks against
+    /// the declaration. [`viewer_button`]'s exhaustive match means the
+    /// enum has exactly that many variants — an egui that adds one
+    /// without raising the constant reds there. And this row says the
+    /// entries are pairwise distinct. `n` distinct members of an
+    /// `n`-member set are all of them, so the array is a permutation
+    /// of the enum: nothing missing, nothing doubled.
+    ///
+    /// **Without this row the length is the only hold, and length
+    /// alone is not membership.** `[Primary; NUM_POINTER_BUTTONS]`
+    /// compiles, and the rows below derive their expectations from
+    /// [`egui_buttons`] itself, so a doubled entry asks one button
+    /// twice and another never — silently, for any pair the viewer
+    /// binds nothing to. A complete list held only by its length is
+    /// the class this fix was sent to close, and it would have been
+    /// re-minted here.
+    #[test]
+    fn the_toolkits_buttons_are_each_asked_exactly_once() {
+        let buttons = egui_buttons();
+        for (index, button) in buttons.iter().enumerate() {
+            for other in &buttons[index + 1..] {
+                assert_ne!(button, other, "{buttons:?} asks a button twice");
+            }
+        }
+    }
+
+    /// **Every button the toolkit can report reaches the pane, and
+    /// what [`viewer_button`] says of it is what comes out.**
+    ///
+    /// This row is over the PLUMBING, and its reach is exactly that.
+    /// Buttons come from [`egui_buttons`] and the expectation from
+    /// [`viewer_button`], so a button the loop stopped polling fails
+    /// here — the defect this row was written for, where a button
+    /// produced no event and no reader could tell that from a button
+    /// nobody pressed.
+    ///
+    /// **What it cannot catch is a change to `viewer_button` itself**,
+    /// because both sides of the assertion move with it: give `Extra1`
+    /// an arm and this row stays green, having asked for the new
+    /// answer and got it. The decision that function encodes is held
+    /// by [`the_pairing_is_the_one_this_module_intends`] instead, and
+    /// the two rows are complementary rather than overlapping.
+    #[test]
+    fn every_toolkit_button_the_adapter_binds_produces_its_click() {
+        for egui_button in egui_buttons() {
+            let events = click(&Pane::new(), egui_button);
+            let expected: Vec<ViewportEvent> = viewer_button(egui_button)
+                .map(|button| ViewportEvent::Click {
+                    button,
+                    pos_px: AIM_PX,
+                })
+                .into_iter()
+                .collect();
+            assert_eq!(events, expected, "clicking {egui_button:?}");
+        }
+    }
+
+    /// The same plumbing over drags, with the same reach and the same
+    /// blind spot: the three main buttons already dragged before this
+    /// unit, so what it adds is the side buttons, whose events stop at
+    /// [`viewer_button`]'s `None` rather than at a loop that never
+    /// asked. Whether `None` is the right answer for them is
+    /// [`the_pairing_is_the_one_this_module_intends`]'s to say.
+    #[test]
+    fn every_toolkit_button_the_adapter_binds_produces_its_drag() {
+        for egui_button in egui_buttons() {
+            let events = drag(&Pane::new(), egui_button);
+            let expected: Vec<ViewportEvent> = viewer_button(egui_button)
+                .map(|button| ViewportEvent::Drag {
+                    button,
+                    shift: false,
+                    alt: false,
+                    delta_px: [40.0, 0.0],
+                })
+                .into_iter()
+                .collect();
+            assert_eq!(events, expected, "dragging {egui_button:?}");
+        }
+    }
+
+    /// **`select_button` decides which click selects, and the pane
+    /// produces the click it names.**
+    ///
+    /// [`InputMap::select_button`] is a binding: any button of the
+    /// vocabulary may hold it, and `InputMap::pick` reads the field
+    /// rather than a fixed button. `InputMap` is `pub` with `pub`
+    /// fields and re-exported from the crate root, so an embedder can
+    /// already write `select_button: Middle` — and before this unit
+    /// that setting selected nothing, silently, because the pane
+    /// produced a click for `Primary` only.
+    ///
+    /// **The bound buttons are DERIVED, not listed.** Filtering
+    /// [`egui_buttons`] through [`viewer_button`] is every button the
+    /// viewer binds, by construction: a hand-written
+    /// `[Primary, Secondary, Middle]` here would be a complete list of
+    /// [`input::PointerButton`] that nothing forces — the shape
+    /// `work/view/viewer-suites-hold-hand-written-complete-variant-lists.md`
+    /// catalogues, and one `viewer-vocab-declared-once.sh` names as a
+    /// blind spot it cannot see. Derived, the row also widens itself
+    /// on the day a side button gains a binding.
+    #[test]
+    fn a_click_selects_through_whichever_button_the_map_binds() {
+        for egui_button in egui_buttons() {
+            let Some(select_button) = viewer_button(egui_button) else {
+                continue;
+            };
+            let map = InputMap {
+                select_button,
+                ..InputMap::DEFAULT
+            };
+            assert_eq!(
+                input::pick_stream(&map, &click(&Pane::new(), egui_button)),
+                vec![input::PickAction::Select(AIM_PX)],
+                "a click of {select_button:?}, the button this map binds, selects"
+            );
+        }
+    }
+
+    /// **The pairing itself, written a second time so that changing it
+    /// by accident is red.**
+    ///
+    /// Everything else about the adapter is derivable and so is
+    /// derived. This is not: which toolkit button denotes which of the
+    /// viewer's is a naming decision, with nothing in the tree to
+    /// check it against. Swapping two arms of [`viewer_button`]
+    /// type-checks, keeps the set complete and the list a permutation,
+    /// and leaves every other row here green — because they all ask
+    /// that function what to expect. The mouse would simply behave
+    /// wrongly.
+    ///
+    /// So the table is stated twice on purpose, and the second copy
+    /// costs an edit that has to be made deliberately in two places.
+    /// **That cost is the guard, not a defect in it.** Both copies are
+    /// exhaustive matches over a closed enum, so neither can fall
+    /// behind the toolkit while the other moves: a sixth
+    /// `egui::PointerButton` reds them together.
+    #[test]
+    fn the_pairing_is_the_one_this_module_intends() {
+        for egui_button in egui_buttons() {
+            let intended = match egui_button {
+                egui::PointerButton::Primary => Some(PointerButton::Primary),
+                egui::PointerButton::Secondary => Some(PointerButton::Secondary),
+                egui::PointerButton::Middle => Some(PointerButton::Middle),
+                egui::PointerButton::Extra1 | egui::PointerButton::Extra2 => None,
+            };
+            assert_eq!(
+                viewer_button(egui_button),
+                intended,
+                "{egui_button:?} denotes the wrong button of the viewer's vocabulary"
+            );
+        }
     }
 }

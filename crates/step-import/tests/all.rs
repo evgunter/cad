@@ -71,10 +71,14 @@ mod inst_review_probes;
 mod mesh8r2_probes;
 #[path = "nurbs_import.rs"]
 mod nurbs_import;
+#[path = "onb_wild_normal_census.rs"]
+mod onb_wild_normal_census;
 #[path = "p1b_r1_import_scan.rs"]
 mod p1b_r1_import_scan;
 #[path = "parser.rs"]
 mod parser;
+#[path = "perf12_census_goldens.rs"]
+mod perf12_census_goldens;
 #[path = "poleguard.rs"]
 mod poleguard;
 #[path = "probe_dup.rs"]
@@ -129,6 +133,8 @@ mod tcost_k3_import_certificate;
 mod tier_gate;
 #[path = "verbs_chamfer_roundtrip.rs"]
 mod verbs_chamfer_roundtrip;
+#[path = "wall_column_structure.rs"]
+mod wall_column_structure;
 #[path = "wild.rs"]
 mod wild;
 

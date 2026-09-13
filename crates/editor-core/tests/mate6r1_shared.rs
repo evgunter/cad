@@ -17,8 +17,8 @@ use std::sync::Arc;
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CancelToken, CapEnd, ChecksConfig, ContactClass, DocEdit,
     DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive, Node,
-    ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, StableName, assemble,
-    content_pin, evaluate, product_recorded, run_checks,
+    ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SitedRef, StableName,
+    assemble, content_pin, evaluate, product_recorded, run_checks,
 };
 use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
@@ -106,11 +106,12 @@ fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
         kind: EntityKind::Face,
         node: instance,
         path: vec![RoleSeg::InPart {
-            of: Box::new(StableName {
+            of: StableName {
                 kind: EntityKind::Face,
                 node: RecipeNodeId(1),
                 path: vec![RoleSeg::Cap(cap)],
-            }),
+            }
+            .into(),
         }],
     }
 }
@@ -122,11 +123,12 @@ fn dangling(instance: RecipeNodeId) -> StableName {
         kind: EntityKind::Face,
         node: instance,
         path: vec![RoleSeg::InPart {
-            of: Box::new(StableName {
+            of: StableName {
                 kind: EntityKind::Face,
                 node: RecipeNodeId(99),
-                path: vec![RoleSeg::Cap(CapEnd::Top)],
-            }),
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            }
+            .into(),
         }],
     }
 }
@@ -146,8 +148,8 @@ fn mate_of(
     class: ContactClass,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a,
-        b,
+        a: SitedRef::at_mint(a),
+        b: SitedRef::at_mint(b),
         class,
         alignment: Alignment {
             a: frame([0.0, 0.0, seat], [0.0, 0.0, 1.0]),
@@ -234,8 +236,8 @@ fn r1_two_bad_mates_noatrest_then_reference() {
         doc,
         DocEdit::InsertNode {
             node: mate_of(
-                in_part(ids[0], CapEnd::Top),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[0], CapEnd::End),
+                in_part(ids[1], CapEnd::Start),
                 1.0,
                 ContactClass::Tangent,
             ),
@@ -247,7 +249,7 @@ fn r1_two_bad_mates_noatrest_then_reference() {
         DocEdit::InsertNode {
             node: mate_of(
                 dangling(ids[1]),
-                in_part(ids[2], CapEnd::Bottom),
+                in_part(ids[2], CapEnd::Start),
                 1.0,
                 ContactClass::Rest,
             ),
@@ -273,7 +275,7 @@ fn r1_two_bad_mates_reference_then_noatrest() {
         DocEdit::InsertNode {
             node: mate_of(
                 dangling(ids[0]),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[1], CapEnd::Start),
                 1.0,
                 ContactClass::Rest,
             ),
@@ -283,8 +285,8 @@ fn r1_two_bad_mates_reference_then_noatrest() {
         doc,
         DocEdit::InsertNode {
             node: mate_of(
-                in_part(ids[1], CapEnd::Top),
-                in_part(ids[2], CapEnd::Bottom),
+                in_part(ids[1], CapEnd::End),
+                in_part(ids[2], CapEnd::Start),
                 1.0,
                 ContactClass::Tangent,
             ),
@@ -315,7 +317,7 @@ fn r1_a_good_mate_after_a_bad_one() {
         DocEdit::InsertNode {
             node: mate_of(
                 dangling(ids[0]),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[1], CapEnd::Start),
                 1.0,
                 ContactClass::Rest,
             ),
@@ -325,8 +327,8 @@ fn r1_a_good_mate_after_a_bad_one() {
         doc,
         DocEdit::InsertNode {
             node: mate_of(
-                in_part(ids[1], CapEnd::Top),
-                in_part(ids[2], CapEnd::Bottom),
+                in_part(ids[1], CapEnd::End),
+                in_part(ids[2], CapEnd::Start),
                 1.0,
                 ContactClass::Rest,
             ),
@@ -363,8 +365,8 @@ fn r1_mint_refusal_precedes_the_census() {
         doc,
         DocEdit::InsertNode {
             node: mate_of(
-                in_part(ids[0], CapEnd::Top),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[0], CapEnd::End),
+                in_part(ids[1], CapEnd::Start),
                 1.0,
                 ContactClass::Tangent,
             ),
@@ -414,8 +416,8 @@ fn r1_false_carried_declaration_at_both_doors() {
         inner,
         DocEdit::InsertNode {
             node: mate_of(
-                in_part(sub[0], CapEnd::Top),
-                in_part(sub[1], CapEnd::Bottom),
+                in_part(sub[0], CapEnd::End),
+                in_part(sub[1], CapEnd::Start),
                 1.5,
                 ContactClass::Rest,
             ),
@@ -455,8 +457,8 @@ fn r1_true_carried_declaration_at_both_doors() {
         inner,
         DocEdit::InsertNode {
             node: mate_of(
-                in_part(sub[0], CapEnd::Top),
-                in_part(sub[1], CapEnd::Bottom),
+                in_part(sub[0], CapEnd::End),
+                in_part(sub[1], CapEnd::Start),
                 1.0,
                 ContactClass::Rest,
             ),
@@ -496,7 +498,7 @@ fn r1_declared_pairs_with_a_bad_mate_before_a_good_one() {
         DocEdit::InsertNode {
             node: mate_of(
                 dangling(ids[0]),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[1], CapEnd::Start),
                 1.0,
                 ContactClass::Rest,
             ),
@@ -506,8 +508,8 @@ fn r1_declared_pairs_with_a_bad_mate_before_a_good_one() {
         doc,
         DocEdit::InsertNode {
             node: mate_of(
-                in_part(ids[1], CapEnd::Top),
-                in_part(ids[2], CapEnd::Bottom),
+                in_part(ids[1], CapEnd::End),
+                in_part(ids[2], CapEnd::Start),
                 1.0,
                 ContactClass::Rest,
             ),
@@ -566,8 +568,8 @@ fn r1_three_stands_exact_counts() {
         inner,
         DocEdit::InsertNode {
             node: mate_of(
-                in_part(sub[0], CapEnd::Top),
-                in_part(sub[1], CapEnd::Bottom),
+                in_part(sub[0], CapEnd::End),
+                in_part(sub[1], CapEnd::Start),
                 1.0,
                 ContactClass::Rest,
             ),
@@ -613,8 +615,8 @@ fn r1_overlapping_false_carried_declaration() {
         inner,
         DocEdit::InsertNode {
             node: mate_of(
-                in_part(sub[0], CapEnd::Top),
-                in_part(sub[1], CapEnd::Bottom),
+                in_part(sub[0], CapEnd::End),
+                in_part(sub[1], CapEnd::Start),
                 0.5,
                 ContactClass::Rest,
             ),
@@ -659,8 +661,8 @@ fn r1_two_overlapping_false_stands() {
         inner,
         DocEdit::InsertNode {
             node: mate_of(
-                in_part(sub[0], CapEnd::Top),
-                in_part(sub[1], CapEnd::Bottom),
+                in_part(sub[0], CapEnd::End),
+                in_part(sub[1], CapEnd::Start),
                 0.5,
                 ContactClass::Rest,
             ),

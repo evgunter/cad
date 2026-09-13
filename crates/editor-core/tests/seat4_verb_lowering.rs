@@ -49,6 +49,7 @@ use crate::fixture;
 use editor_core::{
     DocEdit, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, StableName, persist,
 };
+use fixture::digest::digest;
 use fixture::{len, prism_edges};
 use geom_core::Tol;
 
@@ -179,146 +180,10 @@ fn both_blends_evaluate_in_one_document() {
     );
 }
 
-/// FNV-1a 64 over a document's evaluated name tables and values —
-/// **every channel the migrated lowerings write**, in one number per
-/// document.
-///
-/// # What this covers, and how that set was chosen
-///
-/// Not "everything observable": the channels THESE lowerings can move,
-/// enumerated off the lowerings' own bodies. `wire_blend` writes
-/// exactly four things — the name table the emitter returns, the body
-/// the kernel verb returns, the provenance stamp `stamp_minted`
-/// applies to that body, and (on the refusal path) a typed error.
-/// `wire_boolean` writes the same first three plus the boolean VALUE's
-/// other halves — the result classification, the surviving declared
-/// contacts, and the typed empty success — and all of those are here
-/// too (the `Boolean` payload arm), each with a pinned input on which
-/// it actually VARIES: the contacts through `kiss_carry`, the empty
-/// token through `an_empty_boolean_evaluates_to_its_committed_digest`
-/// (both were measured fed-but-dead before those inputs existed — no
-/// pinned evaluation reached them, so perturbing them moved nothing).
-/// The refusal path is NOT covered, and that is a real hole, stated: a
-/// refusal payload's spelling and the verdict logs are outside this
-/// digest, so a change that only altered which `NodeErrorKind` came
-/// back would pass it — the boolean's undeclared-contact menu lift
-/// included. `both_blends_evaluate_in_one_document` covers only that
-/// the success path stays a success.
-///
-/// # Why each half is load-bearing, measured rather than assumed
-///
-/// - **Point bits alone are not enough.** A unit cube filleted at
-///   radius `r` and a unit cube chamfered at setback `r` have the same
-///   twenty-four vertex positions to the bit, differing only in whether
-///   the faces between them are cylinders and spheres or planes. A
-///   points-only digest gave the two documents ONE identical number and
-///   could not tell the blend pair apart at all.
-/// - **Carriers alone are not enough either.** Face carriers were the
-///   first fix, and `stamp_minted` — the line that gives every surface,
-///   curve and point this blend mints its `GeomSource`, and the thing
-///   that makes a downstream reference into a blended body resolvable —
-///   could be DELETED from `wire_blend` with this digest and the whole
-///   editor-core suite (891 rows when this was measured, at SEAT-4)
-///   still green. So the three provenance
-///   source tables are fed here, and so are the edge curve carriers
-///   (faces reach surfaces; nothing reached the curve arena).
-///
-/// Deleting `stamp_minted` now fails this row. That is the red-first
-/// evidence for the sentence above, and it is why the constants below
-/// are this PR's own mint rather than the pre-change tree's.
-///
-/// Geometry and provenance enter through `Debug`, whose `f64` rendering
-/// is the shortest round-tripping decimal: a bijection with the bits
-/// for every finite value, `-0.0` included.
-fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    let mut feed = |bytes: &[u8]| {
-        for b in bytes {
-            h ^= u64::from(*b);
-            h = h.wrapping_mul(0x1000_0000_01b3);
-        }
-    };
-    for id in &ev.order {
-        feed(format!("#{id:?}").as_bytes());
-        let Some(value) = ev.value(*id) else { continue };
-        for (name, entry) in value.name_table.iter() {
-            feed(format!("{name:?}={entry:?}").as_bytes());
-        }
-        feed(value.payload.kind_name().as_bytes());
-        if let editor_core::ValuePayload::Body(body) = &value.payload {
-            feed_body(&mut feed, body);
-        } else if let editor_core::ValuePayload::Boolean(bv) = &value.payload {
-            // The boolean value's three halves — `wire_boolean` writes
-            // all of them: the stamped body, the result
-            // classification, and the surviving declared contacts (the
-            // tier-3′ currency downstream ops re-enter). A lowering
-            // that dropped the contact carry or misfiled the kind
-            // would move nothing in any body arena and EVERYTHING
-            // here. The typed empty is fed as its own token so a
-            // result that vanished cannot alias one that never ran.
-            match bv {
-                editor_core::BooleanValue::Body {
-                    body,
-                    kind,
-                    contacts,
-                } => {
-                    feed(format!("{kind:?}{contacts:?}").as_bytes());
-                    feed_body(&mut feed, body);
-                }
-                editor_core::BooleanValue::Empty => feed(b"empty"),
-            }
-        }
-    }
-    h
-}
-
-/// The body half of [`digest`], byte-for-byte the SEAT-4 feed: points
-/// with their provenance stamps, the curve and surface arenas with
-/// theirs, the topology's attachment both ways, and the entity census.
-fn feed_body(feed: &mut impl FnMut(&[u8]), body: &topo::Body<f64>) {
-    // Points: bits, then the provenance stamp on the same key.
-    for (key, p) in body.points() {
-        for c in [p.x, p.y, p.z] {
-            feed(&c.to_bits().to_be_bytes());
-        }
-        feed(format!("{key:?}<-{:?}", body.point_source(key)).as_bytes());
-    }
-    // Curves and surfaces: the arenas themselves plus their
-    // stamps. A face reaches its surface below, but nothing
-    // reached the curve arena before this, and neither arena's
-    // SOURCE was reachable at all.
-    for (key, curve) in body.curves() {
-        feed(format!("{key:?}{curve:?}<-{:?}", body.curve_source(key)).as_bytes());
-    }
-    for (key, surface) in body.surfaces() {
-        feed(format!("{key:?}{surface:?}<-{:?}", body.surface_source(key)).as_bytes());
-    }
-    // The topology's attachment to that geometry, both ways: a
-    // face's carrier and an edge's curve. A re-plumbing that
-    // kept every arena and re-pointed the topology at it moves
-    // these and nothing above.
-    for (key, face) in body.faces() {
-        let surface = body
-            .get_surface(face.surface)
-            .expect("a face has a carrier");
-        feed(format!("{key:?}{surface:?}").as_bytes());
-    }
-    for (key, edge) in body.edges() {
-        let curve = body
-            .get_curve_geom(edge.curve)
-            .expect("an edge has a curve");
-        feed(format!("{key:?}{curve:?}").as_bytes());
-    }
-    feed(
-        format!(
-            "V{}E{}F{}",
-            body.vertices().count(),
-            body.edges().count(),
-            body.faces().count()
-        )
-        .as_bytes(),
-    );
-}
+// The digest these rows pin with is `fixture::digest::digest` — ONE feed
+// for every verb-migration suite, with what it covers (and the measured
+// reasons each half is load-bearing, first found here at SEAT-4) stated
+// at that home. The constants below are this suite's own.
 
 /// **The existing blend documents' evaluations are bit-identical**,
 /// body and name table, one committed number each.
@@ -345,8 +210,8 @@ fn feed_body(feed: &mut impl FnMut(&[u8]), body: &topo::Body<f64>) {
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     for (name, want) in [
-        ("die_fillet", 0xc73e_54fb_cb42_a7db_u64),
-        ("die_chamfer", 0xcb6b_1dc1_3231_856d),
+        ("die_fillet", 0x39ae_92cf_f632_e603_u64),
+        ("die_chamfer", 0x7dfb_8a42_246e_bd75),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -429,9 +294,9 @@ fn a_boolean_document_round_trips_byte_identical() {
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     for (name, want) in [
-        ("crossing_slots", 0x639e_16ef_1cdd_84a7_u64),
-        ("heat_sink", 0x9659_b4c0_7f46_4f38),
-        ("kiss_carry", 0xfc1e_89f4_9a13_daea),
+        ("crossing_slots", 0x75b5_a599_f62f_bee0_u64),
+        ("heat_sink", 0x4ba6_9485_51b0_1e91),
+        ("kiss_carry", 0x56f8_69db_87a8_065a),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -525,7 +390,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0x06ac_a28a_21f7_a4a5,
+        got, 0xef2f_77c3_6271_e2eb,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

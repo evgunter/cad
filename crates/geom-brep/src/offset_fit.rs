@@ -45,9 +45,15 @@
 //! parameters (hence knots, through Eq. 9.8) inside the cells that
 //! carry the sup, until every cell certifies or the budget expires.
 //! What the two share is the thing that matters: a bound decides every
-//! step, and exhaustion is a **typed refusal carrying the achieved
-//! bound** ([`OffsetFitError::BudgetExhausted`] — the
-//! `QuadratureBudget` shape), never an uncertified return.
+//! step, and exhaustion is a **typed refusal naming what ran out** —
+//! the round budget ([`OffsetFitError::BudgetExhausted`]) or the
+//! per-direction sample cap ([`OffsetFitError::SampleCapReached`]),
+//! each carrying the achieved bound, or
+//! [`OffsetFitError::BoundNotFinite`] when the last round's bound is
+//! not one, carrying the last finite bound any round reached — the
+//! [`crate::props::PropsError::QuadratureBudget`] shape (a bound
+//! decides, expiry is typed and carries what was reached), never an
+//! uncertified return.
 //!
 //! The compression half of A9.10 (knot removal under Eqs. 9.86–9.89,
 //! shrinking the fitted structure once the tolerance is met) is NOT
@@ -153,6 +159,38 @@
 //! and it is why the fit door refuses on the floor before it fits
 //! anything.
 //!
+//! # The production doors and the numeric-target instrument
+//!
+//! Every door here comes in two forms, and the pair is the shape D4 ¶1's
+//! witness rule asks for.
+//!
+//! The **production** door takes [`Tol`] — [`fit_offset`],
+//! [`certify_offset`], [`certify_offset_over`],
+//! [`approx_offset_surface`], [`recertify_approx`]. That is the whole
+//! surface the kernel reaches: `topo::props`'s lane doors call the last
+//! two, and the mint calls down to the first three. A caller has no
+//! number to pass, so two callers cannot fit against two epsilons, and
+//! the value is read once (`precision_target`, private — the doors
+//! are the surface).
+//!
+//! The **`_at`** form takes a chosen target and is `#[doc(hidden)]`,
+//! because it is an INSTRUMENT rather than a door: this engine is a
+//! general approximation routine, and the only way to measure its
+//! refinement, its round budget, its stall guard and each limb of its
+//! classification is to run it at targets chosen for the measurement —
+//! 1e-2 through 1e-18, and bounds derived from a measured residual.
+//! One committed ε cannot express any of that, and rewriting those rows
+//! to make the GEOMETRY worse instead would delete the evidence rather
+//! than move it. The suites in `crates/geom-brep/tests/` and
+//! `crates/sweep/tests/` are the whole population.
+//!
+//! **One production caller reaches an `_at` routine**, named at its own
+//! door: the transform lane's `PcurveFittedLane::remap_certificate`
+//! classifies a MAPPED pair against the tolerance the surface's own
+//! claim was made at, which is a stored datum and deliberately not the
+//! run's ε. Nothing else does, and
+//! `crates/topo/tests/shell_tolerance_chain.rs` holds that as a census.
+//!
 //! # Discipline
 //!
 //! The whole stack is **f64 substrate**: fitting is C6 structure
@@ -165,7 +203,7 @@ use geom::curves::fit::{FitError, interpolate_columns};
 use geom::surfaces::{NurbsSurface, Surface};
 use geom_core::spline::compose::patch::PatchSpans;
 use geom_core::spline::{KnotVector, SplineError};
-use geom_core::{Band, Point3, ring_interval::RingInterval};
+use geom_core::{Band, Point3, Tol, ring_interval::RingInterval};
 
 use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig, sqrt_down, sqrt_up};
 use crate::patch_bound::{Net, PatchBoundError, derived_knots, is_rational};
@@ -182,10 +220,18 @@ pub const OFFSET_FIT_DEGREE: usize = 3;
 /// fit. A CONSTANT (D9).
 pub const OFFSET_FIT_SEED_PER_SPAN: usize = 3;
 
-/// The refinement-round budget of the fit loop. Expiry is the typed
-/// [`OffsetFitError::BudgetExhausted`] carrying the achieved bound —
-/// the Book's own "both can fail to converge and this eventuality
-/// must be dealt with" honesty, as a type.
+/// The refinement-round budget of the fit loop, and the lever of
+/// [`OffsetFitError::BudgetExhausted`]: that face is raised only when
+/// this many rounds ran and the stall guard had not refused — the
+/// last round's bound was still falling, or had fallen short once
+/// without the both-directions step having been tried — so raising
+/// this constant is what would have changed it; a last round that
+/// gained nothing on the strongest step is
+/// [`OffsetFitError::RefinementStalled`] instead. Expiry with a
+/// non-finite last bound is [`OffsetFitError::BoundNotFinite`], whose
+/// lever this is not. All are the Book's own "both can fail to
+/// converge and this eventuality must be dealt with" honesty, as a
+/// type.
 pub const OFFSET_FIT_BUDGET: usize = 6;
 
 /// The per-direction cap on sample parameters.
@@ -201,10 +247,16 @@ pub const OFFSET_FIT_BUDGET: usize = 6;
 /// both-directions fallback the stall guard falls back to can double
 /// both at once, which the same cap bounds.
 ///
-/// It is the second stopping condition, and it produces the same
-/// typed [`OffsetFitError::BudgetExhausted`] refusal as the round
-/// budget: never an uncertified return, and never an unbounded amount
-/// of work.
+/// It is the second stopping condition, with its own face: this
+/// constant is the lever of [`OffsetFitError::SampleCapReached`],
+/// which is raised only when the NEXT round's schedule would exceed
+/// the cap in some direction, and which says how many of
+/// [`OFFSET_FIT_BUDGET`]'s rounds ran so that a cap stop is never
+/// read as the round budget running out. A cap stop with a non-finite
+/// bound on the grid it stopped on is [`OffsetFitError::BoundNotFinite`]
+/// instead.
+/// Never an uncertified return, and never an unbounded amount of
+/// work.
 pub const OFFSET_FIT_SAMPLE_CAP: usize = 48;
 
 /// The per-direction on-locus sample count inside each certificate
@@ -233,6 +285,48 @@ impl OffsetLimb {
 
 /// A typed refusal of the offset fit door (fail-loud; the kernel never
 /// panics and never returns an uncertified surface).
+///
+/// # How the refinement loop ends without a certificate
+///
+/// The certify-and-insert loop of [`fit_offset_at`] (and so of every
+/// production door over it) leaves without a certificate in six ways.
+/// Two are propagations from a round's own work and say nothing about
+/// the loop: the interpolation's refusals ([`Self::Fit`],
+/// [`Self::Structure`], [`Self::NonFiniteSample`]) and the certificate
+/// assembly's ([`Self::PatchBound`]). The other four are the loop's
+/// own terminations, each a face naming the lever that would have
+/// changed it:
+///
+/// 1. **The round budget ran out with the bound still falling** —
+///    [`Self::BudgetExhausted`]; the lever is [`OFFSET_FIT_BUDGET`].
+///    The stall verdict is taken before the budget test on every
+///    round, the last included, so this face never speaks for a round
+///    the guard would have refused.
+/// 2. **The per-direction sample cap stopped the next round** —
+///    [`Self::SampleCapReached`]; the lever is
+///    [`OFFSET_FIT_SAMPLE_CAP`], and the face says how many rounds
+///    ran so the budget is never read as the knob.
+/// 3. **The strongest step gained nothing, or could not grow the
+///    schedule at all** — [`Self::RefinementStalled`]; no lever, more
+///    rounds cannot help. A round that marks nothing ends here and
+///    nowhere else, in two steps: the budget exit is taken before any
+///    marking, so an unmarked round cannot reach it; and a marking
+///    that grew nothing leaves the next schedule the size of the
+///    current grid, which the cap test admitted when that grid was
+///    built, so the cap exit cannot fire on it either. What is left
+///    is the schedule-exhaustion arm, which is this face's.
+/// 4. **The last round's bound is not finite** —
+///    [`Self::BoundNotFinite`], whichever of the budget or the cap
+///    stopped the loop; it carries the last finite bound any round
+///    reached in place of an `inf`, and its lever is the schedule
+///    when there was one and no constant of this loop when there was
+///    not.
+///
+/// **D2 classification: row 1**, stated here once for the four faces
+/// (their own docs point back here rather than restating it). Every
+/// input that any face refuses is refused — the admission set of the
+/// door is unchanged by which face speaks — and the split exists so
+/// the caller learns which knob the refusal is about.
 #[derive(Clone, Debug, PartialEq)]
 pub enum OffsetFitError {
     /// A door meter refused: the patch's normal is not certifiably
@@ -259,19 +353,89 @@ pub enum OffsetFitError {
         /// The offending parameters.
         uv: (f64, f64),
     },
-    /// The refinement loop stopped without certifying — either
-    /// [`OFFSET_FIT_BUDGET`] rounds spent or the per-direction
-    /// [`OFFSET_FIT_SAMPLE_CAP`] reached; carries the bound achieved
-    /// so far and the grid it was achieved on.
+    /// The refinement loop spent all [`OFFSET_FIT_BUDGET`] rounds and
+    /// the stall guard did not refuse on the last one — the bound was
+    /// still falling, or had fallen short once without the
+    /// both-directions step having been tried; carries the FINITE
+    /// bound achieved on the last grid (a last round whose bound is
+    /// not finite is [`Self::BoundNotFinite`]; a last round whose
+    /// strongest step gained nothing is [`Self::RefinementStalled`]).
+    /// The lever is the round budget: more rounds are what would have
+    /// changed this. Classification: the enum's, above.
     BudgetExhausted {
-        /// The round budget.
+        /// The round budget that expired.
         budget: usize,
         /// The sample grid the loop stopped on, per direction.
         grid: (usize, usize),
-        /// The certified sup bound at expiry, in metres.
+        /// The certified sup bound at expiry, in metres. Finite.
         achieved: f64,
         /// The tolerance it had to reach.
         tolerance: f64,
+    },
+    /// The per-direction [`OFFSET_FIT_SAMPLE_CAP`] stopped the loop:
+    /// the next round's schedule would have carried more samples than
+    /// the cap in at least one direction, so the rounds the budget
+    /// still had were unusable. Carries the FINITE bound achieved on
+    /// the grid the loop stopped on (a stop whose bound is not finite
+    /// is [`Self::BoundNotFinite`]). The lever is the sample cap, not
+    /// the round budget — `rounds` says how many of the budget's
+    /// rounds actually ran. Classification: the enum's, above.
+    SampleCapReached {
+        /// The per-direction sample cap that stopped the next round.
+        cap: usize,
+        /// How many refinement rounds ran before the cap stopped the
+        /// next one — the same count a certificate's `rounds` carries.
+        rounds: u32,
+        /// The sample grid the loop stopped on, per direction.
+        grid: (usize, usize),
+        /// The certified sup bound on that grid, in metres. Finite.
+        achieved: f64,
+        /// The tolerance it had to reach.
+        tolerance: f64,
+    },
+    /// The loop stopped — on the round budget or on the sample cap —
+    /// with the bound on its last grid not finite: the certifying limb
+    /// answered `+∞` there, so there is no achieved bound on that
+    /// grid, and the type carries `last_finite` in place of an `inf`
+    /// where the caller needs a number. Two cases, told apart by that
+    /// field, because they send the caller to different places:
+    ///
+    /// - **`last_finite: None` — no round ever produced a finite
+    ///   bound.** A cell's sign witness or its lower bound on `‖E‖`
+    ///   could not be proved at the sampled cells on any grid, and a
+    ///   finer schedule did not change that; the module docs'
+    ///   small-`|d|` limit is the shape of it. The lever is NOT a
+    ///   constant of this loop — neither the budget nor the cap is
+    ///   worth raising. What decides it is the limb's floors against
+    ///   the request's own `|d|`: the regularity floor the door meters
+    ///   certify and the componentwise mignitude bound on `‖E‖`. The
+    ///   caller's move is there, not at the budget. Every instance in
+    ///   the shipped corpus and in a 518-request search over five
+    ///   bases stopped on the cap; a round-budget stop with no finite
+    ///   bound is reachable by the same test and has no row.
+    /// - **`last_finite: Some(b)` — a coarser grid reached the finite
+    ///   bound `b` and a finer one lost it.** The bound was there and
+    ///   the schedule moved off it, so the schedule is the lever and
+    ///   `b` is the number the caller can size against. Structurally
+    ///   reachable — the stall guard keeps refining after a finite
+    ///   round is followed by a non-finite one, since an infinite
+    ///   bound is never a stall — and no fixture reaches it: the same
+    ///   518-request search saw no finite round followed by a
+    ///   non-finite one.
+    ///
+    /// Classification: the enum's, above.
+    BoundNotFinite {
+        /// How many refinement rounds ran before the loop stopped.
+        rounds: u32,
+        /// The sample grid the loop stopped on, per direction.
+        grid: (usize, usize),
+        /// The offset distance the request was for, in metres.
+        d: f64,
+        /// The tolerance it had to reach.
+        tolerance: f64,
+        /// The last finite sup bound any round reached, in metres;
+        /// `None` when no round did.
+        last_finite: Option<f64>,
     },
     /// The refinement loop stopped IMPROVING before the budget ran
     /// out: a round that bisected every failing cell in both
@@ -285,12 +449,12 @@ pub enum OffsetFitError {
     /// tolerance is below what this fit's structure can reach on this
     /// patch.
     ///
-    /// **D2 classification: row 1** — reachable by input, and invalid
-    /// as a request to this door. Row 0 was answered first and
-    /// answered no: "the bound stopped falling" is a measured numeric
-    /// outcome on admissible input, so no type change can exclude it
-    /// without making convergence a type-level property of
-    /// caller-supplied geometry.
+    /// Classification: the enum's (row 1, stated once above) — and
+    /// this face is where row 0 was answered first and answered no:
+    /// "the bound stopped falling" is a measured numeric outcome on
+    /// admissible input, so no type change can exclude it without
+    /// making convergence a type-level property of caller-supplied
+    /// geometry.
     ///
     /// *The minority reading, recorded because it becomes correct.*
     /// Row 2 (`Unsupported*`, valid-but-unbuilt) was argued on the
@@ -370,16 +534,20 @@ impl core::fmt::Display for OffsetFitError {
             Self::Meter(e) => write!(f, "fit_offset refused at a door meter: {e}"),
             Self::PatchBound(e) => write!(f, "fit_offset: {e}"),
             Self::Fit(e) => write!(f, "fit_offset: the interpolation stack refused: {e}"),
-            Self::Structure(e) => write!(f, "fit_offset: spline structure refused: {e:?}"),
+            Self::Structure(e) => write!(f, "fit_offset: spline structure refused: {e}"),
             Self::InvalidRequest { d, tolerance } => write!(
                 f,
                 "fit_offset: the request is not fittable — offset distance {d} m must be \
-                 finite and non-zero, tolerance {tolerance} m finite and positive"
+                 finite and non-zero, tolerance {tolerance} m finite and positive; both are \
+                 this call's own arguments, so supply them from the request rather than \
+                 from a derived quantity that went non-finite"
             ),
             Self::NonFiniteSample { uv } => write!(
                 f,
                 "fit_offset: the base surface evaluated to a non-finite offset point at \
-                 (u, v) = ({}, {}) — poison in, refusal out",
+                 (u, v) = ({}, {}) — poison in, refusal out: the door meters admitted this \
+                 sample in bound, so the base's own description is what to repair, not the \
+                 offset request",
                 uv.0, uv.1
             ),
             Self::BudgetExhausted {
@@ -389,11 +557,61 @@ impl core::fmt::Display for OffsetFitError {
                 tolerance,
             } => write!(
                 f,
-                "fit_offset: the refinement loop stopped on a {}x{} sample grid without \
-                 certifying (round budget {budget}, per-direction cap {}) — the achieved \
-                 sup bound is {achieved} m against a tolerance of {tolerance} m; nothing \
+                "fit_offset: the round budget of {budget} refinement rounds ran out on a \
+                 {}x{} sample grid with the bound still converging — the achieved sup \
+                 bound is {achieved} m against a tolerance of {tolerance} m; the lever is \
+                 OFFSET_FIT_BUDGET; nothing uncertified is returned",
+                grid.0, grid.1
+            ),
+            Self::SampleCapReached {
+                cap,
+                rounds,
+                grid,
+                achieved,
+                tolerance,
+            } => write!(
+                f,
+                "fit_offset: the per-direction sample cap of {cap} stopped the refinement \
+                 loop on a {}x{} sample grid after {rounds} of {OFFSET_FIT_BUDGET} rounds — \
+                 the next round's schedule would exceed the cap — with an achieved sup \
+                 bound of {achieved} m against a tolerance of {tolerance} m; the lever is \
+                 OFFSET_FIT_SAMPLE_CAP, not the round budget; nothing uncertified is \
+                 returned",
+                grid.0, grid.1
+            ),
+            Self::BoundNotFinite {
+                rounds,
+                grid,
+                d,
+                tolerance,
+                last_finite: None,
+            } => write!(
+                f,
+                "fit_offset: the refinement loop stopped on a {}x{} sample grid after \
+                 {rounds} rounds without any round producing a finite sup bound, at \
+                 d = {d} m against a tolerance of {tolerance} m — the certifying limb \
+                 answered +∞ on every grid reached, so there is no achieved bound to \
+                 report; neither the round budget nor the sample cap is the lever: the \
+                 limb's floors against |d| = {} m are, at the door meters; nothing \
                  uncertified is returned",
-                grid.0, grid.1, OFFSET_FIT_SAMPLE_CAP
+                grid.0,
+                grid.1,
+                d.abs()
+            ),
+            Self::BoundNotFinite {
+                rounds,
+                grid,
+                d,
+                tolerance,
+                last_finite: Some(b),
+            } => write!(
+                f,
+                "fit_offset: the refinement loop stopped on a {}x{} sample grid after \
+                 {rounds} rounds with a non-finite sup bound on its last grid, at d = {d} m \
+                 against a tolerance of {tolerance} m — a coarser grid reached {b} m and \
+                 the finer one lost it, so the schedule is the lever and {b} m is the \
+                 bound to size against; nothing uncertified is returned",
+                grid.0, grid.1
             ),
             Self::RefinementStalled {
                 rounds,
@@ -405,14 +623,18 @@ impl core::fmt::Display for OffsetFitError {
                 "fit_offset: the refinement loop STALLED on a {}x{} sample grid after \
                  {rounds} rounds — bisecting every failing cell in both directions did \
                  not lower the achieved sup bound of {achieved} m, against a tolerance \
-                 of {tolerance} m, so the remaining round budget cannot reach it; \
-                 nothing uncertified is returned",
+                 of {tolerance} m, so the remaining round budget cannot reach it and \
+                 raising OFFSET_FIT_BUDGET will not either; loosen the tolerance to \
+                 something this fit's structure reaches on this patch; nothing \
+                 uncertified is returned",
                 grid.0, grid.1
             ),
             Self::WindowUnsupported { window } => write!(
                 f,
                 "the window (u {:?}, v {:?}) is not the base's own chart rectangle, and the \
-                 offset certificate covers that rectangle only",
+                 offset certificate covers that rectangle only — ask for the certificate \
+                 over the base's own chart rectangle; a narrower claim is a bound this \
+                 derivation never proved",
                 window.u, window.v
             ),
             Self::Limb {
@@ -421,7 +643,11 @@ impl core::fmt::Display for OffsetFitError {
                 tolerance,
             } => write!(
                 f,
-                "fit_offset: {} measured {bound} m against a tolerance of {tolerance} m",
+                "fit_offset: {} measured {bound} m against a tolerance of {tolerance} m \
+                 — a fit handed in does not certify at the tolerance asked (an on-locus \
+                 max above it is a fit wrong where the samples looked; a hull sup above it \
+                 is a bound too weak between them), so re-fit through fit_offset at this \
+                 tolerance rather than accepting the stored certificate",
                 limb.name()
             ),
         }
@@ -434,6 +660,21 @@ impl std::error::Error for OffsetFitError {}
 // `ApproxSurface` stores it and `Surface` stores that, so the type has
 // to sit below the surface enum. Its derivation is this module's, and
 // every limb below writes into it.
+//
+// The DERIVATION is `f64`-only — every door here is monomorphic at
+// `f64`, taking `NurbsSurface<f64>` or `ApproxSurface<f64>` and never a
+// `T: Real` — but the RECORD is not confined to that scalar.
+// It carries no scalar parameter of its own, and
+// `ApproxSurface::map_scalar` carries it verbatim onto a lifted
+// surface, so a certificate DOES reach consumers at scalars this
+// module never runs at. It arrives there as provenance and never as
+// authority: at `f64` the validator re-derives against the
+// description and never consults the stored copy, and at a scalar
+// with no re-derivation lane — `PropsQuadLane::recertify_approx` in
+// `topo::props` answering `None` — tier 3 REFUSES the face with
+// `ValidationError::ApproxLaneUnsupported` rather than accepting the
+// carried record. That refusal is about the derivation missing at
+// that scalar, never about a value that could not arrive.
 pub use geom::OffsetCertificate;
 
 /// **The offset fit door**: fit a NURBS approximation of `S + d·n`
@@ -475,10 +716,69 @@ pub use geom::OffsetCertificate;
 ///
 /// [`OffsetFitError`] — the two door meters and their escalations,
 /// the patch-bound refusals, the interpolation stack's refusals,
-/// non-finite samples, [`OffsetFitError::BudgetExhausted`] carrying
-/// the achieved bound, and [`OffsetFitError::RefinementStalled`]
-/// carrying the bound the loop stopped improving on.
+/// non-finite samples, and the refinement loop's four terminations —
+/// [`OffsetFitError::BudgetExhausted`] and
+/// [`OffsetFitError::SampleCapReached`] carrying the achieved bound
+/// and naming their lever, [`OffsetFitError::RefinementStalled`]
+/// carrying the bound the loop stopped improving on, and
+/// [`OffsetFitError::BoundNotFinite`] carrying the last finite bound
+/// any round reached, or none.
+// SHELL-TOLERANCE-CHAIN BEGIN — the sentinel
+// `topo/tests/shell_tolerance_chain.rs` reads. Between here and the END
+// sentinel are this module's five PRODUCTION doors, the one site that
+// turns the run's witness into a number, and the numeric-target `_at`
+// routines each door delegates to. No PRODUCTION signature here may
+// take an `f64` epsilon, and the region may hold exactly one `.eps()`
+// read. The `_at` routines are exempt from the first rule and only
+// from it: taking a chosen target is what they are for, they are
+// `#[doc(hidden)]`, and a separate census holds that no production file
+// outside this crate's transform lane reaches one. Do not move a
+// production door out of this region.
+/// **The fit target, and the ONE place the run's ε is read on the
+/// chain that reaches this module** (D4 ¶1's witness rule; D4 ¶2's
+/// ε_precision; the residual O3 ratifies).
+///
+/// From the shell door down to here the tolerance travels as the [`Tol`]
+/// witness and nothing else — `topo::shell`, the face-replacement
+/// doors, `topo::props`'s lane doors and this module's five production
+/// doors all name the witness in their signatures — so no caller on the
+/// way can name a second epsilon, and none can do arithmetic on the one
+/// the run committed. The value appears for the first time here, and
+/// `crates/topo/tests/shell_tolerance_chain.rs` pins that this is the
+/// only `.eps()` read in the guarded region.
+fn precision_target(tol: Tol) -> f64 {
+    tol.eps()
+}
+
+/// **The fit door**, at the run's ε_precision: fit the offset of `base`
+/// at signed distance `d` until the measured residual meets the target,
+/// or refuse typed. The docs of the routine it delegates to
+/// ([`fit_offset_at`]) carry the method, the doors, the bound's
+/// tightness and the refusal ladder; what is stated HERE is only which
+/// target this form uses, because that is the whole difference between
+/// the two.
+///
+/// # Errors
+///
+/// As [`fit_offset_at`].
 pub fn fit_offset(
+    base: &NurbsSurface<f64>,
+    d: f64,
+    tol: Tol,
+    band: Band,
+) -> Result<(NurbsSurface<f64>, OffsetCertificate), OffsetFitError> {
+    fit_offset_at(base, d, precision_target(tol), band)
+}
+
+/// [`fit_offset`] against a CHOSEN target rather than the run's ε — the
+/// engine as an instrument (module docs, "the numeric-target
+/// instrument").
+///
+/// # Errors
+///
+/// As [`fit_offset`].
+#[doc(hidden)]
+pub fn fit_offset_at(
     base: &NurbsSurface<f64>,
     d: f64,
     tolerance: f64,
@@ -494,16 +794,28 @@ pub fn fit_offset(
     let (reg, coll) = meter_patch(base, d, band)?;
 
     let (mut us, mut vs) = seed_params(base);
-    let mut achieved = f64::INFINITY;
     // The stall guard's state: the previous round's bound, and
     // whether the marking that produced this grid was the
     // both-directions fallback.
     let mut prev_sup = f64::INFINITY;
     let mut marked_both = false;
-    for round in 0..=OFFSET_FIT_BUDGET {
+    // The last finite bound any round reached — what a refusal on a
+    // non-finite final round carries in place of the `inf`.
+    let mut last_finite: Option<f64> = None;
+    // `round` counts the refinement rounds that produced the current
+    // grid — the number a certificate and every refusal below carry.
+    // The loop has no fall-through: every exit is a certificate or a
+    // named refusal, so the round count is bounded by the budget test
+    // and nothing else.
+    let mut round = 0usize;
+    loop {
         let fit = interpolate_offset_grid(base, d, &us, &vs)?;
         let report = measure(base, &fit, d, reg.floor)?;
-        achieved = report.hull_sup;
+        let achieved = report.hull_sup;
+        if achieved.is_finite() {
+            last_finite = Some(achieved);
+        }
+        let grid = (us.len(), vs.len());
         if report.hull_sup <= tolerance {
             #[allow(clippy::cast_possible_truncation)]
             let cert = OffsetCertificate {
@@ -517,9 +829,6 @@ pub fn fit_offset(
                 rounds: round as u32,
             };
             return Ok((fit, cert));
-        }
-        if round == OFFSET_FIT_BUDGET {
-            break;
         }
         // Insert a sample parameter at the midpoint of every sample
         // interval a worst-carrying cell touches — the "knot
@@ -547,9 +856,29 @@ pub fn fit_offset(
             achieved,
             tolerance,
         };
+        // The verdict is taken BEFORE the budget test, on every round
+        // including the last: a last round whose strongest step gained
+        // nothing is the stall, and the budget face below is reached
+        // only past a verdict that did not refuse.
         let verdict = stall_verdict(prev_sup, report.hull_sup, marked_both);
         if verdict == Refine::Refuse {
-            return Err(stalled((us.len(), vs.len())));
+            return Err(stalled(grid));
+        }
+        if round == OFFSET_FIT_BUDGET {
+            // The rounds ran out past a verdict that did not refuse
+            // (the receipt that the bound was still falling, or had
+            // not yet been given the strongest step): the round
+            // budget's own face, or the not-finite one. Taken before
+            // any marking, so no unmarked round reaches it.
+            return Err(expiry(
+                Stop::RoundBudget,
+                round,
+                grid,
+                achieved,
+                last_finite,
+                d,
+                tolerance,
+            ));
         }
         prev_sup = report.hull_sup;
         // The mode is CARRIED out of the step that used it, not
@@ -576,26 +905,38 @@ pub fn fit_offset(
         }
         if next.us.len() > OFFSET_FIT_SAMPLE_CAP || next.vs.len() > OFFSET_FIT_SAMPLE_CAP {
             // The per-direction cap: a REFINEMENT limit, not a
-            // convergence one, and it keeps its own refusal.
-            break;
+            // convergence one, with its own face naming the cap and
+            // the rounds that ran — or the not-finite face. The bound
+            // and grid reported are this round's, not the schedule
+            // the cap refused.
+            return Err(expiry(
+                Stop::SampleCap,
+                round,
+                grid,
+                achieved,
+                last_finite,
+                d,
+                tolerance,
+            ));
         }
         if !next.grew(&us, &vs) {
             // Bisecting every failing cell in both directions moved
             // nothing. No later round can move it either — the
             // intervals only narrow — so this is the stall, reached
             // by exhaustion of the schedule rather than of the bound.
-            return Err(stalled((us.len(), vs.len())));
+            // A round that marks nothing ends HERE and nowhere else,
+            // in two steps: the budget exit above is taken before any
+            // marking, so an unmarked round cannot reach it; and a
+            // marking that grew nothing leaves `next` the size of the
+            // current grid, which the cap test admitted when that grid
+            // was built, so the cap exit above cannot fire on it.
+            return Err(stalled(grid));
         }
         marked_both = next.mode == Refine::BothDirections;
         us = next.us;
         vs = next.vs;
+        round += 1;
     }
-    Err(OffsetFitError::BudgetExhausted {
-        budget: OFFSET_FIT_BUDGET,
-        grid: (us.len(), vs.len()),
-        achieved,
-        tolerance,
-    })
 }
 
 /// Re-derives the certificate of an ALREADY fitted surface against a
@@ -608,6 +949,23 @@ pub fn fit_offset(
 /// [`OffsetFitError::Limb`] naming the limb that measured above
 /// tolerance, plus the door meters' and the patch-bound refusals.
 pub fn certify_offset(
+    base: &NurbsSurface<f64>,
+    fit: &NurbsSurface<f64>,
+    d: f64,
+    tol: Tol,
+    band: Band,
+) -> Result<OffsetCertificate, OffsetFitError> {
+    certify_offset_at(base, fit, d, precision_target(tol), band)
+}
+
+/// [`certify_offset`] against a CHOSEN target rather than the run's ε —
+/// the engine as an instrument (module docs).
+///
+/// # Errors
+///
+/// As [`certify_offset`].
+#[doc(hidden)]
+pub fn certify_offset_at(
     base: &NurbsSurface<f64>,
     fit: &NurbsSurface<f64>,
     d: f64,
@@ -674,13 +1032,39 @@ pub fn certify_offset_over(
     fit: &NurbsSurface<f64>,
     d: f64,
     window: geom::ApproxWindow,
+    tol: Tol,
+    band: Band,
+) -> Result<OffsetCertificate, OffsetFitError> {
+    certify_offset_over_at(base, fit, d, window, precision_target(tol), band)
+}
+
+/// [`certify_offset_over`] against a CHOSEN target rather than the run's
+/// ε — the engine as an instrument (module docs).
+///
+/// **It has one production caller**, and that is not a leak: the
+/// transform door's lane (`crate::PcurveFittedLane::remap_certificate`)
+/// re-derives a MAPPED pair against the tolerance the surface's own
+/// claim was made at, which is the property that keeps the map and the
+/// validator agreeing about a given surface (`topo::transform`'s
+/// `map_approx` states it). That target is a stored datum rather than
+/// the run's ε, so this is the door it must reach.
+///
+/// # Errors
+///
+/// As [`certify_offset_over`].
+#[doc(hidden)]
+pub fn certify_offset_over_at(
+    base: &NurbsSurface<f64>,
+    fit: &NurbsSurface<f64>,
+    d: f64,
+    window: geom::ApproxWindow,
     tolerance: f64,
     band: Band,
 ) -> Result<OffsetCertificate, OffsetFitError> {
     if window != geom::ApproxWindow::of(base) {
         return Err(OffsetFitError::WindowUnsupported { window });
     }
-    certify_offset(base, fit, d, tolerance, band)
+    certify_offset_at(base, fit, d, tolerance, band)
 }
 
 // ---------------------------------------------------------------------
@@ -733,10 +1117,26 @@ pub fn offset_point(base: &NurbsSurface<f64>, d: f64, u: f64, v: f64) -> Option<
 pub fn approx_offset_surface(
     base: std::sync::Arc<NurbsSurface<f64>>,
     d: f64,
+    tol: Tol,
+    band: Band,
+) -> Result<Surface<f64>, OffsetFitError> {
+    approx_offset_surface_at(base, d, precision_target(tol), band)
+}
+
+/// [`approx_offset_surface`] against a CHOSEN target rather than the
+/// run's ε — the engine as an instrument (module docs).
+///
+/// # Errors
+///
+/// As [`approx_offset_surface`].
+#[doc(hidden)]
+pub fn approx_offset_surface_at(
+    base: std::sync::Arc<NurbsSurface<f64>>,
+    d: f64,
     tolerance: f64,
     band: Band,
 ) -> Result<Surface<f64>, OffsetFitError> {
-    let (fit, loop_cert) = fit_offset(&base, d, tolerance, band)?;
+    let (fit, loop_cert) = fit_offset_at(&base, d, tolerance, band)?;
     let spec = geom::SurfaceSpec {
         window: geom::ApproxWindow::of(&*base),
         description: geom::SurfaceDescription::Offset { base, d },
@@ -745,12 +1145,14 @@ pub fn approx_offset_surface(
     };
     let approx = geom::ApproxSurface::certify(spec, |description, fit, window, tolerance| {
         let geom::SurfaceDescription::Offset { base, d } = description;
-        certify_offset_over(base, fit, *d, window, tolerance, band).map(|cert| OffsetCertificate {
-            // Every measured field is the re-derivation's; `rounds` is
-            // the loop's, for the reason `OffsetCertificate::rounds`
-            // states.
-            rounds: loop_cert.rounds,
-            ..cert
+        certify_offset_over_at(base, fit, *d, window, tolerance, band).map(|cert| {
+            OffsetCertificate {
+                // Every measured field is the re-derivation's; `rounds` is
+                // the loop's, for the reason `OffsetCertificate::rounds`
+                // states.
+                rounds: loop_cert.rounds,
+                ..cert
+            }
         })
     })?;
     Ok(Surface::Approx(std::sync::Arc::new(approx)))
@@ -781,11 +1183,94 @@ pub fn approx_offset_surface(
 /// As [`certify_offset_over`].
 pub fn recertify_approx(
     approx: &geom::ApproxSurface<f64>,
+    tol: Tol,
+    band: Band,
+) -> Result<OffsetCertificate, OffsetFitError> {
+    recertify_approx_at(approx, precision_target(tol), band)
+}
+
+/// [`recertify_approx`] against a CHOSEN target rather than the run's ε
+/// — the engine as an instrument (module docs).
+///
+/// # Errors
+///
+/// As [`recertify_approx`].
+#[doc(hidden)]
+pub fn recertify_approx_at(
+    approx: &geom::ApproxSurface<f64>,
     tolerance: f64,
     band: Band,
 ) -> Result<OffsetCertificate, OffsetFitError> {
     let geom::SurfaceDescription::Offset { base, d } = approx.description();
-    certify_offset_over(base, approx.fit(), *d, approx.window(), tolerance, band)
+    certify_offset_over_at(base, approx.fit(), *d, approx.window(), tolerance, band)
+}
+
+// SHELL-TOLERANCE-CHAIN END.
+
+// ---------------------------------------------------------------------
+// The refinement loop's refusal constructors
+// ---------------------------------------------------------------------
+//
+// Below the sentinel on purpose. The guarded region's charter is the
+// five production doors, the one `.eps()` read and the `_at` routines,
+// and the chain guard reads every `tolerance: f64` inside it as a
+// signature on the shell chain. A private constructor that takes the
+// tolerance it reports is not a door, so it lives here.
+
+/// Which stopping condition ended the refinement loop without a
+/// certificate — the two exits that are not the stall guard's.
+#[derive(Clone, Copy)]
+enum Stop {
+    /// [`OFFSET_FIT_BUDGET`] rounds ran.
+    RoundBudget,
+    /// The next round's schedule would exceed [`OFFSET_FIT_SAMPLE_CAP`].
+    SampleCap,
+}
+
+/// The refusal for a loop that `stop` ended after `rounds` refinement
+/// rounds, with `achieved` measured on `grid`: the face that names
+/// the stop's own lever when `achieved` is a finite bound to carry,
+/// and [`OffsetFitError::BoundNotFinite`] — whichever the stop — when
+/// it is not, carrying `last_finite` (the last finite bound any round
+/// reached) instead. The `inf` a limb measures is not a bound the
+/// caller can use, so no face carries it.
+fn expiry(
+    stop: Stop,
+    rounds: usize,
+    grid: (usize, usize),
+    achieved: f64,
+    last_finite: Option<f64>,
+    d: f64,
+    tolerance: f64,
+) -> OffsetFitError {
+    // `rounds` never exceeds `OFFSET_FIT_BUDGET`, so the narrowing is
+    // exact.
+    #[allow(clippy::cast_possible_truncation)]
+    let rounds = rounds as u32;
+    if !achieved.is_finite() {
+        return OffsetFitError::BoundNotFinite {
+            rounds,
+            grid,
+            d,
+            tolerance,
+            last_finite,
+        };
+    }
+    match stop {
+        Stop::RoundBudget => OffsetFitError::BudgetExhausted {
+            budget: OFFSET_FIT_BUDGET,
+            grid,
+            achieved,
+            tolerance,
+        },
+        Stop::SampleCap => OffsetFitError::SampleCapReached {
+            cap: OFFSET_FIT_SAMPLE_CAP,
+            rounds,
+            grid,
+            achieved,
+            tolerance,
+        },
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -1653,7 +2138,7 @@ mod tests {
             geom::NurbsSurface::new(kv2, kv1, control, vec![1.0, 1.0, s, s, 1.0, 1.0]).unwrap();
         let d = 1e-6;
         let band = Band::linear(Tol::witness()).unwrap();
-        let (fit, cert) = super::fit_offset(&base, d, 1e-3, band).unwrap();
+        let (fit, cert) = super::fit_offset_at(&base, d, 1e-3, band).unwrap();
         let (reg, _) = crate::offset_meters::meter_patch(&base, d, band).unwrap();
         let comp = super::Composite::build(&base, &fit, d).unwrap();
         let (nu, nv) = comp.x.cell_counts();
@@ -1770,5 +2255,143 @@ mod tests {
         let (mu, mv) = directional_mark(&us, &vs, &failing, 3.0, 3.0);
         assert_eq!(mu, vec![true, false]);
         assert_eq!(mv, vec![false, false]);
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod recourse_tests {
+    use super::{OffsetFitError, OffsetLimb};
+    use crate::offset_meters::MeterError;
+    use crate::patch_bound::PatchBoundError;
+    use geom::curves::fit::FitError;
+    use geom_core::spline::SplineError;
+
+    /// **The recourse claim for the carrier tier 3 renders whole.**
+    /// `ValidationError::ApproxCertification { error }` contributes a
+    /// face key and nothing else, so whatever this enum fails to say is
+    /// absent from the message a user reads there.
+    ///
+    /// **Reading changed the verdict on this enum more than on any
+    /// other in the chain**, and the row records the outcome rather
+    /// than the sweep: four renderings already pointed at a lever
+    /// before this change — `BudgetExhausted` at `OFFSET_FIT_BUDGET`,
+    /// `SampleCapReached` at `OFFSET_FIT_SAMPLE_CAP`, and
+    /// `BoundNotFinite` at the limb's floors or at the schedule,
+    /// depending on `last_finite` — so what the vocabulary below
+    /// accepts is "the lever is X" as readily as an imperative. A row
+    /// that demanded a verb would have rewritten four correct messages.
+    ///
+    /// **The four delegating arms are asserted differently.** An arm is
+    /// checked TRANSITIVELY only where its carrier has an enforcement
+    /// row of its own, and none of `MeterError`, `PatchBoundError`,
+    /// `FitError` or `SplineError` has one — so for those four this row
+    /// asserts the DELEGATION (that the arm renders the carrier whole
+    /// rather than summarising it) and nothing about the recourse. The
+    /// chain's claim is unproved at that hop and this row does not
+    /// pretend otherwise.
+    ///
+    /// **A floor, not a proof**, on the terms `topo`'s
+    /// `every_chart_region_arm_names_a_recourse` states: a vocabulary
+    /// check cannot tell a recourse from a sentence containing one of
+    /// its words, and an arm whose recourse uses a word not listed
+    /// fails it honestly — extend the list in the same change.
+    #[test]
+    fn every_offset_fit_error_arm_names_a_recourse() {
+        // A vocabulary, not a part-of-speech test: an arm that names
+        // the lever the caller turns satisfies the claim the same way
+        // an imperative does.
+        const RECOURSE_WORDS: &[&str] = &[
+            "lever", "supply", "repair", "loosen", "ask", "re-fit", "schedule",
+        ];
+        let meter = MeterError::NormalFloor {
+            floor: 0.0,
+            thinness: 0.0,
+            speed_lever: 1.0,
+        };
+        let patch_bound = PatchBoundError::DegreeZero;
+        let fit = FitError::TooFewPoints { have: 1, need: 2 };
+        let structure = SplineError::NonPositiveWeight {
+            index: 0,
+            weight: 0.0,
+        };
+        let arms = [
+            OffsetFitError::Meter(meter),
+            OffsetFitError::PatchBound(patch_bound),
+            OffsetFitError::Fit(fit.clone()),
+            OffsetFitError::Structure(structure.clone()),
+            OffsetFitError::InvalidRequest {
+                d: 0.0,
+                tolerance: 0.0,
+            },
+            OffsetFitError::NonFiniteSample { uv: (0.5, 0.5) },
+            OffsetFitError::BudgetExhausted {
+                budget: 8,
+                grid: (5, 5),
+                achieved: 2e-9,
+                tolerance: 1e-9,
+            },
+            OffsetFitError::SampleCapReached {
+                cap: 64,
+                rounds: 3,
+                grid: (64, 5),
+                achieved: 2e-9,
+                tolerance: 1e-9,
+            },
+            OffsetFitError::BoundNotFinite {
+                rounds: 3,
+                grid: (5, 5),
+                d: 1e-3,
+                tolerance: 1e-9,
+                last_finite: None,
+            },
+            OffsetFitError::BoundNotFinite {
+                rounds: 3,
+                grid: (5, 5),
+                d: 1e-3,
+                tolerance: 1e-9,
+                last_finite: Some(2e-9),
+            },
+            OffsetFitError::RefinementStalled {
+                rounds: 3,
+                grid: (5, 5),
+                achieved: 2e-9,
+                tolerance: 1e-9,
+            },
+            OffsetFitError::WindowUnsupported {
+                window: geom::ApproxWindow {
+                    u: (0.25, 0.75),
+                    v: (0.25, 0.75),
+                },
+            },
+            OffsetFitError::Limb {
+                limb: OffsetLimb::OnLocus,
+                bound: 2e-9,
+                tolerance: 1e-9,
+            },
+        ];
+        // Twelve variants; `BoundNotFinite` is rendered at both of its
+        // `last_finite` cases, which are two different messages sending
+        // the caller to two different levers.
+        assert_eq!(arms.len(), 13, "an arm was added without a row here");
+        for arm in &arms {
+            let msg = arm.to_string();
+            let delegated = match arm {
+                OffsetFitError::Meter(_) => Some(meter.to_string()),
+                OffsetFitError::PatchBound(_) => Some(patch_bound.to_string()),
+                OffsetFitError::Fit(_) => Some(fit.to_string()),
+                OffsetFitError::Structure(_) => Some(structure.to_string()),
+                _ => None,
+            };
+            if let Some(carrier) = delegated {
+                assert!(msg.contains(&carrier), "carrier not rendered whole: {msg}");
+                continue;
+            }
+            let lower = msg.to_lowercase();
+            assert!(
+                RECOURSE_WORDS.iter().any(|w| lower.contains(w)),
+                "no recourse in: {msg}"
+            );
+        }
     }
 }

@@ -10,17 +10,14 @@
 
 use std::fmt::Write as _;
 
-use geom_core::{Band, Point2, Tol, Vec2};
+use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use topo::readback::euler_counts;
 use topo::{Body, FaceKey, LoopBoundary};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
 }
 
 fn dump_dir() -> Option<std::path::PathBuf> {
@@ -106,15 +103,16 @@ fn plane_face_at_z(body: &Body<f64>, z: f64) -> FaceKey {
 /// here so this file also compiles at the merge base unmodified.
 fn dump(body: &Body<f64>) -> String {
     let mut s = String::new();
+    let counts = euler_counts(body);
     let _ = writeln!(
         s,
         "census V={} E={} F={} L={} S={} R={}",
-        body.vertices().count(),
-        body.edges().count(),
-        body.faces().count(),
+        counts.v,
+        counts.e,
+        counts.f,
         body.loops().count(),
-        body.shells().count(),
-        body.faces().map(|(_, f)| f.rings.len()).sum::<usize>(),
+        counts.s,
+        counts.r,
     );
     for (k, _) in body.vertices() {
         let p = body
@@ -189,31 +187,31 @@ fn shellfix1_bitdump_corpus() {
     let body = boxy(w, d, h);
     write_dump(
         "sealed_box",
-        &topo::shell(&body, t, 1e-6, Tol::witness()).unwrap().body,
+        &topo::shell(&body, t, Tol::witness()).unwrap().body,
     );
     let top = plane_face_at_z(&body, h);
     let bottom = plane_face_at_z(&body, 0.0);
     write_dump(
         "box_cup",
-        &topo::shell_open(&body, t, &[top], 1e-6, Tol::witness())
+        &topo::shell_open(&body, t, &[top], Tol::witness())
             .unwrap()
             .body,
     );
     write_dump(
         "box_tube",
-        &topo::shell_open(&body, t, &[top, bottom], 1e-6, Tol::witness())
+        &topo::shell_open(&body, t, &[top, bottom], Tol::witness())
             .unwrap()
             .body,
     );
     write_dump(
         "sealed_vessel",
-        &topo::shell(&vessel(1.0, 2.0), 0.2, 1e-6, Tol::witness())
+        &topo::shell(&vessel(1.0, 2.0), 0.2, Tol::witness())
             .unwrap()
             .body,
     );
     write_dump(
         "sealed_tube",
-        &topo::shell(&tube(0.6, 1.0, 2.0), 0.1, 1e-6, Tol::witness())
+        &topo::shell(&tube(0.6, 1.0, 2.0), 0.1, Tol::witness())
             .unwrap()
             .body,
     );

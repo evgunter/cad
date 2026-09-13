@@ -157,7 +157,11 @@ fn refusals_render_as_prose_not_debug_guts() {
     let edit = EditError::UnknownNode {
         id: RecipeNodeId(7),
     };
-    assert_eq!(edit.to_string(), "edit: node 7 is not live");
+    // No `edit: ` opening: the frame belongs to whoever received the
+    // refusal (the viewer composes "the edit was refused: …", the
+    // bindings raise it under an error class that already says Edit),
+    // so the sentence states the problem and nothing else.
+    assert_eq!(edit.to_string(), "node 7 is not live");
 
     let literal = Expr::literal(f64::NAN, Dimension::Length).expect_err("NaN refuses");
     assert!(matches!(literal, DimensionError::NonFiniteLiteral));

@@ -35,17 +35,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::approx::band;
 use geom_brep::SurfaceKind;
-use geom_core::{Band, Point3, Tol, Vec2, Vec3};
+use geom_core::{Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{PointInSolidError, SolidContainment, point_in_solid};
 use topo::query::{self, SurfaceKindSet};
 use topo::{Body, FaceContainment, FaceKey};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
 
 /// A unit-radius sphere band swept through `turn` radians about world
 /// Y. Its sphere face's boundary is two meridian great-circle arcs

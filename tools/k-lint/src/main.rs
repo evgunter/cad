@@ -36,11 +36,19 @@
 use k_lint::{Reason, lint_csv};
 
 /// The lint ran and found margins crowding a decision boundary.
+///
+/// **`tools/tess-lint`'s `main.rs` spells this pair with the same two
+/// names and the same two values, and the two are NOT one item.**
+/// Separate cargo roots by design, so there is nothing to share; what
+/// is shared is the RULE about which voice an event leaves in, and
+/// that has one home (`tools/README.md`, `CC5`).
 const EXIT_FINDINGS: i32 = 2;
 
 /// The lint could not run: no inputs, unreadable file, malformed CSV.
 /// Distinct from [`EXIT_FINDINGS`] on purpose — blurring the two would
 /// let a sweep-format drift read as a geometry finding, or vice versa.
+/// Every cross-column admission [`lint_csv`] refuses leaves here
+/// (`tools/README.md`, `CC5`).
 const EXIT_HARNESS: i32 = 1;
 
 /// Stdout write guard: a closed pipe downstream (`k-lint … | head`)
@@ -113,6 +121,8 @@ fn main() {
     // most of its rows never met a threshold at all.
     let mut total_scanned = 0usize;
     let mut total_symbolic = 0usize;
+    let mut total_gated = 0usize;
+    let mut total_registered = 0usize;
     for path in &paths {
         let text = match std::fs::read_to_string(path) {
             Ok(t) => t,
@@ -153,12 +163,16 @@ fn main() {
         }
         total_scanned += scanned;
         total_symbolic += scan.symbolic;
+        total_gated += scan.sign_gated;
+        total_registered += scan.registered;
         say(format_args!(
-            "k-lint: {path}: {scanned} samples ({} symbolic_zero, {} classified), {} flagged \
-             — rule 1 (undecided/invalid): {}, rule 2 (near a threshold): {}, rule 3 (below a \
-             floor): {}",
+            "k-lint: {path}: {scanned} samples ({} symbolic_zero, {} sign_gated, {} registered, \
+             {} classified), {} flagged — rule 1 (undecided/invalid): {}, rule 2 (near a \
+             threshold): {}, rule 3 (below a floor): {}",
             scan.symbolic,
-            scanned - scan.symbolic,
+            scan.sign_gated,
+            scan.registered,
+            scanned - scan.symbolic - scan.sign_gated - scan.registered,
             flags.len(),
             file_rule[1],
             file_rule[2],
@@ -206,10 +220,11 @@ fn main() {
     }
     say(format_args!(
         "k-lint: TOTAL over {} file(s): {total_scanned} samples ({total_symbolic} \
-         symbolic_zero, {} classified), rule 1 (undecided/invalid) {}, rule 2 (near a \
-         threshold) {}, rule 3 (below a floor) {}",
+         symbolic_zero, {total_gated} sign_gated, {total_registered} registered, {} \
+         classified), rule 1 (undecided/invalid) {}, rule 2 (near a threshold) {}, rule 3 \
+         (below a floor) {}",
         paths.len(),
-        total_scanned - total_symbolic,
+        total_scanned - total_symbolic - total_gated - total_registered,
         per_rule[1],
         per_rule[2],
         per_rule[3]

@@ -34,7 +34,8 @@ fn index_triangles(session: &viewer::session::DocSession) -> Option<usize> {
     let (doc, eval) = session.landed_pair()?;
     let generation = session.landed_generation()?;
     let delta = viewer::scene::DisplayTolerance::new(1.0e-3).ok()?;
-    let index = viewer::pick::PickIndex::build(doc, eval, generation, delta, session.tol()).ok()?;
+    let index =
+        viewer::pickindex::PickIndex::build(doc, eval, generation, delta, session.tol()).ok()?;
     Some(
         index
             .scene_for(&session.display_view())
@@ -49,7 +50,8 @@ fn probe_parts(session: &viewer::session::DocSession) -> Option<usize> {
     let (doc, eval) = session.landed_pair()?;
     let generation = session.landed_generation()?;
     let delta = viewer::scene::DisplayTolerance::new(1.0e-3).ok()?;
-    let index = viewer::pick::PickIndex::build(doc, eval, generation, delta, session.tol()).ok()?;
+    let index =
+        viewer::pickindex::PickIndex::build(doc, eval, generation, delta, session.tol()).ok()?;
     Some(
         index
             .scene_for(&session.display_view())
@@ -169,9 +171,10 @@ fn main() {
                 .is_none()
             {
                 session.perform(viewer::session::SessionOp::PreviewFreeMove {
+                    instance: row.id,
                     frame: pncad::document::Frame::translation([0.5, 0.0, 0.0]),
                 });
-                session.perform(viewer::session::SessionOp::CommitFreeMove);
+                session.perform(viewer::session::SessionOp::CommitFreeMove { instance: row.id });
                 let marked = probe_parts(&session);
                 println!(
                     "      node {}: free-move committed, scene probe_parts={marked:?}",
@@ -187,9 +190,10 @@ fn main() {
                 // clean.
                 session.perform(viewer::session::SessionOp::BeginFreeMove { instance: row.id });
                 session.perform(viewer::session::SessionOp::PreviewFreeMove {
+                    instance: row.id,
                     frame: pncad::document::Frame::IDENTITY,
                 });
-                session.perform(viewer::session::SessionOp::CommitFreeMove);
+                session.perform(viewer::session::SessionOp::CommitFreeMove { instance: row.id });
             } else {
                 println!("      node {}: free-move refused typed", row.id.0);
             }

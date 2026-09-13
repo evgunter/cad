@@ -35,11 +35,12 @@ fn trim_name(support: RimSupport) -> StableName {
         kind: EntityKind::Edge,
         node: BLOCK,
         path: vec![RoleSeg::BandTrim {
-            edge: Box::new(StableName {
+            edge: StableName {
                 kind: EntityKind::Edge,
                 node: BLOCK,
                 path: vec![RoleSeg::OutputBody],
-            }),
+            }
+            .into(),
             support,
         }],
     }

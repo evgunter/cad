@@ -2,9 +2,13 @@
 id: klint-row-still-sampled
 kind: issue
 title: The k-lint unification row is still drawn 1-in-5 after the lane/eps un-sampling
-status: open
+status: closed
 opened: 2026-09-04
 parent: reinstate-full-configuration-runs
+pr: 1850
+branch: ciw/unsample-klint
+refs: [1855]
+closed: 2026-09-06
 ---
 
 ## The finding
@@ -51,3 +55,61 @@ Measure the five rows on the 4-vCPU runner, then either un-sample (if the
 cost is of the same order as the lane/eps change) or record why the k-lint
 dimension stays sampled where the other two did not. It is a measurement
 first and a decision second, which is why it is an issue and not a unit.
+
+## No longer a cost-shape deferral: the remaining sampled row has a measured miss (2026-09-04)
+
+Filed from PR 1805 (code-quality Track T), folded into
+`work/ciw/f3-recosting-on-a-public-repo` when that PR was closed as
+superseded.
+
+**`#1756 → #1775`: `k-lint (gate)` reported green with `demos tour fmt +
+clippy` skipped**, because the drawn row did not carry it. A real failure
+sat behind a green row name, found later and repaired by a separate PR.
+
+That changes what this item is. When it was written, k-lint was scoped
+out of `reinstate-full-configuration-runs` on **cost shape** — five
+feature unifications compiled, against one archive replayed for the
+lane/ε rows — with no known cost to leaving it sampled. There is now a
+known cost, on the record, on the only dimension the hosted gate still
+samples.
+
+It also means the sentence "the hosted gate samples the matrix" is still
+true of this repository, and every reader who learns from PR 1823 that
+sampling is gone will be wrong about this row.
+
+What is owed is the same measurement PR 1823 made for lane/ε: what do
+five unifications cost on the 4-vCPU public runner, in job-minutes and in
+critical-path wall clock, against a `k-lint` row that currently draws one.
+The answer may still be that sampling is right here — the cost shape
+argument was not wrong, it was just uncontested. It is contested now.
+
+## Two things this unit found on the way, disclosed rather than buried (2026-09-04)
+
+**1. The five legs shared TWO rust-cache lanes, and the two heaviest could
+never write to theirs.** `Swatinem/rust-cache`'s key carries `GITHUB_JOB`
+(the job *id*, `k-lint`) and not the matrix value, so a key of
+`k-lint-<dev|release>` gave the three dev legs one identical key and the two
+release legs another. The first leg to reach its post step reserves the key;
+the rest log `Failed to save: Unable to reserve cache with key …`. The
+winner is decided by duration, so it was deterministic rather than a race:
+the two CHEAPEST legs won the lanes every run and `dev-probe` /
+`release-default` restored a sibling's `target/`. Fixed in the same PR
+(`key: k-lint-${{ matrix.row }}`) and written up in
+`docs/CI-MINUTES-2026-08.md`. No residue.
+
+**2. The `memories/` correction this change requires is NOT in PR 1850.**
+`memories/agent-lane-operations.md` says the k-lint row is a sampled axis,
+in three places. Per `CLAUDE.md` a PR that changes `memories/` waits for
+Ev, so it is split out to an `[ev]` PR (1855) with its own item,
+`klint-memory-false-after-unsampling`. **Between 1850's merge and 1855's,
+that memory is false and is read at the start of every session.** Stated
+here so the gap is a decision on the record rather than an oversight.
+
+## Closed 2026-09-06
+
+PR 1850. The five feature unifications fan out as five matrix legs
+(`.github/workflows/ci.yml:460`) on every code-tier run, with per-row
+rust-cache keys so the two heaviest legs can save — the shared-lane defect
+this unit found on the way, fixed in the same PR. The `memories/` correction
+it split out is `klint-memory-false-after-unsampling` (PR 1855), and the gap
+between the two merges is on the record there.

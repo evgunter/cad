@@ -13,6 +13,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use core::num::NonZeroUsize;
 use geom::{NurbsSurface, PROJECT_EPS_POINT};
 use geom_core::Point3;
 use geom_core::spline::KnotVector;
@@ -207,8 +208,8 @@ fn seeding_is_bit_deterministic() {
 #[test]
 fn an_overflowing_residual_refuses_rather_than_reporting_an_infinite_foot() {
     let huge = 1.0e200;
-    let ku = KnotVector::unit_segment(1);
-    let kv = KnotVector::unit_segment(1);
+    let ku = KnotVector::unit_segment(NonZeroUsize::MIN);
+    let kv = KnotVector::unit_segment(NonZeroUsize::MIN);
     // A bilinear patch, every corner at ~1e200.
     let control = vec![
         Point3::new(huge, huge, huge),

@@ -1198,7 +1198,10 @@ version = "0.0.0"
 dependencies = [
  "interval-transcendentals",
  "libm",
+ "num-bigint",
  "num-dual",
+ "num-integer",
+ "num-traits",
  "proptest",
  "test-utils",
 ]
@@ -2001,6 +2004,7 @@ dependencies = [
  "geom-brep",
  "geom-core",
  "profile",
+ "rayon",
  "spade",
  "sweep",
  "test-utils",
@@ -2718,6 +2722,7 @@ dependencies = [
  "step-import",
  "stl",
  "sweep",
+ "test-utils",
  "topo",
 ]
 
@@ -3720,6 +3725,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "strum"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9628de9b8791db39ceda2b119bbe13134770b56c138ec1d3af810d045c04f9bd"
+dependencies = [
+ "strum_macros",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab85eea0270ee17587ed4156089e10b9e6880ee688791d45a905f5b1ca36f664"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "sweep"
 version = "0.0.0"
 dependencies = [
@@ -3729,6 +3755,7 @@ dependencies = [
  "mesh",
  "profile",
  "proptest",
+ "rayon",
  "step-export",
  "sweep",
  "test-utils",
@@ -3920,9 +3947,11 @@ dependencies = [
  "geom-core",
  "mesh",
  "proptest",
+ "rayon",
  "slotmap",
  "step-export",
  "stl",
+ "strum",
  "test-utils",
  "topo",
 ]
@@ -4147,6 +4176,7 @@ version = "0.0.0"
 dependencies = [
  "geom-brep",
  "geom-core",
+ "profile",
  "sweep",
  "test-utils",
  "topo",
@@ -4169,14 +4199,18 @@ dependencies = [
  "egui",
  "egui-wgpu",
  "egui_tiles",
+ "geom-brep",
+ "geom-core",
  "getrandom 0.3.4",
  "perceive-color",
  "perceive-cvd",
  "pncad",
  "pollster 1.0.1",
+ "profile",
  "rfd",
  "test-utils",
  "toml",
+ "topo",
  "wasm-bindgen-futures",
  "winit",
 ]

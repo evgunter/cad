@@ -21,6 +21,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::approx::band;
 use geom_core::{Band, Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
@@ -30,11 +31,6 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
 
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-
-const FIT_TOL: f64 = 1e-6;
 const T: f64 = 1.0 / 128.0;
 
 /// A box with ONE bulged side: an extruded profile whose arc mints a
@@ -94,7 +90,7 @@ fn wedge_of(angle: f64, r: f64, h: f64) -> Body<f64> {
 fn r1p1_a_bulged_box_is_not_axial_and_refuses_typed() {
     let tol = Tol::witness();
     let body = bulged_box();
-    match topo::shell(&body, T, FIT_TOL, tol) {
+    match topo::shell(&body, T, tol) {
         Ok(_) => panic!("a non-axial curved body must not hollow through the axial door"),
         Err(e) => println!("[r1p1] bulged box refuses: {e:?}"),
     }
@@ -146,7 +142,7 @@ fn r1p2_a_sliver_wedge_with_no_cavity_must_refuse() {
             "[r1p2] angle {angle}: moved meridians cross at rho {cross:.6}, wall at {:.6}",
             r - T
         );
-        match topo::shell(&body, T, FIT_TOL, tol) {
+        match topo::shell(&body, T, tol) {
             Ok(topo::Shelled { body: hollow, .. }) => {
                 let props = topo::mass_properties(&hollow, tol).expect("props");
                 let outer = topo::mass_properties(&body, tol).expect("props").volume;
@@ -205,7 +201,7 @@ fn r1p4_a_bare_ball_hollows_to_its_closed_form() {
     )
     .expect("the ball revolves")
     .body;
-    match topo::shell(&ball, T, FIT_TOL, tol) {
+    match topo::shell(&ball, T, tol) {
         Ok(topo::Shelled { body: hollow, .. }) => {
             let got = topo::mass_properties(&hollow, tol).expect("props").volume;
             let want = 4.0 / 3.0 * core::f64::consts::PI * (r.powi(3) - (r - T).powi(3));
@@ -224,9 +220,13 @@ fn r1p4_a_bare_ball_hollows_to_its_closed_form() {
 /// which moves the `v < 0` nappe's material `−d` along its own chart
 /// normal — the ConeOffset home documents exactly this. The frustum's
 /// wall is below its apex, so an inward `−t` request GROWS it at the
-/// mint; the door's `nappe_signed` is what corrects the sign. Both
-/// facts asserted here, so the latent-defect report stays true and the
-/// correction stays load-bearing.
+/// mint: the mint is nappe-blind by contract.
+///
+/// The correction is `topo::Nappe`'s turn, applied by every consumer
+/// from the one answer `topo::face_nappe` decides for the face
+/// (`shell6_nappe_home` pins that both doors take it). This row spells
+/// the turn itself, so the contract and its discharge stay pinned
+/// against each other at the mint, off any door.
 #[test]
 fn r1p3_the_cone_mint_is_nappe_blind_and_the_door_corrects_it() {
     use geom::Surface;
@@ -258,9 +258,16 @@ fn r1p3_the_cone_mint_is_nappe_blind_and_the_door_corrects_it() {
         grown > r0,
         "the raw mint must grow the below-apex wall on an inward request: {grown} vs {r0}"
     );
-    // And the corrected sign shrinks it by exactly t/cos α at the base
+    // And the turned sign shrinks it by exactly t/cos α at the base
     // station — which is the offset frustum the closed-form row pins.
-    let corrected = geom_brep::offset_surface(&cone, T, band).expect("the cone offsets");
+    // The wall is on the mirror nappe, so the turn is a negation.
+    let turned = geom_brep::Nappe::Mirror.turn(-T);
+    assert_eq!(
+        turned.to_bits(),
+        T.to_bits(),
+        "the mirror nappe's turn is a negation"
+    );
+    let corrected = geom_brep::offset_surface(&cone, turned, band).expect("the cone offsets");
     let Surface::Cone { apex: apex_c, .. } = corrected else {
         panic!("a cone's offset is a cone");
     };
@@ -324,9 +331,14 @@ fn r1p5_the_axis_gates_third_outcome_is_unreachable_from_the_sweeps() {
     .expect("a quarter revolve")
     .body;
 
+    // ε is the ladder's, K is the run's: the gate's verdicts are what
+    // this row pins, and a verdict is `Err` exactly when a margin lands
+    // in (ε, K·ε) — so the escalate edge is the assertion's other half
+    // and has to be the K the run is configured at, not the default.
+    let k = tol.get().k;
     let mut escalations = 0;
     for e in [1e-30, 1e-24, 1e-20, 1e-18, 1e-17, 1e-16, 1e-14, 1e-12] {
-        let verdict = topo::is_axial(&wedge, Band::new(e, 10.0 * e).expect("band"));
+        let verdict = topo::is_axial(&wedge, Band::new(e, k * e).expect("band"));
         println!("[r1p5] wedge at eps={e:e}: {verdict:?}");
         match verdict {
             Ok(true) => {}

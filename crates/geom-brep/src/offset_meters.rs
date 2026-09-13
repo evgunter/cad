@@ -13,7 +13,7 @@
 //! degenerates, so the fit door must refuse — never degrade — on a
 //! patch whose `‖S_u × S_v‖` cannot be bounded away from zero. Every
 //! surface bound the kernel had until now was sup-side
-//! ([`geom_core::spline::hull::sup_norm_bound`] and its family); the
+//! ([`geom_core::spline::SplineCoeffs::sup_norm_bound`] and its family); the
 //! curve side's inf meter (`NurbsCurve3::speed_lower_bound`) is
 //! one dimension down and does not lift directly, because the
 //! quantity here is a **product** of two coefficient nets, not one.

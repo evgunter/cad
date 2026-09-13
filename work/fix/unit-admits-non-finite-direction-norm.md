@@ -26,7 +26,7 @@ The fix is one line from closed: `unit()` gates on the same value-channel finite
 
 ## Home
 
-`work/seat/` — SEAT-DV's own fork, the same parameter-identity/direction channel §3 of `docs/VERB-SEAT-DESIGN.md` charters and the sibling of the `UnitVec3` door SEAT closed.
+`work/seat/` — SEAT-DV's own fork, the same parameter-identity/direction channel §3 of VERB-SEAT-DESIGN (now `crates/verbs/README.md`) charters and the sibling of the `UnitVec3` door SEAT closed.
 
 ## Closed
 

@@ -7,6 +7,9 @@
 //! and its methods turn typed field values into [`Expr`]s and
 //! [`LoopProgram`]s. Nothing here names `DocSession`, `ViewerApp` or
 //! `egui`; the panels write these fields and read nothing back.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
     BooleanOp, Dimension, DimensionError, Expr, LoopProgram, ParamName, RecipeNodeId, SlotId,
@@ -27,10 +30,13 @@ use crate::sketch::{self, PathStep, PathTarget};
 /// abandoned by selecting elsewhere leaves nothing behind.
 #[derive(Debug)]
 pub(crate) struct Drafts {
-    /// The View pane's δ field while it has focus, in millimetres as
-    /// typed. `None` whenever it does not, so an unfocused field shows
-    /// the δ actually in force — including one the triangle budget
-    /// chose after this field last committed.
+    /// The View pane's δ field, in millimetres AS TYPED: `Some` only
+    /// once a keystroke has landed in it, and only while it holds the
+    /// focus that keystroke arrived under. `None` otherwise, so a
+    /// field nobody has typed into shows the δ actually in force —
+    /// including one the triangle budget chose after this field last
+    /// committed — and has nothing of its own to commit when the focus
+    /// leaves it.
     pub(crate) delta_mm: Option<String>,
     /// The slot whose value field is holding REFUSED text.
     ///

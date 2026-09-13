@@ -29,8 +29,11 @@ pub struct Mat3<T: Real> {
 
 impl<T: Real> Mat3<T> {
     /// Builds a matrix from its columns (the images of the basis
-    /// vectors).
-    pub fn from_cols(c0: Vec3<T>, c1: Vec3<T>, c2: Vec3<T>) -> Self {
+    /// vectors). A `const fn` (the doctest at [`Point3::new`] reads a
+    /// constant placement built through it).
+    ///
+    /// [`Point3::new`]: crate::Point3::new
+    pub const fn from_cols(c0: Vec3<T>, c1: Vec3<T>, c2: Vec3<T>) -> Self {
         Self { c0, c1, c2 }
     }
 
@@ -95,6 +98,40 @@ impl<T: Real> Mat3<T> {
     /// the two differ by a rounding and that difference is visible in
     /// `f64` output.
     /// Orthogonality and unit determinant hold to rounding, not exactly.
+    ///
+    /// **The diagonal's width floor at exact angles is the backend's,
+    /// not this spelling's.** At `Interval` the entry `t·nᵢ² + c` is
+    /// wide even at an exact angle, and the width is the SUM of two
+    /// enclosures: `t = 1 − cos θ`'s — at `θ = 0` the backend's `cos`
+    /// encloses `[0.9999999999999996, 1]`, so `t` encloses
+    /// `[0, 4.44e-16]` where its true value is exactly zero — and
+    /// `cos`'s own, the same `4.44e-16`, which `+ c` adds back whatever
+    /// `t` did. So the entry is `8.88e-16` wide on the axis and the
+    /// respell that removes the first term does not remove the sum:
+    /// building `t = 2·sin²(θ/2)` alone recovers **0 %** of the width
+    /// of `R·p` at a `RevolvedPoint` start sample (`θ = 0`) — the
+    /// near-unit sum still rounds outward by an ulp — and is **WORSE
+    /// at its full-period sample** (`θ = 2π`: 133 % of the shipped
+    /// width — the diagonal narrows there too, to `7.77e-16`, so the
+    /// growth is the off-diagonals', where the half-angle
+    /// `s = 2·sin(θ/2)·cos(θ/2)` is wider than `sin θ` at that point);
+    /// building both `t` and `c = 1 − t` from the
+    /// half angle recovers **~17 %** at the start sample and **0 %** at
+    /// full period, where the diagonal narrows (`8.88e-16` to
+    /// `6.66e-16`) and `R·p` does not move at all. The irreducible part
+    /// is the backend's `cos` enclosure at exact angles, which no
+    /// arrangement of these operations reaches. Nothing computes with
+    /// these numbers; their register is
+    /// `crates/geom-core/tests/cert3_evidence.rs`'s `#[ignore]`d rows
+    /// (`start_sample_residue_decomposition`), which print the three
+    /// spellings side by side, and this paragraph is the one home of
+    /// the decomposition. The same floor is why
+    /// [`Self::identity_minus_rotation_about`] DOES take the half-angle
+    /// forms: there the entry's true value vanishes with the angle, so
+    /// the `4.44e-16` floor would be the entry's whole value and the
+    /// half angle is load-bearing; here the entry's value is near one,
+    /// `+ c` swamps the same floor, and the half angle buys a sixth at
+    /// best.
     pub fn rotation_about(axis: Vec3<T>, angle: T) -> Self {
         let n = axis.normalize();
         let (s, c) = angle.sin_cos();
@@ -129,7 +166,11 @@ impl<T: Real> Mat3<T> {
     ///   cancellation. The full-angle `1 − cos θ` cannot: its enclosure
     ///   at the exact point `θ = 0` is `[0, 4.44e-16]` (the interval
     ///   `cos` rounds outward from 1), a floor that has nothing to do
-    ///   with the angle. This form's is `[0, 2.5e-323]`.
+    ///   with the angle — and that here would BE the entry's whole
+    ///   value, which is why the half angle is load-bearing in this
+    ///   operator and buys a sixth at best in [`Self::rotation_about`],
+    ///   where `+ c` swamps the same floor (the width-floor paragraph
+    ///   there). This form's is `[0, 2.5e-323]`.
     /// - `t` uses the **tight square** `powi(2)`: `sin(θ/2)`'s enclosure
     ///   straddles zero near `θ = 0`, and `hs·hs` would return a
     ///   straddling product where the square is one-sided.

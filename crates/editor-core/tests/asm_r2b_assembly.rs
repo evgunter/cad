@@ -35,10 +35,10 @@ use editor_core::{
     Alignment, AssemblyError, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocRef,
     DocumentId, EntityKey, EntityKind, EntityRef, Entry, EvalOptions, Evaluation,
     InterfaceCrossing, MateFrame, MatePrimitive, Node, NodeErrorKind, ProfileDoc, RecipeNodeId,
-    ResolveFailure, ResolveFault, RoleSeg, StableName, assemble, content_pin, evaluate, inline,
-    product_recorded, split,
+    ResolveFailure, ResolveFault, RoleSeg, SitedRef, StableName, assemble, content_pin, evaluate,
+    inline, product_recorded, split,
 };
-use fixture::{insert, len, on_frame, step};
+use fixture::{insert, len, on_frame, relations, step};
 use geom_core::Tol;
 
 // ---- The stub store (the ASM-2A/R2a shape, verbatim in spirit) ----
@@ -156,11 +156,12 @@ fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
         kind: EntityKind::Face,
         node: instance,
         path: vec![RoleSeg::InPart {
-            of: Box::new(StableName {
+            of: StableName {
                 kind: EntityKind::Face,
                 node: PART_BODY,
                 path: vec![RoleSeg::Cap(cap)],
-            }),
+            }
+            .into(),
         }],
     }
 }
@@ -186,8 +187,8 @@ fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
 /// is z ∈ [0,1]); anything larger leaves a definite gap.
 fn rest_mate(a: RecipeNodeId, b: RecipeNodeId, seat: f64) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: in_part(a, CapEnd::Top),
-        b: in_part(b, CapEnd::Bottom),
+        a: SitedRef::at_mint(in_part(a, CapEnd::End)),
+        b: SitedRef::at_mint(in_part(b, CapEnd::Start)),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame([0.0, 0.0, seat], [0.0, 0.0, 1.0]),
@@ -209,8 +210,8 @@ fn rest_mate_at(
     origin: [f64; 3],
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: in_part(a, CapEnd::Top),
-        b: in_part(b, CapEnd::Bottom),
+        a: SitedRef::at_mint(in_part(a, CapEnd::End)),
+        b: SitedRef::at_mint(in_part(b, CapEnd::Start)),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame(origin, [0.0, 0.0, 1.0]),
@@ -286,18 +287,6 @@ fn gate_records(
              geometry: {other}"
         ),
     }
-}
-
-/// Every declaration the findings name, and in what relation.
-fn relations(findings: &[editor_core::AtRestFinding]) -> Vec<(RecipeNodeId, &'static str)> {
-    findings
-        .iter()
-        .map(|f| match &f.attribution {
-            editor_core::Attribution::Refuted(m) => (m.mate, "refuted"),
-            editor_core::Attribution::Declined(m) => (m.mate, "declined"),
-            editor_core::Attribution::Unattributed => (RecipeNodeId(u64::MAX), "unattributed"),
-        })
-        .collect()
 }
 
 fn names_of(table: &editor_core::NameTable, key: EntityKey) -> Option<StableName> {
@@ -434,10 +423,7 @@ fn row2_a_solved_rest_mate_mints_its_declaration() {
     assert_eq!(declared.class, ContactClass::Rest, "with the mate's class");
     assert_eq!(
         (declared.a.clone(), declared.b.clone()),
-        (
-            in_part(ids[0], CapEnd::Top),
-            in_part(ids[1], CapEnd::Bottom)
-        ),
+        (in_part(ids[0], CapEnd::End), in_part(ids[1], CapEnd::Start)),
         "and both of its references"
     );
     assert_eq!(
@@ -692,10 +678,7 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
     assert_eq!(named.mate, mate, "the MATE NODE is named");
     assert_eq!(
         (named.a, named.b),
-        (
-            in_part(ids[0], CapEnd::Top),
-            in_part(ids[1], CapEnd::Bottom)
-        ),
+        (in_part(ids[0], CapEnd::End), in_part(ids[1], CapEnd::Start)),
         "both references are named"
     );
     assert!(
@@ -818,11 +801,11 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
         },
         Tol::witness(),
     );
-    // The part-local name of the cube's top cap.
+    // The part-local name of the cube's end cap.
     let inner = StableName {
         kind: EntityKind::Face,
         node: PART_BODY,
-        path: vec![RoleSeg::Cap(CapEnd::Top)],
+        path: vec![RoleSeg::Cap(CapEnd::End)],
     };
     let record = editor_core::InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
@@ -901,7 +884,7 @@ fn row5_c_inline_dissolves_the_crossing_record() {
     let inner = StableName {
         kind: EntityKind::Face,
         node: PART_BODY,
-        path: vec![RoleSeg::Cap(CapEnd::Top)],
+        path: vec![RoleSeg::Cap(CapEnd::End)],
     };
     let record = editor_core::InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
@@ -957,11 +940,11 @@ fn row5_d_a_dangling_head_mate_contributes_no_crossing() {
     let (doc, local) = block(doc, (0.0, 1.0), (0.0, 1.0), 5.0, 1.0);
     let mut node = rest_mate(instance, instance, 1.0);
     if let Node::Mate { b, .. } = &mut node {
-        *b = StableName {
+        *b = SitedRef::at_mint(StableName {
             kind: EntityKind::Face,
             node: local,
-            path: vec![RoleSeg::Cap(CapEnd::Bottom)],
-        };
+            path: vec![RoleSeg::Cap(CapEnd::Start)],
+        });
     }
     let (doc, mate) = step(doc, DocEdit::InsertNode { node });
     let mate = mate.expect("the mate mints");
@@ -1122,7 +1105,7 @@ fn row6_a_crossing_record_edit_moves_the_content_key() {
     let inner = StableName {
         kind: EntityKind::Face,
         node: PART_BODY,
-        path: vec![RoleSeg::Cap(CapEnd::Top)],
+        path: vec![RoleSeg::Cap(CapEnd::End)],
     };
     let record = editor_core::InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
@@ -1486,12 +1469,13 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
     let (doc, ids, _, store) = stacked("asm-r2b-vanish", 1.0);
     let mut node = rest_mate(ids[0], ids[1], 1.0);
     if let Node::Mate { a, .. } = &mut node {
-        a.path = vec![RoleSeg::InPart {
-            of: Box::new(StableName {
+        a.name.path = vec![RoleSeg::InPart {
+            of: StableName {
                 kind: EntityKind::Face,
                 node: RecipeNodeId(99),
-                path: vec![RoleSeg::Cap(CapEnd::Top)],
-            }),
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            }
+            .into(),
         }];
     }
     let (doc, _) = step(doc, DocEdit::InsertNode { node });
@@ -1515,7 +1499,7 @@ fn the_crossing_refusal_is_a_named_node_error() {
         name: Box::new(StableName {
             kind: EntityKind::Face,
             node: RecipeNodeId(3),
-            path: vec![RoleSeg::Cap(CapEnd::Top)],
+            path: vec![RoleSeg::Cap(CapEnd::End)],
         }),
     };
     let msg = e.to_string();
@@ -1570,8 +1554,8 @@ fn flush_seat(label: &str) -> (ProfileDoc, RecipeNodeId, StubStore) {
         doc,
         DocEdit::InsertNode {
             node: Node::Mate {
-                a: in_part(post_id, CapEnd::Top),
-                b: in_part(shelf_id, CapEnd::Bottom),
+                a: SitedRef::at_mint(in_part(post_id, CapEnd::End)),
+                b: SitedRef::at_mint(in_part(shelf_id, CapEnd::Start)),
                 class: ContactClass::Rest,
                 alignment: Alignment {
                     a: frame([0.0, 0.0, 0.5], [0.0, 0.0, 1.0]),
@@ -1668,12 +1652,12 @@ fn the_refusal_renders_attribution_prose_never_debug_guts() {
         a: StableName {
             kind: EntityKind::Face,
             node: RecipeNodeId(1),
-            path: vec![RoleSeg::Cap(CapEnd::Top)],
+            path: vec![RoleSeg::Cap(CapEnd::End)],
         },
         b: StableName {
             kind: EntityKind::Face,
             node: RecipeNodeId(2),
-            path: vec![RoleSeg::Cap(CapEnd::Bottom)],
+            path: vec![RoleSeg::Cap(CapEnd::Start)],
         },
         class: ContactClass::Rest,
         faces: (topo::FaceKey::default(), topo::FaceKey::default()),
@@ -1700,7 +1684,7 @@ fn the_refusal_renders_attribution_prose_never_debug_guts() {
         "{msg}"
     );
     assert!(
-        msg.contains("mate 4's declared Rest contact, uncertified:"),
+        msg.contains("mate 4's declared Rest contact, declined:"),
         "{msg}"
     );
     assert!(
@@ -1752,7 +1736,7 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
             name: Box::new(StableName {
                 kind: EntityKind::Face,
                 node: RecipeNodeId(1),
-                path: vec![RoleSeg::Cap(CapEnd::Top)],
+                path: vec![RoleSeg::Cap(CapEnd::End)],
             }),
         },
         ProductError::Graft {

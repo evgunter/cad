@@ -257,7 +257,7 @@ fn wall_name(node: RecipeNodeId, seg: u32) -> editor_core::StableName {
 }
 
 fn cap_name(node: RecipeNodeId) -> editor_core::StableName {
-    fixture::fname(node, RoleSeg::Cap(CapEnd::Bottom))
+    fixture::fname(node, RoleSeg::Cap(CapEnd::Start))
 }
 
 fn named(at: RecipeNodeId, names: Vec<editor_core::StableName>) -> Selection {
@@ -550,7 +550,7 @@ fn a_sub_epsilon_gap_reaches_the_funnel_that_calls_it_a_violation() {
 /// COINCIDENCE — two points within ε of each other on the two surfaces
 /// — not a signed penetration depth: a consumer learns "these faces
 /// touch", not "they overlap by 0.5 m". Filed as
-/// `work/m10/signed-penetration-depth.md`.
+/// `work/curved/signed-penetration-depth.md`.
 #[test]
 fn an_interpenetration_is_reported_violated_not_refused() {
     // Two unit blocks overlapping by half their width.

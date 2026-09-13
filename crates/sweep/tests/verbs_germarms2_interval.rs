@@ -51,6 +51,8 @@ fn iv(x: f64) -> Interval {
     Interval::from_f64(x)
 }
 
+// NOT `common::germ_pair`: the `Interval`-typed twin of that fixture,
+// lifted at every literal — see that module's list.
 fn cyl(r: f64, h: f64) -> Body<Interval> {
     let tol = Tol::witness();
     let lp = profile::circle(Point2::new(iv(0.0), iv(0.0)), iv(r), tol).unwrap();

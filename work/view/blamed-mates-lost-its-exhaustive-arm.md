@@ -2,8 +2,10 @@
 id: blamed-mates-lost-its-exhaustive-arm
 kind: issue
 title: "main does not compile at --workspace --features interval: blamed_mates lost its exhaustive arm when MateFault grew Unleverable"
-status: open
+status: closed
 opened: 2026-09-04
+closed: 2026-09-04
+refs: [ci-draw-can-hide-a-compile-break-on-main, mate-fault-accessors-wildcard-into-silence]
 ---
 
 ## The breakage
@@ -108,3 +110,30 @@ decided here.
 compile break on `main` for an unbounded number of merges. This issue
 states it well and this program is not the owner; the announce is
 owed with the others.
+
+## Closed — both residues have files now (VIEW orchestrator, 2026-09-04)
+
+The code half was closed on arrival, above. `main` compiles at this
+lane today: the arm is at `crates/viewer/src/tree.rs:325`, and
+`crates/pncad-py/src/tags.rs:411` has its sibling.
+
+The two halves this file said were "announced, not decided here" were
+announced **in prose in this file and nowhere else**, which
+`work/README.md` says is not a schedule: *"a residue a lane discloses
+inside its own item's prose reads as a record of work done, not as an
+open thread, so it is invisible to the re-homing and dies with the
+directory."* This item would have been swept away carrying both. They
+now have their own files, in `work/issues/` because neither owner's
+slate is VIEW's to write on:
+
+- `work/issues/ci-draw-can-hide-a-compile-break-on-main.md` — the
+  sampling hole. **CIW's.**
+- `work/issues/mate-fault-accessors-wildcard-into-silence.md` — the
+  ten `_ => None` accessors and the `#[non_exhaustive]` rule.
+  **LIB's ground, DOCM's ratification.**
+
+One correction to the sweep above, for whoever reads the new file:
+`crates/viewer/src/app.rs:2880` is cited there as a `MateFault`
+wildcard and **there is no longer any `MateFault` in `app.rs`** — the
+1c split moved that code, which is `stale-file-citations-after-the-split`
+one more time, in this program's own file.

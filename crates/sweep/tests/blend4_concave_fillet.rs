@@ -27,6 +27,7 @@ use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, Convexity, CornerConfig, FILLET3_CORNER_RECOURSE};
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
+use topo::readback::euler_counts;
 use topo::{Body, EdgeKey, validate, validate_closed};
 
 /// The fillet radius, meters.
@@ -194,7 +195,7 @@ fn filleted_cavity_volume() -> f64 {
 /// walls the patch is an iso-parameter rectangle wherever the chart
 /// aims, so the downstream machinery is chart-placement-tolerant).
 /// The chart fold's guards are the plan-level mirror pin
-/// (`blend::surgery::tests::a_corner_plan_takes_its_links_convexity`)
+/// (`blend::open::planar::tests::a_corner_plan_takes_its_links_convexity`)
 /// and the carved-body seam/quarter-turn pin
 /// (`review_blend4_r2_probes::r2_the_octant_charts_seam_and_quarter_turn_are_feet_on_both_sides`).
 #[test]
@@ -231,19 +232,16 @@ fn the_filleted_cavity() {
         );
     }
 
-    let (nv, ne, nf) = (
-        out_body.vertices().count(),
-        out_body.edges().count(),
-        out_body.faces().count(),
-    );
+    let counts = euler_counts(&out_body);
     assert_eq!(
-        (nv, ne, nf),
+        (counts.v, counts.e, counts.f),
         (36, 66, 34),
         "census — the same carve topology as the chamfered cavity"
     );
+    assert_eq!(counts.r, 2, "the vent mouth's two ringed faces");
     assert_eq!(
-        nv as i64 - ne as i64 + nf as i64 - 2,
-        2,
+        (counts.s, counts.genus()),
+        (1, Ok(0)),
         "Euler–Poincaré, corrected for the vent mouth's two ringed faces"
     );
 

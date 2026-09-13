@@ -402,6 +402,26 @@ impl<P> Doc<P> {
         self.id
     }
 
+    /// The same document under a different identity: `id` replaces
+    /// this one's and NOTHING else moves.
+    ///
+    /// This is the fork constructor (A4). Identity answers "which
+    /// part", so a document that is to become a SECOND part gets a
+    /// second id, and every reference pinning the first keeps naming
+    /// the first. Content is untouched, so the content pin is
+    /// unchanged — the pin's preimage is the document's serde form
+    /// with the `id` key removed
+    /// ([`crate::persist::canonical_bytes`]), which is what makes a
+    /// copy under a fresh id detectably the same content.
+    ///
+    /// Minting the fresh id is the CALLER's: this crate is
+    /// deterministic by construction and touches no ambient
+    /// randomness.
+    pub fn under_identity(mut self, id: DocumentId) -> Self {
+        self.id = id;
+        self
+    }
+
     /// The node with the given id, if live.
     pub fn node(&self, id: RecipeNodeId) -> Option<&Node<P>> {
         self.nodes.get(&id)

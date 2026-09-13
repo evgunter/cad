@@ -98,13 +98,13 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
         },
     );
     let (x, y) = if swap { (b, a) } else { (a, b) };
-    // M4 PR 5: the flush bottom caps are declared (sides resolve
+    // M4 PR 5: the flush start caps are declared (sides resolve
     // per-operand, so ONE Declare serves both operand orders).
     let (doc, decl) = insert(
         doc,
         Node::declare_rest(vec![(
-            fixture::fname(a, RoleSeg::Cap(CapEnd::Bottom)),
-            fixture::fname(b, RoleSeg::Cap(CapEnd::Bottom)),
+            fixture::fname(a, RoleSeg::Cap(CapEnd::Start)),
+            fixture::fname(b, RoleSeg::Cap(CapEnd::Start)),
         )]),
     );
     let (doc, s) = insert(
@@ -715,8 +715,8 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
         let (doc, decl) = insert(
             doc,
             Node::declare_rest(vec![(
-                fixture::fname(cube, RoleSeg::Cap(CapEnd::Top)),
-                fixture::fname(pip, RoleSeg::Cap(CapEnd::Bottom)),
+                fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
+                fixture::fname(pip, RoleSeg::Cap(CapEnd::Start)),
             )]),
         );
         let (doc, sub) = insert(
@@ -850,24 +850,26 @@ fn wire_doors_refuse_typed() {
         }
         other => panic!("expected Failed, got {other:?}"),
     }
-    // Boolean whose declare input is not a Declare node: WrongOperand.
-    let (d, bad_decl) = insert(
-        doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: u,
-            b: base,
-            declare: Some(ax),
+    // Boolean whose declare input is not a Declare node: refused at
+    // the edit door, so the document never carries the mis-wire.
+    let refused = doc.apply(
+        &editor_core::DocEdit::InsertNode {
+            node: Node::Boolean {
+                op: BooleanOp::Union,
+                a: u,
+                b: base,
+                declare: Some(ax),
+            },
         },
+        Tol::witness(),
     );
-    let ev = run(&d, None, false);
-    match ev.nodes.get(&bad_decl) {
-        Some(NodeResult::Failed(e)) => match &e.kind {
-            NodeErrorKind::WrongOperand { expected, .. } => assert_eq!(*expected, "declarations"),
-            other => panic!("expected WrongOperand(declarations), got {other:?}"),
-        },
-        other => panic!("expected Failed, got {other:?}"),
-    }
+    assert!(
+        matches!(
+            refused,
+            Err(editor_core::EditError::DeclareInputNotDeclare { input, .. }) if input == ax
+        ),
+        "expected the declare edge's kind refusal, got {refused:?}"
+    );
 }
 
 /// R2: same evaluated floats under DIFFERENT op tags must not collide

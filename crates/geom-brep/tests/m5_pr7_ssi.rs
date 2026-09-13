@@ -2496,7 +2496,7 @@ fn the_ssi_predicates_reach_the_k_funnel() {
     // one funnel, so the verdict log — which records at f64, unlike the
     // `Probe` margin sink — sees them by name. This is the row that
     // would catch a raw comparison sneaking into the marcher.
-    use geom_core::k_stats::{start_verdict_log, take_verdict_log};
+    use geom_core::k_stats::Bracket;
     let (s, c) = (sphere(), threaded_cylinder());
     let mut d = SsiDomain {
         center: Point3::new(0.03, 0.0, 0.996),
@@ -2505,9 +2505,9 @@ fn the_ssi_predicates_reach_the_k_funnel() {
         floor_scale: 1.0,
     };
     d.floor_scale = 1.0;
-    start_verdict_log();
+    let bracket = Bracket::open();
     let outcome = ssi::cylinder_sphere_ssi(&c, &s, d, band());
-    let v = take_verdict_log();
+    let v = bracket.finish().verdicts;
     // The marching predicates run before anything is fitted, so they
     // are recorded at every ε; the certificate's only run once a branch
     // was actually fitted, which the fit-sample budget can prevent at

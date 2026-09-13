@@ -2,7 +2,8 @@
 id: n-ary-union-has-no-declaration-channel
 kind: issue
 title: An n-ary union of members that touch refuses UndeclaredContact with no recourse: the union carries no declare edge
-status: open
+status: closed
+closed: 2026-09-06
 opened: 2026-09-04
 refs: [DOCM-3]
 ---
@@ -38,3 +39,9 @@ answered, and says so.
 
 DOCM's slate; a ruling, not a unit, until Ev weighs in — it revises
 DM4's "no declare field" sentence either way.
+
+## Closed (2026-09-06)
+
+Ruled by Ev: a declaration channel in member space — DM4 amended
+(`docs/DOCM-REFERENCES-DESIGN.md`, the 2026-09-06 bullet). The build
+is `DOCM-7`.

@@ -252,7 +252,13 @@ pub(super) fn try_rest_union<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // ---- 6. Graft B whole (disjoint interiors: nothing discarded),
     // then glue every patch pair in BFS order. ----
     let glue_order = bfs_order(&red.a, &a_patch, &a_seam)?;
-    let mut body = red.a;
+    // The zip, the merge and the closing mint are one door's surgery
+    // (`crate::surgery`): tier 1 is paid once, over the body `gate`
+    // below certifies, rather than once per operator. The guard owns
+    // the borrow, so a refusal on the way closes the scope by dropping
+    // it.
+    let mut zipped = red.a;
+    let mut body = zipped.begin_surgery();
     let solid = single_solid(&body).map_err(|_| desync("REST lane: operand A not one solid"))?;
     let graft = graft_solid(&mut body, solid, &red.b, tol)?;
 
@@ -332,6 +338,8 @@ pub(super) fn try_rest_union<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
         &KeyView::Graft(&graft),
         &desc,
     );
+    body.sweep_and_close();
+    let body = zipped;
     gate(&body)?;
     volume_backstop(BooleanOp::Union, a_pristine, b_pristine, &body, band, tol)?;
     let (graft_vertices, graft_edges, graft_faces) = graft_rows(&graft);
@@ -500,29 +508,24 @@ type RestSurfaces = (SecondaryMap<SurfaceKey, ()>, SecondaryMap<SurfaceKey, ()>)
 /// only meters the angular sliver band (exact fixtures decide
 /// definitely either way).
 ///
-/// **Who calls this, exactly one caller, and where the shared arm
-/// really is.** This door has ONE consumer today: the flush
-/// detector's candidate-generation mode ([`crate::flush`],
-/// `declared: false`). Verify-at-use stopped calling it at M9-1, when
-/// [`verify_declared_pairs`] and the op's front door moved to the
-/// kind-generalized [`carrier_pair_relation`]. The anti-twin property
-/// (SELECT-DESIGN §3b) survives that move rather than resting on it,
-/// because the two doors CONVERGE one link down: `carrier_pair_relation`
-/// builds the same sense-folded plane description through
-/// [`face_carrier`]'s Plane arm and the same identity through
-/// [`face_plane_source`], and its `(Plane, Plane)` case delegates to
-/// [`oriented_plane_eq_verdict`](super::plane_eq::oriented_plane_eq_verdict)
-/// — the very function this door's [`super::oriented_plane_eq`] wraps.
-/// One verdict function, one set of `decide` sites, one verification
-/// arm, reached by two spellings of the same three inputs. The #304
-/// review's planted-drift probe showed a hand-mirrored arm passes
-/// every axis-aligned suite, which is why the arm is shared rather
-/// than mirrored — and why the chain above is stated rather than
-/// summarized as "the same door".
+/// **This door has NO in-tree consumer.** Verify-at-use stopped
+/// calling it at M9-1 and the flush detector followed when its scope
+/// became the `Rest` ladder's; what to do about a published door with
+/// no caller is `work/seat/flush-pair-relation-has-no-caller.md`.
+/// What it still IS is [`carrier_pair_relation`]'s planar projection,
+/// and the two cannot drift: that door's `(Plane, Plane)` case
+/// delegates to
+/// [`oriented_plane_eq_verdict`](super::plane_eq::oriented_plane_eq_verdict),
+/// the very function [`super::oriented_plane_eq`] wraps here — one
+/// verdict function, one set of `decide` sites, one verification arm.
+/// (The #304 review's planted-drift probe showed a hand-mirrored arm
+/// passes every axis-aligned suite, which is why the arm is shared
+/// rather than mirrored.)
 ///
-/// `None`: not a planar pair — there is no description to compare
-/// (the detector's honest "not a v1 candidate"; the REST lane treats
-/// it as an invariant violation at its own site).
+/// `None`: not a planar pair — there is no plane description to
+/// compare (the REST lane treats it as an invariant violation at its
+/// own site; [`carrier_pair_relation`] is where a caller asks the
+/// same question of any carrier the ladder names).
 pub fn flush_pair_relation<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -954,10 +957,11 @@ fn verify_declared_pairs<T: Decide>(
         if class != ContactClass::Rest {
             continue;
         }
-        // The one flush-pair door ([`flush_pair_relation`]): oriented
-        // sources, sense-folded descriptions, and the verification
-        // arm all live inside it — shared with the LIB-SEL2 detector
-        // by construction.
+        // The one carrier-pair door: oriented sources, sense-folded
+        // descriptions, and the verification arm all live inside it —
+        // shared with the flush detector by construction, since that
+        // detector asks THIS function in its `declared: false`
+        // posture.
         // The generalized door: planar pairs reach exactly the numbers
         // the plane ladder always reached (its plane arm delegates),
         // and a curved declared pair is verified rather than being

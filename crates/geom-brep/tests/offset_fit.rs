@@ -23,21 +23,21 @@
 //!   certificate and NAMES the limb; a collapsed control row (the
 //!   sphere-pole shape) refuses at the regularity floor; `|d|` past
 //!   the curvature reach refuses at the collapse meter; an
-//!   unreachable tolerance refuses typed at the budget.
+//!   unreachable tolerance refuses typed, naming what stopped the
+//!   loop (on the bumpy patch, the sample cap).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::NurbsSurface;
-use geom::curves::fit::interpolate_columns;
 use geom_brep::offset_fit::{
-    OFFSET_FIT_BUDGET, OFFSET_FIT_SAMPLE_CAP, OffsetFitError, OffsetLimb, certify_offset,
-    fit_offset,
+    OFFSET_FIT_BUDGET, OFFSET_FIT_SAMPLE_CAP, OffsetFitError, OffsetLimb, certify_offset_at,
+    fit_offset_at,
 };
 use geom_brep::offset_meters::{MeterError, OFFSET_METER_LADDER, patch_collapse, patch_regularity};
 use geom_brep::patch_bound::patch_cells_refined;
 use geom_core::Point3;
 
-use crate::shared::fixture::{kv1, kv2, quarter_cylinder, sphere_band};
+use crate::shared::fixture::{bumpy_patch, kv1, kv2, quarter_cylinder, sphere_band};
 use crate::shared::sample::{grid, worst_offset_residual};
 use crate::shared::tol::band;
 
@@ -51,48 +51,6 @@ use crate::shared::tol::band;
 // `crate::shared::fixture`'s: four other suites in this crate were
 // building the same two nets. What is left here is the base that has
 // no closed form at all.
-
-/// A non-analytic bicubic patch: a height field with no closed form
-/// as any analytic kind, interpolated through the loft door.
-fn bumpy_patch() -> NurbsSurface<f64> {
-    let n = 7;
-    let params: Vec<f64> = (0..n)
-        .map(|i| {
-            #[allow(clippy::cast_precision_loss)]
-            let t = i as f64 / (n - 1) as f64;
-            t
-        })
-        .collect();
-    let height = |u: f64, v: f64| 0.35 * (2.4 * u).sin() * (1.9 * v + 0.4).cos() + 0.2 * u * v;
-    let rows: Vec<Vec<f64>> = params
-        .iter()
-        .map(|u| {
-            let mut row = Vec::with_capacity(n * 3);
-            for v in &params {
-                row.extend_from_slice(&[*u, *v, height(*u, *v)]);
-            }
-            row
-        })
-        .collect();
-    let (ku, r) = interpolate_columns(&params, 3, &rows).unwrap();
-    let mut rows_v: Vec<Vec<f64>> = Vec::with_capacity(n);
-    for l in 0..n {
-        let mut row = Vec::with_capacity(ku.control_count() * 3);
-        for rr in &r {
-            row.extend_from_slice(&rr[l * 3..l * 3 + 3]);
-        }
-        rows_v.push(row);
-    }
-    let (kv, p) = interpolate_columns(&params, 3, &rows_v).unwrap();
-    let (cu, cv) = (ku.control_count(), kv.control_count());
-    let mut control = Vec::with_capacity(cu * cv);
-    for i in 0..cu {
-        for row in p.iter().take(cv) {
-            control.push(Point3::new(row[i * 3], row[i * 3 + 1], row[i * 3 + 2]));
-        }
-    }
-    NurbsSurface::new(ku, kv, control, vec![1.0; cu * cv]).unwrap()
-}
 
 // ---------------------------------------------------------------------
 // The analytic oracle
@@ -128,7 +86,7 @@ fn cylinder_fit_matches_the_closed_form_both_signs() {
     {
         let tol = 1e-4;
         let d = 0.3;
-        let (_, cert) = fit_offset(&base, d, tol, band()).unwrap_or_else(|e| {
+        let (_, cert) = fit_offset_at(&base, d, tol, band()).unwrap_or_else(|e| {
             panic!("LIVENESS: fit_offset refused this cylinder at d = {d}, tol = {tol}: {e}")
         });
         assert!(
@@ -140,7 +98,7 @@ fn cylinder_fit_matches_the_closed_form_both_signs() {
     }
     let tol = 3e-4;
     for d in [0.3_f64, -0.4] {
-        let (fit, cert) = fit_offset(&base, d, tol, band())
+        let (fit, cert) = fit_offset_at(&base, d, tol, band())
             .unwrap_or_else(|e| panic!("fit_offset refused at d = {d}: {e}"));
         assert!(
             cert.hull_sup <= tol,
@@ -205,7 +163,7 @@ fn sphere_band_fit_matches_the_closed_form_both_signs() {
     let base = sphere_band(r, 0.25, 1.25);
     let tol = 3e-4;
     for d in [0.35_f64, -0.5] {
-        let (fit, cert) = fit_offset(&base, d, tol, band())
+        let (fit, cert) = fit_offset_at(&base, d, tol, band())
             .unwrap_or_else(|e| panic!("fit_offset refused at d = {d}: {e}"));
         assert!(cert.hull_sup <= tol, "certified sup {}", cert.hull_sup);
         let mut worst = 0.0f64;
@@ -253,7 +211,7 @@ fn non_analytic_base_fits_and_the_bound_contains_the_sample() {
     let base = bumpy_patch();
     let tol = 1e-4;
     let d = 0.05;
-    let (fit, cert) = fit_offset(&base, d, tol, band())
+    let (fit, cert) = fit_offset_at(&base, d, tol, band())
         .unwrap_or_else(|e| panic!("fit_offset refused on the non-analytic base: {e}"));
     assert!(cert.hull_sup <= tol);
     let worst = worst_offset_residual(&base, &fit, d, &grid(23, 19)).unwrap();
@@ -418,8 +376,8 @@ fn the_collapse_meter_brackets_the_sphere_s_known_curvature() {
 fn a_degraded_fit_fails_the_certificate_and_names_the_limb() {
     let base = quarter_cylinder(1.0, 1.0);
     let d = 0.3;
-    let (fit, cert) = fit_offset(&base, d, 1e-3, band()).unwrap();
-    assert!(certify_offset(&base, &fit, d, 1e-3, band()).is_ok());
+    let (fit, cert) = fit_offset_at(&base, d, 1e-3, band()).unwrap();
+    assert!(certify_offset_at(&base, &fit, d, 1e-3, band()).is_ok());
     // Coarsen: a bilinear surface through the fit's corner control
     // points is a fit no longer — the same door must refuse it.
     let (cu, cv) = fit.control_counts();
@@ -430,7 +388,7 @@ fn a_degraded_fit_fails_the_certificate_and_names_the_limb() {
         fit.control()[(cu - 1) * cv + cv - 1],
     ];
     let degraded = NurbsSurface::new(kv1(), kv1(), corners, vec![1.0; 4]).unwrap();
-    match certify_offset(&base, &degraded, d, 1e-3, band()) {
+    match certify_offset_at(&base, &degraded, d, 1e-3, band()) {
         Err(OffsetFitError::Limb { limb, bound, .. }) => {
             assert_eq!(limb, OffsetLimb::OnLocus);
             assert!(bound > 1e-3, "the degraded fit measured only {bound}");
@@ -457,7 +415,7 @@ fn a_collapsed_control_row_refuses_at_the_regularity_floor() {
         Point3::new(0.0, r, -0.5),
     ];
     let base = NurbsSurface::new(kv2(), kv2(), control, vec![1.0; 9]).unwrap();
-    match fit_offset(&base, 0.1, 1e-4, band()) {
+    match fit_offset_at(&base, 0.1, 1e-4, band()) {
         Err(OffsetFitError::Meter(MeterError::NormalFloor { floor, .. })) => {
             assert_eq!(floor, 0.0, "a collapsed row left a positive floor");
         }
@@ -472,7 +430,7 @@ fn an_offset_past_the_curvature_reach_refuses_at_the_collapse_meter() {
     let cells = patch_cells_refined(&base, OFFSET_METER_LADDER[1]).unwrap();
     // Inward past the sphere's own radius: the offset folds through
     // the centre.
-    match fit_offset(&base, -1.2 * r, 1e-4, band()) {
+    match fit_offset_at(&base, -1.2 * r, 1e-4, band()) {
         Err(OffsetFitError::Meter(MeterError::CurvatureHeadroom {
             reach, headroom, ..
         })) => {
@@ -488,26 +446,132 @@ fn an_offset_past_the_curvature_reach_refuses_at_the_collapse_meter() {
     // that number rather than against the true fold radius `r`.
     let coll = patch_collapse(&cells, -1.0);
     let inside = -0.5 * coll.reach;
-    if let Err(e) = fit_offset(&base, inside, 1e-3, band()) {
+    if let Err(e) = fit_offset_at(&base, inside, 1e-3, band()) {
         panic!("an inward offset at half the certified reach ({inside} m) refused: {e}");
     }
 }
 
+/// **The sample-cap face.** At 1e-15 the bumpy patch runs five of the
+/// six refinement rounds and is stopped by the per-direction sample
+/// cap — the sixth round's schedule would carry 66x67 samples against
+/// a cap of 48 — with a finite bound in hand. The refusal has to say
+/// so: a caller reading the round budget off it would raise the wrong
+/// knob, because the rounds were never what ran out.
 #[test]
-fn an_unreachable_tolerance_refuses_typed_at_the_budget() {
+fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_round_budget() {
     let base = bumpy_patch();
-    match fit_offset(&base, 0.05, 1e-15, band()) {
-        Err(OffsetFitError::BudgetExhausted {
-            budget,
+    match fit_offset_at(&base, 0.05, 1e-15, band()) {
+        Err(OffsetFitError::SampleCapReached {
+            cap,
+            rounds,
             grid,
             achieved,
             tolerance,
         }) => {
-            assert_eq!(budget, OFFSET_FIT_BUDGET);
+            assert_eq!(cap, OFFSET_FIT_SAMPLE_CAP);
+            assert_eq!(rounds, 5, "five of the six rounds ran before the cap");
             assert!(grid.0 <= OFFSET_FIT_SAMPLE_CAP && grid.1 <= OFFSET_FIT_SAMPLE_CAP);
             assert!(achieved.is_finite() && achieved > tolerance);
+            let e = OffsetFitError::SampleCapReached {
+                cap,
+                rounds,
+                grid,
+                achieved,
+                tolerance,
+            };
+            let msg = e.to_string();
+            assert!(msg.contains("OFFSET_FIT_SAMPLE_CAP"), "{msg}");
+            assert!(
+                msg.contains(&format!("{rounds} of {OFFSET_FIT_BUDGET} rounds")),
+                "the rounds that ran are not in the message: {msg}"
+            );
+            assert!(msg.contains("nothing uncertified is returned"), "{msg}");
         }
-        other => panic!("an unreachable tolerance did not refuse typed: {other:?}"),
+        other => panic!("a cap stop with a finite bound did not name the cap: {other:?}"),
+    }
+}
+
+/// **A stall on the last round is a stall.** On the bumpy patch at
+/// `d = 1e-6` the bound falls to 2.5e-9 on round 4, RISES to 1.5e-8 on
+/// round 5 (the guard falls back to marking both directions) and
+/// rises again to 6.9e-7 on round 6, the budget's last. The strongest
+/// step gained nothing, which is the stall guard's own admission set,
+/// and it must be `RefinementStalled` there as on any earlier round:
+/// a refusal that says "still converging, raise the round budget" on
+/// a bound that went up twice sends the caller to the wrong knob.
+#[test]
+fn a_stall_on_the_budgets_last_round_is_the_stall_not_the_budget() {
+    let base = bumpy_patch();
+    match fit_offset_at(&base, 1e-6, 1e-9, band()) {
+        Err(OffsetFitError::RefinementStalled {
+            rounds,
+            grid,
+            achieved,
+            ..
+        }) => {
+            assert_eq!(
+                rounds as usize, OFFSET_FIT_BUDGET,
+                "the stall is on the last round"
+            );
+            assert!(achieved.is_finite());
+            eprintln!("last-round stall: rounds={rounds} grid={grid:?} achieved={achieved:.3e}");
+        }
+        other => panic!("a last-round stall was not refused as a stall: {other:?}"),
+    }
+}
+
+/// **The never-finite face.** At `d = 1e-7` and `1e-8` on the quarter
+/// cylinder the certificate limb answers `+∞` on every grid the loop
+/// reaches — the small-`|d|` denominator's componentwise floor never
+/// clears zero — and the cap stops it after four refinement rounds
+/// with no finite bound ever produced. A refusal that "carries the
+/// achieved bound" must not carry `inf` there: the face says there is
+/// no number, and prints none.
+#[test]
+fn a_bound_that_never_became_finite_refuses_with_no_number() {
+    let base = quarter_cylinder(1.0, 1.0);
+    for d in [1e-7_f64, 1e-8] {
+        match fit_offset_at(&base, d, 1e-3, band()) {
+            Err(OffsetFitError::BoundNotFinite {
+                rounds,
+                grid,
+                d: dd,
+                tolerance,
+                last_finite,
+            }) => {
+                assert_eq!(rounds, 4, "d = {d}: four rounds ran before the cap");
+                assert!(grid.0 <= OFFSET_FIT_SAMPLE_CAP && grid.1 <= OFFSET_FIT_SAMPLE_CAP);
+                assert_eq!(dd, d);
+                assert!(
+                    last_finite.is_none(),
+                    "d = {d}: a round reached a finite bound: {last_finite:?}"
+                );
+                let msg = OffsetFitError::BoundNotFinite {
+                    rounds,
+                    grid,
+                    d: dd,
+                    tolerance,
+                    last_finite,
+                }
+                .to_string();
+                // The type cannot print an `inf` here — the face has no
+                // bound field — so the row asserts what the message DOES
+                // say: that no round produced a finite bound, which knobs
+                // it disowns, the `d` it was asked for, and no constant.
+                assert!(
+                    msg.contains("without any round producing a finite sup bound"),
+                    "d = {d}: {msg}"
+                );
+                assert!(
+                    msg.contains("neither the round budget nor the sample cap"),
+                    "d = {d}: the message does not disown both knobs: {msg}"
+                );
+                assert!(msg.contains(&format!("d = {d} m")), "d = {d}: {msg}");
+                assert!(!msg.contains("OFFSET_FIT_"), "d = {d}: names a knob: {msg}");
+                assert!(msg.contains("nothing uncertified is returned"), "{msg}");
+            }
+            other => panic!("d = {d}: a never-finite bound did not refuse as one: {other:?}"),
+        }
     }
 }
 
@@ -539,7 +603,7 @@ fn an_unreachable_tolerance_refuses_typed_at_the_budget() {
 fn a_micron_scale_offset_certifies_and_names_its_limit() {
     let base = quarter_cylinder(1.0, 1.0);
     let d = 1e-6;
-    let (fit, cert) = fit_offset(&base, d, 1e-3, band())
+    let (fit, cert) = fit_offset_at(&base, d, 1e-3, band())
         .unwrap_or_else(|e| panic!("a micron-scale offset refused at 1e-3: {e}"));
     let worst = worst_offset_residual(&base, &fit, d, &grid(23, 19)).unwrap();
     assert!(
@@ -562,10 +626,16 @@ fn a_micron_scale_offset_certifies_and_names_its_limit() {
     );
     // The honest other half: a tolerance below what the fit's own
     // absolute accuracy can reach refuses typed, carrying the bound
-    // it did reach — never a number it cannot support.
-    match fit_offset(&base, d, 1e-9, band()) {
-        Err(OffsetFitError::BudgetExhausted { achieved, .. }) => {
-            eprintln!("small-d: 1e-9 refused typed, achieved = {achieved:.3e}");
+    // it did reach — never a number it cannot support. The stop is
+    // the sample cap's: the grid the bound wants exceeds it before
+    // the rounds run out.
+    match fit_offset_at(&base, d, 1e-9, band()) {
+        Err(OffsetFitError::SampleCapReached {
+            achieved, rounds, ..
+        }) => {
+            eprintln!(
+                "small-d: 1e-9 refused typed at the cap after {rounds} rounds, achieved = {achieved:.3e}"
+            );
         }
         other => {
             panic!("a tolerance below the fit's absolute accuracy did not refuse typed: {other:?}")
@@ -583,12 +653,12 @@ fn a_micron_scale_offset_certifies_and_names_its_limit() {
 #[test]
 fn a_fit_for_the_wrong_distance_is_refused_by_the_certifying_limb() {
     let base = quarter_cylinder(1.0, 1.0);
-    let (fit, _) = fit_offset(&base, 0.3, 1e-3, band()).unwrap();
+    let (fit, _) = fit_offset_at(&base, 0.3, 1e-3, band()).unwrap();
     // Certified against the OPPOSITE sign: `E·n` carries the wrong
     // sign everywhere, so `D`'s witness cannot pass and limb 2 is the
     // limb that must speak. A tolerance far above the true residual
     // keeps limb 1 quiet, so the refusal can only come from limb 2.
-    match certify_offset(&base, &fit, -0.3, 1e3, band()) {
+    match certify_offset_at(&base, &fit, -0.3, 1e3, band()) {
         Err(OffsetFitError::Limb { limb, bound, .. }) => {
             assert_eq!(limb, OffsetLimb::HullSup);
             assert!(
@@ -606,7 +676,7 @@ fn a_zero_or_non_finite_request_refuses_at_the_door() {
     for (d, tol) in [(0.0, 1e-6), (f64::NAN, 1e-6), (0.2, 0.0), (0.2, -1.0)] {
         assert!(
             matches!(
-                fit_offset(&base, d, tol, band()),
+                fit_offset_at(&base, d, tol, band()),
                 Err(OffsetFitError::InvalidRequest { .. })
             ),
             "d = {d}, tol = {tol} was accepted"
@@ -637,7 +707,7 @@ fn a_zero_or_non_finite_request_refuses_at_the_door() {
 /// 1e7        4.1422e-4               1.286x
 /// 1e8        4.4346e-7               0.0014x — TIGHTER
 /// 1e9        5.1654e-6
-/// 1e10       refused: BudgetExhausted, achieved inf
+/// 1e10       refused: BoundNotFinite, last_finite None — no grid reached one
 /// ```
 ///
 /// So the band is asserted where the claim is meaningful — out to
@@ -694,7 +764,7 @@ fn a_patch_far_from_the_origin_certifies_as_well_as_one_at_it() {
     for e in [0i32, 3, 5, 6, 7, 8] {
         let shift = if e == 0 { 0.0 } else { 10f64.powi(e) };
         let base = shifted(shift);
-        let (fit, cert) = fit_offset(&base, d, 1e-2, band())
+        let (fit, cert) = fit_offset_at(&base, d, 1e-2, band())
             .unwrap_or_else(|err| panic!("shift 1e{e}: a micron offset refused: {err}"));
         let worst = worst_offset_residual(&base, &fit, d, &grid(23, 19)).unwrap();
         // True at EVERY station, and the assertion the whole row
@@ -722,12 +792,22 @@ fn a_patch_far_from_the_origin_certifies_as_well_as_one_at_it() {
         );
     }
     // The honest end of the ladder: a shift the recentring cannot
-    // rescue refuses typed and returns nothing uncertified.
-    match fit_offset(&shifted(1.0e10), d, 1e-2, band()) {
-        Err(OffsetFitError::BudgetExhausted { achieved, .. }) => {
-            eprintln!("recentred shift=1e10: refused typed, achieved={achieved}");
+    // rescue refuses typed and returns nothing uncertified — and no
+    // grid it reaches produces a finite bound, so the refusal carries
+    // none rather than an `inf`.
+    match fit_offset_at(&shifted(1.0e10), d, 1e-2, band()) {
+        Err(OffsetFitError::BoundNotFinite {
+            rounds,
+            grid,
+            last_finite,
+            ..
+        }) => {
+            assert!(last_finite.is_none(), "a grid reached {last_finite:?}");
+            eprintln!(
+                "recentred shift=1e10: refused typed, never finite after {rounds} rounds on {grid:?}"
+            );
         }
-        other => panic!("shift 1e10 did not refuse typed at the budget: {other:?}"),
+        other => panic!("shift 1e10 did not refuse as a never-finite bound: {other:?}"),
     }
 }
 
@@ -747,7 +827,7 @@ fn refinement_follows_the_anisotropy_on_a_thin_patch() {
     let base = quarter_cylinder(1.0, 1.0e-3);
     let d = 0.1;
     let tol = 1e-5;
-    let (fit, cert) = fit_offset(&base, d, tol, band())
+    let (fit, cert) = fit_offset_at(&base, d, tol, band())
         .unwrap_or_else(|e| panic!("the thin patch refused at {tol}: {e}"));
     let worst = worst_offset_residual(&base, &fit, d, &grid(23, 19)).unwrap();
     assert!(
@@ -829,7 +909,7 @@ fn the_stall_refusal_carries_its_grid_rounds_and_bound() {
     );
     // And it is a DIFFERENT sentence from budget exhaustion's.
     let budget = OffsetFitError::BudgetExhausted {
-        budget: 6,
+        budget: OFFSET_FIT_BUDGET,
         grid: (11, 7),
         achieved: 4.25e-4,
         tolerance: 1e-6,

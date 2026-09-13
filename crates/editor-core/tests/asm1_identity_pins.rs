@@ -237,7 +237,7 @@ fn row4_appearance_edit_moves_pin() {
     let cap = StableName {
         kind: EntityKind::Face,
         node: extrude,
-        path: vec![RoleSeg::Cap(CapEnd::Top)],
+        path: vec![RoleSeg::Cap(CapEnd::End)],
     };
     let (painted, _) = step(
         doc,

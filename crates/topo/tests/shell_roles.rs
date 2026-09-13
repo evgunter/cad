@@ -99,9 +99,9 @@ fn per_shell_volumes_sum_to_the_body_volume() {
 #[test]
 fn sign_read_is_the_named_decide_site() {
     let body = voided();
-    geom_core::k_stats::start_verdict_log();
+    let bracket = geom_core::k_stats::Bracket::open();
     let classes = classify_shells(&body, Tol::witness()).unwrap();
-    let verdicts = geom_core::k_stats::take_verdict_log();
+    let verdicts = bracket.finish().verdicts;
     let signs: Vec<Sign> = verdicts
         .iter()
         .filter(|v| v.predicate == "chk_shell_volume_sign")

@@ -1,10 +1,11 @@
 == planted_flip
 basis priced
-certified 3fe3f7fffffffff5
-refused budget 3fd0180000000024
-refused flip_crossing 3fbfdffffffffffa
+certified 3fe3ff7ffffffff5
+refused budget 3f99b5fffffffec2
+refused flip_crossing 3fbffdfffffffffc
+refused sliver_terminal 3fcccc3ffffffffe
 tail 0000000000000000
-unresolved 3fd8100000000022
+unresolved 3fd800ffffffffea
 containment false
 == terminal_sliver
 basis priced

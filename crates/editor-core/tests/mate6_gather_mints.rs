@@ -24,8 +24,8 @@ use std::sync::Arc;
 use editor_core::{
     Alignment, AssemblyError, Attribution, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit,
     DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive,
-    MintRefusal, Node, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, StableName,
-    assemble, content_pin, evaluate, product_recorded,
+    MintRefusal, Node, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SitedRef,
+    StableName, assemble, content_pin, evaluate, product_recorded,
 };
 use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
@@ -126,11 +126,12 @@ fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
         kind: EntityKind::Face,
         node: instance,
         path: vec![RoleSeg::InPart {
-            of: Box::new(StableName {
+            of: StableName {
                 kind: EntityKind::Face,
                 node: PART_BODY,
                 path: vec![RoleSeg::Cap(cap)],
-            }),
+            }
+            .into(),
         }],
     }
 }
@@ -143,7 +144,7 @@ fn in_part_in_part(instance: RecipeNodeId, sub: RecipeNodeId, cap: CapEnd) -> St
         kind: EntityKind::Face,
         node: instance,
         path: vec![RoleSeg::InPart {
-            of: Box::new(in_part(sub, cap)),
+            of: in_part(sub, cap).into(),
         }],
     }
 }
@@ -173,8 +174,8 @@ fn classed_mate(
     class: ContactClass,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a,
-        b,
+        a: SitedRef::at_mint(a),
+        b: SitedRef::at_mint(b),
         class,
         alignment: Alignment {
             a: frame([0.0, 0.0, seat], [0.0, 0.0, 1.0]),
@@ -196,11 +197,12 @@ fn dangling(instance: RecipeNodeId) -> StableName {
         kind: EntityKind::Face,
         node: instance,
         path: vec![RoleSeg::InPart {
-            of: Box::new(StableName {
+            of: StableName {
                 kind: EntityKind::Face,
                 node: RecipeNodeId(99),
-                path: vec![RoleSeg::Cap(CapEnd::Top)],
-            }),
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            }
+            .into(),
         }],
     }
 }
@@ -223,8 +225,8 @@ fn stand(label: &str, part: DocRef, seat: f64) -> (ProfileDoc, Vec<RecipeNodeId>
         doc,
         DocEdit::InsertNode {
             node: rest_mate(
-                in_part(ids[0], CapEnd::Top),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[0], CapEnd::End),
+                in_part(ids[1], CapEnd::Start),
                 seat,
             ),
         },
@@ -370,18 +372,20 @@ fn the_carry_survives_a_second_nesting_level() {
 /// document; a row that demanded the weaker one would be asserting the
 /// fixture, not the invariant.
 ///
-/// The finding is unattributed at this gate, and the row says so rather
-/// than pretending otherwise: attribution is by arena key against what
-/// THIS document minted ([`Attribution`]'s contract), and a carried
-/// declaration was minted by another document, whose bookkeeping does
-/// not cross the seam. The kernel record does; the mate's name does not.
+/// The finding NAMES the mate that authored the declaration, and the
+/// document and instance it reached this gate through: attribution is
+/// by arena key against every declaration of the tree, this document's
+/// own and its parts' alike, and a part's rows cross the seam keyed by
+/// the graft exactly as its records do. Naming a mate is not trusting
+/// it — the verdict above is still the kernel's, taken here, once.
 #[test]
 fn a_carried_declaration_the_outer_geometry_refutes_is_refuted_loudly() {
     let mut store = StubStore::default();
     let part = store.insert(cube_part("mate6-gap-cube"), Tol::witness());
-    let (inner, _, _) = stand("mate6-gap-stand", part, 1.5);
+    let (inner, _, inner_mate) = stand("mate6-gap-stand", part, 1.5);
+    let inner_id = inner.id();
     let inner_ref = store.insert(inner, Tol::witness());
-    let (outer, _) = row_of("mate6-gap-row", inner_ref, 1, 4.0);
+    let (outer, instances) = row_of("mate6-gap-row", inner_ref, 1, 4.0);
 
     let ev = run(&outer, &opts(store));
     let result = assemble(&outer, &ev, Tol::witness());
@@ -409,10 +413,25 @@ fn a_carried_declaration_the_outer_geometry_refutes_is_refuted_loudly() {
         panic!("a refuted declaration is a finding against the document: {result:?}");
     };
     assert!(
+        findings.iter().any(|f| matches!(
+            &f.attribution,
+            Attribution::Carried {
+                route,
+                declaration,
+                relation: editor_core::Relation::Refuted,
+            } if route.through == instances[0]
+                && route.of == inner_id
+                && route.via.is_empty()
+                && declaration.mate == inner_mate
+        )),
+        "the refuted carried declaration names its mate, its document and \
+         the instance it arrived through: {findings:?}"
+    );
+    assert!(
         findings
             .iter()
-            .all(|f| matches!(f.attribution, Attribution::Unattributed)),
-        "a carried declaration names no mate of THIS document"
+            .all(|f| !matches!(f.attribution, Attribution::Unattributed)),
+        "and nothing here is anonymous any more: {findings:?}"
     );
 }
 
@@ -441,8 +460,8 @@ fn an_outer_mate_the_geometry_refutes_is_refuted_naming_its_mate() {
         doc,
         DocEdit::InsertNode {
             node: rest_mate(
-                in_part_in_part(ids[0], subs[1], CapEnd::Top),
-                in_part_in_part(ids[1], subs[0], CapEnd::Bottom),
+                in_part_in_part(ids[0], subs[1], CapEnd::End),
+                in_part_in_part(ids[1], subs[0], CapEnd::Start),
                 2.5,
             ),
         },
@@ -541,8 +560,8 @@ fn mint_makes_distinct_face_patches_and_no_curve_records() {
         doc,
         DocEdit::InsertNode {
             node: rest_mate(
-                in_part(ids[0], CapEnd::Top),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[0], CapEnd::End),
+                in_part(ids[1], CapEnd::Start),
                 1.0,
             ),
         },
@@ -551,8 +570,8 @@ fn mint_makes_distinct_face_patches_and_no_curve_records() {
         doc,
         DocEdit::InsertNode {
             node: rest_mate(
-                in_part(ids[1], CapEnd::Top),
-                in_part(ids[2], CapEnd::Bottom),
+                in_part(ids[1], CapEnd::End),
+                in_part(ids[2], CapEnd::Start),
                 1.0,
             ),
         },
@@ -589,8 +608,8 @@ fn a_class_with_no_at_rest_record_refuses_at_the_gate_not_at_the_gather() {
     let part = store.insert(cube_part("mate6-tangent-cube"), Tol::witness());
     let (doc, ids, _) = stand("mate6-tangent-stand", part, 1.0);
     let mut node = rest_mate(
-        in_part(ids[0], CapEnd::Top),
-        in_part(ids[1], CapEnd::Bottom),
+        in_part(ids[0], CapEnd::End),
+        in_part(ids[1], CapEnd::Start),
         1.0,
     );
     if let Node::Mate { class, .. } = &mut node {
@@ -649,7 +668,7 @@ fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
     let (doc, bad) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(dangling(ids[0]), in_part(ids[1], CapEnd::Bottom), 1.0),
+            node: rest_mate(dangling(ids[0]), in_part(ids[1], CapEnd::Start), 1.0),
         },
     );
     let bad = bad.expect("the dangling mate is still a node");
@@ -657,8 +676,8 @@ fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
         doc,
         DocEdit::InsertNode {
             node: rest_mate(
-                in_part(ids[1], CapEnd::Top),
-                in_part(ids[2], CapEnd::Bottom),
+                in_part(ids[1], CapEnd::End),
+                in_part(ids[2], CapEnd::Start),
                 1.0,
             ),
         },
@@ -707,8 +726,8 @@ fn an_unmintable_class_before_a_good_mate_does_not_swallow_it() {
         doc,
         DocEdit::InsertNode {
             node: classed_mate(
-                in_part(ids[0], CapEnd::Top),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[0], CapEnd::End),
+                in_part(ids[1], CapEnd::Start),
                 1.5,
                 ContactClass::Tangent,
             ),
@@ -719,8 +738,8 @@ fn an_unmintable_class_before_a_good_mate_does_not_swallow_it() {
         doc,
         DocEdit::InsertNode {
             node: rest_mate(
-                in_part(ids[1], CapEnd::Top),
-                in_part(ids[2], CapEnd::Bottom),
+                in_part(ids[1], CapEnd::End),
+                in_part(ids[2], CapEnd::Start),
                 1.0,
             ),
         },
@@ -767,8 +786,8 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
         doc,
         DocEdit::InsertNode {
             node: classed_mate(
-                in_part(ids[0], CapEnd::Top),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[0], CapEnd::End),
+                in_part(ids[1], CapEnd::Start),
                 1.5,
                 ContactClass::Tangent,
             ),
@@ -779,8 +798,8 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
         doc,
         DocEdit::InsertNode {
             node: rest_mate(
-                in_part(ids[1], CapEnd::Top),
-                in_part(ids[2], CapEnd::Bottom),
+                in_part(ids[1], CapEnd::End),
+                in_part(ids[2], CapEnd::Start),
                 1.0,
             ),
         },
@@ -789,7 +808,7 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
     let (doc, second_bad) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(dangling(ids[2]), in_part(ids[0], CapEnd::Bottom), 1.0),
+            node: rest_mate(dangling(ids[2]), in_part(ids[0], CapEnd::Start), 1.0),
         },
     );
     let second_bad = second_bad.expect("the dangling mate is a node");

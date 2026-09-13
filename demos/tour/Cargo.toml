@@ -55,6 +55,14 @@ pncad = { path = "../../crates/pncad" }
 # it never turns the instrument on. What `budget` gates is `arm`/`take`.
 tess-meter = { path = "../../tools/tess-meter" }
 
+# The budget sweep's per-face `name` column: a `StableName` is rendered
+# through its ratified structural serialization (F3) rather than through
+# a second spelling written here, so what the CSV carries is the same
+# derivation path a saved document carries. Already in this crate's
+# graph through the document layer; named here because this crate calls
+# it directly.
+serde_json = "1.0.151"
+
 
 # The tour is the ONLY release build of the kernel in CI (the ten
 # nextest legs are opt-2 DEV builds — `CARGO_PROFILE_{DEV,TEST}_OPT_LEVEL`

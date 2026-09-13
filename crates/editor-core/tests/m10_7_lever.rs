@@ -41,8 +41,9 @@ use crate::fixture;
 
 use editor_core::{
     CancelToken, CapEnd, Datum, DocEdit, DocumentId, EntityKind, EvalOptions, Evaluation,
-    LoopProgram, MeasureExpr, MeasurePrimitive, MeasureRef, NamePat, Node, NodeResult, ProfileDoc,
-    ProfileProgram, RecipeNodeId, SegPat, SegTag, Selector, ValuePayload, apply, evaluate, select,
+    LoopProgram, MeasureExpr, MeasurePrimitive, NamePat, Node, NodeResult, ProfileDoc,
+    ProfileProgram, RecipeNodeId, SegPat, SegTag, Selector, SitedRef, ValuePayload, apply,
+    evaluate, select,
 };
 use fixture::{len, scl};
 use geom_core::Tol;
@@ -74,12 +75,12 @@ fn mint(doc: &ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNode
 }
 
 /// A named cap of a prism, read at the node that owns it.
-fn cap(ev: &Evaluation<f64>, node: RecipeNodeId, end: CapEnd) -> MeasureRef {
+fn cap(ev: &Evaluation<f64>, node: RecipeNodeId, end: CapEnd) -> SitedRef {
     let sel =
         Selector::of(NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(end)));
     let mut found = select(ev, node, &sel);
     assert_eq!(found.len(), 1, "one {end:?} cap on node {node:?}");
-    MeasureRef::new(node, found.remove(0))
+    SitedRef::new(node, found.remove(0))
 }
 
 /// **Two square plates of half-width `half`, the upper one TILTED by
@@ -137,8 +138,8 @@ fn measures(half: f64, theta: f64) -> Result<f64, String> {
         Tol::witness(),
     );
     let refs = vec![
-        cap(&ev, plates[0], CapEnd::Top),
-        cap(&ev, plates[1], CapEnd::Bottom),
+        cap(&ev, plates[0], CapEnd::End),
+        cap(&ev, plates[1], CapEnd::Start),
     ];
     let expr = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
     let (doc, measure) = mint(&doc, Node::measure(expr, refs).expect("indices in range"));

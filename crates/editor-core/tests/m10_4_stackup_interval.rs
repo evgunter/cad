@@ -14,15 +14,23 @@
 //! the hull and the linearized sum part company (claim 6), and RSS
 //! totality over bands (claim 7).
 //!
-//! # The widths are in ε, and that is the honest limit
+//! # The widths were in ε, and the symbolic tier moved them
 //!
-//! Every box below that must CERTIFY is sized as a small multiple of ε,
-//! for the reason `m10_3_driver_interval.rs` measures: the certification
-//! predicates are identities whose interval enclosure widens with the
-//! box, and a leaf goes definite only once its own width is a fraction
-//! of ε. A macroscopic tolerance box refuses all of its mass as
-//! `Budget`, so today's stackup over a real study has NO certified leaf
-//! and refuses `NothingCertified` — pinned below rather than described.
+//! Through M10-9 every box below that had to CERTIFY was sized as a
+//! small multiple of ε, for the reason `m10_3_driver_interval.rs`
+//! measures: the certification predicates are identities whose
+//! interval enclosure widens with the box, and a leaf went definite
+//! only once its own width was a fraction of ε; a macroscopic box
+//! refused all of its mass as `Budget` and the stackup over a real
+//! study refused `NothingCertified`. Under M10-10's tier (rule D with
+//! amendment A1) the plate's whole-certifying half-width is a REAL
+//! margin at about 0.018 (`m10_10_evidence_interval::m10_10_the_stackup_hulls_under_both_rule_sets`
+//! with `CAD_M10_10_CEILINGS`), so the `ε/8` rows certify in ONE leaf
+//! and the rows whose subject is a split (the band-totality row) are
+//! scaled to a real ±0.05 study. The no-third-state row drives its
+//! slab with the tier OFF (its subject is the refusal's shape, and
+//! since E12 that box certifies with the tier on), which the row says
+//! at the site.
 //!
 //! The file's basename carries `interval` because the driver, the
 //! chamber mark's certified variant and the gating `worst_case` all
@@ -45,8 +53,8 @@ use editor_core::stackup::{
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, CapEnd, Dimension, Distribution, DocEdit,
     DocParam, DocParamValue, EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr,
-    MeasurePrimitive, MeasureRef, Node, NodeResult, ParamName, ProfileDoc, ProfileProgram,
-    RecipeNodeId, RoleSeg, ValuePayload, evaluate,
+    MeasurePrimitive, Node, NodeResult, ParamName, ProfileDoc, ProfileProgram, RecipeNodeId,
+    RoleSeg, SitedRef, ValuePayload, evaluate,
 };
 use geom_core::Tol;
 
@@ -65,10 +73,22 @@ const MIN_WEB: f64 = 0.0005;
 /// interval arithmetic cannot see that the radius cancels out of the
 /// centre — the dependency problem, M10-3's headline — so the recovered
 /// axis widens by the radius's own width, once per hole. The padding is
-/// therefore proportional to the BOX (`2·half`, exactly, plus the
-/// rounding below), not to the machine epsilon. A bound, not a target
-/// — if it grows, the question is why the lane widened.
-const PLATE_PADDING_PER_HALF_WIDTH: f64 = 2.0;
+/// therefore proportional to the width of the LEAF each enclosure is
+/// taken over, not to the machine epsilon — and the hull is the union
+/// of the certified leaves' enclosures, so a tier that certifies the
+/// study in fewer, wider leaves reports a wider hull at the same leaf
+/// budget. Under A0 alone this `ε/8` study certified in 16 leaves and
+/// the padding was `2·half`; under the form-level algebra (rule D with
+/// A/B per node) in 4 leaves of twice the width with padding `4·half`;
+/// with amendment A1 (the chart phase folds too) the whole box is ONE
+/// leaf and the padding is `8·half` — four times the leaf's width
+/// each time, exactly, plus the rounding below
+/// (`m10_10_evidence_interval::m10_10_the_stackup_hulls_under_both_rule_sets`
+/// prints all three; `work/props/certified-hull-padding-is-the-leaf-width-not-the-lane`
+/// is the row). A bound, not a target — if it grows, the question is
+/// which leaves widened; it cannot grow past this without a leaf wider
+/// than the box.
+const PLATE_PADDING_PER_HALF_WIDTH: f64 = 8.0;
 /// The rounding on top of the dependency padding: a 0.2-scale quantity
 /// through a few dozen outward-rounded operations (measured ~1e-15).
 const PLATE_ROUNDING: f64 = 1.0e-14;
@@ -89,7 +109,7 @@ fn param(n: &str, dim: Dimension) -> Expr {
     Expr::param(name(n), dim)
 }
 
-fn uniform(half: f64) -> Distribution {
+pub(crate) fn uniform(half: f64) -> Distribution {
     Distribution::Uniform {
         lo: -half,
         hi: half,
@@ -155,7 +175,7 @@ fn contains_nominal(chamber: &Chamber) -> bool {
 
 /// One cylindrical wall of a circular extrude, read at that extrude,
 /// found the way a user finds it (the selection door).
-fn cyl_wall(ev: &Evaluation<f64>, doc: &ProfileDoc, node: RecipeNodeId) -> MeasureRef {
+fn cyl_wall(ev: &Evaluation<f64>, doc: &ProfileDoc, node: RecipeNodeId) -> SitedRef {
     let mut faces = editor_core::select_where(
         ev,
         node,
@@ -168,11 +188,11 @@ fn cyl_wall(ev: &Evaluation<f64>, doc: &ProfileDoc, node: RecipeNodeId) -> Measu
     )
     .expect("the surface-kind atom is exact");
     faces.sort();
-    MeasureRef::new(node, faces.remove(0))
+    SitedRef::new(node, faces.remove(0))
 }
 
 /// The vertex of `node`'s body at `at`, by name.
-fn vertex_at(ev: &Evaluation<f64>, node: RecipeNodeId, at: [f64; 3]) -> MeasureRef {
+fn vertex_at(ev: &Evaluation<f64>, node: RecipeNodeId, at: [f64; 3]) -> SitedRef {
     let v = editor_core::all_vertices(ev, node)
         .into_iter()
         .find(|v| {
@@ -180,7 +200,7 @@ fn vertex_at(ev: &Evaluation<f64>, node: RecipeNodeId, at: [f64; 3]) -> MeasureR
             p.x == at[0] && p.y == at[1] && p.z == at[2]
         })
         .unwrap_or_else(|| panic!("node {node:?} has a vertex at {at:?}"));
-    MeasureRef::new(node, v)
+    SitedRef::new(node, v)
 }
 
 /// **The two-hole plate** (M10-2's e2e document, distributions from
@@ -189,7 +209,7 @@ fn vertex_at(ev: &Evaluation<f64>, node: RecipeNodeId, at: [f64; 3]) -> MeasureR
 /// only through the guided lift — with the web measure
 /// `distance(wall, wall) − 2·hole_r` and an assertion on it. Returns
 /// the document, the measure node and the assertion node.
-fn plate(
+pub(crate) fn plate(
     radius: Option<Distribution>,
     depth: Option<Distribution>,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
@@ -326,8 +346,8 @@ fn kink(dist: Distribution) -> (ProfileDoc, RecipeNodeId) {
             .unwrap_or_else(|| panic!("node {node:?} has a vertex at ({x}, 0, 0)"))
     };
     let refs = vec![
-        MeasureRef::new(cube, at(cube, 1.0)),
-        MeasureRef::new(copy, at(copy, 1.0)),
+        SitedRef::new(cube, at(cube, 1.0)),
+        SitedRef::new(copy, at(copy, 1.0)),
     ];
     let m = r.insert(
         Node::measure(
@@ -363,8 +383,8 @@ fn slab(half: f64) -> (ProfileDoc, RecipeNodeId) {
         distance: param("depth", Dimension::Length),
     });
     let refs = vec![
-        MeasureRef::new(block, fname(block, RoleSeg::Cap(CapEnd::Bottom))),
-        MeasureRef::new(block, fname(block, RoleSeg::Cap(CapEnd::Top))),
+        SitedRef::new(block, fname(block, RoleSeg::Cap(CapEnd::Start))),
+        SitedRef::new(block, fname(block, RoleSeg::Cap(CapEnd::End))),
     ];
     let m = r.insert(
         Node::measure(
@@ -528,9 +548,22 @@ fn the_two_hole_plate_stackup() {
         4.0 * half,
         padding / eps()
     );
+    // Pinned at BOTH ends and with the leaf count, so the pin is
+    // monotone the right way: a regression to more, narrower leaves
+    // (16 leaves, `2·half`) would pass a one-sided ceiling and hide
+    // the tier's reach falling (R1 MIN-6, R2 m2). The padding IS the
+    // leaf's width times four — one leaf, the whole box, `8·half`.
+    assert_eq!(
+        wc.leaves,
+        1,
+        "under M10-10's tier the ε/8 study is ONE leaf: {:?}",
+        verdict.receipt()
+    );
     assert!(
-        padding <= PLATE_PADDING_PER_HALF_WIDTH * half + PLATE_ROUNDING,
-        "padding {padding:e} exceeds the measured bound"
+        (padding - PLATE_PADDING_PER_HALF_WIDTH * half).abs() <= PLATE_ROUNDING,
+        "padding {padding:e} is not the measured {PLATE_PADDING_PER_HALF_WIDTH}·half \
+         (leaves {}): the leaves moved",
+        wc.leaves
     );
     assert!(
         wc.lo >= MIN_WEB,
@@ -565,9 +598,18 @@ fn the_two_hole_plate_stackup() {
 /// band contributor is named — never the first of several. The
 /// contributions stay (a band's limits are real limits) and so does
 /// the gating worst case.
+///
+/// At ±0.05 on both axes — a real study — rather than `ε/8`: under
+/// M10-10's tier the `ε/8` box certifies in ONE leaf, and a leaf that
+/// covers a band's whole support prices as 1 by the band's own rule
+/// (`box_mass`), so the coverage refusal this row also asserts needs a
+/// leaf that covers PART of a band, i.e. a drive that split. The
+/// fixture's whole-certifying half-width is about 0.018 at the default
+/// ε (`m10_10_evidence_interval::m10_10_the_stackup_hulls_under_both_rule_sets`
+/// with `CAD_M10_10_CEILINGS`), so ±0.05 splits at every row.
 #[test]
 fn a_band_contributor_refuses_the_rss_whole_naming_every_band() {
-    let half = eps() / 8.0;
+    let half = 0.05;
     let (doc, measure, _) = plate(Some(band(half)), Some(band(half)));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
@@ -929,8 +971,8 @@ fn a_refusing_measure_is_a_per_entry_refusal_not_a_driver_failure() {
     .expect("exact atom");
     walls.sort();
     let refs = vec![
-        MeasureRef::new(hole, walls.remove(0)),
-        MeasureRef::new(plate_node, fname(plate_node, wall(0))),
+        SitedRef::new(hole, walls.remove(0)),
+        SitedRef::new(plate_node, fname(plate_node, wall(0))),
     ];
     let doc = push(
         &doc,

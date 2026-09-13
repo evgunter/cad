@@ -37,6 +37,9 @@
 //! keeping the old value costs a clone of a document, not a
 //! reconstruction — which is why the tree is parent pointers over
 //! states a linear stack already had to hold.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{Doc, DocEdit, EditError, ProfileProgram, apply};
 use pncad::geom_core::Tol;

@@ -42,9 +42,137 @@ use crate::expr::{Dimension, DimensionError, EvalError, Expr, ParamEnv, eval};
 use crate::node::{RecipeNodeId, SlotId, StepArg};
 use geom_core::Tol;
 
+/// **One declaration, two projections** — a document vocabulary's enum,
+/// and the variant names it declares.
+///
+/// `profile` declares each of its three vocabularies once and projects
+/// `Verb::ALL`, `ArcMode::ALL` and `TargetKind::ALL` from the same
+/// declaration, so a census keyed on one grows with the vocabulary
+/// rather than behind it. The three enums below are those vocabularies'
+/// SECOND spelling — G1 layering keeps expressions and serde out of the
+/// kernel crate — and they had no such projection.
+///
+/// What that cost is one direction of the construct hop. A variant
+/// added to a document enum is forced through every match that consumes
+/// it, so it cannot ship un-noticed; but every one of those arms may
+/// legally resolve it into an EXISTING kernel form, and when one does
+/// the kernel-anchored censuses stay green (`Verb::ALL`, `ArcMode::ALL`
+/// and `TargetKind::ALL` are all still fully witnessed) while the
+/// document form silently authors something nobody wrote.
+///
+/// `ALL_NAMES` is the anchor for that direction. It is derived from the
+/// declaration at COMPILE time, so there is nothing to keep in step and
+/// **nothing in FRONT of a variant's name can hide it** — a doc comment,
+/// an attribute, a `cfg`, a `cfg_attr`, any stack of them: the macro
+/// captures them as metas and projects the name behind them.
+/// `tests/switch_program_vocabulary.rs` is keyed on it, and a variant
+/// that reaches no witness there reds.
+///
+/// Two places where the projection and the witness side disagree, both
+/// in the LOUD direction, because a census that is wrong quietly is the
+/// thing this replaced:
+///
+/// - a `#[cfg]` that gates a variant OUT removes it from the enum and
+///   leaves it in `ALL_NAMES` — the metas ride the variant, not the
+///   name list. So the projection is a SUPERSET under `cfg`: it
+///   over-demands a witness for a variant that is not there and reds.
+///   It cannot hide one.
+/// - a RAW IDENTIFIER projects as `stringify!` writes it (`r#type`)
+///   while the witness side reads a `Debug` rendering (`type`), so a
+///   correctly declared and correctly witnessed raw-ident variant would
+///   red spuriously. No variant here is one; if one arrives, the fix is
+///   to strip the `r#` on one side, and this note is the reason the red
+///   will make sense.
+macro_rules! document_vocabulary {
+    (
+        $(
+            $(#[$enum_meta:meta])*
+            $vis:vis enum $name:ident {
+                $(
+                    $(#[$variant_meta:meta])*
+                    $variant:ident $(( $($tuple:tt)* ))? $({ $($named:tt)* })?
+                ),* $(,)?
+            }
+        )*
+    ) => {
+        $(
+            $(#[$enum_meta])*
+            $vis enum $name {
+                $(
+                    $(#[$variant_meta])*
+                    $variant $(( $($tuple)* ))? $({ $($named)* })?
+                ),*
+            }
+
+            impl $name {
+                /// Every variant this vocabulary declares, in
+                /// declaration order — projected from the same
+                /// declaration as the variants, so a census keyed on it
+                /// grows with the vocabulary rather than behind it.
+                #[doc(hidden)]
+                pub const ALL_NAMES: &'static [&'static str] = &[$(stringify!($variant)),*];
+            }
+        )*
+
+        /// **Every document vocabulary, projected rather than typed.**
+        ///
+        /// `ALL_NAMES` closes *a variant arrives without a witness*.
+        /// This closes the same failure one level up — *a VOCABULARY
+        /// arrives without a census* — and it has to be closed the same
+        /// way, because a roster typed out on the test side is a second
+        /// list kept in step with this one by hand, which is the defect
+        /// the whole macro exists to remove.
+        ///
+        /// It is projected from the single invocation below, and that
+        /// invocation is single by construction **within this module**:
+        /// the constant is emitted once per invocation, so a second
+        /// invocation in the same module is an `E0428` duplicate. The
+        /// qualifier is load-bearing — `E0428` is scoped to one module's
+        /// value namespace, so a second invocation inside a CHILD module
+        /// compiles clean and projects a second roster that the census
+        /// never reads. `program.rs` has no child modules, so the list
+        /// is complete today; what makes it complete is that fact and
+        /// not the macro.
+        ///
+        /// **What it does not cover, stated, with the live instance
+        /// named:** an enum declared with a plain `pub enum` rather than
+        /// through this macro has no `ALL_NAMES`, is absent from this
+        /// list, and nothing detects that it should have been in either.
+        /// This file holds two such enums today — [`ProgramRefusal`] and
+        /// [`RecordedProgramError`] — and they are deliberately out:
+        /// they are the REFUSAL and ERROR vocabularies, produced by this
+        /// crate for a caller to read, with no construct hop that builds
+        /// a kernel form out of them and so no laundering direction to
+        /// guard. [`LoopProgram`] was the third, and it is IN: its
+        /// `resolve` is a construct hop like the other three. The test
+        /// for membership is that construct hop, not the naming.
+        /// Closing the general case needs a walk over the file's
+        /// declarations, which is a text scan, which is what this macro
+        /// replaced and for a reason. Filed:
+        /// `work/docm/a-document-vocabulary-declared-outside-the-macro-is-uncensused.md`.
+        ///
+        /// **Cost, stated:** rustfmt does not format the body of a macro
+        /// invocation, so every declaration below is outside its reach
+        /// and no gate will report drift there. The trade was taken
+        /// deliberately — the macro closes a SILENT failure class and
+        /// formatting drift is visible to any reader — but it is a real
+        /// cost and it is not detected. Filed:
+        /// `work/ciw/rustfmt-does-not-reach-a-macro-wrapped-declaration-block.md`.
+        #[doc(hidden)]
+        pub const DOCUMENT_VOCABULARIES: &[(&str, &[&str])] =
+            &[$((stringify!($name), $name::ALL_NAMES)),*];
+    };
+}
+
+document_vocabulary! {
 /// Where a target-taking step ends: an authored point (two Length
 /// expressions) or the entry vertex (`Start` — structural; targeting it
 /// closes the loop). Mirrors `profile::Target`.
+///
+/// `res_target` matches THIS vocabulary and constructs
+/// [`profile::Target`], so a form added here alone can be resolved into
+/// an existing kernel form and never be seen. [`Self::ALL_NAMES`] is
+/// what forces it to reach a witness instead.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramTarget {
     /// An authored absolute point in the profile frame.
@@ -76,6 +204,11 @@ pub enum ProgramTarget {
 /// checked at the edit door via [`ProfileProgram::slots`] +
 /// [`StepArg::dimension`], and at the persistence doors' shared
 /// validator — never trusted from a parsed file).
+///
+/// The mirror direction is [`Self::ALL_NAMES`]'s: `res_step` matches
+/// THIS vocabulary and constructs [`profile::Step`], so a verb added
+/// here alone can be resolved into an existing kernel verb, leaving
+/// `Verb::ALL` fully witnessed and the document verb unexercised.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramStep {
     /// `.at(p)`.
@@ -159,6 +292,11 @@ pub enum ProgramStep {
 /// `tests/switch_program_vocabulary.rs`, keyed on
 /// [`profile::ArcMode::ALL`]: its witness is a match on the mode tag,
 /// so a mode with no document spelling is a compile error there.
+///
+/// That census is keyed on the KERNEL vocabulary and says nothing about
+/// a mode added HERE alone — `res_spec` would resolve it into an
+/// existing kernel mode and every clause keyed on `ArcMode::ALL` would
+/// stay green. [`Self::ALL_NAMES`] is that direction's anchor.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramArcData {
     /// `Radius { r, side }` — arrival mode, centre derived.
@@ -216,6 +354,13 @@ pub enum ProgramArcData {
 /// form is structural). The chain-vs-carrier distinction is the enum,
 /// so "a circle program is exactly one step" is unrepresentable to
 /// violate.
+///
+/// **It is a document vocabulary, and [`Self::resolve`] is its construct
+/// hop**, the fourth one: it matches THIS enum and builds
+/// `Step::Circle` / `Step::CircleSplit`, so a carrier form added here
+/// alone can be resolved into an existing kernel step and never be
+/// seen. That is [`ProgramStep`]'s hazard one level out, and
+/// [`Self::ALL_NAMES`] is its anchor for the same reason.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LoopProgram {
     /// A chain-vocabulary step list (must end in a `Start`-targeting
@@ -241,6 +386,7 @@ pub enum LoopProgram {
         phase: Expr,
     },
 }
+}
 
 /// The profile node's payload: the sketch frame it is drawn on, named
 /// as a document NODE, plus the loop programs, outer first then holes
@@ -249,8 +395,9 @@ pub enum LoopProgram {
 /// # The plane is a reference, not a placement
 ///
 /// This field held a `SketchPlane<f64>` — twelve placement floats
-/// inline, unshared and unnameable. It now names a
-/// [`crate::Datum::Frame`] node, which is the whole of what the frame
+/// inline, unshared and unnameable. It now names a frame node — a
+/// [`crate::Datum::Frame`], or a [`crate::Datum::FaceFrame`] derived
+/// from a face — which is the whole of what the frame
 /// datum was added for: two profiles on one face are two references to
 /// one frame rather than two copies of a placement that can silently
 /// drift apart, an axis can be declared to lie IN a named frame, and a
@@ -275,8 +422,10 @@ pub enum LoopProgram {
 /// (they are invisible to `bit_eq` itself, D7).
 #[derive(Debug, Clone)]
 pub struct ProfileProgram {
-    /// The [`crate::Datum::Frame`] node this profile is drawn on —
-    /// sketch (0, 0) and the directions sketch +x and +y point.
+    /// The frame node this profile is drawn on — a
+    /// [`crate::Datum::Frame`] or a [`crate::Datum::FaceFrame`], either
+    /// of which lands the same frame value: sketch (0, 0) and the
+    /// directions sketch +x and +y point.
     ///
     /// Typed as a plain node reference rather than a frame-only
     /// newtype for the reason every other operand reference here is:
@@ -449,14 +598,14 @@ fn target_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
 /// The argument roles of one arc spec; `second` selects the arrival
 /// (spec₂) role twins.
 ///
-/// The twins cover the positional roles only. `Bulge`, `Sweep` and
-/// `ArcLen` have none, because none of them is an arrival mode (§2c:
-/// `family::ArrivalSpec` is implemented for `Radius`, `Via` and
-/// `Center` alone), so no recording surface can put one in second
-/// position. Enumeration stays total over the data type regardless,
-/// and for a HAND-BUILT step whose two specs are the SAME one of
-/// those three the reused role addresses the incoming spec's argument
-/// twice and the arrival's not at all — issue #829.
+/// EVERY role has a twin, including the three whose modes are not
+/// arrival modes (§2c: `family::ArrivalSpec` is implemented for
+/// `Radius`, `Via` and `Center` alone, so no recording surface can put
+/// a `Bulge`, `Sweep` or `ArcLen` in second position). Enumeration is
+/// total over the data type, and a hand-built step may carry one:
+/// without its own twin such a spec's argument would share the
+/// incoming spec's role, which addresses the incoming argument twice
+/// and the arrival's not at all.
 fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
     use ProgramArcData as S;
     use StepArg as A;
@@ -467,10 +616,9 @@ fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
             target_slots(target, out);
             out.push(A::Bulge);
         }
-        // No `Bulge2`: see the twin note above.
         (S::Bulge { target, .. }, true) => {
             target2_slots(target, out);
-            out.push(A::Bulge);
+            out.push(A::Bulge2);
         }
         (S::Via { target, .. }, false) => {
             out.extend([A::ViaX, A::ViaY]);
@@ -489,9 +637,9 @@ fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
             target2_slots(target, out);
         }
         (S::Sweep { .. }, false) => out.extend([A::CarrierRadius, A::SweepVal]),
-        (S::Sweep { .. }, true) => out.extend([A::CarrierRadius2, A::SweepVal]),
+        (S::Sweep { .. }, true) => out.extend([A::CarrierRadius2, A::SweepVal2]),
         (S::ArcLen { .. }, false) => out.extend([A::CarrierRadius, A::ArcLenVal]),
-        (S::ArcLen { .. }, true) => out.extend([A::CarrierRadius2, A::ArcLenVal]),
+        (S::ArcLen { .. }, true) => out.extend([A::CarrierRadius2, A::ArcLenVal2]),
     }
 }
 
@@ -548,9 +696,12 @@ macro_rules! spec_arg_access {
             | (S::Sweep { r, .. }, A::CarrierRadius2, true)
             | (S::ArcLen { r, .. }, A::CarrierRadius, false)
             | (S::ArcLen { r, .. }, A::CarrierRadius2, true) => Some(r),
-            (S::Bulge { b, .. }, A::Bulge, _) => Some(b),
-            (S::Sweep { angle, .. }, A::SweepVal, _) => Some(angle),
-            (S::ArcLen { len, .. }, A::ArcLenVal, _) => Some(len),
+            (S::Bulge { b, .. }, A::Bulge, false)
+            | (S::Bulge { b, .. }, A::Bulge2, true) => Some(b),
+            (S::Sweep { angle, .. }, A::SweepVal, false)
+            | (S::Sweep { angle, .. }, A::SweepVal2, true) => Some(angle),
+            (S::ArcLen { len, .. }, A::ArcLenVal, false)
+            | (S::ArcLen { len, .. }, A::ArcLenVal2, true) => Some(len),
             (S::Via { q, .. }, A::ViaX, false) | (S::Via { q, .. }, A::Via2X, true) => {
                 Some($($ref_kw)* q[0])
             }
@@ -649,6 +800,52 @@ fn step_expr_mut(step: &mut ProgramStep, arg: StepArg) -> Option<&mut Expr> {
 }
 
 impl LoopProgram {
+    /// **The one radius every edge of this loop is drawn at**, where
+    /// the loop is a CARRIER form and has one.
+    ///
+    /// The carrier forms — `circle(centre, r)` and
+    /// `circle_split(centre, r, n, phase)` — are the loops whose whole
+    /// boundary is a single arc carrier: every segment they replay to
+    /// is an arc of that one radius, whatever the subdivision. So the
+    /// answer is per LOOP and needs no per-segment address, and a
+    /// consumer that has a canonical loop index has everything it
+    /// needs.
+    ///
+    /// A CHAIN loop answers `None`, and that is a scope statement, not
+    /// an omission: a chain's arc steps carry their own radii
+    /// (`StepArg::CarrierRadius` and the arrival spec's twin), each
+    /// addressing one segment, and pairing those with swept walls
+    /// needs the step→segment map that the replay owns. Nothing today
+    /// reads a chain's radii, so the map stays unbuilt rather than
+    /// guessed at.
+    ///
+    /// **The obligation that `None` carries.** The memo's guard on
+    /// this channel is scoped at the ATTACH, not at the key: the
+    /// content key writes a carrier radius's spelling whenever ANY
+    /// migrated verb declares the profile edge's radius into a field
+    /// (`param_source::operand_flow_bearing`), which is already true,
+    /// so it cannot notice that chain radii are un-attached. Widen
+    /// this door to answer per segment and the stale-token class
+    /// reopens silently for exactly those loops — a chain radius
+    /// re-spelled value-preservingly would be attached to a wall
+    /// while its key still says the value alone. So chain radii enter
+    /// the key in the same change that attaches them, and the feed at
+    /// `eval::content_key` carries the same sentence.
+    ///
+    /// The address is the loop's `Radius` slot
+    /// (`SlotId::Profile { loop_, step: 0, arg: StepArg::Radius }`);
+    /// this hands back the expression that slot holds, which is what a
+    /// lowering needs to lower.
+    #[must_use]
+    pub fn carrier_radius(&self) -> Option<&Expr> {
+        match self {
+            LoopProgram::Circle { radius, .. } | LoopProgram::CircleSplit { radius, .. } => {
+                Some(radius)
+            }
+            LoopProgram::Chain(_) => None,
+        }
+    }
+
     /// This loop's argument roles per step, deterministic order.
     fn step_args(&self) -> Vec<(u32, StepArg)> {
         let mut out = Vec::new();
@@ -756,19 +953,36 @@ fn res<T: Decide>(
     eval::<T>(e, env).map_err(|source| (SlotId::Profile { loop_, step, arg }, source))
 }
 
-/// Resolves a target's expressions.
+/// Resolves a target's expressions, addressing its coordinates at the
+/// slot roles the caller names (a fused step's second spec carries the
+/// `Target2*` twins, exactly as [`spec_slots`] enumerates them).
+///
+/// This is the target vocabulary's ONE construct hop: every target a
+/// document program carries — a straight leg's, a continuation's, a
+/// tangent arc's, and the endpoint inside every endpoint-bearing arc
+/// mode — resolves here, so the form set is matched in exactly one
+/// place below the document type's own declaration. The direction the
+/// compiler cannot check is the one this function runs in: it MATCHES
+/// [`ProgramTarget`] and CONSTRUCTS a [`profile::Target`], so a form
+/// the kernel vocabulary gains is invisible here. The census keyed on
+/// `profile::TargetKind::ALL`
+/// (`tests/switch_program_vocabulary.rs`) is what sees it, and it
+/// checks the other half of the same arm too: that each form resolves
+/// to ITS OWN form rather than being laundered into a neighbour's.
 fn res_target<T: Decide>(
     t: &ProgramTarget,
     env: &ParamEnv<T>,
     loop_: u32,
     step: u32,
+    ax: StepArg,
+    ay: StepArg,
 ) -> Result<profile::Target<T>, (SlotId, EvalError)> {
     Ok(match t {
         ProgramTarget::Start => profile::Target::Start,
         ProgramTarget::StartArriving => profile::Target::StartArriving,
         ProgramTarget::Point(p) => profile::Target::Point(Point2::new(
-            res(&p[0], env, loop_, step, StepArg::TargetX)?,
-            res(&p[1], env, loop_, step, StepArg::TargetY)?,
+            res(&p[0], env, loop_, step, ax)?,
+            res(&p[1], env, loop_, step, ay)?,
         )),
     })
 }
@@ -803,10 +1017,16 @@ fn res_step<T: Decide>(
         ProgramStep::Cusp => Step::Cusp,
         ProgramStep::Turn(e) => Step::Turn(res(e, env, loop_, i, A::TurnVal)?),
         ProgramStep::Line(e) => Step::Line(res(e, env, loop_, i, A::Length)?),
-        ProgramStep::LineTo(t) => Step::LineTo(res_target(t, env, loop_, i)?),
-        ProgramStep::ContinueTo(t) => Step::ContinueTo(res_target(t, env, loop_, i)?),
+        ProgramStep::LineTo(t) => {
+            Step::LineTo(res_target(t, env, loop_, i, A::TargetX, A::TargetY)?)
+        }
+        ProgramStep::ContinueTo(t) => {
+            Step::ContinueTo(res_target(t, env, loop_, i, A::TargetX, A::TargetY)?)
+        }
         ProgramStep::ArcTo(spec) => Step::ArcTo(res_spec(spec, env, loop_, i, false)?),
-        ProgramStep::TangentArcTo(t) => Step::TangentArcTo(res_target(t, env, loop_, i)?),
+        ProgramStep::TangentArcTo(t) => {
+            Step::TangentArcTo(res_target(t, env, loop_, i, A::TargetX, A::TargetY)?)
+        }
         ProgramStep::ArcContinue(p) => Step::ArcContinue(pt(p, A::TargetX, A::TargetY)?),
         ProgramStep::Fillet(e) => Step::Fillet {
             radius: res(e, env, loop_, i, A::Radius)?,
@@ -860,15 +1080,14 @@ fn res_spec<T: Decide>(
         ))
     };
     let tgt = |t: &ProgramTarget| -> Result<profile::Target<T>, (SlotId, EvalError)> {
-        Ok(match t {
-            ProgramTarget::Start => profile::Target::Start,
-            ProgramTarget::StartArriving => profile::Target::StartArriving,
-            ProgramTarget::Point(p) => profile::Target::Point(pt2(
-                p,
-                pick(A::TargetX, A::Target2X),
-                pick(A::TargetY, A::Target2Y),
-            )?),
-        })
+        res_target(
+            t,
+            env,
+            loop_,
+            i,
+            pick(A::TargetX, A::Target2X),
+            pick(A::TargetY, A::Target2Y),
+        )
     };
     Ok(match spec {
         ProgramArcData::Radius { r, side } => profile::ArcData::Radius {
@@ -877,7 +1096,7 @@ fn res_spec<T: Decide>(
         },
         ProgramArcData::Bulge { target, b } => profile::ArcData::Bulge {
             target: tgt(target)?,
-            b: res(b, env, loop_, i, A::Bulge)?,
+            b: res(b, env, loop_, i, pick(A::Bulge, A::Bulge2))?,
         },
         ProgramArcData::Via { q, target } => profile::ArcData::Via {
             q: pt2(q, pick(A::ViaX, A::Via2X), pick(A::ViaY, A::Via2Y))?,
@@ -895,12 +1114,12 @@ fn res_spec<T: Decide>(
         ProgramArcData::Sweep { r, side, angle } => profile::ArcData::Sweep {
             r: res(r, env, loop_, i, pick(A::CarrierRadius, A::CarrierRadius2))?,
             side: *side,
-            angle: res(angle, env, loop_, i, A::SweepVal)?,
+            angle: res(angle, env, loop_, i, pick(A::SweepVal, A::SweepVal2))?,
         },
         ProgramArcData::ArcLen { r, side, len } => profile::ArcData::ArcLen {
             r: res(r, env, loop_, i, pick(A::CarrierRadius, A::CarrierRadius2))?,
             side: *side,
-            len: res(len, env, loop_, i, A::ArcLenVal)?,
+            len: res(len, env, loop_, i, pick(A::ArcLenVal, A::ArcLenVal2))?,
         },
     })
 }
@@ -1549,6 +1768,48 @@ impl LoopProgram {
 
     /// A literal circle loop.
     ///
+    /// # The struct literal is the parametric door
+    ///
+    /// There is no `circle_expr` twin of
+    /// [`LoopProgram::polygon_expr`], and that is the design rather
+    /// than an omission. `polygon` EXPANDS — one authoring call
+    /// becomes a chain of steps — so the expansion needs exactly one
+    /// home, and the literal door reaches it by delegating to the
+    /// expression door. `Circle` expands into nothing: it is a struct
+    /// variant whose two fields are the whole program, so an author
+    /// holding [`Expr`] arguments writes
+    /// `LoopProgram::Circle { centre, radius }` (and
+    /// `LoopProgram::CircleSplit { .. }`) directly. That literal IS
+    /// the parametric door. A constructor over it would be a third
+    /// spelling of the variant with nothing behind it to keep in
+    /// step.
+    ///
+    /// # The literal author keeps both of this door's guarantees
+    ///
+    /// This door is not the check its `Result` makes it look like, so
+    /// writing the variant out gives nothing up:
+    ///
+    /// - FINITENESS belongs to [`Expr::literal`], which is the only
+    ///   way to mint a literal expression at all and refuses a
+    ///   non-finite value there. That refusal is the sole error this
+    ///   constructor can return.
+    /// - DIMENSION belongs to the document. This door only PICKS
+    ///   `Length` for the centre and radius (and `Angle` for
+    ///   [`LoopProgram::circle_split`]'s phase), so the picks agree
+    ///   with the roles by construction. An author supplying
+    ///   expressions picks instead, and `apply` checks the pick: every
+    ///   slot of an entering node is walked, the role's required
+    ///   dimension ([`StepArg::dimension`], reached through
+    ///   [`SlotId::dimension`]) against the expression's, and a
+    ///   disagreement refuses as `EditError::SlotDimensionMismatch`
+    ///   before the program joins the document. The same walk runs on
+    ///   every slot write and on a parameter redeclaration, so there
+    ///   is no later window in which a document's role can hold the
+    ///   wrong dimension. It is the DOCUMENT's door, though: a program
+    ///   built and replayed without entering one — a viewer preview —
+    ///   never reaches it, and such a builder assigns the dimensions
+    ///   itself exactly as this constructor does.
+    ///
     /// # Errors
     ///
     /// A non-finite argument.
@@ -1560,6 +1821,10 @@ impl LoopProgram {
     }
 
     /// A literal declared-subdivision circle loop.
+    ///
+    /// Parametric authors write the `CircleSplit` variant out; see
+    /// [`LoopProgram::circle`] for why there is no expression door
+    /// here and where an expression's dimension is checked instead.
     ///
     /// # Errors
     ///

@@ -2,8 +2,9 @@
 id: instantiation-seam-drops-mate-identity
 kind: issue
 title: The instantiation seam carries contact records but not mate identity or mint health (the PartValue channel)
-status: open
+status: closed
 opened: 2026-08-31
+closed: 2026-09-06
 github: 1429
 refs: [1420]
 ---
@@ -24,3 +25,12 @@ Signed: (S-MATE orchestrator)
 ## Home
 
 `work/mate/` — the instantiation seam and the mate mint/attribution channel are S-MATE's charter (assembly composition, the instantiation seam), and the issue names S-MATE's backlog.
+
+## Closed (2026-09-06)
+
+Answered by `DOCM-6` (PR 2035): `PartValue` carries the inner product's
+minted declarations and mint refusals across the seam, the gather
+re-keys them through the graft's map, a carried refutation attributes
+`Carried` naming its mate and route, and an inner mint refusal refuses
+the outermost gate (`CarriedMintRefusal`) per Ev's ruling. What stays
+open is `rows-do-not-cross-a-boolean-remap` (unreachable today).

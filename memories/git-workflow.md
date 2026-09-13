@@ -8,7 +8,7 @@ metadata:
 The workflow itself is in CLAUDE.md (merge-only, never rewritten;
 commits are the honest messy record, PR descriptions carry the
 documentation; agents self-merge except PRs that ratify open design
-questions). What follows is what that leaves out.
+questions or change `memories/`). What follows is what that leaves out.
 
 **Push branches early and often** — after each meaningful commit,
 before review. Ev follows work in progress remotely.

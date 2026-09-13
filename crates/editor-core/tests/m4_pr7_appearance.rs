@@ -86,7 +86,7 @@ fn set_appearance_validates_and_applies_purely() {
         0.0,
         1.0,
     );
-    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Top));
+    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
 
     let applied = doc
         .apply(
@@ -116,7 +116,7 @@ fn set_appearance_validates_and_applies_purely() {
         EntityKind::Edge,
         ext,
         RoleSeg::RimEdge(
-            CapEnd::Top,
+            CapEnd::End,
             editor_core::ProfileEdgeRef {
                 loop_index: 0,
                 segment: 0,
@@ -139,7 +139,7 @@ fn set_appearance_validates_and_applies_purely() {
     let bogus = name1(
         EntityKind::Face,
         RecipeNodeId(999),
-        RoleSeg::Cap(CapEnd::Top),
+        RoleSeg::Cap(CapEnd::End),
     );
     assert_eq!(
         doc.apply(
@@ -252,7 +252,7 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
             distance: len(1.0),
         },
     );
-    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Top));
+    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     let doc3 = set(doc2.clone(), cap.clone(), red());
 
     // diff: appearance-only change is reported, and only it.
@@ -373,7 +373,7 @@ fn transform_pass_through_carries_the_attribute_downstream() {
             rotation_angle: fixture::ang(0.0),
         },
     );
-    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Top));
+    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     let doc = set(doc, cap.clone(), red());
     let ev = run(&doc);
     assert!(ev.appearance.is_lossless());
@@ -400,7 +400,7 @@ fn deleting_the_minting_node_strands_the_attribute_loudly() {
         0.0,
         1.0,
     );
-    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Top));
+    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     let doc = set(doc, cap.clone(), red());
     // Deleting the extrude is allowed (N5 dangling semantics — the
     // appearance entry is a reference, not a DAG edge).
@@ -436,7 +436,7 @@ fn failed_target_node_is_a_typed_indeterminate_loss() {
         0.0,
         1.0,
     );
-    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Top));
+    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     let doc = set(doc, cap.clone(), red());
     // Degenerate the extrusion: the node fails, the attachment is
     // indeterminate (NOT retired) and typed as such.
@@ -720,7 +720,7 @@ fn operand_paint_does_not_follow_the_face_through_a_boolean() {
             declare: None,
         },
     );
-    let cap = name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::Top));
+    let cap = name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
     let doc = set(doc, cap.clone(), red());
     let ev = run(&doc);
     // Lossless, painted at `a` — and NOTHING at the union node.
@@ -741,7 +741,7 @@ fn canceled_run_reports_not_evaluated_not_vanished() {
         0.0,
         1.0,
     );
-    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Top));
+    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     let doc = set(doc, cap, red());
     let cancel = CancelToken::new();
     cancel.cancel();

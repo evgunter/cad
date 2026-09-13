@@ -317,7 +317,7 @@ fn retired_ders_in_span(
     span: Span,
     t: f64,
 ) -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
-    let ders = ders_basis_funs(c.knots(), span, t, 2);
+    let ders = ders_basis_funs(span, t, 2);
     let base = span.first_control();
     let mut x = [0.0f64; 3];
     let mut y = [0.0f64; 3];
@@ -356,11 +356,11 @@ fn n1r2_c24_bit_identity_against_the_retired_spelling() {
         let kv = c.knots();
         for t in params(kv) {
             for idx in 0..kv.knots().len() {
-                let Some(span) = kv.span(idx) else { continue };
-                let (op, od1, od2) = retired_ders_in_span(&c, span, t);
-                let (p, d1, d2) = c.ders_in_span(span, t);
-                let e1 = c.deriv_in_span(span, t);
-                let e2 = c.deriv2_in_span(span, t);
+                let Some(span) = c.span(idx) else { continue };
+                let (op, od1, od2) = retired_ders_in_span(&c, span.span(), t);
+                let (p, d1, d2) = span.ders_in_span(t);
+                let e1 = span.deriv_in_span(t);
+                let e2 = span.deriv2_in_span(t);
                 for (a, b) in [
                     (op.x, p.x),
                     (op.y, p.y),

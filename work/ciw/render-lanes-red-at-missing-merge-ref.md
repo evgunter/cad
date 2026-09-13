@@ -2,11 +2,12 @@
 id: render-lanes-red-at-missing-merge-ref
 kind: issue
 title: render lanes: ~100 hosted reds are couldn't find remote ref refs/pull/N/merge at checkout
-status: review
+status: closed
 opened: 2026-09-02
 github: 1607
 pr: 1724
 branch: ciw/render-lane-merge-ref
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 1607
@@ -56,3 +57,33 @@ Evidence: the census's `nontest_failures.json` (job ids, run ids, dates); any of
 ## Home
 
 `work/issues/` — `.github/workflows/` is S-QA's territory and S-QA is closed; no open program owns the render workflows, and S-TCOST filed it as out of its own scope.
+
+## Closed (2026-09-04): the fix landed and the class is at zero
+
+PR 1724 merged as **`a5d9f41a`** ("Merge pull request #1724 from
+evgunter/ciw/render-lane-merge-ref", 2026-09-04T01:31:21Z), an ancestor
+of `main`. `render.yml` grew a `checkout target` job that resolves the
+object once and hands the lanes a SHA, and the lanes check that out
+instead of `refs/pull/N/merge`. The item was left at `status: review`
+after the merge; it is closed here, with the rate re-measured rather
+than assumed.
+
+**Since `a5d9f41a`, the class is at zero.** Over every completed
+`ci.yml` run created between the merge and 2026-09-04T16:46Z —
+**259 runs carrying render-lane jobs, 777 render-lane jobs** — there are
+**8 failed render-lane jobs and none of them failed at
+`actions/checkout`**. All eight failed at a lane's own content step
+(`demo tour (…)` once, `the real gallery opens in the viewer (GUI-4
+acceptance)` seven times), and the seven are one incident inside 25
+minutes on 2026-09-04 that also reddened `main`'s own push run
+(33841011297) — a real break in the tree, not a checkout that lost its
+ref.
+
+For comparison, the same reading over the window immediately BEFORE the
+merge (2026-09-03T09:26Z → the merge) gives **5 failed render-lane jobs
+in 116 render-bearing runs, all five at `actions/checkout`** — the tail
+of the 103-in-89 population this item measured.
+
+So the 103-in-89 figure is the PRE-FIX rate and must not be quoted
+forward as the current one. `work/ciw/merge-queue-trial` decides the
+`renders`-in-`gate-ok` question against the post-fix rate.

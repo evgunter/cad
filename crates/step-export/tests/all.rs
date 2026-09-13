@@ -65,6 +65,8 @@ mod m5_s11_same_sense;
 mod m6_6_sense_gate;
 #[path = "m7_swept_elbow.rs"]
 mod m7_swept_elbow;
+#[path = "onb_wall_normal_census.rs"]
+mod onb_wall_normal_census;
 #[path = "orientation_oracle.rs"]
 mod orientation_oracle;
 #[path = "r2_probes.rs"]

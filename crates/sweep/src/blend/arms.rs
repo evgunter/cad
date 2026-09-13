@@ -168,22 +168,34 @@ pub enum BlendArm {
     /// circle's own axis, so the pair is coaxial by construction.
     SphereSphereTorus,
     /// Two parallel cylinders meeting along a common ruling → cylinder
-    /// patch, straight spine. The arm is exact; no surgery carves its
-    /// band yet (the terminations are the run-out taxonomy — #987).
+    /// patch, straight spine. The open-chain surgery carves its band
+    /// between TRANSVERSE CAPS — plane faces perpendicular to the
+    /// ruling, where the band ends in the cap's own section of it.
     CylinderCylinderCylinder,
     /// Cylinder and a plane containing its axis direction, meeting
-    /// along a ruling → cylinder patch, straight spine. Same standing
-    /// as the row above: exact arm, uncarved band (#987).
+    /// along a ruling → cylinder patch, straight spine. Carved between
+    /// transverse caps exactly as the row above.
     CylinderPlaneCylinder,
 }
 
 impl BlendArm {
-    /// Whether this arm blends a plane–plane support pair — the one
-    /// pair the in-place open-chain surgery carves, whichever band
-    /// the request grafts onto it.
+    /// Whether this arm blends a plane–plane support pair — the pair
+    /// the in-place open-chain surgery carves between trivalent
+    /// corners, whichever band the request grafts onto it.
     #[must_use]
     pub fn is_plane_plane(self) -> bool {
         matches!(self, Self::PlanePlaneCylinder | Self::PlanePlaneStrip)
+    }
+
+    /// Whether this arm is a RULED one — a cylinder band about a
+    /// straight spine over curved supports sharing the ruling, whose
+    /// open chain terminates in transverse caps rather than corners.
+    #[must_use]
+    pub fn is_ruled(self) -> bool {
+        matches!(
+            self,
+            Self::CylinderCylinderCylinder | Self::CylinderPlaneCylinder
+        )
     }
 
     /// Whether this arm's blend is the TORUS about a circular spine —
@@ -225,6 +237,33 @@ impl BlendArm {
             Self::SphereSphereTorus => "sphere–sphere → torus",
             Self::CylinderCylinderCylinder => "cylinder–cylinder → cylinder",
             Self::CylinderPlaneCylinder => "cylinder–plane(∥) → cylinder",
+        }
+    }
+
+    /// The arm's two support KINDS, in the same order
+    /// [`Self::name`] spells them — one word each, in the vocabulary
+    /// the recourse sentences use for a stored surface.
+    ///
+    /// Split out from [`Self::name`] because a refused caller needs
+    /// the KIND SET (four words, which is what the door tests first)
+    /// and the refusal's payload needs the PAIRS (eleven rows), and
+    /// only the second of those is a display string.
+    /// `verbs_arms2_arms::the_spine_kind_recourse_names_a_family_for_every_arm`
+    /// checks each word here against the pair half of [`Self::name`],
+    /// so the two spellings cannot drift apart.
+    #[must_use]
+    pub fn kinds(self) -> [&'static str; 2] {
+        match self {
+            Self::PlanePlaneCylinder | Self::PlanePlaneStrip => ["plane", "plane"],
+            Self::PlaneSphereTorus => ["plane", "sphere"],
+            Self::SphereConeTorus => ["sphere", "cone"],
+            Self::ConePlaneTorus => ["cone", "plane"],
+            Self::ConeConeTorus => ["cone", "cone"],
+            Self::CylinderConeTorus => ["cylinder", "cone"],
+            Self::CylinderSphereTorus => ["cylinder", "sphere"],
+            Self::CylinderPlaneTorus | Self::CylinderPlaneCylinder => ["cylinder", "plane"],
+            Self::SphereSphereTorus => ["sphere", "sphere"],
+            Self::CylinderCylinderCylinder => ["cylinder", "cylinder"],
         }
     }
 
@@ -328,7 +367,7 @@ pub fn plane_plane_blend<T: Real>(
 /// (S10/S11): the material side of each on a CONVEX chain, the void
 /// side of each on a CONCAVE one, where the ball rolls in the void.
 /// That is ONE fold, [`Convexity::signed`] (`±r`), homed on the verdict
-/// type and shared with [`plane_plane_blend`], `surgery::corner_plan`
+/// type and shared with [`plane_plane_blend`], `open::planar::corner_plan`
 /// and — as the side bit [`Convexity::ball_side`] — the shared sheet
 /// reduction (`battery::curved_arm`); [`corner_ball`] alone spells its
 /// NEGATIVE, the rest depth. Which side of the
@@ -577,9 +616,8 @@ impl<T: Real> SupportTrace<T> {
 /// [`Ruling::blend`] stores `spine_curvature = 0` unconditionally, so
 /// predicate 3 saturates and cannot see it; there the poisoned centre
 /// reaches the CYLINDER's `origin` and its `u_ref`, and the refusal
-/// arrives one step later — at the open-chain admission door today
-/// (a ruled pair meets along an open edge, which the surgery does not
-/// carve), and at the certification of any band that door ever mints.
+/// arrives one step later — at the certification of the band the
+/// open-chain surgery mints between the link's transverse caps.
 #[must_use]
 pub fn sheet_center<T: Real>(
     rim: Point3<T>,

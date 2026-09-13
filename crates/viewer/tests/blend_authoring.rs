@@ -39,7 +39,7 @@ use pncad::prelude::{StableName, ValuePayload};
 use viewer::blend::FREEZE_NOTE;
 use viewer::blend::{BlendError, BlendEvent, BlendKindChoice, BlendTarget, BlendTool};
 use viewer::display::DisplayView;
-use viewer::pick::{PickIndex, PickKinds};
+use viewer::pickindex::{PickIndex, PickKinds};
 use viewer::scene::DisplayTolerance;
 use viewer::session::{
     DatumSpec, DocSession, EdgeSelection, FaceSelection, NodeKindWanted, ProfileShape, Refusal,
@@ -767,10 +767,14 @@ fn an_empty_set_refuses_at_the_tool_and_at_evaluation() {
 /// **The blend tool is one of the modal tools**: it narrows the cursor
 /// to edges, it closes whatever was open, and whatever it opens over
 /// is closed.
+///
+/// It no longer asserts that `ToolKind::ALL` contains `Blend`. That
+/// line rested on `ALL` being a hand-written list a kind could be
+/// missing from; `ALL` is projected from `ToolKind`'s own declaration,
+/// so the assertion cannot fail and says nothing.
 #[test]
 fn the_blend_tool_takes_its_place_among_the_modal_tools() {
     assert_eq!(ToolKind::Blend.pick_kinds(), PickKinds::EdgesOnly);
-    assert!(ToolKind::ALL.contains(&ToolKind::Blend));
 
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
@@ -929,7 +933,7 @@ fn a_held_set_marks_exactly_the_edges_it_names() {
         if let Ok(name) = index.edge_name_of(*id)
             && named.iter().any(|mark| mark.name == *name)
         {
-            per_name.extend(viewer::pick::edge_id_segments(&index, &display, *id));
+            per_name.extend(viewer::marks::edge_id_segments(&index, &display, *id));
         }
     }
     assert!(!per_name.is_empty(), "five box edges draw segments");
