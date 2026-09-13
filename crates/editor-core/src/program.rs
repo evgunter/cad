@@ -42,9 +42,137 @@ use crate::expr::{Dimension, DimensionError, EvalError, Expr, ParamEnv, eval};
 use crate::node::{RecipeNodeId, SlotId, StepArg};
 use geom_core::Tol;
 
+/// **One declaration, two projections** — a document vocabulary's enum,
+/// and the variant names it declares.
+///
+/// `profile` declares each of its three vocabularies once and projects
+/// `Verb::ALL`, `ArcMode::ALL` and `TargetKind::ALL` from the same
+/// declaration, so a census keyed on one grows with the vocabulary
+/// rather than behind it. The three enums below are those vocabularies'
+/// SECOND spelling — G1 layering keeps expressions and serde out of the
+/// kernel crate — and they had no such projection.
+///
+/// What that cost is one direction of the construct hop. A variant
+/// added to a document enum is forced through every match that consumes
+/// it, so it cannot ship un-noticed; but every one of those arms may
+/// legally resolve it into an EXISTING kernel form, and when one does
+/// the kernel-anchored censuses stay green (`Verb::ALL`, `ArcMode::ALL`
+/// and `TargetKind::ALL` are all still fully witnessed) while the
+/// document form silently authors something nobody wrote.
+///
+/// `ALL_NAMES` is the anchor for that direction. It is derived from the
+/// declaration at COMPILE time, so there is nothing to keep in step and
+/// **nothing in FRONT of a variant's name can hide it** — a doc comment,
+/// an attribute, a `cfg`, a `cfg_attr`, any stack of them: the macro
+/// captures them as metas and projects the name behind them.
+/// `tests/switch_program_vocabulary.rs` is keyed on it, and a variant
+/// that reaches no witness there reds.
+///
+/// Two places where the projection and the witness side disagree, both
+/// in the LOUD direction, because a census that is wrong quietly is the
+/// thing this replaced:
+///
+/// - a `#[cfg]` that gates a variant OUT removes it from the enum and
+///   leaves it in `ALL_NAMES` — the metas ride the variant, not the
+///   name list. So the projection is a SUPERSET under `cfg`: it
+///   over-demands a witness for a variant that is not there and reds.
+///   It cannot hide one.
+/// - a RAW IDENTIFIER projects as `stringify!` writes it (`r#type`)
+///   while the witness side reads a `Debug` rendering (`type`), so a
+///   correctly declared and correctly witnessed raw-ident variant would
+///   red spuriously. No variant here is one; if one arrives, the fix is
+///   to strip the `r#` on one side, and this note is the reason the red
+///   will make sense.
+macro_rules! document_vocabulary {
+    (
+        $(
+            $(#[$enum_meta:meta])*
+            $vis:vis enum $name:ident {
+                $(
+                    $(#[$variant_meta:meta])*
+                    $variant:ident $(( $($tuple:tt)* ))? $({ $($named:tt)* })?
+                ),* $(,)?
+            }
+        )*
+    ) => {
+        $(
+            $(#[$enum_meta])*
+            $vis enum $name {
+                $(
+                    $(#[$variant_meta])*
+                    $variant $(( $($tuple)* ))? $({ $($named)* })?
+                ),*
+            }
+
+            impl $name {
+                /// Every variant this vocabulary declares, in
+                /// declaration order — projected from the same
+                /// declaration as the variants, so a census keyed on it
+                /// grows with the vocabulary rather than behind it.
+                #[doc(hidden)]
+                pub const ALL_NAMES: &'static [&'static str] = &[$(stringify!($variant)),*];
+            }
+        )*
+
+        /// **Every document vocabulary, projected rather than typed.**
+        ///
+        /// `ALL_NAMES` closes *a variant arrives without a witness*.
+        /// This closes the same failure one level up — *a VOCABULARY
+        /// arrives without a census* — and it has to be closed the same
+        /// way, because a roster typed out on the test side is a second
+        /// list kept in step with this one by hand, which is the defect
+        /// the whole macro exists to remove.
+        ///
+        /// It is projected from the single invocation below, and that
+        /// invocation is single by construction **within this module**:
+        /// the constant is emitted once per invocation, so a second
+        /// invocation in the same module is an `E0428` duplicate. The
+        /// qualifier is load-bearing — `E0428` is scoped to one module's
+        /// value namespace, so a second invocation inside a CHILD module
+        /// compiles clean and projects a second roster that the census
+        /// never reads. `program.rs` has no child modules, so the list
+        /// is complete today; what makes it complete is that fact and
+        /// not the macro.
+        ///
+        /// **What it does not cover, stated, with the live instance
+        /// named:** an enum declared with a plain `pub enum` rather than
+        /// through this macro has no `ALL_NAMES`, is absent from this
+        /// list, and nothing detects that it should have been in either.
+        /// This file holds two such enums today — [`ProgramRefusal`] and
+        /// [`RecordedProgramError`] — and they are deliberately out:
+        /// they are the REFUSAL and ERROR vocabularies, produced by this
+        /// crate for a caller to read, with no construct hop that builds
+        /// a kernel form out of them and so no laundering direction to
+        /// guard. [`LoopProgram`] was the third, and it is IN: its
+        /// `resolve` is a construct hop like the other three. The test
+        /// for membership is that construct hop, not the naming.
+        /// Closing the general case needs a walk over the file's
+        /// declarations, which is a text scan, which is what this macro
+        /// replaced and for a reason. Filed:
+        /// `work/docm/a-document-vocabulary-declared-outside-the-macro-is-uncensused.md`.
+        ///
+        /// **Cost, stated:** rustfmt does not format the body of a macro
+        /// invocation, so every declaration below is outside its reach
+        /// and no gate will report drift there. The trade was taken
+        /// deliberately — the macro closes a SILENT failure class and
+        /// formatting drift is visible to any reader — but it is a real
+        /// cost and it is not detected. Filed:
+        /// `work/ciw/rustfmt-does-not-reach-a-macro-wrapped-declaration-block.md`.
+        #[doc(hidden)]
+        pub const DOCUMENT_VOCABULARIES: &[(&str, &[&str])] =
+            &[$((stringify!($name), $name::ALL_NAMES)),*];
+    };
+}
+
+document_vocabulary! {
 /// Where a target-taking step ends: an authored point (two Length
 /// expressions) or the entry vertex (`Start` — structural; targeting it
 /// closes the loop). Mirrors `profile::Target`.
+///
+/// `res_target` matches THIS vocabulary and constructs
+/// [`profile::Target`], so a form added here alone can be resolved into
+/// an existing kernel form and never be seen. [`Self::ALL_NAMES`] is
+/// what forces it to reach a witness instead.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramTarget {
     /// An authored absolute point in the profile frame.
@@ -76,6 +204,11 @@ pub enum ProgramTarget {
 /// checked at the edit door via [`ProfileProgram::slots`] +
 /// [`StepArg::dimension`], and at the persistence doors' shared
 /// validator — never trusted from a parsed file).
+///
+/// The mirror direction is [`Self::ALL_NAMES`]'s: `res_step` matches
+/// THIS vocabulary and constructs [`profile::Step`], so a verb added
+/// here alone can be resolved into an existing kernel verb, leaving
+/// `Verb::ALL` fully witnessed and the document verb unexercised.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramStep {
     /// `.at(p)`.
@@ -159,6 +292,11 @@ pub enum ProgramStep {
 /// `tests/switch_program_vocabulary.rs`, keyed on
 /// [`profile::ArcMode::ALL`]: its witness is a match on the mode tag,
 /// so a mode with no document spelling is a compile error there.
+///
+/// That census is keyed on the KERNEL vocabulary and says nothing about
+/// a mode added HERE alone — `res_spec` would resolve it into an
+/// existing kernel mode and every clause keyed on `ArcMode::ALL` would
+/// stay green. [`Self::ALL_NAMES`] is that direction's anchor.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramArcData {
     /// `Radius { r, side }` — arrival mode, centre derived.
@@ -216,6 +354,13 @@ pub enum ProgramArcData {
 /// form is structural). The chain-vs-carrier distinction is the enum,
 /// so "a circle program is exactly one step" is unrepresentable to
 /// violate.
+///
+/// **It is a document vocabulary, and [`Self::resolve`] is its construct
+/// hop**, the fourth one: it matches THIS enum and builds
+/// `Step::Circle` / `Step::CircleSplit`, so a carrier form added here
+/// alone can be resolved into an existing kernel step and never be
+/// seen. That is [`ProgramStep`]'s hazard one level out, and
+/// [`Self::ALL_NAMES`] is its anchor for the same reason.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LoopProgram {
     /// A chain-vocabulary step list (must end in a `Start`-targeting
@@ -240,6 +385,7 @@ pub enum LoopProgram {
         /// The first vertex's angle from +x.
         phase: Expr,
     },
+}
 }
 
 /// The profile node's payload: the sketch frame it is drawn on, named
