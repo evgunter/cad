@@ -88,12 +88,21 @@ in `names/table.rs`, so no call site hand-writes a `match` over
 
 No half-fix. `ShellOpenKind { name, found }`,
 `BlendSelectionKind { verb, name, found }` and
-`FaceFrameKind { name, found }` are unchanged variants with unchanged
-`Display` arms; each road hands the door its own constructor, so the
-verb still reaches a chamfer's refusal and the three sentences are
-still three sentences. `crates/editor-core/tests/wire_entity_door.rs`
-pins all of them byte-exact, and its blend row runs fillet AND chamfer
-so a flattened verb reds.
+`FaceFrameKind { name, found }` keep their variants and their `Display`
+arms; each road hands the door its own constructor, so the verb still
+reaches a chamfer's refusal and the three sentences are still three
+sentences. `crates/editor-core/tests/wire_entity_door.rs` pins all of
+them byte-exact, and its blend row runs fillet AND chamfer so a
+flattened verb reds.
+
+What DID change is the field's type: `found` is
+`entity_door::Found` rather than `EntityKind`. `NodeErrorKind` derives
+only `Debug`, so nothing persisted or compared moved, and **no rendered
+string changed** — `Display` already asked the value for its article
+and noun. Four assertions now read through `Found::kind()` instead of
+matching the enum, and one hand-minted refusal in `pncad-py`'s tag test
+was deleted: it can no longer be minted, which is the point, and the
+same tag is already proved through a real document.
 
 ### The six spellings, disposed
 
