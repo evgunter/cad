@@ -2407,3 +2407,81 @@ closed. The brief carries the grounds so the lane can recognise evidence
 that would overturn them, and is explicit that the row is a **class with
 two instances** and this unit disposes of one — closing the whole row
 would mislabel a half-fix.
+
+## 2026-09-13 — PR 2474 MERGED (`c6202101b`); 2480's fix pass and 2487 both to review
+
+Both merges verified at the check-run level on the final head with
+`origin/main` merged in — the tree the lane tested is not the tree that
+lands, and this program has one entry per merge saying so.
+
+### 2480's fix pass built a guard, so it gets a narrow delta round
+
+The full review found the unit's two stated rules — *"constructed at
+exactly two sites"*, *"no `expected:` is a literal at a call site"* —
+were **source-text predicates that nothing reds**. The fix pass built
+`operand_vocabulary_census`: three rows reading source through
+`test_utils::source`, with **floors** (12 door calls, 10 macro arms, 17
+rows) so a drifted scan reds rather than measuring nothing, and a doc
+stating what the census cannot see. It also closed S2's hole — an arm
+with no const was silently dead, because macro arms are not
+dead-code-linted.
+
+It went further than asked on two counts, both good: **S4 taken, so the
+count is 17 → 1**, not 17 → 2; and the **reviewer's probe adopted as
+assertions** rather than subsumed — 17 document-reachable refusals plus
+3 asserted as edit-door defences, authorship credited in the module doc.
+Seven mutants, each red for its own stated reason.
+
+**A delta round is dispatched, narrow**, for one reason: the fix pass
+built a **new guard mechanism and no review has ever seen it.** A census
+with a hole reports green — `plan.md` says exactly that about `D364` —
+and this one's discriminators are textual heuristics whose safe
+direction is asserted rather than tested. The brief's headline question
+is the one worth the round: **the fix closed "a hand-written list with
+no census" by adding a census with hand-written sentinels, floors and
+counts. Is that the trap one level up, or the point where hand-writing
+is correct?** "Nothing further" is stated as a complete answer.
+
+**One honest negative from the fix pass, worth keeping.** S3's sweep —
+composing the direction role words from the phrase consts — **does not
+compile**: `concat!` takes literals and a `const` is not one, so the
+macro layer would have to be extended from words to phrases. Three
+literals became named consts, so the one-home half is done, and
+composition is filed as a residue with `eval::phrase`'s doc stating it
+as a residue rather than a boundary. A sweep that was attempted and
+failed, reported as failed, is worth more than one that was never tried.
+
+### `Frame::linear` is deleted (PR 2487), and the censuses could not see it
+
+The unit executed the decision and the grounds held. One correction to
+the brief, already carried by the row: the test module had **one**
+`.linear::<` site, not three.
+
+**The finding that generalises, and it corrects my brief rather than the
+lane's work.** I wrote that the two façade censuses "have twice caught a
+public surface change neither a lane nor a review noticed" and to expect
+one of them to have an opinion. **Neither did, and structurally neither
+could.** `every_document_layer_root_export_is_carried_or_listed` reads
+`editor-core/src/lib.rs`'s root `pub use` **names**; the Python census
+reads `pncad.pyi`'s classes and attributes. `Frame` is still exported
+and still carried, so **a method removed from a carried type is in
+neither alphabet**. Verified here against the census body rather than
+taken on report.
+
+If that holds under review it is bigger than this unit: the two
+instruments this program has been treating as the backstop for public
+surface changes see **names, not signatures**, and cannot see a removed
+or changed method at all. The reviewer is asked to confirm or refute it
+and to say whether it deserves a row.
+
+The lane also reported, unprompted, that it **never got a build slot**
+for its entire life — one was held by the operand-door fix pass's
+50-minute `doc-gate.sh` run — so nothing but `cargo fmt` ran locally and
+everything rests on CI. It caught an early retry loop **exiting 0
+without running** and declined to report that as a pass. That is the
+waiter self-test rule catching exactly what it exists to catch.
+
+**The half-fix is labelled**: the row stays `open`, retitled to say the
+first instance is deleted and the two `profile` `map_scalar` rungs are
+the half still live, with a `## Half disposed` section giving the reason
+their dispositions differ.
