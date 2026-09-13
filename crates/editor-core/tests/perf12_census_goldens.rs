@@ -78,7 +78,11 @@ fn row(label: &str, doc: &ProfileDoc, out: &mut String) {
     let tol = Tol::witness();
     let ev = eval::<f64>(doc);
     let bad = failures(&ev);
-    assert!(bad.is_empty(), "{label}: evaluation failed:\n{}", bad.join("\n"));
+    assert!(
+        bad.is_empty(),
+        "{label}: evaluation failed:\n{}",
+        bad.join("\n")
+    );
     out.push_str(&format!("## {label}\n"));
     let subject = match product_recorded(doc, &ev, tol) {
         Ok(p) => p,
@@ -100,7 +104,10 @@ fn row(label: &str, doc: &ProfileDoc, out: &mut String) {
         Ok(_) => out.push_str("assemble: Ok\n"),
         Err(e) => {
             let s = format!("{e:?}");
-            let variant = s.split(|c: char| !c.is_alphanumeric()).next().unwrap_or("?");
+            let variant = s
+                .split(|c: char| !c.is_alphanumeric())
+                .next()
+                .unwrap_or("?");
             out.push_str(&format!("assemble: Err({variant})\n"));
         }
     }
@@ -164,7 +171,10 @@ fn the_at_rest_census_verdicts_are_goldened_bit_exact() {
             .lines()
             .zip(golden.lines())
             .position(|(a, b)| a != b)
-            .map_or_else(|| "a length change".to_string(), |i| format!("line {}", i + 1));
+            .map_or_else(
+                || "a length change".to_string(),
+                |i| format!("line {}", i + 1),
+            );
         panic!(
             "the at-rest census verdicts drifted from their committed golden at {first} \
              (eps={eps}): the census is deciding differently. Read the diff, decide whether \

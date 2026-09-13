@@ -77,6 +77,8 @@ mod onb_wild_normal_census;
 mod p1b_r1_import_scan;
 #[path = "parser.rs"]
 mod parser;
+#[path = "perf12_census_goldens.rs"]
+mod perf12_census_goldens;
 #[path = "poleguard.rs"]
 mod poleguard;
 #[path = "probe_dup.rs"]
@@ -125,8 +127,6 @@ mod rw2_probes;
 mod s58_iso_rectangle;
 #[path = "split_iso_side.rs"]
 mod split_iso_side;
-#[path = "perf12_census_goldens.rs"]
-mod perf12_census_goldens;
 #[path = "tcost_k3_import_certificate.rs"]
 mod tcost_k3_import_certificate;
 #[path = "tier_gate.rs"]

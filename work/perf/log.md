@@ -76,3 +76,18 @@ no query or build changes). The pin is `viewer`'s `index_memo`
 differential against a single-level reference, tie-break row
 included. A finding on `docm`'s ground went to its slate:
 `work/docm/pick-grazing-ray-answer-depends-on-candidate-order.md`.
+
+## PERF-12 lands on TOPO ground (2026-09-13)
+
+Unit `PERF-12` (branch `perf/12-census-bvh`) changes `topo`'s at-rest
+census (`crates/topo/src/census.rs`, `curved`'s territory): the five
+vertex-granular coincidence sweeps examine the candidates of a BVH
+pre-filter (`census::Trees`, `census::Candidates`; one tree per entity
+class over the boolean's own `face_box`/`edge_box` and padded vertex
+points) instead of every pair, with an idealized/realized differential
+door (`census_traces`) on the boolean sweep's terms. The three
+`validate` doors that reach the census gain `Bounds`, ratified into the
+bounds allowlist under the 2026-07-29 driver amendment beside
+`separation`. Pins: verdict goldens per ε row over the corpus, the heat
+sink at 10/40/160 fins and the STEP fixtures (cut on main first), and
+the differential suites in `editor-core` and `topo`.

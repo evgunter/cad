@@ -995,6 +995,22 @@ pub mod bounds_allowlist {
     //! constructor beside its invariants plus a query driver over the C10
     //! tree, deciding no topology.
     //!
+    //! `topo::census` — the at-rest census's BVH pre-filter — falls under
+    //! this entry on the same terms: `census::Trees` builds the C10 tree's
+    //! item boxes through the certified box constructors (`face_box`,
+    //! `edge_box`, a vertex point widened by the sweep pad) and
+    //! `census::Candidates` drives the tree's queries, deciding nothing —
+    //! the exact sweeps that follow decide. The weakest bound that works
+    //! is `Decide + Bounds`: the tree's boxes are `f64` brackets read
+    //! through `Bounds::lo`/`hi` (`bvh::Aabb::from_points`), and the
+    //! census is decision code on the same scalar. Sole `Bounds` fails —
+    //! the sweeps call the funnel — and sole `Decide` fails — no box can
+    //! be read without the bracket, so there is no tree to query. The
+    //! bound rides the three `validate` doors that reach the census
+    //! (`validate_pseudomanifold`, `validate_pseudomanifold_certificate`,
+    //! and the `via` they share) because the census cannot be reached
+    //! except through them.
+    //!
     //! `Separation::of`, `Separation::certify` and `image` carry **no**
     //! [`CertifiedEnclosure`](super::CertifiedEnclosure), and their box NON-overlap answer is a GRANT
     //! (`certify`'s own doc: *"`Ok(())` is the certificate"*, and

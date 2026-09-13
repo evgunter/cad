@@ -49,7 +49,9 @@ const CENSUS_GOLDENS: &[(&str, &str, &str)] = &[
 fn options(name: &str) -> ImportOptions {
     if name.contains("kiss_assembly") {
         ImportOptions {
-            declared_contacts: vec![ImportContact::VertexRest { at: [1.0, 1.0, 1.0] }],
+            declared_contacts: vec![ImportContact::VertexRest {
+                at: [1.0, 1.0, 1.0],
+            }],
             ..ImportOptions::default()
         }
     } else {
@@ -127,7 +129,10 @@ fn the_import_census_verdicts_are_goldened_bit_exact() {
             .lines()
             .zip(golden.lines())
             .position(|(a, b)| a != b)
-            .map_or_else(|| "a length change".to_string(), |i| format!("line {}", i + 1));
+            .map_or_else(
+                || "a length change".to_string(),
+                |i| format!("line {}", i + 1),
+            );
         panic!(
             "the import census verdicts drifted from their committed golden at {first} \
              (eps={eps}): the census is deciding differently. Read the diff, decide whether \

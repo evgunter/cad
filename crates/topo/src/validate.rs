@@ -4879,7 +4879,7 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 /// aggregate gate take it. This door keeps its lane so a
 /// [`Dual`](geom_core::Dual) body can still go through the tier-3′
 /// pass, which is the capability H-R3 protects.
-pub fn validate_pseudomanifold<T: crate::props::PropsQuadLane>(
+pub fn validate_pseudomanifold<T: crate::props::PropsQuadLane + geom_core::Bounds>(
     body: &Body<T>,
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
@@ -4919,7 +4919,7 @@ pub fn validate_pseudomanifold<T: crate::props::PropsQuadLane>(
 /// # Errors
 ///
 /// As [`validate_pseudomanifold`].
-pub fn validate_pseudomanifold_certificate<T: crate::props::PropsQuadLane>(
+pub fn validate_pseudomanifold_certificate<T: crate::props::PropsQuadLane + geom_core::Bounds>(
     body: &Body<T>,
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
@@ -4983,7 +4983,7 @@ pub fn validate_pseudomanifold_certified<
 
 /// The tier-3′ pass with check 2's lane as an argument — the shared
 /// body of the lane-keeping door and its certified twin.
-fn pseudomanifold_certificate_via<T: crate::props::PropsQuadLane>(
+fn pseudomanifold_certificate_via<T: crate::props::PropsQuadLane + geom_core::Bounds>(
     body: &Body<T>,
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
