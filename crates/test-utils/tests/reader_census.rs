@@ -128,6 +128,12 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // unreachable-variant scan, code view
     },
     Entry {
+        path: "crates/editor-core/tests/switch_program_vocabulary.rs",
+        disposition: Shared, // the document arc-spec and target vocabularies'
+                             // anchor, read out of editor-core/src/program.rs,
+                             // code view
+    },
+    Entry {
         path: "crates/editor-core/tests/wire_operand_door.rs",
         disposition: Shared, // operand-door and expected-phrase census over
                              // eval/wire.rs and verbs/split.rs, code and
