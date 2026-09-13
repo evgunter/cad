@@ -99,14 +99,14 @@ pub enum RangeField {
 /// range over an interval that excludes the nominal is a range of a
 /// DIFFERENT document — set the field there and seed around it.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Seed {
+pub struct RangeSeed {
     /// Lower offset (`<= 0`).
     pub lo: f64,
     /// Upper offset (`>= 0`).
     pub hi: f64,
 }
 
-impl Seed {
+impl RangeSeed {
     /// A symmetric seed of half-width `w`.
     #[must_use]
     pub fn symmetric(w: f64) -> Self {
@@ -218,7 +218,7 @@ impl RangeSide {
 pub struct CertifiedRange {
     field: RangeField,
     nominal: f64,
-    seed: Seed,
+    seed: RangeSeed,
     lo: RangeSide,
     hi: RangeSide,
 }
@@ -237,7 +237,7 @@ impl CertifiedRange {
     }
 
     /// The seed the caller chose.
-    pub fn seed(&self) -> Seed {
+    pub fn seed(&self) -> RangeSeed {
         self.seed
     }
 
@@ -421,7 +421,7 @@ impl core::error::Error for RangeRefusal {}
 /// A pure function of (document, field, seed): nothing here is stored
 /// on the input, keyed against it, or shared with its memo.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Derived {
+pub struct DerivedRange {
     /// The document the drive runs on — the input verbatim for a
     /// parameter field, and the input plus one synthetic parameter
     /// with the slot rewritten to name it for a slot field.
@@ -462,9 +462,9 @@ fn synthetic_name(node: RecipeNodeId, slot: SlotId) -> ParamName {
 pub fn derive(
     doc: &Doc<ProfileProgram>,
     field: &RangeField,
-    seed: Seed,
+    seed: RangeSeed,
     tol: Tol,
-) -> Result<Derived, RangeRefusal> {
+) -> Result<DerivedRange, RangeRefusal> {
     if !seed.lo.is_finite()
         || !seed.hi.is_finite()
         || seed.lo > 0.0
@@ -572,7 +572,7 @@ pub fn derive(
     for (name, value) in annotated {
         derived = edit(&derived, &DocEdit::SetDocParam { name, value }, tol)?;
     }
-    Ok(Derived {
+    Ok(DerivedRange {
         doc: derived,
         axis,
         nominal,
@@ -606,7 +606,7 @@ fn edit(
 pub fn certified_range(
     doc: &Doc<ProfileProgram>,
     field: &RangeField,
-    seed: Seed,
+    seed: RangeSeed,
     config: &DriveConfig,
     tol: Tol,
 ) -> Result<CertifiedRange, RangeRefusal> {
@@ -656,7 +656,7 @@ struct Leaf<'a> {
 fn walkable_leaves<'a>(
     verdict: &'a ParamBoxVerdict,
     axis: &ParamName,
-    seed: Seed,
+    seed: RangeSeed,
 ) -> Result<Vec<Leaf<'a>>, RangeRefusal> {
     let span = |box_: &ParamBox| -> Result<(f64, f64), RangeRefusal> {
         let mut found: Option<(f64, f64)> = None;
@@ -747,7 +747,7 @@ enum Direction {
 /// at all is [`RangeSide::Indeterminate`] under the first uncertified
 /// leaf's own reason, which is not a boundary and is never reported as
 /// one.
-fn walk(leaves: &[Leaf<'_>], direction: Direction, seed: Seed) -> RangeSide {
+fn walk(leaves: &[Leaf<'_>], direction: Direction, seed: RangeSeed) -> RangeSide {
     let edge = match direction {
         Direction::Lo => seed.lo,
         Direction::Hi => seed.hi,

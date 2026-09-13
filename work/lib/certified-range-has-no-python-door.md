@@ -22,7 +22,7 @@ The signature to wrap, verbatim:
 pub fn certified_range(
     doc: &Doc<ProfileProgram>,
     field: &RangeField,          // Param(ParamName) | Slot { node, slot }
-    seed: Seed,                  // offsets from the field's nominal, lo <= 0 <= hi
+    seed: RangeSeed,                  // offsets from the field's nominal, lo <= 0 <= hi
     config: &DriveConfig,        // the caller's budget: the query is on demand
     tol: Tol,
 ) -> Result<CertifiedRange, RangeRefusal>;
@@ -37,7 +37,7 @@ Three things a binding has to carry rather than flatten:
   pair of numbers per side would turn "the driver could not decide"
   into "the edge is here", which is the one reading the type exists to
   forbid. `RangeSide::is_bound()` is the discriminator.
-- **Offsets, not absolute values.** `Seed` and every reported position
+- **Offsets, not absolute values.** `RangeSeed` and every reported position
   are offsets from the field's own nominal, because the analyzed axis
   IS offsets and a subtraction would round.
   `CertifiedRange::absolute()` converts for display.

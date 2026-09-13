@@ -23,7 +23,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::drive::{BudgetKind, DriveConfig, RefusalReason};
 use editor_core::range::{
-    CertifiedRange, RangeField, RangeRefusal, RangeSide, Seed, certified_range, derive,
+    CertifiedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range, derive,
 };
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Evaluation, Expr,
@@ -244,7 +244,7 @@ fn standings_and_names(
     (standings, names)
 }
 
-fn range_of(doc: &ProfileDoc, p: &str, seed: Seed, config: &DriveConfig) -> CertifiedRange {
+fn range_of(doc: &ProfileDoc, p: &str, seed: RangeSeed, config: &DriveConfig) -> CertifiedRange {
     certified_range(doc, &RangeField::Param(name(p)), seed, config, tol())
         .expect("the fixture has an axis and a witness that builds")
 }
@@ -256,7 +256,7 @@ fn range_of(doc: &ProfileDoc, p: &str, seed: Seed, config: &DriveConfig) -> Cert
 #[test]
 fn a_certified_side_stops_at_the_seeds_edge() {
     let doc = slab(1.0);
-    let r = range_of(&doc, "depth", Seed::symmetric(0.25), &budget(24, 2048));
+    let r = range_of(&doc, "depth", RangeSeed::symmetric(0.25), &budget(24, 2048));
     assert_eq!(*r.lo(), RangeSide::Certified { to: -0.25 });
     assert_eq!(*r.hi(), RangeSide::Certified { to: 0.25 });
     assert_eq!(r.certified_interval(), (0.75, 1.25));
@@ -275,7 +275,7 @@ fn a_branch_change_is_a_decision_flip_and_names_the_predicate() {
     let r = range_of(
         &doc,
         "depth",
-        Seed { lo: -1.05, hi: 0.5 },
+        RangeSeed { lo: -1.05, hi: 0.5 },
         &budget(24, 2048),
     );
     assert_eq!(*r.hi(), RangeSide::Certified { to: 0.5 });
@@ -333,7 +333,7 @@ fn a_branch_change_is_a_decision_flip_and_names_the_predicate() {
 #[test]
 fn a_budget_too_small_is_indeterminate_and_never_a_bound() {
     let doc = slab(1.0);
-    let seed = Seed { lo: -1.05, hi: 0.5 };
+    let seed = RangeSeed { lo: -1.05, hi: 0.5 };
     let starved = range_of(&doc, "depth", seed, &budget(1, 2048));
     let RangeSide::Indeterminate {
         certified_to,
@@ -375,7 +375,7 @@ fn the_certificate_is_strictly_inside_the_probes_answer() {
     let r = range_of(
         &doc,
         "depth",
-        Seed { lo: -1.05, hi: 0.5 },
+        RangeSeed { lo: -1.05, hi: 0.5 },
         &budget(24, 2048),
     );
     let (lo, hi) = r.certified_interval();
@@ -401,7 +401,12 @@ fn the_certificate_is_strictly_inside_the_probes_answer() {
 #[test]
 fn the_first_boundary_stops_the_walk_and_a_seed_on_the_island_certifies_it() {
     let doc = slab(1.0);
-    let r = range_of(&doc, "depth", Seed { lo: -2.0, hi: 0.5 }, &budget(24, 2048));
+    let r = range_of(
+        &doc,
+        "depth",
+        RangeSeed { lo: -2.0, hi: 0.5 },
+        &budget(24, 2048),
+    );
     assert!(r.lo().is_bound(), "got {:?}", r.lo());
     assert!(
         r.certified_interval().0 > 0.0,
@@ -413,7 +418,12 @@ fn the_first_boundary_stops_the_walk_and_a_seed_on_the_island_certifies_it() {
     );
 
     let island = slab(-1.0);
-    let on_it = range_of(&island, "depth", Seed::symmetric(0.25), &budget(24, 2048));
+    let on_it = range_of(
+        &island,
+        "depth",
+        RangeSeed::symmetric(0.25),
+        &budget(24, 2048),
+    );
     assert_eq!(*on_it.lo(), RangeSide::Certified { to: -0.25 });
     assert_eq!(*on_it.hi(), RangeSide::Certified { to: 0.25 });
 }
@@ -433,7 +443,7 @@ fn the_query_does_not_touch_the_input_document() {
             node,
             slot: SlotId::Distance,
         },
-        Seed::symmetric(0.25),
+        RangeSeed::symmetric(0.25),
         &budget(24, 2048),
         tol(),
     )
@@ -458,7 +468,7 @@ fn the_derived_witness_is_the_documents_own_build() {
             node,
             slot: SlotId::Distance,
         },
-        Seed::symmetric(0.25),
+        RangeSeed::symmetric(0.25),
         tol(),
     )
     .expect("the slot widens");
@@ -483,7 +493,7 @@ fn the_slot_rewrite_is_exact() {
             node,
             slot: SlotId::Distance,
         },
-        Seed::symmetric(0.25),
+        RangeSeed::symmetric(0.25),
         tol(),
     )
     .expect("the slot widens");
@@ -515,7 +525,7 @@ fn a_parameter_field_boxes_directly() {
     let derived = derive(
         &doc,
         &RangeField::Param(name("depth")),
-        Seed::symmetric(0.25),
+        RangeSeed::symmetric(0.25),
         tol(),
     )
     .expect("the parameter boxes");
@@ -523,7 +533,7 @@ fn a_parameter_field_boxes_directly() {
     assert_eq!(derived.doc.params().len(), doc.params().len());
     assert_eq!(derived.doc.order(), doc.order());
     assert_eq!(derived.nominal, 1.0);
-    let r = range_of(&doc, "depth", Seed::symmetric(0.25), &budget(24, 2048));
+    let r = range_of(&doc, "depth", RangeSeed::symmetric(0.25), &budget(24, 2048));
     assert!(matches!(r.lo(), RangeSide::Certified { .. }));
 }
 
@@ -531,7 +541,7 @@ fn a_parameter_field_boxes_directly() {
 /// before anything is driven.
 #[test]
 fn a_slot_the_rewrite_cannot_name_refuses_typed() {
-    let seed = Seed::symmetric(0.25);
+    let seed = RangeSeed::symmetric(0.25);
     let (doc, pattern) = patterned();
     assert_eq!(
         derive(
@@ -624,7 +634,7 @@ fn a_seed_that_does_not_bracket_the_nominal_refuses() {
         let Err(RangeRefusal::SeedNotABracket { lo: glo, hi: ghi }) = derive(
             &doc,
             &RangeField::Param(name("depth")),
-            Seed { lo, hi },
+            RangeSeed { lo, hi },
             tol(),
         ) else {
             panic!("seed [{lo}, {hi}] must refuse");
@@ -640,7 +650,7 @@ fn a_seed_that_does_not_bracket_the_nominal_refuses() {
 #[test]
 fn the_seed_reaches_the_driver_as_the_analyzed_axis() {
     let doc = slab(1.0);
-    let seed = Seed { lo: -0.3, hi: 0.7 };
+    let seed = RangeSeed { lo: -0.3, hi: 0.7 };
     let derived =
         derive(&doc, &RangeField::Param(name("depth")), seed, tol()).expect("the parameter boxes");
     let analyzed = analyzed_box(&derived.doc, &AnalysisPolicy::default());
@@ -672,7 +682,7 @@ fn every_other_parameter_is_pinned() {
     let derived = derive(
         &doc,
         &RangeField::Param(name("depth")),
-        Seed::symmetric(0.1),
+        RangeSeed::symmetric(0.1),
         tol(),
     )
     .expect("the parameter boxes");
@@ -697,7 +707,7 @@ fn every_other_parameter_is_pinned() {
 #[test]
 fn the_one_axis_leaves_tile_the_seed() {
     let doc = slab(1.0);
-    let seed = Seed { lo: -1.05, hi: 0.5 };
+    let seed = RangeSeed { lo: -1.05, hi: 0.5 };
     let derived =
         derive(&doc, &RangeField::Param(name("depth")), seed, tol()).expect("the parameter boxes");
     let analyzed = analyzed_box(&derived.doc, &AnalysisPolicy::default());

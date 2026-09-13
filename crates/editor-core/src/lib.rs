@@ -186,7 +186,7 @@ pub use program::{
 };
 #[cfg(feature = "interval")]
 pub use range::{
-    CertifiedRange, Derived, RangeField, RangeRefusal, RangeSide, Seed, certified_range,
+    CertifiedRange, DerivedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range,
 };
 pub use refactor::{InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, inline, split};
 #[cfg(feature = "interval")]

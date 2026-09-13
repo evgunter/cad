@@ -24,7 +24,7 @@ What is missing is the affordance, in `crates/viewer`:
 - a "certify" control on the bounds panel, off the interaction path
   (the query is an interval drive — seconds, not a frame);
 - seeded by the probe's own bracket, since the query does not choose a
-  seed (`Seed { lo, hi }` are OFFSETS from the field's current value,
+  seed (`RangeSeed { lo, hi }` are OFFSETS from the field's current value,
   so a probe bracket converts without a subtraction at the axis);
 - the reading replaced when it returns, with the two answers never
   silently merged: a certified range is a SUBSET of every
@@ -37,7 +37,7 @@ The signature, verbatim:
 pub fn certified_range(
     doc: &Doc<ProfileProgram>,
     field: &RangeField,          // Param(ParamName) | Slot { node, slot }
-    seed: Seed,                  // offsets, lo <= 0 <= hi
+    seed: RangeSeed,                  // offsets, lo <= 0 <= hi
     config: &DriveConfig,        // the caller's budget
     tol: Tol,
 ) -> Result<CertifiedRange, RangeRefusal>;

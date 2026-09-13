@@ -4293,7 +4293,19 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   answer `stackup` already carries. `VerdictVector`, `VerdictRow`
 ///   and `VerdictVectorKey` are the STRICT form of the verdict diff and
 ///   are argued with the instrumentation family above.
-const NOT_CARRIED: [&str; 84] = [
+///
+///   **The CERTIFIED-RANGE query is interior for one unit only**
+///   (`CertifiedRange`, `DerivedRange`, `RangeField`, `RangeRefusal`,
+///   `RangeSeed`, `RangeSide`, `certified_range`). It is the on-demand
+///   answer to "how far can this field move before the build stops
+///   being this build" — the proof the sampling probe stands in for —
+///   and the Python door for it is FILED and not built
+///   (`work/lib/certified-range-has-no-python-door`), which is the
+///   whole of why these are here rather than in `crate::analysis`.
+///   The row carries the signature and the three things a binding must
+///   not flatten; when it lands, this family goes with it and this
+///   paragraph goes away.
+const NOT_CARRIED: [&str; 91] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4307,7 +4319,9 @@ const NOT_CARRIED: [&str; 84] = [
     "BranchCertification",
     "BranchMarginEvidence",
     "CarriedRefusal",
+    "CertifiedRange",
     "ContentKey",
+    "DerivedRange",
     "Coset",
     "Diagnosis",
     "DocDiff",
@@ -4336,6 +4350,10 @@ const NOT_CARRIED: [&str; 84] = [
     "PredicateDivergence",
     "ProfilePayload",
     "Qualifier",
+    "RangeField",
+    "RangeRefusal",
+    "RangeSeed",
+    "RangeSide",
     "RecipeEditRef",
     "Resolved",
     "Rgba8",
@@ -4367,6 +4385,7 @@ const NOT_CARRIED: [&str; 84] = [
     "diff_verdicts",
     "enrich_appearance_loss",
     "enrich_appearance_loss_with_prior",
+    "certified_range",
     "entity_name",
     "from_value",
     "param_env_over",
