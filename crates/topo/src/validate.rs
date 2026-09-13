@@ -2297,7 +2297,7 @@ impl fmt::Display for ValidationError {
 impl std::error::Error for ValidationError {}
 
 /// How a ring meets its face's outer loop
-/// ([`ValidationError::RingMeetsOuter`]) — the two shapes the
+/// ([`ValidationError::RingMeetsOuter`]) — the three shapes the
 /// position comparison can find.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RingContact {
@@ -2636,10 +2636,14 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///   orientation half by check 6 (loop-role winding against the
 ///   outward normal, line-bounded loops). The **curved analytic**
 ///   kinds' orientation half is covered by check 6's curved arm
-///   (M6-6: boundary material side vs the sense bit); what remains
-///   deferred is containment against curved surfaces and the
-///   region-bounding statement for arc-bounded planar faces and
-///   curved faces, plus the curved arm's documented residuals (the
+///   (M6-6: boundary material side vs the sense bit), and its NESTING
+///   half — a ring lying inside the outer loop of its own face — by
+///   check 9's nesting arm, on planar faces whose outer loop is a
+///   polygon of line carriers. What remains deferred is containment
+///   against curved surfaces and the region-bounding statement for
+///   arc-bounded planar faces and curved faces — the nesting arm's own
+///   residue, enumerated at check 9's banner, sits inside that same
+///   deferral — plus the curved arm's documented residuals (the
 ///   rimless sphere band; NURBS faces; the quadrature-owned
 ///   conic-trimmed walls, whose boundary parse refuses typed and is
 ///   therefore exempt — such a body's flips, single-face AND
