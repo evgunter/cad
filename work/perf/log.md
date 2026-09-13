@@ -1052,3 +1052,19 @@ CLAUDE.md's re-word clause. State-sync rode the PR; merged at
 clean pairs, two with a unilateral MAJOR (the opus arm both times —
 PERF-7's funnel channel, PERF-8's roster and serial arm). Its record
 folds into `docs/MODEL-AB-LOG.md` next; every lane is reclaimed.
+
+## 2026-09-13 — block PERF-B3's A/B record folded
+
+`docs/MODEL-AB-LOG.md` gains the block's concluded record (branch
+`perf/ab-block-b3`, docs-only): the draw (byte 173), the three rows
+with samples #173–#175, and the tally — seven clean pairs toward the
+twelve, two carrying a unilateral MAJOR (PERF-7's silenced funnel
+channel and PERF-8's orphaned roster plus eager serial arm, both
+found by the opus arm alone and both real). The B3 draw and the row
+notes leave this branch with that fold. The board after three
+blocks: every dispatched unit and side unit landed; what remains
+under `work/perf/` is filed findings (the assemble census prefilter,
+the scene-module gate-then-measure sweep, the per-build triangle
+table, the serial continuation walks, the quadrature setup re-entry,
+the fixed price of the map on cheap bodies, NURBS Q/8, the sphere
+margin, the theta-names naming step) — a next block is Ev's call.
