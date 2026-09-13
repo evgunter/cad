@@ -368,11 +368,15 @@ use geom_core::{
 };
 
 use crate::path::program::{ClosedLoop, Step, Target};
+use crate::seg;
 use crate::sugar::{
     ArcSweep, LineFilletTrims, TrimRefusal, bulge_from_center, bulge_from_via,
     line_line_fillet_trims,
 };
-use crate::validate::{FilletLeg, FilletLegCarrier, NoCornerReason};
+use crate::validate::{
+    FILLET_FLATTENED_RECOURSE, FILLET_SCENE_RESOLUTION_RECOURSE,
+    FILLET_STORED_FORM_INBAND_RECOURSE, FilletLeg, FilletLegCarrier, NoCornerReason,
+};
 use crate::{ProfileLoop, ProfileVertex};
 
 /// The arc-carrier fillet boundary — the algebra's derived-corner
@@ -1041,6 +1045,74 @@ pub enum PathError<T: Real> {
     // radius DOWN, past a bound the geometry fixes. One variant carrying
     // both would have to render one sentence for two situations, which is
     // exactly what D4 ¶1's addendum forbids.
+    /// **The fillet arc is too shallow to be STORED as an arc.** A
+    /// profile holds an arc as its chord and a bulge, and the loop's
+    /// reader classifies that pair back through the same predicates
+    /// validation runs: a fillet whose sagitta `r(1 − cos(θ/2))` sits
+    /// at or below the run's ε is read as a *line*, and the carrier the
+    /// door computed is then absent from what the profile holds — the
+    /// tangency the fillet declares has nothing left to be about.
+    ///
+    /// So the door asks the reader's own question of the loop it is
+    /// about to emit — `seg::build_seg` on the fillet arc and
+    /// `seg::joint_tangency` on each joint the fillet declares — and
+    /// refuses here rather than minting a declaration validation would
+    /// contradict. `predicate` and `margin` are that classification's,
+    /// not a second expression for it.
+    ///
+    /// **Its sibling is
+    /// [`FilletCarrierBelowSceneResolution`](Self::FilletCarrierBelowSceneResolution),
+    /// and the two are deliberately NOT one variant.** They are the two
+    /// ways a stored fillet loses its carrier, they are told apart by a
+    /// fact the door has in hand (whether the stored segment reads as an
+    /// arc), and their levers run in OPPOSITE directions: a larger
+    /// radius fixes this one and makes that one worse. D4 ¶1's addendum
+    /// asks one message and one recourse per user situation, and
+    /// `PathErrorKind` is the branchable discriminant a caller gets —
+    /// merging them would put the only distinction into prose a caller
+    /// would have to parse.
+    FilletArcFlattenedInStorage {
+        /// The fillet arc's sweep read back from the stored bulge,
+        /// 4·atan(b) radians (diagnostic).
+        turn: T,
+        /// The requested fillet radius, meters (diagnostic).
+        radius: T,
+        /// The arc's length, `radius · |turn|` meters (diagnostic).
+        arc_length: T,
+        /// The predicate whose classification refused the stored form.
+        predicate: &'static str,
+        /// The margin it classified, meters.
+        margin: T,
+    },
+    /// **The fillet's stored arc IS an arc, and the scene cannot
+    /// resolve its carrier.** The sagitta is metres; what fails is the
+    /// classification. A carrier clearance is a DIFFERENCE of lengths at
+    /// the scene's own magnitude — `r − |h|`, `d − |r₁ − r₂|` — and such
+    /// a difference cancels first-order, resolving only to about
+    /// `scale · 2^-52`. Past the radius (or the distance from the
+    /// origin) where that floor is coarser than ε, the joint cannot be
+    /// classified whatever the turn is, and the levers run the other way
+    /// from its sibling's: see
+    /// [`FilletArcFlattenedInStorage`](Self::FilletArcFlattenedInStorage)
+    /// for why the two are separate variants.
+    FilletCarrierBelowSceneResolution {
+        /// The fillet arc's sweep read back from the stored bulge,
+        /// 4·atan(b) radians (diagnostic).
+        turn: T,
+        /// The requested fillet radius, meters (diagnostic).
+        radius: T,
+        /// The magnitude the refusing clearance was a difference at,
+        /// meters — the carrier radii, the centre separation, the
+        /// offset from a carrier line.
+        scale: T,
+        /// About the finest that difference could have been read:
+        /// `scale · 2^-52`, meters.
+        resolution: T,
+        /// The predicate whose classification refused the stored form.
+        predicate: &'static str,
+        /// The margin it classified, meters.
+        margin: T,
+    },
     /// A sharp arc LEG was reached while a fillet is still open (its
     /// arrival direction unbound). §2c binds an arc arrival by its own
     /// CARRIER, inside the fused verb — `fillet_arc(r, spec)` /
@@ -1334,6 +1406,10 @@ pub enum PathErrorKind {
     NoCornerOfPair,
     /// [`PathError::FilletOffsetLeverTooShort`].
     FilletOffsetLeverTooShort,
+    /// [`PathError::FilletArcFlattenedInStorage`].
+    FilletArcFlattenedInStorage,
+    /// [`PathError::FilletCarrierBelowSceneResolution`].
+    FilletCarrierBelowSceneResolution,
     /// [`PathError::ArcLegOnOpenFillet`].
     ArcLegOnOpenFillet,
     /// [`PathError::SeamRetrimsArcFirstSide`].
@@ -1398,6 +1474,10 @@ impl<T: Real> PathError<T> {
             Self::NoCornerForFillet { .. } => PathErrorKind::NoCornerForFillet,
             Self::NoCornerOfPair { .. } => PathErrorKind::NoCornerOfPair,
             Self::FilletOffsetLeverTooShort { .. } => PathErrorKind::FilletOffsetLeverTooShort,
+            Self::FilletArcFlattenedInStorage { .. } => PathErrorKind::FilletArcFlattenedInStorage,
+            Self::FilletCarrierBelowSceneResolution { .. } => {
+                PathErrorKind::FilletCarrierBelowSceneResolution
+            }
             Self::ArcLegOnOpenFillet { .. } => PathErrorKind::ArcLegOnOpenFillet,
             Self::SeamRetrimsArcFirstSide => PathErrorKind::SeamRetrimsArcFirstSide,
             Self::NonpositiveLeg { .. } => PathErrorKind::NonpositiveLeg,
@@ -1659,6 +1739,45 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 least_lever = num(least_lever),
                 margin = num(margin)
             ),
+            Self::FilletArcFlattenedInStorage {
+                turn,
+                radius,
+                arc_length,
+                predicate,
+                margin,
+            } => write!(
+                f,
+                "a radius-{radius} m fillet through a turn of {turn} rad is a {arc_length} m \
+                 arc, and a profile stores an arc as a chord and a bulge: read back, it is \
+                 too shallow to be an arc at all — '{predicate}' classifies it at \
+                 {margin} m — so the carrier this fillet computed is not in the stored loop \
+                 and validation would contradict the declaration. {FILLET_FLATTENED_RECOURSE}",
+                radius = num(radius),
+                turn = num(turn),
+                arc_length = num(arc_length),
+                margin = num(margin)
+            ),
+            Self::FilletCarrierBelowSceneResolution {
+                turn,
+                radius,
+                scale,
+                resolution,
+                predicate,
+                margin,
+            } => write!(
+                f,
+                "a radius-{radius} m fillet through a turn of {turn} rad stores as a real \
+                 arc, but its joint's clearance is a difference of lengths of about \
+                 {scale} m, which resolves only to about {resolution} m: '{predicate}' \
+                 classifies it at {margin} m, so the stored loop does not carry the tangency \
+                 this fillet computed and validation would contradict the declaration. \
+                 {FILLET_SCENE_RESOLUTION_RECOURSE}",
+                radius = num(radius),
+                turn = num(turn),
+                scale = num(scale),
+                resolution = num(resolution),
+                margin = num(margin)
+            ),
             Self::ArcLegOnOpenFillet { site } => write!(f, "{site}"),
             Self::DegenerateArcSpec { value } => write!(
                 f,
@@ -1830,6 +1949,35 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                     f,
                     "an authored leg extent could not be told from zero: {payload}. \
                      Author a longer leg, or widen the input tolerance (K·ε)",
+                    payload = source.payload()
+                ),
+                // The STORED-FORM read's own classifications
+                // (`Core::fillets_carry_their_tangency` re-runs
+                // validation's segment and joint predicates on the loop
+                // the door is about to emit). This is not a junction:
+                // the door minted the joint itself, so "declare the
+                // coincidence" is advice about a declaration the caller
+                // never wrote, and the levers are the two the stored
+                // form actually has. The class this arm leaves is
+                // `work/blend/every-escalation-carries-the-coincidence-recourse-first.md`
+                // — an escalation that renders the shared recourse
+                // before its own site's — and this is one instance
+                // repaired at the site.
+                Some(
+                    "vertex_separation"
+                    | "segment_straightness"
+                    | "arc_diameter_clearance"
+                    | "chord_side"
+                    | "carrier_line_circle"
+                    | "carrier_circles_identity"
+                    | "carrier_circles_external"
+                    | "carrier_circles_internal",
+                ) => write!(
+                    f,
+                    "reading back the fillet arc this door is about to store, \
+                     '{predicate}' could not be classified: {payload}. \
+                     {FILLET_STORED_FORM_INBAND_RECOURSE}",
+                    predicate = source.predicate.unwrap_or("<unnamed>"),
                     payload = source.payload()
                 ),
                 // The junction keys (`path_junction_turn`,
@@ -2073,6 +2221,11 @@ pub struct Core<T: Real> {
     pending_meta: Option<PendingMeta<T>>,
     /// The carrier of the last emitted segment when it is an arc.
     last_arc: Option<ArcData<T>>,
+    /// Every fillet arc emitted into the chain, as the index of the
+    /// vertex it LEAVES paired with the radius that was asked for —
+    /// what [`Core::fillets_carry_their_tangency`] re-reads at the
+    /// close, and the radius its sentence names.
+    fillet_arcs: Vec<(usize, T)>,
     /// **Profiles-as-programs (v2)**: the authoring verbs, recorded as
     /// they lower. Each binder pushes exactly its own step, so one
     /// chain yields both the lowered loop and its program.
@@ -2096,6 +2249,7 @@ impl<T: Real> Core<T> {
             pending: None,
             pending_meta: None,
             last_arc: None,
+            fillet_arcs: Vec::new(),
             program: Vec::new(),
             guide: crate::structure::Guide::recording(),
         }
@@ -2198,6 +2352,30 @@ impl<T: Real> Core<T> {
         }
     }
 
+    /// Records the fillet arc of `radius` about to be emitted, for the
+    /// close to re-read, and hands back the vertex index it recorded so
+    /// the caller emits onto the segment it just claimed. Called
+    /// immediately BEFORE the emission, where the chain's last vertex is
+    /// the incoming tangent point the arc leaves — the one spelling for
+    /// both emissions, the interior arc that pushes its end vertex and
+    /// the seam arc that retrims the entry vertex instead.
+    ///
+    /// A fillet arc leaves a vertex, so a chain with no vertices cannot
+    /// be about to emit one; the door says so rather than recording
+    /// nothing and letting the close read a shorter list than the loop
+    /// has arcs.
+    fn record_fillet_arc(&mut self, radius: T) -> Result<usize, PathError<T>> {
+        let leaving = self
+            .verts
+            .len()
+            .checked_sub(1)
+            .ok_or(PathError::UnderdeterminedLeg {
+                site: "a fillet arc emitted onto an empty chain",
+            })?;
+        self.fillet_arcs.push((leaving, radius));
+        Ok(leaving)
+    }
+
     /// Declares the SEAM joint — joint 0, the entry vertex — tangent,
     /// which is the flag the verify layer re-checks. EVERY declared
     /// arrival lands here: every zero-turn joint is a declared tangent
@@ -2214,7 +2392,7 @@ impl<T: Real> Core<T> {
 
     /// Finishes the loop, returning it PAIRED with the program that
     /// produced it (see [`ClosedLoop`]).
-    fn build(mut self) -> ClosedLoop<T> {
+    fn finish(mut self) -> ClosedLoop<T> {
         let structure = self.take_structure();
         ClosedLoop {
             loop_: ProfileLoop {
@@ -2247,6 +2425,15 @@ impl<T: Real> Core<T> {
 fn linear_band<T: Real>(tol: Tol) -> Result<Band, PathError<T>> {
     Band::linear(tol).map_err(PathError::Band)
 }
+
+/// What [`Core::record_fillet_arc`]'s answer means, checked beside
+/// every emission that takes it: the recorded index is the vertex the
+/// arc leaves, which an interior emission leaves two from the end (it
+/// pushed the arc's end vertex) and a seam emission leaves last (it
+/// retrimmed the entry vertex instead). The pairing is what lets the
+/// close find the arc again, and a debug assertion is where it is held
+/// rather than in a comment.
+const PAIRED: &str = "a recorded fillet arc must be the vertex its emission leaves";
 
 /// Unit direction of an angle.
 fn unit<T: Real>(ang: T) -> Vec2<T> {
@@ -2565,6 +2752,162 @@ fn fillet_arc_carrier<T: Real>(trims: &LineFilletTrims<T>, u2: Vec2<T>, radius: 
 }
 
 impl<T: Decide> Core<T> {
+    /// **The door never mints a joint the validator refuses.**
+    ///
+    /// A fillet's declared tangency is a claim about the CARRIERS the
+    /// loop stores, and a profile stores an arc as a chord and a bulge.
+    /// The door computes the fillet's carrier exactly, but what a
+    /// reader gets back is whatever that pair classifies into: a fillet
+    /// whose sagitta `r(1 − cos(θ/2))` sits at or below ε is read as a
+    /// straight segment, and a declaration against a carrier that is
+    /// not there is contradicted.
+    ///
+    /// So before the loop leaves the door, every fillet arc in it is
+    /// re-read the way validation reads it — [`seg::build_seg`] on the
+    /// stored triple, [`seg::joint_tangency`] on each joint the fillet
+    /// DECLARED — and the door refuses what that reading refuses. One
+    /// spelling: no margin and no predicate name is written here that
+    /// the classifier does not hand back.
+    ///
+    /// The reading happens at the close rather than at the emission
+    /// because a joint is a fact about two stored segments, and the
+    /// segment leaving a fillet arc is authored after it — a continuing
+    /// arrival's extent, a seam's retrimmed entry vertex, a following
+    /// verb that extends the leg it lands on. At the close every one of
+    /// them is settled.
+    ///
+    /// **Two losses, two sentences.** Which refusal a failed reading
+    /// gets is decided by a fact the reading itself hands back: whether
+    /// the stored fillet segment came back an ARC. If it did not, the
+    /// carrier is absent and the loss is flattening
+    /// ([`PathError::FilletArcFlattenedInStorage`]); if it did, the
+    /// carrier is there and the clearance is what could not be read, so
+    /// the loss is the scene's resolution
+    /// ([`PathError::FilletCarrierBelowSceneResolution`]). Their levers
+    /// run in opposite directions, which is why they are two variants.
+    ///
+    /// A NEIGHBOUR the segment pass itself refuses (a degenerate leg, a
+    /// near-full arc leg) is left to that pass: its stored form is
+    /// refused on its own terms, which is not a tangency disagreement,
+    /// and the joint it sits on is skipped here.
+    ///
+    /// **Only DECLARED joints are read**, and that is the whole reach.
+    /// A fillet's own joint is declared by construction at every door
+    /// but two: an exact outgoing fit onto a far-end anchor, and an
+    /// arc-carrier arrival whose run the fillet consumes — there the
+    /// direction leaving the arc is free, so the door declares nothing
+    /// and there is no claim for the stored form to fail. What an
+    /// undeclared joint CAN do is come back `Tangent` and draw
+    /// `UndeclaredTangency` from validation; that is a claim about the
+    /// declaration set rather than about the stored form, it is the
+    /// same at every scalar and tolerance, and `rejections.rs` is where
+    /// it is refused. The skip below is that boundary, not an oversight.
+    fn fillets_carry_their_tangency(&self, tol: Tol) -> Result<(), PathError<T>> {
+        let band = linear_band(tol)?;
+        let n = self.verts.len();
+        for &(leaving, radius) in &self.fillet_arcs {
+            let stored = |i: usize| {
+                let v = self.verts[i];
+                seg::build_seg(v.pos(), self.verts[(i + 1) % n].pos(), v.bulge(), band)
+            };
+            // A recorded index always names a vertex of the chain it was
+            // recorded on: `record_fillet_arc` reads `verts.len() - 1`
+            // with the chain's last vertex the arc's own start, and
+            // nothing removes a vertex afterwards. A chain that has
+            // neither is not a loop, and saying so is cheaper than a
+            // silent skip.
+            let arc_seg = leaving
+                .checked_add(1)
+                .filter(|_| n >= 2 && leaving < n)
+                .ok_or(PathError::UnderdeterminedLeg {
+                    site: "a recorded fillet arc outside the chain it was recorded on",
+                })?;
+            let bulge = self.verts[leaving].bulge();
+            let turn = T::from_f64(4.0) * bulge.atan();
+            let flattened =
+                |predicate: &'static str, margin: T| PathError::FilletArcFlattenedInStorage {
+                    turn,
+                    radius,
+                    arc_length: radius * turn.abs(),
+                    predicate,
+                    margin,
+                };
+            let arc = match stored(leaving) {
+                Ok(arc) => arc,
+                Err(seg::SegIssue::Escalated(source)) => {
+                    return Err(PathError::Escalated { source });
+                }
+                Err(
+                    issue @ (seg::SegIssue::Degenerate { margin }
+                    | seg::SegIssue::NearFull { margin }),
+                ) => {
+                    return Err(flattened(issue.predicate(), margin));
+                }
+            };
+            // The stored segment came back an arc, or it did not: that
+            // is the discriminator between the two losses, read off the
+            // classification rather than guessed from the geometry.
+            let stores_an_arc = matches!(arc.kind, seg::SegKind::Arc(_));
+            // Joint v is the junction between segment v − 1 and segment
+            // v, so the arc's incoming joint is its own index and its
+            // outgoing joint the next one — each checked only where the
+            // door declared it (see the reach, above).
+            for (joint, before) in [(leaving, true), (arc_seg % n, false)] {
+                if !self.tangent.contains(&joint) {
+                    continue;
+                }
+                let other = if before {
+                    (leaving + n - 1) % n
+                } else {
+                    arc_seg % n
+                };
+                let Ok(other) = stored(other) else { continue };
+                let (prev, next) = if before {
+                    (&other, &arc)
+                } else {
+                    (&arc, &other)
+                };
+                let reading = seg::joint_tangency(prev, next, band)
+                    .map_err(|source| PathError::Escalated { source })?;
+                match reading.class {
+                    // A declared joint whose carriers are tangent is
+                    // the construction verified; one whose carriers are
+                    // the SAME is a declared tangent joint too (the
+                    // directions agree), and validation accepts it.
+                    seg::JointClass::Tangent | seg::JointClass::SameCarrier => {}
+                    seg::JointClass::Transversal if stores_an_arc => {
+                        return Err(PathError::FilletCarrierBelowSceneResolution {
+                            turn,
+                            radius,
+                            scale: reading.scale,
+                            // `f64::EPSILON` by design, not by omission: every scalar this
+                            // kernel ships carries an f64 VALUE channel (a dual's value, an
+                            // interval's midpoint), so this is the resolution floor at any
+                            // `T`; an interval's own enclosure width is `margin`, printed
+                            // beside it, not folded into this number.
+                            resolution: reading.scale * T::from_f64(f64::EPSILON),
+                            predicate: reading.predicate,
+                            margin: reading.margin,
+                        });
+                    }
+                    seg::JointClass::Transversal => {
+                        return Err(flattened(reading.predicate, reading.margin));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Finishes the loop, after re-reading every fillet arc in it the
+    /// way validation will ([`Core::fillets_carry_their_tangency`]):
+    /// the door's output is a loop whose fillet declarations the stored
+    /// form carries, or it is a refusal.
+    fn build(self, tol: Tol) -> Result<ClosedLoop<T>, PathError<T>> {
+        self.fillets_carry_their_tangency(tol)?;
+        Ok(self.finish())
+    }
+
     /// Takes the opened fillet and its chain-side bookkeeping together.
     fn take_pending(
         &mut self,
@@ -2621,7 +2964,9 @@ impl<T: Decide> Core<T> {
                 // The fillet arc IS the closing segment; the entry
                 // vertex retrims to its end and joint 0 is the
                 // constructed seam tangency (the straight seam's rule).
+                let leaving = self.record_fillet_arc(arc.radius)?;
                 self.set_leaving(trims.bulge, FirstSeg::Arc)?;
+                debug_assert_eq!(leaving, self.verts.len() - 1, "{PAIRED}");
                 match self.verts.first_mut() {
                     Some(v0) => v0.pos = trims.t2,
                     None => {
@@ -2769,6 +3114,7 @@ impl<T: Decide> Core<T> {
         // must declare manually). Seam: the arc IS the closing
         // segment; the entry vertex retrims to its end and joint 0 is
         // the constructed seam tangency.
+        let leaving = self.record_fillet_arc(pending.radius)?;
         if kind == ArrivalKind::Seam {
             self.set_leaving(trims.bulge, FirstSeg::Arc)?;
             match self.verts.first_mut() {
@@ -2780,8 +3126,10 @@ impl<T: Decide> Core<T> {
                 }
             }
             self.tangent.push(0);
+            debug_assert_eq!(leaving, self.verts.len() - 1, "{PAIRED}");
         } else {
             self.push_arc(trims.t2, trims.bulge, arc)?;
+            debug_assert_eq!(leaving, self.verts.len() - 2, "{PAIRED}");
             // The outgoing joint is declared only when something
             // tangent actually follows it (see [`ArrivalKind`]): a
             // continuing arrival always rides the arrival ray, and a
@@ -2899,7 +3247,9 @@ impl<T: Decide> Core<T> {
         t: &arc_fillet::ArcFilletTrims<T>,
         declare: bool,
     ) -> Result<(), PathError<T>> {
+        let leaving = self.record_fillet_arc(t.arc.radius)?;
         self.push_arc(t.t2, t.bulge, t.arc)?;
+        debug_assert_eq!(leaving, self.verts.len() - 2, "{PAIRED}");
         if declare {
             self.declare_last();
         }
@@ -3476,7 +3826,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         // `.tangent()` is, and the verify layer re-checks the flag.
         self.core.declare_last();
         self.core.set_leaving(T::zero(), FirstSeg::Line)?;
-        Ok(self.core.build())
+        self.core.build(tol)
     }
 
     /// The kernel behind the table's declared-subdivision row (recording
@@ -3703,7 +4053,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             )?;
         }
         self.core.set_leaving(g.bulge, FirstSeg::Arc)?;
-        Ok(self.core.build())
+        self.core.build(tol)
     }
 }
 
@@ -3786,7 +4136,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
             )?;
         }
         self.core.set_leaving(T::zero(), FirstSeg::Line)?;
-        Ok(self.core.build())
+        self.core.build(tol)
     }
 
     /// The chord length, gated definitely positive: every arc leg spans
@@ -3958,7 +4308,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
             )?;
         }
         self.core.set_leaving(bulge, FirstSeg::Arc)?;
-        Ok(self.core.build())
+        self.core.build(tol)
     }
 }
 
@@ -4018,7 +4368,7 @@ impl<T: Decide> PartialPath<T, NoPos, NoAng> {
         })?;
         self.core
             .resolve_fillet(start_pos, start_ang, ArrivalKind::Seam, tol)?;
-        Ok(self.core.build())
+        self.core.build(tol)
     }
 }
 
@@ -4738,5 +5088,387 @@ mod tests {
         // The ladder ran: a `while` whose first test failed would pass
         // every assertion above vacuously.
         assert!(rungs >= 30, "the magnitude ladder covered {rungs} rungs");
+    }
+}
+
+/// **What a stored fillet arc can carry of the tangency the door
+/// computed** — the measurement behind the door's own stored-form
+/// check, over four decades of corner turn at whatever ε the run
+/// commits.
+///
+/// A fillet arc is emitted as a chord plus a bulge. Its sagitta,
+/// `L·b/2 = r(1 − cos(θ/2))`, is the margin `segment_straightness`
+/// classifies, so a fillet whose turn is small enough that
+/// `r·θ²/8 ≤ ε` is stored as a segment the validator reads as a
+/// **line**: the carrier the door computed is not in the stored form at
+/// all. The door's own carrier, by contrast, is tangent to both legs to
+/// within a few ulps at every turn — which is what
+/// [`the_door_computes_its_tangency_to_the_ulp`] asserts and what
+/// decides that the door, not the classifier, is the side that has to
+/// ask before it emits.
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::print_stdout
+)]
+mod fillet_stored_form {
+    use super::*;
+    use crate::path::verbs::Center;
+    use crate::seg::{self, JointClass, Seg, SegIssue, SegKind};
+    use crate::sugar::ArcSweep;
+    use crate::{Profile, ProfileLoop, SketchPlane};
+
+    /// The fillet radius every corner below is rounded with.
+    const R: f64 = 0.2;
+
+    fn p2(x: f64, y: f64) -> Point2<f64> {
+        Point2::new(x, y)
+    }
+
+    /// The arrival leg's carrier. The door's fillet arc is tangent to it
+    /// at `t2`, so the carrier's unit tangent there plus the turn sense
+    /// reconstructs the centre the door computed — `fillet_arc_carrier`'s
+    /// `t2 + n̂·σr`, read from the stored end point.
+    #[derive(Clone, Copy)]
+    enum Arrival {
+        Ray(Vec2<f64>),
+        Circle { c: Point2<f64>, ccw: bool },
+    }
+
+    impl Arrival {
+        /// The direction of travel along the carrier at `p`.
+        fn tangent_at(self, p: Point2<f64>) -> Vec2<f64> {
+            match self {
+                Arrival::Ray(u) => u,
+                Arrival::Circle { c, ccw } => {
+                    let radial = p - c;
+                    let t = Vec2::new(-radial.y, radial.x) / radial.norm_squared().sqrt();
+                    if ccw { t } else { -t }
+                }
+            }
+        }
+    }
+
+    /// One corner of the sweep: the door that rounds it, the arrival
+    /// carrier its fillet arc ends tangent to, and a name for the table.
+    struct Corner {
+        name: &'static str,
+        build: fn(f64) -> Result<ProfileLoop<f64>, PathError<f64>>,
+        arrival: fn(f64) -> Arrival,
+    }
+
+    /// The same segment, re-carried onto the circle (`centre`,
+    /// `radius`) — the carrier the DOOR computed, in place of the one
+    /// the stored bulge reconstructs. Everything else about the segment
+    /// is kept, so [`seg::joint_tangency`] classifies the door's carrier
+    /// through exactly the arms it classifies the stored one through:
+    /// the measurement is a substitution, not a second expression.
+    fn on_the_doors_carrier(arc: &Seg<f64>, centre: Point2<f64>, radius: f64) -> Seg<f64> {
+        let toward_apex = (arc.a.lerp(arc.b, 0.5) - centre).normalize();
+        let apex = centre + toward_apex * radius;
+        Seg {
+            kind: SegKind::Arc(seg::ArcGeom {
+                center: centre,
+                radius,
+                apex,
+                span_chord: arc.a.distance(apex),
+                turn: if arc.bulge >= 0.0 {
+                    Sign::Positive
+                } else {
+                    Sign::Negative
+                },
+            }),
+            ..*arc
+        }
+    }
+
+    /// A joint's reading as one printable cell: the class, the predicate
+    /// the funnel stopped at and the margin it classified — all three
+    /// from [`seg::joint_tangency`], none of them re-derived here.
+    fn reading(prev: &Seg<f64>, next: &Seg<f64>, band: Band) -> (String, f64) {
+        match seg::joint_tangency(prev, next, band) {
+            Ok(j) => (
+                format!(
+                    "{} ({} {:e})",
+                    match j.class {
+                        JointClass::Tangent => "tangent",
+                        JointClass::Transversal => "TRANSVERSAL",
+                        JointClass::SameCarrier => "same-carrier",
+                    },
+                    j.predicate,
+                    j.margin
+                ),
+                j.margin,
+            ),
+            Err(i) => (
+                format!("escalated ({})", i.predicate.unwrap_or("?")),
+                f64::NAN,
+            ),
+        }
+    }
+
+    fn short(s: &str) -> String {
+        s.chars().take(72).collect()
+    }
+
+    /// The stored fillet arc of a door-built loop: the segment whose two
+    /// joints the door both declared tangent.
+    fn fillet_index(lp: &ProfileLoop<f64>) -> Option<usize> {
+        let vs = lp.vertices();
+        let n = vs.len();
+        let declared = lp.tangent_joints();
+        (0..n).find(|&i| {
+            declared.contains(&i) && declared.contains(&((i + 1) % n)) && vs[i].bulge() != 0.0
+        })
+    }
+
+    /// What the door emitted for one turn and what the validator reads
+    /// back out of it: one table row, and the door's own tangency
+    /// margins at both joints for the assertion above the table.
+    fn row(lp: &ProfileLoop<f64>, arrival: Arrival, theta: f64, tol: Tol) -> (String, [f64; 2]) {
+        let band = match Band::linear(tol) {
+            Ok(b) => b,
+            Err(e) => return (format!("| {theta:e} | band: {e} |"), [0.0; 2]),
+        };
+        let vs = lp.vertices();
+        let n = vs.len();
+        let Some(s) = fillet_index(lp) else {
+            return (
+                format!(
+                    "| {theta:e} | no joint-declared arc: n = {n}, declared = {:?}, bulges = {:?} |",
+                    lp.tangent_joints(),
+                    vs.iter().map(|v| v.bulge()).collect::<Vec<_>>()
+                ),
+                [0.0; 2],
+            );
+        };
+        let built: Vec<Result<Seg<f64>, SegIssue<f64>>> = (0..n)
+            .map(|i| seg::build_seg(vs[i].pos(), vs[(i + 1) % n].pos(), vs[i].bulge(), band))
+            .collect();
+        let validates = match Profile::new(SketchPlane::xy(), vec![lp.clone()]).validate(tol) {
+            Ok(_) => "ok".to_string(),
+            Err(e) => format!("REFUSED: {}", short(&e.to_string())),
+        };
+        let bulge = vs[s].bulge();
+        let chord = vs[s].pos().distance(vs[(s + 1) % n].pos());
+        let head = format!(
+            "| {theta:e} | {:e} | {chord:e} | {bulge:e} | {:e} |",
+            R * theta,
+            (chord * bulge * 0.5).abs()
+        );
+        let (prev, next) = ((s + n - 1) % n, (s + 1) % n);
+        let (Ok(arc), Ok(p), Ok(nx)) = (&built[s], &built[prev], &built[next]) else {
+            let tag = |r: &Result<Seg<f64>, SegIssue<f64>>| match r {
+                Ok(Seg {
+                    kind: SegKind::Line,
+                    ..
+                }) => "line".to_string(),
+                Ok(_) => "arc".to_string(),
+                Err(e) => format!("refused: {}", e.predicate()),
+            };
+            return (
+                format!(
+                    "{head} prev {}, fillet {}, next {} | - | - | - | - | - | - | - | - | built | \
+                     {validates} |",
+                    tag(&built[prev]),
+                    tag(&built[s]),
+                    tag(&built[next])
+                ),
+                [0.0; 2],
+            );
+        };
+        let t2 = arc.b;
+        let u2 = arrival.tangent_at(t2);
+        let sigma = if bulge >= 0.0 { R } else { -R };
+        let door_centre = t2 + Vec2::new(-u2.y, u2.x) * sigma;
+        let carried = on_the_doors_carrier(arc, door_centre, R);
+        let (door_in, m_door_in) = reading(p, &carried, band);
+        let (door_out, m_door_out) = reading(&carried, nx, band);
+        let (joint_in, _) = reading(p, arc, band);
+        let (joint_out, _) = reading(arc, nx, band);
+        let (d_centre, d_radius, kind) = match &arc.kind {
+            SegKind::Arc(g) => (
+                format!("{:e}", g.center.distance(door_centre)),
+                format!("{:e}", (g.radius - R).abs()),
+                "arc",
+            ),
+            SegKind::Line => ("stored as a line".to_string(), "-".to_string(), "line"),
+        };
+        (
+            format!(
+                "{head} {kind} | {d_centre} | {d_radius} | {joint_in} | {joint_out} | \
+                 {door_in} | {door_out} | built | {validates} |"
+            ),
+            [m_door_in, m_door_out],
+        )
+    }
+
+    /// The item's line × line bend: the incoming ray runs east from the
+    /// origin, the corner sits at (4, 0), the arrival leaves it at
+    /// `theta`, anchored three units along.
+    fn line_line(theta: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+        let anchor = p2(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
+        Open.at(p2(0.0, 0.0))
+            .angle(0.0, Tol::witness())?
+            .fillet(R, Tol::witness())?
+            .at(anchor, Tol::witness())?
+            .angle(theta, Tol::witness())?
+            .line(1.0, Tol::witness())?
+            .line_to(Start, Tol::witness())
+            .map(|c| c.loop_)
+    }
+
+    /// The line × arc corner's arrival circle: radius 2, counterclockwise
+    /// tangent (cos θ, sin θ) at the corner (4, 0).
+    fn line_arc_centre(theta: f64) -> Point2<f64> {
+        p2(4.0 - 2.0 * theta.sin(), 2.0 * theta.cos())
+    }
+
+    /// A line × arc corner turning by `theta`: the east ray from the
+    /// origin meets that circle at (4, 0) and the fillet closes along it.
+    fn line_arc(theta: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+        let c = line_arc_centre(theta);
+        let start = c + Vec2::new(2.0 * theta.cos(), 2.0 * theta.sin());
+        Open.at(start)
+            .line_to(p2(0.0, 0.0), Tol::witness())?
+            .toward(1.0, 0.0, Tol::witness())?
+            .fillet_arc(
+                R,
+                Center {
+                    c,
+                    winding: ArcSweep::Ccw,
+                    p: Start,
+                },
+                Tol::witness(),
+            )
+            .map(|c| c.loop_)
+    }
+
+    /// An arc × arc corner turning by `theta`: two radius-2 circles about
+    /// (−θ, 0) and (θ, 0) cross at (0, √(4 − θ²)), where their tangents
+    /// are an angle θ apart — the vesica of the arc × arc fixtures, with
+    /// its corner opened out to a shallow turn.
+    fn arc_arc(theta: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+        Open.arc_fillet_arc(
+            Center {
+                c: p2(-theta, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(2.0 - theta, 0.0),
+            },
+            R,
+            Center {
+                c: p2(theta, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(theta - 2.0, 0.0),
+            },
+            Tol::witness(),
+        )?
+        .line_to(Start, Tol::witness())
+        .map(|c| c.loop_)
+    }
+
+    fn corners() -> [Corner; 3] {
+        [
+            Corner {
+                name: "line x line",
+                build: line_line,
+                arrival: |t| Arrival::Ray(Vec2::new(t.cos(), t.sin())),
+            },
+            Corner {
+                name: "line x arc",
+                build: line_arc,
+                arrival: |t| Arrival::Circle {
+                    c: line_arc_centre(t),
+                    ccw: true,
+                },
+            },
+            Corner {
+                name: "arc x arc",
+                build: arc_arc,
+                arrival: |t| Arrival::Circle {
+                    c: Point2::new(t, 0.0),
+                    ccw: true,
+                },
+            },
+        ]
+    }
+
+    /// The swept turns: `c·10^k`, `c ∈ {1, 2, 5}`, `k ∈ {−9 … −2}`.
+    fn turns() -> impl Iterator<Item = f64> {
+        (-9i32..=-2).flat_map(|k| [1.0, 2.0, 5.0].map(|c| c * 10f64.powi(k)))
+    }
+
+    /// **The door computes the tangency exactly; the stored form is what
+    /// loses it.** At every turn the door builds, the carrier the door
+    /// computed — radius `r`, centred `r` off the arrival carrier at the
+    /// arc's end — is tangent to both legs to within a few ulps of `r`,
+    /// whatever the stored chord-and-bulge form reads back as. The table
+    /// this prints (`--nocapture`) is the per-decade measurement: the
+    /// stored kind, the two carrier errors, the margins both sides
+    /// decide on, and both verdicts.
+    #[test]
+    fn the_door_computes_its_tangency_to_the_ulp() {
+        let tol = Tol::witness();
+        // What the sweep MEASURES, with stated headroom rather than a
+        // round number well above it: the largest door-carrier margin
+        // anywhere in these three tables at any of the three epsilon
+        // rows is 6.7e-16, and this pins 3.6e-15 — eight ulps of the
+        // corners' own metre-scale coordinates, five times the measured
+        // worst case. A pin an order of magnitude looser would pass a
+        // door whose carrier had stopped being exact.
+        let ulps = 16.0 * f64::EPSILON;
+        for corner in corners() {
+            println!(
+                "\n### {}   eps = {:e}  K = {}  band = ({:e}, {:e})  r = {R}",
+                corner.name,
+                tol.eps(),
+                tol.k(),
+                tol.eps(),
+                tol.eps() * tol.k()
+            );
+            println!(
+                "| turn | r*turn | chord | bulge | sagitta | stored kind | |dcentre| | |dradius| \
+                 | joint in | joint out | door in | door out | door | validate |"
+            );
+            println!("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+            for theta in turns() {
+                match (corner.build)(theta) {
+                    Err(e) => println!(
+                        "| {theta:e} | {:e} | - | - | - | - | - | - | - | - | - | - | \
+                         REFUSED: {} | - |",
+                        R * theta,
+                        short(&e.to_string())
+                    ),
+                    Ok(lp) => {
+                        let (line, door) = row(&lp, (corner.arrival)(theta), theta, tol);
+                        println!("{line}");
+                        for (joint, margin) in door.iter().enumerate() {
+                            assert!(
+                                margin.abs() <= ulps,
+                                "{}, turn {theta:e}: the door's own carrier misses tangency at \
+                                 joint {joint} by {margin:e}",
+                                corner.name
+                            );
+                        }
+                        // The door's promise: nothing it builds carries
+                        // a declared tangency validation refuses.
+                        if let Err(e) = Profile::new(SketchPlane::xy(), vec![lp]).validate(tol) {
+                            assert!(
+                                !matches!(
+                                    e,
+                                    crate::ProfileError::TangencyContradicted { .. }
+                                        | crate::ProfileError::UndeclaredTangency { .. }
+                                ),
+                                "{}, turn {theta:e}: the door built a loop validation refuses \
+                                 for its declared tangency: {e}",
+                                corner.name
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
 }

@@ -886,3 +886,30 @@ that waits on the fillet row is
 `work/sym/declared-tangency-needs-the-registered-identity-door`: until
 the constructor's centre is statable there is nothing to register, so
 the rounded pad certifies nothing. Neither row is dispatched here yet.
+**MERGED — unit 10 (2026-09-13)** on PR [#2497](https://github.com/evgunter/cad/pull/2497):
+the path fillet door never mints a joint the validator refuses for its
+declaration; the item closed. Dual: bilateral headline at differing
+severity (a second loss mechanism), no tally candidate; the fix pass
+gave the two situations two arms and two sentences, homed the
+recourses, made every pin non-degradable, deleted the harness copies,
+and widened the differential's corpus. Delta by R1 on the fixed head:
+recorded below. Sample #183 (main's order rules). Residues on the
+slate from this unit: the `arc_span`/`line_span` class between legs;
+the coincidence-recourse instance.
+Delta (R1, on `99a9d124`): all seven items CONFIRMED by execution —
+both arms with their own laws and levers read off the errors at the
+far scene (`FilletCarrierBelowSceneResolution`), in band (the relayed
+arm, no coincidence recourse) and inside the window
+(`FilletArcFlattenedInStorage`); the other reviewer's large-radius
+witness with the lever reversal measured; the followability rows
+green at three ε rows with the impossible regime asserted; every pin
+non-degradable and the skip-the-check mutant red on 18 integration
+rows plus the lib row at all three ε rows; the K count by branch; the
+harness copies gone; one margin helper at three sites; the
+`SameCarrier` doc; `UndeclaredTangency` shown NOT constructible
+through the public door (the named shape refuses `JunctionTangent`
+first); the differential re-taken independently (70 → 46 / 46, clean);
+nothing lost in the lane's mid-differential checkout. One NOTE: the
+scene-resolution arm's printed resolution hard-codes the f64 machine
+epsilon in a `T`-generic refusal — stated at the site as the value
+channel's floor at any scalar, in the state-sync commit.

@@ -2061,6 +2061,19 @@ of those paths is recoverable at this entry's sweep SHA.
   was a design pass), samples #39, #40, #43, #49, #50, #114, #115,
   #118, #124, #145, #150 and #173, with three symmetric tally pairs.
   Nothing renumbers.
+## Per-merge deletion — BLEND-10's spec (2026-09-13)
+
+Recoverable at `git show 99a9d12448dcc47bbe1f029c0ec084b58716a167:docs/BLEND-10-SPEC.md`
+(the fix-pass head). Three of its sentences did not survive
+measurement: its hypothesis named reconstruction error where the loss
+is the stored chord-plus-bulge form flattening to a line below
+`θ* = √(8ε/r)` (and a second, first-order-in-radius loss the reviewers
+found); its recourse said "a smaller radius", which makes the sagitta
+worse; and its "before the arc is emitted" cannot run, since the
+outgoing joint's second segment does not exist at emission. All three
+are recorded in the PR body and the unit's log entry.
+
+- `BLEND-10-SPEC.md` — BLEND-10, the path fillet door never mints a joint the validator refuses (#2497)
 
 ## Sweep 12 — 2026-09-12: CITE leaves the tracker
 
