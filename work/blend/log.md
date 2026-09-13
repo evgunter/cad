@@ -724,3 +724,23 @@ fixtures, and filed the recourse-metering residue. Delta by R1 on the
 fixed head: recorded below. Sample #182 (main's order rules). Residues
 on the slate from this unit:
 `anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction`.
+Delta (R1, on `7e0758c8`): all seven items CONFIRMED by execution —
+nine adopted rows green at three ε rows with the anchor-fit payloads
+byte-identical across them (the closer bucket honest); the struck
+reason surviving nowhere; the pick through `nearest_candidate` with a
+re-taken 19,104-line dump identical to the reviewed head's; the census
+row a `Selection`; the array pin's reason right; the docs; the
+line×arc grid's unreproducibility CLOSED (234 / 180 / 66 rebuilt from
+the committed fixture); all five mutants as tabled, and the
+candidate-tie mutant now RED in the crate's lib suite (re-homing the
+pick closed R1's MINOR-2 as a side effect). Four new findings: DL5 has
+no arm for a selection whose result is the payload — FILED unowned
+(`dl5-has-no-arm-for-a-selection-whose-result-is-the-payload`; ratified
+ground, Ev's call); the censuses' closer bucket unbounded — bounded
+(`≤ 2`) in the state-sync commit; the array pin's comment naming the
+geometry where the guarantee is the producers' arity — one sentence
+added; `nearest_candidate`'s dominance argument cited for non-survivors
+— the widening stated at the call. The README's new candidate-level
+paragraph (new text beside a ratified clause, no clause id) is flagged
+for Ev's read: it scopes itself one level below the envelope and
+retires nothing.

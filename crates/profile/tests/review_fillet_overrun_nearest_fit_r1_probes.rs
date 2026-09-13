@@ -168,6 +168,11 @@ fn the_grid_a_recourse_census_says_which_way_the_reported_deficit_errs() {
         }
     });
     println!("recourse census: builds {builds}, the closer answered at this ε: {closer:?}");
+    // The closer bucket is bounded: two loops at the 1e-6 row, none at the
+    // others. Without this bound the sum below would stay green while the
+    // fillet's own answer slid into the closer's (the guarantee-degrades
+    // shape).
+    assert!(closer.len() <= 2, "closer bucket {closer:?}");
     assert_eq!(
         (not_a_request, still_refusing, builds + closer.len(), other),
         (469, 2_111, 605, 0),

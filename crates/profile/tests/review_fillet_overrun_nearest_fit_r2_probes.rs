@@ -239,6 +239,9 @@ fn the_recourse_census_on_grid_a() {
         "grid A's anchor-fit entries"
     );
     println!("recourse census: builds {builds}, the closer answered at this ε: {closer:?}");
+    // Bounded so the fillet's answer cannot slide into the closer's bucket
+    // unnoticed (two loops at the 1e-6 row, none at the others).
+    assert!(closer.len() <= 2, "closer bucket {closer:?}");
     assert_eq!(
         (builds + closer.len(), refuses, not_a_request),
         (605, 2_111, 469),

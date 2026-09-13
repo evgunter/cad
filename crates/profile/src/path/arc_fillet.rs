@@ -544,6 +544,12 @@ fn map_refusal<T: Bounds>(refusal: ArcTrimRefusal<T>, radius: T) -> CornerOutcom
                 .iter()
                 .map(|c| [c.legs[0].setback.lo(), c.legs[1].setback.lo()])
                 .collect();
+            // `nearest_candidate` argues componentwise dominance for the
+            // SURVIVORS of the corner-side extent gates; here it is asked of
+            // the non-survivors. The class is the same (the enclosing arm
+            // refuses before any candidate is derived), and dominance was
+            // measured at every two-overrun corner of grid A (232/232), so
+            // the citation is widened knowingly, not silently.
             let nearest = candidates[nearest_candidate(&setbacks)];
             let leg = if nearest.legs[1].margin.lo() < nearest.legs[0].margin.lo() {
                 nearest.legs[1]

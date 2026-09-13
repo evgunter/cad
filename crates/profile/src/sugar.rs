@@ -677,8 +677,11 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
             // Two distinct circles, or a line and a circle, meet in at
             // most two points: that is why `offset_circles` and
             // `offset_line_circle` hand back at most two centres, and
-            // why two slots are the honest size. A third overrun is a
-            // broken producer, not a case, and is refused loudly.
+            // why two slots are the honest size. The guarantee this site
+            // rests on is the producers' ARITY (each hands back a `vec!`
+            // of at most two centres); the geometry is why that arity is
+            // the right one. A third overrun is a broken producer, not a
+            // case, and is refused loudly.
             match overruns {
                 [None, _] => overruns[0] = Some(candidate),
                 [Some(_), None] => overruns[1] = Some(candidate),
