@@ -15,7 +15,7 @@ use geom_core::Tol;
 use geom_core::{Point2, Real};
 use profile::RawLoop;
 use profile::{
-    ArcSweep, ClosedLoop, CornerReason, CornerRefusal, FilletLeg, FilletLegCarrier, Open,
+    ArcSweep, Center, ClosedLoop, CornerReason, CornerRefusal, FilletLeg, FilletLegCarrier, Open,
     PathError, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start,
 };
 
@@ -720,4 +720,193 @@ pub fn fillet_escalation_rendered(predicate: &'static str, tol: geom_core::Tol) 
         },
     }
     .to_string()
+}
+
+// ------------------------------------------------------------------
+// The arc-carrier fillet grids and the anchor-fit readers: FILLET-ATTR's
+// grid A and the line×arc grid, homed once so a suite that walks them
+// reads the same authorings by the same ordinals.
+// ------------------------------------------------------------------
+
+/// The point `angle` radians round the circle of radius `r` about
+/// `centre`.
+pub fn on_circle(centre: Point2<f64>, r: f64, angle: f64) -> Point2<f64> {
+    p2(centre.x + r * angle.cos(), centre.y + r * angle.sin())
+}
+
+/// **Grid A's authoring** (PR 1895's parameters): the corner at the
+/// origin, each carrier of radius `r_c` winding `tau` with the corner at
+/// angle `a` about its centre, each far anchor `delta` radians from the
+/// corner along its own leg, filleted at `r`. `case` is
+/// `[a_in, r_in, tau_in, delta_in, a_out, r_out, tau_out, delta_out]`.
+pub fn arc_arc(case: [f64; 8], r: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
+    let [
+        a_in,
+        r_in,
+        tau_in,
+        delta_in,
+        a_out,
+        r_out,
+        tau_out,
+        delta_out,
+    ] = case;
+    let c1 = p2(-r_in * a_in.cos(), -r_in * a_in.sin());
+    let c2 = p2(-r_out * a_out.cos(), -r_out * a_out.sin());
+    let head = on_circle(c1, r_in, a_in - tau_in * delta_in);
+    let next = on_circle(c2, r_out, a_out + tau_out * delta_out);
+    let w = |t: f64| if t > 0.0 { ArcSweep::Ccw } else { ArcSweep::Cw };
+    let closed = Open
+        .arc_fillet_arc(
+            Center {
+                c: c1,
+                winding: w(tau_in),
+                p: head,
+            },
+            r,
+            Center {
+                c: c2,
+                winding: w(tau_out),
+                p: next,
+            },
+            Tol::witness(),
+        )?
+        .line_to(Start, Tol::witness())?;
+    Ok(closed.loop_)
+}
+
+/// **Grid A**, PR 1895's grid verbatim: R_in in {0.2, 0.4, 0.15}, R_out
+/// in {0.2, 0.15, 0.5}, tau in {+1, -1} on both sides, corner angle 0.4k
+/// for k = 1..7, deltas in {0.3, 0.95π} × {0.3, 0.95π/2, 2.6} with 2.6
+/// on both, r = 0.05m for m = 1..8 — 18 144 authorings, each visited
+/// with its ordinal (from 1), its case, its radius and its outcome. The
+/// ordinal is how a row names an authoring, so the enumeration order
+/// here is part of the fixture.
+pub fn grid_a(
+    mut visit: impl FnMut(usize, [f64; 8], f64, &Result<ProfileLoop<f64>, PathError<f64>>),
+) -> usize {
+    let mut n = 0_usize;
+    for r_in in [0.2, 0.4, 0.15] {
+        for r_out in [0.2, 0.15, 0.5] {
+            for tau_in in [1.0, -1.0] {
+                for tau_out in [1.0, -1.0] {
+                    for k in 1..=7 {
+                        let a_out = 0.4 * f64::from(k);
+                        for delta_in in [0.3, 0.95 * core::f64::consts::PI, 2.6] {
+                            for delta_out in [0.3, 0.95 * core::f64::consts::PI / 2.0, 2.6] {
+                                for m in 1..=8 {
+                                    n += 1;
+                                    let case = [
+                                        0.0, r_in, tau_in, delta_in, a_out, r_out, tau_out,
+                                        delta_out,
+                                    ];
+                                    let r = 0.05 * f64::from(m);
+                                    visit(n, case, r, &arc_arc(case, r));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    n
+}
+
+/// **The line×arc authoring**: a ray from `(sx·R/2, 0)` east onto the
+/// circle of radius `big_r` about the origin, anchored `ang` radians
+/// round it, filleted at `r` and closed back to the start. The derived
+/// corner is `(R, 0)`.
+pub fn line_arc(
+    big_r: f64,
+    sx: f64,
+    winding: ArcSweep,
+    ang: f64,
+    r: f64,
+) -> Result<ProfileLoop<f64>, PathError<f64>> {
+    Open.at(p2(sx * big_r / 2.0, 0.0))
+        .toward(1.0, 0.0, Tol::witness())?
+        .fillet_arc(
+            r,
+            Center {
+                c: p2(0.0, 0.0),
+                winding,
+                p: on_circle(p2(0.0, 0.0), big_r, ang),
+            },
+            Tol::witness(),
+        )?
+        .line_to(Start, Tol::witness())
+        .map(|c| c.loop_)
+}
+
+/// **The line×arc grid**: R ∈ {2, 1, 0.5}, sx ∈ {0.2, 0.8, 1.4, 1.9},
+/// both windings, anchor angle ∈ {0.3, 1.0, 2.0, 2.9}, r = 0.05mR for
+/// m = 1..10 — 960 authorings, visited in that order with their
+/// outcome.
+pub fn line_arc_grid(mut visit: impl FnMut(&Result<ProfileLoop<f64>, PathError<f64>>)) -> usize {
+    let mut n = 0_usize;
+    for big_r in [2.0, 1.0, 0.5] {
+        for sx in [0.2, 0.8, 1.4, 1.9] {
+            for winding in [ArcSweep::Ccw, ArcSweep::Cw] {
+                for ang in [0.3, 1.0, 2.0, 2.9] {
+                    for m in 1..=10 {
+                        n += 1;
+                        visit(&line_arc(
+                            big_r,
+                            sx,
+                            winding,
+                            ang,
+                            0.05 * f64::from(m) * big_r,
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    n
+}
+
+/// Every anchor-fit entry of a refusal, in envelope order, as
+/// `(corner, side, setback, available)`; empty for any other refusal.
+pub fn anchor_fit_entries(err: &PathError<f64>) -> Vec<(Point2<f64>, FilletLeg, f64, f64)> {
+    corners(err)
+        .iter()
+        .filter_map(|c| match c.reason {
+            CornerReason::AnchorOutsideTrimmedExtent {
+                side,
+                setback,
+                available,
+                ..
+            } => Some((c.at, side, setback, available)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The anchor-fit entry at the corner `at` (to 1e-9), as
+/// `(side, carrier, setback, available)`; a row asserting a corner's
+/// numbers names the corner, so a wrong-corner entry reads as the
+/// wrong refusal rather than as the wrong number.
+pub fn anchor_fit_at(
+    err: &PathError<f64>,
+    at: (f64, f64),
+) -> (FilletLeg, FilletLegCarrier, f64, f64) {
+    corners(err)
+        .iter()
+        .find(|c| (c.at.x - at.0).abs() < 1e-9 && (c.at.y - at.1).abs() < 1e-9)
+        .and_then(|c| match c.reason {
+            CornerReason::AnchorOutsideTrimmedExtent {
+                side,
+                carrier,
+                setback,
+                available,
+            } => Some((side, carrier, setback, available)),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("no anchor-fit entry at {at:?} in {err:?}"))
+}
+
+/// Two `f64`s within 1e-9 — the tolerance a measured payload number is
+/// pinned at.
+pub fn close(a: f64, b: f64) -> bool {
+    (a - b).abs() < 1e-9
 }
