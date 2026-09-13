@@ -26,6 +26,8 @@
 //! door's own error value and the rendered text read — never inferred
 //! from the order of the arms in the source.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use geom_core::{Band, Indeterminate, MarginDiag, MissingRecourse, Tol};
 use std::collections::BTreeSet;
 use sweep::blend::{BlendError, BlendSite};
@@ -154,7 +156,10 @@ fn call_sites(code: &str, token: &str, suffixed: bool) -> Vec<usize> {
         let skipped = rest.len() - tail.len();
         if suffixed {
             let suffix: String = rest.chars().take_while(|c| *c != '(').collect();
-            if !suffix.chars().all(|c| c == '_' || c.is_ascii_alphanumeric()) {
+            if !suffix
+                .chars()
+                .all(|c| c == '_' || c.is_ascii_alphanumeric())
+            {
                 continue;
             }
             if let Some(i) = rest.find('(') {
@@ -390,7 +395,10 @@ fn an_unknown_name_names_the_hole() {
 #[test]
 fn every_indirect_funnel_call_is_declared() {
     let (_, indirect) = funnel_calls();
-    let declared: BTreeSet<String> = INDIRECT.iter().map(|(site, _, _)| site.to_string()).collect();
+    let declared: BTreeSet<String> = INDIRECT
+        .iter()
+        .map(|(site, _, _)| site.to_string())
+        .collect();
     assert_eq!(
         indirect, declared,
         "the funnel calls whose name the reader cannot read at the site are not the ones \
