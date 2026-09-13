@@ -3399,3 +3399,66 @@ second hand-rolled copy of its own comparison.*
 
 This is the last fix pass on the unit; the findings are repairs rather
 than a new mechanism, so no further round follows it.
+
+## 2026-09-13 — PR 2501 MERGED (`8a546fabd`): six units, twenty-four rows closed
+
+The census unit lands after a full review, a delta round and three fix
+passes — the most rounds any unit on this program has taken, and every
+round found something the previous one could not have.
+
+### `LoopProgram` was a fourth document vocabulary, and the evidence was the hop
+
+Not the shape. `LoopProgram::resolve` matches the document enum and
+constructs `Step::Circle`/`Step::CircleSplit` — a construct hop of
+exactly the disclosed form — and a fourth carrier form laundering into
+`Step::Circle` now reds the right clause and only it: *"1 of the 4
+document vocabularies are short."* All three of its variants were
+already in `corpus()`, so the witness cost the **decision**, not the
+code, which is the tell that it always belonged.
+
+**The membership test is now written at the site** — *does a variant
+launder into an existing kernel form at a construct hop* — and one
+clause disposes of the other plain enums rather than leaving a reader to
+wonder: `ProgramRefusal` and `RecordedProgramError` fail it, having no
+hop that builds a kernel form out of them.
+
+### The claim that carried the design is now stated exactly
+
+*"A second invocation does not compile"* became *"per module"*, with the
+reason: `E0428` is scoped to one module's value namespace. The doc now
+says the list is complete **because `program.rs` has no child modules**,
+not because the macro forbids one. That is the difference between a
+guarantee and a circumstance, and the file now says which it has.
+
+### The rustfmt cost, disclosed and filed as a class
+
+~185 lines of the crate's central payload type sit outside the
+formatter's reach, because rustfmt does not format macro-invocation
+bodies. Adjudicated as worth paying — a **silent** failure class was
+traded for a **visible** one — but disclosed at the site and filed as
+`work/ciw/rustfmt-does-not-reach-a-macro-wrapped-declaration-block.md`,
+with `profile`'s three macros named as the obvious unswept neighbours.
+A cost nobody flagged is a cost nobody will remember paying.
+
+### The sharpest style finding got the same repair as the rest of the PR
+
+*"A PR whose subject is removing a hand-kept second list added a second
+hand-rolled copy of its own comparison."* The two bidirectional set
+differences are now one `set_difference` door called twice. The trap
+fired inside the fix for the trap, was named by a reviewer who did not
+write it, and was closed with the move the whole unit is about.
+
+### What this unit cost, and what it bought
+
+Three rows that all read as tidying. Six rounds. What it actually found:
+a census that reported **green** whenever a variant carried an
+attribute; a blind spot covering **two of three** vocabularies while the
+file's own contract claimed all of them; a **fourth** vocabulary nobody
+had counted; an anchor whose failure mode was silent, replaced by one
+that fails at compile time; and two empty escape hatches in a file whose
+own words say *an empty escape hatch is a hatch that will be used.*
+
+**The posture note for the record**: `plan.md` put this unit under a full
+review for one sentence — *a census with a hole reports green* — against
+three rows rated as prose fixes. That call was right, and the margin was
+not small.
