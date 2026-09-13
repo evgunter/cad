@@ -3259,3 +3259,68 @@ macro is already the one place every document vocabulary passes through,
 which is exactly the position a roster can be projected from rather than
 typed — and if it genuinely cannot, the reason belongs at the call sites,
 not in a PR body.
+
+## 2026-09-13 — the roster became a bijection, and the lane caught the trap inside its own fix
+
+The three document enums were already contiguous, so they are declared
+through **one** `document_vocabulary!` invocation projecting
+`DOCUMENT_VOCABULARIES` beside each `ALL_NAMES`. The census iterates the
+roster; the three hand-written call sites are gone.
+
+**What makes it a list rather than a convention is a compile error**:
+the constant is emitted once per invocation, so a second invocation does
+not compile. That is the property the delta round is told to test in one
+build, because it is the whole load-bearing claim — without it,
+*declared through the macro* is a habit.
+
+**The reason is written at the site, in both halves**, which is what the
+directive asked for: `DOCUMENT_VOCABULARIES`'s own doc says it closes
+*"a vocabulary arrives without a census"* the same way `ALL_NAMES` closes
+*"a variant arrives without a witness"*, **because a roster typed out on
+the test side is a second list kept in step with this one by hand, which
+is the defect the whole macro exists to remove**; and the test door's
+header says three calls would have closed the variant question while
+leaving the vocabulary one open, *"which is this file's own defect one
+level up."*
+
+**The witness sets cannot be projected and are bijected instead** — only
+the suite knows which walk of `corpus()` answers for which vocabulary —
+compared as sets in both directions, so a vocabulary with no witness set
+reds with instructions. That is the honest version of "prefer a
+bijection": project what can be projected, biject the rest, and say
+which is which.
+
+### The lane caught the trap inside its own fix, unprompted
+
+Asserting per vocabulary **inside** the loop would have named only the
+first offender — **this unit's own class, re-introduced by the loop that
+fixed a different one.** Instead the door returns its complaint and the
+caller collects, so all three are named in one run. That is the second
+time on this program a lane has sprung the trap on itself and caught it
+before pushing, and it is the outcome the standing lesson is meant to
+produce rather than the one where a reviewer finds it.
+
+### The residual is disclosed, filed, and correctly routed
+
+An enum declared with a plain `pub enum` has no `ALL_NAMES`, is absent
+from the roster, and nothing notices. **Closing it means asking "is this
+enum a document vocabulary?" over the file's declarations — a text walk,
+which this very PR removed after measuring it silently wrong on any
+attribute.** So the honest disposition is to state it at the site and
+file it, on **DOCM's** slate, because the declaration convention that
+would close it is a design call about that file. Filed as
+`work/docm/a-document-vocabulary-declared-outside-the-macro-is-uncensused.md`.
+
+That is a residue named rather than a hole left quiet, and it is the
+third time today a unit has correctly refused to close a class it could
+only half-reach.
+
+### The short delta round is dispatched, narrow
+
+Subject: the macro and the roster only — every awkward variant spelling
+(`cfg_attr`, doc-comment-plus-attribute, raw identifiers, discriminants,
+named and tuple payloads), the single-invocation compile error, the
+bijection's second direction, and whether the fence's condition held —
+that what landed in DOCM's file really is a derived constant and doc
+prose, with no derive, variant or payload changed under the macro.
+"Nothing further" is stated as a complete answer.
