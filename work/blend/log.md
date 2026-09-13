@@ -668,3 +668,14 @@ re-derived three times in `extrude.rs`. Fix pass dispatched on the
 union (`/home/user/blend-briefs/fix-9-brief.md`), both probe branches
 to be adopted; delta by R1; then state-sync, merge, and block B1's
 CONCLUDED record.
+
+**Block B2 opened; units 10 and 11 dispatched (2026-09-13, ~05:30 UTC).**
+Specs `docs/BLEND-10-SPEC.md` (M / NUMERIC) and `docs/BLEND-11-SPEC.md`
+(S / STRUCTURAL) on main (PR #2494); block B2's pre-draw fields and
+draw recorded branch-side on `blend/b2-block` (byte 44 ⇒ fable at slot
+2: slot 0 BLEND-8 OPUS, slot 1 BLEND-10 OPUS, slot 2 BLEND-11 FABLE).
+The S-BOOL seam for `crates/profile/*` announced in `work/bool/log.md`
+before dispatch. Units 10 and 11 run beside unit 9's fix pass; unit 8
+(slot 0, the sweep crate) opens when unit 9 merges. Unit 10's Phase 1
+decides which side of the door/validator disagreement moves; the spec
+states the stored-form conditioning hypothesis as a hypothesis.
