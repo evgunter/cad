@@ -5491,3 +5491,4 @@ slot 2 = BLEND-11 MERGED (2026-09-13, PR #2495 at 1b2df1318; sample #182): delta
 slot 0 = BLEND-8 review dispatch (2026-09-13): ordinal 2905 claimed on main; R1/R2 byte 84 ⇒ parity 0 ⇒ R1 = OPUS, R2 = FABLE; briefs stored here before dispatch —
 607948d8ead49c88697313c517264a8836a196255fdc2e19c8bb644849871bfe  blend-8-review-brief-r1.md
 f2a086f0661fb15fdd9b83caca3470f373572a00da734b48e743028534ceec1a  blend-8-review-brief-r2.md
+slot 1 = BLEND-10 MERGED (2026-09-13, PR #2497 at c428ff517; sample #183): delta by R1 on the fixed head confirmed all seven items (and showed the one shape it had left unconstructed is not reachable through the public door); the row is on main in that merge. Slot 1 concluded. Slot 0 (BLEND-8) is the block's last open slot, in its dual.
