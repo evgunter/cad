@@ -780,3 +780,23 @@ The branch-side record folds into main on PR #2500 with the six stored
 briefs. Block B2 is fully dispatched: unit 8 (slot 0, OPUS) opened on
 B1's close; unit 10 (slot 1, OPUS) implementing; unit 11 (slot 2,
 FABLE) in its fix pass. Unit 9's lanes reclaimed; 21 GB free.
+
+**Unit 10 landed (2026-09-13)** on PR [#2497](https://github.com/evgunter/cad/pull/2497),
+head `46877f8c3`, full matrix green (run 34745149848). Phase 1 decided
+the door moves, and for a reason the spec did not name: the door's
+carrier is tangent to 4.4e-16, but the STORED chord-plus-bulge form
+flattens to a line below the sagitta band (`θ* = √(8ε/r)`), so the
+validator reads a line/line joint. The door now asks the validator's
+own classifier of its stored form at the close and refuses typed
+(`FilletArcCannotCarryTangency`); every base loop that built and
+validated is bit-identical; the 24 that built and were refused now
+refuse at the door. Two more spec sentences corrected by measurement
+(the recourse's "smaller radius" was backwards; the check cannot run
+before the arc is emitted), one non-monotone cell judged not a stop,
+fence crossings into the FFI tag census, and two interval-lane census
+rows re-stated on the claim that the validator refuses those loops
+anyway — all put to the reviewers. **Ordinal 2904 claimed
+(orchestrator PR to main); the v6 dual dispatched concurrently on the
+frozen head** — byte 66 ⇒ R1 = OPUS, R2 = FABLE; briefs stored with
+digests on `blend/b2-block` before either ran. The unit's log entry
+waits for the dual.
