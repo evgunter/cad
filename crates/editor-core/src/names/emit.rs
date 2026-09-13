@@ -84,7 +84,7 @@ pub enum NamingError {
     /// that a sentence cannot supply: WHICH face.
     ///
     /// **A sibling word rather than one generalised over
-    /// [`EntityKey`](super::table::EntityKey), deliberately.** The two
+    /// [`super::table::EntityKey`], deliberately.** The two
     /// cycles are corrupt records of DIFFERENT families — this one is
     /// a mint-time `face_fragments` row, [`Self::SplitLineage`]'s is a
     /// `SplitEdge` birth record `topo` itself refuses over — and one
