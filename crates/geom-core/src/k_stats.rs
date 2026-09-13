@@ -234,7 +234,7 @@ fn classify<T: Decide>(name: &'static str, margin: T, band: Band) -> Result<Sign
 /// from `7.812e2 · ε` to `2.630e8 · ε` — four identity residuals, of
 /// which the first three were worth 2× between them and the fourth
 /// 1.68·10⁵×, and then a REAL assertion margin
-/// (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`); with the
+/// (`work/sym/plate-ceiling-is-now-the-scaffold-pushforward`); with the
 /// form-level algebra (rule D with A1's `atan2` fold for the chart's
 /// phase) all four are discharged and the shipped tier sits AT the
 /// walk's end — 0.2368, 0.2630, 0.2631 of the real study at the three

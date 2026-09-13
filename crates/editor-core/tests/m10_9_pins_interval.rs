@@ -21,7 +21,7 @@
 //! `carrier_matches_mapped_source` — the carrier against the scaffold
 //! pushforward, an identity between two independently built objects
 //! — door open and door SHUT alike
-//! (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`).
+//! (`work/sym/plate-ceiling-is-now-the-scaffold-pushforward`).
 //!
 //! **A bound is a SET, read at ceiling + δ.** The first cut of this
 //! file read one drive's first refusal at twice the ceiling and
@@ -350,7 +350,7 @@ fn m10_9_the_ceilings_are_unmoved_and_both_ends_are_the_measured_bracket() {
 /// carrier against the `MappedCurve` pushforward at the certifier's own
 /// samples — an identity between two INDEPENDENTLY BUILT objects, which
 /// is the line E12's reserve draws
-/// (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`).
+/// (`work/sym/plate-ceiling-is-now-the-scaffold-pushforward`).
 ///
 /// Asserted as a SET, so a second predicate joining it is a failure
 /// rather than a silent change of subject.
@@ -398,7 +398,7 @@ fn m10_9_the_bound_at_ceiling_plus_delta_is_the_scaffold_pushforward() {
                 "{name}, door {label}: at ceiling + δ exactly one predicate is over the \
                  band, and it is the scaffold pushforward — not an identity the door \
                  could reach, and not a real margin \
-                 (work/m10/plate-ceiling-is-now-the-scaffold-pushforward)"
+                 (work/sym/plate-ceiling-is-now-the-scaffold-pushforward)"
             );
         }
     }

@@ -177,7 +177,9 @@ fn measure_the_ceiling_on_the_two_hole_plate() {
     // bracket (ceiling + δ), never one drive's first refusal at a
     // multiple of the ceiling — past the ceiling several predicates
     // are over the band at once and the first name is evaluation
-    // order (`work/m10/first-refusal-at-twice-the-ceiling-is-an-order-artefact`).
+    // order (M10's closed
+    // `first-refusal-at-twice-the-ceiling-is-an-order-artefact`,
+    // `docs/DOC-LEDGER.md` sweep 13).
     let doc = doc_at(on_hi);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let (shapes, refusal, counts) = crate::m10_8_arc_family_interval::replay(

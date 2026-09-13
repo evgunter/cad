@@ -356,9 +356,9 @@ pub(crate) fn turn_axis<T: Real>(turn: Sign, normal: Vec3<T>) -> Vec3<T> {
 /// discharged against an `abs` — rule C's shape, which folds on no
 /// document at the shipped 256-bit ring and needs ~640 bits and up at
 /// a leaf cost of minutes (`geom_core::sym`'s module docs,
-/// `work/m10/plate-rim-residual-needs-the-wide-coefficient-ring`). The
-/// ring width is a COST wall, and this door is the recourse E12 named
-/// for exactly that case.
+/// M10's closed `plate-rim-residual-needs-the-wide-coefficient-ring`,
+/// `docs/DOC-LEDGER.md` sweep 13). The ring width is a COST wall, and
+/// this door is the recourse E12 named for exactly that case.
 ///
 /// **What it touches: nothing.** `rim.norm()` is the node
 /// `rim.normalize()` already divides by (`Vec3::normalize` is
@@ -384,7 +384,7 @@ pub(crate) fn register_rim_identity<T: Real>(rim: Vec3<T>, radius: T) {
     // correct rather than a defect. Measured, not supposed: an
     // adversarial probe that sweeps a torus's minor radius to 1e18 with
     // wall widths below one ULP reaches exactly that
-    // (`work/m10/the-span-identity-is-not-a-theorem-of-the-floats`), and
+    // (`work/sym/the-span-identity-is-not-a-theorem-of-the-floats`), and
     // an assertion there turns a door that correctly REFUSES into a
     // panic.
     let _refused_registrations_are_counted_not_asserted = rim.norm().register_equal(radius);
@@ -416,7 +416,8 @@ pub(crate) fn register_rim_identity<T: Real>(rim: Vec3<T>, radius: T) {
 /// with the rim identity registered and this one not, the residual
 /// `carrier_endpoint_end` is what bounds the two-hole plate, its
 /// rendered form carrying `cos(4·atan(1·abs(1)))` verbatim
-/// (`work/m10/plate-ceiling-is-now-the-arc-span-identity`).
+/// (M10's closed `plate-ceiling-is-now-the-arc-span-identity`,
+/// `docs/DOC-LEDGER.md` sweep 13).
 ///
 /// **What it touches: nothing.** `carrier.eval(param_end)` is
 /// evaluated here and thrown away; node ids are content hashes, so the

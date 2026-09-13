@@ -29,7 +29,7 @@
 #     ASSERTED on: a registrant's proof is a theorem of the reals, and
 #     a configuration at the edge of `f64` representability can
 #     contradict it without anything being wrong
-#     (`work/m10/the-span-identity-is-not-a-theorem-of-the-floats`).
+#     (`work/sym/the-span-identity-is-not-a-theorem-of-the-floats`).
 #
 # THE RATIFIED SITES (M10-9, the swept arc carrier's builder — spec §2
 # and its amendment A1: the unit of scope is the CONSTRUCTOR, so one
@@ -49,7 +49,7 @@
 #     the constructor" was applied to one of two). RIM ONLY: neither
 #     builder is handed the far endpoint, so the span identity has
 #     nothing to be stated about
-#     (`work/m10/revolve-carriers-state-only-the-rim`).
+#     (`work/blend/revolve-carriers-state-only-the-rim`).
 #
 # WHAT THIS GATE DOES NOT COVER, stated rather than implied: it reads
 # source text, so a call reached through a macro, a re-export under
