@@ -304,7 +304,7 @@ FASTER today (15.4 s) than the whole suite was before E12 (21.0 s). The
 entire delta is the symbolic tier.
 
 Two things that fall out, both now on M10's slate as
-`work/m10/symbolic-tier-costs-95-percent-of-the-m10-3-drive`:
+`work/sym/symbolic-tier-costs-95-percent-of-the-m10-3-drive`:
 
 - **The degree-16 result is explained and the dial is exonerated.**
   `drive.rs`'s own note predicts it: *"the endpoint identity the tier's
@@ -330,7 +330,7 @@ a kernel change inside a tier M10 designed and owns, so **nothing on this
 side is dispatchable** — the row was sitting on the board as available
 work it is not, which is the board lying about its own state.
 
-Trigger: `work/m10/symbolic-tier-costs-95-percent-of-the-m10-3-drive`.
+Trigger: `work/sym/symbolic-tier-costs-95-percent-of-the-m10-3-drive`.
 When that closes, this row re-reads the suite's cost and either records
 the new figure or closes.
 

@@ -65,6 +65,38 @@
 //! carry none, so a form can go missing from every arc spelling with
 //! every mode still present.
 //!
+//! # The mirror direction, and where its anchor comes from
+//!
+//! Every census named so far is anchored on the KERNEL vocabulary, and
+//! that is the right anchor for the hop they exist to guard: the thing
+//! that CONSTRUCTS is `editor-core`'s, so a kernel form the document
+//! vocabulary never learned is what goes missing.
+//!
+//! The mirror failure is a variant added to a DOCUMENT enum alone, and
+//! **every document vocabulary has it — one per construct hop.**
+//! `LoopProgram` at `LoopProgram::resolve`, `ProgramStep` at
+//! `res_step`, `ProgramArcData` at `res_spec`, `ProgramTarget` at
+//! `res_target`: each matches the document form and BUILDS the kernel
+//! one. The compiler forces a new variant through every match that
+//! consumes it, so it cannot ship unnoticed; but every one of those
+//! arms may legally resolve it into an EXISTING kernel form, and when
+//! one does, every kernel-anchored clause here stays green while the
+//! document form authors something nobody wrote. The verb side is no
+//! safer than the rest: `chain_steps()` is a `Vec` and forces no verb,
+//! which its own doc says.
+//!
+//! The anchor is `ALL_NAMES`, projected from each enum's declaration by
+//! `program.rs`'s `document_vocabulary!` exactly as `profile` projects
+//! `Verb::ALL`, `ArcMode::ALL` and `TargetKind::ALL` from theirs — a
+//! compile-time constant over the declaring tokens, so nothing in front
+//! of a variant's name can hide it. The census over it is a set
+//! equality against what the CORPUS carries: not a floor, and not
+//! against a witness function, so a declared member is a member the
+//! wire round-trip and the slot bijection actually walk. WHICH
+//! vocabularies get censused is projected from the same invocation
+//! (`program::DOCUMENT_VOCABULARIES`), so a new one arrives in the
+//! census rather than waiting for a call site to be written.
+//!
 //! The corpus below is deliberately NOT a legal lattice walk. Nothing
 //! here replays: resolution, persistence and slot addressing are all
 //! total over the data type, and legality is `profile`'s census to
@@ -283,6 +315,129 @@ fn variant_name(debug: &str) -> String {
         .collect()
 }
 
+/// The vocabulary members one step carries, kept in the shape the
+/// message wants: the verb, each arc spec on the step paired with the
+/// target form riding inside it, and each target the step carries
+/// directly.
+///
+/// **One descent, three readers.** [`step_label`] formats it for a
+/// failure message and the three document censuses flatten it into
+/// their vocabularies' witness sets, so which member rides which verb
+/// is decided in exactly one place. Re-deriving it per reader is the
+/// second-corpus-kept-in-step-by-hand defect this file exists to catch.
+struct StepMembers {
+    /// The step's own [`ProgramStep`] variant name.
+    verb: String,
+    /// One entry per arc spec on the step: its [`ProgramArcData`]
+    /// variant name, and the [`ProgramTarget`] variant name inside it
+    /// where the mode carries a target.
+    specs: Vec<(String, Option<String>)>,
+    /// [`ProgramTarget`] variant names the step carries itself.
+    targets: Vec<String>,
+}
+
+/// The [`ProgramTarget`] a spec carries, where its mode carries one.
+///
+/// Exhaustive rather than swept into a trailing arm, for this file's
+/// standing reason: which modes carry a target is what the census's
+/// target side assumes, so a mode that gains one is adjudicated here.
+fn spec_target(spec: &ProgramArcData) -> Option<&ProgramTarget> {
+    match spec {
+        ProgramArcData::Bulge { target, .. }
+        | ProgramArcData::Via { target, .. }
+        | ProgramArcData::Center { target, .. } => Some(target),
+        ProgramArcData::Radius { .. }
+        | ProgramArcData::Sweep { .. }
+        | ProgramArcData::ArcLen { .. } => None,
+    }
+}
+
+/// The one descent over a step. Exhaustive on [`ProgramStep`] for
+/// [`spec_target`]'s reason: which verbs carry a spec or a target is
+/// what every reader below assumes.
+///
+/// A variant name comes from the `Debug` rendering because no document
+/// enum carries a tag door of its own; what forces the SET to be
+/// complete is `ALL_NAMES`, not this.
+fn step_members(step: &ProgramStep) -> StepMembers {
+    let spec_entry = |spec: &ProgramArcData| {
+        (
+            variant_name(&format!("{spec:?}")),
+            spec_target(spec).map(|t| variant_name(&format!("{t:?}"))),
+        )
+    };
+    let (specs, targets) = match step {
+        ProgramStep::ArcTo(spec)
+        | ProgramStep::FilletArc { spec, .. }
+        | ProgramStep::ArcFillet { spec, .. } => (vec![spec_entry(spec)], vec![]),
+        ProgramStep::ArcFilletArc { spec, spec2, .. } => {
+            (vec![spec_entry(spec), spec_entry(spec2)], vec![])
+        }
+        ProgramStep::LineTo(target)
+        | ProgramStep::ContinueTo(target)
+        | ProgramStep::TangentArcTo(target) => (vec![], vec![variant_name(&format!("{target:?}"))]),
+        ProgramStep::At(_)
+        | ProgramStep::Angle(_)
+        | ProgramStep::Toward { .. }
+        | ProgramStep::Tangent
+        | ProgramStep::Cusp
+        | ProgramStep::Turn(_)
+        | ProgramStep::Line(_)
+        | ProgramStep::ArcContinue(_)
+        | ProgramStep::Fillet(_)
+        | ProgramStep::FarEndTo(_)
+        | ProgramStep::CloseTo => (vec![], vec![]),
+    };
+    StepMembers {
+        verb: variant_name(&format!("{step:?}")),
+        specs,
+        targets,
+    }
+}
+
+/// **The one "name the offender" door.** A step's verb, plus every
+/// vocabulary member it carries.
+///
+/// `variant_name` alone answers the VERB and stops there, and in this
+/// corpus a verb is not an identity: `ArcTo` appears once per
+/// `ArcMode::ALL` entry and `LineTo` once per `TargetKind::ALL` entry,
+/// so *"chain step 16 (ArcTo)"* leaves a reader counting
+/// [`chain_steps`] to learn which member's arm is the short one.
+fn step_label(step: &ProgramStep) -> String {
+    let m = step_members(step);
+    let members: Vec<String> = m
+        .specs
+        .iter()
+        .map(|(mode, target)| match target {
+            Some(t) => format!("{mode}/{t}"),
+            None => mode.clone(),
+        })
+        .chain(m.targets.iter().cloned())
+        .collect();
+    if members.is_empty() {
+        m.verb
+    } else {
+        format!("{}({})", m.verb, members.join(", "))
+    }
+}
+
+/// **The one position label**, so the verb clause and the slot
+/// localiser below name a chain step the same way — `loop_` and `step`
+/// being exactly what a `SlotId::Profile` carries.
+fn position_label(loop_: usize, step: usize, what: &ProgramStep) -> String {
+    format!("loop {loop_} chain step {step} ({})", step_label(what))
+}
+
+/// A loop's own label: the chain's length, or the carrier's form.
+fn loop_label(loop_: &LoopProgram) -> String {
+    match loop_ {
+        LoopProgram::Chain(steps) => format!("Chain of {} steps", steps.len()),
+        LoopProgram::Circle { .. } | LoopProgram::CircleSplit { .. } => {
+            variant_name(&format!("{loop_:?}"))
+        }
+    }
+}
+
 /// **The census.** Every verb the transition table declares is
 /// reachable as a document program and resolves back to ITS OWN verb —
 /// so a table verb that never reached `ProgramStep`, and a lifting arm
@@ -295,24 +450,47 @@ fn variant_name(debug: &str) -> String {
 /// promise above true.
 #[test]
 fn every_table_verb_is_a_document_program() {
-    let authored = chain_steps();
-    let resolved = corpus()
+    // The authored side is read OUT of the program that is resolved,
+    // never rebuilt beside it: `chain_steps()` called a second time is
+    // a second corpus kept in step by hand, and it lines up with the
+    // resolved loops only while `corpus()`'s first loop happens to be
+    // the chain. Walking every chain loop drops that assumption too.
+    let program = corpus();
+    let resolved = program
         .resolve(&ParamEnv::<f64>::default())
         .expect("the corpus resolves at f64");
 
-    let chain: Vec<Verb> = resolved[0].iter().map(profile::Step::verb).collect();
-    assert_eq!(
-        chain.len(),
-        authored.len(),
-        "the chain loop lifted {} steps from {} authored ones",
-        chain.len(),
-        authored.len()
-    );
-    for (step, verb) in authored.iter().zip(chain.iter()) {
-        let from = variant_name(&format!("{step:?}"));
-        let to = variant_name(&format!("{verb:?}"));
-        assert_eq!(to, from, "ProgramStep::{from} lifted to Verb::{to}");
+    let mut chains = 0usize;
+    for (l, loop_) in program.loops.iter().enumerate() {
+        let LoopProgram::Chain(authored) = loop_ else {
+            continue;
+        };
+        chains += 1;
+        let lifted: Vec<Verb> = resolved[l].iter().map(profile::Step::verb).collect();
+        assert_eq!(
+            lifted.len(),
+            authored.len(),
+            "loop {l} lifted {} steps from {} authored ones",
+            lifted.len(),
+            authored.len()
+        );
+        for (i, (step, verb)) in authored.iter().zip(lifted.iter()).enumerate() {
+            let from = variant_name(&format!("{step:?}"));
+            let to = variant_name(&format!("{verb:?}"));
+            assert_eq!(
+                to,
+                from,
+                "{} lifted to Verb::{to}",
+                position_label(l, i, step)
+            );
+        }
     }
+    assert!(
+        chains > 0,
+        "the corpus holds {} loop(s) and not one of them is a chain, so the \
+         position-by-position clause above walked nothing",
+        program.loops.len()
+    );
 
     let seen: Vec<Verb> = resolved
         .iter()
@@ -352,13 +530,13 @@ fn every_table_verb_is_a_document_program() {
 /// reason: the wire round-trip and the slot bijection walk `corpus()`,
 /// and neither says anything about a form the corpus omits.
 ///
-/// **Blind spot, stated:** a form added to `ProgramTarget` and to no
-/// other vocabulary is not witnessed here — `res_target` would have to
-/// resolve it into one of the kernel forms, and this census would stay
-/// green. It is the mode census's blind spot too, one vocabulary over
-/// (`work/wire/document-only-vocabulary-blind-spot.md`), and closing it
-/// needs a document-side tag, which is a third spelling of the form
-/// set.
+/// **The mirror direction is not this census's**, and is not
+/// uncovered: a form added to `ProgramTarget` and to no other
+/// vocabulary is invisible here — `res_target` resolves it into one of
+/// the kernel forms and `TargetKind::ALL` stays fully witnessed — so
+/// [`every_document_vocabulary_member_is_witnessed`] anchors on
+/// `ProgramTarget::ALL_NAMES` instead. Every document vocabulary has
+/// that pair, one per construct hop.
 #[test]
 fn every_target_form_is_a_document_program() {
     for kind in TargetKind::ALL {
@@ -372,7 +550,10 @@ fn every_target_form_is_a_document_program() {
             .resolve(&ParamEnv::<f64>::default())
             .expect("a one-step target witness resolves at f64");
         let profile::Step::LineTo(got) = &resolved[0][0] else {
-            panic!("the witness for {kind:?} lifted to something other than a straight leg");
+            panic!(
+                "the witness for {kind:?} lifted to {}, not a straight leg",
+                variant_name(&format!("{:?}", resolved[0][0]))
+            );
         };
         assert_eq!(
             got.kind(),
@@ -452,6 +633,12 @@ fn every_target_form_is_a_document_program() {
 /// The second clause is why the corpus is generated: the wire
 /// round-trip and the slot bijection below walk `corpus()`, and
 /// neither says anything about a mode the corpus omits.
+///
+/// The anchor is the KERNEL vocabulary and only it, which is the right
+/// anchor for the failure above and says nothing about a mode the
+/// DOCUMENT vocabulary gains alone.
+/// [`every_document_vocabulary_member_is_witnessed`] is that
+/// direction, keyed on `ProgramArcData::ALL_NAMES`.
 #[test]
 fn every_arc_mode_is_a_document_program() {
     for mode in ArcMode::ALL {
@@ -465,12 +652,16 @@ fn every_arc_mode_is_a_document_program() {
             .resolve(&ParamEnv::<f64>::default())
             .expect("a one-step mode witness resolves at f64");
         let profile::Step::ArcTo(spec) = &resolved[0][0] else {
-            panic!("the witness for {mode:?} lifted to something other than an arc leg");
+            panic!(
+                "the witness for {mode:?} lifted to {}, not an arc leg",
+                variant_name(&format!("{:?}", resolved[0][0]))
+            );
         };
         assert_eq!(
             spec.mode(),
             *mode,
-            "the document spec for {mode:?} resolved to a different mode"
+            "the document spec for {mode:?} resolved to {:?}",
+            spec.mode()
         );
     }
 
@@ -516,16 +707,316 @@ fn every_arc_mode_is_a_document_program() {
     );
 }
 
+/// Where a round trip changed the program, named one step at a time.
+///
+/// Zips the loops and, inside a chain, the steps, so a laundered
+/// vocabulary member is reported as the step it rode rather than as
+/// the corpus it sat in. It runs only on the failure path.
+///
+/// **It reads the two programs handed to it**, never [`corpus`]: a
+/// localiser that rebuilds its own subject is a second corpus kept in
+/// step by hand, which is the defect this whole file exists to catch.
+///
+/// Returns every difference it can name, and an empty vector where the
+/// two programs differ somewhere this walk does not reach — the caller
+/// says so rather than letting silence read as agreement.
+fn wire_difference_report(before: &ProfileProgram, after: &ProfileProgram) -> String {
+    let differences = wire_differences(before, after);
+    if differences.is_empty() {
+        "The loop-by-loop walk names no difference, so the two programs differ \
+         somewhere it does not reach — widen `wire_differences` rather than reading \
+         past this."
+            .to_string()
+    } else {
+        format!("Changed: {differences:#?}")
+    }
+}
+
+fn wire_differences(before: &ProfileProgram, after: &ProfileProgram) -> Vec<String> {
+    let mut out = Vec::new();
+    if before.plane != after.plane {
+        out.push(format!(
+            "the plane went over as {:?} and came back as {:?}",
+            before.plane, after.plane
+        ));
+    }
+    if before.loops.len() != after.loops.len() {
+        out.push(format!(
+            "the program went over with {} loops and came back with {}",
+            before.loops.len(),
+            after.loops.len()
+        ));
+    }
+    for (l, (was, now)) in before.loops.iter().zip(after.loops.iter()).enumerate() {
+        if was == now {
+            continue;
+        }
+        match (was, now) {
+            (LoopProgram::Chain(was_steps), LoopProgram::Chain(now_steps)) => {
+                if was_steps.len() != now_steps.len() {
+                    out.push(format!(
+                        "loop {l} went over with {} chain steps and came back with {}",
+                        was_steps.len(),
+                        now_steps.len()
+                    ));
+                }
+                for (i, (was_step, now_step)) in was_steps.iter().zip(now_steps.iter()).enumerate()
+                {
+                    if was_step != now_step {
+                        out.push(format!(
+                            "loop {l} chain step {i}: {} went over the wire and came back as {}",
+                            step_label(was_step),
+                            step_label(now_step)
+                        ));
+                    }
+                }
+            }
+            // Not a chain on one side or the other: the carrier forms
+            // have no step index to name, so the loop's own form is
+            // the finest thing there is to say.
+            _ => out.push(format!(
+                "loop {l}: {} went over the wire and came back as {}",
+                loop_label(was),
+                loop_label(now)
+            )),
+        }
+    }
+    out
+}
+
+// ------------------------------------------------------------------
+// The mirror direction: the DOCUMENT vocabularies' own anchor
+// ------------------------------------------------------------------
+
+/// Every document vocabulary member the CORPUS carries, by vocabulary:
+/// the loop forms, the verbs, the arc-spec modes, the target forms.
+///
+/// The corpus is what the wire round-trip and the slot bijection below
+/// walk, so a member witnessed here is a member those clauses cover —
+/// which is why this, and not a witness function, is the set the
+/// censuses compare against. A member reachable only from a witness the
+/// corpus omits would be declared and uncovered, and the two clauses
+/// that matter would still say nothing about it.
+fn corpus_vocabulary() -> CorpusVocabulary {
+    let mut seen = CorpusVocabulary::default();
+    for loop_ in &corpus().loops {
+        // The loop forms are a vocabulary in their own right, and
+        // `LoopProgram::resolve` is their construct hop: it matches
+        // this enum and builds `Step::Circle` / `Step::CircleSplit`, so
+        // a carrier form added here alone can be resolved into an
+        // existing kernel step exactly as a `ProgramStep` variant can.
+        // Declining to witness them, which this walk used to do, left
+        // the fourth hop uncovered while the census disclosed its shape
+        // hypothetically.
+        seen.loops.push(variant_name(&format!("{loop_:?}")));
+        let LoopProgram::Chain(steps) = loop_ else {
+            // A carrier is a one-step program with no `ProgramStep` in
+            // it, so it contributes to no other vocabulary here.
+            continue;
+        };
+        for step in steps {
+            let m = step_members(step);
+            seen.verbs.push(m.verb);
+            seen.targets.extend(m.targets);
+            for (mode, target) in m.specs {
+                seen.specs.push(mode);
+                seen.targets.extend(target);
+            }
+        }
+    }
+    seen
+}
+
+/// The witness sets, one per document vocabulary.
+#[derive(Default)]
+struct CorpusVocabulary {
+    /// [`LoopProgram`] variant names.
+    loops: Vec<String>,
+    /// [`ProgramStep`] variant names.
+    verbs: Vec<String>,
+    /// [`ProgramArcData`] variant names.
+    specs: Vec<String>,
+    /// [`ProgramTarget`] variant names.
+    targets: Vec<String>,
+}
+
+/// **The one set comparison in this file**, reported rather than
+/// asserted, and printing only the direction that actually failed.
+///
+/// Both censuses below compare a declared set against a witnessed set
+/// and owe the same two answers. Writing that twice is a second copy of
+/// the comparator kept in step by hand — in a file whose subject is a
+/// second list kept in step by hand — so it is written once, and the
+/// two call sites differ only in the sentence each direction earns.
+fn set_difference(
+    declared: &[&str],
+    witnessed: &[&str],
+    subject: &str,
+    undeclared_says: &str,
+    unwitnessed_says: &str,
+) -> Option<String> {
+    let unwitnessed: Vec<&&str> = declared.iter().filter(|d| !witnessed.contains(d)).collect();
+    let undeclared: Vec<&&str> = witnessed.iter().filter(|w| !declared.contains(w)).collect();
+    if unwitnessed.is_empty() && undeclared.is_empty() {
+        return None;
+    }
+    // Only the failing direction is printed. A clean direction rendered
+    // as `[]` beside a real one is noise in a message whose entire
+    // purpose is that a reader can act on it without a local repro.
+    let mut out = format!("{subject}:");
+    if !unwitnessed.is_empty() {
+        out.push_str(&format!("\n    {unwitnessed:?} — {unwitnessed_says}"));
+    }
+    if !undeclared.is_empty() {
+        out.push_str(&format!("\n    {undeclared:?} — {undeclared_says}"));
+    }
+    Some(out)
+}
+
+/// One document vocabulary's complaint, or `None` where it is whole.
+///
+/// The caller is the census; this only answers for one vocabulary, so
+/// that the caller can walk every one of them and name all the short
+/// ones rather than aborting on the first. That matters here more than
+/// most places: a run naming one of four offenders is the defect this
+/// whole file was opened to fix.
+fn unwitnessed_report(vocabulary: &str, declared: &[&str], witnessed: &[String]) -> Option<String> {
+    let witnessed: Vec<&str> = witnessed.iter().map(String::as_str).collect();
+    set_difference(
+        declared,
+        &witnessed,
+        &format!("`{vocabulary}` declares members the corpus does not witness"),
+        "witnessed and no longer declared — delete the witness",
+        "declared and unwitnessed — give it a witness in `chain_steps` or `corpus`. A \
+         variant with no kernel form of its own launders into one, which is the failure \
+         this clause exists to catch, so it has to be exercised rather than excused",
+    )
+}
+
+/// **The document vocabularies' census**, and the mirror of every
+/// kernel-anchored clause above.
+///
+/// # Why this direction needs its own anchor
+///
+/// Every other census in this file is anchored on the KERNEL
+/// vocabulary, which is the right anchor for the hop they guard: the
+/// thing that CONSTRUCTS is `editor-core`'s, so a kernel form the
+/// document vocabulary never learned is what goes missing. The mirror
+/// failure is a variant added to a DOCUMENT enum alone. The compiler
+/// forces it through every match that consumes it, but **every one of
+/// those arms may legally resolve it into an existing kernel form**,
+/// and when one does, every kernel-anchored clause here stays green
+/// while the document form authors something nobody wrote.
+///
+/// There are four such construct hops and this covers all four:
+/// `res_step`, `res_spec`, `res_target`, and `LoopProgram::resolve`.
+///
+/// # Two bijections, one per level
+///
+/// `ALL_NAMES` answers which VARIANTS a vocabulary declares;
+/// `DOCUMENT_VOCABULARIES` answers which VOCABULARIES exist. Both are
+/// projected from the one macro invocation that declares the enums, so
+/// neither a variant nor a whole vocabulary can arrive without a
+/// census. Naming the vocabularies at call sites here would have been a
+/// hand-kept roster over a projected set — this file's own defect, one
+/// level up from where it catches it.
+///
+/// The witness SETS are the part that cannot be projected: only this
+/// suite knows which walk of `corpus()` answers for which vocabulary.
+/// So they are bijected too, and a vocabulary with no witness set reds
+/// with instructions rather than going uncensused.
+///
+/// # Why the equality is safe, and where there is no exception list
+///
+/// A set equality passes when both sides are empty; here that is closed
+/// by construction, since `ALL_NAMES` is a compile-time constant over a
+/// declaration that has variants, so a witness walk collapsing to
+/// nothing reds. And a document-only variant gets no allow-list line
+/// naming what it launders into: it reds until it has a WITNESS in the
+/// corpus, which is also what makes the wire round-trip and the slot
+/// bijection cover it. The verb census's own message settles the shape
+/// — *"an empty escape hatch is a hatch that will be used"*.
+#[test]
+fn every_document_vocabulary_member_is_witnessed() {
+    let seen = corpus_vocabulary();
+    let witnesses: Vec<(&str, &Vec<String>)> = vec![
+        ("LoopProgram", &seen.loops),
+        ("ProgramStep", &seen.verbs),
+        ("ProgramArcData", &seen.specs),
+        ("ProgramTarget", &seen.targets),
+    ];
+
+    let declared: Vec<&str> = editor_core::program::DOCUMENT_VOCABULARIES
+        .iter()
+        .map(|(name, _)| *name)
+        .collect();
+    let supplied: Vec<&str> = witnesses.iter().map(|(name, _)| *name).collect();
+    if let Some(report) = set_difference(
+        &declared,
+        &supplied,
+        "the vocabularies `document_vocabulary!` declares are not the vocabularies this \
+         suite can witness",
+        "supplied a witness set and no longer declared — delete the line",
+        "declared and uncensused — add the walk of `corpus()` that answers for it to \
+         `corpus_vocabulary` and its line to `witnesses` above; until then nothing in \
+         this file says anything about it",
+    ) {
+        panic!("{report}");
+    }
+
+    let complaints: Vec<String> = editor_core::program::DOCUMENT_VOCABULARIES
+        .iter()
+        .filter_map(|(vocabulary, names)| {
+            let (_, witnessed) = witnesses
+                .iter()
+                .find(|(name, _)| name == vocabulary)
+                .expect("the set equality above admits only vocabularies with a witness set");
+            unwitnessed_report(vocabulary, names, witnessed)
+        })
+        .collect();
+    assert!(
+        complaints.is_empty(),
+        "{} of the {} document vocabularies are short:\n  {}",
+        complaints.len(),
+        editor_core::program::DOCUMENT_VOCABULARIES.len(),
+        complaints.join("\n  ")
+    );
+}
+
 /// The persisted vocabulary is the document vocabulary: every verb and
 /// every arc-spec mode in the corpus survives serialization unchanged.
 /// `ProfileProgram`'s `PartialEq` is the D7 bit comparator, so this is
 /// bit-identity, not approximate agreement.
+///
+/// The comparison is `assert!` over `==` rather than `assert_eq!`, and
+/// deliberately: `assert_eq!` renders BOTH operands, and this corpus's
+/// `Debug` is three loops and forty-odd chain steps of `Expr` records
+/// twice over, which is the reader diffing a page by eye for a
+/// laundering that moved one step. [`wire_differences`] names the step.
 #[test]
 fn every_document_verb_survives_the_wire() {
     let before = corpus();
+    // A round trip over an EMPTY program is bit-identical whatever the
+    // wire does with the vocabulary, and so is a round trip over one
+    // whose expressions all vanished on the way out. The subject is
+    // asserted non-empty before the comparison that would otherwise
+    // pass over nothing.
+    let literals = literal_count(&before);
+    assert!(
+        !before.loops.is_empty() && literals > 0,
+        "the corpus offered to the wire is {} loop(s) carrying {literals} literal \
+         expression(s) — an empty subject round-trips identically for the wrong reason",
+        before.loops.len()
+    );
     let text = serde_json::to_string(&before).expect("the program serializes");
     let after: ProfileProgram = serde_json::from_str(&text).expect("the program deserializes");
-    assert_eq!(before, after);
+    assert!(
+        before == after,
+        "the corpus did not survive serialization. {}",
+        // Evaluated only here, on the failure path: an `assert!`'s
+        // format arguments are untouched while the condition holds.
+        wire_difference_report(&before, &after)
+    );
 }
 
 /// The expressions of a program, counted from the wire rather than
@@ -541,53 +1032,67 @@ fn literal_count(program: &ProfileProgram) -> usize {
         .count()
 }
 
-/// Every chain step that enumerates a number of slots other than its
-/// own expression count, rendered with both counts.
+/// Every position in a program that enumerates a number of slots other
+/// than its own expression count, rendered with both counts.
 ///
 /// The census's count clause compares WHOLE-PROGRAM totals, so a verb
 /// or arc mode whose slot enumeration is short reads as a bare delta
-/// naming neither the step nor the vocabulary member: an arc mode
+/// naming neither the position nor the vocabulary member: an arc mode
 /// whose `spec_slots` arm enumerates nothing fails that clause as two
-/// numbers fifteen apart. Re-running the same comparison one step at a
-/// time names the step. It runs only on the failure path.
+/// numbers fifteen apart. Re-running the same comparison one position
+/// at a time names the position, and [`step_label`] names the member
+/// riding it — `ArcTo` alone would not, since this corpus carries one
+/// per `ArcMode::ALL` entry.
 ///
-/// **It closes one of those two and not the other, and says so rather
-/// than letting the sentence above read as both.** The label is the
-/// step's VERB, because `variant_name` takes the leading identifier —
-/// and `ArcTo` appears once per `ArcMode::ALL` entry in this corpus, so
-/// a short arc mode still leaves a reader counting `chain_steps()` to
-/// learn WHICH mode's arm is short. Naming the vocabulary member is the
-/// rest of the distance.
+/// **It walks the program it is given**, so the indices it prints are
+/// the indices of the program the clause asserts over — a `loop_` and
+/// a `step`, which is exactly what a `SlotId::Profile` carries.
+/// Re-deriving the subject from [`chain_steps`] instead made the two
+/// agree only because `corpus()`'s first loop happens to be
+/// `Chain(chain_steps())`; a second chain loop, or a reorder, and the
+/// localiser named the wrong step confidently.
 ///
-/// Two further limits, stated rather than discovered: this walks
-/// `chain_steps()` while the clause it explains asserts over
-/// `corpus()`, so the two agree only because `corpus()`'s first loop is
-/// `Chain(chain_steps())` — a second chain loop would make the indices
-/// name the wrong step — and it prints no `loop_` though a
-/// `SlotId::Profile` carries one.
-fn steps_whose_slot_count_disagrees() -> Vec<String> {
-    chain_steps()
-        .into_iter()
-        .enumerate()
-        .map(|(i, step)| {
-            let one = ProfileProgram {
-                plane: SCAFFOLD_PLANE,
-                loops: vec![LoopProgram::Chain(vec![step.clone()])],
-            };
-            (i, step, one.slots().len(), literal_count(&one))
-        })
-        .filter(|(_, _, slots, exprs)| slots != exprs)
-        .map(|(i, step, slots, exprs)| {
-            // The step INDEX, because that is what a `SlotId::Profile`
-            // carries and what the addressing clause below prints; the
-            // verb name for reading, with the caveat in the header. The
-            // payload is deliberately not rendered — an `Expr`'s
+/// The complete-loop carriers are walked too, each as its own one-loop
+/// program, so a carrier whose enumeration is short is named here
+/// rather than left as an empty list for the reader to interpret.
+fn positions_whose_slot_count_disagrees(program: &ProfileProgram) -> Vec<String> {
+    let mut out = Vec::new();
+    for (l, loop_) in program.loops.iter().enumerate() {
+        // One (label, one-loop program) per position: a chain's steps
+        // individually, a carrier whole — a carrier is a one-step
+        // program by construction, so it has no finer position.
+        let positions: Vec<(String, LoopProgram)> = match loop_ {
+            LoopProgram::Chain(steps) => steps
+                .iter()
+                .enumerate()
+                .map(|(i, step)| {
+                    (
+                        position_label(l, i, step),
+                        LoopProgram::Chain(vec![step.clone()]),
+                    )
+                })
+                .collect(),
+            LoopProgram::Circle { .. } | LoopProgram::CircleSplit { .. } => {
+                vec![(format!("loop {l} ({})", loop_label(loop_)), loop_.clone())]
+            }
+        };
+        for (label, one) in positions {
+            // The payload is deliberately not rendered — an `Expr`'s
             // `Debug` is several lines and there are as many of them
-            // here as the step has arguments.
-            let name = variant_name(&format!("{step:?}"));
-            format!("chain step {i} ({name}) has {exprs} expressions and enumerates {slots} slots")
-        })
-        .collect()
+            // here as the position has arguments.
+            let alone = ProfileProgram {
+                plane: program.plane,
+                loops: vec![one],
+            };
+            let (slots, exprs) = (alone.slots().len(), literal_count(&alone));
+            if slots != exprs {
+                out.push(format!(
+                    "{label} has {exprs} expressions and enumerates {slots} slots"
+                ));
+            }
+        }
+    }
+    out
 }
 
 /// Slot addressing is a BIJECTION onto the program's expressions:
@@ -614,34 +1119,43 @@ fn every_enumerated_slot_addresses_a_distinct_expression() {
     let program = corpus();
     let slots = program.slots();
     let expressions = literal_count(&program);
+    // A bijection between two empty sets is a bijection. The corpus is
+    // asserted non-empty on BOTH sides before the equality, so a
+    // program that enumerated nothing, or one whose expressions all
+    // vanished, reds here rather than passing as a clean bijection.
+    assert!(
+        expressions > 0 && !slots.is_empty(),
+        "the corpus carries {expressions} expressions and enumerates {} slots — \
+         a program with neither satisfies every clause below vacuously",
+        slots.len()
+    );
     assert_eq!(
         slots.len(),
         expressions,
         "the program has {expressions} expressions and enumerates {} slots; \
-         the chain steps whose own counts disagree are {mismatched:?} \
-         (empty means the disagreement is in a complete-loop carrier rather \
-         than a chain step)",
+         the positions whose own counts disagree are {mismatched:#?}",
         slots.len(),
-        mismatched = steps_whose_slot_count_disagrees(),
+        mismatched = positions_whose_slot_count_disagrees(&program),
     );
-    let mut addresses: Vec<*const Expr> = Vec::new();
+    let mut addresses: Vec<(*const Expr, SlotId)> = Vec::new();
     for slot in &slots {
         let Some(expr) = program.expr(*slot) else {
             panic!("{slot:?} is enumerated but addresses nothing");
         };
         let addr: *const Expr = expr;
-        assert!(
-            !addresses.contains(&addr),
-            "{slot:?} addresses an expression another slot already addresses"
-        );
-        addresses.push(addr);
+        if let Some((_, first)) = addresses.iter().find(|(seen, _)| *seen == addr) {
+            panic!("{slot:?} addresses the expression {first:?} already addresses");
+        }
+        addresses.push((addr, *slot));
         let SlotId::Profile { arg, .. } = slot else {
             panic!("a profile payload enumerated a non-profile slot: {slot:?}");
         };
         assert_eq!(
             expr.dim(),
             arg.dimension(),
-            "{slot:?} addresses an expression of the wrong dimension"
+            "{slot:?} addresses an expression of dimension {:?}, and the role wants {:?}",
+            expr.dim(),
+            arg.dimension()
         );
     }
 }

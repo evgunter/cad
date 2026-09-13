@@ -85,7 +85,7 @@ use core::ops::{Add, Div, Mul, Neg, Sub};
 /// impossible ones cannot be written down, and a call site reads one
 /// answer. The cost, stated: "was this refused?" is a two-arm match
 /// rather than a field read, and every registrant pays it by hand
-/// (`work/m10/sym-registration-flattens-two-axes`).
+/// (`work/sym/sym-registration-flattens-two-axes`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SymRegistration {
     /// Recorded: from here on the two nodes denote one function of the
@@ -157,7 +157,7 @@ pub enum SymRegistration {
 ///
 /// So the slack stays relative and ε-independent, and the limit is
 /// FILED rather than hidden
-/// (`work/m10/the-witness-slack-is-eps-independent`): at a tight ε row
+/// (`work/sym/the-witness-slack-is-eps-independent`): at a tight ε row
 /// this threshold is many band-widths loose, which weakens the witness
 /// exactly where the review said it does.
 pub const WITNESS_REL: f64 = 1e-9;

@@ -423,7 +423,7 @@ fn the_split_rule_is_relative_width_with_a_lowest_index_tie() {
 /// intervals suffice for the real margins"). The symbolic tier
 /// discharges the identities and hands the ceiling to the next mechanism
 /// along; naming it is the point of this row, and the class is tracked
-/// as `work/m10/real-margin-dependency-widening.md`.
+/// as `work/sym/real-margin-dependency-widening.md`.
 ///
 /// **The ceiling is ε-DEPENDENT**, which is the second thing the earlier
 /// version got wrong by quoting one number. It rises as ε tightens —
