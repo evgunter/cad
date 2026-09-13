@@ -599,6 +599,8 @@ mod review_blend5_r5_probes;
 
 #[path = "review_blend4_r4_probes.rs"]
 mod review_blend4_r4_probes;
+#[path = "review_contact_edge_must_carry_r1_probes.rs"]
+mod review_contact_edge_must_carry_r1_probes;
 #[path = "shell5_r1_dump.rs"]
 mod shell5_r1_dump;
 #[path = "shell5_r1_probes.rs"]
