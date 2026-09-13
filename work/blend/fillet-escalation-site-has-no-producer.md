@@ -2,7 +2,8 @@
 id: fillet-escalation-site-has-no-producer
 kind: unit
 title: The six profile fillet recourse sentences are dead: EscalationSite::Fillet has no producer and PathError::Escalated has no fillet arm
-status: review
+status: closed
+closed: 2026-09-13
 opened: 2026-09-04
 refs: [S11]
 branch: blend/12-fillet-recourse-arm
@@ -113,3 +114,17 @@ on a scene the offset radius dominates).
 (the definite arm of the turn gate refuses a real corner as already
 tangent — the root of the sentence repair above),
 `work/issues/dead-work-citations-from-shipped-code-and-docs.md`.
+
+## Closed (2026-09-13, PR 2508)
+
+The nine `fillet_*` names route through one map in `validate.rs` to the
+six sentences, dispatched first in the path door's Display; the
+producerless `EscalationSite::Fillet` arm and variant are retired. Six
+of the nine gates are driven in band through the public door and pinned
+by row; the two exact-order gates are pre-empted at scalar `f64` and
+paired to their sentence by an independent doc line. Residues on the
+slate from this unit: the guided-replay door rendering the shared
+recourse for a fillet gate; the tolerance-lever residue with its premise
+corrected; in `work/issues/`, the levered turn margin conflating a short
+arm with a small turn, and dead `work/` citations from shipped code.
+Unit 15 takes the unknown-name arm and the roster from here.

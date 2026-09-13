@@ -404,7 +404,7 @@ fn every_fillet_predicate_has_its_own_sentence_and_never_the_shared_one() {
     }
 }
 
-/// **The pairing, checked against a source the map does not write.**
+/// **The pairing, checked against a prose line the map does not read.**
 ///
 /// The census above proves every gate HAS a sentence; it cannot prove
 /// the gate has the RIGHT one, because it asks the map for the sentence
@@ -422,6 +422,12 @@ fn every_fillet_predicate_has_its_own_sentence_and_never_the_shared_one() {
 /// division of labour: the driven rows catch those, and this catches a
 /// name moved between groups, which is the only swap the unreachable
 /// pair admits.
+///
+/// This is not an independent source: the `Gates:` lines live in the
+/// same file as the map, so an edit that moves a name in BOTH stays
+/// green (measured at the fix-pass head). It guards a lone edit to
+/// either side, which is the only guard a pair no row can execute
+/// admits at this scalar.
 #[test]
 fn the_map_groups_the_gates_the_way_the_sentences_docs_say_it_does() {
     let text = std::fs::read_to_string(
