@@ -41,10 +41,11 @@ is written three times: `mesh::PatchMemo` (`crates/mesh/src/memo.rs`),
 `editor_core::PickMemo`'s node level
 (`crates/editor-core/src/resolve/pick.rs`, `PickEntry.picture`,
 `open`, `end_picture`'s `nodes.retain`), and — added by PERF-9, one
-unit after this item named the pair — the same memo's tree level
-(`TreeEntry.picture`; `PickMemo::tree` is the hit/miss half,
-`keep_trees` the `keep`, `end_picture`'s `trees.retain` the
-eviction). The third copy shares the node level's `picture` and
+unit after this item named the pair — the same memo's table level
+(`TableEntry.picture`; `PickMemo::table` is the hit/miss half,
+`keep_tables` the `keep`, `end_picture`'s `tables.retain` the
+eviction; PERF-10 renamed that level from `tree` to `table` and
+re-keyed it, leaving the machinery it copies untouched). The third copy shares the node level's `picture` and
 `closed` fields but repeats the entry shape, the hit/miss counters
 and the three verbs. A generic `Generational<K, V>` in one crate all
 three depend on (`geom-core` is the only common ancestor with no

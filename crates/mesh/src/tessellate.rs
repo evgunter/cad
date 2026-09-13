@@ -154,15 +154,19 @@ pub fn tessellate(body: &Body<f64>, chordal: f64, tol: Tol) -> Result<Mesh, Tess
     tessellate_impl(body, chordal, tol, None).map(|(mesh, _)| mesh)
 }
 
-/// A mesh built through the memo, with the digest of each face's
-/// inputs so the caller can keep those faces alive across a picture
-/// it does not re-tessellate ([`PatchMemo::keep`]).
+/// A mesh built through the memo, with each face's key row: the
+/// digest of its inputs, so the caller can keep those faces alive
+/// across a picture it does not re-tessellate ([`PatchMemo::keep`]),
+/// and the memo entry the face was placed from
+/// ([`mesh::StoredPatchId`](crate::StoredPatchId)), so a caller
+/// caching anything derived from the face's placed corners can key it
+/// by that.
 #[derive(Clone, Debug)]
 pub struct Tessellation {
     /// The mesh — byte-identical to [`tessellate`]'s for the same
     /// `(body, chordal, tol)`.
     pub mesh: Mesh,
-    /// One digest per face, in face-arena order.
+    /// One row per face, in face-arena order.
     pub keys: PatchKeys,
 }
 
