@@ -4,10 +4,11 @@ kind: issue
 title: E5 contribution bounds from Dual<Interval> derivative enclosures (M10-4 deviation 3)
 status: open
 opened: 2026-09-03
-refs: [M10-4, M10-5]
+refs: [1627, 1638]
 ---
 
-`work/m10/plan.md`'s M10-4 entry names "`Dual<Interval>` enclosures
+M10's plan (deleted at that program's exit sweep and recoverable
+through `docs/DOC-LEDGER.md` sweep 13) names in its M10-4 entry "`Dual<Interval>` enclosures
 consumed for contribution bounds and E7 pruning only"; M10-4 shipped the
 seed+box composition at `Dual<Interval>` (pinned at the door:
 `m10_4_seed::seed_and_box_compose_exactly_at_dual_interval`) but no

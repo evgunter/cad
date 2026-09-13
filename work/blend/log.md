@@ -862,3 +862,73 @@ exists at 1e-12 for the smallest turns. Fix pass dispatched on the
 union (`/home/user/blend-briefs/fix-10-brief.md`): two situations,
 two sentences, the recourse in its home; both probe branches adopted;
 delta by R1.
+
+## Two constructor rows arrive from M10 (2026-09-13)
+
+M10 closed at its exit sweep (`docs/DOC-LEDGER.md` sweep 13). Two of
+its rows are constructor changes on this program's ground and came
+here by header edit and `git mv` (ids unchanged):
+
+- `revolve-carriers-state-only-the-rim` —
+  `crates/sweep/src/revolve/surfaces.rs` and `revolve/full.rs` register
+  the rim identity and cannot state the span one, because the builder
+  is never handed the carrier's far endpoint.
+- `fillet-tangency-is-not-the-constructors-node` — the profile fillet
+  door: `validate.rs` calls `seg::build_seg`, which re-derives the
+  carrier from three stored numbers, so the CENTRE a declared tangency
+  is about never reaches the joint classifier. `crates/profile/*` is
+  S-BOOL's glob and this program's `keep_out` already carries the
+  fillet-arm seam.
+
+Both are registrations for the E12 door, which is **SYM's**
+(`work/sym/`, opened at the same sweep). The certification consumer
+that waits on the fillet row is
+`work/sym/declared-tangency-needs-the-registered-identity-door`: until
+the constructor's centre is statable there is nothing to register, so
+the rounded pad certifies nothing. Neither row is dispatched here yet.
+**MERGED — unit 10 (2026-09-13)** on PR [#2497](https://github.com/evgunter/cad/pull/2497):
+the path fillet door never mints a joint the validator refuses for its
+declaration; the item closed. Dual: bilateral headline at differing
+severity (a second loss mechanism), no tally candidate; the fix pass
+gave the two situations two arms and two sentences, homed the
+recourses, made every pin non-degradable, deleted the harness copies,
+and widened the differential's corpus. Delta by R1 on the fixed head:
+recorded below. Sample #183 (main's order rules). Residues on the
+slate from this unit: the `arc_span`/`line_span` class between legs;
+the coincidence-recourse instance.
+Delta (R1, on `99a9d124`): all seven items CONFIRMED by execution —
+both arms with their own laws and levers read off the errors at the
+far scene (`FilletCarrierBelowSceneResolution`), in band (the relayed
+arm, no coincidence recourse) and inside the window
+(`FilletArcFlattenedInStorage`); the other reviewer's large-radius
+witness with the lever reversal measured; the followability rows
+green at three ε rows with the impossible regime asserted; every pin
+non-degradable and the skip-the-check mutant red on 18 integration
+rows plus the lib row at all three ε rows; the K count by branch; the
+harness copies gone; one margin helper at three sites; the
+`SameCarrier` doc; `UndeclaredTangency` shown NOT constructible
+through the public door (the named shape refuses `JunctionTangent`
+first); the differential re-taken independently (70 → 46 / 46, clean);
+nothing lost in the lane's mid-differential checkout. One NOTE: the
+scene-resolution arm's printed resolution hard-codes the f64 machine
+epsilon in a `T`-generic refusal — stated at the site as the value
+channel's floor at any scalar, in the state-sync commit.
+
+**Unit 8 landed (2026-09-13)** on PR [#2505](https://github.com/evgunter/cad/pull/2505),
+head `f792d96d0`, full matrix green (run 34750694108). Phase 1
+overturned the item: the ladder phase's fresh-key retirement was not
+unmeasured but LIVE — 14 shipped rows pushed a fresh key into
+`dead.edges` at the merge base (the witness is the boss with its cap
+merged, whose revolve-minted seam runs pole → rim) — and the
+executable re-take reads 15 red at the base, 0 at the head over 611
+carves. The fix is one spelling of the provenance rule
+(`split_fragment` / `retire_fragment`) used by the ladder phase, the
+annulus phase and the ruled band's cap-rim split, with a debug
+postcondition. The birth record moves exactly on those 14 rows and
+only in `dead.edges`; the geometry is bit-identical. No document-layer
+row: the lane found `emit_blend`'s retired-set guard cannot observe
+the class (reported for EVAL's ground). **Ordinal 2905 claimed
+(orchestrator PR to main when unit 10 clears its gate); the v6 dual
+dispatched concurrently on the frozen head** — byte 84 ⇒ R1 = OPUS,
+R2 = FABLE; briefs stored with digests on `blend/b2-block` before
+either ran. The unit's log entry waits for the dual.

@@ -180,6 +180,11 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/profile/tests/generic_replay.rs",
+        disposition: Shared, // the stored-form exemption held against seg.rs's
+                             // own predicate names, code+literal view
+    },
+    Entry {
         path: "crates/profile/tests/r2_bool9_review_probes.rs",
         disposition: Shared, // the value-equal row's ceiling is asserted to
                              // EXIST in lift_census.rs, code+literal view

@@ -84,7 +84,7 @@ const MIN_WEB: f64 = 0.0005;
 /// leaf and the padding is `8·half` — four times the leaf's width
 /// each time, exactly, plus the rounding below
 /// (`m10_10_evidence_interval::m10_10_the_stackup_hulls_under_both_rule_sets`
-/// prints all three; `work/m10/certified-hull-padding-is-the-leaf-width-not-the-lane`
+/// prints all three; `work/props/certified-hull-padding-is-the-leaf-width-not-the-lane`
 /// is the row). A bound, not a target — if it grows, the question is
 /// which leaves widened; it cannot grow past this without a leaf wider
 /// than the box.

@@ -215,6 +215,29 @@ pair's other crossing turns the other way and may serve the same radius
 as an ordinary tangency. It is its own reason, not laundered into a "no
 corner" one: the corner exists; a fillet of it at this radius does not.
 
+## The fillet door never mints a joint the verify layer refuses
+
+A fillet's declared tangency is a claim about the carriers the loop
+STORES, and a loop stores an arc as its chord and a bulge. Two things can
+happen to that claim between the door's arithmetic and the stored form,
+and both are refused at the door rather than left for validation. A
+fillet whose sagitta `r(1 − cos(θ/2))` sits at or below ε is read back as
+a straight segment, so the carrier is simply not there
+(`PathError::FilletArcFlattenedInStorage`; the levers are a larger turn
+or a larger radius). A fillet whose stored arc IS an arc can still lose
+its joint to arithmetic: a carrier clearance is a difference of lengths
+at the scene's own magnitude, so it resolves only to about that
+magnitude times 2⁻⁵², and past the radius or the distance from the origin
+where that floor is coarser than ε the joint cannot be classified at all
+(`PathError::FilletCarrierBelowSceneResolution`; the levers run the other
+way — a smaller radius, or the geometry nearer the origin). Both read
+back through `seg::build_seg` and `seg::joint_tangency`, the verify
+layer's own classifications, so the door's answer is the verify layer's
+answer and no new predicate name enters the K stream. The in-band twin of
+either is relayed as `PathError::Escalated` naming the same
+classification. The pins are `tests/fillet_stored_tangency.rs` and the
+three sentences' rows in `tests/fillet_recourse_followability.rs`.
+
 **What stays.** `Leg::tangent_point`'s antipodal flip (the ρ < 0 tangent
 point) remains as the closed form's sign rule, unit-pinned and
 unreachable by any door. No construction is known to reach

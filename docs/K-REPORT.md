@@ -1982,7 +1982,7 @@ Rules A/B over the top residual add no discharge on any document once
 A0 has run; per node (`SymRules::early_ab`) they reach the plate's
 nested `sqrt(…)²` at minutes per replay (138 s for the plate's
 nominal). Both stay dial-selectable and off; the census's rule column
-(`work/m10/symbolic-tier-census.md`) records which mechanism
+(`work/sym/symbolic-tier-census.md`) records which mechanism
 discharges each row.
 
 ## M10-9 addendum (2026-09-06): the `registered` outcome — a constructor's axiom, counted apart
@@ -2078,7 +2078,7 @@ and door SHUT**: the fenced scaffolding residual, the carrier against
 the `MappedCurve` pushforward at the certifier's own samples, an
 identity between two independently built objects and therefore outside
 a node-aliasing door
-(`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`; the span
+(`work/sym/plate-ceiling-is-now-the-scaffold-pushforward`; the span
 identity's own row closed with the amendment,
 `plate-ceiling-is-now-the-arc-span-identity`). The door discharges
 40–60 decisions per document, and the identities it discharges were
@@ -2153,7 +2153,7 @@ ceiling + δ (`m10_10_pins_interval`, both bracket ends asserted):
 The plate's and the annulus's ceilings stopped scaling with ε: each
 is a fraction of its real study. What bounds each CEILING is
 dependency widening of a real margin's enclosure, not a flip
-(`work/m10/real-margin-dependency-widening`): the plate's assertion
+(`work/sym/real-margin-dependency-widening`): the plate's assertion
 margin is affine with true range `1e-4 ± 1.6e-4·s`, positive over the
 whole box below `s = 0.625`, while its enclosure at the ceiling
 (`s ≈ 0.263`) straddles zero — widened ~6e-5 each side; the annulus's
@@ -2197,7 +2197,7 @@ still encloses the true range), looser, pinned at the measured value
 with the leaf count (`m10_4_stackup_interval::PLATE_PADDING_PER_HALF_WIDTH
 = 8`, `m10_4_r2_probes_interval::BORE_PIN_PADDING_PER_HALF_WIDTH = 4`),
 and filed with what is owed
-(`work/m10/certified-hull-padding-is-the-leaf-width-not-the-lane`).
+(`work/props/certified-hull-padding-is-the-leaf-width-not-the-lane`).
 
 ## M11 addendum (2026-09-08): the CERT-1 roster fold — measured at `c39a904e`, and neither calibration witness moved
 

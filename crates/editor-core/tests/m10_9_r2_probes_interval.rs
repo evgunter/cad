@@ -496,7 +496,9 @@ fn r2_link_end_to_end_with_and_without_the_door() {
         assert!(lo.is_finite() && lo > 0.0, "the link certifies somewhere");
         // The bound: the over-band SET at ceiling + δ, never a first
         // refusal at a multiple of the ceiling
-        // (`work/m10/first-refusal-at-twice-the-ceiling-is-an-order-artefact`).
+        // (M10's closed
+        // `first-refusal-at-twice-the-ceiling-is-an-order-artefact`,
+        // `docs/DOC-LEDGER.md` sweep 13).
         let beyond = at(hi);
         let analyzed = analyzed_box(&beyond, &AnalysisPolicy::default());
         let (shapes, refusal, counts) = replay(&beyond, &ParamBox::of(&analyzed), rules, tol);
@@ -522,7 +524,7 @@ fn r2_link_end_to_end_with_and_without_the_door() {
     println!(
         "   link ceiling: M10-9's tier door shut {:.4e}·eps, shipped {:.4e}·eps — the same \
          bracket; neither the door nor the algebra moves the link (the scaffold residual \
-         stands on its carrier frame: `work/m10/symbolic-tier-census`)",
+         stands on its carrier frame: `work/sym/symbolic-tier-census`)",
         off_lo / eps,
         on_lo / eps
     );

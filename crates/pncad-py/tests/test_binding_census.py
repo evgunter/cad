@@ -1243,7 +1243,7 @@ FAMILIES: dict[str, str] = {
     # THE SECOND ARRIVED WITH THE DOOR ITSELF. `mc::sample_offsets`
     # was added on the Rust side because a tour cell needed to LOOK at
     # a sample rather than read a summary over all of them
-    # (`work/m10/mc-lanes-draws-are-not-reproducible-from-outside-the-crate`);
+    # (`work/props/mc-lanes-draws-are-not-reproducible-from-outside-the-crate`);
     # nothing forced the binding at the same time, because the cell
     # that motivated it is a Rust one. A Python consumer is therefore
     # exactly where every consumer was before the door existed: able
@@ -2926,6 +2926,8 @@ MEMBERS_BOUND_AS = {
     "PathError::NoCornerForFillet": "PathError.variant",
     "PathError::NoCornerOfPair": "PathError.variant",
     "PathError::FilletOffsetLeverTooShort": "PathError.variant",
+    "PathError::FilletArcFlattenedInStorage": "PathError.variant",
+    "PathError::FilletCarrierBelowSceneResolution": "PathError.variant",
     "PathError::ArcLegOnOpenFillet": "PathError.variant",
     "PathError::SeamRetrimsArcFirstSide": "PathError.variant",
     "PathError::NonpositiveLeg": "PathError.variant",

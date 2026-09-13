@@ -558,7 +558,7 @@ widens with the box whatever the symbolic tier does. Over a box that
 is a parameter-dependent existence-and-uniqueness certificate per
 family (interval Newton / Krawczyk, uniform over p), a different
 deliverable:
-`work/m10/param-box-certification-of-implicit-quantities.md` (filed
+`work/sym/param-box-certification-of-implicit-quantities.md` (filed
 at this revision by S-CERT; M10's since S-CERT's exit). The driver's
 refusal for such a residual stays typed and priced. The plate does not reach it (plane × cylinder is
 closed form); the E12 unit's census says which of the 57 do.
@@ -627,7 +627,7 @@ number.
   (`geom_core::real::WITNESS_REL`), not the run's tolerance, because a
   library body may not mint one and the door takes no `tol`. At a tight
   ε row it is many band-widths loose. Filed with the two routes out
-  (`work/m10/the-witness-slack-is-eps-independent`); the `Interval`
+  (`work/sym/the-witness-slack-is-eps-independent`); the `Interval`
   refusal, which is the one that matters over a box, carries no
   tolerance at all.
 
@@ -638,11 +638,11 @@ number.
   the CENTRE the joint classifier asks about is re-derived inside the
   funnel from the stored `(a, b, bulge)` and the constructor does not
   hold the operands that closed form needs
-  (`work/m10/fillet-tangency-is-not-the-constructors-node`); and the
+  (`work/blend/fillet-tangency-is-not-the-constructors-node`); and the
   residual that bounds every measured document,
   `carrier_matches_mapped_source`, is an identity between two
   INDEPENDENTLY BUILT objects, which is the line this bullet draws
-  (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`). No
+  (`work/sym/plate-ceiling-is-now-the-scaffold-pushforward`). No
   form-level axiom store was built, and the reason is this clause.
 
   **The form-level mechanism is ALGEBRA, not registration (M10-10,
@@ -667,7 +667,7 @@ number.
   walk's own end, and the ceiling stopped scaling with ε. What bounds
   that CEILING is the class this bullet's second sentence hands the
   ceiling to — dependency widening of a real margin
-  (`work/m10/real-margin-dependency-widening`), not a flip: the web
+  (`work/sym/real-margin-dependency-widening`), not a flip: the web
   assertion's margin is affine, `1e-4 + 2·Δhs − Δr_a − Δr_b`, its true
   range at the ceiling `[5.79e-5, 1.42e-4] > 0`, its enclosure
   `[−2.09e-9, 2.00e-4]`, and the flip first enters the box at 0.625 of
@@ -686,8 +686,8 @@ number.
   on is the scaffold residual's retirement, PCURVE/D3). And the reach
   is the UNIT bulge: a parameter bulge is outside the mechanism and a
   literal bulge other than 1 leaves residue
-  (`work/m10/rule-d-reaches-the-unit-bulge-only`;
-  `work/m10/symbolic-tier-census`).
+  (`work/sym/rule-d-reaches-the-unit-bulge-only`;
+  `work/sym/symbolic-tier-census`).
 
 Rationale: the driver's job is to certify over the STUDY's box; a
 certifier that can only certify boxes narrower than its own ε is
