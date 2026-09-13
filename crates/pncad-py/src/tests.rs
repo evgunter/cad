@@ -4798,6 +4798,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "poisoned_surface_description",
             "ring_contact_escalated",
             "ring_meets_outer",
+            "ring_nesting_undecided",
+            "ring_outside_outer",
             "scaffold_at_rest",
             "scaffolding_empty_loop",
             "scaffolding_strut_vertex",
