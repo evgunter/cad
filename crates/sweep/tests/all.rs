@@ -164,6 +164,8 @@ mod extrude_interval;
 mod issue93_az_intersect;
 #[path = "k_report.rs"]
 mod k_report;
+#[path = "ladder_split_key.rs"]
+mod ladder_split_key;
 #[path = "lib_u3_sections.rs"]
 mod lib_u3_sections;
 #[path = "m3_pr5_extrude_booleans.rs"]

@@ -74,8 +74,9 @@ use crate::blend::admit::AdmittedOpen;
 use crate::blend::battery::cap_incidence;
 use crate::blend::naming::BlendNaming;
 use crate::blend::surgery::{
-    ContactCarrier, Described, SourceFaces, chord_site, edge_touches, face_of_half, halves_of,
-    loop_of_half, not_intact, op, point_of, seam_split_param, unbuilt_chain, unbuilt_geometry,
+    ContactCarrier, Described, SourceFaces, chord_site, face_of_half, halves_of, loop_of_half,
+    not_intact, op, point_of, retire_fragment, seam_split_param, split_fragment, unbuilt_chain,
+    unbuilt_geometry,
 };
 
 /// One transverse cap of a ruled link, as the plan read it.
@@ -289,16 +290,11 @@ struct SplitRim {
 /// Split one cap rim edge at the trimline's foot on it, recording the
 /// foot and the surviving piece as births of this carve.
 ///
-/// **The rim may already be a fragment.** Two creases on one cap share
-/// the rim between them (the rod's two creases share the flat's chord),
-/// so the second carve splits a piece the first one left — a key that is
-/// either the SOURCE rim's or a fresh one, and in either case already
-/// carries a `meridian_remnants` row. Provenance is read off that row:
-/// the surviving piece is recorded as a fragment of the ORIGINAL source,
-/// the stale fragment row is retired, and only a source key that dies is
-/// a retirement (a minted piece that dies needs no row). Without this the
-/// second split recorded the survivor twice, which the document layer's
-/// emitter refuses as "the surgery recorded one entity twice".
+/// The split's provenance — which piece is a fragment of which source,
+/// and whether the dying piece is a retirement — is
+/// [`split_fragment`]'s and [`retire_fragment`]'s, shared with the
+/// ladder rim phase's meridian splits. The near piece always dies here:
+/// it is the remnant the cap's `kev` folds away with the sliver.
 #[allow(clippy::too_many_arguments)]
 fn split_rim<T: Decide + Bounds>(
     body: &mut Body<T>,
@@ -311,28 +307,12 @@ fn split_rim<T: Decide + Bounds>(
     tol: Tol,
 ) -> Result<SplitRim, BlendError> {
     let t = seam_split_param(body, rim, crease, foot)?;
-    let created = body
-        .split_edge(rim, t, tol)
-        .map_err(|e| op("cap rim split", e))?;
-    let (near, far) = if edge_touches(body, rim, vertex) {
-        (rim, created.new_edge)
-    } else {
-        (created.new_edge, rim)
-    };
-    let source = rec
-        .meridian_remnants
-        .iter()
-        .find(|(piece, _)| *piece == rim)
-        .map_or(rim, |(_, source)| *source);
-    rec.meridian_remnants.retain(|(piece, _)| *piece != rim);
-    rec.feet.push((created.vertex, vertex, support));
-    rec.meridian_remnants.push((far, source));
-    if near == source {
-        rec.dead.edges.push(source);
-    }
+    let frag = split_fragment(body, rim, vertex, t, rec, "cap rim split", tol)?;
+    rec.feet.push((frag.vertex, vertex, support));
+    retire_fragment(rec, frag.near, frag.source);
     Ok(SplitRim {
-        near,
-        foot: created.vertex,
+        near: frag.near,
+        foot: frag.vertex,
     })
 }
 

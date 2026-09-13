@@ -2510,6 +2510,83 @@ pub(super) fn seam_split_param<T: Decide + Bounds>(
     ))
 }
 
+/// The two pieces a band's split leaves on a source edge, with the
+/// source key they are both fragments of.
+pub(super) struct SplitFragments {
+    /// The piece still touching the vertex the split was taken beside:
+    /// a cap rim's dying remnant, a ladder meridian's UPPER remnant.
+    pub(super) near: EdgeKey,
+    /// The ORIGINAL source edge both pieces are fragments of — the key
+    /// the caller handed in, not the key that was split.
+    pub(super) source: EdgeKey,
+    /// The split's new vertex.
+    pub(super) vertex: VertexKey,
+}
+
+/// **Split a source edge beside `vertex`, recording the far piece as a
+/// fragment of the ORIGINAL source** — the one home of the band
+/// surgery's split provenance, for the ruled band's cap rims and the
+/// ladder rim phase's meridians alike.
+///
+/// **The edge may already be a fragment.** Two creases on one cap share
+/// the rim between them (the rod's two creases share the flat's chord),
+/// so the second carve splits a piece the first one left — a key that
+/// is either the SOURCE's or a fresh one, and in either case already
+/// carrying a `meridian_remnants` row. Provenance is read off that row:
+/// the surviving piece is recorded as a fragment of the ORIGINAL
+/// source and the stale fragment row is retired, so the records name
+/// one piece once and name it after a key the caller can resolve.
+/// Without this the second split recorded the survivor twice, which the
+/// document layer's emitter refuses as "the surgery recorded one entity
+/// twice".
+///
+/// **Which piece is `near` is the split's own answer, not the caller's
+/// guess.** [`Body::split_edge`] hands the parent key to the child
+/// carrying `start(he_plus)`, so the piece touching `vertex` is the
+/// source key when the edge's `he_plus` starts there and a FRESH key
+/// when it ends there. Both orientations are ordinary revolve and
+/// boolean outputs, which is why neither is read off the key and why
+/// [`retire_fragment`] exists.
+pub(super) fn split_fragment<T: Decide + Bounds>(
+    body: &mut Body<T>,
+    edge: EdgeKey,
+    vertex: VertexKey,
+    t: T,
+    rec: &mut BlendNaming,
+    site: &'static str,
+    tol: Tol,
+) -> Result<SplitFragments, BlendError> {
+    let created = body.split_edge(edge, t, tol).map_err(|e| op(site, e))?;
+    let (near, far) = if edge_touches(body, edge, vertex) {
+        (edge, created.new_edge)
+    } else {
+        (created.new_edge, edge)
+    };
+    let source = rec
+        .meridian_remnants
+        .iter()
+        .find(|(piece, _)| *piece == edge)
+        .map_or(edge, |(_, source)| *source);
+    rec.meridian_remnants.retain(|(piece, _)| *piece != edge);
+    rec.meridian_remnants.push((far, source));
+    Ok(SplitFragments {
+        near,
+        source,
+        vertex: created.vertex,
+    })
+}
+
+/// **Record the death of a split fragment**: only a SOURCE key is a
+/// retirement, because [`Retired`](super::naming::Retired) names what
+/// the blend took from the body the caller handed in. A piece this
+/// carve minted and then killed reaches neither the output nor the
+/// source and owes a row in neither direction.
+pub(super) fn retire_fragment(rec: &mut BlendNaming, dying: EdgeKey, source: EdgeKey) {
+    if dying == source {
+        rec.dead.edges.push(source);
+    }
+}
+
 /// **The band's STRUT foot on a host support** — the `mev` from a rim
 /// vertex out to that support's trimline, and the ONE home of the move
 /// for both closed-rim phases: the ladder struts at every vertex of its
@@ -2621,28 +2698,14 @@ fn rim_phase<T: Decide + Bounds>(
         let (tb_curve, tb_t0, _) = scaled(&rc, cb, sb, rc.plus_on_host);
         let target = tb_curve.eval(tb_t0);
         let t_split = seam_split_param(body, m, e, target)?;
-        let created = body
-            .split_edge(m, t_split, tol)
-            .map_err(|e| op("meridian split", e))?;
-        // The upper remnant is whichever piece still ends at the rim
-        // vertex.
-        let touches_v = |body: &Body<T>, e: EdgeKey| -> bool {
-            halves_of(body, e).is_some_and(|(hp, hm)| {
-                body.get_half_edge(hp).map(|h| h.start) == Some(v)
-                    || body.get_half_edge(hm).map(|h| h.start) == Some(v)
-            })
-        };
-        let upper = if touches_v(body, m) {
-            m
-        } else {
-            created.new_edge
-        };
-        // Birth data: the split vertex and the LOWER (surviving)
-        // piece are both fragments of this source meridian.
-        rec.meridian_splits.push((created.vertex, m));
-        let lower = if upper == m { created.new_edge } else { m };
-        rec.meridian_remnants.push((lower, m));
-        remnants.push((v, upper, m));
+        // The UPPER remnant is the piece still touching the rim vertex;
+        // the LOWER one survives as a fragment of the source. Which of
+        // the two keeps the source key is `split_edge`'s to say, so
+        // both the fragment row and step (6)'s retirement read the
+        // source off [`split_fragment`] rather than off `m`.
+        let frag = split_fragment(body, m, v, t_split, rec, "meridian split", tol)?;
+        rec.meridian_splits.push((frag.vertex, frag.source));
+        remnants.push((v, frag.near, frag.source));
     }
 
     // ---- (3) The plane side: struts to the widened trim circle and
@@ -2863,7 +2926,7 @@ fn rim_phase<T: Decide + Bounds>(
                 shp
             };
             body.kev(dying).map_err(|e| op("rim kev", e))?;
-            rec.dead.edges.push(mr);
+            retire_fragment(rec, mr, msrc);
         }
     }
 
