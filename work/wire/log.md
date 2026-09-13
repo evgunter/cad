@@ -3202,3 +3202,60 @@ what it got. And the verb census **re-derives its own subject** — a
 second freshly-built corpus agreeing with the first only by coincidence
 of construction — which is word for word the reasoning this same PR
 wrote fifteen lines away to justify doing the opposite.
+
+## 2026-09-13 — the census took the compile-time anchor, and the roster is what is left
+
+The fix pass chose the anchor that fails loudly. `program.rs` gains
+`document_vocabulary!`, and all three document enums are declared through
+it, projecting `ALL_NAMES` **from the same tokens that declare the
+variants**. Verified here rather than on report: the macro captures
+`$(#[$variant_meta:meta])*` ahead of each name, so attributes pass
+through and the whole class the review found — `#[doc(hidden)]`,
+`cfg_attr`, doc-comment-plus-attribute, raw identifiers — is closed **by
+construction** rather than by a widened reader.
+
+**The demonstration is the right one**: all three vocabularies mutated at
+once, **each carrying `#[doc(hidden)]`** — the exact spelling that took
+the text version from red to green — discharged everywhere the compiler
+named, gives `5 passed; 3 failed`, one red per vocabulary.
+
+**The reviewer's fixture was declined, correctly.** It pins a text walk
+that no longer exists. Its finding is what forced the change and is
+recorded on the row, which is the right disposition of a fixture whose
+subject was deleted by the fix it caused.
+
+**And the ledger line came back out**, because the file stopped being a
+source-reading site when `declared_variants` and the `test_utils::source`
+import went — the same discipline that put it there, applied in the
+other direction, with `reader_census` verified green after the removal
+rather than assumed.
+
+**The empty exception lists are gone**, which disposes of MINOR 4
+structurally rather than by disclosure: the censuses are anchored on what
+`corpus()` carries, so *declared* now means *covered* by the wire
+round-trip and the slot bijection too. The file's own sentence —
+*"an empty escape hatch is a hatch that will be used"* — no longer has a
+counterexample 330 lines below it.
+
+### What is left, and it is the same defect one level up
+
+`every_declared_variant_is_witnessed` is called at **three hand-written
+sites**. `ALL_NAMES` closes *"a variant arrives without a witness"*.
+Nothing closes *"a vocabulary arrives without a census"*: a fourth enum
+declared through the macro gets its `ALL_NAMES` free, gets no census, and
+nothing reds.
+
+Found here by inspection, in two calls, which is itself the signal — the
+first hole in a new mechanism has never been the only one on this
+program. Sent back before the delta round rather than after, so the round
+reviews the final shape rather than a version already known to be holed.
+
+**Third time in two units that the ROSTER rather than the SET was the
+soft edge.** PR 2480's delta produced the rule (*prefer a bijection; a
+roster is what you write when you have proved no bijection exists, and
+you write why at the site*); the operand door's door-list was the first
+instance, its macro-arm list the second, and this is the third. The
+macro is already the one place every document vocabulary passes through,
+which is exactly the position a roster can be projected from rather than
+typed — and if it genuinely cannot, the reason belongs at the call sites,
+not in a PR body.
