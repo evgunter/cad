@@ -5453,3 +5453,26 @@ in both briefs, neither reviewer sees the other's report; the same
 shared-box note applies to both arms (two fix-pass lanes building
 beside them; per-crate builds asked of both). Block PERF-B4's draw
 record stays branch-side until the block concludes.
+
+Block BLEND-B2 pre-draw fields (2026-09-13, logged before the draw):
+slot 0 = BLEND-8 (`docs/BLEND-8-SPEC.md`,
+`ladder-rim-phase-may-retire-a-new-split-key`) — difficulty **S**,
+task-class **STRUCTURAL** (at its spec, written 2026-09-07); slot 1 =
+BLEND-10 (`docs/BLEND-10-SPEC.md`,
+`path-fillet-door-validator-tangency-disagree`) — **M / NUMERIC**;
+slot 2 = BLEND-11 (`docs/BLEND-11-SPEC.md`,
+`overrun-attribution-picks-the-first-candidate`) — **S / STRUCTURAL**.
+Slots 1 and 2 at their specs, written 2026-09-13 (orchestrator PR
+#2494) before this draw. Slots 1 and 2 edit `crates/profile/*` by
+announced seam (S-BOOL's glob; `work/bool/log.md` at dispatch).
+
+Block BLEND-B2 draw (2026-09-13, after the pre-draw fields above; v3
+triple {opus, opus, fable}, one /dev/urandom byte, reject ≥252): byte
+**44**, 44 mod 3 = 2 = fable's position ⇒ **fable at slot 2**.
+So: slot 0 BLEND-8 = OPUS, slot 1 BLEND-10 = OPUS, slot 2 BLEND-11 = FABLE.
+Recorded branch-side on `blend/b2-block`; this record reaches main when
+the block's last slot's reviews conclude. Dispatch order: slot 0 opens
+when block BLEND-B1's last slot (BLEND-9) merges; slots 1 and 2 may run
+concurrently with it as lanes and disk allow.
+
+Block BLEND-B2 slot record (branch-side, appended as each slot concludes):
