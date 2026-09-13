@@ -97,3 +97,51 @@ bounds allowlist under the 2026-07-29 driver amendment beside
 `separation`. Pins: verdict goldens per ε row over the corpus, the heat
 sink at 10/40/160 fins and the STEP fixtures (cut on main first), and
 the differential suites in `editor-core` and `topo`.
+
+## PERF-11 lands on PROPS/TOPO ground (2026-09-13)
+
+**Announcing a `crates/topo/src/props.rs` edit in PROPS' territory**
+(`work/README.md`: the owner is told where the change lands). Unit
+`PERF-11` (branch `perf/11-props-walks`) executed the continuation half
+of `face-walks-outside-mass-properties-are-still-serial` and MEASURED
+the census half into a ruling:
+
+- `SignCertificate::refine_to_target` resumes its open faces as an
+  indexed map into one slot per face, each under a detached K-funnel
+  frame, and walks those slots sequentially in arena order — so the
+  refusal it names is still the FIRST refusal in arena order, resumed
+  or already outstanding. The map is bounded to the slots before that
+  refusal and is skipped entirely when no face is open (58 of the
+  tour's 61 gated stops); a symbolic session keeps the serial walk.
+- `classify_shells_of`'s per-shell face loop **stays SERIAL**. It was
+  mapped, measured, and reverted: the map costs about 3× at four
+  threads on the corpus heat sink at 41 and 161 shells, 4.6× on a
+  two-shell voided brick, 2× on a hollow box, and gains on no body in
+  the corpus, because no corpus shell is many-faced on the quadrature
+  lane. What it kept is the dedup — the hand-rolled per-shell sums are
+  `fold_runs` now — and the serial walk has one home
+  (`decide_faces_serially`), shared with `decide_faces`' session arm.
+  The grain that could repay the price there is the loop over SHELLS,
+  which measures at about break-even on the same document; that is the
+  census's own question and PERF-12's ground.
+
+Pins: thread-count goldens for the census
+(`crates/sweep/tests/shell_census_is_thread_count_invariant.rs`, cut on
+the merge base — on a serial walk they pin that its readings and its
+recorded channels do not read the pool at all), the continuation's
+refusal-parity, piece-evaluation and session-receipt rows at an
+explicit one and four threads
+(`continuation_is_thread_count_invariant.rs`), and the refusal ORDER
+itself on a hand-built certificate in `props.rs`
+(`continuation_refusal_order_tests`), where no fixture body can put an
+outstanding refusal ahead of an outright one.
+
+Measured: the round spout's continuation through the tour 16.2 s →
+4.1 s at four threads (14.2 → 14.7 s at one — the width is the whole
+of the saving), the whole tour 24.9 s → 12.5 s at four threads;
+`quintic_prism`'s continuation 8.3 s → 2.1 s. Evidence added to two
+open items rather than new rows:
+`quadrature-setup-is-re-derived-per-round-window` (the open-face census
+over the tour's 61 gated stops, and the setup term's 8–99% share) and
+`parallel-map-costs-a-fixed-price-on-a-cheap-body` (the census's
+measured regression, the ruling it forced, and the shell grain).

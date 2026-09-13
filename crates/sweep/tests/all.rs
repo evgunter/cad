@@ -154,6 +154,8 @@ mod blend_tworims;
 mod cert5_offgrid_knot_rational;
 #[path = "cert8_r1_probes.rs"]
 mod cert8_r1_probes;
+#[path = "closed_chain_junctions.rs"]
+mod closed_chain_junctions;
 #[path = "extrude_acceptance.rs"]
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]
@@ -268,6 +270,8 @@ mod review_blend6_r1_probes;
 mod review_blend6_r2_probes;
 #[path = "review_chamfer_r1_probes.rs"]
 mod review_chamfer_r1_probes;
+#[path = "review_closed_chain_junctions_r2_probes.rs"]
+mod review_closed_chain_junctions_r2_probes;
 #[path = "review_d2_adv_probes.rs"]
 mod review_d2_adv_probes;
 #[path = "review_d2_recourse_at_the_site.rs"]
@@ -424,6 +428,12 @@ mod mass_props_are_thread_count_invariant;
 #[path = "sign_certified_plus_v.rs"]
 mod sign_certified_plus_v;
 
+#[path = "shell_census_is_thread_count_invariant.rs"]
+mod shell_census_is_thread_count_invariant;
+
+#[path = "continuation_is_thread_count_invariant.rs"]
+mod continuation_is_thread_count_invariant;
+
 #[path = "m8_4_intersection_iso.rs"]
 mod m8_4_intersection_iso;
 
@@ -453,6 +463,12 @@ mod mate7a_torus_rest;
 
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
+#[path = "review_ring_clearance_r1_probes.rs"]
+mod review_ring_clearance_r1_probes;
+#[path = "review_ring_clearance_r2_probes.rs"]
+mod review_ring_clearance_r2_probes;
+#[path = "ring_clearance_forms.rs"]
+mod ring_clearance_forms;
 
 #[path = "r1_probes_m9_3.rs"]
 mod r1_probes_m9_3;
@@ -555,6 +571,8 @@ mod fillet_h7_transverse_cap_interval;
 
 #[path = "review_blend1_r1_probes.rs"]
 mod review_blend1_r1_probes;
+#[path = "review_closed_chain_junctions_r1_probes.rs"]
+mod review_closed_chain_junctions_r1_probes;
 #[path = "review_fillet_h7_r1_probes.rs"]
 mod review_fillet_h7_r1_probes;
 #[path = "review_fillet_split_r2_probes.rs"]

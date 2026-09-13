@@ -519,3 +519,112 @@ FABLE, R2 = OPUS; briefs stored with digests on `blend/b1-block`
 before either ran; the four deviations stated in both briefs as
 hypotheses. The unit's log entry waits for the dual. Unit 7's target
 reclaimed for the reviewers' base-tree builds (its fix pass re-seeds).
+**MERGED — unit 6 (2026-09-13)** on PR [#2215](https://github.com/evgunter/cad/pull/2215):
+the ring-clearance circle arm gets the relation it is asked, the
+hostless annulus's rings metered by containment, the refusal on a
+ringed host gone; both items closed. Dual: no MAJOR either side, no
+tally candidate; the bilateral headline corrected the unit's own D5
+(the backstop is reachable by an extruded bored cylinder and is not
+bit-identical to the screen). Fix pass on the union: both probe
+branches adopted, the falsified residue closed against the adopted
+rows, the trio built at the ring predicate, fixtures homed once, six
+doc sites, the three suite files renamed by subject; CI caught a
+probe-gated suite the sweep did not run and it was rostered. Delta by
+R1 on the fixed head: recorded below. Sample #176 (main's order rules).
+Residues on the slate from this unit: `unit-numbered-test-suite-prefixes-collide-across-program-generations`.
+Delta (R1, on `e3f8d06a`): all six items CONFIRMED by execution —
+both probe branches as merge parents with the canary and the
+bored-cylinder rows green together and the rostered probe suite
+running seven rows under the sweep's own invocation; mutant A one red
+(the plate row), mutant B six red as tabled; the ring-predicate trio's
+three legs reading the predicate and the recourse off the errors; the
+ulp table reproduced by `to_bits` arithmetic; the six doc sites; the
+renames with unit 5's resolver row present and green (the lane's
+belief that it was absent was wrong). One survivor: the new
+`CircleMargins` paragraph still said "exactly" — corrected in the
+state-sync commit to "the same real, in closed form".
+
+**MERGED — unit 7 (2026-09-13)** on PR [#2483](https://github.com/evgunter/cad/pull/2483):
+a closed chain's junctions are judged against the links that touch
+them; N ≥ 3 closed rims carve on both doors and both sides; the item
+closed. Dual: no MAJOR either side, no tally candidate; the kernel
+change confirmed by both arms' own instruments; the findings were
+record-level and the stronger unique ones (the oracle as a second
+`wedge_fill`; the fix minting fixture copies of what it closes) went
+into the fix pass, which also adopted both probe branches and re-took
+the bit-dump differential after reshaping the closing arm. Delta by
+R1 on the fixed head: recorded below. Sample #177 (main's order
+rules). Residues on the slate from this unit:
+`rim-of-refuses-extruded-multi-arc-rims`,
+`battery-holds-the-chain-data-model-beside-the-predicates`,
+`self-closed-link-sharing-its-vertex-records-two-junctions`.
+Delta (R1, on `3dd896cb`): all seven items CONFIRMED by execution —
+both probe merges in the ancestry with ten rows green through the
+accessors (a spelled-out `Junction` literal fails to compile from a
+test); the oracle through `wedge_fill` with every pinned value
+unchanged; write-side mutant 11 red / 41 green and read-side 9 red /
+43 green, the three record rows green under the latter; the closing
+arm's loud and silent cases swapped as asked; `assert_full_revolve_rim`
+at sixteen sites; the half-cap sites, the recourse-audit reason, the
+centroid sentence and the dead citations all as reported; a re-run of
+the differential judged unwarranted from the `battery.rs` diff. Three
+notes folded into the state-sync commit: the sort's doc named the
+wrong reader (it serves the open row's "first junction"); R1's wrapper
+kept the retired oracle's name; the two re-homed fixtures moved by bits
+(recorded on the item).
+**Unit 7's dual concluded (2026-09-13, ~02:40 UTC):** R1 (FABLE)
+MERGEABLE 0/5/3, rubric 4/4/3; R2 (OPUS) MERGEABLE-AFTER-FIXES 0/4/4
+plus eight style findings, rubric 4/4/3. Both concurrent on the frozen
+head with private targets, neither interrupted, zero cross-lane reads
+disclosed. No MAJOR either side ⇒ no unilateral MAJOR, NO tally
+candidate. The kernel change is right by both instruments: each
+reviewer re-read the pairing off the body's half-edges with the
+converse asserted, ran its own mutant over the whole sweep suite (red
+= exactly the N ≥ 3 carve rows plus the flipped characterization row),
+re-derived the Pappus form, and confirmed all four deviations. The
+converged findings are record-level: the premise table omits a hit of
+its own pattern (`is_seam_vertex`'s slice pattern, silently filtered)
+and three revolve-suite sites; the `rim_of` residue cites three names
+that do not exist; the invariant row and the open-chain row stay green
+under a read-side mutant (they pin the record, the carve rows pin the
+read) while the row docs claim more; `debug_assert!` is a tripwire not
+a pin. Unique R1: the centroid sentence names the wrong corner (the
+code was right); three "revolve-minted half-caps" sites the ladder's
+re-worded doc left behind; the sort maintained for a sentence; a
+self-closed-link double junction (unsure). Unique R2: `corner_torus`
+is a second `wedge_fill` against `waist_fill`'s own ruling; the fix
+minted a thirteenth `prism` copy, a `cube` ladder copy and a fifth
+seed-scan instance of a filed class while leaving the private
+`cylinder()` twins beside the builder it homed; the same eleven-word
+justification at eight sites; `pub` junction indices into private
+links; `battery.rs` now carrying the chain data model. R2's open chain
+seeded from its middle link is the one row that reaches the walk's
+backward arm. Fix pass dispatched on the union
+(`/home/user/blend-briefs/fix-7-brief.md`), both probe branches to be
+adopted; delta by R1 on the fixed head; then state-sync and the A/B row.
+
+**Unit 9 dispatched (2026-09-13, ~02:50 UTC)** — block B1 slot 2,
+OPUS arm per the draw (byte 13), spec `docs/BLEND-9-SPEC.md`, branch
+`blend/9-must-carry-one-home`; the PROPS seam for `dihedral.rs`
+announced in `work/props/log.md` first; two rulings added in the
+brief (suite named `must_carry_rule.rs` by subject, superseding the
+spec's `blend8_` spelling; the seam edit is the wrapper and nothing
+else). Runs beside unit 6's and unit 7's fix passes; the reviewers'
+targets were reclaimed to make its room.
+
+**Unit 9 landed (2026-09-13)** on PR [#2491](https://github.com/evgunter/cad/pull/2491),
+head `3e8936715`, full matrix green (run 34736829969). The must-carry
+rule has one home at the edge level (`geom_brep::must_carry_over_edge`,
+gate first, the schedule's interior stations, a typed three-way
+answer); both verbs call it, `jet_determinate` is gone; the
+description differential over 22 fixtures and 264 edges is
+byte-identical; the behaviour change (a revolve's in-band latitude
+join now refuses typed) is pinned by the re-baselined H6 probe row and
+by the trio on both verbs. Five deviations reported, among them a
+claim that no out-of-lane smooth pair is constructible through either
+verb, and the cap rim's third smooth-description arm filed rather than
+routed. **Ordinal 2902 claimed (orchestrator PR to main); the v6 dual
+dispatched concurrently on the frozen head** — byte 93 ⇒ R1 = FABLE,
+R2 = OPUS; briefs stored with digests on `blend/b1-block` before
+either ran; the five deviations stated in both briefs as hypotheses.
+The unit's log entry waits for the dual.
