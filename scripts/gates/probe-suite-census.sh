@@ -212,6 +212,7 @@ RUN_FLOOR=(
   plain:sweep:must_carry_rule:10
   plain:sweep:review_chamfer_r1_probes:7
   plain:sweep:review_contact_edge_must_carry_r1_probes:6
+  plain:sweep:review_contact_edge_must_carry_r2_probes:7
   plain:sweep:review_must_carry_rule_r1_probes:4
   plain:sweep:review_fillet_e1_probes:4
   plain:sweep:review_ring_clearance_r1_probes:7
