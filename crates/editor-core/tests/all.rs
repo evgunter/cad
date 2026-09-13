@@ -356,6 +356,10 @@ mod mate6_gather_mints;
 mod mate6r1_shared;
 #[path = "mate6r2_probes.rs"]
 mod mate6r2_probes;
+#[path = "perf12_census_bvh_diff.rs"]
+mod perf12_census_bvh_diff;
+#[path = "perf12_census_goldens.rs"]
+mod perf12_census_goldens;
 #[path = "perf2_name_keying_differential.rs"]
 mod perf2_name_keying_differential;
 #[path = "pinned_lift_validates_once.rs"]
