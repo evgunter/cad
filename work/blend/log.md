@@ -417,3 +417,17 @@ in `tests/common/cap_rims.rs`; one residue filed
 (`extrude-strut-rule-has-three-homes-and-fixed-context-argument-lists`).
 With this, every unit of the E slate is merged except unit 5, whose
 re-merged head awaits its run.
+
+**MERGED — unit 6 (2026-09-13)** on PR [#2215](https://github.com/evgunter/cad/pull/2215):
+the ring-clearance circle arm gets the relation it is asked, the
+hostless annulus's rings metered by containment, the refusal on a
+ringed host gone; both items closed. Dual: no MAJOR either side, no
+tally candidate; the bilateral headline corrected the unit's own D5
+(the backstop is reachable by an extruded bored cylinder and is not
+bit-identical to the screen). Fix pass on the union: both probe
+branches adopted, the falsified residue closed against the adopted
+rows, the trio built at the ring predicate, fixtures homed once, six
+doc sites, the three suite files renamed by subject; CI caught a
+probe-gated suite the sweep did not run and it was rostered. Delta by
+R1 on the fixed head: recorded below. Sample #176 (main's order rules).
+Residues on the slate from this unit: `unit-numbered-test-suite-prefixes-collide-across-program-generations`.

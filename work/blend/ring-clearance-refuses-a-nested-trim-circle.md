@@ -2,10 +2,11 @@
 id: ring-clearance-refuses-a-nested-trim-circle
 kind: unit
 title: fillet: ring clearance refuses a ladder rim whose widened trim circle is NESTED inside its host's circular outer boundary; the doc's 'neither occurs today' has a witness
-status: review
+status: closed
 opened: 2026-09-04
 branch: blend/6-ring-clearance
 pr: 2215
+closed: 2026-09-13
 ---
 
 
@@ -82,3 +83,20 @@ that reaches it.
 ## Re-homed (2026-09-06)
 
 Moved from `work/issues/` to `work/blend/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, body and header are unchanged except as noted; the directory is the claim (`work/README.md`). `blend/surgery.rs`'s ladder ring-clearance arm; one unit with `hostless-rim-on-a-ringed-host-refuses`.
+
+## Closed (2026-09-13, PR 2215)
+
+The outer-boundary circle arm takes the better of the external and the
+containment margins (`surgery.rs` `CircleMargins`, `circle_margins`):
+the witness body's dome rim (concave, measured — the spec's label was
+wrong) and the dimple twin both carve at closed forms with pad 0
+(`ring_clearance_forms::*`). The "neither occurs today" sentence is
+gone. The dual found the external half of the `max` unwitnessed; two
+adopted review rows pin it (a mixed outer cycle's convex corner arc; a
+non-coaxial ladder trim circle carving inside and refusing outside its
+boundary, the crossing the spec asked for). The exact containment
+backstop behind predicate 2's screen is reachable after all
+(`review_ring_clearance_r1_probes::r1_a_bored_cylinders_off_axis_ring_reaches_the_ladder_backstop_at_the_front_door`),
+and it is not bit-identical to the screen (16 ulps on this relation);
+`containment-margin-backstop-unreachable-behind-the-screen` records
+the corrected measurement.

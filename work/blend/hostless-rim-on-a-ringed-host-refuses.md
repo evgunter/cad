@@ -2,10 +2,11 @@
 id: hostless-rim-on-a-ringed-host-refuses
 kind: unit
 title: fillet: a hostless-crossing rim whose one plane host also carries a RING refuses; the annulus band's host trim has no answer for that ring
-status: review
+status: closed
 opened: 2026-09-05
 branch: blend/6-ring-clearance
 pr: 2215
+closed: 2026-09-13
 ---
 
 
@@ -92,3 +93,19 @@ ahead of it again.
 ## Re-homed (2026-09-06)
 
 Moved from `work/issues/` to `work/blend/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, body and header are unchanged except as noted; the directory is the claim (`work/README.md`). `blend/surgery.rs`'s hostless host gate; one unit with `ring-clearance-refuses-a-nested-trim-circle` (the same closed-form circle-vs-circle arithmetic).
+
+## Closed (2026-09-13, PR 2215)
+
+`resolve_rim`'s hostless arm no longer refuses a host that carries
+rings: the annulus's host rings are metered by the existing ring walk
+with the containment form (`other_inside_trim`) instead of the external
+one, so the boss's top outer rim carves on its ringed host at the wedge
+closed form with pad 0
+(`ring_clearance_forms::the_bosss_top_outer_rim_carves_on_a_ringed_host`),
+a ring inside the excised strip refuses at the ring predicate, and the
+two rims of one call refuse together at `shared_support_gate` and
+compose sequentially. The trio at `fillet3_ring_clearance` runs through
+the public door on the bored cylinder (definite, exact zero at
+`d + a = 0.9`, in-band typed with the ring recourse). README A3-2 and
+`FILLET3_ASSEMBLY_RECOURSE` promise the carve subject to that clearance
+and cross-reference the ring refusal that says what to move.

@@ -1813,6 +1813,17 @@ That is Ev's call and it was made on the diff itself.
 | `METER-EXIT-WALK.md` | 2026-09-08 | PR #2212, in three PR comments (*"1. open / 2. giving them to the successor sounds good / 3. huh i thought track X had closed / 4. delete / 5. i would like to see the diff / 6. this doesn't look like a question?"*, then *"the new 3, instr, and your plan all sound good!"*) | this row; the residue table above; `tools/README.md` and the three instrument crates' own headers; `work/instr/` for the twenty rows it carried forward |
 
 
+## Per-merge deletion — BLEND-6's spec (2026-09-13)
+
+Recoverable at `git show e3f8d06a4b4fda4ce3720b4f8783c218ce119890:docs/BLEND-6-SPEC.md`
+(the fix-pass head; the spec's two measured errors — the dome rim's
+convexity and oracle, the "nothing meters them today" premise — are
+corrected in the PR body and the unit's items, not in the spec). The
+unit's record is its row in `MODEL-AB-LOG.md`, its MERGED entry in
+`work/blend/log.md`, and the `## Closed` sections of its two items.
+
+- `BLEND-6-SPEC.md` — BLEND-6, the ring-clearance circle arm gets its relation (#2215)
+
 ## Sweep 12 — 2026-09-12: CITE leaves the tracker
 
 Sweep SHA: `116d96c01d4a03084d4701d7d58fb3b5dcf1703b` — the commit
