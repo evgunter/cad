@@ -116,6 +116,8 @@ mod docm6_seam_declarations;
 mod docm7_union_declare;
 #[path = "docm8_flat_merged.rs"]
 mod docm8_flat_merged;
+#[path = "docm9_range.rs"]
+mod docm9_range;
 #[path = "dsc_checks.rs"]
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]

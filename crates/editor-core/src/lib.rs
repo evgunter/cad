@@ -62,6 +62,13 @@ pub mod persist;
 pub mod placement;
 pub mod product;
 pub mod program;
+/// The certified locally-valid range of ONE field — the on-demand
+/// query the sampling probe's answer is replaced by. Gated on
+/// `interval` for [`mod@drive`]'s reason: the certificate IS a drive's
+/// leaves, and a query that fell back to `f64` would be the sampler it
+/// exists to improve on.
+#[cfg(feature = "interval")]
+pub mod range;
 pub mod refactor;
 /// The E10/E11.6 reporting layer: the goldening and human forms every
 /// derived report carries, the priced-vs-forced budget type, the
@@ -176,6 +183,10 @@ pub use product::{
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
     ProgramStep, ProgramTarget, RecordedProgramError, resolve_loops,
+};
+#[cfg(feature = "interval")]
+pub use range::{
+    CertifiedRange, Derived, RangeField, RangeRefusal, RangeSide, Seed, certified_range,
 };
 pub use refactor::{InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, inline, split};
 #[cfg(feature = "interval")]
