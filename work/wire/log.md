@@ -3880,3 +3880,87 @@ no review has seen**, and recommended a short round over a blind merge.
 That is the standing rule applied by the party it costs, and it is the
 second time today a lane has asked for the round that would scrutinise
 its own work.
+
+## 2026-09-13 — the delta on 2517: the closure rule is defeated, and the defeat is structural
+
+**1 MAJOR, 3 MINOR, 7 style.** The round was dispatched because the lane
+disclosed its derivation had changed; it came back having broken the half
+the lane was proudest of.
+
+### The defeat
+
+`refuse_params` asks *"is the text immediately before this construction a
+closing `|`"*. It never asks **which** closure, nor that the closure is
+the door's `refuse` argument. So a road binds `found` on an **inner**
+closure and feeds it its own answer — planted in-tree on the measure
+road, **6 passed, 0 failed**:
+
+```rust
+|_door_found| (|found| NodeErrorKind::MeasureSelectionKind { verb, found })(
+    match self.key { /* a hand-written match over EntityKey */ })
+```
+
+The door's answer is discarded and a hand-written match over `EntityKey`
+is a second home for *"what an entity IS"* — the exact shape this unit
+removed. **And the document rows cannot see it, because the road's answer
+happens to be correct.** On the measure road, which the module header
+says already spelled two correct words by hand. The regression the unit
+exists to prevent, restored under a green suite.
+
+Two further spellings, both compiling and both delivering the road's
+word: a one-line IIFE, and a `let`-bound closure **inside the argument
+list** — which is the shape the guard's own doc says cannot exist, and
+which `clippy::redundant_closure_call` does not reach either.
+
+### Why this is the same lesson a third time
+
+All three defeats share one root: **the road can compute an `EntityKind`
+and hand it over.** The textual rule is trying to enforce with a parser
+what the door's *shape* could enforce outright.
+
+This program has now met that exact trade three times in three days — the
+census anchor that went green on an attribute until a macro projected it
+from the declaring tokens; the roster typed on the test side until it was
+projected from the invocation; and now a closure-form check standing in
+for a type. The rule that keeps emerging: **stop policing the spelling,
+make the wrong thing unspellable.**
+
+Directed accordingly: find out whether `refuse` can take a value only
+`entity` can mint, so the road passes a kind through rather than choosing
+one — the three error kinds keep their identities because the road still
+picks the constructor, it just cannot pick the kind. If that works the
+guard shrinks to the equality and the parser disappears. **If it does not
+work, the fallback is honesty**: delete the sentence asserting an
+invariant nothing enforces, and put this blind spot in the list — which
+is the reviewer's sharpest procedural point, that *the "what these rows
+cannot see" list enumerates four blind spots and not this one, incomplete
+in exactly the direction the round was dispatched to test.*
+
+### And the adversarial question answered yes, in the same commit that closed it
+
+**The commit that extracted `line`/`boundary_before` into
+`test_utils::source` — on the stated grounds that two censuses had
+written them byte-identically — minted two fresh byte-identical fragments
+between those same two censuses.** `doors`, twelve of fifteen lines
+identical; `door_calls`'s inner loop, identical modulo a `&`. Neither
+declares itself in prose, so the `verbatim|ported from` sweep finds
+nothing. One of the copies also **carried a dead guard** — a branch that
+cannot fire here because both doors are generic — which is live in the
+census it was copied from.
+
+### Two censuses on one file with opposite rules, each documented as right
+
+`built_in` **requires** the `NodeErrorKind::` qualifier; the operand
+census **requires the token bare**, and argues at its own site that this
+is what stops a `use` walking past it. Same file, same class of
+construction, contradictory receipts — *"one question, many spellings"*
+reappearing inside the pair of guards that pin it.
+
+### What held
+
+The independent derivation, verified the right way: the carrier stays in
+`declared` under the re-spelling **and** the coverage was shown real
+rather than both-sides-in-step, by moving a road's refusal into a helper
+and watching `built` drop to 3 against `declared`'s 4. The tail check's
+own hole fails **red**. P1 reds with an accurate message. Claim 4 holds
+on both limbs of both sides.
