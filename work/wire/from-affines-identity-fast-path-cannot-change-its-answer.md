@@ -5,7 +5,7 @@ title: Frame::from_affine's identity fast path is a no-op: is_identity_bits() is
 status: closed
 pr: 2499
 opened: 2026-09-12
-closed: 2026-09-12
+closed: 2026-09-13
 ---
 
 
@@ -106,9 +106,36 @@ What survives the deletion is a different claim, and it is real:
 door that rounded, or that admitted a near-identity by anything but
 bits, would break it — so it has runtime values that falsify it.
 `from_affine_carries_the_affines_bits_and_snaps_nothing` keeps that,
-over the same six inputs, with the non-snapping assertions as the
-teeth. Verified red-first against a tolerance-snapping `from_affine`:
-red at the `-0.0 translation` case, the other five rows in the module
-green.
+with the `is_identity_bits` assertions as the teeth.
+
+**The fixtures must perturb both parts, and the first version did
+not.** Review planted the mutant that matters — `from_affine` snapping
+the LINEAR part to `IDENTITY.columns` when every entry is within `1e-9`
+— and all five placement rows stayed green, because every non-identity
+fixture perturbed the TRANSLATION. That is the mutant that matters
+because of who reads the result: `mate::solve`'s `reconcile` branches
+on `relative.is_identity_bits()` and the `true` arm DISCARDS the solved
+relative pose, so a linear-part snap would read a gauge that rotated by
+a hair as *"did not move"*.
+
+Two fixtures close that direction, both with a zero translation so only
+the linear part is off the identity: a subnormal off-diagonal shear,
+and `columns[2][2]` one ulp below `1.0`. Each of the four near-identity
+fixtures is one representable step from the identity — and each is
+asserted non-vacuous, so a fixture that drifted onto the identity
+reddens rather than passing.
+
+Red-first evidence, the reviewer's mutant re-planted:
+
+- carried-bits loop: *"from_affine moved a bit at subnormal shear"*;
+- the teeth, run with the near-identity fixtures held out of the loop
+  above so they answer independently: *"from_affine snapped subnormal
+  shear onto the identity"* — the same `is_identity_bits()` read
+  `reconcile` makes.
+
+`placement::tests` holds five rows; the other four were green in both
+runs, and all five are green with the mutant removed. (A `placement`
+name filter also picks up one row in `names::emit` — it is not in this
+module and is not counted here.)
 
 Citations accurate at `846def72a`.

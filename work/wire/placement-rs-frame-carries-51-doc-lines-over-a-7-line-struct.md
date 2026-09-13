@@ -4,8 +4,8 @@ kind: issue
 title: placement.rs's Frame carries ~51 lines of type doc over a 7-line struct - the accumulation the nine-paragraphs row left open, now concentrated rather than spread
 status: closed
 pr: 2499
-opened: 2026-09-13
-closed: 2026-09-12
+opened: 2026-09-12
+closed: 2026-09-13
 refs: [2375, 2475]
 ---
 
@@ -60,18 +60,28 @@ fences the `bit-identical` vocabulary specifically. A unit that shortens
 the file by deleting a bit-exactness argument has made the codebase
 worse and passed every gate.
 
-## Re-measured (2026-09-12), and the re-measurement is the finding
+## Re-measured (2026-09-13), and the re-measurement is the finding
 
 The row asked for the counts to be retaken after
 `frame-linear-generic-door-has-no-consumers` landed. They were, by
-script, over four states of the file:
+script (`measure.py`, the lane's), over four states of the file.
 
-| state | `Frame` type doc | file | comment lines | code lines |
-| --- | --- | --- | --- | --- |
-| `7d5782045` (this row's subject, PR 2475's head) | **55** | 569 | 225 | 307 |
-| `a2fcc48c8` (`Frame::linear` deleted, PR 2487) | **55** | 551 | 223 | 292 |
-| `origin/main` at dispatch | **55** | 551 | 223 | 292 |
-| this PR | **52** | 526 | 215 | 276 |
+**The counting rule, stated because two independent counts of this
+disagreed by one and neither had stated its own.** Split the file on
+newlines and DROP the empty string a trailing newline produces — that
+is the whole of the disagreement; the first count in this PR read that
+empty string as a blank line and reported every `code` figure one too
+low. A line is COMMENT if its first non-space characters are `//` (so
+`///`, `//!` and `//` all count), BLANK if it is empty or whitespace
+only, and CODE otherwise. The three partition the file, and the table
+below is checked to sum.
+
+| state | `Frame` type doc | file | comment | blank | code |
+| --- | --- | --- | --- | --- | --- |
+| `7d5782045` (this row's subject, PR 2475's head) | **55** | 569 | 225 | 36 | 308 |
+| `a2fcc48c8` (`Frame::linear` deleted, PR 2487) | **55** | 551 | 223 | 35 | 293 |
+| `origin/main` at dispatch | **55** | 551 | 223 | 35 | 293 |
+| this PR | **52** | 555 | 227 | 35 | 293 |
 
 Two corrections to the row's own numbers first: the type doc was **55
 lines, not ~51**, and the struct is a **4-line** declaration under
@@ -82,8 +92,11 @@ row's premise — *"part of the measurement will move without anyone
 writing prose at all"* — is false, and measurably so.
 `Frame::linear`'s own doc was two lines and lived on the method; the
 type doc's single mention of it reflowed away at no net cost. The
-whole-file comment share went 42% → 43% across that deletion, i.e.
-UP, because the door was more code than prose.
+file's comment share went **42.2% → 43.2% of comment+code**, or
+**39.5% → 40.5% of the file** — the denominator is named because the
+table carries a `file` column and either division is defensible;
+both give the same direction, which is UP, because the deleted door
+was more code than prose.
 
 That is the answer to the question this row asks. The type doc's size
 does not track the door count, because it does not document the doors:
@@ -92,6 +105,11 @@ concentration S6 deliberately chose. A 4-line `Copy` struct whose
 CONTRACT is bit-level exactness has a doc proportional to the contract.
 Fewer doors will not shrink it, and the parent's answer — *"fewer
 doors, not less prose"* — does not survive its own measurement.
+
+The PR's own net effect on the file is **+4 lines**, not −3: the type
+doc lost 3, and the fix pass's two near-identity fixtures and their
+doc (a different row's deliverable, in this same PR) added more than
+that back. The type doc — this row's actual subject — is 52.
 
 ## The call: one specific thing moved, and the row closes
 
@@ -109,8 +127,19 @@ slate pointer are the parts a reader of `Frame` never needs — and the
 slate pointer is itself a citation that dies when `meta` closes and its
 directory is deleted. Trimmed to the invariant that is owed: the name
 is hand-written, no gate reads it, grep for the assertion. Net −3
-lines, 55 → 52, and the class itself is still tracked where it belongs
-(META's `doc-citations-no-gate-checks-rot-silently`, arm B).
+lines, 55 → 52.
+
+**The trade, recorded rather than left as an absence.** Those nine
+lines were `placement.rs`'s only in-repo pointer to META's
+`doc-citations-no-gate-checks-rot-silently` arm B. The class is still
+tracked, and that row names the placement assertion from its side, so
+nothing is lost from the tracker's view. What is lost is the thread a
+reader of `placement.rs` could pull: the surviving sentence states the
+hazard without naming where it is answered. That is the cost of not
+writing a citation that outlives its target, and it is the right side
+of the trade only because the pointer would have rotted silently — but
+it IS a cost, and a reader who wants the class now has to grep `work/`
+for it.
 
 Nothing else moves. This closes the row: the shape is right, and the
 measurement that would have argued otherwise says the opposite of what

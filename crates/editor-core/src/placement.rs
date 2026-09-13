@@ -493,26 +493,45 @@ mod tests {
     /// coordinates of the affine arrive with their bits intact, and
     /// NOTHING is snapped on the way in.
     ///
-    /// The teeth are the last two assertions. A door that rounded, or
-    /// that admitted a near-identity by anything but bits, would send a
-    /// frame one bit from the identity home as the identity — and the
-    /// `-0.0` translation is exactly one bit from it, while the
-    /// subnormal is the smallest magnitude a tolerance would swallow.
+    /// The teeth are the `is_identity_bits` assertions, and the
+    /// fixtures under them must perturb the identity in BOTH PARTS —
+    /// a translation-only set leaves a linear-part snap green, and a
+    /// linear-part snap is the one that silently changes an answer:
+    /// `mate::solve`'s `reconcile` branches on
+    /// `relative.is_identity_bits()` and its `true` arm DISCARDS the
+    /// solved relative pose, so a gauge that rotated by a hair would
+    /// read as "did not move".
+    ///
+    /// Each of the four is one representable step from the identity —
+    /// a signed zero, a subnormal, an off-diagonal subnormal, and the
+    /// next `f64` below `1.0` — so any tolerance a door could adopt
+    /// swallows all four.
     #[test]
     fn from_affine_carries_the_affines_bits_and_snaps_nothing() {
         let mut signed_zero = Frame::IDENTITY;
         signed_zero.translation[0] = -0.0;
         let mut subnormal = Frame::IDENTITY;
         subnormal.translation[2] = 5.0e-324;
+        // Zero translation, so only the LINEAR part is off the
+        // identity: a subnormal shear, and one ulp of scale.
+        let mut sheared = Frame::IDENTITY;
+        sheared.columns[0][1] = 5.0e-324;
+        let mut scaled = Frame::IDENTITY;
+        scaled.columns[2][2] = 1.0 - f64::EPSILON / 2.0;
 
-        for (name, f) in [
-            ("identity", Frame::IDENTITY),
+        let near_identity = [
             ("-0.0 translation", signed_zero),
             ("subnormal translation", subnormal),
+            ("subnormal shear", sheared),
+            ("one ulp of scale", scaled),
+        ];
+
+        for (name, f) in near_identity.iter().copied().chain([
+            ("identity", Frame::IDENTITY),
             ("sample", sample()),
             ("other", other()),
             ("bit zoo", bit_zoo()),
-        ] {
+        ]) {
             assert!(
                 Frame::from_affine(f.affine_f64()).bit_eq(&f),
                 "from_affine moved a bit at {name}"
@@ -520,7 +539,17 @@ mod tests {
         }
 
         assert!(Frame::from_affine(Frame::IDENTITY.affine_f64()).is_identity_bits());
-        assert!(!Frame::from_affine(signed_zero.affine_f64()).is_identity_bits());
-        assert!(!Frame::from_affine(subnormal.affine_f64()).is_identity_bits());
+        for (name, f) in near_identity {
+            assert!(
+                !Frame::from_affine(f.affine_f64()).is_identity_bits(),
+                "from_affine snapped {name} onto the identity"
+            );
+            // The fixture is one step from the identity, not equal to
+            // it: a vacuous row would pass the assertion above.
+            assert!(
+                !f.bit_eq(&Frame::IDENTITY),
+                "fixture {name} IS the identity"
+            );
+        }
     }
 }
