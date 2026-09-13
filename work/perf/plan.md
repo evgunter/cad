@@ -293,8 +293,8 @@ Euler-op sequences stay serial — each op mutates shared arenas, and
 they are cheap; full-DAG rebuild is solved by memoization, not by
 parallelizing surgery.
 
-**State.** `rayon` is a dependency of `editor-core` and, since PERF-8,
-`topo` (PERF-7 adds `mesh`); `par_iter`
+**State.** `rayon` is a dependency of `editor-core`, `topo` (PERF-8) and
+`mesh` (PERF-7); `par_iter`
 lives at `eval/mod.rs:2380` (behind `EvalOptions::parallel`, default
 `false` at `:2080`), `drive.rs:1184` (behind `DriveConfig::parallel`,
 default `false` at `:361`), `stackup.rs:513,1831` and `mc.rs:473`
@@ -581,7 +581,16 @@ demo-only and test-only units record no A/B row.
 **Block PERF-B3** (Ev, 2026-09-12: "your plan for the next block sounds
 good"; sequencing left to the orchestrator):
 
-- PERF-7 — the tessellator's face loop as D9 idiom 1 (`docs/PERF-7-SPEC.md`).
+- PERF-7 — the tessellator's face loop as D9 idiom 1 — landed (PR 2448):
+  the per-face lane as an indexed parallel map, `place` the arena-order
+  fold; `FaceBounds` read-only to the lanes; the memo's inserts in the
+  fold; the budget meter and the K-funnel composed per face through
+  `k_stats::detached` / `splice`; goldens pinned at explicit 1- and
+  4-thread pools. `tube_ring` 968 → 512 ms, `gallery_ring` 178 → 66,
+  `hollowring` 178 → 58 at four threads; a fixed ~0.05 ms per call and
+  ~3 µs per memo-hit face on small bodies, filed
+  (`parallel-map-costs-a-fixed-price-on-a-cheap-body`); peak memory
+  +18 % on `tube_ring` (every patch live before the fold).
 - PERF-8 — per-face mass-property fluxes as idiom 1 with the K-funnel
   composing across threads — landed (PR 2452): `k_stats::detached` /
   `splice` compose a worker's recording into the caller's frame and

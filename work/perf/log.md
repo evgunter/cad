@@ -1029,3 +1029,26 @@ door); `Vec3::norm` for the diagonal; a `ProbeStop` enum names the
 ladder's exits. The state-sync added the item from this branch,
 closed; merged at `4e87db966` (PR 2464). Every side unit of the plan
 is landed. Lane reclaimed.
+
+## 2026-09-13 — PERF-7 merged; block PERF-B3 complete
+
+Fix pass landed both parts (head `81b383dcc`, CI run 34726596440
+green; the implementer died once on the usage limit and was resumed):
+each face's lane runs under `k_stats::detached` in the same wrapper
+as the budget meter and the fold splices the recordings in arena
+order up to the first refusal — a bracket around `mesh::tessellate`
+now records 56 verdicts at any width where it recorded 0; the sweep
+claim corrected (71 `Bracket::open` sites in 28 files, two in
+production). The hit-path slot cost was attacked and the result is
+honestly negative (0.67 → 0.70 ms at one thread, inside the spread;
+the reviewer's diagnosis of the restored patch falsified; the change
+kept as strictly less work); the item now carries both arms' numbers
+(~0.05 ms fixed per call, ~3 µs per hit face, break-even ~60 faces).
+`FaceBounds` has one door per role; the meter swap has a `Drop`
+guard; the re-stamp is full-key; peak memory +18 % on `tube_ring`
+stated at the site; the addendum's built target deleted under
+CLAUDE.md's re-word clause. State-sync rode the PR; merged at
+`56784bd4d` (PR 2448). Block PERF-B3 is complete: three units, three
+clean pairs, two with a unilateral MAJOR (the opus arm both times —
+PERF-7's funnel channel, PERF-8's roster and serial arm). Its record
+folds into `docs/MODEL-AB-LOG.md` next; every lane is reclaimed.
