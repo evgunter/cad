@@ -975,3 +975,22 @@ unreachable (`profile` canonicalizes traversal); the orchestrator's
 own plan and program lines still say "unmeasured". Fix pass dispatched
 on the union (`/home/user/blend-briefs/fix-8-brief.md`); both probe
 branches adopted; delta by R1.
+
+**Unit 12 landed (2026-09-13)** on PR [#2508](https://github.com/evgunter/cad/pull/2508),
+head `b4403f1fb`, full matrix green (run 34754788782). Phase 1 drove
+four of the nine `fillet_*` predicates in band through the public door
+at every ε row and found each rendering the shared coincidence recourse
+at the merge base; five are pre-empted (two by a proof that the
+exact-order band admits no finite f64, three by point sweeps).
+`EscalationSite::Fillet` had no producer and is retired with its arm;
+the nine names map to the six sentences through one function in
+`validate.rs`, dispatched first in the door's Display; 897 public-door
+requests at three ε rows are bit-identical in every built loop and
+every refusal's variant and payload. Two fence crossings the
+retirement forced (the `pncad` re-export census; the reader-census
+ledger), a re-baselined trio row, and a filed residue (four sentences
+no longer name the tolerance lever at their in-band site). **Ordinal
+2906 claimed (orchestrator PR to main); the v6 dual dispatched
+concurrently on the frozen head** — byte 157 ⇒ R1 = FABLE, R2 = OPUS;
+briefs stored with digests on `blend/b3-block` before either ran. The
+unit's log entry waits for the dual; unit 15 dispatches when it merges.
