@@ -3,6 +3,7 @@ id: the-entity-kind-door-has-six-spellings
 kind: issue
 title: Read a name, test its EntityKey kind, refuse: three copies in eval/wire.rs and six spellings of the refusal across the crate, with no shared door
 status: open
+pr: 2517
 opened: 2026-09-12
 ---
 
@@ -64,7 +65,7 @@ question this row asks and does not answer.
 Read beside `eval::mod`'s `operand_vocabulary_census`, whose own doc
 records this class as what it cannot see.
 
-## Closed 2026-09-13 (PR TBD)
+## Closed 2026-09-13 (PR 2517)
 
 **One home, in two doors**, the way `operand`/`node_operand` is one
 home for the value-kind question. `eval/wire.rs`'s `ENTITY-DOOR`
