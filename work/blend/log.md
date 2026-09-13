@@ -831,3 +831,34 @@ added; `nearest_candidate`'s dominance argument cited for non-survivors
 paragraph (new text beside a ratified clause, no clause id) is flagged
 for Ev's read: it scopes itself one level below the envelope and
 retires nothing.
+
+**Unit 10's dual concluded (2026-09-13, ~08:45 UTC):** R1 (OPUS)
+MERGEABLE-AFTER-FIXES 1/7/5 plus six style findings, rubric 4/3/3;
+R2 (FABLE) MERGEABLE 0/2/3, rubric 4/4/4. Both concurrent on the
+frozen head with private targets, neither interrupted, zero
+cross-lane reads disclosed. The headline is BILATERAL at differing
+severity: both found by execution a SECOND loss mechanism the lane's
+Phase 1 did not name — the bulge pins a carrier only to ulps of its
+radius, so a fillet with its sagitta far above the band still fails
+the carrier predicate (R2 by a huge radius, R1 by a far scene) — and
+R1 rated the consequence MAJOR (the refusal renders one sentence and
+two levers for two situations, false in the second; the D4 ¶1
+addendum the variant's own neighbour cites) where R2 rated it MINOR.
+NO tally candidate. Both confirmed the door moved for the right
+reason, all nine deviations sound (the three spec corrections by
+measurement, the non-monotone cell judged not a stop, the FFI fence
+crossing forced), the interval-lane relay bit-identical to the
+validator's enclosures with the read suppressed, and the mutant table
+exact. Converged: the re-stated census pins unguarded; the corpus
+row monotone the wrong way; the Phase 1 harness re-spelling the
+funnel the unit forbids; a hand-written list of the validator's
+predicate names; the K count's line × arc branch (+11 or +12); the
+relayed escalation's wrong site prose. Unique R1: `UndeclaredTangency`
+asserted not enforced; three spellings of one margin in `seg.rs`; the
+`SameCarrier` doc saying the opposite of both its readers; the new
+recourse living outside the six `FILLET_*_RECOURSE`'s home. Unique R2:
+`line_span` between adjacent segments at 1e-12 (unfiled); no radius
+exists at 1e-12 for the smallest turns. Fix pass dispatched on the
+union (`/home/user/blend-briefs/fix-10-brief.md`): two situations,
+two sentences, the recourse in its home; both probe branches adopted;
+delta by R1.
