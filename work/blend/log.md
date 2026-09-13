@@ -550,3 +550,12 @@ seeded from its middle link is the one row that reaches the walk's
 backward arm. Fix pass dispatched on the union
 (`/home/user/blend-briefs/fix-7-brief.md`), both probe branches to be
 adopted; delta by R1 on the fixed head; then state-sync and the A/B row.
+
+**Unit 9 dispatched (2026-09-13, ~02:50 UTC)** — block B1 slot 2,
+OPUS arm per the draw (byte 13), spec `docs/BLEND-9-SPEC.md`, branch
+`blend/9-must-carry-one-home`; the PROPS seam for `dihedral.rs`
+announced in `work/props/log.md` first; two rulings added in the
+brief (suite named `must_carry_rule.rs` by subject, superseding the
+spec's `blend8_` spelling; the seam edit is the wrapper and nothing
+else). Runs beside unit 6's and unit 7's fix passes; the reviewers'
+targets were reclaimed to make its room.
