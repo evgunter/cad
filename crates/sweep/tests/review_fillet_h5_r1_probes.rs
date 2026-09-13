@@ -25,7 +25,7 @@ use geom_core::Tol;
 use sweep::blend::BlendError;
 use sweep::blend::FILLET3_ASSEMBLY_RECOURSE;
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::rim_arcs_at;
+use sweep::test_support::{assert_full_revolve_rim, rim_arcs_at};
 use topo::{Body, EdgeKey, FaceKey, LoopBoundary, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
@@ -88,7 +88,7 @@ fn loop_edges(body: &Body<f64>, lp: topo::LoopKey) -> Vec<EdgeKey> {
 fn r1_the_bosss_base_rim_is_hostless_and_carves() {
     let body = boss();
     let arcs = rim_arcs_at(&body, 1.0, 0.0);
-    assert_eq!(arcs.len(), 2, "the repaired base rim is two arcs");
+    assert_full_revolve_rim(&arcs, "the repaired base rim");
     let host = plane_host(&body, &arcs);
     let fd = body.get_face(host).unwrap();
     assert!(fd.rings.is_empty(), "the base disc carries no ring");
@@ -128,7 +128,7 @@ fn r1_the_bosss_base_rim_is_hostless_and_carves() {
 fn r1_a_hostless_rim_on_a_ringed_host_carves_under_the_recourse_that_promises_it() {
     let body = boss();
     let arcs = rim_arcs_at(&body, 1.0, 1.0);
-    assert_eq!(arcs.len(), 2, "the repaired top outer rim is two arcs");
+    assert_full_revolve_rim(&arcs, "the repaired top outer rim");
     let host = plane_host(&body, &arcs);
     let fd = body.get_face(host).unwrap();
     // The shape the recourse's new clause names: ONE face carries EVERY

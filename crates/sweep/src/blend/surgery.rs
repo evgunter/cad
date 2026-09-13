@@ -272,8 +272,9 @@ const RING_CLEARANCE: &str = "fillet3_ring_clearance";
 /// One closed chain resolved onto its supports.
 ///
 /// Both sides are per-arc. On a LADDER rim the host side repeats ONE
-/// planar face while a revolve-minted cap arrives as half-cap faces
-/// split by meridian seam edges through the pole, so each rim arc
+/// planar face while the mate arrives as one face per arc — a
+/// revolve's half-caps split by meridian seams through the pole, or an
+/// extruded wall's faces split by its seam lines — so each rim arc
 /// bounds its own mate face and consecutive arcs meet at a rim vertex
 /// where exactly one MERIDIAN edge descends into the cap. On an
 /// ANNULUS rim the MATE side is always several FACES of one SURFACE —
@@ -301,7 +302,9 @@ struct RimPlan<'a, T: Real> {
 /// surgeries and not two settings of one.
 enum RimShape {
     /// **The quad ladder.** The rim is a RING of its planar support and
-    /// each link's sphere face is a half-cap carrying exactly that arc:
+    /// each link's curved face carries exactly that arc — a revolve's
+    /// half-cap or an extruded cylinder's wall; the gate asks for the
+    /// arc, not the kind:
     /// the band is carved as a ladder of struts and trim arcs around
     /// the ring, closed by one slit at the closure vertex.
     Ladder {
@@ -987,8 +990,9 @@ fn resolve_rim<'a, T: Decide + Bounds>(
     }
 
     // The LADDER's remaining gates: each arc's mate face is a ring-free
-    // cap piece carrying exactly that one chain arc on its boundary
-    // (revolve-minted half-caps).
+    // piece carrying exactly that one chain arc on its boundary — a
+    // revolve's half-cap or an extruded wall's face; the gate reads the
+    // arc, not the kind.
     let chain_edges: Vec<EdgeKey> = chain.links().map(|l| l.edge).collect();
     for (link, &s) in chain.links().zip(mates.iter()) {
         let sd = body
@@ -1324,9 +1328,10 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
         // **The recourse audit at this arm.** Under `Seams` this is the
         // pre-existing site. Under `Struts` a crossing carrying a HOST
         // seam cannot reach it — the outer-cycle arm above admitted a
-        // host whose cycle is exactly the two arcs, so that face meets
-        // the crossing exactly twice and has no third half-edge to give
-        // — and what does reach it is a crossing with two MATE seams,
+        // host whose cycle is exactly the chain's arcs (`cycle == want`,
+        // however many), and a simple cycle meets a vertex exactly
+        // twice, so that face has no third half-edge to give — and what
+        // does reach it is a crossing with two MATE seams,
         // i.e. three mate faces meeting there. That is neither
         // "each support face carries one arc" nor "one face carries
         // every arc as its whole outer cycle", so the sentence does not
@@ -2605,7 +2610,7 @@ fn rim_phase<T: Decide + Bounds>(
             return Err(unbuilt_chain(
                 e,
                 "a rim vertex does not drop exactly one meridian into the cap; the band \
-                 replacement is built for revolve-minted half-caps only",
+                 replacement is built for mate faces split by one meridian per rim vertex",
             ));
         };
         // The split target: the sphere trim circle at this vertex's
@@ -2724,7 +2729,7 @@ fn rim_phase<T: Decide + Bounds>(
             return Err(unbuilt_chain(
                 e,
                 "a half-cap's rim arc is not flanked by meridian split points; the band \
-                 replacement is built for revolve-minted half-caps only",
+                 replacement is built for mate faces split by one meridian per rim vertex",
             ));
         }
         let (p1, p2) = (

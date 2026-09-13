@@ -35,10 +35,11 @@ use geom::{Curve3, Surface};
 use geom_core::{Tol, Vec3};
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
-    assert_naming_totality, ball_poled_z, cube, faces_around, rim_arcs_at, waist_fill, waisted,
+    assert_naming_totality, ball_poled_z, cube, faces_around, realized, rim_arcs_at, waist_fill,
+    waisted,
 };
-use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{Body, BooleanDeclarations, EdgeKey, FaceKey, mass_properties, validate_geometric};
+use topo::boolean::BooleanOp;
+use topo::{Body, EdgeKey, FaceKey, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -169,19 +170,7 @@ fn slab_with(op: BooleanOp) -> Body<f64> {
         BooleanOp::Intersect => unreachable!("only the two die shapes are built here"),
     };
     let ball = ball_poled_z(BALL_R, Vec3::new(0.5, 0.5, cz), tol());
-    boolean_op_with(
-        op,
-        &cube(SLAB, tol()),
-        &ball,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        tol(),
-    )
-    .unwrap_or_else(|e| panic!("the boolean builds the {op:?} body, got {e}"))
-    .body()
-    .expect("a body")
-    .body
-    .clone()
+    realized(op, &cube(SLAB, tol()), &ball, tol())
 }
 
 /// The edges between a plane face and a sphere face: the one rim of a

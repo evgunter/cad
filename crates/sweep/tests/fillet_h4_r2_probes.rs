@@ -30,10 +30,11 @@ use geom::Surface;
 use geom_core::{Tol, Vec3};
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
-    assert_naming_totality, ball_poled_z, cube, faces_around, lantern, rim_arcs_at, waisted,
+    assert_naming_totality, ball_poled_z, cube, faces_around, lantern, realized, rim_arcs_at,
+    waisted,
 };
-use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{BooleanDeclarations, EdgeKey, validate_geometric};
+use topo::boolean::BooleanOp;
+use topo::{EdgeKey, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -96,19 +97,7 @@ fn the_boss_union_is_valid_at_rest_and_its_band_is_the_ladder() {
     const BALL_R: f64 = 0.09;
     const CAP_H: f64 = 0.05;
     let ball = ball_poled_z(BALL_R, Vec3::new(0.5, 0.5, SLAB - (BALL_R - CAP_H)), tol());
-    let boss = boolean_op_with(
-        BooleanOp::Union,
-        &cube(SLAB, tol()),
-        &ball,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        tol(),
-    )
-    .unwrap_or_else(|e| panic!("the union builds, got {e}"))
-    .body()
-    .expect("a body")
-    .body
-    .clone();
+    let boss = realized(BooleanOp::Union, &cube(SLAB, tol()), &ball, tol());
     validate_geometric(&boss, tol())
         .unwrap_or_else(|e| panic!("the union is tier-3 valid at rest, got {e:?}"));
     let arcs: Vec<EdgeKey> = boss

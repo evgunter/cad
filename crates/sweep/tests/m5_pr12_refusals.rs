@@ -19,6 +19,7 @@ use sweep::blend::battery::{
     spine_regularity,
 };
 use sweep::blend::{BlendError, BlendSite, CornerConfig, RunOutPolicy};
+use sweep::test_support::disc_of_arcs;
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, FaceKey, FaceSurface, VertexKey};
 
@@ -53,22 +54,7 @@ fn boxy() -> Body<f64> {
 
 /// A cylinder: a three-arc circle extruded.
 fn cylinder() -> Body<f64> {
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th: f64 = deg.to_radians();
-        p2(0.5 * th.cos(), 0.5 * th.sin())
-    };
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(at(0.0), b120),
-        ProfileVertex::new(at(120.0), b120),
-        ProfileVertex::new(at(240.0), b120),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(tol())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    disc_of_arcs(3, 0.5, 1.0, tol())
 }
 
 /// Any face / vertex / edge key of a real body — the trio rows below
@@ -643,13 +629,14 @@ fn trio_corner_independence() {
 /// `fillet3_support_coaxiality` meters. Returns the body and its
 /// whole raised rim.
 ///
-/// **The rim is TWO semicircular arcs**, so the whole rim is a closed
-/// two-link chain the battery admits and the trio's exact leg is a
-/// BUILD on the same body the other two legs refuse on. A three-arc
-/// rim is not: `walk_chains` lists a closed chain's junctions against
-/// links that do not all touch them, so the junction check reads a
-/// far-end tangent and refuses `ChainNotG1` at 120°
-/// (`review_blend1_r1_probes::r1_a_three_arc_rim_refuses_chain_g1_at_a_junction_where_a_two_arc_rim_builds`).
+/// **The rim is TWO semicircular arcs by authoring**, so the whole rim
+/// is a closed two-link chain and the trio's exact leg is a BUILD on
+/// the same body the other two legs refuse on. Two is the profile's
+/// choice, not the battery's limit: a rim authored as N ≥ 3 arcs is
+/// the same closed chain with N junctions, each judged between the two
+/// arcs that meet there
+/// (`review_blend1_r1_probes::r1_a_three_arc_rim_carves_where_a_two_arc_rim_does`;
+/// at the closed forms, `closed_chain_junctions`).
 ///
 /// The tilt is written through `topo`'s public face-surface door
 /// because no BUILDER mints a parted curved pair: extrude derives the

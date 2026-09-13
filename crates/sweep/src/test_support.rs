@@ -33,7 +33,10 @@
 //!   A fixture only earns a place here once a consumer OUTSIDE this
 //!   crate needs it or a second suite inside it does; the narrower
 //!   homes, and the rule that routes between them, are stated in
-//!   `sweep`'s own `tests/common` module.
+//!   `sweep`'s own `tests/common` module. The same rule seats the
+//!   crate-PRIVATE seams a suite reads through — [`ring_clearance`]
+//!   and [`walked_chains`] — which are not fixtures but the only way a
+//!   `tests/` crate can observe a `pub(crate)` phase.
 //!
 //! Existence and visibility coincide here, so one gate states both:
 //! nothing in this module has a non-test consumer, unlike `topo`'s
@@ -51,9 +54,11 @@ use geom::NurbsCurve3;
 use geom_brep::PcurveFittedLane;
 use geom_core::{Affine3, Band, Bounds, Decide, Point2, Point3, Real, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use topo::{Body, EdgeKey, FaceKey, LoopBoundary};
+use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
+use topo::{Body, BooleanDeclarations, EdgeKey, FaceKey, LoopBoundary};
 
-use crate::blend::battery::{BlendRequest, Link, run_battery};
+use crate::blend::BlendKind;
+use crate::blend::battery::{BlendRequest, Chain, Link, resolve_link, run_battery, walk_chains};
 use crate::blend::build::Blended;
 pub use crate::blend::surgery::ring_clearance_for_tests as ring_clearance;
 use crate::skin::{Section, segment_curve};
@@ -68,16 +73,17 @@ pub const R: f64 = 0.1;
 /// An axis-aligned cube of side `l` with a corner at the origin:
 /// eight trivalent corners, every one of them geometrically CONVEX.
 pub fn cube(l: f64, tol: Tol) -> Body<f64> {
-    let lp = ProfileLoop::new(
-        [(0.0, 0.0), (l, 0.0), (l, l), (0.0, l)]
-            .into_iter()
-            .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
-            .collect(),
-    );
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(tol)
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(l), tol).unwrap().body
+    prism(square(l), l, tol)
+}
+
+/// The square of side `l` with a corner at the origin, as profile
+/// vertices — the one spelling of the block every block fixture here
+/// extrudes.
+fn square(l: f64) -> Vec<ProfileVertex<f64>> {
+    [(0.0, 0.0), (l, 0.0), (l, l), (0.0, l)]
+        .into_iter()
+        .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
+        .collect()
 }
 
 /// Every edge of `body` resolved by the fillet battery, in edge
@@ -410,7 +416,20 @@ pub fn spool(rev: crate::Revolution<f64>, tol: Tol) -> Body<f64> {
 /// L-prism, the arc-sided prism and the turned box are all one door;
 /// panics on an invalid loop, which is a fixture bug, not an outcome.
 pub fn prism(verts: Vec<ProfileVertex<f64>>, h: f64, tol: Tol) -> Body<f64> {
-    let pf = Profile::new(SketchPlane::xy(), vec![ProfileLoop::new(verts)])
+    prism_at(verts, 0.0, h, tol)
+}
+
+/// [`prism`] with its sketch plane lifted to station `z0`: the loop
+/// is extruded from `z0` up by `h`. The one home of the lifted
+/// extrusion, so a fixture that stacks a prism on or into another body
+/// does not re-spell the plane.
+pub fn prism_at(verts: Vec<ProfileVertex<f64>>, z0: f64, h: f64, tol: Tol) -> Body<f64> {
+    let plane = SketchPlane::new(Affine3::from_frame(
+        Point3::new(0.0, 0.0, z0),
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+    ));
+    let pf = Profile::new(plane, vec![ProfileLoop::new(verts)])
         .validate(tol)
         .expect("the fixture's profile is a valid loop");
     extrude(&pf, Extrusion::Distance(h), tol)
@@ -1347,4 +1366,236 @@ pub fn rod_section_cut(big_r: f64, flat: f64, r: f64) -> f64 {
     let theta = ((flat - r) / (big_r - r)).acos();
     let phi = theta - (flat / big_r).acos();
     0.5 * twice - 0.5 * r.powi(2) * theta + 0.5 * big_r.powi(2) * (phi - phi.sin())
+}
+
+/// **A disc authored as `n` equal arcs, extruded `h` along `+z`** — a
+/// cylinder of radius `r` about the origin whose two rims are each a
+/// closed chain of `n` links meeting at `n` junctions, and whose wall
+/// is `n` faces of ONE cylinder surface. Every closed-rim suite's
+/// revolve fixture splits its rim at exactly one seam (two arcs), so
+/// the N-link closed chain for `N ≥ 3` is this builder's shape and no
+/// other's. Its raised rim sits in the cap's OUTER cycle and is
+/// CONVEX. `n = 2` is the two-semicircle rim the other suites build.
+///
+/// # Panics
+///
+/// As [`cylinder_of_arcs_at`].
+#[must_use]
+pub fn disc_of_arcs(n: usize, r: f64, h: f64, tol: Tol) -> Body<f64> {
+    cylinder_of_arcs_at(n, r, Point2::new(0.0, 0.0), 0.0, h, tol)
+}
+
+/// **A cylinder of radius `r` about `(c.x, c.y)`, from station `z0`
+/// up by `h`, whose circle is authored as `n` equal arcs.** The arcs
+/// start at azimuth 0 and run counter-clockwise; each spans `2π/n`,
+/// so its bulge is `tan(π/(2n))` (a bulge is `tan(θ/4)` for an arc of
+/// turning `θ`).
+///
+/// # Panics
+///
+/// On `n < 2` — one vertex cannot author a closed loop — or an invalid
+/// profile, both fixture bugs.
+#[must_use]
+pub fn cylinder_of_arcs_at(
+    n: usize,
+    r: f64,
+    c: Point2<f64>,
+    z0: f64,
+    h: f64,
+    tol: Tol,
+) -> Body<f64> {
+    prism_at(arc_polygon(n, r, c), z0, h, tol)
+}
+
+/// **A block with an `n`-arc bore through it**: the `l × l × h` block
+/// with a corner at the origin, bored on its centre by a circle of
+/// radius `r` authored as `n` equal arcs. Each of its two bore rims is
+/// a closed chain of `n` links in a RING of its cap — and CONVEX: a
+/// through-bore's cap rim is a 90° material wedge, the same as the
+/// disc's, on the other side of the wall.
+///
+/// # Panics
+///
+/// As [`cylinder_of_arcs_at`]; `r` reaching the block's sides is a
+/// fixture bug too.
+#[must_use]
+pub fn bored_block_of_arcs(n: usize, l: f64, h: f64, r: f64, tol: Tol) -> Body<f64> {
+    assert!(2.0 * r < l, "the bore must clear the block's sides");
+    let outer = ProfileLoop::new(square(l));
+    let hole = ProfileLoop::new(arc_polygon(n, r, Point2::new(l / 2.0, l / 2.0)));
+    let profile = Profile::new(SketchPlane::xy(), vec![outer, hole])
+        .validate(tol)
+        .expect("the bored block's profile is a valid pair of loops");
+    extrude(&profile, Extrusion::Distance(h), tol)
+        .expect("the bored block extrudes")
+        .body
+}
+
+/// **A boss on a block**: the cube of side `l` at the origin, unioned
+/// with an `n`-arc cylinder of radius `r` on its centre that starts
+/// inside the block at `z0 < l` and stands `h` tall, so it protrudes
+/// through the top. The boss's FOOT rim, at station `l`, is a closed
+/// chain of `n` links in a RING of the block's top face — and
+/// CONCAVE, the material-adding twin of [`bored_block_of_arcs`]'s rim.
+///
+/// # Panics
+///
+/// On a boss that does not protrude, or a union the boolean refuses —
+/// fixture bugs.
+#[must_use]
+pub fn boss_of_arcs(n: usize, l: f64, r: f64, z0: f64, h: f64, tol: Tol) -> Body<f64> {
+    assert!(
+        z0 < l && z0 + h > l,
+        "the boss must start inside the block and protrude"
+    );
+    let boss = cylinder_of_arcs_at(n, r, Point2::new(l / 2.0, l / 2.0), z0, h, tol);
+    realized(BooleanOp::Union, &cube(l, tol), &boss, tol)
+}
+
+/// **A pocket in a block**: the cube of side `l` at the origin, minus
+/// an `n`-arc cylinder of radius `r` on its centre from station
+/// `floor < l` up past the top. The pocket's FLOOR rim, at station
+/// `floor`, is a closed chain of `n` links in the floor face's OUTER
+/// cycle — and CONCAVE, the material-adding twin of [`disc_of_arcs`]'s
+/// rim.
+///
+/// # Panics
+///
+/// On a floor at or above the top, or a subtract the boolean refuses —
+/// fixture bugs.
+#[must_use]
+pub fn pocket_of_arcs(n: usize, l: f64, r: f64, floor: f64, tol: Tol) -> Body<f64> {
+    assert!(
+        floor < l,
+        "the pocket's floor must sit below the block's top"
+    );
+    let tool = cylinder_of_arcs_at(n, r, Point2::new(l / 2.0, l / 2.0), floor, l, tol);
+    realized(BooleanOp::Subtract, &cube(l, tol), &tool, tol)
+}
+
+/// **The realized boolean of two fixtures, as a body** — `op` through
+/// the public door with no declarations and `SweepStrategy::Realized`,
+/// the body unwrapped. The one spelling: a suite that builds a boss, a
+/// pip or a bore calls this rather than the eleven lines it replaces.
+///
+/// # Panics
+///
+/// If the boolean refuses or leaves no body — a fixture bug, louder as
+/// a panic than as an empty answer.
+#[must_use]
+pub fn realized(op: BooleanOp, a: &Body<f64>, b: &Body<f64>, tol: Tol) -> Body<f64> {
+    boolean_op_with(
+        op,
+        a,
+        b,
+        &BooleanDeclarations::none(),
+        SweepStrategy::Realized,
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("the fixture's {op:?} builds, got {e}"))
+    .body()
+    .expect("the fixture's boolean is a body")
+    .body
+    .clone()
+}
+
+/// The `n` bulged vertices of a circle of radius `r` about `c`,
+/// authored as `n` equal arcs starting at azimuth 0.
+fn arc_polygon(n: usize, r: f64, c: Point2<f64>) -> Vec<ProfileVertex<f64>> {
+    assert!(n >= 2, "a closed loop of arcs needs at least two vertices");
+    let bulge = (core::f64::consts::PI / (2.0 * n as f64)).tan();
+    (0..n)
+        .map(|i| {
+            let th = 2.0 * core::f64::consts::PI * (i as f64) / (n as f64);
+            ProfileVertex::new(Point2::new(c.x + r * th.cos(), c.y + r * th.sin()), bulge)
+        })
+        .collect()
+}
+
+/// **Every arc whose stored carrier is a circle centred at station
+/// `z`**, in key order — the raw scan, seeded through no rim door.
+///
+/// The z-poled twin of [`arcs_at`]'s scan, for the extruded fixtures
+/// above — the fifth z-poled scan in the tree, and the instance
+/// `work/blend/seed-finder-home-reads-only-the-y-station` records
+/// against the day the home reads a station on either axis. It is
+/// station-only where [`arcs_at`] also filters by radius and excludes
+/// co-surface circles, and that is right for THESE fixtures rather
+/// than in general: each builder above mints one circle per station
+/// (the seams it leaves are lines, so no co-surface circle exists),
+/// which the scan checks by requiring every arc it finds to share one
+/// carrier radius — two rims at one station are then a loud fixture
+/// bug rather than a silent union.
+///
+/// Deliberately NOT routed through [`topo::query::rim_of`]: that door
+/// matches arcs by bit-identical carrier circles, and `extrude` stores
+/// each arc of one authored circle on its own centre and radius, so it
+/// refuses every rim these builders mint
+/// (`work/blend/rim-of-refuses-extruded-multi-arc-rims`).
+///
+/// # Panics
+///
+/// If the arcs at `z` do not share one radius (within `1e-9`).
+#[must_use]
+pub fn circle_arcs_at_z(body: &Body<f64>, z: f64) -> Vec<EdgeKey> {
+    let found: Vec<(EdgeKey, f64)> = body
+        .edges()
+        .filter_map(|(k, e)| {
+            let c = body.get_curve_geom(e.curve)?.certified()?;
+            match c.carrier() {
+                geom::Curve3::Circle { center, radius, .. } if (center.z - z).abs() < 1e-9 => {
+                    Some((k, *radius))
+                }
+                _ => None,
+            }
+        })
+        .collect();
+    if let Some(&(_, r0)) = found.first() {
+        assert!(
+            found.iter().all(|(_, r)| (r - r0).abs() < 1e-9),
+            "one rim at station z = {z}: the arcs there do not share one radius"
+        );
+    }
+    found.into_iter().map(|(k, _)| k).collect()
+}
+
+/// **A full revolve's rim is the two arcs its one seam splits it
+/// into** — the fact eight suites state before carving a revolved
+/// rim, said once. Two is the fixture's shape, not the door's limit:
+/// the N-arc rims are `closed_chain_junctions`' subject.
+///
+/// # Panics
+///
+/// If `arcs` is not exactly two, naming `name`.
+pub fn assert_full_revolve_rim(arcs: &[EdgeKey], name: &str) {
+    assert_eq!(
+        arcs.len(),
+        2,
+        "{name}: the rim is the two arcs a full revolve's one seam splits it into"
+    );
+}
+
+/// **The chains the battery's walk builds from `edges`** — each link
+/// resolved as a fillet of `size`, then walked into maximal chains —
+/// BEFORE any predicate judges them. A suite reads a junction's vertex
+/// and its two links off this on a chain the G1 check would refuse as
+/// well as on one it admits, which `run_battery`'s verdict cannot show.
+///
+/// # Panics
+///
+/// If an edge does not resolve to a link: a fixture whose edge the
+/// battery cannot even describe is not one to walk.
+#[must_use]
+pub fn walked_chains(
+    body: &Body<f64>,
+    edges: &[EdgeKey],
+    size: f64,
+    band: Band,
+) -> Vec<Chain<f64>> {
+    let links = edges
+        .iter()
+        .map(|&e| resolve_link(body, e, size, band, BlendKind::Fillet))
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap_or_else(|e| panic!("every requested edge resolves to a link, got {e}"));
+    walk_chains(links)
 }
