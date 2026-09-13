@@ -57,9 +57,9 @@ use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::{
-    ROD_FILLET, ball_poled_z, bored_block_of_arcs, boss_of_arcs, circle_arcs_at_z, cube,
-    disc_of_arcs, dome, lantern, one_edge_rim_at, pocket_of_arcs, realized, rim_arcs_at,
-    rod_creases, rod_with_flat, sphere_zone, waisted,
+    ROD_FILLET, ball_poled_z, bored_block_of_arcs, boss_of_arcs, bowl, circle_arcs_at_z, cube,
+    disc_of_arcs, dome, domed_cavity, hemisphere_on_flat_base, lantern, one_edge_rim_at,
+    pocket_of_arcs, realized, rim_arcs_at, rod_creases, rod_with_flat, sphere_zone, spool, waisted,
 };
 use topo::boolean::BooleanOp;
 use topo::query::{self, SurfaceKindSet};
@@ -599,6 +599,48 @@ fn bitdump_extrude_revolve_corpus() {
         text.push_str(&dump(body));
     }
     save(&dir, "extrude_revolve_corpus", &text);
+}
+
+/// **The rest of the crate's revolve and extrude fixtures**: the
+/// `test_support` bodies the corpus above does not carry, so a PR
+/// claiming no stored description moved can say that of EVERY fixture
+/// the two verbs build in this crate rather than of a chosen thirteen.
+/// Same dump, same two-SHA discipline, its own file.
+#[test]
+fn bitdump_other_extrude_revolve_fixtures() {
+    let Some(dir) = dump_dir() else {
+        return;
+    };
+    let tol = Tol::witness();
+    let rows: Vec<(&str, Body<f64>)> = vec![
+        ("cube", cube(1.0, tol)),
+        ("bowl", bowl(tol)),
+        ("domed cavity", domed_cavity(tol)),
+        (
+            "hemisphere on a flat base",
+            hemisphere_on_flat_base(1.0, tol),
+        ),
+        ("rod with a flat", rod_with_flat(tol)),
+        ("spool (full)", spool(Revolution::Full, tol)),
+        (
+            "spool (quarter turn)",
+            spool(Revolution::Partial(core::f64::consts::FRAC_PI_2), tol),
+        ),
+        (
+            "sphere zone, bored wide",
+            sphere_zone(1.0, Revolution::Full, tol),
+        ),
+        (
+            "ball poled on z, off the unit radius",
+            ball_poled_z(0.75, Vec3::new(0.0, 0.0, 0.0), tol),
+        ),
+    ];
+    let mut text = String::new();
+    for (name, body) in &rows {
+        let _ = writeln!(text, "== {name} ==");
+        text.push_str(&dump(body));
+    }
+    save(&dir, "other_extrude_revolve_fixtures", &text);
 }
 
 /// **The extruded plane–cylinder two-arc rims**, one per closed-rim
