@@ -614,3 +614,19 @@ stays owed.
 ## Announced from LIB (2026-09-09): a derive word on `MateSide`, `AxisSense` and `MateRole`
 
 LIB-MIRROR (PR #2271) adds `Hash` to `MateSide` (`mate.rs:84`), `AxisSense` (`mate.rs:144`) and `MateRole` (`mate/solve.rs:43`) so the Python tag mirrors match their Rust derives under Ev's (A) ruling on `[ev]` #2265; the serde attributes and every other line in both files are unchanged.
+
+## 2026-09-13 — DOCM-9 ruled and dispatched (block DOCM-B3 slot 2, OPUS; the last unit)
+
+M10 closed 2026-09-13 (its exit walk ratified; sweep 13), which was
+what the certified range query waited on. Ev ruled the pacing in
+chat: the sampling probe stays the interactive answer; the certified
+range is an on-demand query whose result replaces the probe's. Spec
+`docs/DOCM-9-SPEC.md` (M / STRUCTURAL, logged before dispatch on
+`docm/b3-block` as slot 2's pre-draw fields; the arm was fixed by the
+block draw, byte 124 ⇒ opus at slot 2): a query composing the
+interval driver read-only (PROPS's lane since M10's sweep), the slot
+widened by a query-side derived document, four verdict arms mapping
+the driver's leaf classes, the viewer and Python doors filed. Unit
+branch `docm/9-certified-range` from main with the spec on it; spec
+PR #2523 to main. Lane running. The exit walk is drafted while it
+runs; Ev asked for it written as ready to merge.
