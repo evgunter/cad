@@ -3914,6 +3914,20 @@ fn attach_contact<T: Decide + Bounds>(
         let witness = curve.eval((t0 + t1) * T::from_f64(0.5));
         EdgeDescriptionSpec::Intersection { s1, s2, witness }
     } else {
+        // The band meets its support tangentially along the contact
+        // locus, so the intrinsic description one order up is the one
+        // the geometry has.
+        //
+        // **The description is chosen STRUCTURALLY here, not by the
+        // must-carry rule** (`geom_brep::must_carry_over_edge`, the
+        // one home the sweep verbs' smooth arms route through): no
+        // lane gate, no station walk, no in-band escalation. The
+        // second-order margin is `|1/r_band ∓ κ_support|·r_band²/2`,
+        // which the measured corpus reads seven orders above K·ε —
+        // and which collapses for a concave band osculating its
+        // support. The reading, the closed form and the disposition
+        // are
+        // `work/blend/blend-contact-edges-mint-the-intrinsic-description-without-the-rule.md`.
         let witness = curve.eval((t0 + t1) * T::from_f64(0.5));
         EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
     };

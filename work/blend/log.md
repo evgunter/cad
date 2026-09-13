@@ -668,3 +668,75 @@ re-derived three times in `extrude.rs`. Fix pass dispatched on the
 union (`/home/user/blend-briefs/fix-9-brief.md`), both probe branches
 to be adopted; delta by R1; then state-sync, merge, and block B1's
 CONCLUDED record.
+
+**Block B2 opened; units 10 and 11 dispatched (2026-09-13, ~05:30 UTC).**
+Specs `docs/BLEND-10-SPEC.md` (M / NUMERIC) and `docs/BLEND-11-SPEC.md`
+(S / STRUCTURAL) on main (PR #2494); block B2's pre-draw fields and
+draw recorded branch-side on `blend/b2-block` (byte 44 ⇒ fable at slot
+2: slot 0 BLEND-8 OPUS, slot 1 BLEND-10 OPUS, slot 2 BLEND-11 FABLE).
+The S-BOOL seam for `crates/profile/*` announced in `work/bool/log.md`
+before dispatch. Units 10 and 11 run beside unit 9's fix pass; unit 8
+(slot 0, the sweep crate) opens when unit 9 merges. Unit 10's Phase 1
+decides which side of the door/validator disagreement moves; the spec
+states the stored-form conditioning hypothesis as a hypothesis.
+
+**Unit 11 stopped at its fence and is re-scoped (2026-09-13, ~05:50 UTC).**
+Phase 1 reproduced the item's 232 exactly and sharpened it: 203 of them
+are reported `AnchorOutsideTrimmedExtent` entries, all carrying the
+first candidate's numbers, and 19 change under the least-deficit rule
+(setback moves by −0.12 to −0.70 m; the item's own example had its
+labels reversed). Phase 2 stopped honestly: a discrete choice between
+two candidates needs a bracket read `sugar.rs`'s `T: Decide` bound
+forbids, and the door's `map_refusal<T: Bounds>` is the shipped home
+for exactly that read. Ruling: the fence widens to
+`path/arc_fillet.rs` (seam amended in `work/bool/log.md`); the arm
+collects both overruns at the scalar, the door picks the least deficit
+by an enclosure read, ties to the earlier — the spec's rule with the
+read where the tree already puts such reads. One addition from the
+measurement: the reported leg is the candidate's WORSE leg (the one
+whose overrun is the deficit), not "incoming first" — at two grid-A
+corners the arm's incoming-first ordering reported the smaller of the
+candidate's two overruns.
+
+**Unit 11 landed (2026-09-13)** on PR [#2495](https://github.com/evgunter/cad/pull/2495),
+head `21a5f1e45`, full matrix green (run 34741638444). The arm
+collects every corner-side overrun at the scalar; the door picks the
+least deficit on its worse leg by an enclosure read; both
+differentials over 19,104 authorings clean (0 outputs, 0 verdict
+sequences, 320 refusal payloads moved — all `AnchorOutsideTrimmedExtent`
+numbers); six rows, two mutants. Deviations reported: the stop and
+re-scope; the worse-leg rule moving 230 + 72 reports beyond the spec's
+19; C3's "tight" measured false (followable, not tight). **Ordinal
+2903 claimed (orchestrator PR to main); the v6 dual dispatched
+concurrently on the frozen head** — byte 214 ⇒ R1 = OPUS, R2 = FABLE;
+briefs stored with digests on `blend/b2-block` before either ran; the
+re-scope and the deviations stated in both briefs as hypotheses. The
+unit's log entry waits for the dual.
+**MERGED — unit 9 (2026-09-13)** on PR [#2491](https://github.com/evgunter/cad/pull/2491):
+the must-carry rule's in-band policy has one home; revolve's silent
+fold gone; the item closed. Dual: one unilateral MAJOR (R2's receipt
+finding), recorded and excluded from the tally under 3(d); the fix
+pass measured the site (Positive at every station on the corpus) and
+filed it; everything else converged and taken. Delta by R1 on the
+fixed head: recorded below. Sample #181 (PERF-12 took #180 on main first). **Block
+BLEND-B1 concludes with this merge**: three slots, three duals, zero
+counted tally candidates; its branch-side record folds into main.
+Residues on the slate from this unit:
+`blend-contact-edges-mint-the-intrinsic-description-without-the-rule`,
+`cap-rim-smooth-arm-decides-by-argument-not-by-the-rule`.
+Delta (R1, on `3996ee8c`): all seven items CONFIRMED by execution —
+both probe merges in the ancestry with the eight rows green at the
+default ε and at 1e-12 through the verdict-only return; the midpoint
+mutant red on exactly R1's two station rows; the contact-edge
+measurement reproduced (minima matching on both bodies) with two
+corrections folded into the state-sync commit: the cube carries 48
+intrinsic edges, not 40, and the collapse clause names a band
+osculating a support of its own convexity (the difference branch),
+not "a concave band"; the lane row's reach stated as its doc claims;
+the eight record items; the `strut_carrier` hoist read as the whole
+`extrude.rs` diff; the BOOL residue's citations resolving. The
+receipt disposition of the unilateral MAJOR judged complete. Three
+doc survivors folded too: R2's adopted row doc still named the
+dropped `first`; the lane row's message printed one surface kind
+twice; the K row's doc said "spends ONE" where the table says "the
+deciding station's index".
