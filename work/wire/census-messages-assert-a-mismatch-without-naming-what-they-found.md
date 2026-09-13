@@ -110,3 +110,19 @@ verb in a corpus where a verb is not an identity), both witness shape
 panics (said what the step was NOT), the duplicate-address clause (did
 not name the slot it collided with) and the dimension clause (named
 neither dimension). Each was driven red with its new message.
+
+## R1 addendum: instance 4's class had a second member
+
+The review found the verb census doing exactly what instance 4
+described, fifteen lines from where this row's fix argued against it:
+`let authored = chain_steps()` is a second freshly-built corpus, lined
+up with the resolved loops only because `corpus()`'s first loop happens
+to be `Chain(chain_steps())`. It now reads the authored side OUT of the
+program it resolves and walks EVERY chain loop, so the assumption is
+gone rather than restated, and it prints the `loop_` the localiser
+prints:
+
+    loop 0 chain step 8 (LineTo(Point)) lifted to Verb::ContinueTo
+
+`position_label` is the one place that prefix is spelled, for the reason
+`step_label` is the one place a step's members are named.

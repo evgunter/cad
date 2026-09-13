@@ -101,3 +101,48 @@ and only the two new ones went red.
 The stated limit is the lexer's: an enum whose variants come from a
 macro is invisible to a textual walk. Both are written out today, and
 that is where the door says to look if either stops being.
+
+## Re-taken at review R1: the anchor is compile-time, and the verb side was missing
+
+The first close read the declaration as TEXT. The review broke it: a
+variant carrying **any attribute** — `#[doc(hidden)]`, `#[cfg]`,
+`#[serde]`, `#[allow]` — puts the attribute in front of the name, the
+walk reads an empty name off the front of the range, the filter drops
+it, and the two sides agree over a set missing exactly the variant the
+census exists to catch. Measured: the same laundering mutant went from
+`5 passed; 2 failed` to **`7 passed; 0 failed`** with `#[doc(hidden)]`
+added and nothing else. A silent green is the one failure mode a census
+must not have, and the non-emptiness assertion did not cover it — it
+catches a TOTAL scan failure, and this is a partial one.
+
+**The anchor is now `ALL_NAMES`**, projected from each enum's
+declaration by `document_vocabulary!` in
+`crates/editor-core/src/program.rs` — the same construction `profile`'s
+`transition_table!`, `arc_modes!` and `target_forms!` give the kernel
+vocabularies, and a derived constant rather than a third spelling: the
+enums keep their declarations, their variants, their docs and their
+derives. A variant that reaches no witness fails at COMPILE-derived
+comparison, and nothing in front of its name changes what the macro
+projects.
+
+The review also found the row closed for two of its three vocabularies.
+**`ProgramStep` has the same hole at `res_step`**, and `chain_steps()`
+is a `Vec` that forces no verb — its own doc says so. Measured:
+`ProgramStep::Dash` laundered to `Step::Tangent` and discharged at every
+site the compiler named passed **7 of 7** on the old shape. All three
+vocabularies are censused now.
+
+**The empty allow-lists are gone.** The file's own verb census says
+*"an empty escape hatch is a hatch that will be used"* fifteen tests up,
+and two empty ones were shipping below it. A document-only variant now
+reds until it has a witness in `chain_steps`, which is also what makes
+the wire round-trip and the slot bijection cover it — an allow-listed
+variant would have been DECLARED and not COVERED. The day a real one
+exists, the census needs a shape that can hold it, decided then with its
+argument.
+
+Measured at R1, all three at once, each variant carrying `#[doc(hidden)]`:
+five clauses green, three red, one per vocabulary.
+
+    declared and unwitnessed — give it a witness in `chain_steps` ...: ["Dash"]
+    ... ["Chord"] ... ["Origin"]
