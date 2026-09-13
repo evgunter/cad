@@ -1,11 +1,12 @@
 ---
 id: general-pcurve-face-props-and-tess-refuse
-kind: issue
+kind: unit
 title: Volume, area and tessellation still refuse typed on a face carrying a General pcurve (P-2 residue)
-status: open
+status: dispatched
 opened: 2026-08-29
 github: 1179
 refs: [498]
+branch: trim/2-quadrature
 ---
 
 ## From GitHub issue 1179
