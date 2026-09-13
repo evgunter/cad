@@ -1105,3 +1105,13 @@ by an independent source, and filed the guided-replay mouth. Delta by
 R1 on the fixed head: all seven items CONFIRMED — the turn sentence read true at the 0.57° site (the near-tangent site never reaches the gate: `path_carrier_meet` refuses first); the lever sentence followed at the lens once more (two further radii build and validate); item 4 as filed (the wrapper's lever justifies withholding the gate's sentence but not the coincidence tail the caller also reads — conceded in the file, scheduled); item 7 with a qualification: turn↔arm 3 red and fit↔reach 1 red reproduced, but moving the `/// Gates:` doc lines WITH the map leaves 446 green, so the pairing row is a lockstep restatement guarded only by needing two edits in one file, not an independent source (its doc corrected in the state-sync commit); the planted `fillet_bogus_gate` in `path/arc_fillet.rs` reddens the census; R1's own 1084-request harness empty at three ε rows against its frozen-head dumps; 444 passed / 0 failed at three ε rows; three NOTEs, none blocking (the pairing row's doc; a turbofish `decide::<T>(` the call-site scan would skip, none present; the two-situation sentence is the filed payload issue). Verdict MERGEABLE.
 Sample #184 (main's order rules). Unit 15 dispatches now (its
 seam announced in `work/bool/log.md`).
+
+**Outage (2026-09-13, ~13:58 UTC):** the orchestrator's container
+restarted mid-turn. Killed: unit 14's fix-pass lane (its branch pushed
+at 750f06004 with the fix items landed; resumed from its transcript),
+unit 15's implementer lane (Phase 2 edits uncommitted in its worktree,
+which survived; resumed from its transcript), and the CI watch on unit
+8's re-merged head (re-armed). No reviewer arm was running: unit 12's
+and unit 8's deltas had reported, unit 14's dual had concluded. Pairs
+unaffected; the two implementer lanes carry the interruption in their
+own records.
