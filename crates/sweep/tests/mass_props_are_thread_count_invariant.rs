@@ -48,10 +48,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::{
-    arc_section, bulged_extrusion, on_pool, quad, quintic_prism, stacked, strip_section,
+    arc_section, bulged_extrusion, channels, on_pool, quad, quintic_prism, stacked, strip_section,
     tilted_cut_upper,
 };
-use geom_core::k_stats::{Bracket, Recorded};
+use geom_core::k_stats::Bracket;
 use geom_core::sym::{SymBudget, SymCounts, with_session};
 use geom_core::{Sym, Tol};
 use sweep::loft_body;
@@ -135,43 +135,6 @@ fn roster() -> Vec<(String, Body<f64>)> {
         strip_loft(1.0e12 * eps, 1.0e9 * eps),
     ));
     out
-}
-
-/// FNV-1a over a byte stream — an order- and element-sensitive fold of
-/// a verdict vector into one hex word, so a golden line stays a line.
-/// Not a cryptographic claim: what it has to do is change when any
-/// element, sign or position changes, which is what a golden compares.
-fn fnv1a(bytes: &[u8]) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    for &b in bytes {
-        h ^= u64::from(b);
-        h = h.wrapping_mul(0x1000_0000_01b3);
-    }
-    h
-}
-
-/// The recorded channels of one walk, folded: the counts (readable) and
-/// the order-sensitive hash (complete).
-fn channels(r: &Recorded) -> String {
-    let mut v = Vec::new();
-    for verdict in &r.verdicts {
-        v.extend_from_slice(verdict.predicate.as_bytes());
-        v.push(1);
-        v.extend_from_slice(format!("{:?}", verdict.sign).as_bytes());
-        v.push(0);
-    }
-    let mut e = Vec::new();
-    for esc in &r.escalations {
-        e.extend_from_slice(esc.predicate().as_bytes());
-        e.push(0);
-    }
-    format!(
-        "verdicts n={} h={:016x} esc n={} h={:016x}",
-        r.verdicts.len(),
-        fnv1a(&v),
-        r.escalations.len(),
-        fnv1a(&e),
-    )
 }
 
 /// One body's line: the reading (bits, or the typed refusal — which is

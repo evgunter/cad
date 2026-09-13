@@ -317,6 +317,53 @@ pub fn quad_verdicts(run: impl FnOnce()) -> usize {
         .count()
 }
 
+/// **FNV-1a over a byte stream** — an order- and element-sensitive
+/// fold of a recorded channel into one hex word, so a golden line
+/// stays a line. Not a cryptographic claim: what it has to do is
+/// change when any element, sign or position changes, which is what a
+/// golden compares.
+///
+/// Beside [`quad_verdicts`] for its reason: the thread-count goldens
+/// of two walks read the same channels through the same fold, and a
+/// digest that drifts between them is two instruments reporting one
+/// number. One more copy of the basis than the tree needs is what
+/// `work/perf/fnv-digest-and-memo-machinery-copies.md` tracks; this is
+/// the sweep suites' one home for it.
+pub fn fnv1a(bytes: &[u8]) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for &b in bytes {
+        h ^= u64::from(b);
+        h = h.wrapping_mul(0x1000_0000_01b3);
+    }
+    h
+}
+
+/// **The recorded channels of one walk, folded**: the counts
+/// (readable) and the order-sensitive hash (complete). What a
+/// thread-count golden compares, for any walk that composes a
+/// worker's K-funnel recording back into the caller's frame.
+pub fn channels(r: &geom_core::k_stats::Recorded) -> String {
+    let mut v = Vec::new();
+    for verdict in &r.verdicts {
+        v.extend_from_slice(verdict.predicate.as_bytes());
+        v.push(1);
+        v.extend_from_slice(format!("{:?}", verdict.sign).as_bytes());
+        v.push(0);
+    }
+    let mut e = Vec::new();
+    for esc in &r.escalations {
+        e.extend_from_slice(esc.predicate().as_bytes());
+        e.push(0);
+    }
+    format!(
+        "verdicts n={} h={:016x} esc n={} h={:016x}",
+        r.verdicts.len(),
+        fnv1a(&v),
+        r.escalations.len(),
+        fnv1a(&e),
+    )
+}
+
 /// A thin curved STRIP section: a rectangle `[-s, s] × [0, delta]`
 /// whose two long sides are quarter-circle bulges in OPPOSITE
 /// directions, so the loft's two big rational walls contribute fluxes

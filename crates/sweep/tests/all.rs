@@ -424,6 +424,12 @@ mod mass_props_are_thread_count_invariant;
 #[path = "sign_certified_plus_v.rs"]
 mod sign_certified_plus_v;
 
+#[path = "shell_census_is_thread_count_invariant.rs"]
+mod shell_census_is_thread_count_invariant;
+
+#[path = "continuation_is_thread_count_invariant.rs"]
+mod continuation_is_thread_count_invariant;
+
 #[path = "m8_4_intersection_iso.rs"]
 mod m8_4_intersection_iso;
 
