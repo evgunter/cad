@@ -496,3 +496,26 @@ moved ~1,700 commits in between; both re-merge it before pushing. The
 unit 6 pair's review arms both ran uninterrupted before the outage,
 so the pair still counts; the fix and delta phases are annotated on
 wall-clock, per the BLEND-7 precedent.
+
+**Unit 7 landed (2026-09-13)** on PR [#2483](https://github.com/evgunter/cad/pull/2483),
+head `5d2782a4e`, full matrix green (run 34730583374, twelve `test`,
+five `k-lint`). Phase 1 measured the defect as data: every junction of
+an N ≥ 3 closed rim was paired with the one link after its own in ring
+order; the two-arc rim and the open chain paired correctly. The stop
+clause did not fire — both closed-rim doors carve three- and four-arc
+rims on both material sides at the Pappus closed forms with pad 0.
+Shape taken: the spec's preferred `Junction { vertex, arriving,
+leaving }`. Deviations reported: the spec's "concave bore twin" is
+convex (the concave rims became a boss foot on the ladder and a
+pocket floor on the annulus); the open-chain "bit-identical carve"
+became a pairing pin because no chain with a junction carves today;
+one ladder doc line; two checkpoint commits carrying instrumentation
+(the orchestrator asked for the checkpoint after the outage). Filed
+outside the fence: `rim-of-refuses-extruded-multi-arc-rims` (the
+public rim selector refuses every extruded multi-arc rim on 1e-17
+carrier drift). **Ordinal 2901 claimed (PR #2485 to main); the v6
+dual dispatched concurrently on the frozen head** — byte 13 ⇒ R1 =
+FABLE, R2 = OPUS; briefs stored with digests on `blend/b1-block`
+before either ran; the four deviations stated in both briefs as
+hypotheses. The unit's log entry waits for the dual. Unit 7's target
+reclaimed for the reviewers' base-tree builds (its fix pass re-seeds).
