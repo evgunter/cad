@@ -3032,3 +3032,78 @@ tree** for the `res_spec` hop: it fired correctly and would not tell you
 where you landed, and its fix was written fifteen lines above it the
 whole time. Every message was captured from a planted mutant rather than
 predicted, which is the form of evidence this program has settled on.
+
+## 2026-09-13 — PR 2499 MERGED (`257d64d05`): five units in, twenty-one rows closed
+
+Two rows close, one stays open **larger than it arrived**, which is the
+better outcome of the two.
+
+### The guard is now blind in no direction, and both halves were shown to fire
+
+The review found the replacement test had teeth only where the
+translation moves. The fix pass closed the other direction with two
+zero-translation fixtures — a **subnormal off-diagonal** and the **next
+`f64` below 1.0** — and added a **non-vacuity assertion to all four
+near-identity fixtures**, so one that drifts onto the identity reddens
+rather than passing quietly. That second part was not asked for and is
+the part that keeps the row honest a year from now.
+
+It then showed **both halves firing independently** against the
+re-planted mutant: the carried-bits loop reds at *"from_affine moved a
+bit at subnormal shear"*, and with the near-identity fixtures held out of
+that loop, the `is_identity_bits` teeth red at *"from_affine snapped
+subnormal shear onto the identity"*. The second is the one that matters,
+because that is the same read `mate::solve`'s `reconcile` makes before
+**discarding the solved relative pose**. The test's doc now names its
+reader.
+
+### A row that got bigger by being checked
+
+`product-gate-says-verbatim-…` arrived as a one-word prose fix and
+**stays open as a cross-crate finding**: the policy has **no home** and
+is stated at **seven** sites across three crates, each citing another by
+prose. The seventh is a different kind — a **consumer relying on the
+rule** as the premise for a refusal, where a restatement that rots is
+wrong documentation but a premise that rots is a refusal decided on a
+condition that no longer holds. An **eighth** had already drifted within
+two days of the row being written, which is the row's own prediction
+happening in the wild. The sweep is grep-shaped over the rule's own
+vocabulary, so **seven is a floor**, and the row says so.
+
+### A citation that never existed, found inside the PR that trims prose about citations
+
+The duplication chain cited a test name that `git log -S` says has never
+been in the tree. The property *is* pinned, by two real rows, so the
+conclusion survived — and the lane **recorded it as an instance** of
+META's citation-rot class rather than quietly fixing the name. That is
+the right disposition: an instance found inside the PR that touches the
+class is worth more recorded than repaired.
+
+### Three more orchestrator errors, and the counting rule that now exists
+
+The ratio row was mine and it was wrong three ways: the premise (*"part
+of the measurement will move without anyone writing prose"* — it moved
+by **exactly zero lines**, and the comment share went **up**), two
+figures (55 lines not ~51; a 4-line struct not 7), and the `opened` date,
+which `git log --diff-filter=A` puts a day earlier than I wrote it.
+
+The lane's own first counts were also one low in every row — the
+trailing newline's empty string counted as a blank line — and the fix is
+the generalisable part: **the counting rule is now written down beside
+the table**, and the three classes are checked to partition the file.
+Two independent counts of one quantity disagreed and neither stated its
+rule; now one does.
+
+**And the lint gap is filed with its code read rather than assumed**:
+`work.py lint` types both dates, checks each one's *shape*, and checks
+the `status`/`closed` coupling in both directions — but never reads the
+two values together, so closed-before-opened, closed-in-future and
+opened-in-future all pass. One `<` over data the parser already holds.
+
+### One disclosure worth keeping visible
+
+The lane **amended a CLOSED row on PERF's slate** — a factual citation
+fix, authorised by §6, disclosed rather than buried, with the note that
+someone may have preferred a new row. Recording it here so that
+preference can be expressed against a visible decision rather than
+discovered later.
