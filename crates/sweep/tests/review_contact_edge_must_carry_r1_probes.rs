@@ -35,13 +35,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::{EdgeDescription, SurfaceKind};
-use geom_core::{Affine3, Band, MarginDiag, Point2, Tol, Vec3};
+use geom_core::{Band, MarginDiag, Point2, Tol};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::Revolution;
 use sweep::blend::{
     BlendError, BlendRefusal, BlendSite, FILLET3_CONTACT_RECOURSE, Filleted, fillet_edges,
 };
-use sweep::test_support::{revolved_about_y, rod_creases};
+use sweep::test_support::{revolved_about_y, rod_upper_crease, rod_with_flat_at};
 use sweep::{Extrusion, extrude};
 use topo::query::{self, SurfaceKindSet};
 use topo::{Body, EdgeKey};
@@ -78,7 +78,7 @@ fn contact_in_band_margin(result: Result<Filleted<f64>, BlendRefusal>, what: &st
         ),
         Err(BlendRefusal { error, .. }) => {
             let BlendError::Escalated {
-                site: BlendSite::Chain,
+                site: BlendSite::Link { .. },
                 source,
             } = &error
             else {
@@ -217,58 +217,6 @@ fn r1_a_sphere_supported_rim_in_the_octave_refuses_typed_at_the_annulus_door() {
 // The ruled door: the screened ratio, scaled.
 // ---------------------------------------------------------------
 
-/// A rod of radius `big_r` with a flat at `x = flat`, `len` long,
-/// through the boolean door (the unit's own construction, re-derived
-/// here because the unit's suite keeps it private).
-fn rod_with_flat_at(big_r: f64, flat: f64, len: f64) -> Result<Body<f64>, String> {
-    let disc = profile::circle(Point2::new(0.0, 0.0), big_r, tol()).expect("a disc");
-    let rod = Profile::new(SketchPlane::xy(), vec![disc.into()])
-        .validate(tol())
-        .expect("the rod's profile validates");
-    let rod = extrude(&rod, Extrusion::Distance(len), tol())
-        .expect("the rod extrudes")
-        .body;
-    let square = ProfileLoop::new(
-        [
-            (flat, -2.0 * big_r),
-            (2.0 * big_r, -2.0 * big_r),
-            (2.0 * big_r, 2.0 * big_r),
-            (flat, 2.0 * big_r),
-        ]
-        .into_iter()
-        .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
-        .collect(),
-    );
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -0.5 * len)));
-    let cutter = Profile::new(plane, vec![square])
-        .validate(tol())
-        .expect("the cutter's profile validates");
-    let cutter = extrude(&cutter, Extrusion::Distance(2.0 * len), tol())
-        .expect("the cutter extrudes")
-        .body;
-    Ok(topo::subtract(&rod, &cutter, tol())
-        .map_err(|e| format!("the mill refuses: {e:?}"))?
-        .body()
-        .expect("a body remains")
-        .body
-        .clone())
-}
-
-/// The `+y` crease of a rod with a flat.
-fn upper_crease(body: &Body<f64>) -> EdgeKey {
-    let creases: Vec<EdgeKey> = rod_creases(body)
-        .into_iter()
-        .filter(|&k| {
-            let e = body.get_edge(k).unwrap();
-            let v = body.get_half_edge(e.he_plus).unwrap().start;
-            let p = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-            p.y > 0.0
-        })
-        .collect();
-    assert_eq!(creases.len(), 1, "one crease on the +y side: {creases:?}");
-    creases[0]
-}
-
 /// **The screened ratio cannot be scaled into the band at all.** At
 /// `R/r = 1.1` the clearance screen's margin is `≈ −0.27·r` (the unit
 /// measured `−2.717e-2` at `r = 0.1`), so a member whose screen reading
@@ -282,13 +230,13 @@ fn upper_crease(body: &Body<f64>) -> EdgeKey {
 fn r1_the_screened_ratio_scaled_into_the_band_is_refused_at_the_mill() {
     let b = band();
     let r = 0.5 * b.escalate() / 0.2717;
-    match rod_with_flat_at(1.1 * r, r, 10.0 * r) {
+    match rod_with_flat_at(1.1 * r, r, 10.0 * r, 2.2 * r, tol()) {
         Err(text) => assert!(
             text.contains("split_conic_belly_graze"),
             "the mill escalates the belly graze: {text}"
         ),
         Ok(body) => {
-            let crease = upper_crease(&body);
+            let crease = rod_upper_crease(&body);
             panic!(
                 "the rod mills at this scale; the door then says {:?}",
                 fillet_edges(&body, &[crease], r, tol()).err()
@@ -335,7 +283,7 @@ fn block_with_d_bore(big_r: f64, flat: f64, len: f64) -> Body<f64> {
 fn r1_the_d_bore_crease_refuses_body_not_intact_because_its_rim_is_a_ring_of_the_cap() {
     let body = block_with_d_bore(0.2, 0.1, 1.0);
     topo::validate(&body).expect("the D-bored block holds together");
-    let crease = upper_crease(&body);
+    let crease = rod_upper_crease(&body);
     let e = body.get_edge(crease).unwrap();
     let supports = [
         body.get_loop(body.get_half_edge(e.he_plus).unwrap().parent_loop)
@@ -433,7 +381,7 @@ fn r1_the_die_spends_the_rules_stations_once_per_contact_edge_beside_the_certifi
 /// arc against the band subtends the wedge angle, so the arc's EXTENT
 /// `r·θ` — not `r_band` — is the folded lever arm, and the
 /// second-order margin is `θ²·r/2`.
-fn skewed_cavity_edges(theta: f64, scale: f64) -> (Body<f64>, Vec<EdgeKey>) {
+pub(crate) fn skewed_cavity_edges(theta: f64, scale: f64) -> (Body<f64>, Vec<EdgeKey>) {
     use crate::common::cavity::{cut, edges_with_corners, prism, rod};
     let p = |x: f64, y: f64| Point2::new(x * scale, y * scale);
     let s = 1.2;
@@ -480,7 +428,7 @@ fn skewed_cavity_edges(theta: f64, scale: f64) -> (Body<f64>, Vec<EdgeKey>) {
 
 /// Contact edges of a carved body stored as a non-seam chart image —
 /// the rule's UNDER-DETERMINED description.
-fn chart_contact_edges(body: &Body<f64>) -> usize {
+pub(crate) fn chart_contact_edges(body: &Body<f64>) -> usize {
     body.edges()
         .filter(|(_, e)| {
             matches!(
@@ -509,8 +457,7 @@ fn chart_contact_edges(body: &Body<f64>) -> usize {
 /// typed with the contact recourse and the deciding station reads the
 /// closed form; at `θ² r/2 = 0.5·ε` the request BUILDS, tier-3 valid,
 /// with four contact edges stored as chart images — the
-/// `UnderDetermined → Chart` arm, which the unit reports as
-/// unreachable through the door.
+/// `UnderDetermined → Chart` arm — this row is that arm's pin.
 #[test]
 fn r1_a_slim_wedges_corner_arcs_reach_the_in_band_and_under_determined_verdicts() {
     let b = band();

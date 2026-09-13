@@ -37,9 +37,10 @@
 //! (`FILLET3_CLEARANCE_SPLIT_RECOURSE`),
 //! `review_fillet_e2_probes::the_ring_recourse_reaches_the_front_door_off_the_sample_lattice_and_is_followable`
 //! (`FILLET3_RING_RECOURSE`) and
-//! `contact_edge_must_carry::the_contact_recourse_is_followable_on_both_of_its_clauses`
+//! `contact_edge_must_carry::the_contact_recourse_is_followable_at_each_site_kind`
 //! (`FILLET3_CONTACT_RECOURSE`, whose fixtures are derived from the
-//! resolved band).
+//! resolved band; the difference-branch site's own row is
+//! `review_contact_edge_must_carry_r2_probes::r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it`).
 //!
 //! **A recourse constant is not the only place a recourse lives.** Two
 //! refusals map to `Recourse::None` in the recourse table — which

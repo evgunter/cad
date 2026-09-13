@@ -25,15 +25,16 @@ use geom_brep::{
     CERT_SAMPLES, EdgeDescription, MustCarryVerdict, SurfaceKind, edge_extent,
     must_carry_over_edge, sample_param, tangent_certificate_lane, tangent_second_order,
 };
-use geom_core::{Affine3, Band, MarginDiag, Point2, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use geom_core::{Band, Margin, MarginDiag, Tol};
 use sweep::blend::{
     BlendError, BlendRefusal, BlendSite, FILLET3_CONTACT_RECOURSE, Filleted, fillet_edges,
 };
-use sweep::test_support::{ROD_FILLET, cube, dome, one_edge_rim_at, rod_creases, rod_with_flat};
-use sweep::{Extrusion, extrude};
+use sweep::test_support::{
+    ROD_FILLET, cube, dome, one_edge_rim_at, rod_creases, rod_upper_crease, rod_with_flat,
+    rod_with_flat_at,
+};
+use topo::Body;
 use topo::query;
-use topo::{Body, EdgeKey};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -85,7 +86,7 @@ fn contacts(body: &Body<f64>) -> Vec<Contact> {
                 let t = sample_param(t0, t1, i);
                 let reading =
                     tangent_second_order(s1, s2, carrier.eval(t), carrier.deriv(t), extent, band);
-                reading.jet.kappa_rel.abs() * reading.arm * reading.arm * 0.5
+                Margin::sagitta(reading.jet.kappa_rel.abs(), reading.arm).value()
             })
             .fold(f64::INFINITY, f64::min);
         out.push(Contact {
@@ -106,57 +107,6 @@ fn min_of(rows: &[Contact], pair: (SurfaceKind, SurfaceKind)) -> f64 {
         .fold(f64::INFINITY, f64::min)
 }
 
-/// A rod of radius `big_r` about `z`, `len` long, with a flat milled at
-/// `x = flat` — through the boolean door, which keeps the cylinder's
-/// stored radius exactly `big_r`.
-fn rod(big_r: f64, flat: f64, len: f64) -> Result<Body<f64>, String> {
-    let disc = profile::circle(Point2::new(0.0, 0.0), big_r, tol()).expect("a disc");
-    let solid = Profile::new(SketchPlane::xy(), vec![disc.into()])
-        .validate(tol())
-        .expect("the rod's profile validates");
-    let solid = extrude(&solid, Extrusion::Distance(len), tol())
-        .expect("the rod extrudes")
-        .body;
-    let square = ProfileLoop::new(
-        [
-            (flat, -2.0 * big_r),
-            (2.0 * big_r, -2.0 * big_r),
-            (2.0 * big_r, 2.0 * big_r),
-            (flat, 2.0 * big_r),
-        ]
-        .into_iter()
-        .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
-        .collect(),
-    );
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -0.5 * len)));
-    let cutter = Profile::new(plane, vec![square])
-        .validate(tol())
-        .expect("the cutter's profile validates");
-    let cutter = extrude(&cutter, Extrusion::Distance(2.0 * len), tol())
-        .expect("the cutter extrudes")
-        .body;
-    Ok(topo::subtract(&solid, &cutter, tol())
-        .map_err(|e| format!("the mill refuses: {e:?}"))?
-        .body()
-        .expect("a body remains")
-        .body
-        .clone())
-}
-
-/// The single crease on the `+y` side of a rod with a flat.
-fn upper_crease(body: &Body<f64>) -> EdgeKey {
-    let creases: Vec<EdgeKey> = rod_creases(body)
-        .into_iter()
-        .filter(|&k| {
-            let e = body.get_edge(k).unwrap();
-            let v = body.get_half_edge(e.he_plus).unwrap().start;
-            body.get_point(body.get_vertex(v).unwrap().point).unwrap().y > 0.0
-        })
-        .collect();
-    assert_eq!(creases.len(), 1, "one crease on the +y side");
-    creases[0]
-}
-
 /// The in-band escalation the rule raises, or a panic naming what came
 /// instead. Returns `(the deciding station's margin, the rendered
 /// refusal)`.
@@ -165,7 +115,7 @@ fn in_band(result: Result<Filleted<f64>, BlendRefusal>, what: &str) -> (f64, Str
         Ok(_) => panic!("{what}: built where the rule reads in band"),
         Err(BlendRefusal { error, .. }) => {
             let BlendError::Escalated {
-                site: BlendSite::Chain,
+                site: BlendSite::Link { .. },
                 source,
             } = &error
             else {
@@ -320,8 +270,9 @@ fn r2_the_in_band_verdict_at_radii_derived_here() {
     // `r = 2·frac·K·ε/(1 − r/R)` inverts the closed form.
     let (ratio, frac) = (1.75, 0.7);
     let r = 2.0 * frac * b.escalate() / (1.0 - 1.0 / ratio);
-    let body = rod(ratio * r, r, 10.0 * r).expect("the family member mills");
-    let crease = upper_crease(&body);
+    let body = rod_with_flat_at(ratio * r, r, 10.0 * r, 2.0 * ratio * r, tol())
+        .expect("the family member mills");
+    let crease = rod_upper_crease(&body);
     let (m, shown) = in_band(
         fillet_edges(&body, &[crease], r, tol()),
         "the rod at R/r = 1.75, margin 0.7·Kε",
@@ -338,34 +289,35 @@ fn r2_the_in_band_verdict_at_radii_derived_here() {
 // C3: is the recourse's lever true at the site it fires?
 // ---------------------------------------------------------------
 
-/// **The contact recourse's first clause, executed on the difference
+/// **The contact recourse's direction, executed on the difference
 /// branch.** A rod of radius `R = 1.5·r₀` with its flat at `r₀`
-/// refuses in band at `r₀`, rendering a sentence whose imperative is
-/// *enlarge the radius*. On this body the margin `(1 − r/R)·r/2` is
+/// refuses in band at `r₀`. On this body the margin `(1 − r/R)·r/2` is
 /// already past its peak (`r₀ = 2R/3 > R/2`), and the ball stops
 /// fitting at `r = (R + flat)/2 = 1.25·r₀`, so EVERY radius the body
-/// admits above `r₀` reads a SMALLER margin than `r₀` does — and none
-/// of them builds. The sentence's other clause (blend a larger
-/// feature) is the one that works here: the same rod and blend scaled
-/// by two builds jet-determinate.
+/// admits above `r₀` reads a SMALLER margin than `r₀` does and none
+/// of them builds, while every smaller radius reads a LARGER one —
+/// which is what the rendered sentence says of a site past the peak.
+/// The peak itself (`R/8 = 0.84·Kε` here) is still in band, so the
+/// clause that builds is the feature one: the same rod and blend
+/// scaled by two builds jet-determinate.
 ///
-/// The row asserts the direction, not the refusals' kinds: what makes
-/// the sentence false at this site is that following it cannot succeed.
+/// The row asserts the direction, not the refusals' kinds: a sentence
+/// pointing the other way would be one a caller cannot follow.
 #[test]
-fn r2_the_recourse_enlarge_clause_is_false_on_the_difference_branch() {
+fn r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it() {
     let b = band();
     let (ratio, frac) = (1.5, 0.75);
     let r0 = 2.0 * frac * b.escalate() / (1.0 - 1.0 / ratio);
     let big_r = ratio * r0;
-    let body = rod(big_r, r0, 10.0 * r0).expect("the rod mills");
-    let crease = upper_crease(&body);
+    let body = rod_with_flat_at(big_r, r0, 10.0 * r0, 2.0 * big_r, tol()).expect("the rod mills");
+    let crease = rod_upper_crease(&body);
     let (m0, shown) = in_band(
         fillet_edges(&body, &[crease], r0, tol()),
         "the rod at R/r = 1.5, margin 0.75·Kε",
     );
     assert!(
-        shown.contains("enlarge the"),
-        "the rendered sentence's imperative is to enlarge: {shown}"
+        shown.contains("past that peak only a smaller radius raises it"),
+        "the rendered sentence names the peak and the direction past it: {shown}"
     );
 
     let mut table =
@@ -390,6 +342,11 @@ fn r2_the_recourse_enlarge_clause_is_false_on_the_difference_branch() {
     }
     for mult in [0.95, 0.8, 0.6] {
         let r = mult * r0;
+        assert!(
+            difference(r, big_r) > m0,
+            "reducing to {mult}·r₀ raises the closed form: {:e} against {m0:e}",
+            difference(r, big_r)
+        );
         let result = fillet_edges(&body, &[crease], r, tol());
         let _ = writeln!(
             table,
@@ -399,8 +356,9 @@ fn r2_the_recourse_enlarge_clause_is_false_on_the_difference_branch() {
         );
     }
     // The second clause: the whole feature twice as large.
-    let scaled = rod(2.0 * big_r, 2.0 * r0, 20.0 * r0).expect("the scaled rod mills");
-    let crease = upper_crease(&scaled);
+    let scaled = rod_with_flat_at(2.0 * big_r, 2.0 * r0, 20.0 * r0, 4.0 * big_r, tol())
+        .expect("the scaled rod mills");
+    let crease = rod_upper_crease(&scaled);
     let out = fillet_edges(&scaled, &[crease], 2.0 * r0, tol())
         .unwrap_or_else(|e| panic!("blending a larger feature is followable: {e}"));
     let rows = contacts(&out.body);

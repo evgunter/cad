@@ -407,6 +407,7 @@ pub(in crate::blend) fn ruled_phase<T: Decide + Bounds>(
                 center: end.center,
                 radius: plan.radius,
             },
+            crease,
         ));
         rec.arcs.push((created.edge, v, crease));
         slivers.push((a, b));
@@ -443,7 +444,7 @@ pub(in crate::blend) fn ruled_phase<T: Decide + Bounds>(
                 tol,
             )
             .map_err(|e| op("ruled trimline mef", e))?;
-        described.push((created.edge, ContactCarrier::TrimLine));
+        described.push((created.edge, ContactCarrier::TrimLine, crease));
         rec.trims.push((created.edge, crease, face));
         trims.push(created.edge);
     }

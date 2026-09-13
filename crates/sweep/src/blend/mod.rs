@@ -565,17 +565,30 @@ pub const FILLET3_RADIUS_RECOURSE: &str =
     "reduce the fillet radius, or blend a support with more curvature headroom";
 /// The recourse for a contact edge whose second-order separation the
 /// must-carry rule finds in band (`tangent_second_order` at the
-/// surgery's description pass). The margin is
-/// `|1/r_band ∓ κ_support|·r_band²/2`, levered by the blend radius:
-/// on a plane support it grows with the radius without bound; on a
-/// support curving the band's own way it peaks at half the support's
-/// radius of curvature (`R/8` there) and a feature smaller than that
-/// bound allows has no certifiable contact at the run's tolerance —
-/// the second clause. Ball language kept: only a fillet mints a
-/// tangential contact.
-pub const FILLET3_CONTACT_RECOURSE: &str = "the contact's second-order separation is levered by the blend radius: enlarge the \
-     radius — on a support curving the band's own way, toward half its radius of \
-     curvature, where the separation peaks — or blend a larger feature";
+/// surgery's description pass). The margin the rule meters is
+/// `|κ_rel|·arm²/2` with `arm = min(curvature arm of either surface,
+/// the edge's extent)`, so the blend radius levers it three ways, and
+/// the sentence names all three because a recourse must be true at
+/// every site its tag can fire (README A3-2): on a plane support the
+/// arm is `r` and the margin `r/2`, growing with the radius; on a
+/// support of curvature radius `R` curving the band's own way it is
+/// `(1 − r/R)·r/2`, which peaks at `r = R/2` — and every ratio the
+/// clearance screen admits on a cylinder sits PAST that peak, so there
+/// only a smaller radius raises it; on a slim corner arc the arm is
+/// the arc's extent `r·θ`, the margin `≈ θ²·r/2`, and a smaller radius
+/// drops it under ε, where the rule stores the conventional
+/// description and the body builds. Measured, one row per site kind:
+/// `contact_edge_must_carry::the_contact_recourse_is_followable_at_each_site_kind`,
+/// `review_contact_edge_must_carry_r2_probes::r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it`,
+/// `review_contact_edge_must_carry_r1_probes::r1_a_sphere_supported_rim_in_the_octave_refuses_typed_at_the_annulus_door`.
+/// Ball language kept: only a fillet mints a tangential contact.
+pub const FILLET3_CONTACT_RECOURSE: &str = "the contact's second-order separation is levered by the blend radius, in a \
+     direction the site fixes: on a plane support it grows with the radius; on a \
+     support curving the band's own way it peaks at half the support's radius of \
+     curvature, and past that peak only a smaller radius raises it; on a slim corner \
+     arc the arc's own extent is the lever, and a smaller radius leaves the join \
+     under-determined and builds it conventionally — move the radius that way, blend \
+     a larger feature, or lower the tolerance";
 /// The recourse for a support face whose survival the clearance screen
 /// cannot certify. Both verbs meter clearance (each on its own
 /// setbacks), so the sentence names the blend size, which is the
@@ -1403,8 +1416,8 @@ impl fmt::Display for BlendError {
                     Some("fillet3_support_coaxiality") => FILLET3_SPINE_KIND_RECOURSE,
                     // The must-carry rule's in-band verdict over a
                     // contact edge (the surgery's description pass):
-                    // the lever is the blend radius, and the sentence
-                    // says which way to move it.
+                    // the lever is the blend radius, in a direction
+                    // the site fixes, and the sentence says which.
                     Some("tangent_second_order") => FILLET3_CONTACT_RECOURSE,
                     // Predicate 6's two classifications share the corner
                     // recourse: the trihedron's independence and the
@@ -1742,7 +1755,9 @@ mod recourse_tests {
                 },
             },
             BlendError::Escalated {
-                site: BlendSite::Chain,
+                site: BlendSite::Link {
+                    edge: EdgeKey::default(),
+                },
                 source: Indeterminate {
                     margin: MarginDiag::Value(0.0),
                     band,

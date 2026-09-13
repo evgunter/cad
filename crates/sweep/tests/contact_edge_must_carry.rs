@@ -27,25 +27,39 @@
 //!
 //! # What the door admits, and so what these rows can reach
 //!
-//! The battery's radius headroom on a support of curvature radius `R`
-//! is `(1 − r/R)·r`, and the second-order margin on the difference
-//! branch is `(1 − r/R)·r/2` — exactly half of it; on a plane the two
-//! are `r` and `r/2`; on the sum branch the margin is at least `r/2`.
-//! So on every pair the battery admits, margin `≥ headroom/2`, and
-//! against one band `(ε, K·ε)` two things follow. The under-determined
-//! verdict (margin under ε) needs a headroom under `2ε`, which
-//! `fillet3_radius_headroom` refuses before the surgery runs; it is
-//! not reachable through the door, and neither is a lane-refused pair
-//! (every support the arm table admits is analytic, on a line or a
-//! coaxial circle carrier). The in-band verdict is reachable exactly
-//! while the margin lies in `(K·ε/2, K·ε)` — one octave — which is a
-//! blend a few `K·ε` in radius, not a near-osculation: a ball that
-//! nearly fills its support forces the crease's dihedral toward zero,
-//! and the clearance screen refuses that family (definite negative)
-//! below `R/r ≈ 1.15` whatever the scale. The rows derive their radii
-//! from the RESOLVED band, as `must_carry_rule.rs` does, because CI
-//! gates three ε rows and a margin in band at one is definite at the
-//! others.
+//! The rule's arm is `min(curvature arm of either surface, the edge's
+//! extent)`. Where the curvature arm is `r_band` — every trimline and
+//! rim arc — the battery's radius headroom bounds the margin from
+//! below: on a plane support they are `r` and `r/2`; on the difference
+//! branch, `(1 − r/R)·r` and half of it; on the sum branch the margin
+//! is at least `r/2`. So against one band `(ε, K·ε)` the in-band
+//! verdict is reachable on those edges exactly while the margin lies
+//! in `(K·ε/2, K·ε)` — a blend a few `K·ε` in radius — and the
+//! under-determined verdict (margin under ε) needs a headroom under
+//! `2ε`, which `fillet3_radius_headroom` refuses first WHEN `K ≥ 2`:
+//! the octave is one because the band's own width is; at any run with
+//! `K < 2` the same rod reaches the under-determined verdict through
+//! the door (`CAD_AMBIGUITY_K`, any finite `K > 1` is legal). And the
+//! corner ball's arcs take the same path with a DIFFERENT arm: on a
+//! slim wedge the arc's extent `r·θ` is shorter than `r_band`, the
+//! margin is `≈ θ²·r/2`, and both non-determinate verdicts are reached
+//! at an ordinary radius with no scaling — measured in
+//! `review_contact_edge_must_carry_r1_probes`, which is the pin of the
+//! under-determined arm; the corpus table's `r/2` for the corner arcs
+//! holds because the die's wedges are square.
+//!
+//! The near-osculating family itself (`R → r` on a cylinder of the
+//! band's own convexity) never reaches the rule: a ball that nearly
+//! fills its support forces the crease's dihedral toward zero, and at
+//! `r = 0.1` the clearance screen refuses it (definite negative) at
+//! `R/r = 1.15` while admitting `1.16`; at the scale where that screen
+//! would read in band the MILL refuses the body first
+//! (`review_contact_edge_must_carry_r1_probes`), and a sphere support
+//! taken toward osculation at ordinary scale refuses definitely too
+//! (`review_contact_edge_must_carry_r2_probes`). The rows derive their
+//! radii from the RESOLVED band, as `must_carry_rule.rs` does, because
+//! CI gates three ε rows and a margin in band at one is definite at
+//! the others.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -55,8 +69,7 @@ use geom_brep::{
     CERT_SAMPLES, EdgeDescription, MustCarryVerdict, SurfaceKind, edge_extent,
     must_carry_over_edge, sample_param, tangent_certificate_lane, tangent_second_order,
 };
-use geom_core::{Affine3, Band, MarginDiag, Point2, Real, Sign, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use geom_core::{Band, Margin, MarginDiag, Real, Sign, Tol, Vec3};
 use sweep::Revolution;
 use sweep::blend::{
     BlendError, BlendRefusal, BlendSite, FILLET3_CONTACT_RECOURSE, Filleted, fillet_edges,
@@ -64,9 +77,8 @@ use sweep::blend::{
 use sweep::test_support::{
     ROD_FILLET, ball_poled_z, bored_block_of_arcs, boss_of_arcs, circle_arcs_at_z, cube,
     disc_of_arcs, dome, lantern, one_edge_rim_at, pocket_of_arcs, realized, rim_arcs_at,
-    rod_creases, rod_with_flat, sphere_zone, waisted,
+    rod_creases, rod_upper_crease, rod_with_flat, rod_with_flat_at, sphere_zone, waisted,
 };
-use sweep::{Extrusion, extrude};
 use topo::boolean::BooleanOp;
 use topo::query::{self, SurfaceKindSet};
 use topo::{Body, EdgeKey};
@@ -117,7 +129,10 @@ impl ContactReading {
 /// Every edge storing `TangentIntersection`, re-read through the rule
 /// and, station by station, through the metered predicate — the same
 /// extent (`edge_extent` over the stored window) and the same band the
-/// surgery hands the rule.
+/// surgery hands the rule. The station walk is DIAGNOSTIC (the rule
+/// returns a verdict, not its readings); the rule's own verdict is
+/// what the rows assert, and the walk's margin is the rule's spelling,
+/// `Margin::sagitta` over the jet and the folded arm.
 fn contact_readings(body: &Body<f64>) -> Vec<ContactReading> {
     let band = band();
     let mut out = Vec::new();
@@ -140,7 +155,7 @@ fn contact_readings(body: &Body<f64>) -> Vec<ContactReading> {
                 let t = sample_param(t0, t1, i);
                 let reading =
                     tangent_second_order(s1, s2, carrier.eval(t), carrier.deriv(t), extent, band);
-                let margin = reading.jet.kappa_rel.abs() * reading.arm * reading.arm * 0.5;
+                let margin = Margin::sagitta(reading.jet.kappa_rel.abs(), reading.arm).value();
                 let tag = match reading.verdict {
                     Ok(Sign::Positive) => "+",
                     Ok(Sign::Zero) => "0",
@@ -346,71 +361,16 @@ const CORPUS_CONTACT_EDGES: usize = 158;
 // The near-osculating family: a rod with a flat, at any radius.
 // ---------------------------------------------------------------
 
-/// **A rod with a flat**, parametrised: a cylinder of radius `big_r`
-/// about `z` over `z ∈ [0, len]`, minus a box whose face at `x = flat`
-/// planes the flat — `rod_with_flat`'s construction at any radius,
-/// through the public boolean door, which keeps the cylinder's stored
-/// radius exactly `big_r` (a D-profile through the extrude door
-/// reconstructs the radius from a chord that collapses as the flat
-/// nears tangency). The boolean's own refusal is returned as text, so a
-/// family walk can say a member is unbuildable rather than stop.
-fn rod_with_flat_at(big_r: f64, flat: f64, len: f64) -> Result<Body<f64>, String> {
-    let disc = profile::circle(Point2::new(0.0, 0.0), big_r, tol()).expect("a disc");
-    let rod = Profile::new(SketchPlane::xy(), vec![disc.into()])
-        .validate(tol())
-        .expect("the rod's profile validates");
-    let rod = extrude(&rod, Extrusion::Distance(len), tol())
-        .expect("the rod extrudes")
-        .body;
-    let square = ProfileLoop::new(
-        [
-            (flat, -2.0 * big_r),
-            (2.0 * big_r, -2.0 * big_r),
-            (2.0 * big_r, 2.0 * big_r),
-            (flat, 2.0 * big_r),
-        ]
-        .into_iter()
-        .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
-        .collect(),
-    );
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -0.5 * len)));
-    let cutter = Profile::new(plane, vec![square])
-        .validate(tol())
-        .expect("the cutter's profile validates");
-    let cutter = extrude(&cutter, Extrusion::Distance(2.0 * len), tol())
-        .expect("the cutter extrudes")
-        .body;
-    Ok(topo::subtract(&rod, &cutter, tol())
-        .map_err(|e| format!("the mill refuses: {e:?}"))?
-        .body()
-        .expect("a body remains")
-        .body
-        .clone())
-}
-
-/// The crease whose band is asked for: the straight cylinder–plane
-/// edge on the `+y` side. One crease, so the two bands cannot collide
-/// on the flat; the flat sits at `x = r_band`, which rests the ball at
-/// `(0, R − r)` and keeps the band a quarter turn at every ratio.
-fn upper_crease(body: &Body<f64>) -> EdgeKey {
-    let creases: Vec<EdgeKey> = rod_creases(body)
-        .into_iter()
-        .filter(|&k| {
-            let e = body.get_edge(k).unwrap();
-            let v = body.get_half_edge(e.he_plus).unwrap().start;
-            let p = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-            p.y > 0.0
-        })
-        .collect();
-    assert_eq!(creases.len(), 1, "one crease on the +y side: {creases:?}");
-    creases[0]
-}
-
-/// A rod of radius `ratio · r`, its flat at `r`, ten radii long,
-/// filleted at `r` on its upper crease.
+/// A rod of radius `ratio · r`, its flat at `r`, ten radii long (the
+/// cutter two rod radii wide), filleted at `r` on its `+y` crease —
+/// `test_support::rod_with_flat_at`, the corpus fixture's own
+/// construction at any radius. The flat at `x = r` rests the ball at
+/// `(0, R − r)` and keeps the band a quarter turn at every ratio; one
+/// crease, so the two bands cannot collide on the flat.
 fn rod_family(ratio: f64, r: f64) -> Result<Filleted<f64>, BlendRefusal> {
-    let body = rod_with_flat_at(ratio * r, r, 10.0 * r).expect("the family member mills");
-    let crease = upper_crease(&body);
+    let body = rod_with_flat_at(ratio * r, r, 10.0 * r, 2.0 * ratio * r, tol())
+        .expect("the family member mills");
+    let crease = rod_upper_crease(&body);
     fillet_edges(&body, &[crease], r, tol())
 }
 
@@ -429,7 +389,7 @@ fn in_band_refusal(result: Result<Filleted<f64>, BlendRefusal>, what: &str) -> B
         ),
         Err(BlendRefusal { error, .. }) => {
             let BlendError::Escalated {
-                site: BlendSite::Chain,
+                site: BlendSite::Link { .. },
                 source,
             } = &error
             else {
@@ -543,11 +503,12 @@ fn every_contact_edge_on_the_corpus_is_jet_determinate() {
 }
 
 /// **The definite side of the rod family at ordinary scale**: the
-/// ratios the door admits store the intrinsic tangency on the
+/// ratios the door admits — down to `1.16`, the last one the clearance
+/// screen passes at `r = 0.1` — store the intrinsic tangency on the
 /// cylinder-side trimline, and its minimum margin is the closed form.
 #[test]
 fn the_rod_family_the_door_admits_stores_the_intrinsic_description() {
-    for ratio in [2.0, 1.5, 1.2] {
+    for ratio in [2.0, 1.5, 1.2, 1.16] {
         let out = rod_family(ratio, 0.1).unwrap_or_else(|e| panic!("R/r = {ratio} carves: {e}"));
         let readings = contact_readings(&out.body);
         assert_eq!(
@@ -573,12 +534,14 @@ fn the_rod_family_the_door_admits_stores_the_intrinsic_description() {
 /// DEFINITE negative — the band's setback on the cylinder (the arc
 /// from the crease over to the foot) exceeds the straight-line gap
 /// between the two creases, which collapses as the ball fills the rod.
-/// So the closed form's collapse (`R → r`) is screened out at every ε,
-/// and the in-band rows below are blends small against the band, not
-/// osculations.
+/// So the closed form's collapse (`R → r`) is screened out at every ε
+/// at this scale — from `1.15` down, `1.16` being admitted — and the
+/// in-band rows below are blends small against the band, not
+/// osculations. At the scale where the screen itself would read in
+/// band the mill refuses first (`review_contact_edge_must_carry_r1_probes`).
 #[test]
 fn the_near_osculating_family_is_screened_by_the_battery_before_the_rule() {
-    for ratio in [1.1, 1.01] {
+    for ratio in [1.15, 1.1, 1.01] {
         match rod_family(ratio, 0.1) {
             Err(BlendRefusal {
                 error: BlendError::FaceClearanceUncertified { margin, .. },
@@ -595,7 +558,7 @@ fn the_near_osculating_family_is_screened_by_the_battery_before_the_rule() {
 
 /// **A contact edge in the band's octave refuses typed at the door**,
 /// with the predicate, the deciding station's margin strictly inside
-/// the band, the chain as the site and the radius named as the lever
+/// the band, the requested link as the site and the radius named as the lever
 /// — on a plane support (the corpus's own die, at a radius whose
 /// `r/2` sits in the band) and on the difference branch (the rod
 /// family at two admitted ratios, at radii whose `(1 − r/R)·r/2` sits
@@ -620,14 +583,19 @@ fn a_contact_in_the_bands_octave_refuses_typed_with_the_predicate_and_the_lever(
     }
 }
 
-/// **The contact recourse is followable on both of its clauses.**
-/// "Enlarge the radius": the die refused at `r = 1.5·Kε` builds at
-/// `3·Kε`, storing every contact edge intrinsic. "Blend a larger
-/// feature": the rod refused at `R/r = 2` (where the radius is already
-/// at the peak of the closed form, so no radius on THAT rod leaves the
-/// band) builds when the rod and its blend are scaled by two.
+/// **The contact recourse is followable at each site kind it names.**
+/// Plane support: the die refused at `r = 1.5·Kε` builds at `3·Kε`
+/// (the margin grows with the radius), every contact edge intrinsic.
+/// Difference branch: the rod refused at `R/r = 2` sits AT the closed
+/// form's peak, so no radius on that rod leaves the band, and "blend a
+/// larger feature" is the clause that works — the rod and its blend
+/// scaled by two build; the past-the-peak direction is measured in
+/// `review_contact_edge_must_carry_r2_probes::r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it`.
+/// Slim corner arc: the wedge refused in band at `r` builds at `r/10`,
+/// its corner arcs stored as conventional chart images — the smaller
+/// radius leaves the join under-determined, as the sentence says.
 #[test]
-fn the_contact_recourse_is_followable_on_both_of_its_clauses() {
+fn the_contact_recourse_is_followable_at_each_site_kind() {
     let b = band();
     let die = cube(1.0, tol());
     in_band_refusal(
@@ -656,6 +624,26 @@ fn the_contact_recourse_is_followable_on_both_of_its_clauses() {
             .iter()
             .all(|r| r.verdict == MustCarryVerdict::JetDeterminate),
         "the scaled rod is jet-determinate on both trimlines"
+    );
+
+    // The slim corner arc, on the fixture its pin lives on.
+    use crate::review_contact_edge_must_carry_r1_probes::{
+        chart_contact_edges, skewed_cavity_edges,
+    };
+    let scale = b.zero() / 1e-9;
+    let r = 8.7e-5 * scale;
+    let theta = (1.5 * b.escalate() / r).sqrt();
+    let (body, edges) = skewed_cavity_edges(theta, scale);
+    in_band_refusal(
+        fillet_edges(&body, &edges, r, tol()),
+        "the slim wedge at θ²·r/2 = 0.75·Kε",
+    );
+    let out = fillet_edges(&body, &edges, 0.1 * r, tol())
+        .unwrap_or_else(|e| panic!("the wedge at a tenth of the radius builds: {e}"));
+    assert!(
+        chart_contact_edges(&out.body) >= 4,
+        "the four corner arcs are stored as chart images, got {}",
+        chart_contact_edges(&out.body)
     );
 }
 
