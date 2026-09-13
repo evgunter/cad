@@ -668,3 +668,197 @@ re-derived three times in `extrude.rs`. Fix pass dispatched on the
 union (`/home/user/blend-briefs/fix-9-brief.md`), both probe branches
 to be adopted; delta by R1; then state-sync, merge, and block B1's
 CONCLUDED record.
+
+**Block B2 opened; units 10 and 11 dispatched (2026-09-13, ~05:30 UTC).**
+Specs `docs/BLEND-10-SPEC.md` (M / NUMERIC) and `docs/BLEND-11-SPEC.md`
+(S / STRUCTURAL) on main (PR #2494); block B2's pre-draw fields and
+draw recorded branch-side on `blend/b2-block` (byte 44 ⇒ fable at slot
+2: slot 0 BLEND-8 OPUS, slot 1 BLEND-10 OPUS, slot 2 BLEND-11 FABLE).
+The S-BOOL seam for `crates/profile/*` announced in `work/bool/log.md`
+before dispatch. Units 10 and 11 run beside unit 9's fix pass; unit 8
+(slot 0, the sweep crate) opens when unit 9 merges. Unit 10's Phase 1
+decides which side of the door/validator disagreement moves; the spec
+states the stored-form conditioning hypothesis as a hypothesis.
+
+**Unit 11 stopped at its fence and is re-scoped (2026-09-13, ~05:50 UTC).**
+Phase 1 reproduced the item's 232 exactly and sharpened it: 203 of them
+are reported `AnchorOutsideTrimmedExtent` entries, all carrying the
+first candidate's numbers, and 19 change under the least-deficit rule
+(setback moves by −0.12 to −0.70 m; the item's own example had its
+labels reversed). Phase 2 stopped honestly: a discrete choice between
+two candidates needs a bracket read `sugar.rs`'s `T: Decide` bound
+forbids, and the door's `map_refusal<T: Bounds>` is the shipped home
+for exactly that read. Ruling: the fence widens to
+`path/arc_fillet.rs` (seam amended in `work/bool/log.md`); the arm
+collects both overruns at the scalar, the door picks the least deficit
+by an enclosure read, ties to the earlier — the spec's rule with the
+read where the tree already puts such reads. One addition from the
+measurement: the reported leg is the candidate's WORSE leg (the one
+whose overrun is the deficit), not "incoming first" — at two grid-A
+corners the arm's incoming-first ordering reported the smaller of the
+candidate's two overruns.
+
+**Unit 11 landed (2026-09-13)** on PR [#2495](https://github.com/evgunter/cad/pull/2495),
+head `21a5f1e45`, full matrix green (run 34741638444). The arm
+collects every corner-side overrun at the scalar; the door picks the
+least deficit on its worse leg by an enclosure read; both
+differentials over 19,104 authorings clean (0 outputs, 0 verdict
+sequences, 320 refusal payloads moved — all `AnchorOutsideTrimmedExtent`
+numbers); six rows, two mutants. Deviations reported: the stop and
+re-scope; the worse-leg rule moving 230 + 72 reports beyond the spec's
+19; C3's "tight" measured false (followable, not tight). **Ordinal
+2903 claimed (orchestrator PR to main); the v6 dual dispatched
+concurrently on the frozen head** — byte 214 ⇒ R1 = OPUS, R2 = FABLE;
+briefs stored with digests on `blend/b2-block` before either ran; the
+re-scope and the deviations stated in both briefs as hypotheses. The
+unit's log entry waits for the dual.
+**MERGED — unit 9 (2026-09-13)** on PR [#2491](https://github.com/evgunter/cad/pull/2491):
+the must-carry rule's in-band policy has one home; revolve's silent
+fold gone; the item closed. Dual: one unilateral MAJOR (R2's receipt
+finding), recorded and excluded from the tally under 3(d); the fix
+pass measured the site (Positive at every station on the corpus) and
+filed it; everything else converged and taken. Delta by R1 on the
+fixed head: recorded below. Sample #181 (PERF-12 took #180 on main first). **Block
+BLEND-B1 concludes with this merge**: three slots, three duals, zero
+counted tally candidates; its branch-side record folds into main.
+Residues on the slate from this unit:
+`blend-contact-edges-mint-the-intrinsic-description-without-the-rule`,
+`cap-rim-smooth-arm-decides-by-argument-not-by-the-rule`.
+Delta (R1, on `3996ee8c`): all seven items CONFIRMED by execution —
+both probe merges in the ancestry with the eight rows green at the
+default ε and at 1e-12 through the verdict-only return; the midpoint
+mutant red on exactly R1's two station rows; the contact-edge
+measurement reproduced (minima matching on both bodies) with two
+corrections folded into the state-sync commit: the cube carries 48
+intrinsic edges, not 40, and the collapse clause names a band
+osculating a support of its own convexity (the difference branch),
+not "a concave band"; the lane row's reach stated as its doc claims;
+the eight record items; the `strut_carrier` hoist read as the whole
+`extrude.rs` diff; the BOOL residue's citations resolving. The
+receipt disposition of the unilateral MAJOR judged complete. Three
+doc survivors folded too: R2's adopted row doc still named the
+dropped `first`; the lane row's message printed one surface kind
+twice; the K row's doc said "spends ONE" where the table says "the
+deciding station's index".
+
+**Unit 11's dual concluded (2026-09-13, ~06:50 UTC):** R1 (OPUS)
+MERGEABLE-AFTER-FIXES 2/6/3, rubric 3/3/2; R2 (FABLE)
+MERGEABLE-AFTER-FIXES 1/3/5, rubric 4/3/3. Both concurrent on the
+frozen head with private targets, neither interrupted, zero
+cross-lane reads disclosed. **The headline is BILATERAL and it falls
+on the orchestrator's own spec sentence**: the reason given for the
+least-deficit pick — "the least radius reduction that would make it
+fit" — is false by execution at every one of 3185 grid-A entries
+(both arms measured the same census: 469 not a request, 2111 still
+refusing with the deficit too small, 605 building with overshoot, 0
+tight); the reported deficit meters the SETBACK, not the radius. The
+pick itself survives both instruments (0 mismatches; componentwise
+dominance in every two-candidate entry, so a tie is unreachable). R1's
+second MAJOR — the door's `.lo()` reads are a DL5(b) selection whose
+selected quantity is not locally constant, with the bounds-census
+roster and the module doc stale — is the same finding R2 carried as a
+NOTE (the roster disposition stale), so it is bilateral at differing
+severity: NO tally candidate. Unique R1, and the sharpest structural
+finding: `fillet_select::nearest_candidate` is the crate's ratified
+single home for this pick and agrees with the unit's at 232/232 — the
+unit closing an attribution defect minted a second spelling of the
+concept it unifies. Converged MINORs: the two-slot payload sized by a
+comment; the candidate tie clause unpinnable; the recourse row pinning
+the exception; the line×arc grid unreproducible; the fixtures copied a
+third time; the escalation clause false as written. Fix pass
+dispatched on the union (`/home/user/blend-briefs/fix-11-brief.md`):
+the reason corrected at every site, the pick routed through
+`nearest_candidate`, the roster and docs made true, a residue filed
+for the recourse's metering; both probe branches adopted; delta by R1.
+
+**Block BLEND-B1 concluded (2026-09-13, ~07:20 UTC)** with unit 9's
+merge (PR #2491, sample #181): three slots (6 OPUS, 7 FABLE, 9 OPUS),
+three concurrent duals on frozen heads, three implementer-inherited
+fix passes, three deltas by R1; zero counted tally candidates (one
+recorded at slot 2 and excluded under 3(d)); the v6 tally unchanged.
+The branch-side record folds into main on PR #2500 with the six stored
+briefs. Block B2 is fully dispatched: unit 8 (slot 0, OPUS) opened on
+B1's close; unit 10 (slot 1, OPUS) implementing; unit 11 (slot 2,
+FABLE) in its fix pass. Unit 9's lanes reclaimed; 21 GB free.
+
+**Unit 10 landed (2026-09-13)** on PR [#2497](https://github.com/evgunter/cad/pull/2497),
+head `46877f8c3`, full matrix green (run 34745149848). Phase 1 decided
+the door moves, and for a reason the spec did not name: the door's
+carrier is tangent to 4.4e-16, but the STORED chord-plus-bulge form
+flattens to a line below the sagitta band (`θ* = √(8ε/r)`), so the
+validator reads a line/line joint. The door now asks the validator's
+own classifier of its stored form at the close and refuses typed
+(`FilletArcCannotCarryTangency`); every base loop that built and
+validated is bit-identical; the 24 that built and were refused now
+refuse at the door. Two more spec sentences corrected by measurement
+(the recourse's "smaller radius" was backwards; the check cannot run
+before the arc is emitted), one non-monotone cell judged not a stop,
+fence crossings into the FFI tag census, and two interval-lane census
+rows re-stated on the claim that the validator refuses those loops
+anyway — all put to the reviewers. **Ordinal 2904 claimed
+(orchestrator PR to main); the v6 dual dispatched concurrently on the
+frozen head** — byte 66 ⇒ R1 = OPUS, R2 = FABLE; briefs stored with
+digests on `blend/b2-block` before either ran. The unit's log entry
+waits for the dual.
+**MERGED — unit 11 (2026-09-13)** on PR [#2495](https://github.com/evgunter/cad/pull/2495):
+the overrun refusal reports the nearest fit through the crate's one
+home for the pick; the item closed. Dual: bilateral MAJOR on the spec's
+own reason for the pick (retracted; the pick survives), no tally
+candidate; the fix pass routed the pick through
+`fillet_select::nearest_candidate`, corrected the reason at every
+site, re-classified the door's read in the bounds census, homed the
+fixtures, and filed the recourse-metering residue. Delta by R1 on the
+fixed head: recorded below. Sample #182 (main's order rules). Residues
+on the slate from this unit:
+`anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction`.
+Delta (R1, on `7e0758c8`): all seven items CONFIRMED by execution —
+nine adopted rows green at three ε rows with the anchor-fit payloads
+byte-identical across them (the closer bucket honest); the struck
+reason surviving nowhere; the pick through `nearest_candidate` with a
+re-taken 19,104-line dump identical to the reviewed head's; the census
+row a `Selection`; the array pin's reason right; the docs; the
+line×arc grid's unreproducibility CLOSED (234 / 180 / 66 rebuilt from
+the committed fixture); all five mutants as tabled, and the
+candidate-tie mutant now RED in the crate's lib suite (re-homing the
+pick closed R1's MINOR-2 as a side effect). Four new findings: DL5 has
+no arm for a selection whose result is the payload — FILED unowned
+(`dl5-has-no-arm-for-a-selection-whose-result-is-the-payload`; ratified
+ground, Ev's call); the censuses' closer bucket unbounded — bounded
+(`≤ 2`) in the state-sync commit; the array pin's comment naming the
+geometry where the guarantee is the producers' arity — one sentence
+added; `nearest_candidate`'s dominance argument cited for non-survivors
+— the widening stated at the call. The README's new candidate-level
+paragraph (new text beside a ratified clause, no clause id) is flagged
+for Ev's read: it scopes itself one level below the envelope and
+retires nothing.
+
+**Unit 10's dual concluded (2026-09-13, ~08:45 UTC):** R1 (OPUS)
+MERGEABLE-AFTER-FIXES 1/7/5 plus six style findings, rubric 4/3/3;
+R2 (FABLE) MERGEABLE 0/2/3, rubric 4/4/4. Both concurrent on the
+frozen head with private targets, neither interrupted, zero
+cross-lane reads disclosed. The headline is BILATERAL at differing
+severity: both found by execution a SECOND loss mechanism the lane's
+Phase 1 did not name — the bulge pins a carrier only to ulps of its
+radius, so a fillet with its sagitta far above the band still fails
+the carrier predicate (R2 by a huge radius, R1 by a far scene) — and
+R1 rated the consequence MAJOR (the refusal renders one sentence and
+two levers for two situations, false in the second; the D4 ¶1
+addendum the variant's own neighbour cites) where R2 rated it MINOR.
+NO tally candidate. Both confirmed the door moved for the right
+reason, all nine deviations sound (the three spec corrections by
+measurement, the non-monotone cell judged not a stop, the FFI fence
+crossing forced), the interval-lane relay bit-identical to the
+validator's enclosures with the read suppressed, and the mutant table
+exact. Converged: the re-stated census pins unguarded; the corpus
+row monotone the wrong way; the Phase 1 harness re-spelling the
+funnel the unit forbids; a hand-written list of the validator's
+predicate names; the K count's line × arc branch (+11 or +12); the
+relayed escalation's wrong site prose. Unique R1: `UndeclaredTangency`
+asserted not enforced; three spellings of one margin in `seg.rs`; the
+`SameCarrier` doc saying the opposite of both its readers; the new
+recourse living outside the six `FILLET_*_RECOURSE`'s home. Unique R2:
+`line_span` between adjacent segments at 1e-12 (unfiled); no radius
+exists at 1e-12 for the smallest turns. Fix pass dispatched on the
+union (`/home/user/blend-briefs/fix-10-brief.md`): two situations,
+two sentences, the recourse in its home; both probe branches adopted;
+delta by R1.

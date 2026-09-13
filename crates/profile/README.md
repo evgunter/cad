@@ -304,3 +304,25 @@ most plausibly meant. The sort key is an `f64` enclosure read of a
 quantity nothing decides on; nothing in the kernel branches on the
 order, and no entry outranks another. The pins are
 `tests/fillet_refusal_envelope.rs`.
+
+**One level down, the candidate.** At an arc-carrier corner the offset
+carriers admit up to two candidate circles, and an anchor-fit entry
+(`AnchorOutsideTrimmedExtent`) can have both of them round the corner
+and overrun a leg. The entry's numbers are the candidate nearest to
+fitting IN THE SETBACK METRIC — `fillet_select::nearest_candidate`'s
+ladder over the candidates' setback pairs, the one home of "the nearest
+candidate at one corner" — on that candidate's worse leg, the one whose
+setback outruns its extent by more (ties name the incoming leg; a
+candidate tie is unreachable by geometry, one candidate being shallower
+on both legs). The construction (`sugar::arc_fillet_trims`) carries
+every overrunning candidate out at the scalar and compares nothing; the
+pick is the door's (`path::arc_fillet::map_refusal`), an `f64` enclosure
+read off the diagnostic channel like the sort key above, and nothing
+branches on it. What the numbers are NOT: a radius amount.
+`setback − available` is the leg's overrun in the setback metric; the
+recourse "reduce the radius or move the anchor" is un-metered and true,
+and a setback does not scale 1:1 with the radius on either leg kind.
+The pins are `tests/fillet_overrun_nearest_fit.rs` and the two review
+probe suites beside it (`review_fillet_overrun_nearest_fit_r1_probes`,
+`_r2_probes`), whose grid-A recourse census says which way reading the
+number as a radius reduction errs.

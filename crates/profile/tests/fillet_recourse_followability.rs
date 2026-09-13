@@ -58,6 +58,17 @@
 //! second request in each case, so following the dead constant and
 //! following the live prose are one act here, not two. Named as a
 //! class because a sweep keyed on `RECOURSE: &str` cannot see it.
+//!
+//! **The anchor-fit sentence's number is not a radius amount.**
+//! `AnchorOutsideTrimmedExtent`'s `setback − available` is the reported
+//! leg's overrun in the SETBACK metric, and the recourse it precedes is
+//! un-metered: the fit row below follows "a smaller radius" with a
+//! radius it chose, not one read off the payload, and is an unremarked
+//! instance of the class `fillet_overrun_nearest_fit` names and the
+//! grid-A recourse census (`review_fillet_overrun_nearest_fit_r1_probes`)
+//! measures — the reduction a corner needs ranges from 0.04× to 29× of
+//! the reported number. A metered form is the residue
+//! `work/blend/anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction.md`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -252,7 +263,9 @@ fn the_no_corner_recourse_reduces_to_a_radius_that_builds() {
 /// Both clauses name a second request, and both are executed: the
 /// straight leg is 0.1 long behind the corner while `r = 0.5` sets back
 /// 0.586, and either shrinking the radius or lengthening the leg
-/// answers.
+/// answers. The smaller radius is 0.05, chosen: reading the payload's
+/// 0.586 − 0.1 as a radius reduction would ask for r ≈ 0.014, an
+/// overshoot of the class the file header names.
 #[test]
 fn the_fit_recourse_is_followed_by_a_smaller_radius_and_by_longer_legs() {
     let err = straight_leg(1.9, 0.5).expect_err("the setback outruns the leg");

@@ -1834,6 +1834,31 @@ body, not in the spec). The unit's record is its row in
 
 - `BLEND-7-SPEC.md` — BLEND-7, a closed chain's junctions judged against the links that touch them (#2483)
 
+## Per-merge deletion — BLEND-9's spec (2026-09-13)
+
+Recoverable at `git show 3996ee8c1dc76b5371fa0bfb46511b68e738001f:docs/BLEND-9-SPEC.md`
+(the fix-pass head; the spec's `blend8_` suite spelling and its
+"restate the count as two" line were superseded — the suite is named by
+subject and `folded_lever_arm`'s list is a different list — both
+recorded in the PR body). The unit's record is its row in
+`MODEL-AB-LOG.md`, its MERGED entry in `work/blend/log.md`, and the
+`## Landed` section of its item.
+
+- `BLEND-9-SPEC.md` — BLEND-9, the must-carry rule's in-band policy has one home (#2491)
+## Per-merge deletion — BLEND-11's spec (2026-09-13)
+
+Recoverable at `git show 7e0758c87792fd058cf150658136af5a75d68fe8:docs/BLEND-11-SPEC.md`
+(the fix-pass head). Two of its sentences did not survive review: the
+pick could not be spelled inside `sugar.rs` (the Bounds scope rule)
+and moved to the door's `map_refusal` through
+`fillet_select::nearest_candidate`; and its reason for the pick — "the
+least radius reduction that would make it fit" — was falsified by both
+reviewers over every grid-A entry (the deficit meters the setback, not
+the radius). Both are recorded in the PR body and the unit's log entry;
+the residue is `work/blend/anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction.md`.
+
+- `BLEND-11-SPEC.md` — BLEND-11, the overrun refusal reports the nearest fit (#2495)
+
 ## Sweep 12 — 2026-09-12: CITE leaves the tracker
 
 Sweep SHA: `116d96c01d4a03084d4701d7d58fb3b5dcf1703b` — the commit

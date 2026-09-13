@@ -13,7 +13,11 @@
 //! surviving candidates, so the choice is over (corner, candidate)
 //! PAIRS. Ranking pairs is [`crate::fillet_select::nearest_joint`],
 //! which
-//! reads the f64 diagnostic channel — a `Bounds` read.
+//! reads the f64 diagnostic channel — a `Bounds` read. The module's
+//! second selection is on the refusal side: an anchor-fit refusal whose
+//! corner admitted two overrunning candidates is reported for the one
+//! [`crate::fillet_select::nearest_candidate`] ranks first
+//! (`map_refusal`), the same ladder on the same channel.
 //!
 //! This module therefore takes a compound `Decide + Bounds`: it
 //! DECIDES (the carrier-meet and angular advance/reach gates) and reads
@@ -67,13 +71,13 @@ use super::{
     ArcData, CornerReason, CornerRefusal, CornerWindow, Dir, PathError, PathNoCornerReason,
     linear_band,
 };
-use crate::fillet_select::nearest_joint;
+use crate::fillet_select::{nearest_candidate, nearest_joint};
 use crate::structure::{
     CornerGate, Decision, DecisionValue, FilletDecision, Guide, StructureRefusal,
 };
 use crate::sugar::{
     ArcFilletCandidate, ArcFilletOutcome, ArcSweep, ArcTrimRefusal, FilletLegShape,
-    arc_fillet_trims, signed_swept,
+    OverrunCandidate, arc_fillet_trims, signed_swept,
 };
 use crate::validate::FilletLegCarrier;
 
@@ -413,14 +417,24 @@ enum CornerOutcome<T: Real> {
 /// diagnostics are `f64` enclosure lower bounds, for messages and never
 /// for re-deciding.
 ///
-/// Three reads on three lines, none of them a re-decision: `arm.lo()`
-/// is a value-channel BRANCH between two message sites, `r.lo()` is an
-/// `f64` payload field, and `(margin / r).lo()` brackets a quotient
-/// computed at `T` into a second one. Nothing read here re-enters the
-/// computation, so the sole `T: Bounds` is the whole obligation: this
-/// door decides nothing, which is why it does not carry the module's
-/// `Decide` half. At a dual scalar the three are the value channel's
-/// bit for bit (D9), and a degraded tangent cannot reach them.
+/// Every read here is off the diagnostic channel and none is a
+/// re-decision: `arm.lo()` is a BRANCH between two message sites,
+/// `r.lo()` is an `f64` payload field, `(margin / r).lo()` brackets a
+/// quotient computed at `T` into a second one — and the anchor-fit
+/// arm's `setback.lo()` / `margin.lo()` reads SELECT which overrunning
+/// candidate, and which of its legs, the payload is about. That
+/// selection is the class `nearest_joint` sits in one module over: the
+/// alternatives are already-classified constructions of the value
+/// channel, the ranking is the ladder `fillet_select` argues (its
+/// dominance and tie arguments, and its standing as a selection rule
+/// rather than a predicate), and what is selected is a payload the
+/// caller reads — it never re-enters the computation, so nothing
+/// downstream branches on it. The sole `T: Bounds` is the whole
+/// obligation: this door decides nothing, which is why it does not
+/// carry the module's `Decide` half. At a dual scalar the reads are
+/// the value channel's bit for bit (D9), and a degraded tangent cannot
+/// reach them; at an `Interval` scalar they are enclosure lower bounds
+/// and the pick is that lane's own (see the arm).
 fn map_refusal<T: Bounds>(refusal: ArcTrimRefusal<T>, radius: T) -> CornerOutcome<T> {
     match refusal {
         ArcTrimRefusal::Band(source) => CornerOutcome::Whole(PathError::Band(source)),
@@ -490,24 +504,71 @@ fn map_refusal<T: Bounds>(refusal: ArcTrimRefusal<T>, radius: T) -> CornerOutcom
         // an arc side gets its angular story (`FilletLegCarrier::Arc`'s
         // `angular_margin`) instead of a bare linear setback that means
         // nothing on a circle.
-        ArcTrimRefusal::DoesNotFit {
-            leg,
-            carrier_radius,
-            margin,
-            setback,
-            leg_length,
-        } => CornerOutcome::Reason(CornerReason::AnchorOutsideTrimmedExtent {
-            side: leg,
-            carrier: match carrier_radius {
-                None => FilletLegCarrier::Line,
-                Some(r) => FilletLegCarrier::Arc {
-                    radius: r.lo(),
-                    angular_margin: (margin / r).lo(),
+        //
+        // THE NEAREST FIT. The construction carries every corner-side
+        // candidate whose trim overran, in enumeration order, and this
+        // arm reports the one the author is nearest to fitting IN THE
+        // SETBACK METRIC: `nearest_candidate`'s ladder over the
+        // candidates' `[incoming, outgoing]` setbacks — the one home of
+        // "the nearest candidate at one corner", with its tie rules —
+        // and on that candidate's WORSE leg, the one whose setback
+        // outruns its extent by more, ties to the incoming leg as
+        // `fillet` gates it. The sentence then carries that leg's
+        // overrun, and the recourse it ends in ("reduce the radius or
+        // move the anchor") stays un-metered: a setback does not scale
+        // 1:1 with the radius on either leg kind, so `setback −
+        // available` is not a radius amount (the grid-A recourse census
+        // in `tests/review_fillet_overrun_nearest_fit_r1_probes.rs`
+        // says which way reading it as one errs).
+        //
+        // A candidate tie cannot arise by geometry: at a two-candidate
+        // corner one candidate is shallower on BOTH legs — the
+        // componentwise dominance `nearest_candidate` documents, under
+        // which its rung 1 always decides and its max/sum spellings
+        // agree — so no row pins a candidate tie. The leg tie is a real
+        // one (equal margins to the bit on a symmetric corner) and
+        // names the incoming leg.
+        //
+        // Both reads are `f64` enclosure lower bounds off the
+        // diagnostic channel, exactly `nearest_joint`'s: a selection
+        // among already-classified constructions, never a re-decision
+        // of geometry. At an `Interval` scalar the lane reports the
+        // candidate whose `lo()` setbacks the ladder ranks first — its
+        // own deterministic pick, which can differ from the f64 lane's
+        // only when the candidates' gap sits inside the enclosure
+        // width, as `nearest_candidate` states for survivors.
+        ArcTrimRefusal::DoesNotFit { first, second } => {
+            let candidates: Vec<OverrunCandidate<T>> =
+                core::iter::once(first).chain(second).collect();
+            let setbacks: Vec<[f64; 2]> = candidates
+                .iter()
+                .map(|c| [c.legs[0].setback.lo(), c.legs[1].setback.lo()])
+                .collect();
+            // `nearest_candidate` argues componentwise dominance for the
+            // SURVIVORS of the corner-side extent gates; here it is asked of
+            // the non-survivors. The class is the same (the enclosing arm
+            // refuses before any candidate is derived), and dominance was
+            // measured at every two-overrun corner of grid A (232/232), so
+            // the citation is widened knowingly, not silently.
+            let nearest = candidates[nearest_candidate(&setbacks)];
+            let leg = if nearest.legs[1].margin.lo() < nearest.legs[0].margin.lo() {
+                nearest.legs[1]
+            } else {
+                nearest.legs[0]
+            };
+            CornerOutcome::Reason(CornerReason::AnchorOutsideTrimmedExtent {
+                side: leg.side,
+                carrier: match leg.carrier_radius {
+                    None => FilletLegCarrier::Line,
+                    Some(r) => FilletLegCarrier::Arc {
+                        radius: r.lo(),
+                        angular_margin: (leg.margin / r).lo(),
+                    },
                 },
-            },
-            setback,
-            available: leg_length,
-        }),
+                setback: leg.setback,
+                available: leg.leg_length,
+            })
+        }
     }
 }
 

@@ -607,8 +607,21 @@ pub enum CornerReason<T: Real> {
     /// `TangentJointOutOfRange` fit-gating generalized (PATHS-DESIGN
     /// §3). This is also where a too-large radius lands: the setback
     /// exceeds the extent the anchor pins.
+    ///
+    /// **Whose numbers.** At an arc-carrier corner the offset carriers
+    /// can admit two candidate circles that both round the corner and
+    /// both overrun a leg; the payload is then the candidate nearest to
+    /// fitting IN THE SETBACK METRIC (`fillet_select::nearest_candidate`
+    /// over the candidates' setback pairs), on that candidate's worse
+    /// leg — the leg whose setback outruns its extent by more, ties to
+    /// the incoming leg. `setback − available` is that leg's overrun, a
+    /// setback-currency number: it is NOT the radius reduction that
+    /// would make the corner fit (a setback does not scale 1:1 with
+    /// the radius on either leg kind), and the sentence's recourse is
+    /// deliberately un-metered.
     AnchorOutsideTrimmedExtent {
-        /// Which side's anchor the trim would eat.
+        /// Which side's anchor the trim would eat: the reported
+        /// candidate's worse leg.
         side: FilletLeg,
         /// **G2 §3c**: that side's CARRIER KIND, carrying the angular
         /// margin `(extent − setback)/R` for a circular side. A bare
@@ -616,8 +629,9 @@ pub enum CornerReason<T: Real> {
         /// metered in the carrier's own currency (M5 S2's
         /// does-not-fit diagnostic shape, at the algebra door).
         carrier: FilletLegCarrier,
-        /// The tangent setback from the corner, meters (diagnostic; an
-        /// arc length `R·Δθ` on a circular side).
+        /// The reported candidate's tangent setback from the corner on
+        /// that side, meters (diagnostic; an arc length `R·Δθ` on a
+        /// circular side).
         setback: T,
         /// The anchored extent available to the trim, meters (same
         /// currency as `setback`).
