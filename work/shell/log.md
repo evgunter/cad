@@ -809,3 +809,15 @@ unit's slate.
 says to "ask M10's orchestrator for the co-review at dispatch"; M10
 has no orchestrator now. The tier side is SYM's (`work/sym/`) and the
 `clearance.rs`/`measure.rs` seam is PROPS' — ask those two.
+
+## Announced seam from TOPO (2026-09-13): one comment in `shell.rs` with the ring-nesting unit
+
+TOPO's `tier3-accepts-a-ring-outside-its-outer-loop` (branch
+`topo/tier3-ring-nesting`) adds the ring-inside-outer decide to tier 3.
+In SHELL's `crates/topo/src/shell.rs` it corrects ONE comment — the
+role assignment's "the disjointness check below and tier 3's windings
+are what verify it", which the placed row shows overclaims — and
+nothing else: whether `shell_open`'s glue adopts the validator's
+decide as a second precondition is SHELL's call, and the lane reports
+rather than does it. `encloses` stays where it is. Signed (TOPO
+orchestrator).
