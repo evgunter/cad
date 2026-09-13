@@ -5694,3 +5694,19 @@ f2a086f0661fb15fdd9b83caca3470f373572a00da734b48e743028534ceec1a  blend-8-review
 slot 1 = BLEND-10 MERGED (2026-09-13, PR #2497 at c428ff517; sample #183): delta by R1 on the fixed head confirmed all seven items (and showed the one shape it had left unconstructed is not reachable through the public door); the row is on main in that merge. Slot 1 concluded. Slot 0 (BLEND-8) is the block's last open slot, in its dual.
 slot 0 = BLEND-8 dual concluded (2026-09-13, ~11:50Z): both arms concurrent on the frozen head with private targets, neither interrupted, zero cross-lane reads disclosed. R1 (OPUS) MERGEABLE-AFTER-FIXES 2/6/6, rubric 4/4/3; R2 (FABLE) MERGEABLE-AFTER-FIXES 0/5/5, rubric 4/4/3. R1's two MAJORs (the stale mutant table; the annulus's second spelling of the split half) are R2's MINOR-1 and MINOR-3 — bilateral at differing severity, both by execution ⇒ NO tally candidate. Pair COUNTS (method symmetric, pre-recorded). Fix pass on the implementer's lane; delta by R1; the row lands on main at merge with its sample number; the block's CONCLUDED record folds into main with it.
 slot 0 = BLEND-8 MERGED (2026-09-13, PR #2505 at 24ba7f59c; sample #185 — BLEND-12 took #184 on main first): delta by R1 on the fixed head confirmed all seven items by execution (both mutants exact; the annulus reading re-taken at the refresh call site, 38 moved keys against the lane's 37, the reading holding; the record delta exact, the lane's base-side totals unreconciled) and caught one new MINOR the fix introduced (the boss's orientation stated backwards against the row it cites), corrected in the state-sync; the row is on main in that merge. Slot 0 concluded. **Block BLEND-B2 CONCLUDED**: three slots (OPUS / OPUS / FABLE), three duals, zero counted tally candidates (every headline bilateral by execution — at MAJOR on unit 11, at differing severity on units 10 and 8); v6 tally unchanged.
+
+## Block TOPO-B2 — draw record (branch-side until the block concludes)
+
+Protocol: three slots {opus, opus, fable}, fable position = byte mod 3.
+Pre-draw fields for all three slots were committed to `work/topo/log.md`
+at `41edc9d2a` (2026-09-12) BEFORE the draw. Draw 2026-09-12:
+`/dev/urandom` byte **215** (accepted, < 252) ⇒ 215 mod 3 = **2** ⇒
+fable at slot 2.
+
+| slot | arm | unit | pre-draw fields |
+|---|---|---|---|
+| 0 | OPUS | `tier3-accepts-a-ring-outside-its-outer-loop` | difficulty M, task class STRUCTURAL-GEOMETRIC — logged before the draw |
+| 1 | OPUS | `split-edge-children-lack-pcurve-rows-on-curved-charts` | difficulty S/M, task class STRUCTURAL-NUMERIC — logged before the draw |
+| 2 | FABLE | `revert-does-not-mirror-plane-chart-images` | difficulty M, task class NUMERIC — logged before the draw |
+
+Ordinal claims go to main at each review dispatch (band 2700–2799).
