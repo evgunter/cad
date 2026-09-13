@@ -2,10 +2,11 @@
 id: PERF-10
 kind: unit
 title: the pick index serves a patch whole - table, boxes and tree under one key
-status: review
+status: closed
 opened: 2026-09-13
 branch: perf/10-pick-patch-memo
 pr: 2484
+closed: 2026-09-13
 ---
 
 
