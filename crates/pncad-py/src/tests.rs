@@ -2016,6 +2016,71 @@ fn inner_arm_tags_are_stable() {
     );
 }
 
+/// **A frame's direction refusal, carried to the node that read it,
+/// keeps the word the frame's own raise answers.**
+///
+/// `NodeErrorKind::FrameDirection` exists to add the frame's ID to a
+/// refusal a reader raises about ANOTHER node — the fact is
+/// unchanged, so the tag is unchanged, and a Python caller matching
+/// `degenerate_direction` keeps matching after the locator lands.
+/// That is a claim about the MAPPING, which the inventory cannot
+/// make: swap this arm for a freshly minted word and the inventory
+/// still has to be edited, but nothing would say the edit broke every
+/// caller of the old one.
+///
+/// All four of the direction door's facts, because the arm delegates
+/// and a delegation that answered one fixed word for all of them
+/// would pass a one-row pin.
+#[test]
+fn a_carried_frame_direction_refusal_keeps_the_frames_own_tag() {
+    use crate::tags::{node_error_tag, node_inner_kind_tag};
+    use pncad::document::{DirectionRefusal, NodeErrorKind, RecipeNodeId, UnitVec3Error};
+    use pncad::geom_core::{Band, Indeterminate, MarginDiag};
+
+    let band = Band::new(1.0e-9, 1.0e-6).expect("a valid band");
+    let carried = |error| NodeErrorKind::FrameDirection {
+        frame: RecipeNodeId(3),
+        refusal: DirectionRefusal {
+            role: "datum frame x axis",
+            error,
+        },
+    };
+    for error in [
+        UnitVec3Error::Degenerate,
+        UnitVec3Error::NonFiniteLength,
+        UnitVec3Error::UnderflowedLength,
+        UnitVec3Error::Escalated(Indeterminate {
+            margin: MarginDiag::Value(2.0e-9),
+            band,
+            predicate: Some("datum_unit_norm"),
+        }),
+    ] {
+        let direct = DirectionRefusal {
+            role: "datum frame x axis",
+            error,
+        }
+        .node_error();
+        assert_eq!(
+            node_error_tag(&carried(error)),
+            node_error_tag(&direct),
+            "the carried refusal answers a different word from the one the \
+             frame's own node answers for the same fact, so a caller that \
+             matched the frame's word stops matching the profile's"
+        );
+        // The fact is the outer word here, as it is for the frame's
+        // own raise: there is no second discriminant to project.
+        assert_eq!(node_inner_kind_tag(&carried(error)), None);
+    }
+
+    // And the id the arm exists for reaches the prose.
+    assert!(
+        carried(UnitVec3Error::Degenerate)
+            .to_string()
+            .contains("node 3"),
+        "the frame the refusal names is the whole point of the arm"
+    );
+}
+
 /// The same pair at the edit door: `variant` and `inner_variant`.
 #[test]
 fn edit_inner_variant_tags_are_stable() {
