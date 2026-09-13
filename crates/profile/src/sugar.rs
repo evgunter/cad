@@ -420,7 +420,9 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
     /// of them. EVERY such candidate is carried, in enumeration order,
     /// with both legs' numbers at the scalar; which one the refusal is
     /// about, and which of its legs, is the door's pick (`map_refusal`
-    /// in `path::arc_fillet`) — the nearest fit, read off the
+    /// in `path::arc_fillet`, through
+    /// [`crate::fillet_select::nearest_candidate`]) — the candidate
+    /// nearest to fitting in the setback metric, read off the
     /// diagnostic channel, so that nothing here compares.
     DoesNotFit {
         /// The first overrunning corner-side candidate.
@@ -460,9 +462,10 @@ pub(crate) struct OverrunLeg<T: Real> {
     /// turns it into a [`crate::FilletLegCarrier`].
     pub carrier_radius: Option<T>,
     /// The fit margin `extent − setback`, meters (the door divides by
-    /// the carrier radius for the angular story). Negative on the leg
-    /// that overran; the candidate's DEFICIT is the larger of the two
-    /// legs' `−margin`.
+    /// the carrier radius for the angular story). Negative on a leg
+    /// that overran; the candidate's WORSE leg is the one with the
+    /// smaller margin, and `−margin` there is the overrun the refusal
+    /// reports — in the setback metric, not a radius amount.
     pub margin: T,
     /// The tangent setback from the corner along the leg.
     pub setback: T,
@@ -647,24 +650,17 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
             // carried are this candidate's own, for the corner the
             // author actually named.
             //
-            // Attribution to the CANDIDATE is the door's: every
-            // corner-side overrun is carried out, in enumeration order
-            // and with both legs' numbers, and `map_refusal` reports
-            // the nearest fit — the candidate with the least deficit
-            // `max(setback − extent)` over its two legs, on the leg
-            // that deficit is on. The author's recourse ("reduce the
-            // radius or move the anchor") is metered against the
-            // reported setback, so the honest numbers are the ones
-            // nearest to fitting, not the first enumerated. Choosing
-            // is a comparison, which this `T: Decide` body cannot
-            // spell (Bounds scope rule) and must not gate (no new
-            // predicate): the collection here is exhaustive so that the
-            // door's `f64` read decides nothing. The four
-            // classifications above ran for every candidate before this
-            // arm, as they do for a survivor, so the recorded sample
-            // sequence is unchanged by how many overruns are carried;
-            // an escalation aborted through `?` above before any
-            // candidate was collected.
+            // Which CANDIDATE the refusal is about, and which of its
+            // legs, is the door's pick (`path::arc_fillet::map_refusal`,
+            // through `fillet_select::nearest_candidate`): every
+            // corner-side overrun is carried out with both legs'
+            // numbers, in enumeration order, so that this `T: Decide`
+            // body compares nothing (Bounds scope rule) and gates
+            // nothing new. The four classifications above ran for this
+            // candidate whether or not it survives, so what is carried
+            // never changes the recorded sample sequence; an escalation
+            // in a later candidate's gates aborts through `?` and drops
+            // the array with it.
             let leg_numbers = |leg: &Leg<T>, setback: T, margin: T| OverrunLeg {
                 side: leg.side,
                 carrier_radius: leg.arc.map(|a| a.radius),
@@ -678,10 +674,18 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
                     leg_numbers(&leg_out, sb_out, margin_out),
                 ],
             };
-            // At most two centres come out of either offset
-            // intersection, so the second slot is the last.
-            let slot = usize::from(overruns[0].is_some());
-            overruns[slot] = Some(candidate);
+            // Two distinct circles, or a line and a circle, meet in at
+            // most two points: that is why `offset_circles` and
+            // `offset_line_circle` hand back at most two centres, and
+            // why two slots are the honest size. A third overrun is a
+            // broken producer, not a case, and is refused loudly.
+            match overruns {
+                [None, _] => overruns[0] = Some(candidate),
+                [Some(_), None] => overruns[1] = Some(candidate),
+                [Some(_), Some(_)] => {
+                    unreachable!("two offset carriers meet in at most two points")
+                }
+            }
         }
     }
     if survivors.is_empty() {
