@@ -21,8 +21,9 @@ vCPU). The corpus heat sink driven to N fins, so N+1 solids:
 
 40 → 160 fins is 4× the size and 15.3× the time (n^1.96). The whole of
 `assemble` is the tier-3′ at-rest census over the aggregate body
-(`crates/editor-core/src/product.rs:650`; the per-source gate at `:604`
-runs only when a source has more than one solid). The gather is 23 ms
+(`product_recorded`'s pass-3 aggregate gate; the per-source gate in
+pass 2 runs only when THE PRODUCT holds more than one solid — summed
+over every source, not per source: one source may carry several). The gather is 23 ms
 at 161 solids in release — the 250–372 ms the closed LIB issue quoted
 was the dev profile.
 
