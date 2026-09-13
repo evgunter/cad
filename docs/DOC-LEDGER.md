@@ -758,6 +758,17 @@ whose unit had merged; each unit's record is its row in
 - `M10-3-SPEC.md` — M10-3, the E6 subdivision driver (#1231)
 - `M10-4-SPEC.md` — M10-4, sensitivities and the stackup (#1627)
 
+## Per-merge deletion — M10-10's spec (2026-09-12)
+
+Recoverable at `git show f2efdfad2:docs/M10-10-SPEC.md` (the M10-10 unit
+head, before the state-sync commit that deleted it; its acceptance
+sentence "bounded by genuine flips" is corrected by the unit's own
+review — the MERGED entry in `work/m10/log.md` is the statement of
+record). The rule above; the unit's record is its row in
+`MODEL-AB-LOG.md` and that entry.
+
+- `M10-10-SPEC.md` — M10-10, the form-level mechanism: rule D (trig of atan, exact) with rules A/B per node made affordable, with amendment A1 (#2100)
+
 ## Per-merge deletion — M10-9's spec (2026-09-06)
 
 Recoverable at `git show 4f8262ad9:docs/M10-9-SPEC.md` (the M10-9 unit

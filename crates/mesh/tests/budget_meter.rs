@@ -286,3 +286,41 @@ fn arming_the_meter_does_not_change_the_mesh() {
         assert_eq!(a.triangles, b.triangles);
     }
 }
+
+/// **The lanes run on rayon workers, and never on the caller** — the
+/// row that holds `tessellate`'s per-face dispatch to being D9 idiom 1.
+///
+/// The goldens row next door proves the mesh is the same bytes at one
+/// and four threads. That claim is also true of a tessellator with no
+/// parallelism in it at all, so on its own it cannot tell "the map is
+/// schedule-invariant" from "the map went away". This one can: an
+/// indexed `par_iter` collected by a caller that is not itself a pool
+/// worker injects its job and parks on a latch, so no lane can run on
+/// the calling thread. A serial arm added under some face-count
+/// threshold — the remedy
+/// `work/perf/parallel-map-costs-a-fixed-price-on-a-cheap-body.md`
+/// argues against — would run every lane here and turn this red.
+///
+/// It is a fact about rayon rather than about scheduling luck, which is
+/// why the assertion is on WHERE a lane ran and not on how many
+/// threads shared the work: how many workers a 4-thread pool actually
+/// wakes for a small body is a race, and a row asserting two would be
+/// flaky on a loaded runner.
+#[test]
+fn no_face_lane_runs_on_the_thread_that_called_tessellate() {
+    let body = sweep::test_support::swept_elbow(Tol::witness());
+    budget::arm(Mode::Sizing);
+    mesh::tessellate(&body, 1e-2, Tol::witness()).expect("tessellates");
+    let threads = budget::lane_threads();
+    let here = budget::lane_ran_on_caller();
+    let _ = budget::take();
+    assert!(
+        threads > 0,
+        "the meter saw no lane at all — it was armed and a body was tessellated"
+    );
+    assert!(
+        !here,
+        "a face's lane ran on the thread that called `tessellate`: the per-face \
+         dispatch is not the parallel map any more (it saw {threads} thread(s))"
+    );
+}

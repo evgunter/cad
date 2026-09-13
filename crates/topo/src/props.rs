@@ -39,6 +39,7 @@ use geom_brep::props::quad::{FaceCutBounds, RoundOutcome, RoundWindow};
 use geom_brep::props::{
     CarrierId, FaceContribution, LoopEdge, PropsError, curved_face, planar_face,
 };
+use geom_core::k_stats::Detached;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
 use slotmap::Key;
 
@@ -283,15 +284,28 @@ pub(crate) fn mass_properties_with<T: PropsQuadLane>(
     band: Band,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    mass_properties_impl(
-        body,
-        band,
-        &|body, surface, outer, hes, band, tol, _| {
-            T::quad_cut_face(body, surface, outer, hes, band, tol)
-                .map(|b| b.map(RoundOutcome::Converged))
-        },
-        tol,
-    )
+    mass_properties_impl(body, band, &reporting_hook::<T>, tol)
+}
+
+/// **The lane-dispatched hook at the REPORTING level, one home**: the
+/// scalar's own `quad_cut_face` over the whole schedule, its answer
+/// always `Converged` because a reporting read has no window to stop
+/// in. One `fn` rather than a closure at each site: the whole-body walk
+/// ([`mass_properties_with`]) and the per-shell walk
+/// ([`classify_shells_of`]) read at the same level through the same
+/// lane, and two copies of that are two things to keep equal. `Sync`
+/// for free, as a `fn` item, which is what [`QuadHook`] needs of it.
+#[allow(clippy::type_complexity)]
+fn reporting_hook<T: PropsQuadLane>(
+    body: &Body<T>,
+    surface: &Surface<T>,
+    outer: &[LoopEdge<T>],
+    hes: &[HalfEdgeKey],
+    band: Band,
+    tol: Tol,
+    _window: RoundWindow,
+) -> Result<Option<RoundOutcome>, PropsError> {
+    T::quad_cut_face(body, surface, outer, hes, band, tol).map(|b| b.map(RoundOutcome::Converged))
 }
 
 /// The certified lane's hook, one home: the windowed
@@ -371,17 +385,20 @@ pub(crate) fn sign_certified<'b, T: Decide + geom_core::CertifiedBounds, V>(
     settle: impl Fn(VolumeEnclosure<T>) -> Option<V>,
     last_word: impl Fn(Option<MassPropsError>) -> V,
 ) -> Result<(V, SignCertificate<'b, T>), MassPropsError> {
-    let mut runs = Vec::with_capacity(body.faces.len());
-    for (face_key, _) in body.faces.iter() {
-        runs.push(face_flux(
+    // Round 0 over every face, then the rounds after it over the faces
+    // still open — both idiom 1 into arena-order slots, both composed
+    // sequentially in that order ([`mass_properties_impl`]'s note).
+    let faces: Vec<FaceKey> = body.faces.iter().map(|(face_key, _)| face_key).collect();
+    let mut runs = decide_faces(&faces, |&face_key| {
+        face_flux(
             body,
             face_key,
             band,
             &certified_hook::<T>,
             tol,
             RoundWindow::at(0),
-        )?);
-    }
+        )
+    })?;
     let mut round = 0usize;
     loop {
         let (props, refused) = fold_runs(&runs);
@@ -413,17 +430,28 @@ pub(crate) fn sign_certified<'b, T: Decide + geom_core::CertifiedBounds, V>(
             ));
         }
         round += 1;
-        for run in &mut runs {
-            if run.open_at == Some(round - 1) {
-                *run = face_flux(
-                    body,
-                    run.face,
-                    band,
-                    &certified_hook::<T>,
-                    tol,
-                    RoundWindow::at(round),
-                )?;
-            }
+        // The open faces, in arena order — the same subsequence the
+        // serial walk re-entered, so the recordings splice back in the
+        // order it made them. A face that is not open contributes no
+        // decision this round, exactly as before.
+        let open: Vec<(usize, FaceKey)> = runs
+            .iter()
+            .enumerate()
+            .filter(|(_, run)| run.open_at == Some(round - 1))
+            .map(|(slot, run)| (slot, run.face))
+            .collect();
+        let decided = decide_faces(&open, |&(_, face_key)| {
+            face_flux(
+                body,
+                face_key,
+                band,
+                &certified_hook::<T>,
+                tol,
+                RoundWindow::at(round),
+            )
+        })?;
+        for ((slot, _), run) in open.iter().zip(decided) {
+            runs[*slot] = run;
         }
     }
 }
@@ -590,28 +618,314 @@ type QuadHook<'h, T> = dyn Fn(
         Tol,
         RoundWindow,
     ) -> Result<Option<RoundOutcome>, PropsError>
+    // `Sync` because the walks below hand this hook to an indexed
+    // parallel map over faces: every face calls the same hook, so the
+    // hook is shared across workers. Both shipped hooks are
+    // non-capturing (a `fn` item and a closure over nothing), so the
+    // bound costs their call sites nothing.
+    + Sync
     + 'h;
 
+/// **One face's decision, taken on a worker** — what `face_flux`
+/// answered, and everything the K-funnel recorded while it answered.
+///
+/// The recording rides WITH the answer because the funnel is
+/// thread-local: a face decided on a rayon worker records into that
+/// worker's frame and sink, and only a value handed back to the fold
+/// can reach the caller's (`geom_core::k_stats::detached`). The serial
+/// arm of [`decide_faces`] never builds one — its decisions land in the
+/// caller's own frame and sink, because they are taken there.
+type FaceDecision<T> = (Result<FaceRun<T>, MassPropsError>, Detached);
+
+/// **Whether a face may be decided on a worker thread at all.**
+///
+/// The K-funnel is not the only thread-local a decision writes, and the
+/// others cannot be composed back. A symbolic session
+/// (`geom_core::sym`) is per-CALL and thread-local, and three things
+/// follow from that, only the first of which is about recording:
+///
+/// - **The decision itself changes.** `Sym`'s `sign_within` consults
+///   the session; with none installed `discharge` answers `None`, the
+///   identity tier discharges nothing and the answer is the plain
+///   numeric one. A face on a worker would decide differently from its
+///   siblings on the caller's thread — the one thing D9 forbids
+///   outright.
+/// - **The receipt is written in place.** `count_decision` and
+///   `count_registration_contradicted` mutate the installed session's
+///   `SymCounts`, and `Sym::opaque` advances the per-replay `OPAQUE_SEQ`
+///   counter — a sequence whose determinism rests on the minting ORDER
+///   being a fixed single-threaded walk. Neither is a value handed
+///   back, so neither can be spliced. (Node ids are NOT in this list:
+///   `intern` is a content hash of the node, so the DAG a replay builds
+///   is the same whatever order it is built in.)
+/// - **The shape report goes with it.** `geom_core::sym::report`'s
+///   `ACTIVE`/`SHAPES`/`NAMES` are thread-locals of the same family,
+///   written from `Sym::sign_within` and installed by the evidence rows
+///   that wrap a session.
+///
+/// The walk therefore stays on the caller's thread for exactly as long
+/// as a session is installed, which is the driver's leaf replay
+/// (`editor_core::drive` opens one per leaf and runs the whole leaf on
+/// one worker, so the nesting is real and common). It is a property of
+/// the CALL and not of the scalar: `Sym` with no session installed is
+/// as portable as `f64`, and the check reads the session rather than
+/// the type. The shape report has no query door of its own and needs
+/// none — nothing installs one outside a session.
+fn decisions_are_thread_portable() -> bool {
+    geom_core::sym::session_counts().is_none()
+}
+
+/// **The face walk, in one spelling and two dispatches.** `run` decides
+/// one face; the answer is the faces in arena order, or the first
+/// refusal in arena order.
+///
+/// *Thread-portable* (the shipped case): **D9 addendum idiom 1** — one
+/// slot per item in the caller's order, results written positionally
+/// and never combined arithmetically, so the schedule cannot reach the
+/// bits — then [`splice_in_arena_order`], which is idiom 2's
+/// sequential half for the recordings as [`fold_runs`] is for the
+/// fluxes.
+///
+/// *Not portable* ([`decisions_are_thread_portable`]): this IS the
+/// serial walk. Faces are decided on the caller's thread in arena
+/// order and the walk stops at the first refusal, exactly as it did
+/// before any of this — no detached frame (the decisions are already
+/// landing in the caller's frame and sink) and no face after the
+/// refusing one decided. That matters beyond cost: a decision under a
+/// session also writes the session's receipt and the shape report in
+/// place, and a face decided past the point the serial walk stopped
+/// would inflate both with no way to take it back.
+fn decide_faces<I: Sync, T: Decide>(
+    items: &[I],
+    run: impl Fn(&I) -> Result<FaceRun<T>, MassPropsError> + Send + Sync,
+) -> Result<Vec<FaceRun<T>>, MassPropsError> {
+    if decisions_are_thread_portable() {
+        use rayon::prelude::*;
+        let decided: Vec<FaceDecision<T>> = items
+            .par_iter()
+            .map(|item| geom_core::k_stats::detached(|| run(item)))
+            .collect();
+        splice_in_arena_order(decided)
+    } else {
+        items.iter().map(run).collect()
+    }
+}
+
+/// **The parallel arm's sequential half, and where the escalation path
+/// lives.** Splices each face's recording into the caller's frame and
+/// sink in ARENA ORDER and answers the runs, stopping at the first face
+/// whose lane refused outright.
+///
+/// The serial walk stops AT that face: faces before it have recorded,
+/// the refusing face has recorded whatever it decided before refusing,
+/// and faces after it are never visited. The map has already decided
+/// every face, so this makes the logs say the same thing: every
+/// recording up to and including the refusing face is spliced, in
+/// order, and every recording after it is dropped on the floor with the
+/// run it came with.
+///
+/// **What the failure path costs**: the fluxes of the faces after the
+/// refusing one, computed and thrown away. That is a real wall-clock
+/// cost and it is paid at every width, this arm's one and four alike —
+/// it is the latency of a REFUSAL, never of an answer, and a body that
+/// answers never reaches it.
+fn splice_in_arena_order<T: Decide>(
+    decided: Vec<FaceDecision<T>>,
+) -> Result<Vec<FaceRun<T>>, MassPropsError> {
+    let mut runs = Vec::with_capacity(decided.len());
+    for (run, recording) in decided {
+        geom_core::k_stats::splice(recording);
+        runs.push(run?);
+    }
+    Ok(runs)
+}
+
+/// **The escalation path, read directly**: the fold splices every
+/// recording up to and including the refusing face and drops every one
+/// after it, in arena order.
+///
+/// The end-to-end rows live in `sweep`'s
+/// `mass_props_are_thread_count_invariant` — a real body, the public
+/// doors, 1 thread against 4. This one pins the rule those rows depend
+/// on at the site that carries it, with the refusal placed where no
+/// fixture body puts it: at a chosen slot, with a recording on every
+/// slot before and after, so a fold that spliced one face too few or
+/// one too many reds here.
+#[cfg(test)]
+mod face_walk_composition_tests {
+    #![allow(clippy::expect_used, clippy::panic)]
+
+    use super::*;
+    use geom_core::k_stats::{Bracket, detached};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).expect("the witness band builds")
+    }
+
+    /// A detached run that records exactly one verdict, under `name`.
+    fn one_verdict(name: &'static str) -> Detached {
+        detached(|| {
+            let _ = crate::validate::decide(name, Margin::of(1.0f64), band());
+        })
+        .1
+    }
+
+    /// A face run that contributes nothing and refuses nothing — the
+    /// fold's business here is the recording and the stop, not the sum.
+    fn silent_run() -> FaceRun<f64> {
+        FaceRun {
+            face: FaceKey::null(),
+            contribution: FaceFlux {
+                flux: 0.0,
+                area: 0.0,
+                flux_pad: 0.0,
+                area_pad: 0.0,
+            },
+            open_at: None,
+            refusal: None,
+        }
+    }
+
+    /// The slots, with a hard refusal at `refuse_at` when one is asked
+    /// for; every slot carries a recording naming itself.
+    fn slots(names: &[&'static str], refuse_at: Option<usize>) -> Vec<FaceDecision<f64>> {
+        names
+            .iter()
+            .enumerate()
+            .map(|(i, &name)| {
+                let recording = one_verdict(name);
+                let run = if refuse_at == Some(i) {
+                    Err(MassPropsError::Corrupt {
+                        what: "the injected refusal",
+                    })
+                } else {
+                    Ok(silent_run())
+                };
+                (run, recording)
+            })
+            .collect()
+    }
+
+    const NAMES: [&str; 4] = ["walk_slot_a", "walk_slot_b", "walk_slot_c", "walk_slot_d"];
+
+    #[test]
+    fn every_recording_splices_in_arena_order_when_no_face_refuses() {
+        let decided = slots(&NAMES, None);
+        let bracket = Bracket::open();
+        let runs = splice_in_arena_order(decided).expect("no face refused");
+        let log = bracket.finish();
+        assert_eq!(runs.len(), NAMES.len());
+        assert_eq!(
+            log.verdicts.iter().map(|v| v.predicate).collect::<Vec<_>>(),
+            NAMES,
+            "the fold did not splice the slots in arena order"
+        );
+    }
+
+    /// **The serial arm stops where the serial walk stopped.** Under an
+    /// installed symbolic session `decide_faces` decides on the caller's
+    /// thread, and it must not decide a face past the first refusal: a
+    /// decision writes the session's receipt and the shape report IN
+    /// PLACE, where no splice can take it back, so a face the serial
+    /// walk never reached would inflate both.
+    #[test]
+    fn the_serial_arm_decides_no_face_past_the_first_refusal() {
+        use core::sync::atomic::{AtomicUsize, Ordering};
+        let seen = AtomicUsize::new(0);
+        let items: Vec<usize> = (0..5).collect();
+        let (out, _counts) = geom_core::sym::with_session(
+            geom_core::sym::SymBudget {
+                max_terms: 8,
+                max_degree: 2,
+            },
+            || {
+                decide_faces(&items, |&i| {
+                    seen.fetch_add(1, Ordering::Relaxed);
+                    if i == 2 {
+                        Err(MassPropsError::Corrupt {
+                            what: "the injected refusal",
+                        })
+                    } else {
+                        Ok::<FaceRun<f64>, MassPropsError>(silent_run())
+                    }
+                })
+            },
+        );
+        assert!(out.is_err(), "slot 2 refused and the walk answered Ok");
+        assert_eq!(
+            seen.load(Ordering::Relaxed),
+            3,
+            "the serial arm decided a face past the first refusal — the \
+             session's receipt and the shape report cannot be un-written"
+        );
+    }
+
+    /// The other arm's price, stated as a row rather than only in prose:
+    /// with no session installed the map decides EVERY face and the fold
+    /// then drops what it cannot use. That is the disclosed failure-path
+    /// cost, and it is a property of a refusing body at every width.
+    #[test]
+    fn the_parallel_arm_decides_every_face_and_then_drops_the_rest() {
+        use core::sync::atomic::{AtomicUsize, Ordering};
+        let seen = AtomicUsize::new(0);
+        let items: Vec<usize> = (0..5).collect();
+        let out = decide_faces(&items, |&i| {
+            seen.fetch_add(1, Ordering::Relaxed);
+            if i == 2 {
+                Err(MassPropsError::Corrupt {
+                    what: "the injected refusal",
+                })
+            } else {
+                Ok::<FaceRun<f64>, MassPropsError>(silent_run())
+            }
+        });
+        assert!(out.is_err(), "slot 2 refused and the walk answered Ok");
+        assert_eq!(seen.load(Ordering::Relaxed), 5);
+    }
+
+    #[test]
+    fn the_refusing_faces_recording_splices_and_every_later_one_is_dropped() {
+        let decided = slots(&NAMES, Some(2));
+        let bracket = Bracket::open();
+        let err = match splice_in_arena_order(decided) {
+            Err(err) => err,
+            Ok(_) => panic!("slot 2 refused and the fold answered Ok"),
+        };
+        let log = bracket.finish();
+        assert!(
+            matches!(err, MassPropsError::Corrupt { what } if what == "the injected refusal"),
+            "the fold reported another face's refusal: {err}"
+        );
+        assert_eq!(
+            log.verdicts.iter().map(|v| v.predicate).collect::<Vec<_>>(),
+            &NAMES[..3],
+            "the log is not the serial walk's: it stops at the first refusing face, \
+             which had already decided what it decided before it refused"
+        );
+    }
+}
+
 /// The shared face walk at the REPORTING level: every face's lane run
-/// to its convergence or its typed refusal, faces in arena order, the
-/// accumulation order fixed (D9).
+/// to its convergence or its typed refusal, one slot per face in arena
+/// order, the accumulation order fixed (D9).
+///
+/// **Idiom 1 then idiom 2** (D9's parallelism addendum): the per-face
+/// lanes are an indexed parallel map into arena-order slots
+/// ([`decide_faces`]) and every combination after it is sequential in
+/// that order — the recordings spliced by [`splice_in_arena_order`],
+/// the fluxes summed by [`fold_runs`]. Nothing is combined
+/// arithmetically across slots in parallel, so the schedule reaches
+/// neither the bits nor the logs.
 fn mass_properties_impl<T: Decide>(
     body: &Body<T>,
     band: Band,
     quad: &QuadHook<'_, T>,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    let mut runs = Vec::with_capacity(body.faces.len());
-    for (face_key, _) in body.faces.iter() {
-        runs.push(face_flux(
-            body,
-            face_key,
-            band,
-            quad,
-            tol,
-            RoundWindow::SCHEDULE,
-        )?);
-    }
+    let faces: Vec<FaceKey> = body.faces.iter().map(|(face_key, _)| face_key).collect();
+    let runs = decide_faces(&faces, |&face_key| {
+        face_flux(body, face_key, band, quad, tol, RoundWindow::SCHEDULE)
+    })?;
     // The refusal arm is not dead, and it is not reachable from
     // either hook this door is called with: both answer `Converged`
     // or `Ok(None)`, so no face carries one. It is what makes this
@@ -1076,10 +1390,7 @@ pub fn classify_shells_of<T: PropsQuadLane>(
                 body,
                 face_key,
                 band,
-                &|body, surface, outer, hes, band, tol, _| {
-                    T::quad_cut_face(body, surface, outer, hes, band, tol)
-                        .map(|b| b.map(RoundOutcome::Converged))
-                },
+                &reporting_hook::<T>,
                 tol,
                 RoundWindow::SCHEDULE,
             )
