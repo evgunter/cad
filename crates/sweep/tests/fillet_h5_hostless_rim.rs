@@ -188,7 +188,11 @@ fn the_plane_hosted_rim_carves_on_either_material_side() {
     ];
     for (name, body, r, y, concave) in &fixtures {
         let arcs = rim_arcs_at(body, *r, *y);
-        assert_eq!(arcs.len(), 2, "{name}: the repair leaves the rim two arcs");
+        assert_eq!(
+            arcs.len(),
+            2,
+            "{name}: the repair leaves the rim the two arcs a full revolve's one seam splits it into"
+        );
 
         let hosts = planar_supports(body, &arcs);
         assert_eq!(hosts.len(), 1, "{name}: ONE plane face hosts every arc");
@@ -348,7 +352,11 @@ fn a_pole_touching_revolve_splits_the_walls_that_do_not_touch_the_axis_too() {
             "{name}: four profile segments, every one of them split in two"
         );
         let arcs = rim_arcs_at(&body, 0.5, 1.0);
-        assert_eq!(arcs.len(), 2, "{name}: the rim is two arcs");
+        assert_eq!(
+            arcs.len(),
+            2,
+            "{name}: the rim is the two arcs a full revolve's one seam splits it into"
+        );
         assert_eq!(
             planar_supports(&body, &arcs).len(),
             2,

@@ -301,7 +301,9 @@ struct RimPlan<'a, T: Real> {
 /// surgeries and not two settings of one.
 enum RimShape {
     /// **The quad ladder.** The rim is a RING of its planar support and
-    /// each link's sphere face is a half-cap carrying exactly that arc:
+    /// each link's curved face carries exactly that arc — a revolve's
+    /// half-cap or an extruded cylinder's wall; the gate asks for the
+    /// arc, not the kind:
     /// the band is carved as a ladder of struts and trim arcs around
     /// the ring, closed by one slit at the closure vertex.
     Ladder {

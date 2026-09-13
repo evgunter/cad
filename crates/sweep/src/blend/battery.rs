@@ -866,7 +866,7 @@ pub fn face_clearance<T: Decide + Bounds>(
 /// Resolve one link: supports, arm, blend, convexity. Refuses typed
 /// on any support pair the analytic arms do not cover — naming the
 /// canal-surface unit as the missing front door.
-fn resolve_link<T: Decide + Bounds>(
+pub(crate) fn resolve_link<T: Decide + Bounds>(
     body: &Body<T>,
     edge: EdgeKey,
     radius: T,
@@ -1221,7 +1221,7 @@ fn curved_arm<T: Decide + Bounds>(
 /// (three links meet at every box vertex), while filleting a pip rim
 /// yields one CLOSED chain (two links meet at every rim vertex) —
 /// with no geometric decision taken anywhere in the walk.
-fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
+pub(crate) fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
     let mut inc: Vec<(VertexKey, Vec<usize>)> = Vec::new();
     let bump = |v: VertexKey, i: usize, inc: &mut Vec<(VertexKey, Vec<usize>)>| match inc
         .iter_mut()

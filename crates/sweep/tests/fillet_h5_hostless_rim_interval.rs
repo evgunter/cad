@@ -86,7 +86,11 @@ fn the_hostless_rim_carves_at_the_certified_scalar_on_both_material_sides() {
         ),
     ] {
         let arcs = rim_arcs_at(&source, rim.0, rim.1);
-        assert_eq!(arcs.len(), 2, "{name}: the repaired rim is two arcs");
+        assert_eq!(
+            arcs.len(),
+            2,
+            "{name}: the repaired rim is the two arcs a full revolve's one seam splits it into"
+        );
         let p0 = mass_properties(&source, tol()).expect("interval props");
 
         let out = fillet_edges(&source, &arcs, iv(r), tol())
@@ -150,7 +154,11 @@ fn the_plane_sphere_hostless_carve_brackets_its_closed_form_at_the_certified_sca
         tol(),
     ));
     let arcs = rim_arcs_at(&source, 1.0, 0.0);
-    assert_eq!(arcs.len(), 2, "the repaired equator is two arcs");
+    assert_eq!(
+        arcs.len(),
+        2,
+        "the repaired equator is the two arcs a full revolve's one seam splits it into"
+    );
     let p0 = mass_properties(&source, tol()).expect("interval props");
     assert!(
         p0.volume.hi() - p0.volume.lo() < 1e-12,

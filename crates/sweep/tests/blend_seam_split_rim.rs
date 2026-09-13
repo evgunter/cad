@@ -252,7 +252,11 @@ fn every_lantern_rim_carves_whole_to_its_closed_form() {
     let source = lantern();
     for (name, rim_r, rim_y, center) in rims() {
         let arcs = rim_arcs_at(&source, rim_r, rim_y);
-        assert_eq!(arcs.len(), 2, "{name} arrives as two arcs");
+        assert_eq!(
+            arcs.len(),
+            2,
+            "{name} arrives as the two arcs a full revolve's one seam splits it into"
+        );
         let out = fillet_edges(&source, &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} fillets whole, got {e:?}"));
         validate_geometric(&out.body, tol())
@@ -331,7 +335,11 @@ fn each_side_of_a_seam_split_rim_is_two_faces_of_one_surface() {
     let source = lantern();
     for (name, rim_r, rim_y, _) in rims() {
         let arcs = rim_arcs_at(&source, rim_r, rim_y);
-        assert_eq!(arcs.len(), 2, "{name} arrives as two arcs");
+        assert_eq!(
+            arcs.len(),
+            2,
+            "{name} arrives as the two arcs a full revolve's one seam splits it into"
+        );
         let (a0, b0) = faces_of(&source, arcs[0]);
         let (a1, b1) = faces_of(&source, arcs[1]);
         assert_eq!(
@@ -398,7 +406,11 @@ fn the_three_rims_fillet_in_sequence_to_one_valid_solid() {
     let mut bands = 0;
     for (name, rim_r, rim_y, _) in rims() {
         let arcs = rim_arcs_at(&body, rim_r, rim_y);
-        assert_eq!(arcs.len(), 2, "{name} is still two arcs before its carve");
+        assert_eq!(
+            arcs.len(),
+            2,
+            "{name} is still its seam's two arcs before its carve"
+        );
         let out = fillet_edges(&body, &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} fillets on the running result, got {e:?}"));
         bands += out.band_faces.len();

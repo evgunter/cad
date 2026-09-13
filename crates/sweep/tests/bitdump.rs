@@ -9,7 +9,10 @@
 //! that reaches `ruled_phase`, whose transverse-cap carve no other
 //! fixture here executes),
 //! and one CONCAVE rim per closed-rim door (the waist annulus, the
-//! `cube ∪ ball` boss's ladder)
+//! `cube ∪ ball` boss's ladder), and the extruded plane–cylinder
+//! TWO-arc rims — disc, through-bore, boss foot, pocket floor: both
+//! closed-rim doors on both material sides, the two-link shape of the
+//! N-link rims `closed_chain_junctions` carves —
 //! — and writes a bit-faithful text dump of every output body to
 //! `$BITDUMP_DIR/<name>.txt`. Run at the merge base and at the head,
 //! then `diff` the files: any moved bit shows as a text change
@@ -53,7 +56,8 @@ use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::{
-    ROD_FILLET, ball_poled_z, cube, dome, lantern, one_edge_rim_at, rim_arcs_at, rod_creases,
+    ROD_FILLET, ball_poled_z, bored_block_of_arcs, boss_of_arcs, circle_arcs_at_z, cube,
+    disc_of_arcs, dome, lantern, one_edge_rim_at, pocket_of_arcs, rim_arcs_at, rod_creases,
     rod_with_flat, sphere_zone, waisted,
 };
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
@@ -247,7 +251,11 @@ fn bitdump_pip_rims() {
         return;
     };
     let (pipped, box_edges, rims) = pipped_die();
-    assert_eq!(rims.len(), 2, "the pip rim is two arcs");
+    assert_eq!(
+        rims.len(),
+        2,
+        "the pip rim is two arcs: the ball's one seam splits it"
+    );
     let mut all = box_edges;
     all.extend(rims);
     let out = fillet_edges(&pipped, &all, 0.05, Tol::witness()).unwrap();
@@ -605,4 +613,45 @@ fn bitdump_extrude_revolve_corpus() {
         text.push_str(&dump(body));
     }
     save(&dir, "extrude_revolve_corpus", &text);
+}
+
+/// **The extruded plane–cylinder two-arc rims**, one per closed-rim
+/// door and material side: the disc's raised rim and the pocket's
+/// floor (the annulus with strut crossings), the through-bore's cap
+/// rim and the boss's foot (the ladder). Two arcs is the rim every
+/// other suite builds; the N ≥ 3 twins carve through the same doors
+/// (`closed_chain_junctions`), and this row is what shows the two-arc
+/// carve does not move when the junction record changes shape.
+#[test]
+fn bitdump_extruded_two_arc_rims() {
+    // An explicit CLEAN SKIP when unarmed, as every row above.
+    let Some(dir) = dump_dir() else {
+        return;
+    };
+    let tol = Tol::witness();
+    for (name, body, z) in [
+        ("two_arc_disc", disc_of_arcs(2, 0.5, 1.0, tol), 1.0),
+        (
+            "two_arc_bore",
+            bored_block_of_arcs(2, 2.0, 1.0, 0.5, tol),
+            1.0,
+        ),
+        (
+            "two_arc_boss",
+            boss_of_arcs(2, 2.0, 0.5, 1.0, 2.0, tol),
+            2.0,
+        ),
+        ("two_arc_pocket", pocket_of_arcs(2, 2.0, 0.5, 1.5, tol), 1.5),
+    ] {
+        let arcs = circle_arcs_at_z(&body, z);
+        assert_eq!(arcs.len(), 2, "{name}: two arcs by authoring");
+        let out = fillet_edges(&body, &arcs, 0.1, tol).unwrap();
+        let mut text = dump(&out.body);
+        let _ = writeln!(
+            text,
+            "blend={:?} corner={:?} band={:?}",
+            out.blend_faces, out.corner_faces, out.band_faces
+        );
+        save(&dir, name, &text);
+    }
 }

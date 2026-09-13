@@ -512,7 +512,11 @@ fn the_seam_vertex_recourse_names_a_door_that_answers() {
         tol(),
     );
     let arcs = rim_arcs_at(&source, 1.0, 0.0);
-    assert_eq!(arcs.len(), 2);
+    assert_eq!(
+        arcs.len(),
+        2,
+        "a full revolve's one seam splits the rim into two arcs"
+    );
     // The refusal fires...
     let refused = fillet_edges(&source, &arcs[..1], 0.1, tol()).map_err(|r| r.error);
     match refused {
