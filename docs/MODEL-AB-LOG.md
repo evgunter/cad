@@ -5400,3 +5400,16 @@ in both briefs, neither reviewer sees the other's report; the same
 shared-box note applies to both arms (two other implementer lanes
 building; per-crate builds asked of both). Block PERF-B4's draw record
 stays branch-side until the block concludes.
+
+## PERF-10 review ordinal fixed at dispatch (2026-09-13)
+
+PERF-10 (`work/perf/PERF-10.md`, PR #2484 open — frozen head `e8092fcad`;
+block PERF-B4 slot 0): **ordinal 3410** (PERF band). Protocol v6 dual:
+draw = `/dev/urandom` byte **127**, parity 1 ⇒ **R1 = FABLE, R2 = OPUS**.
+Method as for the earlier PERF units: concurrent same-head on frozen
+`e8092fcad`, briefs stored with sha256 before dispatch (7670b9d12289a2d0… r1 /
+2c109dfa37ee5845… r2 — identical modulo lane names, verified by diff), isolation
+in both briefs, neither reviewer sees the other's report; the same
+shared-box note applies to both arms (PERF-11's reviewers and PERF-12's
+implementer beside them; per-crate builds asked of both). Block
+PERF-B4's draw record stays branch-side until the block concludes.
