@@ -73,6 +73,15 @@ pncad = { path = "../crates/pncad" }
 # is the committed JSON history, and gnuplot is not on the runner anyway.
 [dev-dependencies]
 criterion = { version = "0.8.2", default-features = false }
+# Two readers, one dependency. Explicit thread pools for the
+# mass-property rows: `topo::props` decides faces in a rayon indexed
+# parallel map, and `RAYON_NUM_THREADS` configures the global pool once
+# per process, so it cannot give one binary a 1-thread row and a
+# 4-thread row. And `rayon::current_num_threads()` names the pool
+# `mesh::tessellate`'s per-face map runs on, so the `tessellate/*` rows
+# can print the thread count they were taken at. Same version the
+# workspace pins; it is already in this root's tree through `pncad`.
+rayon = "1.11"
 
 [[bench]]
 name = "kernel"
@@ -92,12 +101,19 @@ harness = false
 #     tessellate 1e-6       699 ms ->  782 ms   (1.12x)
 #     validate/mass props            unchanged
 #
-# That 5-6.5x is PERF-PLAN §1.3's "per-op debug full-body tier-1"
-# (`topo/src/euler.rs:60-72`, D1's ratified postcondition clause) being
-# measured for the first time, and it lands precisely on the two
-# topology-surgery rows. Leaving it on would put a 5x constant on top of
-# exactly the scenarios §2.1's arena-scan family (findings 9, 11, 13, 14)
-# is meant to move, which is how a real algorithmic win gets rounded away.
+# That 5-6.5x WAS the per-op debug full-body tier-1 sweep, measured for
+# the first time, landing precisely on the two topology-surgery rows.
+# **The column it measures no longer exists.** D1's tier-1 sweep runs
+# once per public door since the ruling on
+# `work/perf/d1-per-op-tier1-sweep-price` (Ev, PR 2305), so an
+# assertions-ON build of these two rows now pays one whole-body walk per
+# `extrude` / per boolean rather than one per operator inside it, and
+# nothing has re-taken the ON column since. The ratio above is
+# historical; what survives it is the POSTURE, which is unchanged and is
+# the only thing this stanza decides: benches measure the kernel's own
+# cost, not the cost of the profile real parts meet, and a constant on
+# top of the surgery rows — whatever its size — is how a real
+# algorithmic win gets rounded away.
 #
 # So this lane measures the kernel, and the ratio above is the record of
 # what it is NOT measuring. Making D1's clause cheaper is a DESIGN.md

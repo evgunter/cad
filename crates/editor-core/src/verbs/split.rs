@@ -39,9 +39,9 @@
 //! correspondence DATA because the reading it labels is the
 //! correspondence's (`tool`): whoever declares which datum kinds a
 //! verb accepts declares what to call the refusal. The profile
-//! lowering's inline `expected: "profile"` is the LOWERING's, because
-//! every profile verb takes a profile — the operand contract belongs
-//! to `wire_swept`, not to any one correspondence. The blends'
+//! lowering's inline `expected: family::PROFILE` is the LOWERING's,
+//! because every profile verb takes a profile — the operand contract
+//! belongs to `wire_swept`, not to any one correspondence. The blends'
 //! `selection_label` is not an operand label at all: it is the kernel
 //! refusal label a SELECTION failure carries (`BlendKind`), shared
 //! with the kernel's own refusal so a verb is never rendered twice.

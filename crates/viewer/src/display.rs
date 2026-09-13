@@ -184,6 +184,15 @@ pub enum DisplayFault {
     NoFreeMove,
     /// A free-move gesture is already in flight.
     FreeMoveInFlight,
+    /// A free-move operation named an instance that is not the one
+    /// being probed — a preview or a commit for an instance other
+    /// than the one the open probe was begun on.
+    ///
+    /// [`crate::session::Refusal::WrongGesture`]'s twin on this drag,
+    /// and separate from [`DisplayFault::FreeMoveInFlight`] for its
+    /// reason: that fault answers a second BEGIN, this one answers a
+    /// driving operation whose subject is not the probe it reaches.
+    WrongFreeMove,
 }
 
 impl core::fmt::Display for DisplayFault {
@@ -213,6 +222,7 @@ impl core::fmt::Display for DisplayFault {
             ),
             Self::NoFreeMove => write!(f, "no free-move is in progress"),
             Self::FreeMoveInFlight => write!(f, "finish the free-move first"),
+            Self::WrongFreeMove => write!(f, "that is not the free-move in progress"),
             Self::FusedGeometry {
                 instance,
                 root,
@@ -515,10 +525,11 @@ pub struct Withdrawn {
 /// **What a [`DisplayState::prune`] withdrew**, per kind of display
 /// fact — the report a caller turns into what the user reads.
 ///
-/// # Two facts, not one
+/// # Three facts, not one
 ///
-/// A discarded probe and a dropped hide are both display state the
-/// document stopped admitting, and they are NOT the same news:
+/// A discarded probe, a dropped hide and a killed gesture are all
+/// display state the document stopped admitting, and they are NOT the
+/// same news:
 ///
 /// - A **supersession** is a substitution. The user's hand placement
 ///   was an answer to "where does this part go", and the mate that
@@ -532,10 +543,17 @@ pub struct Withdrawn {
 ///   cannot be addressed without hiding material that is not its. The
 ///   picture gains geometry the user had taken out of it, or loses the
 ///   instance entirely, and nothing takes the hide's place.
+/// - A **killed gesture** is neither. It is the drag the user's hand
+///   is still on, and nothing substituted for it: the placement it
+///   would have landed was never asked of the document, so there is no
+///   better answer to step aside for. The picture loses a preview the
+///   user was steering. It is also the only one of the three that can
+///   happen at most once, because at most one free-move gesture is in
+///   flight.
 ///
 /// So they are ranked together and worded apart. Nothing here composes
-/// either sentence: the fields carry the faults, and the chrome
-/// renders each one through its own `Display`.
+/// any of the three sentences: the fields carry the faults, and the
+/// chrome renders each one through its own `Display`.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct PruneReport {
     /// Instances whose COMMITTED free-move probe was discarded, with
@@ -543,9 +561,8 @@ pub struct PruneReport {
     /// landing, a fuse, or the instance being gone.
     ///
     /// **Only committed probes.** A gesture in flight when the
-    /// transition lands dies too and is not named here; the caller
-    /// observes that through [`DisplayState::probing`] going `None`,
-    /// and the next gesture op refuses typed.
+    /// transition lands dies too; it is `killed_gesture`, because it
+    /// is not a supersession.
     pub superseded: Vec<Withdrawn>,
     /// Instances whose HIDE was dropped, with the [`display_check`]
     /// fault that dropped it. The instance is drawn again where the
@@ -553,6 +570,17 @@ pub struct PruneReport {
     /// document no longer holds it — which of the two is what the
     /// fault says.
     pub dropped_hides: Vec<Withdrawn>,
+    /// The in-flight free-move gesture this prune killed, with the
+    /// [`free_move_check`] fault that killed it — or `None`, which is
+    /// both "no gesture was in flight" and "the one in flight still
+    /// holds". The two are the same news to a reader: nothing was
+    /// taken.
+    ///
+    /// **`Option` rather than a `Vec`**, because a [`DisplayState`]
+    /// holds one free-move gesture and a prune can kill at most that
+    /// one. A collection here would carry a plural no caller could
+    /// produce and every reader would have to word.
+    pub killed_gesture: Option<Withdrawn>,
 }
 
 impl PruneReport {
@@ -562,12 +590,22 @@ impl PruneReport {
     /// Private: [`DisplayState::prune`] is its one caller, deciding
     /// whether the revision moved. The two types themselves are `pub`
     /// structurally rather than by choice — this is `prune`'s return
-    /// type and [`Withdrawn`] is the element type of two public
+    /// type and [`Withdrawn`] is the element type of three public
     /// [`crate::session::OpOutcome`] fields, so neither could be
     /// narrower and both are re-exported to keep those fields
     /// nameable.
+    ///
+    /// **Destructured rather than field-read**, so a fourth kind of
+    /// withdrawal is E0027 here rather than a withdrawal that leaves
+    /// the revision where it was — which is the chrome not rebuilding
+    /// a picture that changed.
     fn is_empty(&self) -> bool {
-        self.superseded.is_empty() && self.dropped_hides.is_empty()
+        let Self {
+            superseded,
+            dropped_hides,
+            killed_gesture,
+        } = self;
+        superseded.is_empty() && dropped_hides.is_empty() && killed_gesture.is_none()
     }
 }
 
@@ -720,13 +758,26 @@ impl DisplayState {
     /// preview REPLACES the last — the composed display value is
     /// `frame`, never an accumulation of deltas.
     ///
+    /// **It names the instance it is probing**, and the name is
+    /// checked before the frame is: a drag on a second instance's
+    /// field cannot compose its frame onto the instance an open probe
+    /// holds. [`DisplayFault::WrongFreeMove`] carries the argument.
+    ///
     /// # Errors
     ///
-    /// [`DisplayFault::NoFreeMove`], [`DisplayFault::NonRigidFrame`].
-    pub fn preview_free_move(&mut self, frame: Frame) -> Result<(), DisplayFault> {
+    /// [`DisplayFault::NoFreeMove`], [`DisplayFault::WrongFreeMove`],
+    /// [`DisplayFault::NonRigidFrame`].
+    pub fn preview_free_move(
+        &mut self,
+        instance: RecipeNodeId,
+        frame: Frame,
+    ) -> Result<(), DisplayFault> {
         let Some(gesture) = self.free_move.as_mut() else {
             return Err(DisplayFault::NoFreeMove);
         };
+        if gesture.instance != instance {
+            return Err(DisplayFault::WrongFreeMove);
+        }
         if !is_rigid(&frame) {
             return Err(DisplayFault::NonRigidFrame {
                 determinant: frame.determinant(),
@@ -745,12 +796,19 @@ impl DisplayState {
     /// same picture as "not probed", and the distinctness treatment
     /// must not mark a part that is not displaced.
     ///
+    /// Names its instance for [`DisplayState::preview_free_move`]'s
+    /// reason, and the name is checked before the probe is taken: a
+    /// refused commit leaves the probe it does not name in flight.
+    ///
     /// # Errors
     ///
-    /// [`DisplayFault::NoFreeMove`].
-    pub fn commit_free_move(&mut self) -> Result<(), DisplayFault> {
-        let Some(gesture) = self.free_move.take() else {
-            return Err(DisplayFault::NoFreeMove);
+    /// [`DisplayFault::NoFreeMove`], [`DisplayFault::WrongFreeMove`].
+    pub fn commit_free_move(&mut self, instance: RecipeNodeId) -> Result<(), DisplayFault> {
+        let Some(gesture) = self.free_move.take_if(|open| open.instance == instance) else {
+            return Err(match self.free_move {
+                Some(_) => DisplayFault::WrongFreeMove,
+                None => DisplayFault::NoFreeMove,
+            });
         };
         if let Some(frame) = gesture.preview {
             if frame.is_identity_bits() {
@@ -785,17 +843,17 @@ impl DisplayState {
     /// instance the picture can no longer address, and kill an
     /// in-flight gesture whose instance became ineligible.
     ///
-    /// **Returns the [`PruneReport`]** — both sets of withdrawn
-    /// display facts, each entry carrying the fault that withdrew it,
-    /// so a caller reports what happened and why rather than inferring
-    /// either. The faults come from the same predicates that decide:
-    /// the decision and its explanation are one value, and there is no
-    /// second place for them to disagree.
+    /// **Returns the [`PruneReport`]** — every withdrawn display fact,
+    /// each carrying the fault that withdrew it, so a caller reports
+    /// what happened and why rather than inferring either. The faults
+    /// come from the same predicates that decide: the decision and its
+    /// explanation are one value, and there is no second place for
+    /// them to disagree.
     ///
-    /// A killed in-flight gesture is in NEITHER list (it committed
-    /// nothing); the caller observes it through
-    /// [`DisplayState::probing`] going `None`, and the next gesture op
-    /// refuses typed.
+    /// A killed in-flight gesture is in neither LIST, because it
+    /// committed nothing and there can be only one of it; it is the
+    /// report's [`PruneReport::killed_gesture`], carrying the same
+    /// kind of fault as the other two.
     pub fn prune(&mut self, doc: &Doc<ProfileProgram>) -> PruneReport {
         let mut superseded = Vec::new();
         self.moves
@@ -818,18 +876,26 @@ impl DisplayState {
         for dropped in &dropped_hides {
             self.hidden.remove(&dropped.instance);
         }
-        let gesture_dies = self
-            .free_move
-            .as_ref()
-            .is_some_and(|g| free_move_check(doc, g.instance).is_err());
-        if gesture_dies {
+        // The fault is CARRIED, not tested: `is_err()` here would
+        // throw away the one value that says why the drag under the
+        // user's hand stopped, at the instant it is computed.
+        let killed_gesture = self.free_move.as_ref().and_then(|gesture| {
+            free_move_check(doc, gesture.instance)
+                .err()
+                .map(|cause| Withdrawn {
+                    instance: gesture.instance,
+                    cause,
+                })
+        });
+        if killed_gesture.is_some() {
             self.free_move = None;
         }
         let report = PruneReport {
             superseded,
             dropped_hides,
+            killed_gesture,
         };
-        if !report.is_empty() || gesture_dies {
+        if !report.is_empty() {
             self.revision += 1;
         }
         report
@@ -846,6 +912,53 @@ impl DisplayState {
     /// key, so it is bumped when the reset was visible and never reset
     /// itself — a counter that went backwards would name a picture the
     /// chrome has already drawn.
+    ///
+    /// # Why this door returns no [`PruneReport`], and its sibling does
+    ///
+    /// This takes MORE than [`DisplayState::prune`] ever does — every
+    /// hide and every placement, unconditionally — and says nothing
+    /// about any of it. That asymmetry is decided here rather than
+    /// left to be read as an oversight, and it turns on the two doors
+    /// withdrawing display state for different reasons.
+    ///
+    /// **A prune's withdrawals are a SIDE EFFECT of an act about
+    /// something else.** The user mated two parts, or undid a step;
+    /// losing a hand placement was no part of what they asked for, so
+    /// the loss is news and its cause is the whole content of the
+    /// sentence. **A replacement is the act itself.** `Open` and
+    /// `NewDocument` change what the session is about; display state
+    /// is state of a session over ONE document (G3 — it is never
+    /// persisted, and "save, reopen, layer-3 state gone" is a property
+    /// of the structure), so a user who replaces the document has
+    /// asked for exactly this. A per-instance notice would report the
+    /// act back to the person who performed it.
+    ///
+    /// **And a truthful [`Withdrawn`] cannot be built here at all**,
+    /// which is what makes this a typing fact rather than a taste in
+    /// wording. A `Withdrawn` carries a [`DisplayFault`] about a
+    /// document, and the only document left to ask is the replacement
+    /// — where these ids mean something else. A [`RecipeNodeId`] is
+    /// minted from a counter the `Doc` owns, so the outgoing
+    /// document's id 3 and the incoming document's id 3 are unrelated
+    /// nodes. Asking [`free_move_check`] about them would answer
+    /// `Ok(())` wherever the incoming document happens to hold a free
+    /// instance at that id — a report that says nothing was withdrawn
+    /// while everything was — and [`DisplayFault::NoSuchNode`]
+    /// otherwise, which is a true sentence about the incoming document
+    /// and a false explanation of where the placement went.
+    ///
+    /// **The in-flight gesture is answered the other way, and not
+    /// here.** A drag dissolved under the pointer is the half-acted
+    /// state a REFUSAL at the door exists to prevent, which is what
+    /// the value gesture already got; the argument above is why a
+    /// report could not have been the answer for it either. So the two
+    /// doors that reach this one refuse while a free move is in flight
+    /// ([`crate::session::SessionOp::permitted_during_free_move`]),
+    /// so a session reaches this with `free_move` already `None`. It
+    /// is still cleared below, unconditionally: this is a `pub` door
+    /// on a `pub` value and its promise is to forget EVERYTHING, which
+    /// a caller holding a [`DisplayState`] of its own is entitled to
+    /// without a session in front of it.
     pub fn clear(&mut self) {
         let Self {
             hidden,

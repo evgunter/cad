@@ -146,7 +146,7 @@ fn wrap(instance: RecipeNodeId, of: &StableName) -> StableName {
         kind: of.kind,
         node: instance,
         path: vec![RoleSeg::InPart {
-            of: Box::new(of.clone()),
+            of: of.clone().into(),
         }],
     }
 }
@@ -1085,11 +1085,14 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
     let straddler = StableName {
         kind: EntityKind::Edge,
         node: kept_e,
-        path: vec![RoleSeg::FromA(Box::new(StableName {
-            kind: EntityKind::Edge,
-            node: cut_e,
-            path: vec![RoleSeg::OutputBody],
-        }))],
+        path: vec![RoleSeg::FromA(
+            StableName {
+                kind: EntityKind::Edge,
+                node: cut_e,
+                path: vec![RoleSeg::OutputBody],
+            }
+            .into(),
+        )],
     };
     let partner = StableName {
         kind: EntityKind::Edge,
@@ -1262,14 +1265,17 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     let foreign = StableName {
         kind: EntityKind::Face,
         node: kept_e,
-        path: vec![RoleSeg::FromA(Box::new(wrap(
-            inst,
-            &StableName {
-                kind: EntityKind::Face,
-                node: RecipeNodeId(0),
-                path: vec![RoleSeg::OutputBody],
-            },
-        )))],
+        path: vec![RoleSeg::FromA(
+            wrap(
+                inst,
+                &StableName {
+                    kind: EntityKind::Face,
+                    node: RecipeNodeId(0),
+                    path: vec![RoleSeg::OutputBody],
+                },
+            )
+            .into(),
+        )],
     };
     let (host, _) = step(
         host,

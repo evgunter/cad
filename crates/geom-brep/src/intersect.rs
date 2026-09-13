@@ -106,7 +106,7 @@ use geom_core::Decide;
 
 /// The closed kind tag of a [`Surface`] variant — the table's index
 /// set. Mirrors the enum exactly (D3: closed, compiler-enumerated).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SurfaceKind {
     /// [`Surface::Plane`].
     Plane,

@@ -18,7 +18,7 @@
 //! and this module builds on it rather than restating it.
 
 use geom::Surface;
-use geom_core::{Band, Point2, Point3, Tol, Vec2};
+use geom_core::{Point2, Point3, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey};
@@ -34,11 +34,6 @@ pub const R_NARROW: f64 = 2.0 / 64.0;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-/// The band every row here decides against.
-pub fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
 }
 
 /// A full revolve of the meridian through `pts` about `+y`.

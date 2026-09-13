@@ -315,6 +315,7 @@ pub(crate) fn fold_shell_error<T: Real>(
         E::Rim { face, error } => E::Rim { face, error },
         E::Escalated { source } => E::Escalated { source },
         E::Corrupt { key } => E::Corrupt { key },
+        E::Pcurve { source } => E::Pcurve { source },
         E::NotValid { errors } => E::NotValid { errors },
     }
 }

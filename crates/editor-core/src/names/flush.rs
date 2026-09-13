@@ -178,7 +178,8 @@ pub type FlushFinding = topo::flush::FlushFinding<(StableName, StableName)>;
 /// [`SelectRefusal::TiedDisagrees`] when a tied name's candidates
 /// disagree (GS-Q4), [`SelectRefusal::Unreadable`] on a name-table
 /// entry that does not resolve into its node's payload,
-/// [`SelectRefusal::Band`] if the ambient tolerance is broken.
+/// [`SelectRefusal::Band`], carrying the band constructor's own
+/// diagnostic, if the ambient tolerance yields no usable band.
 pub fn find_flush_candidates<T: Decide>(
     ev: &Evaluation<T>,
     a: RecipeNodeId,
@@ -189,7 +190,7 @@ pub fn find_flush_candidates<T: Decide>(
     else {
         return Ok(Vec::new());
     };
-    let band = Band::linear(tol).map_err(|_| SelectRefusal::Band)?;
+    let band = Band::linear(tol)?;
     let fa = face_candidates(va)?;
     let fb = face_candidates(vb)?;
     let mut out = Vec::new();

@@ -2,10 +2,11 @@
 id: opt-level-selftest-runs-nowhere
 kind: issue
 title: opt-level-calibrate.py --selftest is invoked by nothing in the tree - a guard that has never been shown to fire
-status: review
+status: closed
 opened: 2026-09-04
 branch: ciw/demotion-verified
 pr: 2124
+closed: 2026-09-08
 ---
 
 
@@ -113,3 +114,33 @@ Residue, filed: `work/ciw/criterion-selftest-nightly-only` —
 `scripts/criterion-emit.py --selftest` is invoked only from `nightly.yml:1835`,
 the same class one step milder, and its comment cites THIS script as the
 precedent for that siting.
+
+## Closed 2026-09-08
+
+PR 2124. `scripts/opt-level-calibrate.py --selftest` runs in `ci.yml`'s
+`discipline` job, mirrored in `local-scripts/ci-local.sh` — sited there
+because the script's inputs are `scripts/*.py`, so the change set that
+can break the selftest is exactly the change set that job runs on
+(measured: a calibrator-only diff classifies `TIER=all`, `RUN_BUILD=true`,
+and `discipline` gates on `run_build`). Not the nightly: a guard sited
+only in a scheduled workflow is this item's own defect one level in.
+
+The class got a check — **claim 4's second arm** in
+`check-ci-mirror-parity.py`: a script under `scripts/` or `demos/` that
+implements a `--selftest` nothing invokes. It is claim 4's own loop with
+one more predicate, sharing its population, its `SCRIPT_RE` matcher and
+its closure, after review found the first attempt was a parallel
+mechanism describing itself as a reuse.
+
+Two defects the reviews caught and this closure should not paper over,
+because both were in the FIRST version of the very check meant to prevent
+them: a `local-scripts/` line counted as a caller although every hosted
+job deletes that tree at checkout — so a selftest running in no CI at all
+passed, and a selftest case asserted that as correct — and a `for` loop
+over two scripts in one `run:` block red both with a false message.
+
+The systemic half is GATES': `scripts/gates/gate-roster.sh` already
+carries "a guard that has never been shown to fire is not a guard" for
+`scripts/gates/*`, and this arm covers only the population outside it.
+Announced in the PR with the offer to delete the arm if GATES would
+rather own both.

@@ -4,7 +4,7 @@ kind: issue
 title: The tess-budget cut line stamps the sweeping tree's HEAD, so the commit it names need never have touched the baseline
 status: open
 opened: 2026-09-07
-refs: [cut-prefix-three-unpinned-spellings]
+refs: [2151]
 ---
 
 
@@ -73,3 +73,7 @@ Moved from `work/meter/` to `work/instr/` by `git mv` when METER's exit
 walk opened the successor (`docs/METER-EXIT-WALK.md` §4, ratified by Ev on
 2026-09-08 at PR #2212). Id, header and body unchanged; the directory is
 the claim. This row is one of the twenty on INSTR's opening slate.
+
+## Refs at METER's sweep (2026-09-09)
+
+METER closed and its item files left the tracker (`docs/DOC-LEDGER.md`, sweep 10); `cut-prefix-three-unpinned-spellings` is now cited by its closing PR 2151.

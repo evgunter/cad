@@ -11,6 +11,7 @@
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, extrude};
+use topo::readback::euler_counts;
 use topo::{
     Body, BooleanDeclarations, BooleanResult, ContactClass, FacePairDeclaration, mass_properties,
 };
@@ -167,13 +168,14 @@ fn two_peg_plate_union_is_exactly_additive() {
     // opened is closed by its peg). Euler–Poincaré with rings:
     // V − E + F − R = 2(S − H); each peg's circular seam survives as
     // an inner ring on the surrounding planar face, so R = 2.
-    assert_eq!(body.shells().count(), 1, "one shell");
-    let rings = body.loops().count() as i64 - body.faces().count() as i64;
-    assert_eq!(rings, 2, "one surviving circular ring per peg seam");
-    let chi = body.vertices().count() as i64 - body.edges().count() as i64
-        + body.faces().count() as i64
-        - rings;
-    assert_eq!(chi, 2, "Euler–Poincaré of a genus-0 single shell");
+    let counts = euler_counts(&body);
+    assert_eq!(counts.s, 1, "one shell");
+    assert_eq!(counts.r, 2, "one surviving circular ring per peg seam");
+    assert_eq!(
+        counts.genus(),
+        Ok(0),
+        "Euler–Poincaré of a genus-0 single shell"
+    );
     if let Err(errs) = topo::validate_pseudomanifold(&body, &bb.contacts, Tol::witness()) {
         panic!("the mated pair must be pseudomanifold-clean: {errs:?}");
     }
@@ -426,12 +428,14 @@ fn tube_chain_rim_unions_and_carries_the_tangent_intersection() {
     }
     // Topology pinned: ONE shell, genus 0, no rings:
     // V − E + F − R = 2(S − H).
-    assert_eq!(body.shells().count(), 1, "one shell");
-    let rings = body.loops().count() as i64 - body.faces().count() as i64;
-    assert_eq!(rings, 0, "no ring loops in the tube chain");
-    let chi =
-        body.vertices().count() as i64 - body.edges().count() as i64 + body.faces().count() as i64;
-    assert_eq!(chi, 2, "Euler–Poincaré of a genus-0 single shell");
+    let counts = euler_counts(&body);
+    assert_eq!(counts.s, 1, "one shell");
+    assert_eq!(counts.r, 0, "no ring loops in the tube chain");
+    assert_eq!(
+        counts.genus(),
+        Ok(0),
+        "Euler–Poincaré of a genus-0 single shell"
+    );
     // 3′ reads the same claim in ITS currency: a C3 curve record on the
     // rim's face pair, witnessed by the rim edge. The op emits no such
     // record today (the emission arm above), so the test supplies the

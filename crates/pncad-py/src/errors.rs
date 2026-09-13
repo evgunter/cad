@@ -378,6 +378,20 @@ pub enum ErrorClass {
     /// REQUEST set, and E2's whole point is that the analyzed box is
     /// the analysis's property rather than the distribution's.
     AnalysisPolicy,
+    /// A Monte-Carlo run that produced nothing (ERROR-DESIGN E11.1).
+    /// The Python class keeps the Rust type's own name,
+    /// [`McRefusal`](pncad::analysis::McRefusal).
+    ///
+    /// Three arms and one class, because all three say the same thing
+    /// to a caller: there is no advisory estimate for this request.
+    /// One of them CARRIES a [`Self::Measure`] refusal — the band a
+    /// draw cannot be taken from — and it is still raised as this
+    /// class rather than as that one, because what refused is the RUN.
+    /// The carried fault is not lost: its parameter rides on the
+    /// payload and its tag is the word this class's `variant` answers,
+    /// so a caller who branches on `band_has_no_measure` reads the
+    /// same word from either door.
+    Mc,
 }
 
 impl ErrorClass {
@@ -418,6 +432,7 @@ impl ErrorClass {
             Self::MeasureNode => "MeasureNodeFault",
             Self::MeasureUnavailableAt => "MeasureUnavailableAt",
             Self::AnalysisPolicy => "AnalysisPolicyError",
+            Self::Mc => "McRefusal",
         }
     }
 }

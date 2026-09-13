@@ -2,9 +2,25 @@
 id: first-refusal-at-twice-the-ceiling-is-an-order-artefact
 kind: issue
 title: every "what bounds this document" statement from M10-7 on was read at twice the ceiling, where evaluation order picks the name
-status: open
+status: closed
 opened: 2026-09-06
+closed: 2026-09-07
 ---
+
+**Closed by M10-10.** The instrument is one home now:
+`editor-core/tests/m10_8_harness.rs` carries `over_band_set` (the SET
+of predicates over the band in a replay, widest enclosure first) and
+`bound` (the bisection bracket and the set at its REFUSING end,
+ceiling + δ), and every row that read a first refusal at a multiple of
+the ceiling was re-cut to it or deleted: `m10_8_arc_family_interval::
+ceiling` answers the bracket and the set; the M10-8 "what bounds each
+document" row reads at ceiling + δ with the early forms; M10-9's bench
+lost its `2×` column; R1's refusal walk prints the set at each rung
+and the split-bore disc's end-to-end row the set of its whole-box
+replay; M10-9's mechanism pin no longer asserts on a refusal's name.
+`docs/K-REPORT.md`'s M10-7/M10-8 "bounded by" statements were re-read
+against the set in M10-9's fix pass and stand as re-cut there. Nothing
+in the tree spells a bound as "first refusal beyond".
 
 **Found by M10-9's fix pass**, by re-measuring what two reviews
 disputed. It is a finding about the INSTRUMENT, and it reaches back

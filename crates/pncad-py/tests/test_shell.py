@@ -11,12 +11,12 @@ derivation): the cavity is `(L−2t) × (L−2t) × (H−t)`, so
 
 and every dimension here is dyadic, so both are asserted EXACTLY.
 
-What the Python surface cannot spell, stated: a rebuild through a
-slot edit. `Node.shell` takes a `Length`, the binding has no
-slot-parameter edit door, so the rebuild row below re-authors a second
-document at the bumped values and asks the SAME name text of it —
-which is what a caller keeping names would do, and what the row is
-evidence of.
+The rebuild is spelled twice, because the two spellings say
+different things. `DocEdit.set_param` moves the wall and the height on
+the LIVE document, which is what a caller with a cup in hand does; the
+row after it re-authors a second document at the bumped values and
+asks the SAME name text of it, which is what a caller keeping names
+across documents does. Both land on the closed form.
 """
 
 import unittest
@@ -24,8 +24,10 @@ import unittest
 from pncad import (
     CapEnd,
     Doc,
+    DocEdit,
     EntityKind,
     EvaluationError,
+    Expr,
     NamePat,
     Node,
     OpGroup,
@@ -52,11 +54,16 @@ def blank(doc, side, h):
     """A box `side × side × h` on the document's sketch frame."""
     square = doc.insert(
         Node.polygon(
-            [(0 * m, 0 * m), (side * m, 0 * m), (side * m, side * m), (0 * m, side * m)],
+            [
+                (Expr.length_in(0, m), Expr.length_in(0, m)),
+                (Expr.length_in(side, m), Expr.length_in(0, m)),
+                (Expr.length_in(side, m), Expr.length_in(side, m)),
+                (Expr.length_in(0, m), Expr.length_in(side, m)),
+            ],
             plane=doc.sketch_frame(),
         )
     )
-    return doc.insert(Node.extrude(square, h * m))
+    return doc.insert(Node.extrude(square, Expr.length_in(h, m)))
 
 
 def top_of(doc, box):
@@ -73,7 +80,7 @@ def top_of(doc, box):
 
 def cup(doc, side=L, h=H, t=T):
     box = blank(doc, side, h)
-    return box, doc.insert(Node.shell(box, t * m, [top_of(doc, box)]))
+    return box, doc.insert(Node.shell(box, Expr.length_in(t, m), [top_of(doc, box)]))
 
 
 def mass(doc, node):
@@ -96,7 +103,7 @@ class TestCup(unittest.TestCase):
     def test_an_empty_open_list_is_the_sealed_hollow(self):
         doc = Doc()
         box = blank(doc, L, H)
-        sealed = doc.insert(Node.shell(box, T * m, []))
+        sealed = doc.insert(Node.shell(box, Expr.length_in(T, m), []))
         body = evaluate(doc).value(sealed).body()
         body.validate()
         inner = L - 2 * T
@@ -135,6 +142,32 @@ class TestCup(unittest.TestCase):
         for name in rim + inner + outer:
             self.assertEqual(ev.resolve(name).status, "resolved")
 
+    def test_the_live_document_rebuilds_through_the_slot_edits(self):
+        """The cup at bumped values without re-authoring anything: two
+        `set_param` edits move the extrude's `distance` and the
+        shell's `shell_thickness`, and the SAME document lands on the
+        bumped closed form with its names still resolving."""
+        doc = Doc()
+        box, hollow = cup(doc)
+        self.assertEqual(mass(doc, hollow).volume, closed_forms(L, H, T)[0])
+        names = evaluate(doc).select(
+            hollow,
+            Selector.of(NamePat.of_kind(EntityKind.Face).seg(SegPat.group(OpGroup.Shell))),
+        )
+
+        doc.apply(DocEdit.set_param(box, "distance", doc.parse_expr(f"{H_BUMPED} m")))
+        doc.apply(
+            DocEdit.set_param(hollow, "shell_thickness", doc.parse_expr(f"{T_BUMPED} m"))
+        )
+
+        ev = evaluate(doc)
+        props = ev.value(hollow).body().mass_properties()
+        want_v, want_a = closed_forms(L, H_BUMPED, T_BUMPED)
+        self.assertEqual(props.volume, want_v)
+        self.assertEqual(props.surface_area, want_a)
+        for name in names:
+            self.assertEqual(ev.resolve(name).status, "resolved", name)
+
     def test_the_same_recipe_at_bumped_values_answers_the_same_names(self):
         doc = Doc()
         _box, hollow = cup(doc)
@@ -169,13 +202,16 @@ class TestRefusals(unittest.TestCase):
         five = pentagon.insert(
             Node.polygon(
                 [
-                    (0 * m, 0 * m), (1 * m, 0 * m), (1.5 * m, 0.5 * m),
-                    (1 * m, 1 * m), (0 * m, 1 * m),
+                    (Expr.length_in(0, m), Expr.length_in(0, m)),
+                    (Expr.length_in(1, m), Expr.length_in(0, m)),
+                    (Expr.length_in(1.5, m), Expr.length_in(0.5, m)),
+                    (Expr.length_in(1, m), Expr.length_in(1, m)),
+                    (Expr.length_in(0, m), Expr.length_in(1, m)),
                 ],
                 plane=pentagon.sketch_frame(),
             )
         )
-        prism = pentagon.insert(Node.extrude(five, H * m))
+        prism = pentagon.insert(Node.extrude(five, Expr.length_in(H, m)))
         walls = evaluate(pentagon).select(
             prism,
             Selector.of(NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Lateral))),
@@ -187,20 +223,20 @@ class TestRefusals(unittest.TestCase):
             len(set(walls) - set(evaluate(doc).all_faces(box))), 1, "one wall the box lacks"
         )
         ghost = sorted(set(walls) - set(evaluate(doc).all_faces(box)))[0]
-        node = doc.insert(Node.shell(box, T * m, [ghost]))
+        node = doc.insert(Node.shell(box, Expr.length_in(T, m), [ghost]))
         self.assertEqual(self.refusal(doc, node).kind, "shell_open_resolve")
 
     def test_an_edge_in_the_open_list_refuses_typed(self):
         doc = Doc()
         box = blank(doc, L, H)
         edge = evaluate(doc).all_edges(box)[0]
-        node = doc.insert(Node.shell(box, T * m, [edge]))
+        node = doc.insert(Node.shell(box, Expr.length_in(T, m), [edge]))
         self.assertEqual(self.refusal(doc, node).kind, "shell_open_kind")
 
     def test_a_non_positive_wall_is_the_kernels_refusal(self):
         doc = Doc()
         box = blank(doc, L, H)
-        node = doc.insert(Node.shell(box, -0.125 * m, [top_of(doc, box)]))
+        node = doc.insert(Node.shell(box, Expr.length_in(-0.125, m), [top_of(doc, box)]))
         refusal = self.refusal(doc, node)
         self.assertEqual(refusal.kind, "shell")
         self.assertIn("not certifiably positive", str(refusal))
@@ -209,7 +245,7 @@ class TestRefusals(unittest.TestCase):
         doc = Doc()
         box = blank(doc, L, H)
         with self.assertRaises(ValueError):
-            Node.shell(box, T * m, ["the top face"])
+            Node.shell(box, Expr.length_in(T, m), ["the top face"])
 
     def test_the_designation_order_is_kept_and_a_repeat_keeps_its_first(self):
         doc = Doc()
@@ -230,7 +266,7 @@ class TestRefusals(unittest.TestCase):
             (backward, [bottom, top]),
             (doubled, [top, bottom, top]),
         ):
-            target.insert(Node.shell(blank(target, L, H), T * m, order))
+            target.insert(Node.shell(blank(target, L, H), Expr.length_in(T, m), order))
         # Order is meaning, so the two orders are two documents; a
         # repeat keeps its first occurrence, so the doubled list is the
         # forward one bit for bit.

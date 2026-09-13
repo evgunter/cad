@@ -242,7 +242,7 @@ mod tests {
     /// extrude's, and the walk says so.
     #[test]
     fn a_carried_face_belongs_to_the_operand_it_came_from() {
-        let carried = at(FILLET, RoleSeg::FromTarget(Box::new(cap())));
+        let carried = crate::names::carried(FILLET, cap());
         let it = attribute(&carried);
         assert_eq!(it.minted_by(), Some(EXTRUDE));
         assert_eq!(it.chain(), [FILLET, EXTRUDE].as_slice());
@@ -255,7 +255,7 @@ mod tests {
     /// walking into the edge's operand.
     #[test]
     fn a_blend_face_is_the_fillets_own_and_names_no_operand() {
-        let blend = at(FILLET, RoleSeg::BlendFace(Box::new(wall())));
+        let blend = at(FILLET, RoleSeg::BlendFace(wall().into()));
         let it = attribute(&blend);
         assert_eq!(it.minted_by(), Some(FILLET));
         assert_eq!(it.chain(), [FILLET].as_slice());
@@ -271,7 +271,7 @@ mod tests {
             kind: EntityKind::Face,
             node: CUT,
             path: vec![
-                RoleSeg::FromA(Box::new(cap())),
+                RoleSeg::FromA(cap().into()),
                 RoleSeg::Fragment(Qualifier::OrderAlong { rank: 0, of: 2 }),
             ],
         };
@@ -282,8 +282,8 @@ mod tests {
     /// fillet is still the extrude's.
     #[test]
     fn the_walk_descends_as_far_as_the_carry_through_goes() {
-        let cut = at(CUT, RoleSeg::FromA(Box::new(cap())));
-        let filleted = at(FILLET, RoleSeg::FromTarget(Box::new(cut)));
+        let cut = at(CUT, RoleSeg::FromA(cap().into()));
+        let filleted = at(FILLET, RoleSeg::FromTarget(cut.into()));
         let it = attribute(&filleted);
         assert_eq!(it.minted_by(), Some(EXTRUDE));
         assert_eq!(it.chain(), [FILLET, CUT, EXTRUDE].as_slice());
@@ -298,7 +298,7 @@ mod tests {
             PATTERN,
             RoleSeg::Instance {
                 i: 3,
-                of: Box::new(cap()),
+                of: cap().into(),
             },
         );
         let it = attribute(&copy);
@@ -312,12 +312,7 @@ mod tests {
     /// numbering.
     #[test]
     fn a_part_entity_stops_at_the_instantiate_node() {
-        let in_part = at(
-            INSTANCE,
-            RoleSeg::InPart {
-                of: Box::new(cap()),
-            },
-        );
+        let in_part = at(INSTANCE, RoleSeg::InPart { of: cap().into() });
         let it = attribute(&in_part);
         assert_eq!(it.minted_by(), Some(INSTANCE));
         assert_eq!(it.chain(), [INSTANCE].as_slice());

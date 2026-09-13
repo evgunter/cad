@@ -197,6 +197,24 @@ pub enum Refusal {
     NoGesture,
     /// A gesture is in flight, so this operation is not available.
     GestureInFlight,
+    /// A gesture operation named a target that is not the open
+    /// gesture's — a preview or a commit for a field other than the
+    /// one being dragged.
+    ///
+    /// **Separate from [`Refusal::GestureInFlight`] because it answers
+    /// a different question.** That one is the table's — whether an
+    /// operation is available at all while a drag is open
+    /// ([`super::SessionOp::permitted_during_value_gesture`]) — and
+    /// the driving operations are all available. This one is about
+    /// this operation's own payload against this session's own
+    /// gesture, and folding the two into one refusal would make the
+    /// table's answer unreadable from the outcome.
+    ///
+    /// It carries no payload and ranks with the bookkeeping refusals
+    /// for one reason: it arrives in a batch behind the
+    /// `GestureInFlight` that refused the drag's begin, and that is
+    /// the sentence with the remedy in it.
+    WrongGesture,
     /// A file operation failed.
     Io(Box<DocIoError>),
     /// Undo at the root, or redo at the tip of the current branch.
@@ -276,11 +294,12 @@ impl Refusal {
             | Self::SelfInstance { .. }
             | Self::Io(_) => 1,
             // The ONE arm whose rank is a per-payload decision, so it
-            // is matched exhaustively rather than defaulted: the two
-            // gesture-order faults rank with their document twins,
+            // is matched exhaustively rather than defaulted: the
+            // three gesture-order faults rank with their document
+            // twins,
             // and the substantive ones rank with the real failures,
             // because "this instance is mate-constrained" is a
-            // decision about what the user tried. An eighth
+            // decision about what the user tried. A ninth
             // `DisplayFault` reds here until its rank is chosen —
             // which is the obligation every other arm on this table
             // gets from `Refusal`'s own variants. `Edit` and
@@ -289,14 +308,16 @@ impl Refusal {
             // a real failure, so no payload of theirs ranks
             // differently.
             Self::Display(fault) => match fault {
-                DisplayFault::NoFreeMove | DisplayFault::FreeMoveInFlight => 2,
+                DisplayFault::NoFreeMove
+                | DisplayFault::FreeMoveInFlight
+                | DisplayFault::WrongFreeMove => 2,
                 DisplayFault::NoSuchNode { .. }
                 | DisplayFault::NotAnInstance { .. }
                 | DisplayFault::MateConstrained { .. }
                 | DisplayFault::NonRigidFrame { .. }
                 | DisplayFault::FusedGeometry { .. } => 1,
             },
-            Self::NoGesture | Self::GestureInFlight | Self::NothingToDo => 2,
+            Self::NoGesture | Self::GestureInFlight | Self::WrongGesture | Self::NothingToDo => 2,
         }
     }
 
@@ -425,6 +446,7 @@ impl core::fmt::Display for Refusal {
             Self::Parse(error) => write!(f, "the expression did not parse: {error}"),
             Self::NoGesture => write!(f, "no drag is in progress"),
             Self::GestureInFlight => write!(f, "finish the drag first"),
+            Self::WrongGesture => write!(f, "that is not the drag in progress"),
             Self::Io(error) => write!(f, "{error}"),
             Self::NothingToDo => write!(f, "nothing to undo or redo"),
             Self::Display(fault) => write!(f, "{fault}"),

@@ -139,6 +139,7 @@ use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellK
 use crate::euler::{MefSite, MevSite};
 use crate::euler_ring::MekrSite;
 use crate::iso::canonical_form;
+use crate::readback::{EulerCounts, euler_counts};
 
 /// One applicable operator invocation: the op plus a fully resolved
 /// site. Produced by [`choose_op`], consumed by [`apply`]/[`roundtrip`].
@@ -374,24 +375,18 @@ impl Ledger {
     /// (`crate::validate`); this ledger keeps the per-body eq. 9.2 view
     /// because the generator tracks the operator algebra, not surfaces.
     pub(crate) fn check(&self, body: &Body<f64>) -> Result<(), String> {
-        let v = body.vertices().count() as i64;
-        let e = body.edges().count() as i64;
-        let f = body.faces().count() as i64;
-        let s = body.shells().count() as i64;
+        let counts = euler_counts(body);
+        let EulerCounts { v, e, f, r, s } = counts;
         let solids = body.solids().count() as i64;
-        let r: i64 = body.faces().map(|(_, face)| face.rings.len() as i64).sum();
         if (v, e, f, s, solids, r) != (self.v, self.e, self.f, self.s, self.solids, self.r) {
             return Err(format!(
                 "ledger mismatch: body (v{v} e{e} f{f} s{s} solids{solids} r{r}) \
                  vs ledger {self:?}"
             ));
         }
-        // Eq. 9.2 rearranged: 2h = 2s − (v − e + f − r).
-        let twice_h = 2 * s - (v - e + f - r);
-        if twice_h % 2 != 0 {
-            return Err(format!("Euler–Poincaré parity violated: 2h = {twice_h}"));
-        }
-        let derived_h = twice_h / 2;
+        // Eq. 9.2 rearranged: h = s − (v − e + f − r) / 2, with the
+        // parity checked before the halving by the door itself.
+        let derived_h = counts.genus().map_err(|refusal| refusal.to_string())?;
         if derived_h != self.h {
             return Err(format!(
                 "genus mismatch: derived h = {derived_h}, ledger h = {}",

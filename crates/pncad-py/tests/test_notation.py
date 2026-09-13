@@ -33,11 +33,19 @@ shared save/load validator — `TestAMisDimensionedRowRefusesAtLoad`,
 two arms, the off-table symbol refusing earlier and differently. The
 static half of the unrepresentability claim is `ty_fixtures/illegal.py`.
 
-DELIBERATELY NOT ASSERTED HERE. Node-slot literals: `Node.extrude(25 *
-mm)` records the canonical row too, and always has. That is not this
-family's charter — which is parameter-scoped — and it cannot be fixed
-at these doors; it is filed as
-`work/lib/node-slot-literals-erase-the-authored-notation.md`.
+NODE SLOTS RECORD IT TOO, and through the same two doors one
+vocabulary over: every dimensioned slot takes an `Expr`, and
+`Expr.written_length` is what puts the notation in the slot where
+`Expr.literal` records the canonical row.
+`TestANodeSlotRecordsTheAuthoredNotation` is the pair of bytes, and
+it is the same measurement as `test_the_saved_row_names_the_authored_
+unit` with a node in place of a parameter.
+
+ONE CALL AT AN AUTHORED NUMBER. `Expr.length_in(25, mm)` is sugar for
+`Expr.written_length(WrittenLength.in_unit(25, mm))` and nothing else,
+which is what `TestTheOneCallIsTheComposition` holds: the same
+expression, the same bytes in the file, and the same typed refusal.
+The two doors underneath stay, for a `WrittenLength` already in hand.
 """
 
 import json
@@ -49,9 +57,14 @@ from pncad import (
     DocEdit,
     DocParam,
     DocParamValue,
+    EditError,
+    Expr,
     Length,
     LengthUnit,
+    LiteralError,
+    Node,
     ParamName,
+    PatternKind,
     PersistError,
     WrittenAngle,
     WrittenLength,
@@ -77,6 +90,11 @@ def saved_params(doc):
     is not JSON, hence the split.
     """
     return json.loads(doc.save().split("\n", 1)[1])["snapshot"]["params"]
+
+
+def saved_nodes(doc):
+    """The `nodes` map of `doc`'s saved snapshot, as parsed JSON."""
+    return json.loads(doc.save().split("\n", 1)[1])["snapshot"]["nodes"]
 
 
 def doc_with(name, param):
@@ -347,8 +365,16 @@ class TestAMisDimensionedRowRefusesAtLoad(unittest.TestCase):
     def test_a_length_unit_on_an_angle_parameter(self):
         with self.assertRaises(PersistError) as raised:
             load(self.tampered("mm"))
-        self.assertEqual(raised.exception.variant, "display_unit")
-        self.assertIn("spin", str(raised.exception))
+        refusal = raised.exception
+        self.assertEqual(refusal.variant, "display_unit")
+        self.assertIn("spin", str(refusal))
+        # The arm's three fields, as payload rather than as prose: the
+        # parameter, what the unit measures, and what it was declared.
+        self.assertEqual(refusal.name, "spin")
+        self.assertEqual(refusal.unit, "length")
+        self.assertEqual(refusal.declared, "angle")
+        # This arm wraps no refusal of another layer.
+        self.assertIsNone(refusal.inner_variant)
 
     def test_an_off_table_symbol_refuses_earlier_and_differently(self):
         # A different fault: the token is not a row of the table at
@@ -356,6 +382,132 @@ class TestAMisDimensionedRowRefusesAtLoad(unittest.TestCase):
         with self.assertRaises(PersistError) as raised:
             load(self.tampered("furlong"))
         self.assertEqual(raised.exception.variant, "unreadable")
+
+
+class TestANodeSlotRecordsTheAuthoredNotation(unittest.TestCase):
+    """A slot takes an `Expr`, and which constructor built it is what
+    decides whether the document remembers the unit.
+
+    The parameter family's two rows, one vocabulary over: the written
+    door keeps `mm`, the erasing door records the canonical metre and
+    is not deprecated for it.
+    """
+
+    def square(self, doc):
+        corner = [
+            (Expr.literal(0 * mm), Expr.literal(0 * mm)),
+            (Expr.literal(10 * mm), Expr.literal(0 * mm)),
+            (Expr.literal(10 * mm), Expr.literal(10 * mm)),
+            (Expr.literal(0 * mm), Expr.literal(10 * mm)),
+        ]
+        return doc.insert(Node.polygon(corner, plane=doc.sketch_frame()))
+
+    def distance_of(self, doc):
+        """The one extrude's stored `distance`, read off the FILE."""
+        extrudes = [n["Extrude"] for n in saved_nodes(doc).values() if "Extrude" in n]
+        self.assertEqual(len(extrudes), 1)
+        return extrudes[0]["distance"]["Literal"]
+
+    def test_the_written_door_records_the_unit_the_author_wrote(self):
+        doc = Doc()
+        written = Expr.length_in(25, mm)
+        doc.insert(Node.extrude(self.square(doc), written))
+        self.assertEqual(self.distance_of(doc)["unit"], "mm")
+        self.assertEqual(self.distance_of(doc)["value"], 0.025)
+
+    def test_the_erasing_door_records_the_canonical_row(self):
+        doc = Doc()
+        doc.insert(Node.extrude(self.square(doc), Expr.literal(25 * mm)))
+        self.assertEqual(self.distance_of(doc)["unit"], "m")
+        self.assertEqual(self.distance_of(doc)["value"], 0.025)
+
+    def test_a_non_finite_literal_refuses_at_the_constructor(self):
+        """The refusal the slot doors used to raise, at the door that
+        now mints the value: typed, with the kernel's own tag and the
+        offending number."""
+        with self.assertRaises(LiteralError) as raised:
+            Expr.literal(float("nan") * mm)
+        self.assertEqual(raised.exception.kind, "non_finite")
+
+    def test_a_count_is_not_a_continuous_literal(self):
+        """A count is exact, so it has its own constructor and the
+        continuous one cannot stand in: `Expr.literal(2)` is a Scalar,
+        and the count slot says so with the kernel's own words."""
+        self.assertEqual(Expr.literal(2).dimension, "scalar")
+        self.assertEqual(Expr.count(2).dimension, "count")
+        doc = Doc()
+        solid = doc.insert(Node.extrude(self.square(doc), Expr.literal(1 * mm)))
+        with self.assertRaises(EditError) as raised:
+            Node.pattern(
+                solid,
+                Expr.literal(2),
+                PatternKind.linear(
+                    (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)),
+                    Expr.length_in(5, mm),
+                ),
+            )
+        self.assertEqual(raised.exception.variant, "slot_dimension_mismatch")
+        self.assertEqual(raised.exception.slot, "count")
+
+    def test_an_angle_in_a_length_slot_refuses_at_the_door(self):
+        """The slot's dimension is the kernel's `SlotId` table, read
+        at the door rather than restated, so the refusal an insert
+        would raise arrives at authoring with the same words."""
+        doc = Doc()
+        turn = Expr.angle_in(90, deg)
+        with self.assertRaises(EditError) as raised:
+            Node.extrude(self.square(doc), turn)
+        refusal = raised.exception
+        self.assertEqual(refusal.variant, "slot_dimension_mismatch")
+        self.assertEqual(refusal.slot, "distance")
+        self.assertEqual(refusal.expected, "length")
+        self.assertEqual(refusal.found, "angle")
+
+
+class TestTheOneCallIsTheComposition(unittest.TestCase):
+    """`Expr.length_in` and `Expr.angle_in` are their composition and
+    add nothing: the same expression, the same recorded notation, the
+    same refusal."""
+
+    def test_the_length_helper_equals_the_two_calls(self):
+        self.assertEqual(
+            Expr.length_in(25, mm),
+            Expr.written_length(WrittenLength.in_unit(25, mm)),
+        )
+
+    def test_the_angle_helper_equals_the_two_calls(self):
+        self.assertEqual(
+            Expr.angle_in(90, deg),
+            Expr.written_angle(WrittenAngle.in_unit(90, deg)),
+        )
+
+    def test_the_helper_records_the_notation_in_the_file(self):
+        """The same bytes `test_the_written_door_records_the_unit_the_
+        author_wrote` reads, reached through the one call."""
+        doc = Doc()
+        doc.apply(DocEdit.set_doc_param(WIDTH, DocParam.length(25 * mm)))
+        square = [
+            (Expr.length_in(0, mm), Expr.length_in(0, mm)),
+            (Expr.length_in(10, mm), Expr.length_in(0, mm)),
+            (Expr.length_in(10, mm), Expr.length_in(10, mm)),
+            (Expr.length_in(0, mm), Expr.length_in(10, mm)),
+        ]
+        profile = doc.insert(Node.polygon(square, plane=doc.sketch_frame()))
+        doc.insert(Node.extrude(profile, Expr.length_in(25, mm)))
+        extrudes = [n["Extrude"] for n in saved_nodes(doc).values() if "Extrude" in n]
+        self.assertEqual(len(extrudes), 1)
+        stored = extrudes[0]["distance"]["Literal"]
+        self.assertEqual(stored["unit"], "mm")
+        self.assertEqual(stored["value"], 0.025)
+
+    def test_a_non_finite_value_refuses_through_the_helper(self):
+        """`written_length`'s own refusal, typed, at the one call."""
+        with self.assertRaises(LiteralError) as raised:
+            Expr.length_in(float("nan"), mm)
+        self.assertEqual(raised.exception.kind, "non_finite")
+        with self.assertRaises(LiteralError) as raised:
+            Expr.angle_in(float("inf"), deg)
+        self.assertEqual(raised.exception.kind, "non_finite")
 
 
 if __name__ == "__main__":

@@ -2,8 +2,9 @@
 id: structural-slots-without-a-binding-door
 kind: issue
 title: two of the four structural slots have no Python door
-status: open
+status: closed
 opened: 2026-09-08
+closed: 2026-09-08
 ---
 
 
@@ -54,3 +55,20 @@ mattering, which is the part worth doing deliberately.
 sentence was false when written and is now deleted; the doors are
 narrow because each one NAMES its slot, which is the reason that
 survives a second door.
+
+## Closed
+
+LIB-DOORS-3 built `VDegree`'s door.
+`DocEdit.bind_v_degree_param(node, name)` sits beside
+`bind_count_param` and `bind_instance_param`, each naming its own
+slot, and the scene this file asked for is
+`test_north_star.py::TestTheVDegreeParamBinding`: `TestLoftPrism`'s
+three sections, skinned at a bound degree, enclose 9 m³ at degree 2
+and 8.75 at degree 1 — one `set_doc_param` apart, where a literal
+degree would have been a re-authoring.
+
+`Stations` stays undoored for the reason stated here — its only node
+is `Node::Sweep`, which has no Python constructor to aim an edit at —
+and `bind_count_param`'s prose now says which three of the four
+structural slots have doors and why the fourth does not, so the count
+of four is accounted for in the code as well as here.

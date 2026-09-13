@@ -216,6 +216,8 @@ mod m10_5_r1_probes_interval;
 mod m10_5_r2_probes_interval;
 #[path = "m10_6_ci_rows_interval.rs"]
 mod m10_6_ci_rows_interval;
+#[path = "m10_6_mc_draws.rs"]
+mod m10_6_mc_draws;
 #[path = "m10_6_min_clearance_interval.rs"]
 mod m10_6_min_clearance_interval;
 #[path = "m10_6_r1_probes_interval.rs"]
@@ -354,6 +356,8 @@ mod mate6_gather_mints;
 mod mate6r1_shared;
 #[path = "mate6r2_probes.rs"]
 mod mate6r2_probes;
+#[path = "perf2_name_keying_differential.rs"]
+mod perf2_name_keying_differential;
 #[path = "pinned_lift_validates_once.rs"]
 mod pinned_lift_validates_once;
 #[path = "pirad_wire.rs"]
@@ -484,3 +488,20 @@ mod kstats_bracket_rows;
 
 #[path = "m10_9_r1_probes_interval.rs"]
 mod m10_9_r1_probes_interval;
+
+#[path = "m10_10_evidence_interval.rs"]
+mod m10_10_evidence_interval;
+#[path = "m10_10_pins_interval.rs"]
+mod m10_10_pins_interval;
+
+#[path = "m10_10_r1_probes_interval.rs"]
+mod m10_10_r1_probes_interval;
+#[path = "m10_10_r2_probes_interval.rs"]
+mod m10_10_r2_probes_interval;
+
+#[path = "wire_band_cause.rs"]
+mod wire_band_cause;
+#[path = "wire_frame_placement_carry.rs"]
+mod wire_frame_placement_carry;
+#[path = "wire_product_gather_tie.rs"]
+mod wire_product_gather_tie;
