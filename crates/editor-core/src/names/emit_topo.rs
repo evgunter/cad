@@ -120,6 +120,18 @@ fn chase(rows: &BTreeMap<FaceKey, FaceKey>, mut f: FaceKey) -> FaceKey {
 /// A cycling lineage is a corrupt record, surfaced as an emission bug
 /// — [`NamingError::SplitLineage`], carrying the cycling edge, which
 /// is the only locator this failure has.
+///
+/// **Unguardable, and here is why.** Cycling lineages exist: a graft
+/// copies `SplitEdge` records with their source keys and they chain
+/// into strangers in the destination (`chase_b`'s note below says the
+/// same thing from the other side), and `Body::split_root`'s cycle arm
+/// has fired on real assembly products. What no case constructs is a
+/// cycle this chase can reach: `stop` here halts at the first key the
+/// operand's table names, where the consumer that met one in the wild
+/// passes a `stop` that never halts. So the raise is **untested rather
+/// than proven unreachable**, and what `names::emit`'s
+/// `display_tests` pin is the locator's route from the caught record to
+/// the human, not the catch.
 fn chase_edge_to_table<T: Decide>(
     body: &Body<T>,
     table: &NameTable,
@@ -891,20 +903,27 @@ fn name_boolean_edges<T: Decide>(
     // body that was grafted (a placed copy is). Forwarding `SplitEdge`
     // at the graft therefore needs a dead-ancestor bridge on the
     // `GraftMap` before this descent can become the shared chase.
-    let chase_b = |mut e_b: EdgeKey| -> EdgeKey {
+    //
+    // Spending the budget means the walk revisited a key — the same
+    // corrupt record `chase_edge_to_table` refuses, on the lane where
+    // the aliasing above can actually produce one — so it refuses with
+    // the same locator rather than falling out of the loop with a root
+    // it cannot justify.
+    let chase_b = |e_b0: EdgeKey| -> Result<EdgeKey, NamingError> {
+        let mut e_b = e_b0;
         for _ in 0..=fwd_edges.len() {
             if b.table.name_of(&ent(0, EntityKey::Edge(e_b))).is_some() {
-                return e_b;
+                return Ok(e_b);
             }
             let Some(res) = fwd_edges.get(&e_b) else {
-                return e_b; // dead, ungrafted intermediate
+                return Ok(e_b); // dead, ungrafted intermediate
             };
             match body.edge_provenance_of(*res) {
                 Some(Provenance::SplitEdge { edge }) => e_b = *edge,
-                _ => return e_b,
+                _ => return Ok(e_b),
             }
         }
-        e_b
+        Err(topo::SplitLineageCycle { edge: e_b0 }.into())
     };
     let mut groups: BTreeMap<ERoot, Vec<EdgeKey>> = BTreeMap::new();
     for (e, _) in body.edges() {
@@ -913,13 +932,13 @@ fn name_boolean_edges<T: Decide>(
         }
         let root = match (naming.a_keys, naming.b_keys) {
             (OperandKeys::Direct, OperandKeys::Grafted) => match inv_edges.get(&e) {
-                Some(&eb) => ERoot::B(chase_b(eb)),
+                Some(&eb) => ERoot::B(chase_b(eb)?),
                 None => ERoot::A(chase_edge_to_table(body, a.table, e)?),
             },
             (OperandKeys::Direct, OperandKeys::Absent) => {
                 ERoot::A(chase_edge_to_table(body, a.table, e)?)
             }
-            (OperandKeys::Absent, OperandKeys::Direct) => ERoot::B(chase_b(e)),
+            (OperandKeys::Absent, OperandKeys::Direct) => ERoot::B(chase_b(e)?),
             _ => return Err(bug("unsupported operand-key layout")),
         };
         // A root that resolves in no operand table is a join-minted

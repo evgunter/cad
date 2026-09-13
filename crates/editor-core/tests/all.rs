@@ -494,5 +494,3 @@ mod wire_band_cause;
 mod wire_frame_placement_carry;
 #[path = "wire_product_gather_tie.rs"]
 mod wire_product_gather_tie;
-#[path = "wire_split_lineage_locator.rs"]
-mod wire_split_lineage_locator;
