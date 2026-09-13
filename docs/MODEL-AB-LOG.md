@@ -284,8 +284,19 @@ amended:
      whether one ever runs is left to Ev); DOOR, CENSUS, WIRE and PORT
      run style reviews with a correctness arm; SCALAR, PRED and PIPE
      run the full v6 dual on their kernel units and draw ordinals from
-     their bands from the first such unit,
-     with **4700+ unallocated** — the orchestrator opening the next
+     their bands from the first such unit · SYM 4700–4799 (claimed
+     2026-09-13 in the commit that opened `work/sym/` at M10's exit
+     sweep — `docs/DOC-LEDGER.md` sweep 13, Ev's call in chat that the
+     fourteen rows standing on the E12 symbolic identity tier are a
+     successor's opening slate rather than PROPS' inheritance. SYM
+     inherits M10's posture unchanged: the full v6 dual on every unit
+     that moves what the tier decides, drawing from 4700 on, with a
+     style review and no row for a hygiene or reference row that moves
+     no decision — `work/sym/plan.md` §Review posture states the
+     argument. **M10's own band 500–599 stays claimed and closed**, on
+     the VIEW and S-TCOST precedent: its thirteen recorded rows keep
+     their ordinals for life and nothing renumbers),
+     with **4800+ unallocated** — the orchestrator opening the next
      program takes the next free band and records it HERE in the
      same commit that opens the program. **1–99 is CLOSED
      HISTORY**: the pre-banding global sequence, which reached 85.

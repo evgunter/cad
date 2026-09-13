@@ -863,6 +863,29 @@ union (`/home/user/blend-briefs/fix-10-brief.md`): two situations,
 two sentences, the recourse in its home; both probe branches adopted;
 delta by R1.
 
+## Two constructor rows arrive from M10 (2026-09-13)
+
+M10 closed at its exit sweep (`docs/DOC-LEDGER.md` sweep 13). Two of
+its rows are constructor changes on this program's ground and came
+here by header edit and `git mv` (ids unchanged):
+
+- `revolve-carriers-state-only-the-rim` —
+  `crates/sweep/src/revolve/surfaces.rs` and `revolve/full.rs` register
+  the rim identity and cannot state the span one, because the builder
+  is never handed the carrier's far endpoint.
+- `fillet-tangency-is-not-the-constructors-node` — the profile fillet
+  door: `validate.rs` calls `seg::build_seg`, which re-derives the
+  carrier from three stored numbers, so the CENTRE a declared tangency
+  is about never reaches the joint classifier. `crates/profile/*` is
+  S-BOOL's glob and this program's `keep_out` already carries the
+  fillet-arm seam.
+
+Both are registrations for the E12 door, which is **SYM's**
+(`work/sym/`, opened at the same sweep). The certification consumer
+that waits on the fillet row is
+`work/sym/declared-tangency-needs-the-registered-identity-door`: until
+the constructor's centre is statable there is nothing to register, so
+the rounded pad certifies nothing. Neither row is dispatched here yet.
 **MERGED — unit 10 (2026-09-13)** on PR [#2497](https://github.com/evgunter/cad/pull/2497):
 the path fillet door never mints a joint the validator refuses for its
 declaration; the item closed. Dual: bilateral headline at differing
