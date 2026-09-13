@@ -94,8 +94,6 @@ mod enclose_refusal_r2_probes;
 mod fillet_recourse_followability;
 #[path = "fillet_stored_tangency.rs"]
 mod fillet_stored_tangency;
-#[path = "review_fillet_stored_tangency_r1_probes.rs"]
-mod review_fillet_stored_tangency_r1_probes;
 #[path = "generic_replay.rs"]
 mod generic_replay;
 #[path = "guided_replay.rs"]
@@ -122,6 +120,8 @@ mod r2_bool9_review_probes;
 mod raw_door_census;
 #[path = "rejections.rs"]
 mod rejections;
+#[path = "review_fillet_stored_tangency_r1_probes.rs"]
+mod review_fillet_stored_tangency_r1_probes;
 #[path = "review_m2_pr2.rs"]
 mod review_m2_pr2;
 #[path = "review_m2_pr2_consumers.rs"]

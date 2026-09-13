@@ -418,11 +418,23 @@ fn the_hairline_lens_at_interval_consumes_the_recorded_pick() {
         // built, told the other it refused, and the refusal is about
         // that other pocket's own geometry — a typed authoring refusal,
         // not a lattice violation.
-        Err(refused) => assert!(
-            matches!(refused.kind, ReplayErrorKind::Path(_)),
-            "told the other index the lane refused, which is consumption — but the \
-             refusal must be about the pocket, not about the program's shape: {refused:?}"
-        ),
+        Err(refused) => {
+            let ReplayErrorKind::Path(profile::PathError::Escalated { source }) = &refused.kind
+            else {
+                panic!(
+                    "told the other index the lane refused, which is consumption — but the \
+                     refusal must be the door relaying a stored-form classification, not \
+                     any other refusal and not a lattice violation: {refused:?}"
+                );
+            };
+            assert_eq!(
+                source.predicate,
+                Some("carrier_circles_internal"),
+                "the other pocket's joint is an arc/arc clearance the enclosure lane cannot \
+                 certify at this eps; another predicate here is a different finding: \
+                 {refused:?}"
+            );
+        }
     }
 }
 

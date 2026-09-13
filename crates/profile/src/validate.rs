@@ -455,6 +455,94 @@ pub const FILLET_ENCLOSING_RECOURSE: &str = "on the side the corner turns toward
 pub const FILLET_FIT_RECOURSE: &str =
     "the arc would never approach the requested corner; use a smaller radius or longer legs";
 
+/// **The recourse for a fillet arc too shallow to be STORED as an arc.**
+///
+/// A profile holds an arc as a chord and a bulge, and a reader
+/// classifies that pair back through `segment_straightness`, whose
+/// margin is the sagitta `r(1 − cos(θ/2)) ≈ r·θ²/8`. Below the run's ε
+/// the stored segment is read as a line and the carrier the door
+/// computed is simply not in the loop, so the tangency the fillet
+/// declares has nothing to be about.
+///
+/// Both levers move the sagitta, and the sentence says which way each
+/// runs — a larger turn, or a larger radius. The radius lever has a
+/// ceiling the other recourse names ([`FILLET_SCENE_RESOLUTION_RECOURSE`]),
+/// and at a tight ε and a tiny turn the two bounds cross and NO radius
+/// works: the sentence therefore offers the radius conditionally and
+/// always offers the third lever, which is unconditional.
+///
+/// Followed at its own door by
+/// `profile/tests/fillet_recourse_followability.rs`'s row named
+/// `the_flattened_recourse_is_followed_by_a_larger_turn_and_a_larger_radius`.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub const FILLET_FLATTENED_RECOURSE: &str = "the stored sagitta goes as r(1 - cos(theta/2)), so turn the corner further, or round \
+     it with a LARGER radius while the scene still resolves one; a corner too shallow for \
+     both is one no arc of any radius can be stored at, and the lever that always works \
+     is to drop the fillet and leave the corner sharp";
+
+/// **The recourse for a fillet whose carrier the scene cannot resolve.**
+///
+/// The stored form here IS an arc — the sagitta is metres — but the
+/// clearance a carrier predicate classifies is a DIFFERENCE of lengths
+/// at the scene's own magnitude (`r − |h|`, `d − |r₁ − r₂|`), and such a
+/// difference cancels first-order: at magnitude `M` it resolves only to
+/// about `M·2^-52`. When that floor is coarser than ε the joint cannot
+/// be classified at all, whatever the turn is.
+///
+/// So this situation's levers run the OTHER way from
+/// [`FILLET_FLATTENED_RECOURSE`]'s: a larger radius makes it worse. What
+/// helps is shrinking the magnitude the difference is taken at — a
+/// smaller radius, or the geometry nearer the origin — or dropping the
+/// fillet.
+///
+/// Followed at its own door by the row named
+/// `the_scene_resolution_recourse_is_followed_by_a_smaller_radius_and_a_nearer_scene`.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub const FILLET_SCENE_RESOLUTION_RECOURSE: &str = "a carrier clearance is a difference of lengths at the scene's own magnitude, and such \
+     a difference resolves only to about that magnitude times 2^-52 — so a LARGER radius \
+     makes this worse, not better: use a smaller radius, or place the geometry nearer the \
+     origin, or drop the fillet and leave the corner sharp";
+
+/// **The recourse when the stored form's own classification is in
+/// band** — the undecided twin of the two above.
+///
+/// One situation, not two: the run has declined to say which way the
+/// stored form reads, so the sentence names the two things that can be
+/// true of it and the one lever that works for either. D4 ¶1's addendum
+/// asks for one message and one recourse per user situation, and
+/// "undecided" is a situation of its own — the alternative would be to
+/// render one mechanism's levers over a reading that may be the other's.
+///
+/// Followed by the row named
+/// `the_stored_form_inband_recourse_is_followed_by_dropping_the_fillet`.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub const FILLET_STORED_FORM_INBAND_RECOURSE: &str = "this run cannot say whether the loop would hold the tangency: either the arc is too \
+     shallow to store as an arc (turn the corner further, or use a larger radius) or the \
+     carrier clearance is finer than the scene resolves (use a smaller radius, or place \
+     the geometry nearer the origin) — dropping the fillet settles it either way, and so \
+     does lowering the tolerance";
+
 /// The recourse for a fillet leg with no extent to round against.
 ///
 /// Unreachable as rendered prose (see [`FILLET_TURN_INBAND_RECOURSE`]);

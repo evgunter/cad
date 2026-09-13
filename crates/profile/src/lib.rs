@@ -149,7 +149,7 @@ pub use validate::{
     BlendArc, ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, LoopRole, NoCornerReason,
     ProfileError, SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile, ValidatedSegment,
 };
-/// The six fillet recourse sentences, under `test-support` only.
+/// The fillet recourse sentences, under `test-support` only.
 ///
 /// They are prose a caller reads, so a suite that pins what a caller
 /// reads has to spell them — and spelling them by restating the string
@@ -160,8 +160,10 @@ pub use validate::{
 /// pncad's facade completeness guard does not see them.
 #[cfg(any(test, feature = "test-support"))]
 pub use validate::{
-    FILLET_ENCLOSING_RECOURSE, FILLET_FIT_RECOURSE, FILLET_LEG_EXTENT_RECOURSE,
-    FILLET_NO_CORNER_RECOURSE, FILLET_OFFSET_LEVER_RECOURSE, FILLET_TURN_INBAND_RECOURSE,
+    FILLET_ENCLOSING_RECOURSE, FILLET_FIT_RECOURSE, FILLET_FLATTENED_RECOURSE,
+    FILLET_LEG_EXTENT_RECOURSE, FILLET_NO_CORNER_RECOURSE, FILLET_OFFSET_LEVER_RECOURSE,
+    FILLET_SCENE_RESOLUTION_RECOURSE, FILLET_STORED_FORM_INBAND_RECOURSE,
+    FILLET_TURN_INBAND_RECOURSE,
 };
 
 /// One vertex of a profile loop: a position plus the bulge of the

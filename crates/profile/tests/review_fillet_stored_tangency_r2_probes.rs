@@ -203,6 +203,9 @@ enum Outcome {
     DoorEscalated(String),
     /// The door refused for some other reason.
     DoorOther(String),
+    /// The door refused it because the scene cannot resolve the stored
+    /// arc's carrier — the OTHER loss, whose levers run the other way.
+    DoorSceneResolution(&'static str, f64),
     /// Built, and validation accepted it.
     Validates,
     /// Built, and validation refused it FOR ITS DECLARATION — the one
@@ -214,9 +217,12 @@ enum Outcome {
 
 fn outcome(built: Result<ProfileLoop<f64>, PathError<f64>>) -> Outcome {
     match built {
-        Err(PathError::FilletArcCannotCarryTangency {
+        Err(PathError::FilletArcFlattenedInStorage {
             predicate, margin, ..
         }) => Outcome::DoorStoredForm(predicate, margin),
+        Err(PathError::FilletCarrierBelowSceneResolution {
+            predicate, margin, ..
+        }) => Outcome::DoorSceneResolution(predicate, margin),
         Err(PathError::Escalated { source }) => {
             Outcome::DoorEscalated(source.predicate.unwrap_or("?").to_string())
         }
@@ -504,7 +510,12 @@ fn a_large_radius_fillet_loses_its_carrier_to_the_bulge_not_the_sagitta() {
         );
         never_contradicted(&format!("r = {radius:e}"), &o);
         if first_hit.is_none()
-            && matches!(o, Outcome::DoorStoredForm(..) | Outcome::DoorEscalated(_))
+            && matches!(
+                o,
+                Outcome::DoorStoredForm(..)
+                    | Outcome::DoorSceneResolution(..)
+                    | Outcome::DoorEscalated(_)
+            )
         {
             first_hit = Some(radius);
         }

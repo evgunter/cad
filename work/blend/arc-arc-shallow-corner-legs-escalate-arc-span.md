@@ -1,7 +1,7 @@
 ---
 id: arc-arc-shallow-corner-legs-escalate-arc-span
 kind: issue
-title: A shallow arc x arc corner's near-cocircular leg arcs escalate arc_span in the pair pass, so the loop cannot validate whatever the fillet does
+title: A fillet's own legs escalate a span predicate against each other at small turns, so the loop cannot validate whatever the fillet does
 status: open
 opened: 2026-09-13
 ---
@@ -58,3 +58,33 @@ x three eps rows for the fillet stored-form measurement. Not in that
 unit's fence: the escalation is in the simplicity pair pass, between two
 authored legs, and has nothing to do with the tangency a fillet
 declares.
+
+## The class, widened (BLEND-10 fix pass)
+
+The arc × arc witness above is one instance of a class, not a fact about
+`arc_span`. The general statement: **a fillet at a small turn leaves its
+own two legs close together, and validation's pair pass has to separate
+them at a margin that vanishes with the turn.** Which predicate lands in
+the band depends on what the legs are — a chordal defect between two
+near-cocircular arcs (`arc_span`), or an arc-length parameter between a
+straight leg and its neighbour (`line_span`) — and the fillet is fine in
+every one of them.
+
+Two more instances, both at `CAD_TOLERANCE_EPS=1e-12`, both loops the
+path door BUILDS at BLEND-10's head and `Profile::validate` then refuses
+between **adjacent** segments 1 and 2:
+
+- `line x arc`, turn `32·√ε`, radius 0.5 — `line_span` indeterminate;
+- `line x arc`, turn `128·√ε`, radius 0.2 — `line_span` indeterminate.
+
+The fixtures are `crates/profile/tests/fillet_stored_tangency.rs`'s
+`line_arc` at those turns and radii, and
+`crates/profile/tests/review_fillet_stored_tangency_r2_probes.rs`'s
+`corpus_loops_built_at_the_head_that_validation_refuses_elsewhere`
+records both with the refusal read off the error.
+
+What this bounds, as before: a fillet-side row can promise that the door
+never mints a declaration validation contradicts, and cannot promise
+that every loop with a small-turn fillet in it validates — the legs
+around the fillet are the other half of that, and they are this item's
+subject.

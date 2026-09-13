@@ -59,7 +59,7 @@ fn small_bends_refuse_at_the_path_door_rather_than_building_what_validate_contra
             panic!("c = {c}, theta = {theta:e}: the door refuses a fillet it cannot store")
         });
         assert!(
-            matches!(err, PathError::FilletArcCannotCarryTangency { .. }),
+            matches!(err, PathError::FilletArcFlattenedInStorage { .. }),
             "c = {c}, theta = {theta:e}: the refusal is about the stored form, got {err}"
         );
         let shown = err.to_string();

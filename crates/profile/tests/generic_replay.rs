@@ -346,6 +346,10 @@ fn no_corpus_row_escalates_at_interval() {
     /// loop it was about to emit (see this row's docs) rather than a
     /// fact about replaying at another scalar.
     fn stored_form_predicate<T: Real>(e: &ReplayError<T>) -> Option<&'static str> {
+        // The crate has no predicate registry to read, so the list is
+        // held against its source instead: every name here is one
+        // `seg.rs` fires, and `the_stored_form_names_are_segs_own` is
+        // the row that reds when the two drift apart.
         const STORED_FORM: [&str; 8] = [
             "vertex_separation",
             "segment_straightness",
@@ -362,6 +366,16 @@ fn no_corpus_row_escalates_at_interval() {
         };
         source.predicate.filter(|name| STORED_FORM.contains(name))
     }
+    // The relayed set is PINNED, not merely printed. Two loops in this
+    // corpus are the door reading back a fillet joint whose clearance
+    // the enclosure lane cannot classify at a tight ε — measured, and
+    // named here by index and predicate. A third relay joining them is
+    // a new fact about the door and reds this row; the exemption is a
+    // list of two, not a standing pass for eight predicate names.
+    let pinned: &[(usize, &str)] = match format!("{:e}", tol().eps()).as_str() {
+        "1e-12" => &[(1, "carrier_circles_internal")],
+        _ => &[],
+    };
     let mut escalated: Vec<(usize, Vec<Verb>, String)> = Vec::new();
     let mut relayed: Vec<(usize, String)> = Vec::new();
     for (i, closed) in coverage_corpus().into_iter().enumerate() {
@@ -374,6 +388,15 @@ fn no_corpus_row_escalates_at_interval() {
             None => escalated.push((i, verbs, format!("{e}"))),
         }
     }
+    let seen: Vec<(usize, &str)> = relayed.iter().map(|(i, p)| (*i, p.as_str())).collect();
+    assert_eq!(
+        seen,
+        pinned,
+        "the corpus rows the path door relays a stored-form classification for are pinned \
+         at eps = {:e}; a row joining or leaving that set is a change in what the door \
+         withholds, and belongs in a PR body rather than in a silent exemption",
+        tol().eps()
+    );
     assert!(
         escalated.is_empty(),
         "the interval-lane escalating set is pinned EMPTY and a row joined it: \
@@ -522,3 +545,87 @@ fn the_anchor_coincident_corner_reduces_to_input_width_at_interval() {
         "no scale replayed at all, so the input-width claim was never exercised"
     );
 }
+
+/// **The exempted names are `seg.rs`'s own.**
+///
+/// [`no_corpus_row_escalates_at_interval`] exempts eight predicate
+/// names from its pin, on the ground that they are the classifications
+/// `Profile::validate` runs on a stored loop and the path door relays.
+/// That ground is only true while the list IS `seg.rs`'s list, and
+/// nothing in the compiler holds a `&str` to its source. This row does:
+/// it reads the file and checks that every exempted name is fired there
+/// as a funnel predicate, and that no funnel predicate in `seg.rs` is
+/// missing from the list.
+///
+/// A name `seg.rs` stops firing, or a new classification it starts
+/// firing, reds this row instead of quietly widening or narrowing the
+/// exemption.
+#[test]
+fn the_stored_form_names_are_segs_own() {
+    let seg = std::fs::read_to_string(
+        test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src/seg.rs"),
+    )
+    .expect("the profile crate's own source is readable from its own tests");
+    // The predicates the DOOR's read can fire are exactly those of the
+    // four bodies it calls — `build_seg` for the stored segment, and
+    // `joint_tangency` with the two helpers it dispatches to. `seg.rs`
+    // fires others (the pair contacts, the ray cast); they are not this
+    // exemption's business and the scan does not take them.
+    let mut fired: Vec<String> = Vec::new();
+    for name in [
+        "fn build_seg",
+        "fn joint_tangency",
+        "fn line_circle_joint",
+        "fn chord_side",
+    ] {
+        let start = seg
+            .find(name)
+            .unwrap_or_else(|| panic!("seg.rs still defines `{name}`"));
+        let body = &seg[start..];
+        let end = body.find("\n}\n").unwrap_or(body.len());
+        // Every double-quoted snake_case literal in those bodies is a
+        // predicate name — they carry no other string — and taking them
+        // this way rather than off `decide("` also catches the calls
+        // rustfmt has wrapped onto a line of their own.
+        for literal in body[..end].split('"').skip(1).step_by(2) {
+            let predicate = literal.to_string();
+            if !predicate.is_empty()
+                && predicate
+                    .chars()
+                    .all(|c| c.is_ascii_lowercase() || c == '_')
+                && !fired.contains(&predicate)
+            {
+                fired.push(predicate);
+            }
+        }
+    }
+    fired.sort();
+    let mut exempt: Vec<String> = EXEMPTED_STORED_FORM
+        .iter()
+        .map(|s| (*s).to_string())
+        .collect();
+    exempt.sort();
+    assert!(
+        !fired.is_empty(),
+        "the scan found no predicate name in those bodies at all, so it measures nothing"
+    );
+    assert_eq!(
+        exempt, fired,
+        "the exempted stored-form names and the predicates the door's read fires have \
+         drifted apart"
+    );
+}
+
+/// The list [`no_corpus_row_escalates_at_interval`] exempts, spelled
+/// once so [`the_stored_form_names_are_segs_own`] can hold it against
+/// `seg.rs` and the row that uses it can name it.
+const EXEMPTED_STORED_FORM: [&str; 8] = [
+    "vertex_separation",
+    "segment_straightness",
+    "arc_diameter_clearance",
+    "chord_side",
+    "carrier_line_circle",
+    "carrier_circles_identity",
+    "carrier_circles_external",
+    "carrier_circles_internal",
+];

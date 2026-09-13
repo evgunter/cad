@@ -106,10 +106,16 @@ fn the_seam_fillet_inside_the_window_never_mints_a_refused_declaration() {
 fn report_the_seam_fillet_window() {
     for c in [0.1, 0.3, 1.0, 2.0, 4.0, 32.0, 1024.0] {
         let theta = c * scale();
-        println!("R1 seam c={c} theta={theta:e}: {}", verdict(seam_bend(theta, R)));
+        println!(
+            "R1 seam c={c} theta={theta:e}: {}",
+            verdict(seam_bend(theta, R))
+        );
     }
     for theta in [1e-3, 1e-2, 0.1, 0.4] {
-        println!("R1 seam abs theta={theta:e}: {}", verdict(seam_bend(theta, R)));
+        println!(
+            "R1 seam abs theta={theta:e}: {}",
+            verdict(seam_bend(theta, R))
+        );
     }
 }
 
@@ -196,7 +202,10 @@ fn report_back_to_back_fillets() {
         );
     }
     for theta in [1e-2, 0.1, 0.4] {
-        println!("R1 two abs theta={theta:e}: {}", verdict(two_fillets(theta, R)));
+        println!(
+            "R1 two abs theta={theta:e}: {}",
+            verdict(two_fillets(theta, R))
+        );
     }
 }
 
@@ -244,7 +253,10 @@ fn report_the_arc_incoming_door() {
         );
     }
     for theta in [1e-2, 0.1, 0.5] {
-        println!("R1 arcline abs theta={theta:e}: {}", verdict(arc_line(theta, R)));
+        println!(
+            "R1 arcline abs theta={theta:e}: {}",
+            verdict(arc_line(theta, R))
+        );
     }
 }
 
@@ -327,8 +339,24 @@ fn short(s: &str) -> String {
 // The K count of one fillet through each door.
 // ------------------------------------------------------------------
 
+/// **What the stored-form read costs the K stream, guarded.**
+///
+/// The read fires only names the verify layer already fires on the same
+/// loop — no new predicate — and it fires a FIXED number of them per
+/// fillet, which this row pins per corner kind so a read that grew a
+/// classification cannot slip in unpriced.
+///
+/// The line × arc count has two legitimate values and the row takes
+/// either: the arc/arc funnel stops at `carrier_circles_external` when
+/// that clearance answers `Zero` (externally tangent carriers) and goes
+/// on to `carrier_circles_internal` when it does not, so the door's
+/// share is 11 or 12 decisions depending on which side of its leg the
+/// fillet sits. Both are the same three calls — `build_seg` on the
+/// fillet and on each declared joint's neighbour, `joint_tangency` on
+/// each joint — and the row says so by branch rather than by pinning
+/// the one it happens to meet.
 #[test]
-fn report_the_k_count_per_fillet() {
+fn the_stored_form_read_costs_a_fixed_k_count_per_fillet() {
     use geom_core::k_stats::Bracket;
     use std::collections::BTreeMap;
     type Door = fn() -> Result<ProfileLoop<f64>, PathError<f64>>;
@@ -383,6 +411,47 @@ fn report_the_k_count_per_fillet() {
             "R1 K {name}: total {} ok={} :: {by:?}",
             rec.verdicts.len(),
             out.is_ok()
+        );
+        assert!(
+            out.is_ok(),
+            "{name}: the K measurement reads a door that BUILDS"
+        );
+        // The read's own share: `build_seg`'s three gates on the fillet
+        // and on each declared joint's neighbour, plus the joint
+        // classification itself. Every name below is one the verify
+        // layer fires on this loop already.
+        let share: usize = [
+            "vertex_separation",
+            "segment_straightness",
+            "arc_diameter_clearance",
+            "chord_side",
+            "carrier_line_circle",
+            "carrier_circles_identity",
+            "carrier_circles_external",
+            "carrier_circles_internal",
+        ]
+        .iter()
+        .map(|n| by.get(n).copied().unwrap_or(0))
+        .sum();
+        let expected: &[usize] = match name {
+            "line x line" => &[9],
+            // Two values, one situation: see this row's docs.
+            "line x arc" => &[11, 12],
+            "arc x arc" => &[15],
+            other => panic!("unpriced corner kind {other}"),
+        };
+        assert!(
+            expected.contains(&share),
+            "{name}: the stored-form read fired {share} classifications, not {expected:?} \
+             — the K stream's price per fillet moved: {by:?}"
+        );
+        // Three segments read, always: the fillet and its two declared
+        // neighbours. A read that stopped looking at one would show here
+        // before it showed anywhere else.
+        assert_eq!(
+            by.get("vertex_separation").copied().unwrap_or(0),
+            3,
+            "{name}: the read builds the fillet's stored segment and both neighbours"
         );
     }
 }
@@ -515,7 +584,10 @@ fn report_the_interval_loops_with_the_door_read_suppressed() {
     };
     for (name, st) in [("recorded", &structure), ("other", &other)] {
         match replay_guided(&lifted, st, tol()) {
-            Err(e) => println!("R1 h lens {name}: replay refused: {}", short(&e.to_string())),
+            Err(e) => println!(
+                "R1 h lens {name}: replay refused: {}",
+                short(&e.to_string())
+            ),
             Ok(lp) => match Profile::new(SketchPlane::xy(), vec![lp]).validate(tol()) {
                 Ok(_) => println!("R1 h lens {name}: built and VALIDATES"),
                 Err(e) => println!(

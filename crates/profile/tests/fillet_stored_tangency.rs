@@ -131,18 +131,58 @@ fn corners() -> [Corner; 3] {
     ]
 }
 
-/// The refusal's payload, or a panic naming what came instead.
-fn stored_form_refusal(err: &PathError<f64>, what: &str) -> (&'static str, f64, f64, f64, f64) {
+/// The FLATTENING refusal's payload, or a panic naming what came
+/// instead — including its sibling, which is a different situation with
+/// different levers and must not be mistaken for it.
+fn flattened_refusal(err: &PathError<f64>, what: &str) -> (&'static str, f64, f64, f64, f64) {
     match err {
-        PathError::FilletArcCannotCarryTangency {
+        PathError::FilletArcFlattenedInStorage {
             turn,
             radius,
             arc_length,
             predicate,
             margin,
         } => (*predicate, *margin, *turn, *radius, *arc_length),
-        other => panic!("{what}: expected the stored-form refusal, got {other}"),
+        other => panic!("{what}: expected the flattening refusal, got {other}"),
     }
+}
+
+/// The refusals the stored-form read itself produces: the two losses
+/// and the undecided twin that stands for either.
+fn is_stored_form_refusal(err: &PathError<f64>) -> bool {
+    match err {
+        PathError::FilletArcFlattenedInStorage { .. }
+        | PathError::FilletCarrierBelowSceneResolution { .. } => true,
+        PathError::Escalated { source } => matches!(
+            source.predicate,
+            Some(
+                "vertex_separation"
+                    | "segment_straightness"
+                    | "arc_diameter_clearance"
+                    | "chord_side"
+                    | "carrier_line_circle"
+                    | "carrier_circles_identity"
+                    | "carrier_circles_external"
+                    | "carrier_circles_internal"
+            )
+        ),
+        _ => false,
+    }
+}
+
+/// Every way the door can refuse a corner inside the window, as one
+/// closed set: a row asserting "typed" says WHICH types, so a refusal
+/// arriving from somewhere else is a finding rather than a pass.
+fn is_typed_door_refusal(err: &PathError<f64>) -> bool {
+    matches!(
+        err,
+        PathError::FilletArcFlattenedInStorage { .. }
+            | PathError::FilletCarrierBelowSceneResolution { .. }
+            | PathError::Escalated { .. }
+            | PathError::NoCornerForFillet { .. }
+            | PathError::NoCornerOfPair { .. }
+            | PathError::FilletOffsetLeverTooShort { .. }
+    )
 }
 
 /// Validation's verdict on a loop, as a `Result` a row can read.
@@ -169,7 +209,7 @@ fn the_door_refuses_a_fillet_its_stored_form_cannot_carry() {
             .err()
             .unwrap_or_else(|| panic!("c = {c}, theta = {theta:e}: the door must refuse"));
         let (predicate, margin, turn, radius, arc_length) =
-            stored_form_refusal(&err, &format!("c = {c}, theta = {theta:e}"));
+            flattened_refusal(&err, &format!("c = {c}, theta = {theta:e}"));
         // The stored fillet is read as a straight segment and the
         // outgoing leg is straight too, so the classification that
         // refuses the declaration is the line/line carrier-identity
@@ -214,14 +254,7 @@ fn every_corner_kind_either_refuses_or_builds_a_declaration_that_holds() {
             let theta = c * scale();
             match build(theta, R) {
                 Err(err) => assert!(
-                    matches!(
-                        err,
-                        PathError::FilletArcCannotCarryTangency { .. }
-                            | PathError::Escalated { .. }
-                            | PathError::NoCornerForFillet { .. }
-                            | PathError::NoCornerOfPair { .. }
-                            | PathError::FilletOffsetLeverTooShort { .. }
-                    ),
+                    is_typed_door_refusal(&err),
                     "{name}, c = {c}: the refusal is typed, got {err}"
                 ),
                 Ok(lp) => {
@@ -343,9 +376,24 @@ fn no_door_output_is_refused_for_its_declared_tangency() {
 /// dumps.
 fn corpus() -> Vec<(String, ProfileLoop<f64>)> {
     let mut out: Vec<(String, ProfileLoop<f64>)> = Vec::new();
-    let mut keep = |name: String, lp: Result<ProfileLoop<f64>, PathError<f64>>| {
-        if let Ok(lp) = lp {
-            out.push((name, lp));
+    // A door call that refuses is not silently dropped: it is read,
+    // and the ONLY refusals this corpus admits are the stored-form ones
+    // — the two losses and their undecided twin. A corner refusing for
+    // some other reason would mean the corpus had wandered off the
+    // subject, which is exactly what a silent `keep` would hide.
+    let mut refused = 0usize;
+    let mut stored_form = 0usize;
+    let mut keep = |name: String, lp: Result<ProfileLoop<f64>, PathError<f64>>| match lp {
+        Ok(lp) => out.push((name, lp)),
+        Err(e) => {
+            assert!(
+                is_typed_door_refusal(&e),
+                "{name}: every refusal the corpus meets is one of the door's own, got {e}"
+            );
+            refused += 1;
+            if is_stored_form_refusal(&e) {
+                stored_form += 1;
+            }
         }
     };
     // The three swept corners, over five decades of turn and three
@@ -361,9 +409,37 @@ fn corpus() -> Vec<(String, ProfileLoop<f64>)> {
         }
     }
     let swept = out.len();
+    // The swept counts, per ε row, as a number that MOVES when the door
+    // does: a corpus that quietly lost half its loops would otherwise
+    // still satisfy "more than none". The three ε rows CI gates give
+    // three counts because the window they read moves with ε; a row
+    // outside them says so rather than guessing.
+    let expected = match format!("{:e}", tol().eps()).as_str() {
+        "1e-9" => Some(24),
+        "1e-6" => Some(32),
+        "1e-12" => Some(16),
+        _ => None,
+    };
+    if let Some(expected) = expected {
+        assert_eq!(
+            swept,
+            expected,
+            "the swept corners built {swept} loops at eps = {:e} and {refused} refused; the \
+             count is pinned per ε row so a door that refuses more makes this row harder, \
+             not easier",
+            tol().eps()
+        );
+    }
+    assert_eq!(
+        swept + refused,
+        72,
+        "every swept call is accounted for: three corner kinds x eight turns x three radii"
+    );
     assert!(
-        swept > 0,
-        "the swept turns contributed nothing: every corner kind refused at every turn"
+        stored_form > 0,
+        "at eps = {:e} the sweep met {refused} refusals and none of them was the stored \
+         form's — the corpus has wandered off this unit's subject",
+        tol().eps()
     );
     // The named shapes of each fillet door, at ordinary turns — these
     // are inside no window at any epsilon CI gates, so each one MUST
@@ -447,10 +523,35 @@ fn corpus() -> Vec<(String, ProfileLoop<f64>)> {
             .map(|c| c.loop_)
         });
     }
+    let named = out.len() - swept;
     assert_eq!(
-        out.len() - swept,
-        12,
+        named, 12,
         "every named door shape is in the corpus, at every radius"
+    );
+    // **The suites' own fillet fixtures**, not only the ones this file
+    // authors. The aggregated binary makes a sibling suite's private
+    // fixture unreachable by name, but `common::coverage_corpus` is the
+    // shared corpus those suites replay, and every fillet-bearing
+    // program in it lands here — so the differential is taken over
+    // geometry this unit did not choose as well as geometry it did.
+    let shared = common::coverage_corpus();
+    assert!(
+        shared.len() >= 10,
+        "the shared coverage corpus has {} loops, too few to be adding anything",
+        shared.len()
+    );
+    let mut carried = 0usize;
+    for (i, closed) in shared.into_iter().enumerate() {
+        if closed.loop_.tangent_joints().is_empty() {
+            continue;
+        }
+        carried += 1;
+        out.push((format!("shared coverage corpus {i}"), closed.loop_));
+    }
+    assert!(
+        carried >= 5,
+        "only {carried} of the shared corpus's loops carry a declared joint — the \
+         differential would be reading this file's own fixtures and little else"
     );
     out
 }
@@ -493,8 +594,110 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
             println!("DUMP {line}");
         }
     }
+    // **The golden.** FNV-1a over the whole dump — every coordinate and
+    // every bulge of every corpus loop, as the bits they are stored as.
+    // One ulp anywhere reds this row, which is what makes it an
+    // instrument rather than a description of its own `format!`.
+    //
+    // To re-derive after a change that MOVED the stored form: run with
+    // `CAD_DUMP_FILLETS=1` at each ε row, read the printed hash off the
+    // failure, and say in the PR which loops moved and why.
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in dump.join("\n").bytes() {
+        hash = (hash ^ u64::from(byte)).wrapping_mul(0x100_0000_01b3);
+    }
+    let expected = match format!("{:e}", tol().eps()).as_str() {
+        "1e-9" => Some(GOLDEN_DEFAULT),
+        "1e-6" => Some(GOLDEN_1E6),
+        "1e-12" => Some(GOLDEN_1E12),
+        _ => None,
+    };
+    if let Some(expected) = expected {
+        assert_eq!(
+            hash,
+            expected,
+            "the corpus's stored tables moved at eps = {:e} (got {hash:#018x}); every \
+             coordinate and bulge is in this hash, so re-derive it and say what moved",
+            tol().eps()
+        );
+    }
+}
+
+/// The corpus dump's hash at the default ε row (see
+/// [`the_corpus_stored_loops_dump_to_the_bit`]).
+const GOLDEN_DEFAULT: u64 = 0x6040_df69_8324_c34b;
+/// The same at `CAD_TOLERANCE_EPS=1e-6`.
+const GOLDEN_1E6: u64 = 0x15cc_cda3_d88f_d217;
+/// The same at `CAD_TOLERANCE_EPS=1e-12`.
+const GOLDEN_1E12: u64 = 0x809c_4b2b_98d6_bb9f;
+
+/// **The transition, bracketed.** Every other row here reads a turn a
+/// long way from the crossing; this one reads both sides of it at the
+/// run's own ε. `θ* = √(8ε/r)` is where the stored sagitta crosses ε,
+/// and the band puts the escalating window just above it at `√K·θ*`, so
+/// a hair below `θ*` must refuse and a short way above `√K·θ*` must
+/// build and validate — with nothing assumed about the band's inside.
+#[test]
+fn the_transition_is_bracketed_on_both_sides_at_this_eps() {
+    let star = (8.0 * tol().eps() / R).sqrt();
+    let err =
+        line_line(0.9 * star, R).expect_err("just below the crossing the stored arc is not an arc");
     assert!(
-        dump.iter().all(|line| line.contains(" | ")),
-        "every dumped loop names itself and its stored table"
+        is_stored_form_refusal(&err),
+        "below the crossing the refusal is the stored form's, got {err}"
     );
+    let above = 4.0 * tol().k().sqrt() * star;
+    let lp = line_line(above, R)
+        .unwrap_or_else(|e| panic!("clear above the band the door builds, got {e}"));
+    validates(lp, tol()).unwrap_or_else(|e| panic!("and the loop validates, got {e}"));
+}
+
+/// **The reach's other edge, exhibited.** The check reads only the
+/// joints the door DECLARED, and the natural question is whether an
+/// undeclared one can come back `Tangent` and draw
+/// `UndeclaredTangency` from validation — the door minting a refusal a
+/// different way.
+///
+/// It cannot, and the shape that would do it is the one this row
+/// builds: the exact outgoing fit, where the fillet arc consumes its
+/// arrival side entirely and ends at the anchor. That is the only door
+/// path that emits a fillet arc with `declare = false`
+/// (`emit_fillet_arc(&trims, trims.fit_out == Sign::Positive)`), and
+/// the reason it declares nothing is that nothing follows it on the
+/// arrival carrier: the direction leaving that vertex is free, so there
+/// is no second carrier for the joint to be tangent TO. The row pins
+/// both halves — the door leaves the joint undeclared, and what it
+/// built validates — so a future door that started declaring there, or
+/// a validator that started calling that joint tangent, reds it.
+///
+/// An author who then continues tangentially owns that declaration
+/// themselves; `UndeclaredTangency` is what tells them so, and it is a
+/// claim about the declaration set rather than about the stored form.
+#[test]
+fn an_exact_outgoing_fit_leaves_its_joint_undeclared_and_still_validates() {
+    // r = 1 consumes the line × arc corner's outgoing side exactly.
+    let lp = Open
+        .at(p2(0.0, 2.0))
+        .line_to(p2(0.0, 0.0), tol())
+        .and_then(|p| p.toward(2.0, 0.0, tol()))
+        .and_then(|p| {
+            p.fillet_arc(
+                1.0,
+                Center {
+                    c: p2(0.0, 0.0),
+                    winding: ArcSweep::Ccw,
+                    p: Start,
+                },
+                tol(),
+            )
+        })
+        .expect("the exact-fit radius constructs")
+        .loop_;
+    let joints = lp.vertices().len();
+    assert!(
+        lp.tangent_joints().len() < joints,
+        "the exact fit declares fewer joints than the loop has: {:?} of {joints}",
+        lp.tangent_joints()
+    );
+    validates(lp, tol()).expect("and the loop the door built validates");
 }
