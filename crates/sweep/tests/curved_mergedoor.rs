@@ -302,6 +302,42 @@ fn declined_pair_survives_a_call_with_nothing_to_merge() {
     );
 }
 
+/// Row 1″ (public door): a planar pair and a cylinder pair in ONE
+/// call are each classed by their own kind — the planar pair joins
+/// the equivalence (two cap planes that never meet: a licensed no-op),
+/// the cylinder pair is recorded — in either order.
+#[test]
+fn mixed_list_classifies_each_pair_by_its_own_kind() {
+    let (mut body, keys) = peg_with_split_wall_keys();
+    let caps = (
+        body.get_face(plane_face(&body, 0.0, false))
+            .unwrap()
+            .surface,
+        body.get_face(plane_face(&body, 1.0, true)).unwrap().surface,
+    );
+    let cyl = (keys[0], keys[1]);
+    let before = format!("{body:?}");
+    for declared in [[caps, cyl], [cyl, caps]] {
+        let outcome = body
+            .merge_coplanar_faces_declared(&declared, Tol::witness())
+            .unwrap_or_else(|e| panic!("{declared:?}: each pair is its own kind: {e:?}"));
+        assert!(outcome.groups.is_empty(), "{:?}", outcome.groups);
+        assert_eq!(outcome.skipped.len(), 1, "{:?}", outcome.skipped);
+        assert_eq!(
+            outcome.skipped[0].reason,
+            MergeCoplanarError::DeclaredCarrierUnsupported {
+                pair: cyl,
+                kind: geom_brep::SurfaceKind::Cylinder,
+            }
+        );
+        assert_eq!(
+            format!("{body:?}"),
+            before,
+            "nothing to merge: the body is untouched"
+        );
+    }
+}
+
 /// Row 2 (A, B) — RED-THE-DAY: freed of the false `InvalidDeclaration`,
 /// the floating and mid-bore pegs stop at the zip's own defect — a
 /// `Line` chord minted on the bore wall where a cap rim cuts it
