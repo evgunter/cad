@@ -63,3 +63,57 @@ question this row asks and does not answer.
 
 Read beside `eval::mod`'s `operand_vocabulary_census`, whose own doc
 records this class as what it cannot see.
+
+## Closed 2026-09-13 (PR TBD)
+
+**One home, in two doors**, the way `operand`/`node_operand` is one
+home for the value-kind question. `eval/wire.rs`'s `ENTITY-DOOR`
+sentinels hold:
+
+- `entity(key, read, refuse)` — the kind test itself. `read` is the
+  projection (`EntityKey::face`, `EntityKey::edge`, or a wider one);
+  `refuse` is the road's own refusal, handed the one word it may not
+  write. **`found:` is computed here**, off the key, once.
+- `named_entity(name, doc, table, unresolved, read, refuse)` — the
+  designation road: the `ladder::resolve_in` walk, then `entity`. It
+  also makes the `Box::new(name.clone())` the three name-carrying
+  refusals need, which was written three times.
+
+`EntityKey::face`/`edge` are new projections beside `EntityKey::kind`
+in `names/table.rs`, so no call site hand-writes a `match` over
+`EntityKey` to say "a face".
+
+### The three error kinds kept their identities
+
+No half-fix. `ShellOpenKind { name, found }`,
+`BlendSelectionKind { verb, name, found }` and
+`FaceFrameKind { name, found }` are unchanged variants with unchanged
+`Display` arms; each road hands the door its own constructor, so the
+verb still reaches a chamfer's refusal and the three sentences are
+still three sentences. `crates/editor-core/tests/wire_entity_door.rs`
+pins all of them byte-exact, and its blend row runs fillet AND chamfer
+so a flattened verb reds.
+
+### The six spellings, disposed
+
+| spelling | disposition |
+| --- | --- |
+| `expected`/`found` — `WrongOperand` | PR 2480's; untouched |
+| `name`/`found` — `ShellOpenKind`, `BlendSelectionKind`, `FaceFrameKind` | **converted**; the three copies are gone |
+| `verb`/`found` — `MeasureSelectionKind` (`Selected::faces`) | **converted**, through `entity` directly (it holds the key and carries no name). Its `found` moved from `&'static str` to `EntityKind`, which deleted the two hand-written words `"an edge"`/`"a vertex"` — the article is the value's to decide. **The rendered message is byte-identical**, proved by compiling the suite's document rows unchanged on `origin/main` |
+| `wanted`/`found` — `names::interrogate`'s `kind_mismatch` | **not converted, and not a defect of this class**: it is already one home for four call sites and already computes `found.kind()` itself. What differs is the error TYPE (`InterrogateError`, a read-back refusal) and one extra fact it must keep — a whole body has no frame at all, which is `WholeBody` rather than a kind mismatch. Folding it into a door that builds `NodeErrorKind` would put an evaluation refusal and a read-back refusal in one function. The residue is the word `wanted`, recorded below |
+| `expected`/`found` — `stackup.rs` | **not this class at all.** `PairingViolation::ResultArm`'s two words are RESULT ARMS (`Ok`/`Failed`/`Poisoned`) of two evaluations being paired, not entity kinds, and both are already produced by one `arm()` function. Same field names, different subject. PROPS's ground; read, not edited |
+| the recipe road — `mate/member.rs` | filed separately as `work/docm/the-third-datum-axis-phrase-lives-in-mate-member.md`; not read for this unit beyond confirming the row exists |
+
+### A seventh spelling the census missed
+
+`crates/editor-core/src/assembly.rs`'s mate mint refuses
+`RefusedRef::NotAFace { kind: other.kind() }` off the same five lines.
+It already computes its own word and renders through
+`EntityKind::article`/`noun`, so there is no correctness defect — what
+is left is a THIRD field name for one answer. DOCM's ground, filed as
+`work/docm/assembly-mint-spells-the-entity-kind-refusal-a-seventh-way.md`.
+
+**The residue this row leaves**: three words for one answer (`found`,
+`wanted`, `kind`) across three error types. The new census cannot see
+past `NodeErrorKind`, and says so in its own doc.
