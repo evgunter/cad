@@ -3813,3 +3813,70 @@ justification that turned out to be wrong.** `reviewer-style-lane.md`
 §1's rule is that unusual justification length is *mild evidence* a thing
 is worth flagging. Here it pointed straight at the false claim, which is
 the second time today the length tell has paid.
+
+## 2026-09-13 — 2517's fix pass, and a lane that defeated its own first repair
+
+Green on `ebf6bc46f` (12 `test (…)`, 5 `k-lint`, 0 in flight, verified
+here). A short delta round is dispatched, and **the lane asked for it
+itself** — which is the part worth recording.
+
+### The repair that did not work, found by the lane that wrote it
+
+MINOR 2 was "the sentinel comment states a rule no assertion checks: the
+construction's **position**". The lane asserted position — the
+construction must sit inside a door call's arguments — and then **planted
+the reviewer's exact defeating shape** (`let found = /* own answer */;`
+above the call, a closure ignoring the parameter) and watched the suite
+**stay green**. Its first fix was inadequate and it found that out by
+attacking it rather than by shipping it.
+
+The rule it settled on is the one the door actually rests on: the refusal
+must be the **whole body of a closure whose parameters bind `found`** —
+a road that spells `found` without being handed it has answered the
+door's question itself. That sentence is now the failure message.
+
+### The partial vacuity, closed by independent derivation
+
+`declared` now matches by the type's **tail** rather than one path
+spelling — which is what R1's mutation exploited, since the enum already
+mixes qualified and imported forms — and `built` is derived from **door
+call argument ranges**, with the call sites themselves derived from the
+`fn`s in the sentinel region. **Neither consults the other.**
+
+And the lane did not stop at "the mutation now reds", which proves
+nothing on its own: it built an instrument that **prints the derived
+set** to show `ShellOpenKind` genuinely stays in `declared` under the
+re-spelling, rather than both sides dropping it in step. That is the
+difference between a test that passes and a test that is known to be
+measuring something.
+
+### The sweep, triaged to the end, and labelled partial
+
+Three more sites dispositioned and **each filed on the slate that owns
+it** — `DeclareUnsupportedPair` (WIRE, not converted: it tests a pair and
+carries a `cross_operand` bit that `entity`'s single-key shape does not
+fit, and its safety rests on `insert_ref`'s invariant rather than on
+construction), `clearance.rs`'s `NotAFace` (SHELL), `assembly.rs`
+(DOCM, already filed).
+
+**Labelled a partial fix on the row and in the PR body: four sites of at
+least nine.** And the reviewer's general sentence is now the suite's
+**first blind-spot line**, with the known members named rather than left
+implied — *a census that finds its sites by the spelling it is
+normalising can only ever find the ones that already comply.*
+
+### S8 was live, not hypothetical
+
+The census was scanning `wire.rs`'s own `#[cfg(test)]` module, which the
+suite's doc said it excluded — and **that module already builds
+`DeclareUnsupportedPair` by hand.** A future inline test constructing one
+of the four carriers would have reddened the equality for a reason the
+message did not describe.
+
+### Why the round runs
+
+The lane disclosed, unprompted, that **the derivation changed in two ways
+no review has seen**, and recommended a short round over a blind merge.
+That is the standing rule applied by the party it costs, and it is the
+second time today a lane has asked for the round that would scrutinise
+its own work.
