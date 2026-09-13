@@ -163,3 +163,5 @@ fn every_suite_file_is_aggregated() {
 }
 #[path = "review_fillet_e2_probes.rs"]
 mod review_fillet_e2_probes;
+#[path = "review_fillet_stored_tangency_r2_probes.rs"]
+mod review_fillet_stored_tangency_r2_probes;
