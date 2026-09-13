@@ -10753,3 +10753,86 @@ says why against each.
 `test (…)` rows green (both lanes x three eps x two shards), five
 `k-lint (gate, …)` rows green, `gate ok` green, run conclusion
 `success`. 39 jobs total, which is not the instrument.
+
+## 2026-09-13 — #2519 merged; the item's fork was false, and a rate limit cost a day
+
+**#2519 merged** (`722d39fd32`), verified from the job list: **39 jobs,
+12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok` success**.
+
+**An 18-hour outage first.** The lane dispatched against this row died
+to a **weekly rate limit** while still reading `plan.md`, having done no
+work — its branch never left `main`, verified rather than assumed. Four
+check-ins queued into a session that could not act. The re-dispatch
+reused the clean worktree, re-synced it (`main` had moved 7,717 commits,
+almost all of it one long-lived branch's August history landing late),
+and told the lane to **skim the register for the rules that bear on its
+unit rather than chunk all ~1000 lines** — reading the register to death
+before touching the tree is what spent the budget.
+
+**The shape taken is the third: `egui::Style::number_formatter`**,
+installed on both styles through `Context::all_styles_mut` beside
+`apply_polarity`. `number_field` is untouched.
+
+**The item's fork was false, and that is the finding.** It framed the
+choice as *visibility OR guarantee*. Taking the formatter costs the door
+nothing — the door keeps `.custom_formatter(number_text)`, its doc and
+every row over it. The context default is a **floor under** a site that
+misses the door, not a replacement for it.
+
+**The helper case decided it.** Shapes 1 and 2 detect a TOKEN, and the
+token is `DragValue::new`; they catch a new helper only because the
+helper writes that token one level down, and catch nothing that reaches
+a numeric field another way. Setting the default is not a detection at
+all: a site that does not deliberately spell its own formatter is
+already right, so there is no arrival to notice. The escape table in the
+PR body has `use egui::DragValue as DV` defeating the text guard and an
+`egui::Slider` needing a second pattern in both detector shapes.
+
+**The test-invisibility cost was a SITING cost, not the shape's** — it
+follows only from installing inside app startup. A `pub(crate)` fn is
+callable from a bare `egui::Context`, so the new rows drive a
+`DragValue::new` that has never seen the door, which is wider than any
+existing row. Perturbation receipt: `all_styles_mut` →
+`style_mut_of(Theme::Dark, …)` reds `a_bare_field_survives_a_theme_switch`
+and nothing else. One residual stated rather than papered: the line in
+`ViewerApp::new` is untested, because nothing constructs an
+`eframe::CreationContext` — which is why `apply_polarity` two lines
+above is untested too.
+
+### Three corrections, two of which I had repeated
+
+1. **The item's second cost is overstated and I passed it on.**
+   `reader_census.rs`'s own header cedes `scripts/`: its gates read Rust
+   through `scripts/gates/lib.sh`'s `gate_rust_code`, *"a second home,
+   in a second language, which this row cannot see and does not claim
+   to."* So a `scripts/gates/*.sh` guard — the family VIEW already owns
+   two of — owes **no** line in test-utils. A cheaper shape than either
+   the item or I costed; still not taken, on the escape table.
+2. **There is no `egui::Slider` anywhere in this repo.** Verified here:
+   zero hits across `crates/`, `demos/`, `tools/`. The item's *"the only
+   shape that also catches an `egui::Slider`"* is true in mechanism and
+   catches nothing today — a claim about the next one, not this one.
+3. **`docs/prompts/implementer-discipline.md` §2 is false about the
+   python suite, and this PR's own run is the counterexample.** The doc
+   says *"A closure seeded only in one of those two skips it"* —
+   `viewer` and `test-utils`. This PR is seeded on `viewer` alone and
+   `python suite (wheel + guide + north-star)` **ran and passed**,
+   visible in the job list. The gate was deleted on 2026-09-12
+   (`b6cc8d4d2e`); the paragraph dates from 2026-09-06, when it was
+   true. Filed on META's slate (`docs/prompts/` by `work.py territory`)
+   as `implementer-discipline-python-suite-paragraph-describes-a-
+   deleted-gate`, with a why-not-a-duplicate against three neighbours.
+   **It bears on every dispatch this program writes**, since that
+   paragraph is what tells a lane what a green run covers.
+
+**And the split-span trap caught me a third time in one day.** Checking
+correction 3, `grep -n "closure seeded only in one of those two"`
+returned nothing and I nearly recorded the lane's quote as
+unverifiable — the sentence spans a newline (*"seeded only in\none of
+those two"*). A multiline-safe read found it immediately. That is the
+same blind spot as `implementer-discipline.md` §6 yesterday and the
+TINT citation the day before. **A line-based grep over prose is a proxy
+for the prose**; when one returns nothing, re-run it joined before
+believing the absence.
+
+**VIEW stands at 73 open / 88 closed, nothing waiting on Ev.**
