@@ -995,6 +995,44 @@ concurrently on the frozen head** — byte 157 ⇒ R1 = FABLE, R2 = OPUS;
 briefs stored with digests on `blend/b3-block` before either ran. The
 unit's log entry waits for the dual; unit 15 dispatches when it merges.
 
+**Unit 12's dual concluded (2026-09-13, ~12:50 UTC):** R1 (FABLE)
+MERGEABLE-AFTER-FIXES 2/4/3, rubric 4/3/3; R2 (OPUS)
+MERGEABLE-AFTER-FIXES 2/6/4, rubric 4/3/3. Both concurrent on the
+frozen head with private targets, neither interrupted, zero
+cross-lane reads disclosed. The machinery is right by both
+instruments: each built its own harness (1084 and 2072 requests per
+ε row, `Debug` only, no `Display` read) and found base and head
+byte-identical at three ε rows; each re-ran the mutant table and got
+the PR's numbers; each confirmed the retirement complete and the
+dispatch order unoutrankable. What is wrong is the reachability map
+the unit ships as prose: both reviewers drove two of the five
+"pre-empted" gates in band through the public door at every ε row —
+`fillet_corner_turn` at a real corner with a short leg (the margin is
+levered, `sin φ · arm`, so a definite angle on a leg of a few ε lands
+in band while every length-shaped gate reads the arm itself), where
+its sentence tells the caller the corner is degenerate when the lever
+is the leg extent; and `fillet_offset_lever` (R1 on a lens with
+centres `R + r` apart; R2 by solving the scene scale from ε), against
+a doc sentence that says the gate has no in-band witness at any
+tolerance. The same two findings are both reviewers' two MAJORs
+(numbered the other way round) — bilateral by execution at equal
+severity: NO tally candidate. Converged: the followability module doc
+carries the retracted "couple of ulps" claim and a sentence false
+after the PR; string literals restate sentences the `test-support`
+export exists to name; the census cannot catch a mis-pairing and
+reads `sugar.rs` only. Unique R1: `replay_guided` is a third mouth of
+the public door that wraps an in-band fillet verdict in
+`StructureRefusal::indeterminate` and prints the coincidence recourse;
+the definite sibling of the short-leg corner refuses
+`CarriersParallel` at 0.57° (outside the fence; root of the MAJOR).
+Unique R2: `pncad`'s prelude prose still enumerates the retired arm;
+the lever sentence is followable only in a bounded window at its
+site; the residue file's "always a real lever" premise is false for
+the two exact-order gates; dead `work/` citations from code are a
+five-instance class. Fix pass dispatched on the union
+(`/home/user/blend-briefs/fix-12-brief.md`); both probe branches
+adopted; delta by R1.
+
 **Unit 14 landed (2026-09-13)** on PR [#2509](https://github.com/evgunter/cad/pull/2509),
 head `c603c8fb5`, full matrix green (run 34754771075). Phase 1 walked
 158 contact edges on the corpus (all in lane, all seven stations
