@@ -2899,3 +2899,76 @@ That is the right disposition of a test written by someone else two
 rounds earlier, and it is the disposition that is hardest to reach for.
 The review is told to re-plant that mutation rather than take it on
 report, because it is the one bit-exact path in the diff.
+
+## 2026-09-13 — 2499's review: no MAJOR, and two MINORs that both land on citation
+
+Verdict: nothing blocks the merge. Claim 1's reasoning was checked
+against the type on the head, the deletion of the earlier guard was
+confirmed as the repair with what replaced it **strictly stronger**, and
+claim 2's chain holds — with **link 3 stronger than the lane stated**:
+`graft_disjoint` hard-refuses `src.solids().count() != 1` with
+`JoinDesync`, so an instance contributing zero or several solids is a
+refusal rather than a silent miscount. The equivalence is enforced at
+runtime, not merely by construction.
+
+### The finding that matters: a replacement test with a hole where its consumer reads it
+
+`from_affine_carries_the_affines_bits_and_snaps_nothing` has teeth in
+**one direction only**. Every non-identity fixture perturbs the
+**translation**; none is one bit from identity in a **column** with a
+zero translation. The reviewer planted the mutant that closes that gap —
+a `from_affine` snapping the **linear part** to `IDENTITY.columns`
+within `1e-9` — and **all five placement rows stayed green.**
+
+And that is precisely the mutant that matters, because of who reads the
+answer: `mate/solve.rs` branches on `relative.is_identity_bits()` and the
+`true` arm **discards the solved relative pose**. A linear-part snap
+would read a gauge that rotated by a hair as *"did not move."* The row's
+doc claims it would catch a frame one bit from the identity home; today
+it would not.
+
+**Seventh instance of the standing pattern**: a guard written against the
+failure its author had in mind, blind to the neighbouring one. Found by
+mutation, not by reading — the count of central test claims corrected by
+an instrument on this program keeps rising, and not one has come from a
+diff read.
+
+### A citation that never existed, inside the PR that trims prose about citations
+
+Claim 2's link 4 cited `the_assembly_record_indexes_the_shipped_solids`.
+**No such test is in the tree and `git log -S` says the name never has
+been.** The property *is* pinned, by two real rows in
+`step-import/tests/freecad.rs`, so the chain's conclusion survives — but
+the citation was taken on faith and propagated verbatim into the work row
+and the PR body.
+
+It is a live, already-rotted instance of the exact class deliverable 3
+trims prose about, in the same PR that trims it. Directed to be fixed
+**and recorded as an instance** rather than quietly corrected.
+
+### The census the row now carries was wrong in count and incomplete in kind
+
+The row says *"five sites"* over a table of **six**. And there is a
+**seventh the review found, of a different kind**:
+`step-import`'s `vertex_rest_contact` doc does not restate the policy, it
+**relies** on it — *"the per-solid gate above sees only the pre-graft
+copies and only when more than one instance ships"* is its premise for
+refusing rather than passing over an unresolvable vertex. A **consumer
+citing a rule by prose** is a worse position than another restatement of
+it, and it was absent. `work/perf/assemble-aggregate-census-is-quadratic-in-solids.md`
+has already drifted off the same policy, stating the trigger with the
+wrong subject.
+
+### And a lint gap, surfaced by my own bad date
+
+The row I filed yesterday now reads `closed: 2026-09-12` under
+`opened: 2026-09-13` — **closed before it opened, and `work.py lint`
+passed.** The bad `opened` is mine. `lint` resolves every reference,
+enforces the vocabularies and measures territory, and does not notice
+that a row's dates run backwards; it is a cheap exact check over data the
+parser already holds. Filed to `work/meta/`.
+
+Fifth orchestrator-originated error caught by a lane or reviewer today,
+and the second in one row. The standing correction stands: **a figure or
+a date I write is one nobody re-takes** — it carries its provenance or it
+does not go in.
