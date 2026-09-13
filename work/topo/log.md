@@ -761,3 +761,30 @@ dual (byte 0 ⇒ R1 OPUS, R2 FABLE; briefs stored) dispatches when the
 split-edge pair frees the box — two reviewer pairs at once would
 starve four cores. The claim entry for its ordinal goes to main at
 that dispatch.
+
+## Split-edge adjudicated (2026-09-13)
+
+Both blinded reviews on frozen `880654600`, both
+MERGEABLE-AFTER-FIXES. R1: 1/4/2, rubric 3/3/3 — MAJOR: the carry's
+mint-identity claim is false on spline charts (loft prisms' `IsoLine`
+walls and `IsoArc` rims: the carry is exact and tier 3 reads `Ok`, but
+`mint_pcurves`, the named recovery step, still refuses — a
+pre-existing refusal now reached silently), unfiled. R2: 0/3/3, rubric
+4/4/3 — the same fact executed on the bulged loft, filed as MINOR
+("cylinder-only"). CONVERGED on the fact, DIVERGENT on severity: no
+unilateral executed MAJOR, no tally candidate. Converged also: the
+class receipt's re-parenting rows are wrong (`kfmrh` onto a plane
+keeps four cylinder rows under a planar face with tier 3 silent — R2
+executed; `ring_move` the same mechanism — R1 read), the
+mint-identity rows compare intervals not bytes, `split_cache`'s window
+hull is a third spelling of `validate_pcurves`' (the trap check, both),
+the one-use alias, `Posture::Carries` a comment wearing an enum, and
+four statements of one bound argument. Unilateral, taken: `IsoArc::
+chart_box`'s premise sentence in geom-brep invalidated (R1); a
+`Corrupt` swallowed into `Ok(None)` (R1); the residue row's caller
+list short by `mesh` (R1); `split_cache` reads the carrier's interval,
+not the row's (R2). Both reproduced the merge-base readings and the
+plan-phase contract under two mutants. Seven-item fix pass to a fresh
+lane on the inherited branch (the implementer's worktree was gone);
+both reviewers' probes handed over. The ring-nesting dual dispatches
+now beside it: claim for ordinal 2704 to main.
