@@ -42,14 +42,21 @@ identifies — `NodeFailed` and `NodePoisoned` are the two rungs a caller
 most needs to tell apart after an upstream edit, and nothing in the tree
 stops them collapsing into each other.
 
-**Not all five are equally reachable, and the row should say so rather
-than assume.** `NoBodies` in particular looks unreachable from outside
-the crate: `output_body` is `pub(crate)` and reached through
-`entity_of`, i.e. only after a name has already resolved in that node's
-table — and a datum, profile, mate, measure or assertion node names no
-boundary entities. So the repair for that rung may be a sentence in the
-header rather than a row, and the unit that takes this should measure
-each of the five before writing any of them.
+**Not all five are equally reachable, and the unit that takes this
+should measure each one rather than assume.** One of the five is already
+measured, and the measurement corrected this lane's own first guess:
+`NoBodies` **is** reachable, through `clearance::clearance`, which takes
+a caller-authored `Selection` and reaches `interrogate::output_body`
+with no name in the picture. But the rung it produces is destroyed one
+frame up by a `map_err(|_| ..)` — see
+`work/shell/clearance-reports-a-no-bodies-payload-as-a-bad-body-index.md`,
+which carries an executable repro — so a row for it is **blocked on
+SHELL's repair**, not on reachability. The other four are unmeasured
+here.
+
+The transferable half: *"the arm looks unreachable"* is a claim about a
+call graph, and `memories/refusal-text-is-not-cause.md` applies to it
+exactly as to a refusal's prose — run the door, read the payload.
 
 ## Fence
 
