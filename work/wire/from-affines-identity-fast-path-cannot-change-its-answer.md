@@ -139,3 +139,40 @@ name filter also picks up one row in `names::emit` — it is not in this
 module and is not counted here.)
 
 Citations accurate at `846def72a`.
+
+
+## Closed 2026-09-13 (PR 2499)
+
+The branch is deleted. The justification is **not** that the output is
+unchanged — `memories/output-stability-as-justification.md` says an
+argument of that shape justifies nothing — but that the branch **cannot
+change the answer**: `is_identity_bits()` is `bit_eq(&IDENTITY)` over
+every stored coordinate and `Frame` has no other field, so the arm fired
+exactly when the value it discarded already carried `IDENTITY`'s bits.
+
+**The guard that pinned the property was deleted with it, and replaced.**
+Once the branch was gone, that row compared `from_affine` against a
+transcription of its own body; its verified mutation no longer existed,
+and its one open scenario would have stopped the fixture *compiling*
+rather than reddening it. `implementer-discipline.md` §2 makes deleting
+an assertion no bug can break the repair, and deleting a guard adopted
+two rounds earlier is the disposition that is hardest to reach for.
+
+What replaced it keeps the claim that survives and that `mate::solve`'s
+`reconcile` depends on: `from_affine` carries the affine's coordinates
+and **snaps nothing**.
+
+**And the review found that replacement blind in the direction its
+consumer actually reads.** Every non-identity fixture perturbed the
+*translation*; none was one bit from identity in a **column** with a zero
+translation, and a mutant snapping the **linear part** within `1e-9`
+left all five rows green. That is the mutant that matters, because
+`reconcile` branches on `is_identity_bits()` and the `true` arm
+**discards the solved relative pose** — so a linear-part snap would read
+a gauge rotated by a hair as *"did not move."*
+
+Closed by two zero-translation fixtures — a subnormal off-diagonal and
+the next `f64` below `1.0` — plus a **non-vacuity assertion on all four
+near-identity fixtures**, so one that drifts onto the identity reddens
+instead of passing quietly. Both halves of the guard were shown to fire
+independently against the re-planted mutant.

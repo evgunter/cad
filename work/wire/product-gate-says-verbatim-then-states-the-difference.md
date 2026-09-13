@@ -168,3 +168,39 @@ PR that trims `placement.rs`'s prose about hand-written unchecked
 citations. It is a live instance of META's
 `doc-citations-no-gate-checks-rot-silently` arm B, and it cost a
 reviewer the read that caught it.
+
+
+## Recharacterized 2026-09-13 (PR 2499) — a duplication, not a prose slip; the row STAYS OPEN
+
+The unit was told to check whether the two sentences were one rule with
+two spellings **before** calling it a prose fix, because `verbatim` at a
+copy site is the self-declared-duplication tell. They are one rule.
+
+`model.instances.len() > 1` counts instances, and an instance is exactly
+one solid — `build_one_solid` makes one body per `SolidSpec`,
+`transform_rigid` does not change a solid count, and `graft_disjoint`
+**hard-refuses** `src.solids().count() != 1` with `JoinDesync`. That last
+link is stronger than the unit first stated it: the equivalence is
+**enforced at runtime**, not true by construction, so an instance
+contributing zero or several solids is a typed refusal of the import
+rather than a silent miscount.
+
+So both sites say "the aggregate holds more than one solid", and the
+word `verbatim` was the only thing wrong — it claims word-for-word
+identity of an expression deliberately spelled differently at each site.
+
+**What the row now carries, and why it stays open: the policy has no
+home.** It is stated at **seven** sites across three crates, each citing
+another by prose. The seventh is a different kind and the review found
+it: `vertex_rest_contact`'s doc does not restate the policy, it
+**relies** on it as the premise for refusing rather than passing over an
+unresolvable vertex. A restatement that rots is wrong documentation; a
+**premise** that rots is a refusal decided on a condition that no longer
+holds, and nothing at either end would say so.
+
+An eighth statement had already drifted within two days of the row being
+written — a PERF row stating the trigger with the wrong subject — which
+is the row's own prediction happening in the wild. The sweep is
+grep-shaped over the rule's vocabulary and **seven is a floor**: it
+cannot find a site phrased differently, and does not cross `work/`,
+`docs/` or the suites.

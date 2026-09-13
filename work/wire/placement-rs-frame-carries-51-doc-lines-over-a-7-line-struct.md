@@ -144,3 +144,38 @@ for it.
 Nothing else moves. This closes the row: the shape is right, and the
 measurement that would have argued otherwise says the opposite of what
 the row expected.
+
+
+## Closed 2026-09-13 (PR 2499) — and this row's own premise was false
+
+**Measured, the premise this row was filed on does not hold.** It said
+*"part of the measurement will move without anyone writing prose at
+all"* once `Frame::linear` was deleted. Across that deletion the type
+doc moved by **exactly zero lines**, and the file's comment share went
+**up** — 42.2% → 43.2% of comment+code — because the door was more code
+than prose. The parent row's *"fewer doors, not less prose"* does not
+survive its own measurement.
+
+Two of this row's figures were also wrong: the type doc was **55** lines,
+not ~51, and the struct is a **4**-line declaration under 4 lines of
+field doc, not 7. Both were the orchestrator's, and both were corrected
+by the lane and then re-taken independently by the review.
+
+**The call: 46 of the 55 lines are `Frame`'s and none of them moved**,
+including every bit-exactness argument this project wants written down.
+The other 9 were about a **citation mechanism** rather than about
+`Frame` — rustdoc's inability to link a test function, what a rename
+would do, which slate tracks the class — and were trimmed to the
+invariant a reader is owed. Type doc 55 → 52.
+
+**Two honest costs, recorded rather than left as absences.** The trimmed
+lines were `placement.rs`'s only in-repo pointer to META's
+citation-rot row; META still names the placement assertion from its side
+so the class stays tracked, but a reader of this file now has no thread
+to pull. And the PR's **net effect on the file is +4 lines, not −3** —
+the fix pass's new fixtures added back more than the trim removed. The
+type doc is unaffected at 52; the growth is in `mod tests`.
+
+The counting rule is now written down with the table, after the first
+pass's `code` column came out one low in every row: the trailing
+newline's empty string was being counted as a blank line.
