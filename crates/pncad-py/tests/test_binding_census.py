@@ -2926,6 +2926,7 @@ MEMBERS_BOUND_AS = {
     "PathError::NoCornerForFillet": "PathError.variant",
     "PathError::NoCornerOfPair": "PathError.variant",
     "PathError::FilletOffsetLeverTooShort": "PathError.variant",
+    "PathError::FilletArcCannotCarryTangency": "PathError.variant",
     "PathError::ArcLegOnOpenFillet": "PathError.variant",
     "PathError::SeamRetrimsArcFirstSide": "PathError.variant",
     "PathError::NonpositiveLeg": "PathError.variant",
