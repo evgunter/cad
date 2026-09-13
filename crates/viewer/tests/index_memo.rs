@@ -283,6 +283,18 @@ fn assert_memo_is_one_picture(name: &str, step: &str, seam: &InlineIndexer, inde
     // and miss where the patches do, and are evicted with them. This
     // is the row that says the table level reuses neither more nor
     // less than the byte-compared patch key licenses.
+    //
+    // WHAT IT DOES NOT COVER, because the two levels are stamped in
+    // different places: a patch entry is stamped in `PatchMemo::record`
+    // and a table in `MeshPick::build_with`, which never runs when the
+    // tessellation it would follow refuses. `PickIndex::build_with`
+    // closes the picture either way, so a root that refuses partway
+    // leaves its counted patch hits alive with no tables beside them,
+    // and the NEXT picture can report `face_hits > table_hits`
+    // legitimately. Every document this differential drives lands (the
+    // refusal arm is asserted in `assert_same_answer` and never
+    // reaches here), so the equality holds over every row it is
+    // asserted on — it is not a claim about pictures after a refusal.
     assert_eq!(
         (r.table_hits, r.table_misses),
         (r.face_hits, r.face_misses),

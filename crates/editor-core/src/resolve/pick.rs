@@ -26,8 +26,11 @@
 //! # Where the acceleration state lives, and when it dies
 //!
 //! [`MeshPick`] is per-mesh state the CONSUMER holds: built once per
-//! tessellated mesh by [`MeshPick::build`], self-contained (it copies
-//! the triangle geometry out of the mesh), and valid exactly as long
+//! tessellated mesh — by [`MeshPick::build`], or by the memoised door
+//! [`MeshPick::build_with`], which serves each patch's table whole
+//! from [`PickMemo`] where the tessellation reused that patch and
+//! builds it where it did not — self-contained (it copies the
+//! triangle geometry out of the mesh), and valid exactly as long
 //! as the mesh it was built from is the one being displayed. A static
 //! scene therefore never rebuilds per query. The obvious invalidator
 //! is the evaluation epoch: a new [`Evaluation`] means new meshes,
@@ -263,6 +266,16 @@ impl core::error::Error for MeshPickError {}
 /// the triangles would give it, and answers bit-identically — the
 /// invariant `viewer`'s `index_memo` differential pins against a
 /// single-level reference, tie-break row included.
+///
+/// # The two doors, and why they answer the same index
+///
+/// [`MeshPick::build`] builds every patch's [`PickTable`];
+/// [`MeshPick::build_with`] serves the tables [`PickMemo`] holds for
+/// the patches this tessellation reused and builds the rest. The
+/// second answers table for table and tree for tree what the first
+/// would — a table is a function of its patch's placed corners alone,
+/// and the memo's key says those corners are bit-identical — which is
+/// the row the same differential asserts after every landing.
 #[derive(Debug, Clone)]
 pub struct MeshPick {
     /// Tree over the patches' boxes (item `i` ↔ `patches[i]`); a patch
@@ -589,6 +602,14 @@ struct PickEntry {
 /// work left is the top-level tree over `#patches` hulls and the
 /// patches that missed. A node reused at node level keeps its tables
 /// alive without looking them up, as it keeps its patches.
+///
+/// The two levels are STAMPED in different places, though — a patch
+/// entry in `PatchMemo::record`, a table here — so they do not evict
+/// in lockstep in one case: a tessellation that refuses partway has
+/// counted and stamped its patch hits and never reaches this level for
+/// them, so the picture it is closed in keeps those entries with no
+/// tables beside them and the next picture rebuilds those tables. A
+/// wasted rebuild after a refused picture, never a wrong table.
 ///
 /// **Memory.** The table map holds `Arc`s to the same tables the
 /// node-level entries' [`NodePick`]s hold, so its marginal cost is one
@@ -1260,4 +1281,106 @@ fn ray_triangle(ray: &Ray, tri: &PickTri) -> Option<f64> {
     let t = e2.dot(q) * inv;
     let forward_and_finite = t >= 0.0 && t.is_finite();
     forward_and_finite.then_some(t)
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod tests {
+    //! The table level's two arms that no picture reaches: a patch the
+    //! patch memo holds no entry for, and the count guard. Everything
+    //! else about [`PickMemo`] is pinned by `viewer`'s `index_memo`
+    //! differential, which only ever drives the arms a successful
+    //! build takes.
+
+    use geom_core::{Point2, Tol};
+    use mesh::tessellate_with;
+    use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+    use sweep::{Extrusion, extrude};
+    use topo::Body;
+
+    use super::{MeshPickError, PickMemo, PickTable};
+
+    fn unit_prism() -> Body<f64> {
+        let square = ProfileLoop::polygon([
+            Point2::new(0.0, 0.0),
+            Point2::new(1.0, 0.0),
+            Point2::new(1.0, 1.0),
+            Point2::new(0.0, 1.0),
+        ]);
+        let profile = Profile::new(SketchPlane::xy(), vec![square])
+            .validate(Tol::witness())
+            .expect("a square validates");
+        extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+            .expect("a square extrudes")
+            .body
+    }
+
+    /// A patch the memo holds no entry for is built every time and
+    /// stored nowhere: there is no identity to serve it under, so a
+    /// second ask builds a second table rather than finding the first.
+    #[test]
+    fn a_patch_with_no_entry_identity_is_built_and_never_stored() {
+        let mut memo = PickMemo::new();
+        let build = || {
+            Ok::<_, MeshPickError>(PickTable {
+                tris: Vec::new(),
+                tree: bvh::Bvh::build(&[]),
+                hull: bvh::Aabb::poison(),
+            })
+        };
+        let first = memo.table(None, 0, build).expect("the build succeeds");
+        let second = memo.table(None, 0, build).expect("the build succeeds");
+        assert!(
+            !std::sync::Arc::ptr_eq(&first, &second),
+            "with no identity there is nothing to serve: two builds, two tables"
+        );
+        assert_eq!(memo.table_len(), 0, "and nothing was stored");
+        assert_eq!((memo.table_hits(), memo.table_misses()), (0, 2));
+    }
+
+    /// The stored table IS served — the build closure is never called
+    /// on a hit — and it is served under the identity the tessellation
+    /// reported, not under the digest.
+    #[test]
+    fn a_stored_table_is_served_without_building() {
+        let body = unit_prism();
+        let mut memo = PickMemo::new();
+        let tess = tessellate_with(&body, 0.5, Tol::witness(), &mut memo.patches)
+            .expect("the prism meshes");
+        let id = tess.keys.stored(0).expect("the first face was stored");
+        let patch = &tess.mesh.patches[0];
+        let count = patch.triangles.len();
+        let built = memo
+            .table(Some(id), count, || PickTable::build(&tess.mesh, 0, patch))
+            .expect("the build succeeds");
+        let served = memo
+            .table(Some(id), count, || {
+                panic!("a hit must not build");
+            })
+            .expect("the memo answers");
+        assert!(std::sync::Arc::ptr_eq(&built, &served));
+        assert_eq!((memo.table_hits(), memo.table_misses()), (1, 1));
+    }
+
+    /// A served table whose triangle count is not the mesh patch's
+    /// would mean the identity named another patch's geometry — a
+    /// broken threading, not a state, so it announces itself (D9)
+    /// instead of desynchronising the flat positions the tie-break is
+    /// taken on.
+    #[test]
+    #[should_panic(expected = "triangles and the mesh's patch has")]
+    fn a_served_table_that_is_not_this_patchs_panics() {
+        let body = unit_prism();
+        let mut memo = PickMemo::new();
+        let tess = tessellate_with(&body, 0.5, Tol::witness(), &mut memo.patches)
+            .expect("the prism meshes");
+        let id = tess.keys.stored(0).expect("the first face was stored");
+        let patch = &tess.mesh.patches[0];
+        let count = patch.triangles.len();
+        memo.table(Some(id), count, || PickTable::build(&tess.mesh, 0, patch))
+            .expect("the build succeeds");
+        let _ = memo.table(Some(id), count + 1, || {
+            panic!("the guard fires before the build")
+        });
+    }
 }

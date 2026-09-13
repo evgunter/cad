@@ -123,33 +123,37 @@ impl PatchDigest {
 }
 
 /// The identity of one memo entry, minted at the insert that created
-/// it and never reused — scoped to the [`PatchMemo`] that minted it,
-/// like the entry itself.
+/// it and never reused.
 ///
-/// **What it proves, and what it is for.** A face is reported under
-/// this id ([`PatchKeys::stored`]) exactly when the memo either
-/// answered it from that entry or stored it as that entry, and a hit
-/// compares the entry's FULL key bytes — so two faces reported under
-/// one id have the same key bytes, byte for byte. Those bytes are
-/// every input the face's lane read (the key list above), the boundary
-/// chord POSITIONS included; and a face's placed corners are exactly
-/// its interior points, copied verbatim out of the entry, plus its
+/// **The invariant.** Two faces reported under one id have the same
+/// key bytes — a hit compares the entry's FULL key, so this is decided
+/// on the far side of that comparison, which a digest is not — and
+/// therefore the same PLACED corners, bit for bit: a face's corners
+/// are its interior points, copied verbatim out of the entry, plus its
 /// boundary points, which [`StoredPatch::place`] reads at
-/// [`FaceInputs::boundary_ids`]'s slots — the same loop-and-walk order
-/// the key folds those positions in. So **same id means the placed
-/// geometry is bit-identical, corner for corner**, and a consumer
-/// caching something derived from a face's placed corners (the pick
-/// index's per-patch table and BVH, `editor_core`'s `PickMemo`) keys
-/// it by this and owes no comparison of its own.
+/// [`FaceInputs::boundary_ids`]'s slots, and both sequences come off
+/// [`FaceInputs::walk`] — the face's one boundary walk, which the key
+/// folds a position for at every slot the id sequence holds an id at.
+/// So a consumer caching anything derived from a face's placed corners
+/// (the pick index's per-patch table and BVH, `editor_core`'s
+/// `PickMemo`) keys it by this and owes no comparison of its own.
 ///
-/// A digest is NOT that fact: it is 128 bits of FNV over the key, and
-/// a collision is a different face. The id is minted on the far side
-/// of the byte comparison, which is why it can be trusted alone.
+/// **Scope, and the thing the type cannot check.** An id names an
+/// entry of ONE [`PatchMemo`]; the value carries no memo identity, so
+/// ids minted by two memos collide silently and a consumer that mixed
+/// them would serve one memo's geometry for the other's face. What
+/// holds it in this tree is structural: a `PickMemo` owns its
+/// `PatchMemo`, its table level is private, and the door that takes
+/// both a `PatchKeys` and the memo (`MeshPick::build_with`) is
+/// `pub(crate)` and is only ever handed that memo's own keys. A new
+/// consumer owes the same pairing by construction.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct StoredPatchId(u64);
 
 /// One face's row in [`PatchKeys`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+///
+/// `PartialEq` is deliberately NOT derived here: see [`PatchKeys`]'s.
+#[derive(Clone, Copy, Debug)]
 struct FaceRow {
     digest: PatchDigest,
     stored: Option<StoredPatchId>,
@@ -164,8 +168,26 @@ struct FaceRow {
 /// face: its lane refused, or it named a shared id outside its own
 /// boundary walk (the key-completeness defect [`PatchMemo::record`]
 /// names).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+///
+/// **Equality is over the digests alone, and the ids are excluded on
+/// purpose.** A digest is a function of the face's inputs, so two
+/// tessellations of the same faces carry equal keys however they were
+/// produced; a [`StoredPatchId`] is a fact about ONE memo's history —
+/// which entry answered, and when it was minted — so folding it into
+/// `==` would make keys from two memos unequal for faces that are
+/// byte-identical, and would quietly turn every `assert_eq!` on
+/// `PatchKeys` into an assertion about memo history. A caller that
+/// wants the ids compared compares [`PatchKeys::stored_ids`].
+#[derive(Clone, Debug, Default)]
 pub struct PatchKeys(Vec<FaceRow>);
+
+impl PartialEq for PatchKeys {
+    fn eq(&self, other: &Self) -> bool {
+        self.len() == other.len() && self.iter().eq(other.iter())
+    }
+}
+
+impl Eq for PatchKeys {}
 
 impl PatchKeys {
     /// One row per face.
@@ -265,13 +287,14 @@ impl PatchMemo {
     }
 
     /// The memo's heap footprint, approximately: every entry's key
-    /// bytes, interior points and triangles. A measurement door, not a
-    /// budget.
+    /// bytes, its identity, its interior points and its triangles. A
+    /// measurement door, not a budget.
     pub fn bytes(&self) -> usize {
         self.entries
             .values()
             .map(|e| {
                 e.key.len()
+                    + core::mem::size_of::<StoredPatchId>()
                     + e.patch.interior.len() * core::mem::size_of::<Point3<f64>>()
                     + e.patch.triangles.len() * core::mem::size_of::<[StoredVertex; 3]>()
             })
@@ -763,15 +786,34 @@ impl FaceInputs {
         })
     }
 
-    /// The face's boundary id sequence: every loop's every edge's chord
-    /// ids, `he_plus`-forward, in walk order. The stored patch's shared
-    /// corners are indices into this.
-    pub(crate) fn boundary_ids(&self) -> Vec<u32> {
+    /// **THE face's boundary walk**, and the single definition of "in
+    /// walk order": the outer loop then the rings, each announced with
+    /// its edge count and followed by its edges, each edge carrying its
+    /// chord slots `he_plus`-forward.
+    ///
+    /// [`FaceInputs::key`] folds it and [`FaceInputs::boundary_ids`]
+    /// collects it, and that is the point: the n-th chord slot of the
+    /// id sequence is the n-th chord slot the key folds a position for,
+    /// by construction rather than by two walks agreeing. The proof
+    /// [`StoredPatchId`] carries — byte-equal keys mean bit-identical
+    /// placed corners — rests on exactly that, so it is one iterator
+    /// and not two.
+    pub(crate) fn walk(&self) -> impl Iterator<Item = Step<'_>> {
         self.loops
             .iter()
-            .flatten()
-            .flat_map(|e| e.ids.iter().copied())
-            .collect()
+            .flat_map(|lp| core::iter::once(Step::Loop(lp.len())).chain(lp.iter().map(Step::Edge)))
+    }
+
+    /// The face's boundary id sequence, off [`FaceInputs::walk`]. The
+    /// stored patch's shared corners are indices into this.
+    pub(crate) fn boundary_ids(&self) -> Vec<u32> {
+        let mut ids = Vec::new();
+        for step in self.walk() {
+            if let Step::Edge(e) = step {
+                ids.extend(e.ids.iter().copied());
+            }
+        }
+        ids
     }
 
     /// The key bytes: the module docs' list, per lane.
@@ -803,43 +845,47 @@ impl FaceInputs {
         // The identity relabeling over the whole face's sequence.
         let mut label: HashMap<u32, u32> = HashMap::new();
         w.len(self.loops.len());
-        for lp in &self.loops {
-            w.len(lp.len());
-            for e in lp {
-                w.bool(e.forward);
-                w.curve3(&e.carrier);
-                w.f64(e.params.0);
-                w.f64(e.params.1);
-                w.len(e.ids.len());
-                for &id in &e.ids {
-                    #[allow(clippy::cast_possible_truncation)]
-                    let next = label.len() as u32;
-                    w.u32(*label.entry(id).or_insert(next));
-                }
-                w.len(e.positions.len());
-                for p in &e.positions {
-                    w.p3(*p);
-                }
-                if curved {
-                    w.bool(e.seam);
-                    match e.lineage {
-                        None => w.u8(0),
-                        Some(c) => {
-                            w.u8(1);
-                            w.u32(c);
+        // The SAME walk `boundary_ids` collects, so the positions
+        // folded here sit at the slots those ids sit at.
+        for step in self.walk() {
+            match step {
+                Step::Loop(edges) => w.len(edges),
+                Step::Edge(e) => {
+                    w.bool(e.forward);
+                    w.curve3(&e.carrier);
+                    w.f64(e.params.0);
+                    w.f64(e.params.1);
+                    w.len(e.ids.len());
+                    for &id in &e.ids {
+                        #[allow(clippy::cast_possible_truncation)]
+                        let next = label.len() as u32;
+                        w.u32(*label.entry(id).or_insert(next));
+                    }
+                    w.len(e.positions.len());
+                    for p in &e.positions {
+                        w.p3(*p);
+                    }
+                    if curved {
+                        w.bool(e.seam);
+                        match e.lineage {
+                            None => w.u8(0),
+                            Some(c) => {
+                                w.u8(1);
+                                w.u32(c);
+                            }
                         }
                     }
-                }
-                if trimmed {
-                    w.len(e.chord_params.len());
-                    for &t in &e.chord_params {
-                        w.f64(t);
-                    }
-                    match &e.pcurve {
-                        None => w.u8(0),
-                        Some(p) => {
-                            w.u8(1);
-                            w.pcurve(p);
+                    if trimmed {
+                        w.len(e.chord_params.len());
+                        for &t in &e.chord_params {
+                            w.f64(t);
+                        }
+                        match &e.pcurve {
+                            None => w.u8(0),
+                            Some(p) => {
+                                w.u8(1);
+                                w.pcurve(p);
+                            }
                         }
                     }
                 }
@@ -847,6 +893,14 @@ impl FaceInputs {
         }
         w.0
     }
+}
+
+/// One step of a face's boundary walk ([`FaceInputs::walk`]).
+pub(crate) enum Step<'a> {
+    /// A loop begins, with this many edges.
+    Loop(usize),
+    /// The next edge of the loop in progress.
+    Edge(&'a EdgeInputs),
 }
 
 /// Bytes of a key: every scalar by bit pattern, every sequence

@@ -145,6 +145,15 @@ fn the_memo_answers_the_plain_doors_mesh_on_a_miss_and_on_a_hit() {
             second.keys, first.keys,
             "{name}: the same faces digest the same"
         );
+        // `PatchKeys` equality is over the digests alone (its docs say
+        // why), so the row above is about content and not about which
+        // entry answered. Every face hit here, so the entries ARE the
+        // first picture's, and that is its own row.
+        assert_eq!(
+            second.keys.stored_ids().collect::<Vec<_>>(),
+            first.keys.stored_ids().collect::<Vec<_>>(),
+            "{name}: every face was answered from the entry that stored it"
+        );
         memo.end_picture();
         assert_eq!(memo.len(), faces, "{name}: still one picture's worth");
 
