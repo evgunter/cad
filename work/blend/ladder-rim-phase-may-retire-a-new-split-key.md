@@ -33,15 +33,24 @@ row can ever match.
 
 ## Status
 
-UNMEASURED. No shipped ladder fixture reaches the orientation (every
-revolve-minted meridian's `he_plus` starts at the rim vertex, so `upper`
-is the source key on every row that runs). The ruled band's `split_rim`
-in the same file guards the same shape with `if near == source` and a
-fragment-provenance read, which is the fix shape; the ladder path was
-deliberately NOT changed in FILLET-H7 (PR 1897) because every existing
-carve's dump is held bit-identical there and the orientation has no
-witness. The fix owes a fixture that reaches it (a meridian whose stored
-direction runs from the pole to the rim) before the branch is touched.
+MEASURED, and the branch is LIVE. The census over every ladder carve the
+tree runs (25 carves across 25 rows, instrumented at the split site)
+finds both orientations shipped: a REVOLVE-minted cap seam runs
+pole-to-rim, so `upper == created.new_edge` and the phase pushes a fresh
+key, while a BOOLEAN-minted pip seam runs rim-to-pole and pushes the
+source key. Fourteen shipped rows reach the fresh-key push — among them
+`ring_clearance_forms::the_bosss_dome_rim_carves_inside_its_hosts_circular_boundary`
+and `fillet_h4_concave_rim::the_boss_carves_a_concave_ladder_band_and_adds_the_cap_fill`
+— and none of them runs `assert_naming_totality`, which is why no row
+went red. The item's earlier reading ("no shipped ladder fixture reaches
+the orientation") was the unmeasured guess it announced itself to be.
+
+The ruled band's `split_rim` in the same crate guards the same shape with
+`if near == source` and a fragment-provenance read, which is the fix
+shape; the ladder path was deliberately NOT changed in FILLET-H7 (PR
+1897) because every existing carve's dump is held bit-identical there.
+The dump IS bit-identical under the fix — the records the fix moves are
+naming rows, which no geometry reads.
 
 ## Re-homed (2026-09-06)
 

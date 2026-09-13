@@ -769,6 +769,20 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
         "surgery postcondition: the result is not tier-2 valid (kernel bug)",
     );
 
+    // **A retirement names a SOURCE key** — `Retired`'s whole meaning,
+    // and the one direction of the birth records no output-side walk
+    // can see: a key this carve minted and then killed is absent from
+    // the result, so a `dead` row naming one is invisible everywhere
+    // except against the body the caller handed in. The postcondition
+    // is here, at the one place that still holds both bodies.
+    #[cfg(debug_assertions)]
+    for e in &rec.dead.edges {
+        debug_assert!(
+            source.get_edge(*e).is_some(),
+            "surgery postcondition: a retirement names {e:?}, which the source body does \
+             not carry (kernel bug)",
+        );
+    }
     rec.dead.edges.sort_unstable();
     rec.dead.edges.dedup();
     rec.dead.vertices.sort_unstable();
