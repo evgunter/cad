@@ -431,3 +431,14 @@ doc sites, the three suite files renamed by subject; CI caught a
 probe-gated suite the sweep did not run and it was rostered. Delta by
 R1 on the fixed head: recorded below. Sample #176 (main's order rules).
 Residues on the slate from this unit: `unit-numbered-test-suite-prefixes-collide-across-program-generations`.
+Delta (R1, on `e3f8d06a`): all six items CONFIRMED by execution —
+both probe branches as merge parents with the canary and the
+bored-cylinder rows green together and the rostered probe suite
+running seven rows under the sweep's own invocation; mutant A one red
+(the plate row), mutant B six red as tabled; the ring-predicate trio's
+three legs reading the predicate and the recourse off the errors; the
+ulp table reproduced by `to_bits` arithmetic; the six doc sites; the
+renames with unit 5's resolver row present and green (the lane's
+belief that it was absent was wrong). One survivor: the new
+`CircleMargins` paragraph still said "exactly" — corrected in the
+state-sync commit to "the same real, in closed form".

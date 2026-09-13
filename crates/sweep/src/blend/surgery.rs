@@ -1983,8 +1983,8 @@ pub(crate) fn ring_clearance<T: Decide + Bounds>(
 /// circles are small and far apart on the face, and a boundary that
 /// contains the trim reads minus the sum of the radii under it.
 ///
-/// **The two containment readings are what predicate 2's boundary-pair
-/// screen computes, exactly.** For any two circles in one plane its
+/// **The two containment readings are the same real predicate 2's
+/// boundary-pair screen computes, in closed form.** For any two circles in one plane its
 /// `gap − setback_here − setback_there` IS the containment margin of
 /// whichever circle the setbacks belong to — coaxial or not — so this
 /// function is not a second opinion but the CLOSED FORM of that screen,
