@@ -19,7 +19,10 @@
 //! makes the order a type rather than a convention. It maps to no
 //! kernel op either: the kernel takes entity keys, and everything that
 //! turns an authored name into one, or into an N5 refusal, is this
-//! module's.
+//! module's. What a resolved name DENOTES is the question after it,
+//! and it has one door too ([`entity`], [`named_entity`]): a road
+//! supplies the projection and its own refusal, never the word for the
+//! kind it found.
 //!
 //! **The declaration routing.** A union's declared face pairs are
 //! authored against its MEMBERS and consumed by a fold of pairwise
@@ -2367,7 +2370,8 @@ fn wire_shell<T: Decide + crate::verbs::shell::ShellLane>(
 
 /// Resolves a shell's open-face designation against the target's name
 /// table — [`resolve_selection`]'s twin over FACES, through the same
-/// [`ladder`], with two differences that are the door's own arity: an
+/// [`ladder`] and the same [`named_entity`] door, with two differences
+/// that are this door's own arity: an
 /// empty list is legal (the sealed hollow), and the keys come back in
 /// DESIGNATION ORDER rather than arena order. D9's arena-order rule is
 /// for DERIVED lists; here the order is authored data the kernel reads
@@ -2622,7 +2626,8 @@ fn named_entity<R>(
 /// N5 trio, deliberately: the two sites answer the same question, and
 /// they answer it through the same [`ladder`], which owns rung order
 /// and payload shapes. What stays here is this door's arity — one
-/// table — and its kind refusal: a selection names EDGES.
+/// table — and which kind it reads for: a selection names EDGES, and
+/// the test and its refusal go through [`named_entity`].
 ///
 /// The returned keys are in TARGET-ARENA order, not selection order,
 /// so the kernel sees the deterministic order every derived list in
