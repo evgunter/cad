@@ -69,3 +69,18 @@ than the walk — `step_label`, which both now use.
 The clause also gained the non-emptiness assertion its equality needs:
 a round trip over an empty corpus is bit-identical whatever the wire
 does.
+
+
+## Closed 2026-09-13 (PR 2501)
+
+The clause fired correctly and printed two whole-corpus `Debug`
+renderings — a `ProfileProgram` of three loops and forty-six chain steps
+— for a laundering that is one step in one loop. It now zips the loops
+and the steps and names both:
+
+> `loop 0 chain step 15: ArcTo(Sweep) went over the wire and came back
+> as ArcTo(ArcLen)`
+
+and the report is evaluated **inside** the `assert!`'s format arguments,
+so the doc's claim that it runs only on the failure path is now true of
+the code as well — it was not when the delta round read it.

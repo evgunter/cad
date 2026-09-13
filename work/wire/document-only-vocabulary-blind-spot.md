@@ -218,3 +218,69 @@ the file now says so rather than leaving it to be inferred.
 
 Measured: a fourth `LoopProgram` carrier resolving into `Step::Circle`
 reds this census and nothing else.
+
+
+## Closed 2026-09-13 (PR 2501)
+
+**The blind spot was measured before it was closed.** A document-only
+variant laundering into an existing kernel form left **five of seven
+clauses green**; the compiler forced an arm at every site and every one
+was legally dischargeable without a witness. That number was re-taken
+independently by the review, with its own mutation and discharge across
+the nine sites the compiler named, and it held exactly.
+
+### The anchor, after one wrong turn
+
+The first cut anchored on a **text walk** of `program.rs`, chosen to
+avoid minting a third spelling of the vocabulary in DOCM's file. The
+review killed it with an instrument: `variant_name` takes alphanumerics
+off the front of a variant's range and an attribute sits in front of the
+name, so `#[doc(hidden)] Chord` yielded `""` and was filtered away.
+Measured — the laundering mutant alone gives `5 passed; 2 failed`;
+**adding only `#[doc(hidden)]` to those same two variants gives
+`7 passed; 0 failed`**, with the laundering still in place. The
+non-emptiness guard did not reach it: that catches a *total* scan
+failure, and a **partial** drop is the silent direction.
+
+The replacement is `document_vocabulary!` in `program.rs`, declaring the
+document enums in one invocation and projecting `ALL_NAMES` from **the
+same tokens that declare the variants**. The whole class — `cfg_attr`,
+doc-comment-plus-attribute, raw identifiers, payloads — is closed by
+construction, verified against eleven awkward spellings and again
+in-tree, where the green was shown to be **two-sided rather than
+vacuous**. What landed in DOCM's file is a derived constant and doc
+prose: measured with doc lines stripped, no variant, payload, derive,
+visibility or behaviour changed.
+
+### And the roster, which was the same defect one level up
+
+Three hand-written call sites would have closed *"a variant arrives
+without a witness"* while leaving *"a vocabulary arrives without a
+census"* open. `DOCUMENT_VOCABULARIES` is projected beside `ALL_NAMES`
+and the census iterates it. Witness **sets** cannot be projected — only
+the suite knows which walk of `corpus()` answers for which vocabulary —
+so they are bijected in both directions instead: project what can be
+projected, biject the rest, say which is which.
+
+**`LoopProgram` was a fourth document vocabulary and is now in.** It sat
+four lines below the invocation's closing brace, declared with a plain
+`pub enum`, and its `resolve` builds `Step::Circle`/`Step::CircleSplit`
+— a construct hop of exactly the disclosed shape, with `corpus_vocabulary`
+declining to witness it. The disclosure had described that class
+hypothetically while the instance sat in the same file. The **membership
+test is now written at the site** — *does a variant launder into an
+existing kernel form at a construct hop* — and one clause disposes of the
+other plain enums: `ProgramRefusal` and `RecordedProgramError` fail it,
+having no construct hop that builds a kernel form out of them.
+
+### What stays open, stated rather than quiet
+
+An enum declared outside the macro has no `ALL_NAMES`, is absent from the
+roster, and nothing notices. Closing that means asking *"is this enum a
+document vocabulary?"* over the file's declarations — **a text walk,
+which this PR removed after measuring it silently wrong.** Filed on
+DOCM's slate, because the declaration convention that would close it is a
+design call about that file. And the single-invocation guarantee is
+**per module**: `E0428` is scoped to one module's value namespace, so the
+list is complete because `program.rs` has no child modules, not because
+the macro forbids one.

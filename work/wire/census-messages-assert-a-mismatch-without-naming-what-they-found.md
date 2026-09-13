@@ -126,3 +126,30 @@ prints:
 
 `position_label` is the one place that prefix is spelled, for the reason
 `step_label` is the one place a step's members are named.
+
+
+## Closed 2026-09-13 (PR 2501)
+
+Nine clauses now name the value that made them fire; six already did.
+Every message was **captured from a planted mutant** rather than
+predicted — the form of evidence this program settled on — and the file
+was swept for the shape rather than the three named instances, with the
+hit list and its dispositions in the PR.
+
+Instance 1 was the one that mattered out of proportion to its size: the
+mode-laundering clause was measured by PR 2447's review as **the only
+catch in the tree** for the `res_spec` hop, and it was the one clause
+that would not tell you where you landed. Its fix was written fifteen
+lines above it the whole time, in the target census. It now says
+*"the document spec for Radius resolved to Sweep."*
+
+Instance 3's half-fix is finished: the localiser named the chain step and
+its verb but never the **arc mode**, because `variant_name` took only the
+leading identifier — so in a corpus where `ArcTo` appears once per
+`ArcMode::ALL` entry, naming the verb narrowed nothing.
+
+**The sweep's stated blind spot is the durable part**: the pattern read
+every `assert!`/`panic!` for whether its message names the value that
+fired it, and **cannot see a clause whose message is fine but whose
+SUBJECT is wrong.** One instance was found that way by reading, not by
+the pattern — so the hit list is a floor on what is there, not a ceiling.
