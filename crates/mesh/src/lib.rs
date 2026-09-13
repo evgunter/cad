@@ -349,6 +349,6 @@ pub mod walk;
 #[allow(dead_code, unreachable_pub)]
 mod witness_bodies;
 
-pub use memo::{PatchDigest, PatchKeys, PatchMemo};
+pub use memo::{PatchDigest, PatchKeys, PatchMemo, StoredPatchId};
 pub use tessellate::{Tessellation, tessellate, tessellate_with};
 pub use types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
