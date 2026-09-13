@@ -33,7 +33,7 @@
 
 use crate::revolve_common;
 
-use geom_core::{Point3, Tol, Vec3};
+use geom_core::{Band, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use revolve_common::{axis_y, p2, validated};
 use sweep::{Revolution, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow};
@@ -401,8 +401,17 @@ fn a_partly_covered_torus_pair_still_gates_on_the_uncovered_one() {
 /// enclosure of a COINCIDENT pair cannot produce one at any `K`: the
 /// charge falls as `K⁻²` and the band does not follow it. That is
 /// `work/curved/torus-coincident-pair-cannot-reach-the-covered-rung`,
-/// and the number is pinned in `geom-brep`'s
+/// and the enclosure's own width is pinned in `geom-brep`'s
 /// `a_coincident_torus_pair_encloses_pm_charge_and_reads_negative`.
+///
+/// **The landing is eps-DEPENDENT, and the margin is why.** The
+/// margin here is −4.56e-6 m. Where the escalation threshold stands
+/// under it the verdict is a definite Negative and the rung takes the
+/// typed frontier; where the margin falls INSIDE the ambiguity band
+/// the predicate is `Indeterminate` and the op escalates instead.
+/// Both are typed refusals of the same fact — no crossing verdict for
+/// a coincident torus pair — and the row asserts whichever the run's
+/// own band selects rather than picking one and skipping the other.
 #[test]
 fn the_admitted_torus_lane_stops_at_the_curved_pierce_frontier() {
     let (a, b) = (full_torus(RING), full_torus(RING));
@@ -410,10 +419,20 @@ fn the_admitted_torus_lane_stops_at_the_curved_pierce_frontier() {
     let err = topo::union_with(&a, &b, &decls, Tol::witness())
         .expect_err("a coincident torus pair still has no crossing verdict");
     println!("the admitted torus lane answers {err:?}");
-    assert!(
-        matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
-        "the lane's stopping point is the curved-pierce frontier: {err:?}"
-    );
+    let band = Band::linear(Tol::witness()).expect("the run's linear band");
+    // The chord-dip charge on this fixture's seam meridian, measured.
+    const MARGIN: f64 = 4.559_414_566_271_785e-6;
+    if MARGIN >= band.escalate() {
+        assert!(
+            matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
+            "beyond the ambiguity band the rung refuses typed: {err:?}"
+        );
+    } else {
+        assert!(
+            matches!(err, BooleanError::Escalated { .. }),
+            "inside the ambiguity band the clearance predicate escalates: {err:?}"
+        );
+    }
 }
 
 // -------------------------------------------------------------------

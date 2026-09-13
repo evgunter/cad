@@ -20,15 +20,26 @@ behind it — which is reached only on a `Zero` — stays out of reach.
 MATE-7a's fixture is two identical tori, `R = 5`, `r = 0.06`. The
 edges are seam meridians of the torus they ride, so the residual is
 identically zero along them and the sampled enclosure is `±charge`
-with `charge = f2·(τ/K)²/8 = 1.8e-5 m` at `f2 = 0.2415 m/rad²` and
-`K = ARC_RESIDUAL_SAMPLES = 256`. Its one-sidedness margin is
-`−1.8e-5`, which is a definite Negative at all three eps cells of the
-run matrix (`DEFAULT_EPS = 1e-9`, `1e-6`, `1e-12`). The refusal is
-therefore raised at the rung's `Zero | Negative` arm
+with `charge = f2·(Δθ/K)²/8` at `f2 = 0.2415 m/rad²` and
+`K = ARC_RESIDUAL_SAMPLES = 256`: **1.83e-5 m** over a full meridian,
+and **4.56e-6 m** over MATE-7a's own refusing edge, which is a half
+meridian (the charge is quadratic in the span). Its one-sidedness
+margin is `−charge`, never a `Zero`.
+
+The refusal is raised at the rung's `Zero | Negative` arm
 (`boolean/reduce.rs`, measured by instrumented backtrace on
 `sweep/tests/mate7a_torus_rest.rs`'s
 `the_admitted_torus_lane_stops_at_the_curved_pierce_frontier`), one
-line below the `None` door it used to take.
+line below the `None` door it used to take — **and which typed
+refusal comes out is eps-dependent**: at `DEFAULT_EPS = 1e-9` and at
+`1e-12` the margin clears the escalation threshold and the rung
+refuses `CurvedPierceUnsupported`; at `1e-6` it sits inside the
+ambiguity band and `bool_circle_curved_clearance` escalates
+(`Indeterminate { margin: -4.56e-6, band: { zero: 1e-6, escalate:
+1e-5 } }`). A refusal whose VARIANT moves with the run's eps is a
+second thing wrong with the coincident case, not a separate one: both
+come from a margin manufactured by the enclosure's own charge rather
+than by the geometry, which is identically zero.
 
 **Why raising `K` does not fix it.** The charge falls as `K⁻²` and
 the band does not move with it, so there is always a `K` at which a

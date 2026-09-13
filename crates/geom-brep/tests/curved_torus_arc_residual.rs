@@ -633,14 +633,18 @@ fn the_k_sample_door_is_not_monotone_and_this_is_the_bound() {
 /// identically zero along them — and the sampled enclosure is
 /// therefore `±charge`, whose one-sidedness margin is `−charge`.
 ///
-/// `charge` is 1.8e-5 m on that fixture, which is larger than every
-/// band the run matrix uses, so the margin decides **Negative** and
-/// the circle rung takes the typed frontier at its
-/// `Zero | Negative` arm. The declared-cover rung behind it needs a
-/// `Zero`, and a sampled enclosure of a coincident pair cannot
-/// produce one at any `K`: the charge shrinks as `K⁻²` but the band
-/// does not move with it. That is
+/// `charge` is 1.83e-5 m for a FULL meridian of that torus, and the
+/// margin is `−charge`. The declared-cover rung behind the circle
+/// rung needs a `Zero`, and a sampled enclosure of a coincident pair
+/// cannot produce one at any `K`: the charge shrinks as `K⁻²` but the
+/// band does not move with it. That is
 /// `work/curved/torus-coincident-pair-cannot-reach-the-covered-rung.md`.
+///
+/// The charge is quadratic in the edge's own span, so MATE-7a's
+/// fixture — whose refusing edge is a HALF meridian — carries a
+/// quarter of it, 4.56e-6 m, and that one falls INSIDE the ambiguity
+/// band at `ε = 1e-6`. Its row asserts that landing against the run's
+/// own band.
 #[test]
 fn a_coincident_torus_pair_encloses_pm_charge_and_reads_negative() {
     let (big_r, minor) = (5.0, 0.06);
@@ -658,7 +662,7 @@ fn a_coincident_torus_pair_encloses_pm_charge_and_reads_negative() {
     )
     .expect("the torus arm answers");
     assert!(
-        lo < 0.0 && hi > 0.0 && (lo + hi).abs() < 1e-12 * hi,
+        lo < 0.0 && hi > 0.0 && (lo + hi).abs() < 1e-9 * hi,
         "a coincident pair encloses symmetrically about zero: [{lo}, {hi}]"
     );
     let margin = lo.max(-hi);

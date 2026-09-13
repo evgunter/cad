@@ -7,6 +7,7 @@ opened: 2026-09-01
 github: 1489
 refs: [1477, 968]
 branch: curved/torus-arm
+pr: 2535
 ---
 
 ## From GitHub issue 1489
