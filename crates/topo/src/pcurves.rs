@@ -1344,6 +1344,11 @@ pub(crate) struct Walked<T: Real> {
     t1: T,
 }
 
+/// The two children's certified chart rows, in child order (`[t0, t]`
+/// then `[t, t1]`) — [`split_cache`]'s answer, `None` where there is
+/// nothing to carry.
+pub(crate) type SplitRows<T> = Option<(PcurveCache<T>, PcurveCache<T>)>;
+
 /// The **restriction of one half-edge's stored pcurve row to the two
 /// children of a parameter split** — [`crate::Body::split_edge`]'s
 /// pcurve limb, and the reason that op carries its rows across the
@@ -1397,7 +1402,7 @@ pub(crate) fn split_cache<T: Decide>(
     half_edge: HalfEdgeKey,
     t: T,
     band: Band,
-) -> Result<Option<(PcurveCache<T>, PcurveCache<T>)>, PcurveCertifyError> {
+) -> Result<SplitRows<T>, PcurveCertifyError> {
     let Some(cache) = body.pcurve(half_edge) else {
         return Ok(None);
     };
