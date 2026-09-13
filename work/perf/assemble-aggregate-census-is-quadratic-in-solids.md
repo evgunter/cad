@@ -2,9 +2,10 @@
 id: assemble-aggregate-census-is-quadratic-in-solids
 kind: issue
 title: assemble's tier-3 census over the aggregate body is quadratic in solids - 1.3 s at 161
-status: open
+status: closed
 opened: 2026-09-10
 parent: PERF-12
+closed: 2026-09-13
 ---
 
 ## The finding
