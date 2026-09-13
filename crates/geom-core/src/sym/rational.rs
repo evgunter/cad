@@ -1,9 +1,6 @@
 //! **The coefficients are arbitrary-precision dyadic-scaled rationals**
-//! ([`Rat`], over `num-bigint`), bounded at [`COEFF_BITS`] bits. They
-//! were an in-tree `i128` through M10-7, on the argument that
-//! `geom-core`'s runtime dependencies were `libm` alone and that
-//! nothing measured was losing a cancellation to the overflow — the
-//! whole-box replays reported `frozen: 0` on the bracket because the
+//! ([`Rat`], over `num-bigint`), bounded at [`COEFF_BITS`] bits. A
+//! whole-box replay reports `frozen: 0` on the bracket because the
 //! `Decide` impl skips the form of a margin the numeric channel has
 //! already proved non-zero. M10-8 measured the case the whole-box
 //! replays cannot see: at a document's NOMINAL, where every identity

@@ -74,8 +74,7 @@
 //! rim's endpoint pinning `‖c + (q − c)·r/‖q − c‖ − q‖ = 0` iff
 //! `‖q − c‖ = r`, and every dimension a document authors arriving as an
 //! `f64` literal with a 53-bit mantissa. Through M10-7 the tier reached
-//! none of it, and the diagnosis was wrong twice before it was
-//! measured right: the forms did not freeze on their SIZE (the budget
+//! none of it: the forms did not freeze on their SIZE (the budget
 //! is never reached), they froze on their COEFFICIENTS — `sqrt(1)^58`
 //! and `sqrt` of exact-square dyadic constants stood opaque in every
 //! rim form, and the products of three 53-bit mantissas overflowed the
@@ -103,9 +102,7 @@
 //! **Rules A and B** — `sqrt(X)² = X` and `sin² + cos² = 1`
 //! (`algebra`) — add no discharge over the top residual on any
 //! measured document, and PER NODE in the early walk they are what
-//! closes the ring behind rule D (the M10-10 section below); M10-8
-//! built them per node at 138 s per nominal plate replay and measured
-//! them off on cost, and M10-10 made them affordable. **Rule C** —
+//! closes the ring behind rule D (the M10-10 section below). **Rule C** —
 //! `sqrt(X) = R` where `X = R²` as forms and `R`'s sign is certified
 //! over the box, clause 3, the one fold that reads a value (`signed`)
 //! — is sound, unit-pinned, folds on no document at the shipped bound,
@@ -193,9 +190,8 @@
 //! a scale past the ceiling several are over the band at once, so which
 //! name comes back is evaluation ORDER — validation before
 //! certification. Read at twice the plate's ceiling, the reported
-//! refusal walks with each registrant, and M10-9's first cut reported
-//! that walk as the bound moving; it was not. The instrument is one
-//! home now — `editor-core/tests/m10_8_harness`'s `over_band_set` and
+//! refusal walks with each registrant. The instrument is one
+//! home — `editor-core/tests/m10_8_harness`'s `over_band_set` and
 //! `bound`, the bracket and the set at its refusing end — and nothing
 //! in the tree spells a bound any other way.
 //!
@@ -436,8 +432,7 @@
 //! misses, the form freezes, and the decision falls to the numeric
 //! channel.
 //!
-//! An earlier draft of this paragraph said "the tier is never partially
-//! on", and that sentence was false. A node minted before the session
+//! **The tier is not "never partially on".** A node minted before the session
 //! was installed is not IN the session's table, so its form freezes to
 //! an indeterminate keyed by its own id — and two occurrences of that
 //! same node share the id, so they still cancel: `a − a` decides `Zero`

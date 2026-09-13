@@ -22,8 +22,7 @@
 //! SIGN: `|x| − x` on a nonnegative `x` is rule C's, and rule C is
 //! dial-off. These are limits of the tier and not bugs in it —
 //! over-refusal is the safe direction, and every such margin falls to
-//! the numeric channel exactly as before. (Through M10-9 this
-//! paragraph listed all three as undecided; R1 of M10-10 ran them.)
+//! the numeric channel exactly as before.
 
 use std::collections::BTreeMap;
 
