@@ -2572,3 +2572,103 @@ instrument in this tree guards a public *method*.** Every public method
 added or removed here is unseen by both. Filed on `work/meta/`, and
 cited from `crates/pncad/tests/all.rs`'s doc-comment as a fourth blind
 spot beside the three it already lists.
+
+## 2026-09-13 — the delta round on 2480: NOT mergeable, and it paid for itself twice
+
+**2 MAJOR, 6 MINOR, 7 NOTE, one class.** The round was dispatched on one
+argument — *the fix pass built a new guard mechanism and no review has
+ever seen it* — and that argument was right.
+
+### MAJOR 2 is the finding of the session
+
+**The guard states one rule and asserts a proxy for it, and the thing it
+was built to catch walked past it in the same diff.**
+
+`operand_vocabulary_census`'s literal row asserts
+`plain_string_literal(...).is_none()` while its failure message says *"an
+`expected:` phrase comes from `eval::family` or `eval::phrase`."* Those
+are different rules. The reviewer hoisted `family::SPLIT` into a local
+`const` **at the call site** and the row passed **green** — a phrase in a
+const in the wrong home is invisible to it.
+
+And that is exactly the move the same commit made three times, minting
+`FRAME_X_ROLE`, `FRAME_Y_ROLE` and `PLANE_NORMAL_ROLE` as call-site
+literals. A guard written to stop a class, in a commit that then
+performed the class, and passed.
+
+**MAJOR 1 is the same defect in prose**: a new design-page sentence
+asserts as fact that those four role words *are* composed from consts,
+while the row filed **in the same commit** says "respell" in its title.
+The lane's own honest negative — that composition does not compile,
+because `concat!` takes literals and a `const` is not one — is the true
+statement; the sentence is what has to change.
+
+### The verdict on the adversarial question, which is a rule now
+
+Asked whether closing "a hand-written list with no census" by writing a
+census with hand-written sentinels, floors and counts is the trap one
+level up, the answer came back **"yes, but only in its second half, and
+the halves are cleanly separable"**:
+
+- where the census computes a **set equality** — `built.len() == 1`, and
+  `heads == sorted_used` for the macro-arm/const bijection — it is
+  right, has no slack, and both were driven red. Hand-writing does not
+  enter.
+- where it computes a **hand-written floor over a hand-written roster**
+  — `calls >= 12` over four door names — it is the defect one level up.
+  Measured **18 against a floor of 12**, and the slack hides real drift:
+  one door contributes 2 calls and is not in the roster at all, so
+  renaming it takes the scan 18 → 16 and nothing reds.
+
+**The decisive half of the verdict: a bijection was available and was
+not taken.** The door set is enumerable from the region the row already
+carves; the slot indices are derivable from the `fn` signatures the row
+already locates. That is not "a guard must eventually be hand-written" —
+it is a choice that went the wrong way.
+
+**And the tree had already written this lesson down.**
+`crates/test-utils/tests/reader_census.rs` carries a design note saying
+*"a walk that matched nothing is not a pass, and the equality is what
+says so … this row needs no separate count floor (an earlier one
+asserted `found.len() >= 20`, which set equality had already subsumed
+and which could not fail for the reason it stated)."* That paragraph is
+about precisely the `>= N` floors this census wrote three of. The
+project learned this, recorded it in the file the census imports from,
+and the census did not read it.
+
+**This is the standing guidance for the census block** that was waiting
+on this round's answer: **prefer a bijection; a floor is what you write
+when you have proved no bijection exists, and you write why.**
+
+### Four holes in the floors, each instrumented
+
+The reviewer forced each rather than reading: a braced import hides a
+second construction site (a plain `use` is caught only *by accident*,
+because the `use` line itself carries the matched text); `"fn operand"`
+is a prefix of `"fn operand_refusal"`, so renaming the door cannot red
+that check; row 2's split half matches a **field declaration** whose
+"initializer" is a type, so it is non-empty even when the real
+initializer moves — and `test_utils::source::sole_initializer` exists
+for exactly that refusal and was not used.
+
+### A correction against the orchestrator, again
+
+**MINOR 6 is my error.** I directed the last fix pass to write that
+`split.rs:218`'s `assert_eq!` is *"the only byte-exact pin any phrase in
+that vocabulary has"*. The same pass then added a suite pinning 17
+refusals byte-exact over 8 phrases, `"datum plane"` among them. I wrote
+a uniqueness claim and then asked for the thing that falsified it, in
+one message.
+
+### The class the round turned up
+
+Three hand-rolled sentinel-region extractors now exist — the new one,
+a `split_once` pair in the same file, and one in `topo/tests/` that is
+nearly line-for-line the new one — and **none is in
+`test_utils::source`, which is the declared home for exactly this**.
+The floor-message idiom is written three times in one file beside them.
+
+**And a hole in a guard the tree relies on** (NOTE 6, to be filed):
+`every_site_that_reads_rust_source_is_in_the_ledger` is keyed on the
+**reader file**, so a second census inside an already-listed file
+arrives invisibly. This census is the first instance.
