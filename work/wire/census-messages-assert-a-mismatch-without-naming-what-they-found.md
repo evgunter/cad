@@ -2,8 +2,11 @@
 id: census-messages-assert-a-mismatch-without-naming-what-they-found
 kind: issue
 title: A CLASS - three census clauses report a mismatch without naming what they found, in a file whose sibling clause does
-status: open
+status: closed
 opened: 2026-09-12
+branch: wire/census-localise
+pr: 2501
+closed: 2026-09-13
 ---
 
 
@@ -78,3 +81,32 @@ Instance 4 is the constraint on that: the localiser must read the
 program under test rather than rebuild its own, or it becomes a second
 corpus kept in step by hand — which is the defect this file exists to
 catch, one level up.
+
+## Closed 2026-09-13 (PR 2501)
+
+All four instances fixed, plus five more the file-wide sweep found.
+The class's own answer was the one this row asked for: `step_label` is
+the single "name the offender" door, a verb plus every vocabulary
+member riding it, and every clause that localises a failure to a step
+says it through there.
+
+- **1** — the mode census's laundering clause now prints
+  *"the document spec for Radius resolved to Sweep"*, on the target
+  census's model verbatim.
+- **2** — `every_document_verb_survives_the_wire` localises; see
+  `wire-roundtrip-census-localises-nothing.md`.
+- **3** — the bijection count clause's localiser names the mode:
+  *"loop 0 chain step 15 (ArcTo(Sweep)) has 2 expressions and
+  enumerates 1 slots"*.
+- **4** — the localiser takes the program under test as an argument
+  and walks ITS loops, so the indices it prints are that program's, it
+  prints the `loop_` a `SlotId::Profile` carries, and the carrier
+  loops are walked too (the "empty means a carrier" caveat is gone
+  because carriers are no longer uncovered).
+
+Five more of the same shape, found by sweeping the file's assertions
+rather than the three names: the per-position verb clause (named a
+verb in a corpus where a verb is not an identity), both witness shape
+panics (said what the step was NOT), the duplicate-address clause (did
+not name the slot it collided with) and the dimension clause (named
+neither dimension). Each was driven red with its new message.

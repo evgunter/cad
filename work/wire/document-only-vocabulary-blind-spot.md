@@ -2,8 +2,11 @@
 id: document-only-vocabulary-blind-spot
 kind: issue
 title: The construct-hop censuses are anchored only on the kernel vocabulary: a document-only variant that launders into a kernel form is invisible
-status: open
+status: closed
 opened: 2026-09-12
+branch: wire/census-localise
+pr: 2501
+closed: 2026-09-13
 ---
 
 ## Finding
@@ -55,3 +58,46 @@ same way (two more macro invocations, two more `ALL`s), or a census
 clause that pairs each kernel form with the SET of document variants
 that resolve to it and asserts that set is exactly witnessed — which
 still needs a way to enumerate the document variants.
+
+## Closed 2026-09-13 (PR 2501)
+
+Closed with an anchor, not a floor, and without the third spelling.
+
+`declared_variants` reads `ProgramArcData`'s and `ProgramTarget`'s
+variant names out of `editor-core/src/program.rs` through
+`test_utils::source`, and that IS the document vocabularies' `ALL`:
+the set still has exactly one home and it is still the declaration
+itself. `every_document_arc_spec_is_witnessed` and
+`every_document_target_is_witnessed` are set equalities between that
+set and the set this suite witnesses — a bijection, so neither an
+unwitnessed variant nor a stale witness passes, where a count would
+have allowed both. Each asserts the scanned set non-empty on its own
+first.
+
+A document-only variant's witness goes in `document_only_arc_specs` /
+`document_only_targets`, each entry a pair naming the kernel form its
+resolution is DECLARED to produce — so the laundering is written down
+and checked rather than silent. Both are empty today, which is the
+honest state: every document variant is one per kernel variant, so
+the kernel-keyed witnesses already cover them.
+
+Why not the document-side tag: minting `ProgramArcMode` /
+`ProgramTargetKind` with their own `ALL` is a third spelling of each
+vocabulary in a crate that spells them twice by G1 layering, which
+this row itself calls a design call about where the anchor belongs
+rather than a test change. It stays available; nothing here forecloses
+it.
+
+Measured. `ProgramArcData::Chord` laundering into `ArcData::Radius`
+and `ProgramTarget::Origin` laundering into `Target::Start`, both
+discharged at every site the compiler named (including the new
+`spec_label` arm, which forces a LABEL and not a witness — the row's
+point exactly): five of the seven clauses in the file stayed GREEN,
+and only the two new ones went red.
+
+    declared and unwitnessed (give each a `document_only_arc_specs`
+    line naming the kernel mode it resolves to): ["Chord"]
+
+The stated limit is the lexer's: an enum whose variants come from a
+macro is invisible to a textual walk. Both are written out today, and
+that is where the door says to look if either stops being.
