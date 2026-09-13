@@ -55,3 +55,27 @@ Two smaller residues from the same reading, to take with it:
   tag. `ArcMode` has this identically, so it is a class.
 - `#[must_use]` is on `Target::kind()` (`:175`) and not on
   `ArcData::mode()` (`:289`), which are advertised as the same door.
+
+## Precedent for the `#[must_use]` half (2026-09-12, PR 2475)
+
+The sibling instance of that inconsistency — `AxisRefusal`'s two methods
+carrying the attribute while none of `Frame`'s did — was closed in
+`crates/editor-core/src/placement.rs`, and the taker of this row does not
+have to re-derive the reasoning:
+
+- **The project has not ruled.** Nothing in `docs/`, no
+  `crates/<crate>/README.md`, nothing in the tracker states a convention,
+  and `clippy::must_use_candidate` is off workspace-wide, so no lint
+  decides it either. Practice is 232 sites on `pub fn` and 4 on non-`pub`
+  ones. A style unit should not mint a project-wide rule out of that.
+- **What was done instead**: internal consistency within the one type,
+  with the rule written as a comment on the `impl` block — because a rule
+  living only in a tracker row is not a mechanism and the next method
+  arrives without it. That comment names its own single exception
+  (a method returning `Result`, already `#[must_use]` by type; repeating
+  it fires `clippy::double_must_use` unless given a message, which is a
+  choice rather than a constraint).
+
+Not fixed from there, deliberately: this row has its own subject and
+reaching into it from a prose unit would have been a second surface
+decision nobody asked for.

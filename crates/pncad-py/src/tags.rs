@@ -1254,6 +1254,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::Unnamed { .. } => "unnamed",
         NamingError::MissingUpstream { .. } => "missing_upstream",
         NamingError::Emission { .. } => "emission",
+        NamingError::SplitLineage(_) => "split_lineage_cycle",
         NamingError::Band(e) => band_error_tag(e),
         NamingError::Escalated { .. } => "escalated",
     }

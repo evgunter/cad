@@ -2,8 +2,9 @@
 id: gq5-recap-citation-points-at-the-readme-the-split-emptied
 kind: issue
 title: A DOOR row cites the GQ5 recap at crates/viewer/README.md:1500, which the GUI-DESIGN split moved to another file
-status: open
+status: closed
 opened: 2026-09-12
+closed: 2026-09-12
 ---
 
 
@@ -58,3 +59,27 @@ test and needs the subject check per row. Nobody has run that census.
 DOOR's: the damaged row is `work/door/dimension-all-has-readers-
 outside-the-viewer.md`. The repair is one line — the file and the
 number — and the population question above may belong wider.
+
+## Closed (2026-09-12)
+
+Corrected in place: the citation now names
+`crates/viewer/GUI-DESIGN.md` by file, with a dated note saying what it
+used to read and why that stopped resolving. Cited without a line
+number, per §7 — the line was the part that rotted, and the recap has
+already moved once.
+
+**The answer was already in the same file.** #2477's lane, closing
+`dimension-all-has-readers-outside-the-viewer`, recorded a hundred and
+fifty lines below the stale citation that the recap *"now lives in
+`crates/viewer/GUI-DESIGN.md` rather than that crate's README (PR
+#2462)"* — and left the citation itself pointing at the old home. A row
+long enough to hold both its own error and its correction is worth
+noting once: **a correction added at the end does not repair the
+sentence that is wrong.**
+
+Worth recording for what it demonstrates rather than what it cost: this
+came to DOOR's slate from **VIEW's** lane, filed directly under §6 as
+rewritten by Ev the same day, with no orchestrator in between. It is
+the rule working in the direction the day had not yet exercised —
+DOOR's lanes filed outward five times, and this is the first thing
+filed inward.
