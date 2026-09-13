@@ -5490,3 +5490,50 @@ in both briefs, neither reviewer sees the other's report; the same
 shared-box note applies to both arms (two fix-pass lanes building
 beside them; per-crate builds asked of both). Block PERF-B4's draw
 record stays branch-side until the block concludes.
+
+## Block BLEND-B1 — CONCLUDED record (merged from `blend/b1-block` at the block close, per the branch-side shape; 2026-09-13)
+
+Block BLEND-B1 pre-draw fields (2026-09-07, logged before the draw):
+slot 0 = BLEND-6 (`docs/BLEND-6-SPEC.md`,
+`ring-clearance-refuses-a-nested-trim-circle` +
+`hostless-rim-on-a-ringed-host-refuses`, one unit) — difficulty **M**,
+task-class **NUMERIC**; slot 1 = BLEND-7 (`docs/BLEND-7-SPEC.md`,
+`ladder-rim-phase-may-retire-a-new-split-key`) — **S / STRUCTURAL**;
+slot 2 = BLEND-8 (`docs/BLEND-8-SPEC.md`,
+`smooth-arm-siblings-disagree-on-the-in-band-case`) — **M / STRUCTURAL**.
+All three at their specs, written 2026-09-07 before this draw.
+
+Block BLEND-B1 draw (2026-09-07, after the pre-draw fields above; v3
+triple {opus, opus, fable}, one /dev/urandom byte, reject ≥252): byte
+**13**, 13 mod 3 = 1 = fable's position ⇒ **fable at slot 1**.
+So: slot 0 BLEND-6 = OPUS, slot 1 BLEND-7 = FABLE, slot 2 BLEND-8 = OPUS.
+Recorded branch-side; this record reaches main when the block's last
+slot's reviews conclude.
+
+Block BLEND-B1 slot record (branch-side, appended as each slot concludes):
+Reorder (2026-09-08, before any slot-1 dispatch): slot 1 =
+`closed-chain-junctions-pair-with-a-rotated-link` (`docs/BLEND-7-SPEC.md`,
+to be written; pre-draw fields logged there before dispatch) — a
+pristine three-arc rim refuses `ChainNotG1`, found by unit 1's style
+review; the ladder unit (`ladder-rim-phase-may-retire-a-new-split-key`,
+now `docs/BLEND-8-SPEC.md`) moves to block BLEND-B2's first slot and the
+smooth-arm unit's spec is now `docs/BLEND-9-SPEC.md` (slot 2, unchanged).
+The draw is untouched — a slot's arm does not depend on which unit
+takes it.
+slot 0 = BLEND-6 review dispatch (2026-09-08): ordinal 2900 claimed on main; R1/R2 byte 67 ⇒ R1 = FABLE, R2 = OPUS; briefs stored here before dispatch —
+7eefc812e4294283837c446557a2e39aa36a2acd0f56f4dc9b503e92c7d03f45  blend-6-review-brief-r1.md
+e083efb3926abb7a0f7afc1b3569f02d07d97bd82ab689cc39b871da93a99d82  blend-6-review-brief-r2.md
+slot 0 = BLEND-6 dual concluded (2026-09-08, ~19:00Z): both arms concurrent on the frozen head with private targets, neither interrupted, zero cross-lane reads disclosed. R1 (FABLE) MERGEABLE-AFTER-FIXES 0/3/2, rubric 4/3/3; R2 (OPUS) MERGEABLE 0/6/3, rubric 4/3/4. NO MAJOR either side ⇒ no unilateral MAJOR, NO tally candidate; headline bilateral (D5 false in both halves: screen/backstop not bit-identical, backstop reachable by a non-boolean route). Pair COUNTS (method symmetric, pre-recorded). Fix pass on the implementer's lane; delta by R1; the row lands on main at merge with its sample number.
+slot 1 = BLEND-7 implementer dispatch (2026-09-08, ~19:05Z): arm FABLE per the draw above (byte 13); `docs/BLEND-7-SPEC.md` (difficulty M, task-class STRUCTURAL, pre-draw); brief `/home/user/blend-briefs/unit-7-brief.md` (lane-local, not stored — the spec is the binding text); suite named by subject (`closed_chain_junctions`) per the filed prefix-collision class. Review ordinal claimed on main at the dual's dispatch.
+slot 1 = BLEND-7 review dispatch (2026-09-13): ordinal 2901 claimed on main; R1/R2 byte 13 ⇒ parity 1 ⇒ R1 = FABLE, R2 = OPUS; briefs stored here before dispatch —
+4a9eb9014b61001c4835afce89f81970cd2e9f822f03f12531d8a93350674410  blend-7-review-brief-r1.md
+215c81bcbbf27e87c3fbc246420cdf0c568245fa70ab3e4a88ea2a05e7274292  blend-7-review-brief-r2.md
+slot 1 = BLEND-7 dual concluded (2026-09-13, ~02:40Z): both arms concurrent on the frozen head with private targets, neither interrupted, zero cross-lane reads disclosed. R1 (FABLE) MERGEABLE 0/5/3, rubric 4/4/3; R2 (OPUS) MERGEABLE-AFTER-FIXES 0/4/4 + 8 style, rubric 4/4/3. NO MAJOR either side ⇒ no unilateral MAJOR, NO tally candidate; the kernel change confirmed by both instruments (independent pairing reads off the body, own mutants, own Pappus). Pair COUNTS (method symmetric, pre-recorded). Fix pass on the implementer's lane; delta by R1; the row lands on main at merge with its sample number.
+slot 2 = BLEND-9 implementer dispatch (2026-09-13, ~02:50Z): arm OPUS per the draw above (byte 13); `docs/BLEND-9-SPEC.md` (difficulty M, task-class STRUCTURAL, pre-draw); brief `/home/user/blend-briefs/unit-9-brief.md` (lane-local; the spec is the binding text, plus two rulings: suite named `must_carry_rule.rs`, the seam edit limited to the wrapper); PROPS seam announced in `work/props/log.md` before dispatch. Review ordinal claimed on main at the dual's dispatch.
+slot 0 = BLEND-6 MERGED (2026-09-13, PR #2215 at 04c25dc66; sample #176): delta by R1 on the fixed head confirmed all six items; the row is on main in this same merge. Slot 0 concluded.
+slot 1 = BLEND-7 MERGED (2026-09-13, PR #2483 at c1da08333; sample #177): delta by R1 on the fixed head confirmed all seven items; the row is on main in this same merge. Slot 1 concluded. Slot 2 (BLEND-9, OPUS) is the block's last; the block's CONCLUDED record folds into main when it lands.
+slot 2 = BLEND-9 review dispatch (2026-09-13): ordinal 2902 claimed on main; R1/R2 byte 93 ⇒ parity 1 ⇒ R1 = FABLE, R2 = OPUS; briefs stored here before dispatch —
+e4e9603ad58c9c865d4e07f120a73b4d30084498a89aebb1f4c18e433a4869e8  blend-9-review-brief-r1.md
+5a9cec81b5fdbccec8851e7675d6b4c5be121a0a609e481994ede42b8807104c  blend-9-review-brief-r2.md
+slot 2 = BLEND-9 dual concluded (2026-09-13, ~05:30Z): both arms concurrent on the frozen head with private targets, neither interrupted, zero cross-lane reads disclosed. R1 (FABLE) MERGEABLE-AFTER-FIXES 0/3/2, rubric 4/3/4; R2 (OPUS) MERGEABLE-AFTER-FIXES 1/5/6 + 8 style, rubric 4/4/4. ONE unilateral MAJOR (R2: the sweep receipt's unstated blind spot on the intrinsic-mint axis with a live in-fence hit at `blend/surgery.rs` `attach_contact`; R1 silent on it) — adjudicated against item 3: (a) yes, (b) claim/receipt class with the in-class question rated `likely`, (c) single, (d) NO — found by grep, not by execution, (e) yes ⇒ RECORDED, EXCLUDED from the tally under 3(d). Pair COUNTS (method symmetric, pre-recorded). Fix pass on the implementer's lane; delta by R1; the row lands on main at merge with its sample number; the block's CONCLUDED record folds into main with it.
+slot 2 = BLEND-9 MERGED (2026-09-13, PR #2491 at 5cf67b504; sample #181 — PERF-12 took #180 on main first): delta by R1 on the fixed head confirmed all seven items; the row is on main in that merge. Slot 2 concluded. **Block BLEND-B1 CONCLUDED**: three slots (OPUS / FABLE / OPUS), three duals, zero counted tally candidates (one recorded and excluded under 3(d) at slot 2); v6 tally unchanged.
