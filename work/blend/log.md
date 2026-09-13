@@ -712,3 +712,33 @@ concurrently on the frozen head** — byte 214 ⇒ R1 = OPUS, R2 = FABLE;
 briefs stored with digests on `blend/b2-block` before either ran; the
 re-scope and the deviations stated in both briefs as hypotheses. The
 unit's log entry waits for the dual.
+
+**Unit 11's dual concluded (2026-09-13, ~06:50 UTC):** R1 (OPUS)
+MERGEABLE-AFTER-FIXES 2/6/3, rubric 3/3/2; R2 (FABLE)
+MERGEABLE-AFTER-FIXES 1/3/5, rubric 4/3/3. Both concurrent on the
+frozen head with private targets, neither interrupted, zero
+cross-lane reads disclosed. **The headline is BILATERAL and it falls
+on the orchestrator's own spec sentence**: the reason given for the
+least-deficit pick — "the least radius reduction that would make it
+fit" — is false by execution at every one of 3185 grid-A entries
+(both arms measured the same census: 469 not a request, 2111 still
+refusing with the deficit too small, 605 building with overshoot, 0
+tight); the reported deficit meters the SETBACK, not the radius. The
+pick itself survives both instruments (0 mismatches; componentwise
+dominance in every two-candidate entry, so a tie is unreachable). R1's
+second MAJOR — the door's `.lo()` reads are a DL5(b) selection whose
+selected quantity is not locally constant, with the bounds-census
+roster and the module doc stale — is the same finding R2 carried as a
+NOTE (the roster disposition stale), so it is bilateral at differing
+severity: NO tally candidate. Unique R1, and the sharpest structural
+finding: `fillet_select::nearest_candidate` is the crate's ratified
+single home for this pick and agrees with the unit's at 232/232 — the
+unit closing an attribution defect minted a second spelling of the
+concept it unifies. Converged MINORs: the two-slot payload sized by a
+comment; the candidate tie clause unpinnable; the recourse row pinning
+the exception; the line×arc grid unreproducible; the fixtures copied a
+third time; the escalation clause false as written. Fix pass
+dispatched on the union (`/home/user/blend-briefs/fix-11-brief.md`):
+the reason corrected at every site, the pick routed through
+`nearest_candidate`, the roster and docs made true, a residue filed
+for the recourse's metering; both probe branches adopted; delta by R1.
