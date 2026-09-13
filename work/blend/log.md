@@ -932,3 +932,15 @@ the class (reported for EVAL's ground). **Ordinal 2905 claimed
 dispatched concurrently on the frozen head** — byte 84 ⇒ R1 = OPUS,
 R2 = FABLE; briefs stored with digests on `blend/b2-block` before
 either ran. The unit's log entry waits for the dual.
+
+**Block B3 opened (2026-09-13, ~10:50 UTC):** unit 12 (spec on main,
+PR #2506) plus two residues promoted to units — 14, the blend's contact
+edge through the must-carry rule (BLEND-9's fourth site), and 15, one
+gap sentence and a roster row per crate for the recourse dispatch
+(follows 12, which retires the third table) — specs on PR #2507; the
+exit shape counts them. Pre-draw fields and the draw recorded
+branch-side on `blend/b3-block` (byte 124 ⇒ fable at slot 1: 12 OPUS,
+14 FABLE, 15 OPUS). The S-BOOL seam for unit 12 announced in
+`work/bool/log.md` before dispatch; unit 14 dispatches when its spec
+is on main; unit 15 when unit 12 merges. Block B2's last slot (unit 8)
+is in its dual beside them.
