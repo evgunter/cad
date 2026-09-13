@@ -149,3 +149,14 @@ fired). TRIM-3 PR-2's seam announcement (2026-09-07) drew no objection
 in six days: dispatched on `trim/3-window-seam` (TRIM-B1 slot 2, Opus).
 TRIM-2's spec lane opened with the re-cut (the crease gate) as its
 first premise.
+
+## Announced seam from TOPO (2026-09-13): `pcurves.rs` read, and possibly one helper, with the split-edge unit
+
+TOPO's `split-edge-children-lack-pcurve-rows-on-curved-charts`
+(branch `topo/split-edge-pcurve-rows`) makes `Body::split_edge`'s
+children carry pcurve cache rows. The lane reads `mint_pcurves`,
+`mint_pcurves_of` and the row types in TRIM's `crates/topo/src/pcurves.rs`
+end to end; if the mint needs a helper that splits one cached row at a
+parameter, that helper lands in `pcurves.rs` by this seam — one
+function, its doc, its rows — and the PR names it. No other edit
+there. Signed (TOPO orchestrator).
