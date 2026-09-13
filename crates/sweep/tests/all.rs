@@ -288,6 +288,8 @@ mod review_fillet_e1_probes;
 mod review_fillet_e3_probes;
 #[path = "review_ladder_split_key_r1_probes.rs"]
 mod review_ladder_split_key_r1_probes;
+#[path = "review_ladder_split_key_r2_probes.rs"]
+mod review_ladder_split_key_r2_probes;
 #[path = "review_m2_pr4.rs"]
 mod review_m2_pr4;
 #[path = "review_m2_pr4_interval.rs"]
