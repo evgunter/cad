@@ -2,8 +2,10 @@
 id: tier3-accepts-a-ring-outside-its-outer-loop
 kind: issue
 title: tier 3 accepts a face whose ring lies OUTSIDE its outer loop (check 9 tests contact, not nesting): a shell_open glue with the host/guest roles inverted validates with the correct volume
-status: open
+status: review
 opened: 2026-09-08
+pr: 2529
+branch: topo/tier3-ring-nesting
 ---
 
 
