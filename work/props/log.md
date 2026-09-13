@@ -1067,3 +1067,14 @@ and a ρ-sweep, then to Ev. Ordinal 2405, byte 34 ⇒ R1 opus /
 R2 fable. Briefs for both duals stored on `props/b2-block`; four
 review lanes run at once on the box now that the two implementer
 build trees (27 GB) are freed.
+
+**Seam announced by BLEND (2026-09-13, at unit 9's dispatch):** BLEND
+unit 9 (`docs/BLEND-9-SPEC.md`, item
+`work/blend/smooth-arm-siblings-disagree-on-the-in-band-case.md`) adds
+ONE wrapper beside `geom_brep::tangent_second_order` in
+`crates/geom-brep/src/dihedral.rs` — the must-carry rule over an edge
+(lane gate, the certification schedule's interior stations, a typed
+three-way answer) — and restates `folded_lever_arm`'s doc count of
+issue 1439's remaining siblings. Nothing else in the file changes;
+`classify_dihedral`, `tangent_certificate_lane`'s admitted set and the
+predicate name are untouched. Branch `blend/9-must-carry-one-home`.
