@@ -1823,6 +1823,16 @@ unit's record is its row in `MODEL-AB-LOG.md`, its MERGED entry in
 `work/blend/log.md`, and the `## Closed` sections of its two items.
 
 - `BLEND-6-SPEC.md` — BLEND-6, the ring-clearance circle arm gets its relation (#2215)
+## Per-merge deletion — BLEND-7's spec (2026-09-13)
+
+Recoverable at `git show 3dd896cb8220f063d152101836b7cd9e1eb67e86:docs/BLEND-7-SPEC.md`
+(the fix-pass head; the spec's 'concave bore twin' is convex and its
+centroid sentence names the wrong corner — both corrected in the PR
+body, not in the spec). The unit's record is its row in
+`MODEL-AB-LOG.md`, its MERGED entry in `work/blend/log.md`, and the
+`## Landed` section of its item.
+
+- `BLEND-7-SPEC.md` — BLEND-7, a closed chain's junctions judged against the links that touch them (#2483)
 
 ## Sweep 12 — 2026-09-12: CITE leaves the tracker
 

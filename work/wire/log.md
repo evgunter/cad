@@ -1875,3 +1875,28 @@ held back, so the incentive runs against the conclusion. **This is the
 strongest form of evidence this program produced today**: not a
 finding read off a diff, but a mitigation tried, measured, and reported
 failed by the party it cost.
+
+## 2026-09-12 — `Frame::linear<T>` deleted; half the class disposed
+
+`crates/editor-core/src/placement.rs`'s `pub fn linear<T: Real>` is
+gone, with its one caller — the `linear::<f64>()` cross-check inside
+`affine_at_f64_carries_the_stored_bits`. The test stays: its subject is
+`Frame::affine`, and only the limb reading the deleted door was cut. The
+`# Exactness` section named both doors as the read-back pair and now
+names `affine` alone.
+
+**The row does not close.** It is a class with two instances; this
+disposes of one. `profile`'s two `map_scalar` rungs are the other, they
+sit outside WIRE's fence, and their argument is the `scalar_lift.rs`
+convention's rather than this one's.
+
+**The delete exports a finding**, exactly as the row's own
+counterargument predicted: `Mat3::map` had one consumer workspace-wide,
+this door's body, and now has none. Filed as evidence on
+`work/props/the-scalar-lift-convention-mints-doors-faster-than-consumers.md`
+— PROPS's ground, PROPS's call, and `Mat3::map` was left in place.
+
+No assertion was added. A deletion's guard is the compiler plus the two
+façade censuses; a test asserting an absent function is absent is
+documentation, and §2 of the implementer discipline says to delete it
+rather than write it.
