@@ -1839,6 +1839,15 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "a positional `{:?}` over an expression this census does not type",
     ),
     (
+        "crates/geom-core/src/predicate.rs",
+        "MissingRecourse",
+        POSITIONAL,
+        1,
+        "a positional `{:?}` over the `Option<&str>` this newtype wraps: the gap\
+         sentence renders the predicate as the OPTION it is, so an escalation\
+         carrying no name at all reads as absent rather than as a name",
+    ),
+    (
         "crates/profile/src/path/program.rs",
         "ReplayError",
         "verb",
@@ -1853,14 +1862,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         1,
         "the binding is a closure parameter — `errors.iter().map(|e| ..)` — not a\
          match binding, and this census types patterns and fields",
-    ),
-    (
-        "crates/sweep/src/blend/mod.rs",
-        "BlendError",
-        "other",
-        1,
-        "a catch-all arm binds the name, and a pattern naming no variant path\
-         declares no field type to read it at",
     ),
     (
         "crates/topo/src/boolean/mod.rs",

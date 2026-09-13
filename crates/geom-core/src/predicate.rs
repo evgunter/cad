@@ -698,6 +698,35 @@ pub struct Indeterminate {
 pub const COINCIDENCE_RECOURSE: &str =
     "declare the coincidence, move the geometry, or lower the tolerance";
 
+/// The one answer a refusal gives when the table that routes its
+/// recourse by predicate name does not carry the name that escalated:
+/// it NAMES the hole. Never a category asserted over the unknown name,
+/// never silence — both read as a statement about the escalation, and
+/// neither is one anybody made.
+///
+/// Every `Display` that routes a recourse by predicate name composes
+/// this on its fall-through arm. The home is here because the crates
+/// that route are `profile` and `sweep`, and this crate is the only
+/// ancestor they share: `sweep` depends on `profile`, `profile` on
+/// `geom-core` alone, so a sentence held in either of them is out of
+/// reach of the other.
+///
+/// The predicate is rendered as the `Option` the payload carries, so an
+/// escalation with no name at all says so rather than reading as a name.
+#[derive(Debug, Clone, Copy)]
+pub struct MissingRecourse<'a>(pub Option<&'a str>);
+
+impl fmt::Display for MissingRecourse<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "no recourse is recorded for predicate {:?}; this is a gap in the \
+             error table, not advice to act on",
+            self.0
+        )
+    }
+}
+
 /// Borrowed margin-payload view of an [`Indeterminate`]: the predicate
 /// name, the margin/enclosure data, and the band — WITHOUT the shared
 /// recourse tail. For per-site Display impls that compose the
