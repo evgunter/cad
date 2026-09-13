@@ -624,15 +624,24 @@ demo-only and test-only units record no A/B row.
 - `gathers_on_this_thread` compiles without debug assertions — landed
   (PR 2328).
 
-**Block PERF-B4** (Ev, 2026-09-13: "that block sounds good!"):
+**Block PERF-B4** (Ev, 2026-09-13: "that block sounds good!"; all
+three landed 2026-09-13, record in `docs/MODEL-AB-LOG.md`):
 
-- PERF-10 — the pick index serves a patch whole under the patch key
-  (`docs/PERF-10-SPEC.md`).
-- PERF-11 — `classify_shells_of` as idiom 1; `refine_to_target`
-  measured, then mapped or given a carried setup (`docs/PERF-11-SPEC.md`).
-- PERF-12 — the at-rest census's all-pairs sweeps behind the BVH
-  pre-filter under the conservative-superset contract
-  (`docs/PERF-12-SPEC.md`).
+- PERF-10 — the pick index serves a patch whole under the patch key —
+  landed (PR 2484): `PickMemo`'s level-2 entry is a `PickTable`
+  behind an `Arc`, keyed by `mesh::StoredPatchId`; the tour die's
+  memo-primed index 25 → 14 ms (`docs/PERF-10-SPEC.md`).
+- PERF-11 — `refine_to_target`'s continuation as idiom 1 (one slot per
+  face, bounded to the slots before the first outstanding refusal) —
+  landed (PR 2486); `classify_shells_of` was mapped, measured and
+  ruled back to serial (every shell the census meets is below the
+  map's break-even); the round spout's continuation 16.2 → 4.1 s and
+  the tour 24.9 → 12.5 s at four threads (`docs/PERF-11-SPEC.md`).
+- PERF-12 — the at-rest census's five sweeps and the cross-solid
+  backstop behind the BVH pre-filter under the conservative-superset
+  contract, with the carrier-stage carve-out (§2.1) — landed
+  (PR 2490): the heat sink's gate at 160 fins 1.3 s → 9 ms, `assemble`
+  at 640 fins 20.8 s → 196 ms (`docs/PERF-12-SPEC.md`).
 
 **Block PERF-B3** (Ev, 2026-09-12: "your plan for the next block sounds
 good"; sequencing left to the orchestrator):
