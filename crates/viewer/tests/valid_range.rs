@@ -94,6 +94,42 @@ fn a_one_sided_limit_brackets_one_side_and_reaches_on_the_other() {
     assert!(words.contains("valid from"), "{words}");
 }
 
+/// **The sentence says the bound, not a rounding of it** — both ways.
+///
+/// `wording` used to render every number at a fixed `{:.4}`, which
+/// overclaimed at both ends of the same line: a floor at 40 nm written
+/// in millimetres read `valid from 0.0000 mm`, promising a range down
+/// to zero that the edge beside it argues against, and a reach the
+/// probe doubled to read `1024.0000`, four figures nothing established.
+/// The reading is built here rather than searched for because the claim
+/// is about the WORDING and a search that happened to land elsewhere
+/// would make the row vacuous.
+#[test]
+fn a_bound_too_fine_for_four_decimals_is_still_said() {
+    let reading = Bounds {
+        origin: 1.0e-6,
+        low: Bound::Edge {
+            valid: 4.0e-8,
+            invalid: 3.0e-8,
+        },
+        high: Bound::Open { probed: 1.024 },
+        samples: 12,
+    };
+    let words = reading.wording(props::rendering_unit(Dimension::Length, Some(MM.def())));
+    assert!(
+        words.contains("valid from 0.00004 mm"),
+        "the floor is 40 nm and the sentence has to say so: {words}"
+    );
+    assert!(
+        words.contains("up to 1024 mm"),
+        "and the reach is a doubling, not a four-decimal measurement: {words}"
+    );
+    assert!(
+        !words.contains("0.0000 "),
+        "a bound that reads as zero is the defect this row exists for: {words}"
+    );
+}
+
 /// **The value the field has now is valid by construction**, so a
 /// direction with no room at all still answers — with a bracket that
 /// starts at the origin rather than with a panic or an empty range.

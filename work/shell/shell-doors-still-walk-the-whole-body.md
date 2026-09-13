@@ -2,8 +2,9 @@
 id: shell-doors-still-walk-the-whole-body
 kind: issue
 title: the simultaneous offset doors still walk the whole body around a scoped solve
-status: open
+status: closed
 opened: 2026-09-08
+closed: 2026-09-08
 ---
 
 
@@ -50,3 +51,15 @@ it names (or is built once and shared, as `shell_open` now does with
 `Scope::re_scope`). The evidence a change here owes is the same
 differential the unit took — the dump corpora at the merge base and the
 head, diffed line by line.
+
+**Closed by SHELL-10** (`docs/SHELL-10-SPEC.md`). (1) and (2) are
+narrowed: `Scope::of_solids` walks the named solids' shells alone and
+`scope_of_moves` reads each moved face's solid off its shell
+back-pointer, so a move set about one solid neither walks nor refuses
+for another; the doors close with `pcurves::mint_pcurves_of` over the
+scope's faces. (3) is NOT, and the spec's §3 STOP is why — tier 1's
+passes are arena-global by construction and `validate.rs` offers no
+per-shell entry. It carries on as its own item,
+`doors-still-read-the-whole-body-for-tier1`, which also names the
+larger read found while pinning this one: the asserting setters'
+per-write whole-body tier-1 postcondition.

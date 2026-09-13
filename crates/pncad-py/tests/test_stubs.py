@@ -250,6 +250,40 @@ def stub_class_operators(node):
     }
 
 
+def stub_class_dunders(node):
+    """EVERY dunder a stub class declares, whatever `object` provides.
+
+    [`stub_class_operators`] is this walk narrowed to the names
+    `object` does not carry, because that row's question is answered
+    with `hasattr`. The row below asks a question `hasattr` cannot
+    answer and the compiled class's own `__dict__` can, so it needs
+    the unnarrowed set.
+    """
+    return {
+        stmt.name
+        for stmt in node.body
+        if isinstance(stmt, ast.FunctionDef) and stmt.name.startswith("_")
+    }
+
+
+def stub_enum_member_names(node):
+    """The `Final[<this class>]` constants a stub class declares.
+
+    That annotation is the stub's one spelling for a FIELDLESS MIRROR's
+    members — a Rust enum whose Python class is its variants and
+    nothing else. Read here rather than assumed from a name list, so a
+    mirror that grows a variant or a value class that grows a
+    self-typed constant moves the classification with it.
+    """
+    return {
+        stmt.target.id
+        for stmt in node.body
+        if isinstance(stmt, ast.AnnAssign)
+        and isinstance(stmt.target, ast.Name)
+        and ast.unparse(stmt.annotation) == f"Final[{node.name}]"
+    }
+
+
 def module_class_names(cls):
     """The public names a compiled class carries IN ITS OWN `__dict__`.
 
@@ -274,6 +308,19 @@ def module_class_names(cls):
     (`__doc__`, `__module__`, `__new__`, `__repr__`, `__weakref__`,
     and the whole comparison family minted from one `__richcmp__`),
     which a stub does not and should not restate.
+
+    **The filter stays, and ONE name is checked around it rather than
+    through it.** Restating the exception protocol and PyO3's slots in
+    130 class bodies documents nothing, so widening this reader is the
+    wrong repair — but `__eq__` is not machinery. A name in the own
+    dict is a decision this binding made, and it is the ONE comparison
+    dunder whose presence there is evidence: `__lt__` sits in the dict
+    of a class whose `<` raises `TypeError` and `__hash__` sits there
+    as `None` on a class that is unhashable, both minted alongside,
+    while `__eq__` compares by value whenever it is present. So it
+    gets its own row —
+    [`TestStubClassDrift.test_a_class_that_compares_by_value_declares_it`]
+    — and this set keeps answering the question it was written for.
     """
     return {name for name in vars(cls) if not name.startswith("_")}
 
@@ -393,6 +440,83 @@ class TestStubClassDrift(unittest.TestCase):
             [],
             "the stub declares an operator the compiled class does not "
             "implement",
+        )
+
+    def test_a_class_that_compares_by_value_declares_it(self):
+        """The claim: a class whose OWN `__dict__` carries `__eq__`
+        declares `__eq__` in the stub.
+
+        THE DIRECTION `hasattr` CANNOT REACH.
+        `test_declared_operators_exist_on_the_compiled_class` filters
+        `__eq__` out and says why — `hasattr(cls, "__eq__")` is True
+        for every class ever written, so a check over it reports
+        success having asked nothing. The own dict answers what
+        `hasattr` cannot: `object` puts nothing in a subclass's dict,
+        so a name there is a decision this binding made. It is the one
+        comparison dunder where presence is evidence, for the reason
+        `module_class_names` states.
+
+        SO THE STUB CAN SAY THE WRONG THING AND NOTHING NOTICES: a
+        class that compares by VALUE, declared without `__eq__`, reads
+        as comparing by identity, and a caller writes the
+        list-of-comparisons workaround for a comparison that works.
+        That is the failure this row exists to make loud, and it
+        reaches all three routes a class in this crate gets `__eq__`
+        by — a `fn __eq__`, a `fn __richcmp__`, and `#[pyclass(eq)]`
+        — because it reads the compiled class rather than the Rust.
+
+        THE FIELDLESS MIRRORS ARE OUT, AND THE EXEMPTION IS CHECKED
+        RATHER THAN CLAIMED. A mirror's stub body is its variants as
+        `Final[<the class>]` constants and nothing else of that kind,
+        and the stub declares no dunder on any of them — the
+        convention, not drift. It is honest only because the members
+        are SINGLETONS: `is` and `==` answer the same question, so a
+        reader who takes the dunder-free stub for identity comparison
+        is not misled. That is a fact about the compiled module and it
+        is asserted below, per member, so the day a mirror stops
+        interning its variants this exemption fails instead of
+        covering for it.
+        """
+        undeclared, aliased, compared, exempt = [], [], 0, 0
+        for name, node in sorted(stub_classes().items()):
+            cls = getattr(pncad, name, None)
+            if not isinstance(cls, type) or "__eq__" not in vars(cls):
+                continue
+            compared += 1
+            members = stub_enum_member_names(node)
+            if members:
+                exempt += len(members)
+                aliased += [
+                    f"{name}.{member}"
+                    for member in sorted(members)
+                    if getattr(cls, member) is not getattr(cls, member)
+                ]
+                continue
+            if "__eq__" not in stub_class_dunders(node):
+                undeclared.append(name)
+        # TWO EMPTY LISTS ARE A PASS, so the reach is pinned as well:
+        # a walk that found no comparing class, or no mirror member to
+        # check the exemption on, would report success having asked
+        # nothing. Floors with room for churn — a rise needs no
+        # permission, a DROP through one is the signal.
+        self.assertGreater(
+            compared, 40, "the scan found almost no class carrying its own `__eq__`"
+        )
+        self.assertGreater(
+            exempt, 80, "the mirror exemption is checked on almost no member"
+        )
+        self.assertEqual(
+            aliased,
+            [],
+            "a fieldless mirror's member is not interned, so `is` and "
+            "`==` no longer answer alike and the stub's silence about "
+            "`__eq__` on that class has stopped being harmless",
+        )
+        self.assertEqual(
+            undeclared,
+            [],
+            "the compiled class compares by value and the stub does not "
+            "declare `__eq__`, so it reads as comparing by identity",
         )
 
     def test_the_class_walk_is_not_vacuous(self):

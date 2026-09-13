@@ -273,11 +273,12 @@ fn row3_doubly_wrapped_names_are_distinct_and_resolve_to_their_own_copy() {
                 kind: vertex.kind,
                 node: *outer,
                 path: vec![RoleSeg::InPart {
-                    of: Box::new(StableName {
+                    of: StableName {
                         kind: inner.kind,
                         node: *inner_node,
                         path: inner.path.clone(),
-                    }),
+                    }
+                    .into(),
                 }],
             };
             let p = editor_core::vertex_position(&ev, *outer, &name).expect("resolves");

@@ -35,6 +35,9 @@ topo = { path = "../../crates/topo" }
 [dev-dependencies]
 mesh = { path = "../../crates/mesh", features = ["budget"] }
 geom-core = { path = "../../crates/geom-core" }
-profile = { path = "../../crates/profile" }
+# `test-support` ON for the `profile::RawLoop` fixture door (that
+# trait's docs carry the argument); dev-only, so no shipped build of
+# this crate reaches it.
+profile = { path = "../../crates/profile", features = ["test-support"] }
 sweep = { path = "../../crates/sweep" }
 test-utils = { path = "../../crates/test-utils" }

@@ -112,14 +112,27 @@ fn per_node(ev: &Evaluation<f64>) -> BTreeMap<RecipeNodeId, usize> {
 }
 
 /// The decisions the part's profile pre-pass makes on the one-solid
-/// part: its plane's two axes, the program's four junctions, and the
-/// f64 validation of the assembled profile.
-const PRE_PASS: usize = 75;
+/// part: the program's four junctions and the f64 validation of the
+/// assembled profile. The plane's two axes are NOT among them — the
+/// frame node decides its own placement, at both scalars, and the
+/// precompute READS it (`NodeValue::placement`).
+const PRE_PASS: usize = 73;
 /// The one-solid part's log sizes by node: frame, profile, extrude.
 /// Under the pinned lift (the default) the Profile node's op reuses
 /// the pre-pass's validated form and decides nothing, so its log is
 /// the pre-pass's.
-const FRAME_LOG: usize = 2;
+///
+/// The FRAME's four are its axes decided twice, at the two scalars its
+/// two readers need: the lane read its value carries, and the `f64`
+/// placement every profile drawn on it reads. Twice per FRAME, not
+/// once per profile — a second profile on this frame would add none,
+/// and a frame with NO profile on it still decides all four, because
+/// the placement is a component of the frame's own value and not a
+/// service to whoever happens to consume it. The lone-frame half of
+/// that is guarded by [`a_lone_frame_decides_its_placement_with_no_one_to_read_it`],
+/// because this document has a profile and so cannot separate it from
+/// a mint that looked ahead for one.
+const FRAME_LOG: usize = 4;
 const PROFILE_LOG: usize = PRE_PASS;
 const EXTRUDE_LOG: usize = 653;
 
@@ -305,6 +318,30 @@ fn every_decision_the_part_makes_lands_on_one_of_its_nodes_brackets() {
     );
 }
 
+/// **A frame with no profile on it still decides its placement.**
+///
+/// The count `FRAME_LOG` carries is `2 + 2` — the lane read its value
+/// lands and the `f64` placement it carries — and it is four whether
+/// or not anything ever reads the second. That is a claim about a
+/// design choice and not about arithmetic: a mint that looked ahead
+/// for a consumer would give this document 2 and the one-profile part
+/// 4, agreeing with `FRAME_LOG` there and disagreeing here. So the
+/// separating document is a frame ALONE.
+#[test]
+fn a_lone_frame_decides_its_placement_with_no_one_to_read_it() {
+    let doc = ProfileDoc::empty(DocumentId::derive("kstats-lone-frame"), Tol::witness());
+    let (doc, lone) = insert(
+        doc,
+        frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    let ev = run(&doc, &EvalOptions::default());
+    assert_eq!(
+        per_node(&ev),
+        BTreeMap::from([(lone, FRAME_LOG)]),
+        "the frame is the whole document and it decides its axes at both scalars"
+    );
+}
+
 /// **The assembly decides nothing outside its instances' brackets**:
 /// the part's decisions are shielded on the cache's miss path, and
 /// each instance's log is its own op's.
@@ -324,9 +361,10 @@ fn the_assembly_decides_nothing_outside_its_instances_brackets() {
 /// The one-solid part's Profile log at `T` under the pinned lift,
 /// checked for the precompute's shape and returned for the rows below
 /// to compare across scalars. One frame, in the order made: the
-/// plane's two axis decisions first, then the program's replay, then
-/// the f64 validation — and nothing after it, because the op lifts the
-/// precompute's validated form instead of validating again. The
+/// program's replay first — the plane is READ off the frame node's
+/// value and decides nothing here — then the f64 validation, and
+/// nothing after it, because the op lifts the precompute's validated
+/// form instead of validating again. The
 /// histogram moves legitimately only when `profile::validate`'s probes
 /// change (a predicate added, a probe count per segment pair changed)
 /// or the fixture does.
@@ -348,17 +386,19 @@ fn pinned_profile_log<T: EvalScalar>() -> Vec<Verdict> {
     for v in log.iter() {
         *histogram.entry(v.predicate).or_default() += 1;
     }
-    assert_eq!(histogram["datum_unit_norm"], 2, "{histogram:?}");
+    assert!(
+        !histogram.contains_key("datum_unit_norm"),
+        "the plane's axes are the FRAME's decision, not the profile's: {histogram:?}"
+    );
     assert_eq!(histogram["path_junction_turn"], 4, "{histogram:?}");
     assert_eq!(histogram["chord_side"], 28, "{histogram:?}");
     assert_eq!(histogram["line_span"], 8, "{histogram:?}");
     assert_eq!(
-        log[0].predicate, "datum_unit_norm",
-        "the plane's axes decide first"
+        log[0].predicate, "path_junction_turn",
+        "the replay decides first"
     );
-    assert_eq!(log[2].predicate, "path_junction_turn", "then the replay");
     assert_eq!(
-        log[6].predicate, "vertex_separation",
+        log[4].predicate, "vertex_separation",
         "then the f64 validation"
     );
     log.to_vec()

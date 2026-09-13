@@ -1,28 +1,24 @@
 //! **FILLET-H6 review probes (lane r2)** — the cap-rim `Smooth` arm's
-//! unreachability argument, read as an inequality rather than as prose.
+//! reachability, read as an inequality rather than as prose.
 //!
-//! The argument written at `extrude::upgrade_rim`'s `Smooth` arm is:
-//! the direction gates admit an in-plane component of at most ε
+//! The direction gates admit an in-plane component of at most ε
 //! against a normal component of at least `K·ε`, so an admitted
 //! extrusion vector `w` parts from the sketch normal `n` by at most
-//! `1/K`, and the cap–wall wedge is therefore definite wherever the
-//! lever arm is.
+//! `1/K`. Two consequences are quantitative, and neither is asserted
+//! by the unit's own suite:
 //!
-//! Two things in that sentence are quantitative, and neither is
-//! asserted by the unit's own suite:
-//!
-//! 1. The conclusion is **K-dependent**, and the arm's written bound
-//!    `sin θ ≥ √(1 − 1/K²)` excludes the `Smooth` outcome only for
-//!    `K > √2`. `Tol` accepts any `K > 1` (`CAD_AMBIGUITY_K`,
-//!    `geom-core/src/tolerance.rs:460` — the predicate is `v > 1.0`),
-//!    and no CI row varies it. Below the crossover the arm is
-//!    reachable on inputs both direction gates admit.
-//! 2. "The wedge margin `sin θ · arm` is definite wherever the arm is"
-//!    is false as written at every K: the arm gate asks `arm ≥ K·ε`
-//!    and the wedge gate asks `sin θ · arm ≥ K·ε`, so any `sin θ < 1`
-//!    at the smallest admitted arm lands in-band — a typed `SliverRim`
-//!    rather than a wrong description, but a third outcome the
-//!    sentence does not admit.
+//! 1. Whether the cap–wall wedge is definite is **K-dependent**, and
+//!    the loose bound `sin θ ≥ √(1 − 1/K²)` excludes the `Smooth`
+//!    outcome only for `K > √2` where the tight one excludes it above
+//!    `K ≈ 1.272`. `Tol` accepts any `K > 1` (`CAD_AMBIGUITY_K` — the
+//!    predicate is `v > 1.0`), and no CI row varies it. Below the
+//!    crossover the `Smooth` arm is reachable on inputs both direction
+//!    gates admit.
+//! 2. The wedge is NOT definite wherever the lever arm is, at any K:
+//!    the arm gate asks `arm ≥ K·ε` and the wedge gate asks
+//!    `sin θ · arm ≥ K·ε`, so any `sin θ < 1` at the smallest admitted
+//!    arm lands in-band — a typed `SliverRim`, the third outcome
+//!    between the upgrade and the conventional description.
 //!
 //! Both rows are stated symbolically in `K` and ε so they read the
 //! run's tolerance rather than a fixture's metres.
@@ -83,13 +79,12 @@ fn worst_rim_verdict(eps: f64, k: f64, arm: f64) -> Result<DihedralClass, String
         .map_err(|e| format!("{e:?}"))
 }
 
-/// **The written bound is loose, and it closes only above `K = √2`.**
+/// **The loose bound closes only above `K = √2`.**
 ///
 /// `Smooth` needs `sin θ · arm ≤ ε` while the arm gate has already
-/// demanded `arm ≥ K·ε`, so `Smooth` needs `sin θ ≤ 1/K`. The arm's
+/// demanded `arm ≥ K·ε`, so `Smooth` needs `sin θ ≤ 1/K`. The loose
 /// bound `√(1 − 1/K²)` therefore rules `Smooth` out exactly when
-/// `√(1 − 1/K²) > 1/K`, i.e. `K > √2` — not "regardless of ε", which
-/// is the only free variable the sentence disclaims.
+/// `√(1 − 1/K²) > 1/K`, i.e. `K > √2` — a condition on K, not on ε.
 ///
 /// The true bound for the worst admitted `w` is `K/√(K² + 1)` (the
 /// wall normal is `chord × w`, so `cos∠(n, m) = ε/|w|`), which is
@@ -105,17 +100,17 @@ fn the_arms_bound_rules_out_smooth_only_above_k_sqrt2() {
     for k in [1.05_f64, 1.2, 1.4, 1.5, 2.0, 10.0] {
         assert!(
             written(k) <= true_bound(k),
-            "the written bound must be a valid (if loose) lower bound at K = {k}",
+            "the loose bound must be a valid lower bound at K = {k}",
         );
         assert_eq!(
             written(k) > smooth_ceiling(k),
             k > core::f64::consts::SQRT_2,
-            "the written bound closes the Smooth arm iff K > sqrt(2) (K = {k})",
+            "the loose bound closes the Smooth arm iff K > sqrt(2) (K = {k})",
         );
     }
     // The tight bound's crossover: K^4 = K^2 + 1.
     let k_star = ((1.0 + 5.0_f64.sqrt()) / 2.0).sqrt();
-    assert!((1.2..1.3).contains(&k_star), "K* = {k_star}");
+    assert!((1.2..1.3).contains(&k_star), "the crossover is {k_star}");
     assert!(true_bound(k_star) - smooth_ceiling(k_star) < 1e-12);
 }
 
@@ -143,17 +138,16 @@ fn the_cap_rim_smooth_arm_is_reachable_at_small_k() {
     assert_eq!(
         worst_rim_verdict(eps, 1.2, 1.2 * eps),
         Ok(DihedralClass::Smooth),
-        "the arm the PR argues unreachable is reached at K = 1.2",
+        "the arm is reached at K = 1.2",
     );
 }
 
-/// **"Definite wherever the arm is" is false at every K.** With the
-/// arm at its smallest admitted value `K·ε`, the wedge margin is
+/// **The wedge is not definite wherever the arm is, at any K.** With
+/// the arm at its smallest admitted value `K·ε`, the wedge margin is
 /// `sin θ · K·ε`, which clears the escalation threshold `K·ε` only for
 /// `sin θ ≥ 1`. Any admitted obliquity at all therefore escalates —
-/// typed (`SliverRim`), so the arm's conclusion about `Smooth`
-/// survives, but its stated dichotomy ("definite, or the collapsed arm
-/// below") does not.
+/// typed (`SliverRim`), which is a third rim outcome beside the
+/// transverse upgrade and the conventional description.
 #[test]
 fn the_smallest_admitted_arm_escalates_under_any_admitted_obliquity() {
     let eps = Tol::witness().eps();

@@ -105,6 +105,26 @@ impl<T: Real> Vec2<T> {
         self.norm_squared().sqrt()
     }
 
+    /// The **witness** [`is_underflowed_length`](crate::is_underflowed_length)
+    /// asks its question against: the largest `|component|`.
+    ///
+    /// That predicate's contract is that `witness` is the largest
+    /// absolute component of the very vector whose norm it is handed,
+    /// and **nothing in its signature enforces the pairing** — so the
+    /// derivation is spelled here, once, rather than at each door. The
+    /// norm brackets this value, `max|cᵢ| ≤ |v| ≤ √2·max|cᵢ|`, whenever
+    /// the norm is computed rather than flushed to zero; that bracket is
+    /// what makes the predicate's two ratios a decision rather than a
+    /// threshold.
+    ///
+    /// **This is not a length.** It is the ∞-norm, offered only as that
+    /// question's witness; a door that wants a length wants
+    /// [`norm`](Self::norm). The two are written on adjacent lines at
+    /// every call site for that reason.
+    pub fn norm_witness(self) -> T {
+        self.x.abs().max(self.y.abs())
+    }
+
     /// The unit vector in this direction, exactly `self / self.norm()`
     /// (one division per component).
     ///
@@ -117,6 +137,21 @@ impl<T: Real> Vec2<T> {
     /// `norm_squared` to 0 and blow the result up to ±∞ (not NaN). Both
     /// ends are far outside the session box (D4 ¶4), same posture as
     /// `powi`'s extreme-exponent note.
+    ///
+    /// **The overflow end is a silent wrong answer to a door that
+    /// decides the length's SIGN first**: an ∞ length is maximally
+    /// definite to [`Decide`](crate::Decide), so the door reports
+    /// success and hands back the zero vector. The question that has
+    /// to come first is [`is_finite_length`](crate::is_finite_length),
+    /// which is the predicate a caller normalizing a decided length
+    /// owes its length.
+    ///
+    /// **The underflow end is a false CAUSE to that same door**: the
+    /// norm is exactly zero, so the door decides `Zero` and refuses —
+    /// correctly, but naming a zero length for a vector that has a
+    /// direction and needs the overflow end's recourse. The question
+    /// that separates the two is
+    /// [`is_underflowed_length`](crate::is_underflowed_length).
     pub fn normalize(self) -> Self {
         self / self.norm()
     }
@@ -223,6 +258,26 @@ impl<T: Real> Vec3<T> {
         self.norm_squared().sqrt()
     }
 
+    /// The **witness** [`is_underflowed_length`](crate::is_underflowed_length)
+    /// asks its question against: the largest `|component|`.
+    ///
+    /// That predicate's contract is that `witness` is the largest
+    /// absolute component of the very vector whose norm it is handed,
+    /// and **nothing in its signature enforces the pairing** — so the
+    /// derivation is spelled here, once, rather than at each door. The
+    /// norm brackets this value, `max|cᵢ| ≤ |v| ≤ √3·max|cᵢ|`, whenever
+    /// the norm is computed rather than flushed to zero; that bracket is
+    /// what makes the predicate's two ratios a decision rather than a
+    /// threshold.
+    ///
+    /// **This is not a length.** It is the ∞-norm, offered only as that
+    /// question's witness; a door that wants a length wants
+    /// [`norm`](Self::norm). The two are written on adjacent lines at
+    /// every call site for that reason.
+    pub fn norm_witness(self) -> T {
+        self.x.abs().max(self.y.abs()).max(self.z.abs())
+    }
+
     /// The unit vector in this direction, exactly `self / self.norm()`
     /// (one division per component).
     ///
@@ -233,6 +288,21 @@ impl<T: Real> Vec3<T> {
     /// below ~1e-162 underflow `norm_squared` to 0 and blow the result up
     /// to ±∞ (not NaN). Both ends are far outside the session box
     /// (D4 ¶4), same posture as `powi`'s extreme-exponent note.
+    ///
+    /// **The overflow end is a silent wrong answer to a door that
+    /// decides the length's SIGN first**: an ∞ length is maximally
+    /// definite to [`Decide`](crate::Decide), so the door reports
+    /// success and hands back the zero vector. The question that has
+    /// to come first is [`is_finite_length`](crate::is_finite_length),
+    /// which is the predicate a caller normalizing a decided length
+    /// owes its length.
+    ///
+    /// **The underflow end is a false CAUSE to that same door**: the
+    /// norm is exactly zero, so the door decides `Zero` and refuses —
+    /// correctly, but naming a zero length for a vector that has a
+    /// direction and needs the overflow end's recourse. The question
+    /// that separates the two is
+    /// [`is_underflowed_length`](crate::is_underflowed_length).
     pub fn normalize(self) -> Self {
         self / self.norm()
     }

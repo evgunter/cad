@@ -539,6 +539,46 @@ fn every_table_verb_is_replayed_by_the_corpus() {
     );
 }
 
+/// **Every verb names itself in the authoring spelling, and no two
+/// verbs name themselves the same.**
+///
+/// `Verb`'s `Display` is what a surface writing a sentence about the
+/// step a person authored renders it through
+/// (`crates/viewer/src/sketch.rs`'s preview refusal is the one in the
+/// tree), so the two ways it can silently stop being that are the two
+/// this row pins, both anchored on [`Verb::ALL`] so a verb the table
+/// gains arrives pinned:
+///
+/// - a word that is the VARIANT IDENTIFIER — what a `stringify!` in
+///   the macro, or a plain `Debug` forward, would give. The author
+///   wrote `line_to`; a refusal naming `LineTo` is naming the table's
+///   coordinate, which is [`ReplayError`]'s sentence and not this one;
+/// - a word SHARED with another verb, which a copied literal on a new
+///   row gives. Two rows rendering alike makes the refusal ambiguous
+///   about which step it is refusing, and nothing else in the tree
+///   would notice.
+#[test]
+fn every_verb_says_its_authoring_spelling_and_says_it_uniquely() {
+    let mut said: Vec<(String, Verb)> = Vec::new();
+    for verb in Verb::ALL {
+        let word = verb.to_string();
+        assert_ne!(
+            word,
+            format!("{verb:?}"),
+            "`{verb:?}` renders as its own variant identifier — the authoring \
+             spelling is the word a person wrote, and the identifier is what \
+             `ReplayError` deliberately renders instead"
+        );
+        if let Some((_, other)) = said.iter().find(|(w, _)| *w == word) {
+            panic!(
+                "`{verb:?}` and `{other:?}` both say \"{word}\" — a refusal naming \
+                 that word cannot say which step it refused"
+            );
+        }
+        said.push((word, *verb));
+    }
+}
+
 /// **Every arc mode the vocabulary declares is exercised by a
 /// record→replay round-trip.**
 ///

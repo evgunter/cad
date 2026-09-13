@@ -141,6 +141,36 @@ fn plane_equality_is_bit_exact_and_the_two_zeros_differ() {
     assert!(frame(-0.0).bit_eq(&frame(-0.0)));
 }
 
+#[test]
+fn the_partial_eq_impl_is_bit_eq_and_answers_the_same_on_the_two_zeros() {
+    // `==` delegates to `bit_eq`, so the two never disagree — the
+    // claim a bug could break is a delegation that read some other
+    // comparison, which the `-0.0` row below is exactly the case for:
+    // any tolerant or IEEE equality calls those two planes the same
+    // and `bit_eq` calls them different.
+    let frame = |x: f64| {
+        SketchPlane::from_frame(
+            Point3::new(x, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        )
+    };
+    let rows = [
+        frame(0.0),
+        frame(-0.0),
+        SketchPlane::xy(),
+        SketchPlane::yz(),
+    ];
+    for left in rows {
+        for right in rows {
+            assert_eq!(left == right, left.bit_eq(&right));
+        }
+    }
+    assert_eq!(frame(0.0), SketchPlane::xy());
+    assert_ne!(frame(0.0), frame(-0.0));
+    assert_eq!(frame(-0.0), frame(-0.0));
+}
+
 /// The twelve stored components of a placement, as bits — the
 /// comparison `bit_eq` makes, spelled out so a row can hold an
 /// `Affine3` against a `SketchPlane`. The door's bit-identity corpus

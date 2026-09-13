@@ -242,6 +242,8 @@ fn a_gesture_previews_against_scratch_state_and_commits_exactly_once() {
     let mut previews = 0usize;
     for step in 1..=4 {
         let outcome = session.perform(SessionOp::PreviewGesture {
+            node: extrude,
+            slot: SlotId::Distance,
             value: 0.008 + f64::from(step) * 0.001,
         });
         assert!(outcome.committed.is_empty(), "a preview commits nothing");
@@ -272,7 +274,10 @@ fn a_gesture_previews_against_scratch_state_and_commits_exactly_once() {
         Ok(SlotValue::Continuous(0.008))
     );
 
-    let outcome = session.perform(SessionOp::CommitGesture);
+    let outcome = session.perform(SessionOp::CommitGesture {
+        node: extrude,
+        slot: SlotId::Distance,
+    });
     assert_eq!(outcome.committed.len(), 1, "one edit for the whole drag");
     assert_eq!(session.history().len(), before + 1, "one undo step");
 
@@ -313,14 +318,17 @@ fn a_parameter_drag_previews_and_commits_exactly_once() {
     let mut last = 0.0;
     for step in 1..=5 {
         last = 0.008 + f64::from(step) * 0.002;
-        let outcome = session.perform(SessionOp::PreviewGesture { value: last });
+        let outcome = session.perform(SessionOp::PreviewParamGesture {
+            name: name.clone(),
+            value: last,
+        });
         assert!(outcome.committed.is_empty(), "a preview commits nothing");
         previews += outcome.previewed.len();
         assert_eq!(session.history().len(), before, "and mints no history");
     }
     assert_eq!(previews, 5);
 
-    let outcome = session.perform(SessionOp::CommitGesture);
+    let outcome = session.perform(SessionOp::CommitParamGesture { name: name.clone() });
     assert_eq!(outcome.committed.len(), 1, "one edit for the whole drag");
     assert!(matches!(
         outcome.committed.first(),
@@ -363,7 +371,10 @@ fn a_gesture_on_an_absent_parameter_refuses_typed() {
     assert!(matches!(outcome.refusal, Some(Refusal::NoSuchParam(_))));
     assert!(matches!(
         session
-            .perform(SessionOp::PreviewGesture { value: 1.0 })
+            .perform(SessionOp::PreviewParamGesture {
+                name: pncad::document::ParamName::new("no-such-parameter"),
+                value: 1.0
+            })
             .refusal,
         Some(Refusal::NoGesture)
     ));
@@ -388,7 +399,11 @@ fn the_affordance_outranks_the_bookkeeping_refusal_it_causes() {
             node: extrude,
             slot: SlotId::Distance,
         },
-        SessionOp::PreviewGesture { value: 0.02 },
+        SessionOp::PreviewGesture {
+            node: extrude,
+            slot: SlotId::Distance,
+            value: 0.02,
+        },
     ];
     let mut shown: Option<Refusal> = None;
     for op in batch {
@@ -593,7 +608,11 @@ fn an_abandoned_gesture_leaves_no_trace() {
         node: extrude,
         slot: SlotId::Distance,
     });
-    session.perform(SessionOp::PreviewGesture { value: 0.03 });
+    session.perform(SessionOp::PreviewGesture {
+        node: extrude,
+        slot: SlotId::Distance,
+        value: 0.03,
+    });
     session.perform(SessionOp::CancelGesture);
     assert_eq!(session.history().len(), before);
     assert_eq!(
@@ -622,7 +641,11 @@ fn a_gesture_over_a_driven_slot_is_refused_before_it_starts() {
     ));
     assert!(matches!(
         session
-            .perform(SessionOp::PreviewGesture { value: 1.0 })
+            .perform(SessionOp::PreviewGesture {
+                node: extrude,
+                slot: SlotId::Distance,
+                value: 1.0
+            })
             .refusal,
         Some(Refusal::NoGesture)
     ));

@@ -15,7 +15,7 @@ the third spelling.
 
     crates/editor-core/tests/display_contract.rs:42
         !shown.contains('{') && !shown.contains("node:") && !shown.contains("name:")
-    crates/viewer/tests/panel_edits.rs:523
+    crates/viewer/tests/panel_edits.rs:538
         !rendered.contains('{') && !rendered.contains("node:") && !rendered.contains("name:")
     crates/editor-core/tests/m4_pr4_hit.rs:358
         !shown.contains('{') && !shown.contains("node:")

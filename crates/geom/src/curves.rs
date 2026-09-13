@@ -1165,6 +1165,41 @@ mod tests {
         }
     }
 
+    /// `ders1_in_span` is `ders_in_span`'s first two components bit for
+    /// bit — the order-1 pass and the order-2 pass agree on everything
+    /// the order-2 pass does not need its third row for — on the
+    /// knotted fixture at every knot value, span boundary and span
+    /// midpoint.
+    ///
+    /// This is what licenses a consumer that binds `C″` to `_` to drop
+    /// to the order-1 door. It does NOT follow from
+    /// [`ders1_in_span_is_eval_and_deriv_bit_for_bit`]: that row pins
+    /// the order-1 door against the two single-value doors, and the
+    /// order-2 door's own doc claims only its arithmetic, not agreement
+    /// with a shorter pass.
+    #[test]
+    fn ders1_in_span_is_ders_in_spans_first_two_bit_for_bit() {
+        let c = knotted_curve();
+        let Curve3::Nurbs(n) = &c else {
+            panic!("fixture is a NURBS");
+        };
+        for t in knot_and_span_params(&c) {
+            let span = n.span_at(t);
+            let (p, d) = span.ders1_in_span(t);
+            let (q, e, _) = span.ders_in_span(t);
+            for (name, a, b) in [
+                ("x", p.x, q.x),
+                ("y", p.y, q.y),
+                ("z", p.z, q.z),
+                ("dx", d.x, e.x),
+                ("dy", d.y, e.y),
+                ("dz", d.z, e.z),
+            ] {
+                assert_eq!(a.to_bits(), b.to_bits(), "t = {t}: {name} {a} vs {b}");
+            }
+        }
+    }
+
     #[test]
     fn poison_parameter_poisons_the_point() {
         let c = xy_circle(2.0);

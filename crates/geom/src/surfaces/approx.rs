@@ -208,10 +208,15 @@ pub struct SurfaceSpec<T: Real> {
 /// lifted one dimension). [`ApproxSurface::map_scalar`] only re-reads
 /// a value that already passed that door at another scalar.
 ///
-/// **The certificate is provenance, not authority.** Tier-3 validation
+/// **The certificate is provenance, not authority**, and that holds at
+/// every scalar by one of two mechanisms. Where the derivation exists —
+/// `f64`, the only scalar the offset fit runs at — tier-3 validation
 /// re-derives it against the description on every call and never
-/// consults the stored copy; the stored copy is what the construction
-/// run measured, kept so a consumer can report it.
+/// consults the stored copy. Where it does not, tier 3 does not fall
+/// back on the carried record either: the validation lane reports that
+/// it has no re-derivation at this scalar and the face is REFUSED. So
+/// the stored copy is never the thing a claim rests on; it is what the
+/// construction run measured, kept so a consumer can report it.
 #[derive(Clone, Debug)]
 pub struct ApproxSurface<T: Real> {
     description: SurfaceDescription<T>,
@@ -306,9 +311,12 @@ impl<T: Real> ApproxSurface<T> {
     /// embedding, `Real::from_f64` or `Dual::constant` — is the same
     /// geometry, so the certifier's record still describes what it was
     /// run over. The certificate is provenance, not authority (type
-    /// docs): the validator re-derives against the description on every
-    /// call whatever scalar it reads, so a lift can neither mint a
-    /// claim nor launder one. The scalar this type can hold is
+    /// docs): at `f64` the validator re-derives against the description
+    /// on every call, and at a scalar whose validation lane has no
+    /// re-derivation it refuses the face rather than accept the carried
+    /// record — so a lift can neither mint a claim nor launder one, and
+    /// the lift is not what decides which of the two it gets. The
+    /// scalar this type can hold is
     /// therefore no longer only the fit door's `f64`: a consumer that
     /// argued "no other scalar can hold an `ApproxSurface`" now needs
     /// the refusal it already has, not the premise.

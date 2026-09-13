@@ -22,9 +22,10 @@ use geom_brep::{ConeOffset, Nappe};
 use geom_core::Tol;
 use topo::{FaceKey, ReplaceFaceError};
 
+use crate::common::approx::band;
 use crate::common::cone_nappe::{
-    H, R_NARROW, R_WIDE, T, band, chart_moves, cone_faces, corners, mirror_frustum,
-    opening_frustum, reanchor_cone, revolved, stations, surface_of,
+    H, R_NARROW, R_WIDE, T, chart_moves, cone_faces, corners, mirror_frustum, opening_frustum,
+    reanchor_cone, revolved, stations, surface_of,
 };
 
 fn cone_of(body: &topo::Body<f64>, face: FaceKey) -> Surface<f64> {

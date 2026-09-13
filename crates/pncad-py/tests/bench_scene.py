@@ -54,6 +54,7 @@ from pncad import (
     DocEdit,
     DocRef,
     EntityKind,
+    Expr,
     Frame,
     MateFrame,
     MatePrimitive,
@@ -124,15 +125,15 @@ def prism(label, width, depth, height):
     profile = doc.insert(
         Node.polygon(
             [
-                (0 * m, 0 * m),
-                (width * m, 0 * m),
-                (width * m, depth * m),
-                (0 * m, depth * m),
+                (Expr.length_in(0, m), Expr.length_in(0, m)),
+                (Expr.length_in(width, m), Expr.length_in(0, m)),
+                (Expr.length_in(width, m), Expr.length_in(depth, m)),
+                (Expr.length_in(0, m), Expr.length_in(depth, m)),
             ],
-            plane=doc.sketch_frame(elevation=0 * m),
+            plane=doc.sketch_frame(elevation=Expr.length_in(0, m)),
         )
     )
-    doc.insert(Node.extrude(profile, height * m))
+    doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
     return doc
 
 
@@ -248,8 +249,8 @@ def layout(post_ref, shelf_ref, posts=Node.pattern):
     family = doc.insert(
         posts(
             post_i,
-            PATTERN_COUNT,
-            PatternKind.linear((0.0, 1.0, 0.0), PATTERN_SPACING * m),
+            Expr.count(PATTERN_COUNT),
+            PatternKind.linear((Expr.literal(0.0), Expr.literal(1.0), Expr.literal(0.0)), Expr.length_in(PATTERN_SPACING, m)),
         )
     )
     shelf_i = doc.insert(Node.instantiate_part(shelf_ref))

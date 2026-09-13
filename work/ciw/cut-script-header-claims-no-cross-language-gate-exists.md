@@ -2,8 +2,11 @@
 id: cut-script-header-claims-no-cross-language-gate-exists
 kind: issue
 title: The cut script's header says its format is pinned by nothing; tools/tess-lint now pins it in two clauses
-status: open
+status: closed
 opened: 2026-09-08
+pr: 2324
+branch: ciw/cut-anchor
+closed: 2026-09-11
 ---
 
 

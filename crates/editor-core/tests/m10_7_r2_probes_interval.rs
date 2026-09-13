@@ -315,11 +315,13 @@ fn r2_the_ceiling_on_an_arc_bearing_bracket() {
 
 /// **The slab's ceiling, re-derived** — the PR's headline `0.488`, taken
 /// with a bisection of R2's own and to more places than the unit's row
-/// pins, plus the first refusal beyond it.
+/// pins, plus what bounds it: the over-band SET at the refusing end of
+/// the bracket (ceiling + δ), never a first refusal at a wider box
+/// (`work/m10/first-refusal-at-twice-the-ceiling-is-an-order-artefact`).
 ///
 /// EVIDENCE-ONLY.
 #[test]
-#[ignore = "evidence-only: re-derives the slab's ceiling and its first refusal"]
+#[ignore = "evidence-only: re-derives the slab's ceiling and the over-band set at ceiling + δ"]
 fn r2_re_derives_the_slab_ceiling() {
     use crate::m10_3_driver_interval::slab;
     let tol = Tol::witness();
@@ -342,21 +344,26 @@ fn r2_re_derives_the_slab_ceiling() {
             }
         }
         println!("   slab {name}: widest whole-certifying HALF-WIDTH = {lo:.6e} .. {hi:.6e}");
+        if name.trim() == "TIER ON" {
+            // What bounds it, read as the SET at ceiling + δ under the
+            // shipped rule set (the tier-on arm).
+            let doc = slab(1.0, hi);
+            let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+            let (shapes, refusal, counts) = crate::m10_8_arc_family_interval::replay(
+                &doc,
+                &ParamBox::of(&analyzed),
+                geom_core::SymRules::shipped(),
+                tol,
+            );
+            println!(
+                "   slab at half-width {hi:.6e} (ceiling + δ): {counts:?}; the drive stops at \
+                 {refusal:?}\n{}",
+                crate::m10_8_harness::render_over_band(&crate::m10_8_harness::over_band_set(
+                    &shapes
+                ))
+            );
+        }
     }
-    // What refuses first beyond the ceiling, named.
-    let doc = slab(1.0, 0.6);
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let v = drive(
-        &doc,
-        &analyzed,
-        &DriveConfig {
-            max_depth: 0,
-            max_leaves: 1,
-            ..DriveConfig::default()
-        },
-        tol,
-    );
-    println!("   slab at half-width 0.6, one leaf: {v:?}");
 }
 
 /// **D9, independently**: the same drive repeated, and the same drive

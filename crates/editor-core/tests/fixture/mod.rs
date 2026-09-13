@@ -68,10 +68,7 @@ pub fn in_copy(pattern: RecipeNodeId, i: u32, of: StableName) -> StableName {
     StableName {
         kind: of.kind,
         node: pattern,
-        path: vec![RoleSeg::Instance {
-            i,
-            of: Box::new(of),
-        }],
+        path: vec![RoleSeg::Instance { i, of: of.into() }],
     }
 }
 
@@ -514,7 +511,7 @@ pub fn die() -> Die {
             // Every A-side face name wraps once per boolean (N1
             // derivation paths through the new subtract node).
             for name in &mut cube_face_names {
-                *name = face_name(sub, RoleSeg::FromA(Box::new(name.clone())));
+                *name = face_name(sub, RoleSeg::FromA(name.clone().into()));
             }
         }
     }

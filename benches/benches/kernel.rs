@@ -4,9 +4,10 @@
 //!
 //! PERF-PLAN §2.3 gates every micro-optimization on a measurement that
 //! did not exist, which made the gate a deadlock rather than a
-//! deferral. These six benchmarks (the washer is tessellated at two
-//! chordal tolerances, so five scenarios are six rows) are the first
-//! per-kernel wall-clock numbers this repository has had.
+//! deferral. These benchmarks (the washer and the torus are each
+//! tessellated at two chordal tolerances, so five scenarios are eight
+//! rows) are the first per-kernel wall-clock numbers this repository
+//! has had.
 //!
 //! **Reporting, never gating** — `memories/perf-measurement-lane.md`.
 //! No CI row fails on a millisecond here. The lane's product is the
@@ -26,6 +27,10 @@
 //! | `tessellate/washer/1e-6` | 614 ms | 643 ms | 680 ms | ~5% |
 //! | `validate/tier23_washer` | 20.5 µs | 24.3 µs | 21.7 µs | ~9% |
 //! | `mass_props/washer` | 1.59 µs | 1.52 µs | 1.49 µs | ~3% |
+//!
+//! (Those two rows were taken before the face walk had a thread count;
+//! they are the bare ids, which is why the bare ids are still the
+//! one-thread rows. The `/t4` twins have no such history yet.)
 //! | `build/extrude` | 18.5 µs | 20.1 µs | 17.5 µs | ~7% |
 //! | `boolean/two_bricks` | 127 µs | 132 µs | 121 µs | ~4% |
 //!
@@ -33,6 +38,19 @@
 //! move under ~10% as noise unless several consecutive entries agree,
 //! which is the same instruction `docs/perf-data/rebuild-latency/`
 //! carries and for the same reason.
+//!
+//! **THE FOUR `tessellate/*` ROWS ARE READINGS AT A THREAD COUNT, and
+//! the table above is a serial one.** `mesh::tessellate`'s per-face
+//! dispatch is D9 idiom 1 — an indexed parallel map over the face arena
+//! — so those rows now scale with the box, and a sample taken at one
+//! thread count does not compare with one taken at another. The count
+//! is not in the row ids (`scripts/criterion-emit.py`'s roster is a
+//! fixed list, and an id that moved with the runner's size would read
+//! as a renamed benchmark): it is in the environment block, as
+//! `rayon_num_threads` with `nproc` as its default, and
+//! [`tessellation`] prints it at the top of the run so a raw log says
+//! it too. The `kernel/*` rows are unaffected — nothing under them is
+//! parallel.
 //!
 //! # Why these scenarios
 //!
@@ -43,10 +61,27 @@
 //!   the row a `spade` bulk-load adoption (§2.1) would have to move.
 //!   Two tolerances because the finding is about the QUADRATIC: the
 //!   1e-4 -> 1e-6 ratio is the shape, not either number alone.
+//! * `tessellate/torus/*` — the doubly-curved chart, whose grid is
+//!   sized by `mesh::sizing::torus_grid_steps` from a two-direction
+//!   chord bound: the row that moves when that bound's constant moves.
+//!   The body is the tour's `hollowring` outer wall and 1e-4 is the
+//!   viewer's δ, so the row is the ring document's own tessellation
+//!   cost; 1e-3 gives the 1/δ shape.
 //! * `validate/tier23_washer` — the commit lane's validation ladder on a
 //!   revolved body (findings 4, 5, 16).
-//! * `mass_props/washer` — per-face flux quadrature; §2.2's canonical
-//!   idiom-2 parallelism target, unbuilt.
+//! * `mass_props/washer` and `validate/tier23_washer`, each with a
+//!   `/t4` twin — per-face flux quadrature, §2.2's canonical
+//!   idiom-1-then-idiom-2 target, now built: `topo::props` decides
+//!   faces in an indexed parallel map and folds the slots in arena
+//!   order. The bare id is the ONE-THREAD row, which is the serial walk
+//!   these two columns have always measured, so the history continues
+//!   on it; `/t4` is a new column. The washer's faces are all closed
+//!   forms, so the pair does not measure a speed-up — it measures the
+//!   PRICE of the shape on a body that cannot use it: the per-face
+//!   detached frame, the slot vector and rayon's own dispatch, against
+//!   a walk whose whole cost is microseconds. That is the row a
+//!   regression would show up in first, which is why both thread counts
+//!   are here rather than one.
 //! * `build/extrude` — Euler-op surgery through the sweep front door
 //!   (finding 9's kill-direction arena scans).
 //! * `boolean/two_bricks` — the boolean commit path: join (finding 13),
@@ -125,10 +160,53 @@ fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     .body
 }
 
-/// The two tessellation rows. Own group, own sample count: at ~0.7 s an
-/// iteration the 1e-6 row is the whole lane's wall clock, and criterion
-/// warns rather than overrunning if the budget is short.
+/// A solid torus: the tour's `hollowring` outer wall (R = 0.30 m,
+/// r = 0.07 m) as one revolved circle — the doubly-curved chart, sized
+/// by `mesh::sizing::torus_grid_steps`, whose cost is the torus rows'
+/// subject. 1e-4 is the viewer's δ = 0.1 mm.
+fn torus() -> Body<f64> {
+    let circle = pncad::profile::circle(p2(0.30, 0.0), 0.07, Tol::witness())
+        .expect("a positive section radius")
+        .into();
+    let profile = validated(SketchPlane::<f64>::xy(), vec![circle], Tol::witness())
+        .expect("the torus profile validates");
+    revolve(
+        &profile,
+        RevolveAxis {
+            origin: p2(0.0, 0.0),
+            dir: v2(0.0, 1.0),
+        },
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .expect("the torus revolves")
+    .body
+}
+
+/// The tessellation rows. Own group, own sample count: at ~0.7 s an
+/// iteration the washer's 1e-6 row is most of the lane's wall clock,
+/// and criterion warns rather than overrunning if the budget is short.
 fn tessellation(c: &mut Criterion) {
+    // The thread count these four rows were taken at — in the run's own
+    // log, and in a file beside criterion's own output so the committed
+    // sample carries it too (the module docs say why it is not in the
+    // ids). `rayon`'s global pool is what `mesh::tessellate` runs its
+    // per-face map on, and asking it is the EFFECTIVE count:
+    // `RAYON_NUM_THREADS` is a request, an unset variable is a number
+    // too, and neither is what a reader of the history needs.
+    //
+    // The path is criterion's own output directory, derived the way
+    // criterion derives it, so `scripts/criterion-emit.py` finds it
+    // under the `--criterion-dir` it is already given and no workflow
+    // has to learn a second path.
+    let threads = rayon::current_num_threads();
+    println!("# tessellate/* rows taken at {threads} rayon threads");
+    let home = std::env::var("CRITERION_HOME").unwrap_or_else(|_| "target/criterion".into());
+    let _ = std::fs::create_dir_all(&home);
+    let _ = std::fs::write(
+        std::path::Path::new(&home).join("rayon-threads"),
+        format!("{threads}\n"),
+    );
     let body = washer();
     let mut group = c.benchmark_group("tessellate");
     group.sample_size(10).warm_up_time(Duration::from_secs(1));
@@ -138,6 +216,16 @@ fn tessellation(c: &mut Criterion) {
             b.iter(|| {
                 tessellate(black_box(&body), black_box(delta), Tol::witness())
                     .expect("the washer tessellates")
+            });
+        });
+    }
+    let body = torus();
+    for (delta, measure) in [(1e-3_f64, 3), (1e-4_f64, 9)] {
+        group.measurement_time(Duration::from_secs(measure));
+        group.bench_function(format!("torus/{delta:e}"), |b| {
+            b.iter(|| {
+                tessellate(black_box(&body), black_box(delta), Tol::witness())
+                    .expect("the torus tessellates")
             });
         });
     }
@@ -162,14 +250,51 @@ fn kernel_ops(c: &mut Criterion) {
 
     // Tier 2 + tier 3: `validate_geometric` runs the structural tiers
     // first (`validate_closed`), then the geometric ones.
-    group.bench_function("validate/tier23_washer", |b| {
-        b.iter(|| {
-            validate_geometric(black_box(&body), Tol::witness()).expect("the washer certifies")
+    //
+    // Both rows are taken at ONE and FOUR threads. The pool is explicit
+    // rather than `RAYON_NUM_THREADS`, which configures the global pool
+    // once per process and so cannot vary between two rows of one
+    // binary; `ThreadPool::install` runs the row on that pool, which is
+    // also the pool the walk's own map then uses.
+    //
+    // THE ONE-THREAD ROW KEEPS THE ORIGINAL ID, and that is not a
+    // cosmetic choice: `docs/perf-data/criterion/` is an append-only
+    // history keyed on the row id, and `scripts/criterion-emit.py`
+    // refuses a run whose rows do not match its roster exactly. A
+    // one-thread map IS the serial walk these rows have always
+    // measured, so it continues that column; the four-thread row is a
+    // NEW column and is rostered as one, in the same diff.
+    // The pool rule has one home for the kernel's own suites,
+    // `crates/sweep/tests/common::on_pool`; this root is a separate
+    // cargo root and cannot reach it, so the two lines are here.
+    for threads in [1usize, 4] {
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build()
+            .expect("the pool builds");
+        let id = |row: &str| {
+            if threads == 1 {
+                row.to_string()
+            } else {
+                format!("{row}/t{threads}")
+            }
+        };
+        group.bench_function(id("validate/tier23_washer"), |b| {
+            b.iter(|| {
+                pool.install(|| {
+                    validate_geometric(black_box(&body), Tol::witness())
+                        .expect("the washer certifies")
+                })
+            });
         });
-    });
-    group.bench_function("mass_props/washer", |b| {
-        b.iter(|| mass_properties(black_box(&body), Tol::witness()).expect("mass properties"));
-    });
+        group.bench_function(id("mass_props/washer"), |b| {
+            b.iter(|| {
+                pool.install(|| {
+                    mass_properties(black_box(&body), Tol::witness()).expect("mass properties")
+                })
+            });
+        });
+    }
     // The BUILD, not a rebuild of a cached body: profile authoring plus
     // the extrusion's Euler-op sequence, which is what finding 9 is about.
     group.bench_function("build/extrude", |b| {

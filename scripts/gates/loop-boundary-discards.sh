@@ -133,7 +133,7 @@ WINDOW=16
 REGISTER=(
   "crates/editor-core/src/names/emit.rs|face_half_edges||1|unaudited"
   "crates/mesh/src/trimmed.rs|trim_polygon||1|unaudited"
-  "crates/mesh/src/walk.rs|loop_edges||1|unaudited"
+  "crates/mesh/src/walk.rs|loop_half_edges||1|unaudited"
   "crates/step-export/src/volume.rs|shell_signed_volume||1|unaudited"
   "crates/step-export/src/writer.rs|face_bound||1|unaudited"
   "crates/step-import/src/adopt.rs|rotate_loop_firsts||1|unaudited"
@@ -164,13 +164,11 @@ REGISTER=(
   "crates/topo/src/boolean/surface_group.rs|surface_group||1|unaudited"
   "crates/topo/src/boolean/vtxfac.rs|classify_vertex_on_face||1|unaudited"
   "crates/topo/src/boolean/zip.rs|zip_seam||1|unaudited"
-  "crates/topo/src/census.rs|snapshot||1|unaudited"
-  # The hull closure decides nothing about emptiness: its two callers
-  # want opposite things from it and each answers at its own call site.
-  "crates/topo/src/census.rs|sweep_cross_solid_backstop|else { continue|1|audited: the arm above face_points — a loop this cannot walk contributes nothing, and both callers answer emptiness themselves"
-  # The planar x planar skip's premise: only a face whose whole boundary
-  # is admitted is in front of the exact sweeps.
-  "crates/topo/src/census.rs|sweep_cross_solid_backstop|else { return|1|audited: the arm above line_bounded — anything unresolvable is not a line, so the face stays with the containment arm"
+  # The census's one loop walk: an unwalkable loop is handed back as
+  # `Err(loop)` and every caller answers it at its own site — snapshot
+  # and the hull closures take no vertex from it, `line_bounded` reads
+  # it as "not a line", the reach walks propagate it as `None`.
+  "crates/topo/src/census.rs|face_cycles|else { return|1|audited: the walk decides nothing — it returns the loop it could not walk, and each of its five callers says what that means"
   "crates/topo/src/chart_region.rs|face_boundary_points||1|unaudited"
   "crates/topo/src/chart_region.rs|loop_uv_polygon||1|unaudited"
   "crates/topo/src/chord_join.rs|face_azimuth_window||1|unaudited"
@@ -646,7 +644,7 @@ gate_selftest() {
   gate_selftest_case "matched 2" plant_extra_site \
     crates/editor-core/src/names/emit.rs face_half_edges oneline
   gate_selftest_case "matched 2" plant_extra_site \
-    crates/topo/src/census.rs sweep_cross_solid_backstop wrapped-continue
+    crates/topo/src/census.rs face_cycles wrapped-return
   gate_selftest_malformed_register
   gate_selftest_passes "a let-else and a match arm discarding some OTHER enum" plant_other_enum_discard
   gate_selftest_passes "a LoopBoundary value BOUND and used, not discarded" plant_bound_and_used

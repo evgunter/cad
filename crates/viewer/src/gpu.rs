@@ -1617,7 +1617,8 @@ mod tests {
             egui_wgpu::WgpuConfiguration::default().wgpu_setup
         else {
             panic!(
-                "egui_wgpu's default setup is no longer `CreateNew`, so this row can no longer                  ask it for the device descriptor the app requests"
+                "egui_wgpu's default setup is no longer `CreateNew`, so this row can no longer \
+                 ask it for the device descriptor the app requests"
             );
         };
         let (device, _queue) =

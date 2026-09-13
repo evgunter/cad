@@ -175,7 +175,7 @@ Rejected:
 ### What is left open
 
 Nothing of this item. The neighbouring mirror question is
-`work/view/hand-maintained-mirrors-of-a-kernel-enum-are-unforced.md`,
+`work/door/hand-maintained-mirrors-of-a-kernel-enum-are-unforced.md`,
 filed by this unit as its own file rather than left in a PR body.
 
 ## Corrected after the style review (2026-09-06)
@@ -192,7 +192,7 @@ mirror of `editor-core`'s four-variant `Dimension`, in production,
 driving what a user can pick — was never a hit and therefore never
 dispositioned. The reviewer's identically-described scan returns it.
 Filed as
-`work/view/dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum.md`.
+`work/door/dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum.md`.
 
 Re-run without the anchor, pass 2 returns five hits the original
 missed. Their dispositions, so the next census does not re-derive them:

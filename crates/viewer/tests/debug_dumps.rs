@@ -43,7 +43,10 @@ fn a_summarised_presence_renders_as_an_elision_naming_what_is_there() {
         name: common::thickness_param(),
     });
     assert!(begun.refusal.is_none(), "{:?}", begun.refusal);
-    let previewed = session.perform(SessionOp::PreviewGesture { value: 0.02 });
+    let previewed = session.perform(SessionOp::PreviewParamGesture {
+        name: common::thickness_param(),
+        value: 0.02,
+    });
     assert!(previewed.refusal.is_none(), "{:?}", previewed.refusal);
 
     let dump = format!("{session:?}");

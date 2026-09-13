@@ -349,6 +349,62 @@ impl MutationDoor {
     pub(crate) fn code_contains(&self, needle: &str) -> bool {
         self.code.contains(needle)
     }
+
+    /// Whether the door's own body carries a whole-body check as a
+    /// DEBUG ASSERTION — the claim a non-sweeping close makes.
+    ///
+    /// A typed gate (`validate_closed(&work).map_err(…)?`) is
+    /// deliberately not enough: it answers a kernel bug with an error
+    /// return where the operators the door composes used to panic. The
+    /// two needles have to co-occur; neither alone is the claim.
+    pub(crate) fn debug_asserts_the_whole_body(&self) -> bool {
+        self.code_contains("debug_assert")
+            && (self.code_contains("validate_closed(")
+                || self.code_contains("validate_geometric(")
+                || self.code_contains("validate("))
+    }
+
+    /// How this door stands with respect to [`crate::surgery`]: it
+    /// opens a scope, or it does not, and if it opens one it either
+    /// closes it or it does not.
+    pub(crate) fn surgery_posture(&self) -> SurgeryPosture {
+        if !(self.code_contains("begin_surgery(") || self.code_contains("enter_surgery(")) {
+            return SurgeryPosture::NoScope;
+        }
+        if self.code_contains("sweep_and_close(") || self.code_contains("leave_surgery_and_sweep(")
+        {
+            SurgeryPosture::ClosedWithSweep
+        } else if self.code_contains("close_already_checked(")
+            || self.code_contains("leave_surgery(")
+        {
+            SurgeryPosture::ClosedUnderOwnAssertion
+        } else {
+            SurgeryPosture::LeftOpen
+        }
+    }
+}
+
+/// What a door's own text says about the surgery scopes it opens —
+/// [`MutationDoor::surgery_posture`].
+///
+/// **`LeftOpen` is the case this exists for.** A scope opened and not
+/// closed silences the tier-1 postcondition of every operator that
+/// runs on that body afterwards, including operators in later calls,
+/// and nothing at runtime notices: the body validates, the suite
+/// passes, and the check is simply gone. It is a lexical property of
+/// one function body, which is exactly what this walk can see.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum SurgeryPosture {
+    /// The door opens no surgery scope.
+    NoScope,
+    /// It opens one and closes it with the tier-1 sweep — the door's
+    /// postcondition.
+    ClosedWithSweep,
+    /// It opens one and closes it without a sweep, which claims a
+    /// debug assertion of tier 1 or stronger in the door's own body.
+    ClosedUnderOwnAssertion,
+    /// It opens one and closes nothing.
+    LeftOpen,
 }
 
 /// The number of mutation doors [`mutation_doors`] finds in `topo/src`
@@ -363,7 +419,7 @@ impl MutationDoor {
 /// door the walk may silently lose before anything reds; left far
 /// enough behind, the floor stops being evidence about the walk at all.
 /// Lowering it is only ever correct when doors were deleted.
-const DOORS_MEASURED: usize = 44;
+const DOORS_MEASURED: usize = 48;
 
 /// Every public mutation door into a [`crate::Body`] declared in this
 /// crate's `src/`: a public `fn` whose parameter list takes
@@ -434,7 +490,7 @@ pub(crate) fn mutation_doors() -> Vec<MutationDoor> {
 
 #[cfg(test)]
 mod tests {
-    use super::{CodeOnly, DOORS_MEASURED, mutation_doors};
+    use super::{CodeOnly, DOORS_MEASURED, MutationDoor, SurgeryPosture, mutation_doors};
 
     /// **The item scan and the classification, at the one altitude
     /// where either failure was visible.** Text in, doors out.
@@ -511,6 +567,84 @@ pub fn not_a_door(&self) {}
                 ("arr_nested", true),
             ],
             "a door was lost, or its body classified from prose"
+        );
+    }
+
+    /// **The surgery posture, read off four doors that differ only in
+    /// which calls they make.**
+    ///
+    /// [`MutationDoor::surgery_posture`] is what stands between
+    /// `review_m1_pr5_internal`'s guard and a door that opens a scope
+    /// and closes nothing — the one failure in this area that is
+    /// silent at runtime, because the body still validates and every
+    /// operator after it has simply stopped checking. `left_open`
+    /// below is that door; `prose_only` is the same plant one layer
+    /// down, a body whose only mention of the close is inside a string
+    /// the blanked view erases.
+    #[test]
+    fn the_walk_tells_a_closed_surgery_scope_from_one_left_open() {
+        let src = "
+pub fn swept(&mut self) { let s = self.begin_surgery(); s.sweep_and_close(); }
+pub fn guardless(&mut self) { self.enter_surgery(); self.leave_surgery_and_sweep(); }
+pub fn own_assert(&mut self) { self.enter_surgery(); self.leave_surgery(); }
+pub fn left_open(&mut self) { let s = self.begin_surgery(); s.take(); }
+pub fn prose_only(&mut self) { self.enter_surgery(); let _ = \"leave_surgery()\"; }
+pub fn no_scope(&mut self) { self.mev(site, spec, tol) }
+pub fn backed(&mut self) { let s = self.begin_surgery(); s.close_already_checked();
+    debug_assert_eq!(validate_closed(self), Ok(())); }
+pub fn unbacked(&mut self) { let s = self.begin_surgery(); s.close_already_checked();
+    validate_closed(self).map_err(E)?; }
+";
+        let code = CodeOnly::of(src);
+        let postures: Vec<(&str, SurgeryPosture)> = code
+            .public_fns()
+            .iter()
+            .map(|(n, _, b)| {
+                let door = MutationDoor {
+                    file: std::path::PathBuf::from("x.rs"),
+                    name: (*n).to_string(),
+                    code: (*b).to_string(),
+                };
+                (*n, door.surgery_posture())
+            })
+            .collect();
+        assert_eq!(
+            postures,
+            vec![
+                ("swept", SurgeryPosture::ClosedWithSweep),
+                ("guardless", SurgeryPosture::ClosedWithSweep),
+                ("own_assert", SurgeryPosture::ClosedUnderOwnAssertion),
+                ("left_open", SurgeryPosture::LeftOpen),
+                ("prose_only", SurgeryPosture::LeftOpen),
+                ("no_scope", SurgeryPosture::NoScope),
+                ("backed", SurgeryPosture::ClosedUnderOwnAssertion),
+                ("unbacked", SurgeryPosture::ClosedUnderOwnAssertion),
+            ],
+            "the posture read is wrong, or it is reading prose as a call"
+        );
+        // The second half of the non-sweeping close's claim: the door
+        // debug-asserts a whole body itself. `unbacked` runs the same
+        // validator through a TYPED gate, which is the confusion the
+        // guard exists to refuse — a kernel bug answered with an error
+        // return where the composed operators used to panic.
+        let backing: Vec<(&str, bool)> = code
+            .public_fns()
+            .iter()
+            .map(|(n, _, b)| {
+                let door = MutationDoor {
+                    file: std::path::PathBuf::from("x.rs"),
+                    name: (*n).to_string(),
+                    code: (*b).to_string(),
+                };
+                (*n, door.debug_asserts_the_whole_body())
+            })
+            .filter(|(n, _)| *n == "backed" || *n == "unbacked" || *n == "own_assert")
+            .collect();
+        assert_eq!(
+            backing,
+            vec![("own_assert", false), ("backed", true), ("unbacked", false)],
+            "a typed gate is being read as the door's own debug assertion, or the other \
+             way round"
         );
     }
 

@@ -98,7 +98,6 @@ pub(super) fn name_blend<T: geom_core::Real>(
     let up_f = |k: FaceKey| up(EntityKey::Face(k));
     let up_e = |k: EdgeKey| up(EntityKey::Edge(k));
     let up_v = |k: VertexKey| up(EntityKey::Vertex(k));
-    let b = Box::new;
 
     // ---- The mints, by role. ----
     //
@@ -119,11 +118,11 @@ pub(super) fn name_blend<T: geom_core::Real>(
 
     for (f, e) in &rec.blends {
         let e = up_e(*e)?;
-        put(EntityKey::Face(*f), RoleSeg::BlendFace(b(e.name)), e.tied)?;
+        put(EntityKey::Face(*f), RoleSeg::BlendFace(e.name), e.tied)?;
     }
     for (f, v) in &rec.corners {
         let v = up_v(*v)?;
-        put(EntityKey::Face(*f), RoleSeg::CornerFace(b(v.name)), v.tied)?;
+        put(EntityKey::Face(*f), RoleSeg::CornerFace(v.name), v.tied)?;
     }
     for (t, e, f) in &rec.trims {
         let (e, f2) = (up_e(*e)?, up_f(*f)?);
@@ -131,8 +130,8 @@ pub(super) fn name_blend<T: geom_core::Real>(
         put(
             EntityKey::Edge(*t),
             RoleSeg::TrimEdge {
-                edge: b(e.name),
-                support: b(f2.name),
+                edge: e.name,
+                support: f2.name,
             },
             tied,
         )?;
@@ -143,8 +142,8 @@ pub(super) fn name_blend<T: geom_core::Real>(
         put(
             EntityKey::Vertex(*foot),
             RoleSeg::FootVertex {
-                vertex: b(v.name),
-                support: b(f.name),
+                vertex: v.name,
+                support: f.name,
             },
             tied,
         )?;
@@ -155,8 +154,8 @@ pub(super) fn name_blend<T: geom_core::Real>(
         put(
             EntityKey::Edge(*a),
             RoleSeg::CornerArc {
-                vertex: b(v.name),
-                edge: b(e.name),
+                vertex: v.name,
+                edge: e.name,
             },
             tied,
         )?;
@@ -170,7 +169,7 @@ pub(super) fn name_blend<T: geom_core::Real>(
         for e in edges {
             let e = up_e(*e)?;
             tied |= e.tied;
-            names.push(e.name);
+            names.push((*e.name).clone());
         }
         names.sort();
         names.dedup();
@@ -182,7 +181,7 @@ pub(super) fn name_blend<T: geom_core::Real>(
         put(
             EntityKey::Edge(*t),
             RoleSeg::BandTrim {
-                edge: b(e.name),
+                edge: e.name,
                 support: match side {
                     RimSide::Host => RimSupport::Host,
                     RimSide::Mate => RimSupport::Mate,
@@ -193,23 +192,19 @@ pub(super) fn name_blend<T: geom_core::Real>(
     }
     for (foot, v) in &rec.rim_feet {
         let v = up_v(*v)?;
-        put(
-            EntityKey::Vertex(*foot),
-            RoleSeg::BandFoot(b(v.name)),
-            v.tied,
-        )?;
+        put(EntityKey::Vertex(*foot), RoleSeg::BandFoot(v.name), v.tied)?;
     }
     for (v, m) in &rec.meridian_splits {
         let m = up_e(*m)?;
-        put(EntityKey::Vertex(*v), RoleSeg::BandCross(b(m.name)), m.tied)?;
+        put(EntityKey::Vertex(*v), RoleSeg::BandCross(m.name), m.tied)?;
     }
     for (e, m) in &rec.meridian_remnants {
         let m = up_e(*m)?;
-        put(EntityKey::Edge(*e), RoleSeg::BandCut(b(m.name)), m.tied)?;
+        put(EntityKey::Edge(*e), RoleSeg::BandCut(m.name), m.tied)?;
     }
     for (e, m) in &rec.slits {
         let m = up_e(*m)?;
-        put(EntityKey::Edge(*e), RoleSeg::BandSlit(b(m.name)), m.tied)?;
+        put(EntityKey::Edge(*e), RoleSeg::BandSlit(m.name), m.tied)?;
     }
 
     // ---- The table: the body row, then every output entity. ----
@@ -261,7 +256,7 @@ pub(super) fn name_blend<T: geom_core::Real>(
                     });
                 }
                 let u = up(key)?;
-                (RoleSeg::FromTarget(b(u.name)), u.tied)
+                (RoleSeg::FromTarget(u.name), u.tied)
             }
         };
         put_row(

@@ -5,7 +5,7 @@
 #   local-scripts/seal-oracle.sh [path-to-checkout]
 #
 # Defaults to the checkout this script lives in, so it runs with no
-# arguments. Needs a toolchain matching the workspace's rust-version and
+# arguments. Needs the workspace's pinned toolchain (rust-toolchain.toml) and
 # a crates.io index (each probe is a scratch crate with its own
 # [workspace], resolved independently of this one).
 #
@@ -30,8 +30,60 @@
 
 set -u
 CAD=${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}
-TOOLCHAIN=${TOOLCHAIN:-$(sed -n 's/^rust-version[^"]*"\([^"]*\)".*/\1/p' "$CAD/Cargo.toml" | head -1)}
-TOOLCHAIN=${TOOLCHAIN:-stable}
+
+# THE TOOLCHAIN IS THE PINNED COMPILER, AND ITS SOURCE IS
+# rust-toolchain.toml. ci.yml says it in as many words — "the pinned
+# compiler (D9 / L2) has a single source of truth — the toolchain file".
+# This read used to take `Cargo.toml`'s `rust-version`, which is the
+# workspace's MSRV DECLARATION: a floor a consumer's compiler must clear,
+# not the compiler this workspace is built with. The two carry the same
+# string today and nothing requires them to — an MSRV may sit below the
+# pin for as long as the code still compiles there — so a probe built off
+# `rust-version` is a probe built on whichever floor was last declared,
+# while what this oracle reports is a fact about the compiler that runs
+# it. The probes are scratch crates under /tmp with their own
+# `[workspace]`, so rustup's directory override does not reach them and
+# the toolchain has to be named explicitly; this is where that name comes
+# from. $TOOLCHAIN in the environment still overrides it, which is how a
+# deliberate cross-compiler probe is run.
+#
+# ANCHORED TO THE `[toolchain]` TABLE, not to the first `channel` in the
+# file, and it REFUSES rather than choosing: a second `channel` (or none)
+# means the question has more than one answer or no answer, and the
+# `| head -1` this replaced answered it by position and said nothing. The
+# fallback it replaced was worse than the read — an unreadable file left
+# `TOOLCHAIN=stable`, so the oracle went on to report on a compiler that
+# is not this project's at all, with the version printed just above it.
+# `scripts/ci-pin.py` is NOT the reader here: it is anchored to a
+# workflow's `env:` block and deliberately narrow about it, and this is
+# four lines over a five-line TOML file rather than a second general one.
+#
+# KNOWN GAP, in the direction a reader is allowed to be wrong in: an
+# indented or single-quoted `channel` is legal TOML and is REFUSED here,
+# not read. The refusal names the file and the count, and `TOOLCHAIN=` in
+# the environment is the way past it — a wrong compiler silently reported
+# as the project's is the outcome this shape exists to make impossible.
+toolchain_pin() {
+  local f=$1 hits n
+  if [ ! -r "$f" ]; then
+    echo "seal-oracle.sh: cannot read $f, which is where the pinned compiler is declared" >&2
+    return 1
+  fi
+  hits=$(sed -n '/^\[toolchain\]/,/^\[/{s/^channel[[:space:]]*=[[:space:]]*"\([^"]*\)".*$/\1/p;}' "$f")
+  n=$(printf '%s' "$hits" | grep -c . || true)
+  if [ "$n" -ne 1 ]; then
+    echo "seal-oracle.sh: $f has $n quoted \`channel\` key(s) at column 0 in a [toolchain] table." >&2
+    echo "  The compiler every probe below is built with has to have one answer." >&2
+    echo "  Name one explicitly instead: TOOLCHAIN=<channel> $0" >&2
+    return 1
+  fi
+  printf '%s\n' "$hits"
+}
+
+TOOLCHAIN=${TOOLCHAIN:-$(toolchain_pin "$CAD/rust-toolchain.toml")}
+# The refusal above is on stderr; a command substitution cannot exit this
+# script, so the empty value is what carries it here.
+[ -n "$TOOLCHAIN" ] || exit 1
 echo "checkout: $CAD"
 echo "toolchain: +$TOOLCHAIN"
 echo

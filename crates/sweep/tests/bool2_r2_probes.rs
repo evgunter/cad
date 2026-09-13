@@ -17,11 +17,8 @@ use revolve_common::*;
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::{Body, PointInSolidError, SolidContainment, point_in_solid};
 
+use crate::common::approx::band;
 use profile::{Profile, SketchPlane};
-
-fn band() -> geom_core::Band {
-    geom_core::Band::linear(Tol::witness()).unwrap()
-}
 
 fn triangle() -> ProfileLoop<f64> {
     ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)])

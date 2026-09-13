@@ -807,19 +807,36 @@ fn res<T: Decide>(
     eval::<T>(e, env).map_err(|source| (SlotId::Profile { loop_, step, arg }, source))
 }
 
-/// Resolves a target's expressions.
+/// Resolves a target's expressions, addressing its coordinates at the
+/// slot roles the caller names (a fused step's second spec carries the
+/// `Target2*` twins, exactly as [`spec_slots`] enumerates them).
+///
+/// This is the target vocabulary's ONE construct hop: every target a
+/// document program carries — a straight leg's, a continuation's, a
+/// tangent arc's, and the endpoint inside every endpoint-bearing arc
+/// mode — resolves here, so the form set is matched in exactly one
+/// place below the document type's own declaration. The direction the
+/// compiler cannot check is the one this function runs in: it MATCHES
+/// [`ProgramTarget`] and CONSTRUCTS a [`profile::Target`], so a form
+/// the kernel vocabulary gains is invisible here. The census keyed on
+/// `profile::TargetKind::ALL`
+/// (`tests/switch_program_vocabulary.rs`) is what sees it, and it
+/// checks the other half of the same arm too: that each form resolves
+/// to ITS OWN form rather than being laundered into a neighbour's.
 fn res_target<T: Decide>(
     t: &ProgramTarget,
     env: &ParamEnv<T>,
     loop_: u32,
     step: u32,
+    ax: StepArg,
+    ay: StepArg,
 ) -> Result<profile::Target<T>, (SlotId, EvalError)> {
     Ok(match t {
         ProgramTarget::Start => profile::Target::Start,
         ProgramTarget::StartArriving => profile::Target::StartArriving,
         ProgramTarget::Point(p) => profile::Target::Point(Point2::new(
-            res(&p[0], env, loop_, step, StepArg::TargetX)?,
-            res(&p[1], env, loop_, step, StepArg::TargetY)?,
+            res(&p[0], env, loop_, step, ax)?,
+            res(&p[1], env, loop_, step, ay)?,
         )),
     })
 }
@@ -854,10 +871,16 @@ fn res_step<T: Decide>(
         ProgramStep::Cusp => Step::Cusp,
         ProgramStep::Turn(e) => Step::Turn(res(e, env, loop_, i, A::TurnVal)?),
         ProgramStep::Line(e) => Step::Line(res(e, env, loop_, i, A::Length)?),
-        ProgramStep::LineTo(t) => Step::LineTo(res_target(t, env, loop_, i)?),
-        ProgramStep::ContinueTo(t) => Step::ContinueTo(res_target(t, env, loop_, i)?),
+        ProgramStep::LineTo(t) => {
+            Step::LineTo(res_target(t, env, loop_, i, A::TargetX, A::TargetY)?)
+        }
+        ProgramStep::ContinueTo(t) => {
+            Step::ContinueTo(res_target(t, env, loop_, i, A::TargetX, A::TargetY)?)
+        }
         ProgramStep::ArcTo(spec) => Step::ArcTo(res_spec(spec, env, loop_, i, false)?),
-        ProgramStep::TangentArcTo(t) => Step::TangentArcTo(res_target(t, env, loop_, i)?),
+        ProgramStep::TangentArcTo(t) => {
+            Step::TangentArcTo(res_target(t, env, loop_, i, A::TargetX, A::TargetY)?)
+        }
         ProgramStep::ArcContinue(p) => Step::ArcContinue(pt(p, A::TargetX, A::TargetY)?),
         ProgramStep::Fillet(e) => Step::Fillet {
             radius: res(e, env, loop_, i, A::Radius)?,
@@ -911,15 +934,14 @@ fn res_spec<T: Decide>(
         ))
     };
     let tgt = |t: &ProgramTarget| -> Result<profile::Target<T>, (SlotId, EvalError)> {
-        Ok(match t {
-            ProgramTarget::Start => profile::Target::Start,
-            ProgramTarget::StartArriving => profile::Target::StartArriving,
-            ProgramTarget::Point(p) => profile::Target::Point(pt2(
-                p,
-                pick(A::TargetX, A::Target2X),
-                pick(A::TargetY, A::Target2Y),
-            )?),
-        })
+        res_target(
+            t,
+            env,
+            loop_,
+            i,
+            pick(A::TargetX, A::Target2X),
+            pick(A::TargetY, A::Target2Y),
+        )
     };
     Ok(match spec {
         ProgramArcData::Radius { r, side } => profile::ArcData::Radius {
@@ -1600,6 +1622,48 @@ impl LoopProgram {
 
     /// A literal circle loop.
     ///
+    /// # The struct literal is the parametric door
+    ///
+    /// There is no `circle_expr` twin of
+    /// [`LoopProgram::polygon_expr`], and that is the design rather
+    /// than an omission. `polygon` EXPANDS — one authoring call
+    /// becomes a chain of steps — so the expansion needs exactly one
+    /// home, and the literal door reaches it by delegating to the
+    /// expression door. `Circle` expands into nothing: it is a struct
+    /// variant whose two fields are the whole program, so an author
+    /// holding [`Expr`] arguments writes
+    /// `LoopProgram::Circle { centre, radius }` (and
+    /// `LoopProgram::CircleSplit { .. }`) directly. That literal IS
+    /// the parametric door. A constructor over it would be a third
+    /// spelling of the variant with nothing behind it to keep in
+    /// step.
+    ///
+    /// # The literal author keeps both of this door's guarantees
+    ///
+    /// This door is not the check its `Result` makes it look like, so
+    /// writing the variant out gives nothing up:
+    ///
+    /// - FINITENESS belongs to [`Expr::literal`], which is the only
+    ///   way to mint a literal expression at all and refuses a
+    ///   non-finite value there. That refusal is the sole error this
+    ///   constructor can return.
+    /// - DIMENSION belongs to the document. This door only PICKS
+    ///   `Length` for the centre and radius (and `Angle` for
+    ///   [`LoopProgram::circle_split`]'s phase), so the picks agree
+    ///   with the roles by construction. An author supplying
+    ///   expressions picks instead, and `apply` checks the pick: every
+    ///   slot of an entering node is walked, the role's required
+    ///   dimension ([`StepArg::dimension`], reached through
+    ///   [`SlotId::dimension`]) against the expression's, and a
+    ///   disagreement refuses as `EditError::SlotDimensionMismatch`
+    ///   before the program joins the document. The same walk runs on
+    ///   every slot write and on a parameter redeclaration, so there
+    ///   is no later window in which a document's role can hold the
+    ///   wrong dimension. It is the DOCUMENT's door, though: a program
+    ///   built and replayed without entering one — a viewer preview —
+    ///   never reaches it, and such a builder assigns the dimensions
+    ///   itself exactly as this constructor does.
+    ///
     /// # Errors
     ///
     /// A non-finite argument.
@@ -1611,6 +1675,10 @@ impl LoopProgram {
     }
 
     /// A literal declared-subdivision circle loop.
+    ///
+    /// Parametric authors write the `CircleSplit` variant out; see
+    /// [`LoopProgram::circle`] for why there is no expression door
+    /// here and where an expression's dimension is checked instead.
     ///
     /// # Errors
     ///

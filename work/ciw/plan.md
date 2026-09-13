@@ -46,7 +46,8 @@ PR, reviewed by a subagent against `docs/prompts/reviewer-style-lane.md`
 be worth a second opinion on correctness gets one extra reviewer for
 that, named in its PR with the reason; that is a judgement the
 orchestrator makes per unit and not a default. The band above exists
-for the case a unit moves kernel logic, and none on this slate does.
+for the case a unit moves kernel logic, and no unit of any slate so far
+has — it has never been drawn from.
 
 ## The 2026-09-04 re-read
 
@@ -90,73 +91,82 @@ That is `inherited-red-is-not-attributed-to-its-merge`, opened with its
 three unmeasured numbers named and deliberately not dispatched until
 they are taken.
 
-## The second slate
+## The second slate landed (2026-09-10)
 
-The residue the first slate's own lanes filed, re-read against the tree
-on 2026-09-06 rather than inherited — the same discipline the
-2026-09-04 re-read used, and it moved four rows again. Two closed as
-already discharged (`closure-tier-scope-hides-whole-tree-census-tests`
-by PR 1909, `probe-interval-lane-has-no-clippy-row` by PR 1795 — the
-same finding as unit 6's, filed twice by lanes that could not see each
-other), and two lost half their premise to the un-sampling
-(`ci-draw-...`, `detached-demo-workspaces-...`).
+All seven units merged. What each landed, and the three-pass fight unit
+6 took to get a selftest that could fail, is the run of entries from
+2026-09-09 in `log.md`; the item files are the record. The pattern the
+slate closed on is worth carrying and is stated there: **the artifact
+was written against the instance rather than the property**, in four of
+seven units and from both ends, and what caught every one of them was
+injecting the failure and watching the row stay green — never reading.
 
-Units, in order:
+## The third slate landed (2026-09-11)
 
-1. **One answer to what `ci.yml` pins.**
-   `local-half-restates-ci-pins-as-literals` and
-   `ruff-pin-read-shares-the-first-match-shape` — the two populations
-   `nightly-pin-reading-idiom-four-copies` did not reach: versions
-   hand-restated as literals where nothing compares them, and a second
-   first-match-at-any-indentation reader. `scripts/ci-pin.py` already
-   answers the question; this is wiring the last callers to it. First
-   because the class has fired on `main` once and the reader exists.
-2. **The python suite on a closure run.**
-   `closure-tier-skips-python-suite-on-geom-core-changes`. Measured
-   live on 2026-09-06: a `crates/geom-core/src/lib.rs` change gives
-   `RUN_PNCAD_PY=false` while `pncad-py` IS in `PKGS`, so the crate is
-   built as a cargo target and the suite that exercises it is skipped.
-   `docs/prompts/implementer-discipline.md` §2 says the suite runs on
-   every code-tier run; the filter disagrees. One of the two is wrong
-   and implementers read the doc.
-3. **A demotion verified at the demotion.**
-   `nightly-demotions-have-never-run` (whose reading is taken — all
-   three rows ran green on run `33957138686`, so the convention is what
-   is left) with `opt-level-selftest-runs-nowhere`, which is the same
-   class one file over: a guard nothing has ever been shown to fire,
-   sitting outside `scripts/gates/gate-roster.sh`'s reach. **Fence, new
-   as of 2026-09-06:** `scripts/gates/*` is GATES' program now, so
-   widening `gate-roster.sh`'s scope is announced to GATES and drawn
-   with it — CIW's half is the workflow wiring, per GATES' own
-   `keep_out`.
-4. **A check that reaches the roots `--workspace` cannot see.**
-   `gui-wasm-build-is-not-gated-at-all` and the surviving half of
-   `detached-demo-workspaces-are-gated-only-by-a-sampled-row`. Note
-   before dispatching: the wasm row's `--exclude viewer` is downstream
-   of Ev's viewer-CI-posture ruling, so a fix that makes every code-tier
-   run pay the eframe/wgpu graph is an `[ev]` question, not a lane's
-   call — the seed-keyed treatment `clippy-all-features` uses is the
-   shape that does not need one.
-5. **Mirror parity past argv.** `mirror-pairs-env-divergence-unchecked`
-   — claim 10 (PR 1759) compares cargo flags and reads nothing about
-   the environment the paired commands run under. Direct extension of a
-   row that just landed, with a live correct divergence to keep passing.
-6. **The `PIPESTATUS` sweep.** `pipestatus-after-assignment-in-ci-yml`
-   — one instance is fixed in PR 1725; the sweep is CIW's and the item
-   is the citation. Cheap, and the failure mode is a `case` whose
-   non-zero arms are all unreachable.
-7. **Citations that do not resolve.**
-   `gui-log-citations-do-not-resolve` and the six surviving sites of
-   `rustdoc-d-warnings-breakages-outside-the-doc-gate` (its first
-   bullet is corrected: `SweepStrategy::Idealized` exists behind
-   `#[cfg(feature = "sweep-testing")]`, so those two sites are the
-   in-half hole unit 9 accepted, not rot).
+All seven units merged — 1 (#2326), 2 (#2324), 3 (#2330), 4 (#2329),
+5 (#2345), 6 (#2325), 7 (#2327). What each landed is the run of entries
+from 2026-09-11 in `log.md`; the item files are the record.
 
-**Review posture** (Ev, 2026-09-06, restating 2026-09-04): no A/B and
-no A/B protocol. One subagent style review per unit against
-`docs/prompts/reviewer-style-lane.md`; a correctness reviewer only
-where a unit earns one, named in its PR with the reason. On this slate
-units 2 and 4 are the candidates — both change what a run executes.
+**Twelve rows closed, thirty-one filed.** That is the number the next
+slate has to answer, and the log's close-out entry says why it is a
+receipt rather than a backlog — every one of the 31 carries a
+measurement — and why it is still a problem: a program that opens 2.6
+rows per row closed does not converge.
+
+**Nineteen of the 31 are four subjects**, and that is what makes a fourth
+slate tractable rather than a pile:
+
+- **The parity checker (7 rows).** `mirror-parity-checker-growth`
+  (2983 → 4908 lines in three days, +892 in one PR, claim 10's block
+  ~63% of a docstring serving twelve claims), `mirror-three-copy-reader-
+  preamble`, `population-layer-duplicated-across-two-checkers`,
+  `three-shell-splitters-nothing-compares`,
+  `mirror-readers-blind-through-bash-c` (live: an allowlisted flag OR
+  variable inside a `bash -c` string passes silently — confirmed on
+  `main`), `semantic-env-is-fail-open-where-pin-free-is-fail-closed`,
+  `mirror-step-keys-still-discarded`.
+- **Selftests that cannot see their own failure (4 rows).**
+  `criterion-selftest-fixture-is-one-scalar-in-five-fields`,
+  `calibrator-cpuinfo-parser-selftest-cannot-see-a-broken-parse` (the
+  parity obligation is broken on two of three hand-kept copies, and both
+  blind ones are in the merge gate), `calibrator-record-writes-without-
+  its-selftest`, `perf-history-writers-are-guarded-three-different-ways`.
+- **The provisioning surface no gate reads (4 rows).**
+  `session-start-hook-is-exercised-by-nothing` — the largest of them:
+  the file provisions every container and every hosted job deletes it —
+  with `python-lint-row-is-locally-unverifiable-on-this-image`,
+  `tool-versions-outside-the-env-block-have-no-source-of-truth`, and
+  `two-anchored-pin-readers-two-homes`.
+- **One argument, three to five prose homes (4 rows).**
+  `prose-digits-are-records-nothing-reconciles`,
+  `tier-blind-rationale-has-five-prose-spellings`,
+  `eps-klint-and-shard-counts-are-prose`,
+  `criterion-lane-asymmetry-argued-in-four-prose-homes`.
+
+**The fourth slate's shape follows from that**, and is not yet ordered:
+the parity checker's cluster is one unit or an `[ev]` design question
+about splitting a 4900-line gate, not seven rows; the selftest cluster is
+one unit over one shared fixture discipline; the provisioning cluster
+needs the `[ev]` question of whether anything may gate `.claude/`; and
+the prose cluster is cheap and should ride along rather than lead.
+`shellcheck-is-not-run` and `doc-gate-error-sites-outside-the-gate-
+population` are still waiting on the decisions named below.
+
+**Two rows arrived from outside** and are not this program's findings:
+`no-ci-row-runs-the-suite-at-a-non-default-k` and
+`view-made-the-skip-mode-viewer-doc-pass-lint-inert`. Read them against
+the tree before dispatching either; this slate's re-read moved two
+premises and every unit corrected at least one dispatch fact.
+
+**The review posture earned its keep and should not change.** No A/B, no
+A/B protocol, style review per unit, a correctness lane where the unit
+earns one — units 1, 4 and 5 at dispatch, and **unit 6 in flight**, when
+what it delivered stopped being what was dispatched. Nine blockers were
+found across five units and **every one came from injecting the failure
+and watching the row stay green**, not from reading. Two more came from
+the orchestrator re-injecting mutants a lane had reported dead without
+ever applying them: **assert the mutation changed the file**, because a
+no-op edit and a surviving mutant look identical.
 
 ## Not dispatched, and why
 
@@ -186,6 +196,31 @@ units 2 and 4 are the candidates — both change what a run executes.
 - `cache-rendered-cells-on-input-hash` — parked on
   `work/tcost/rust-cache-never-restores-across-branches`; its design
   needs no revision and should be reused as-is when it unparks.
+- `shellcheck-is-not-run` — a unit of its own and not a residue, which
+  is what its 496-finding measurement bought: two codes are 87% of the
+  findings and each is one decision, and the seven errors are all false
+  positives in GATES' files. What it needs first is the severity
+  selection, and that is a sitting decision rather than a lane's.
+- `doc-gate-error-sites-outside-the-gate-population` — the reading it
+  asks for walks `scripts/gates/*.sh`, which is GATES' population. Both
+  of its shapes need GATES to agree to something (widen the
+  instrumentation, or take `doc-gate.sh` into its fence), so it is an
+  announcement before it is a unit.
+- `python-suite-axis-skips-only-two-members` — its own text names the
+  number that settles it (how many code-tier runs seed only `viewer` or
+  only `test-utils`) and says to take it first. Unmeasured, and the
+  edit is across S-TCOST's fence.
+- `inherited-red-is-not-attributed-to-its-merge` — unchanged from the
+  first slate: three numbers named in the item, none taken, and the
+  item forbids designing before they are.
+- `guard-size-was-never-argued` — filed by unit 5 against itself, and
+  the one row here that is about this program rather than the tree. The
+  item said "a few lines beside its existing invocation scan"; what
+  landed is 1770. The unit argued the deviation's SITING at length and
+  never its SIZE, which is the whole cost of the choice. It is not a
+  defect to fix; it is a question to answer before the next guard, and
+  the parity-checker cluster above is the same question with a longer
+  history.
 
 ## Closed at the 2026-09-04 re-read, with the reason in each file
 
@@ -219,9 +254,27 @@ units 2 and 4 are the candidates — both change what a run executes.
 
 ## Fences
 
-- Track K keeps `scripts/gates/*` and `tools/*`; the
-  `clippy-panic-gate-blind-in-macros` / `gated-marker-*` items are K's
-  and S-TCOST's and stay in `work/issues/` for them.
+- **`scripts/gates/*` is code-quality Track K's and `tools/*` is
+  INSTR's**, and this clause said otherwise until 2026-09-11. Track K was
+  claimed whole by two programs: GATES took the gates half and INSTR
+  (`work/instr/program.md`, opened 2026-09-08) took `tools/*`. GATES then
+  closed on 2026-09-08 (`docs/DOC-LEDGER.md` sweep 7; `work/gates/` is
+  gone) and its half **reverted to code-quality**, which is `status:
+  open` under `tag: (SMELL orchestrator)`. So the `tools/*` half of the
+  old sentence was wrong and the gates half was right — the opposite of
+  what this program's own `keep_out` was corrected FROM, and the reason
+  that correction took two attempts. INSTR cedes the other direction
+  explicitly: its `keep_out` names `scripts/tess_budget_cut.sh` and its
+  siblings as CIW's. The `clippy-panic-gate-blind-in-macros` /
+  `gated-marker-*` items are code-quality's and S-TCOST's and stay in
+  `work/issues/` for them.
+- **A cross-fence edit that a file INVITES by name is still announced.**
+  Unit 2 anchored `scripts/tess_budget_cut.sh`'s `CUT_RE`, which reds a
+  row in `tools/tess-lint/tests/cut_line_pin.rs` whose own alarm names
+  the item and the two edits that close it. Taking that invitation is
+  right; taking it silently is not, and the PR said so with the alarm
+  quoted. Anything past the invitation — a NEW row in that table — is
+  the owner's, and went to `work/instr/` as an item instead.
 - S-TCOST keeps its three scripts and the CI build knobs — profile,
   cache and sharding — measured in-unit or not at all. Unit 8 cites
   S-TCOST's cache measurement; it does not fix it.

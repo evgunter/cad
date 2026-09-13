@@ -30,6 +30,14 @@
 //! rows below assert the bracket at both ends and the over-band SET at
 //! the refusing end, which is the pair that cannot be satisfied by an
 //! artefact.
+//!
+//! **Which tier these rows pin.** M10-9's — the shipped set with the
+//! form-level algebra OFF (`SymRules::without_the_algebra`), which is
+//! that tier bit for bit and the differential the algebra is measured
+//! against; the shipped set now carries rules A/B per node and rule D
+//! on top of the door, and its state is `m10_10_pins_interval`'s.
+//! Holding at every row here is what "the algebra off reproduces
+//! M10-9" means in assertable form.
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -87,10 +95,18 @@ fn replay_counts(
     })
 }
 
-/// M10-8's tier exactly — the shipped set with the door shut, and the
+/// M10-9's tier exactly — the shipped set with the algebra off.
+fn opened() -> SymRules {
+    SymRules::without_the_algebra()
+}
+
+/// M10-8's tier exactly — M10-9's with the door shut, and the
 /// differential every row here is taken against.
 fn closed() -> SymRules {
-    SymRules::shipped_without_the_door()
+    SymRules {
+        registered: false,
+        ..opened()
+    }
 }
 
 /// **The door SHIPS, and it is the only difference from M10-8's set.**
@@ -103,7 +119,7 @@ fn m10_9_the_shipped_set_carries_the_door() {
         s.early,
         "and it rides the early walk, so the plain form — asked first — never sees the registry"
     );
-    let off = closed();
+    let off = SymRules::shipped_without_the_door();
     assert!(!off.registered);
     assert_eq!(
         SymRules {
@@ -112,6 +128,14 @@ fn m10_9_the_shipped_set_carries_the_door() {
         },
         s,
         "`shipped_without_the_door` differs from `shipped` in the door and in nothing else"
+    );
+    assert_eq!(
+        SymRules {
+            registered: true,
+            ..closed()
+        },
+        opened(),
+        "and M10-9's tier is M10-8's plus the door"
     );
 }
 
@@ -140,49 +164,35 @@ fn m10_9_the_door_is_inert_on_straight_geometry() {
         .serialize()
     };
     assert_eq!(
-        run(SymRules::shipped()),
+        run(opened()),
         run(closed()),
         "straight geometry: the door changes nothing, down to the receipt line"
     );
 }
 
-/// **THE MECHANISM, read where it is visible: at TWICE the plate's
-/// ceiling.** A replay there with the door SHUT refuses on
-/// `carrier_endpoint_start` — the rim identity `‖q − c‖ = r` — and the
-/// same replay with the door OPEN gets past it and refuses on
-/// `carrier_matches_mapped_source` instead. BOTH endpoint pinnings are
-/// discharged (the rim identity and the span identity
+/// **THE MECHANISM, in the receipt.** A replay of the plate past its
+/// ceiling with the door SHUT registers nothing; the same replay with
+/// the door OPEN discharges through the registry — BOTH endpoint
+/// pinnings (the rim identity `‖q − c‖ = r` and the span identity
 /// `carrier.eval(param_end) = q_to`, the arc carrier's two same-object
-/// identities), and the drive's reported refusal moves with them.
+/// identities) — and only out of `numeric`: `symbolic_zero` and
+/// `sign_gated` are identical door open and shut.
 ///
-/// **This scale is chosen, and it is NOT the bound.** At twice the
-/// ceiling several predicates are over the band at once, so which one a
-/// drive names is evaluation ORDER — which is exactly why it can move
-/// while the ceiling does not. The BOUND is the over-band set at
-/// ceiling + δ, and it is `carrier_matches_mapped_source` door open and
-/// door shut alike
-/// (`m10_9_the_bound_at_ceiling_plus_delta_is_the_scaffold_pushforward`
-/// asserts that; `work/m10/plate-ceiling-is-now-the-scaffold-pushforward`
-/// says what it is). This row is about the MECHANISM: that the door
-/// discharges a residual a drive really did stop on.
-///
-/// Three claims in one drive pair, and each is labelled: the door
-/// discharges (`registered > 0`), it discharges only out of `numeric`
-/// (`symbolic_zero` and `sign_gated` identical), and the residual it
-/// discharges is one that really did stop a drive.
+/// The name the drive stops on is deliberately NOT read: past the
+/// ceiling several predicates are over the band at once and the name
+/// is evaluation order. The BOUND is the over-band set at ceiling + δ
+/// (`m10_9_the_bound_at_ceiling_plus_delta_is_the_scaffold_pushforward`).
 #[test]
 fn m10_9_the_rim_registrant_discharges_the_plates_endpoint_identity() {
     let tol = Tol::witness();
     let eps = tol.eps();
-    // TWICE the measured ceiling (`[7.811e2, 7.814e2] · ε`, both ends
-    // asserted by the ceiling row below): the scale where the drive's
-    // reported refusal is visible, and — see this row's doc comment —
-    // deliberately NOT the scale a bound is read at.
+    // Past the measured ceiling (`[7.811e2, 7.814e2] · ε`, both ends
+    // asserted by the ceiling row below).
     let doc = crate::m10_7_plate::plate(5.0e-5 * 1.6e3 * eps, 1.0e-5 * 1.6e3 * eps, tol).0;
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let box_ = ParamBox::of(&analyzed);
     let (shut_refusal, shut) = replay_counts(&doc, &box_, closed(), tol);
-    let (open_refusal, open) = replay_counts(&doc, &box_, SymRules::shipped(), tol);
+    let (open_refusal, open) = replay_counts(&doc, &box_, opened(), tol);
     println!(
         "   door shut {shut:?} -> {shut_refusal:?}\n   door open {open:?} -> {open_refusal:?}"
     );
@@ -208,19 +218,9 @@ fn m10_9_the_rim_registrant_discharges_the_plates_endpoint_identity() {
         open.decisions() >= shut.decisions(),
         "the door can only carry a replay further, never less far: {open:?} vs {shut:?}"
     );
-    let shut_refusal = shut_refusal.expect("past its ceiling the plate refuses with the door shut");
-    let open_refusal = open_refusal.expect("and with the door open");
     assert!(
-        shut_refusal.contains("carrier_endpoint_start"),
-        "M10-8's bound is the rim identity: {shut_refusal}"
-    );
-    assert!(
-        open_refusal.contains("carrier_matches_mapped_source"),
-        "with the rim AND span identities registered, both endpoint pinnings are \
-         discharged and this drive gets past them — the next predicate its evaluation \
-         order reaches is `carrier_matches_mapped_source`, the carrier against the \
-         scaffold pushforward, which is NOT a same-object identity of the arc carrier \
-         (work/m10/plate-ceiling-is-now-the-scaffold-pushforward): {open_refusal}"
+        shut_refusal.is_some() && open_refusal.is_some(),
+        "past its ceiling the plate refuses with the door shut and open alike"
     );
 }
 
@@ -255,7 +255,7 @@ fn m10_9_the_value_channel_is_untouched_on_a_certifying_box() {
             .collect::<Vec<_>>()
             .join("\n")
     };
-    let open = run(SymRules::shipped());
+    let open = run(opened());
     let shut = run(closed());
     assert_eq!(
         strip(open.clone()),
@@ -323,7 +323,7 @@ fn m10_9_the_ceilings_are_unmoved_and_both_ends_are_the_measured_bracket() {
         }),
     ];
     for (name, lo, hi, at) in docs {
-        for (rules, label) in [(SymRules::shipped(), "open"), (closed(), "shut")] {
+        for (rules, label) in [(opened(), "open"), (closed(), "shut")] {
             assert!(
                 certifies_whole(&at(lo * eps), rules, tol),
                 "{name}, door {label}: {lo:e}·ε is inside the measured bracket and must \
@@ -376,7 +376,7 @@ fn m10_9_the_bound_at_ceiling_plus_delta_is_the_scaffold_pushforward() {
         }),
     ];
     for (name, hi, at) in docs {
-        for (rules, label) in [(SymRules::shipped(), "open"), (closed(), "shut")] {
+        for (rules, label) in [(opened(), "open"), (closed(), "shut")] {
             let doc = at(hi * eps);
             let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
             let (shapes, _, _) = replay(&doc, &ParamBox::of(&analyzed), rules, tol);

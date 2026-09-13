@@ -2,8 +2,10 @@
 id: datum-in-plane-reads-back-a-length-pair-bare
 kind: issue
 title: Datum.in_plane reads a length pair back as bare floats where the write door takes Length
-status: open
+status: closed
 opened: 2026-09-03
+closed: 2026-09-08
+parent: LIB-SMALL
 ---
 
 
@@ -50,3 +52,26 @@ mechanical bundle's business. The alternative is to argue the bare shape
 argument and would then be written at the field rather than left implicit.
 
 Until then the stub states the asymmetry at the door and points here.
+
+## Closed
+
+Closed by LIB-SMALL, in favour of dimensioning — the asymmetry was
+the finding, not a convention. `Datum.in_plane` is now
+`Optional[tuple[tuple[Length, Length], tuple[float, float]]]`: the
+first pair is a position and carries `Length` like `Datum.origin` and
+like `Node.datum_axis_in_plane` takes it; the second stays bare
+because it is a direction, which is `py/place.rs`'s rule.
+
+The alternative argument — that a frame-local coordinate is not a
+world length — was weighed and rejected. Being written in a frame's
+coordinates changes the DATUM a position is measured from, never its
+dimension: the number is still a distance in metres, and the write
+door had already spelled it that way. That reasoning now lives AT the
+field in `py/value.rs` and in the stub, so the convention is readable
+without this file.
+
+`pncad.pyi` states the new shape (and drops its pointer here),
+`tests/ty_fixtures/legal.py` moves its annotation with it, and
+`TestDatumReadback` in `tests/test_document.py` asserts `0.25 * m` in
+and a `Length` equal to it out, with the bare direction beside it. No
+binding census row moves: no curated Rust name maps to this field.

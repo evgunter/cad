@@ -35,7 +35,7 @@ use crate::validate::{FilletLeg, NoCornerReason};
 /// the closing arc constructors: which way the arc winds about its
 /// center (a hint consumed by sugar — the stored bulge carries the same
 /// information as its sign).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ArcSweep {
     /// Counterclockwise sweep (positive included angle; positive bulge).
     Ccw,

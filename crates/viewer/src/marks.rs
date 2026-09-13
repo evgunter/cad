@@ -309,10 +309,10 @@ fn segments_of(polyline: &[Point3<f64>]) -> Vec<[f32; 3]> {
 /// off the name where the op re-named what it carried, and off the
 /// recipe where it did not: a `Transform` contributes no role segment
 /// by construction, so what it carries is what was minted below it
-/// (`display::derives_from`). Failing that, a node no
+/// ([`crate::display::derives_from`]). Failing that, a node no
 /// drawn name mentions at all — a profile, a datum plane, a sketch —
 /// marks the drawn roots deriving from it
-/// (`display::roots_deriving_from`): a profile's line and the wall it
+/// ([`crate::display::roots_deriving_from`]): a profile's line and the wall it
 /// swept are one thing seen twice. That last step is also where a name
 /// the vocabulary walk cannot classify degrades to, so an
 /// unclassified role costs the whole-body picture rather than an empty

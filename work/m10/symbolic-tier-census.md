@@ -126,10 +126,10 @@ CSV rather than a name filter.
 | `carrier_endpoint_start` | EXPLICIT | MEASURED 56 / 16 (symbolic / numeric) | `crates/geom-brep/src/certify.rs` | plain |
 | `carrier_in_seam_halfplane` | EXPLICIT | closed form at the site | `crates/geom-brep/src/certify.rs` | not in the M10-8 documents |
 | `carrier_line_circle` | EXPLICIT | closed form at the site | `crates/profile/src/seg.rs` | — |
-| `carrier_matches_mapped_source` | EXPLICIT | MEASURED 288 / 72 (symbolic / numeric) | `crates/sweep/tests/m5_s12_curved_ops_interval.rs` | plain |
+| `carrier_matches_mapped_source` | EXPLICIT | MEASURED 288 / 72 (symbolic / numeric) | `crates/sweep/tests/m5_s12_curved_ops_interval.rs` | plain; D + the door (M10-10) |
 | `carrier_on_seam_side` | EXPLICIT | closed form at the site | `crates/geom-brep/src/certify.rs` | not in the M10-8 documents |
 | `carrier_on_surface_1` | EXPLICIT | MEASURED 216 / 72 (symbolic / numeric) | `crates/geom-brep/src/certify.rs` | plain+A0, A0 |
-| `carrier_on_surface_2` | EXPLICIT | MEASURED 216 / 72 (symbolic / numeric) | `crates/geom-brep/src/certify.rs` | plain, A0 |
+| `carrier_on_surface_2` | EXPLICIT | MEASURED 216 / 72 (symbolic / numeric) | `crates/geom-brep/src/certify.rs` | plain, A0; D + early A/B (M10-10) |
 | `carrier_sphere_center` | EXPLICIT | closed form at the site | `crates/topo/src/boolean/contact_verify.rs` | not in the M10-8 documents |
 | `carrier_sphere_radius` | EXPLICIT | closed form at the site | `crates/topo/src/boolean/contact_verify.rs` | not in the M10-8 documents |
 | `carrier_torus_axis_parallel` | EXPLICIT | closed form at the site | `crates/topo/src/boolean/carrier_eq.rs` | not in the M10-8 documents |
@@ -200,7 +200,7 @@ CSV rather than a name filter.
 | `wall_arcs_cosurface` | EXPLICIT | closed form at the site | `crates/sweep/src/revolve/mod.rs` | not in the M10-8 documents |
 | `wall_lines_cosurface` | EXPLICIT | closed form at the site | `crates/sweep/src/revolve/mod.rs` | not in the M10-8 documents |
 | `witness_on_surface_1` | EXPLICIT | closed form at the site | `crates/geom-brep/src/certify.rs` | plain+A0, A0 |
-| `witness_on_surface_2` | EXPLICIT | closed form at the site | `crates/geom-brep/src/certify.rs` | plain, A0 |
+| `witness_on_surface_2` | EXPLICIT | closed form at the site | `crates/geom-brep/src/certify.rs` | plain, A0; D + early A/B (M10-10) |
 
 ## The rule column (M10-8): which mechanism discharges each row
 
@@ -348,6 +348,52 @@ because they are the ones the door was expected to reach and does not:
   endpoint that closed form needs
   (`work/m10/fillet-tangency-is-not-the-constructors-node`).
 
+## The form-level bucket (M10-10): rule D and rules A/B per node
+
+M10-10 built the mechanism the row above said was owed — algebra, not
+registration: rule D (`geom_core::sym::SymRules::trig_of_atan`)
+rewrites `sin`/`cos` of `q · atan(X)` to closed forms in `X` and
+`sqrt(1 + X²)`, and rules A/B per node (`early_ab`, made linear and
+bounded) close the ring, with the zero normalization the reduction
+needs. The buckets, at each document's nominal, theorem/gated/
+registered/numeric, algebra OFF (M10-9's tier, `without_the_algebra`)
+against ON (`m10_10_pins_interval`,
+`m10_10_evidence_interval::m10_10_the_four_residuals_rendered_at_the_nominal`):
+
+| document | predicate | OFF | ON | bucket |
+| --- | --- | --- | --- | --- |
+| plate | `carrier_on_surface_2` | 108/0/0/72 | 180/0/0/0 | **D + early A/B** (theorem) |
+| plate | `witness_on_surface_2` | 12/0/0/8 | 20/0/0/0 | **D + early A/B** (theorem) |
+| plate | `carrier_matches_mapped_source` | 180/0/8/64 | 180/0/72/0 | **D + the door** (registered: rule D meets the trig, the rim identity closes it) |
+| plate | `pcurve_map_residual` | 0/0/0/36 | 0/0/36/0 | **D (A1's `atan2` and half-π folds) + the door** (registered: the chart's phase `atan2(0, r²/sqrt(r²))` folds to the zero form as a syntactic fact, `cos π` on the negative frame to −1, and the rim identity closes the rest; `work/m10/pcurve-chart-phase-is-atan2-of-the-start-radial`, closed) |
+
+The five ceilings under the shipped set (three ε rows, the over-band
+set at ceiling + δ; `m10_10_pins_interval`):
+
+| document | M10-9 | M10-10 | bounded by |
+| --- | --- | --- | --- |
+| two-hole plate | `7.81e2 · ε` | 0.2368 / 0.2631 / 0.2631 of its REAL study (ε = 1e-6 / 1e-9 / 1e-12) | `assert_bound`'s ENCLOSURE — dependency widening of the study's own web margin (`work/m10/real-margin-dependency-widening`): the margin is affine, `1e-4 ± 1.6e-4·s`, positive over the whole box below `s = 0.625`, its enclosure at the ceiling `[−2.09e-9, 2.00e-4]` widened ~6e-5 each side. No identity residual bounds the plate any more; the LEAVES certify up to the real flip at 0.625 |
+| R1 annulus | `7.81e2 · ε` | 0.6963 / 0.8416 / 0.8415 of its real study | `dihedral_wedge` at `1e-6`, `arc_diameter_clearance` at the finer rows — the same widening class (`arc_diameter_clearance` cannot be zero for any `r > 0`: the widening finding's second site), not flips |
+| R2 link | `4.93e2 · ε` | unmoved | `carrier_matches_mapped_source` — the term/coefficient BUDGET freezes the carrier frame's two squared components (`sqrt(Σ)` over frozen squares) at any affordable width; the per-node cap is a cost wall, not a reach (512 → 4096 leaves ceiling + δ byte-identical; 32,768 terms / degree 256 leaves the bracket unchanged at 16× the cost) |
+| R2 filleted bracket | `3.87e2 · ε` | unmoved | `carrier_matches_mapped_source` — both components freeze before squaring; as the link |
+| R2 rounded pad | `2.08e3 · ε` | `[2.4990e3, 2.5010e3] · ε` | `line_span` (identity-shaped, below): a `Min` over frozen 60-term, degree-16 products |
+
+**The reach is the unit bulge.** Every document above authors its
+arcs through `LoopProgram::Circle`/`CircleSplit` (kernel bulge `1`).
+A LITERAL bulge other than 1 leaves residue (R1's circular-segment
+boss at bulge 2: `carrier_matches_mapped_source` 6 of 54 and
+`carrier_on_surface_2` 27 of 90 still numeric, ceiling unmoved), and
+a PARAMETER bulge is entirely outside the mechanism (R2's D-tab:
+`3.52e2 · ε` with the algebra on and off alike) —
+`work/m10/rule-d-reaches-the-unit-bulge-only`, the next ceiling class.
+
+`line_span` and `contact_at_shared_vertex` were measured under the
+new rules too: unmoved (`line_span` 0/0/0/8 on the plate at the
+nominal; on the pad it is what bounds the document now). Neither is
+trig, so rule D does not apply, and both operands are built inside the
+funnel from re-derived segments, so neither A/B per node nor the door
+reaches them — the same class as `carrier_line_circle`.
+
 ## Two identity-shaped predicates the class column mis-filed
 
 M10-9's fix pass, reading the over-band set at ceiling + δ rather than
@@ -370,8 +416,11 @@ listed here so the next unit's scope is honest about what is left.
   `line_span` classified is then measured against the shared vertex it
   IS. `coincident` on two spellings of one point.
 
-Neither is what bounds any of the five measured documents (that is
-`carrier_matches_mapped_source` on all five), and neither is reachable
+Under M10-9's tier neither bounded any of the five measured documents
+(that was `carrier_matches_mapped_source` on all five); under
+M10-10's, `line_span` is what bounds R2's pad, at
+`[2.4990e3, 2.5010e3] · ε`, once the scaffold residual there is
+discharged. Neither is reachable
 by a node alias as the profile stands: `q` is built inside the funnel,
 from the segment the funnel re-derived, so the constructor holds
 neither operand. They belong to the same class as

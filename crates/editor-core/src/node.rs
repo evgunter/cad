@@ -384,6 +384,17 @@ pub enum SlotId {
 /// today and then silently under-cover the next vector slot added; the
 /// exhaustive match in [`SlotId::component`] makes that addition a
 /// compile error instead.
+///
+/// **Nothing enumerates the families, and that is the design.** A
+/// consumer reaches a family from a slot ([`SlotId::component`]) and
+/// its slots back from the family ([`VectorSlot::slot`]); the one site
+/// that groups by family — the properties panel's `group_rows`
+/// (`crates/viewer/src/props.rs`) — walks the slots a node actually
+/// lists, so a family added here is grouped there without an edit. An
+/// array of every variant would not be a census of this declaration
+/// either: a family added to the enum reds [`VectorSlot::slot`] and
+/// [`VectorSlot::label`] and nothing else, so such a list compiles
+/// unchanged one family short of the enum it claims to hold.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum VectorSlot {
     /// A datum's origin / a datum point's position ([`SlotId::Origin`]).
@@ -404,18 +415,6 @@ pub enum VectorSlot {
 }
 
 impl VectorSlot {
-    /// Every vector family, in no significant order — for a consumer
-    /// enumerating families rather than reading one off a slot.
-    pub const ALL: [VectorSlot; 7] = [
-        VectorSlot::Origin,
-        VectorSlot::Normal,
-        VectorSlot::Direction,
-        VectorSlot::U,
-        VectorSlot::V,
-        VectorSlot::Translation,
-        VectorSlot::RotationAxis,
-    ];
-
     /// This family's slot for one axis — the inverse of
     /// [`SlotId::component`], and total.
     pub fn slot(self, axis: Axis3) -> SlotId {

@@ -192,6 +192,48 @@ tilted boss refuses through the union as `ClassificationInvariant`, a
 row-4 sentence for a row-2 frontier) is filed on S-BOOL's slate as
 `union-with-a-tilted-cylinder-boss-refuses-as-classification-invariant`.
 
+**The K floor ruled (Ev, PR [#2119](https://github.com/evgunter/cad/pull/2119),
+2026-09-08):** no constraint on K, and the `SmoothCapRim` special
+refusal goes — "it seems like nothing bad happens if we just remove the
+special case". Reached after two rounds spelling out the geometry (the
+dihedral lever is the rim edge's chord; below `√φ` an admitted chord
+times an admitted tilt reads under ε) and what happens without the
+refusal (the at-rest gate refuses the same body as `SliverDihedral`,
+a smooth rim having no material side). The item becomes the unit that
+executes it (`kind: unit`, spec in its `## Ruling`); the nightly
+small-K row proposed under option 1 is not filed. Dispatches after
+unit 2's fix pass clears `extrude.rs`; the one-sentence seam on
+`Tolerance.k`'s doc (PROPS' file) is announced at dispatch. H6's
+"a door must not mint what the at-rest gate will reject" is thereby
+narrowed by ruling to a preference, not a rule: the gate is the
+instrument and a door may hand it a body to refuse.
+
+**Unit K queued (2026-09-08)** for `blend/k-no-floor`, dispatching
+when unit 2 merges (both edit `extrude.rs`) — the ruling executed: `ExtrudeError::SmoothCapRim` and its arm go, the smooth cap
+rim stores the conventional description by the predicate and refuses
+at rest, H6's rows flip to the build-plus-at-rest-refusal, the `K*`
+prose goes with the arm (closing
+`extrude-cap-rim-argument-and-k-star-have-five-homes`), and
+`Tolerance.k`'s doc gains the one sentence (PROPS' file; announced in
+`work/props/log.md`). E-shaped; single style review.
+
+**Unit 4 landed (2026-09-08)** on PR [#2129](https://github.com/evgunter/cad/pull/2129),
+head `b0cbd30d`, green on the full matrix (a first run red on the
+bounds census: the new single-key door was generic over `Bounds` and
+owed a roster line; made `f64`, no interval caller needs the shape).
+No tolerance chosen and no `1e-9` moved: `closed_plane_sphere_rim`
+(`1e-6`) retired, seven test copies deleted onto
+`arcs_at`/`rim_arcs_at`/`one_edge_rim_at`, the lily probe's `5e-4`
+was pure slack (station-keyed at `1e-9` now), the teapot's `1e-12`
+converged with its reason. The tour keeps its own scans: measured, a
+`test-support` dev-dependency links that rlib into the demo binary,
+and the demo's scan is evidence about the API (no public way to name
+a rim by geometry — `rim_of` takes a seed edge; that half is this
+item's own text and the names vocabulary, no new file). One call
+site in `crates/verbs/tests/param_flow.rs` (EVAL's) retargeted —
+announced to EVAL at merge. Style review dispatched on the frozen
+head. Unit 1's fix pass runs beside it.
+
 **Unit 1 MERGED (2026-09-08)**, PR [#2123](https://github.com/evgunter/cad/pull/2123)
 at `124c8de1`, green on the full matrix. The coaxiality arm and, from
 the review's union, the convexity-sign arm; all six trios tie; the
@@ -233,3 +275,468 @@ body; the axis premise pinned at the home. Two residues filed
 `test-support-has-become-four-modules`). Seams executed: one call site
 in `crates/verbs/tests/param_flow.rs` (EVAL's) and the tour tests
 (Track X), both announced in their logs.
+
+**Unit 4 reviewed (2026-09-08): MERGEABLE-AFTER-FIXES**, single style
+review on frozen `b0cbd30d` of PR [#2129](https://github.com/evgunter/cad/pull/2129).
+Sixty-five of seventy converged selector calls choose the same keys
+as the deleted copies (a single-tree replay of every deleted
+predicate); one row's requested rim moved from the barrel's top to
+its bottom, undisclosed (the refusal is symmetric, so the row stayed
+green — the shape the review exists to catch); one scan kept on a
+reason that does not hold. Adjudicated TAKE: both MINORs; the review's
+six rows; the copies (a local `one_edge_rim` minted the day its home
+was, the hand-rolled kind-pair reads, the two tour selectors → one
+tour-side home, the lily constants' third derivation → the fixture
+returns its rims, the constant-vs-constant assertion → the body's
+radius, the teapot's thirty lines of justification → one sentence).
+Filed by the fix pass: the home reads `center.y` only (four z-poled
+scans, one at `1e-12`, cannot converge on it), and `test_support.rs`'s
+four-things accumulation. DECLINED: the panic-vs-empty semantics of
+`one_edge_rim_at` (documented, deliberate).
+
+**Unit K dispatched (2026-09-08)** on `blend/k-no-floor` after unit 2
+merged; runs beside unit 3 and unit 4's fix pass.
+
+**Unit 3 landed (2026-09-08)** on PR [#2141](https://github.com/evgunter/cad/pull/2141),
+head `4a10b8f9`, green on the full matrix. The spine-kind sentence
+names the two families the arm table has and points at the payload's
+roster for the pairs; a row maps every fillet arm to a family by its
+band kind and goes red on a missing phrase or a third band (mutant
+shown red); the followability row follows one request per family.
+Filed on this slate: `assembly-recourse-omits-the-transverse-cap-open-chain`
+(the sibling sentence, same shape, one constant over). Style review
+dispatched on the frozen head. The box hit zero bytes free mid-unit
+(three lane targets plus a workspace-scoped fix pass); rule 13 in the
+lane rules now scopes local runs to the touched crates.
+
+**Unit 3 reviewed (2026-09-08): MERGEABLE-AFTER-FIXES**, single style
+review on frozen `4a10b8f9` of PR [#2141](https://github.com/evgunter/cad/pull/2141).
+**The MAJOR is the orchestrator's decision, corrected by the reviewer
+and adopted:** the door tests KIND membership first (`Meridian::trace`
+has rows for plane, sphere, cylinder and cone, none for a torus) and
+the symmetry second, so "a rim between two coaxial surfaces of
+revolution" endorsed a coaxial torus–plane rim the door refuses on
+kind — the refusal's own sentence endorsing the request just refused,
+issue 1278's shape. The sentence now names the four kinds and then
+the two families, in the door's order; the map row derives families
+from `is_coaxial_torus`/`is_ruled` and checks the kinds, reporting the
+set; the followability row's ruled witness is the rod's crease, not
+a plane–plane cube that never entered the ruled door. The class the
+reviewer showed is wider than the filed instance — `GEOMETRY` names
+planes and a sphere cap where cylinders and cones carve, `ASSEMBLY`'s
+open clause omits the transverse-cap termination — so both siblings
+are fixed in the pass and the filed instance closes on it. Fix pass
+implementer-inherited, both probe rows adopted inverted into the fixed
+contract.
+
+**Unit K landed (2026-09-08)** on PR [#2149](https://github.com/evgunter/cad/pull/2149),
+head `0bd51c22`, green on the full matrix; every bit-dump byte-identical
+at both trees. `ExtrudeError::SmoothCapRim` and its arm are gone; the
+smooth cap rim rests in its WALL's chart through `describe_at_rest`
+(containment by construction — the wall is swept from the rim's own
+carrier — and measured: the K = 1.1 re-exec row reads four wall-chart
+rims, zero cap-chart), and the at-rest gate refuses those four as
+`SliverDihedral`. The `K*` prose went with the arm (78 hits swept, the
+five-homes item closed on this PR); `Tolerance.k` carries its one
+sentence. Disclosed and not filed, per the ruling: no CI row sets a
+small K except the re-exec row. Style review dispatched on the frozen
+head.
+
+**Outage (2026-09-08, 03:0x–16:0x UTC):** the three opus lanes in flight
+(unit 3's fix pass, unit 5, unit K's fix pass) died to the session's
+usage limit; the orchestrator session idled until the limit reset.
+Branches survived pushed: unit 3's fix head `31838d14` is red on one
+test per shard (the lane is resumed on it); unit 5 opened PR
+[#2155](https://github.com/evgunter/cad/pull/2155) at `e7980b8b`,
+green — its style review is dispatched; unit K's fix pass had not
+started — the lane is resumed on the brief. Unit 4's PR conflicted
+with a moved main (`tests/all.rs` and two logs, resolved by union) and
+awaits its run.
+
+**Unit 5 reviewed (2026-09-08): MERGEABLE-AFTER-FIXES**, single style
+review on frozen `e7980b8b` of PR [#2155](https://github.com/evgunter/cad/pull/2155).
+**The MAJOR corrects the orchestrator's decision, adopted:** the
+spelling this unit normalised to (`crates/sweep/tests/<file>.rs::<row>`)
+is grep-resolvable but cargo-inert — `tests/all.rs` mounts each suite
+as a module, so the filter `cargo test` resolves is `<module>::<row>`,
+which twelve sites already carried and the unit's sweep could not see.
+Corrected: one spelling, the module one, at all forty-one sites; and
+the plan's "decide the cheap instrument" half is decided — the
+instrument is the reviewer's resolver ROW in the sweep suite (red on a
+rename or deletion of any cited row), not a gate, and nothing is filed
+for GATES. Two citations promised more than their rows assert (a
+boolean-door row cited for an extrude-door clause; a cap-survival
+claim argued in a row's doc and asserted nowhere), one old-name
+citation one file over, and the normalised sentences that grew into
+restatements of their rows — all taken. Fix pass on the resumed lane.
+Two orchestrator decisions corrected by reviewers in one day (units 3
+and 5): both were premises about what the tree does that the
+dispatcher did not measure — the reviewer-style lane's "the dispatch
+is a hypothesis" earning its keep.
+
+**Block BLEND-B1 opens — unit 6 dispatched (2026-09-08)** on
+`blend/6-ring-clearance` under `docs/BLEND-6-SPEC.md`, slot 0's arm per
+the branch-side draw (`blend/b1-block`); pre-draw **M / NUMERIC** at
+the spec. Seam announced to S-TCOST (`work/tcost/log.md`: the boss
+homed, the probe copies deleted, the refusal pins flipped). Runs
+beside unit K's and unit 5's fix passes. The dual dispatches on the
+frozen head when the lane reports; the ordinal (2900, the band's first
+claim) goes to main then, relabelling S-BLEND's old roster entry in the
+same commit.
+
+**Unit 4's merge, three rounds (2026-09-08):** the first re-merge
+conflicted on `tests/all.rs` (SHELL's new suites beside the adopted
+probe) and two logs; its run died at the interval archive's
+FINALIZATION (an artifact-service 403 after a full upload — not the
+diff; the re-run API refuses this session, said once on the PR); the
+re-roll by merging the moved main then conflicted with unit 3
+(`blend_recourse_followability.rs` imports, and one surviving call of
+the helper unit 4 retired — converted to `one_edge_rim_at(_, 1.0, 0.0)`
+at the dome's equator, compile-checked; `work/eval/` deleted on main
+by EVAL's sweep, so the seam line announced there goes with it). Head
+`dcc8fb18` awaits its run.
+
+**Unit 5 MERGED (2026-09-08)**, PR [#2155](https://github.com/evgunter/cad/pull/2155)
+at its fix-pass head (full matrix green; a first red was the source-
+reader census in `crates/test-utils` demanding a ledger line for the
+new resolver row — added, a seam outside BLEND's paths, reported
+here). The module spelling at all forty-one sites, the resolver row
+as the instrument, the restating sentences cut back. Filed: the
+tests→tests citation class on S-TCOST's slate
+(`sweep-test-suites-cite-eight-deleted-suite-files`), the register's
+cap-pair claim on this one (`kernel-verbs-cap-pair-ulp-claim-stale`).
+Every E unit of the opening slate is now merged or in its last step
+(unit 4's re-run, unit K's fix pass).
+
+**Unit K MERGED (2026-09-08)**, PR [#2149](https://github.com/evgunter/cad/pull/2149)
+at its fix-pass head `2f7351f4` re-merged on main (full matrix green
+on the fix head; one run before it died at the default archive's
+finalization — the same artifact-service 403 unit 4 met, twice in one
+day). Ev's ruling on the K floor is in the tree; cap-rim helpers homed
+in `tests/common/cap_rims.rs`; one residue filed
+(`extrude-strut-rule-has-three-homes-and-fixed-context-argument-lists`).
+With this, every unit of the E slate is merged except unit 5, whose
+re-merged head awaits its run.
+
+**Unit 6 landed (2026-09-08)** on PR [#2215](https://github.com/evgunter/cad/pull/2215),
+head `41b45adc`, full matrix green; Phase 1's four carves at closed
+forms with pad 0, no stop-clause defect, every bit-dump identical at
+both trees. The lane corrected the spec twice by measurement: the
+boss's dome rim is CONCAVE (the ball rests in the void, the band adds
+material; `plane_sphere_cut` was the wrong oracle, the external
+tangency form is homed beside it), and the hostless annulus's rings
+were already metered externally behind `resolve_rim`'s refusal, so the
+fix is a form choice at the existing meter. Its substantive finding:
+the containment margins are bit-identical to predicate 2's sampled
+screen on every coaxial pair and the screen runs first, so the exact
+backstop has no reachable fixture (filed inside the fence). **Ordinal
+2900 claimed on main; the v6 dual dispatched concurrently on the
+frozen head** — byte 67 ⇒ R1 = FABLE, R2 = OPUS; briefs stored with
+digests on `blend/b1-block` before either ran; the two spec errors are
+stated in both briefs as the lane's corrections to verify. The unit's
+log entry waits for the dual.
+
+**The E slate is done (2026-09-08, 18:0x UTC):** units 1, 2, 3, 4, 5
+and K all merged (PRs 2123, 2122, 2141, 2129, 2155, 2149). Every one
+took a single style review, a fix pass on the implementer's lane, and
+between one and three main-merge rounds at the end — the rounds were
+almost all this program's own log tails and the aggregated test list,
+which every unit appends to; the resolution is always union. Two
+orchestrator decisions were corrected by reviewers (units 3 and 5) and
+both corrections are in the tree. Open on the slate: unit 6 in its
+dual; units 7 and 9 (block B1) and 8, 10–13 to dispatch; the
+residues the E units filed.
+
+**Unit 6's dual concluded (2026-09-08, ~19:00 UTC):** R1 (FABLE)
+MERGEABLE-AFTER-FIXES 0/3/2, rubric 4/3/3; R2 (OPUS) MERGEABLE
+0/6/3, rubric 4/3/4. Both ran concurrently on the frozen head with
+private targets, neither interrupted, zero cross-lane reads disclosed.
+No MAJOR on either side, so no unilateral MAJOR and NO tally candidate.
+The headline is BILATERAL and it corrects the unit's own claim: D5 is
+false in both halves. The screen and the exact backstop are not
+bit-identical (16 ulps on the ladder relation with the screen off —
+R1, by mutant; 5 and 10 ulps on the item's own rows 2 and 3 — R2, by
+reading the item's table), and the backstop IS reachable: not by the
+boolean pip the filed item named (R2 built it — the split-join
+refuses every off-axis pierce of a cylinder cap with
+`SectionLoopMixed` except at azimuth 0/π, where the screen is exact
+and answers first), but by an extrude with an off-axis circular inner
+loop (R1's bored cylinder: `fillet3_ring_clearance` reads `−0.01` at
+the front door for both relations, carving sides carve). The two
+probe suites disagree in their canaries and are adopted together with
+the canary re-scoped to the boolean route. Converged MINORs: the
+external half of the outer `max` had no witness (both by mutant; both
+supplied the pinning row — R1 a mixed-outer-cycle plate, R2 a
+non-coaxial ladder trim circle, which is also the CROSSING row the
+spec asked for and the unit silently replaced with a concentric
+nesting under a name that says "crossing"); the trio decides in
+predicate 2 and passes at the merge base; `CircleMargins` is
+predicate 2's screen restated (both Q1); the outer-walk doc block's
+stale sentences (both Q2); D4's widening unreachable, not merely
+unexercised (R2). Unique R1: the material side read off the body as
+a row; `narrowed`/`domed` re-spelling the boss profile. Unique R2:
+the `domed` duplicate as a silent spec deviation; the `:1501` premise
+invalidated; the `!crossings.is_empty()` silent branch; the `blend6_`
+prefix naming two generations' units (filed as a class,
+`unit-numbered-test-suite-prefixes-collide-across-program-generations`;
+the instance renamed by subject on this unit's fix pass). Fix pass
+dispatched to the implementer's lane on the union
+(`/home/user/blend-briefs/fix-6-brief.md`); delta re-verification by
+R1 on the fixed head, then state-sync and merge, then the A/B row
+with its sample number. Reviewer targets reclaimed for unit 7's lane;
+reviewer worktrees stay until merge.
+
+**Outage (2026-09-08 ~19:10Z → 2026-09-13):** a session usage limit
+killed both running lanes minutes after dispatch — unit 6's fix pass
+after its fix commit and local main-merge (nothing pushed; the branch
+stayed at `41b45adc`) and unit 7 mid-Phase-1 with uncommitted edits.
+Both worktrees and targets survived; both lanes resumed on 2026-09-13
+from their own state (unit 7 told to checkpoint-commit first). Main
+moved ~1,700 commits in between; both re-merge it before pushing. The
+unit 6 pair's review arms both ran uninterrupted before the outage,
+so the pair still counts; the fix and delta phases are annotated on
+wall-clock, per the BLEND-7 precedent.
+
+**Unit 7 landed (2026-09-13)** on PR [#2483](https://github.com/evgunter/cad/pull/2483),
+head `5d2782a4e`, full matrix green (run 34730583374, twelve `test`,
+five `k-lint`). Phase 1 measured the defect as data: every junction of
+an N ≥ 3 closed rim was paired with the one link after its own in ring
+order; the two-arc rim and the open chain paired correctly. The stop
+clause did not fire — both closed-rim doors carve three- and four-arc
+rims on both material sides at the Pappus closed forms with pad 0.
+Shape taken: the spec's preferred `Junction { vertex, arriving,
+leaving }`. Deviations reported: the spec's "concave bore twin" is
+convex (the concave rims became a boss foot on the ladder and a
+pocket floor on the annulus); the open-chain "bit-identical carve"
+became a pairing pin because no chain with a junction carves today;
+one ladder doc line; two checkpoint commits carrying instrumentation
+(the orchestrator asked for the checkpoint after the outage). Filed
+outside the fence: `rim-of-refuses-extruded-multi-arc-rims` (the
+public rim selector refuses every extruded multi-arc rim on 1e-17
+carrier drift). **Ordinal 2901 claimed (PR #2485 to main); the v6
+dual dispatched concurrently on the frozen head** — byte 13 ⇒ R1 =
+FABLE, R2 = OPUS; briefs stored with digests on `blend/b1-block`
+before either ran; the four deviations stated in both briefs as
+hypotheses. The unit's log entry waits for the dual. Unit 7's target
+reclaimed for the reviewers' base-tree builds (its fix pass re-seeds).
+**MERGED — unit 6 (2026-09-13)** on PR [#2215](https://github.com/evgunter/cad/pull/2215):
+the ring-clearance circle arm gets the relation it is asked, the
+hostless annulus's rings metered by containment, the refusal on a
+ringed host gone; both items closed. Dual: no MAJOR either side, no
+tally candidate; the bilateral headline corrected the unit's own D5
+(the backstop is reachable by an extruded bored cylinder and is not
+bit-identical to the screen). Fix pass on the union: both probe
+branches adopted, the falsified residue closed against the adopted
+rows, the trio built at the ring predicate, fixtures homed once, six
+doc sites, the three suite files renamed by subject; CI caught a
+probe-gated suite the sweep did not run and it was rostered. Delta by
+R1 on the fixed head: recorded below. Sample #176 (main's order rules).
+Residues on the slate from this unit: `unit-numbered-test-suite-prefixes-collide-across-program-generations`.
+Delta (R1, on `e3f8d06a`): all six items CONFIRMED by execution —
+both probe branches as merge parents with the canary and the
+bored-cylinder rows green together and the rostered probe suite
+running seven rows under the sweep's own invocation; mutant A one red
+(the plate row), mutant B six red as tabled; the ring-predicate trio's
+three legs reading the predicate and the recourse off the errors; the
+ulp table reproduced by `to_bits` arithmetic; the six doc sites; the
+renames with unit 5's resolver row present and green (the lane's
+belief that it was absent was wrong). One survivor: the new
+`CircleMargins` paragraph still said "exactly" — corrected in the
+state-sync commit to "the same real, in closed form".
+
+**MERGED — unit 7 (2026-09-13)** on PR [#2483](https://github.com/evgunter/cad/pull/2483):
+a closed chain's junctions are judged against the links that touch
+them; N ≥ 3 closed rims carve on both doors and both sides; the item
+closed. Dual: no MAJOR either side, no tally candidate; the kernel
+change confirmed by both arms' own instruments; the findings were
+record-level and the stronger unique ones (the oracle as a second
+`wedge_fill`; the fix minting fixture copies of what it closes) went
+into the fix pass, which also adopted both probe branches and re-took
+the bit-dump differential after reshaping the closing arm. Delta by
+R1 on the fixed head: recorded below. Sample #177 (main's order
+rules). Residues on the slate from this unit:
+`rim-of-refuses-extruded-multi-arc-rims`,
+`battery-holds-the-chain-data-model-beside-the-predicates`,
+`self-closed-link-sharing-its-vertex-records-two-junctions`.
+Delta (R1, on `3dd896cb`): all seven items CONFIRMED by execution —
+both probe merges in the ancestry with ten rows green through the
+accessors (a spelled-out `Junction` literal fails to compile from a
+test); the oracle through `wedge_fill` with every pinned value
+unchanged; write-side mutant 11 red / 41 green and read-side 9 red /
+43 green, the three record rows green under the latter; the closing
+arm's loud and silent cases swapped as asked; `assert_full_revolve_rim`
+at sixteen sites; the half-cap sites, the recourse-audit reason, the
+centroid sentence and the dead citations all as reported; a re-run of
+the differential judged unwarranted from the `battery.rs` diff. Three
+notes folded into the state-sync commit: the sort's doc named the
+wrong reader (it serves the open row's "first junction"); R1's wrapper
+kept the retired oracle's name; the two re-homed fixtures moved by bits
+(recorded on the item).
+**Unit 7's dual concluded (2026-09-13, ~02:40 UTC):** R1 (FABLE)
+MERGEABLE 0/5/3, rubric 4/4/3; R2 (OPUS) MERGEABLE-AFTER-FIXES 0/4/4
+plus eight style findings, rubric 4/4/3. Both concurrent on the frozen
+head with private targets, neither interrupted, zero cross-lane reads
+disclosed. No MAJOR either side ⇒ no unilateral MAJOR, NO tally
+candidate. The kernel change is right by both instruments: each
+reviewer re-read the pairing off the body's half-edges with the
+converse asserted, ran its own mutant over the whole sweep suite (red
+= exactly the N ≥ 3 carve rows plus the flipped characterization row),
+re-derived the Pappus form, and confirmed all four deviations. The
+converged findings are record-level: the premise table omits a hit of
+its own pattern (`is_seam_vertex`'s slice pattern, silently filtered)
+and three revolve-suite sites; the `rim_of` residue cites three names
+that do not exist; the invariant row and the open-chain row stay green
+under a read-side mutant (they pin the record, the carve rows pin the
+read) while the row docs claim more; `debug_assert!` is a tripwire not
+a pin. Unique R1: the centroid sentence names the wrong corner (the
+code was right); three "revolve-minted half-caps" sites the ladder's
+re-worded doc left behind; the sort maintained for a sentence; a
+self-closed-link double junction (unsure). Unique R2: `corner_torus`
+is a second `wedge_fill` against `waist_fill`'s own ruling; the fix
+minted a thirteenth `prism` copy, a `cube` ladder copy and a fifth
+seed-scan instance of a filed class while leaving the private
+`cylinder()` twins beside the builder it homed; the same eleven-word
+justification at eight sites; `pub` junction indices into private
+links; `battery.rs` now carrying the chain data model. R2's open chain
+seeded from its middle link is the one row that reaches the walk's
+backward arm. Fix pass dispatched on the union
+(`/home/user/blend-briefs/fix-7-brief.md`), both probe branches to be
+adopted; delta by R1 on the fixed head; then state-sync and the A/B row.
+
+**Unit 9 dispatched (2026-09-13, ~02:50 UTC)** — block B1 slot 2,
+OPUS arm per the draw (byte 13), spec `docs/BLEND-9-SPEC.md`, branch
+`blend/9-must-carry-one-home`; the PROPS seam for `dihedral.rs`
+announced in `work/props/log.md` first; two rulings added in the
+brief (suite named `must_carry_rule.rs` by subject, superseding the
+spec's `blend8_` spelling; the seam edit is the wrapper and nothing
+else). Runs beside unit 6's and unit 7's fix passes; the reviewers'
+targets were reclaimed to make its room.
+
+**Unit 9 landed (2026-09-13)** on PR [#2491](https://github.com/evgunter/cad/pull/2491),
+head `3e8936715`, full matrix green (run 34736829969). The must-carry
+rule has one home at the edge level (`geom_brep::must_carry_over_edge`,
+gate first, the schedule's interior stations, a typed three-way
+answer); both verbs call it, `jet_determinate` is gone; the
+description differential over 22 fixtures and 264 edges is
+byte-identical; the behaviour change (a revolve's in-band latitude
+join now refuses typed) is pinned by the re-baselined H6 probe row and
+by the trio on both verbs. Five deviations reported, among them a
+claim that no out-of-lane smooth pair is constructible through either
+verb, and the cap rim's third smooth-description arm filed rather than
+routed. **Ordinal 2902 claimed (orchestrator PR to main); the v6 dual
+dispatched concurrently on the frozen head** — byte 93 ⇒ R1 = FABLE,
+R2 = OPUS; briefs stored with digests on `blend/b1-block` before
+either ran; the five deviations stated in both briefs as hypotheses.
+The unit's log entry waits for the dual.
+
+**Unit 9's dual concluded (2026-09-13, ~05:30 UTC):** R1 (FABLE)
+MERGEABLE-AFTER-FIXES 0/3/2, rubric 4/3/4; R2 (OPUS)
+MERGEABLE-AFTER-FIXES 1/5/6 plus eight style findings, rubric 4/4/4.
+Both concurrent on the frozen head with private targets, neither
+interrupted, zero cross-lane reads disclosed. **The program's first
+unilateral MAJOR:** R2 found that the PR's sweep for "a site deciding
+what description a smooth join carries" has a blind spot on its own
+axis — none of its three patterns can match an intrinsic MINT — and
+that `blend/surgery.rs`'s `attach_contact` mints
+`TangentIntersection` for a blend's contact edge on a structural
+flag, inside the fence, undisclosed; R1 never mentioned the site at
+any severity. Adjudicated against the pre-registered instrument
+(item 3, attribution-stripped on the material; this coding session
+is the Fable orchestrator): (a) unilateral — yes; (b) defect class —
+a receipt-with-an-unstated-blind-spot is a claim finding, and whether
+the site is in the rule's class the reviewer rates `likely`; (c)
+single; (d) demonstrated by execution — NO: a grep hit, no red probe,
+no measured value; (e) fair pair — yes. **Recorded, excluded from the
+tally under 3(d)** (and arguably 3(b)); the fix pass decides the class
+question by measurement where it can and files the site either way.
+Everything else converged: `MustCarry.first` has no consumer and
+carries the wrong station's reading beside a non-positive verdict
+(both by probe); the verb-level lane row is a hand-written census;
+the unit's own rows do not pin the station positions (both by mutant
+— a midpoint-every-station wrapper leaves all ten green); deviation
+2's number is not derivable from what is written; the filed cap-rim
+item's diagnosis is incomplete (the arm is unreachable under both
+doors). Both reviewers verified all five deviations sound, including
+that no out-of-lane smooth pair is constructible through either verb
+and that `folded_lever_arm`'s three-sibling list is the accurate one.
+Unique R1: κ_rel varies on two tori sharing a meridian circle; the
+boolean rebuild keeps the very fold this unit corrects (`ops.rs`,
+outside the fence). Unique R2: the crate front door's stale sentence;
+the seven-rung ladder rows; the exhaustive `SurfaceKind` census; the
+new bitdump row carrying no intrinsic edge at all; the carrier
+re-derived three times in `extrude.rs`. Fix pass dispatched on the
+union (`/home/user/blend-briefs/fix-9-brief.md`), both probe branches
+to be adopted; delta by R1; then state-sync, merge, and block B1's
+CONCLUDED record.
+
+**Block B2 opened; units 10 and 11 dispatched (2026-09-13, ~05:30 UTC).**
+Specs `docs/BLEND-10-SPEC.md` (M / NUMERIC) and `docs/BLEND-11-SPEC.md`
+(S / STRUCTURAL) on main (PR #2494); block B2's pre-draw fields and
+draw recorded branch-side on `blend/b2-block` (byte 44 ⇒ fable at slot
+2: slot 0 BLEND-8 OPUS, slot 1 BLEND-10 OPUS, slot 2 BLEND-11 FABLE).
+The S-BOOL seam for `crates/profile/*` announced in `work/bool/log.md`
+before dispatch. Units 10 and 11 run beside unit 9's fix pass; unit 8
+(slot 0, the sweep crate) opens when unit 9 merges. Unit 10's Phase 1
+decides which side of the door/validator disagreement moves; the spec
+states the stored-form conditioning hypothesis as a hypothesis.
+
+**Unit 11 stopped at its fence and is re-scoped (2026-09-13, ~05:50 UTC).**
+Phase 1 reproduced the item's 232 exactly and sharpened it: 203 of them
+are reported `AnchorOutsideTrimmedExtent` entries, all carrying the
+first candidate's numbers, and 19 change under the least-deficit rule
+(setback moves by −0.12 to −0.70 m; the item's own example had its
+labels reversed). Phase 2 stopped honestly: a discrete choice between
+two candidates needs a bracket read `sugar.rs`'s `T: Decide` bound
+forbids, and the door's `map_refusal<T: Bounds>` is the shipped home
+for exactly that read. Ruling: the fence widens to
+`path/arc_fillet.rs` (seam amended in `work/bool/log.md`); the arm
+collects both overruns at the scalar, the door picks the least deficit
+by an enclosure read, ties to the earlier — the spec's rule with the
+read where the tree already puts such reads. One addition from the
+measurement: the reported leg is the candidate's WORSE leg (the one
+whose overrun is the deficit), not "incoming first" — at two grid-A
+corners the arm's incoming-first ordering reported the smaller of the
+candidate's two overruns.
+
+**Unit 11 landed (2026-09-13)** on PR [#2495](https://github.com/evgunter/cad/pull/2495),
+head `21a5f1e45`, full matrix green (run 34741638444). The arm
+collects every corner-side overrun at the scalar; the door picks the
+least deficit on its worse leg by an enclosure read; both
+differentials over 19,104 authorings clean (0 outputs, 0 verdict
+sequences, 320 refusal payloads moved — all `AnchorOutsideTrimmedExtent`
+numbers); six rows, two mutants. Deviations reported: the stop and
+re-scope; the worse-leg rule moving 230 + 72 reports beyond the spec's
+19; C3's "tight" measured false (followable, not tight). **Ordinal
+2903 claimed (orchestrator PR to main); the v6 dual dispatched
+concurrently on the frozen head** — byte 214 ⇒ R1 = OPUS, R2 = FABLE;
+briefs stored with digests on `blend/b2-block` before either ran; the
+re-scope and the deviations stated in both briefs as hypotheses. The
+unit's log entry waits for the dual.
+**MERGED — unit 9 (2026-09-13)** on PR [#2491](https://github.com/evgunter/cad/pull/2491):
+the must-carry rule's in-band policy has one home; revolve's silent
+fold gone; the item closed. Dual: one unilateral MAJOR (R2's receipt
+finding), recorded and excluded from the tally under 3(d); the fix
+pass measured the site (Positive at every station on the corpus) and
+filed it; everything else converged and taken. Delta by R1 on the
+fixed head: recorded below. Sample #181 (PERF-12 took #180 on main first). **Block
+BLEND-B1 concludes with this merge**: three slots, three duals, zero
+counted tally candidates; its branch-side record folds into main.
+Residues on the slate from this unit:
+`blend-contact-edges-mint-the-intrinsic-description-without-the-rule`,
+`cap-rim-smooth-arm-decides-by-argument-not-by-the-rule`.
+Delta (R1, on `3996ee8c`): all seven items CONFIRMED by execution —
+both probe merges in the ancestry with the eight rows green at the
+default ε and at 1e-12 through the verdict-only return; the midpoint
+mutant red on exactly R1's two station rows; the contact-edge
+measurement reproduced (minima matching on both bodies) with two
+corrections folded into the state-sync commit: the cube carries 48
+intrinsic edges, not 40, and the collapse clause names a band
+osculating a support of its own convexity (the difference branch),
+not "a concave band"; the lane row's reach stated as its doc claims;
+the eight record items; the `strut_carrier` hoist read as the whole
+`extrude.rs` diff; the BOOL residue's citations resolving. The
+receipt disposition of the unilateral MAJOR judged complete. Three
+doc survivors folded too: R2's adopted row doc still named the
+dropped `first`; the lane row's message printed one surface kind
+twice; the K row's doc said "spends ONE" where the table says "the
+deciding station's index".

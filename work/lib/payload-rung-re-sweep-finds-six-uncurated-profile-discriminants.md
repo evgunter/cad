@@ -2,9 +2,10 @@
 id: payload-rung-re-sweep-finds-six-uncurated-profile-discriminants
 kind: issue
 title: six uncurated discriminants of prelude-carried profile types, from LIB-CUR6's re-sweep
-status: open
+status: closed
 opened: 2026-09-08
 refs: [LIB-CUR6]
+closed: 2026-09-08
 ---
 
 
@@ -109,3 +110,42 @@ than six; `Step` is the odd one and is a read-back value, not a
 refusal. `NoCornerReason` should be decided beside the
 `PathNoCornerReason` the prelude already carries, since carrying one
 of a pair and not the other is the inconsistency, not the reach.
+
+## Closed (2026-09-08, LIB-CUR7)
+
+All six decided under the CUR3 test. Five carried onto the prelude
+beside the refusals that name them — `ContactKind`, `EscalationSite`
+(with `SegmentRef`, the rung under it and under four other
+`ProfileError` arms), `FilletLeg`, `FilletLegCarrier` and
+`NoCornerReason` — as ONE stanza, which is what the four riding one
+refusal family turned out to want. `NoCornerReason` was decided beside
+`PathNoCornerReason` as this row asked, and the pair closes: two
+same-shaped no-corner reasons at two doors, both curated.
+
+`Step` is NOT carried, argued in `prelude.rs` with its falsifier. The
+carrier rule does not reach it — `ClosedLoop` does not cross to Python
+at all — so the question was the prelude's alone, and the answer is
+that the RECORDING half of the profile layer (the program, the replay
+door and its refusal, the structure record `ClosedLoop` also carries)
+is uncarried WHOLE. Carrying the element type alone would make one
+field nameable with every door that consumes it a module hop away.
+`ProfileError::Structure`'s payload stands on the same fence and is
+named in the same stanza.
+
+Census: the five `INTERIOR` by the carrier rule with the measurement
+— `ProfileError` crosses as one word per arm at
+`EvaluationError.inner_kind`, and `PathError`'s `corners` rows flatten
+the anchor arm to one word, so neither carrier projects the fields —
+and `NoCornerReason` `different-shape` with the corner family, whose
+rows already carry its two words through `corner_reason_tag`.
+
+The re-sweep at LIB-CUR7's merge base found the banked set empty: no
+NEW hit. What it did add is a blind spot and a methodology defect,
+both in `payload-rung-sweep-is-prose-and-a-third-run-disagrees`: the
+counts disagree a third time (and the run before this one disagreed
+with itself), and the sweep's curated set is three of the façade's
+FOUR curated lists — every one of these six was already on the fourth,
+`crates/pncad/src/profile.rs`. That did not make them false positives
+(what a curated list owes is matchability THROUGH it, and the prelude
+carried the refusals and not their payloads), but the scan cannot tell
+"uncurated" from "curated on a list I do not read".

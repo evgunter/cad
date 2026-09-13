@@ -473,7 +473,7 @@ BOUNDS_ALLOWLIST=(
   'crates/editor-core/src/eval/mod.rs 7 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/editor-core/src/eval/wire.rs 15 2026-07-29 (M5 PR 8), the driver amendment'
   # M5 PR 11, the certified-quadrature plumbing.
-  'crates/topo/src/props.rs 14 M5 PR 11, the certified-quadrature plumbing'
+  'crates/topo/src/props.rs 19 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   'crates/sweep/src/blend/battery.rs 15 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
@@ -495,7 +495,17 @@ BOUNDS_ALLOWLIST=(
   # 2026-08-29, the advisory-check registry.
   'crates/editor-core/src/checks.rs 3 2026-08-29, the advisory-check registry'
   # 2026-09-02, the certified at-rest validator and the shell verbs.
-  'crates/topo/src/validate.rs 9 2026-09-02, the certified at-rest validator'
+  # `validate.rs` carries the at-rest validator's nine and, since the
+  # census took the C10 tree as its pre-filter, the three doors that
+  # reach `census::census_and_certify` — the driver amendment's seam,
+  # argued in the ledger under 2026-07-29 beside `separation`.
+  'crates/topo/src/validate.rs 12 2026-09-02, the certified at-rest validator; the three census doors under 2026-07-29 (M5 PR 8), the driver amendment'
+  # The census's BVH pre-filter: `Trees::build`, `Candidates::build`,
+  # the three census entries above them (`census_and_certify`,
+  # `census_traces`, `census_with`) and the backstop's own tree over its
+  # reach boxes (`sweep_cross_solid_backstop`) — spatial-index driver
+  # code over the C10 tree, under the driver amendment like `separation`.
+  'crates/topo/src/census.rs 6 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/shell.rs 2 2026-09-02, the certified at-rest validator'
   # SEAT-4, in the `Bounds` trait's own doc rather than the
   # `bounds_allowlist` ledger: the verb dispatch site, which decides

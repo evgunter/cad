@@ -113,11 +113,12 @@ fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
         kind: EntityKind::Face,
         node: instance,
         path: vec![RoleSeg::InPart {
-            of: Box::new(StableName {
+            of: StableName {
                 kind: EntityKind::Face,
                 node: PART_BODY,
                 path: vec![RoleSeg::Cap(cap)],
-            }),
+            }
+            .into(),
         }],
     }
 }
@@ -131,7 +132,7 @@ fn in_copy(pattern: RecipeNodeId, i: u32, master: StableName) -> StableName {
         node: pattern,
         path: vec![RoleSeg::Instance {
             i,
-            of: Box::new(master),
+            of: master.into(),
         }],
     }
 }

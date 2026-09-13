@@ -44,7 +44,7 @@
 use std::sync::Arc;
 
 use crate::names::emit::{NamingError, check_total};
-use crate::names::role::{Qualifier, RoleSeg, StableName, never_in_a_boolean_table};
+use crate::names::role::{NameRef, Qualifier, RoleSeg, StableName, never_in_a_boolean_table};
 use crate::names::table::{Entry, NameTable};
 use crate::node::RecipeNodeId;
 
@@ -60,14 +60,20 @@ pub(crate) fn member_view(
     member: RecipeNodeId,
     table: &NameTable,
 ) -> Result<NameTable, NamingError> {
+    // The member's table is an operand read whole, so it is sealed
+    // here for the same reason `upstream_name` seals a table read one
+    // entity at a time — and each row below EMBEDS the member's own
+    // handle rather than a copy, so a member name keeps its order
+    // cache through the wrapper.
+    table.seal_order();
     let mut view = NameTable::new();
-    for (name, entry) in table.iter() {
+    for (name, entry) in table.iter_refs() {
         let keyed = StableName {
             kind: name.kind,
             node: union,
             path: vec![RoleSeg::FromMember {
                 member,
-                of: Box::new(name.clone()),
+                of: name.clone(),
             }],
         };
         match entry {
@@ -185,8 +191,8 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
             let (x, y) = (collapse(node, a)?, collapse(node, b)?);
             let (a, b) = if x <= y { (x, y) } else { (y, x) };
             vec![RoleSeg::Seam {
-                a: Box::new(a),
-                b: Box::new(b),
+                a: NameRef::new(a),
+                b: NameRef::new(b),
             }]
         }
         // An F7 merged face: its constituents are result-face names in
@@ -297,17 +303,17 @@ mod tests {
             union,
             vec![RoleSeg::FromMember {
                 member: RecipeNodeId(m),
-                of: Box::new(face(RecipeNodeId(m), vec![RoleSeg::Cap(CapEnd::Start)])),
+                of: face(RecipeNodeId(m), vec![RoleSeg::Cap(CapEnd::Start)]).into(),
             }],
         )
     }
 
     fn from_a(union: RecipeNodeId, inner: StableName) -> StableName {
-        face(union, vec![RoleSeg::FromA(Box::new(inner))])
+        face(union, vec![RoleSeg::FromA(inner.into())])
     }
 
     fn from_b(union: RecipeNodeId, inner: StableName) -> StableName {
-        face(union, vec![RoleSeg::FromB(Box::new(inner))])
+        face(union, vec![RoleSeg::FromB(inner.into())])
     }
 
     #[test]

@@ -19,7 +19,7 @@ use super::emit::{
     Incidence, NamingError, edge_ends, ent, face_half_edges, name1, unique_shared_edge,
 };
 use super::merged::{self, NESTED_MERGED};
-use super::role::{EntityKind, Qualifier, RoleSeg, SplitHalf, StableName};
+use super::role::{EntityKind, NameRef, Qualifier, RoleSeg, SplitHalf, StableName};
 use super::table::{EntityKey, Entry, NameTable};
 use crate::node::RecipeNodeId;
 use geom_core::Tol;
@@ -117,16 +117,27 @@ fn chase(rows: &BTreeMap<FaceKey, FaceKey>, mut f: FaceKey) -> FaceKey {
 ///
 /// # Errors
 ///
-/// A cycling lineage is a corrupt record, surfaced as an emission bug.
+/// A cycling lineage is a corrupt record, surfaced as an emission bug
+/// — [`NamingError::SplitLineage`], carrying the cycling edge, which
+/// is the only locator this failure has.
+///
+/// **Unguardable, and here is why.** Cycling lineages exist: a graft
+/// copies `SplitEdge` records with their source keys and they chain
+/// into strangers in the destination (`chase_b`'s note below says the
+/// same thing from the other side), and `Body::split_root`'s cycle arm
+/// has fired on real assembly products. What no case constructs is a
+/// cycle this chase can reach: `stop` here halts at the first key the
+/// operand's table names, where the consumer that met one in the wild
+/// passes a `stop` that never halts. So the raise is **untested rather
+/// than proven unreachable**, and what `names::emit`'s
+/// `display_tests` pin is the locator's route from the caught record to
+/// the human, not the catch.
 fn chase_edge_to_table<T: Decide>(
     body: &Body<T>,
     table: &NameTable,
     e: EdgeKey,
 ) -> Result<EdgeKey, NamingError> {
-    body.split_root(e, |k| table.name_of(&ent(0, EntityKey::Edge(k))).is_some())
-        .map_err(|_| NamingError::Emission {
-            what: "an edge's split lineage cycles",
-        })
+    Ok(body.split_root(e, |k| table.name_of(&ent(0, EntityKey::Edge(k))).is_some())?)
 }
 
 /// Names both sides of a split (spec D2's split vocabulary + N2).
@@ -304,7 +315,7 @@ fn name_split_edges_vertices<T: Decide>(
                 node,
                 RoleSeg::SectionEdge {
                     side: s.half,
-                    face: Box::new(parent.name),
+                    face: parent.name,
                 },
             );
             let shared = parent.tied || edges.len() > 1;
@@ -361,7 +372,7 @@ fn name_split_edges_vertices<T: Decide>(
                     node,
                     RoleSeg::SplitFragment {
                         side: s.half,
-                        parent: Box::new(parent.name),
+                        parent: parent.name,
                     },
                 ),
                 ent(s.ix, EntityKey::Edge(e)),
@@ -409,7 +420,7 @@ fn name_split_edges_vertices<T: Decide>(
                 (
                     RoleSeg::CrossingVertex {
                         side: s.half,
-                        edge: Box::new(parent.name),
+                        edge: parent.name,
                     },
                     parent.tied,
                 )
@@ -425,7 +436,7 @@ fn name_split_edges_vertices<T: Decide>(
                 (
                     RoleSeg::OnToolVertex {
                         side: s.half,
-                        of: Box::new(of.name),
+                        of: of.name,
                     },
                     of.tied,
                 )
@@ -515,10 +526,10 @@ pub(crate) fn name_boolean<T: Decide>(
             Descent::B(f) => upstream_name(b.table, b.node, ent(0, EntityKey::Face(f))),
         }
     };
-    let wrap = |d: Descent, inner: StableName, kind: EntityKind| {
+    let wrap = |d: Descent, inner: NameRef, kind: EntityKind| {
         let seg = match d {
-            Descent::A(_) => RoleSeg::FromA(Box::new(inner)),
-            Descent::B(_) => RoleSeg::FromB(Box::new(inner)),
+            Descent::A(_) => RoleSeg::FromA(inner),
+            Descent::B(_) => RoleSeg::FromB(inner),
         };
         name1(kind, node, seg)
     };
@@ -548,8 +559,10 @@ pub(crate) fn name_boolean<T: Decide>(
             // (re-wrapped by that chain, then by this side) and never
             // its `Merged` name.
             match merged::constituents_through_wrappers(&up.name) {
-                Some(cs) => constituents
-                    .extend(cs.into_iter().map(|inner| wrap(d, inner, EntityKind::Face))),
+                Some(cs) => constituents.extend(
+                    cs.into_iter()
+                        .map(|inner| wrap(d, NameRef::new(inner), EntityKind::Face)),
+                ),
                 None => constituents.push(wrap(d, up.name, EntityKind::Face)),
             }
         }
@@ -677,7 +690,7 @@ fn name_fragment_group<T: Decide>(
 ) -> Result<(), NamingError> {
     let bug = |what| NamingError::Emission { what };
     // Partners: operand faces across the members' seam edges.
-    let mut partners: BTreeMap<StableName, FaceKey> = BTreeMap::new();
+    let mut partners: BTreeMap<NameRef, FaceKey> = BTreeMap::new();
     for &m in members {
         for he in face_half_edges(body, m)? {
             let e = body
@@ -714,7 +727,7 @@ fn name_fragment_group<T: Decide>(
         for (pname, &pface) in &partners {
             let (origin, normal) = face_plane(body, pface)?;
             let verdict = side_of_face(body, m, origin, normal, bnd)?;
-            vector.push((pname.clone(), verdict));
+            vector.push(((**pname).clone(), verdict));
         }
         by_vector.entry(vector).or_default().push(m);
     }
@@ -850,7 +863,7 @@ fn name_boolean_edges<T: Decide>(
     // Group value: (descends-from-a-tie, edges). Two tied operand
     // faces answer to ONE name, so their seam chords land in one
     // group — the widening B1 asks for, not a collision.
-    let mut seam_groups: BTreeMap<(StableName, StableName), (bool, Vec<EdgeKey>)> = BTreeMap::new();
+    let mut seam_groups: BTreeMap<(NameRef, NameRef), (bool, Vec<EdgeKey>)> = BTreeMap::new();
     let mut add_seam = |fa: Upstream, fb: Upstream, e: EdgeKey| {
         let from_tie = fa.tied || fb.tied;
         let slot = seam_groups
@@ -890,20 +903,27 @@ fn name_boolean_edges<T: Decide>(
     // body that was grafted (a placed copy is). Forwarding `SplitEdge`
     // at the graft therefore needs a dead-ancestor bridge on the
     // `GraftMap` before this descent can become the shared chase.
-    let chase_b = |mut e_b: EdgeKey| -> EdgeKey {
+    //
+    // Spending the budget means the walk revisited a key — the same
+    // corrupt record `chase_edge_to_table` refuses, on the lane where
+    // the aliasing above can actually produce one — so it refuses with
+    // the same locator rather than falling out of the loop with a root
+    // it cannot justify.
+    let chase_b = |e_b0: EdgeKey| -> Result<EdgeKey, NamingError> {
+        let mut e_b = e_b0;
         for _ in 0..=fwd_edges.len() {
             if b.table.name_of(&ent(0, EntityKey::Edge(e_b))).is_some() {
-                return e_b;
+                return Ok(e_b);
             }
             let Some(res) = fwd_edges.get(&e_b) else {
-                return e_b; // dead, ungrafted intermediate
+                return Ok(e_b); // dead, ungrafted intermediate
             };
             match body.edge_provenance_of(*res) {
                 Some(Provenance::SplitEdge { edge }) => e_b = *edge,
-                _ => return e_b,
+                _ => return Ok(e_b),
             }
         }
-        e_b
+        Err(topo::SplitLineageCycle { edge: e_b0 }.into())
     };
     let mut groups: BTreeMap<ERoot, Vec<EdgeKey>> = BTreeMap::new();
     for (e, _) in body.edges() {
@@ -912,13 +932,13 @@ fn name_boolean_edges<T: Decide>(
         }
         let root = match (naming.a_keys, naming.b_keys) {
             (OperandKeys::Direct, OperandKeys::Grafted) => match inv_edges.get(&e) {
-                Some(&eb) => ERoot::B(chase_b(eb)),
+                Some(&eb) => ERoot::B(chase_b(eb)?),
                 None => ERoot::A(chase_edge_to_table(body, a.table, e)?),
             },
             (OperandKeys::Direct, OperandKeys::Absent) => {
                 ERoot::A(chase_edge_to_table(body, a.table, e)?)
             }
-            (OperandKeys::Absent, OperandKeys::Direct) => ERoot::B(chase_b(e)),
+            (OperandKeys::Absent, OperandKeys::Direct) => ERoot::B(chase_b(e)?),
             _ => return Err(bug("unsupported operand-key layout")),
         };
         // A root that resolves in no operand table is a join-minted
@@ -946,14 +966,7 @@ fn name_boolean_edges<T: Decide>(
         }
     }
     for ((fa, fb), (from_tie, edges)) in seam_groups {
-        let base = name1(
-            EntityKind::Edge,
-            node,
-            RoleSeg::Seam {
-                a: Box::new(fa),
-                b: Box::new(fb),
-            },
-        );
+        let base = name1(EntityKind::Edge, node, RoleSeg::Seam { a: fa, b: fb });
         if edges.len() == 1 {
             put(t, tie, from_tie, base, ent(0, EntityKey::Edge(edges[0])))?;
             continue;
@@ -1006,9 +1019,9 @@ fn name_boolean_edges<T: Decide>(
         };
         let from_tie = inner.tied;
         let seg = if wrap_a {
-            RoleSeg::FromA(Box::new(inner.name))
+            RoleSeg::FromA(inner.name)
         } else {
-            RoleSeg::FromB(Box::new(inner.name))
+            RoleSeg::FromB(inner.name)
         };
         let base = name1(EntityKind::Edge, node, seg);
         if edges.len() == 1 {
@@ -1061,22 +1074,14 @@ fn name_boolean_vertices<T: Decide>(
             if b.table.name_of(&ent(0, EntityKey::Vertex(vb))).is_some() {
                 let inner = upstream_name(b.table, b.node, ent(0, EntityKey::Vertex(vb)))?;
                 return Ok(Some((
-                    name1(
-                        EntityKind::Vertex,
-                        node,
-                        RoleSeg::FromB(Box::new(inner.name)),
-                    ),
+                    name1(EntityKind::Vertex, node, RoleSeg::FromB(inner.name)),
                     inner.tied,
                 )));
             }
         } else if a.table.name_of(&ent(0, EntityKey::Vertex(k))).is_some() {
             let inner = upstream_name(a.table, a.node, ent(0, EntityKey::Vertex(k)))?;
             return Ok(Some((
-                name1(
-                    EntityKind::Vertex,
-                    node,
-                    RoleSeg::FromA(Box::new(inner.name)),
-                ),
+                name1(EntityKind::Vertex, node, RoleSeg::FromA(inner.name)),
                 inner.tied,
             )));
         }
@@ -1085,7 +1090,7 @@ fn name_boolean_vertices<T: Decide>(
     // Candidate seam-vertex names, grouped for multiplicity: the key
     // is the (A, B) parent pair, the value (descends-from-a-tie,
     // vertices).
-    let mut groups: BTreeMap<(StableName, StableName), (bool, Vec<VertexKey>)> = BTreeMap::new();
+    let mut groups: BTreeMap<(NameRef, NameRef), (bool, Vec<VertexKey>)> = BTreeMap::new();
     for (v, _) in body.vertices() {
         // Operand pass-downs: the kept key itself, then its dead
         // fusion partners (deterministic order: KEPT-KEY identity
@@ -1111,11 +1116,15 @@ fn name_boolean_vertices<T: Decide>(
             .vertex_edges
             .get(&v)
             .ok_or_else(|| bug("seam vertex without incident edges"))?;
-        let mut a_edges: Vec<StableName> = Vec::new();
-        let mut b_edges: Vec<StableName> = Vec::new();
-        let mut a_faces: Vec<StableName> = Vec::new();
-        let mut b_faces: Vec<StableName> = Vec::new();
-        let mut seam_lines: Vec<(StableName, StableName)> = Vec::new();
+        // The parentage a seam vertex is named from is read off the
+        // incident EDGE names and put straight back into this vertex's
+        // own name, so it travels as the operand tables' handles: no
+        // copy is made and the order cache survives the trip.
+        let mut a_edges: Vec<NameRef> = Vec::new();
+        let mut b_edges: Vec<NameRef> = Vec::new();
+        let mut a_faces: Vec<NameRef> = Vec::new();
+        let mut b_faces: Vec<NameRef> = Vec::new();
+        let mut seam_lines: Vec<(NameRef, NameRef)> = Vec::new();
         // B1: a seam vertex reads its parentage off the incident EDGE
         // names, so an edge name that is itself tied makes the vertex
         // name tie-descended too.
@@ -1126,17 +1135,17 @@ fn name_boolean_vertices<T: Decide>(
             };
             from_tie |= t.is_tied(ename);
             match ename.path.first() {
-                Some(RoleSeg::FromA(x)) => a_edges.push((**x).clone()),
-                Some(RoleSeg::FromB(x)) => b_edges.push((**x).clone()),
+                Some(RoleSeg::FromA(x)) => a_edges.push(x.clone()),
+                Some(RoleSeg::FromB(x)) => b_edges.push(x.clone()),
                 // Zip-listed AND derived seams both qualify (M4 PR 5:
                 // declared merges reroute channel-cut chords into the
                 // derived-seam lane, so a seam vertex may lean on a
                 // Seam-named edge outside `naming.seam_edges`) — the
                 // NAME is the evidence either way.
                 Some(RoleSeg::Seam { a: fa, b: fb }) => {
-                    a_faces.push((**fa).clone());
-                    b_faces.push((**fb).clone());
-                    seam_lines.push(((**fa).clone(), (**fb).clone()));
+                    a_faces.push(fa.clone());
+                    b_faces.push(fb.clone());
+                    seam_lines.push((fa.clone(), fb.clone()));
                 }
                 _ => return Err(bug("seam vertex incident to an unexpected edge role")),
             }
@@ -1172,8 +1181,8 @@ fn name_boolean_vertices<T: Decide>(
             .and_then(|pa| upstream_name(a.table, a.node, ent(0, EntityKey::Vertex(pa))).ok());
         from_tie |= partner_b.as_ref().is_some_and(|u| u.tied);
         from_tie |= partner_a.as_ref().is_some_and(|u| u.tied);
-        let partner_b_inner: Option<StableName> = partner_b.map(|u| u.name);
-        let partner_a_inner: Option<StableName> = partner_a.map(|u| u.name);
+        let partner_b_inner: Option<NameRef> = partner_b.map(|u| u.name);
+        let partner_a_inner: Option<NameRef> = partner_a.map(|u| u.name);
         seam_lines.sort_unstable();
         seam_lines.dedup();
         // The A side of the pair is always an A-descended name and the
@@ -1210,8 +1219,8 @@ fn name_boolean_vertices<T: Decide>(
                 let mut segs: Vec<RoleSeg> = seam_lines
                     .iter()
                     .map(|(fa, fb)| RoleSeg::Seam {
-                        a: Box::new(fa.clone()),
-                        b: Box::new(fb.clone()),
+                        a: fa.clone(),
+                        b: fb.clone(),
                     })
                     .collect();
                 segs.sort_unstable();
@@ -1238,8 +1247,8 @@ fn name_boolean_vertices<T: Decide>(
             EntityKind::Vertex,
             node,
             RoleSeg::Seam {
-                a: Box::new(pa.clone()),
-                b: Box::new(pb.clone()),
+                a: pa.clone(),
+                b: pb.clone(),
             },
         );
         if verts.len() == 1 {
@@ -1404,7 +1413,7 @@ fn name_split_faces<T: Decide>(
         let half = members[0].1;
         let base = RoleSeg::SplitFragment {
             side: half,
-            parent: Box::new(parent.name),
+            parent: parent.name,
         };
         if members.len() == 1 {
             let (ix, _, f) = members[0];
@@ -1724,7 +1733,7 @@ mod tests {
             name1(
                 EntityKind::Face,
                 bool_node,
-                RoleSeg::FromA(Box::new(inner.clone())),
+                RoleSeg::FromA(inner.clone().into()),
             )
         };
         let mut want = vec![

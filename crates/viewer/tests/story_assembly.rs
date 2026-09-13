@@ -165,9 +165,10 @@ fn park(session: &mut DocSession, instance: RecipeNodeId, at: [f64; 3]) {
     for op in [
         SessionOp::BeginFreeMove { instance },
         SessionOp::PreviewFreeMove {
+            instance,
             frame: Frame::translation(at),
         },
-        SessionOp::CommitFreeMove,
+        SessionOp::CommitFreeMove { instance },
     ] {
         let outcome = session.perform(op);
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -454,6 +455,7 @@ fn the_windmill_story() {
     for op in [
         SessionOp::BeginFreeMove { instance: hub_i },
         SessionOp::PreviewFreeMove {
+            instance: hub_i,
             frame: Frame::translation([0.0, 0.0, 0.2]),
         },
         SessionOp::CancelFreeMove,
@@ -488,10 +490,10 @@ fn the_windmill_story() {
     let outcome = session.perform(seat_proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1, "exactly one committed edit");
-    let [superseded] = &outcome.superseded[..] else {
+    let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
-            outcome.superseded
+            outcome.withdrawn.superseded
         )
     };
     assert_eq!(
@@ -647,10 +649,10 @@ fn the_windmill_story() {
     let outcome = session.perform(sail_a_proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
-    let [superseded] = &outcome.superseded[..] else {
+    let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
-            outcome.superseded
+            outcome.withdrawn.superseded
         )
     };
     assert_eq!(
@@ -726,10 +728,10 @@ fn the_windmill_story() {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
-    let [superseded] = &outcome.superseded[..] else {
+    let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
-            outcome.superseded
+            outcome.withdrawn.superseded
         )
     };
     assert_eq!(superseded.instance, sail_b, "and so does the second's");

@@ -677,12 +677,52 @@ fn the_tier_off_reproduces_the_pre_e12_refusal() {
     );
 }
 
+/// **Evidence: the two-parameter fixture's whole-certifying half-width
+/// at this ε**, bisected the way the slab's row does — the number the
+/// two bisection rows below are scaled against.
+#[test]
+#[ignore = "evidence-only: prints the two-parameter fixture's whole-certifying bracket"]
+fn evidence_two_param_plate_whole_certifying_half_width() {
+    let certifies_whole = |half: f64| {
+        let doc = two_param_plate(uniform(half), uniform(half));
+        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        let v = drive(&doc, &analyzed, &config(64), Tol::witness()).unwrap();
+        v.receipt().splits == 0 && v.receipt().certified == 1
+    };
+    let (mut lo, mut hi) = (eps() / 4.0, 0.25);
+    println!(
+        "two_param_plate eps={:e}: lo {lo:e} certifies_whole={} hi {hi:e} certifies_whole={}",
+        eps(),
+        certifies_whole(lo),
+        certifies_whole(hi)
+    );
+    for _ in 0..20 {
+        let mid = 0.5 * (lo + hi);
+        if certifies_whole(mid) {
+            lo = mid
+        } else {
+            hi = mid
+        }
+    }
+    println!(
+        "two_param_plate eps={:e}: whole-certifying bracket [{lo:e}, {hi:e}]",
+        eps()
+    );
+}
+
 /// **The worked example's driver half**, on the two-parameter document:
 /// leaves certify after real bisection, the receipt identity holds, and
 /// the accounting sums to 1.
+///
+/// At ±0.05 on both parameters — a REAL study, a fifth of the radius.
+/// Under M10-10's tier (rule D with amendment A1) the fixture's
+/// whole-certifying half-width is a real margin at about 0.022
+/// (`evidence_two_param_plate_whole_certifying_half_width`), so an
+/// ε-scaled box no longer splits and a row about bisection has to be
+/// wider than that.
 #[test]
 fn the_two_parameter_drive_certifies_after_bisection_and_accounts_for_all_of_it() {
-    let doc = two_param_plate(uniform(eps() / 4.0), uniform(eps() / 4.0));
+    let doc = two_param_plate(uniform(0.05), uniform(0.05));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let v = drive(&doc, &analyzed, &config(256), Tol::witness()).expect("the nominal builds");
 
@@ -1067,9 +1107,14 @@ fn an_exhausted_depth_budget_refuses_the_whole_box() {
 /// **Certification is measure-free; pricing is not.** With a `Band`
 /// parameter varying, leaves certify and refuse exactly as they would
 /// otherwise, and the ACCOUNTING columns refuse typed, naming the band.
+///
+/// At ±0.05, past the fixture's whole-certifying half-width (the row
+/// above): a leaf that covers a band's WHOLE support prices as 1 by
+/// the band's own rule (`box_mass`), so the refusal this row is about
+/// needs a leaf that covers part of it, i.e. a drive that split.
 #[test]
 fn a_band_parameter_certifies_normally_and_prices_nothing() {
-    let w = eps() / 4.0;
+    let w = 0.05;
     let banded = two_param_plate(Distribution::Band { lo: -w, hi: w }, uniform(w));
     let priced = two_param_plate(uniform(w), uniform(w));
     let analyzed = analyzed_box(&banded, &AnalysisPolicy::default());

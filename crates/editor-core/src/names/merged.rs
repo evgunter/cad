@@ -15,7 +15,7 @@
 //! use the second to read what was published. Neither flattens a
 //! name: the set is flat because the mint made it so.
 
-use super::role::{EntityKind, RoleSeg, StableName};
+use super::role::{EntityKind, NameRef, RoleSeg, StableName};
 
 /// The emission bug a nested merged face is — a `Merged` constituent
 /// that is itself a merged face, through any wrapping — refused at
@@ -32,13 +32,13 @@ pub(crate) const NESTED_MERGED: &str =
 /// tail (`[Merged(cs), Fragment(q)]`) is a FRAGMENT of a merged face,
 /// a face in its own right, and is left whole.
 pub(crate) fn constituents_through_wrappers(name: &StableName) -> Option<Vec<StableName>> {
-    let rewrap = |inner: Vec<StableName>, side: fn(Box<StableName>) -> RoleSeg| {
+    let rewrap = |inner: Vec<StableName>, side: fn(NameRef) -> RoleSeg| {
         inner
             .into_iter()
             .map(|c| StableName {
                 kind: EntityKind::Face,
                 node: name.node,
-                path: vec![side(Box::new(c))],
+                path: vec![side(NameRef::new(c))],
             })
             .collect()
     };
@@ -90,11 +90,11 @@ mod tests {
     }
 
     fn from_a(node: u64, inner: StableName) -> StableName {
-        face(node, vec![RoleSeg::FromA(Box::new(inner))])
+        face(node, vec![RoleSeg::FromA(inner.into())])
     }
 
     fn from_b(node: u64, inner: StableName) -> StableName {
-        face(node, vec![RoleSeg::FromB(Box::new(inner))])
+        face(node, vec![RoleSeg::FromB(inner.into())])
     }
 
     fn merged(node: u64, mut set: Vec<StableName>) -> StableName {

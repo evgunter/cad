@@ -276,8 +276,8 @@ let seam = StableName {
     kind: EntityKind::Edge,
     node,
     path: vec![RoleSeg::Seam {
-        a: Box::new(face(vec![RoleSeg::Cap(CapEnd::End)])),
-        b: Box::new(face(vec![RoleSeg::Band(ProfileEdgeRef { loop_index: 0, segment: 0 })])),
+        a: face(vec![RoleSeg::Cap(CapEnd::End)]).into(),
+        b: face(vec![RoleSeg::Band(ProfileEdgeRef { loop_index: 0, segment: 0 })]).into(),
     }],
 };
 

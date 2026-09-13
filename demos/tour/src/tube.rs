@@ -108,12 +108,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         ops: "sweep::tube_along_arc(origin, +y, +x, R = 2, Arc{t0 = 0.25, t1 = 1.75}, \
               r = 0.5)",
         // The lily's finding 13 in miniature: delta is a CHORD budget
-        // spent per RING radius, not per feature size, so a 2 m spine
-        // burns it fast. Measured on this body: 2e-3 -> 172k triangles
-        // at 0.004% mesh-volume error, 6e-3 -> 58k at 0.011%,
-        // 1e-2 -> 23k at 0.028%. 1e-2 is the montage's own working
-        // budget (cutaway, projectbox) and the facets it leaves are
-        // the point of the kernel lane, not a defect.
+        // spent per curvature, and the two chart directions of a torus
+        // spend it at their own radii (`mesh::sizing::torus_grid_steps`):
+        // 1 668 triangles at 1e-2 on this body, ∝ 1/delta from there.
+        // 1e-2 is the montage's own working budget (cutaway,
+        // projectbox) and the facets it leaves are the point of the
+        // kernel lane, not a defect.
         delta: DELTA,
         note: Some(format!(
             "sweep/tests/m6_tube.rs's wedge, constant for constant. NO semantic fork: \

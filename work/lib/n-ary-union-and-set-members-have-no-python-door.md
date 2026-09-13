@@ -2,8 +2,9 @@
 id: n-ary-union-and-set-members-have-no-python-door
 kind: issue
 title: The n-ary union node and SetMembers have no Python door
-status: open
+status: closed
 opened: 2026-09-08
+closed: 2026-09-08
 ---
 
 
@@ -46,3 +47,18 @@ a missing ARM behind a bound name is invisible to
 it is `test_north_star.py::test_the_bound_vocabulary_is_exactly_this`,
 which lists the two constructor families literally — and it is a
 positive list, so it says what IS bound and never what is not.
+
+## Closed
+
+LIB-DOORS-3 built both doors. `Node.union(members, declare=None)` is
+the n-ary fold over the member list, so 22 of the 23 `Node` variants
+have a Python constructor and `Node::Sweep` is the one that does not,
+for the reason this file already stated. `DocEdit.set_members(node,
+members)` is the list rewrite, and each of the three tags is provoked
+from Python in `crates/pncad-py/tests/test_union.py` — the payload
+asserted, not just the word.
+
+The census is unchanged, exactly as this file predicted: both names
+are arms behind `Node` and `DocEdit`, which rule 1 accounts whole. The
+roster that moved is
+`test_north_star.py::test_the_bound_vocabulary_is_exactly_this`.

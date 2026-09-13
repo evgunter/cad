@@ -285,8 +285,8 @@ impl MeasurePrimitive {
 /// `#[pyclass]` cannot be attached to a type from another crate; the
 /// obligation it owes the kernel is that every kernel direction has a
 /// member here, which [`_binds_every_kernel_direction`] enforces.
-#[pyclass(eq, eq_int, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq)]
+#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum AssertionDir {
     /// The measured quantity must be at least the bound.
     AtLeast,
