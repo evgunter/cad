@@ -305,15 +305,49 @@ Euler-op sequences stay serial — each op mutates shared arenas, and
 they are cheap; full-DAG rebuild is solved by memoization, not by
 parallelizing surgery.
 
-**State.** `rayon` is a dependency of `editor-core`, `topo` (PERF-8) and
-`mesh` (PERF-7); `par_iter`
-lives at `eval/mod.rs:2380` (behind `EvalOptions::parallel`, default
-`false` at `:2080`), `drive.rs:1184` (behind `DriveConfig::parallel`,
-default `false` at `:361`), `stackup.rs:513,1831` and `mc.rs:473`
-(default `true` at `mc.rs:94`). Neither `mesh` nor `bvh` names rayon.
-The M10 driver's map gives 3.66× on one row solo and regresses a
-saturated test binary by 6 % — a binary's floor is its longest serial
-row, so turning it on is a per-row decision, not a global one.
+**State: three targets built, and one of them is switched off.**
+`rayon` is a dependency of `editor-core`, of `topo` and of `mesh`.
+
+`topo::props`' face walks are the mass-properties target below, built
+by PERF-8 — an indexed map over faces into arena-order slots, each face
+under a detached K-funnel frame (`geom_core::k_stats::detached`) whose
+recording the arena-order fold splices back, so the verdict log, the
+escalation log and the `probe` sample population are the serial walk's
+at any thread count. PERF-11 put the module's third walk on the
+same pair — `SignCertificate::refine_to_target`'s continuation as one
+slot per face walked sequentially in arena order, which is what keeps
+the refusal it names the first in that order. Its FOURTH,
+`classify_shells_of`'s per-shell face loop, was mapped, measured and
+left serial: every shell the census meets is below the map's
+break-even and none is many-faced on the quadrature lane
+(`work/perf/parallel-map-costs-a-fixed-price-on-a-cheap-body.md`). A
+map is a shape, not a gain, and the measurement is what says which.
+
+`mesh::tessellate`'s per-face dispatch is the per-face tessellation
+target, built by PERF-7 — the same pair of idioms, over the face arena:
+the lanes in the map, and the arena-order fold that places each patch,
+records the patch memo, hands the budget meter its rows and splices the
+K-funnel recordings back through PERF-8's door.
+`crates/mesh/tests/d9_mesh_goldens.rs` digests the corpus under an
+explicit 1-thread and an explicit 4-thread pool and asserts both
+against the committed table, so the bit-identity claim is a standing
+row rather than an argument.
+
+The evaluator's own map is the third, and it is switched off:
+`eval/mod.rs`'s node map is D9-clean as written (indexed map into
+per-node slots), but `EvalOptions::default()` sets `parallel: false`
+and every shipping caller takes the default; `parallel: true` appears
+once, in a test. Two things have to be composed back before that
+switch can be flipped, and one of them changes DECISIONS rather than
+recordings — `work/wire/parallel-node-map-loses-the-funnel-and-the-symbolic-session.md`.
+
+`mesh`'s (`tessellate.rs`, `tessellate_impl`'s per-face dispatch) is
+**on unconditionally** and has no switch — idiom 1 over the face arena
+into a pre-sized buffer, then the arena-order fold that places the
+patches. `crates/mesh/tests/d9_mesh_goldens.rs` digests the corpus
+under an explicit 1-thread and an explicit 4-thread pool and asserts
+both against the committed table, so the bit-identity claim is a
+standing row rather than an argument.
 
 Tempering expectation for whoever turns it on: the scheduler is
 level-synchronous and the expensive corpus documents are *chains*
