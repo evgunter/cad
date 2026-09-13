@@ -563,6 +563,19 @@ impl fmt::Display for CornerConfig {
 /// only a fillet caller ever reads this sentence.
 pub const FILLET3_RADIUS_RECOURSE: &str =
     "reduce the fillet radius, or blend a support with more curvature headroom";
+/// The recourse for a contact edge whose second-order separation the
+/// must-carry rule finds in band (`tangent_second_order` at the
+/// surgery's description pass). The margin is
+/// `|1/r_band ∓ κ_support|·r_band²/2`, levered by the blend radius:
+/// on a plane support it grows with the radius without bound; on a
+/// support curving the band's own way it peaks at half the support's
+/// radius of curvature (`R/8` there) and a feature smaller than that
+/// bound allows has no certifiable contact at the run's tolerance —
+/// the second clause. Ball language kept: only a fillet mints a
+/// tangential contact.
+pub const FILLET3_CONTACT_RECOURSE: &str = "the contact's second-order separation is levered by the blend radius: enlarge the \
+     radius — on a support curving the band's own way, toward half its radius of \
+     curvature, where the separation peaks — or blend a larger feature";
 /// The recourse for a support face whose survival the clearance screen
 /// cannot certify. Both verbs meter clearance (each on its own
 /// setbacks), so the sentence names the blend size, which is the
@@ -1388,6 +1401,11 @@ impl fmt::Display for BlendError {
                     // neither line nor circle is the canal family
                     // either way.
                     Some("fillet3_support_coaxiality") => FILLET3_SPINE_KIND_RECOURSE,
+                    // The must-carry rule's in-band verdict over a
+                    // contact edge (the surgery's description pass):
+                    // the lever is the blend radius, and the sentence
+                    // says which way to move it.
+                    Some("tangent_second_order") => FILLET3_CONTACT_RECOURSE,
                     // Predicate 6's two classifications share the corner
                     // recourse: the trihedron's independence and the
                     // ruled band's transverse cap.
@@ -1475,8 +1493,9 @@ impl core::error::Error for BlendError {}
 /// `test-support` for the same reason `test_support` is — a `tests/`
 /// file cannot name a `#[cfg(test)]` item.
 #[cfg(any(test, feature = "test-support"))]
-pub const ALL_RECOURSES: [(&str, &str); 15] = [
+pub const ALL_RECOURSES: [(&str, &str); 16] = [
     ("radius", FILLET3_RADIUS_RECOURSE),
+    ("contact", FILLET3_CONTACT_RECOURSE),
     ("clearance", FILLET3_CLEARANCE_RECOURSE),
     ("clearance-split", FILLET3_CLEARANCE_SPLIT_RECOURSE),
     ("tangential", FILLET3_TANGENTIAL_RECOURSE),
@@ -1720,6 +1739,14 @@ mod recourse_tests {
                     margin: MarginDiag::Value(0.0),
                     band,
                     predicate: Some("fillet3_chain_g1"),
+                },
+            },
+            BlendError::Escalated {
+                site: BlendSite::Chain,
+                source: Indeterminate {
+                    margin: MarginDiag::Value(0.0),
+                    band,
+                    predicate: Some("tangent_second_order"),
                 },
             },
             BlendError::RepeatedEdge {

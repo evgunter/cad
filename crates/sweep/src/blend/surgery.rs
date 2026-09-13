@@ -164,7 +164,9 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{
+    EdgeCurveSpec, EdgeDescriptionSpec, MustCarryVerdict, edge_extent, must_carry_over_edge,
+};
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 use topo::{
     Body, EdgeKey, EntityId, FaceKey, FaceSurface, HalfEdgeKey, LoopKey, MefSite, MevSite,
@@ -753,7 +755,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
             .map_err(|e| op("band face sense", e))?;
     }
     for (edge, carrier) in described {
-        attach_contact(&mut body, edge, carrier, tol)?;
+        attach_contact(&mut body, edge, carrier, band, tol)?;
     }
     topo::mint_pcurves(&mut body, tol).map_err(|source| BlendError::Certify {
         site: "pcurve re-mint after surgery",
@@ -3800,9 +3802,10 @@ impl SourceFaces {
 }
 
 /// The prefer-intrinsic upgrade for one new edge: rebuild the exact
-/// carrier and describe it as the tangential contact locus of its two
-/// adjacent faces' surfaces — over the rim arcs' stored carriers as
-/// well as over the straight trimlines.
+/// carrier and describe it — over the rim arcs' stored carriers as
+/// well as over the straight trimlines — as the geometry IS: a seam, a
+/// transverse intersection, or a tangential contact locus whose
+/// description the must-carry rule decides over the whole edge.
 ///
 /// **A blend trimline is BORN with its intrinsic description**, never a
 /// `MappedCurve` pushforward of the construction that happened to
@@ -3816,6 +3819,7 @@ fn attach_contact<T: Decide + Bounds>(
     body: &mut Body<T>,
     edge: EdgeKey,
     carrier: ContactCarrier<T>,
+    band: Band,
     tol: Tol,
 ) -> Result<(), BlendError> {
     let ed = body
@@ -3915,21 +3919,58 @@ fn attach_contact<T: Decide + Bounds>(
         EdgeDescriptionSpec::Intersection { s1, s2, witness }
     } else {
         // The band meets its support tangentially along the contact
-        // locus, so the intrinsic description one order up is the one
-        // the geometry has.
-        //
-        // **The description is chosen STRUCTURALLY here, not by the
-        // must-carry rule** (`geom_brep::must_carry_over_edge`, the
-        // one home the sweep verbs' smooth arms route through): no
-        // lane gate, no station walk, no in-band escalation. The
-        // second-order margin is `|1/r_band ∓ κ_support|·r_band²/2`,
-        // which the measured corpus reads seven orders above K·ε —
-        // and which collapses for a concave band osculating its
-        // support. The reading, the closed form and the disposition
-        // are
-        // `work/blend/blend-contact-edges-mint-the-intrinsic-description-without-the-rule.md`.
+        // locus, and the corner ball meets the band the same way: a
+        // definitely-smooth join, whose description is the must-carry
+        // rule's to decide over the whole edge
+        // (`geom_brep::must_carry_over_edge` — the lane gate, the
+        // certification schedule's interior stations and the three-way
+        // answer, in their one home). The rule decides; this site does
+        // not argue. Jet-determinate stores the intrinsic tangency,
+        // under-determined the conventional chart image, in-band
+        // refuses typed at the door (D4 ¶3) — never silently either
+        // side.
         let witness = curve.eval((t0 + t1) * T::from_f64(0.5));
-        EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
+        let verdict = {
+            let (Some(surf1), Some(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
+                return Err(not_intact(
+                    EntityId::Edge(edge),
+                    "a described edge's two surfaces",
+                ));
+            };
+            let extent = edge_extent(&curve, t0, t1, p0.distance(p1));
+            must_carry_over_edge(surf1, surf2, &curve, t0, t1, extent, band)
+        };
+        match verdict {
+            MustCarryVerdict::JetDeterminate => {
+                EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
+            }
+            // The surfaces under-determine the locus, so the
+            // description stays CONVENTIONAL: an image in a chart. The
+            // locus lies exactly in BOTH surfaces — the rolling ball's
+            // contact locus is on the support by construction and is
+            // a parameter line of the band it sweeps — so either chart
+            // is a legitimate home. `he_plus`'s side is taken because
+            // the edge's own orientation already names it, and the
+            // meter checks the named chart only.
+            MustCarryVerdict::UnderDetermined => EdgeDescriptionSpec::Chart {
+                surface: s1,
+                image: None,
+                seam: false,
+                declared: None,
+            },
+            // In-band: a separation certifiable as neither positive nor
+            // zero — a band osculating its support, or one a few K·ε
+            // in radius — escalated typed with the deciding station's
+            // own reading. The site is the chain's:
+            // the contact edge is an edge of the body under
+            // construction, whose key no caller will ever hold.
+            MustCarryVerdict::InBand(source) => {
+                return Err(BlendError::Escalated {
+                    site: BlendSite::Chain,
+                    source,
+                });
+            }
+        }
     };
     body.set_edge_curve(
         edge,
