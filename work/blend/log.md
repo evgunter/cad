@@ -534,3 +534,17 @@ rules). Residues on the slate from this unit:
 `rim-of-refuses-extruded-multi-arc-rims`,
 `battery-holds-the-chain-data-model-beside-the-predicates`,
 `self-closed-link-sharing-its-vertex-records-two-junctions`.
+Delta (R1, on `3dd896cb`): all seven items CONFIRMED by execution —
+both probe merges in the ancestry with ten rows green through the
+accessors (a spelled-out `Junction` literal fails to compile from a
+test); the oracle through `wedge_fill` with every pinned value
+unchanged; write-side mutant 11 red / 41 green and read-side 9 red /
+43 green, the three record rows green under the latter; the closing
+arm's loud and silent cases swapped as asked; `assert_full_revolve_rim`
+at sixteen sites; the half-cap sites, the recourse-audit reason, the
+centroid sentence and the dead citations all as reported; a re-run of
+the differential judged unwarranted from the `battery.rs` diff. Three
+notes folded into the state-sync commit: the sort's doc named the
+wrong reader (it serves the open row's "first junction"); R1's wrapper
+kept the retired oracle's name; the two re-homed fixtures moved by bits
+(recorded on the item).

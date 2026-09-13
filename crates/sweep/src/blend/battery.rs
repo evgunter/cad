@@ -347,8 +347,10 @@ pub struct Chain<T: Real> {
     /// in walk order: `junctions[i]` sits between links `i` and
     /// `i + 1`. The check reads each junction's OWN pair and not this
     /// order; the order is kept so the record is the same chain from
-    /// any seed, which is what the suites' pairing rows compare against
-    /// the body's incidence read in cycle order.
+    /// any seed, which is what a row that names "the first junction"
+    /// of an open chain reads (`junctions[0]`) whichever link seeded
+    /// the walk. The closed-chain pairing rows compare sets and read
+    /// no order.
     pub junctions: Vec<Junction>,
     /// How it terminates.
     pub closure: ChainClosure,

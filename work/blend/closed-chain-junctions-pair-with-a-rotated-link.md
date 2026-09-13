@@ -97,3 +97,10 @@ copies) are in the fix pass. Residues filed:
 `rim-of-refuses-extruded-multi-arc-rims`,
 `battery-holds-the-chain-data-model-beside-the-predicates`,
 `self-closed-link-sharing-its-vertex-records-two-junctions`.
+
+Recorded at the delta: re-homing `m5_pr12_refusals::cylinder` and
+`blend6_verb_vocab::cylinder` on `disc_of_arcs` moved those two
+fixtures by bits (vertex angles now `2π·i/n`, the two-arc circle
+starting at 0°); every row of both suites is green and neither is in
+the bit-dump corpus, so nothing pinned moved — a later differential on
+those fixtures should not read the change as a kernel move.

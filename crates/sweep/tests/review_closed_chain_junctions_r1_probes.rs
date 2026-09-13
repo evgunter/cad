@@ -42,7 +42,7 @@ const L: f64 = 2.0;
 /// generators leaving it — the cap plane, toward the axis (`inward`,
 /// a disc's rim or a pocket's floor) or away from it, and the wall
 /// downward — a right angle either way.
-fn corner_torus(big_r: f64, rho: f64, inward: bool) -> f64 {
+fn corner_fill(big_r: f64, rho: f64, inward: bool) -> f64 {
     let along_cap = if inward { (-1.0, 0.0) } else { (1.0, 0.0) };
     wedge_fill((big_r, 0.0), along_cap, (0.0, -1.0), rho)
 }
@@ -241,28 +241,28 @@ fn r1_five_and_six_arc_rims_carve_on_both_doors_and_both_sides() {
         carve(
             &disc,
             &circle_arcs_at_z(&disc, 1.0),
-            -corner_torus(R, RHO, true),
+            -corner_fill(R, RHO, true),
             &format!("{n}-arc disc"),
         );
         let bore = bored_block_of_arcs(n, L, 1.0, R, tol());
         carve(
             &bore,
             &circle_arcs_at_z(&bore, 1.0),
-            -corner_torus(R, RHO, false),
+            -corner_fill(R, RHO, false),
             &format!("{n}-arc bore"),
         );
         let boss = boss_of_arcs(n, L, R, 1.0, 2.0, tol());
         carve(
             &boss,
             &circle_arcs_at_z(&boss, L),
-            corner_torus(R, RHO, false),
+            corner_fill(R, RHO, false),
             &format!("{n}-arc boss"),
         );
         let pocket = pocket_of_arcs(n, L, R, 1.5, tol());
         carve(
             &pocket,
             &circle_arcs_at_z(&pocket, 1.5),
-            corner_torus(R, RHO, true),
+            corner_fill(R, RHO, true),
             &format!("{n}-arc pocket"),
         );
     }
@@ -294,7 +294,7 @@ fn r1_both_rims_of_a_three_arc_cylinder_walk_into_two_closed_chains_and_carve() 
     validate_geometric(&out.body, tol()).unwrap();
     let v1 = mass_properties(&out.body, tol()).unwrap().volume;
     assert!(
-        (v1 - v0 + 2.0 * corner_torus(R, RHO, true)).abs() < 1e-13,
+        (v1 - v0 + 2.0 * corner_fill(R, RHO, true)).abs() < 1e-13,
         "{}",
         v1 - v0
     );

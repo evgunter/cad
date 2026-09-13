@@ -282,8 +282,8 @@ fn r2_an_open_chain_seeded_from_its_middle_pairs_correctly() {
 /// **The carve past the suite's N.** A six-arc disc and five-arc bore,
 /// boss and pocket — one N past every fixture the unit rows — carve
 /// tier-3 valid at the closed form, graded against `test_support`'s
-/// HOMED Pappus oracle `wedge_fill` rather than against the suite's own
-/// `corner_torus`.
+/// HOMED Pappus oracle `wedge_fill` rather than against a suite-local
+/// closed form (the unit suite's own copy was retired for it).
 #[test]
 fn r2_rims_one_n_past_the_suite_carve_at_the_homed_oracle() {
     // The meridian half-plane corner and the two generators leaving it:
