@@ -57,11 +57,21 @@ what it wants, if anything, is a growth alarm, which is the sibling
 `mate-primitives-is-a-partial-mirror-with-no-growth-alarm`'s question
 and not this row's.
 
-Also not this row: `crates/viewer/README.md:1500` spells
+Also not this row: `crates/viewer/GUI-DESIGN.md` spells
 `Dimension = Length | Angle | Count | Scalar` in prose. That is the
 GQ5 design-question recap, where the variant identifiers are the
 design vocabulary rather than words shown to a user, and no gate reads
 it. A doc mirror is a different class from a code one.
+
+(**Citation corrected 2026-09-12.** This read
+`crates/viewer/README.md:1500`, true when written against an
+1849-line README and unreadable after the GUI-DESIGN split left that
+file at 1445 lines. Caught by VIEW's
+`probe-identity-stops-at-the-instance` unit and filed onto this
+program's slate as
+`gq5-recap-citation-points-at-the-readme-the-split-emptied`, now
+closed. Cited by file rather than by line, per §7 — the line was the
+part that rotted.)
 
 ## Why it is not fixed in the unit that found it
 
