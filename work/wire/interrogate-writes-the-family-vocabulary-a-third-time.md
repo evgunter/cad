@@ -2,10 +2,11 @@
 id: interrogate-writes-the-family-vocabulary-a-third-time
 kind: issue
 title: names/interrogate.rs matches ValuePayload and spells six family words itself, a third copy of kind_name's match in a file that never sees eval::family
-status: open
+status: closed
 opened: 2026-09-11
 refs: [2376]
 pr: 2474
+closed: 2026-09-13
 ---
 
 
@@ -47,3 +48,40 @@ the reader is not. The unit that lands it **draws the fence in the PR
 that mints it**, which is the convention `work/topo/program.md`'s
 `keep_out` states for the unowned `topo/src` files and the same
 situation one crate over.
+
+
+## Closed 2026-09-13 (PR 2474)
+
+**Both routes, and the reading is what separated them.** The match
+**narrows** — five arms gate on `index == 0`, map through
+`SplitHalf::of_output_body`, index a vector, or answer the composed
+`none("empty boolean")` — so it stays; its **six terminal arms** did
+not, and became one or-pattern answering `none(payload.kind_name())`.
+`eval::family` is deliberately not imported: `kind_name` is the door.
+Exhaustiveness is preserved with no wildcard, confirmed by the review
+with a scratch `ValuePayload` variant producing exactly three `E0004`s,
+one of them this match.
+
+**No fourth reader exists**, and that is a measured negative rather than
+a clean grep. The lane swept the vocabulary and **stated its blind
+spots**; the review then went after the two that could have hidden a
+reader — a word bound to a differently-named const, and a word built at
+runtime — by shape rather than by word, reading each of the nineteen
+files with a `ValuePayload::…` arm. A stated blind spot is one someone
+else can close, which is the whole reason the rule asks for it.
+
+**The unit's own "no test row is possible" argument was wrong, and the
+correction is the useful part.** The premise — that `output_body` is
+reached only through `entity_of` after a name resolves — was falsified
+by the reviewer with a fixture: `clearance::clearance` is public, takes
+a caller-authored `Selection`, and reaches the arm with no name in the
+picture. The fix pass did not re-assert the conclusion under a new
+premise; it enumerated all four callers and found the word is computed
+on a reachable path and observable on **none**, **because the two
+reachable callers destroy it** (`map_err(|_| …)` and `.ok()?`). That is
+contingent, not structural: the moment SHELL repairs `clearance.rs:1979`
+the word becomes observable and the fixture becomes the row that pins
+it. Evidence and fixture appended to
+`work/shell/clearance-reports-a-no-bodies-payload-as-a-bad-body-index.md`,
+authorship kept, carried as a fenced block because `work/` is
+markdown-only.
