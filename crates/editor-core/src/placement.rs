@@ -99,15 +99,19 @@ pub(crate) const PLACEMENT_AXIS_ROLE: &str = "placement rotation axis";
 /// composition order (D9) built from the same expressions, down to
 /// normalizing the axis on this side because that node does.
 ///
-/// Every claim above is guarded. In this module:
-/// `affine_at_f64_carries_the_stored_bits` for the carried bits,
-/// `compose_is_the_affine_product_to_the_last_multiply_add` for the
-/// fixed association, and
-/// `compose_with_an_identity_returns_the_other_operand_verbatim` for
-/// the fast path. The bit agreement needs a whole document, so its
-/// guard is
-/// `r1_the_placement_frame_matches_the_transform_node_bit_for_bit`, in
-/// this crate's `asm2a_instantiate` suite.
+/// Every claim above is guarded, and each guard names the claim it
+/// keeps rather than being listed here: one row per claim in this
+/// module's `tests`, which is where to read what is actually pinned.
+///
+/// The exception is the bit agreement, whose guard needs a whole
+/// document —
+/// `r1_the_placement_frame_matches_the_transform_node_bit_for_bit` in
+/// this crate's `asm2a_instantiate` suite. **That name is hand-written
+/// and nothing checks it.** A test function is not an intra-doc link
+/// target, so it cannot be spelled as a link, and a rename over there
+/// leaves this citation pointing at nothing with the rustdoc gate
+/// silent. Scheduled on `meta`'s slate as the class it is; until it is
+/// answered, treat the name as a hint and grep for the assertion.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Frame {
@@ -119,6 +123,15 @@ pub struct Frame {
     pub translation: [f64; 3],
 }
 
+// Every method below returns a value and changes nothing, so
+// discarding a result is always a bug: they all carry `#[must_use]`,
+// the two private doors included, and a method added here does too.
+// Nothing enforces that — `clippy::must_use_candidate` is off
+// workspace-wide, and no test can read an attribute — so this line is
+// the whole mechanism. `rotate_then_translate` is the one method
+// without the attribute and needs none: its `Result` is `#[must_use]`
+// by type, and repeating it there fires `clippy::double_must_use`
+// unless given a message.
 impl Frame {
     /// The identity placement — what a missing registry entry means.
     pub const IDENTITY: Self = Self {
@@ -290,8 +303,8 @@ impl Frame {
     }
 
     /// Whether this frame is the stored identity, BY BITS — D-3's
-    /// admission test for the identity fast path, which skips the
-    /// kernel map.
+    /// admission test for the identity fast path ([`Frame`]'s exactness
+    /// rule), which skips the kernel map.
     #[must_use]
     pub fn is_identity_bits(&self) -> bool {
         self.bit_eq(&Self::IDENTITY)
@@ -406,6 +419,8 @@ mod tests {
         }
     }
 
+    /// Keeps the CARRIED-not-recomputed claim: a read-back at `f64`
+    /// moves no bits, through either door.
     #[test]
     fn affine_at_f64_carries_the_stored_bits() {
         for f in [sample(), bit_zoo()] {
@@ -442,6 +457,9 @@ mod tests {
         }
     }
 
+    /// Keeps the D9-deterministic claim for [`Frame::compose`]: the
+    /// general arm is [`Affine3`]'s product in that operator's fixed
+    /// association, and a reassociation anywhere under it reddens this.
     #[test]
     fn compose_is_the_affine_product_to_the_last_multiply_add() {
         let (a, b) = (sample(), other());
@@ -449,10 +467,103 @@ mod tests {
         assert!(b.compose(&a).bit_eq(&composed_by_hand(&b, &a)));
     }
 
+    /// Keeps the D9-deterministic claim for [`Frame::determinant`]: it
+    /// is [`Mat3::determinant`]'s own association, `c0 · (c1 × c2)`
+    /// with the dot summed left to right, and NOT merely the right
+    /// value.
+    ///
+    /// The fixture makes the three summands `1.0`, `1e16` and `-1e16`,
+    /// where the two groupings of one addition chain disagree by a
+    /// whole unit: `(1 + 1e16) - 1e16` is `0.0`, `1 + (1e16 - 1e16)` is
+    /// `1.0`. So the second assertion is what gives the row teeth — a
+    /// reassociation inside [`Vec3::dot`] or [`Vec3::cross`], or a
+    /// [`Frame::determinant`] that stops delegating, moves the answer
+    /// onto the value this row refuses.
+    #[test]
+    fn determinant_is_mat3s_association_and_not_just_its_value() {
+        let f = Frame {
+            columns: [[1.0, -1.0e16, -1.0e16], [1.0, 1.0, 0.0], [0.0, 1.0, 1.0]],
+            translation: [0.0, 0.0, 0.0],
+        };
+        // `c0.dot(c1.cross(c2))`, written out in that fixed order.
+        let [c0, c1, c2] = f.columns;
+        let cross = [
+            c1[1] * c2[2] - c1[2] * c2[1],
+            c1[2] * c2[0] - c1[0] * c2[2],
+            c1[0] * c2[1] - c1[1] * c2[0],
+        ];
+        let in_order = (c0[0] * cross[0] + c0[1] * cross[1]) + c0[2] * cross[2];
+        let regrouped = c0[0] * cross[0] + (c0[1] * cross[1] + c0[2] * cross[2]);
+        assert_ne!(
+            in_order.to_bits(),
+            regrouped.to_bits(),
+            "fixture is vacuous: the two groupings agree"
+        );
+        assert_eq!(f.determinant().to_bits(), in_order.to_bits());
+    }
+
+    /// Keeps the fast-path claim: a bit-exact identity on either side
+    /// returns the other operand with zero arithmetic.
     #[test]
     fn compose_with_an_identity_returns_the_other_operand_verbatim() {
         let f = sample();
         assert!(Frame::IDENTITY.compose(&f).bit_eq(&f));
         assert!(f.compose(&Frame::IDENTITY).bit_eq(&f));
+    }
+
+    /// `Frame::from_affine`'s identity branch cannot change its answer.
+    ///
+    /// `is_identity_bits()` is `bit_eq(&IDENTITY)` over all twelve stored
+    /// coordinates and `Frame` has no other field, so the branch fires
+    /// exactly when the value it discards ALREADY carries `IDENTITY`'s
+    /// twelve bit patterns. This row is that argument as an instrument:
+    /// the branch-free copy must be bit-identical on every input, at the
+    /// exact identity (where the branch fires), at values a BITWISE test
+    /// deliberately does not snap (`-0.0`, a subnormal), and on the
+    /// module's own fixtures.
+    ///
+    /// It goes red the day the two arms diverge — which is the one
+    /// scenario left open by
+    /// `work/wire/from-affines-identity-fast-path-cannot-change-its-answer.md`:
+    /// a `Frame` field that `bit_eq` does not compare.
+    #[test]
+    fn from_affines_identity_branch_agrees_with_the_branch_free_copy() {
+        // `from_affine`'s body with the identity branch removed.
+        fn copy_only(a: Affine3<f64>) -> Frame {
+            Frame {
+                columns: [
+                    [a.linear.c0.x, a.linear.c0.y, a.linear.c0.z],
+                    [a.linear.c1.x, a.linear.c1.y, a.linear.c1.z],
+                    [a.linear.c2.x, a.linear.c2.y, a.linear.c2.z],
+                ],
+                translation: [a.translation.x, a.translation.y, a.translation.z],
+            }
+        }
+
+        let mut signed_zero = Frame::IDENTITY;
+        signed_zero.translation[0] = -0.0;
+        let mut subnormal = Frame::IDENTITY;
+        subnormal.translation[2] = 5.0e-324;
+
+        for (name, f) in [
+            ("identity", Frame::IDENTITY),
+            ("-0.0 translation", signed_zero),
+            ("subnormal translation", subnormal),
+            ("sample", sample()),
+            ("other", other()),
+            ("bit zoo", bit_zoo()),
+        ] {
+            let a = f.affine_f64();
+            assert!(
+                Frame::from_affine(a).bit_eq(&copy_only(a)),
+                "the identity branch changed the answer at {name}"
+            );
+        }
+
+        // Not vacuous: the branch really does fire on the exact identity,
+        // and really does NOT fire one bit away from it.
+        assert!(copy_only(Frame::IDENTITY.affine_f64()).is_identity_bits());
+        assert!(!copy_only(signed_zero.affine_f64()).is_identity_bits());
+        assert!(!Frame::from_affine(signed_zero.affine_f64()).is_identity_bits());
     }
 }
