@@ -2972,3 +2972,63 @@ Fifth orchestrator-originated error caught by a lane or reviewer today,
 and the second in one row. The standing correction stands: **a figure or
 a date I write is one nobody re-takes** — it carries its provenance or it
 does not go in.
+
+## 2026-09-13 — the census unit returned, and it measured the blind spot rather than asserting it
+
+PR 2501, full matrix green (12 `test (…)`, 5 `k-lint`, 0 in flight, 0
+non-success, verified here). To a **full review**, per `plan.md`'s
+posture and for the reason this program has now demonstrated twice: **a
+census with a hole reports green.**
+
+### The blind spot is measured, not argued
+
+The row claimed a document-only variant could launder into an existing
+kernel form and stay invisible. The lane built the mutant and recorded
+the answer: **five of seven clauses stayed green**, and only the two new
+censuses red. *"The compiler forced an arm everywhere — including the
+new `spec_label` — and every arm was legally dischargeable without a
+witness."*
+
+That is the row's claim turned into a number, and it is the number the
+review is told to re-take, because it is the entire justification for
+deliverable 3 and it is exactly the kind nobody re-takes.
+
+### The bijection took the shape the delta round's rule asked for
+
+`declared_variants` reads `ProgramArcData`'s and `ProgramTarget`'s
+variant names out of `program.rs` through `test_utils::source` — **that
+is the document vocabularies' `ALL`, one home, still the declaration
+itself**, without minting `ProgramArcMode`/`ProgramTargetKind`, which
+would have been a third spelling of the vocabulary in a file the fence
+says to announce rather than land in. **`program.rs` is untouched**, and
+the brief's STOP condition — anything more than a derived constant in
+DOCM's file — was respected by finding a shape that did not need one.
+
+The non-emptiness corollary was applied **beyond where it was asked**:
+the wire and slot clauses gained the same guard, not just the new
+censuses. And the limit is stated rather than left implicit — a
+macro-generated variant is invisible to a textual walk.
+
+### Where the review will earn itself
+
+The two `document_only_*` allow-lists are **both empty today**, which is
+the honest state and also the classic vacuity: an empty list beside a set
+equality is how a census passes over the thing it exists to catch. And
+the lists are **hand-written**, in a unit whose own subject is
+hand-written things going stale — so the adversarial question has a
+specific target this time, and the brief names it.
+
+The sweep's stated blind spot is the other one: the pattern read every
+`assert!`/`panic!` for whether the message names the value that made it
+fire, and **cannot see a clause whose message is fine but whose SUBJECT
+is wrong**. One instance was found that way — by reading, not by the
+pattern — which means the pattern's hit list is a floor on what is
+there, not a ceiling.
+
+### Nine clauses now say where they landed
+
+Including the one the earlier review measured as **the only catch in the
+tree** for the `res_spec` hop: it fired correctly and would not tell you
+where you landed, and its fix was written fifteen lines above it the
+whole time. Every message was captured from a planted mutant rather than
+predicted, which is the form of evidence this program has settled on.
