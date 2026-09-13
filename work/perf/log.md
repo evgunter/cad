@@ -1113,3 +1113,25 @@ compares nothing; the tour die's memo-primed index 25 → 14 ms with
 the seam's own work 17 → 6; no first-open regression; the marginal
 bytes ~3 KB (shared `Arc`s not counted). PERF-12 is still
 implementing.
+
+## 2026-09-13 — PERF-11 adjudicated: a clean pair; the shell census stays serial
+
+APPROVE-WITH-FIXES on both arms (0 / 4 / 3 and 0 / 4 / 4), no MAJOR.
+Both confirmed the goldens are the serial walk's bytes and reproduced
+the continuation's numbers (`quintic_prism`'s gate-then-continue
+3.5 → 1.05× one measurement at four threads). The ruling the pair
+forced: the per-face map on `classify_shells_of` regresses every
+document the census meets — 3× at four threads on the heat sink at
+41 and 161 shells, 4.6× on `voided_rod` — and gains on no real body,
+because no corpus shell is many-faced on the quadrature lane; a
+shape bought with a regression is not this program's trade, so the
+shell census goes back to a serial walk with `decide_faces`'s serial
+arm factored into one home (the implementer's dedup of the hand-
+rolled sums stays), and the site says why and names the shell grain
+as the one that would repay it. The continuation's map stays, bounded
+to the slots before the first outstanding refusal and skipping the
+pool when nothing is open (58 of the tour's 61 gated stops). MINORs:
+the session arm and the refusal-order rule unpinned (both get rows;
+`quintic_prism` joins the roster), a false premise in the pieces
+arm, the continuation's second spelling of the dispatch and splice,
+three false doc sentences, dated numbers in doc comments.
