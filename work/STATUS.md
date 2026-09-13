@@ -985,6 +985,7 @@ area `kernel`; prefix `trim/`; tag `(TRIM orchestrator)`; ab_band `2500-2599`.
 
 | item | opened | title |
 |---|---|---|
+| `declared-surface-pairs-emits-duplicate-pairs` | 2026-09-07 | boolean::ops declared_surface_pairs emits one surviving declared pair per FACE sharing the key - nine identical pairs per three-arc bore wall |
 | `every-band-construction-is-the-class-not-every-map-err` | 2026-09-11 | The 'a typed cause is destroyed' sweeps key on map_err, and the class has more spellings: let-else, expect, From impls and unit variants at the rendering sites |
 | `inert-allow-attributes-on-test-modules-are-house-style-and-half-are-unneeded` | 2026-09-11 | 124 of 257 cfg(test) modules carry allow(unwrap_used, expect_used, panic) and nobody knows how many are load-bearing |
 | `a-merge-cancels-the-previous-merges-main-run-and-its-main-only-work` | 2026-09-12 | On main, ci.yml's cancel-in-progress makes each merge cancel the previous merge's run, silently dropping that commit's main-only side effects |
