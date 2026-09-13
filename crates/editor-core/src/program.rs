@@ -62,11 +62,27 @@ use geom_core::Tol;
 ///
 /// `ALL_NAMES` is the anchor for that direction. It is derived from the
 /// declaration at COMPILE time, so there is nothing to keep in step and
-/// nothing a variant can hide behind — an attribute, a `cfg`, a doc
-/// comment or a raw identifier in front of the name changes the tokens
-/// this macro captures and not the name it projects.
+/// **nothing in FRONT of a variant's name can hide it** — a doc comment,
+/// an attribute, a `cfg`, a `cfg_attr`, any stack of them: the macro
+/// captures them as metas and projects the name behind them.
 /// `tests/switch_program_vocabulary.rs` is keyed on it, and a variant
 /// that reaches no witness there reds.
+///
+/// Two places where the projection and the witness side disagree, both
+/// in the LOUD direction, because a census that is wrong quietly is the
+/// thing this replaced:
+///
+/// - a `#[cfg]` that gates a variant OUT removes it from the enum and
+///   leaves it in `ALL_NAMES` — the metas ride the variant, not the
+///   name list. So the projection is a SUPERSET under `cfg`: it
+///   over-demands a witness for a variant that is not there and reds.
+///   It cannot hide one.
+/// - a RAW IDENTIFIER projects as `stringify!` writes it (`r#type`)
+///   while the witness side reads a `Debug` rendering (`type`), so a
+///   correctly declared and correctly witnessed raw-ident variant would
+///   red spuriously. No variant here is one; if one arrives, the fix is
+///   to strip the `r#` on one side, and this note is the reason the red
+///   will make sense.
 macro_rules! document_vocabulary {
     (
         $(
@@ -107,21 +123,41 @@ macro_rules! document_vocabulary {
         /// list kept in step with this one by hand, which is the defect
         /// the whole macro exists to remove.
         ///
-        /// It is projected from the single invocation below, and the
-        /// invocation is single BY CONSTRUCTION: this constant is
-        /// emitted once per invocation, so a second one does not
-        /// compile. Every vocabulary declared through this macro is
-        /// therefore in this list, and the census iterates the list
-        /// rather than naming its members.
+        /// It is projected from the single invocation below, and that
+        /// invocation is single by construction **within this module**:
+        /// the constant is emitted once per invocation, so a second
+        /// invocation in the same module is an `E0428` duplicate. The
+        /// qualifier is load-bearing — `E0428` is scoped to one module's
+        /// value namespace, so a second invocation inside a CHILD module
+        /// compiles clean and projects a second roster that the census
+        /// never reads. `program.rs` has no child modules, so the list
+        /// is complete today; what makes it complete is that fact and
+        /// not the macro.
         ///
-        /// **What it does not cover, stated:** an enum declared with a
-        /// plain `pub enum` rather than through this macro is not a
-        /// document vocabulary as far as anything here can tell — it has
-        /// no `ALL_NAMES`, it is not in this list, and nothing detects
-        /// that it should have been. Closing that needs a walk over the
-        /// file's declarations, which is a text scan, which is what this
-        /// macro replaced and for a reason. Filed:
+        /// **What it does not cover, stated, with the live instance
+        /// named:** an enum declared with a plain `pub enum` rather than
+        /// through this macro has no `ALL_NAMES`, is absent from this
+        /// list, and nothing detects that it should have been in either.
+        /// This file holds two such enums today — [`ProgramRefusal`] and
+        /// [`RecordedProgramError`] — and they are deliberately out:
+        /// they are the REFUSAL and ERROR vocabularies, produced by this
+        /// crate for a caller to read, with no construct hop that builds
+        /// a kernel form out of them and so no laundering direction to
+        /// guard. [`LoopProgram`] was the third, and it is IN: its
+        /// `resolve` is a construct hop like the other three. The test
+        /// for membership is that construct hop, not the naming.
+        /// Closing the general case needs a walk over the file's
+        /// declarations, which is a text scan, which is what this macro
+        /// replaced and for a reason. Filed:
         /// `work/docm/a-document-vocabulary-declared-outside-the-macro-is-uncensused.md`.
+        ///
+        /// **Cost, stated:** rustfmt does not format the body of a macro
+        /// invocation, so every declaration below is outside its reach
+        /// and no gate will report drift there. The trade was taken
+        /// deliberately — the macro closes a SILENT failure class and
+        /// formatting drift is visible to any reader — but it is a real
+        /// cost and it is not detected. Filed:
+        /// `work/ciw/rustfmt-does-not-reach-a-macro-wrapped-declaration-block.md`.
         #[doc(hidden)]
         pub const DOCUMENT_VOCABULARIES: &[(&str, &[&str])] =
             &[$((stringify!($name), $name::ALL_NAMES)),*];
@@ -312,13 +348,19 @@ pub enum ProgramArcData {
         len: Expr,
     },
 }
-}
 
 /// One loop's program: a CHAIN step list, or one of the complete-loop
 /// carrier forms (`circle` / `circle_split` — one-step programs whose
 /// form is structural). The chain-vs-carrier distinction is the enum,
 /// so "a circle program is exactly one step" is unrepresentable to
 /// violate.
+///
+/// **It is a document vocabulary, and [`Self::resolve`] is its construct
+/// hop**, the fourth one: it matches THIS enum and builds
+/// `Step::Circle` / `Step::CircleSplit`, so a carrier form added here
+/// alone can be resolved into an existing kernel step and never be
+/// seen. That is [`ProgramStep`]'s hazard one level out, and
+/// [`Self::ALL_NAMES`] is its anchor for the same reason.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LoopProgram {
     /// A chain-vocabulary step list (must end in a `Start`-targeting
@@ -343,6 +385,7 @@ pub enum LoopProgram {
         /// The first vertex's angle from +x.
         phase: Expr,
     },
+}
 }
 
 /// The profile node's payload: the sketch frame it is drawn on, named

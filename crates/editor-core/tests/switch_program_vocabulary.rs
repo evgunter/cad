@@ -73,28 +73,29 @@
 //! vocabulary never learned is what goes missing.
 //!
 //! The mirror failure is a variant added to a DOCUMENT enum alone, and
-//! **all THREE document vocabularies have it** — `ProgramStep` at
+//! **every document vocabulary has it — one per construct hop.**
+//! `LoopProgram` at `LoopProgram::resolve`, `ProgramStep` at
 //! `res_step`, `ProgramArcData` at `res_spec`, `ProgramTarget` at
-//! `res_target`. The compiler forces such a variant through every match
-//! that consumes it, so it cannot ship unnoticed; but every one of
-//! those arms may legally resolve it into an EXISTING kernel form, and
-//! when one does, every kernel-anchored clause here stays green while
-//! the document form authors something nobody wrote. The verb side is
-//! no safer than the other two: `chain_steps()` is a `Vec` and forces
-//! no verb, which its own doc says.
+//! `res_target`: each matches the document form and BUILDS the kernel
+//! one. The compiler forces a new variant through every match that
+//! consumes it, so it cannot ship unnoticed; but every one of those
+//! arms may legally resolve it into an EXISTING kernel form, and when
+//! one does, every kernel-anchored clause here stays green while the
+//! document form authors something nobody wrote. The verb side is no
+//! safer than the rest: `chain_steps()` is a `Vec` and forces no verb,
+//! which its own doc says.
 //!
 //! The anchor is `ALL_NAMES`, projected from each enum's declaration by
 //! `program.rs`'s `document_vocabulary!` exactly as `profile` projects
 //! `Verb::ALL`, `ArcMode::ALL` and `TargetKind::ALL` from theirs — a
-//! compile-time constant over the declaring tokens, so nothing keeps it
-//! in step and no attribute, `cfg` or doc comment in front of a
-//! variant's name can hide one from it. The three censuses over it are
-//! set equalities against what the CORPUS carries: not floors, and not
+//! compile-time constant over the declaring tokens, so nothing in front
+//! of a variant's name can hide it. The census over it is a set
+//! equality against what the CORPUS carries: not a floor, and not
 //! against a witness function, so a declared member is a member the
-//! wire round-trip and the slot bijection actually walk. Which
-//! vocabularies get censused is projected from the same invocation:
-//! `program::DOCUMENT_VOCABULARIES`, so a fourth arrives in the census
-//! rather than waiting for a fourth call site to be written.
+//! wire round-trip and the slot bijection actually walk. WHICH
+//! vocabularies get censused is projected from the same invocation
+//! (`program::DOCUMENT_VOCABULARIES`), so a new one arrives in the
+//! census rather than waiting for a call site to be written.
 //!
 //! The corpus below is deliberately NOT a legal lattice walk. Nothing
 //! here replays: resolution, persistence and slot addressing are all
@@ -534,8 +535,8 @@ fn every_table_verb_is_a_document_program() {
 /// vocabulary is invisible here — `res_target` resolves it into one of
 /// the kernel forms and `TargetKind::ALL` stays fully witnessed — so
 /// [`every_document_vocabulary_member_is_witnessed`] anchors on
-/// `ProgramTarget::ALL_NAMES` instead. Each of the three vocabularies
-/// has that pair.
+/// `ProgramTarget::ALL_NAMES` instead. Every document vocabulary has
+/// that pair, one per construct hop.
 #[test]
 fn every_target_form_is_a_document_program() {
     for kind in TargetKind::ALL {
@@ -788,7 +789,7 @@ fn wire_differences(before: &ProfileProgram, after: &ProfileProgram) -> Vec<Stri
 // ------------------------------------------------------------------
 
 /// Every document vocabulary member the CORPUS carries, by vocabulary:
-/// the verbs, the arc-spec modes, the target forms.
+/// the loop forms, the verbs, the arc-spec modes, the target forms.
 ///
 /// The corpus is what the wire round-trip and the slot bijection below
 /// walk, so a member witnessed here is a member those clauses cover —
@@ -796,154 +797,153 @@ fn wire_differences(before: &ProfileProgram, after: &ProfileProgram) -> Vec<Stri
 /// censuses compare against. A member reachable only from a witness the
 /// corpus omits would be declared and uncovered, and the two clauses
 /// that matter would still say nothing about it.
-fn corpus_vocabulary() -> (Vec<String>, Vec<String>, Vec<String>) {
-    let (mut verbs, mut specs, mut targets) = (Vec::new(), Vec::new(), Vec::new());
+fn corpus_vocabulary() -> CorpusVocabulary {
+    let mut seen = CorpusVocabulary::default();
     for loop_ in &corpus().loops {
+        // The loop forms are a vocabulary in their own right, and
+        // `LoopProgram::resolve` is their construct hop: it matches
+        // this enum and builds `Step::Circle` / `Step::CircleSplit`, so
+        // a carrier form added here alone can be resolved into an
+        // existing kernel step exactly as a `ProgramStep` variant can.
+        // Declining to witness them, which this walk used to do, left
+        // the fourth hop uncovered while the census disclosed its shape
+        // hypothetically.
+        seen.loops.push(variant_name(&format!("{loop_:?}")));
         let LoopProgram::Chain(steps) = loop_ else {
-            // The complete-loop carriers are `LoopProgram` variants,
-            // not `ProgramStep`s, so they carry no member of any of the
-            // three vocabularies below.
+            // A carrier is a one-step program with no `ProgramStep` in
+            // it, so it contributes to no other vocabulary here.
             continue;
         };
         for step in steps {
             let m = step_members(step);
-            verbs.push(m.verb);
-            targets.extend(m.targets);
+            seen.verbs.push(m.verb);
+            seen.targets.extend(m.targets);
             for (mode, target) in m.specs {
-                specs.push(mode);
-                targets.extend(target);
+                seen.specs.push(mode);
+                seen.targets.extend(target);
             }
         }
     }
-    (verbs, specs, targets)
+    seen
 }
 
-/// **The one document-vocabulary census.** The variants a document enum
-/// DECLARES and the variants this suite's corpus WITNESSES are the same
-/// set — reported, not asserted, so its caller can name every
-/// vocabulary that is short rather than the first one.
+/// The witness sets, one per document vocabulary.
+#[derive(Default)]
+struct CorpusVocabulary {
+    /// [`LoopProgram`] variant names.
+    loops: Vec<String>,
+    /// [`ProgramStep`] variant names.
+    verbs: Vec<String>,
+    /// [`ProgramArcData`] variant names.
+    specs: Vec<String>,
+    /// [`ProgramTarget`] variant names.
+    targets: Vec<String>,
+}
+
+/// **The one set comparison in this file**, reported rather than
+/// asserted, and printing only the direction that actually failed.
+///
+/// Both censuses below compare a declared set against a witnessed set
+/// and owe the same two answers. Writing that twice is a second copy of
+/// the comparator kept in step by hand — in a file whose subject is a
+/// second list kept in step by hand — so it is written once, and the
+/// two call sites differ only in the sentence each direction earns.
+fn set_difference(
+    declared: &[&str],
+    witnessed: &[&str],
+    subject: &str,
+    undeclared_says: &str,
+    unwitnessed_says: &str,
+) -> Option<String> {
+    let unwitnessed: Vec<&&str> = declared.iter().filter(|d| !witnessed.contains(d)).collect();
+    let undeclared: Vec<&&str> = witnessed.iter().filter(|w| !declared.contains(w)).collect();
+    if unwitnessed.is_empty() && undeclared.is_empty() {
+        return None;
+    }
+    // Only the failing direction is printed. A clean direction rendered
+    // as `[]` beside a real one is noise in a message whose entire
+    // purpose is that a reader can act on it without a local repro.
+    let mut out = format!("{subject}:");
+    if !unwitnessed.is_empty() {
+        out.push_str(&format!("\n    {unwitnessed:?} — {unwitnessed_says}"));
+    }
+    if !undeclared.is_empty() {
+        out.push_str(&format!("\n    {undeclared:?} — {undeclared_says}"));
+    }
+    Some(out)
+}
+
+/// One document vocabulary's complaint, or `None` where it is whole.
+///
+/// The caller is the census; this only answers for one vocabulary, so
+/// that the caller can walk every one of them and name all the short
+/// ones rather than aborting on the first. That matters here more than
+/// most places: a run naming one of four offenders is the defect this
+/// whole file was opened to fix.
+fn unwitnessed_report(vocabulary: &str, declared: &[&str], witnessed: &[String]) -> Option<String> {
+    let witnessed: Vec<&str> = witnessed.iter().map(String::as_str).collect();
+    set_difference(
+        declared,
+        &witnessed,
+        &format!("`{vocabulary}` declares members the corpus does not witness"),
+        "witnessed and no longer declared — delete the witness",
+        "declared and unwitnessed — give it a witness in `chain_steps` or `corpus`. A \
+         variant with no kernel form of its own launders into one, which is the failure \
+         this clause exists to catch, so it has to be exercised rather than excused",
+    )
+}
+
+/// **The document vocabularies' census**, and the mirror of every
+/// kernel-anchored clause above.
 ///
 /// # Why this direction needs its own anchor
 ///
 /// Every other census in this file is anchored on the KERNEL
-/// vocabulary, and that is the right anchor for the hop they guard: the
+/// vocabulary, which is the right anchor for the hop they guard: the
 /// thing that CONSTRUCTS is `editor-core`'s, so a kernel form the
 /// document vocabulary never learned is what goes missing. The mirror
-/// failure is a variant added to a DOCUMENT enum alone, and all three
-/// document vocabularies have it. The compiler forces such a variant
-/// through every match that consumes it — `res_step`, `res_spec`,
-/// `res_target`, the wire conversions, `spec_lit`, `spec_slots`, the
-/// content-key hashers — but **every one of those arms may legally
-/// resolve it into an existing kernel form**, and when one does, every
-/// kernel-anchored clause here stays green while the document form
-/// authors something nobody wrote. Measured, on all three vocabularies
-/// at once: every site the compiler named was dischargeable by
-/// laundering, and no witness was acquired anywhere.
+/// failure is a variant added to a DOCUMENT enum alone. The compiler
+/// forces it through every match that consumes it, but **every one of
+/// those arms may legally resolve it into an existing kernel form**,
+/// and when one does, every kernel-anchored clause here stays green
+/// while the document form authors something nobody wrote.
 ///
-/// # The roster of vocabularies is projected too
+/// There are four such construct hops and this covers all four:
+/// `res_step`, `res_spec`, `res_target`, and `LoopProgram::resolve`.
 ///
-/// This door is called from one place, over
-/// `program::DOCUMENT_VOCABULARIES` — the list the same macro
-/// invocation projects as it declares the enums. Three calls naming
-/// three vocabularies would have closed *a variant arrives without a
-/// witness* while leaving *a vocabulary arrives without a census* open,
-/// which is this file's own defect one level up.
+/// # Two bijections, one per level
 ///
-/// # Why the anchor is `ALL_NAMES`
+/// `ALL_NAMES` answers which VARIANTS a vocabulary declares;
+/// `DOCUMENT_VOCABULARIES` answers which VOCABULARIES exist. Both are
+/// projected from the one macro invocation that declares the enums, so
+/// neither a variant nor a whole vocabulary can arrive without a
+/// census. Naming the vocabularies at call sites here would have been a
+/// hand-kept roster over a projected set — this file's own defect, one
+/// level up from where it catches it.
 ///
-/// It is projected from each enum's declaration by `program.rs`'s
-/// `document_vocabulary!`, exactly as `profile` projects `Verb::ALL`,
-/// `ArcMode::ALL` and `TargetKind::ALL` from theirs. Being a
-/// COMPILE-TIME constant over the declaring tokens is what makes it
-/// safe: there is nothing to keep in step, and no attribute, `cfg`, doc
-/// comment or raw identifier in front of a variant's name can hide one
-/// from it. Reading the declaration as TEXT instead answers the same
-/// question until a variant carries an attribute, and then it drops
-/// that variant and reports agreement over a set missing exactly the
-/// variant this census exists to catch — a silent green, which is the
-/// one failure mode a census must not have.
+/// The witness SETS are the part that cannot be projected: only this
+/// suite knows which walk of `corpus()` answers for which vocabulary.
+/// So they are bijected too, and a vocabulary with no witness set reds
+/// with instructions rather than going uncensused.
 ///
-/// # Why the equality is safe
+/// # Why the equality is safe, and where there is no exception list
 ///
-/// A set equality passes when both sides are empty. That case is closed
-/// here by CONSTRUCTION rather than by an assertion: `ALL_NAMES` is a
-/// compile-time constant over a declaration that has variants, so a
-/// witness walk collapsing to nothing reports every declared variant
-/// unwitnessed and reds. Asserting a compile-time constant non-empty
-/// would be documentation, not a guard.
-///
-/// # There is no exception list
-///
-/// A document-only variant does not get a line here naming the kernel
-/// form it launders into. It reds until it has a WITNESS in the corpus,
-/// which is also what makes the wire round-trip and the slot bijection
-/// say anything about it — an allow-listed variant would be DECLARED
-/// and not COVERED, and one whose `spec_slots` arm enumerated nothing
-/// would pass this whole file the day its line was written. The verb
-/// census's own message settles the shape: *"an empty escape hatch is a
-/// hatch that will be used"*. The day a real document-only variant
-/// exists, the census needs a form that can hold it, and that gets
-/// decided then, with its argument.
-/// Returns the complaint rather than asserting it, so the caller can
-/// walk EVERY vocabulary and report all of them. Asserting here would
-/// abort on the first, and a run that names one of three offenders is
-/// the defect this file was opened to fix, re-introduced by the loop
-/// that fixed a different one.
-fn unwitnessed_report(vocabulary: &str, declared: &[&str], witnessed: &[String]) -> Option<String> {
-    let unwitnessed: Vec<&&str> = declared
-        .iter()
-        .filter(|d| !witnessed.iter().any(|w| w == *d))
-        .collect();
-    let unknown: Vec<&String> = witnessed
-        .iter()
-        .filter(|w| !declared.contains(&w.as_str()))
-        .collect();
-    if unwitnessed.is_empty() && unknown.is_empty() {
-        return None;
-    }
-    Some(format!(
-        "the {vocabulary} members the corpus witnesses are not the members \
-         `{vocabulary}` declares.\n    \
-         declared and unwitnessed — give it a witness in `chain_steps`, because a \
-         variant with no kernel form of its own launders into one and that is the \
-         failure this clause exists to catch, so it has to be exercised rather than \
-         excused: {unwitnessed:?}\n    \
-         witnessed and no longer declared — delete the witness: {unknown:?}"
-    ))
-}
-
-/// **The census over every document vocabulary at once**, and the
-/// bijection one level up from the one above.
-///
-/// `ALL_NAMES` says which VARIANTS a vocabulary declares.
-/// `DOCUMENT_VOCABULARIES` says which VOCABULARIES exist, projected
-/// from the same single macro invocation that declares them — so a
-/// fourth document enum declared through `document_vocabulary!` arrives
-/// in this loop rather than waiting for someone to remember a fourth
-/// call site. Three call sites naming three vocabularies would have
-/// been a hand-written roster over a projected set, which is the defect
-/// this file exists to catch, one level up from where it catches it.
-///
-/// The witness sets are the hand-written part, and they are the part
-/// that cannot be projected: only this suite knows which walk of the
-/// corpus answers for which vocabulary. **So they are bijected too** —
-/// the names this test can supply a witness set for and the names
-/// `DOCUMENT_VOCABULARIES` carries are compared as sets, and a
-/// vocabulary with no witness set reds with instructions rather than
-/// going uncensused.
-///
-/// `res_step`, `res_spec` and `res_target` are the three construct hops
-/// this covers; each matches its document vocabulary and builds the
-/// kernel one, so each can launder a document-only variant into an
-/// existing kernel form with every kernel-anchored clause in this file
-/// still green.
+/// A set equality passes when both sides are empty; here that is closed
+/// by construction, since `ALL_NAMES` is a compile-time constant over a
+/// declaration that has variants, so a witness walk collapsing to
+/// nothing reds. And a document-only variant gets no allow-list line
+/// naming what it launders into: it reds until it has a WITNESS in the
+/// corpus, which is also what makes the wire round-trip and the slot
+/// bijection cover it. The verb census's own message settles the shape
+/// — *"an empty escape hatch is a hatch that will be used"*.
 #[test]
 fn every_document_vocabulary_member_is_witnessed() {
-    let (verbs, specs, targets) = corpus_vocabulary();
+    let seen = corpus_vocabulary();
     let witnesses: Vec<(&str, &Vec<String>)> = vec![
-        ("ProgramStep", &verbs),
-        ("ProgramArcData", &specs),
-        ("ProgramTarget", &targets),
+        ("LoopProgram", &seen.loops),
+        ("ProgramStep", &seen.verbs),
+        ("ProgramArcData", &seen.specs),
+        ("ProgramTarget", &seen.targets),
     ];
 
     let declared: Vec<&str> = editor_core::program::DOCUMENT_VOCABULARIES
@@ -951,22 +951,19 @@ fn every_document_vocabulary_member_is_witnessed() {
         .map(|(name, _)| *name)
         .collect();
     let supplied: Vec<&str> = witnesses.iter().map(|(name, _)| *name).collect();
-    let uncensused: Vec<&&str> = declared.iter().filter(|d| !supplied.contains(*d)).collect();
-    let stale: Vec<&&str> = supplied.iter().filter(|w| !declared.contains(*w)).collect();
-    assert!(
-        uncensused.is_empty() && stale.is_empty(),
-        "the document vocabularies this suite can witness are not the vocabularies \
-         `document_vocabulary!` declares.\n  \
-         declared and uncensused — add the walk of `corpus()` that answers for it to \
+    if let Some(report) = set_difference(
+        &declared,
+        &supplied,
+        "the vocabularies `document_vocabulary!` declares are not the vocabularies this \
+         suite can witness",
+        "supplied a witness set and no longer declared — delete the line",
+        "declared and uncensused — add the walk of `corpus()` that answers for it to \
          `corpus_vocabulary` and its line to `witnesses` above; until then nothing in \
-         this file says anything about it: {uncensused:?}\n  \
-         witnessed and no longer declared — delete the line: {stale:?}"
-    );
+         this file says anything about it",
+    ) {
+        panic!("{report}");
+    }
 
-    // Every vocabulary is walked and every complaint collected before
-    // anything fires: three offenders reported as one is the failure
-    // this suite exists to make legible, so the loop must not stop at
-    // the first.
     let complaints: Vec<String> = editor_core::program::DOCUMENT_VOCABULARIES
         .iter()
         .filter_map(|(vocabulary, names)| {
