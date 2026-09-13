@@ -1,15 +1,21 @@
-# DOCM-REFERENCES-DESIGN: what a recipe reference may be
+# What a recipe reference may be
 
-Status: **RATIFIED in-chat (Ev, 2026-09-04): DM1–DM6.** The PR that
-carries this doc is the record; it asks nothing further. Companion-table
-row at `docs/DESIGN.md`. This doc answers three of DOCM's questions
-(`work/docm/plan.md`: frames, operand selectors, deleting from a
-chain) as one conversation, because each asks for a new combination
-of the reference shapes the recipe already admits (§0). Mechanics
-are measured (file:line at the time of writing; cited by name where a
-number would drift), not assumed.
+This page is the ratified design of record for the editor-core
+recipe's reference vocabulary: what a node may point at, and what each
+kind of pointer means. It answers three of DOCM's questions — derived
+frames, operand selectors, deleting from the middle of a chain — as
+one conversation, because each asks for a new combination of the
+reference shapes the recipe already admits (§0). Ev ratified DM1–DM6
+in chat on 2026-09-04; DM4 gained its member-space declaration channel
+on 2026-09-06 and was bounded at DOCM-8's review (2026-09-07). The page
+was `docs/DOCM-REFERENCES-DESIGN.md` until DOCM's exit on 2026-09-13,
+when it moved beside the code it governs; `docs/DOC-LEDGER.md` carries
+the history. Identity across time is the companion page
+`crates/editor-core/IDENTITY.md`. Mechanics here are measured, not
+assumed; where a file:line has drifted, the name beside it is the
+stable half.
 
-## 0. Grounding (committed; this doc does not re-litigate)
+## 0. Grounding (committed elsewhere; not re-litigated here)
 
 The recipe admits three reference shapes, and every node is built
 from them:
@@ -17,32 +23,32 @@ from them:
 - **A DAG edge**: a `RecipeNodeId` in a node's inputs, structural,
   liveness- and cycle-checked at the edit door (`edit.rs`,
   `InsertNode`: `UnresolvedInput`, `WouldCycle`), enumerated by
-  `Node::inputs` (`node.rs:1640`). Ids are minted by the document's
-  monotone counter and never reused (D3; `doc.rs:313`).
+  `Node::inputs`. Ids are minted by the document's monotone counter
+  and never reused (D3; `doc.rs`).
 - **A frozen `StableName`**: `{ kind, node, path }` (N1,
-  `names/role.rs:86`) stored at authoring and resolved at evaluation
+  `names/role.rs`) stored at authoring and resolved at evaluation
   through a name table under the N5 ladder — `NodeGone`, then
   `Ambiguous`, then `Vanished` — never silently shrunk
-  (`eval/wire.rs`, `ladder` and `resolve_selection`). Carriers today:
+  (`eval/wire.rs`, `ladder` and `resolve_selection`). Carriers:
   `Fillet`/`Chamfer` selections, `Declare` pairs, `Mate` heads,
-  `Measure` refs (`Node::payload_names`, `node.rs:1985`). A name is
-  not a DAG edge: the only door that checks it is `InsertNode`'s
-  liveness check, and a later delete may strand it (N5).
+  `Measure` refs (`Node::payload_names`). A name is not a DAG edge:
+  the only door that checks it is `InsertNode`'s liveness check, and a
+  later delete may strand it (N5).
 - **An `Expr` literal** in a slot, bit-pinned (D7).
 
-Two precedents this doc extends. `SitedRef { at, name }`
-(`node.rs:871`) pairs a DAG edge with a frozen name: `at` says which
+Two precedents these clauses extend. `SitedRef { at, name }`
+(`node.rs`) pairs a DAG edge with a frozen name: `at` says which
 evaluated value to read, `name` says which entity. `Datum::AxisInPlane
-{ plane, .. }` (`node.rs:611`) is the one datum with a DAG input: its
+{ plane, .. }` (`node.rs`) is the one datum with a DAG input: its
 meaning comes from another node, and the design note there says why —
 the check is not made cheaper, the error is made unrepresentable.
 
-Ruled elsewhere and kept: a selection FREEZES (#217, `node.rs:1266`);
-selectors MATERIALIZE and are never stored (`names/select.rs:15`);
+Ruled elsewhere and kept: a selection FREEZES (#217, `node.rs`);
+selectors MATERIALIZE and are never stored (`names/select.rs`);
 `PlacedUnion` is a node beside `Pattern`, not a flag on it, because
 forking a result type on a variant is the silent-dispatch trap D3
-forbids (`node.rs:1325`); `Datum::Frame` carries nine `Expr`s and no
-reference, orthonormalized at evaluation (`node.rs:576`).
+forbids (`node.rs`); `Datum::Frame` carries nine `Expr`s and no
+reference, orthonormalized at evaluation (`node.rs`).
 
 ## DM1 — A derived frame is a datum carrying a face name
 
@@ -58,12 +64,12 @@ point, `readback.rs` rule 2), normal the face's OUTWARD normal (DM1a),
 sketch +x the carrier's u-reference rotated by `spin`.
 
 - **Why derived, not frozen.** The profile-plane migration deleted
-  the twelve-float snapshot a sketch used to carry
-  (`program.rs:250`); a frame read off a face and written into nine
-  literals reintroduces that snapshot one node out, and lies about
-  why it sits where it sits. A derived frame is a DAG input: the
-  face's body is upstream, the frame moves when the face moves, and
-  it participates in the memo and content key like every node.
+  the twelve-float snapshot a sketch used to carry (`program.rs`); a
+  frame read off a face and written into nine literals reintroduces
+  that snapshot one node out, and lies about why it sits where it sits.
+  A derived frame is a DAG input: the face's body is upstream, the
+  frame moves when the face moves, and it participates in the memo and
+  content key like every node.
 - **The failure mode is the fillet's.** A face name that stops
   resolving fails the frame typed and poisons the sketch above it,
   exactly as a fillet's selection does (`BlendSelectionResolve`); the
@@ -71,36 +77,39 @@ sketch +x the carrier's u-reference rotated by `spin`.
   and that is the honest behaviour.
 - **DM1a — the read-back grows a sense, it does not fold one in.**
   `Pose.axis` is the CHART's direction, deliberately uncorrected by
-  the face's orientation sense (`readback.rs:69`), and stays so: two
-  facts, two answers. What is missing is that the sense is not
-  readable at all — `Face` carries it (`entity.rs`, `sense_sign`),
-  no door returns it. `face_pose` and `names::interrogate::face_frame`
-  return the sense beside the pose, one more stored value copied out,
-  and DM1's datum states in its own vocabulary that its normal is
-  sense times chart axis. The mate tool's frozen frames are
-  unaffected: A11 keeps the solve over authored numbers, and that
-  asymmetry is principled — a sketch frame is consumed by evaluation,
-  which reads geometry constantly; a mate frame by a solve that must
-  not.
-- **DM1c — the lanes (Ev, 2026-09-04).** A derived frame has no
-  document elaboration, so the profile-lift's "the sketch plane stays
-  f64" fence (PROFILE-LIFT-DESIGN PP6) cannot apply to it: a profile on
-  a derived frame is placed at the lane scalar through the by-value
-  reader (`frame_plane_lane`) under every lift, its 2-D structure
-  record staying f64-pinned as PP1 says, and a loft or sweep section on
-  a derived frame refuses typed at any scalar but f64, since a section's
-  geometry stays f64. An authored frame's profile is unchanged. Two
-  placement paths keyed by frame kind, because the two kinds differ in
-  where their numbers come from. PP6 carries the same sentence.
+  the face's orientation sense (`readback.rs`): two facts, two
+  answers. The sense travels BESIDE the pose as `Pose::sense`, one
+  more stored value copied out of the face record (`entity.rs`,
+  `Face::sense`), returned by `face_pose` and
+  `names::interrogate::face_frame`; DM1's datum states in its own
+  vocabulary that its normal is sense times chart axis. The mate
+  tool's frozen frames are unaffected: A11 keeps the solve over
+  authored numbers, and that asymmetry is principled — a sketch frame
+  is consumed by evaluation, which reads geometry constantly; a mate
+  frame by a solve that must not.
+- **DM1c — the lanes.** A derived frame has no document elaboration,
+  so the profile-lift's "the sketch plane stays f64" fence
+  (PP6, `crates/editor-core/README.md`)
+  does not apply to it: a profile on a derived frame is placed at the
+  lane scalar through the by-value reader (`frame_plane_lane`) under
+  every lift, its 2-D structure record staying f64-pinned as PP1 says,
+  and a loft or sweep section on a derived frame refuses typed at any
+  scalar but f64, since a section's geometry stays f64. An authored
+  frame's profile is unchanged. Two placement paths keyed by frame
+  kind, because the two kinds differ in where their numbers come from.
+  PP6 carries the same sentence.
 - **DM1b — a non-planar carrier refuses typed at evaluation**
-  (`NodeErrorKind`, a new arm naming the carrier kind found), so a
+  (`NodeErrorKind`, an arm naming the carrier kind found), so a
   headless author gets the same answer the chrome pre-empts under
   DM2.
 - The chrome consequences are CHROME's builds
   (`add-profile-mints-no-frame`,
   `add-profile-placement-on-picked-face-frame`): "on a new XY frame"
-  is two inserts in one committed action (`commit_action` exists);
-  "on this face" mints one `FaceFrame` and one profile the same way.
+  is two inserts in one committed action (`commit_action`); "on this
+  face" mints one `FaceFrame` and one profile the same way.
+
+*Record: built by DOCM-1 (PR 1829), with DM1a, DM1b and DM2; history
+in `docs/DOC-LEDGER.md`.*
 
 ## DM2 — A carrier-kind read is a value, not a verdict
 
@@ -109,15 +118,18 @@ face planar" beside "is this at z ≈ 1". The two are not the same
 kind of question: the second is a numeric predicate under the margins
 discipline, the first is a comparison of a stored tag, and tag
 comparisons are allowed without restriction — they are where the
-intent is stored (Ev, 2026-09-04). `select_where` already filters on
-`SurfaceKind` exactly (`names/geompred.rs:124`). So:
+intent is stored. `select_where` filters on `SurfaceKind` exactly
+(`names/geompred.rs`). So:
 
-- `topo::readback` gains a door that returns a face's carrier kind
+- `topo::readback` carries a door that returns a face's carrier kind
   (the `SurfaceKind` tag, copied out) and `names::interrogate` its
-  `StableName` twin; rule 1's text is tightened to say NUMERIC
-  predicates, in `readback.rs` and its mirror at `interrogate.rs:22`.
+  `StableName` twin (`face_carrier_kind` in both); rule 1's text says
+  NUMERIC predicates, in `readback.rs` and its mirror at
+  `interrogate.rs`.
 - The chrome offers DM1's frame only for a planar carrier; DM1b is
   the kernel's own refusal when a caller bypasses the offer.
+
+*Record: built by DOCM-1 (PR 1829); history in `docs/DOC-LEDGER.md`.*
 
 ## DM3 — A part of a multi-body value is selected by a projection node
 
@@ -127,36 +139,35 @@ ONE body: the named half of a `Split` value or the `i`-th body of an
 `Instances` value. `Instance`'s index is a structural slot (a count,
 like `Pattern::count`) and an index at or beyond the pattern's count
 refuses typed at evaluation. Names pass through unchanged, as
-`Transform`'s do (`role.rs:89`): the body keeps the split's
+`Transform`'s do (`role.rs`): the body keeps the split's
 `SplitBody(half)` name or the pattern's `Instance { i, of }` names,
 so every downstream selector spells what it already spells.
 
-- **Why a node and not an operand struct.** The operand struct puts
-  a projection inside every body-consuming payload (`Boolean`,
-  `Split`, `Transform`, `Fillet`, `Chamfer`, `Pattern`, …) and forks
+- **Why a node and not an operand struct.** The operand struct would
+  put a projection inside every body-consuming payload (`Boolean`,
+  `Split`, `Transform`, `Fillet`, `Chamfer`, `Pattern`, …) and fork
   each consumer's admission on it. The node is the `PlacedUnion`
   ruling's shape: one meaning, one node. Every consumer stays as it
-  is, `eval::wire::body_operand` (`wire.rs:457`) is unchanged, and
-  the viewer's `denotes_body` (`combine.rs:464`) gains one `true`
-  arm, which `the_body_seat_tracks_the_evaluators_operand_door`
-  then re-pins. The selection is a visible, editable tree row.
+  is, `eval::wire::body_operand` is unchanged, and the viewer's
+  `denotes_body` (`combine.rs`) carries one more `true` arm, which
+  `the_body_seat_tracks_the_evaluators_operand_door` pins. The
+  selection is a visible, editable tree row.
 - The cost is that row. `several_bodies_are_not_one_body_at_a_seat`
   keeps asserting that a bare split or pattern is refused at a body
   seat; the Part node is how a user says which body they meant.
 
+*Record: built by DOCM-2 (PR 1860); history in `docs/DOC-LEDGER.md`.*
+
 ## DM4 — Flat operators before splice: an n-ary union
 
-The motivating case for deleting a node from the middle of a chain
-(`work/docm/no-docedit-splices-a-deleted-node`) is
-`demos/tour/src/diefillet.rs`: 21 transforms of one ball chained by
-20 pairwise unions into one cutting tool, one subtract, a fillet on
-the twelve box edges, a fillet on the 21 pip rims. The chain is an
-artifact — `diefillet.rs:288` records that a pairwise
-`Boolean(Union)` is the recipe's only way to assemble a multi-shell
-tool — and the chain is also what makes any restructuring expensive:
-boolean naming wraps every operand's names in `FromA` / `FromB`
+The case is the die's. `demos/tour/src/diefillet.rs` assembles 21
+transforms of one ball into one cutting tool, subtracts it, and
+fillets the twelve box edges and the 21 pip rims. The other way to
+assemble a multi-shell tool is a chain of pairwise `Boolean(Union)`s,
+and that chain is an artifact of the vocabulary rather than of the
+model: boolean naming wraps every operand's names in `FromA` / `FromB`
 (`role.rs`, the boolean group), so a pip's rim name records the depth
-at which it joined. Removing one link from the chain changes the
+at which it joined. Removing one link from such a chain changes the
 names of every pip that joined before it, and the rim fillet's frozen
 selection fails typed for each of them (one rim for the second pip,
 twenty for the last), repairable only by a `Rebind` per name through
@@ -165,12 +176,12 @@ survives would carry that cost on top of its own.
 
 So the chain goes, not the link:
 
-- **`Node::Union { members: Vec<RecipeNodeId> }`** — an n-ary union,
-  two or more members, ONE body out. It evaluates as a fold of the
-  kernel's pair verb in member order (D9: the order is the list's,
-  and the list is data). It sits beside `Boolean(Union)`, which stays
-  for a pair, and beside `PlacedUnion`, which fuses instances of one
-  prototype and is a different sentence (`node.rs:1325`).
+- **`Node::Union { members: Vec<RecipeNodeId>, declare }`** — an
+  n-ary union, two or more members, ONE body out. It evaluates as a
+  fold of the kernel's pair verb in member order (D9: the order is the
+  list's, and the list is data). It sits beside `Boolean(Union)`,
+  which stays for a pair, and beside `PlacedUnion`, which fuses
+  instances of one prototype and is a different sentence (`node.rs`).
 - **Naming keys by member, not by depth.** The emitter wraps a
   member's names in `FromMember { member: RecipeNodeId, of:
   Box<StableName> }`: `member` is the member's own node id (the edge
@@ -193,57 +204,53 @@ So the chain goes, not the link:
   members. Deleting a pip is `SetMembers` without it plus a plain
   `DeleteNode` of the orphaned transform, one committed action
   (`commit_action`), and the other twenty rims survive. `Loft`'s
-  `profiles` list is the same shape and takes the same edit in the
-  unit that adds it, or a later one; nothing else in the vocabulary
-  is a list.
+  `profiles` list is the same shape and takes the same edit; nothing
+  else in the vocabulary is a list.
 - The viewer's combining doors gain a union seat that takes N body
   picks; that build is CHROME's.
-- **A declaration channel, in member space** (amended 2026-09-06,
-  Ev's ruling on `n-ary-union-has-no-declaration-channel`). Two
-  members that touch refuse `UndeclaredContact` exactly as a pair
-  boolean's operands do, and the union carries the same recourse:
-  `Node::Union { members, declare: Option<RecipeNodeId> }`, the
-  `Declare` node's pairs naming entities in the UNION's own name space
-  — `FromMember { member, of }` names, which the fold already presents
-  to every step through `member_view` — so a declaration says "this
-  face of member `m` meets that face of member `n`" and records no
-  fold position anywhere. Each pair is fed to the fold step at which
-  both its members are in the accumulation: the later member's step
-  in list order, the earlier side as the accumulator's operand, the
-  later as the joining member's; a pair whose two names lie in ONE
-  member is that member's carried contact at its own step. A name in
-  neither table, or in both, refuses typed through the pair boolean's
-  own resolver, which the union reuses (one definition of "resolve a
-  declared name against two tables"). `SetMembers` leaves `declare`
-  as it was; a pair whose member left the list refuses at the next
-  evaluation as a vanished name does (N5), never silently. The
-  "disjoint-only" reading is not taken: the common modelling case (a
-  boss on a plate) would keep the pairwise chain alive.
-  **Merges and order (ruled 2026-09-06, built by DOCM-8):** a merged
-  face's name is a FLAT constituent set (N3) — whatever mints a
-  `Merged` mints it flat, and a nested `Merged` is an emission bug,
-  never something a consumer flattens — so the accumulation's rows
-  carry no fold tree; and a member-space name resolves at its step
-  through whatever merges the fold has performed (the union rewrites
-  it to the flat `Merged` row containing it before the shared
-  resolver), so a declaration set whose faces are consumed by MERGES
-  fuses in every member order. The bound (measured at DOCM-8's
-  review): a face consumed by a split, by containment, or by a merge a
-  later step fragmented is not looked through and stays order-shaped
-  — `work/docm/member-space-look-through-stops-at-splits-containment-and-fragmented-merges.md`.
-  DOCM-7 shipped the measured limit this replaces;
-  `work/docm/member-space-declarations-are-order-shaped-across-a-chain.md`
-  (closed at DOCM-8) is its record.
+- **A declaration channel, in member space.** Two members that touch
+  refuse `UndeclaredContact` exactly as a pair boolean's operands do,
+  and the union carries the same recourse: `Node::Union { members,
+  declare: Option<RecipeNodeId> }`, the `Declare` node's pairs naming
+  entities in the UNION's own name space — `FromMember { member, of }`
+  names, which the fold presents to every step through `member_view`
+  — so a declaration says "this face of member `m` meets that face of
+  member `n`" and records no fold position anywhere. Each pair is fed
+  to the fold step at which both its members are in the accumulation:
+  the later member's step in list order, the earlier side as the
+  accumulator's operand, the later as the joining member's; a pair
+  whose two names lie in ONE member is that member's carried contact
+  at its own step. A name in neither table, or in both, refuses typed
+  through the pair boolean's own resolver, which the union reuses (one
+  definition of "resolve a declared name against two tables").
+  `SetMembers` leaves `declare` as it was; a pair whose member left
+  the list refuses at the next evaluation as a vanished name does
+  (N5), never silently. The "disjoint-only" reading is not taken: the
+  common modelling case (a boss on a plate) would keep the pairwise
+  chain alive.
+  **Merges and order.** A merged face's name is a FLAT constituent
+  set (N3) — whatever mints a `Merged` mints it flat, and a nested
+  `Merged` is an emission bug, never something a consumer flattens —
+  so the accumulation's rows carry no fold tree; and a member-space
+  name resolves at its step through whatever merges the fold has
+  performed (the union rewrites it to the flat `Merged` row containing
+  it before the shared resolver), so a declaration set whose faces are
+  consumed by MERGES fuses in every member order. The bound: a face
+  consumed by a split, by containment, or by a merge a later step
+  fragmented is not looked through and stays order-shaped
+  (`member-space-look-through-stops-at-splits-containment-and-fragmented-merges`).
+
+*Record: the node, its naming and `SetMembers` are DOCM-3 (PR 1803);
+the member-space declaration channel is DOCM-7 (PR 2028); the flat
+`Merged` mint, the look-through and its bound are DOCM-8 (PR 2073).
+History in `docs/DOC-LEDGER.md`.*
 
 ## DM5 — A node's inputs are pairwise distinct
 
-No door refuses `Boolean { a: X, b: X }` today: `InsertNode` checks
-liveness, slots and acyclicity, and `wire_boolean` runs the pair verb
-on whatever it is handed (`wire.rs:1994`). `SetMembers` needs the
-rule, so it is stated once, as a structural validity check on a
-node's inputs — pairwise distinct, which covers the boolean, a union
-or loft list with a repeated member, and a split whose target and
-tool coincide — and called by `InsertNode`, by `SetMembers` on the
+`Boolean { a: X, b: X }`, a union or loft list with a repeated member,
+and a split whose target and tool coincide are all refused. The rule
+is stated once, as a structural validity check on a node's inputs —
+pairwise distinct — and called by `InsertNode`, by `SetMembers` on the
 rewritten node, and by the load validator (`persist/check.rs`,
 `validate_document`) on every node of a snapshot, so the three doors
 share the logic rather than mirror it. Replayed edits meet it through
@@ -252,18 +259,24 @@ a hand-written snapshot never passes an edit door. Refusal:
 `EditError::DuplicateInput { node, input }` at the edit doors, the
 validator's own `SnapshotError` arm at load.
 
+*Record: built by DOCM-3 (PR 1803) with DM4; history in
+`docs/DOC-LEDGER.md`.*
+
 ## DM6 — Splice is not added
 
 No edit rewires a live node's inputs, and none is planned. Every
-graph change is still `InsertNode`, `DeleteNode`, or `SetMembers` on
-a list. `no-docedit-splices-a-deleted-node` is PARKED on DM4's unit:
-the trigger to reopen it is a chain that a flat operator cannot
-flatten and that a user needs to edit from the middle — possibly
-never (Ev, 2026-09-04). Cascade delete (`cascade_delete_order`,
-`edit.rs:1253`) stays the delete for a node with consumers.
+graph change is `InsertNode`, `DeleteNode`, or `SetMembers` on a
+list. `no-docedit-splices-a-deleted-node` stays open as the record of
+the one trigger that would reopen the question: a chain that a flat
+operator cannot flatten and that a user needs to edit from the middle
+— possibly never. Cascade delete (`cascade_delete_order`, `edit.rs`)
+stays the delete for a node with consumers.
+
+*Record: ruled with DM4's build, DOCM-3 (PR 1803), which is what makes
+the die's chain unnecessary; history in `docs/DOC-LEDGER.md`.*
 
 ## What this doc does not touch
 
-Identity across time (`docs/DOCM-IDENTITY-DESIGN.md`), the
+Identity across time (`crates/editor-core/IDENTITY.md`), the
 instantiation seam, the check registry, the certified range query.
 Viewer chrome for every ruling here is CHROME's or VIEW's.
