@@ -65,6 +65,8 @@ mod fillet_refusal_envelope;
 mod review_fillet_attr_r1_probes;
 #[path = "review_fillet_attr_r2_probes.rs"]
 mod review_fillet_attr_r2_probes;
+#[path = "review_fillet_overrun_nearest_fit_r2_probes.rs"]
+mod review_fillet_overrun_nearest_fit_r2_probes;
 
 #[path = "bool12_probes.rs"]
 mod bool12_probes;
