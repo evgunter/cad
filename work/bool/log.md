@@ -418,3 +418,30 @@ and the findings this window filed.
 ## Announced from LIB (2026-09-09): a derive word on `ArcSide`, `ArcSweep` and `CarrierRelation`, and `SketchPlane<f64>`'s `==`
 
 LIB-MIRROR (PR #2271) adds `Hash` to `profile::ArcSide` (`path/verbs.rs:148`), `profile::ArcSweep` (`sugar.rs:38`) and `topo::CarrierRelation` (`boolean/carrier_eq.rs:64`), and spells `SketchPlane<f64>`'s existing `bit_eq` as `impl PartialEq` (`profile/src/lib.rs:701`) with a row in `profile/tests/sketch_plane.rs`, so the Python mirrors match their Rust derives under Ev's (A) ruling on `[ev]` #2265; no behaviour and no comparison answer changes.
+
+**Seam announced by BLEND (2026-09-13, at units 10 and 11's dispatch):**
+two BLEND units edit the profile fillet door inside S-BOOL's glob
+`crates/profile/*`, by announced seam per `work/blend/program.md`:
+unit 10 (`docs/BLEND-10-SPEC.md`, item
+`path-fillet-door-validator-tangency-disagree`) — the PATHS `.fillet(r)`
+door asks `seg::joint_tangency` of its own stored form before emitting
+and refuses typed where `Profile::validate` would refuse; edits confined
+to `crates/profile/src/{path.rs, sugar.rs, seg.rs, validate.rs}` and
+`crates/profile/tests/**`; no new predicate name, the stored form
+unchanged. Unit 11 (`docs/BLEND-11-SPEC.md`, item
+`overrun-attribution-picks-the-first-candidate`) — `sugar::arc_fillet_trims`'s
+overrun arm reports the least-deficit corner-side candidate by a stated
+rule; edits confined to `crates/profile/src/sugar.rs` (and `path.rs`
+for a payload word if needed) and `crates/profile/tests/**`; payload
+shape and sample sequence unchanged. Branches
+`blend/10-fillet-stored-tangency`, `blend/11-overrun-nearest-fit`.
+
+**Seam amended by BLEND (2026-09-13, unit 11 re-scoped at its stop
+clause):** the least-deficit pick cannot be spelled in `sugar.rs`
+(`arc_fillet_trims<T: Decide>` reads no bracket — the Bounds scope rule,
+`bounds-allowlist.sh`); the shipped home for an f64 read that chooses
+between classified constructions is `crates/profile/src/path/arc_fillet.rs::map_refusal<T: Bounds>`
+(rostered in `bounds_census`). Unit 11's fence widens to that file: the
+arm collects every corner-side overrun at the scalar in enumeration
+order, the door picks the least deficit by an enclosure read. Still
+inside `crates/profile/*`, still by this seam.
