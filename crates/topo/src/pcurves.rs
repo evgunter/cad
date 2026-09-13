@@ -1332,6 +1332,116 @@ pub(crate) struct Walked<T: Real> {
     t1: T,
 }
 
+/// The **restriction of one half-edge's stored pcurve row to the two
+/// children of a parameter split** — [`crate::Body::split_edge`]'s
+/// pcurve limb, and the reason that op carries its rows across the
+/// surgery instead of staling them.
+///
+/// A [`Pcurve`] is a function of the **carrier parameter** and carries
+/// no interval of its own ([`Pcurve::eval`]), exactly as an
+/// [`geom_brep::EdgeCurve`]'s carrier does: the children of a split at
+/// `t` have the parent's chart image, restricted to `[t₀, t]` and
+/// `[t, t₁]`. So this re-certifies the parent's own image over each
+/// sub-interval rather than deriving anything, which is why it needs
+/// only `T: Decide` — the derivation lanes are what carry
+/// [`PcurveFittedLane`], and a restriction derives nothing.
+///
+/// The chart `window` is re-derived from the face's STORED rows, the
+/// self-referential way [`mint_face`] builds it and
+/// [`validate_pcurves`] re-builds it; a restriction's chart box can
+/// only shrink, so the face's window after the split is inside the one
+/// certified against here.
+///
+/// Read-only, so a refusal reaches `split_edge` before any mutation
+/// and the op's "untouched on `Err`" contract is unaffected.
+///
+/// # `None`, and what it does NOT claim
+///
+/// - `half_edge` carries no row (the ordinary case: an all-planar
+///   body, or a body that never ran the minting pass);
+/// - a key needed to state the restriction does not resolve — tier 1's
+///   finding to report, and this pass only refuses to guess;
+/// - the row's image is [`Pcurve::Fitted`] or [`Pcurve::General`],
+///   whose certification doors are the `PcurveFittedLane` ones
+///   ([`PcurveCache::certify_fitted`] / [`PcurveCache::certify_general`],
+///   which need the mate operand and the fitted machinery). Widening
+///   `split_edge` to reach them is the bound ripple banked at
+///   [`mint_faces`]; until it lands, a split of a spline-chart edge
+///   carrying a `General` row leaves that face exactly as it found it
+///   — the pre-existing behaviour, tracked on TOPO's slate as
+///   `split-edge-general-lane-rows-stay-behind`.
+///
+/// In every `None` case the caller writes nothing, so the map is left
+/// exactly as found.
+///
+/// # Errors
+///
+/// [`PcurveCertifyError`] — the parent's image over a sub-interval
+/// failed the closed-form certification the whole image passed. A
+/// covered lane that refuses here is a genuine defect and is raised,
+/// never swallowed.
+pub(crate) fn split_cache<T: Decide>(
+    body: &Body<T>,
+    half_edge: HalfEdgeKey,
+    t: T,
+    band: Band,
+) -> Result<Option<(PcurveCache<T>, PcurveCache<T>)>, PcurveCertifyError> {
+    let Some(cache) = body.pcurve(half_edge) else {
+        return Ok(None);
+    };
+    if matches!(cache.pcurve(), Pcurve::Fitted(_) | Pcurve::General(_)) {
+        return Ok(None);
+    }
+    let (Ok((carrier, t0, t1)), Ok(surface)) = (
+        half_edge_carrier(body, half_edge),
+        half_edge_surface(body, half_edge),
+    ) else {
+        return Ok(None);
+    };
+    // The face's chart window, as the hull of that face's STORED rows'
+    // chart boxes — `mint_face`'s own window when the face is fully
+    // minted, and the one `validate_pcurves` re-derives.
+    let Some(face) = body
+        .get_half_edge(half_edge)
+        .and_then(|he| body.get_loop(he.parent_loop))
+        .and_then(|lp| body.get_face(lp.face))
+    else {
+        return Ok(None);
+    };
+    let loops: Vec<LoopKey> = core::iter::once(face.outer)
+        .chain(face.rings.iter().copied())
+        .collect();
+    let mut window: Option<ChartWindow<T>> = None;
+    for lk in loops {
+        let Some(crate::entity::LoopBoundary::Cycle { first }) =
+            body.get_loop(lk).map(|lp| lp.boundary)
+        else {
+            continue;
+        };
+        let Some(cycle) = body.loop_cycle(first) else {
+            continue;
+        };
+        for he in cycle {
+            let Some(row) = body.pcurve(he) else {
+                continue;
+            };
+            let (a, b) = row.params();
+            let chart_box = row.pcurve().chart_box(a, b);
+            window = Some(match window {
+                None => chart_box,
+                Some(acc) => acc.hull(chart_box),
+            });
+        }
+    }
+    let Some(window) = window else {
+        return Ok(None);
+    };
+    let image = cache.pcurve().clone();
+    let first = PcurveCache::certify(image.clone(), t0, t, &carrier, &surface, window, band)?;
+    let second = PcurveCache::certify(image, t, t1, &carrier, &surface, window, band)?;
+    Ok(Some((first, second)))
+}
+
 /// Mints (and certifies) the pcurve caches of every curved face of
 /// `body` whose chart has a certified closed-form lane — the pass the
 /// C5 splitting lane runs on each side it produces (spec §1: caches are

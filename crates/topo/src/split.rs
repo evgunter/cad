@@ -228,6 +228,22 @@ impl<T: Decide> Body<T> {
         let (spec1, spec2) = curve.split_specs(t);
         let cert1 = self.certify_edge_spec(spec1, p_u, p_new, tol)?;
         let cert2 = self.certify_edge_spec(spec2, p_new, p_v, tol)?;
+        // ---- Pcurve gate (still no mutation): each parent half-edge's
+        // stored chart row, restricted to the two children's
+        // sub-intervals and re-certified. Read-only, so a refusal
+        // leaves the body untouched like every gate above it.
+        let rows_plus = crate::pcurves::split_cache(self, hp.key(), t, band).map_err(|error| {
+            EulerOpError::PcurveSplit {
+                half_edge: hp.key(),
+                error,
+            }
+        })?;
+        let rows_minus = crate::pcurves::split_cache(self, hm.key(), t, band).map_err(|error| {
+            EulerOpError::PcurveSplit {
+                half_edge: hm.key(),
+                error,
+            }
+        })?;
 
         // ---- Mutation (infallible from here on). ----
         // Minting order (documented above): point, curve1, curve2,
@@ -269,6 +285,19 @@ impl<T: Decide> Body<T> {
         self.link_half_edges(n_minus, hm);
         // The splice is done; past it the new halves are ordinary keys.
         let (n_plus, n_minus) = (n_plus.key(), n_minus.key());
+        // The chart rows certified above: the parent halves keep the
+        // first child's (they ARE the first child's halves), the new
+        // halves take the second child's. Both children lie in their
+        // parent's own loop, so the loop's one-branch unwrap is the
+        // parent's and needs no re-pinning.
+        if let Some((first, second)) = rows_plus {
+            self.pcurves.insert(hp.key(), first);
+            self.pcurves.insert(n_plus, second);
+        }
+        if let Some((first, second)) = rows_minus {
+            self.pcurves.insert(hm.key(), first);
+            self.pcurves.insert(n_minus, second);
+        }
         // The parent's minus half now starts at w (the parent derives
         // its new end w through n⁺/n⁻'s starts).
         let Some(he) = self.get_half_edge_mut(hm.key()) else {
