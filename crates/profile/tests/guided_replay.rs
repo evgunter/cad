@@ -305,9 +305,24 @@ fn guided_replay_consumes_the_recorded_pick_rather_than_ranking() {
 /// interval channel's enclosure width — the configuration whose two
 /// lanes `fillet_select` says may legally disagree, so the ladder here
 /// genuinely has no answer of its own to fall back on. Told the other
-/// index, the lane builds the other pocket; a pass that re-ran the
-/// ladder could not, since the ladder's answer does not depend on what
-/// it is told.
+/// index, the lane answers differently; a pass that re-ran the ladder
+/// could not, since the ladder's answer does not depend on what it is
+/// told.
+///
+/// **What "differently" is allowed to be.** Usually the other pocket,
+/// built and separated from this one. But the other pocket is a fillet
+/// like any other, and the path door now reads every fillet it emits
+/// the way `Profile::validate` will: at a tight epsilon on the
+/// enclosure lane the other pocket's joint clearance is an enclosure
+/// straddling zero and wider than the band, so the door escalates it —
+/// and so does validation, on the very loop this row used to build
+/// (`carrier_circles_internal`, enclosure ±2.4e-12 against a band of
+/// (1e-12, 1e-11)). A refusal there is therefore not a lost row: it is
+/// the consumption, stated more sharply than geometry can state it.
+/// The ladder's own answer is the recorded one, which builds; a pass
+/// that ignored the record would have built it whatever it was told,
+/// so an outcome that differs from the recorded one AT ALL is the
+/// claim.
 ///
 /// This is the row a two-survivor ranking at `Interval` was waiting on.
 /// It could not be written while the advance gate's zero swept angle
@@ -378,24 +393,37 @@ fn the_hairline_lens_at_interval_consumes_the_recorded_pick() {
             ..d.clone()
         }],
     };
-    let flipped = replay_guided(&lifted, &other, tol())
-        .expect("the other pocket is a valid fillet of the same legs");
-    // Same arity, and the two pockets are SEPARATED — not merely
-    // different bits, which an enclosure lane cannot honestly claim:
-    // some vertex's y enclosures are disjoint, so no single geometry
-    // lies in both answers and the pick provably moved with the record.
-    assert_eq!(nominal.vertices().len(), flipped.vertices().len());
-    let moved = nominal
-        .vertices()
-        .iter()
-        .zip(flipped.vertices())
-        .any(|(a, b)| a.pos().y.hi() < b.pos().y.lo() || b.pos().y.hi() < a.pos().y.lo());
-    assert!(
-        moved,
-        "the guided pass produced an overlapping pocket after being told the other \
-         one — it is ranking rather than consuming, which is the whole hazard this \
-         machinery exists to foreclose"
-    );
+    match replay_guided(&lifted, &other, tol()) {
+        // The other pocket built: same arity, and the two are
+        // SEPARATED — not merely different bits, which an enclosure
+        // lane cannot honestly claim: some vertex's y enclosures are
+        // disjoint, so no single geometry lies in both answers and the
+        // pick provably moved with the record.
+        Ok(flipped) => {
+            assert_eq!(nominal.vertices().len(), flipped.vertices().len());
+            let moved = nominal
+                .vertices()
+                .iter()
+                .zip(flipped.vertices())
+                .any(|(a, b)| a.pos().y.hi() < b.pos().y.lo() || b.pos().y.hi() < a.pos().y.lo());
+            assert!(
+                moved,
+                "the guided pass produced an overlapping pocket after being told the other \
+                 one — it is ranking rather than consuming, which is the whole hazard this \
+                 machinery exists to foreclose"
+            );
+        }
+        // The other pocket is one this run's tolerance cannot certify.
+        // The pass still CONSUMED the record: told the recorded index it
+        // built, told the other it refused, and the refusal is about
+        // that other pocket's own geometry — a typed authoring refusal,
+        // not a lattice violation.
+        Err(refused) => assert!(
+            matches!(refused.kind, ReplayErrorKind::Path(_)),
+            "told the other index the lane refused, which is consumption — but the \
+             refusal must be about the pocket, not about the program's shape: {refused:?}"
+        ),
+    }
 }
 
 /// A record whose fit sign disagrees with what this scalar classifies
