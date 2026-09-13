@@ -943,9 +943,9 @@ cites these two idioms instead of re-deriving):
    profiles hot, a fixed-arity block tree with a named chunk size and a
    documented combine order.
 
-Targets in value order: the subdivision driver, per-face tessellation,
-certification sampling, mass properties, independent DAG nodes.
-Euler-op sequences stay serial.
+Targets in value order: the subdivision driver, certification
+sampling, mass properties, independent DAG nodes. Euler-op sequences
+stay serial.
 
 *GPU boundary (PERF-PLAN §3.3), ratified:*
 

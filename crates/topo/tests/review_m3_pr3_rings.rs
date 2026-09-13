@@ -10,6 +10,7 @@
 
 use geom_core::Tol;
 use geom_core::{Point3, Real, Vec3};
+use topo::readback::euler_counts;
 use topo::{
     Body, FaceSurface, LoopBoundary, MefSite, MevSite, SplitPart, SplitPlane, mass_properties,
     split, validate_closed,
@@ -123,7 +124,7 @@ fn plane_x<T: geom_core::Decide>(c: f64) -> SplitPlane<T> {
 fn two_hole_box_split_between_rehomes_both_ways() {
     let body = holed_box::<f64>(6.0, &[1.0, 5.0]);
     assert_eq!(validate_closed(&body), Ok(()));
-    let rings = |b: &Body<f64>| b.faces().map(|(_, f)| f.rings.len()).sum::<usize>();
+    let rings = |b: &Body<f64>| euler_counts(b).r;
     assert_eq!(rings(&body), 4, "top and bottom carry two rings each");
     let r = split(&body, &plane_x(3.0), Tol::witness()).unwrap();
     let (above, below) = (body_of(&r.above), body_of(&r.below));
@@ -159,7 +160,7 @@ fn split_through_hole_two_section_polygons() {
     assert_eq!(validate_closed(below), Ok(()));
     // Below: [0,1] slab with an open channel notch — no rings left.
     // Above: [1,6] slab with the intact second hole (2 ring loops).
-    let rings = |b: &Body<f64>| b.faces().map(|(_, f)| f.rings.len()).sum::<usize>();
+    let rings = |b: &Body<f64>| euler_counts(b).r;
     assert_eq!(rings(below), 0);
     assert_eq!(rings(above), 2);
     let (va, vb) = (
@@ -187,7 +188,7 @@ fn interval_lane_ring_rehoming() {
             let (above, below) = (body_of(&r.above), body_of(&r.below));
             assert_eq!(validate_closed(above), Ok(()));
             assert_eq!(validate_closed(below), Ok(()));
-            let rings = |b: &Body<Interval>| b.faces().map(|(_, f)| f.rings.len()).sum::<usize>();
+            let rings = |b: &Body<Interval>| euler_counts(b).r;
             assert_eq!((rings(below), rings(above)), (2, 2), "same as f64 lane");
         }
         Err(e) => {

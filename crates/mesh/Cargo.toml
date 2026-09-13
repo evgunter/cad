@@ -66,6 +66,14 @@ topo = { path = "../topo" }
 # Constrained Delaunay triangulation (ratified crate table; version,
 # license, and release-age vetting in the workspace dependency table).
 spade = { workspace = true }
+# D9 idiom 1 over the face arena: `tessellate`'s per-face dispatch is an
+# indexed parallel map into a pre-sized buffer, and the arena-order fold
+# that places the patches is idiom 2 (`docs/DESIGN.md`'s D9 addendum,
+# `work/perf/plan.md` §2.2). Second consumer in the workspace after
+# `editor-core`, which names it for the same pair of idioms over
+# independent DAG nodes; the workspace table carries the version and the
+# vetting.
+rayon = { workspace = true }
 
 [dev-dependencies]
 # Shared fuzz harness for this crate's randomized sweeps (one RNG, the

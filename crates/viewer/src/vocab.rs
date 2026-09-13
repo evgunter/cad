@@ -53,8 +53,12 @@
 //! beside its declaration and the form maps over it, which is what the
 //! boolean operations do — and the answer for one that claims none
 //! ([`crate::forms::MATE_PRIMITIVES`]) is neither: forcing a
-//! deliberately partial list would force the wrong thing. Either way
-//! it is not a hole in this one.
+//! deliberately partial list would force the wrong thing. What such a
+//! list wants is to be TOLD its enum grew, which is a different
+//! instrument and lives beside the list it holds — `forms`'s
+//! `partial_mirror!`, which classifies every mirrored variant as
+//! offered or as deliberately absent. Either way it is not a hole in
+//! this one.
 //!
 //! A DELIBERATELY PARTIAL list is not a vocabulary either
 //! ([`crate::frame::SUBJECTS_WITH_AN_EXPIRY_ISSUER`] names two of five

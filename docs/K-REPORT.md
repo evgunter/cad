@@ -2104,6 +2104,101 @@ and zero on every straight-walled fixture, which is the same fact the
 inertness pin makes locally
 (`m10_9_pins_interval::m10_9_the_door_is_inert_on_straight_geometry`).
 
+## M10-10 addendum (2026-09-07): the form-level algebra — no new token, `symbolic_zero` moves
+
+M10-10 shipped the form-level mechanism M10-9's measurement owed: rule
+D (`geom_core::sym::SymRules::trig_of_atan`) — `sin`/`cos` of
+`q · atan(X)` rewritten to closed forms in `X` and `sqrt(1 + X²)`,
+multiples by angle addition, halves on the positive branch, which the
+range of `atan` fixes — with rules A/B per node made affordable (a
+linear substitution over one common denominator, a step cap and a size
+cap) and the zero normalization the reduction needs (`0/d + x = x`).
+Every zero these reach is an unconditional THEOREM: no value read, no
+axiom. So there is **no new token**: a rule-D zero counts in
+`symbolic_zero`, and the K vocabulary is the eight tokens it was.
+
+### What it moved in the population
+
+At the two-hole plate's nominal, theorem/gated/registered/numeric,
+algebra off (M10-9's tier) → on: `carrier_on_surface_2` 108/0/0/72 →
+180/0/0/0 and `witness_on_surface_2` 12/0/0/8 → 20/0/0/0 — theorems;
+`carrier_matches_mapped_source` 180/0/8/64 → 180/0/72/0 — every
+sample through the door, because rule D makes the two spellings' trig
+meet and the rim identity the registrant states is what closes it, so
+the count is `registered` (necessity, as M10-9 defined it, and this is
+what necessity looks like when the algebra reaches further than the
+door alone). `pcurve_map_residual` 0/0/0/36 → 0/0/36/0 — the door
+again, once rule D's amendment-A1 folds take the chart's phase:
+`atan2(0, r²/sqrt(r²))` is `atan2` of the zero form over a form
+non-negative BY SYNTAX and folds to the zero form (no sign read; the
+`r² = 0` box is one clause 1 refuses first), and on the
+definitely-negative frame the azimuth's `+ π` leaves `cos π = −1`;
+the rim identity closes the rest. Still no new token: a fold that
+reads a syntactic class is a theorem, and what the door closes is
+`registered`.
+
+### The ceilings
+
+Measured at ε = 1e-6, 1e-9 and 1e-12 as the over-band set at
+ceiling + δ (`m10_10_pins_interval`, both bracket ends asserted):
+
+| document | M10-9 | M10-10 | over the band at ceiling + δ |
+| --- | --- | --- | --- |
+| two-hole plate | `[7.811e2, 7.814e2] · ε` | **0.2368 / 0.2631 / 0.2631 of its REAL study** (`[2.3680e5, 2.3687e5] · ε`, `[2.6306e8, 2.6316e8] · ε`, `[2.6305e11, 2.6318e11] · ε`) | `assert_bound` `[9.99e-6, 1.90e-4]`, `[−2.09e-9, 2.00e-4]`, `[−9.12e-9, 2.00e-4]` — the web assertion |
+| R1 annulus | `[7.805e2, 7.810e2] · ε` | **0.6963 / 0.8416 / 0.8415 of its real study** | `dihedral_wedge` `[9.99e-6, 5.31e-2]`; `arc_diameter_clearance` `[−5.61e-8, 8.44e-4]`, `[−3.99e-8, 8.44e-4]` |
+| R2 link | `[4.930e2, 4.934e2] · ε` | unmoved | `carrier_matches_mapped_source` `[0, 1.0004 · ε]` |
+| R2 filleted bracket | `[3.871e2, 3.873e2] · ε` | `[3.870e2, 3.874e2] · ε` (unmoved) | `carrier_matches_mapped_source` `[0, 1.0003 · ε]` |
+| R2 rounded pad | `[2.083e3, 2.084e3] · ε` | `[2.4990e3, 2.5010e3] · ε` | `line_span` `[−1.0005 · ε, 1.0005 · ε]` |
+
+The plate's and the annulus's ceilings stopped scaling with ε: each
+is a fraction of its real study. What bounds each CEILING is
+dependency widening of a real margin's enclosure, not a flip
+(`work/m10/real-margin-dependency-widening`): the plate's assertion
+margin is affine with true range `1e-4 ± 1.6e-4·s`, positive over the
+whole box below `s = 0.625`, while its enclosure at the ceiling
+(`s ≈ 0.263`) straddles zero — widened ~6e-5 each side; the annulus's
+`arc_diameter_clearance` cannot be zero for any `r > 0`. The LEAVES
+certify up to the real flip (431/593 at 1024 leaves, every refusal
+the budget, refined refusals `{assert_bound}` alone). The plate's rows
+are the staged walk's own end (0.2368, 0.2630, 0.2631 with every
+identity residual passed) to the bisection step — the shipped tier is
+at the end of the walk with nothing passed, and passing residuals
+moves it by nothing. The other three still scale with ε, bounded by
+identity residuals whose squared components the term/coefficient
+budget freezes (the per-node cap is a cost wall, not a reach).
+
+### The driver row
+
+`m10_3_driver_k_probe_interval`'s `two_hole_plate_narrow` stays at
+`1.6e3 · ε` — ε-relative like the slabs, and now far inside the
+plate's ceiling at every row, so it certifies whole in ONE leaf whose
+certified-midpoint replay carries the arc family. Local driver K row,
+the sweep's own configuration (`--features probe,interval`, dev
+profile, three ε rows, `k-lint --gate-rule-1-only`): per file `74423
+samples (48039 symbolic_zero, 0 sign_gated, 140 registered, 26244
+classified)`, rule 1 `0` at every row; `TOTAL over 3 file(s): 223269
+samples (144117 symbolic_zero, 0 sign_gated, 420 registered, 78732
+classified), rule 1 (undecided/invalid) 0`. Against the pre-A1 cut
+(two leaves at that scale: 208 registered, 26786 classified per file)
+the delta is exactly the fixture's second leaf gone and, per leaf, the
+36 `pcurve_map_residual` decisions moved numeric → registered (104 →
+140 per leaf); the hosted log's lines are quoted in the PR body.
+
+### The stackup hull pads by the leaf
+
+A stronger tier certifies a study in fewer, wider leaves, and the
+certified worst-case hull's dependency padding is proportional to the
+leaf's width: the plate's `ε/8` stackup certified in 16 leaves under
+M10-9 (padding `2 · half`), in 4 under the first cut (`4 · half`) and
+in ONE under A1 (`8 · half`, the whole box); the bore/pin fit in 4, 2
+and 1 (`1`, `2`, `4 · half`) — four and two times the leaf's width at
+every step, and at one leaf the widest it can be. Sound (every hull
+still encloses the true range), looser, pinned at the measured value
+with the leaf count (`m10_4_stackup_interval::PLATE_PADDING_PER_HALF_WIDTH
+= 8`, `m10_4_r2_probes_interval::BORE_PIN_PADDING_PER_HALF_WIDTH = 4`),
+and filed with what is owed
+(`work/m10/certified-hull-padding-is-the-leaf-width-not-the-lane`).
+
 ## M11 addendum (2026-09-08): the CERT-1 roster fold — measured at `c39a904e`, and neither calibration witness moved
 
 Issue 1251 scheduled this: PR 1220 (S-CERT's CERT-1) added a recorded

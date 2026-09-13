@@ -10223,6 +10223,73 @@ them would not be.
 
 **VIEW stands at 70 open / 85 closed, nothing waiting on Ev.**
 
+## 2026-09-12 — §6's rewrite landed, and placing the handed-over citations found the class a third time
+
+**#2443 merged** (`5eec65ef5e`): **22 jobs**, the whole code matrix
+skipped, `gate ok` success — the docs tier by its shape, since the docs
+total moved 21 → 22 the same day the code total moved 38 → 42.
+
+**`implementer-discipline.md` §6's rewrite is now on `main`**, checked
+with a multiline-safe read rather than a grep. A lane now files
+out-of-fence findings directly on the owning program's slate, finding
+the owner with `work.py territory --files -` and grepping that
+directory for a duplicate first. Dispatches say so from here.
+
+### Placing the four handed-over shifts, and why holding them was right
+
+#2444's lane handed over four citation shifts in CHROME's and TINT's
+rows, reporting that it had verified **all** of them as true shifts —
+*"all three name their subjects at the old numbers"*. I had declined to
+apply them unchecked, on the rule that repointing another program's row
+needs that row's CLAIM checked against the new line. Now that §6
+permits placing them, I checked each. **Two of four were wrong, and the
+TINT one was not a shift at all.**
+
+| row | proposed | verified | verdict |
+|---|---|---|---|
+| `chrome/probe-rows…` `valid_range.rs:405` | `:441` | `:441` | correct |
+| `chrome/probe-rows…` `valid_range.rs:342` | `:378` | `:378` | correct |
+| `chrome/probe-rows…` `bounds.rs:380` | `:399` | **`:402`** | wrong subject |
+| `chrome/mispaired-ids…` `scene.rs:413` | `:374` | **`:445`** | wrong subject |
+| `tint/loud-skip…` `lib.rs:92-100` | `:93-101` | — | **not a shift** |
+
+`bounds.rs:399` is a doc-comment line; `MAX_REACHES` is at `:402`.
+`scene.rs:374` is `Self::empty(nowhere, delta)`; the `MispairedIds`
+guard the row quotes verbatim is at `:445`. **This is the out-of-fence
+citation class measured a third time** — after 1-placeable-of-31 and
+0-of-16 — and by the same mechanism each time: a shift map is
+arithmetic on an integer and cannot be wrong in its own terms, so it
+returns a number for every input and nothing in it asks whether that
+number names the subject.
+
+**The TINT row is the worse shape and the more useful find.** Its
+citation does not need moving; the sentence it QUOTES no longer exists.
+`grep -n "Nothing here goes red"` over `crates/viewer/src/lib.rs`
+returns nothing, and the loud-skip paragraph now at `:96` says the
+opposite of the quotation — *"the roster is the
+`#[cfg(feature = "app")]` block above, which the compiler keeps, so
+there is no hand-kept…"*. The hand-kept enumeration that row is about
+was replaced by a compiler-kept one at this site. Shifting the numbers
+would have preserved a quotation the source no longer contains: **a
+citation that still resolves and now misdescribes**, which is worse
+than one that dangles, because nothing about it looks wrong.
+
+Applied: the two correct shifts plus the two corrected ones, and one
+the lane did not list at all (`valid_range.rs:418` → `:455`, the
+`1.0e-4` threshold in the same row). TINT got a written note rather
+than an edit to its numbers, saying what VIEW checked and what it did
+not — `crates/viewer` is the only site on VIEW's ground, so whether the
+row closes depends on sites VIEW cannot speak for.
+
+**The rule this earns, and it is about receipts rather than citations:**
+a lane reporting *"I verified these as true shifts"* is reporting a
+CONCLUSION, and the conclusion is produced by the same arithmetic that
+cannot see its own failure mode. Handing four over with that sentence
+attached is not evidence about four; it is one claim about a method.
+**Check the subject at the new line, every time, no matter who did the
+arithmetic** — including when the arithmetic was mine.
+
+**VIEW stands at 70 open / 85 closed, nothing waiting on Ev.**
 ## 2026-09-12, later — `view/drag-field-precision`: every numeric field gets a text that reads back
 
 `a-drag-field-renders-a-length-at-a-precision-its-drag-speed-sets` is
@@ -10326,3 +10393,254 @@ the door reds `clicking_into_a_field_and_away_again_leaves_the_value_alone`
 with *"clicking into a field holding 0.00004 and away again committed 0"*.
 
 **VIEW stands at 71 open / 86 closed, nothing waiting on Ev.**
+
+## 2026-09-12 — #2453 merged; its lane was lost to a container restart, and the PR body survived it
+
+**#2453 merged** (`8d653a7ce2`). The lane died in a container restart
+**after** pushing three commits, opening the PR and writing a full body,
+but before reporting. The orchestrator did the report's job from the
+diff and the body; the work needed nothing re-run. **Worth recording as
+a harness fact: a lane's PR body is durable and its chat report is not,
+so a lane that writes its argument into the body loses nothing to a
+restart.** Dispatches should keep saying the logical documentation lives
+in the PR description.
+
+Job shape verified from the list at the second look: **39 jobs, 12
+`test (…)`, 5 `k-lint (gate, …)`, `gate ok` success**, nothing
+non-(success/skipped). At the FIRST look it was **38 with four jobs
+still running and no `gate ok` row at all** — the rule about `gate ok`
+posting last earning itself within a day of being written. The total
+also moved 38 → 39 purely because `gate ok` posted, which is the same
+rule from the other side.
+
+**The merge was refused once with `405 Base branch was modified`** and
+succeeded on a retry with no change to the head. A 405 there is a race
+with `main` moving, not a mergeability verdict; `mergeable_state` read
+`unknown` at the same moment because GitHub had not recomputed it.
+
+### What the unit landed
+
+`widgets::number_text` — **a field's text reads back as the value the
+field holds** — keeping egui's own spelling wherever
+`readout::reads_back` accepts it and handing the rest to
+`readout::number`. `widgets::number_field` is the constructor that
+attaches it, and **all eleven `DragValue::new` sites in the crate go
+through it**.
+
+**The item understated its own defect and the lane proved the stronger
+form.** The item held back on the ground that *"a field reading `0.00`
+does not commit `0.00`"*, citing the `change != 0.0` guard. That guard
+covers the drag and the arrow keys only: a `DragValue` **seeds its
+keyboard edit with the text it last showed and parses that text back on
+focus loss, unconditionally**. So clicking into a field and away again
+commits what the field said — measured through the real widget, a field
+holding 4·10⁻⁵ mm shows `0.000` and comes back holding **0.0**. The
+render is a commit path, which is the δ field's defect on every numeric
+field in the chrome.
+
+**The dispatch's open question was answered from egui's source rather
+than decided.** I asked what a drag means when the text stops matching
+the tick. It never does: a drag commits
+`round_to_decimals(value, auto_decimals)` and `auto_decimals` is the
+bottom of the very range the formatter is handed, so every value a drag
+can produce is spelled exactly by the range's shortest member. The row
+asserts that as sameness over the drag's own landing set rather than
+stating it.
+
+**`readout::number` is the rule and deliberately not the whole answer
+here** — its `MAX_CHARS` is sized against `pane::view`'s fixed field
+width while a `DragValue` auto-sizes, so applying it outright would
+render `12345678901.0` as `1.235e10` and then commit the difference.
+Deferring to egui in the accepting band keeps `number` reached only
+where egui's spelling already misreads the value.
+
+**The five-member population was the wrong one**, and the door made the
+classification unnecessary: the property *a field whose text is not the
+value it holds* has no dimension in it, so the item's angle exclusion
+had imported the READOUT class's rule (*is zero a value this can
+have*) into a class about whether the text names the number. The count
+field is the one real non-member and is now provably so — an integral
+`DragValue` gets `max_decimals(0)`, so its range is `0..=0` and a whole
+number reads back as itself.
+
+**Two residues filed on VIEW's slate** (`nothing-holds-a-new-numeric-
+field-to-the-fields-door`, with three candidate guards costed; and
+`a-fields-text-commits-within-the-renders-own-tolerance`), and one
+out-of-fence row filed on CHROME's under the rewritten §6:
+`parameter-row-field-cites-a-pre-split-app-rs` — four `app.rs` bands
+cited against a 2,018-line file, the past-end-of-file class `wc -l`
+catches. Its two correct citations were read and **recorded as
+correct**, which is the half these censuses usually omit.
+
+**The census discipline was done by instrument rather than by
+arithmetic**: base→head mapped with a line-level diff and then the text
+at the new number checked byte-identical to the text at the old — 22
+numbers across 11 rows repointed, zero mismatches. One out-of-fence
+shift was deliberately **not** filed, on §7's rule that a number riding
+beside a name may go stale, and two closed `work/door/` rows left alone
+because a closed row is a record.
+
+**VIEW stands at 71 open / 86 closed, nothing waiting on Ev.**
+## 2026-09-12 — `probe-identity-stops-at-the-instance`: answered
+
+`view/probe-identity`. The fork was *should the door refuse a second
+driver on one instance, or is "one probe per instance, driven by
+whoever names it" the rule?* It is the rule, and it was already the
+value drag's rule — stated for one half of the pair and not the other.
+
+**The item compared a second DRIVER against a second SUBJECT.**
+`a_drag_on_another_field_cannot_steer_the_open_one` is the value drag's
+row for another subject, and the probe's counterpart for THAT exists
+(`a_probe_on_another_instance_cannot_steer_the_open_one`, #2361). The
+like-for-like row is
+`the_open_drags_own_field_dragged_again_lands_its_number`, and it
+asserts, for the value drag, the exact three behaviours the item calls
+a hole: the second batch's begin refused `GestureInFlight`, its preview
+steering the open gesture, its commit landing it and ending the drag
+the first was holding. The README argues that as the whole difference
+between a target and a token. So the item's *"There is no free-move
+counterpart, and the reason is that there is nothing for one to
+assert"* is false at both readings, and what was actually missing was a
+test row, not a door.
+
+**The second driver is a stranded probe, and the strand was already
+traced and left.** `free-move-in-flight-refusal-has-no-reachable-
+producer` (closed) wrote: *"The hole left is the SELECTION, which no
+prune covers: `instance_ui` is drawn only for `selection().node()`, so
+a `Select` performed under an open probe would take the field away with
+the drag still live."* `Select` is permitted by
+`permitted_during_free_move`, and the hand that reaches it under a held
+drag is `a-keyboard-bump-…`'s: the feature tree's row is a
+`selectable_label(…).clicked()` (`pane/features.rs:59-60`) and egui
+answers `clicked()` for Space/Enter on a focused widget and for an
+AccessKit `Action::Click`. Re-select and drag: begin refused, preview
+and commit land. A per-begin token would refuse the recovery and strand
+the reader twice. **So the guard the item asked for would fire on the
+one route that exists, and refuse it wrongly** — which answers the
+*dead-code-or-keeping-a-later-caller-honest* question in the third
+direction neither arm named.
+
+`gizmo` occurs in this tree exactly once, inside the item. No second
+panel and no scripted chrome is on any roadmap. The hypothetical driver
+was hypothetical; the real one is one reader recovering one drag.
+
+**Provenance, per `CLAUDE.md`'s check-that-Ev-ever-agreed rule.** The
+prose changed is `crates/viewer/README.md`'s *A driving operation names
+its own gesture*, which the #2462 split left in the README's RECORD
+half — `GUI-DESIGN.md` holds `G1`–`G5`/`GQ1`–`GQ7` and says
+nothing about driving-op identity. `git log -S'A driving operation
+names its own gesture' -- crates/viewer/README.md` → `26c62d3a0e`
+(#2361, `view/gesture-identity`); `git log -S"The probe's target is
+coarser than a field"` → `c69eafc4d0` (#2392, `view/keyboard-bump`).
+Both are
+VIEW lanes, neither PR is `[ev]`. No ratification exists, so this
+lands with the change rather than waiting.
+
+**What landed.** The rule stated in the README and on
+`SessionOp::PreviewFreeMove`, and
+`the_open_probes_own_instance_driven_again_lands_its_frame` holding it
+— the probe's counterpart to the value drag's row, carrying the strand
+and the recovery. Three mutations red it, each reverted on a committed
+tree: permitting a second `begin_free_move` (3 rows red), refusing
+`Select` mid-probe (3 rows, and this row is the only one about the
+recovery), inverting `commit_free_move`'s name check (13 rows).
+
+**Filed outside the fence** (§6): `work/door/gq5-recap-citation-
+points-at-the-readme-the-split-emptied`. DOOR's
+`dimension-all-has-readers-outside-the-viewer` cites
+`crates/viewer/README.md:1500` for the GQ5 recap; the README is 1444
+lines, the citation was correct at `625722e79e` against an 1849-line
+file, and **#2462 moved the subject to another file** —
+`crates/viewer/GUI-DESIGN.md:155`, located by its own words. Not a
+line shift, so no repoint inside the README could find it. The row
+says what it does not claim: the rest of #2462's casualty population,
+which a `wc -l` filter cannot see.
+
+**VIEW stands at 72 open / 87 closed** — re-derived from
+`work.py status --program view` on the MERGED tree, not carried
+forward. It moved twice while this lane ran: the previous entry's
+*71 open / 86 closed* was true of its own merge base, and main gained
+two more open rows (`two-partial-mirrors-in-the-viewer-have-no-growth-
+alarm` among them) between this branch's base and its merge-forward. A
+count taken before the merge would have been stale on landing.
+
+## 2026-09-13 — #2479 merged; the row closes as RATIFIED, and the guard the item asked for would have been wrong
+
+**#2479 merged** (`14d084e10b`), verified from the job list: **39 jobs,
+12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok` success**, 33 success /
+6 skipped, nothing non-passing.
+
+**`probe-identity-stops-at-the-instance` closes as RATIFIED, not
+fixed.** The item's premise was an asymmetry with the value drag, and
+the asymmetry is not there:
+`the_open_drags_own_field_dragged_again_lands_its_number` already
+asserts, **for the value drag**, the exact three behaviours the item
+calls a hole — second begin refused `GestureInFlight`, its preview
+steers the open gesture, its commit lands it and closes the drag the
+first was holding. So *one gesture per subject, driven by whoever names
+it* was the rule already; the probe obeys it at its own subject. What
+was missing was a **row**, not a door: the second-DRIVER row now exists
+as `the_open_probes_own_instance_driven_again_lands_its_frame`.
+
+**The item compared the wrong pair, and so did my dispatch.** I wrote
+that *"the probe has no counterpart"* to
+`a_drag_on_another_field_cannot_steer_the_open_one`. It does —
+`a_probe_on_another_instance_cannot_steer_the_open_one`
+(`crates/viewer/tests/gesture_table.rs:1496`), added by #2361. **I
+verified it is on `main` before merging**, so the correction is to the
+item's sentence *"There is no free-move counterpart, and the reason is
+that there is nothing for one to assert"* and to my repetition of it.
+That row is the second-**subject** row; the property at issue is the
+second-**driver**. **A proxy standing in for the property, in the
+sentence that made the row look like a door defect** — the class this
+register tabulates, arriving inside an item about a different thing.
+
+**And the guard the item asked for would have fired on the one route
+that exists, and refused it wrongly.** A second driver is not a gizmo —
+`gizmo` occurs in this tree exactly once, inside the item, and nothing
+is roadmapped. It is a reader recovering a **stranded probe**, and
+`free-move-in-flight-refusal-has-no-reachable-producer` — this row's
+own sibling, closed — had already traced it: *"`instance_ui` is drawn
+only for `selection().node()`, so a `Select` performed under an open
+probe would take the field away with the drag still live."* `Select` is
+permitted mid-probe and the feature-tree row is
+`selectable_label(…).clicked()` (`crates/viewer/src/pane/features.rs:59-60`),
+which egui answers for keyboard Space/Enter and AccessKit with no
+pointer — the same hand #2392 was about.
+
+**The correction that stings: the evidence was one closed row away.** I
+flagged *unreachable from today's chrome* as this program's
+most-repeated defect and was right to, but the row that decides the
+fork is named in the item's own `refs` and neither the item nor my
+dispatch read it. **A reachability fork owes a read of the closed rows
+the item references**, not only of the tree. That is now the rule.
+
+**Provenance, run rather than assumed.** `git log -S` on both prose
+sites: *"A driving operation names its own gesture"* → `26c62d3a0e`,
+carried by **#2361**, not `[ev]`; *"The probe's target is coarser than a
+field"* → `c69eafc4d0`, **#2392**, not `[ev]`. `GUI-DESIGN.md` carries
+no driving-op-identity clause. Record text VIEW wrote itself, changed
+with the change and said so in the body — `CLAUDE.md`'s new rule used
+on its first live fork rather than quoted.
+
+### #2462's casualty population, censused — it is one row
+
+The lane filed `work/door/gq5-recap-citation-points-at-the-readme-the-
+split-emptied` and said the rest of the population *"nobody has
+censused"*. Censused here, since #2462 was mine: every citation of the
+form `viewer/README.md:<line>` at or past the cut (old `:1401`) across
+`*.md`, `*.rs`, `*.py`, `*.yml`. **Four hits, one live row.**
+
+- `work/door/dimension-all-has-readers-outside-the-viewer.md:60` —
+  `:1500`, the GQ5 recap, correct before #2462 and now in
+  `crates/viewer/GUI-DESIGN.md`. The lane's filed row covers it.
+- Two hits are that filed row itself, and one is `work/view/log.md` —
+  append-only history, which records what was true when written and is
+  not repointed.
+
+So the split cost exactly **one** live citation, already filed on the
+owner's slate. Recording the number because *"nobody has censused it"*
+is the state a population stays in until someone does, and the
+instrument is a one-line grep with a line-number threshold.
+
+**VIEW stands at 74 open / 87 closed, nothing waiting on Ev.** (The lane reported 72/87 after re-deriving at its own merge-forward; `work.py status` here reads 74 — two more open rows arrived from other programs in between. The tool at merge time is the count, not the tool at any earlier point.)

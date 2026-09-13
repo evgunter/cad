@@ -86,6 +86,8 @@ use pncad::select::{
     CapEnd, ContactClass, EntityKind, NamePat, NameTable, RoleSeg, SegPat, SegTag, Selector,
 };
 use pncad::topo::Body;
+use pncad::topo::EulerCounts;
+use pncad::topo::readback::euler_counts;
 use pncad::workspace::{PIN_MISMATCH_RECOURSE, Workspace, WorkspaceError, update_to_store};
 
 use crate::{SceneBody, Stop, View};
@@ -214,15 +216,11 @@ fn run(doc: &ProfileDoc, opts: &EvalOptions, tol: Tol) -> Evaluation<f64> {
     evaluate::<f64>(doc, None, &CancelToken::new(), opts, tol)
 }
 
-/// The structural census the A4 acceptance identity compares: solids,
+/// The structural census the A4 acceptance identity compares: shells,
 /// faces, edges, vertices of a whole product.
-fn census(body: &Body<f64>) -> (usize, usize, usize, usize) {
-    (
-        body.shells().count(),
-        body.faces().count(),
-        body.edges().count(),
-        body.vertices().count(),
-    )
+fn census(body: &Body<f64>) -> (i64, i64, i64, i64) {
+    let EulerCounts { v, e, f, s, .. } = euler_counts(body);
+    (s, f, e, v)
 }
 
 /// A product's volume, by bits — the other half of the identity.

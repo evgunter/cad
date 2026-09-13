@@ -873,10 +873,17 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
 
     // Each dimension keeps its own tick, and a count keeps whole
     // numbers: the mistakes `drag_tick`'s branch and the `Count` arm
-    // exist to answer.
+    // exist to answer. "Each" is `Dimension::ALL`, so the claim is
+    // about the lattice rather than about the dimensions a list
+    // written here happens to name.
     let canonical = |dimension| FieldWriting::of(dimension, None).tick;
-    let length = canonical(Dimension::Length);
-    assert_ne!(canonical(Dimension::Angle), length);
-    assert_ne!(canonical(Dimension::Scalar), length);
+    let ticks: Vec<f64> = Dimension::ALL.iter().map(|dim| canonical(*dim)).collect();
+    for (i, tick) in ticks.iter().enumerate() {
+        assert!(
+            !ticks[..i].contains(tick),
+            "{:?} scrubs at {tick}, the tick an earlier dimension already took",
+            Dimension::ALL[i]
+        );
+    }
     assert_eq!(canonical(Dimension::Count), 1.0);
 }

@@ -26,7 +26,8 @@ mod degenerates_and_sequences;
 mod fan_semantics;
 mod release_corruption;
 
-use crate::{Body, EntityId, LoopBoundary};
+use crate::readback::euler_counts;
+use crate::{Body, EntityId, EulerCounts, LoopBoundary};
 
 /// A full deep snapshot of a body: every key in all 10 arenas with its
 /// Debug-formatted payload, plus the provenance record of every topology
@@ -146,9 +147,6 @@ pub(crate) fn signed_area(poly: &[(f64, f64, f64)], u: (f64, f64, f64), v: (f64,
 /// until PR 5" — the validator's component pass derives it now, but the
 /// probe keeps its independent caller-supplied form).
 pub(crate) fn euler_poincare_holds(body: &Body<f64>, shells: i64, genus: i64) -> bool {
-    let v = body.vertices().count() as i64;
-    let e = body.edges().count() as i64;
-    let f = body.faces().count() as i64;
-    let r: i64 = body.faces().map(|(_, face)| face.rings.len() as i64).sum();
+    let EulerCounts { v, e, f, r, .. } = euler_counts(body);
     v - e + f - r == 2 * (shells - genus)
 }
