@@ -2,10 +2,11 @@
 id: wire-rs-module-header-describes-five-sixths-of-the-file
 kind: issue
 title: eval/wire.rs's header says each F4 node maps to an existing kernel op, and a 720-line union-declaration-routing subsystem inside it maps to none
-status: open
+status: closed
 opened: 2026-09-11
 refs: [2376]
 pr: 2480
+closed: 2026-09-13
 ---
 
 
@@ -47,3 +48,20 @@ it costs a sentence. Whether the declaration-routing subsystem wants its
 own module is the open question the corrected header would make visible,
 and a lane may answer it either way — including by saying the header
 should describe two jobs because the file honestly has two.
+
+
+## Closed 2026-09-13 (PR 2480)
+
+The header names four jobs where it named one: wiring, declaration
+routing, the placement-rule arithmetic (`pub(crate)`, with a consumer
+outside the module in `mate::member`), and `mod ladder`'s name
+resolution. The first draft named three and the delta round caught the
+fourth, which would have been a half-fix of this very row.
+
+**The row's other two findings are re-homed, not disclosed.** It carried
+three — the header, the 41% comment ratio, and `wire_sweep` existing to
+fail — and only the first is discharged here. The other two are
+`work/wire/wire-rs-accumulation-residue-comment-ratio-and-wire-sweep.md`,
+given their own file at the moment this row closed, because
+`work/README.md` is explicit that a residue named only in a closing
+section is invisible to the re-homing sweep and dies with the directory.

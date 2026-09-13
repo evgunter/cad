@@ -2,10 +2,11 @@
 id: frame-plane-lane-and-axis-frame-are-one-door
 kind: issue
 title: frame_plane_lane and axis_frame destructure the same DatumValue::Frame and raise the same refusal, and axis_frame's own doc says so
-status: open
+status: closed
 opened: 2026-09-11
 refs: [2376]
 pr: 2480
+closed: 2026-09-13
 ---
 
 
@@ -37,3 +38,13 @@ So this row and
 `composed-expected-phrases-are-hand-copied-across-sites` are the same
 two lines seen from two directions: give the door one home and two of
 the three copies go with it. Whoever takes either should read both.
+
+
+## Closed 2026-09-13 (PR 2480)
+
+The two functions collapse onto one `frame_value` — a single
+`DatumValue::Frame` destructure — and the three sentences that existed
+to reconcile the spellings are retired, each replaced by a pointer to
+the door the site now goes through. `axis_frame`'s *"Same door as
+`frame_plane_lane`'s and same refusal"* was the evidence this row was
+filed on, and it is gone because the statement is now structural.
