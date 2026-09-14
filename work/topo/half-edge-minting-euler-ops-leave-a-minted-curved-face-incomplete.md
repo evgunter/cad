@@ -154,3 +154,15 @@ So the long-term answer is (i) in its honest form: closed-form rows
 minted at the site under `Decide` with a typed refusal at the fitted
 frontier, the ripple only if the split fails. Recommended as the
 target; the interim posture stated meanwhile.
+
+## Ruled (2026-09-14, PR 2527)
+
+Ev: "sounds good!" to the long-term shape above. Ratified as the
+target: an Euler operator that mints a half-edge into a cached curved
+face mints its row at the mint site; the closed-form derivation split
+from the fitted lane under `Decide` is tried first, with a typed
+refusal at the fitted frontier, the bound ripple only if the split
+fails; the closing-mint convention retires with it. The declared
+posture (ii) is the interim statement until the unit lands. Kernel
+answer: a block slot (phase 1 is the split question); this row is now
+that unit.

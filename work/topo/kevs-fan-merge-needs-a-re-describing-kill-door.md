@@ -326,3 +326,46 @@ in `topo`'s own tests plus the blend's two and the generator's three
 (the row's own measurement), which is churn rather than design. The
 fuzz's "tier 1 at every step" property is unaffected — it never
 depended on carriers.
+
+## Third elaboration for Ev (TOPO, 2026-09-14, PR 2527): the default, and signature harmony
+
+Ev: "i didn't realize it would need a default... that's not great.
+also how harmonious would the type signature there be with the other
+operations?"
+
+**The signatures as they stand.** The make-operators take a site, the
+geometry of what they make, and a band: `mev(site, point, curve, tol)`,
+`mev_line(site, point, tol)`, `mev_null(site, …)`, `mef(…,
+FaceSurface, tol)`, `mekr(site, …, tol)`. The kill-operators take keys
+only: `kev(he)`, `kef(he)`, `kemr(he1, he2)`, `kfmrh(f1, f2)` — a kill
+creates no geometry, so it carries none. `kev`'s fan merge is the one
+kill that CHANGES geometry (it re-bases every merged edge's endpoint),
+which is exactly why it is the one kill with something to describe.
+
+**On the default.** The list has no default in the valence-one case —
+the merged fan is empty, so the list is exactly empty — but in every
+other case an empty list means "keep every carrier and re-certify it",
+which is a default in all but name. A total form (every merged member
+listed as `Keep` or `Redescribe(spec)`, refused if one is missing)
+removes the default at the cost of the common caller spelling out
+`Keep` per member. Neither is the kill family's shape.
+
+**The shape that keeps the family harmonious is the original (c): two
+doors.** `kev(he)` stays keys-only like every other kill and REFUSES
+typed, before mutating, where any merged carrier would go stale — the
+S93 gate inside the kill, naming the members in its refusal — so plain
+`kev` never produces the defect and never needs a list; and
+`kev_describing(he, &[(EdgeKey, EdgeCurveSpec<T>)], tol)` is the kill
+that takes geometry, shaped like `mev` (a spec and a band) for the
+callers that re-describe (the blend's two sites, the generator's
+roundtrip inverse). That is the variant-family pattern one operator
+already has: `mev` / `mev_line` / `mev_null` are one operator with
+three doors differing in the geometry argument. No default anywhere;
+the kill family stays keys-only; the describing door reads like the
+make-operator it mirrors.
+
+**Cost.** The two blend sites and the generator's three switch to the
+describing door or accept the refusal (the row's measurement); no
+other caller's signature moves. **Recommendation: (c) as two doors**
+— which is (c) as written above; the "default" reading was mine, not
+the shape's.
