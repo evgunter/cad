@@ -5971,3 +5971,19 @@ candidate; concluded 2026-09-14); 2 =
 at its merge). No arm was exposed on main before its slot's claim
 named it, and every claim followed the slot line branch-side. The next
 TOPO kernel-answer unit draws block TOPO-B3.
+
+## Block TOPO-B3 — draw record (branch-side until the block concludes)
+
+Protocol: three slots {opus, opus, fable}, fable position = byte mod 3.
+Pre-draw fields for all three slots were committed to `work/topo/log.md`
+at `daa30ee99` (2026-09-14) BEFORE the draw. Draw 2026-09-14:
+`/dev/urandom` byte **19** (accepted, < 252) ⇒ 19 mod 3 = **1** ⇒
+fable at slot 1.
+
+| slot | arm | unit | pre-draw fields |
+|---|---|---|---|
+| 0 | OPUS | `loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart` | difficulty S/M, task class STRUCTURAL — logged before the draw |
+| 1 | FABLE | `D263` | difficulty M, task class STRUCTURAL-GEOMETRIC — logged before the draw |
+| 2 | OPUS | `S93` | difficulty S, task class STRUCTURAL — logged before the draw |
+
+Ordinal claims go to main at each review dispatch (band 2700–2799).
