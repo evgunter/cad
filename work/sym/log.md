@@ -536,3 +536,75 @@ one-term spelling, `shrink_to_fit` after `mul` (+0.14 %, the memo
 holds no slack), the disclosures. Declined as adjudicated: the
 `form.rs` split (recorded on the split item) and the degree cache.
 Delta by R1 on the fixed head.
+
+## Block SYM-B1 slot 0 concluded; the memo put to Ev (2026-09-14)
+
+SYM-4 merged (#2565 at `bdfd5aba5`, sample #193 — CURVED-MERGEDOOR
+took #192 on main first; the row and its ledger entry rode the PR).
+The merge had to wait a full run on a resolved head: main moved under
+the state-sync commit (two other programs' appended records and this
+program's own SYM-5 PR-1 entry), and a conflicting PR runs nothing —
+the resolution kept both sides of both appended files, and a
+renumbering sed that reached another program's record line was caught
+and restored before the merge. Lesson for this box: state-sync
+commits on shared append-only files land within minutes of main or
+they conflict.
+
+**`[ev]` PR #2581 opened** (branch `sym/ev-memo`, subscribed): D3 —
+may the tier's plain-form memo outlive the leaf? (1) a drive-scoped
+plain memo, recommended, with the three side effects defined; (2) the
+leaf stays self-contained; (3) a subtree memo. The cost row carries
+`needs_ev`. With #2552 (the door's witness) that is two decisions open
+with Ev; block SYM-B1's slot 2 waits on the first, block SYM-B2's
+first slot on the second.
+
+## SYM-6 dispatched on Ev's D1 answer; D2 refined (2026-09-14)
+
+Ev answered `[ev]` #2552: **D1 = (1)** — `Tol` threaded to the door —
+"definitely"; on D2 they asked what was being suggested and said the
+two cases (the claim is false / the arithmetic could not tell) seem
+important to distinguish. The orchestrator's reply on the PR: the
+door cannot tell them apart by the GAP (at the torus the sides are
+many ULPs apart, so a scale-keyed third arm is a second tolerance that
+would misfile its own case), but it can by the KIND of witness —
+`Interval`'s disjoint certified brackets are a proof, `f64`'s slack
+comparison is not — so the refined proposal splits `Contradicted`
+into the exact arm (assertable) and an inexact-refusal arm (counted,
+never asserted), no tolerance added. Recommended; awaiting Ev's pick.
+
+SYM-6 dispatches now (block SYM-B1 slot 2, OPUS): the spec amended
+(A1: D1 answered, Phase 3 HELD until the D2 pick, landing as A2 if it
+arrives before Phase 2 is at PR, else as a follow-on); seams announced
+to PROPS (`real.rs`) and S-BOOL/BLEND (`crates/sweep/src/*`). The
+witness-slack row's `needs_ev` clears on the `[ev]` branch with the
+answer recorded; the span-identity row keeps its flag.
+
+## D2 settled: the arm split lands as SYM-6's Phase 3 (2026-09-14, A2)
+
+Ev on #2552: "that refinement sounds good!" — D2 = the refusal arm
+split by witness KIND. `docs/SYM-6-SPEC.md` Amendment A2 puts Phase 3
+in scope (the lane was in Phase 1): a `Disputed` arm for `f64`/`Probe`'s
+inexact refusal, `Contradicted` reserved for `Interval`'s exact one
+with the registrants' `debug_assert!` restored there, and the
+fixture-scale `registrations_refused == 0` row at `Sym<Interval>` on
+the five M10-10 documents, on which
+`the-span-identity-is-not-a-theorem-of-the-floats` closes. Both `[ev]`
+rows now carry their answers; #2552 merges. The pre-draw fields (M /
+STRUCTURAL) stand: no certification decision moves; the arm says what
+the lane can know and adds no tolerance.
+
+## D3 settled: the plain memo outlives the leaf — SYM-7 opens block SYM-B2 (2026-09-14)
+
+Ev on #2581: "(1) sounds good!" — the drive-scoped plain-form memo,
+keyed by `SymId`, installed by the drive and dropped with it; the
+early and door walks stay per leaf; the three side effects defined
+(the memo carries its atoms; `frozen` becomes distinct-nodes-over-the-
+drive on the drive's receipt with the per-leaf goldens' column
+re-blessed as the acceptance's own move; the opaque-sequence argument
+pinned across leaves). #2581 merged with the answer on the cost row;
+both `[ev]` PRs are closed and no decision is open with Ev. The unit
+is SYM-7 (H / STRUCTURAL, pre-draw), the first slot of block SYM-B2;
+its spec is cut next, the block's other two slots named from the
+slate when it is drawn, and its dispatch waits for a lane (SYM-5's
+fix pass and SYM-6 hold the two heavy lanes; SYM-5's retire at its
+merge).
