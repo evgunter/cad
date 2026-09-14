@@ -5,6 +5,7 @@ title: query::edge_carrier_kind has no readback twin, so the two-homes ruling do
 status: dispatched
 opened: 2026-09-06
 branch: topo/edge-carrier-kind-readback-door
+pr: 2587
 ---
 
 
