@@ -337,7 +337,7 @@ pub use instance::{
     GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed,
     graft_disjoint_all_onto_keyed,
 };
-pub use merge_faces::{MergeCoplanarError, MergeCoplanarOutcome, MergedGroup, SkippedMerge};
+pub use merge_faces::{MergeCoplanarError, MergeCoplanarOutcome, MergeKind, MergedGroup, SkippedMerge};
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use offset_axial::{is_axial, offset_charts_together};
 pub use offset_nappe::{Nappe, face_nappe, group_nappe};
