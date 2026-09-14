@@ -359,3 +359,86 @@ mod tests {
         assert!(!out.is_zero(), "and is never read as a zero");
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod scalar_rows {
+    //! The rule at the SCALAR, through the door a document uses: one
+    //! theorem row and one negative row.
+    use crate::linalg::Vec3;
+    use crate::predicate::{Band, Margin, Sign};
+    use crate::sym::{SymBudget, SymRules, with_session_rules};
+    use crate::{ParamSymbol, Real, Sym};
+
+    fn budget() -> SymBudget {
+        SymBudget {
+            max_terms: 4096,
+            max_degree: 128,
+        }
+    }
+
+    fn band() -> Band {
+        Band::new(1.0e-9, 1.0e-8).unwrap()
+    }
+
+    /// Decides `margin` under `rules` and says whether the tier proved
+    /// it a theorem.
+    fn theorem(rules: SymRules, build: impl FnOnce() -> Sym<f64>) -> bool {
+        let (out, counts) = with_session_rules(budget(), rules, || {
+            crate::k_stats::decide("sym5_rule_e_row", Margin::of(build()), band())
+        });
+        matches!(out, Ok(Sign::Zero)) && counts.symbolic_zero == 1
+    }
+
+    fn p(name: &str, v: f64) -> Sym<f64> {
+        Sym::param(ParamSymbol::of(name), v)
+    }
+
+    /// **The theorem row.** An already-normalised vector's own norm is
+    /// the number one: `‖v̂‖ − 1` is the ZERO form under rule E, and is
+    /// not without it — which is `sqrt(P/P)` folded, the shape a
+    /// derived frame's re-normalised axis arrives in.
+    #[test]
+    fn a_re_normalised_unit_vectors_norm_is_one() {
+        let unit = || {
+            let v = Vec3::new(p("x", 3.0), p("y", 4.0), p("z", 12.0));
+            v.normalize().norm() - Sym::from_f64(1.0)
+        };
+        assert!(
+            theorem(SymRules::shipped(), unit),
+            "with rule E, ‖v̂‖ − 1 is a theorem"
+        );
+        assert!(
+            !theorem(SymRules::without_rule_e(), unit),
+            "and without it the tier does not reach it — the rule is what took it"
+        );
+    }
+
+    /// **The negative row.** The rule folds a quotient to the constant
+    /// its two halves are in ratio, never to ONE: a vector that is not
+    /// a unit vector does not acquire a unit norm, and neither does a
+    /// scaled one.
+    #[test]
+    fn a_non_unit_vector_never_acquires_a_unit_norm() {
+        for (name, scale) in [("three", 3.0), ("half", 0.5)] {
+            let margin = || {
+                let v = Vec3::new(p("x", 3.0), p("y", 4.0), p("z", 12.0));
+                // `scale · v̂` has norm `|scale|`, never 1.
+                (v.normalize() * Sym::from_f64(scale)).norm() - Sym::from_f64(1.0)
+            };
+            assert!(
+                !theorem(SymRules::shipped(), margin),
+                "{name}: ‖{scale}·v̂‖ − 1 is not the zero form and must not decide Zero"
+            );
+        }
+        // And the true statement about the same vector IS reached, so
+        // the row above fails for the right reason.
+        assert!(
+            theorem(SymRules::shipped(), || {
+                let v = Vec3::new(p("x", 3.0), p("y", 4.0), p("z", 12.0));
+                (v.normalize() * Sym::from_f64(3.0)).norm() - Sym::from_f64(3.0)
+            }),
+            "‖3·v̂‖ − 3 is a theorem"
+        );
+    }
+}
