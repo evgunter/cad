@@ -458,3 +458,33 @@ re-state the branch choice and leaves the wrap to the producer's
 closing mint; they now say how the reversal re-states it and point at
 the anchor bullet in `revert`'s module docs for the argument. Signed
 (TOPO, the revert-wrap lane).
+
+## The run doors' posture seam (2026-09-14): two prose paragraphs, two table notes, no function
+
+TOPO's `topo/mef-kef-runs-carry-or-drop-rows` gives `Body::mef`'s
+chord surgery and `Body::kef`'s unsplice the loop doors' answer one
+level down: the RUN of half-edges each moves between two faces' loops
+keeps its rows across one chart (`Body::same_chart`) and loses them
+across two, through a run-level twin of the loop door
+(`Body::drop_run_rows_on_chart_change`, in TOPO's `euler_ring.rs`; the
+loop door now delegates to it). `pcurves::loop_rows` is read and not
+edited: the run is what each op's plan phase already holds, so no
+`run_rows` walk was needed in TRIM's file. What moved in
+`crates/topo/src/pcurves.rs`:
+
+- the module docs' `Neither` paragraph, which said `mef`'s run and
+  `kef`'s remnant are "left saying the old face's chart" and cited the
+  TOPO row, now says each door disposes of the run's rows and what
+  keeps the two in the `Neither` bucket (`mef` mints two rowless
+  halves; `kef` kills two whose rows outlive their keys);
+- the `Posture::Neither` variant doc's "two entries here are known to
+  leave rows in that blind spot" sentence, re-stated the same way;
+- `staleness_posture::DECLARED`'s `mef` and `kef` notes say what each
+  does with the moved run. Both entries STAY `Neither`: the minting
+  operators' posture is Ev's question on the open `[ev]` PR and this
+  unit does not decide it.
+
+One finding filed on this slate while placing `kef`'s killed halves:
+`pcurves-docs-claim-a-recycled-slot-can-read-another-half-edges-row`
+(the stale-row consequence's recycled-slot arm is one `SecondaryMap`'s
+version check forecloses). Signed (TOPO, the mef/kef run lane).
