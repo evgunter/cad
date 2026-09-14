@@ -1108,3 +1108,41 @@ re-baselined onto `mev_null`; `roundtrip`'s `Kev` arm skips every fan
 merge; a seqgen stream pin re-pinned. Dual dispatched on the frozen
 head with the deviation at its centre: ordinal 2708, byte 160 ⇒ R1
 OPUS, R2 FABLE; briefs stored with sha256 privately. No other lane.
+
+## S93 adjudicated; one tally candidate, doc class (2026-09-14)
+
+Both blinded reviews on frozen `cb400cfe1`, both
+MERGEABLE-AFTER-FIXES. R1: 1/6/5, rubric 4/3/3. R2: 2/4/4, rubric
+4/3/2. Both reproduced the red-first row, the sweep measurement (129
+of 1,394, at the blend's two closure kills, to the row), the last-edge
+mutant, the `Kev` skip census on the pinned streams (136 selections,
+39 executing, 69 newly skipped) and the seqgen filter still biting.
+CONVERGED, severity divergent: the rewritten `kev` paragraph is the
+prose-held obligation in a new coat — the trap the style lane names,
+fired on schedule (R2 MAJOR, R1 NOTE plus its Q1); "a certified `mev`
+cannot reach a run-moving fan site" is false — a self-loop closed
+carrier reaches the splice through the certified door (R1 MAJOR, R2
+MINOR, both executed); the advertised control pins `mev_null`'s
+bypass, not the gate; the coverage trade disclosed but unmeasured;
+the iso route row's name and comment false; the kill∘make taxonomy
+stale. UNILATERAL and executed, R2: **the filed row's central
+measurement is false** — "`cargo test -p topo` was green with the
+gate on `kev`" — R2 wired the gate and got fourteen of the tree's own
+rows red (the generator's walk and teardown among them), and found
+the branch commit that claims the measurement does not compile its
+tests. R1 reproduced the sweep half and did not test the `topo` half.
+A false measurement in a tracker row and the PR body, on which the
+follow-up's design rests: **tally candidate +1, doc class**, coded at
+the blinded adjudication (S330's precedent; the code-class exclusion
+noted in the row). Unilateral, taken: the receipt's blind-spot
+sentence false and its sweep count stale (R1); the enumerator
+narrowed where it could have asserted the refusal under fuzz (R1);
+four `kev` fixtures re-baselined onto tier-2-invalid scaffold bodies
+undisclosed (R1); the gate's coincident-point sentence false for the
+M7-8 class and for pre-stale runs (R2). Both reviewers found a landing
+shape the filed row does not name — the surgery-scope switch (R2, Ev's
+PR-2305 shape) and a tier-3 postcondition at the blend door (R1) —
+recorded in the row for the unit that lands `kev`'s half; `S93` stays
+open with the `mev` half landed. Nine-item fix pass to a fresh lane
+on the inherited branch; a bitwise coincident-point short-circuit
+taken so the gate carries where nothing moved.
