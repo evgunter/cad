@@ -438,12 +438,15 @@ cargo doc --no-deps --document-private-items \
   -p viewer --features app --target wasm32-unknown-unknown
 ```
 
-Read 2026-09-10 with that lint set: **seven sites over four identifiers
+Read 2026-09-14 with that lint set: **eight sites over four identifiers
 in two files**, and an identifier is a link SPELLING, so
 `ThreadEvaluator` and
 `crate::evalseam::ThreadEvaluator` count apart. `evalseam.rs`:
 `ThreadEvaluator` ×2, `ThreadIndexer` ×1. `app.rs`: `ThreadEvaluator`
-×1, `crate::evalseam::ThreadEvaluator` ×1, `StartupError::Worker` ×2.
+×1, `crate::evalseam::ThreadEvaluator` ×1, `StartupError::Worker` ×3.
+The fit worker adds nothing but that third `StartupError::Worker`: its
+own links sit inside the `cfg(not(wasm))` module, which the browser
+pass does not render at all.
 The enumeration is COMPLETE rather than illustrative, and it is a
 reading of the tree rather than a property of it. **Line numbers are
 deliberately not carried**: doc-gate's header gives the reason and has a
