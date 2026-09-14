@@ -38,3 +38,14 @@ coaxial cone×cylinder, 2026-09-05). What this issue still blocks on is
 not a section arm: the Klein wall-pair debt (rows 3/4/8) waits on the
 spiric rim carrier — `docs/CURVED-SPIRIC-DESIGN.md`, ratified
 2026-09-04, a CURVED unit to cut.
+
+**2026-09-13 (CURVED-SPIRIC PR-1a).** The kernel half of rows 3/4/8
+moves to the props door: the elbow's rim now mints as
+`Curve3::Spiric` and `shell`/`shell_open` on the klein elbow reach
+tier 3, refusing `VolumeUncomputable` at the torus wall's boundary
+parse (`torax_axial`, `verbs_shell`, `torax_interval`,
+`shell7_seam_corner`, the tour's `torusvessel` wall 1). The demo
+re-authoring (one circle and a `shell_open` call) and the vessel's
+third panel wait for the props quadrature lane for a spiric-bounded
+face — the spiric unit's PR-2, after PR-1b's pcurve variant and STEP
+spline.
