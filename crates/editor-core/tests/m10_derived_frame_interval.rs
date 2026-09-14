@@ -214,7 +214,12 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
 /// unchanged in what it asserts: whatever the kernel does with a
 /// widened placement, it must do the same for the two frame kinds.
 #[test]
-#[ignore = "SYM-5 phase 1: red until the tier carries a normalised vector cheaply"]
+#[ignore = "red at ONE point only — half = 5e-2, all three eps rows: the derived boss's \
+            side-plane newell normalises a cross-sum whose enclosure straddles zero, so \
+            clause 1 refuses a margin the tier's early form already proves zero \
+            (work/sym/a-widened-derived-placement-normalises-a-straddling-newell-sum). \
+            m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width \
+            pins the measured state meanwhile."]
 fn m10_an_extrude_on_a_widened_derived_frame_versus_the_authored_guided_twin() {
     let e = eps();
     let mut mismatch = Vec::new();
@@ -257,7 +262,6 @@ fn m10_an_extrude_on_a_widened_derived_frame_versus_the_authored_guided_twin() {
 /// (`r1_c7_the_prs_transform_lifted_shape_with_an_extrude_above_it`),
 /// unchanged in what it asserts.
 #[test]
-#[ignore = "SYM-5 phase 1: red until the tier carries a normalised vector cheaply"]
 fn m10_the_transform_lifted_shape_with_an_extrude_above_it() {
     let e = eps();
     let doc = transform_lifted_boss(e / 8.0);
@@ -478,7 +482,8 @@ fn sym5_phase1_the_derived_frame_under_the_earlier_tier() {
 /// path named. This is where the normalisation chain is readable: with
 /// the shipped set the document has no blocked residual at all.
 #[test]
-#[ignore = "evidence-only: SYM-5 phase 1 — the normalisation chain under the plain form alone"]
+#[ignore = "evidence-only: SYM-5 phase 1 — the normalisation chain under the plain form \
+            alone; ~16 minutes, most of it rendering forms of 992 terms at degree 82"]
 fn sym5_phase1_the_normalisation_chain_under_the_plain_form() {
     let (derived, _, _) = boss_on_widened_box(5.0e-2);
     let analyzed = analyzed_box(&derived, &AnalysisPolicy::default());
@@ -490,5 +495,102 @@ fn sym5_phase1_the_normalisation_chain_under_the_plain_form() {
         ProfileLift::Pinned,
         SymRules::none(),
         10,
+    );
+}
+
+/// **The measured state of the parity row**, pinned while the row
+/// above stays red at one width. Two claims, both measured at all
+/// three ε rows:
+///
+/// - up to a half-width of `1e-3` the two frame kinds AGREE on the
+///   symbolic lane — the derived-frame boss certifies exactly where its
+///   authored twin does, which is what the tier buys the derived frame
+///   (with every rule off it refuses at every width, on
+///   `carrier_endpoint_start`);
+/// - at `5e-2` the derived one refuses, and the refusal is NOT the
+///   tier's: it is a clause-1 invalid margin on `newell_plane_residual`
+///   — `Vec3::normalize` divides the boss's side-plane cross-sum by a
+///   norm whose enclosure contains zero, so the value channel has no
+///   certified value and the identity test is never asked. The tier's
+///   own early form for that residual is the ZERO form.
+///
+/// A pin of what the kernel does: when the value channel stops
+/// widening that cross-sum, this row fails and the parity row above
+/// goes green and takes its place.
+#[test]
+fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width() {
+    let e = eps();
+    for w in [e / 8.0, 1.0e-6, 1.0e-3] {
+        let (derived, _, _) = boss_on_widened_box(w);
+        let (authored, _) = boss_on_widened_authored_frame(w);
+        for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
+            assert!(
+                sym_failures(&derived, lift).is_empty(),
+                "half={w:e} {lift:?}: the derived-frame boss must certify on the symbolic lane"
+            );
+        }
+        assert!(
+            sym_failures(&authored, ProfileLift::Guided).is_empty(),
+            "half={w:e}: the authored twin must certify"
+        );
+    }
+    // The one width where they part, and the reason, read off the
+    // refusal the kernel reports.
+    let (derived, _, _) = boss_on_widened_box(5.0e-2);
+    let (authored, _) = boss_on_widened_authored_frame(5.0e-2);
+    let refusal = sym_failures(&derived, ProfileLift::Pinned);
+    assert_eq!(refusal.len(), 1, "one refusal at 5e-2: {refusal:?}");
+    assert!(
+        refusal[0].contains("newell_plane_residual") && refusal[0].contains("margin is invalid"),
+        "the 5e-2 refusal is clause 1's, on the newell residual: {refusal:?}"
+    );
+    assert!(
+        sym_failures(&authored, ProfileLift::Guided).is_empty(),
+        "the authored twin still certifies at 5e-2"
+    );
+}
+
+/// **The freeze population is not what refuses.** With the exact
+/// constant fold alone (`const_fold`, rule A0, REPLACING the plain
+/// form's constant atoms — the early walk off) the derived-frame
+/// document freezes NOTHING and still refuses at `5e-2` with the same
+/// clause-1 margin; with every rule off it freezes 12 and refuses at
+/// EVERY width on `carrier_endpoint_start`. So A0 is what carries this
+/// document, the 1,253 degree freezes the shipped set makes in its
+/// early walk cost it no decision, and no rule of the atom algebra
+/// stands between the derived frame and its authored twin.
+#[test]
+fn m10_the_derived_frames_refusal_is_not_a_freeze() {
+    let (derived, _, _) = boss_on_widened_box(5.0e-2);
+    let n = SymRules::none();
+
+    let (plain_fails, plain_counts) = sym_failures_under(&derived, ProfileLift::Pinned, n);
+    assert_eq!(
+        plain_fails.len(),
+        1,
+        "plain form alone refuses: {plain_fails:?}"
+    );
+    assert!(
+        plain_fails[0].contains("carrier_endpoint_start"),
+        "with no rule the refusal is an identity the tier cannot see: {plain_fails:?}"
+    );
+    assert!(
+        plain_counts.frozen > 0,
+        "the plain form freezes: {plain_counts:?}"
+    );
+
+    let a0 = SymRules {
+        const_fold: true,
+        ..n
+    };
+    let (a0_fails, a0_counts) = sym_failures_under(&derived, ProfileLift::Pinned, a0);
+    assert_eq!(
+        a0_counts.frozen, 0,
+        "A0 alone freezes nothing on this document: {a0_counts:?}"
+    );
+    assert_eq!(a0_fails.len(), 1, "and still refuses once: {a0_fails:?}");
+    assert!(
+        a0_fails[0].contains("newell_plane_residual") && a0_fails[0].contains("margin is invalid"),
+        "with no freeze left the refusal is clause 1's: {a0_fails:?}"
     );
 }

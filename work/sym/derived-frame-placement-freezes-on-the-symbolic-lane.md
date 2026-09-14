@@ -72,3 +72,63 @@ derived-frame door (`Datum::FaceFrame`) the other half would change; the row fol
 the mechanism and names DOCM.
 
 From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.
+
+## What stands, and what moved (SYM-5)
+
+SYM-5 measured this row on `origin/main` at `d0d430fc7` before
+touching the tier, and the measurement retires most of the diagnosis
+above. The two DOCM R1 probes are ported unchanged as
+`crates/editor-core/tests/m10_derived_frame_interval.rs`.
+
+**What moved.** The transform-lifted row
+(`..._the_prs_transform_lifted_shape_with_an_extrude_above_it`) is
+GREEN at all three ε rows and is now a kernel pin. The parity row
+(`..._an_extrude_on_a_widened_derived_frame_versus_the_authored_guided_twin`)
+is green on the symbolic lane at half-widths ε/8, `1e-6` and `1e-3`
+under both `ProfileLift`s — the widths this row said refused — and red
+at `5e-2` alone.
+
+**The mechanism is not degree.** The rule ladder on the derived-frame
+document, at the whole declared box:
+
+| rules | frozen | refusals |
+| --- | --- | --- |
+| `none` | 12 | `carrier_endpoint_start` at BOTH widths |
+| `const_fold` alone (A0, replacing) | **0** | none at `1e-3`; `newell_plane_residual` **Invalid** at `5e-2` |
+| `+ early`, `+ door`, `without_the_algebra`, `shipped` | 369 | the same one |
+
+So M10-8's exact constant fold is what carries this document — the
+normalisation chain is `sqrt(16384/256)` and
+`abs(128/(16·sqrt(16384/256)))` nested under a further `sqrt` of a
+degree-88 polynomial in them, and A0 collapses the lot to rationals —
+and the freezes the shipped set makes in its early walk (1,253 at the
+nominal, on `Powi`/`Add`/`Sub` with kids at total degree 65–128 in
+13–192 terms, the same SHAPE as SYM-1's plate table) cost this document
+no decision: every predicate at the nominal is a `Theorem`.
+
+**What stands is clause 1, not the tier.** The one refusal left is a
+single `newell_plane_residual` of 29, diagnosed `Invalid`: the boss's
+side plane is built by `newell_plane`, whose `normal_sum.normalize()`
+divides by a norm whose enclosure is `[0, 2.0924]` because the
+cross-sum's `y` component encloses `[-2.0507, 0.8977]` under dependency
+widening. The tier's own early form for that residual is the ZERO form.
+No rule of the atom algebra — a unit-vector atom, a normalisation
+simplified before squaring, or a degree-resetting `sqrt` — can reach a
+margin the value channel never certifies, so SYM-5 stopped after its
+measurement and filed the residue where its mechanism lives:
+`work/props/a-widened-derived-placement-normalises-a-straddling-newell-sum`.
+That row's acceptance test is this row's parity probe.
+
+**This row therefore stays open on one claim only**: that a derived
+frame and its authored twin should agree at EVERY width. They agree up
+to `1e-3` and part at `5e-2`, for a reason that is the value channel's.
+
+## Re-pointed at SYM-5's measurement (2026-09-14)
+
+DOCM has left the tracker (`docs/DOC-LEDGER.md` sweep 14); the walk and
+the directory are recoverable at the SHA that sweep names. The
+references above to DOCM-1's fence, to DOCM owning the derived-frame
+door and to "DOCM's diagnosis" read as history: the derived-frame door
+(`Datum::FaceFrame`) has no live owner, its design is
+`crates/editor-core/REFERENCES.md` (DM1–DM6), and a row on it is filed
+where its mechanism lands.
