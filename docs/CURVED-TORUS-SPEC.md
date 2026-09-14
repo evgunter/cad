@@ -341,9 +341,13 @@ circle×curved-face pair.
   `K = 1` instance (the comment at `:1206-1213` is then true of the
   samples rather than the endpoints). This is the arity widening the
   brief permits: the call gains `(t₀, t₁)`; the fold and the `decide`
-  are verbatim. For plane/sphere/cylinder the new arc margin is ≥ the
-  old one (the same `f2`, a finer `h`), so no existing clear can turn
-  into a frontier — a row pins the monotonicity on random arcs.
+  are verbatim. For plane/sphere/cylinder the new arc margin satisfies
+  `margin_K ≥ margin_1 − f2·(Δθ/K)²/8` — the deficit is bounded by ONE
+  cell's charge, and is attained on a short arc centred at the
+  residual's minimum where the two-endpoint chord-dip is exactly tight
+  (PR #2535 measured it; the original "≥ the old one" was false as
+  stated). No plane/sphere/cylinder pin moved; a row pins the theorem
+  on random arcs.
 
 ### Fences (PR-2)
 
@@ -484,3 +488,18 @@ anywhere else, R3 is wrong and row 6 is re-cut from the payload.
 
 **Branches** `curved/torus-box` (PR-1), `curved/torus-arm` (PR-2).
 **Pre-log stands: PR-1 M / NUMERIC, PR-2 M / NUMERIC.**
+
+## Amendments from PR-2's dual (CURVED orchestrator, 2026-09-14)
+
+- **The monotonicity sentence** in §PR-2's consumer paragraph is
+  replaced above by the measured theorem (`margin_K ≥ margin_1 −
+  f2·(Δθ/K)²/8`, tight on a short arc centred at the minimum).
+- **The charge table** (0.036 / 0.0089 / 0.0022 / 0.0006 m at K = 64 /
+  128 / 256 / 512) was computed at the FULL-CARRIER `f2`; the shipped
+  arc-scoped `f2` on the lily seam is 1.40e3 m/rad² (full carrier
+  8.36e3, not the 7.9e3 quoted), so every entry is 5.7× smaller and the
+  lily's resolution boundary is `K = 55`, not the table's implied
+  `K ≈ 128–256`. `K = 256` stays the named constant with its resolution
+  law; the headroom is the record.
+- **Two arc-door calls per torus pair** (~1,028 evaluations) were
+  measured; PR-2's fix pass shares one pass.
