@@ -48,3 +48,11 @@ territory and the binding's shape — whether the kind comes back as the
 other DOCM-era read doors or with the selector vocabulary — is LIB's
 call. Announced on `work/lib/log.md` in the same PR (TOPO branch
 `topo/edge-carrier-kind-readback-door`).
+
+The binding census carries the debt meanwhile: `edge_carrier_kind` is a
+`gap:` entry under the family `B-EDGE-KIND` in
+`crates/pncad-py/tests/test_binding_census.py`, whose charter is the
+delivery list above. Closing this row moves that entry off the roster
+(into `BOUND_AS`, or off it entirely if Python spells the name
+identically) and takes the `FAMILIES` charter with it — the census
+fails on a chartered id no entry cites.

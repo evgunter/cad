@@ -5125,8 +5125,16 @@ The seam on LIB's ground is one name on two curated lists:
 `select.rs`'s rule-3 paragraph names the edge tag beside the face one.
 Nothing else in `pncad` moves.
 
-The Python layer is NOT touched: `Evaluation.face_carrier_kind`
+The Python BINDING is not built: `Evaluation.face_carrier_kind`
 (`crates/pncad-py/src/py/value.rs`) has no edge twin, and building one
 is LIB's call, not this unit's. Filed as
 `work/lib/python-evaluation-has-no-edge-carrier-kind-twin.md` with what
-the binding would be. Signed (TOPO implementer lane).
+the binding would be.
+
+What the new façade name DID oblige is the census entry that names the
+debt: `crates/pncad-py/tests/test_binding_census.py` refuses a curated
+name that is neither bound nor listed, so `edge_carrier_kind` is listed
+as a `gap:` under a new family `B-EDGE-KIND`, chartered there with what
+closing it delivers and pointing at the row above. That is the only
+edit this unit makes under `crates/pncad-py/`. Signed (TOPO implementer
+lane).
