@@ -4,10 +4,7 @@ kind: issue
 title: the door's f64 witness is a relative constant, not the run's eps: at a tight eps row it is many band-widths loose
 status: open
 opened: 2026-09-06
-<<<<<<< HEAD
-=======
 parent: SYM-6
->>>>>>> origin/main
 ---
 
 **Raised in review of M10-9** (R1, on the registered-identity door),
