@@ -182,7 +182,7 @@ fn ladder() -> Vec<(&'static str, SymRules)> {
 }
 #[test]
 #[ignore = "evidence-only: adopted SYM-5 review probe; Phase 2 (PR-2) is where these become pins"]
-fn m10_tilted_width_parameter_ladder() {
+fn sym5_tilted_width_parameter_ladder() {
     for half in [1.0e-3, 5.0e-2] {
         let doc = boss_on_widened_width_box(half);
         let p = plain(&doc, ProfileLift::Pinned);
@@ -257,7 +257,7 @@ fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
 
 #[test]
 #[ignore = "evidence-only: adopted SYM-5 review probe; Phase 2 (PR-2) is where these become pins"]
-fn m10_tilted_tilted_frame_ladder() {
+fn sym5_tilted_frame_ladder() {
     for half in [1.0e-3, 5.0e-2] {
         for (kind, derived) in [("authored", false), ("derived", true)] {
             let doc = boss_on_tilted(half, derived);
@@ -290,7 +290,7 @@ fn m10_tilted_tilted_frame_ladder() {
 /// `m10_derived_frame_interval::measured_replay` uses it).
 #[test]
 #[ignore = "evidence-only: adopted SYM-5 review probe; Phase 2 (PR-2) is where these become pins"]
-fn m10_tilted_tilted_derived_guided_profiled() {
+fn sym5_tilted_derived_guided_profiled() {
     use geom_core::sym::profile::{start_profile, take_profile};
     use geom_core::sym::report::{
         ShapeOutcome, explain_depth, name_param, start_shape_report, take_shape_report,
@@ -376,7 +376,7 @@ fn m10_tilted_tilted_derived_guided_profiled() {
 /// and the theorem, a larger budget certifies it.
 #[test]
 #[ignore = "evidence-only: adopted SYM-5 review probe; Phase 2 (PR-2) is where these become pins"]
-fn m10_tilted_tilted_derived_guided_budget_ladder() {
+fn sym5_tilted_derived_guided_budget_ladder() {
     let doc = boss_on_tilted(1.0e-3, true);
     for (label, b) in [
         ("default", budget()),
