@@ -1,10 +1,11 @@
 ---
 id: revert-leaves-a-periodic-charts-loop-wrap-mid-chain
-kind: issue
+kind: unit
 title: Body::revert re-states plane rows with their frames but leaves a periodic chart's one-period loop wrap where the forward walk parked it, so tier 3 of a reverted body with such a loop reports LoopDiscontinuity
-status: open
+status: dispatched
 opened: 2026-09-14
 refs: [revert-does-not-mirror-plane-chart-images, SHELL-9]
+branch: topo/revert-reparks-the-wrap
 ---
 
 Found by the lane that closed `revert-does-not-mirror-plane-chart-images`
@@ -52,3 +53,42 @@ loop wrap is the one thing it does not re-state, naming this row as
 the frontier. The posture docs in `pcurves.rs` call `revert`'s
 position the producer position — a `&self -> Self` door outside the
 guard's walk, not a fourth posture.
+
+## Brief (TOPO, 2026-09-14) — block TOPO-B4 slot 1, dual at review
+
+**The answer to give.** `validate_geometric(&body.revert())` reports no
+pcurve `LoopDiscontinuity` on a body whose curved faces carry rows on
+a periodic chart, and `revert ∘ revert` is the identity on those rows
+bit for bit. The forward loop walk parks a periodic chart's one-period
+wrap at the loop's closure; after the reversal the loop runs the other
+way and the wrap sits mid-chain. Phase 1 decides between the two
+closings the row names and says why: (a) `revert` re-parks the wrap —
+a reverse walk of each loop on a periodic chart, shifting the rows'
+branches so the wrap sits at the reversed closure (a `shift_branch`
+per row through the affine door the plane mirror uses, no
+re-certification — and an involution only if the parking rule is
+itself reversible: prove it or measure it); (b) `revert` drops the
+rows of every periodic-chart face and states the posture (the
+`Neither`/producer position `pcurves.rs` already records for it),
+leaving the closing mint to re-derive them — honest, loud, and the
+weaker answer. (a) is the answer the row wants; (b) is acceptable only
+with the involution shown to fail under (a).
+
+**Rows.** Red-first: the two-arc sphere's door-built cavity
+(`shell9_probe`'s `sphere_reverted_cavity_and_the_grafted_loop`)
+— `LoopDiscontinuity` on the merge base, `[NegativeVolume]` only at
+the head; a torus wall the same way; the involution on both. The
+drum's plane-only rows stay byte-identical (the plane mirror's rows).
+Control: a non-periodic curved chart's rows are untouched.
+
+**Receipt.** Every reader of a loop's branch parking (`walk_loop`,
+`loop_closes`, the seam-aware certifiers) with whether it assumes the
+forward direction; every producer's closing mint that re-derives the
+wrap (SHELL-9's convention) and whether it still needs to.
+`crates/topo/src/pcurves.rs` is TRIM's — `walk_loop`/`loop_closes` are
+read, and a reverse-parking helper, if (a) needs one, lands there by
+announced seam (announce on `work/trim/log.md` in the PR).
+
+Branch `topo/revert-reparks-the-wrap`. PR title: "TOPO: revert re-parks
+a periodic chart's wrap at the reversed closure". Do not close the
+item; the dual runs at review.
