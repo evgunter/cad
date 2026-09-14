@@ -7,6 +7,7 @@ opened: 2026-08-29
 github: 1179
 refs: [498]
 branch: trim/2-quadrature
+pr: 2564
 ---
 
 ## From GitHub issue 1179
