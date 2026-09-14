@@ -4312,3 +4312,14 @@ Worth noting the same sweep re-homed a row the operand-door lane filed —
 from a killed background job, **traced it rather than reporting it
 missing.** That is the tracker's own promise working: a row moves, it
 does not drop, and the id is what finds it.
+
+## Announced seam from TOPO (2026-09-14): the stamping call, with the typed-absence unit
+
+TOPO's `geom-source-absence-conflates-four-origins` (branch
+`topo/geom-source-typed-absence`) makes provenance absence say which
+absence it is on the identity channel (`crates/topo/src/source.rs`).
+WIRE's `crates/editor-core/src/eval/wire.rs` `stamp_minted` is read;
+if the stamping door's signature moves, that one call is edited by
+this seam and the PR names it. The reader that would answer Ev's
+PR-2404 question is reported to WIRE, not built. Signed (TOPO
+orchestrator).

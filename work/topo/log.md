@@ -1146,3 +1146,48 @@ recorded in the row for the unit that lands `kev`'s half; `S93` stays
 open with the `mev` half landed. Nine-item fix pass to a fresh lane
 on the inherited branch; a bitwise coincident-point short-circuit
 taken so the gate carries where nothing moved.
+
+## S93 merged; block TOPO-B3 concluded (2026-09-14)
+
+PR 2562 merged at `21a0de4ce` (green run 34831213029 on `8fc3a1e6a`,
+full matrix, verified job by job). `S93` stays OPEN: the `mev` half
+landed, the `kev` half is the filed row with three landing shapes
+and the generator's dependence measured honestly (fourteen `topo`
+rows at four coordinates, not "green"). The fix pass's divergence was
+right: a bitwise coincident-point short-circuit is not buildable at
+`T: Real`, so the gate re-asks against current endpoints instead.
+Row recorded at merge (ordinal 2708, sample #191) with the program's
+third tally candidate (doc class); slot 2 concluded on `topo/b3-block`
+and the block's CONCLUDED record published. Block TOPO-B3 closes with
+three duals and one doc-class candidate. No lane is running.
+
+## Block TOPO-B4 cut; pre-draw fields logged BEFORE the byte (2026-09-14)
+
+Three kernel answers on this program's files, slot order fixed here,
+the byte drawn only after this entry is committed:
+
+- slot 0 `geom-source-absence-conflates-four-origins` — difficulty
+  **M**, task class **STRUCTURAL** (a typed absence on the identity
+  channel; consumers in the recipe layer read it).
+- slot 1 `revert-leaves-a-periodic-charts-loop-wrap-mid-chain` —
+  difficulty **M**, task class **NUMERIC** (a branch re-park under a
+  frame reversal, pinned by the involution).
+- slot 2 `edge-carrier-kind-has-no-readback-door` — difficulty **S**,
+  task class **STRUCTURAL** (a readback twin in the ratified shape).
+
+Non-dual beside it: `D107` (test support; one style review). To Ev on
+the open `[ev]` PR: the `kev` half's landing shape and the
+half-edge-minting operators' pcurve posture.
+
+## Block TOPO-B4 drawn; slots 0 and 1 and D107 dispatched (2026-09-14)
+
+Byte drawn after the pre-draw entry was committed (`4b813113a`): 223
+⇒ 223 mod 3 = 1 ⇒ fable at slot 1. Record branch-side on
+`topo/b4-block`. Slot 0 (`geom-source-absence-…`,
+`topo/geom-source-typed-absence`, OPUS) and slot 1 (`revert-leaves-…`,
+`topo/revert-reparks-the-wrap`, FABLE) dispatched with brief sections;
+`D107` (`topo/d107-kemr-hammer-fixture`, non-dual, OPUS — no row)
+beside them as the third lane, test support only. Seams announced to
+WIRE (the stamping call) and TRIM (a reverse-parking helper). Slot 2
+(`edge-carrier-kind-has-no-readback-door`) dispatches when a lane
+frees.

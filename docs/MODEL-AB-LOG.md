@@ -6232,3 +6232,76 @@ disk read before every seed. Sample number at merge.
 
 | # | date | task | difficulty (pre-flip) | arm | review findings (MAJ/MIN/NOTE) | silent devs | idiom | tests | docs | fix-pass size | battery | tokens | wall-clock |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+
+S93 row, recorded AT MERGE (2026-09-14, merge `21a0de4ce`, PR #2562;
+`work/topo/S93.md` — the unit stays OPEN: the `mev` half landed, the
+`kev` half is filed): `mev`'s fan site re-certifies every re-based
+edge's carrier exactly in its plan phase and refuses typed with the
+body untouched; where re-certification fails on an endpoint residual
+the gate re-asks against the edge's current endpoints and carries an
+identical answer; the `kev` fan merge's obligation is stated as a
+defect with three landing shapes recorded on its row. Difficulty
+**S**, task class STRUCTURAL (logged before the block draw — clean).
+Implementer arm **OPUS** (block TOPO-B3 slot 2, byte 19). **DUAL:
+ordinal 2708; sample #191 (ledger max #190 at this writing; main's
+merge order rules if a concurrent recorder collides); byte 160 parity
+0 ⇒ R1 OPUS + R2 FABLE; CONCURRENT same-head on frozen `cb400cfe1`;
+briefs stored with sha256 before dispatch, identical modulo lane
+paths.** R1 MERGEABLE-AFTER-FIXES, counts 1/6/5, rubric idiom 4 /
+tests 3 / docs 3. R2 MERGEABLE-AFTER-FIXES, counts 2/4/4, rubric
+4/3/2. **One unilateral executed MAJOR (R2): the filed row's central
+measurement was false** — "`cargo test -p topo` was green with the
+gate on `kev`"; R2 wired the gate and got the tree's own rows red
+(the generator's walk and teardown among them) and found the branch
+commit claiming the measurement does not compile its tests; R1
+reproduced the sweep half only. A false measurement in a tracker row
+and the PR body, on which the follow-up's design rested: **tally
+candidate +1, doc class** (S330's precedent; the code-class exclusion
+noted). CONVERGED, severity divergent: the rewritten `kev` paragraph
+re-issued the prose obligation the item exists to retire (R2 MAJOR,
+R1 NOTE + Q1 — the style lane's trap check, both); "a certified `mev`
+cannot reach a run-moving fan site" false — a self-loop closed carrier
+reaches the splice (R1 MAJOR, R2 MINOR, both executed); the control
+row pinning `mev_null`'s bypass; the coverage trade unmeasured (both
+counted 69 of 136 `Kev` selections newly skipped); the iso route row's
+name and comment false; the kill∘make taxonomy stale. Unilateral,
+taken: the receipt's blind-spot sentence false and its sweep count
+stale (R1); the enumerator narrowed where it could assert the refusal
+under fuzz (R1); four `kev` fixtures re-baselined onto tier-2-invalid
+bodies undisclosed (R1); the coincident-point sentence false for the
+M7-8 class and pre-stale runs (R2). Both found a landing shape the
+row had not named (R2: the surgery-scope switch; R1: a tier-3
+postcondition at the blend door). Spec deviations: 1 reported (the
+`kev` half); silent 2 (R1) / 2 (R2). Method relaxations: none;
+shared-box note applies to both arms; R2's target seeded colder
+(wall-clock asymmetry only). Fix pass by a fresh lane on the inherited
+branch (arm inherited), nine items: the measurement re-taken (14 rows
+at four coordinates, stated), the paragraph a defect statement, seven
+reviewer rows adopted, the trade quantified and the refusal asserted
+on every fan step under fuzz, the site-aware skip bound, four rows
+filed; its one divergence executed and filed — a bitwise
+coincident-point short-circuit is not buildable (`Point3<T>` at
+`T: Real` has no exact comparison by design), so the gate re-asks
+against current endpoints instead, which does not reach M7-8. Tokens:
+impl ≈250k, fix ≈250k, state-sync ≈15k, R1 ≈170k, R2 ≈290k. Wall:
+impl ≈295 min, fix ≈55 min, R1 ≈100 min, R2 ≈110 min; no gaps. Tally
+after this entry: **candidates +3** (S330 doc class, D265 code class,
+S93 doc class).
+
+Block TOPO-B3 — CONCLUDED record (published from the orchestrator's
+branch-side record `topo/b3-block` at the last slot's conclusion,
+2026-09-14). Protocol: three slots {opus, opus, fable}, fable position
+= byte mod 3. Pre-draw fields for all three slots committed to
+`work/topo/log.md` at `daa30ee99` BEFORE the draw — clean. Draw
+2026-09-14: `/dev/urandom` byte **19** ⇒ 19 mod 3 = **1** ⇒ fable at
+slot 1. Slots: 0 =
+`loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart`
+(OPUS; S/M / STRUCTURAL; PR #2549, ordinal 2707, sample #190, no tally
+candidate; concluded 2026-09-14); 1 = `D263` (FABLE; M /
+STRUCTURAL-GEOMETRIC; PR #2548, ordinal 2706, sample #189, no tally
+candidate; concluded 2026-09-14); 2 = `S93` (OPUS; S / STRUCTURAL; PR
+#2562, ordinal 2708, sample #191, one doc-class tally candidate;
+concluded 2026-09-14 with the unit left open on its `kev` half). No
+arm was exposed on main before its slot's claim named it, and every
+claim followed the slot line branch-side. The next TOPO kernel-answer
+unit draws block TOPO-B4.
