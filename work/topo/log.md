@@ -1146,3 +1146,17 @@ recorded in the row for the unit that lands `kev`'s half; `S93` stays
 open with the `mev` half landed. Nine-item fix pass to a fresh lane
 on the inherited branch; a bitwise coincident-point short-circuit
 taken so the gate carries where nothing moved.
+
+## S93 merged; block TOPO-B3 concluded (2026-09-14)
+
+PR 2562 merged at `21a0de4ce` (green run 34831213029 on `8fc3a1e6a`,
+full matrix, verified job by job). `S93` stays OPEN: the `mev` half
+landed, the `kev` half is the filed row with three landing shapes
+and the generator's dependence measured honestly (fourteen `topo`
+rows at four coordinates, not "green"). The fix pass's divergence was
+right: a bitwise coincident-point short-circuit is not buildable at
+`T: Real`, so the gate re-asks against current endpoints instead.
+Row recorded at merge (ordinal 2708, sample #191) with the program's
+third tally candidate (doc class); slot 2 concluded on `topo/b3-block`
+and the block's CONCLUDED record published. Block TOPO-B3 closes with
+three duals and one doc-class candidate. No lane is running.
