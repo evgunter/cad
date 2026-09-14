@@ -1286,3 +1286,34 @@ territory's globs not covering `work/`), one filed-row cost estimate
 (S12). Fix pass dispatched as a fresh lane on the inherited branch;
 merge and close when its run is green. The review's report is
 archived at `/home/user/topo-orch/d107-style-report.md`.
+
+## Revert-wrap dual concluded (ordinal 2709); fix pass dispatched (2026-09-14)
+
+Both reviews MERGEABLE-AFTER-FIXES on `725d3c204`, converging. The
+mechanism held under every mutant either side planted (`next` for
+`prev`, anchor write dropped, graft carrying `next`): the anchor move
+is exactly `prev(first)`, the involution bitwise, the rows untouched.
+The substance: (1) the golden re-cut's account is false — both
+reviewers dumped `voided_rod`'s forty verdicts and diffed them as
+multisets: `props_rim_side` and `props_rim_dir_group` changed SIGN
+(two each), the readings compensated downstream; the PR said "same
+multiset, same answers"; (2) the anchor's new meaning lives only in
+`revert.rs` while `LoopBoundary::Cycle::first` still says it carries
+no meaning and `transform.rs`'s reversal tripwire lists only `sense`
+— the fresh-instance shape; (3) the plane/curved partition is two
+rules where one would do — R1 re-anchored every loop and the planar
+battery and census stayed green, so nothing but the lane's own
+assertion observes it; ruled: uniform rule, re-baseline what moves.
+Also: an unresolved `.prev` in the plan phase (no typed `Corrupt`),
+the receipt scoped to branch parking rather than `first` as an order
+(R2 derived the order readers and exported the STEP corpus
+byte-identical; R1 found `chart_boundary`'s torus lever unpinned),
+stale sibling prose (`shell7_seam_corner.rs`, DESIGN's revert
+clause), two duplicated fixtures, a `1e-9` literal in a test reader,
+and the characterisation "only azimuth-free joints wrap" measured
+sufficient, not necessary. Brief corrections: C4's "controls green on
+the merge base" was wrong (all seven red on the anchor assertion);
+the skipped `.next =` sweep is clean (both ran it). Fix pass
+dispatched as a fresh lane on the inherited branch, same arm as the
+implementer; reports archived at `/home/user/topo-orch/wrap-r{1,2}-report.md`.
+Row recorded at merge.
