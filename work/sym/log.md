@@ -139,6 +139,68 @@ with the first dual unit, whose pre-draw fields go in
 trailer regardless, so the convention is uniform when a blinded unit
 follows.
 
+## First wave delivered; both units in review (2026-09-14)
+
+**An outage, recorded.** The account's usage credits ran out
+~22:30Z on 2026-09-13: the SYM-1 lane died after opening its PR and
+before reading its own CI or writing its report (its worktree was
+clean and pushed, so nothing was lost); the SYM-2 lane finished before
+the limit. The orchestrator's check-in fired into the same outage and
+was read at 03:30Z when the limit reset (Ev, in chat).
+
+**SYM-2 delivered** — PR #2532, head `a7396bebe`, hosted run
+34787545013 green on the full matrix. `sym.rs` 4,478 → 3,530 lines,
+header 491 → 447; `sym/rational.rs` 533 and `sym/form.rs` 433, each
+with its own header; six archaeology cuts, each quoted in the PR body;
+three header sentences left as "looks wrong, not touched" and two of
+them filed (`sym-header-says-every-freeze-is-counted`,
+`sym-header-dag-paragraph-disagrees-with-the-code`). The lane proposes
+the ids and nodes → `sym/dag.rs` (~240 lines) as the next cut and
+declines the session-and-walk split as a design question; the item
+stays open on that proposal. A class note from the lane worth keeping:
+its first `doc-gate.sh` run was piped through `tail` and read green
+over five broken links — the piped-wrapper hazard
+`memories/agent-lane-operations.md` already names, met by a gate
+script this time.
+
+**SYM-1 delivered, CI red on its own new code** — PR #2530, head
+`ef33aa27c`. The findings (all in the item body's `## The profile
+(SYM-1)`): on the slab term storage is 57 % of the tier's instructions
+in release, the walk and DAG build 18 %, the ring 10 %, and NOTHING
+freezes at any of the drive's 2,559 leaves — the slab's cost is
+volume (10,604 plain forms per leaf, the same DAG interned afresh per
+leaf) times a fixed cost per tiny form; on the plate storage is the
+same 57 %, the ring 27 %, and 1,032 of 1,312 freezes are on DEGREE
+inside the per-node A/B reduction (53 % of the plate's instructions)
+— the derived-frame mechanism, visible there and absent on the slab.
+The term budget is never the wall; `drive.rs`'s note is confirmed by
+count. Four proposals stand as the next unit's inputs, the largest
+being a small-vector polynomial (bounded by the 57 %) and a
+drive-scoped plain memo (a session-model change, needs the design
+conversation). Hosted run 34786894144: six shard-1 `test` jobs red on
+two `pncad-py` prose-census rows — `sym/profile.rs`'s `impl Display
+for SymProfile` renders struct payloads through `Debug` at three sites
+and one undecided; `main` is green; the fix is the implementer's and
+goes into the fix pass with the review's findings, the review
+dispatched on the frozen red head with the red disclosed.
+
+**Reviews dispatched** (2026-09-14 ~03:50Z), both outside the
+experiment, one reviewer each (reviews stay Fable), briefs at
+`/home/user/sym-briefs/review-{1,2}-brief.md`: SYM-2's claims are the
+pure-move reads commit by commit, the cut list, the remaining header's
+scope, the doc gate; SYM-1's are the callgrind order re-taken, the
+four re-spelled sites behaviour-identical and the feature-off build
+clean, the tables' arithmetic and the structural rows' counts digit for
+digit, the memo proposal's premise, the coverage paragraph, and the
+editor-core interval shard's wall on this run against `main`'s (the
+dev-dependency forward compiles the hooks into every editor-core test
+build, which the spec asked the PR to price and the PR body does not).
+Fix passes follow on the implementers' lanes; SYM-2 lands first.
+
+**Disk on this box**: two implementer targets grew to 8.5 and 7.7 GB
+(incremental caches 5.3 and 4.6); both lanes finished, so the
+incremental caches were deleted and reviewer targets seeded from the
+remaining `deps`. Two heavy lanes at once stays the rule.
 ## SYM-2 merged (2026-09-14): the tier's file split
 
 PR #2532, fix-pass head `b73b289a2`, hosted run 34806691533 green on
@@ -228,3 +290,40 @@ because the outage killed it between opening the PR and reading the
 run. `symbolic-tier-costs-95-percent-of-the-m10-3-drive` stays open on
 ask 3 (the change), carried by the next unit. Lane commits carried no
 trailer; the orchestrator's state-sync rides the PR last.
+
+## Block SYM-B1 in preparation; the door's witness put to Ev (2026-09-14)
+
+Both first-wave units merged (#2532 at `94b7eea75`, #2530 at
+`2ccf071e1`). The program's first DUAL units are cut from SYM-1's
+numbers and open block SYM-B1 when the third slot's fields exist:
+
+- **SYM-4** (`docs/SYM-4-SPEC.md`, M / STRUCTURAL): the cost of a
+  form — `Poly`'s `BTreeMap` to a sorted vector in the map's own
+  order (every digest, atom key and decision unchanged, held by the
+  pins and a new rendered-form digest row), the degree cached,
+  `Rat::from_parts`'s gcd skipped on the dyadic shape. Slot 0.
+- **SYM-5** (`docs/SYM-5-SPEC.md`, H / NUMERIC): the derived-frame
+  freeze — DOCM's two red rows ported, the freeze profiled and its
+  chain rendered, then a rule of the atom algebra (a unit-vector
+  atom with `Σ U_i² = 1` and `U_i · sqrt(S) = a_i`, or the common
+  factor cancelled before the square, or a degree-resetting `Sqrt`),
+  dial-gated and shipped on only if affordable. Slot 1.
+- **Slot 2** is cut from SYM-3's render when it returns (the bulge
+  rule, if the diagnosis names one), or from the door's witness if
+  Ev answers first. The draw waits on all three pre-draw fields.
+
+**Deliberately not in the block**: the drive-scoped plain memo
+(SYM-1's largest lever on the slab — the plain form is a function of
+the content hash and its memo could outlive the leaf) is a
+session-model change with receipt consequences; it goes to Ev as a
+decision document once SYM-4 has said what an in-session form costs.
+The `Decide` impl's assertion discharge stays; its cost is on the
+item.
+
+**`[ev]` PR #2552 opened** (branch `sym/ev-witness`, subscribed):
+D1 — which route for the ε-independent witness slack (thread `Tol` to
+the door, recommended; a `Tol` on the session, not; leave it,
+deferred) and D2 — one refusal arm or two (one, with the receipt as
+the loud channel and a fixture-scale zero-refusals row closing the
+span-identity row). Both rows carry `needs_ev`. FILLET's precedent:
+the answer arrives while the units run.
