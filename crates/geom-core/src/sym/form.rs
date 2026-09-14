@@ -219,6 +219,7 @@ impl Poly {
                 out.insert(mono_mul(ma, mb)?, ca.mul(cb)?)?;
             }
         }
+        out.terms.shrink_to_fit();
         Some(out)
     }
 
