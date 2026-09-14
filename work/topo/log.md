@@ -1690,3 +1690,34 @@ re-describe); 4 the mint-at-site target with the closed-form split
 tried first. The three ruled kernel answers are units on this slate,
 listed in the plan for the next cut; `attach-postconditions-…` is
 closed. The PR subscription is released.
+
+## Set-face-surface dual concluded (ordinal 2712); fix pass dispatched (2026-09-14)
+
+Both reviews MERGEABLE-AFTER-FIXES on `71d846be4`, converging. The
+drop held under every mutant either side planted (carry-always reds
+four rows, drop-always the provenance-sharing control, outer-loop-only
+the ring row; the red-first row reproduced on the merge base). The
+substance: (1) R1's unilateral executed MAJOR — the `set_edge_curve`
+note this PR adds ("refused wherever the row exists at all") is false
+on a half-minted minting face, where `validate_pcurves` skips passes 2
+and 3 (R1's probe: one unrelated row detached, the staled row goes
+unreported); a pre-existing TRIM blind spot asserted away in two
+places and load-bearing for the `Neither` posture — doc/claim class,
+recorded and excluded from the tally; (2) the ordering duty (drop
+before the orphan sweep) is prose with no pin — both swapped the order
+and every suite stayed green, the failure a silent over-drop (R2's
+orphaning-body probe reds it; R1's Q7 shape retires the duty by
+deciding before the write); (3) the face door hand-writes the loop
+walk beside two helpers and `stored_rows`, and evaluates `same_chart`
+twice (both, Q1); (4) the receipt's "twelve sites" is nineteen in
+twelve files (both); (5) the `mesh` re-attach residue is disclosed on
+a log, not filed (both); (6) `attach.rs`'s "every producer re-mints"
+false for `extrude` (R2); the `Arc::ptr_eq` rung unrowed, the
+red-first row's `[]` half signal-free, the own-key control never
+entering the door (R1). Brief corrections: `MissingCache` fires only
+on a half-minted face (R2); the item had no `## Brief` at the
+branch's base (R1) — the brief reached main after the lane branched.
+Fix pass dispatched as a fresh lane on the inherited branch, same arm
+as the implementer; reports archived at
+`/home/user/topo-orch/sfs-r{1,2}-report.md`. Row recorded at merge
+with the doc-class candidate.
