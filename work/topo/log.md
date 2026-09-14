@@ -1332,3 +1332,12 @@ discharge sites and a `debug_assert!`), the deviations' honesty, and
 the import/graft path. Both arms dispatch together when the D107 fix
 pass frees the box's third lane; the wait is disclosed in the claim
 entry.
+
+## Typed-absence dual dispatched (ordinal 2710) with two fix passes live (2026-09-14)
+
+Claim merged on main. The wait for the D107 fix pass to free a lane
+was cut short: the box's load was 1.5 on four cores with both fix
+passes in their reading phase, so R1 (FABLE) and R2 (OPUS) dispatched
+together on the frozen head `52c1868e8` with two fix-pass lanes live
+— the condition the claim entry's shared-box note records, applying
+to both arms equally.
