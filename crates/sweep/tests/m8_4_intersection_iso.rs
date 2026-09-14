@@ -785,3 +785,149 @@ fn an_imported_domain_chart_mints_the_boundary_intersection() {
         pl.y
     );
 }
+
+/// The same wall geometry on a wider **degree-2** `u` chart: five
+/// columns on knots `[0,0,0,1,2,3,3,3]` placed at the Greville abscissae
+/// `ξ = (0, ½, 3/2, 5/2, 3)` by linear precision, so
+/// `c_i(v) = a(v) + (ξ_i − 1)·(b(v) − a(v))` and `Σ ξ_i N_i(u) = u`
+/// gives `S(u, v) = a(v) + (u − 1)·(b(v) − a(v))` exactly — the loft
+/// wall's own bilinear-in-`u` surface, restated. The face occupies
+/// `u ∈ [1, 2]`, both seams are interior columns, and every interior
+/// knot is simple, so the degree-1 crease the `u`-linear widening
+/// carries is gone.
+fn widened_u_chart_deg2(n: &NurbsSurface<f64>) -> Surface<f64> {
+    let (nu, nv) = n.control_counts();
+    assert_eq!((nu, n.knots_u().degree()), (2, 1), "the loft wall's u span");
+    assert!(
+        n.weights().iter().all(|w| *w == 1.0),
+        "linear precision places the columns of a POLYNOMIAL net; a rational \
+         wall would need the weights carried through the same map"
+    );
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 3.0, 3.0], 2).unwrap();
+    let (mut control, mut weights) = (Vec::new(), Vec::new());
+    for xi in [0.0, 0.5, 1.5, 2.5, 3.0] {
+        for j in 0..nv {
+            let (a, b) = (n.control()[j], n.control()[nv + j]);
+            control.push(a + (b - a) * (xi - 1.0));
+            weights.push(1.0);
+        }
+    }
+    Surface::Nurbs(Arc::new(
+        NurbsSurface::new(ku, n.knots_v().clone(), control, weights).unwrap(),
+    ))
+}
+
+/// The degree-2 re-widened P-2 body, plus the half-edge carrying the
+/// `Intersection` seam and the bowed wall's new surface key.
+fn degree_two_body() -> (Body<f64>, topo::HalfEdgeKey, topo::SurfaceKey) {
+    let (mut body, he, bowed) = intrinsic_seam_at(false, INTERIOR_COLUMN_SCALE)
+        .expect("the seam attaches at every ε this matrix draws — that is what the scale buys");
+    let widened = widened_u_chart_deg2(&chart_of(&body, bowed));
+    let (plane_key, _) = seam_plane(&body, he);
+    let key = rechart(&mut body, bowed, widened);
+    redescribe_against(&mut body, he, plane_key, key)
+        .expect("the seam re-attaches against the widened chart");
+    (body, he, key)
+}
+
+#[test]
+fn scratch_degree_two_fixture_measurement() {
+    let eps = Tol::witness().get().eps;
+    let (mut body, he, key) = degree_two_body();
+    let chart = chart_of(&body, key);
+    println!(
+        "SCRATCH eps={eps:e} chart u domain {:?} deg {} / v domain {:?} deg {}",
+        chart.knots_u().domain(),
+        chart.knots_u().degree(),
+        chart.knots_v().domain(),
+        chart.knots_v().degree()
+    );
+    let mint = topo::mint_pcurves(&mut body, Tol::witness());
+    println!("SCRATCH mint_pcurves: {:?}", mint.as_ref().map(|()| ()));
+    let findings = topo::pcurves::validate_pcurves(&body, band());
+    println!("SCRATCH validate_pcurves: {} findings", findings.len());
+    let hes: Vec<_> = body
+        .edges()
+        .flat_map(|(_, e)| [e.he_plus, e.he_minus])
+        .filter(|h| he_surface(&body, *h) == key)
+        .collect();
+    for h in &hes {
+        let cache = body.pcurve(*h).expect("the bowed face's cache set is complete");
+        let (t0, t1) = cache.params();
+        let kind = match cache.pcurve() {
+            Pcurve::General(img) => format!(
+                "General(deg {}, {} cps, unit weights {}, u box [{:?}], v box [{:?}])",
+                img.degree(),
+                img.control().len(),
+                img.weights().iter().all(|w| *w == 1.0),
+                (
+                    img.control().iter().fold(f64::INFINITY, |m, p| m.min(p.x)),
+                    img.control()
+                        .iter()
+                        .fold(f64::NEG_INFINITY, |m, p| m.max(p.x))
+                ),
+                (
+                    img.control().iter().fold(f64::INFINITY, |m, p| m.min(p.y)),
+                    img.control()
+                        .iter()
+                        .fold(f64::NEG_INFINITY, |m, p| m.max(p.y))
+                ),
+            ),
+            Pcurve::IsoLine { p0, pl } => format!("IsoLine(p0 {p0:?}, pl {pl:?})"),
+            other => format!("{other:?}"),
+        };
+        println!(
+            "SCRATCH  he {h:?} t∈[{t0}, {t1}] {kind} envelope {:e} {:?}",
+            cache.certificate().envelope,
+            cache.certificate().statement
+        );
+    }
+    let props = topo::mass_properties(&body, Tol::witness());
+    println!("SCRATCH mass_properties: {props:?}");
+    let tess = mesh::tessellate(&body, 1e-5 * INTERIOR_COLUMN_SCALE, Tol::witness());
+    println!(
+        "SCRATCH tessellate: {:?}",
+        tess.as_ref().map(|m| (m.positions.len(), m.patches.len()))
+    );
+    if let Err(e) = &tess {
+        println!("SCRATCH tessellate err: {e:?}");
+    }
+    // The oracle: the same solid on its original charts.
+    let oracle = prism(INTERIOR_COLUMN_SCALE);
+    let op = topo::mass_properties(&oracle, Tol::witness());
+    match &op {
+        Ok(m) => println!(
+            "SCRATCH oracle props: volume {:?} ± {:e}, area {:?} ± {:e}",
+            m.volume, m.volume_pad, m.surface_area, m.area_pad
+        ),
+        Err(e) => println!("SCRATCH oracle props err: {e:?}"),
+    }
+    let ot = mesh::tessellate(&oracle, 1e-5 * INTERIOR_COLUMN_SCALE, Tol::witness());
+    println!(
+        "SCRATCH oracle tessellate: {:?}",
+        ot.as_ref().map(|m| (m.positions.len(), m.patches.len()))
+    );
+    // E3: the offset on the bowed face, and the oracle's own bowed wall.
+    let (fk, _) = body
+        .faces()
+        .find(|(_, f)| f.surface == key)
+        .expect("the bowed wall has a face");
+    let mut off = body.clone();
+    let r = topo::replace_face_offset(&mut off, fk, INTERIOR_COLUMN_SCALE / 16.0, band(), Tol::witness());
+    println!("SCRATCH offset(bowed, scale/16): {r:?}");
+    let (_, obowed, _, _) = flat_bowed_seam(&oracle, INTERIOR_COLUMN_SCALE);
+    let (ofk, _) = oracle
+        .faces()
+        .find(|(_, f)| f.surface == obowed)
+        .expect("the oracle's bowed wall has a face");
+    let mut ooff = oracle.clone();
+    let orr = topo::replace_face_offset(
+        &mut ooff,
+        ofk,
+        INTERIOR_COLUMN_SCALE / 16.0,
+        band(),
+        Tol::witness(),
+    );
+    println!("SCRATCH oracle offset(bowed, scale/16): {orr:?}");
+    let _ = he;
+}
