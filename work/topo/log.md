@@ -1317,3 +1317,18 @@ the skipped `.next =` sweep is clean (both ran it). Fix pass
 dispatched as a fresh lane on the inherited branch, same arm as the
 implementer; reports archived at `/home/user/topo-orch/wrap-r{1,2}-report.md`.
 Row recorded at merge.
+
+## Typed-absence dual prepared, ordinal 2710 claimed; dispatch waits on lane capacity (2026-09-14)
+
+Parity byte 219 ⇒ R1 FABLE, R2 OPUS. Briefs stored with sha256 in
+`/home/user/topo-orch/brief-hashes.txt` (template c9deb907…, R1
+b8f56a7d…, R2 811ec39b…; diff 4 lines); claim PR opened from
+`topo/claim-2710`. The correctness lane leans on the fresh-instance
+check (`KernelDirect` is "the state no door marked" — an absence read
+as a positive claim, the closed defect one level down?), the
+storage shape the brief did not name (one enum-valued map per kind
+with the `Recipe` arm projected, exclusion by type, against six
+discharge sites and a `debug_assert!`), the deviations' honesty, and
+the import/graft path. Both arms dispatch together when the D107 fix
+pass frees the box's third lane; the wait is disclosed in the claim
+entry.
