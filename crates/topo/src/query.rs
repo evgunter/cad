@@ -111,8 +111,13 @@ use crate::null::CurveGeom;
 ///
 /// (Placement: the mirror lives where it is used — [`SurfaceKind`]
 /// beside the certify machinery in `geom-brep`, this one beside the
-/// query predicates that read it. `SurfaceKind` stays the workspace's
-/// ONE fieldless surface mirror; no second is minted here.)
+/// query predicates that read it, [`CurveKindSet`] and its bit
+/// numbering included. The typed door that copies the tag out,
+/// [`crate::readback::edge_carrier_kind`], imports it from here, the
+/// way that module imports [`SurfaceKind`] from `geom-brep` for the
+/// face twin: a door names its answer type wherever the mirror is
+/// authored. `SurfaceKind` stays the workspace's ONE fieldless
+/// surface mirror; no second is minted here.)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum CurveKind {
     /// [`Curve3::Line`].
@@ -299,12 +304,14 @@ pub fn all_faces<T: Real>(body: &Body<T>) -> Vec<FaceKey> {
 /// The certified carrier kind of an edge, or `None` for a dangling key
 /// or an uncertified (null-scaffold) carrier — for the EXACT
 /// predicates, "no carrier" is an honest no, not a refusal.
+///
+/// The flattening of the typed readback door
+/// [`crate::readback::edge_carrier_kind`], which is the one reading of
+/// an edge's carrier tag: the three lookups run once, there, and what
+/// is dropped here is only WHICH of them came back empty.
 #[must_use]
 pub fn edge_carrier_kind<T: Real>(body: &Body<T>, e: EdgeKey) -> Option<CurveKind> {
-    let curve = body.get_edge(e)?.curve;
-    body.get_curve_geom(curve)
-        .and_then(CurveGeom::certified)
-        .map(|c| CurveKind::of(c.carrier()))
+    crate::readback::edge_carrier_kind(body, e).ok()
 }
 
 /// The surface kind of a face, or `None` for a dangling key or an

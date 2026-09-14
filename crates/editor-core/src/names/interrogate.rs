@@ -23,19 +23,22 @@
 //!
 //! `topo::readback`'s [`Pose`] — the carrier's own stored frame,
 //! copied out, with the face's orientation sense beside it — and a
-//! face's carrier KIND, the stored [`SurfaceKind`] tag. The rules that
+//! carrier KIND on either side: a face's stored [`SurfaceKind`] tag,
+//! an edge's stored [`CurveKind`] tag. The rules that
 //! module states hold verbatim here: values never verdicts (no door
 //! answers a NUMERIC predicate — "is this at z ≈ 1" stays deferred;
 //! "is this face planar" is a comparison of the tag [`face_carrier_kind`]
-//! hands out, decided by nothing here), definitional re-reads carry no
-//! pad, and no convention is invented where the geometry fixes none.
+//! hands out, and "is this edge straight" the same comparison on the
+//! tag [`edge_carrier_kind`] hands out, decided by nothing here),
+//! definitional re-reads carry no pad, and no convention is invented
+//! where the geometry fixes none.
 //! This layer adds only the name resolution and the typed refusals
 //! that go with it.
 
 use geom_brep::SurfaceKind;
 use geom_core::Decide;
-use topo::Body;
 use topo::readback::{self, Pose, ReadbackError};
+use topo::{Body, CurveKind};
 
 use crate::eval::{BooleanValue, Evaluation, NodeResult, SplitSide, ValuePayload};
 use crate::names::{EntityKey, EntityKind, Entry, SplitHalf, StableName};
@@ -289,6 +292,36 @@ pub fn edge_frame<T: Decide>(
     let (body, key) = entity_of(ev, node, name)?;
     match key {
         EntityKey::Edge(e) => Ok(readback::edge_pose(body, e)?),
+        other => Err(kind_mismatch(EntityKind::Edge, other)),
+    }
+}
+
+/// **What kind of carrier is the edge I selected?** — the named
+/// edge's [`CurveKind`] tag, as of THIS evaluation, through the same
+/// node ladder [`edge_frame`] walks, and [`face_carrier_kind`]'s
+/// edge-side twin.
+///
+/// A tag read, never a verdict: "is this edge straight" is
+/// `edge_carrier_kind(..)? == CurveKind::Line`, the exact comparison
+/// `select_where`'s curve-kind filter already makes, with no number
+/// consulted. It answers where [`edge_frame`] cannot — a NURBS
+/// carrier fixes no frame and still has a kind — and the kernel
+/// refusals are a dangling key and null-edge scaffolding (see
+/// [`readback::edge_carrier_kind`]).
+///
+/// # Errors
+///
+/// As [`face_frame`]: the node ladder, `NoSuchName`, `Ambiguous`,
+/// `WrongKind` for a non-edge name, and the wrapped
+/// [`ReadbackError`].
+pub fn edge_carrier_kind<T: Decide>(
+    ev: &Evaluation<T>,
+    node: RecipeNodeId,
+    name: &StableName,
+) -> Result<CurveKind, InterrogateError> {
+    let (body, key) = entity_of(ev, node, name)?;
+    match key {
+        EntityKey::Edge(e) => Ok(readback::edge_carrier_kind(body, e)?),
         other => Err(kind_mismatch(EntityKind::Edge, other)),
     }
 }

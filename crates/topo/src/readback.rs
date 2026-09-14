@@ -18,8 +18,10 @@
 //!    of the carrier's kind tag against `Plane`, the same exact read
 //!    `select_where`'s surface-kind filter makes, and
 //!    [`face_carrier_kind`] hands the tag out for exactly that
-//!    comparison. Nothing here decides anything: every answer is
-//!    stored data, copied out.
+//!    comparison — as [`edge_carrier_kind`] does for an edge's
+//!    certified carrier, one door per stored tag on either side.
+//!    Nothing here decides anything: every answer is stored data,
+//!    copied out.
 //! 2. **Definitional re-read carries no pad.** The produced surface IS
 //!    the definition (DESIGN Q8) — reading a plane's stored origin and
 //!    normal back is a re-read of authored data, not a measurement, so
@@ -56,6 +58,7 @@ use geom_core::{Point3, Real, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, VertexKey};
+use crate::query::CurveKind;
 
 /// **A frame read off stored geometry**: an origin plus the carrier's
 /// own reference directions, verbatim.
@@ -417,6 +420,78 @@ pub fn vertex_point_ref<T: Real>(
         .ok_or(DanglingRef::Geometry(GeomRef::Point(v.point)))
 }
 
+/// **The walk to an edge's certified carrier** — edge, then its
+/// curve-arena entry, then the carrier the entry certifies — and the
+/// three refusals that walk can produce, in one body.
+///
+/// Both edge doors read through here, so "which lookup came back
+/// empty" is decided once: a second copy of the walk would be two
+/// readings of one edge's geometry, which is the thing the layering
+/// note above forbids, one level down from the crate boundary it
+/// names.
+fn certified_carrier<T: Real>(
+    body: &Body<T>,
+    edge: EdgeKey,
+) -> Result<&Curve3<T>, ReadbackError> {
+    let e = body.get_edge(edge).ok_or(ReadbackError::Dangling {
+        what: DanglingRef::Entity(EntityId::Edge(edge)),
+    })?;
+    let geom = body
+        .get_curve_geom(e.curve)
+        .ok_or(ReadbackError::Dangling {
+            what: DanglingRef::Geometry(GeomRef::Curve(e.curve)),
+        })?;
+    Ok(geom.certified().ok_or(ReadbackError::NoCarrier)?.carrier())
+}
+
+/// **An edge's carrier kind** — the [`CurveKind`] tag of the curve the
+/// edge's certified carrier IS, copied out.
+///
+/// The edge-side twin of [`face_carrier_kind`], and a tag read rather
+/// than a verdict (rule 1) for the same reason: the answer is which
+/// closed variant the stored carrier is, and "is this edge straight"
+/// is `edge_carrier_kind(..)? == CurveKind::Line`, with no number
+/// consulted on the way. The total flattening
+/// [`crate::query::edge_carrier_kind`] reads through this door and
+/// answers `None` where it refuses typed; the predicate seat wants an
+/// honest NO, a read-back wants to know WHICH lookup came back empty.
+///
+/// It answers where [`edge_pose`] cannot: a NURBS carrier fixes no
+/// frame (rule 3) and has a kind all the same, which is exactly what
+/// the model stores about it.
+///
+/// # Errors
+///
+/// [`ReadbackError::Dangling`] for a stale edge or curve key, and
+/// [`ReadbackError::NoCarrier`] for M3 null-edge scaffolding — the
+/// only refusals: every certified carrier, NURBS included, has a
+/// kind, so [`ReadbackError::NoCanonicalFrame`] is not one of them.
+///
+/// ```
+/// use geom_core::{Point3, Tol};
+/// use topo::CurveKind;
+/// use topo::readback::edge_carrier_kind;
+/// use topo::{Body, MevSite};
+///
+/// let mut body = Body::<f64>::new();
+/// let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).expect("mvfs has no preconditions");
+/// let seg = body
+///     .mev_line(
+///         MevSite::Lone { r#loop: seed.r#loop },
+///         Point3::new(1.0, 0.0, 0.0),
+///         Tol::witness(),
+///     )
+///     .expect("a straight strut off the seed vertex");
+///
+/// assert_eq!(edge_carrier_kind(&body, seg.edge), Ok(CurveKind::Line));
+/// ```
+pub fn edge_carrier_kind<T: Real>(
+    body: &Body<T>,
+    edge: EdgeKey,
+) -> Result<CurveKind, ReadbackError> {
+    Ok(CurveKind::of(certified_carrier(body, edge)?))
+}
+
 /// **An edge's carrier frame** — the certified carrier's own stored
 /// frame, copied out.
 ///
@@ -426,21 +501,18 @@ pub fn vertex_point_ref<T: Real>(
 /// curve carries. A [`Curve3::Line`] answers with `u_ref: None`: it
 /// fixes a direction and no perpendicular (rule 3).
 ///
+/// The frame is the answer, never a verdict about what KIND of frame
+/// it is — that kind is its own read, [`edge_carrier_kind`], which
+/// walks to the same certified carrier and still answers where this
+/// door has no frame to report.
+///
 /// # Errors
 ///
 /// [`ReadbackError::Dangling`] for a stale edge or curve key;
 /// [`ReadbackError::NoCarrier`] for null-edge scaffolding;
 /// [`ReadbackError::NoCanonicalFrame`] for a NURBS carrier.
 pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, ReadbackError> {
-    let e = body.get_edge(edge).ok_or(ReadbackError::Dangling {
-        what: DanglingRef::Entity(EntityId::Edge(edge)),
-    })?;
-    let geom = body
-        .get_curve_geom(e.curve)
-        .ok_or(ReadbackError::Dangling {
-            what: DanglingRef::Geometry(GeomRef::Curve(e.curve)),
-        })?;
-    match geom.certified().ok_or(ReadbackError::NoCarrier)?.carrier() {
+    match certified_carrier(body, edge)? {
         Curve3::Line { origin, dir } => Ok(Pose {
             origin: *origin,
             axis: *dir,
