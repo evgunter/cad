@@ -507,6 +507,66 @@ fn link_half_edges_still_announces_rather_than_discards() {
     );
 }
 
+/// **D107's claim on the standard matrix**, which is where the two
+/// hammer rows are not: they are `cfg(not(debug_assertions))` and run in
+/// one job, and until this row the fact that `kemr` reaches a mutation
+/// phase at all was carried only by a printed exposure line that a
+/// passing test's captured stdout never shows. This states it in one
+/// call, profile-independently, and states its converse too.
+///
+/// The converse is the half that explains S161: it is not that the
+/// sweep drew too few samples, it is that a cube has no input for
+/// `kemr` at all. Every mate pair of every cube edge — both argument
+/// orders — refuses at `NotSameLoop`, because a closed cube's every
+/// edge borders two distinct faces. No amount of tearing adds an edge
+/// whose halves share a loop, which is why ~1900 calls found nothing
+/// and one fixture does.
+#[test]
+fn kemr_reaches_a_mutation_phase_on_the_ring_bridge_and_on_no_cube_edge() {
+    let tol = Tol::witness();
+    let bridge = ops_ring_bridge(tol);
+    let edge = bridge.bridge.edge;
+    let mut body = bridge.body;
+    let (hp, hm) = {
+        let d = body.get_edge(edge).unwrap();
+        (d.he_plus, d.he_minus)
+    };
+    let out = body
+        .kemr(hp, hm)
+        .expect("the bridge edge's halves share a loop, so kemr's plan phase passes");
+    // A CYCLE ring, not an empty one: both sides of the split were
+    // non-empty, so the mutation phase ran BOTH of its `link_half_edges`
+    // splices rather than the one a strut kill reaches.
+    assert!(
+        matches!(
+            body.get_loop(out.ring).unwrap().boundary,
+            crate::LoopBoundary::Cycle { .. }
+        ),
+        "the split's ring side must be a cycle, or only one splice ran"
+    );
+    assert_eq!(crate::validate::validate(&body), Ok(()));
+
+    let cube = ops_cube(tol);
+    let body = cube.body;
+    let edges: Vec<crate::entity::EdgeKey> = body.edges().map(|(k, _)| k).collect();
+    assert!(!edges.is_empty(), "fixture: the cube must present edges");
+    for e in edges {
+        let (hp, hm) = {
+            let d = body.get_edge(e).unwrap();
+            (d.he_plus, d.he_minus)
+        };
+        for (he1, he2) in [(hp, hm), (hm, hp)] {
+            assert_eq!(
+                body.clone().kemr(he1, he2),
+                Err(EulerOpError::NotSameLoop { he1, he2 }),
+                "a cube edge's halves must lie in two faces' loops; if one pair ever \
+                 shares a loop the hammer's cube rows stop being vacuous for `kemr` \
+                 and the ring-bridge fixture's reason needs re-reading"
+            );
+        }
+    }
+}
+
 /// The kinds of tier-1 corruption the sweep plants. Each is a shape
 /// #720's review named as a way a key can be wrong: DANGLING (the
 /// lookup fails — the only shape that can reach a row-4 arm) and
@@ -843,6 +903,14 @@ fn hammer(body: &Body<f64>, tol: Tol) -> Exposure {
 /// `[hp_next]` it reds from `split_edge`. Both gaps are independently
 /// reachable, so the two checks D18 adds are load-bearing rather than
 /// belt-and-braces.
+///
+/// `kemr`'s coverage carries its own two controls, each run against the
+/// other half held fixed: drop [`crate::fixtures::ops_ring_bridge`] from
+/// [`FIXTURES`] and `kemr` returns to 0 with the mate-pair enumeration
+/// still in place; drop the mate-pair calls from [`hammer`] and it
+/// returns to 0 with the fixture still swept. So the fixture and the
+/// enumeration are each necessary, and neither is decoration on the
+/// other.
 #[test]
 #[cfg(not(debug_assertions))]
 fn torn_bodies_never_reach_a_row_four_unreachable() {
