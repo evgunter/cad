@@ -23,9 +23,12 @@
 //! [`arena_snapshot`] (every arena's length) and [`deep_snapshot`]
 //! (key-for-key, field-for-field, provenance-for-provenance).
 //!
-//! Plus (M1 PR 4) two **operator-built** fixtures — [`ops_cube`] and
-//! [`ops_holed_box`] — the acceptance-test bodies rebuilt in-crate for
-//! the kill-direction, oracle, and teardown tests.
+//! Plus the **operator-built** family — [`ops_cube`], [`ops_holed_box`]
+//! and [`ops_genus2`], the acceptance-test bodies rebuilt in-crate for
+//! the kill-direction, oracle, and teardown tests, and
+//! [`ops_ring_bridge`], the holed box with its hole rim bridged back
+//! into the top face's outer loop (the one shape here whose edge has
+//! both halves in one loop).
 //!
 //! All geometry is placeholder (structural validation never reads scalar
 //! values). Coordinates are index-derived placeholders, **not** faithful
@@ -1018,9 +1021,8 @@ pub(crate) struct OpsRingBridge {
 ///
 /// Both components of the split are **non-empty** — the rim halves on
 /// one side of the bridge, the former outer's on the other — so `kemr`
-/// here runs both of its
-/// [`link_half_edges`](Body::link_half_edges) splices rather than the
-/// one a strut kill (whose ring side is empty) reaches.
+/// here runs both of its `link_half_edges` splices rather than the one
+/// a strut kill (whose ring side is empty) reaches.
 pub(crate) fn ops_ring_bridge(tol: Tol) -> OpsRingBridge {
     let t = ops_holed_box(tol);
     let mut body = t.body;
@@ -1043,6 +1045,21 @@ pub(crate) fn ops_ring_bridge(tol: Tol) -> OpsRingBridge {
     let bridge = body
         .mekr_chord(MekrSite::Cycles { target, ring: rim }, tol)
         .unwrap();
+    // The property the fixture exists for, asserted here so a change to
+    // `mekr`'s splice cannot leave a consumer silently back at
+    // `NotSameLoop`: the bridge's two halves share one loop, and it is
+    // the face's outer.
+    for half in [bridge.he_plus, bridge.he_minus] {
+        assert_eq!(
+            body.get_half_edge(half).unwrap().parent_loop,
+            outer,
+            "the bridge's halves must both lie in the merged outer loop"
+        );
+    }
+    assert!(
+        body.get_face(face).unwrap().rings.is_empty(),
+        "the bridge consumed the top face's only ring"
+    );
     assert_eq!(crate::validate::validate(&body), Ok(()));
     OpsRingBridge {
         body,
