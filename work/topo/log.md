@@ -1374,3 +1374,23 @@ the workspace's release profile keeps debug assertions on, so the
 holds the exclusion. Fix pass dispatched as a fresh lane on the
 inherited branch, same arm as the implementer; reports archived at
 `/home/user/topo-orch/geom-r{1,2}-report.md`. Row recorded at merge.
+
+## D107 merged (PR 2575); slot 2 dispatched (2026-09-14)
+
+The D107 fix pass worked all eleven items on head `0abfd3d91`, run
+34845056772 green. `FIXTURES` is now floored per body with the exact
+call count pinned beside it (a derived floor list cannot see an entry
+deleted from the enumeration it derives from — the exact count can);
+six seeds put every link operator's minimum far above one, so the
+aggregate with slack became `require_each` and the "deliberate slack"
+comment went; every hard-coded count in the file is now held or gone;
+both `kemr` splices witnessed by the neighbours read before the call;
+the one-splice strut arm driven by a new `ops_strut_cube` and counted
+apart; the `NotSameLoop` converse over all three closed fixtures; the
+unreachable guard gone behind one `mate_halves`. Merged; both items
+closed; no A/B row (non-dual). Slot 2
+(`edge-carrier-kind-has-no-readback-door`, OPUS,
+`topo/edge-carrier-kind-readback-door`) dispatched on the freed lane
+with the D107 lane's target retired and the typed-absence R2 target
+re-seeded as its own. Live: the revert-wrap fix pass, the
+typed-absence fix pass, slot 2.
