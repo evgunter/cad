@@ -153,6 +153,14 @@ pub(super) fn manifestly_nonneg(n: &Form, sess: &Session) -> bool {
 /// The largest `|k|` in `q = k / 2ᵐ` this rule folds.
 pub(super) const MAX_MULTIPLE: i128 = 32;
 
+/// **Rule E leans on the halving being at LEAST one.** `quotient`'s
+/// soundness argument covers the denominators this module manufactures
+/// by `c₂ = cos(φ/2ʲ) > cos(π/4)`, which holds because every halving
+/// this loop performs has `j ≥ 1`; a zeroth halving would put `c₂` at
+/// `cos φ`, which `atan`'s range keeps positive but not away from
+/// zero. The cap below bounds `j` from ABOVE and is not what that
+/// argument needs.
+///
 /// The most halvings `m` in `q = k / 2ᵐ` this rule folds: the
 /// certifier's schedule needs quarter angles at most (`q = i/2` from
 /// the carrier's samples and `i/4` from the pushforward's `s·θ/2`), and

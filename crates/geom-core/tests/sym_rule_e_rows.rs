@@ -375,12 +375,17 @@ fn the_scale_step_keeps_the_sign_of_both_halves() {
         // fold. A signed scale flips both halves to all-positive and
         // the fold fires — on a true statement, but for the wrong
         // reason.
-        let n = (Sym::from_f64(-1.0) - x * x) / (Sym::from_f64(-1.0) - y * y);
+        //
+        // The denominator's pivot is −2 and not −1 ON PURPOSE: at ±1
+        // `cancel`'s no-op fast path returns the form untouched and no
+        // scale runs at all, so the mutant would be invisible. A row
+        // that pins a step has to reach the step.
+        let n = (Sym::from_f64(-1.0) - x * x) / (Sym::from_f64(-2.0) - y * y - y * y);
         Sym::from_f64(0.0).atan2(n)
     };
     assert_eq!(sound("q − q", how(SymRules::shipped(), resid)), "theorem");
     let l = sound(
-        "atan2(0, (−1−x²)/(−1−y²))",
+        "atan2(0, (−1−x²)/(−2−2y²))",
         how(SymRules::shipped(), nonneg),
     );
     assert_ne!(

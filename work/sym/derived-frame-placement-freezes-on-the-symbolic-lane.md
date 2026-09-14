@@ -216,9 +216,15 @@ decisions became THEOREMS), `witness_on_surface_2` 7/0/0/3 → 9/0/0/1,
 and the document's whole-certifying ceiling `8.2611e2 · ε →
 9.3559e2 · ε`. The D-tab's `carrier_endpoint_start` 24/0/8/4 →
 24/0/12/0 on both spellings. No count falls anywhere; no ceiling on the
-five measured documents moves by a digit. Cost (release, one probe):
-plate 0.23 → 0.47 s, annulus 0.17 → 0.34, bracket 0.53 → 1.23, pad
-3.73 → 10.90, link 3.42 → 2.28 (cheaper).
+five measured documents moves by a digit. Cost on the affordability line's OWN instrument (one whole-box leaf,
+`m10_10_leaf_cost_with_and_without_the_algebra`, release, off → on):
+plate at `1e2·ε` 0.132 → 0.358 s, plate at its real study
+0.141 → 0.340, annulus 0.120 → 0.287, bracket 0.438 → **1.699**, link
+3.312 → **2.462** (cheaper, and over at both dials), pad
+3.850 → **14.404**. The line is 1.6 s: the bracket, the pad and the
+link are over it, disclosed. On the ceiling-bisection instrument —
+not what the line is defined for — the same five read 0.23 → 0.47,
+0.17 → 0.34, 0.53 → 1.23, 3.42 → 2.28, 3.73 → 10.90.
 
 **What still stands on the tilted document, and it is not the tier's.**
 At a half-width of `5e-2` the derived boss refuses with a clause-1
@@ -250,8 +256,10 @@ lift at half `1e-3`, rule E off → on:
 | --- | --- | --- |
 | tilt about `v` (this row's) | refuses `newell_plane_residual` | **certifies** |
 | non-unit authored axes `u=(2,0,0)`, `v=(0,2,t)` | 1 refusal | **certifies** |
-| two derived frames STACKED | certifies, 220.7 s (`Pinned`) | certifies, **1.1 s** |
+| two derived frames STACKED, `Pinned` | certifies, 219.4 s | certifies, **1.1 s** |
+| two derived frames STACKED, `Guided` | 4 refusals | **1** — the boss, on the value channel's clause-1 `Invalid` |
 | in-plane spin `u=(1,t,0)`, `v=(−t,1,0)` | certifies | certifies — says nothing either way |
+| HALF spin `u=(1,t,0)`, `v=(0,1,0)` (R1) | refuses `carrier_endpoint_end` `[0, 1.43e-1]`, frozen 126 | **certifies**, frozen 1467 |
 | tilt about `u` (`u=(1,0,t)`) | refuses `carrier_endpoint_end` | refuses identically, frozen 37 both |
 | `FaceFrame` on a REVOLVED body's cap | 4 refusals, frozen 3 | 4 refusals, frozen 902, the refusal moves to `pcurve_loop_continuity` |
 

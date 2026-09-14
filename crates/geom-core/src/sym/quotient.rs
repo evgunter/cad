@@ -80,10 +80,12 @@
 //! another reason, and it is the same range argument rule D's own
 //! soundness rests on: `S = sqrt(1 + X²) ≥ 1` for every real `X`, and
 //! each `c₂` is `cos(φ/2ʲ)` for `φ = atan X ∈ (−π/2, π/2)` and
-//! `1 ≤ j ≤ MAX_HALVINGS`, so `|φ/2ʲ| < π/4` and
-//! `c₂ > cos(π/4) = √2/2`. Both bounds are facts about the FUNCTIONS,
-//! not about any value; `MAX_HALVINGS` is what keeps the second one
-//! true and `trig::read_argument` is where it is enforced.
+//! `j ≥ 1`, so `|φ/2ʲ| ≤ |φ|/2 < π/4` and `c₂ > cos(π/4) = √2/2`.
+//! Both bounds are facts about the FUNCTIONS, not about any value.
+//! The bound follows from `j ≥ 1` and `atan`'s range ALONE — a larger
+//! `MAX_HALVINGS` only makes `c₂` closer to one, so the cap is not
+//! what keeps it true; what a `j = 0` would break is, and
+//! `trig::fold`'s halving loop never runs a zeroth halving.
 //!
 //! **(iii) Rule A's substituted denominator.** `algebra`'s
 //! `poly_subst_square` puts `D_repl^h` under the result, where `D_repl`
@@ -159,9 +161,13 @@
 //! frame tilted about `v` (SYM-5's own document), non-unit stored axes
 //! (`u = (2,0,0)`, `v = (0,2,t)` — the datum door normalises them, one
 //! refusal becomes none, and no false `Zero` appears), and derived
-//! frames STACKED two deep, where the rule is also what makes the
-//! replay affordable (220.7 s with the dial off against 1.1 s with it
-//! on, `Pinned`).
+//! frames STACKED two deep — and there the word "reached" needs its
+//! lift: under `Pinned` that document certifies at BOTH dials and what
+//! the rule buys is the cost (219.4 s off against 1.1 s on), while
+//! under `Guided` the rule takes its refusals from four to ONE and the
+//! one left is not the tier's — it is the value channel's clause-1
+//! `Invalid` on the boss, the fifth site of
+//! `work/props/a-widened-derived-placement-normalises-a-straddling-newell-sum`.
 //! **NOT reached**: a frame tilted about `u` (`u = (1,0,t)`), which
 //! refuses `carrier_endpoint_end` identically with the dial on and off
 //! — the rule turns the DEGREE wall into a TERM wall there (the frozen
@@ -173,7 +179,9 @@
 //! frozen 3 → 902).
 //! **Neither**: an in-plane spin (`u = (1,t,0)`, `v = (−t,1,0)`)
 //! certifies with the dial off as well as on, so it says nothing
-//! either way.
+//! either way. A HALF spin (`u = (1,t,0)`, `v = (0,1,0)`) does: one
+//! derived rung refuses `carrier_endpoint_end` `[0, 1.43e-1]` with
+//! the dial off and certifies with it on (R1).
 //! `editor-core/tests/m10_derived_frame_tilted_interval` carries both
 //! as evidence rows, and
 //! `work/sym/derived-frame-placement-freezes-on-the-symbolic-lane`

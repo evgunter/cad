@@ -184,6 +184,20 @@ impl Poly {
         Some(Self { terms })
     }
 
+    /// `k · self` — every coefficient multiplied by one rational, the
+    /// monomials untouched. Cheaper than a product by a constant
+    /// polynomial (no budget check is needed: neither the term count
+    /// nor the degree can move) and the one home for what
+    /// [`quotient`](super::quotient)'s scale step and
+    /// [`trig`](super::trig)'s integer multiples both do.
+    pub(super) fn scaled(&self, k: &Rat) -> Option<Self> {
+        let mut out = Self::zero();
+        for (m, c) in self.terms() {
+            out.insert(m.clone(), c.mul(k)?)?;
+        }
+        Some(out)
+    }
+
     /// The product, or `None` for the caller to freeze.
     ///
     /// **Refused BEFORE it is built**, on bounds that cost nothing to
@@ -202,20 +216,6 @@ impl Poly {
     /// the other spellings measured, and their numbers, are on the
     /// item (`work/sym/symbolic-tier-costs-95-percent-of-the-m10-3-drive`,
     /// `## The change (SYM-4)`).
-    /// `k · self` — every coefficient multiplied by one rational, the
-    /// monomials untouched. Cheaper than a product by a constant
-    /// polynomial (no budget check is needed: neither the term count
-    /// nor the degree can move) and the one home for what
-    /// [`quotient`](super::quotient)'s scale step and
-    /// [`trig`](super::trig)'s integer multiples both do.
-    pub(super) fn scaled(&self, k: &Rat) -> Option<Self> {
-        let mut out = Self::zero();
-        for (m, c) in self.terms() {
-            out.insert(m.clone(), c.mul(k)?)?;
-        }
-        Some(out)
-    }
-
     pub(super) fn mul(&self, other: &Self, budget: SymBudget) -> Option<Self> {
         let Some(pairs) = self.terms.len().checked_mul(other.terms.len()) else {
             #[cfg(feature = "sym-profile-testing")]

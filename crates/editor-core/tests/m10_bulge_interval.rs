@@ -31,9 +31,12 @@ use geom_core::{SymRules, Tol};
 use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 
 /// **The D-tab's whole table at the nominal**, the literal's and the
-/// parameter's alike — asserted on both, so the equality is a pinned
-/// fact and not a copy. What stands: `carrier_matches_mapped_source`
-/// 18 of 180. `carrier_endpoint_start`'s last 4 of 36 went with SYM-5's
+/// parameter's alike on every row but one — asserted on both, so the
+/// equality is a pinned fact and not a copy, and the one row that
+/// PARTS is supplied per document by [`d_tab_table`]. What stands:
+/// `carrier_matches_mapped_source` 12 of 180 on the literal and 16 on
+/// the parameter (it was 18 on both until SYM-5's rule E).
+/// `carrier_endpoint_start`'s last 4 of 36 went with SYM-5's
 /// rule E (the quotient's common factor): they are 24/0/12/0 now, the
 /// rim identity `‖q − c‖ = r` through the DOOR at every sample — the
 /// rule cancels the shared factor in the rim's re-normalised quotient,
@@ -104,9 +107,11 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
 /// shared factor in the quotient is cancelled and the coefficients
 /// stay inside the ring (a 512-bit ring used to be what took them, and
 /// moved the ceiling `8.26e2 → 9.36e2·ε` onto `line_span`). No theorem
-/// moved. What stands: `carrier_on_surface_2` 27 of 90, `witness_on_surface_2`
-/// 3 of 10, `carrier_on_surface_1` 9 of 90 and `witness_on_surface_1`
-/// 1 of 10 — the arc carrier's radius `abs(signed_radius)` (the
+/// moved; eighteen `carrier_on_surface_2` decisions and two
+/// `witness_on_surface_2` became THEOREMS with it. What stands:
+/// `carrier_on_surface_2` 9 of 90 (it was 27), `witness_on_surface_2`
+/// 1 of 10 (it was 3), `carrier_on_surface_1` 9 of 90 and
+/// `witness_on_surface_1` 1 of 10 — the arc carrier's radius `abs(signed_radius)` (the
 /// profile's `seg.rs`), `abs((5/8)·sqrt(L²))` with `L` the chord, a
 /// non-constant argument A0 does not fold, standing squared against
 /// its own square spelled without the `abs`; and behind the `abs`, the

@@ -522,9 +522,15 @@ enum Base {
     TiltV,
     /// About the other axis: `u = (1,0,t)`, `v = (0,1,0)`. NOT reached.
     TiltU,
-    /// In-plane rotation, both axes carry `t`: `u = (1,t,0)`,
-    /// `v = (−t,1,0)`. Reached.
+    /// In-plane rotation, BOTH axes carry `t`: `u = (1,t,0)`,
+    /// `v = (−t,1,0)`. Neither reached nor not: it certifies with the
+    /// dial off as well as on, so it discriminates nothing.
     Spin,
+    /// A HALF spin — only `u` carries `t`: `u = (1,t,0)`,
+    /// `v = (0,1,0)`. REACHED (R1's shape: one derived rung refuses
+    /// `carrier_endpoint_end` `[0, 1.43e-1]` with the dial off and
+    /// certifies with it on).
+    HalfSpin,
     /// Genuinely NON-unit authored axes: `u = (2,0,0)`, `v = (0,2,t)`.
     /// The datum door normalises them; reached, and no false `Zero`.
     NonUnit,
@@ -543,6 +549,10 @@ fn base_frame(r: &mut Recorder, t: &Expr, base: Base) -> RecipeNodeId {
         Base::Spin => (
             [scl(1.0), t.clone(), scl(0.0)],
             [Expr::neg(t.clone()), scl(1.0), scl(0.0)],
+        ),
+        Base::HalfSpin => (
+            [scl(1.0), t.clone(), scl(0.0)],
+            [scl(0.0), scl(1.0), scl(0.0)],
         ),
         Base::NonUnit => (
             [scl(2.0), scl(0.0), scl(0.0)],
@@ -647,20 +657,33 @@ fn r2_document(half: f64, base: Base, place: Place) -> ProfileDoc {
 /// adopted). Eight documents the unit did not build, both lifts, the
 /// plain lane and the tier with the dial off and on.
 ///
-/// The reach is the DOCUMENT's and not a class. Reached: the tilt about
-/// `v` (PR-2's own), the in-plane spin, non-unit authored axes, and two
-/// derived frames STACKED — where the rule is also what makes the
-/// replay affordable (R2: 220.7 s off → 1.1 s on, `Pinned`). NOT
-/// reached: the tilt about `u`, where the rule turns the DEGREE wall
-/// into a TERM wall (R2: the frozen `Powi` kid 606 terms at degree 60
-/// becomes 440 at degree 28, and `440² > MAX_TERMS`) behind the
-/// `abs(1/sqrt(…))` and `copysign` atoms a `FaceFrame`'s `u_ref`
+/// The reach is the DOCUMENT's and not a class. REACHED: the tilt about
+/// `v` (PR-2's own, which the gating parity row above holds), a HALF
+/// spin `u = (1,t,0)`, `v = (0,1,0)` (R1's shape), non-unit authored
+/// axes, and two derived frames STACKED. On the stacked document the
+/// word needs its lift: under `Pinned` it certifies at BOTH dials and
+/// what the rule buys is the cost (219.4 s off → 1.1 s on), while
+/// under `Guided` the rule takes its refusals from four to ONE and the
+/// one left is the value channel's clause-1 `Invalid` on the boss.
+/// NOT reached: the tilt about `u`, where the rule turns the DEGREE
+/// wall into a TERM wall (R2: the frozen `Powi` kid 606 terms at
+/// degree 60 becomes 440 at degree 28, and `440² > MAX_TERMS`) behind
+/// the `abs(1/sqrt(…))` and `copysign` atoms a `FaceFrame`'s `u_ref`
 /// derivation mints; and a `FaceFrame` on a REVOLVED body's cap, which
-/// neither dial certifies.
+/// neither dial certifies. NEITHER: the full in-plane spin, which
+/// certifies at both dials.
 ///
 /// It asserts the one thing that must hold on every document: the rule
-/// never REFUSES what the dial-off tier certifies. Evidence-only
-/// because the dial-off side of the stacked case is minutes.
+/// never REFUSES what the dial-off tier certifies.
+///
+/// **This row is `#[ignore]`d, so that assertion does not GATE** — the
+/// dial-off side of the stacked case is 219 s and the revolved cap 22 s
+/// per lift, which is why. What gates is
+/// `m10_the_tilted_derived_boss_certifies_where_its_authored_twin_does`
+/// above, on the tilt-`v` document. The cheapest rung here that could
+/// be un-ignored is `half-spin derived` (well under a second at both
+/// dials); it is left with the rest so the ladder reads as one table,
+/// and the parity row already gates a document of the same family.
 #[test]
 #[ignore = "evidence-only: the reach on eight documents; the stacked case is minutes with the dial off"]
 fn sym5_the_reach_on_documents_the_unit_did_not_build() {
@@ -670,6 +693,7 @@ fn sym5_the_reach_on_documents_the_unit_did_not_build() {
         ("tiltU derived", Base::TiltU, Place::Derived(1)),
         ("spin authored", Base::Spin, Place::Authored),
         ("spin derived", Base::Spin, Place::Derived(1)),
+        ("half-spin derived", Base::HalfSpin, Place::Derived(1)),
         ("tiltV stacked-2", Base::TiltV, Place::Derived(2)),
         ("tiltV revolved-cap", Base::TiltV, Place::Revolved),
         ("non-unit authored", Base::NonUnit, Place::Authored),

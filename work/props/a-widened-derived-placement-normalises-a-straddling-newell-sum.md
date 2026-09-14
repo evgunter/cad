@@ -178,7 +178,11 @@ phase-1 report (2026-09-14).
 The widths above are this row's cheapest reproduction, not its floor.
 R2's STACKED document reaches the same clause-1 `Invalid` at
 `half = 1e-3` — fifty times narrower than the `5e-2` the two documents
-above refuse at:
+above refuse at. It is the `Guided` lift and the BOSS that refuse: with
+the symbolic tier's rule E on, both cubes are carried and the boss's
+side plane is the one margin left, at
+`newell_plane_residual … margin is invalid`. Under `Pinned` the same
+document certifies whole. The construction:
 
 - an authored `Datum::Frame { origin: 0, u: (1,0,0), v: (0,1,t) }` with
   `t = 0.25 ± 1e-3` (a Scalar document parameter);

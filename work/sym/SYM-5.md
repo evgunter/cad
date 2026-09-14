@@ -80,8 +80,10 @@ does under BOTH lifts at ε/8 and `1e-3`
 (`m10_the_tilted_derived_boss_certifies_where_its_authored_twin_does`);
 R1's boss at `bulge = 2` gains 18 THEOREMS and its ceiling moves
 `8.2611e2 → 9.3559e2 · ε`; no count falls anywhere and no ceiling on
-the five measured documents moves by a digit; cost per release probe
-plate 0.23 → 0.47 s, annulus 0.17 → 0.34, bracket 0.53 → 1.23, pad
-3.73 → 10.90, link 3.42 → 2.28. At `5e-2` the tilted document still
+the five measured documents moves by a digit; cost on the affordability
+line's own instrument (one whole-box leaf, release, off → on) plate
+0.132 → 0.358 s, annulus 0.120 → 0.287, bracket 0.438 → **1.699**,
+link 3.312 → **2.462**, pad 3.850 → **14.404** — the bracket, the pad
+and the link over the 1.6 s line, disclosed. At `5e-2` the tilted document still
 refuses, on the clause-1 `Invalid` PR-1 filed on PROPS — not the
 tier's.
