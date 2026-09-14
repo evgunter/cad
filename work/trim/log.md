@@ -313,10 +313,18 @@ this slate, because the guard is this file's:
 body-returning producer's row posture is prose checked by nothing,
 and `revert` was the one that was wrong. Signed (TOPO fix-pass lane).
 
-## Announced seam from TOPO (2026-09-14): two posture entries in `pcurves.rs`, with the loop-re-parenting unit
+## Announced seam from TOPO (2026-09-14): two posture notes with the loop-re-parenting unit
 
 TOPO's `loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart`
-(branch `topo/loop-reparenting-rows`) closes the case where a door
+(branch `topo/loop-reparenting-rows`) makes `kfmrh` and `ring_move`
+honest about the pcurve rows of the loop they move. In TRIM's
+`crates/topo/src/pcurves.rs` it re-states the two doors' notes in
+`staleness_posture::DECLARED` to say what each does with those rows;
+no other edit there. Signed (TOPO orchestrator).
+
+## The seam as built (2026-09-14, PR 2549): four posture entries, a third door, and two sites left open
+
+The unit announced above closes the case where a door
 moves a whole LOOP between faces on different surfaces: the rows on
 that loop keep their keys and change which CHART they are stated in,
 and where the target face does not `chart_mints` — a plane, or a NURBS

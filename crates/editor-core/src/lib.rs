@@ -130,6 +130,10 @@ pub use eval::{
     NodeErrorKind, NodeRefusal, NodeResult, NodeValue, PartFault, ProfileLift, SectionScalar,
     SplitSide, UnitVec3, UnitVec3Error, ValuePayload, VerbKind, evaluate,
 };
+// The entity door's token: a field of four `NodeErrorKind` variants, so
+// a reader that matches one needs to be able to name it here rather
+// than through the module path.
+pub use eval::entity_door::Found;
 pub use expr::{
     Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, UnitSym, eval,
     eval_count, unparse,
