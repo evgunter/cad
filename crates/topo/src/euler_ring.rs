@@ -1018,8 +1018,9 @@ impl<T: Decide> Body<T> {
     /// The pcurve limb of the loop-re-parenting doors: drops every
     /// stored row of `r#loop` when the loop's new face is on a
     /// different CHART from its old one.
-    /// [`Body::drop_face_rows_on_chart_change`] is the same answer for
-    /// a face re-charted in place, and delegates here.
+    /// [`Body::drop_face_rows`] is the same answer for a face
+    /// re-charted in place, where one chart decision covers every loop
+    /// the face has.
     ///
     /// A pcurve row is a curve stated in a FACE's chart, keyed on a
     /// half-edge ([`crate::pcurves`]). Re-parenting a loop changes
@@ -1107,34 +1108,37 @@ impl<T: Decide> Body<T> {
     /// same chart, every row stands; a different chart, the face's
     /// rows go, deriving nothing.
     ///
-    /// The face's rows are its loops' rows — the outer loop and every
-    /// ring, which is [`crate::pcurves::stored_rows`]'s walk — so this
-    /// delegates per loop and the predicate, the walk and the whole
-    /// argument for dropping stay in one place.
+    /// **The chart decision is the caller's, and is taken once.** The
+    /// loop doors ask [`Body::same_chart`] per loop because each loop
+    /// arrives from a face of its own; a face re-charted in place has
+    /// ONE pair of keys for all of its rows, and its setter compares
+    /// them where both still resolve — before any orphan sweep can
+    /// take the old key out of the arena. So this door takes no keys
+    /// and reads no surface: it is the drop itself, and the sentence
+    /// that decided it lives with the two keys.
     ///
-    /// Infallible on the same terms, and with one ordering duty on its
-    /// caller: `from` must still RESOLVE when it is called, because
-    /// [`Body::same_chart`] reads both keys' surfaces and
-    /// [`crate::GeomSource`]s. A setter that removes the orphaned old
-    /// surface first hands this a key that resolves to nothing, which
-    /// reads as a chart change whatever the two charts were.
-    pub(crate) fn drop_face_rows_on_chart_change(
-        &mut self,
-        face: FaceKey,
-        from: SurfaceKey,
-        to: SurfaceKey,
-    ) {
-        if self.same_chart(from, to) {
-            return;
-        }
+    /// The face's rows are its loops' rows — the outer loop and every
+    /// ring — and the walk that says which those are is
+    /// [`crate::pcurves::stored_rows`], the walk
+    /// [`crate::pcurves::validate_pcurves`] reads the same face with.
+    /// One walk is what makes "the rows the door removed" and "the rows
+    /// the validator would have read" the same set by construction
+    /// rather than by agreement.
+    ///
+    /// Infallible on the same terms as the loop door: a loop whose
+    /// boundary is not a cycle has no half-edge to carry a row, and a
+    /// cycle that does not walk is tier-1 corruption the body arrived
+    /// with and the validator reports.
+    pub(crate) fn drop_face_rows(&mut self, face: FaceKey) {
         let Some(face_data) = self.get_face(face) else {
-            return;
+            unreachable!(
+                "drop_face_rows: `face` is the caller's own resolved face, and a mutation \
+                 phase does not kill it"
+            )
         };
-        let loops: Vec<LoopKey> = core::iter::once(face_data.outer)
-            .chain(face_data.rings.iter().copied())
-            .collect();
-        for r#loop in loops {
-            self.drop_rows_on_chart_change(r#loop, from, to);
+        let loops = crate::pcurves::stored_rows(self, face_data).loops;
+        for half_edge in loops.into_iter().flatten().flatten() {
+            self.pcurves.remove(half_edge);
         }
     }
 
@@ -1166,7 +1170,7 @@ impl<T: Decide> Body<T> {
     /// Answering `false` there costs a re-mint; answering `true`
     /// wrongly would keep a row about another surface, so absent
     /// evidence this is the safe way to be wrong.
-    fn same_chart(&self, a: SurfaceKey, b: SurfaceKey) -> bool {
+    pub(crate) fn same_chart(&self, a: SurfaceKey, b: SurfaceKey) -> bool {
         if a == b {
             return true;
         }

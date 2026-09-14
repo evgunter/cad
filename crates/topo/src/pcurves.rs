@@ -88,7 +88,7 @@
 //! whole loop, and the setter that re-charts a face in place — dispose
 //! of those rows themselves
 //! ([`crate::Body::drop_rows_on_chart_change`] and its face spelling,
-//! [`crate::Body::drop_face_rows_on_chart_change`]).
+//! [`crate::Body::drop_face_rows`]).
 //! Content-keyed cache transfer stays banked (C4). Persistence (M4 PR 6 / D6.1) is
 //! **recipe-level**: a document stores its edit list, and loading
 //! re-evaluates it — so a round-trip **re-mints** pcurves from the same
@@ -198,14 +198,18 @@
 //! other side: nothing moves, and the CHART moves under every row the
 //! face stores at once. It carries them across a swap onto the same
 //! chart and drops them on any other
-//! ([`crate::Body::drop_face_rows_on_chart_change`]), which is what
-//! makes its own declaration below true as written — a swap onto a
-//! plane or a placeholder used to leave a COMPLETE row set stated in
-//! the chart the face left, and this pass skips exactly that face.
+//! ([`crate::Body::drop_face_rows`]), which is what makes its own
+//! declaration below true as written — a swap onto a plane or a
+//! placeholder used to leave a COMPLETE row set stated in the chart
+//! the face left, and this pass skips exactly that face.
 //! Its sibling [`crate::Body::set_edge_curve`] is NOT the same case
 //! and stays `Neither`: a carrier swap moves neither the row's key nor
 //! its chart, and pass 2 re-derives every row's agreement from the
-//! edge's current carrier, so what it stales is refused loud.
+//! edge's current carrier, so what it stales is refused loud on a
+//! COMPLETE face — and on a half-minted one this pass measures no
+//! stored row at all, which is its property everywhere and not that
+//! door's
+//! (`work/trim/validate-pcurves-never-recertifies-a-face-it-finds-incomplete`).
 //!
 //! **Neither clears nor re-mints** — the remaining Euler operators and
 //! kill ops. These are primitives, and they are what the stale-row
@@ -2556,9 +2560,8 @@ pub(crate) mod staleness_posture {
         /// carry, including a row whose key never moved but whose
         /// chart did (the loop-re-parenting doors, and the surface
         /// setter, under which a face's whole row set changes chart at
-        /// once). What a door in
-        /// this bucket never does is return with a row that says
-        /// something the body no longer holds.
+        /// once). What a door in this bucket never does is return with
+        /// a row that says something the body no longer holds.
         Transfers,
         /// Leaves the map exactly as it found it — a primitive, or a
         /// write the map is not keyed on. What this bucket rests on is
@@ -2756,8 +2759,8 @@ pub(crate) mod staleness_posture {
                 Transfers,
                 "re-charts a face in place, which changes what every row the face stores is \
              ABOUT while changing no key: the rows are kept across a swap onto the same \
-             chart (`Body::same_chart`) and dropped on any other \
-             (`Body::drop_face_rows_on_chart_change`). Content staleness alone would be \
+             chart (`Body::same_chart`) and dropped on any other (`Body::drop_face_rows`). \
+             Content staleness alone would be \
              the tier-3 pass's, but only where the NEW surface mints — a swap onto a plane \
              or a placeholder left a COMPLETE row set stated in the chart the face left, \
              which that pass skips entirely",
@@ -2768,8 +2771,12 @@ pub(crate) mod staleness_posture {
                 "a carrier swap is content staleness the tier-3 pass re-certifies against, \
              and NOT the surface setter's case: neither the row's key nor its chart moves, \
              and pass 2 re-derives each row's agreement from the edge's current carrier, so \
-             a staled row is refused per half-edge. The pass's blind spot cannot hide one \
-             here — a face whose chart mints nothing stores no minted row to stale",
+             a staled row is refused per half-edge on a COMPLETE face. A face whose chart \
+             mints nothing stores no minted row to stale; a HALF-MINTED one does, and this \
+             pass re-certifies nothing on it \
+             (`work/trim/validate-pcurves-never-recertifies-a-face-it-finds-incomplete`) — \
+             the pass's property for every content staleness, which dropping rows here \
+             would trade for a re-mint on every swap that certifies",
             ),
             (
                 "set_edge_curve_nurbs_lane",

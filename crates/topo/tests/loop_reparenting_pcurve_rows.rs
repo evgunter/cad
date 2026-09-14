@@ -31,7 +31,7 @@ use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::pcurves::validate_pcurves;
-use topo::{Body, FaceKey, FaceSurface, LoopKey, MefSite, MevSite, PcurveMintError};
+use topo::{Body, CurveGeom, FaceKey, FaceSurface, LoopKey, MefSite, MevSite, PcurveMintError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -793,6 +793,13 @@ fn flat() -> Surface<f64> {
 /// pass skips a planar face, so a row left here is one no reader could
 /// ever be warned about, and `props`, the tessellator and
 /// `chart_boundary` would read four cylinder curves off a plane.
+///
+/// **What discriminates here is the row count, and only that.** The
+/// pass skips a planar face whatever it holds (`chart_mints`), so
+/// `validate_pcurves` answers `[]` on this body before the drop and
+/// after it alike — the finding list is the silence this row is ABOUT,
+/// never evidence the drop happened. `rows_of == (0, 4)` is the whole
+/// signal, and it is what reads `(4, 0)` on a tree that carries.
 #[test]
 fn a_swap_onto_a_chart_that_mints_nothing_drops_the_faces_rows() {
     let mut s = sheet();
@@ -800,6 +807,7 @@ fn a_swap_onto_a_chart_that_mints_nothing_drops_the_faces_rows() {
         .set_face_surface(s.low, FaceSurface::New(flat()))
         .unwrap();
     assert_eq!(rows_of(&s.body, s.low), (0, 4));
+    // Unchanged by the drop, and stated here as the silence it is.
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
     // Only this face: the sheet's other curved panel is untouched, and
     // it is still complete.
@@ -835,7 +843,18 @@ fn a_swap_onto_another_minting_chart_drops_the_rows_and_the_refusals_with_them()
 
     let refused = topo::mint_pcurves(&mut s.body, tol())
         .expect_err("a rim arc of radius 1 is not a curve of the radius-2 chart");
-    assert!(matches!(refused, PcurveMintError::Certify { .. }));
+    // WHICH half-edge refuses, not merely that one does: the refusal
+    // must be about the re-charted face, and the pass walks the face
+    // arena in order, so it is this face's first rim arc.
+    let PcurveMintError::Certify { half_edge, .. } = refused else {
+        panic!("the re-mint refuses the rim it cannot state: {refused:?}")
+    };
+    let cycle = outer_cycle(&s.body, s.low);
+    assert!(
+        cycle.contains(&half_edge),
+        "the refusal names a half-edge of the re-charted face"
+    );
+    assert_eq!(half_edge, cycle[0]);
 }
 
 /// **A face's rows are its loops' rows, rings included.** A setter that
@@ -858,6 +877,13 @@ fn a_swap_drops_the_rows_of_every_loop_of_the_face() {
 /// **The control: the same key is the same chart**, and `Inherit` and
 /// `Shared` naming it move nothing at all — interval, image and
 /// certificate alike.
+///
+/// **What this pins is the setter's `new == old` guard, not
+/// `Body::same_chart`.** Both specs resolve to the key the face is
+/// already on, so the door that drops rows is never entered and no
+/// rung of the predicate is exercised; a setter that dropped on every
+/// swap it DID enter would leave this row green. The rung that says
+/// two keys are one chart is the row below.
 #[test]
 fn a_swap_onto_the_faces_own_key_keeps_every_row_byte_for_byte() {
     let s = sheet();
@@ -960,4 +986,157 @@ fn an_edge_carrier_swap_leaves_rows_the_pcurve_pass_refuses_loud() {
         .filter(|f| matches!(f, PcurveMintError::Certify { .. }))
         .count();
     assert_eq!((certify, findings.len()), (2, 2));
+}
+
+/// The half-edges of `face`'s outer loop, in cycle order.
+fn outer_cycle(body: &Body<f64>, face: FaceKey) -> Vec<topo::HalfEdgeKey> {
+    let outer = body.get_face(face).unwrap().outer;
+    let topo::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+        panic!("the fixture's faces are bounded by cycles")
+    };
+    body.loop_cycle(first).unwrap()
+}
+
+/// **The chart compare reads two keys, and the setter's own orphan
+/// sweep can take one of them away.** A swap onto a second key the
+/// body records as one description leaves the first key referenced by
+/// nothing — `set_face_surface` removes it — so a setter that asked
+/// `Body::same_chart` after that sweep would be asking about a key that
+/// resolves to nothing, get `false`, and silently drop the rows of a
+/// face whose chart never moved.
+///
+/// The controls above cannot see that: they keep the old key alive
+/// through the sheet's other panel and its edge descriptions. This row
+/// hands every rim arc to the second key first, so the last swap really
+/// does orphan the first, and then asserts the carry.
+#[test]
+fn a_same_chart_swap_that_orphans_the_old_key_keeps_every_row() {
+    let mut s = sheet();
+    let cyl = s.body.get_face(s.low).unwrap().surface;
+    // A second key for the same cylinder, minted on the rowless planar
+    // face, and tied to the first by one recipe.
+    let second = s
+        .body
+        .set_face_surface(s.plane, FaceSurface::New(cylinder()))
+        .unwrap();
+    assert_ne!(second, cyl);
+    s.body.set_surface_source(cyl, one_recipe()).unwrap();
+    s.body.set_surface_source(second, one_recipe()).unwrap();
+    s.body
+        .set_face_surface(s.up, FaceSurface::Shared(second))
+        .unwrap();
+    assert_eq!(rows_of(&s.body, s.up), (4, 0), "one chart by `GeomSource`");
+
+    // Re-state every rim arc as an image in `second`, so that after the
+    // last swap nothing references `cyl` at all.
+    let arcs: Vec<topo::EdgeKey> = s
+        .body
+        .edges()
+        .filter(|(_, e)| {
+            matches!(
+                s.body.get_curve_geom(e.curve),
+                Some(CurveGeom::Certified(c)) if matches!(c.carrier(), Curve3::Circle { .. })
+            )
+        })
+        .map(|(k, _)| k)
+        .collect();
+    for edge in arcs {
+        let curve = s.body.get_edge(edge).unwrap().curve;
+        let Some(CurveGeom::Certified(c)) = s.body.get_curve_geom(curve) else {
+            panic!("the fixture's rim arcs are certified")
+        };
+        let mut spec = c.restated_spec();
+        spec.description = EdgeDescriptionSpec::chart(second);
+        s.body.set_edge_curve(edge, spec, tol()).unwrap();
+    }
+    assert!(s.body.get_surface(cyl).is_some(), "still the low panel's");
+
+    let before = rows_deep(&s.body, s.low);
+    s.body
+        .set_face_surface(s.low, FaceSurface::Shared(second))
+        .unwrap();
+    assert!(
+        s.body.get_surface(cyl).is_none(),
+        "the old key was orphaned by this swap and swept"
+    );
+    assert_eq!(
+        rows_deep(&s.body, s.low),
+        before,
+        "one chart: every row stands, though the key it was compared against is gone"
+    );
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+}
+
+/// **The sibling setter's loudness is the pcurve pass's, and the pass
+/// is silent on a half-minted face.** `validate_pcurves` runs its
+/// re-certification only where a face's row set is COMPLETE
+/// (`work/trim/validate-pcurves-never-recertifies-a-face-it-finds-incomplete`):
+/// one rowless half-edge and the whole face is reported `MissingCache`
+/// and measured no further. So the same carrier swap the row above
+/// reads two refusals for is refused ONCE here — by the mate face,
+/// which is still complete — and the staled row on the half-minted face
+/// is accepted unmeasured.
+///
+/// That is a property of the pass rather than of the door, and it is
+/// why `set_edge_curve` stays `Neither` with the blind spot named
+/// rather than dropping rows to convert it into a `MissingCache`:
+/// every content staleness in the tree meets the same silence, and the
+/// row that closes it closes them all.
+#[test]
+fn a_carrier_swap_on_a_half_minted_face_is_refused_only_by_the_complete_side() {
+    let mut s = sheet();
+    let he = first_he(&s.body, s.low);
+    let edge = s.body.get_half_edge(he).unwrap().edge;
+    let mate = s.body.get_edge(edge).unwrap().he_minus;
+    let mate = if mate == he {
+        s.body.get_edge(edge).unwrap().he_plus
+    } else {
+        mate
+    };
+    let start = s.body.get_half_edge(he).unwrap().start;
+    let end = s.body.half_edge_end(he).unwrap();
+    let p0 = *s
+        .body
+        .get_point(s.body.get_vertex(start).unwrap().point)
+        .unwrap();
+    let p1 = *s
+        .body
+        .get_point(s.body.get_vertex(end).unwrap().point)
+        .unwrap();
+
+    // Half-mint `low`: drop ONE row that is not the swapped edge's.
+    let victim = *outer_cycle(&s.body, s.low)
+        .iter()
+        .find(|&&h| h != he)
+        .unwrap();
+    assert!(s.body.detach_pcurve(victim).is_some());
+
+    s.body
+        .set_edge_curve(edge, EdgeCurveSpec::line_between(p0, p1), tol())
+        .unwrap();
+    let findings = validate_pcurves(&s.body, band());
+    let refused: Vec<topo::HalfEdgeKey> = findings
+        .iter()
+        .filter_map(|f| match f {
+            PcurveMintError::Certify { half_edge, .. } => Some(*half_edge),
+            _ => None,
+        })
+        .collect();
+    let absent: Vec<topo::HalfEdgeKey> = findings
+        .iter()
+        .filter_map(|f| match f {
+            PcurveMintError::MissingCache { half_edge } => Some(*half_edge),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(absent, vec![victim]);
+    assert_eq!(
+        refused,
+        vec![mate],
+        "only the mate face re-certifies; `low`'s staled row is measured by nothing"
+    );
+    assert!(
+        s.body.pcurve(he).is_some(),
+        "the staled row is still there — unmeasured, not removed"
+    );
 }

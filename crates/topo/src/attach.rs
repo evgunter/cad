@@ -76,13 +76,12 @@ impl<T: Decide> Body<T> {
     /// longer on — the loop-re-parenting doors' defect with the two
     /// sides swapped, and it takes their answer: a swap onto the same
     /// chart carries every row untouched, and a swap onto a different
-    /// one drops the face's rows
-    /// ([`Body::drop_face_rows_on_chart_change`]), deriving nothing. A
-    /// caller that wants the face's rows on its new chart runs
-    /// [`crate::pcurves::mint_pcurves`]; every producer in the tree
-    /// already does. Leaving them was silent wherever the new surface
-    /// does not mint — tier 3's pcurve pass skips such a face — so what
-    /// the drop removes is a wrong row no reader could be warned about.
+    /// one drops the face's rows ([`Body::drop_face_rows`]), deriving
+    /// nothing. A caller that wants the face's rows on its new chart
+    /// runs [`crate::pcurves::mint_pcurves`]. Leaving them was silent
+    /// wherever the new surface does not mint — tier 3's pcurve pass
+    /// skips such a face — so what the drop removes is a wrong row no
+    /// reader could be warned about.
     ///
     /// # Errors
     ///
@@ -103,6 +102,13 @@ impl<T: Decide> Body<T> {
         // ---- Mutation (infallible from here on). ----
         let new = self.mint_face_surface(surface, old);
         if new != old {
+            // The chart question is asked HERE, where both keys still
+            // resolve: minting removes nothing, and the orphan sweep
+            // below can take `old` out of the arena — a key that
+            // resolves to nothing reads as a chart change whatever the
+            // two charts were. Nothing below reads a surface again, so
+            // the writes that follow answer to no ordering.
+            let carries_rows = self.same_chart(old, new);
             let Some(f) = self.get_face_mut(face) else {
                 unreachable!(
                     "set_face_surface: `face` resolved in the plan phase and minting a \
@@ -110,9 +116,9 @@ impl<T: Decide> Body<T> {
                 )
             };
             f.surface = new;
-            // Before the orphan sweep, which can take `old` out of the
-            // arena: the chart compare reads both keys.
-            self.drop_face_rows_on_chart_change(face, old, new);
+            if !carries_rows {
+                self.drop_face_rows(face);
+            }
             self.remove_surface_if_orphaned(old);
         }
 
@@ -185,11 +191,23 @@ impl<T: Decide> Body<T> {
     /// neither, so no row changes what it is ABOUT. What it does change
     /// is what the row must agree WITH, and the tier-3 pcurve pass
     /// re-derives that agreement from the edge's CURRENT curve on every
-    /// run — so a swap that leaves a row saying the old carrier's image
-    /// is refused per row, loud, wherever the row exists at all. The
-    /// blind spot that makes the surface setter's case different is a
-    /// face whose chart mints nothing: it is skipped by the pass, and
-    /// it holds no minted row for this door to stale.
+    /// run — so on a COMPLETE face a row left saying the old carrier's
+    /// image is refused per half-edge, loud, which is where the surface
+    /// setter was silent.
+    ///
+    /// **Two faces of the pass are silent, and neither is this door's
+    /// to close.** A face whose chart mints nothing holds no minted row
+    /// for a carrier swap to stale at all. A HALF-MINTED face does hold
+    /// them, and the pass skips its re-certification entirely — it
+    /// reports the missing rows and then measures nothing else about
+    /// that face
+    /// (`work/trim/validate-pcurves-never-recertifies-a-face-it-finds-incomplete`),
+    /// so a row this door stales there is accepted unmeasured. That is
+    /// the pass's property for every content staleness in the tree, not
+    /// a fact about carrier swaps, and dropping rows here would buy a
+    /// `MissingCache` on that one face at the price of a re-mint on
+    /// every swap that certifies — including the upgrades this door
+    /// exists for, whose rows stay true within band.
     ///
     /// # Errors
     ///
