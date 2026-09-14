@@ -1088,3 +1088,23 @@ merge (ordinal 2707, sample #190), no tally candidate; slot 0
 concluded on `topo/b3-block`. `S93` (slot 2) is the one lane running;
 the box was reclaimed to twelve gigabytes free after the two fix
 passes' targets went.
+
+## S93 delivered; dual out at ordinal 2708 (2026-09-14)
+
+Slot 2 `topo/s93-rebased-carriers` delivered as PR 2562, head
+`cb400cfe1`, full matrix green (run 34821959531). `mev`'s fan site
+re-certifies every re-based edge's carrier exactly in its plan phase
+(one `EdgeCurve::recertify` per edge, no re-fit for any kind, no bound
+moved) and refuses typed with the body untouched; `mev_null` carries
+because its point is bitwise the run's old point, and no kernel code
+reaches the fan-with-run site otherwise. The `kev` half did NOT land:
+the lane wired the same gate and measured 129 of 1,394 `sweep` rows
+red at the blend verb's two closure kills, which kill mid-surgery and
+re-describe at the door's end — a precondition cannot see a promise
+the caller keeps later — so `kev`'s paragraph now states the defect
+and a row (`kevs-fan-merge-needs-a-re-describing-kill-door`) carries
+the measurement and the door shape that would close it. Nine rows
+re-baselined onto `mev_null`; `roundtrip`'s `Kev` arm skips every fan
+merge; a seqgen stream pin re-pinned. Dual dispatched on the frozen
+head with the deviation at its centre: ordinal 2708, byte 160 ⇒ R1
+OPUS, R2 FABLE; briefs stored with sha256 privately. No other lane.
