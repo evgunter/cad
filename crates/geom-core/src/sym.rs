@@ -343,7 +343,7 @@
 //! EARLY walk, at every node: the monomial both halves share, and then
 //! the whole quotient when the numerator is a rational multiple of the
 //! denominator. Both are equalities of rational functions wherever the
-//! denominator is non-zero, which clause 1 guarantees; [`quotient`]
+//! denominator is non-zero, which clause 1 guarantees; `quotient`
 //! carries the argument and the shapes it must not fold.
 //!
 //! **What it reaches, measured** (the tilted derived frame:

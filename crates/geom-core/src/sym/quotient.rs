@@ -8,7 +8,7 @@
 //!
 //! # Why a normalisation needs it
 //!
-//! [`Form`](super::form::Form) is a quotient of polynomials with **no
+//! `Form` is a quotient of polynomials with **no
 //! common-factor cancellation** — deliberately, because a polynomial
 //! GCD is not linear in the expression and a missed cancellation is
 //! only a numeric decision (`form`'s own docs). The price is paid by
@@ -28,7 +28,7 @@
 //! kernel's already-normalised stored vectors, so a boss placed on one
 //! and certified walks that chain three times: measured on the tilted
 //! derived frame, the early forms reach total degree 128 in two to
-//! fifteen terms and freeze on [`SymBudget::max_degree`](super::SymBudget),
+//! fifteen terms and freeze on `SymBudget::max_degree`,
 //! and a frozen subtree cancels nothing.
 //!
 //! **The number one is carried as an opaque atom.** `‖v̂‖` for an
@@ -46,7 +46,7 @@
 //!
 //! **1 — the shared monomial.** Let `g` be the monomial whose exponent
 //! for each indeterminate is the smallest that appears in EVERY term of
-//! `N` and in every term of `D` ([`content`]). Then `N = g·N'` and
+//! `N` and in every term of `D` (`content`). Then `N = g·N'` and
 //! `D = g·D'` exactly, as polynomials, and
 //!
 //! ```text
@@ -64,9 +64,9 @@
 //! implies `D = 0`, and `D = r⁻¹·N'`… in both steps the only condition
 //! is `D ≠ 0` at the point. A form's denominator is built from
 //! nothing but the numerators of the `Inv` nodes above it
-//! ([`Form::recip`](super::form::Form::recip) swaps the two halves,
-//! [`Form::mul`](super::form::Form::mul) and
-//! [`Form::add`](super::form::Form::add) multiply them), and each of
+//! (`Form::recip` swaps the two halves,
+//! `Form::mul` and
+//! `Form::add` multiply them), and each of
 //! those denotes a real the value channel actually DIVIDED by. So a
 //! point of the box where `D` vanishes is a point where the scalar
 //! divided by zero, and clause 1 of the theorem — the value channel
@@ -87,15 +87,23 @@
 //! `x²/x` becomes `x/1` rather than anything smaller.
 //!
 //! **No step cap, and the reason is structural.** Rules A/B need
-//! [`EARLY_STEPS`](super::EARLY_STEPS) because a substitution can
+//! `EARLY_STEPS` because a substitution can
 //! REINTRODUCE reducible atoms and grow the form; this rule cannot. It
 //! is one pass over the terms of both halves, it allocates no product,
 //! and every form it returns has at most as many terms and at most the
 //! total degree of the form it was given. Its cost is therefore
 //! bounded by the size of a form the budget already bounds, and a step
-//! cap beside it would be a claim the code does not keep. Measured on
-//! the tilted derived frame it makes a Guided replay CHEAPER, not
-//! dearer (the forms it shrinks are the ones the walk then multiplies).
+//! cap beside it would be a claim the code does not keep.
+//!
+//! **What CAN grow is the walk, and it is not the same thing.** A form
+//! the rule brings back under the budget is one that no longer freezes
+//! to a one-term indeterminate, so its consumers build what the freeze
+//! used to cut off: on the two-hole plate the early walk's frozen
+//! count falls 48 → 8 and its largest form grows 90 → 288 terms
+//! (`editor-core/tests/m10_sym_profile_interval`'s growth guard, which
+//! pins both numbers). On the M10-3 slab, where nothing freezes, the
+//! largest form only falls, 10 → 6. Measured on the tilted derived
+//! frame the rule makes a Guided replay CHEAPER, not dearer.
 
 use super::form::{Form, Mono, Poly};
 use super::rational::Rat;
