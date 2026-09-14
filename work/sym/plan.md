@@ -84,6 +84,18 @@ NOT certify their studies at any affordable dial.
   `registered-is-spelled-five-times-and-pinned-once` (E; four
   spellings here and one across INSTR's k-lint boundary).
 
+## Units
+
+- **SYM-1** — the profile inside the normal form (`docs/SYM-1-SPEC.md`;
+  carries `symbolic-tier-costs-95-percent-of-the-m10-3-drive`'s asks 1
+  and 2). Measurement; outside the experiment.
+- **SYM-2** — the tier's file split (`docs/SYM-2-SPEC.md`; carries
+  `sym-rs-is-one-file-with-a-347-line-header`). Hygiene; style review.
+- **SYM-3** — what stands at `bulge = 2` (cut when a lane frees;
+  `rule-d-reaches-the-unit-bulge-only`'s first ask). Measurement.
+- The first DUAL unit is cut from SYM-1's and SYM-3's numbers, and
+  opens block SYM-B1.
+
 ## Review posture
 
 **Inherited from M10 unchanged: the full v6 dual on every unit that

@@ -473,7 +473,8 @@ pub fn transform_node(
 /// the cases that matter — each is SEVERAL bodies, so a seat filled
 /// with one refuses at the door rather than after the edit lands. The
 /// recipe's way of saying which of them is meant is [`Node::Part`]
-/// (DOCM-REFERENCES-DESIGN DM3): a projection of one half or one
+/// (`crates/editor-core/REFERENCES.md` DM3): a projection of one half
+/// or one
 /// instance, which evaluates to ONE `Body` value and is admitted here
 /// for exactly that reason. "Union the upper half of that split" is
 /// therefore a Part of the split at a boolean seat; the door that

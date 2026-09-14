@@ -3108,6 +3108,8 @@ MEMBERS_BOUND_AS = {
     "ValidationError::Pcurve": "ValidationFinding.variant",
     "ValidationError::RingMeetsOuter": "ValidationFinding.variant",
     "ValidationError::RingContactEscalated": "ValidationFinding.variant",
+    "ValidationError::RingOutsideOuter": "ValidationFinding.variant",
+    "ValidationError::RingNestingUndecided": "ValidationFinding.variant",
     "ValidationError::UndeclaredContact": "ValidationFinding.variant",
     "ValidationError::StaleContactDeclaration": "ValidationFinding.variant",
     "ValidationError::ContactContradicted": "ValidationFinding.variant",

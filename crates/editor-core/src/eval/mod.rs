@@ -1495,6 +1495,37 @@ pub enum NodeErrorKind {
         /// The derived frame it is drawn on.
         frame: RecipeNodeId,
     },
+    /// A profile needed an AUTHORED frame's `f64` placement and the
+    /// frame's own direction slots refused, so the refusal is raised
+    /// on the reader (`wire::profile_plane_f64`) and names BOTH nodes.
+    ///
+    /// **[`NodeErrorKind::DerivedFrameSection`]'s shape, and both of
+    /// its ids, because this refusal reaches the same third node.**
+    /// `profile_plane_f64` is read from the profile node's own
+    /// evaluation, where the error lands on the profile and its id is
+    /// confirmation — and from `wire`'s section seam, where the error
+    /// lands on the LOFT or SWEEP and neither node in the sentence is
+    /// the one it is attached to. One id would leave that road naming
+    /// half of what it refused about.
+    ///
+    /// **The carried refusal is the fact, not a second one.** A frame
+    /// slot that refuses reaches a human two ways — raised at the
+    /// frame by [`crate::Datum::Frame`]'s own evaluation, or carried
+    /// to the reader that needed the nominal
+    /// ([`crate::FramePlacement::Unreadable`]) — and both spell it
+    /// through [`DirectionRefusal::node_error`], so the sentence and
+    /// the tag are the same on both roads. What this arm adds is the
+    /// ids, which the role word alone cannot supply: "the datum frame
+    /// x axis has zero length" names no frame in a document with two.
+    FrameDirection {
+        /// The profile that needed the placement.
+        profile: RecipeNodeId,
+        /// The frame node whose direction slot refused.
+        frame: RecipeNodeId,
+        /// The frame's own refusal, unaltered — which vector, and
+        /// which of the direction door's four facts.
+        refusal: DirectionRefusal,
+    },
     /// A sketch node's branch selection refused (SOLVER-DESIGN W3;
     /// M4 PR 4 pins the document semantics — a per-node failure
     /// poisoning descendants only, GQ2/W5). NEVER constructed before
@@ -2009,6 +2040,22 @@ impl core::fmt::Display for NodeErrorKind {
             Self::FaceFrameReadback { error } => write!(
                 f,
                 "the derived frame's face resolved to a key its body could not read back: {error}"
+            ),
+            // Both ids FIRST, then the fact. Three of the four facts
+            // end in a remedy clause and the escalation's runs to
+            // hundreds of characters, so a locator appended after one
+            // of those is a locator nobody reaches.
+            Self::FrameDirection {
+                profile,
+                frame,
+                refusal,
+            } => write!(
+                f,
+                "profile node {} is drawn on datum frame node {}, and the frame refused \
+                 its own direction: {}",
+                profile.0,
+                frame.0,
+                refusal.node_error()
             ),
             Self::DerivedFrameSection { profile, frame } => write!(
                 f,
@@ -3012,7 +3059,7 @@ where
             // (`wire::mint_frame_placement`). The frame is a DAG input
             // of this node, so its value is in hand and a failed
             // frame poisoned this node before the read.
-            let placement = match wire::profile_plane_f64(results, program.plane) {
+            let placement = match wire::profile_plane_f64(results, id, program.plane) {
                 Ok(placement) => placement,
                 Err(kind) => return fail(bracket, kind),
             };

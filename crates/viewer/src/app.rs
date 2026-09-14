@@ -609,6 +609,35 @@ impl ViewerApp {
     /// than opening an empty window — an empty viewport is the one
     /// failure mode a user cannot diagnose.
     pub fn new(cc: &eframe::CreationContext<'_>, tol: Tol) -> Result<Self, StartupError> {
+        let app = Self::assemble(&cc.egui_ctx, tol)?;
+
+        // The half of startup that needs a device: the viewport's
+        // pipeline, installed into the frame's render state. It is
+        // the only half, which is why the rest is `assemble` and a
+        // context with no device can still run the chrome.
+        let render_state = cc
+            .wgpu_render_state
+            .as_ref()
+            .ok_or(StartupError::NoWgpuRenderState)?;
+        let renderer = ViewportRenderer::new(&render_state.device, render_state.target_format);
+        render_state
+            .renderer
+            .write()
+            .callback_resources
+            .insert(renderer);
+
+        Ok(app)
+    }
+
+    /// Everything startup does that does not need a graphics device:
+    /// the document, its evaluation and tessellation, the camera,
+    /// the preferences and the two context-wide styles they set.
+    ///
+    /// # Errors
+    ///
+    /// Every arm of [`StartupError`] except
+    /// [`StartupError::NoWgpuRenderState`], which is [`Self::new`]'s.
+    fn assemble(egui_ctx: &egui::Context, tol: Tol) -> Result<Self, StartupError> {
         let delta = DisplayTolerance::new(INITIAL_DELTA).map_err(StartupError::Scene)?;
         let (document, _root) = scene::plate_with_hole(tol).map_err(StartupError::Document)?;
         let mesh = scene::scene_of(&document, delta, tol).map_err(StartupError::Scene)?;
@@ -646,18 +675,13 @@ impl ViewerApp {
         // first frame: a window that opened dark and turned light one
         // frame later would flash, and the flash would be the honest
         // report of a theme applied too late.
-        apply_polarity(&cc.egui_ctx, theme.polarity);
+        apply_polarity(egui_ctx, theme.polarity);
 
-        let render_state = cc
-            .wgpu_render_state
-            .as_ref()
-            .ok_or(StartupError::NoWgpuRenderState)?;
-        let renderer = ViewportRenderer::new(&render_state.device, render_state.target_format);
-        render_state
-            .renderer
-            .write()
-            .callback_resources
-            .insert(renderer);
+        // And the numeric rule onto both of the context's styles, so a
+        // field that never reached `widgets::number_field` still says
+        // what it holds. See that function's neighbour for why this is
+        // a default rather than a check.
+        crate::widgets::install_number_formatter(egui_ctx);
 
         Ok(Self {
             session: DocSession::new(document, tol, evaluator()?),
@@ -1134,6 +1158,300 @@ impl ViewerApp {
             });
         self.checks_shown = open;
     }
+
+    /// The toolbar row: the controls the chrome keeps drawn in every
+    /// state, the two gesture cancel doors among them.
+    ///
+    /// **Wrapped, not one line.** A non-wrapping row is laid out on
+    /// one line and clipped, so a window narrower than the row's
+    /// natural width does not shrink the right-hand end — it puts it
+    /// out of reach, with nothing saying so. The two cancel doors sit
+    /// there, and a cancel door is the ONE exit from a state in which
+    /// every other operation refuses [`Refusal::GestureInFlight`],
+    /// which is why it is in the panel that is always drawn. Wrapping
+    /// costs a second line only at widths where the alternative was a
+    /// control nobody could click.
+    ///
+    /// [`Refusal::GestureInFlight`]: crate::session::Refusal::GestureInFlight
+    fn toolbar_ui(&mut self, ui: &mut egui::Ui, ops: &mut Vec<SessionOp>, chosen: &mut Theme) {
+        ui.horizontal_wrapped(|ui| {
+            // What is OPEN, not what the program is called: the
+            // window title already carries the application's name,
+            // and a toolbar that repeats it tells a user nothing
+            // they cannot see in their own title bar.
+            ui.label(document_name(self.session.path()));
+            ui.separator();
+            // The New… control (GAUTH-1): one name field, because
+            // the document id is derived from the name — see
+            // `SessionOp::NewDocument`. The field is a draft; the
+            // op is emitted only by Create, and only for a
+            // non-blank name (the typed refusal backing the
+            // disabled button is `Refusal::EmptyName`).
+            match self.drafts.new_doc_name.as_mut() {
+                None => {
+                    if ui.button("New…").clicked() {
+                        self.drafts.new_doc_name = Some(String::new());
+                    }
+                }
+                Some(name) => {
+                    ui.add(
+                        egui::TextEdit::singleline(name)
+                            .hint_text("document name")
+                            .desired_width(120.0),
+                    );
+                    let typed = name.trim().to_owned();
+                    if ui
+                        .add_enabled(!typed.is_empty(), egui::Button::new("Create"))
+                        .on_disabled_hover_text("the document id is derived from the name")
+                        .clicked()
+                    {
+                        ops.push(SessionOp::NewDocument { name: typed });
+                        self.drafts.new_doc_name = None;
+                    } else if ui.button("Cancel").clicked() {
+                        self.drafts.new_doc_name = None;
+                    }
+                }
+            }
+            // With confidently NO backend the dialogs are disabled
+            // UP FRONT with the reason as their tooltip, because a
+            // dead click is exactly the silent failure #1097
+            // reported. **That tooltip is the whole surface** —
+            // why it is the only one is the viewer README's, under
+            // *"A missing file-chooser backend is not on the line
+            // at all"*. Under a plausibly-present backend a dialog
+            // handing back `None` is a genuine cancel, which says
+            // nothing.
+            let chooser = self.chooser;
+            if ui
+                .add_enabled(chooser.usable(), egui::Button::new("Open…"))
+                .on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)
+                .clicked()
+            {
+                // Unreachable on wasm — `chooser` is `Absent`
+                // there, so the button is disabled and never
+                // reports a click — but unreachable code still has
+                // to compile, and `pick_open` does not exist on
+                // that target. The `cfg` is on the BODY rather
+                // than the button so the browser build still shows
+                // the control and its disabled reason, which is
+                // the #1125 posture: a door that cannot open says
+                // so, it does not vanish.
+                #[cfg(not(target_family = "wasm"))]
+                if let Some(path) = pick_open() {
+                    ops.push(SessionOp::Open(path));
+                }
+            }
+            if ui
+                .add_enabled(chooser.usable(), egui::Button::new("Save As…"))
+                .on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)
+                .clicked()
+            {
+                // Unreachable on wasm, for the reason the Open…
+                // arm above states.
+                #[cfg(not(target_family = "wasm"))]
+                if let Some(path) = pick_save(self.session.path()) {
+                    ops.push(SessionOp::Save(path));
+                }
+            }
+            ui.separator();
+            if ui
+                .add_enabled(self.session.history().can_undo(), egui::Button::new("Undo"))
+                .clicked()
+            {
+                ops.push(SessionOp::Undo);
+            }
+            if ui
+                .add_enabled(self.session.history().can_redo(), egui::Button::new("Redo"))
+                .clicked()
+            {
+                ops.push(SessionOp::Redo);
+            }
+            ui.separator();
+            // **The cancel doors**, beside the history controls
+            // because that is where a reader whose every edit is
+            // being refused already is. They are HERE and not on
+            // the field that opened the gesture: the field is what
+            // can stop being drawn mid-drag, and a cancel sited on
+            // it would vanish with the exit it exists to replace
+            // (`session::CancelDoor`). This panel is drawn on every
+            // frame whatever the selection, the standing and the
+            // layout are.
+            //
+            // Enabled exactly while the door's own gesture is in
+            // flight, and out of flight it says the refusal the
+            // operation itself would give — the value that knows
+            // carries the words, so the two cannot disagree.
+            for door in self.session.cancel_doors() {
+                let button = ui.add_enabled(door.blocked.is_none(), egui::Button::new(door.label));
+                let clicked = match &door.blocked {
+                    Some(refusal) => button.on_disabled_hover_text(refusal.to_string()).clicked(),
+                    None => button.clicked(),
+                };
+                if clicked {
+                    ops.push(door.op);
+                }
+            }
+            ui.separator();
+            if ui
+                .button("Zoom to fit")
+                .on_hover_text("frame the whole model in the viewport")
+                .clicked()
+            {
+                // The toolbar has no pane rectangle, so it asks
+                // for a fit rather than performing one; the
+                // viewport takes it at the real aspect.
+                self.pending_fit = true;
+            }
+            // The indicator is a READ of session state, and the
+            // buttons beside it are the shipped token and its pair.
+            // Neither knows whether a thread is involved.
+            //
+            // ONE indicator for one wait: `progress` ranks what
+            // the session owes against what the index seam is
+            // doing, so the toolbar never lights two spinners for
+            // the same moment.
+            match frame::progress(self.session.outstanding(), self.picks.indexing()) {
+                Some(frame::Progress::Evaluating) => {
+                    ui.separator();
+                    ui.spinner();
+                    ui.label("evaluating…");
+                    if ui.button("Cancel").clicked() {
+                        ops.push(SessionOp::CancelEvaluation);
+                    }
+                    // A background result is not a user event, so
+                    // nothing else would wake the frame loop to
+                    // collect it.
+                    ui.ctx().request_repaint();
+                }
+                Some(frame::Progress::Canceled { indexing }) => {
+                    ui.separator();
+                    // The recourse is UNCONDITIONAL: the cancel is
+                    // what the reader has to act on, and an index
+                    // build behind it must not take the button
+                    // away for the seconds it runs. The spinner
+                    // reads left of the label because that is
+                    // where the other two arms put theirs.
+                    if indexing {
+                        ui.spinner();
+                    }
+                    ui.label("canceled — showing an older result");
+                    if ui.button("Re-evaluate").clicked() {
+                        ops.push(SessionOp::Reevaluate);
+                    }
+                    if indexing {
+                        ui.weak("indexing…")
+                            .on_hover_text(crate::pickcache::NotIndexed::Building.to_string());
+                        ui.ctx().request_repaint();
+                    }
+                }
+                // No Cancel button beside it, and that is the
+                // seam's promise showing through the chrome: the
+                // build cannot be stopped, only outrun by a newer
+                // one (`evalseam`, the index seam).
+                Some(frame::Progress::Indexing) => {
+                    ui.separator();
+                    ui.spinner();
+                    ui.label("indexing…")
+                        .on_hover_text(crate::pickcache::NotIndexed::Building.to_string());
+                    ui.ctx().request_repaint();
+                }
+                None => {}
+            }
+            // **The reads, one draw each.** Each is a function of
+            // the typed value it reads — including its silence,
+            // which is what lets a row assert the `None`
+            // — and each states its own tone and affordance, so
+            // nothing about how a badge looks is decided here
+            // (`frame::Badge`).
+            //
+            // The A5 at-rest verdict, for assembly-shaped
+            // documents: the verification verdict living past the
+            // commit.
+            if let Some(badge) = frame::at_rest_badge(self.session.at_rest()) {
+                draw_badge(ui, &self.theme, &badge);
+            }
+            // The advisory checks. It REPORTS: the scene below is
+            // drawn either way, because a product whose roots
+            // interpenetrate renders a picture that looks almost
+            // right and the finding is the only thing that says
+            // otherwise. The badge OPENS the window the findings'
+            // own sentences live in, and what a click means is
+            // this call site's — which is why the draw hands the
+            // response back rather than naming a window.
+            let checks = frame::checks_badge(self.session.checks());
+            if let Some(badge) = checks
+                && draw_badge(ui, &self.theme, &badge).clicked()
+            {
+                self.checks_shown = !self.checks_shown;
+            }
+            // The gather's verdict, for the landed pair. **A read
+            // a reader consults, so a badge** — the line beside it
+            // carries what just happened and is cleared by the next
+            // acting batch, while "the product on screen does not
+            // gather" is true until another pair lands.
+            //
+            // Which faults reach it is `frame::product_badge`'s,
+            // and it declines every state another channel carries:
+            // the three per-node arms are the feature tree's, and
+            // an empty document is the blank viewport's.
+            if let Some(badge) = frame::product_badge(self.session.product_fault()) {
+                draw_badge(ui, &self.theme, &badge);
+            }
+            // The display budget's: shown while the δ on screen is
+            // the one the budget CHOSE when the document opened,
+            // and gone the moment the user picks their own.
+            if let Some(badge) = frame::delta_badge(self.budget_delta.as_ref()) {
+                draw_badge(ui, &self.theme, &badge);
+            }
+            // **The three display seams that hold a refusal.**
+            // Each is a read of held state — the scene fault kept
+            // until a rebuild lands, the pick cache's own held
+            // refusal, the projection the viewport could not form
+            // — so each stands for as long as the picture is stale
+            // rather than until the next acting batch sweeps a
+            // line. What a pick aimed at the missing index gets is
+            // still the line's, because that is an outcome
+            // (`frame::unindexed_refusal`).
+            for badge in [
+                frame::scene_badge(self.scene_fault.as_ref()),
+                frame::index_badge(self.picks.error()),
+                frame::projection_badge(self.projection_fault.as_ref()),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                draw_badge(ui, &self.theme, &badge);
+            }
+            ui.separator();
+            // The palette picker. Every registered theme, by the
+            // name `crate::theme` gives it — the registry IS the
+            // menu, so a theme cannot be shipped and left
+            // unreachable.
+            egui::ComboBox::from_id_salt("viewer_theme")
+                .selected_text(chosen.name)
+                .show_ui(ui, |ui| {
+                    for theme in Theme::ALL {
+                        ui.selectable_value(&mut *chosen, *theme, theme.name);
+                    }
+                });
+            // **Beside the picker, not in the badge row above**:
+            // it is the only badge that is about a control rather
+            // than about the document or the picture, and a
+            // reader deciding whether a choice will survive the
+            // session needs it where the choice is made. It is
+            // drawn whether or not anything has been picked yet,
+            // because a standing fact is worth knowing BEFORE the
+            // choice, and it is drawn once because it is a read
+            // rather than an answer to the switch.
+            if let Some(badge) = frame::prefs_badge(self.store.unusable().as_ref()) {
+                draw_badge(ui, &self.theme, &badge);
+            }
+            if let Some(status) = &self.status {
+                ui.separator();
+                ui.label(status.text());
+            }
+        });
+    }
 }
 
 impl eframe::App for ViewerApp {
@@ -1148,286 +1466,7 @@ impl eframe::App for ViewerApp {
         let mut chosen = self.theme;
 
         egui::Panel::top("viewer_toolbar").show(ui, |ui| {
-            ui.horizontal(|ui| {
-                // What is OPEN, not what the program is called: the
-                // window title already carries the application's name,
-                // and a toolbar that repeats it tells a user nothing
-                // they cannot see in their own title bar.
-                ui.label(document_name(self.session.path()));
-                ui.separator();
-                // The New… control (GAUTH-1): one name field, because
-                // the document id is derived from the name — see
-                // `SessionOp::NewDocument`. The field is a draft; the
-                // op is emitted only by Create, and only for a
-                // non-blank name (the typed refusal backing the
-                // disabled button is `Refusal::EmptyName`).
-                match self.drafts.new_doc_name.as_mut() {
-                    None => {
-                        if ui.button("New…").clicked() {
-                            self.drafts.new_doc_name = Some(String::new());
-                        }
-                    }
-                    Some(name) => {
-                        ui.add(
-                            egui::TextEdit::singleline(name)
-                                .hint_text("document name")
-                                .desired_width(120.0),
-                        );
-                        let typed = name.trim().to_owned();
-                        if ui
-                            .add_enabled(!typed.is_empty(), egui::Button::new("Create"))
-                            .on_disabled_hover_text("the document id is derived from the name")
-                            .clicked()
-                        {
-                            ops.push(SessionOp::NewDocument { name: typed });
-                            self.drafts.new_doc_name = None;
-                        } else if ui.button("Cancel").clicked() {
-                            self.drafts.new_doc_name = None;
-                        }
-                    }
-                }
-                // With confidently NO backend the dialogs are disabled
-                // UP FRONT with the reason as their tooltip, because a
-                // dead click is exactly the silent failure #1097
-                // reported. **That tooltip is the whole surface** —
-                // why it is the only one is the viewer README's, under
-                // *"A missing file-chooser backend is not on the line
-                // at all"*. Under a plausibly-present backend a dialog
-                // handing back `None` is a genuine cancel, which says
-                // nothing.
-                let chooser = self.chooser;
-                if ui
-                    .add_enabled(chooser.usable(), egui::Button::new("Open…"))
-                    .on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)
-                    .clicked()
-                {
-                    // Unreachable on wasm — `chooser` is `Absent`
-                    // there, so the button is disabled and never
-                    // reports a click — but unreachable code still has
-                    // to compile, and `pick_open` does not exist on
-                    // that target. The `cfg` is on the BODY rather
-                    // than the button so the browser build still shows
-                    // the control and its disabled reason, which is
-                    // the #1125 posture: a door that cannot open says
-                    // so, it does not vanish.
-                    #[cfg(not(target_family = "wasm"))]
-                    if let Some(path) = pick_open() {
-                        ops.push(SessionOp::Open(path));
-                    }
-                }
-                if ui
-                    .add_enabled(chooser.usable(), egui::Button::new("Save As…"))
-                    .on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)
-                    .clicked()
-                {
-                    // Unreachable on wasm, for the reason the Open…
-                    // arm above states.
-                    #[cfg(not(target_family = "wasm"))]
-                    if let Some(path) = pick_save(self.session.path()) {
-                        ops.push(SessionOp::Save(path));
-                    }
-                }
-                ui.separator();
-                if ui
-                    .add_enabled(self.session.history().can_undo(), egui::Button::new("Undo"))
-                    .clicked()
-                {
-                    ops.push(SessionOp::Undo);
-                }
-                if ui
-                    .add_enabled(self.session.history().can_redo(), egui::Button::new("Redo"))
-                    .clicked()
-                {
-                    ops.push(SessionOp::Redo);
-                }
-                ui.separator();
-                // **The cancel doors**, beside the history controls
-                // because that is where a reader whose every edit is
-                // being refused already is. They are HERE and not on
-                // the field that opened the gesture: the field is what
-                // can stop being drawn mid-drag, and a cancel sited on
-                // it would vanish with the exit it exists to replace
-                // (`session::CancelDoor`). This panel is drawn on every
-                // frame whatever the selection, the standing and the
-                // layout are.
-                //
-                // Enabled exactly while the door's own gesture is in
-                // flight, and out of flight it says the refusal the
-                // operation itself would give — the value that knows
-                // carries the words, so the two cannot disagree.
-                for door in self.session.cancel_doors() {
-                    let button =
-                        ui.add_enabled(door.blocked.is_none(), egui::Button::new(door.label));
-                    let clicked = match &door.blocked {
-                        Some(refusal) => {
-                            button.on_disabled_hover_text(refusal.to_string()).clicked()
-                        }
-                        None => button.clicked(),
-                    };
-                    if clicked {
-                        ops.push(door.op);
-                    }
-                }
-                ui.separator();
-                if ui
-                    .button("Zoom to fit")
-                    .on_hover_text("frame the whole model in the viewport")
-                    .clicked()
-                {
-                    // The toolbar has no pane rectangle, so it asks
-                    // for a fit rather than performing one; the
-                    // viewport takes it at the real aspect.
-                    self.pending_fit = true;
-                }
-                // The indicator is a READ of session state, and the
-                // buttons beside it are the shipped token and its pair.
-                // Neither knows whether a thread is involved.
-                //
-                // ONE indicator for one wait: `progress` ranks what
-                // the session owes against what the index seam is
-                // doing, so the toolbar never lights two spinners for
-                // the same moment.
-                match frame::progress(self.session.outstanding(), self.picks.indexing()) {
-                    Some(frame::Progress::Evaluating) => {
-                        ui.separator();
-                        ui.spinner();
-                        ui.label("evaluating…");
-                        if ui.button("Cancel").clicked() {
-                            ops.push(SessionOp::CancelEvaluation);
-                        }
-                        // A background result is not a user event, so
-                        // nothing else would wake the frame loop to
-                        // collect it.
-                        ui.ctx().request_repaint();
-                    }
-                    Some(frame::Progress::Canceled { indexing }) => {
-                        ui.separator();
-                        // The recourse is UNCONDITIONAL: the cancel is
-                        // what the reader has to act on, and an index
-                        // build behind it must not take the button
-                        // away for the seconds it runs. The spinner
-                        // reads left of the label because that is
-                        // where the other two arms put theirs.
-                        if indexing {
-                            ui.spinner();
-                        }
-                        ui.label("canceled — showing an older result");
-                        if ui.button("Re-evaluate").clicked() {
-                            ops.push(SessionOp::Reevaluate);
-                        }
-                        if indexing {
-                            ui.weak("indexing…")
-                                .on_hover_text(crate::pickcache::NotIndexed::Building.to_string());
-                            ui.ctx().request_repaint();
-                        }
-                    }
-                    // No Cancel button beside it, and that is the
-                    // seam's promise showing through the chrome: the
-                    // build cannot be stopped, only outrun by a newer
-                    // one (`evalseam`, the index seam).
-                    Some(frame::Progress::Indexing) => {
-                        ui.separator();
-                        ui.spinner();
-                        ui.label("indexing…")
-                            .on_hover_text(crate::pickcache::NotIndexed::Building.to_string());
-                        ui.ctx().request_repaint();
-                    }
-                    None => {}
-                }
-                // **The reads, one draw each.** Each is a function of
-                // the typed value it reads — including its silence,
-                // which is what lets a row assert the `None`
-                // — and each states its own tone and affordance, so
-                // nothing about how a badge looks is decided here
-                // (`frame::Badge`).
-                //
-                // The A5 at-rest verdict, for assembly-shaped
-                // documents: the verification verdict living past the
-                // commit.
-                if let Some(badge) = frame::at_rest_badge(self.session.at_rest()) {
-                    draw_badge(ui, &self.theme, &badge);
-                }
-                // The advisory checks. It REPORTS: the scene below is
-                // drawn either way, because a product whose roots
-                // interpenetrate renders a picture that looks almost
-                // right and the finding is the only thing that says
-                // otherwise. The badge OPENS the window the findings'
-                // own sentences live in, and what a click means is
-                // this call site's — which is why the draw hands the
-                // response back rather than naming a window.
-                let checks = frame::checks_badge(self.session.checks());
-                if let Some(badge) = checks
-                    && draw_badge(ui, &self.theme, &badge).clicked()
-                {
-                    self.checks_shown = !self.checks_shown;
-                }
-                // The gather's verdict, for the landed pair. **A read
-                // a reader consults, so a badge** — the line beside it
-                // carries what just happened and is cleared by the next
-                // acting batch, while "the product on screen does not
-                // gather" is true until another pair lands.
-                //
-                // Which faults reach it is `frame::product_badge`'s,
-                // and it declines every state another channel carries:
-                // the three per-node arms are the feature tree's, and
-                // an empty document is the blank viewport's.
-                if let Some(badge) = frame::product_badge(self.session.product_fault()) {
-                    draw_badge(ui, &self.theme, &badge);
-                }
-                // The display budget's: shown while the δ on screen is
-                // the one the budget CHOSE when the document opened,
-                // and gone the moment the user picks their own.
-                if let Some(badge) = frame::delta_badge(self.budget_delta.as_ref()) {
-                    draw_badge(ui, &self.theme, &badge);
-                }
-                // **The three display seams that hold a refusal.**
-                // Each is a read of held state — the scene fault kept
-                // until a rebuild lands, the pick cache's own held
-                // refusal, the projection the viewport could not form
-                // — so each stands for as long as the picture is stale
-                // rather than until the next acting batch sweeps a
-                // line. What a pick aimed at the missing index gets is
-                // still the line's, because that is an outcome
-                // (`frame::unindexed_refusal`).
-                for badge in [
-                    frame::scene_badge(self.scene_fault.as_ref()),
-                    frame::index_badge(self.picks.error()),
-                    frame::projection_badge(self.projection_fault.as_ref()),
-                ]
-                .into_iter()
-                .flatten()
-                {
-                    draw_badge(ui, &self.theme, &badge);
-                }
-                ui.separator();
-                // The palette picker. Every registered theme, by the
-                // name `crate::theme` gives it — the registry IS the
-                // menu, so a theme cannot be shipped and left
-                // unreachable.
-                egui::ComboBox::from_id_salt("viewer_theme")
-                    .selected_text(chosen.name)
-                    .show_ui(ui, |ui| {
-                        for theme in Theme::ALL {
-                            ui.selectable_value(&mut chosen, *theme, theme.name);
-                        }
-                    });
-                // **Beside the picker, not in the badge row above**:
-                // it is the only badge that is about a control rather
-                // than about the document or the picture, and a
-                // reader deciding whether a choice will survive the
-                // session needs it where the choice is made. It is
-                // drawn whether or not anything has been picked yet,
-                // because a standing fact is worth knowing BEFORE the
-                // choice, and it is drawn once because it is a read
-                // rather than an answer to the switch.
-                if let Some(badge) = frame::prefs_badge(self.store.unusable().as_ref()) {
-                    draw_badge(ui, &self.theme, &badge);
-                }
-                if let Some(status) = &self.status {
-                    ui.separator();
-                    ui.label(status.text());
-                }
-            });
+            self.toolbar_ui(ui, &mut ops, &mut chosen);
         });
 
         if chosen != self.theme {
@@ -2019,4 +2058,115 @@ pub async fn run_web(tol: Tol, canvas_id: &str) -> Result<(), WebStartupError> {
         // because it answers `None` for every non-string `JsValue` and
         // would drop the browser's message entirely.
         .map_err(|error| WebStartupError::Runner(format!("{error:?}")))
+}
+
+#[cfg(test)]
+mod tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+
+    use super::{Theme, ViewerApp};
+    use crate::session::SessionOp;
+    use eframe::egui;
+
+    /// The narrowest window this chrome is held to, in points.
+    ///
+    /// The browser is the narrow case the viewer actually ships into —
+    /// `run_web` puts this same toolbar in a canvas the page sizes —
+    /// and an upright phone viewport is the narrow end of the browser:
+    /// 400 points is about the widest of that class, so a window this
+    /// wide is the easiest member of the hardest case. A desktop
+    /// window tiled to half of a 1280-point screen gets 640 and is
+    /// therefore already covered by it.
+    const NARROW: f32 = 400.0;
+
+    /// A window wider than any toolbar will ask for, which is how the
+    /// row's natural width is read: nothing constrains the layout, so
+    /// what it occupies is what it wants.
+    const UNBOUNDED: f32 = 4000.0;
+
+    /// What one headless frame of the toolbar occupied, and what it
+    /// was given to occupy.
+    struct Row {
+        /// The width the row's content laid itself out across.
+        occupied: f32,
+        /// The width the panel offered it.
+        available: f32,
+    }
+
+    /// Lay the real toolbar out in a headless context whose window is
+    /// `width` points wide.
+    ///
+    /// Two frames: the first is the one egui sizes from defaults, the
+    /// second is the one a user looks at.
+    fn toolbar_row(width: f32) -> Row {
+        let ctx = egui::Context::default();
+        let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
+            .expect("startup that needs no graphics device");
+        let mut row = Row {
+            occupied: f32::NAN,
+            available: f32::NAN,
+        };
+        for _ in 0..2 {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(width, 600.0),
+                )),
+                ..Default::default()
+            };
+            let app = &mut app;
+            let row = &mut row;
+            let mut output = ctx.run_ui(input, |ui| {
+                egui::Panel::top("viewer_toolbar").show(ui, |ui| {
+                    let mut ops: Vec<SessionOp> = Vec::new();
+                    let mut chosen = Theme::ALL[0];
+                    row.available = ui.available_width();
+                    // The row's OWN rect, through a scope: a panel's
+                    // `Ui` is expanded to the panel's width whatever
+                    // it holds, so its `min_rect` answers the window
+                    // rather than the toolbar.
+                    let laid_out = ui.scope(|ui| {
+                        app.toolbar_ui(ui, &mut ops, &mut chosen);
+                    });
+                    row.occupied = laid_out.response.rect.width();
+                });
+            });
+            // Nothing here paints, so the frame's texture delta is
+            // dropped rather than uploaded, and epaint refuses a drop
+            // it did not see taken.
+            output.textures_delta.clear();
+        }
+        row
+    }
+
+    /// **The row does not fit a narrow window.** This is the
+    /// measurement the wrapping answers, and the reason the row below
+    /// is a hold rather than a tautology: if the toolbar ever loses
+    /// enough controls to fit, this reads red, and the honest repair
+    /// is to retire both rows rather than to widen the number.
+    #[test]
+    fn the_toolbar_asks_for_more_width_than_a_narrow_window_gives() {
+        let natural = toolbar_row(UNBOUNDED).occupied;
+        assert!(
+            natural > NARROW,
+            "the toolbar's natural width is {natural} points, which already fits a {NARROW}-point window"
+        );
+    }
+
+    /// **And it wraps rather than running off the edge.** A row laid
+    /// out past the window's right edge is clipped, and a clipped
+    /// control is not small — it is unreachable, which for the two
+    /// cancel doors means no exit from a gesture at all.
+    #[test]
+    fn the_toolbar_wraps_rather_than_running_past_a_narrow_window() {
+        let row = toolbar_row(NARROW);
+        assert!(
+            row.occupied <= row.available,
+            "the toolbar occupied {} points of the {} it was given, so {} points of it lie past the right edge",
+            row.occupied,
+            row.available,
+            row.occupied - row.available
+        );
+    }
 }

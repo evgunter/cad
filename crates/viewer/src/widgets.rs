@@ -98,6 +98,37 @@ pub(crate) fn number_field<Num: egui::emath::Numeric>(
         .custom_formatter(number_text)
 }
 
+/// **The floor under [`number_field`]: the same rule, as the
+/// context's own default.**
+///
+/// [`number_field`] states the rule where a reader can see it, and
+/// that is why it exists — but a constructor can only bind the sites
+/// that call it. A twelfth field written as a bare
+/// `egui::DragValue::new`, a helper that wraps the widget instead of
+/// this door, or an `egui::Slider` (which renders its value through a
+/// `DragValue` of its own) each gets `egui`'s precision rule back, and
+/// nothing at the call site says so.
+///
+/// Setting [`egui::Style::number_formatter`] answers that as a
+/// DEFAULT rather than as a detection: a site that does not
+/// deliberately spell its own `custom_formatter` is already right, so
+/// there is no arrival to notice. A site that DOES spell one is
+/// making a statement — a hex or a clock field — and is left alone.
+///
+/// **`all_styles_mut` rather than `style_mut`, and that is
+/// load-bearing.** `egui` keeps one `Style` per theme and
+/// `crate::app`'s `apply_polarity` states a theme PREFERENCE rather
+/// than freezing visuals, so the user can move between them at any
+/// time; a formatter written onto only the theme in force at startup
+/// would be dropped by the first switch, in the direction nobody
+/// looks. `field_tests::a_bare_field_survives_a_theme_switch` is the
+/// assertion that would break.
+pub(crate) fn install_number_formatter(ctx: &egui::Context) {
+    ctx.all_styles_mut(|style| {
+        style.number_formatter = egui::style::NumberFormatter::new(number_text);
+    });
+}
+
 /// **One gesture vocabulary**: the four operations a drag on one field
 /// emits, in the words that field's own doors speak.
 ///
@@ -1103,7 +1134,7 @@ mod field_tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use super::{number_field, number_text};
+    use super::{install_number_formatter, number_field, number_text};
     use eframe::egui;
 
     /// The decimal range a length field shown in millimetres is handed:
@@ -1208,20 +1239,53 @@ mod field_tests {
         }
     }
 
+    /// Which constructor the harness builds its field with.
+    ///
+    /// [`Built::Bare`] is the twelfth site: an `egui::DragValue` that
+    /// has never seen [`number_field`], written the way a lane that
+    /// does not know the door exists would write it — and therefore
+    /// the only widget in this file that reads the rule off the
+    /// CONTEXT rather than off its own builder.
+    #[derive(Clone, Copy)]
+    enum Built {
+        Door,
+        Bare,
+    }
+
     /// One field, laid out and driven by events, so the rule below is
     /// read off the widget rather than off the function under it.
     struct Field {
         ctx: egui::Context,
         value: f64,
         rect: egui::Rect,
+        built: Built,
     }
 
     impl Field {
         fn new(value: f64) -> Self {
+            Self::with(value, Built::Door)
+        }
+
+        /// A bare field on a context the rule has been installed on —
+        /// production's arrangement, minus the door.
+        fn bare(value: f64) -> Self {
+            let field = Self::with(value, Built::Bare);
+            install_number_formatter(&field.ctx);
+            field
+        }
+
+        /// The same bare field on a context nothing has been installed
+        /// on, which is what the twelfth site gets today.
+        fn bare_without_the_rule(value: f64) -> Self {
+            Self::with(value, Built::Bare)
+        }
+
+        fn with(value: f64, built: Built) -> Self {
             Self {
                 ctx: egui::Context::default(),
                 value,
                 rect: egui::Rect::NOTHING,
+                built,
             }
         }
 
@@ -1237,10 +1301,29 @@ mod field_tests {
             };
             let value = &mut self.value;
             let rect = &mut self.rect;
+            let built = self.built;
             let mut output = ctx.run_ui(input, |ui| {
-                *rect = ui.add(number_field(value, 0.5)).rect;
+                *rect = match built {
+                    Built::Door => ui.add(number_field(value, 0.5)).rect,
+                    Built::Bare => ui.add(egui::DragValue::new(value).speed(0.5)).rect,
+                };
             });
             output.textures_delta.clear();
+        }
+
+        /// Lay the field out, click into it, click somewhere else, and
+        /// settle — the gesture that makes a field's render its commit
+        /// path. Two frames before the first click because egui
+        /// interacts against the PREVIOUS frame's widget rects.
+        fn click_in_and_away(&mut self) {
+            self.frame(Vec::new());
+            self.frame(Vec::new());
+            let target = self.rect.center();
+            self.click(target);
+            self.frame(Vec::new());
+            self.click(egui::pos2(700.0, 500.0));
+            self.frame(Vec::new());
+            self.frame(Vec::new());
         }
 
         fn click(&mut self, at: egui::Pos2) {
@@ -1270,25 +1353,84 @@ mod field_tests {
     /// ones it used to commit as something else — 40 nm as zero.
     #[test]
     fn clicking_into_a_field_and_away_again_leaves_the_value_alone() {
-        for start in [4.0e-5_f64, 1.6e-3, 12.0, -4.0e-5, 0.0, 1024.5] {
+        for start in ROUND_TRIP {
             let mut field = Field::new(start);
-            // Two frames: egui interacts against the PREVIOUS frame's
-            // widget rects, so nothing is hittable until one has been
-            // laid out.
-            field.frame(Vec::new());
-            field.frame(Vec::new());
-            let target = field.rect.center();
-            field.click(target);
-            field.frame(Vec::new());
-            field.click(egui::pos2(700.0, 500.0));
-            field.frame(Vec::new());
-            field.frame(Vec::new());
+            field.click_in_and_away();
             assert_eq!(
                 field.value, start,
                 "clicking into a field holding {start} and away again committed \
                  {} — the text it showed was not the value it held",
                 field.value
             );
+        }
+    }
+
+    /// The values the gesture rows are held over: three the widget's
+    /// own spelling cannot name, and three it can.
+    const ROUND_TRIP: [f64; 6] = [4.0e-5, 1.6e-3, 12.0, -4.0e-5, 0.0, 1024.5];
+
+    /// **The twelfth site is held by the CONTEXT, not by the door.**
+    ///
+    /// A bare `egui::DragValue` — what a lane that has not met
+    /// [`number_field`] writes, and what a new helper wrapping the
+    /// widget produces — round-trips once
+    /// [`install_number_formatter`] has run, because the rule is that
+    /// context's default rather than a property of one constructor.
+    #[test]
+    fn a_bare_field_keeps_its_value_once_the_rule_is_installed() {
+        for start in ROUND_TRIP {
+            let mut field = Field::bare(start);
+            field.click_in_and_away();
+            assert_eq!(
+                field.value, start,
+                "a field built without the door, on a context the rule is \
+                 installed on, committed {} over {start}",
+                field.value
+            );
+        }
+    }
+
+    /// **And installing it is what does that**, held over the same
+    /// widget on a context nothing has been installed on. Without this
+    /// row the one above passes on every value `egui` already spells
+    /// correctly and says nothing about the rule: these three are
+    /// exactly the ones it does not.
+    #[test]
+    fn a_bare_field_without_the_rule_destroys_the_value() {
+        for start in [4.0e-5_f64, -4.0e-5, 1.6e-3] {
+            let mut field = Field::bare_without_the_rule(start);
+            field.click_in_and_away();
+            assert_ne!(
+                field.value, start,
+                "a bare field over {start} kept it with no rule installed — \
+                 then the row above is proving nothing"
+            );
+        }
+    }
+
+    /// **`all_styles_mut` rather than `style_mut`.**
+    ///
+    /// `egui` keeps one `Style` per theme and `crate::app`'s
+    /// `apply_polarity` states a PREFERENCE, so the user moves between
+    /// them while the chrome runs. A formatter written onto only the
+    /// theme in force at install time is dropped by the first switch —
+    /// silently, and in the direction nobody watches. Both directions,
+    /// because a bare context's theme is whichever one it defaults to
+    /// and this row must not depend on which.
+    #[test]
+    fn a_bare_field_survives_a_theme_switch() {
+        for theme in [egui::ThemePreference::Light, egui::ThemePreference::Dark] {
+            for start in [4.0e-5_f64, 1.6e-3] {
+                let mut field = Field::bare(start);
+                field.ctx.set_theme(theme);
+                field.click_in_and_away();
+                assert_eq!(
+                    field.value, start,
+                    "after switching to {theme:?} a bare field committed {} \
+                     over {start} — the rule reached only one style",
+                    field.value
+                );
+            }
         }
     }
 }

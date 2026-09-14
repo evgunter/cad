@@ -138,7 +138,7 @@ same tag is already proved through a real document.
 | `verb`/`found` — `MeasureSelectionKind` (`Selected::faces`) | **converted**, through `entity` directly (it holds the key and carries no name). Its `found` moved from `&'static str` to `EntityKind`, which deleted the two hand-written words `"an edge"`/`"a vertex"` — the article is the value's to decide. **The rendered message is byte-identical**, proved by compiling the suite's document rows unchanged on `origin/main` |
 | `wanted`/`found` — `names::interrogate`'s `kind_mismatch` | **not converted, and not a defect of this class**: it is already one home for four call sites and already computes `found.kind()` itself. What differs is the error TYPE (`InterrogateError`, a read-back refusal) and one extra fact it must keep — a whole body has no frame at all, which is `WholeBody` rather than a kind mismatch. Folding it into a door that builds `NodeErrorKind` would put an evaluation refusal and a read-back refusal in one function. The residue is the word `wanted`, recorded below |
 | `expected`/`found` — `stackup.rs` | **not this class at all.** `PairingViolation::ResultArm`'s two words are RESULT ARMS (`Ok`/`Failed`/`Poisoned`) of two evaluations being paired, not entity kinds, and both are already produced by one `arm()` function. Same field names, different subject. PROPS's ground; read, not edited |
-| the recipe road — `mate/member.rs` | filed separately as `work/docm/the-third-datum-axis-phrase-lives-in-mate-member.md`; not read for this unit beyond confirming the row exists |
+| the recipe road — `mate/member.rs` | filed separately as `work/door/the-third-datum-axis-phrase-lives-in-mate-member.md`; not read for this unit beyond confirming the row exists |
 
 ### Three more sites the row's census did not list
 
@@ -161,7 +161,7 @@ all three — and the first pass stopped early.
   already computes its own word and renders through
   `EntityKind::article`/`noun`, so no correctness defect; the residue is
   a third field name for one answer. DOCM's ground; filed as
-  `work/docm/assembly-mint-spells-the-entity-kind-refusal-a-seventh-way.md`.
+  `work/edit/assembly-mint-spells-the-entity-kind-refusal-a-seventh-way.md`.
 
 ### This row closes on a PARTIAL fix, and says so
 
