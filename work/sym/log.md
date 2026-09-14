@@ -592,3 +592,100 @@ the five M10-10 documents, on which
 rows now carry their answers; #2552 merges. The pre-draw fields (M /
 STRUCTURAL) stand: no certification decision moves; the arm says what
 the lane can know and adds no tolerance.
+
+## D3 settled: the plain memo outlives the leaf — SYM-7 opens block SYM-B2 (2026-09-14)
+
+Ev on #2581: "(1) sounds good!" — the drive-scoped plain-form memo,
+keyed by `SymId`, installed by the drive and dropped with it; the
+early and door walks stay per leaf; the three side effects defined
+(the memo carries its atoms; `frozen` becomes distinct-nodes-over-the-
+drive on the drive's receipt with the per-leaf goldens' column
+re-blessed as the acceptance's own move; the opaque-sequence argument
+pinned across leaves). #2581 merged with the answer on the cost row;
+both `[ev]` PRs are closed and no decision is open with Ev. The unit
+is SYM-7 (H / STRUCTURAL, pre-draw), the first slot of block SYM-B2;
+its spec is cut next, the block's other two slots named from the
+slate when it is drawn, and its dispatch waits for a lane (SYM-5's
+fix pass and SYM-6 hold the two heavy lanes; SYM-5's retire at its
+merge).
+
+## Block SYM-B2 cut: SYM-7, SYM-8, SYM-9 (2026-09-14)
+
+Three specs on the slate for the second block, each measurement-first
+in SYM-5's shape (Phase 1 before any code, a stop condition, the
+remedy the measurement picks). **SYM-7** (H / STRUCTURAL) is D3's
+drive-scoped plain memo, shared across the drive's rayon workers so
+the receipt stays schedule-independent — the map the M10-3 receipt
+identity row forces. **SYM-8** (H / NUMERIC) is the wall SYM-5 PR-2's
+R2 found one axis over: a frame tilted about u refuses with rule E on
+exactly as off, the degree wall become a term wall behind
+`copysign(1, 1/sqrt(P))` and `abs(1/sqrt(P))` atoms of a manifestly
+positive quantity — rule F, the manifest sign, gated on the ring
+item's recorded loss (a split that moves down anywhere means the
+predicate narrows or the rule does not ship). **SYM-9** (H / NUMERIC)
+is the ring item's own ask: the ladder makes one attempt per rung, and
+a refused decision may retry at a wider ring or with the opening rule
+off, on refusals only, counted in the receipt. Pre-draw fields and the
+draw go on `sym/b2-block` once the specs are on `main`; SYM-7
+dispatches first, when SYM-5's lanes retire.
+
+## SYM-7 dispatched: block SYM-B2 opens (2026-09-14)
+
+Block SYM-B2 drawn on `sym/b2-block` (pre-draw fields logged first:
+SYM-7 H / STRUCTURAL, SYM-8 H / NUMERIC, SYM-9 H / NUMERIC; byte 56 ⇒
+fable at slot 2, so SYM-7 and SYM-8 run on Opus and SYM-9 on Fable).
+SYM-7 dispatched first, while SYM-5 PR-2 and SYM-6 are in their delta
+rounds; the `drive.rs` seam announced to PROPS. SYM-8 and SYM-9
+dispatch as lanes free.
+
+## SYM-6 merged (2026-09-14): the door's witness on the run's ε, and the refusal arm split by witness kind — block SYM-B1 slot 2, the block's last dual
+
+PR #2604, fix-pass head `8547c73e9`, residue head `7486223dd`, hosted run 34889009592 green on
+the full matrix; ordinal **4702**, sample #197; the v6 dual on
+frozen head `2621bc0a9` — R1 (OPUS) MERGEABLE-AFTER-FIXES 0/4/4,
+rubric 4/3/4; R2 (FABLE) MERGEABLE-AFTER-FIXES 1/1/2, rubric 4/3/4.
+R2's MAJOR overlapped R1's MINOR-4 on the mechanism (the fixture row's
+own assertion shadowed by the registrant's restored one) and was
+UNILATERAL on its second half — a two-ε lie passed the row with
+`registered` drifting 140 → 16 — confirmed by the fix pass (the pinned
+`registered` reds it) and counted for FABLE. One disclosed glimpse (a
+`git worktree list` printing lane paths and tips, nothing read), the
+pair flagged. The row is in `docs/MODEL-AB-LOG.md`'s SYM section.
+
+**What it did.** `Real::register_equal(self, other, tol: Tol)`: the
+`f64` witness's slack is the run's ε relative to the larger magnitude
+and floored at one, `WITNESS_REL` retired with its argument at the
+impl; `tol` arrives at ~25 sweep sites from holders no more than one
+frame away and is never minted (both gates green, re-run by both
+reviewers); `Interval` ignores it — the meet is exact. Then Ev's D2:
+`SymRegistration::Disputed` for an inexact witness's refusal (`f64`,
+`Probe`; counted, never asserted) and `Contradicted` reserved for
+`Interval`'s exact one — a proof — with the registrants' assertion
+restored there, live in every profile (the workspace ships release
+with debug assertions; disclosed, and the right shape: an exact
+refusal is a soundness defect somewhere). No certification decision
+moves: the M10-8/9/10 pins, and both reviewers' own documents at
+three ε rows, byte-identical to the merge base. The adversarial
+torus's refusals per ε row (10 / 15 / 20, all `Disputed`, zero
+`Contradicted`) reproduced to the digit by both.
+
+**What the reviews added.** The fixture-scale row's reach (both; R2 by
+a 2ε lie that passed): it now pins `registered` per document and its
+doc says which of its three assertions catches which lie and at what
+width. Three sentences the split left false, in the allowlist gate's
+own contract, the rim registrant and the registry comment. E12 now
+records the arms (Ev's ruling), beside the ε sentence the lane had
+already re-taken after checking it was never Ev-ratified. A fourth
+hand-written copy of the fixture table found by the sweep the review
+asked for — one `measured_studies` home now. The two registrants'
+mirrored `match` with a wildcard that swallowed every future arm, in a
+PR about arms slipping past wildcards — one exhaustive helper. The
+dangling citation of a file that never existed, fixed and its row
+closed. The honest cost stated: at ε = 1e-6 the door admits sides
+1000× further apart than before, with no extra registration recorded
+on any fixture.
+
+**Fix pass** (the union, two commits to `8547c73e9`): A–F all taken;
+declined — `band`/`tol` unification (pre-existing shape, on the item).
+Delta by R1 on the fixed head: MERGEABLE, all eight items confirmed, five by execution (the 2ε lie reds on the pinned `registered` with `registrations_refused` still 0; a hypothetical eighth arm fails to compile at the exhaustive helper; the gates and the washer pin re-run); three residue items it named taken in one commit (`7486223dd`, run 34892166425 green): the over-band row selects its three documents by name, the `registered` pin's message names its other causes, and R1's 10⁹ slack-shape row is adopted. The witness-slack row closes
+here; the span-identity row closes on the fixture row.

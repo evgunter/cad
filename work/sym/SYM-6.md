@@ -1,11 +1,13 @@
 ---
 id: SYM-6
 kind: unit
-title: the door's witness moves with the run's eps: Tol threaded to register_equal, the slack relative and floored; one refusal arm and a fixture-scale zero-refusals row
-status: dispatched
+title: the door's witness moves with the run's eps: Tol threaded to register_equal, the slack relative and floored; the refusal arm split by witness kind and a fixture-scale zero-refusals row
+status: closed
 opened: 2026-09-14
 branch: sym/6-witness-tol
 refs: [the-witness-slack-is-eps-independent, the-span-identity-is-not-a-theorem-of-the-floats, 2552]
+closed: 2026-09-14
+pr: 2604
 ---
 
 
@@ -20,7 +22,7 @@ adversarial probes re-run at every ε row with their refusal counts
 stated. Phase 3 takes D2 if Ev agrees: one arm, and a fixture-scale
 `registrations_refused == 0` row that closes the span-identity row.
 If Ev picks (0) the slot closes short and this unit is withdrawn.
-Block SYM-B1 slot 2; the full v6 dual. Spec: `docs/SYM-6-SPEC.md`.
+Block SYM-B1 slot 2; the full v6 dual. Spec: `docs/SYM-6-SPEC.md` (deleted at merge; recoverable at `git show 8547c73e9:docs/SYM-6-SPEC.md`).
 
 ## Dispatched (2026-09-14)
 
@@ -38,3 +40,10 @@ inexact witness's refusal (`f64`, `Probe`; counted, never asserted),
 registrants' assertion restored), and the fixture-scale
 zero-refusals row at `Sym<Interval>` that closes the span-identity
 row. The lane was in Phase 1 at the amendment.
+
+## Closed (2026-09-14)
+
+Merged as #2604 (residue head `7486223dd`, run 34892166425). Both rows
+it carried close with it: the witness-slack row on the door, the
+span-identity row on the fixture-scale row. Spec deleted at merge
+(`docs/DOC-LEDGER.md`, per-merge deletion).

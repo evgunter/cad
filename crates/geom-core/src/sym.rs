@@ -643,6 +643,7 @@ use std::rc::Rc;
 use crate::predicate::{Band, Decide, Indeterminate, MarginDiag, Sign};
 use crate::real::{Bounds, CertifiedEnclosure, Real};
 use crate::spline::{KnotVector, SpanLocate, SpanSet};
+use crate::tolerance::Tol;
 
 /// The atom algebra: the rule A/B reductions over a residual.
 #[path = "sym/algebra.rs"]
@@ -977,11 +978,36 @@ pub struct SymCounts {
     /// decisions out of `numeric` — never out of `symbolic_zero` or
     /// `sign_gated`, whose counts are M10-8's on every document.
     pub registered: u64,
-    /// **Registrations the door REFUSED** — `Contradicted` (the lane
-    /// scalar's witness separated the two values) or `Cyclic`. Counted
+    /// **Registrations the door REFUSED** — `Contradicted` or
+    /// `Disputed` (the lane scalar's witness separated the two values,
+    /// by a proof and by a slack respectively) or `Cyclic`. Counted
     /// because a refusal that leaves no trace is a defect nobody sees:
     /// a constructor registering a lie in a real document must show up
     /// in the receipt (R1 m4, R2 MINOR-2).
+    ///
+    /// **One column, and what it means depends on the LANE.** At
+    /// `Sym<Interval>` — the lane the driver replays in — every
+    /// contributing arm is a proof of a defect (`Contradicted`:
+    /// disjoint certified enclosures; `Cyclic`), so a non-zero count on
+    /// a real document is a finding. At `Sym<f64>` the count also
+    /// collects `Disputed`, which may be nothing worse than the
+    /// arithmetic running out of significand, so zero is not something
+    /// to assert there.
+    ///
+    /// **This column is a BACKSTOP and not the loud channel, and the
+    /// difference is measured.** A registrant that starts stating a
+    /// small lie — one the exact witness still ADMITS, because the two
+    /// certified enclosures meet — is never refused, so it never
+    /// reaches this count; what moves is
+    /// [`SymCounts::registered`], which collapses as the registry stops
+    /// discharging. A registrant stating a GEOMETRIC lie is caught
+    /// earlier still, by its own `debug_assert!` on the exact witness's
+    /// refusal, which is live in every profile. What is left for this
+    /// column is `Cyclic` and any future registrant that binds an exact
+    /// refusal instead of asserting on it. The fixture-scale row asserts
+    /// all three together
+    /// (`editor-core/tests/m10_9_pins_interval.rs`,
+    /// `m10_9_no_registrant_lies_on_any_measured_document`).
     pub registrations_refused: u64,
     /// **Decisions where a REGISTERED zero met a DEFINITE numeric
     /// sign** — the two channels in contradiction, which for a
@@ -994,6 +1020,15 @@ pub struct SymCounts {
     /// like any other, so the K vocabulary needs nothing new. What is
     /// new is the RECEIPT's statement that a stated identity was
     /// contradicted.
+    ///
+    /// **It does NOT count [`SymRegistration::Contradicted`]**, despite
+    /// the shared word: that arm is the door REFUSING a registration at
+    /// the moment it is stated, and it lands in
+    /// [`SymCounts::registrations_refused`] with every other refusal.
+    /// This column is about a registration the door ACCEPTED, later
+    /// contradicted by the numeric channel at a decide site — two
+    /// different events, one of which happens after the other could
+    /// not.
     pub registrations_contradicted: u64,
     /// Decisions handed to the numeric channel.
     pub numeric: u64,
@@ -2394,11 +2429,16 @@ impl<T: Real> Sym<T> {
     ///
     /// The lane scalar is asked first ([`Real::register_equal`]): at
     /// [`crate::Interval`] the two certified enclosures must MEET, at
-    /// `f64` the two values must agree to the funnel's own coincidence
-    /// threshold ([`Real::register_equal`]). Where they
-    /// do not, the door records nothing and answers
-    /// [`SymRegistration::Contradicted`], typed, so a constructor that
-    /// does not build what it claims cannot state it. A registration
+    /// `f64` the two values must agree to the run's ε relative to the
+    /// larger magnitude — which is why `tol` is a parameter here, and
+    /// why it is handed down rather than read ([`Real::register_equal`]).
+    /// Where they do not, the door records nothing and answers the lane
+    /// scalar's own refusal arm, forwarded: `Contradicted` from the
+    /// exact witness, `Disputed` from an inexact one. A constructor that
+    /// does not build what it claims therefore cannot state it, and the
+    /// answer says whether the refusal is a PROOF of that or an
+    /// arithmetic that could not tell
+    /// ([`SymRegistration::Disputed`]). A registration
     /// that would close a cycle is refused
     /// [`SymRegistration::Cyclic`] — `form_in`'s termination rests on
     /// a node's id being a hash of its children's, and the registry is
@@ -2437,15 +2477,21 @@ impl<T: Real> Sym<T> {
     /// argument runs.
     #[must_use = "a registration can be REFUSED, and a refusal a caller \
                   drops is a lie nobody sees"]
-    pub fn register_equal(self, other: Self) -> SymRegistration {
-        // The witness first: an unwitnessed or contradicted claim never
-        // reaches the registry at all. A refusal is COUNTED — the
-        // receipt is where a constructor that states a lie becomes
-        // visible.
-        match self.value.register_equal(other.value) {
-            SymRegistration::Contradicted => {
+    pub fn register_equal(self, other: Self, tol: Tol) -> SymRegistration {
+        // The witness first: a claim the value channel refused
+        // (`Contradicted` or `Disputed`) or could not witness
+        // (`Unwitnessed`) never reaches the registry at all. A refusal
+        // is COUNTED — the receipt is where a constructor that states a
+        // lie becomes visible — and the value channel's ARM is FORWARDED unchanged,
+        // because which refusal it is is a fact about the lane scalar's
+        // witness rather than about the registry: `Contradicted` is a
+        // proof (`Interval`'s disjoint certified enclosures),
+        // `Disputed` an inexact witness that could not tell (`f64`,
+        // `Probe`). Both refuse identically here — nothing is recorded.
+        match self.value.register_equal(other.value, tol) {
+            refusal @ (SymRegistration::Contradicted | SymRegistration::Disputed) => {
                 count_registration_refused();
-                return SymRegistration::Contradicted;
+                return refusal;
             }
             SymRegistration::Unwitnessed => return SymRegistration::Unwitnessed,
             _ => {}
@@ -2571,8 +2617,8 @@ impl<T: Real> Real for Sym<T> {
     /// **The one scalar that RECORDS** rather than only witnessing —
     /// the door itself ([`Sym::register_equal`], which carries the
     /// whole of the contract).
-    fn register_equal(self, other: Self) -> SymRegistration {
-        Sym::register_equal(self, other)
+    fn register_equal(self, other: Self, tol: Tol) -> SymRegistration {
+        Sym::register_equal(self, other, tol)
     }
 
     fn powi(self, n: i32) -> Self {
@@ -3269,7 +3315,10 @@ mod tests {
             with_session(budget(), || {
                 let (n, r, resid) = rim(3.0, 4.0, 5.0);
                 if register {
-                    assert_eq!(n.register_equal(r), SymRegistration::Recorded);
+                    assert_eq!(
+                        n.register_equal(r, Tol::witness()),
+                        SymRegistration::Recorded
+                    );
                 }
                 resid.map(how)
             })
@@ -3317,7 +3366,7 @@ mod tests {
                 let z = p("z", 2.0);
                 let to = if gated { (y * y).sqrt() } else { y };
                 assert_eq!(
-                    z.register_equal(to),
+                    z.register_equal(to, Tol::witness()),
                     SymRegistration::Recorded,
                     "both registrations are witnessed at the point"
                 );
@@ -3350,7 +3399,7 @@ mod tests {
             with_session(budget(), || {
                 let (n, r, resid) = rim(0.3, 0.4, 0.5000000001);
                 if register {
-                    let _ = n.register_equal(r);
+                    let _ = n.register_equal(r, Tol::witness());
                 }
                 [resid[0].value.to_bits(), resid[1].value.to_bits()]
             })
@@ -3376,16 +3425,18 @@ mod tests {
     }
 
     /// **A lying registration is refused, typed, and the decisions stay
-    /// numeric** — the planted `‖q − c‖ ≡ 2r`.
+    /// numeric** — the planted `‖q − c‖ ≡ 2r`. This lane's witness is
+    /// `f64`'s, which is inexact, so the arm is `Disputed`: the claim is
+    /// false, and a comparison at a slack cannot say that it is.
     #[test]
     fn a_lying_registration_is_refused_typed() {
         let (how_, counts) = with_session(budget(), || {
             let (n, r, resid) = rim(3.0, 4.0, 5.0);
             let two_r = Sym::from_f64(2.0) * r;
             assert_eq!(
-                n.register_equal(two_r),
-                SymRegistration::Contradicted,
-                "5 is not 10, and the witness says so at the point"
+                n.register_equal(two_r, Tol::witness()),
+                SymRegistration::Disputed,
+                "5 is not 10, and the INEXACT witness at this lane says so at the point"
             );
             resid.map(how)
         });
@@ -3402,10 +3453,16 @@ mod tests {
         let (rows, counts) = with_session(budget(), || {
             let (n, r, resid) = rim(3.0, 4.0, 5.0);
             let first = how(resid[0]);
-            assert_eq!(n.register_equal(r), SymRegistration::Recorded);
+            assert_eq!(
+                n.register_equal(r, Tol::witness()),
+                SymRegistration::Recorded
+            );
             let second = how(resid[0]);
             // Idempotent, and a repeat invalidates nothing.
-            assert_eq!(n.register_equal(r), SymRegistration::Already);
+            assert_eq!(
+                n.register_equal(r, Tol::witness()),
+                SymRegistration::Already
+            );
             [first, second]
         });
         assert_eq!(
@@ -3425,10 +3482,16 @@ mod tests {
         with_session(budget(), || {
             let x = p("w", 1.0);
             let bigger = x * x;
-            assert_eq!(x.register_equal(bigger), SymRegistration::Cyclic);
+            assert_eq!(
+                x.register_equal(bigger, Tol::witness()),
+                SymRegistration::Cyclic
+            );
             // The other direction is not a cycle: `bigger` contains
             // `x`, `x` does not contain `bigger`.
-            assert_eq!(bigger.register_equal(x), SymRegistration::Recorded);
+            assert_eq!(
+                bigger.register_equal(x, Tol::witness()),
+                SymRegistration::Recorded
+            );
         });
     }
 
@@ -3439,11 +3502,69 @@ mod tests {
         let (rows, counts) =
             with_session_rules(budget(), SymRules::shipped_without_the_door(), || {
                 let (n, r, resid) = rim(3.0, 4.0, 5.0);
-                assert_eq!(n.register_equal(r), SymRegistration::Witnessed);
+                assert_eq!(
+                    n.register_equal(r, Tol::witness()),
+                    SymRegistration::Witnessed
+                );
                 resid.map(how)
             });
         assert_eq!(rows, ["numeric", "numeric"]);
         assert_eq!((counts.registered, counts.numeric), (0, 2));
+    }
+
+    /// **The slack's SHAPE, away from the origin** — adopted from R1's
+    /// SYM-6 review row `r1_the_slack_is_relative_and_floored_at_1e9`,
+    /// because nothing else in the suite asserted the
+    /// relative-and-floored spelling anywhere but near 1.
+    ///
+    /// Three claims at one scale, `a = 10⁹`, at whatever ε row the
+    /// process runs at:
+    ///
+    /// - **RELATIVE**: a gap of `k · ε · a` is witnessed for `k` below
+    ///   one and `Disputed` above it, so the slack tracks the magnitude
+    ///   rather than a constant;
+    /// - **FLOORED at one**: the same `k` sweep near zero is compared
+    ///   ABSOLUTELY at ε, so the relative form does not shrink to no
+    ///   slack at all where the magnitudes do;
+    /// - **and a TRUE identity survives**: two values 1000 ULP apart at
+    ///   10⁹ differ by ~1e-7, which an ABSOLUTE ε would refuse at the
+    ///   1e-9 and 1e-12 rows. That refusal is the measurement that
+    ///   killed the absolute spelling (CI run 34048088597), and this is
+    ///   the row that keeps it dead.
+    #[test]
+    fn the_slack_is_relative_and_floored_at_1e9() {
+        let tol = Tol::witness();
+        let eps = tol.eps();
+        let a = 1.0e9_f64;
+        for (k, want) in [
+            (0.99_f64, SymRegistration::Witnessed),
+            (1.01_f64, SymRegistration::Disputed),
+        ] {
+            let b = a + k * eps * a;
+            let got = <f64 as Real>::register_equal(a, b, tol);
+            println!("   k={k} eps={eps:e} a={a:e} b-a={:e} -> {got:?}", b - a);
+            assert_eq!(got, want, "k={k} at eps={eps:e}: the slack is k·ε·|a|");
+        }
+        // The floor: near zero the comparison is ABSOLUTE at ε.
+        assert_eq!(
+            <f64 as Real>::register_equal(1.0e-30, 1.0e-30 + 0.99 * eps, tol),
+            SymRegistration::Witnessed,
+            "inside the floor at eps={eps:e}"
+        );
+        assert_eq!(
+            <f64 as Real>::register_equal(1.0e-30, 1.0e-30 + 1.01 * eps, tol),
+            SymRegistration::Disputed,
+            "outside the floor at eps={eps:e}"
+        );
+        // A true identity at 1e9 whose two sides differ by rounding only.
+        let rounded = f64::from_bits(a.to_bits() + 1000);
+        println!("   1000 ulp at 1e9 is {:e}", rounded - a);
+        assert_eq!(
+            <f64 as Real>::register_equal(a, rounded, tol),
+            SymRegistration::Witnessed,
+            "a true identity at 1e9 must be witnessed at eps={eps:e}; an absolute ε \
+             refuses it, which is why the slack is relative"
+        );
     }
 
     /// **Outside a session the claim is witnessed and nothing is
@@ -3452,21 +3573,25 @@ mod tests {
     #[test]
     fn the_hook_is_a_no_op_off_the_symbolic_scalar() {
         assert_eq!(
-            <f64 as Real>::register_equal(1.0, 1.0 + 1e-15),
+            <f64 as Real>::register_equal(1.0, 1.0 + 1e-15, Tol::witness()),
             SymRegistration::Witnessed
         );
         assert_eq!(
-            <f64 as Real>::register_equal(1.0, 2.0),
-            SymRegistration::Contradicted
+            <f64 as Real>::register_equal(1.0, 2.0, Tol::witness()),
+            SymRegistration::Disputed,
+            "an INEXACT witness never answers Contradicted"
         );
         assert_eq!(
-            <f64 as Real>::register_equal(f64::NAN, 1.0),
+            <f64 as Real>::register_equal(f64::NAN, 1.0, Tol::witness()),
             SymRegistration::Unwitnessed
         );
         // Outside `with_session` there is no table to record in.
         let a = Sym::<f64>::from_f64(2.0);
         let b = Sym::<f64>::from_f64(2.0);
-        assert_eq!(a.register_equal(b), SymRegistration::Witnessed);
+        assert_eq!(
+            a.register_equal(b, Tol::witness()),
+            SymRegistration::Witnessed
+        );
     }
 
     /// **Claim 9 — the axiom agrees with the tier where the tier can
@@ -3546,7 +3671,10 @@ mod tests {
         let (rows, counts) = with_session(budget(), || {
             let [p_end, q_to, resid] = span(0.4, 0.0);
             for (a, b) in p_end.into_iter().zip(q_to) {
-                assert_eq!(a.register_equal(b), SymRegistration::Recorded);
+                assert_eq!(
+                    a.register_equal(b, Tol::witness()),
+                    SymRegistration::Recorded
+                );
             }
             resid.map(how)
         });
@@ -3558,9 +3686,9 @@ mod tests {
             let [p_end, q_to, resid] = span(0.4, 1.0e-3);
             for (a, b) in p_end.into_iter().zip(q_to) {
                 assert_eq!(
-                    a.register_equal(b),
-                    SymRegistration::Contradicted,
-                    "the witness separates a displaced far vertex"
+                    a.register_equal(b, Tol::witness()),
+                    SymRegistration::Disputed,
+                    "the inexact witness separates a displaced far vertex"
                 );
             }
             resid.map(how)
@@ -3579,7 +3707,7 @@ mod tests {
         let run = || {
             with_session(budget(), || {
                 let (n, r, resid) = rim(3.0, 4.0, 5.0);
-                let _ = n.register_equal(r);
+                let _ = n.register_equal(r, Tol::witness());
                 // The registrant's node, recomputed: `Vec3::norm` is
                 // `norm_squared().sqrt()` and ids are content hashes, so
                 // the consumer's divisor is the very node registered.

@@ -362,9 +362,25 @@ EXIT 0 FROM THEM.** This register and every dispatch built on it said
 `--skip-viewer-toolkit` itself and hands everything else to
 `gate_parse_args` (`scripts/gates/lib.sh:55-64`), whose `*)` arm prints
 `usage: scripts/doc-gate.sh [--selftest] [--root DIR]` and **exits 2**.
-Verified by running it. The real commands are the ones CI runs
-(`ci.yml:1804-1808`): `scripts/doc-gate.sh --selftest`, then
-`scripts/doc-gate.sh`, then `scripts/doc-gate.sh --skip-viewer-toolkit`.
+Verified by running it. The real commands are
+`scripts/doc-gate.sh --selftest`, `scripts/doc-gate.sh`, and
+`scripts/doc-gate.sh --skip-viewer-toolkit`.
+
+**But do not say "the ones CI runs", because CI never runs all three.**
+`ci.yml:1802-1809`'s `rustdoc (gate)` step runs `--selftest` and then
+an **if/else**: `scripts/doc-gate.sh` when
+`needs.filter.outputs.run_viewer_toolkit` is `true`, else
+`scripts/doc-gate.sh --skip-viewer-toolkit`. They are alternatives on
+every run, never both. The orchestrator wrote *"CI runs 1, 2, 3"* into
+several dispatches and into this register; #2561's lane read the
+workflow and said so.
+
+**That wording undercut the very rule it introduced.** The reason a
+viewer lane owes BOTH passes locally is that CI runs exactly ONE of
+them, so the other is covered by nothing anywhere — and a brief that
+says CI runs both hands the lane a reason to skip the local run. A
+mis-stated justification for a correct rule is worse than none: it
+survives review because the rule it guards is right.
 
 Several lanes reported **exit 0** for the non-existent invocation. A
 command that cannot run cannot return 0, so those receipts were not

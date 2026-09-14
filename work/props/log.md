@@ -1127,3 +1127,33 @@ parameter in `crates/geom-core/src/real.rs` (PROPS' file) and the
 `WITNESS_REL` retired; `interval.rs`'s impl ignores the parameter (the
 meet is exact) and says so. Ev's D1 = (1) on `[ev]` #2552. Nothing
 else in `real.rs` moves; D2 (the refusal arms) is held on the same PR.
+
+**(SYM orchestrator) Seam amendment, 2026-09-14 — SYM-6** (PR #2604):
+the lane also re-took one paragraph of `docs/ERROR-DESIGN.md` (E12's
+sentence that the point witness is ε-INDEPENDENT, which cited the
+`WITNESS_REL` this PR deletes) in the present tense, nothing else in
+E12; the sentence was M10-9's fix pass's (`4f8262ad9`, agent-authored,
+no Ev ratification found by `git log -S`), and Ev's D1 = (1) on #2552
+is what reversed it. Disclosed in the PR body; the dual reads it. A
+row on this slate from the same lane:
+`register-equals-witness-limits-citation-names-no-file`.
+
+**(SYM orchestrator) Seam amendment, 2026-09-14 — SYM-6 fix pass** (PR
+#2604): the fix pass also re-points `Real::register_equal`'s dangling
+citation of `m10_9_witness_limits_interval.rs` (a file that never
+existed) at the rows that establish the clause, in the same doc
+paragraph the unit re-takes, and closes the row the lane had filed
+here (`register-equals-witness-limits-citation-names-no-file`) as
+fixed by that PR; and adds one sentence to E12 in
+`docs/ERROR-DESIGN.md` recording the refusal arms by witness kind (Ev's
+D2 on #2552), beside the ε sentence already disclosed.
+
+**(SYM orchestrator) Seam announced, 2026-09-14 — SYM-7** (`sym/7-plain-memo`,
+`docs/SYM-7-SPEC.md`): `crates/editor-core/src/drive.rs` (PROPS') gains
+the creation of one `DriveMemo` per drive around the level loop,
+passed into `classify`'s `with_session_rules` call, a `DriveConfig.plain_memo`
+flag (default on), and `frozen` on the drive's receipt re-defined as
+distinct nodes frozen over the drive (its `serialize`/`render` docs) —
+nothing else in that file. Ev's D3 = (1) on `[ev]` #2581. The M10-3
+receipt-identity row across schedules is the acceptance the memo is
+shared (not per worker) to keep.

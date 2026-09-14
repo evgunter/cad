@@ -2,9 +2,10 @@
 id: the-witness-slack-is-eps-independent
 kind: issue
 title: the door's f64 witness is a relative constant, not the run's eps: at a tight eps row it is many band-widths loose
-status: open
+status: closed
 opened: 2026-09-06
 parent: SYM-6
+closed: 2026-09-14
 ---
 
 **Raised in review of M10-9** (R1, on the registered-identity door),
@@ -126,3 +127,56 @@ tolerance and is not recommended.
 
 "definitely (1)" on #2552. Taken as SYM-6 (`docs/SYM-6-SPEC.md`,
 block SYM-B1 slot 2); this row closes at its merge.
+
+## Taken by SYM-6 (PR #2604), with what departed from this file's words
+
+**Route (1) above is what shipped**, on Ev's D1 pick on `[ev]` #2552:
+`Real::register_equal(self, other, tol: Tol)`, `tol` handed down through
+`swept::placed_segment_spec` and the revolve/extrude registrants from the
+nearest holder, and `WITNESS_REL` deleted.
+
+**The slack is `tol.eps() · max(|a|, |b|, 1)`, and that is NOT the
+formula the picked route's own text on #2552 wrote.** That text said
+`max(tol.eps(), WITNESS_REL · scale)`, which floors the slack at
+`1e-9 · scale` — and a floor at the old constant defeats the whole point
+at a tight ε row, where the unit's claim is that the witness TIGHTENS.
+What shipped is the spec's formula (`docs/SYM-6-SPEC.md`, "The claim"),
+it is strictly better, and the departure from the route's wording is
+recorded here because it was disclosed nowhere else.
+
+**The cost, both directions, measured.** At ε = 1e-12 the tube-wall
+torus probe's refusals rise 15 → 20 and `mesh`'s far-placed ball picks up
+its first; at ε = 1e-6 they fall 46 → 10, which is the honest cost: the
+door admits sides a thousand times further apart than the retired 1e-9
+constant did. No additional registration is recorded on any measured
+document at any row (`registered` is pinned per document by
+`m10_9_no_registrant_lies_on_any_measured_document`).
+
+### Absolute-scale limits that sit UNDER this row, noted by both reviews
+
+Neither is a defect of this row and neither is filed as one; both bound
+what a far-from-the-origin probe of the door can reach.
+
+- **The residual gates are absolute-ε and refuse first.** At
+  ε ∈ {1e-9, 1e-12} a body at coordinates of 10⁹ is refused UPSTREAM of
+  the door by the certification residual gates, before the door's answer
+  could matter (R2 NOTE-2); R1's far washer at 10⁹ refuses on
+  `carrier_endpoint_end`. The registrants still run before the refusal,
+  so the door stays testable at that scale — which is how both reviewers
+  measured claim 2 there.
+- **`Sym<f64>`/`Sym<Probe>` panic far from the origin, off this door**:
+  `work/sym/sym-f64-far-placement-trips-the-theorem-vs-numeric-assert`
+  (R2's row, reproduced at the merge base). It stands in the way of any
+  future fixture-scale row that wants to drive `Sym<f64>` far out, e.g.
+  one counting `Disputed` on the M10-10 documents.
+
+### Two shapes seen and DECLINED for SYM-6 (R2 Q1)
+
+- `band: Band` and `tol: Tol` now travel side by side through the extrude
+  and revolve frames; `Band::linear(tol)` derives one from the other, so
+  the pair is redundant at every frame that carries both. Pre-existing and
+  wider than this door.
+- `SymCounts::registrations_refused` is incremented from two places
+  (`Sym::register_equal`'s forwarded refusal arm and the cyclic arm),
+  which is why "what the column counts" needs a paragraph rather than a
+  line. Pre-existing.
