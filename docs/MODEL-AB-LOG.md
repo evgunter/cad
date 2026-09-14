@@ -6405,6 +6405,25 @@ min lost to the restart), fix ≈180 min, R1 ≈70 min, R2 ≈31 min
 head). Tally after this entry: candidates +4 (code class: D265, this;
 doc class, recorded and excluded: S330, S93).
 
+Edge-kind-door review ordinal fixed at dispatch (2026-09-14, PR #2587
+open — frozen head `36d4b9e76`; unit
+`work/topo/edge-carrier-kind-has-no-readback-door.md`): **ordinal
+2711** (TOPO band). Pre-draw fields (logged in `work/topo/log.md` at
+`4b813113a` BEFORE block TOPO-B4 was drawn — clean): difficulty **S**,
+task class **STRUCTURAL**. Implementer arm per block TOPO-B4 slot 2
+(record branch-side on `topo/b4-block`; byte 223 ⇒ fable at slot 1, so
+slot 2 is OPUS). Protocol v6 dual: draw = `/dev/urandom` byte **127**,
+parity 1 ⇒ **R1 = FABLE, R2 = OPUS**. Method, recorded before either
+review runs: CONCURRENT same-head on frozen `36d4b9e76`, both briefs
+authored and STORED with sha256 before either dispatches (identical
+text modulo lane name, target and scratch paths, verified by diff: 4
+lines), neither reviewer sees the other's report, v6 item 5 isolation
+in both briefs; the implementer's unit log entry is not written until
+the dual concludes. Shared-box note applying to BOTH arms equally: one
+4-core cloud box, no other lane live, `-j2`; R1's target is the
+implementer's warm one, R2's a copy of it with the incremental cache
+dropped — wall-clock asymmetry only.
+
 ## SYM program rows (work/sym/; band 4700–4799; blocks named SYM-B<n>)
 
 SYM-4 review ordinal fixed at dispatch (2026-09-14, PR #2565 open —
