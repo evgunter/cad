@@ -1140,7 +1140,6 @@ impl SymRules {
     pub const fn shipped_without_the_door() -> Self {
         Self {
             registered: false,
-            common_factor: false,
             ..Self::shipped()
         }
     }

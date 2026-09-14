@@ -410,3 +410,100 @@ fn sym5_tilted_derived_guided_budget_ladder() {
         );
     }
 }
+
+/// **SYM-5's pin: the derived boss on a tilted frame certifies where
+/// its authored twin does.** The acceptance row of the unit, under
+/// BOTH `ProfileLift`s, at the widths the twin certifies at on the
+/// symbolic lane.
+///
+/// What carries it is rule E ([`SymRules::common_factor`], the
+/// quotient's common factor): with the rule off — `without_rule_e`,
+/// M10-10's tier bit for bit — the derived boss refuses under `Guided`
+/// on `newell_plane_residual` while the twin certifies, and that
+/// asymmetry is asserted here too, so the pin says what the rule is
+/// for and not only that it works.
+///
+/// At a half-width of `5e-2` the derived boss still refuses, and the
+/// refusal is NOT the tier's: it is the clause-1 `Invalid` margin
+/// `work/props/a-widened-derived-placement-normalises-a-straddling-newell-sum`
+/// carries, the same one PR-1 measured on the translated document.
+/// That is asserted by name below — it is a defect pinned as the
+/// current behaviour, and when that row is answered this assertion
+/// fails and the width joins the parity list above it.
+#[test]
+fn m10_the_tilted_derived_boss_certifies_where_its_authored_twin_does() {
+    let eps = Tol::witness().eps();
+    for half in [eps / 8.0, 1.0e-3] {
+        for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
+            let authored = sym(
+                &boss_on_tilted(half, false),
+                lift,
+                SymRules::shipped(),
+                budget(),
+            )
+            .0;
+            let derived = sym(
+                &boss_on_tilted(half, true),
+                lift,
+                SymRules::shipped(),
+                budget(),
+            )
+            .0;
+            assert!(
+                authored.is_empty(),
+                "half={half:e} {lift:?}: the authored twin certifies: {authored:?}"
+            );
+            assert!(
+                derived.is_empty(),
+                "half={half:e} {lift:?}: the derived boss must certify where its twin does — \
+                 this is rule E's acceptance row: {derived:?}"
+            );
+        }
+    }
+
+    // Rule E is what carries it: with the rule off the derived boss
+    // refuses under Guided where the twin certifies.
+    let off = SymRules::without_rule_e();
+    let (derived_off, _) = sym(
+        &boss_on_tilted(1.0e-3, true),
+        ProfileLift::Guided,
+        off,
+        budget(),
+    );
+    let (authored_off, _) = sym(
+        &boss_on_tilted(1.0e-3, false),
+        ProfileLift::Guided,
+        off,
+        budget(),
+    );
+    assert!(
+        authored_off.is_empty(),
+        "the twin certifies with rule E off too: {authored_off:?}"
+    );
+    assert_eq!(
+        derived_off.len(),
+        1,
+        "without rule E the derived boss refuses: {derived_off:?}"
+    );
+    assert!(
+        derived_off[0].contains("newell_plane_residual"),
+        "and it refuses on the side plane's newell residual: {derived_off:?}"
+    );
+
+    // The one width still refused, and the reason, read off the kernel.
+    let (wide, _) = sym(
+        &boss_on_tilted(5.0e-2, true),
+        ProfileLift::Guided,
+        SymRules::shipped(),
+        budget(),
+    );
+    assert_eq!(wide.len(), 1, "one refusal at 5e-2: {wide:?}");
+    assert!(
+        wide[0].contains("newell_plane_residual") && wide[0].contains("margin is invalid"),
+        "THIS PINS A DEFECT AS THE CURRENT BEHAVIOUR, NOT A DESIRED ONE: at 5e-2 the tier has \
+         done its work and clause 1 refuses first — newell normalises a cross-sum whose \
+         enclosure contains zero \
+         (work/props/a-widened-derived-placement-normalises-a-straddling-newell-sum). When that \
+         row is answered this assertion FAILS and 5e-2 joins the parity list above: {wide:?}"
+    );
+}
