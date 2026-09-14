@@ -1018,6 +1018,9 @@ impl<T: Decide> Body<T> {
     /// The pcurve limb of the loop-re-parenting doors: drops every
     /// stored row of `r#loop` when the loop's new face is on a
     /// different CHART from its old one.
+    /// [`Body::drop_run_rows_on_chart_change`] is the same answer for
+    /// a RUN of half-edges that moves between two faces' loops, and
+    /// this delegates to it once the loop is walked.
     ///
     /// A pcurve row is a curve stated in a FACE's chart, keyed on a
     /// half-edge ([`crate::pcurves`]). Re-parenting a loop changes
@@ -1089,7 +1092,44 @@ impl<T: Decide> Body<T> {
         let crate::pcurves::LoopRows::Cycle(cycle) = crate::pcurves::loop_rows(self, r#loop) else {
             return;
         };
-        for half_edge in cycle {
+        self.drop_run_rows_on_chart_change(&cycle, from, to);
+    }
+
+    /// [`Body::drop_rows_on_chart_change`] for a RUN of half-edges:
+    /// the same answer one level down, where what moves between two
+    /// faces' loops is not a whole loop but a contiguous run of one.
+    ///
+    /// Two doors move a run: [`Body::mef`]'s chord surgery moves
+    /// `[he1 .. he2)` into the loop of the face it mints, and
+    /// [`Body::kef`]'s unsplice moves the dying loop's remnant into
+    /// the mate's loop on the face that survives. Each row on the run
+    /// changes which chart it is stated in exactly as a re-parented
+    /// loop's rows do, and the disposition is the loop door's: same
+    /// chart, every row on the run stands; a different chart, every
+    /// row on the run goes, deriving nothing. The rows OFF the run —
+    /// the destination loop's own, which are stated in the destination
+    /// chart already — are not this door's to touch, which is why the
+    /// loop door cannot be used here: it would drop the surviving
+    /// loop's rows with the run's.
+    ///
+    /// `run` is what the door's own plan phase walked and holds — the
+    /// keys it writes `parent_loop` on — so the rows dropped are
+    /// exactly the rows the destination face's walk
+    /// ([`crate::pcurves::loop_rows`]) will attribute to the moved
+    /// half-edges once the splice is done. Infallible on the loop
+    /// door's terms; the predicate, the argument for dropping rather
+    /// than re-stating and the cost of the drop are stated there and
+    /// hold here unchanged.
+    pub(crate) fn drop_run_rows_on_chart_change(
+        &mut self,
+        run: &[HalfEdgeKey],
+        from: SurfaceKey,
+        to: SurfaceKey,
+    ) {
+        if self.same_chart(from, to) {
+            return;
+        }
+        for &half_edge in run {
             self.pcurves.remove(half_edge);
         }
     }

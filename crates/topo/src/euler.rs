@@ -1568,6 +1568,19 @@ impl<T: Decide> Body<T> {
     /// `Cycle::first` becomes `he_plus` (its previous first may have
     /// moved to the new loop), the new loop's is `he_minus`.
     ///
+    /// **Pcurve rows** ([`crate::pcurves`]): the moved run's stored
+    /// rows are curves stated in the OLD face's chart. Where the new
+    /// face is on the same chart — [`FaceSurface::Inherit`], a
+    /// [`FaceSurface::Shared`] naming the old key or one the body
+    /// records as the same description ([`Body::same_chart`]) — they
+    /// stand; under any other surface the run's rows are DROPPED, for
+    /// the reasons and with the consequences
+    /// [`Body::drop_run_rows_on_chart_change`] states. The two halves
+    /// this op mints carry no row on either face: a new edge's chart
+    /// image would have to be derived, which these `Decide` doors do
+    /// not do, so a curved face this op touches is left for the
+    /// caller's re-mint ([`crate::pcurves::mint_pcurves`]).
+    ///
     /// # Surgery (Chords, `he1 != he2`)
     ///
     /// The run `[he1 .. he2)` in `next` order moves to the new loop;
@@ -2133,6 +2146,9 @@ impl<T: Decide> Body<T> {
             };
             he.parent_loop = new_loop;
         }
+        // The run's rows are stated in the old face's chart, and stand
+        // on the new face only where that is the same chart.
+        self.drop_run_rows_on_chart_change(&run, inherit_surface, surface);
         // Re-anchor both loops deterministically (the old loop's first
         // may have migrated to the new loop).
         let Some(l) = self.get_loop_mut(loop_key) else {

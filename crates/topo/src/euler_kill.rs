@@ -744,6 +744,17 @@ impl<T: Decide> Body<T> {
     /// survivors (or `None` in the `Lone` inverse, where the surviving
     /// loop becomes [`LoopBoundary::Empty`]).
     ///
+    /// **Pcurve rows** ([`crate::pcurves`]): the remnant's stored rows
+    /// are curves stated in the DYING face's chart. Where the surviving
+    /// face is on the same chart — one key, or two the body records as
+    /// one description ([`Body::same_chart`]) — they stand; on any
+    /// other chart the remnant's rows are DROPPED, for the reasons and
+    /// with the consequences [`Body::drop_run_rows_on_chart_change`]
+    /// states. The surviving loop's own rows are untouched either way.
+    /// Which is why the surviving face RESOLVES in the plan phase
+    /// below: its chart is what the mutation phase reads, and a
+    /// mutation phase reads nothing it has not proven.
+    ///
     /// # Precondition check order
     ///
     /// `he` resolves ([`EulerOpError::StaleKey`]); its edge resolves
@@ -757,7 +768,8 @@ impl<T: Decide> Body<T> {
     /// [`Body::mfkrh`]-then-`kef` for the self-loop variant); both
     /// loops resolve (`StaleKey`) and are cycles
     /// ([`EulerOpError::LoopNotCycle`]); both faces resolve
-    /// (`StaleKey`); the dying face is ring-free
+    /// (`StaleKey` — the dying one, then the surviving one); the dying
+    /// face is ring-free
     /// ([`EulerOpError::FaceHasRings`]); its shell resolves
     /// (`StaleKey`); the dying loop's cycle closes
     /// ([`EulerOpError::LoopCycleBroken`]); `prev(he)` and the mate's
@@ -810,6 +822,17 @@ impl<T: Decide> Body<T> {
         let f1_data = self.get_face(f1).cloned().ok_or(EulerOpError::StaleKey {
             key: EntityId::Face(f1),
         })?;
+        // The surviving face is where the remnant lands, and its chart
+        // decides the remnant's rows; a loop whose face does not
+        // resolve is the tier-1 corruption the dying side is refused
+        // for, in the same words.
+        let f2 = l2_data.face;
+        let f2_surface = self
+            .get_face(f2)
+            .map(|face| face.surface)
+            .ok_or(EulerOpError::StaleKey {
+                key: EntityId::Face(f2),
+            })?;
         if !f1_data.rings.is_empty() {
             return Err(EulerOpError::FaceHasRings { face: f1 });
         }
@@ -857,6 +880,12 @@ impl<T: Decide> Body<T> {
             };
             half_edge.parent_loop = l2;
         }
+        // The remnant's rows are stated in the dying face's chart, and
+        // stand on the surviving face only where that is the same
+        // chart. Before the kills: the compare reads both surface keys,
+        // and the orphan sweep below can reap the dying one.
+        let remnant_keys: Vec<HalfEdgeKey> = remnant.iter().copied().map(Live::key).collect();
+        self.drop_run_rows_on_chart_change(&remnant_keys, f1_data.surface, f2_surface);
         // Splice (derived as mef's exact inverse — module docs diagram).
         let m_alone = d.key() == m; // mate's loop was [m]
         // `b` absent = the dying loop was [he] alone; see its binding.
@@ -1981,6 +2010,26 @@ mod tests {
         assert_err_deep_unchanged(&mut body, &EulerOpError::SameFace { face }, |b| {
             b.kef(he1).unwrap_err()
         });
+    }
+
+    /// The surviving face is where the remnant lands and whose chart
+    /// decides the remnant's rows, so a surviving loop whose face does
+    /// not resolve is refused in the plan phase, typed as the dying
+    /// side's same corruption is, and the body is untouched.
+    #[test]
+    fn kef_refuses_a_surviving_loop_whose_face_does_not_resolve() {
+        let (mut body, _seed, _seg, split) = ops_pillow();
+        let m = body.get_edge(split.edge).unwrap().he_plus;
+        assert_eq!(m, split.he_plus);
+        let l2 = body.get_half_edge(m).unwrap().parent_loop;
+        body.get_loop_mut(l2).unwrap().face = FaceKey::default();
+        assert_err_deep_unchanged(
+            &mut body,
+            &EulerOpError::StaleKey {
+                key: EntityId::Face(FaceKey::default()),
+            },
+            |b| b.kef(split.he_minus).unwrap_err(),
+        );
     }
 
     #[test]
