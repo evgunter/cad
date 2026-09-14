@@ -62,7 +62,7 @@ use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::null::{CurveGeom, NullEdge, NullFacePair};
 use crate::param_source::{FieldSources, ParamAttachError, ParamSource, SurfaceField};
 use crate::provenance::Provenance;
-use crate::source::{GeomSource, SourceAttachError};
+use crate::source::{GeomOrigin, GeomSource, OriginMark, SourceAttachError};
 
 /// Outcome of a bounded half-edge traversal (crate-internal; the public
 /// wrappers collapse the failure cases to `None`).
@@ -174,12 +174,22 @@ pub struct Body<T: Real> {
     // exactly as provenance parallels the topology arenas: the recipe
     // source of each description, stamped by the recipe layer
     // (`editor-core`) after each op and carried by clone and graft.
-    // An absent row = no recipe source (raw/kernel-level
-    // construction); absence never certifies coincidence (the
-    // ladder's conservative direction).
+    // An absent row = no recipe source; absence never certifies
+    // coincidence (the ladder's conservative direction). What that
+    // absence MEANS is the origin maps' below, never inferred here.
     pub(crate) point_sources: SecondaryMap<PointKey, GeomSource>,
     pub(crate) curve_sources: SecondaryMap<CurveKey, GeomSource>,
     pub(crate) surface_sources: SecondaryMap<SurfaceKey, GeomSource>,
+    // The origin channel beside the source maps: the positive record
+    // of where a description with NO `GeomSource` came from
+    // (`crate::source::OriginMark`). A row here and a row in the
+    // corresponding source map are mutually exclusive by construction
+    // — the stamping doors drop the mark, the clearing door writes one
+    // only where it dropped a source — so `Body::surface_origin` and
+    // its siblings answer one arm and never two.
+    pub(crate) point_origins: SecondaryMap<PointKey, OriginMark>,
+    pub(crate) curve_origins: SecondaryMap<CurveKey, OriginMark>,
+    pub(crate) surface_origins: SecondaryMap<SurfaceKey, OriginMark>,
     // ParamSource records (VERB-SEAT-DESIGN P1), one level finer than
     // the GeomSource maps above: the recipe expression behind each
     // STORED SCALAR FIELD of a surface description, stamped by the
@@ -227,6 +237,9 @@ impl<T: Real> Body<T> {
             point_sources: SecondaryMap::new(),
             curve_sources: SecondaryMap::new(),
             surface_sources: SecondaryMap::new(),
+            point_origins: SecondaryMap::new(),
+            curve_origins: SecondaryMap::new(),
+            surface_origins: SecondaryMap::new(),
             surface_field_sources: SecondaryMap::new(),
             #[cfg(debug_assertions)]
             surgery: crate::surgery::SurgeryDepth::default(),
@@ -445,6 +458,7 @@ impl<T: Real> Body<T> {
             return false;
         };
         self.curve_sources.remove(curve);
+        self.curve_origins.remove(curve);
         for surface in Self::description_surfaces(&removed) {
             self.remove_surface_if_orphaned(surface);
         }
@@ -474,6 +488,7 @@ impl<T: Real> Body<T> {
         let removed = self.surfaces.remove(surface).is_some();
         if removed {
             self.surface_sources.remove(surface);
+            self.surface_origins.remove(surface);
             self.surface_field_sources.remove(surface);
         }
         removed
@@ -512,6 +527,7 @@ impl<T: Real> Body<T> {
         let removed = self.points.remove(point).is_some();
         if removed {
             self.point_sources.remove(point);
+            self.point_origins.remove(point);
         }
         removed
     }
@@ -521,20 +537,81 @@ impl<T: Real> Body<T> {
     // ------------------------------------------------------------------
 
     /// The recipe source of a surface description, if the recipe layer
-    /// stamped one (`None` for raw/kernel-level constructions — never
-    /// coincidence-certifying).
+    /// stamped one — never coincidence-certifying.
+    ///
+    /// **`None` answers "is there a recipe source", not "where did
+    /// this come from".** Reading it as the second question conflates
+    /// an import, a hand-built description, a kernel-derived one and a
+    /// CLEARED one whose re-stamp never ran; [`Body::surface_origin`]
+    /// is the total read that separates them.
     pub fn surface_source(&self, key: SurfaceKey) -> Option<&GeomSource> {
         self.surface_sources.get(key)
     }
 
-    /// The recipe source of a curve description ([`Body::surface_source`]).
+    /// The recipe source of a curve description ([`Body::surface_source`]),
+    /// with the same caveat on `None` ([`Body::curve_origin`]).
     pub fn curve_source(&self, key: CurveKey) -> Option<&GeomSource> {
         self.curve_sources.get(key)
     }
 
-    /// The recipe source of a point ([`Body::surface_source`]).
+    /// The recipe source of a point ([`Body::surface_source`]), with the
+    /// same caveat on `None` ([`Body::point_origin`]).
     pub fn point_source(&self, key: PointKey) -> Option<&GeomSource> {
         self.point_sources.get(key)
+    }
+
+    /// **Where the surface description at `key` came from**
+    /// ([`GeomOrigin`]) — total over live keys, with no absence arm.
+    ///
+    /// `None` here is not an origin and never was one: it is the key
+    /// failing to resolve, the same answer [`Body::get_face`] and every
+    /// other lookup on this type gives a stale key. A live description
+    /// always has an origin, and that is the point of the door.
+    pub fn surface_origin(&self, key: SurfaceKey) -> Option<GeomOrigin<'_>> {
+        self.surfaces.get(key)?;
+        Some(Self::origin_of(
+            self.surface_sources.get(key),
+            self.surface_origins.get(key),
+        ))
+    }
+
+    /// Where the curve description at `key` came from
+    /// ([`Body::surface_origin`]).
+    pub fn curve_origin(&self, key: CurveKey) -> Option<GeomOrigin<'_>> {
+        self.curves.get(key)?;
+        Some(Self::origin_of(
+            self.curve_sources.get(key),
+            self.curve_origins.get(key),
+        ))
+    }
+
+    /// Where the point at `key` came from ([`Body::surface_origin`]).
+    pub fn point_origin(&self, key: PointKey) -> Option<GeomOrigin<'_>> {
+        self.points.get(key)?;
+        Some(Self::origin_of(
+            self.point_sources.get(key),
+            self.point_origins.get(key),
+        ))
+    }
+
+    /// The one fold all three origin readers share: a recipe stamp is
+    /// the origin where there is one, a recorded mark otherwise, and
+    /// [`GeomOrigin::KernelDirect`] where neither door has spoken.
+    ///
+    /// The two inputs are never both `Some` — [`Body::set_surface_source`]
+    /// and its siblings drop the mark when they stamp, and
+    /// [`Body::clear_geom_sources`] writes a mark only where it removed
+    /// a stamp — so the arm order here is exhaustiveness, not a
+    /// precedence rule a caller could be surprised by.
+    fn origin_of<'a>(
+        source: Option<&'a GeomSource>,
+        mark: Option<&OriginMark>,
+    ) -> GeomOrigin<'a> {
+        match (source, mark) {
+            (Some(source), _) => GeomOrigin::Recipe(source),
+            (None, Some(mark)) => mark.origin(),
+            (None, None) => GeomOrigin::KernelDirect,
+        }
     }
 
     /// Stamps (or replaces) the recipe source of a surface description
@@ -553,6 +630,11 @@ impl<T: Real> Body<T> {
             return Err(SourceAttachError::StaleKey);
         }
         self.surface_sources.insert(key, source);
+        // The description's origin is now the recipe: whatever
+        // non-recipe origin it carried is superseded, and a
+        // `GeomOrigin::Cleared` mark is discharged exactly here — this
+        // IS the re-stamp the clearing door expects.
+        self.surface_origins.remove(key);
         Ok(())
     }
 
@@ -571,6 +653,7 @@ impl<T: Real> Body<T> {
             return Err(SourceAttachError::StaleKey);
         }
         self.curve_sources.insert(key, source);
+        self.curve_origins.remove(key);
         Ok(())
     }
 
@@ -588,6 +671,7 @@ impl<T: Real> Body<T> {
             return Err(SourceAttachError::StaleKey);
         }
         self.point_sources.insert(key, source);
+        self.point_origins.remove(key);
         Ok(())
     }
 
@@ -655,10 +739,56 @@ impl<T: Real> Body<T> {
     /// channels: a rigid map rewrites a description's bits but cannot
     /// change a radius, so a field's identity survives the placement
     /// verbatim (`crate::param_source`).
+    ///
+    /// **The clear leaves a trace the re-stamp overwrites.** Every
+    /// description that held a source reads [`GeomOrigin::Cleared`]
+    /// afterwards ([`Body::surface_origin`]), so a lost re-stamp is a
+    /// state a reader can NAME rather than a silence it cannot tell
+    /// from a hand-built body's. Descriptions that held no source are
+    /// untouched: their origin did not change, because nothing was
+    /// dropped.
     pub fn clear_geom_sources(&mut self) {
-        self.point_sources.clear();
-        self.curve_sources.clear();
-        self.surface_sources.clear();
+        for (key, _) in self.point_sources.drain() {
+            self.point_origins.insert(key, OriginMark::Cleared);
+        }
+        for (key, _) in self.curve_sources.drain() {
+            self.curve_origins.insert(key, OriginMark::Cleared);
+        }
+        for (key, _) in self.surface_sources.drain() {
+            self.surface_origins.insert(key, OriginMark::Cleared);
+        }
+    }
+
+    /// **Declares every description this body now holds to have been
+    /// adopted from an exchange file** ([`GeomOrigin::Imported`], D7) —
+    /// the importer's door, called once on the body it ships.
+    ///
+    /// Body-wide rather than per-key because that is the claim a
+    /// producer is in a position to make: an importer knows the whole
+    /// body came out of a file, and no kernel op can tell one of its
+    /// descriptions from another's. Descriptions minted AFTER this call
+    /// carry no mark and read [`GeomOrigin::KernelDirect`], which is
+    /// the truth — a boolean run on an imported body derives new
+    /// geometry that was in no file.
+    ///
+    /// Descriptions already carrying a recipe [`GeomSource`] keep it:
+    /// the recipe is the finer identity, and the two never coexist.
+    pub fn mark_imported(&mut self) {
+        for key in self.points.keys() {
+            if self.point_sources.get(key).is_none() {
+                self.point_origins.insert(key, OriginMark::Imported);
+            }
+        }
+        for key in self.curves.keys() {
+            if self.curve_sources.get(key).is_none() {
+                self.curve_origins.insert(key, OriginMark::Imported);
+            }
+        }
+        for key in self.surfaces.keys() {
+            if self.surface_sources.get(key).is_none() {
+                self.surface_origins.insert(key, OriginMark::Imported);
+            }
+        }
     }
 
     // ------------------------------------------------------------------

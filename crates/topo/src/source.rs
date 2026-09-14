@@ -24,6 +24,18 @@
 //! from its typed `RecipeNodeId`/`ExprPath`; this crate only ever
 //! compares them for identity and flips orientation.
 //!
+//! **Absence is not an origin.** A description with no `GeomSource`
+//! row is not thereby "un-sourced": it may have been imported, built by
+//! hand, derived by a kernel op, or had its source CLEARED by
+//! [`crate::Body::clear_geom_sources`] with the re-stamp that door
+//! expects never running — a defect. [`GeomOrigin`] is the total read
+//! that separates them, and it is a channel BESIDE this one rather
+//! than a variant of it: a `GeomSource` spelling "not from a recipe"
+//! would compare equal to every other such spelling, and rung 1 of the
+//! coincidence ladder is `GeomSource` equality, so two unrelated
+//! imported surfaces would glue. N6 decides on `GeomSource` and only
+//! on `GeomSource`; the origin channel decides nothing.
+//!
 //! **Scope of the identity claim (PR 1 review ruling, binding)**:
 //! ExprPath same-slot ancestor replacement silently re-points stale
 //! paths, so a `GeomSource` must NOT be assumed re-point-detectable —
@@ -213,4 +225,73 @@ fn bits_witness<T: geom_core::Real>(pairs: &[(T, T)]) -> Option<bool> {
     pairs.iter().try_fold(true, |agree, (a, b)| {
         geom_core::bit_identity::eq_bits(a, b).map(|eq| agree && eq)
     })
+}
+
+/// **Where a geometric description came from** — the total answer to
+/// the question `Option<&GeomSource>` could not answer.
+///
+/// A missing `GeomSource` row conflated four origins: an imported
+/// description, a hand-built one, one a kernel op derived, and one
+/// [`crate::Body::clear_geom_sources`] dropped whose re-stamp never
+/// ran — the last a DEFECT, indistinguishable from the three
+/// legitimate states. This enum has no absence arm, so a reader gets a
+/// positive origin for every live description and the defect separates
+/// by name.
+///
+/// **It decides nothing N6 decides.** The recipe-source identity the
+/// coincidence ladder's rung 1 tests is [`GeomSource`] equality and
+/// stays exactly that: `Recipe` is the only arm carrying one, the
+/// other three carry no source at all, and two descriptions on the
+/// same non-recipe arm are no more glued than two absences were.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GeomOrigin<'a> {
+    /// The recipe layer stamped this description with the expression
+    /// that produced it — N6's identity channel, and the only arm any
+    /// coincidence rung reads.
+    Recipe(&'a GeomSource),
+    /// Adopted from an exchange file (D7), stamped by the importer at
+    /// the door it ships from. Carries no recipe expression because
+    /// there is no recipe: the file is the source.
+    Imported,
+    /// Minted through a kernel door with no recipe context — a
+    /// hand-built body's description and one a kernel op derived are
+    /// BOTH this arm today, because nothing inside the kernel can tell
+    /// them apart: they enter the arenas through the same
+    /// crate-internal `add_*` doors, and what separates them is which
+    /// caller opened the public door above
+    /// (`work/topo/kernel-direct-origin-does-not-separate-hand-built-from-derived`).
+    KernelDirect,
+    /// [`crate::Body::clear_geom_sources`] dropped a recipe source this
+    /// description carried, and the re-stamp that door expects has not
+    /// run. **This is the defect arm**: the clearing door is half of a
+    /// pair, and a description resting here is the other half missing.
+    /// A re-stamp through [`crate::Body::set_surface_source`] and its
+    /// siblings overwrites it.
+    Cleared,
+}
+
+/// The stored half of [`GeomOrigin`]: the origins a description can
+/// carry while holding no [`GeomSource`].
+///
+/// Only these two are recorded. `Recipe` is read off the source map
+/// itself, and `KernelDirect` is the state of a description no door
+/// marked — a positive claim rather than an inference, because these
+/// two marks and a recipe stamp are the only things that can become
+/// true of a description after it enters an arena.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum OriginMark {
+    /// [`GeomOrigin::Imported`].
+    Imported,
+    /// [`GeomOrigin::Cleared`].
+    Cleared,
+}
+
+impl OriginMark {
+    /// This mark as the origin it stands for.
+    pub(crate) fn origin<'a>(self) -> GeomOrigin<'a> {
+        match self {
+            Self::Imported => GeomOrigin::Imported,
+            Self::Cleared => GeomOrigin::Cleared,
+        }
+    }
 }

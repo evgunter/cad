@@ -776,6 +776,20 @@ pub fn import_step(
             // per-solid gates above stay tier 3: contact is an
             // aggregate-body fact, and the aggregate census sweeps
             // every entity of every instance.
+            // **The origin channel's import arm** (`topo::GeomOrigin`,
+            // D7). Every description in the shipped body came out of
+            // this file, and this is the one door in a position to say
+            // so: no recipe evaluated it, so the recipe layer's
+            // `GeomSource` stamp is absent — and absence used to be the
+            // only thing an imported description had in common with a
+            // hand-built one and with a body whose sources a placement
+            // cleared and nobody re-stamped. Marked after the
+            // materialization loop so it covers every instance's
+            // grafted descriptions, and after each copy's
+            // `transform_rigid`, whose clear has nothing to clear here
+            // (an adopted description never held a recipe source) and
+            // therefore leaves no `Cleared` trace on an import.
+            body.mark_imported();
             let records = resolve_declarations(&body, &options.declared_contacts, eps_in)?;
             let enclosure = gate3(&body, &records, tol)?;
             Ok(StepImport::Solid {

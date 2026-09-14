@@ -2764,6 +2764,11 @@ pub(crate) mod staleness_posture {
             ("set_point_source", Neither, "GeomSource metadata"),
             ("clear_geom_sources", Neither, "GeomSource metadata"),
             (
+                "mark_imported",
+                Neither,
+                "origin metadata beside the GeomSource maps (`crate::GeomOrigin`)",
+            ),
+            (
                 "set_surface_field_source",
                 Neither,
                 "ParamSource metadata: a per-field side record beside the surface",

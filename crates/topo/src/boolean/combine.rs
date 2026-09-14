@@ -171,6 +171,12 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
         if let Some(gs) = src.point_sources.get(k) {
             dst.point_sources.insert(dk, gs.clone());
         }
+        // And so does the origin mark beside it: a transplanted
+        // description's origin is where it came from, which no graft
+        // changes (`crate::GeomOrigin`).
+        if let Some(mark) = src.point_origins.get(k) {
+            dst.point_origins.insert(dk, *mark);
+        }
     }
     let mut surfaces: SecondaryMap<SurfaceKey, SurfaceKey> = SecondaryMap::new();
     for (k, sfc) in src.surfaces.iter() {
@@ -178,6 +184,9 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
         surfaces.insert(k, dk);
         if let Some(gs) = src.surface_sources.get(k) {
             dst.surface_sources.insert(dk, gs.clone());
+        }
+        if let Some(mark) = src.surface_origins.get(k) {
+            dst.surface_origins.insert(dk, *mark);
         }
         // The per-FIELD ParamSource rows ride the graft for the same
         // reason and by the same rule: a description's parameter
@@ -217,6 +226,9 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
         curves.insert(k, dk);
         if let Some(gs) = src.curve_sources.get(k) {
             dst.curve_sources.insert(dk, gs.clone());
+        }
+        if let Some(mark) = src.curve_origins.get(k) {
+            dst.curve_origins.insert(dk, *mark);
         }
     }
     let mut half_edges: SecondaryMap<HalfEdgeKey, HalfEdgeKey> = SecondaryMap::new();
