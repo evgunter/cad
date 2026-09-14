@@ -290,3 +290,40 @@ because the outage killed it between opening the PR and reading the
 run. `symbolic-tier-costs-95-percent-of-the-m10-3-drive` stays open on
 ask 3 (the change), carried by the next unit. Lane commits carried no
 trailer; the orchestrator's state-sync rides the PR last.
+
+## Block SYM-B1 in preparation; the door's witness put to Ev (2026-09-14)
+
+Both first-wave units merged (#2532 at `94b7eea75`, #2530 at
+`2ccf071e1`). The program's first DUAL units are cut from SYM-1's
+numbers and open block SYM-B1 when the third slot's fields exist:
+
+- **SYM-4** (`docs/SYM-4-SPEC.md`, M / STRUCTURAL): the cost of a
+  form — `Poly`'s `BTreeMap` to a sorted vector in the map's own
+  order (every digest, atom key and decision unchanged, held by the
+  pins and a new rendered-form digest row), the degree cached,
+  `Rat::from_parts`'s gcd skipped on the dyadic shape. Slot 0.
+- **SYM-5** (`docs/SYM-5-SPEC.md`, H / NUMERIC): the derived-frame
+  freeze — DOCM's two red rows ported, the freeze profiled and its
+  chain rendered, then a rule of the atom algebra (a unit-vector
+  atom with `Σ U_i² = 1` and `U_i · sqrt(S) = a_i`, or the common
+  factor cancelled before the square, or a degree-resetting `Sqrt`),
+  dial-gated and shipped on only if affordable. Slot 1.
+- **Slot 2** is cut from SYM-3's render when it returns (the bulge
+  rule, if the diagnosis names one), or from the door's witness if
+  Ev answers first. The draw waits on all three pre-draw fields.
+
+**Deliberately not in the block**: the drive-scoped plain memo
+(SYM-1's largest lever on the slab — the plain form is a function of
+the content hash and its memo could outlive the leaf) is a
+session-model change with receipt consequences; it goes to Ev as a
+decision document once SYM-4 has said what an in-session form costs.
+The `Decide` impl's assertion discharge stays; its cost is on the
+item.
+
+**`[ev]` PR #2552 opened** (branch `sym/ev-witness`, subscribed):
+D1 — which route for the ε-independent witness slack (thread `Tol` to
+the door, recommended; a `Tol` on the session, not; leave it,
+deferred) and D2 — one refusal arm or two (one, with the receipt as
+the loud channel and a fixture-scale zero-refusals row closing the
+span-identity row). Both rows carry `needs_ev`. FILLET's precedent:
+the answer arrives while the units run.
