@@ -185,3 +185,52 @@ fn r2_a_freezing_drive_is_identical_across_schedules_thread_counts_and_the_dial(
         assert_same(&format!("{label} par@2 on twice"), &par2_on_again, &seq_on);
     }
 }
+
+/// **Is the unit's opaque-sequence pin vacuous?** The unit's row asserts
+/// every leaf's `Opaque` set equals leaf 0's and never that any set is
+/// non-empty; two empty sets agree. This row prints the sizes on both
+/// documents at the pin budget and asks that at least one leaf of each
+/// minted one.
+#[test]
+fn r2_the_opaque_sets_the_premise_row_compares_are_not_all_empty() {
+    use geom_core::sym::profile::{start_profile, take_profile};
+    let tol = Tol::witness();
+    let mut empty = Vec::new();
+    for (label, doc) in [
+        (
+            "slab",
+            crate::m10_3_r1_probes_interval::bounded_chamber(
+                60.0 * tol.eps(),
+                30.0 * tol.eps(),
+                100.0 * tol.eps(),
+            ),
+        ),
+        ("plate", plate(5.0e-5, 1.0e-5, tol).0),
+    ] {
+        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        start_profile();
+        drive(
+            &doc,
+            &analyzed,
+            &DriveConfig {
+                max_leaves: LEAVES,
+                ..DriveConfig::default()
+            },
+            tol,
+        )
+        .unwrap();
+        let sets = take_profile().opaque_ids;
+        let total: usize = sets.iter().map(std::collections::BTreeSet::len).sum();
+        println!(
+            "{label}: {} leaves (sessions), Opaque ids over every leaf: {total}",
+            sets.len()
+        );
+        if total == 0 {
+            empty.push(label);
+        }
+    }
+    assert!(
+        empty.is_empty(),
+        "{empty:?}: every leaf's Opaque set is EMPTY, so the premise row compares nothing there"
+    );
+}
