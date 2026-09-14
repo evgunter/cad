@@ -2,8 +2,11 @@
 id: DOCM-8
 kind: unit
 title: A merged face's name is a flat constituent set; a member-space declaration resolves through the fold's merges
-status: open
+status: closed
 opened: 2026-09-06
+closed: 2026-09-07
+pr: 2073
+branch: docm/8-flat-merged
 ---
 
 

@@ -1127,9 +1127,14 @@ so a cancel beside it would vanish with the exit it replaces. And **a
 door that cannot act says so rather than vanishing** — the posture the
 two file-dialog controls take: each door is drawn whatever the
 selection, the standing and the evaluation are, and enabled exactly
-while its own gesture is in flight. (Drawn, not *reachable at every
-window width*: the toolbar is one non-wrapping `ui.horizontal`, which
-`work/view/the-toolbar-row-does-not-wrap.md` is open about.)
+while its own gesture is in flight. **And reachable at every window
+width**, which is a second claim and has its own holds: the toolbar is
+laid out `horizontal_wrapped`, so a window narrower than the row gets a
+second line rather than a clipped one — a clipped control is not
+small, it is gone, and for these two that would mean no exit from the
+gesture at all. `ViewerApp::toolbar_ui`'s two rows hold both halves: that the
+row does not fit a narrow window, so the wrapping is answering
+something, and that it stays inside one.
 
 **How it says so is a different precedent from where it is drawn**, and
 citing one for both is wrong: the dialog controls hand

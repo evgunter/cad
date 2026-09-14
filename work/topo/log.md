@@ -683,3 +683,173 @@ block TOPO-B1 CONCLUDED record published beneath it. `S79` on PIPE's
 slate edited to wait on `#757` alone, announced on `work/pipe/log.md`.
 The next kernel-answer unit draws block TOPO-B2. Twenty-seven items
 open; nothing dispatched.
+
+## Block TOPO-B2 cut; pre-draw fields logged BEFORE the byte (2026-09-12)
+
+Three of SHELL's six placed rows are kernel answers on this program's
+own files with no other program's decision ahead of them; they form
+block TOPO-B2 in the order the plan fixes. Pre-draw fields, written
+and committed before any byte is drawn this time (B1's three slots
+were all disclosed as contaminated):
+
+- slot 0 `tier3-accepts-a-ring-outside-its-outer-loop` — difficulty
+  **M**, task class **STRUCTURAL-GEOMETRIC** (a decide added to a
+  tier-3 check; one helper hoisted from `shell.rs`).
+- slot 1 `split-edge-children-lack-pcurve-rows-on-curved-charts` —
+  difficulty **S/M**, task class **STRUCTURAL-NUMERIC** (a mint inside
+  an existing operator from a cached pcurve, or a stated caveat).
+- slot 2 `revert-does-not-mirror-plane-chart-images` — difficulty
+  **M**, task class **NUMERIC** (an image transform under a frame
+  reversal, certified after).
+
+The other three placed rows are not units: the chart-spans-solids
+question is an `[ev]` ruling the orchestrator writes, the shell-roles
+check waits on S-BOOL's hollow-operand row, and the attach
+postcondition's cost half is already PERF-4's (its panic half is D1's
+question and rides with the chart ruling). Block TOPO-B2 draws after
+this entry is committed; the record goes branch-side on
+`topo/b2-block`.
+
+## Block TOPO-B2 drawn; slots 0 and 1 dispatched (2026-09-13)
+
+The byte was drawn after the pre-draw entry above was committed
+(`41edc9d2a`): 215 ⇒ 215 mod 3 = 2 ⇒ fable at slot 2. Record
+branch-side on `topo/b2-block`. Slot 0
+(`tier3-accepts-a-ring-outside-its-outer-loop`, branch
+`topo/tier3-ring-nesting`) and slot 1
+(`split-edge-children-lack-pcurve-rows-on-curved-charts`, branch
+`topo/split-edge-pcurve-rows`) dispatched together on the box's two
+lanes with brief sections in their item files; slot 2 (`revert`)
+dispatches when one frees. Seams announced: SHELL (one comment in
+`shell.rs`; the glue's second precondition is SHELL's call), TRIM
+(`pcurves.rs` read, at most one helper by seam), S-BOOL (the
+shell-roles check waits on the hollow-operand row). The briefs mark
+their instruments as hypotheses — `ray_parity.rs` for the nesting
+decide, the parameter split of a cached pcurve for the mint — for
+phase 1 to verify; the usage-limit cut of 2026-09-12 23:00 to
+2026-09-13 21:45 sat between the draw and the dispatch, with nothing
+running.
+
+## Both slots delivered; the split-edge dual out at ordinal 2703 (2026-09-13)
+
+Slot 1 `topo/split-edge-pcurve-rows` delivered as PR 2531, head
+`880654600`, full matrix green (run 34787766875). Phase 1 chose
+closing (a): a `Pcurve` is a function of the carrier parameter with
+no interval of its own, so each child's chart image is the parent's
+restricted to its sub-interval; `PcurveCache::certify` needs only
+`T: Decide`, so the op carries its rows in the plan phase with no
+caller's bound moved. Phase 1 also found the parent halves' rows going
+stale in CONTENT on the merge base with `validate_pcurves` skipping
+any face it finds incomplete — filed on TRIM's slate — and that the
+half-edge-minting Euler operators leave a minted curved face
+incomplete (filed here, with the `Fitted`/`General` residue). SHELL-7's
+`p4` probe row re-baselined from pinning the defect to pinning the
+fix. Dual dispatched on the frozen head: ordinal 2703, parity byte 20
+⇒ R1 OPUS, R2 FABLE; briefs stored with sha256 privately.
+
+Slot 0 `topo/tier3-ring-nesting` delivered as PR 2529, head
+`a8703bdc9`, full matrix green (run 34787728506). Phase 1 corrected
+the brief's instrument — `ray_parity.rs` directly would have minted a
+second home for the 3-D frame; the entry is
+`splitting::containment::point_in_loop` — and showed `shell.rs`'s
+`encloses` unsound at rest (a 10×0.2 plate with an end hole reads
+un-nested: a false refusal), and the `shell.rs` comment already
+repaired on main before the lane. Check 9 gains its nesting half on
+planar faces whose outer loop is a polygon of line carriers; the
+arc-bounded and curved cases are the enumerated residue, filed. Its
+dual (byte 0 ⇒ R1 OPUS, R2 FABLE; briefs stored) dispatches when the
+split-edge pair frees the box — two reviewer pairs at once would
+starve four cores. The claim entry for its ordinal goes to main at
+that dispatch.
+
+## Split-edge adjudicated (2026-09-13)
+
+Both blinded reviews on frozen `880654600`, both
+MERGEABLE-AFTER-FIXES. R1: 1/4/2, rubric 3/3/3 — MAJOR: the carry's
+mint-identity claim is false on spline charts (loft prisms' `IsoLine`
+walls and `IsoArc` rims: the carry is exact and tier 3 reads `Ok`, but
+`mint_pcurves`, the named recovery step, still refuses — a
+pre-existing refusal now reached silently), unfiled. R2: 0/3/3, rubric
+4/4/3 — the same fact executed on the bulged loft, filed as MINOR
+("cylinder-only"). CONVERGED on the fact, DIVERGENT on severity: no
+unilateral executed MAJOR, no tally candidate. Converged also: the
+class receipt's re-parenting rows are wrong (`kfmrh` onto a plane
+keeps four cylinder rows under a planar face with tier 3 silent — R2
+executed; `ring_move` the same mechanism — R1 read), the
+mint-identity rows compare intervals not bytes, `split_cache`'s window
+hull is a third spelling of `validate_pcurves`' (the trap check, both),
+the one-use alias, `Posture::Carries` a comment wearing an enum, and
+four statements of one bound argument. Unilateral, taken: `IsoArc::
+chart_box`'s premise sentence in geom-brep invalidated (R1); a
+`Corrupt` swallowed into `Ok(None)` (R1); the residue row's caller
+list short by `mesh` (R1); `split_cache` reads the carrier's interval,
+not the row's (R2). Both reproduced the merge-base readings and the
+plan-phase contract under two mutants. Seven-item fix pass to a fresh
+lane on the inherited branch (the implementer's worktree was gone);
+both reviewers' probes handed over. The ring-nesting dual dispatches
+now beside it: claim for ordinal 2704 to main.
+
+## Ring-nesting dual out at ordinal 2704 (2026-09-13)
+
+Claim merged to main; both reviewers dispatched concurrently on frozen
+`a8703bdc9` beside the split-edge fix pass: byte 0 ⇒ R1 OPUS, R2
+FABLE; briefs stored with sha256 privately at the unit's delivery,
+re-verified identical modulo lane paths at dispatch.
+
+## Ring nesting adjudicated (2026-09-14)
+
+Both blinded reviews on frozen `a8703bdc9`, both
+MERGEABLE-AFTER-FIXES, neither with a MAJOR. R1: 0/9/4, rubric 3/4/2;
+R2: 0/4/7, rubric 4/3/3. Both executed the arm through every honest
+fixture they built and every inverted glue on a polygonal outer,
+`Body::revert` on both orientations, an escalation plant (never read
+as nested) and the classify obligations (each deletion reds by name).
+CONVERGED: the seam sentence written into `shell.rs` claims check 9
+refuses the inverted pick at the verb's closing validate, and both
+found the SHELL-5 mutant dies earlier at `Corrupt` in the naming
+record's walk — the arm is never reached through `shell_open`; the
+polygon gate is a second, narrower spelling of `boolean::contain`'s
+`loop_shape` (which admits arc-bearing loops over three vertices —
+R1 executed the divergence; R2 measured a round-holed square inverted
+and silent); the control row stays green with the gate forced shut
+(R2 executed); `Inside` carries two meanings against the code; the
+gate is computed for ring-free faces; the residue "every vertex on
+the boundary while contact reads disjoint" is unreachable; the
+red-first row's comment contradicts its assertion; the H item
+understates tier 3's coverage. Unilateral, taken: the PR body's
+`encloses` counterexample does not compute — R1 re-did the arithmetic
+(outer mean 5.0, ring 2.0, nested) and built a cross fixture that
+genuinely false-refuses; an empty `kemr` ring reads `Inside` (R1
+planted one outside the square); `KERNEL-VERBS.md` and a second
+`shell.rs` comment still state check 9 as contact-only (R1); the K
+roster has no mechanical guard (both noted; filed on INSTR). No
+tally candidate. Ten-item fix pass to a fresh lane on the inherited
+branch: the gate reaches `loop_shape` by announced seam to S-BOOL
+(one visibility change), which widens the decide to the loops the
+walk is measured correct on and retires the copy; a valid body the
+widened arm refuses falls back to the line-only gate, stated.
+
+## Split-edge merged; block TOPO-B2 slot 1 concluded (2026-09-14)
+
+PR 2531 merged at `dffd2bf34` (green run 34793938681 on `8ae4e0ec8`,
+full matrix, verified job by job). The unit closed. The fix pass took
+every item; its one disagreement was with the brief's "pre-existing,
+no regression" framing — the unsplit loft controls show the pass is
+fine with spline charts and the honest statement is that the iso
+arms cannot re-derive a SUB-edge, which is how the TRIM row now reads.
+Row recorded at merge (ordinal 2703, sample #186), no tally candidate;
+slot 1 marked concluded on `topo/b2-block`. Three rows filed by the
+fix pass (one on TRIM, two here); `split_edge` now declares
+`Transfers` in the posture table. The ring-nesting fix pass is the one
+lane running; slot 2 (`revert`, FABLE) dispatches when it frees.
+
+## Slot 2 dispatched: `revert` mirrors the plane chart's images (2026-09-14)
+
+Block TOPO-B2's last slot (FABLE) dispatched on
+`topo/revert-mirrors-chart-images` with a brief section in the item:
+the transform hypothesis `(u, v) ↦ (u, −v)` on every `Chart` image
+and pcurve row of a reverted plane's faces, per image kind, with the
+bitwise involution and SHELL's drum as the red-first rows; seam to
+TRIM announced for the row transform; `chart.rs`/`chart_iso.rs` are
+unowned ground where the PR draws the fence. Beside it, the
+ring-nesting fix pass is the other lane.
