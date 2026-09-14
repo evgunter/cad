@@ -837,19 +837,19 @@ impl core::fmt::Display for NodeRefusal {
 ///
 /// # Why the door is in two files
 ///
-/// [`entity`] is here and `eval::wire`'s `named_entity` — the
+/// [`entity_door::entity`] is here and `eval::wire`'s `named_entity` — the
 /// designation road, which resolves an authored name and then comes
-/// here — is there. That split is not a preference: [`Found`]'s field
+/// here — is there. That split is not a preference: [`entity_door::Found`]'s field
 /// must be private to a module that is NOT an ancestor of the roads,
 /// and the roads live in `eval::wire`, so the minting site cannot live
-/// there with them. Putting [`Found`] beside
+/// there with them. Putting [`entity_door::Found`] beside
 /// [`crate::names::EntityKind`] instead would need a crate-visible
 /// constructor, which every road could call — the guarantee would be
 /// gone. `named_entity`'s own docs carry the other half of this
 /// sentence.
 ///
-/// **What an outside reader gets from this module is [`Found`]**, which
-/// a refusal renders and a test reads through [`Found::kind`]. The door
+/// **What an outside reader gets from this module is [`entity_door::Found`]**, which
+/// a refusal renders and a test reads through [`entity_door::Found::kind`]. The door
 /// itself is `pub(crate)`: nothing outside this crate resolves an
 /// entity, so nothing outside it has a key to ask about.
 ///
