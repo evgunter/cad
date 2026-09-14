@@ -508,10 +508,10 @@ mod m10_10_r2_probes_interval;
 mod m10_bulge_interval;
 #[path = "m10_derived_frame_interval.rs"]
 mod m10_derived_frame_interval;
-#[path = "sym5_review_probes_interval.rs"]
-mod sym5_review_probes_interval;
 #[path = "m10_sym_profile_interval.rs"]
 mod m10_sym_profile_interval;
+#[path = "sym5_review_probes_interval.rs"]
+mod sym5_review_probes_interval;
 
 #[path = "wire_band_cause.rs"]
 mod wire_band_cause;
