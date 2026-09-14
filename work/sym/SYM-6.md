@@ -30,3 +30,11 @@ split by witness kind — is on the PR). Block SYM-B1 slot 2, arm
 OPUS per the block's draw; the v6 dual at the PR. Seams announced in
 `work/props/log.md` (`real.rs`) and `work/bool/log.md`,
 `work/blend/log.md` (`crates/sweep/src/*`).
+
+**Amendment A2 (2026-09-14, ~17:00Z).** Ev took the D2 refinement on
+#2552: Phase 3 is in scope — `SymRegistration::Disputed` for an
+inexact witness's refusal (`f64`, `Probe`; counted, never asserted),
+`Contradicted` reserved for `Interval`'s exact one (a proof; the
+registrants' assertion restored), and the fixture-scale
+zero-refusals row at `Sym<Interval>` that closes the span-identity
+row. The lane was in Phase 1 at the amendment.
