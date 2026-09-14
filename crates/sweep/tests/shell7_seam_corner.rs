@@ -603,14 +603,23 @@ fn a_line_profile_beside_one_meridian_cap_refuses_on_a_hand_split_wedge() {
     );
 }
 
-/// **A partial two-arc torus stops at its spiric rim** (R1's row): the
-/// quarter-turn elbow of the two-arc profile has a [torus, meridian
-/// cap] corner whose azimuth the MOVED cap fixes — off the sketch
-/// plane — but the rim edge between the torus and the cap has no
-/// carrier (the klein elbow's spiric wall), and the door refuses there
-/// before any latitude seam or its re-author is reached. So no
-/// door-built operand reaches the re-author's out-of-plane decide; its
-/// presence is its row.
+/// **A partial two-arc torus mints its spiric rims and stops at the
+/// props door** (R1's row, flipped): the quarter-turn elbow of the
+/// two-arc profile has a [torus, meridian cap] corner whose azimuth
+/// the MOVED cap fixes — off the sketch plane — and the rim edge
+/// between the torus and the cap is minted as the spiric it is (the
+/// klein elbow's wall, `torax_axial`). The old door, verbatim:
+/// `TogetherAxialEdge { what: "a circular edge between two charts
+/// whose centre is off the axis" }`, the latitude mint's
+/// `offset_axial_centre`.
+///
+/// The claim this row used to carry — that no door-built operand
+/// reaches the re-author's out-of-plane decide — is re-measured by
+/// the same run: the two equator seams are `RevolvedPoint`
+/// declarations whose moved start corners stand ON the sketch plane
+/// (the door moves a seam's corner within its own meridian), so the
+/// decide answers Zero and the hollow walks on to tier 3, which
+/// refuses at the torus wall's boundary parse.
 #[test]
 fn a_partial_two_arc_torus_refuses_at_its_spiric_rim() {
     let (big_r, r) = (2.0, 0.5);
@@ -622,11 +631,23 @@ fn a_partial_two_arc_torus_refuses_at_its_spiric_rim() {
         Revolution::Partial(FRAC_PI_2),
     );
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
-    let e = topo::shell(&body, 0.05, tol()).expect_err("refuses");
-    let (_, what) = edge_refusal(&e).unwrap_or_else(|| panic!("not an edge refusal: {e}"));
-    assert_eq!(
-        what,
-        "a circular edge between two charts whose centre is off the axis"
+    let e = topo::shell(&body, 0.05, tol()).expect_err("tier 3's volume");
+    let ShellError::NotValid { errors } = &e else {
+        panic!("the hollow must reach tier 3 and stop at the props inventory, got {e}");
+    };
+    assert!(
+        matches!(
+            errors[..],
+            [topo::ValidationError::VolumeUncomputable {
+                source: topo::MassPropsError::Face {
+                    source: geom_brep::PropsError::NotIsoRectangle {
+                        what: "torus boundary edge is not a circle"
+                    },
+                    ..
+                },
+            }]
+        ),
+        "check 7 at the torus wall's boundary parse, got {errors:?}"
     );
 }
 

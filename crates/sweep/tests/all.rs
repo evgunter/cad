@@ -634,6 +634,8 @@ mod shell8_r2_probes;
 
 #[path = "shell7_seam_corner.rs"]
 mod shell7_seam_corner;
+#[path = "spiric_rim.rs"]
+mod spiric_rim;
 
 #[path = "shell7_r1_diff.rs"]
 mod shell7_r1_diff;

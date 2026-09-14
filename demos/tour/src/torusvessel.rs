@@ -71,20 +71,19 @@
 //!    meridian's STEP COUNT, not of what the wall between the steps
 //!    is: this vessel's belly is a torus where the teapot's was a
 //!    stepped cylinder, and the drop is identical.
-//! 4. **The rim of a SECTIONED vessel still refuses, and it is the
-//!    klein elbow's wall on this scene's own body.** Revolve this same
-//!    meridian a quarter turn — a cutaway, the display model a potter's
-//!    catalogue wants — and the moved meridian cap cuts the torus in a
-//!    SPIRIC quartic. `Curve3` has no quartic carrier, so the latitude
-//!    mint names the off-axis centre it will not carry and refuses.
-//!    Probed live below (wall 1). The sphere half of the same rim
-//!    family is BUILT (`torax_the_sphere_lune_rim_solves_in_closed_
-//!    form`); what stands between a sphere lune and `shell` is a
-//!    different door again, the props inventory's
+//! 4. **A SECTIONED vessel still refuses, and it is the klein elbow's
+//!    wall on this scene's own body.** Revolve this same meridian a
+//!    quarter turn — a cutaway, the display model a potter's catalogue
+//!    wants — and the moved meridian cap cuts the torus in a SPIRIC,
+//!    which the axial door mints as the exact `Curve3::Spiric` rim it
+//!    is; the hollow then reaches tier 3 and stops at the props
+//!    inventory, whose torus parse has no arm for a rim that is
+//!    neither a circle about the axis nor a meridian. Probed live
+//!    below (wall 1). The sphere half of the same rim family stands
+//!    at the same door on a different premise
 //!    (`torax_the_sphere_lune_next_door_is_the_props_inventory`). The
-//!    torus half is design-gated on VERBS-RIMCAP's PR-2 conversation,
-//!    so this wall is measured-red and stays that way until that is
-//!    funded.
+//!    props quadrature lane for a spiric-bounded face is the spiric
+//!    unit's next PR, so this wall is measured-red until it lands.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -670,12 +669,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         props_m.volume
     );
 
-    // ---- WALL 1: the SECTIONED vessel's rim ----
+    // ---- WALL 1: the SECTIONED vessel's volume ----
     //
     // A quarter turn of the same meridian — the cutaway a catalogue
     // wants. The moved meridian cap stands a wall off the axis and
-    // parallel to it, and a plane in that posture cuts a torus in a
-    // SPIRIC quartic, which `Curve3` cannot carry.
+    // parallel to it, and cuts the torus band in a SPIRIC, which the
+    // axial door now mints as the exact carrier it is; what the hollow
+    // still lacks is tier 3's volume, which the props inventory cannot
+    // give a spiric-bounded torus wall.
     let quarter = revolved(
         meridian(R_BELLIED, ArcSweep::Ccw, tol),
         Revolution::Partial(core::f64::consts::FRAC_PI_2),
@@ -691,20 +692,27 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "torus-walled vessel",
         1,
         "hollow the vessel SECTIONED — a quarter turn of the same meridian, whose \
-         moved meridian cap cuts the torus band in a spiric quartic",
+         moved meridian cap cuts the torus band in a spiric rim the props inventory \
+         cannot yet integrate",
         sectioned,
         |e| {
             matches!(
                 e,
-                ShellError::Face { error, .. }
+                ShellError::NotValid { errors }
                     if matches!(
-                        &**error,
-                        pncad::topo::ReplaceFaceError::TogetherAxialEdge { what, .. }
-                            if *what == "a circular edge between two charts whose centre is off the axis"
+                        errors[..],
+                        [pncad::topo::ValidationError::VolumeUncomputable {
+                            source: pncad::topo::MassPropsError::Face {
+                                source: pncad::geom_brep::PropsError::NotIsoRectangle {
+                                    what: "torus boundary edge is not a circle"
+                                },
+                                ..
+                            },
+                        }]
                     )
             )
         },
-        "VERBS-RIMCAP's PR-2 has funded the torus half of the rim carrier. Retire this \
+        "the props quadrature lane integrates a spiric-bounded torus wall. Retire this \
          probe, retire `torax_the_klein_elbow_rim_refuses_at_the_carrier_mint` with it \
          — they are one gate — and ship the sectioned vessel as this scene's third \
          panel, which is the picture it was always for",
@@ -772,19 +780,18 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  annuli, facing each other across the belly: {gap} m of clearance, \
                  which a wall of half that consumes entirely. Bracketed on every pass. \
                  WHAT STILL REFUSES is the SECTIONED vessel (wall 1 above). A quarter \
-                 turn of this meridian is a valid body, but its hollow's moved meridian \
-                 cap stands a wall off the axis and parallel to it, and a plane in that \
-                 posture cuts a torus in a SPIRIC quartic — so the latitude mint names \
-                 the off-axis centre it will not carry and refuses \
-                 TogetherAxialEdge. That is the klein elbow's wall \
+                 turn of this meridian is a valid body, and its hollow's moved meridian \
+                 cap stands a wall off the axis and parallel to it, cutting the torus \
+                 band in a SPIRIC — which the axial door now mints as the exact \
+                 carrier it is, so the hollow walks to tier 3 and stops at the props \
+                 inventory: the torus wall's boundary parse has no arm for a rim that \
+                 is neither a circle about the axis nor a meridian, and the +V \
+                 invariant refuses VolumeUncomputable. That is the klein elbow's wall \
                  (`torax_the_klein_elbow_rim_refuses_at_the_carrier_mint`) on this \
                  scene's own body, and the two retire together. The SPHERE half of the \
-                 same rim family is BUILT — a plane cuts a sphere in a circle, always, \
-                 and `torax_the_sphere_lune_rim_solves_in_closed_form` carries it — \
-                 but a sphere lune still does not reach `shell`, at a different door \
-                 again: the flux arm's props_band_coplanar premise cannot give tier 3 \
-                 the volume its +V invariant needs \
-                 (`torax_the_sphere_lune_next_door_is_the_props_inventory`). THE \
+                 same rim family stands at the same door on a different premise: the \
+                 flux arm's props_band_coplanar premise cannot give tier 3 a lune's \
+                 volume either (`torax_the_sphere_lune_next_door_is_the_props_inventory`). THE \
                  SEALED BODY'S OWN WALL IS STEP: the writer's outward/void classifier \
                  has closed forms for planar faces only, so this multi-shell CURVED \
                  solid refuses CurvedShellClassification — declared at the body and \

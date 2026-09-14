@@ -325,12 +325,15 @@ fn interval_the_sphere_lune_rim_encloses_its_corners() {
     encloses_corner(&cavity, rho, -h, "the lune's lower rim corner");
 }
 
-/// **The klein elbow at `T = Interval`**: the carried-datum arm
-/// (`offset_axial_datum_arm` and the shared azimuth solve at its new
-/// call site) executes at the certified scalar on the way to the same
-/// refusal f64 measures — the latitude mint's off-axis-centre payload,
-/// the torus half's own boundary. An escalation at a strict band is
-/// the certified scalar's honest answer and is pinned as such.
+/// **The klein elbow at `T = Interval`**: the carried-datum arm, the
+/// kind-changing spiric mint (its six `decide` sites) and both
+/// endpoint meters execute at the certified scalar on the way to the
+/// same door f64 measures — tier 3's volume at the torus wall's
+/// boundary parse. The old door, verbatim: `TogetherAxialEdge { what:
+/// "a circular edge between two charts whose centre is off the axis"
+/// }`, the latitude mint's `offset_axial_centre`. An escalation at a
+/// strict band is the certified scalar's honest answer and is pinned
+/// as such.
 #[test]
 fn interval_the_klein_elbow_rim_refuses_at_the_carrier_mint() {
     let tol = Tol::witness();
@@ -356,13 +359,19 @@ fn interval_the_klein_elbow_rim_refuses_at_the_carrier_mint() {
     .expect("the elbow revolves")
     .body;
     let e = topo::shell(&body, iv(0.05), tol)
-        .expect_err("the elbow's moved rim is a spiric section away from a carrier");
+        .expect_err("the elbow's hollow reaches tier 3 and stops at the props inventory");
     match e {
-        ShellError::Face { ref error, .. }
+        ShellError::NotValid { ref errors }
             if matches!(
-                **error,
-                topo::ReplaceFaceError::TogetherAxialEdge { what, .. }
-                    if what == "a circular edge between two charts whose centre is off the axis"
+                errors[..],
+                [ValidationError::VolumeUncomputable {
+                    source: topo::MassPropsError::Face {
+                        source: geom_brep::PropsError::NotIsoRectangle {
+                            what: "torus boundary edge is not a circle"
+                        },
+                        ..
+                    },
+                }]
             ) => {}
         ShellError::Face { ref error, .. }
             if tol.eps() < DEFAULT_EPS
@@ -370,10 +379,10 @@ fn interval_the_klein_elbow_rim_refuses_at_the_carrier_mint() {
         {
             stood_down(
                 &format!("the klein elbow's interval rim, eps = {:e}", tol.eps()),
-                "the certified scalar escalated before the carrier mint's refusal was \
-                 reachable, so THIS RUN ASSERTS ONLY the door's own typed escalation",
+                "the certified scalar escalated before the props door was reachable, so \
+                 THIS RUN ASSERTS ONLY the door's own typed escalation",
             );
         }
-        other => panic!("expected the latitude mint's off-axis refusal, got {other:?}"),
+        other => panic!("expected the props inventory's check-7 refusal, got {other:?}"),
     }
 }

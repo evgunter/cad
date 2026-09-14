@@ -26,16 +26,17 @@
 //!   and `shell` is the PROPS inventory — the sphere flux arm's
 //!   `props_band_coplanar` premise refuses the OPERAND's own wall
 //!   today — and that wall is pinned with its payload below;
-//! - the KLEIN ELBOW (torus wall) now refuses one door deeper than
-//!   its old `TogetherAxialCorner`: its corners solve through the
-//!   carried-datum arm, and the rim EDGE has no carrier — the moved
-//!   cap cuts the torus in a spiric QUARTIC, and the latitude mint
-//!   names the off-axis centre it will not carry. The torus half is
-//!   design-gated (the spec's PR-2 conversation), not implemented.
+//! - the KLEIN ELBOW (torus wall) solves end to end as well: its
+//!   corners through the carried-datum arm, and its rim EDGE through
+//!   the door's one kind-changing mint — the moved cap cuts the torus
+//!   in a spiric, and the rim is minted as the exact `Curve3::Spiric`
+//!   it is. What stands between the elbow and `shell` is the same
+//!   PROPS inventory the lune waits on, at the torus wall's boundary
+//!   parse rather than the sphere flux premise.
 //!
 //! So the partial revolve's rim was a circle-profile wall's gap at two
-//! doors; the sphere door is built, and the torus door is the spiric
-//! carrier's.
+//! doors, and both are built; the hollows of both stop at tier 3's
+//! volume.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -534,30 +535,43 @@ fn hollow_moves(body: &Body<f64>, t: f64) -> Vec<topo::ChartMove<f64>> {
         .collect()
 }
 
-/// **The klein elbow's rim now stops one door deeper, and the boundary
-/// is the CARRIER, not the corner.**
+/// **The klein elbow's rim MINTS, and the elbow stops at the props
+/// door** — the row that used to pin the carrier mint's refusal,
+/// flipped, with the old door recorded.
 ///
-/// Until VERBS-RIMCAP this row pinned `TogetherAxialCorner { surfaces:
-/// 2, what: "one profile constraint…" }`: the rim vertex meets the
-/// torus wall and ONE meridian cap, and the corner solve had no arm
-/// for a lone profile circle off the axis. The carried-datum arm now
-/// answers that corner — the old corner's profile point moved
-/// concentrically with its circle, the azimuth solved from the moved
-/// cap exactly as the wedge's is — so the corner SOLVES, and the
-/// refusal moves to the rim EDGE's carrier: the old rim is the profile
-/// circle in the cap's plane, centred `R` off the axis, and the
-/// latitude mint's own predicate says so. The payload below is the
-/// measured door at this head.
+/// **The old door, verbatim (measured at the unit's head before the
+/// mint):** `ShellError::Face { error: TogetherAxialEdge { what: "a
+/// circular edge between two charts whose centre is off the axis" } }`
+/// from `offset_axial.rs:mint_carrier`'s distinct-charts circle arm
+/// through `latitude_posture` → `centre_on_axis`, predicate
+/// `offset_axial_centre` — the latitude mint declining a circle
+/// centred `R` off the axis. Before VERBS-RIMCAP it was one door
+/// earlier still, `TogetherAxialCorner { surfaces: 2 }`.
 ///
-/// **What stands between the elbow and a hollow is the torus half's
-/// own boundary, stated rather than glossed**: the moved cap stands
-/// `t` off the axis and parallel to it, and a plane in that posture
-/// cuts a torus in a SPIRIC quartic — sampled below as the oval's own
-/// half-width against its half-height, which a circle would make
-/// equal. `Curve3` has no quartic carrier, so the sphere half's
-/// off-axis-circle mint has no torus sibling to gain here; that half
-/// is design-gated (the VERBS-RIMCAP spec's PR-2 conversation), and
-/// the klein rows stay measured-red until it is funded.
+/// **What answers now.** The moved cap stands `t` off the axis and
+/// parallel to it, and cuts the moved torus in a SPIRIC — sampled
+/// below as the oval's own half-width against its half-height, which
+/// a circle would make equal, and which is why the carrier changes
+/// KIND: the door mints `Curve3::Spiric` from the cap's normal and
+/// stand-off and the moved tube's radii, reads both endpoints back
+/// onto it and meters its midpoint against both moved surfaces. The
+/// hollow then walks certification, insertion and pcurves to tier 3,
+/// whose +V invariant needs a volume the props inventory cannot yet
+/// give a spiric-bounded torus wall: check 7 refuses
+/// `VolumeUncomputable { Face { NotIsoRectangle { "torus boundary edge
+/// is not a circle" } } }` — the torus wall's boundary parse, visited
+/// before the caps in arena order (a cap first would read
+/// `loop_vector_area`'s `Unimplemented`). The lune's row next door
+/// stands at the same door on a different premise
+/// (`props_band_coplanar`).
+///
+/// **The latitude posture's off-axis refusal is no longer reachable
+/// from a public door**: every circle a door builds between two
+/// distinct charts is coaxial (a latitude), or a sphere-wall rim, or
+/// a torus-wall rim — and the last two have their own arms now. The
+/// survey found no fixture; the refusal's reachability is
+/// demonstrated by mutation in the unit's PR (the RIMCAP shape), and
+/// its arm stays as the honest remainder for a hand-built operand.
 #[test]
 fn torax_the_klein_elbow_rim_refuses_at_the_carrier_mint() {
     let r = 0.275_f64;
@@ -584,18 +598,25 @@ fn torax_the_klein_elbow_rim_refuses_at_the_carrier_mint() {
         .body
     };
     let e = topo::shell(&elbow, 0.05, tol())
-        .expect_err("the elbow's rim circle is a quartic section away from a carrier");
-    let ShellError::Face { error, .. } = e else {
-        panic!("not the offset door's refusal: {e}");
+        .expect_err("shell's +V invariant needs the volume the props lane cannot yet give");
+    println!("[torax] the elbow's next door: {e}");
+    let ShellError::NotValid { errors } = e else {
+        panic!("the hollow must reach tier 3 and stop at the props inventory, got {e:?}");
     };
-    let topo::ReplaceFaceError::TogetherAxialEdge { what, .. } = *error else {
-        panic!("the rim must refuse at the carrier it cannot mint: {error:?}");
-    };
-    assert_eq!(
-        what, "a circular edge between two charts whose centre is off the axis",
-        "the latitude mint names the off-axis centre"
+    assert!(
+        matches!(
+            errors[..],
+            [topo::ValidationError::VolumeUncomputable {
+                source: topo::MassPropsError::Face {
+                    source: geom_brep::PropsError::NotIsoRectangle {
+                        what: "torus boundary edge is not a circle"
+                    },
+                    ..
+                },
+            }]
+        ),
+        "check 7 at the torus wall's boundary parse, got {errors:?}"
     );
-    println!("[torax] the elbow rim, one door deeper: {what}");
 
     // The section that rim edge would need is not a circle.
     let (big, small) = (1.2_f64, r - 0.05);
