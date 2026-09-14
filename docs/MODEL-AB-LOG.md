@@ -5983,7 +5983,7 @@ fable at slot 1.
 | slot | arm | unit | pre-draw fields |
 |---|---|---|---|
 | 0 | OPUS | `loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart` | difficulty S/M, task class STRUCTURAL — logged before the draw |
-| 1 | FABLE | `D263` | difficulty M, task class STRUCTURAL-GEOMETRIC — logged before the draw |
+| 1 | FABLE | `D263` — CONCLUDED 2026-09-14 at merge `4628d4e6a`, ordinal 2706, sample #189 (no tally candidate) | difficulty M, task class STRUCTURAL-GEOMETRIC — logged before the draw |
 | 2 | OPUS | `S93` | difficulty S, task class STRUCTURAL — logged before the draw |
 
 Ordinal claims go to main at each review dispatch (band 2700–2799).
