@@ -1042,7 +1042,8 @@ impl Real for Probe {
 
     /// The recording scalar's value channel IS an `f64`, so the
     /// registered-identity witness is `f64`'s verbatim
-    /// ([`Real::register_equal`]).
+    /// ([`Real::register_equal`]) — inexact, so its refusal is
+    /// `Disputed` and it never answers `Contradicted`.
     fn register_equal(self, other: Self, tol: Tol) -> crate::sym::SymRegistration {
         self.0.register_equal(other.0, tol)
     }

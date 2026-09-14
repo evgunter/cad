@@ -88,8 +88,8 @@ fn r1_a_geometric_lie_the_f64_witness_refuses_is_recorded_at_interval() {
     let f64_says = <f64 as Real>::register_equal(1.0, 1.001, Tol::witness());
     assert_eq!(
         f64_says,
-        SymRegistration::Contradicted,
-        "at a point: caught"
+        SymRegistration::Disputed,
+        "at a point: caught, and by an INEXACT witness, which never answers Contradicted"
     );
     let (out, counts) = with_session_rules(budget(), SymRules::shipped(), || {
         // ‖v‖ over a box, against a radius parameter 0.1% too large.

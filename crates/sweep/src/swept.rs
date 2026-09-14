@@ -46,6 +46,7 @@
 
 use geom::Curve3;
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, SketchSegment};
+use geom_core::sym::SymRegistration;
 use geom_core::{
     Affine3, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec2, Vec3,
 };
@@ -374,25 +375,38 @@ pub(crate) fn turn_axis<T: Real>(turn: Sign, normal: Vec3<T>) -> Vec3<T> {
 /// every registrant on this path is reached from a builder that already
 /// holds one, and kernel library code may not mint a tolerance witness.
 pub(crate) fn register_rim_identity<T: Real>(rim: Vec3<T>, radius: T, tol: Tol) {
-    // THE TYPED ANSWER IS HANDLED, and handling it is not asserting on
-    // it. A `Contradicted` means the lane scalar separated `‖q − c‖`
-    // from `r`; the registration is then REFUSED — nothing is recorded,
-    // every decision that would have rested on it stays numeric, and
-    // inside a session the refusal is counted
-    // (`SymCounts::registrations_refused`, which the drive's receipt
-    // reports). That is the whole of what a registrant owes.
+    // THE TYPED ANSWER IS HANDLED, and WHICH refusal it is decides
+    // whether handling it may also assert on it.
     //
-    // **And it is deliberately not a `debug_assert!`.** The proof above
-    // is a theorem of the REALS; a constructor can be handed a
-    // configuration at the edge of `f64` representability where it is
-    // not a theorem of the floats, and refusing to register there is
-    // correct rather than a defect. Measured, not supposed: an
-    // adversarial probe that sweeps a torus's minor radius to 1e18 with
-    // wall widths below one ULP reaches exactly that
-    // (`work/sym/the-span-identity-is-not-a-theorem-of-the-floats`), and
-    // an assertion there turns a door that correctly REFUSES into a
-    // panic.
-    let _refused_registrations_are_counted_not_asserted = rim.norm().register_equal(radius, tol);
+    // `Disputed` is bound and not asserted on. It means an INEXACT
+    // witness (`f64`, `Probe`) found `‖q − c‖` and `r` further apart
+    // than the run's ε allows, which the proof above does not forbid:
+    // the proof is a theorem of the REALS, and a constructor can be
+    // handed a configuration at the edge of `f64` representability
+    // where it is not a theorem of the floats. Measured, not supposed:
+    // an adversarial probe that sweeps a torus's minor radius to 1e18
+    // with wall widths below one ULP reaches exactly that
+    // (`work/sym/the-span-identity-is-not-a-theorem-of-the-floats`),
+    // and an assertion there turns a door that correctly REFUSES into a
+    // panic. The registration is refused either way — nothing is
+    // recorded, every decision that would have rested on it stays
+    // numeric, and inside a session the refusal is counted
+    // (`SymCounts::registrations_refused`, which the drive's receipt
+    // reports).
+    //
+    // `Contradicted` is a PROOF and is asserted on: it is the exact
+    // witness's answer (`Interval`'s two certified enclosures are
+    // disjoint over the leaf's box), and no scale makes that the
+    // arithmetic giving up. Either this builder did not build what the
+    // doc above says it builds, or an upstream enclosure does not
+    // contain its real; both are defects and both belong loud.
+    match rim.norm().register_equal(radius, tol) {
+        SymRegistration::Contradicted => debug_assert!(
+            false,
+            "the exact witness separated the swept arc's ‖q − c‖ from its stored radius"
+        ),
+        _disputed_is_counted_not_asserted => {}
+    }
 }
 
 /// **The swept arc's SPAN identity, registered** (M10-9 amendment A1;
@@ -452,11 +466,20 @@ pub(crate) fn register_span_identity<T: Real>(
         return;
     };
     let p = Curve3::circle_at(center, axis, radius, u_ref, param_end);
-    // Per component, each answer handled — and, as at the rim, handled
-    // is not asserted on (`register_rim_identity` carries the
-    // argument and the measurement).
+    // Per component, each answer handled — and, as at the rim, which
+    // refusal it is decides whether handling it may assert
+    // (`register_rim_identity` carries the argument and the
+    // measurement): `Disputed` is the inexact witness losing the
+    // identity at the scale and is bound, `Contradicted` is the exact
+    // witness proving the two sides differ and is loud.
     for (built, held) in [(p.x, q_to.x), (p.y, q_to.y), (p.z, q_to.z)] {
-        let _refused_registrations_are_counted_not_asserted = built.register_equal(held, tol);
+        match built.register_equal(held, tol) {
+            SymRegistration::Contradicted => debug_assert!(
+                false,
+                "the exact witness separated carrier.eval(param_end) from the segment's far vertex"
+            ),
+            _disputed_is_counted_not_asserted => {}
+        }
     }
 }
 

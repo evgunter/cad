@@ -339,6 +339,76 @@ fn m10_9_the_ceilings_are_unmoved_and_both_ends_are_the_measured_bracket() {
     }
 }
 
+/// **NO REGISTRATION IS REFUSED ON A REAL DOCUMENT** — the loud
+/// channel the door was missing, at fixture scale.
+///
+/// The five M10-10 evidence documents are replayed at `Sym<Interval>`
+/// with the shipped set, at the scale each certifies whole at, and the
+/// session's receipt must report `registrations_refused == 0`. In THIS
+/// lane every arm that feeds that count is a proof of a defect:
+/// `SymRegistration::Contradicted` is the exact witness reporting two
+/// DISJOINT certified enclosures — either the registrant did not build
+/// what its theorem says or an upstream enclosure does not contain its
+/// real — and `Cyclic` is a registrant aliasing a node into its own
+/// expression. `Disputed`, the inexact witness's refusal, cannot arise
+/// here: no `f64` compares anything in this lane.
+///
+/// **Why this row and not an assertion inside the registrants.** A
+/// registrant's theorem is a theorem of the REALS, so it may not
+/// promise that every configuration a door admits is one where the
+/// arithmetic agrees — an adversarial torus at a minor radius of 10¹⁸
+/// contradicts the span identity at `f64` with nothing wrong
+/// (`work/sym/the-span-identity-is-not-a-theorem-of-the-floats`). What
+/// a registrant CAN promise is a claim about the documents the kernel
+/// is measured on, and that is this row: a registrant that starts
+/// stating a lie on a real document reds it. The `Interval` arm keeps
+/// its assertion too, in the registrants, where the refusal is a proof.
+///
+/// The ε rows are the suite's: one process per ε, so this row runs at
+/// `1e-6`, `1e-9` and `1e-12` and the claim is all three.
+#[test]
+fn m10_9_no_registration_is_refused_on_any_measured_document() {
+    let tol = Tol::witness();
+    let eps = tol.eps();
+    // The certifying end of each document's measured bracket
+    // (`m10_9_the_ceilings_are_unmoved_and_both_ends_are_the_measured_bracket`).
+    let docs: [StudyAtCeiling<'_>; 5] = [
+        ("two_hole_plate", 7.811e2, &|s: f64| {
+            crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0
+        }),
+        ("r1_annulus", 7.805e2, &|s: f64| {
+            crate::m10_8_r1_probes_interval::annulus(s, tol).0
+        }),
+        ("r2_link", 4.930e2, &|s: f64| {
+            crate::m10_9_r2_probes_interval::link(s, tol).0
+        }),
+        ("r2_filleted_bracket", 3.870e2, &|s: f64| {
+            crate::m10_7_r2_probes_interval::bracket(s, tol).0
+        }),
+        ("r2_rounded_pad", 2.083e3, &|s: f64| {
+            crate::m10_8_r2_probes_interval::pad(s, tol).0
+        }),
+    ];
+    for (name, scale, at) in docs {
+        let doc = at(scale * eps);
+        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        let (refusal, counts) =
+            replay_counts(&doc, &ParamBox::of(&analyzed), SymRules::shipped(), tol);
+        println!("   {name} at eps={eps:e}: {counts:?} -> {refusal:?}");
+        assert!(
+            counts.registered > 0,
+            "{name}: the registrants reach this document, so the row below is about \
+             something — if this fails the document stopped exercising the door: {counts:?}"
+        );
+        assert_eq!(
+            counts.registrations_refused, 0,
+            "{name} at eps={eps:e}: a registrant stated something the EXACT witness \
+             refused on a real document — its theorem or an upstream enclosure is \
+             wrong: {counts:?}"
+        );
+    }
+}
+
 /// **AND THE BOUND IS ONE PREDICATE, door open or shut** — the
 /// over-band set at ceiling + δ on the three documents a gate can
 /// afford to name it for.

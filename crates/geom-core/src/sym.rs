@@ -888,11 +888,21 @@ pub struct SymCounts {
     /// decisions out of `numeric` — never out of `symbolic_zero` or
     /// `sign_gated`, whose counts are M10-8's on every document.
     pub registered: u64,
-    /// **Registrations the door REFUSED** — `Contradicted` (the lane
-    /// scalar's witness separated the two values) or `Cyclic`. Counted
+    /// **Registrations the door REFUSED** — `Contradicted` or
+    /// `Disputed` (the lane scalar's witness separated the two values,
+    /// by a proof and by a slack respectively) or `Cyclic`. Counted
     /// because a refusal that leaves no trace is a defect nobody sees:
     /// a constructor registering a lie in a real document must show up
     /// in the receipt (R1 m4, R2 MINOR-2).
+    ///
+    /// **One column, and what it means depends on the LANE.** At
+    /// `Sym<Interval>` — the lane the driver replays in — every
+    /// contributing arm is a proof of a defect (`Contradicted`:
+    /// disjoint certified enclosures; `Cyclic`), so a non-zero count on
+    /// a real document is a finding, and a fixture-scale row pins it at
+    /// zero. At `Sym<f64>` the count also collects `Disputed`, which
+    /// may be nothing worse than the arithmetic running out of
+    /// significand, so zero is not something to assert there.
     pub registrations_refused: u64,
     /// **Decisions where a REGISTERED zero met a DEFINITE numeric
     /// sign** — the two channels in contradiction, which for a
@@ -2239,10 +2249,13 @@ impl<T: Real> Sym<T> {
     /// `f64` the two values must agree to the run's ε relative to the
     /// larger magnitude — which is why `tol` is a parameter here, and
     /// why it is handed down rather than read ([`Real::register_equal`]).
-    /// Where they
-    /// do not, the door records nothing and answers
-    /// [`SymRegistration::Contradicted`], typed, so a constructor that
-    /// does not build what it claims cannot state it. A registration
+    /// Where they do not, the door records nothing and answers the lane
+    /// scalar's own refusal arm, forwarded: `Contradicted` from the
+    /// exact witness, `Disputed` from an inexact one. A constructor that
+    /// does not build what it claims therefore cannot state it, and the
+    /// answer says whether the refusal is a PROOF of that or an
+    /// arithmetic that could not tell
+    /// ([`SymRegistration::Disputed`]). A registration
     /// that would close a cycle is refused
     /// [`SymRegistration::Cyclic`] — `form_in`'s termination rests on
     /// a node's id being a hash of its children's, and the registry is
@@ -2285,11 +2298,16 @@ impl<T: Real> Sym<T> {
         // The witness first: an unwitnessed or contradicted claim never
         // reaches the registry at all. A refusal is COUNTED — the
         // receipt is where a constructor that states a lie becomes
-        // visible.
+        // visible — and the value channel's ARM is FORWARDED unchanged,
+        // because which refusal it is is a fact about the lane scalar's
+        // witness rather than about the registry: `Contradicted` is a
+        // proof (`Interval`'s disjoint certified enclosures),
+        // `Disputed` an inexact witness that could not tell (`f64`,
+        // `Probe`). Both refuse identically here — nothing is recorded.
         match self.value.register_equal(other.value, tol) {
-            SymRegistration::Contradicted => {
+            refusal @ (SymRegistration::Contradicted | SymRegistration::Disputed) => {
                 count_registration_refused();
-                return SymRegistration::Contradicted;
+                return refusal;
             }
             SymRegistration::Unwitnessed => return SymRegistration::Unwitnessed,
             _ => {}
@@ -3223,7 +3241,9 @@ mod tests {
     }
 
     /// **A lying registration is refused, typed, and the decisions stay
-    /// numeric** — the planted `‖q − c‖ ≡ 2r`.
+    /// numeric** — the planted `‖q − c‖ ≡ 2r`. This lane's witness is
+    /// `f64`'s, which is inexact, so the arm is `Disputed`: the claim is
+    /// false, and a comparison at a slack cannot say that it is.
     #[test]
     fn a_lying_registration_is_refused_typed() {
         let (how_, counts) = with_session(budget(), || {
@@ -3231,8 +3251,8 @@ mod tests {
             let two_r = Sym::from_f64(2.0) * r;
             assert_eq!(
                 n.register_equal(two_r, Tol::witness()),
-                SymRegistration::Contradicted,
-                "5 is not 10, and the witness says so at the point"
+                SymRegistration::Disputed,
+                "5 is not 10, and the INEXACT witness at this lane says so at the point"
             );
             resid.map(how)
         });
@@ -3319,7 +3339,8 @@ mod tests {
         );
         assert_eq!(
             <f64 as Real>::register_equal(1.0, 2.0, Tol::witness()),
-            SymRegistration::Contradicted
+            SymRegistration::Disputed,
+            "an INEXACT witness never answers Contradicted"
         );
         assert_eq!(
             <f64 as Real>::register_equal(f64::NAN, 1.0, Tol::witness()),
@@ -3427,8 +3448,8 @@ mod tests {
             for (a, b) in p_end.into_iter().zip(q_to) {
                 assert_eq!(
                     a.register_equal(b, Tol::witness()),
-                    SymRegistration::Contradicted,
-                    "the witness separates a displaced far vertex"
+                    SymRegistration::Disputed,
+                    "the inexact witness separates a displaced far vertex"
                 );
             }
             resid.map(how)

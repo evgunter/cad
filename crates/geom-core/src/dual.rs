@@ -452,7 +452,9 @@ impl<T: KinkJacobian> Real for Dual<T> {
     /// that are true.
     ///
     /// Nothing is recorded — a `Dual` tracks no expression
-    /// ([`Real::register_equal`]).
+    /// ([`Real::register_equal`]). Which refusal arm it can answer is
+    /// `T`'s: over `f64` it is `Disputed` and never `Contradicted`,
+    /// over `Interval` the reverse.
     fn register_equal(self, other: Self, tol: Tol) -> crate::sym::SymRegistration {
         self.value.register_equal(other.value, tol)
     }

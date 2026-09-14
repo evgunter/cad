@@ -331,6 +331,13 @@ impl Real for Interval {
     /// ([`crate::real::CertifiedEnclosure`], and clause 1 of the
     /// symbolic tier's own theorem).
     ///
+    /// **This witness is EXACT, so its refusal is
+    /// [`crate::sym::SymRegistration::Contradicted`] and never
+    /// [`crate::sym::SymRegistration::Disputed`]**: two certified
+    /// enclosures that do not meet PROVE the two reals differ (or that
+    /// an upstream enclosure does not contain its real), and there is no
+    /// scale at which that answer is the arithmetic giving up.
+    ///
     /// **`tol` is ignored, and that is the point**: the meet is EXACT.
     /// Two certified enclosures of one real overlap or they do not, and
     /// no slack enters the test — the widths already carry every error
