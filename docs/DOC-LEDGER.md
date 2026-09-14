@@ -2427,3 +2427,18 @@ two `SMELL-*-LOG.md` files this sweep archived. The row itself says so
 and names the one thing still worth doing — a `work.py` check that an id
 is never reissued — as META's; it was re-homed to
 `work/meta/d321-row-number-reissued.md` when CITE closed at sweep 12.
+
+## Per-merge deletion — DOCM-9's spec (2026-09-14)
+
+Recoverable at `git show ec7f7770b569fb3c3aa3c87e086f66170166712c:docs/DOCM-9-SPEC.md`
+(the DOCM-9 unit head, before the state-sync commit that deleted it;
+unamended — no stop clause fired). Two of its letters are corrected in
+the unit's record: item 3's "the first uncertified leaf outward" is
+read as the first leaf the driver decided definitely otherwise (a
+certified leaf and a flip-crossing leaf cannot be neighbours; the
+literal reading is dead code), and A1's `NewFailure` row is unmet
+because the driver prices a failing leaf as budget rather than naming
+it (PROPS's row). The rule above; the unit's record is its row in
+`MODEL-AB-LOG.md` and its MERGED entry in `work/docm/log.md`.
+
+- `DOCM-9-SPEC.md` — DOCM-9, the certified locally-valid range query (#2534)

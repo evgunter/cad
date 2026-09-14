@@ -678,3 +678,27 @@ sentence corrected (a subset of the locally-valid range, not of the
 probe's bracket endpoints) with the real probe run beside the query;
 the unpinned contract sentences rowed; the export guard's cfg
 asymmetry filed to LIB. One candidate enters the tally.
+
+## DOCM-9 MERGED (2026-09-14, PR 2534, ordinal 1808, sample #187)
+
+Block DOCM-B3 slot 2 (OPUS), concluded — the block is complete (slot 0
+DOCM-7 opus, slot 1 DOCM-8 fable, slot 2 DOCM-9 opus) and its record
+reaches main with this sync. The program's last unit. No stop; the v6
+dual (R1 opus APPROVE-WITH-FIXES 2/4/6, R2 fable NOT-MERGEABLE-AS-IS
+1/3/5 — split labels on converged substance) and its union fix pass.
+Adjudicated: one bilateral MAJOR (the `DecisionFlip` arm's prose
+claimed every value in `within` builds; both lanes found a build
+failure inside it on the unit's own fixture) and one unilateral MAJOR,
+R1's (the arm-separating predicate had no discriminating row). Ruled:
+the walk's re-reading stays (verified an improvement by both), the
+arm's sentence goes and a measurement row pins what `within` may
+contain; the predicate rowed at the function level; the query's
+behaviour on the corpus stated — nothing certifies at affordable
+budgets, the driver's certification width, with a starting budget and
+`pinned()` on the answer; the C4 sentence corrected with the real
+probe run beside the query. One candidate enters the tally. Closed:
+`certify-locally-valid-range-instead-of-sampling`. Filed: the viewer
+affordance (CHROME), the Python door and the export guard's cfg
+asymmetry (LIB), the parametric polygon loop (PROPS, widened). The
+spec is deleted into the ledger. Next: the exit walk (ratified in
+advance by Ev, 2026-09-13) and the sweep.
