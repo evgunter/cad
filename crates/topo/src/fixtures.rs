@@ -47,7 +47,7 @@ use crate::entity::{
     Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
 use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
-use crate::euler_ring::{KemrResult, KfmrhResult};
+use crate::euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::provenance::Provenance;
 use crate::readback::euler_counts;
@@ -983,4 +983,71 @@ pub(crate) fn ops_genus2(tol: Tol) -> Body<f64> {
     assert_eq!(counts.genus(), Ok(2), "genus 2");
     assert_eq!(crate::validate::validate(&body), Ok(()));
     body
+}
+
+/// Key bundle for [`ops_ring_bridge`].
+#[allow(dead_code)] // key bundles expose every minted key; tests pick what they need
+pub(crate) struct OpsRingBridge {
+    pub body: Body<f64>,
+    /// The face whose outer loop carries the bridge — the holed box's
+    /// top face, the one [`ops_holed_box`] leaves holding the hole rim
+    /// as a ring.
+    pub face: FaceKey,
+    /// That face's outer loop: after the bridge, the merged cycle
+    /// holding the former rim, the two bridge halves and the former
+    /// outer.
+    pub outer: LoopKey,
+    /// The bridge edge. Both of its halves lie in
+    /// [`OpsRingBridge::outer`], which is the shape [`Body::kemr`]
+    /// requires of its two arguments.
+    pub bridge: MekrResult,
+}
+
+/// Builds the holed box with its top face's hole rim **joined back into
+/// that face's outer loop** by one `mekr` — [`ops_holed_box`] plus one
+/// operator, so genus and shell count are unchanged and the body still
+/// validates.
+///
+/// **The shape [`Body::kemr`] needs, which no other fixture here
+/// presents.** `kemr` takes two halves of ONE edge lying in ONE loop;
+/// every edge of [`ops_cube`], [`ops_holed_box`] and [`ops_genus2`]
+/// borders two distinct faces, so its halves sit in two loops and
+/// `kemr`'s plan phase refuses at `NotSameLoop` on every pair those
+/// bodies present. A bridge edge is the M1 shape whose two halves share
+/// a loop, and `mekr` is the door that makes one.
+///
+/// Both components of the split are **non-empty** — the rim halves on
+/// one side of the bridge, the former outer's on the other — so `kemr`
+/// here runs both of its
+/// [`link_half_edges`](Body::link_half_edges) splices rather than the
+/// one a strut kill (whose ring side is empty) reaches.
+pub(crate) fn ops_ring_bridge(tol: Tol) -> OpsRingBridge {
+    let t = ops_holed_box(tol);
+    let mut body = t.body;
+    let face = t.seed.face;
+    let (outer, rings) = {
+        let data = body.get_face(face).unwrap();
+        (data.outer, data.rings.clone())
+    };
+    assert_eq!(
+        rings.len(),
+        1,
+        "the holed box's top face carries exactly the hole rim as a ring"
+    );
+    let LoopBoundary::Cycle { first: target } = body.get_loop(outer).unwrap().boundary else {
+        panic!("the top face's outer loop is a cycle");
+    };
+    let LoopBoundary::Cycle { first: rim } = body.get_loop(rings[0]).unwrap().boundary else {
+        panic!("the hole rim is a cycle");
+    };
+    let bridge = body
+        .mekr_chord(MekrSite::Cycles { target, ring: rim }, tol)
+        .unwrap();
+    assert_eq!(crate::validate::validate(&body), Ok(()));
+    OpsRingBridge {
+        body,
+        face,
+        outer,
+        bridge,
+    }
 }
