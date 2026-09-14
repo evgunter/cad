@@ -4,6 +4,7 @@ kind: issue
 title: the arc span identity is a theorem of the reals and not of the floats: an adversarial torus at minor radius 1e18 contradicts it at the witness
 status: open
 opened: 2026-09-06
+needs_ev: true
 ---
 
 **Found by M10-9's fix pass, by an assertion it added and then removed
@@ -82,3 +83,11 @@ rests on the registrant's proof. `Real::register_equal` lives in
 by announced seam.
 
 From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.
+
+## Decision for Ev (2026-09-14)
+
+Asked with `the-witness-slack-is-eps-independent`'s D2 on the same
+`[ev]` PR: whether the door should tell "false" from "could not tell at
+this scale". The orchestrator's recommendation is one arm, the receipt
+as the loud channel, and a fixture-scale zero-refusals row closing this
+row.
