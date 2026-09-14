@@ -1266,3 +1266,23 @@ collapse to `KernelDirect` (the arena doors carry no caller identity;
 filed on this slate) and `Cleared` carries no `by` (one caller). The
 dual dispatches (ordinal 2710, byte drawn then) when the D107 style
 review frees its lane; three heavy lanes is the box's ceiling.
+
+## D107 style review adjudicated; fix pass dispatched (2026-09-14)
+
+Verdict MERGEABLE-AFTER-FIXES, fourteen findings, every PR claim
+reproduced (exposure table exact both columns, four mutants behave as
+stated, the release job's exact selection green). Adjudicated: two
+fresh instances of the closed defect are the substance — the new
+`FIXTURES` const is an enumerated dimension with no floor (dropping
+`ops_cube` passes green; S5, sure) and the sampling row's aggregate
+`require_nonzero_among(LINK_OPS, n-1)` keeps five operators under the
+slack `kemr` sat under (S6, half-fix) — both go to the fix pass with
+`require_each` as the shape. Three stale prose counts in the file
+whose subject is unheld counts (S1–S3), an assertion narrower than
+its comment (S7), the one-splice `kemr` strut undriven (S8), the
+`NotSameLoop` sentence witnessed for one fixture of three (S10), an
+unreachable guard (S9), two PR-body overpromises (S4 gating, S11
+territory's globs not covering `work/`), one filed-row cost estimate
+(S12). Fix pass dispatched as a fresh lane on the inherited branch;
+merge and close when its run is green. The review's report is
+archived at `/home/user/topo-orch/d107-style-report.md`.
