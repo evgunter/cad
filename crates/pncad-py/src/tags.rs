@@ -2309,6 +2309,8 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::Pcurve { .. } => "pcurve",
         ValidationError::RingMeetsOuter { .. } => "ring_meets_outer",
         ValidationError::RingContactEscalated { .. } => "ring_contact_escalated",
+        ValidationError::RingOutsideOuter { .. } => "ring_outside_outer",
+        ValidationError::RingNestingUndecided { .. } => "ring_nesting_undecided",
         ValidationError::UndeclaredContact { .. } => "undeclared_contact",
         ValidationError::StaleContactDeclaration { .. } => "stale_contact_declaration",
         ValidationError::ContactContradicted { .. } => "contact_contradicted",
