@@ -62,14 +62,25 @@ From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the
 
 ## After SYM-2
 
-SYM-2 took the two moves the list above names and the header with them,
-and its fix pass took the test module as well: `sym.rs` 4,478 -> 2,499
-lines, its header 491 -> 457; `sym/rational.rs` 532 (header 18),
-`sym/form.rs` 417 (header 22), `sym/tests.rs` 1,040. The next cut, proposed by that lane and DEFERRED
-by the orchestrator:
+SYM-2 took the two moves the list above names and the header with them:
+`sym.rs` 4,478 -> 3,540 lines, its header 491 -> 457; `sym/rational.rs`
+532 (header 18), `sym/form.rs` 417 (header 22). Two further cuts are
+identified and neither is taken.
 
-**The ids and the nodes -> `sym/dag.rs`, ~240 lines** (deferred; the
-taker meets two conditions, below). `SymId`,
+**The test module -> `sym/tests.rs`, 1,040 lines.** A pure move, written
+and reverted in the fix pass (`c9a38f5e4`, `c9811f408`): it is BLOCKED by
+`scripts/gates/register-equal-allowlist.sh`, whose whole-file skip
+exempts `sym.rs` as a file that DEFINES `Real::register_equal` and is
+thereby also hiding the tier's thirteen test calls of the door. Out of
+that file they stand outside every home and the gate reads them as a new
+constructor site. The condition: `guard` takes
+`register-equal-allowlist-exempts-a-whole-file-and-hides-test-calls`
+first — a test call has to be distinguishable from a registrant — and
+then this cut is a one-commit relocation.
+
+**The ids and the nodes -> `sym/dag.rs`, ~240 lines**, proposed by the
+SYM-2 lane and DEFERRED by the orchestrator, the taker meeting the two
+conditions below. `SymId`,
 `Hash128`, `ParamSymbol`, `SymOp` with its `tag`/`arity` tables and
 `SymNode` with its `id` — the whole of what a node IS and how it is
 keyed, between the `// ids` and `// the session` banners. It has the
