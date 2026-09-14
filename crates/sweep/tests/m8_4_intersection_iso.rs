@@ -612,27 +612,18 @@ fn an_interior_column_intersection_mints_a_general_image() {
         cert.envelope, cert.statement
     );
 
-    // ---- The opening measurement for the unit that lifts the trimmed
-    // region's refusals: which refusal each lane actually reaches on
-    // this body. Quadrature reaches the filed "non-iso pcurve" site
-    // (`topo/src/props.rs`, the General image on the seam).
+    // ---- Which lane this body actually reaches. Quadrature no
+    // longer refuses: TRIM-2 PR-1's dispatch sends a loop carrying a
+    // `General` image to the trimmed lane, and THIS body's chart is
+    // the degree-1 widening, whose `u` direction is only C⁰ at its
+    // interior knots — so what the trimmed lane answers here is its
+    // own measurement, printed rather than assumed.
     // Tessellation does NOT reach a trimmed-region site at all: the
     // widened chart has interior knots in its degree-1 `u` direction,
     // and `mesh`'s patch-bound gate refuses that C⁰ crease first
     // (`geom_brep::patch_bound::PatchBoundError::Degree1Crease`). ----
     let props = topo::mass_properties(&body, Tol::witness());
-    let Err(topo::MassPropsError::Face {
-        source: geom_brep::PropsError::QuadratureUnsupported { what },
-        ..
-    }) = props
-    else {
-        panic!("the trimmed face's quadrature lane moved — re-pin this row: {props:?}")
-    };
-    assert!(
-        what.contains("carries a non-iso pcurve"),
-        "quadrature refuses at the non-iso-pcurve site: {what}"
-    );
-    println!("M8-4 mass_properties on the trimmed chart: {what}");
+    println!("M8-4 DEG1 mass_properties on the trimmed chart: {props:?}");
     let tess = mesh::tessellate(&body, 1e-5, Tol::witness());
     let Err(mesh::TessellateError::UnsupportedNurbsFace { note, .. }) = tess else {
         panic!("the trimmed face's tessellation lane moved — re-pin this row")
@@ -830,112 +821,99 @@ fn degree_two_body() -> (Body<f64>, topo::HalfEdgeKey, topo::SurfaceKey) {
     (body, he, key)
 }
 
+/// **E1 — the degree-2 body MEASURES.**
+///
+/// The same wall on the degree-2 re-widening (`widened_u_chart_deg2`):
+/// both seams are interior columns, every interior knot is simple, and
+/// the `Intersection` seam keeps its `General` image — so the face's
+/// trim region is what that image bounds and not a rectangle of its
+/// chart. `mass_properties` answers it, and the answer must overlap
+/// the ORACLE prism's: the same solid on its original charts, with no
+/// restatement and no `General` anywhere.
+///
+/// **E3 rides along, recorded and not flipped**: `replace_face_offset`
+/// on the bowed face is not this unit's frontier. It refuses at the
+/// FITTED offset's own boundary rule — `FittedBoundaryUnsupported`,
+/// which the oracle prism's own bowed wall earns identically with no
+/// `General` in the body at all — or, where the fit cannot reach the
+/// run's ε, at `Fit { BudgetExhausted }`. Both are SHELL's
+/// `no-approx-faced-body-is-both-movable-and-valid` class. The row
+/// prints them; asserting a variant here would pin another program's
+/// frontier.
 #[test]
-fn scratch_degree_two_fixture_measurement() {
+fn a_degree_two_widening_measures_against_the_oracle() {
     let eps = Tol::witness().get().eps;
     let (mut body, he, key) = degree_two_body();
-    let chart = chart_of(&body, key);
-    println!(
-        "SCRATCH eps={eps:e} chart u domain {:?} deg {} / v domain {:?} deg {}",
-        chart.knots_u().domain(),
-        chart.knots_u().degree(),
-        chart.knots_v().domain(),
-        chart.knots_v().degree()
+    topo::mint_pcurves(&mut body, Tol::witness())
+        .unwrap_or_else(|e| panic!("the degree-2 chart mints at rest: {e:?}"));
+    assert!(
+        matches!(body.pcurve(he).unwrap().pcurve(), Pcurve::General(_)),
+        "the Intersection seam keeps its General image on the degree-2 chart: {:?}",
+        body.pcurve(he).unwrap().pcurve()
     );
-    let mint = topo::mint_pcurves(&mut body, Tol::witness());
-    println!("SCRATCH mint_pcurves: {:?}", mint.as_ref().map(|()| ()));
     let findings = topo::pcurves::validate_pcurves(&body, band());
-    println!("SCRATCH validate_pcurves: {} findings", findings.len());
-    let hes: Vec<_> = body
-        .edges()
-        .flat_map(|(_, e)| [e.he_plus, e.he_minus])
-        .filter(|h| he_surface(&body, *h) == key)
-        .collect();
-    for h in &hes {
-        let cache = body
-            .pcurve(*h)
-            .expect("the bowed face's cache set is complete");
-        let (t0, t1) = cache.params();
-        let kind = match cache.pcurve() {
-            Pcurve::General(img) => format!(
-                "General(deg {}, {} cps, unit weights {}, u box [{:?}], v box [{:?}])",
-                img.degree(),
-                img.control().len(),
-                img.weights().iter().all(|w| *w == 1.0),
-                (
-                    img.control().iter().fold(f64::INFINITY, |m, p| m.min(p.x)),
-                    img.control()
-                        .iter()
-                        .fold(f64::NEG_INFINITY, |m, p| m.max(p.x))
-                ),
-                (
-                    img.control().iter().fold(f64::INFINITY, |m, p| m.min(p.y)),
-                    img.control()
-                        .iter()
-                        .fold(f64::NEG_INFINITY, |m, p| m.max(p.y))
-                ),
-            ),
-            Pcurve::IsoLine { p0, pl } => format!("IsoLine(p0 {p0:?}, pl {pl:?})"),
-            other => format!("{other:?}"),
-        };
-        println!(
-            "SCRATCH  he {h:?} t∈[{t0}, {t1}] {kind} envelope {:e} {:?}",
-            cache.certificate().envelope,
-            cache.certificate().statement
-        );
-    }
-    let props = topo::mass_properties(&body, Tol::witness());
-    println!("SCRATCH mass_properties: {props:?}");
-    let tess = mesh::tessellate(&body, 1e-5 * INTERIOR_COLUMN_SCALE, Tol::witness());
-    println!(
-        "SCRATCH tessellate: {:?}",
-        tess.as_ref().map(|m| (m.positions.len(), m.patches.len()))
+    assert!(
+        findings.is_empty(),
+        "the degree-2 body validates at rest: {findings:?}"
     );
-    if let Err(e) = &tess {
-        println!("SCRATCH tessellate err: {e:?}");
-    }
-    // The oracle: the same solid on its original charts.
+    let props = topo::mass_properties(&body, Tol::witness())
+        .unwrap_or_else(|e| panic!("the trimmed lane answers the degree-2 body: {e:?}"));
     let oracle = prism(INTERIOR_COLUMN_SCALE);
-    let op = topo::mass_properties(&oracle, Tol::witness());
-    match &op {
-        Ok(m) => println!(
-            "SCRATCH oracle props: volume {:?} ± {:e}, area {:?} ± {:e}",
-            m.volume, m.volume_pad, m.surface_area, m.area_pad
-        ),
-        Err(e) => println!("SCRATCH oracle props err: {e:?}"),
-    }
-    let ot = mesh::tessellate(&oracle, 1e-5 * INTERIOR_COLUMN_SCALE, Tol::witness());
-    println!(
-        "SCRATCH oracle tessellate: {:?}",
-        ot.as_ref().map(|m| (m.positions.len(), m.patches.len()))
+    let want = topo::mass_properties(&oracle, Tol::witness())
+        .expect("the oracle prism's own lanes answer it");
+    let overlaps = |a: (f64, f64), b: (f64, f64)| a.0 <= b.1 && b.0 <= a.1;
+    let bracket = |v: f64, pad: f64| (v - pad, v + pad);
+    let (got_v, want_v) = (
+        bracket(props.volume, props.volume_pad),
+        bracket(want.volume, want.volume_pad),
     );
-    // E3: the offset on the bowed face, and the oracle's own bowed wall.
+    println!(
+        "E1 @ eps={eps:e}: volume {got_v:?} vs oracle {want_v:?}; area {:?} vs {:?}",
+        bracket(props.surface_area, props.area_pad),
+        bracket(want.surface_area, want.area_pad)
+    );
+    assert!(
+        overlaps(got_v, want_v),
+        "E1: the trimmed lane's volume enclosure {got_v:?} and the oracle's {want_v:?} \
+         describe the same solid and must overlap"
+    );
+    assert!(
+        overlaps(
+            bracket(props.surface_area, props.area_pad),
+            bracket(want.surface_area, want.area_pad)
+        ),
+        "E1: the surface-area enclosures must overlap too"
+    );
+    // E3, recorded.
     let (fk, _) = body
         .faces()
         .find(|(_, f)| f.surface == key)
         .expect("the bowed wall has a face");
     let mut off = body.clone();
-    let r = topo::replace_face_offset(
+    let got = topo::replace_face_offset(
         &mut off,
         fk,
         INTERIOR_COLUMN_SCALE / 16.0,
         band(),
         Tol::witness(),
     );
-    println!("SCRATCH offset(bowed, scale/16): {r:?}");
     let (_, obowed, _, _) = flat_bowed_seam(&oracle, INTERIOR_COLUMN_SCALE);
     let (ofk, _) = oracle
         .faces()
         .find(|(_, f)| f.surface == obowed)
         .expect("the oracle's bowed wall has a face");
     let mut ooff = oracle.clone();
-    let orr = topo::replace_face_offset(
+    let orc = topo::replace_face_offset(
         &mut ooff,
         ofk,
         INTERIOR_COLUMN_SCALE / 16.0,
         band(),
         Tol::witness(),
     );
-    println!("SCRATCH oracle offset(bowed, scale/16): {orr:?}");
-    let _ = he;
+    println!("E3 @ eps={eps:e}: offset(General-faced) {got:?}");
+    println!("E3 @ eps={eps:e}: offset(oracle bowed)  {orc:?}");
+    assert!(
+        got.is_err() && orc.is_err(),
+        "E3 records a refusal on both; a success here would be a different unit's news"
+    );
 }
