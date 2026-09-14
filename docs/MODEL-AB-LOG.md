@@ -6248,3 +6248,9 @@ fable at slot 1.
 | 2 | OPUS | `edge-carrier-kind-has-no-readback-door` | difficulty S, task class STRUCTURAL — logged before the draw |
 
 Ordinal claims go to main at each review dispatch (band 2700–2799).
+
+Slot 1 CONCLUDED 2026-09-14: `revert-leaves-a-periodic-charts-loop-wrap-mid-chain`
+(FABLE; M / NUMERIC; PR #2573, ordinal 2709, sample #194, no tally
+candidate; the lane relaunched once on its recovered WIP after a
+container restart). Slots 0 and 2 open (slot 0's dual concluded,
+ordinal 2710, fix pass live; slot 2 dispatched).
