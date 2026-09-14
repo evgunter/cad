@@ -369,3 +369,17 @@ describing door or accept the refusal (the row's measurement); no
 other caller's signature moves. **Recommendation: (c) as two doors**
 — which is (c) as written above; the "default" reading was mine, not
 the shape's.
+
+## Ruled (2026-09-14, PR 2527)
+
+Ev: "(c) sounds good then!" — two doors. `kev(he)` stays keys-only
+and refuses typed, before mutating, where any merged carrier would go
+stale, naming the members; `kev_describing(he, &[(EdgeKey,
+EdgeCurveSpec<T>)], tol)` takes the merged fan's re-descriptions,
+certifies each against the endpoint the merge will give its edge,
+refuses typed before any mutation, and writes topology and
+descriptions together — the `mev`/`mev_line`/`mev_null` variant-family
+shape. The blend's two sites and the generator's roundtrip inverse
+take the describing door; the generator's other kills supply a chord
+spec or keep their filter. Kernel answer: a block slot; this row is
+now the unit, and `S93` closes with it.
