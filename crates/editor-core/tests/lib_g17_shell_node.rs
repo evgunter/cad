@@ -457,10 +457,7 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     assert!(
         matches!(
             &e,
-            NodeErrorKind::ShellOpenKind {
-                found: EntityKind::Edge,
-                ..
-            }
+            NodeErrorKind::ShellOpenKind { found, .. } if found.kind() == EntityKind::Edge
         ),
         "{e:?}"
     );

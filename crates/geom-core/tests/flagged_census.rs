@@ -177,7 +177,7 @@ fn calls_in(text: &str) -> Vec<(usize, String)> {
         let rest = &code[i..];
         let open = skip_turbofish(rest, at);
         if rest[open..].starts_with('(') {
-            let line = code[..at].lines().count();
+            let line = test_utils::source::line(&code, at);
             let paren = i + open;
             let end = test_utils::source::balanced_end(&code, paren).unwrap_or_else(|| {
                 panic!("unterminated decide_flagged argument list at byte {paren}")
