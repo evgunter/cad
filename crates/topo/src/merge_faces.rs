@@ -256,10 +256,7 @@ enum GroupContract {
     /// refusals placed by `regime`, and `curved` tells it what a
     /// same-face duplicate on the survivor means — a ring on a plane,
     /// a closed period on a chart.
-    Runs {
-        regime: GroupRegime,
-        curved: bool,
-    },
+    Runs { regime: GroupRegime, curved: bool },
     /// Every member is a placeholder: one key, one surface, and
     /// nothing described to glue. No surgery runs and nothing is
     /// recorded as a skip; the faces are already named in
@@ -3215,7 +3212,11 @@ mod tests {
     fn a_described_face_beside_placeholders_is_untouched_and_they_are_named() {
         let tol = Tol::witness();
         let (mut body, plane) = cube_with_one_described_face(tol);
-        let expected: Vec<FaceKey> = body.faces().map(|(k, _)| k).filter(|&k| k != plane).collect();
+        let expected: Vec<FaceKey> = body
+            .faces()
+            .map(|(k, _)| k)
+            .filter(|&k| k != plane)
+            .collect();
         assert_eq!(expected.len(), 5);
         let before = crate::fixtures::deep_snapshot(&body);
         let outcome = body
@@ -3268,7 +3269,9 @@ mod tests {
         assert_eq!(other_kind, MergeKind::Placeholder);
         assert_ne!(other, plane);
         assert_eq!(
-            body.get_face(other).expect("the named member is live").surface,
+            body.get_face(other)
+                .expect("the named member is live")
+                .surface,
             surface_of(&body, neighbour),
             "the other member is on the placeholder key"
         );
