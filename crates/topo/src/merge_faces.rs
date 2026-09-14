@@ -1973,7 +1973,9 @@ impl<T: Decide> Body<T> {
                     geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
                         Some(Carrier::Conic)
                     }
-                    geom::Curve3::Nurbs(_) => None,
+                    // A spiric is the honest remainder as a spline is:
+                    // its region has no conic-bulge winding here.
+                    geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => None,
                 })
         };
         // A NURBS edge is the honest remainder — its region has no
@@ -2049,7 +2051,9 @@ impl<T: Decide> Body<T> {
                     geom::Curve3::Ellipse {
                         axis, major, minor, ..
                     } => (axis, major, minor),
-                    geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => {
+                    geom::Curve3::Line { .. }
+                    | geom::Curve3::Spiric { .. }
+                    | geom::Curve3::Nurbs(_) => {
                         return Ok((zero, chord()?));
                     }
                 };

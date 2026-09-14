@@ -1309,6 +1309,14 @@ pub fn sample_param<T: Real>(t0: T, t1: T, i: u32) -> T {
 ///   the honest extent of a full-period rim. The winding bound
 ///   (|Δt| ≤ τ, [`CertifyError::WindingExceeded`]) keeps the cosine in
 ///   its honest range.
+/// - **Spiric** (minor radius r, span Δv): `max(chord,
+///   r·(1 − cos(Δv/2)))` — the circle fold at the MINOR radius. A
+///   lower bound because in the `(m, axis)` plane the spiric is the
+///   image of the minor circle `(r cos v, r sin v)` under
+///   `(x, y) ↦ (g(x), y)`, `g(x) = √((R + x)² − d²)`, whose derivative
+///   `g′ = ρ/f ≥ 1` never shrinks a distance — so the spiric arc's
+///   point-set diameter dominates the r-circle arc's, and the circle
+///   bound below applies to that circle verbatim.
 /// - **Nurbs** — the chord: a certified lower bound on the point-set
 ///   diameter for the open fitted branches the zip mints (M5 PR 9);
 ///   closed rung-3 loops are split at crossing vertices before they
@@ -1331,6 +1339,12 @@ pub fn edge_extent<T: Real>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
             let half_span = (t1 - t0) * T::from_f64(0.5);
             chord.max(minor * (T::one() - half_span.cos()))
         }
+        // The minor radius is the certified direction (doc above): the
+        // spiric dominates its minor-radius circle pointwise.
+        Curve3::Spiric { minor_radius, .. } => {
+            let half_span = (t1 - t0) * T::from_f64(0.5);
+            chord.max(minor_radius * (T::one() - half_span.cos()))
+        }
         Curve3::Line { .. } | Curve3::Nurbs(_) => chord,
     }
 }
@@ -1342,6 +1356,7 @@ fn carrier_kind<T: Real>(carrier: &Curve3<T>) -> &'static str {
         Curve3::Line { .. } => "line",
         Curve3::Circle { .. } => "circle",
         Curve3::Ellipse { .. } => "ellipse",
+        Curve3::Spiric { .. } => "spiric",
         Curve3::Nurbs(_) => "Nurbs",
     }
 }
@@ -1601,7 +1616,14 @@ fn run_checks<T: Decide>(
         // spans escalate rather than sneak through). The same winding
         // bound applies: the 8kτ sample-alias argument is about the
         // parameter period, which the ellipse shares with the circle.
-        Curve3::Ellipse { minor, .. } => {
+        // A spiric's speed floor is its MINOR radius (`|dP/dv| ≥ r`,
+        // the variant docs) and its period is the same 2π, so it takes
+        // this arm at that meter.
+        Curve3::Ellipse { minor, .. }
+        | Curve3::Spiric {
+            minor_radius: minor,
+            ..
+        } => {
             let arc = Margin::levered(span, *minor);
             match decide("interval_span_forward", arc, band).map_err(span_escalated)? {
                 Sign::Positive => {}

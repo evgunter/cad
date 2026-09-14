@@ -828,7 +828,7 @@ fn mapped_self_description(
             axis_dir: *axis,
             angle: t1 - t0,
         }),
-        Curve3::Ellipse { .. } | Curve3::Nurbs(_) => None,
+        Curve3::Ellipse { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
     }
 }
 

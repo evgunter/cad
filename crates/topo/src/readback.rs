@@ -458,6 +458,15 @@ pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, Read
             axis,
             u_ref,
             ..
+        }
+        // The spiric's six fields ARE a canonical frame: the torus
+        // centre, its axis and the cutting plane's normal — the frame
+        // the model holds, answered as the pose.
+        | Curve3::Spiric {
+            center,
+            axis,
+            u_ref,
+            ..
         } => Ok(Pose {
             origin: *center,
             axis: *axis,

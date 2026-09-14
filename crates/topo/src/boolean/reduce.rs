@@ -418,7 +418,10 @@ fn gate_operand_edges<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(),
                 geom::Curve3::Line { .. }
                 | geom::Curve3::Circle { .. }
                 | geom::Curve3::Ellipse { .. } => {}
-                geom::Curve3::Nurbs(_) => {
+                // The boolean fence: no join, section or pierce arm
+                // reads a spiric, so an operand carrying one refuses
+                // here, at the gate, as a spline does.
+                geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
                     return Err(BooleanError::CurvedEdgeUnsupported {
                         operand,
                         edge: edge_key,

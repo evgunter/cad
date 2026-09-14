@@ -1115,6 +1115,22 @@ impl KeyWriter {
                 self.f64(*minor);
                 self.v3(*u_ref);
             }
+            Curve3::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
+            } => {
+                self.u8(4);
+                self.p3(*center);
+                self.v3(*axis);
+                self.v3(*u_ref);
+                self.f64(*major_radius);
+                self.f64(*minor_radius);
+                self.f64(*offset);
+            }
             Curve3::Nurbs(n) => {
                 self.u8(3);
                 self.nurbs3(n);

@@ -1371,7 +1371,12 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                                 .and_then(crate::null::CurveGeom::certified)
                                 .map(geom_brep::EdgeCurve::carrier);
                             let axial = match edge_box_rule(carrier) {
-                                EdgeBoxRule::NoSoundBox => AxialCarrier::Unclaimable,
+                                // No axial-span closed form is written
+                                // for the spiric; a box that cannot
+                                // claim is the honest answer.
+                                EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric => {
+                                    AxialCarrier::Unclaimable
+                                }
                                 EdgeBoxRule::Chord => AxialCarrier::Chord,
                                 EdgeBoxRule::ConicAmplitude {
                                     center,
@@ -1756,6 +1761,12 @@ pub(crate) enum EdgeBoxRule<T: Real> {
     },
     /// No cheap superset exists — see the type docs.
     NoSoundBox,
+    /// The spiric's whole-period box through `geom`'s
+    /// `spiric_arc_aabb` door (a C10 superset), hulled with the chord.
+    /// No axial projection is written for it (the census lane reads
+    /// it as unclaimable); reachable only from its own rows today,
+    /// because the operand gate refuses the kind.
+    Spiric,
 }
 
 /// The [`EdgeBoxRule`] for a carrier — the single kind→rule mapping,
@@ -1790,6 +1801,7 @@ pub(crate) fn edge_box_rule<T: Real>(carrier: Option<&geom::Curve3<T>>) -> EdgeB
             semi_v: *minor,
             u_ref: *u_ref,
         },
+        Some(geom::Curve3::Spiric { .. }) => EdgeBoxRule::Spiric,
         Some(geom::Curve3::Nurbs(_)) | None => EdgeBoxRule::NoSoundBox,
     }
 }
@@ -1824,6 +1836,17 @@ pub(crate) fn edge_box<T: Decide + Bounds>(
     let boxed = match edge_box_rule(carrier) {
         EdgeBoxRule::NoSoundBox => return Ok(Aabb::poison()),
         EdgeBoxRule::Chord => chord,
+        EdgeBoxRule::Spiric => certified
+            .and_then(|curve| {
+                let (t0, t1) = curve.params();
+                geom::curves::boxes::conic_arc_aabb(curve.carrier(), t0, t1, a, b)
+            })
+            .unwrap_or_else(|| {
+                unreachable!(
+                    "edge box: the spiric rule is minted only from a certified Spiric \
+                     carrier, and the exact arc door answers for it"
+                )
+            }),
         EdgeBoxRule::ConicAmplitude { .. } => {
             // The exact arc box, read from its one home one crate down:
             // per coordinate the extremum `c_i ± √((a·û_i)² + (b·v̂_i)²)`
