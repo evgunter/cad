@@ -536,3 +536,24 @@ one-term spelling, `shrink_to_fit` after `mul` (+0.14 %, the memo
 holds no slack), the disclosures. Declined as adjudicated: the
 `form.rs` split (recorded on the split item) and the degree cache.
 Delta by R1 on the fixed head.
+
+## Block SYM-B1 slot 0 concluded; the memo put to Ev (2026-09-14)
+
+SYM-4 merged (#2565 at `bdfd5aba5`, sample #193 — CURVED-MERGEDOOR
+took #192 on main first; the row and its ledger entry rode the PR).
+The merge had to wait a full run on a resolved head: main moved under
+the state-sync commit (two other programs' appended records and this
+program's own SYM-5 PR-1 entry), and a conflicting PR runs nothing —
+the resolution kept both sides of both appended files, and a
+renumbering sed that reached another program's record line was caught
+and restored before the merge. Lesson for this box: state-sync
+commits on shared append-only files land within minutes of main or
+they conflict.
+
+**`[ev]` PR #2581 opened** (branch `sym/ev-memo`, subscribed): D3 —
+may the tier's plain-form memo outlive the leaf? (1) a drive-scoped
+plain memo, recommended, with the three side effects defined; (2) the
+leaf stays self-contained; (3) a subtree memo. The cost row carries
+`needs_ev`. With #2552 (the door's witness) that is two decisions open
+with Ev; block SYM-B1's slot 2 waits on the first, block SYM-B2's
+first slot on the second.
