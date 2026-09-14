@@ -6424,6 +6424,29 @@ the dual concludes. Shared-box note applying to BOTH arms equally: one
 implementer's warm one, R2's a copy of it with the incremental cache
 dropped — wall-clock asymmetry only.
 
+Set-face-surface review ordinal fixed at dispatch (2026-09-14, PR
+#2594 open — frozen head `71d846be4`; unit
+`work/topo/set-face-surface-leaves-a-complete-face-certified-against-the-chart-it-left.md`):
+**ordinal 2712** (TOPO band). Pre-draw fields (logged in
+`work/topo/log.md` at `41eb35f5c` BEFORE block TOPO-B5 was drawn —
+clean): difficulty **S**, task class **STRUCTURAL**. Implementer arm
+per block TOPO-B5 slot 0 (record branch-side on `topo/b5-block`; byte
+7 ⇒ fable at slot 1, so slot 0 is OPUS). Protocol v6 dual: draw =
+`/dev/urandom` byte **72**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**.
+Method, recorded before either review runs: CONCURRENT same-head on
+frozen `71d846be4`, both briefs authored and STORED with sha256 before
+either dispatches (identical text modulo lane name, target and scratch
+paths, verified by diff: 4 lines), neither reviewer sees the other's
+report, v6 item 5 isolation in both briefs; the implementer's unit log
+entry is not written until the dual concludes. Disclosed: the claim is
+written minutes before the dispatch, which waits for disk (one fix
+pass live holds the only other warm target; both arms dispatch
+together when it frees). Shared-box note applying to BOTH arms
+equally: one 4-core cloud box, one fix-pass lane live at dispatch,
+`-j2`; R1's target is the implementer's warm one (incremental cache
+dropped), R2's another lane's warm build at a different head —
+wall-clock asymmetry only.
+
 ## SYM program rows (work/sym/; band 4700–4799; blocks named SYM-B<n>)
 
 SYM-4 review ordinal fixed at dispatch (2026-09-14, PR #2565 open —
