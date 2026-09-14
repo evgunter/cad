@@ -827,12 +827,12 @@ impl<T: Decide> Body<T> {
         // resolve is the tier-1 corruption the dying side is refused
         // for, in the same words.
         let f2 = l2_data.face;
-        let f2_surface = self
-            .get_face(f2)
-            .map(|face| face.surface)
-            .ok_or(EulerOpError::StaleKey {
-                key: EntityId::Face(f2),
-            })?;
+        let f2_surface =
+            self.get_face(f2)
+                .map(|face| face.surface)
+                .ok_or(EulerOpError::StaleKey {
+                    key: EntityId::Face(f2),
+                })?;
         if !f1_data.rings.is_empty() {
             return Err(EulerOpError::FaceHasRings { face: f1 });
         }
