@@ -327,3 +327,45 @@ deferred) and D2 — one refusal arm or two (one, with the receipt as
 the loud channel and a fixture-scale zero-refusals row closing the
 span-identity row). Both rows carry `needs_ev`. FILLET's precedent:
 the answer arrives while the units run.
+
+## SYM-3 delivered; block SYM-B1 drawn (2026-09-14)
+
+**SYM-3 delivered** — PR #2558, head `24cdf27c5`, hosted run
+34813607577 green on the full matrix; one review outside the
+experiment dispatched on the frozen head. The diagnosis, per document
+(the item's `## What stands (SYM-3)`): the boss's
+`carrier_matches_mapped_source` residue (6 of 54) is a COEFFICIENT-RING
+freeze — every trig atom folded, one `sqrt 5`, a rim component's
+`Sub` at ~318 bits against `COEFF_BITS = 256` (at 512 bits it is
+72/0/54/0 and the ceiling moves onto `line_span`); its
+`carrier_on_surface_2` residue (27 of 90) is an `abs` over a
+non-constant argument that A0 does not reach (`seg.rs`'s
+`signed_radius.abs()`), NOT the item's `atan|b|`-vs-`atan b` guess —
+`abs(2)` itself folds. **And opening either loses discharges**: with
+`abs(X) = X` on a syntactically non-negative `X`, or `abs(X)² = X²`,
+20 of 40 fold, 20 then freeze on the products the opened atom joins,
+and ten door decisions are LOST (48 → 38 registered); both patches
+together drop the parameter D-tab's ceiling `3.52e2 → 2.82e2 · ε`.
+The mechanism: a frozen node is one opaque indeterminate keyed by its
+content hash, so two frozen twins cancel and a partial opening breaks
+the symmetry — filed as
+`coefficient-ring-width-is-not-monotone-in-reach`, a class finding
+about the freeze discipline, and the reason slot 2 of the block is
+NOT a bulge rule: the ring's reach is a design conversation before it
+is a unit. The parameter bulge's residual at the dyadic control is
+identically zero given `abs(R)² = R²`; the sign enters only through
+`arc_span = 4 · atan|b|` against the pushforward's `4 · atan b`; route
+A (rule C over `abs`) touches 50 decisions, route B (the door's
+already-decided turn) 8 — counted, not chosen. The literal D-tab's
+ceiling is bounded by `dihedral_wedge` and `arc_diameter_clearance`
+(the widening class's third site, added to that row). Corpus: 13 tour
+stops author a non-unit bulge, the unit bulge is the circle's only —
+the boss buys a family. Three nominal pins per document.
+
+**Block SYM-B1 drawn** (record branch-side on `sym/b1-block` per the
+#1095 shape; it reaches `main` when the block concludes): slot 0 =
+SYM-4 (M / STRUCTURAL), slot 1 = SYM-5 (H / NUMERIC), slot 2 = SYM-6
+(M / STRUCTURAL, conditional on #2552's D1 — closes short if Ev picks
+(0)). SYM-4 dispatches now on the seed target; SYM-5 when a lane
+frees; SYM-6 on Ev's answer. The SYM-6 spec is on the orchestrator
+branch and reaches `main` with this entry.
