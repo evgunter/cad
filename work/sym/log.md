@@ -689,3 +689,64 @@ on any fixture.
 declined — `band`/`tol` unification (pre-existing shape, on the item).
 Delta by R1 on the fixed head: MERGEABLE, all eight items confirmed, five by execution (the 2ε lie reds on the pinned `registered` with `registrations_refused` still 0; a hypothetical eighth arm fails to compile at the exhaustive helper; the gates and the washer pin re-run); three residue items it named taken in one commit (`7486223dd`, run 34892166425 green): the over-band row selects its three documents by name, the `registered` pin's message names its other causes, and R1's 10⁹ slack-shape row is adopted. The witness-slack row closes
 here; the span-identity row closes on the fixture row.
+
+## SYM-5 PR-2 merged (2026-09-14): rule E, the quotient's common factor — block SYM-B1 slot 1, the program's second dual
+
+PR #2589, fix-pass head `68d31a750`, residue head `d7df4cdf1`, hosted run 34900092062 green on
+the full matrix; ordinal **4701**, sample #198; the v6 dual on
+frozen head `480704dbb` — R1 (OPUS) MERGEABLE-AFTER-FIXES 1/11/4,
+rubric 4/4/2; R2 (FABLE) MERGEABLE-AFTER-FIXES 2/5/3, rubric 4/4/3.
+One UNILATERAL MAJOR, R2's: the scale step can cost a theorem by
+coefficient width — confirmed by the fix pass (the row adopted,
+asserting) and counted for FABLE. Both reviewers were interrupted by
+a container restart mid-review and resumed with state intact; R1
+disclosed a post-delivery `pgrep -af` glimpse of R2's command lines
+(no finding), the pair flagged. The row is in `docs/MODEL-AB-LOG.md`'s
+SYM section.
+
+**What it did.** In the early walk, at every node, the monomial both
+halves of a quotient share is divided out, the denominator scaled to a
+canonical pivot, and `r·D/D` folded to `r` — behind
+`SymRules::common_factor`, on in the shipped set, `without_rule_e` the
+old tier bit for bit (the plain walk's ledger byte-identical). On the
+tilted derived frame the refused residual carried `sqrt(P(t)/P(t))` —
+the number one as an opaque atom — and two frozen products; with the
+rule the derived boss certifies where its authored twin does at ε/8
+and 1e-3 under both lifts (5e-2 is PROPS' clause-1 defect, pinned by
+name). Four bulge pins raised, a sixth document's ceiling moved
+(`8.26e2 → 9.36e2·ε`, the move SYM-3 measured a 512-bit ring making),
+the five measured ceilings unmoved to the digit.
+
+**What it costs**, on the header's own leaf instrument (release, off →
+on): plate 0.13 → 0.36 s, annulus 0.12 → 0.29, bracket 0.44 → 1.70
+(over the 1.6 s line), link 3.31 → 2.43 (cheaper), pad 3.85 → 14.40
+(over). **The dial ships ON by the orchestrator's call**, against the
+spec's affordability clause on two documents the tier carries at no
+dial, for a document class reached and nothing lost anywhere —
+disclosed as a deviation with the numbers, the M10-10 precedent (the
+pad at 10.1 s) named; the implementer stated it has no independent
+argument that 14.4 s is affordable, and that is on the record too.
+
+**What the reviews added.** The soundness argument's premise was false
+for any form rule D built (both reviewers): a denominator has FOUR
+sources, not one, and the argument now covers each with the bound
+that makes it non-vanishing. The rule is not monotone in coefficient
+width (R2, by a row): the header says so and the loss is pinned by
+name on `coefficient-ring-width-is-not-monotone-in-reach` as a second
+mechanism. The ordering comment enshrined a history, not a fact (both,
+by mutant): rewritten to the convention, the walk ledger the pin. The
+cost table was on the wrong instrument (R1): re-taken on the header's.
+Reach is the document's, not a class (R2, by execution): a frame
+tilted about the OTHER axis refuses identically on and off — the
+degree wall become a term wall behind `copysign`/`abs` atoms of a
+manifestly positive quantity, which is SYM-8. The spec's zero-vector
+and straddling-box negatives were missing (R1): adopted. Stale
+sentences at five sites fixed; the tracker's silent status fixed; a
+fifth site on PROPS' widening row (R2's stacked frames at 1e-3) and a
+new row for the revolved cap
+(`a-face-frame-on-a-revolved-cap-refuses-on-pcurve-loop-continuity`).
+
+**Fix pass** (the union, six commits to `68d31a750`): A–H all taken;
+declined as adjudicated — a step cap, the `Form::quotient`
+canonicalisation (the next shape, on the item), shipping the dial
+off. Delta by R1 on the fixed head: MERGEABLE-AFTER-FIXES — the two MAJORs closed (the denominator list swept and found exhaustive; the width row asserts the loss; the ledger pins the order), five items by execution, and nine residue items named, of which the sign row was the gate: it did not red under its own mutant because its pivot at ±1 hit the fix pass's new no-op fast path before the scale step. Residue in one commit (`fdb026205`): the row reaches the step (red under `s.recip()` and only that row, re-verified on the final head), the ordering comment states the four ledger lines the other order reds (the plate's early-decision frozen 8 → 48 — a reach requirement, not a convention), the leaf table is the header's instrument with the pad, bracket AND link over the line disclosed, the stale count at `m10_bulge_interval.rs:107`, `MAX_HALVINGS`'s attribution corrected (the bound follows from one halving and `atan`'s range), `Poly::mul`'s doc restored, the spin un-labelled as reach and R1's third reached shape added, the stacked-2 lift named at both sites. One more commit (`d7df4cdf1`) re-baselined SYM-6's new per-document `registered` pin on the pad (86 → 104: rule E carries 18 more decisions through the door — the pin's own second cause, measured at both dials, no refusal).
