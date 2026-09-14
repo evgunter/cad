@@ -283,6 +283,14 @@ fn arena_keys_are_not_in_the_key_a_reminted_surface_key_hits_on_every_lane() {
                 .set_face_surface(fk, FaceSurface::New(surface))
                 .expect("the same surface under a new key attaches");
         }
+        // The setter drops a face's pcurve rows when it cannot see the
+        // two keys as one chart, and an equal surface under a fresh key
+        // with no `GeomSource` is exactly that case
+        // (`topo::Body::set_face_surface`). Re-minting is the door's
+        // own prescription, and on a surface equal to the one it
+        // replaced it re-derives the rows that were there — so what
+        // this row measures is still the memo's key and nothing else.
+        topo::mint_pcurves(&mut after, Tol::witness()).expect("the re-keyed body mints");
         assert!(
             misses_between(&body, &after).is_empty(),
             "{name}: every surface key moved and no face missed"
@@ -557,12 +565,30 @@ fn the_trimmed_nurbs_lane_misses_when_its_surface_changes() {
     )
     .expect("a reweighted net");
     let mut after = base.clone();
+    // The wall's stored rows, saved before the swap. A reweighted net is
+    // another chart, so `set_face_surface` drops them — and they cannot
+    // be re-minted, because the wall's boundary carriers are iso-curves
+    // of the ORIGINAL net and do not certify against the reweighted one
+    // (`mint_pcurves` refuses `Certify`). What this row is about is the
+    // memo's key, and the trimmed-NURBS lane cannot run on a rowless
+    // face at all, so the body it needs is the one that carries the old
+    // rows under the new fit — put back deliberately, through the
+    // caller's own row-level door, rather than left behind by a silence.
+    let saved: Vec<(HalfEdgeKey, PcurveCache<f64>)> = base
+        .half_edges()
+        .filter(|(_, he)| base.get_loop(he.parent_loop).unwrap().face == fk)
+        .filter_map(|(hek, _)| base.pcurve(hek).cloned().map(|cache| (hek, cache)))
+        .collect();
+    assert!(!saved.is_empty(), "the wall's loop carries stored pcurves");
     after
         .set_face_surface(
             fk,
             FaceSurface::New(Surface::Nurbs(std::sync::Arc::new(moved))),
         )
         .unwrap();
+    for (hek, cache) in saved {
+        after.attach_pcurve(hek, cache);
+    }
     // The chord pass reads a NURBS face's certified bound to size the
     // chords of its edges (`chords::nurbs_tighten`), so the wall's
     // reweighting moves the chord points of every edge it shares —
