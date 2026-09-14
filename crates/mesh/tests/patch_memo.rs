@@ -298,6 +298,83 @@ fn arena_keys_are_not_in_the_key_a_reminted_surface_key_hits_on_every_lane() {
     }
 }
 
+/// `(rows stored, half-edges with no row)` over every loop of `face`.
+fn rows_of(body: &Body<f64>, face: FaceKey) -> (usize, usize) {
+    let f = body.get_face(face).unwrap();
+    let (mut stored, mut rowless) = (0, 0);
+    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        let topo::LoopBoundary::Cycle { first } = body.get_loop(lk).unwrap().boundary else {
+            continue;
+        };
+        for he in body.loop_cycle(first).unwrap() {
+            if body.pcurve(he).is_some() {
+                stored += 1;
+            } else {
+                rowless += 1;
+            }
+        }
+    }
+    (stored, rowless)
+}
+
+/// **The two answers `topo::Body::set_face_surface` gives a re-key, on
+/// the bodies that can tell them apart.** Putting a face on a fresh key
+/// holding the surface it already had is a chart change the setter
+/// cannot see through when the surface is ANALYTIC — two keys, an equal
+/// surface, no `GeomSource` — and the face's rows go, which is the
+/// bound the row above re-mints past. A described-NURBS or `Approx`
+/// surface is a shared payload: cloning the `Surface` clones the `Arc`,
+/// the setter's predicate reads the two keys as one chart, and the rows
+/// stand untouched.
+///
+/// The pin lives here because this corpus is where minted SPLINE-charted
+/// faces are: a chart image on a loft wall is minted from the wall's own
+/// iso-curves, so `topo`'s own suites (whose fixtures are analytic) hold
+/// no face that exercises the rung.
+#[test]
+fn a_rekey_keeps_a_spline_faces_rows_and_drops_an_analytic_faces() {
+    let (mut splines, mut analytic) = (0usize, 0usize);
+    for (name, body) in corpus() {
+        let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+        for fk in faces {
+            let before = rows_of(&body, fk);
+            if before.0 == 0 {
+                // A face the minting pass leaves alone (every planar
+                // one) has nothing to carry either way.
+                continue;
+            }
+            let surface = body
+                .get_surface(body.get_face(fk).unwrap().surface)
+                .unwrap()
+                .clone();
+            let spline = matches!(surface, Surface::Nurbs(_) | Surface::Approx(_));
+            let mut after = body.clone();
+            after
+                .set_face_surface(fk, FaceSurface::New(surface))
+                .expect("the same surface under a new key attaches");
+            if spline {
+                assert_eq!(
+                    rows_of(&after, fk),
+                    before,
+                    "{name}: one `Arc` is one chart, and the rows stand"
+                );
+                splines += 1;
+            } else {
+                assert_eq!(
+                    rows_of(&after, fk),
+                    (0, before.0 + before.1),
+                    "{name}: two provenance-free keys read as two charts"
+                );
+                analytic += 1;
+            }
+        }
+    }
+    assert!(
+        splines > 0 && analytic > 0,
+        "the corpus states both answers ({splines} spline, {analytic} analytic)"
+    );
+}
+
 /// **What this proves is that the CARRIER is keyed.** A moved vertex
 /// moves the carriers of the edges at it, and with them their chord
 /// points; on the uniform chord schedule the points and parameters
