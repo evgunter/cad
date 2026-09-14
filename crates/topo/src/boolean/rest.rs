@@ -198,7 +198,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     }
 
     // ---- 3. Undo the null-edge scaffolding (kev, reverse order). ----
-    undo_struts(&mut red, tol)?;
+    undo_struts(&mut red)?;
 
     // Pierce-ring vertices: ring vertex → host face, per operand.
     let mut a_rings: SecondaryMap<VertexKey, FaceKey> = SecondaryMap::new();
@@ -1032,7 +1032,7 @@ fn verify_declared_pairs<T: Decide>(
 /// Removes every classification-minted null-edge strut (`kev`,
 /// reverse mint order), fusing the site copies back into the original
 /// vertices. Sweep splits and pierce-ring vertices remain.
-fn undo_struts<T: Decide>(red: &mut BooleanReduction<T>, tol: Tol) -> Result<(), BooleanError> {
+fn undo_struts<T: Decide>(red: &mut BooleanReduction<T>) -> Result<(), BooleanError> {
     for r in red.null_edges.iter().rev() {
         let body = match r.operand {
             Operand::A => &mut red.a,
@@ -1056,7 +1056,7 @@ fn undo_struts<T: Decide>(red: &mut BooleanReduction<T>, tol: Tol) -> Result<(),
         } else {
             return Err(desync("REST lane: strut halves do not reach the copy"));
         };
-        body.kev(he, tol)
+        body.kev(he)
             .map_err(|_| desync("REST lane: strut undo kev refused"))?;
     }
     Ok(())
@@ -1801,7 +1801,7 @@ fn slit_zip<T: Decide>(
         let mate = body
             .mate(he)
             .ok_or_else(|| desync("REST lane: run half has no mate"))?;
-        body.kev(mate, tol)
+        body.kev(mate)
             .map_err(|_| desync("REST lane: run kev refused"))?;
     }
 
@@ -1852,7 +1852,7 @@ fn slit_zip<T: Decide>(
                 };
                 match dangle_half {
                     Some(dh) => {
-                        body.kev(dh, tol)
+                        body.kev(dh)
                             .map_err(|_| desync("REST lane: band run kev refused"))?;
                     }
                     None => {
@@ -2030,7 +2030,7 @@ fn zip_folded<T: Decide>(
             FaceSurface::Inherit,
             tol,
         )?;
-        body.kev(made.he_plus, tol)
+        body.kev(made.he_plus)
             .map_err(|_| desync("REST lane: slit fuse kev refused"))?;
         report.vertex_merges.push((eb, sa));
         report.seam_edges.push(edge_of(body, ha)?);

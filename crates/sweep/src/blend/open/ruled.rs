@@ -449,7 +449,7 @@ pub(in crate::blend) fn ruled_phase<T: Decide + Bounds>(
         } else {
             bhp
         };
-        body.kev(spur, tol).map_err(|e| op("cap vertex kev", e))?;
+        body.kev(spur).map_err(|e| op("cap vertex kev", e))?;
         rec.dead.vertices.push(v);
     }
 

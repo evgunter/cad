@@ -2074,7 +2074,7 @@ impl<T: Decide> Body<T> {
                 );
                 #[cfg(test)]
                 tear_before_kev(self, from_rim, edge_key);
-                self.kev(from_rim, tol)?;
+                self.kev(from_rim)?;
                 group.killed_edges.push(edge_key);
                 group.killed_vertices.push(killed);
                 continue;

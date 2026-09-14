@@ -258,7 +258,7 @@ fn build_lamina<T: Decide>(
         EdgeCurveSpec::self_loop_circle_at(qs[0]),
         tol,
     )?;
-    body.kev(n0.he_plus, tol)?;
+    body.kev(n0.he_plus)?;
     for j in 1..n {
         let (he1, he2) = (e_minus(&body, hes[j - 1])?, c_plus(&body, tops[j])?);
         let nj = body.mef(
@@ -267,7 +267,7 @@ fn build_lamina<T: Decide>(
             FaceSurface::Inherit,
             tol,
         )?;
-        body.kev(nj.he_plus, tol)?;
+        body.kev(nj.he_plus)?;
         let victim = c_plus(&body, tops[j - 1])?;
         body.kef(victim)?;
     }

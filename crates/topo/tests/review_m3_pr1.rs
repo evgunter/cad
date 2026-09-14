@@ -488,7 +488,7 @@ fn null_scaffold_fail_loud_audit() {
     );
     assert!(validate_closed(&reverted).is_err());
     // Cleanup door: kev consumes the scaffold; every gate reopens.
-    cube.body.kev(created.he_plus, Tol::witness()).unwrap();
+    cube.body.kev(created.he_plus).unwrap();
     assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
     assert!(topo::mass_properties(&cube.body, Tol::witness()).is_ok());
 }
@@ -1349,7 +1349,7 @@ fn null_edge_cannot_be_laundered_through_set_edge_curve() {
         "a null edge accepted a certified carrier: {err:?}"
     );
     assert_eq!(dump(&cube.body), before);
-    cube.body.kev(created.he_plus, Tol::witness()).unwrap();
+    cube.body.kev(created.he_plus).unwrap();
     // mfkrh Inherit = same surface key as the demoting face.
     let (mut body, seed) = ops_cube_public();
     let inner = plant_detached_box(&mut body, seed.face, pt(0.3, 0.3, 1.4));

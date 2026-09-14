@@ -251,7 +251,7 @@
 //! )?;
 //! // kev(he_plus) kills end(he_plus) — the far vertex — and the edge:
 //! // the loop is empty again, holding the seed vertex.
-//! let kill = body.kev(seg.he_plus, tol)?;
+//! let kill = body.kev(seg.he_plus)?;
 //! assert_eq!(kill.killed_vertex, seg.vertex);
 //! assert_eq!(
 //!     body.get_loop(seed.r#loop).unwrap().boundary,
@@ -269,7 +269,7 @@
 //!
 //! [`Empty`]: crate::LoopBoundary::Empty
 
-use geom_core::{Decide, Tol};
+use geom_core::Decide;
 
 use crate::body::Body;
 use crate::entity::{
@@ -523,21 +523,24 @@ impl<T: Decide> Body<T> {
     /// `None` (segment kill — the loop is [`LoopBoundary::Empty`] at the
     /// survivor again).
     ///
-    /// **The merged fan's carriers are re-certified, never
-    /// re-described.** The far vertex's surviving edges are re-based
-    /// onto `start(he)` and each keeps the curve it was certified
-    /// with, which runs to the DEAD vertex's point. So the plan phase
-    /// re-certifies each of them against the endpoints the merge gives
-    /// it and **refuses** [`EulerOpError::RebasedCarrier`] naming the
-    /// edge where the certificate no longer holds — body untouched,
-    /// like every other precondition. Where the two vertices share a
-    /// point (the zero-length [`Body::mev_null`] pair the boolean
-    /// inserts and removes) no endpoint moves and every certificate is
-    /// carried as it is; a segment or strut kill merges no fan at all
-    /// and reaches no carrier. This is the exact inverse of
-    /// [`Body::mev`]'s fan gate, and `tol` is here for it: `kev` is
-    /// the one kill that moves an endpoint, so it is the one kill that
-    /// owes a band.
+    /// **The merged fan's carriers are NOT re-described, and this door
+    /// cannot check that they need not be.** The far vertex's
+    /// surviving edges are re-based onto `start(he)` and each keeps
+    /// the curve it was certified with against the dead vertex's
+    /// point, so where the two points differ the merged edges describe
+    /// a locus that no longer ends where they do — the mirror of
+    /// [`Body::mev`]'s fan site, which refuses exactly that. This one
+    /// does not, and the asymmetry is measured rather than chosen:
+    /// the fan merge's live callers kill mid-surgery and re-describe
+    /// the merged edges at the door's end (the blend's rim and annulus
+    /// closures are two), so a precondition here refuses a promise it
+    /// cannot see. What would close it is a kill that takes the merged
+    /// fan's re-descriptions and certifies them in the same step —
+    /// `work/topo/kevs-fan-merge-needs-a-re-describing-kill-door.md`.
+    /// Until then: **re-describe the merged fan** (via
+    /// [`Body::set_edge_curve`]) before the door you are inside hands
+    /// its body back, and read tier 3's verdict, not this operator's,
+    /// for whether you did.
     ///
     /// # Precondition check order
     ///
@@ -549,15 +552,14 @@ impl<T: Decide> Body<T> {
     /// (`StaleKey`); both parent loops resolve (`StaleKey`) and are
     /// cycles ([`EulerOpError::LoopNotCycle`]); the far vertex's orbit
     /// closes ([`EulerOpError::OrbitBroken`] — tier-1-invalid input);
-    /// the merged fan's carriers re-certify against the survivor's
-    /// point ([`EulerOpError::RebasedCarrier`]); the four splice links
-    /// (`prev`/`next` of both halves) resolve (`StaleKey`).
+    /// the four splice links (`prev`/`next` of both halves) resolve
+    /// (`StaleKey`).
     ///
     /// # Errors
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
-    pub fn kev(&mut self, he: HalfEdgeKey, tol: Tol) -> Result<KevResult, EulerOpError> {
+    pub fn kev(&mut self, he: HalfEdgeKey) -> Result<KevResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
@@ -604,11 +606,6 @@ impl<T: Decide> Body<T> {
             .vertex_orbit(m)
             .ok_or(EulerOpError::OrbitBroken { he: m })?;
         let fan: Vec<HalfEdgeKey> = orbit_w[1..].to_vec();
-        // The re-basing gate: the fan is about to start at `v`, so
-        // every carrier among it is re-certified against `v`'s point
-        // before anything moves (the gate's own docs: exact, never a
-        // re-fit).
-        self.certify_rebased_run(&fan, self.resolve_vertex_point(v)?, tol)?;
         // The unsplice writes through all four neighbor links; prove
         // them now so the mutation below cannot fail midway (atomicity).
         let (a, b) = (
@@ -1250,7 +1247,7 @@ mod tests {
             |b| b.kvfs(seed.solid).unwrap_err(),
         );
         // Two faces: kill the edge back and split instead.
-        body.kev(seg.he_plus, Tol::witness()).unwrap();
+        body.kev(seg.he_plus).unwrap();
         body.mef_chord(
             MefSite::Lone {
                 r#loop: seed.r#loop,
@@ -1329,7 +1326,7 @@ mod tests {
             canonical_form(&fresh)
         };
         let before = arena_snapshot(&body);
-        let result = body.kev(seg.he_plus, Tol::witness()).unwrap();
+        let result = body.kev(seg.he_plus).unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         // E–P vector (−1, −1, 0, 0, 0, 0): −1 vertex, −1 edge, −2 halves
@@ -1398,7 +1395,7 @@ mod tests {
         // The direction pin: kev(he_minus) kills end(he_minus) — the OLD
         // vertex — leaving the new one as the lone survivor.
         let (mut body, seed, seg) = segment();
-        let result = body.kev(seg.he_minus, Tol::witness()).unwrap();
+        let result = body.kev(seg.he_minus).unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(result.killed_vertex, seed.vertex);
         assert_eq!(
@@ -1416,7 +1413,7 @@ mod tests {
             let (fresh, _, _) = segment();
             canonical_form(&fresh)
         };
-        let result = body.kev(strut.he_plus, Tol::witness()).unwrap();
+        let result = body.kev(strut.he_plus).unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         assert_eq!(result.killed_vertex, strut.vertex);
@@ -1499,7 +1496,7 @@ mod tests {
                 crate::NewVertexSide::Above,
             )
             .unwrap();
-        let result = body.kev(split.he_plus, Tol::witness()).unwrap();
+        let result = body.kev(split.he_plus).unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         let v = seed.vertex;
@@ -1555,7 +1552,7 @@ mod tests {
             .unwrap();
         // The new halves landed in different loops (pinned by PR 2's
         // test); now undo.
-        let result = body.kev(fan.he_plus, Tol::witness()).unwrap();
+        let result = body.kev(fan.he_plus).unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(result.killed_vertex, fan.vertex);
         assert_eq!(
@@ -1567,24 +1564,33 @@ mod tests {
     }
 
     #[test]
-    fn kev_mirror_case_refuses_rather_than_migrating_a_fan_to_the_tip() {
+    fn kev_mirror_case_merges_fan_onto_the_valence_one_survivor() {
         // kev from the tip side: he = strut.he_minus starts at the
-        // valence-1 tip and points at the fan-carrying vertex, so the
-        // whole fan would migrate to the tip and every one of its
-        // chords would end where it does not run. The gate refuses,
-        // naming the segment, and the body is untouched.
-        let (mut body, _seed, seg, strut) = strutted();
-        let before = deep_snapshot(&body);
-        assert!(matches!(
-            body.kev(strut.he_minus, Tol::witness()),
-            Err(EulerOpError::RebasedCarrier { edge, .. }) if edge == seg.edge
-        ));
-        assert_eq!(deep_snapshot(&body), before);
-        // The kill from the OTHER half is the strut kill, which merges
-        // no fan and stands.
-        let result = body.kev(strut.he_plus, Tol::witness()).unwrap();
-        assert_eq!(result.killed_vertex, strut.vertex);
+        // valence-1 tip and points at the fan-carrying vertex. The fan
+        // migrates to the tip. (Documented asymmetry: THIS kill has no
+        // single-op re-make — the re-making mev would have to start
+        // the migrated fan at a vertex its chords do not run to, which
+        // `mev`'s re-basing gate refuses — but the result must still be
+        // tier-1 valid. That the migrated chords now miss their own
+        // endpoint is this door's open residue,
+        // `work/topo/kevs-fan-merge-needs-a-re-describing-kill-door.md`.)
+        let (mut body, seed, seg, strut) = strutted();
+        let result = body.kev(strut.he_minus).unwrap();
         assert_eq!(validate(&body), Ok(()));
+        assert_eq!(result.killed_vertex, seg.vertex);
+        // The whole old fan of seg.vertex (seg.he_minus) now starts at
+        // the strut tip.
+        assert_eq!(
+            body.get_half_edge(seg.he_minus).unwrap().start,
+            strut.vertex
+        );
+        assert_eq!(
+            body.loop_cycle(seg.he_plus),
+            Some(vec![seg.he_plus, seg.he_minus])
+        );
+        // The segment now runs seed.vertex → strut.vertex.
+        assert_eq!(body.get_half_edge(seg.he_plus).unwrap().start, seed.vertex);
+        assert_eq!(body.half_edge_end(seg.he_plus), Some(strut.vertex));
     }
 
     #[test]
@@ -1605,14 +1611,14 @@ mod tests {
                 edge: circ.edge,
                 vertex: seed.vertex,
             },
-            |b| b.kev(circ.he_plus, Tol::witness()).unwrap_err(),
+            |b| b.kev(circ.he_plus).unwrap_err(),
         );
         assert_err_deep_unchanged(
             &mut body,
             &EulerOpError::StaleKey {
                 key: EntityId::HalfEdge(HalfEdgeKey::default()),
             },
-            |b| b.kev(HalfEdgeKey::default(), Tol::witness()).unwrap_err(),
+            |b| b.kev(HalfEdgeKey::default()).unwrap_err(),
         );
     }
 
@@ -1628,7 +1634,7 @@ mod tests {
                 he: seg.he_plus,
                 edge: seg.edge,
             },
-            |b| b.kev(seg.he_plus, Tol::witness()).unwrap_err(),
+            |b| b.kev(seg.he_plus).unwrap_err(),
         );
     }
 
@@ -1645,7 +1651,7 @@ mod tests {
             &EulerOpError::LoopNotCycle {
                 r#loop: seed.r#loop,
             },
-            |b| b.kev(seg.he_plus, Tol::witness()).unwrap_err(),
+            |b| b.kev(seg.he_plus).unwrap_err(),
         );
         // OrbitBroken: the far vertex's orbit walk hits a corrupt mate
         // bijection mid-fan (raw corruption two steps away from the
@@ -1655,7 +1661,7 @@ mod tests {
         assert_err_deep_unchanged(
             &mut body,
             &EulerOpError::OrbitBroken { he: seg.he_minus },
-            |b| b.kev(seg.he_plus, Tol::witness()).unwrap_err(),
+            |b| b.kev(seg.he_plus).unwrap_err(),
         );
     }
 
@@ -2113,7 +2119,7 @@ mod tests {
         // Undo the seven mevs in reverse: each kev(created.he_plus)
         // kills the vertex that mev made.
         for mev in t.mevs.iter().rev() {
-            let result = body.kev(mev.he_plus, Tol::witness()).unwrap();
+            let result = body.kev(mev.he_plus).unwrap();
             assert_eq!(validate(&body), Ok(()));
             assert_eq!(result.killed_vertex, mev.vertex);
         }
@@ -2178,22 +2184,7 @@ mod tests {
                 )
                 .unwrap();
             body.kef(cut.he_minus).unwrap();
-            // A strut grown and killed again: `kev` on a valence-1 far
-            // vertex, which merges no fan and so has a carrier to move
-            // nowhere. (Killing `seg` from the pillow instead would
-            // hand the digon's other edge to the seed vertex, which
-            // the re-basing gate refuses.)
-            let strut = body
-                .mev_line(
-                    MevSite::Fan {
-                        he1: seg.he_plus,
-                        he2: seg.he_plus,
-                    },
-                    p(9.0),
-                    Tol::witness(),
-                )
-                .unwrap();
-            body.kev(strut.he_plus, Tol::witness()).unwrap();
+            body.kev(seg.he_plus).unwrap(); // pillow → circular-edge body
             body
         };
         let a = run();

@@ -152,7 +152,7 @@ pub(super) fn zip_seam<T: Decide>(
         let dead = body
             .half_edge_end(he)
             .ok_or_else(|| corr("kev half-edge has no end"))?;
-        body.kev(he, tol)?;
+        body.kev(he)?;
         report.vertex_merges.push((dead, kept));
         Ok(())
     };

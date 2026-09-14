@@ -111,7 +111,7 @@ fn recycled_dead_half_edge(body: &mut Body<f64>, tol: Tol) -> HalfEdgeKey {
         )
         .unwrap();
     let dead = seg.he_plus;
-    body.kev(seg.he_minus, tol).unwrap();
+    body.kev(seg.he_minus).unwrap();
     assert!(
         body.get_half_edge(dead).is_none(),
         "fixture: the recycled key must be dead"
@@ -674,7 +674,7 @@ fn hammer(body: &Body<f64>, tol: Tol) -> Exposure {
     };
     for &he in &halves {
         note("kef", body.clone().kef(he).is_ok());
-        note("kev", body.clone().kev(he, tol).is_ok());
+        note("kev", body.clone().kev(he).is_ok());
         note(
             "mev_line",
             body.clone()
