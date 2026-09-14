@@ -134,6 +134,45 @@ files, in this slot order (fixed before the block byte is drawn):
   query-side door; the unit adds the readback door for the edge side
   in the ratified shape.
 
+**Block TOPO-B4** is concluded on slots 0 and 1 (2026-09-14: the typed
+provenance absence and the revert wrap re-park, ordinals 2710 and
+2709, one code-class tally candidate) with slot 2 (the edge-side
+readback door, ordinal 2711) in its fix pass; `D107` merged non-dual.
+
+**Block TOPO-B5** takes three kernel answers on this program's own
+files, in this slot order (fixed before the block byte is drawn):
+
+- slot 0 — `set-face-surface-leaves-a-complete-face-certified-against-the-chart-it-left`:
+  `set_face_surface` swaps a face onto a chart that mints nothing and
+  leaves its complete row set stated in the chart it left, which the
+  tier-3 pass then skips. The unit gives the setter the loop doors'
+  answer — drop the rows on a chart change through `same_chart`,
+  deriving nothing — and makes its `DECLARED` posture note true.
+- slot 1 — `mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows`:
+  the loop-re-parenting fix one level down — `mef`'s chord surgery and
+  `kef`'s unsplice move a RUN of half-edges between two faces' loops
+  and leave the run's rows on the chart they left. `mef` is the
+  two-line carry-or-drop on the run it already holds; `kef` has to
+  resolve the surviving face inside a kill operator's precondition
+  order, which phase 1 decides.
+- slot 2 — `a-null-edge-can-be-re-based-onto-a-distinct-point`, taken
+  together with `the-re-basing-gate-refuses-m7-8-where-nothing-moves`
+  (two rows wanting one answer): the fan `mev`'s re-basing gate skips
+  null scaffolding unconditionally, so a null edge can be left
+  spanning two distinct points, and refuses the plane × NURBS class
+  even where nothing moves — because the exact "is `p_new` the point
+  `p_old`" question has no door at `T: Real`. The unit answers
+  structurally (a moved run refuses a null edge; a no-move `mev` is
+  spelled as the copy `mev_null` already is) or says which shape and
+  why.
+
+**Not in TOPO-B5**, and why: `check-9-nesting-is-line-bounded-only`'s
+disc third is S-BOOL's `disc_side` to open and its arc third waits on
+#1076; `split-edge-cannot-carry-a-fitted-or-general-pcurve-row` and
+`two-provenance-free-keys-holding-one-surface-read-as-two-charts` are
+the bound ripples on Ev's `[ev]` PR; `euler-characteristic-has-three-carriers`
+is the next block's structural slot.
+
 Beside the block, non-dual: `D107` (a `kemr` fixture past its plan
 phase for `review_d18`'s hammer — test support, style review only).
 
