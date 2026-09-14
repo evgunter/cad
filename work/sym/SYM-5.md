@@ -2,11 +2,11 @@
 id: SYM-5
 kind: unit
 title: a stored unit vector does not double the degree: the derived-frame freeze measured and remedied by a rule of the atom algebra
-status: dispatched
+status: review
 opened: 2026-09-14
 branch: sym/5-unit-vector
 refs: [derived-frame-placement-freezes-on-the-symbolic-lane, interval-self-dot-straddles-before-rule-a, SYM-1]
-pr: 2568
+pr: 2589
 ---
 
 

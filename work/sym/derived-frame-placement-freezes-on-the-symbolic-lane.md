@@ -227,7 +227,7 @@ At a half-width of `5e-2` the derived boss refuses with a clause-1
 at the boss's cap plane instead of its side plane. The tier has done
 its work there; the value channel has not.
 
-## Re-pointed at SYM-5's measurement (2026-09-14)## Re-pointed at SYM-5's measurement (2026-09-14)
+## Re-pointed at SYM-5's measurement (2026-09-14)
 
 DOCM has left the tracker (`docs/DOC-LEDGER.md` sweep 14); the walk and
 the directory are recoverable at the SHA that sweep names. The
@@ -236,3 +236,54 @@ door and to "DOCM's diagnosis" read as history: the derived-frame door
 (`Datum::FaceFrame`) has no live owner, its design is
 `crates/editor-core/REFERENCES.md` (DM1–DM6), and a row on it is filed
 where its mechanism lands.
+
+## What the two reviews added (SYM-5's PR-2 fix pass, 2026-09-14)
+
+Both reviews re-took every count and every ceiling to the digit and
+neither found a box where rule E folds a non-identity. What they added
+to this row:
+
+**The reach is the DOCUMENT's, not a class.** Measured on the `Guided`
+lift at half `1e-3`, rule E off → on:
+
+| document | off | on |
+| --- | --- | --- |
+| tilt about `v` (this row's) | refuses `newell_plane_residual` | **certifies** |
+| non-unit authored axes `u=(2,0,0)`, `v=(0,2,t)` | 1 refusal | **certifies** |
+| two derived frames STACKED | certifies, 220.7 s (`Pinned`) | certifies, **1.1 s** |
+| in-plane spin `u=(1,t,0)`, `v=(−t,1,0)` | certifies | certifies — says nothing either way |
+| tilt about `u` (`u=(1,0,t)`) | refuses `carrier_endpoint_end` | refuses identically, frozen 37 both |
+| `FaceFrame` on a REVOLVED body's cap | 4 refusals, frozen 3 | 4 refusals, frozen 902, the refusal moves to `pcurve_loop_continuity` |
+
+The tilt-about-`u` wall is the rule turning a DEGREE wall into a TERM
+wall: R2 read the frozen `Powi` kid going from 606 terms at degree 60
+to 440 terms at degree 28, and `440² > MAX_TERMS`. It sits behind the
+`abs(1/sqrt(…))` and `copysign` atoms a `FaceFrame`'s `u_ref`
+derivation mints. The rows are
+`editor-core/tests/m10_derived_frame_tilted_interval`'s
+`sym5_the_reach_on_documents_the_unit_did_not_build` (adopted from R2).
+
+**The revolved cap is its own row**, filed as
+`work/sym/a-face-frame-on-a-revolved-cap-refuses-on-pcurve-loop-continuity`.
+
+**The (a)/(c) rejection is a reading, not a finding.** PR-2's body said
+candidates (a) and (c) "are not it". That is not measured: (a) is an
+atom PLUS the rule `Σ Uᵢ² = 1`, and that rule collapses a
+re-normalisation's `S'` to the constant 1 for A0 to fold — which is a
+different mechanism from re-keying alone and might reach the tilt-U
+wall that rule E does not. What is measured is that rule E reaches the
+documents above at the cost recorded there; (a) and (c) are unmeasured.
+
+**Two notes from R1.** (n-2) No scheduled register re-takes the
+ceilings or the leaf cost — the `#651`/`#667` shape: the numbers in
+`sym.rs`'s rule-E section and in this row are re-taken by running the
+evidence rows by hand, and nothing fires if they drift. (n-4)
+`datum_unit_norm` is untouched by the rule on every document measured
+(it is `Definite(Positive)` throughout), so the door's own unit-norm
+check is not what the rule moves.
+
+**The next shape, not taken** (R2 Q7): a canonical `Form::quotient` at
+CONSTRUCTION, dial-gated, would remove the two-site convention rule E
+now keeps — `form_in` cancels what the walk memoizes and
+`trig::sqrt_atom` cancels what rule D builds by hand, and the two have
+to agree by hand. Declined for PR-2; recorded here.
