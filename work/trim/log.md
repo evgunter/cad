@@ -312,3 +312,49 @@ this slate, because the guard is this file's:
 `pcurve-posture-guard-is-blind-to-body-producing-doors` — every
 body-returning producer's row posture is prose checked by nothing,
 and `revert` was the one that was wrong. Signed (TOPO fix-pass lane).
+
+## Announced seam from TOPO (2026-09-14): two posture entries in `pcurves.rs`, with the loop-re-parenting unit
+
+TOPO's `loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart`
+(branch `topo/loop-reparenting-rows`) closes the case where a door
+moves a whole LOOP between faces on different surfaces: the rows on
+that loop keep their keys and change which CHART they are stated in,
+and where the target face does not `chart_mints` — a plane, or a NURBS
+placeholder — `validate_pcurves` skips the face and says nothing. The
+fix is a `Decide`-bound limb in this program's territory only by its
+prose: `Body::drop_rows_on_chart_change` lands in
+`crates/topo/src/euler_ring.rs` (TOPO's), compares the two faces'
+surface KEYS, carries every row when they agree and drops the moved
+loop's rows when they do not. It derives nothing, so no bound moves and
+`geom-brep` is untouched.
+
+In this program's `crates/topo/src/pcurves.rs` the edits are prose
+only, and no arithmetic in the file moves — `chart_mints`,
+`mint_pcurves`, `mint_face`, `walk_loop`, `stored_rows`, `split_cache`
+and `validate_pcurves` are all untouched:
+
+- `staleness_posture::DECLARED` moves **four** entries from `Neither`
+  to `Transfers` — `kfmrh`, `mfkrh`, `mfkrh_plug` and `ring_move` —
+  each with the note that says which surface key decides. The item
+  named two doors; the class sweep found `mfkrh` is the third (its
+  `mfkrh_plug` sugar always changes chart, because a placeholder is
+  always a fresh key), so four entries move rather than two.
+- The posture section gains a paragraph for the three doors, and the
+  `Neither` line stops reading "the Euler operators, the kill ops, ring
+  surgery" — ring surgery is no longer in that bucket. The same
+  paragraph names the two sites the sweep measured and did NOT close
+  (`mef`'s moved run, `kef`'s remnant — half-edge runs rather than
+  loops), filed on TOPO's slate as
+  `mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows`
+  and pointed at from there.
+
+Nothing in this seam changes what `validate_pcurves` measures. One
+behaviour change worth this program knowing about: a loop moved onto a
+DIFFERENT MINTING chart used to leave rows that the pass re-certified
+and refused (`Certify` per row); after the fix those rows are gone and
+the face reads as one the minting pass has not run on, which the pass
+is silent about by design. The refusal is not lost so much as made
+unnecessary — the body no longer holds the wrong row — and the two
+rows in `crates/topo/tests/loop_reparenting_pcurve_rows.rs` that
+measure it say so at the assertion. Signed (TOPO implementer lane,
+`topo/loop-reparenting-rows`).

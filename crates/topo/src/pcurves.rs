@@ -171,9 +171,26 @@
 //! The wrap is the producer's closing mint's to re-derive, as it does
 //! today.
 //!
-//! **Neither clears nor re-mints** — the Euler operators, the kill ops,
-//! ring surgery. These are primitives, and they are what the stale-row
-//! consequence below is about.
+//! The **loop-re-parenting** doors hold the same posture for a
+//! different reason: [`crate::Body::kfmrh`],
+//! [`crate::Body::mfkrh`] and [`crate::Body::ring_move`] move a whole
+//! LOOP between faces, which changes the CHART every row on that loop
+//! is stated in while changing no key. Each carries the moved loop's
+//! rows where the two faces are on one surface key and drops them where
+//! they are not, deriving nothing —
+//! [`crate::Body::drop_rows_on_chart_change`] carries the whole
+//! argument, including what the drop gives up. Their `Neither` reading
+//! was the one the guard's table could not see: no posture makes a
+//! claim about what a row MEANS, and these doors changed nothing else.
+//!
+//! **Neither clears nor re-mints** — the remaining Euler operators and
+//! kill ops. These are primitives, and they are what the stale-row
+//! consequence below is about. Two of them move half-edges between
+//! loops of DIFFERENT faces rather than a whole loop
+//! ([`crate::Body::mef`]'s moved run, [`crate::Body::kef`]'s remnant),
+//! so the rows on those halves change chart exactly as a re-parented
+//! loop's do and are left saying the old face's chart
+//! (`work/topo/mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows`).
 //!
 //! The consequence is bounded but real: a `SecondaryMap` row outlives
 //! its key until the slot is reused, so surgery on a body that already
@@ -2600,17 +2617,38 @@ pub(crate) mod staleness_posture {
             ("mef_chord", Neither, "Euler operator (sugar over `mef`)"),
             ("mekr", Neither, "Euler operator"),
             ("mekr_chord", Neither, "Euler operator (sugar over `mekr`)"),
-            ("mfkrh", Neither, "Euler operator"),
-            ("mfkrh_plug", Neither, "Euler operator (sugar over `mfkrh`)"),
             ("kemr", Neither, "Euler operator"),
-            ("kfmrh", Neither, "Euler operator"),
             ("kev", Neither, "kill op"),
             ("kef", Neither, "kill op"),
             ("kvfs", Neither, "kill op"),
+            // ---- Transfers: the loop-re-parenting doors, which carry
+            // a moved loop's rows onto the target face and drop them
+            // when that face is on another surface key. ----
+            (
+                "kfmrh",
+                Transfers,
+                "Euler operator, and a loop re-parenting: `f2`'s demoted outer loop keeps its \
+             rows where `f1` is on the same surface key and loses them where it is not \
+             (`Body::drop_rows_on_chart_change`)",
+            ),
+            (
+                "mfkrh",
+                Transfers,
+                "Euler operator, and a loop re-parenting: the promoted ring keeps its rows \
+             under `FaceSurface::Inherit` (and a `Shared` naming that key) and loses them \
+             under any other surface",
+            ),
+            (
+                "mfkrh_plug",
+                Transfers,
+                "`mfkrh` with `FaceSurface::New` — see `mfkrh`; the placeholder is always \
+             another key, so the promoted ring's rows always go",
+            ),
             (
                 "ring_move",
-                Neither,
-                "ring surgery: re-parents a ring, mints no half-edge",
+                Transfers,
+                "ring surgery: re-parents a ring, mints no half-edge, and carries or drops \
+             the ring's rows by the two faces' surface keys — see `kfmrh`",
             ),
             (
                 "movefac",

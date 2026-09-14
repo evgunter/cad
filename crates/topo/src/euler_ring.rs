@@ -723,6 +723,16 @@ impl<T: Decide> Body<T> {
     /// caller that expects the same-shell `h +1` here is off by a
     /// handle.
     ///
+    /// **Pcurve rows** ([`crate::pcurves`]): the demoted loop's stored
+    /// rows are a curve stated in `f2`'s chart, so they survive this op
+    /// only when `f1` is on the same surface key. When it is not, they
+    /// are DROPPED — [`Body::drop_rows_on_chart_change`] carries why
+    /// this door cannot re-state them and what the drop leaves behind
+    /// (a target face that carries rows of its own is left incomplete
+    /// and tier 3 says so; one that carries none reads as unminted).
+    /// `f1`'s own rows are never touched. A caller that wants the
+    /// merged face minted runs [`crate::pcurves::mint_pcurves`].
+    ///
     /// **Minting order**: nothing is minted (the loop survives with its
     /// D5 birth record — no provenance changes for survivors; re-homed
     /// faces keep their birth records — re-homing is not a re-birth).
@@ -757,6 +767,7 @@ impl<T: Decide> Body<T> {
             key: EntityId::Face(f1),
         })?;
         let f1_shell = f1_data.shell;
+        let f1_surface = f1_data.surface;
         let f2_data = self.get_face(f2).cloned().ok_or(EulerOpError::StaleKey {
             key: EntityId::Face(f2),
         })?;
@@ -809,6 +820,7 @@ impl<T: Decide> Body<T> {
             unreachable!("kfmrh: `f1` resolved in the plan phase")
         };
         face.rings.push(ring);
+        self.drop_rows_on_chart_change(ring, f2_data.surface, f1_surface);
         let killed_shell = if cross_shell {
             // Shell fusion: f2's surviving faces re-home into f1's
             // shell — appended in their surviving f2-shell list order
@@ -909,6 +921,14 @@ impl<T: Decide> Body<T> {
     /// documented no-op (`Ok(())`, body untouched — the rings order is
     /// NOT perturbed, keeping replay byte-stable).
     ///
+    /// **Pcurve rows** ([`crate::pcurves`]): pure of the topology, not
+    /// of the map. A row is a curve stated in a FACE's chart, so the
+    /// ring's rows survive the move only when `to_face` is on the same
+    /// surface key as the ring's old face; when it is not they are
+    /// DROPPED, for the reasons and with the consequences
+    /// [`Body::drop_rows_on_chart_change`] states. Neither face's other
+    /// loops are touched, and the same-face no-op moves nothing.
+    ///
     /// # Tier-1 preservation (the demotion claim's least obvious case)
     ///
     /// `ring_move` re-glues the per-shell component partition (a face
@@ -955,10 +975,13 @@ impl<T: Decide> Body<T> {
         if from_data.outer == ring {
             return Err(EulerOpError::RingIsOuter { r#loop: ring });
         }
+        let from_surface = from_data.surface;
+        let from_shell = from_data.shell;
         let to_data = self.get_face(to_face).ok_or(EulerOpError::StaleKey {
             key: EntityId::Face(to_face),
         })?;
-        if to_data.shell != from_data.shell {
+        let to_surface = to_data.surface;
+        if to_data.shell != from_shell {
             return Err(EulerOpError::CrossShell {
                 f1: from_face,
                 f2: to_face,
@@ -980,10 +1003,79 @@ impl<T: Decide> Body<T> {
             };
             l.face = to_face;
         }
+        self.drop_rows_on_chart_change(ring, from_surface, to_surface);
 
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, ArenaDelta::ZERO, "ring_move");
         Ok(())
+    }
+
+    /// The pcurve limb of the loop-re-parenting doors: drops every
+    /// stored row of `r#loop` when the loop's new face is on a
+    /// different surface from its old one.
+    ///
+    /// A pcurve row is a curve stated in a FACE's chart, keyed on a
+    /// half-edge ([`crate::pcurves`]). Re-parenting a loop changes
+    /// which chart every row on it is ABOUT while changing no key, so
+    /// a door that moves a loop owes the map one of two answers, and
+    /// the surface decides which. Same surface: every row still says
+    /// what it said, and the door carries them all untouched. A
+    /// different surface: none of them does, and the door drops them.
+    ///
+    /// **Why dropping rather than re-stating.** An image on another
+    /// chart is DERIVED, not restated — unlike
+    /// [`Body::split_edge`]'s restriction of one image to a
+    /// sub-interval of its own carrier — and every derivation door in
+    /// [`crate::pcurves`] carries the `PcurveFittedLane` bound, which
+    /// these `Decide` doors do not have and cannot take without
+    /// rippling it through every caller. Dropping is the honest
+    /// remainder: absence is never a claim, and a caller that wants
+    /// the target face's rows runs [`crate::pcurves::mint_pcurves`].
+    /// What it costs is the loudness the stale row happened to buy —
+    /// a row moved onto a MINTING chart used to fail tier 3's
+    /// re-certification, and after the drop the face reads as one that
+    /// simply has not been minted. Where the target face carries rows
+    /// of its own the drop leaves it INCOMPLETE, which tier 3 still
+    /// reports (`MissingCache` per rowless half-edge); where it does
+    /// not, the face is exactly a face the minting pass has not run
+    /// on, about which that pass says nothing by design.
+    ///
+    /// **The comparison is by surface KEY.** Two keys holding an equal
+    /// surface therefore read as a chart change and their rows go. That
+    /// costs a re-mint, never a wrong row, and it is the only
+    /// comparison available here: deciding two surfaces equal is a
+    /// predicate, and these doors carry no band to decide it in.
+    ///
+    /// **What it drops is what the validator would read.** The rows
+    /// removed are exactly the rows the face's own walk attributes to
+    /// this loop (`crate::pcurves::stored_rows`, the walk
+    /// [`crate::pcurves::validate_pcurves`] measures with), so the two
+    /// never disagree about which rows a face has. A row on a
+    /// half-edge that walk does not reach is reachable from no face at
+    /// all — the module docs' dead-key case, which no door disposes of.
+    ///
+    /// Infallible, so it sits in a door's mutation phase: an
+    /// [`LoopBoundary::Empty`] loop has no half-edge to carry a row,
+    /// and a cycle that does not walk is tier-1 corruption the body
+    /// arrived with and the validator reports.
+    pub(crate) fn drop_rows_on_chart_change(
+        &mut self,
+        r#loop: LoopKey,
+        from: SurfaceKey,
+        to: SurfaceKey,
+    ) {
+        if from == to {
+            return;
+        }
+        let Some(LoopBoundary::Cycle { first }) = self.get_loop(r#loop).map(|l| l.boundary) else {
+            return;
+        };
+        let Some(cycle) = self.loop_cycle(first) else {
+            return;
+        };
+        for half_edge in cycle {
+            self.pcurves.remove(half_edge);
+        }
     }
 
     // ------------------------------------------------------------------
