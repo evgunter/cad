@@ -91,6 +91,8 @@ mod knot_queries_differential;
 mod m10_7_r1_retag_probe;
 #[path = "m10_7_r1_sym_probes.rs"]
 mod m10_7_r1_sym_probes;
+#[path = "sym7_r1_memo_probes.rs"]
+mod sym7_r1_memo_probes;
 #[path = "m5_pr1_poison_conservation.rs"]
 mod m5_pr1_poison_conservation;
 #[path = "m5_pr7b_tensor_compose.rs"]
