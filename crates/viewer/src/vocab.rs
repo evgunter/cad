@@ -54,17 +54,20 @@
 //! boolean operations do — and the answer for one that claims none
 //! ([`crate::forms::MATE_PRIMITIVES`]) is neither: forcing a
 //! deliberately partial list would force the wrong thing. What such a
-//! list wants is to be TOLD its enum grew, which is a different
-//! instrument and lives beside the list it holds — `forms`'s
-//! `partial_mirror!`, which classifies every mirrored variant as
-//! offered or as deliberately absent. Either way it is not a hole in
-//! this one.
+//! list wants is to be TOLD its enum grew, which is the OTHER macro on
+//! this page: [`partial_mirror`] classifies every mirrored variant as
+//! offered or as deliberately absent, over a match with no wildcard.
+//! Either way it is not a hole in this one.
 //!
-//! A DELIBERATELY PARTIAL list is not a vocabulary either
+//! A DELIBERATELY PARTIAL mirror is not a vocabulary either
 //! ([`crate::frame::SUBJECTS_WITH_AN_EXPIRY_ISSUER`] names two of five
 //! `Subject`s on purpose, and each tool's own seat list names its own
 //! seats). Those stay hand-written, because completeness is exactly
-//! what they do not claim.
+//! what they do not claim — and a MIRROR among them takes
+//! [`partial_mirror`] for the weaker thing that is true of it. A
+//! tool's seat list is not one: it specifies that tool rather than
+//! tracking `Seat`'s membership, so a new seat no tool asked for is
+//! absent from it correctly and there is nothing to be told.
 //!
 //! # What this costs: rustfmt stops at the invocation
 //!

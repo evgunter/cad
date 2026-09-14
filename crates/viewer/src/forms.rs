@@ -18,12 +18,16 @@
 //! whether `PathVerb` still names every `PathStep` is forced by
 //! `PathVerb::of`'s exhaustive match, while a DELIBERATELY PARTIAL
 //! list claims no completeness and so cannot be held to it.
-//! `MATE_PRIMITIVES` is held to the weaker thing that IS true of it:
-//! `partial_mirror!` classifies every `MatePrimitive` variant as
-//! offered here or as deliberately absent, so the mirrored enum
-//! cannot grow past this form in silence. `DatumKindChoice`'s four of
-//! `DatumSpec`'s five arms are held to nothing. Each says so at its
-//! own site. (Code spans rather
+//! Both partial mirrors on this page are held to the weaker thing that
+//! IS true of them: `partial_mirror!` (`crates/viewer/src/vocab.rs`)
+//! classifies every variant of the mirrored enum as offered here or as
+//! deliberately absent with its reason, so neither `MatePrimitive` nor
+//! `DatumSpec` can grow past this form in silence. The two take
+//! different shapes of that one macro, because what they offer differs:
+//! `MATE_PRIMITIVES` is a hand-written list and its roster holds a seat
+//! per offered entry, while `DatumKindChoice` is an enum whose `ALL` is
+//! projected, so its roster names a counterpart and has no seat to
+//! hold. Each says so at its own site. (Code spans rather
 //! than links: everything on this page is `pub(crate)`, so an
 //! intra-doc link from a public module page does not resolve.)
 //!
@@ -553,9 +557,10 @@ impl FieldWriting {
 ///
 /// **A decision per variant, and the compiler holds the decision.**
 /// Nothing here forces the list to be COMPLETE — completeness is what
-/// it does not claim. What `partial_mirror!` below forces is that every
-/// [`MatePrimitive`] variant is either offered at a seat of this list
-/// or named below as deliberately absent, with the reason it is
+/// it does not claim. What the `partial_mirror!` invocation below
+/// forces (`crates/viewer/src/vocab.rs` declares the macro) is that
+/// every [`MatePrimitive`] variant is either offered at a seat of this
+/// list or named below as deliberately absent, with the reason it is
 /// absent. A primitive added to the kernel enum is neither until
 /// someone writes one of the two, and the build says so.
 pub(crate) const MATE_PRIMITIVES: [(MatePrimitive, &str); 3] = [

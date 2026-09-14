@@ -1324,6 +1324,23 @@ rather than an exception:
   and `MATE_PRIMITIVES` offers three of four mate primitives because
   the fourth exists to be refused. Each says why in its own doc.
 
+**A partial MIRROR is told when the enum it mirrors grows**, which is
+the weaker thing that is true of it and the whole of what a mechanism
+may force here. `src/vocab.rs`'s `partial_mirror!` holds a roster
+classifying every variant of the mirrored enum as offered or as
+deliberately absent WITH ITS REASON, over a match with no wildcard: a
+variant added to that enum is neither until someone writes one of the
+two, and the build says so. Three sites take it — `MATE_PRIMITIVES`
+over `MatePrimitive`, `SUBJECTS_WITH_AN_EXPIRY_ISSUER` over `Subject`,
+and `forms::DatumKindChoice` over `session::DatumSpec` — in two shapes,
+because what a site OFFERS decides whether a seat of it can drift: a
+hand-written list gets a per-seat assertion and a count check, while an
+enum whose `ALL` is projected has no second copy of its membership to
+hold, so its roster names a counterpart instead. A tool's seat list
+takes neither and is not a mirror: it SPECIFIES that tool rather than
+tracking `Seat`'s membership, so a new seat no tool asked for is
+absent from it correctly.
+
 A list that mirrors a vocabulary ANOTHER crate owns is not a third
 kind, and the boolean form is why: **a mirror claiming completeness is
 held by something the owner declares, never by hand.** What the owner

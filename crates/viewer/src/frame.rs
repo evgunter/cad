@@ -286,6 +286,20 @@ pub enum Subject {
 /// because they name three different events, and the alternative
 /// (one name for "swept only by `Clear`") would have to be renamed
 /// three ways the first time any of them grew an issuer.
+///
+/// **Deliberately partial, and told when [`Subject`] grows.** Nothing
+/// forces this list to be complete — completeness is what it does not
+/// claim, and the three above belong out of it. What the
+/// `partial_mirror!` invocation below forces
+/// (`crates/viewer/src/vocab.rs` declares the macro) is that every
+/// subject is either offered at a seat of this list or named there as
+/// deliberately absent with its reason. A sixth subject WITH an issuer
+/// would otherwise miss the list with no row going red, and its
+/// messages would then be swept only by [`StatusUpdate::Clear`],
+/// silently. The
+/// suite's own row over this list holds a different direction — that
+/// the two named here are the two the policies it calls actually
+/// issue — and cannot see a policy it does not call.
 pub const SUBJECTS_WITH_AN_EXPIRY_ISSUER: [Subject; 2] = [Subject::Camera, Subject::Cursor];
 
 partial_mirror! {
