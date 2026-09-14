@@ -337,3 +337,61 @@ fn the_forms_the_walks_build_are_pinned_per_eps_row() {
         );
     }
 }
+
+/// R2 probe (SYM-4 review): the walk ledger on the documents the unit
+/// did NOT measure — the M10-10 evidence set at scale 1 (the plate,
+/// the two brackets, the annulus, the pad, the link) — printed, not
+/// asserted, so a merge-base build and a head build of the same row
+/// can be diffed: every counter and every digest chain must agree.
+#[test]
+#[ignore]
+fn r2_ledger_on_the_unmeasured_documents() {
+    let tol = Tol::witness();
+    let docs: Vec<(&str, ProfileDoc)> = vec![
+        ("two_hole_plate", the_plate(tol)),
+        (
+            "r2_filleted_bracket",
+            crate::m10_7_r2_probes_interval::bracket(1.0, tol).0,
+        ),
+        (
+            "r1_bracket",
+            crate::m10_8_arc_family_interval::documents(tol)
+                .pop()
+                .map(|(_, d)| d)
+                .unwrap(),
+        ),
+        ("r1_annulus", crate::m10_8_r1_probes_interval::annulus(1.0, tol).0),
+        ("r2_rounded_pad", crate::m10_8_r2_probes_interval::pad(1.0, tol).0),
+        ("r2_link", crate::m10_9_r2_probes_interval::link(1.0, tol).0),
+    ];
+    for (name, doc) in &docs {
+        for (scale, box_) in boxes(doc) {
+            if scale == "root" {
+                continue;
+            }
+            start_profile();
+            let t0 = Instant::now();
+            let (shapes, refusal, counts) = replay(doc, &box_, SymRules::shipped(), tol);
+            let wall = t0.elapsed();
+            let prof = take_profile();
+            let outcomes: BTreeMap<String, usize> =
+                shapes.iter().fold(BTreeMap::new(), |mut m, s| {
+                    *m.entry(format!("{:?}", s.outcome)).or_default() += 1;
+                    m
+                });
+            println!(
+                "R2LEDGER {name} {scale} eps {:e} counts {counts:?} refusal {refusal:?} outcomes {outcomes:?} nodes {} atoms {} freezes {} rat_ops {} big_ops {} promotions {} widest {} refused {} (wall {wall:?} — local)\n{}",
+                tol.eps(),
+                prof.nodes,
+                prof.atoms,
+                prof.freezes.len(),
+                prof.rat_ops,
+                prof.big_ops,
+                prof.promotions,
+                prof.widest_bits,
+                prof.widest_refused_bits,
+                prof.walk_ledger()
+            );
+        }
+    }
+}

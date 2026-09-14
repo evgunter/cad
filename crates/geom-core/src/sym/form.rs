@@ -513,3 +513,135 @@ pub(super) fn powi_form(base: &Form, n: u32, budget: SymBudget) -> Option<Form> 
     }
     Some(acc)
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod r2_probes {
+    //! R2 probe rows (SYM-4 review): the sorted-vector polynomial's
+    //! invariant and its digest, on the cases a vector can handle
+    //! differently from a map — a monomial arriving twice, a sum that
+    //! cancels to zero, the empty polynomial, the constant term's
+    //! position, and the products built in either operand order.
+    use super::*;
+
+    fn budget() -> SymBudget {
+        SymBudget {
+            max_terms: 4096,
+            max_degree: 128,
+        }
+    }
+
+    fn r(a: i128, b: i128) -> Rat {
+        Rat::new(a, b, 0).unwrap()
+    }
+
+    /// Sorted strictly by monomial, no zero coefficient.
+    fn canonical(p: &Poly) -> bool {
+        p.terms.windows(2).all(|w| w[0].0 < w[1].0) && p.terms.iter().all(|(_, c)| !c.is_zero())
+    }
+
+    fn poly(terms: &[(&[(u128, u32)], Rat)]) -> Poly {
+        let mut p = Poly::zero();
+        for (m, c) in terms {
+            p.insert(m.to_vec(), c.clone()).unwrap();
+        }
+        p
+    }
+
+    #[test]
+    fn r2_a_monomial_arriving_twice_merges_and_a_cancelling_sum_drops_the_term() {
+        let x: &[(u128, u32)] = &[(7, 1)];
+        let mut p = Poly::zero();
+        p.insert(x.to_vec(), r(1, 3)).unwrap();
+        p.insert(x.to_vec(), r(2, 3)).unwrap();
+        assert_eq!(p.terms.len(), 1);
+        assert_eq!(p.terms[0].1, Rat::one());
+        assert!(canonical(&p));
+        // The same value inserted in the other order, and via `add`.
+        let mut q = Poly::zero();
+        q.insert(x.to_vec(), r(2, 3)).unwrap();
+        q.insert(x.to_vec(), r(1, 3)).unwrap();
+        assert_eq!(p, q);
+        assert_eq!(p.digest(), q.digest());
+        let s = Poly::term(x.to_vec(), r(1, 3)).add(&Poly::term(x.to_vec(), r(2, 3))).unwrap();
+        assert_eq!(s, p);
+        // Cancel to zero, three ways: insert, add, add of neg.
+        p.insert(x.to_vec(), r(-1, 1)).unwrap();
+        assert!(p.is_zero() && p.terms.is_empty());
+        assert_eq!(p, Poly::zero());
+        assert_eq!(p.digest(), Poly::zero().digest());
+        let t = q.add(&q.neg().unwrap()).unwrap();
+        assert!(t.is_zero());
+        assert_eq!(t.digest(), Poly::zero().digest());
+        assert_eq!(t.as_constant(), Some(Rat::zero()));
+        // A middle term cancelling out of a three-term sum keeps the
+        // rest sorted and contiguous.
+        let a = poly(&[(&[], r(1, 1)), (&[(3, 1)], r(2, 1)), (&[(5, 2)], r(4, 1))]);
+        let b = poly(&[(&[(3, 1)], r(-2, 1)), (&[(9, 1)], r(1, 1))]);
+        let c = a.add(&b).unwrap();
+        assert_eq!(c.terms.len(), 3);
+        assert!(canonical(&c));
+        assert_eq!(c, poly(&[(&[], r(1, 1)), (&[(5, 2)], r(4, 1)), (&[(9, 1)], r(1, 1))]));
+        assert_eq!(c, b.add(&a).unwrap());
+    }
+
+    #[test]
+    fn r2_the_constant_term_is_first_and_the_empty_polynomial_is_the_zero() {
+        // The empty monomial is the least under `Vec`'s lexicographic
+        // `Ord`, so the constant term is the first entry — as it was
+        // the first key of the map.
+        let p = poly(&[(&[(2, 1)], r(3, 1)), (&[], r(5, 1)), (&[(1, 3)], r(1, 1))]);
+        assert!(p.terms[0].0.is_empty());
+        assert_eq!(p.terms[0].1, r(5, 1));
+        assert!(canonical(&p));
+        assert_eq!(p.as_constant(), None);
+        assert_eq!(Poly::constant(r(5, 1)).as_constant(), Some(r(5, 1)));
+        assert_eq!(Poly::constant(Rat::zero()), Poly::zero());
+        assert_eq!(Poly::term(vec![(4, 1)], Rat::zero()), Poly::zero());
+        assert_eq!(Poly::zero().degree(), 0);
+        assert_eq!(Poly::zero().add(&Poly::zero()).unwrap(), Poly::zero());
+        assert_eq!(Poly::zero().mul(&p, budget()).unwrap(), Poly::zero());
+        assert_eq!(p.mul(&Poly::zero(), budget()).unwrap(), Poly::zero());
+        assert_eq!(Poly::zero().neg().unwrap(), Poly::zero());
+        assert_eq!(p.degree(), 3);
+        assert_eq!(Poly::one().add(&Poly::one()).unwrap().as_constant(), Some(r(2, 1)));
+    }
+
+    #[test]
+    fn r2_products_in_either_operand_order_and_either_association_are_one_polynomial() {
+        // (1 + x + y)(1 - x + y²) and its mirror; then a cube two ways.
+        let x: &[(u128, u32)] = &[(11, 1)];
+        let y: &[(u128, u32)] = &[(13, 1)];
+        let y2: &[(u128, u32)] = &[(13, 2)];
+        let a = poly(&[(&[], r(1, 1)), (x, r(1, 1)), (y, r(1, 1))]);
+        let b = poly(&[(&[], r(1, 1)), (x, r(-1, 1)), (y2, r(1, 1))]);
+        let ab = a.mul(&b, budget()).unwrap();
+        let ba = b.mul(&a, budget()).unwrap();
+        assert!(canonical(&ab));
+        assert_eq!(ab, ba);
+        assert_eq!(ab.digest(), ba.digest());
+        // 1 + x + y - x - x² - xy + y² + xy² + y³ = 1 + y - x² - xy + y² + xy² + y³
+        assert_eq!(ab.terms.len(), 7);
+        let abc = ab.mul(&a, budget()).unwrap();
+        let bca = b.mul(&a.mul(&a, budget()).unwrap(), budget()).unwrap();
+        assert_eq!(abc, bca);
+        assert_eq!(abc.digest(), bca.digest());
+        assert!(canonical(&abc));
+        // Sums associate and commute to the bit.
+        let s1 = a.add(&b).unwrap().add(&ab).unwrap();
+        let s2 = ab.add(&b.add(&a).unwrap()).unwrap();
+        assert_eq!(s1, s2);
+        assert_eq!(s1.digest(), s2.digest());
+        // Coefficients through the dyadic and the non-dyadic shape
+        // agree term by term: (1/3)·(3x) == x == 0.5·(2x).
+        let third_x = Poly::term(x.to_vec(), r(1, 3));
+        let three = Poly::constant(r(3, 1));
+        let half_x = Poly::term(x.to_vec(), Rat::of_f64(0.5).unwrap());
+        let two = Poly::constant(Rat::of_f64(2.0).unwrap());
+        let p = third_x.mul(&three, budget()).unwrap();
+        let q = half_x.mul(&two, budget()).unwrap();
+        assert_eq!(p, q);
+        assert_eq!(p, Poly::indet(11));
+        assert_eq!(p.digest(), Poly::indet(11).digest());
+    }
+}
