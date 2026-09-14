@@ -922,22 +922,22 @@ fn torn_bodies_never_reach_a_row_four_unreachable() {
     for trial in 0..trials {
         for tear in TEARS {
             for build in FIXTURES {
-            let mut body = build(tol);
-            let dead = recycled_dead_half_edge(&mut body, tol);
-            // Compound the tears: one on the first pass, more as the
-            // trial index rises, so single and multiple corruption both
-            // get exercised. Each planting is snapshotted individually,
-            // so the exposure says which KINDS landed rather than which
-            // trials did.
-            let extra = TEARS[(rng.next_u64() as usize) % TEARS.len()];
-            for kind in core::iter::repeat_n(tear, trial + 1).chain([extra]) {
-                let before = deep_snapshot(&body);
-                plant(&mut body, kind, &mut rng, dead);
-                if deep_snapshot(&body) != before {
-                    census.note(&tear_landed(kind));
+                let mut body = build(tol);
+                let dead = recycled_dead_half_edge(&mut body, tol);
+                // Compound the tears: one on the first pass, more as the
+                // trial index rises, so single and multiple corruption both
+                // get exercised. Each planting is snapshotted individually,
+                // so the exposure says which KINDS landed rather than which
+                // trials did.
+                let extra = TEARS[(rng.next_u64() as usize) % TEARS.len()];
+                for kind in core::iter::repeat_n(tear, trial + 1).chain([extra]) {
+                    let before = deep_snapshot(&body);
+                    plant(&mut body, kind, &mut rng, dead);
+                    if deep_snapshot(&body) != before {
+                        census.note(&tear_landed(kind));
+                    }
                 }
-            }
-            census.merge(&hammer(&body, tol));
+                census.merge(&hammer(&body, tol));
             }
         }
     }
