@@ -265,6 +265,69 @@ fn the_roster_records_the_censuss_own_verdicts() {
     );
 }
 
+/// **`voided_rod`'s verdicts as a SORTED multiset** — the row the
+/// golden above cannot be. `common::channels` hashes the verdict
+/// stream in DECISION order, so a verdict whose sign changed and a
+/// verdict that merely moved are the same kind of miss there; this
+/// row pins each `(predicate, sign)` with its count, order-free, so
+/// the two are told apart when the golden moves.
+///
+/// Two of the thirteen predicates are ANCHOR-RELATIVE by
+/// construction, and their signs are facts about cycle order rather
+/// than about the body: `props_rim_side` is the sign of
+/// `lo + hi − 2·level` on whichever rim the loop walk from
+/// `Cycle::first` meets FIRST (`geom_brep`'s `props/curved.rs`,
+/// `linear_rim_side`'s `side`), and `props_rim_dir_group` compares
+/// each rim's traversal direction against that same first rim's
+/// (`du_of_rims`). The flux compensates (`Positive ⇒ d_u_sign`,
+/// `Negative ⇒ flip`), so the readings do not depend on the anchor
+/// while those two signs do — the void shell here is the rod
+/// REVERTED, and `Body::revert` moves every loop's anchor to its
+/// source predecessor, which is why both read `Positive` on this
+/// tree and `Negative` on one whose reversal kept the anchor. The
+/// other eleven are per-rim, per-meridian or per-face facts and
+/// count the same whichever rim comes first.
+#[test]
+fn voided_rods_verdicts_as_a_sorted_multiset() {
+    let body = voided_rod();
+    let bracket = Bracket::open();
+    let _ = topo::classify_shells(&body, Tol::witness());
+    let log = bracket.finish();
+    let mut got: Vec<(String, usize)> = Vec::new();
+    for v in &log.verdicts {
+        let key = format!("{} {:?}", v.predicate, v.sign);
+        match got.iter_mut().find(|(k, _)| *k == key) {
+            Some((_, n)) => *n += 1,
+            None => got.push((key, 1)),
+        }
+    }
+    got.sort();
+    let want: Vec<(String, usize)> = [
+        ("chk_shell_volume_sign Negative", 1),
+        ("chk_shell_volume_sign Positive", 1),
+        ("props_circle_axis_class Positive", 4),
+        ("props_du_consistent Zero", 2),
+        ("props_face_extent Positive", 2),
+        ("props_meridian_axial Zero", 4),
+        ("props_meridian_on_surface Zero", 4),
+        ("props_rim_axis_parallel Zero", 4),
+        ("props_rim_center_on_axis Zero", 4),
+        ("props_rim_dir_group Positive", 2),
+        ("props_rim_fit Zero", 4),
+        ("props_rim_level Zero", 4),
+        ("props_rim_level_group Positive", 2),
+        ("props_rim_side Positive", 2),
+    ]
+    .into_iter()
+    .map(|(k, n)| (k.to_string(), n))
+    .collect();
+    assert_eq!(
+        got, want,
+        "voided_rod's verdict multiset moved: a sign changed or a predicate came or went \
+         (an ORDER change alone does not reach this row — that is the golden's)"
+    );
+}
+
 /// **The `probe` sample population does not shrink with the thread
 /// count** — what k-lint counts, read at 1 and 4 threads over the
 /// census door. The golden above cannot carry this: the sink only

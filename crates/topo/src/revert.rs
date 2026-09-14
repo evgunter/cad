@@ -60,12 +60,29 @@
 //!   honest `false` from S11's concave/inward constructors, which is
 //!   the whole point: reverting a body with mixed senses must flip
 //!   each of them, not stamp a constant.
-//! - Loops, faces, shells, solids, points, every curve not described
-//!   in a plane's chart, provenance, and F9 null records are copied
-//!   unchanged (`Cycle::first` still names a member of its cycle;
-//!   outer/ring designation is a maintained designation and survives;
-//!   null-entity sides refer to the splitting surface, not the body's
-//!   orientation).
+//! - **Loop anchors**: every cycle's `first` moves to the half-edge
+//!   that PRECEDES it in the source — its successor once the cycle
+//!   runs the other way. The anchor is load-bearing on a minted
+//!   periodic chart ([`crate::entity::LoopBoundary::Cycle`]'s `first`
+//!   states the invariant: the one-branch walk can report a period
+//!   wrap only at the joint before `first`), and a reversal that kept
+//!   `first` would put that joint right after it — mid-chain, where
+//!   tier 3's stored-row continuity pass reports a
+//!   `LoopDiscontinuity`. Moved to the source predecessor, the same
+//!   joint is the closure again. No row is touched: a row is a
+//!   function of the carrier parameter, and a reversal does not touch
+//!   it. One rule for every loop — a plane loop has no period, so its
+//!   move is a no-op in meaning, and there is nothing a second rule
+//!   would protect. `prev` and `next` swap under the map, so the moved
+//!   anchor's `prev` in the result is its `next` in the source — the
+//!   anchor it came from — and the move is an exact involution with
+//!   nothing arithmetic in it.
+//! - Loops' membership, faces, shells, solids, points, every curve not
+//!   described in a plane's chart, provenance, and F9 null records are
+//!   copied unchanged (a re-anchored `Cycle::first` still names a
+//!   member of its cycle; outer/ring designation is a maintained
+//!   designation and survives; null-entity sides refer to the
+//!   splitting surface, not the body's orientation).
 //!
 //! **No longer planar-only (M5 S12).** Originally (F5) non-`Plane`
 //! surfaces could not represent their orientation-reversed side at
@@ -92,23 +109,29 @@
 //! **Validity class**: a reverted body is **tier-2 currency** — every
 //! structural invariant survives the map, every EDGE certification
 //! survives it (the plane-chart images are re-stated with their
-//! frames; every other description is invariant), and every stored
+//! frames; every other description is invariant), every stored
 //! pcurve ROW is still a certified row of its edge (plane rows
-//! re-stated, curved rows untouched) — but deliberately NOT tier-3:
-//! it bounds the complement, so the +V invariant fails
+//! re-stated, curved rows untouched), and every loop's one-branch
+//! continuity survives. That last is an argument, not a measurement:
+//! the reversed cycle's joints are the source's joints read from the
+//! other side, so at each joint the stored-row continuity pass
+//! (`crate::pcurves`, `validate_pcurves` pass 3) meters the source's
+//! gap negated, at the lever read off the other side's `v` — and the
+//! two sides' `v` agree within the band that same pass pins the
+//! joint's height gap to. The closure moved with the anchor (the
+//! anchor bullet), so the one joint the forward walk may have left a
+//! period off is the closure still, where the pass does not read it;
+//! and `loop_closes` is symmetric in start and end (its `±τ`
+//! candidates, the sphere twin's `du ∓ π` and the torus's polar wrap
+//! all cover both signs). What the map deliberately does NOT give is
+//! tier 3: it bounds the complement, so the +V invariant fails
 //! (`NegativeVolume`, pinned by test). That is correct, not a defect:
 //! `revert(B)` is ∖'s transient operand, never an at-rest solid
-//! handed across the API. What the map does NOT re-state is the loop
-//! walk's per-loop BRANCH choice on a periodic chart: where the
-//! forward walk parked a one-period wrap at a loop's closure, the
-//! wrap sits mid-chain once the loop runs the other way, and tier 3
-//! of such a body reports a pcurve `LoopDiscontinuity` beside the
-//! `NegativeVolume` — the frontier is
-//! `work/topo/revert-leaves-a-periodic-charts-loop-wrap-mid-chain`,
-//! measured on the two-arc sphere's cavity; a body whose stored rows
-//! are all on planes or non-periodic charts reports exactly
-//! `NegativeVolume` (the collinear-cap drum's cavity, pinned in
-//! `sweep`'s `revert_plane_charts`).
+//! handed across the API. `sweep`'s `revert_periodic_wrap` measures
+//! exactly `NegativeVolume` on the two-arc sphere's cavity and a cone
+//! through its apex (loops that wrap at closure), and on the drums,
+//! the tori and a NURBS loft (loops that do not);
+//! `revert_plane_charts` on the plane-mirror rows.
 //!
 //! Serves ch. 15 `setopfinish` (difference reverts `B`'s kept
 //! component) and the `A ∖ B ≡ A ∩ revert(B)` oracle (M3 PR 5).
@@ -120,7 +143,7 @@ use geom::Surface;
 use geom_core::Real;
 
 use crate::body::Body;
-use crate::entity::HalfEdgeKey;
+use crate::entity::{HalfEdgeKey, LoopBoundary, LoopKey};
 use crate::geometry::SurfaceKey;
 use crate::null::CurveGeom;
 
@@ -164,23 +187,52 @@ use crate::null::CurveGeom;
 ///     `point_in_solid` sphere arm included.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RevertError {
-    /// A half-edge's derived end or mate does not resolve —
-    /// tier-1-invalid input, surfaced typed (D9: never a panic).
+    /// A link the reversal map follows does not resolve — tier-1-invalid
+    /// input, surfaced typed (D9: never a panic). The variant names the
+    /// link, so the report names the thing that failed to resolve.
     Corrupt {
-        /// The half-edge whose reversal data is unresolvable.
+        /// Which link.
+        link: RevertLink,
+    },
+}
+
+/// The link of a tier-1-invalid body that [`Body::revert`]'s
+/// precondition read could not follow.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RevertLink {
+    /// `he`'s derived end (`start` of its `next`) does not resolve.
+    End {
+        /// The half-edge whose `next` chain is broken.
+        he: HalfEdgeKey,
+    },
+    /// `he`, a vertex's emanating half-edge, has no mate.
+    Mate {
+        /// The emanating half-edge.
+        he: HalfEdgeKey,
+    },
+    /// The loop's cycle anchor, or that anchor's `prev`, does not
+    /// resolve.
+    LoopAnchor {
+        /// The loop.
+        r#loop: LoopKey,
+        /// The half-edge key that did not resolve.
         he: HalfEdgeKey,
     },
 }
 
 impl fmt::Display for RevertError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Corrupt { he } => write!(
+        let Self::Corrupt { link } = self;
+        write!(f, "revert: ")?;
+        match link {
+            RevertLink::End { he } => write!(f, "half-edge {he:?}'s end does not resolve"),
+            RevertLink::Mate { he } => write!(f, "emanating half-edge {he:?} has no mate"),
+            RevertLink::LoopAnchor { r#loop, he } => write!(
                 f,
-                "revert: half-edge {he:?}'s end or mate does not resolve \
-                 (malformed body)"
+                "loop {loop:?}'s anchor half-edge {he:?} (or its `prev`) does not resolve"
             ),
-        }
+        }?;
+        write!(f, " (malformed body)")
     }
 }
 
@@ -195,7 +247,9 @@ impl<T: Real> Body<T> {
     /// # Errors
     ///
     /// [`RevertError::Corrupt`] on tier-1-invalid input the reversal map
-    /// cannot follow. All checks precede construction of the result.
+    /// cannot follow — every link the map reads is resolved first, and
+    /// the variant names the one that did not ([`RevertLink`]). All
+    /// checks precede construction of the result.
     pub fn revert(&self) -> Result<Self, RevertError> {
         // ---- Preconditions (read-only). ----
         // Which surfaces carry their own reversal (`Plane`: the normal
@@ -214,24 +268,45 @@ impl<T: Real> Body<T> {
         // must read pre-reversal adjacency throughout).
         let mut new_starts = Vec::with_capacity(self.half_edges.len());
         for (he_key, _) in self.half_edges.iter() {
-            let end = self
-                .half_edge_end(he_key)
-                .ok_or(RevertError::Corrupt { he: he_key })?;
+            let end = self.half_edge_end(he_key).ok_or(RevertError::Corrupt {
+                link: RevertLink::End { he: he_key },
+            })?;
             new_starts.push((he_key, end));
         }
         let mut new_anchors = Vec::new();
         for (vertex_key, vertex) in self.vertices.iter() {
             if let Some(emanating) = vertex.emanating {
-                let mate = self
-                    .mate(emanating)
-                    .ok_or(RevertError::Corrupt { he: emanating })?;
+                let mate = self.mate(emanating).ok_or(RevertError::Corrupt {
+                    link: RevertLink::Mate { he: emanating },
+                })?;
                 new_anchors.push((vertex_key, mate));
             }
+        }
+        // Every cycle's anchor (module docs): `first` moves to its
+        // SOURCE predecessor, read here before `next` and `prev` swap.
+        // The predecessor is resolved, not just read: a `prev` naming a
+        // dead key is the tier-1 corruption this door refuses typed.
+        let mut new_firsts = Vec::new();
+        for (loop_key, lp) in self.loops.iter() {
+            let LoopBoundary::Cycle { first } = lp.boundary else {
+                continue;
+            };
+            let anchor = |he| RevertError::Corrupt {
+                link: RevertLink::LoopAnchor {
+                    r#loop: loop_key,
+                    he,
+                },
+            };
+            let prev = self.get_half_edge(first).ok_or(anchor(first))?.prev;
+            if self.get_half_edge(prev).is_none() {
+                return Err(anchor(prev));
+            }
+            new_firsts.push((loop_key, prev));
         }
 
         // ---- The map (infallible from here on). ----
         let mut out = self.clone();
-        // The two keyed loops below carry a value the plan phase
+        // The three keyed loops below carry a value the plan phase
         // derived per key, so they look their key up; `out` is a clone
         // of `self` and cloning a slotmap preserves its keys, so every
         // lookup resolves and the map removes nothing. The edge loop
@@ -253,6 +328,12 @@ impl<T: Real> Body<T> {
                 unreachable!("revert: `vertex_key` was iterated out of the arena `out` clones")
             };
             vertex.emanating = Some(anchor);
+        }
+        for (loop_key, first) in new_firsts {
+            let Some(lp) = out.get_loop_mut(loop_key) else {
+                unreachable!("revert: `loop_key` was iterated out of the arena `out` clones")
+            };
+            lp.boundary = LoopBoundary::Cycle { first };
         }
         for (_, surface) in out.surfaces.iter_mut() {
             if let Surface::Plane { normal, .. } = surface {
@@ -304,8 +385,11 @@ impl<T: Real> Body<T> {
         }
         // N6: `revert` flips every surface source's orientation tag
         // (`rev ∘ rev = id`) — the negated description is the SAME
-        // recipe source seen from the other side. Curve and point
-        // records are untouched (their descriptions are).
+        // recipe source seen from the other side. Only the `Recipe`
+        // arm of the provenance row moves: the other three origins
+        // carry no orientation, and a reversal neither stamps nor
+        // clears. Curve and point records are untouched (their
+        // descriptions are).
         //
         // The per-field ParamSource rows are untouched too, and that is
         // a decision rather than an omission: a token names the
@@ -313,8 +397,10 @@ impl<T: Real> Body<T> {
         // same number whichever side of the surface the material is on.
         // The channel carries no orientation to flip
         // (`crate::param_source`).
-        for (_, gs) in out.surface_sources.iter_mut() {
-            *gs = gs.reverted();
+        for (_, origin) in out.surface_origins.iter_mut() {
+            if let crate::GeomOrigin::Recipe(gs) = origin {
+                *gs = gs.reverted();
+            }
         }
 
         #[cfg(debug_assertions)]
@@ -330,6 +416,7 @@ impl<T: Real> Body<T> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use super::{RevertError, RevertLink};
     use crate::fixtures::ops_cube;
     use geom_core::Tol;
 
@@ -359,6 +446,140 @@ mod tests {
         assert_eq!(
             format!("{:?}", reverted.revert().unwrap()),
             format!("{:?}", cube.body),
+        );
+    }
+
+    /// **Every loop's anchor moves to its source predecessor.**
+    /// `ops_cube`'s faces all share the `mvfs` placeholder surface
+    /// (not a plane), and a one-face body whose face is a plane
+    /// carries a two-half-edge cycle: in both the reverted `first` is
+    /// the source's `prev(first)`, which — `next` and `prev` having
+    /// swapped — is the source anchor's successor in the reversed
+    /// cycle, so the source's anchor is now the cycle's last
+    /// half-edge and the second reversal lands back on it bit for
+    /// bit. One rule, no surface-kind partition (module docs, the
+    /// anchor bullet). Neither fixture stores a pcurve row, so this
+    /// row pins the structural move and the involution alone; the
+    /// wrap the move exists for is measured in `sweep`'s
+    /// `revert_periodic_wrap`.
+    #[test]
+    fn revert_re_anchors_every_loop_at_the_source_predecessor() {
+        use crate::LoopBoundary;
+        let assert_moved = |body: &crate::Body<f64>, reverted: &crate::Body<f64>| {
+            let mut moved = 0;
+            for (lk, lp) in body.loops() {
+                let LoopBoundary::Cycle { first } = lp.boundary else {
+                    panic!("every loop here is a cycle")
+                };
+                let LoopBoundary::Cycle { first: after } = reverted.get_loop(lk).unwrap().boundary
+                else {
+                    panic!("a cycle stays a cycle")
+                };
+                assert_eq!(
+                    after,
+                    body.get_half_edge(first).unwrap().prev,
+                    "the reverted anchor is the source's predecessor"
+                );
+                assert_eq!(
+                    reverted.get_half_edge(first).unwrap().next,
+                    after,
+                    "which is the source anchor's successor in the reversed cycle"
+                );
+                assert_eq!(
+                    reverted.get_half_edge(after).unwrap().prev,
+                    first,
+                    "so the source's anchor closes the reversed cycle"
+                );
+                assert_ne!(after, first, "the cycle has more than one half-edge");
+                moved += 1;
+            }
+            assert_eq!(
+                format!("{:?}", reverted.revert().unwrap()),
+                format!("{body:?}"),
+                "bitwise involution"
+            );
+            moved
+        };
+        let cube = ops_cube(Tol::witness());
+        assert_eq!(assert_moved(&cube.body, &cube.body.revert().unwrap()), 6);
+
+        let plane = lone_plane_face();
+        assert_eq!(assert_moved(&plane, &plane.revert().unwrap()), 1);
+    }
+
+    /// One plane face bounded by a single line edge (a two-half-edge
+    /// cycle), built through the Euler door alone.
+    fn lone_plane_face() -> crate::Body<f64> {
+        let mut plane = crate::Body::<f64>::new();
+        let seed = plane.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0)).unwrap();
+        plane
+            .set_face_surface(
+                seed.face,
+                crate::FaceSurface::New(geom::Surface::Plane {
+                    origin: geom_core::Point3::new(0.0, 0.0, 0.0),
+                    normal: geom_core::Vec3::unit_z(),
+                    u_ref: geom_core::Vec3::unit_x(),
+                }),
+            )
+            .unwrap();
+        plane
+            .mev_line(
+                crate::MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                geom_core::Point3::new(1.0, 0.0, 0.0),
+                Tol::witness(),
+            )
+            .unwrap();
+        plane
+    }
+
+    /// **The anchor read resolves the link it follows.** The
+    /// precondition phase reads each cycle's `prev(first)` and pushes
+    /// it as the new anchor; a `prev` naming a dead key is tier-1
+    /// corruption, and the door refuses it typed — naming the loop and
+    /// the key — rather than returning an `Ok` body whose anchor names
+    /// no half-edge (which only the debug postcondition would catch,
+    /// and a release build not at all). A dead anchor itself is
+    /// refused the same way.
+    #[test]
+    fn revert_refuses_a_dangling_anchor_prev_typed() {
+        use crate::{HalfEdgeKey, LoopBoundary};
+        let cube = ops_cube(Tol::witness());
+        let (lk, first) = cube
+            .body
+            .loops()
+            .find_map(|(lk, lp)| match lp.boundary {
+                LoopBoundary::Cycle { first } => Some((lk, first)),
+                LoopBoundary::Empty { .. } => None,
+            })
+            .unwrap();
+        let dead = HalfEdgeKey::default();
+
+        let mut body = cube.body.clone();
+        body.get_half_edge_mut(first).unwrap().prev = dead;
+        assert_eq!(
+            body.revert().err(),
+            Some(RevertError::Corrupt {
+                link: RevertLink::LoopAnchor {
+                    r#loop: lk,
+                    he: dead
+                }
+            }),
+            "a dangling `prev` on the anchor refuses typed, naming the dead key"
+        );
+
+        let mut body = cube.body.clone();
+        body.get_loop_mut(lk).unwrap().boundary = LoopBoundary::Cycle { first: dead };
+        assert_eq!(
+            body.revert().err(),
+            Some(RevertError::Corrupt {
+                link: RevertLink::LoopAnchor {
+                    r#loop: lk,
+                    he: dead
+                }
+            }),
+            "a dead anchor refuses typed, naming the loop"
         );
     }
 

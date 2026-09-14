@@ -470,6 +470,131 @@ inputs, each with the count that argues for it, none with a design.
   freeze anywhere; max 90 terms against 4,096) and the coefficient
   bound is a fifth of the freezes (280, widest refused 401 bits).
 
+## The change (SYM-4)
+
+Ask 3, on the two in-session levers the profile ranked first and
+third: **a `Poly`'s terms are one sorted vector in the `BTreeMap`'s
+own order**, and **the ring skips the gcd and the products by one on
+the dyadic shape**. Every count identical before → after on both
+documents — forms, atoms, frozen, decisions by outcome, and the digest
+chain of every form the walks build, which
+`m10_sym_profile_interval::the_forms_the_walks_build_are_pinned_per_eps_row`
+now pins per ε row on the slab and once on the plate (captured on the
+merge base, asserted since). The one profile line that moved is the
+ring's `big-path int ops` (slab 288 → 144, plate 21,132 → 10,584):
+the heap gcds against one and products by one the second lever
+removed. Method as SYM-1's, re-taken on the SYM-4 lane's box (4 vCPU,
+shared with one review lane); instruction counts are callgrind's over
+one bare replay at the nominal and reproduce to within 500 Ir across
+takes; the walls are local and say so.
+
+| instructions, release (one replay) | before | vector terms | + dyadic ring |
+|---|--:|--:|--:|
+| slab, total | 141.5 M | 104.3 M (−26 %) | 99.0 M (−30 %) |
+| slab, term storage (allocator + `BTreeMap` + monomial/`Rc`/glue) | 75.7 M · 53 % | 39.8 M · 38 % | 39.7 M · 40 % |
+| slab, the ring (`i128` path + `num-bigint`) | 13.2 M · 9.4 % | 13.2 M · 12.7 % | 8.6 M · 8.7 % |
+| slab, `Rat::from_parts` inclusive | 6.6 % | 9.0 % | 5.7 % |
+| slab, `plain_form` inclusive ÷ plain forms | 7.6 k | 5.0 k | 4.7 k |
+| plate, total | 1,300 M | 976 M (−25 %) | 713 M (−45 %) |
+| plate, term storage | 728 M · 56 % | 371 M · 38 % | 365 M · 51 % |
+| plate, the ring | 346 M · 27 % | 346 M · 35 % | 109 M · 15 % |
+| plate, `num-bigint` alone | 169 M · 13 % | 169 M · 17 % | 5.0 M · 0.7 % |
+| plate, `Rat::from_parts` inclusive | 24.3 % | 32.3 % | 10.4 % |
+
+| local walls (an iteration reading, not a result) | before | vector terms | + dyadic ring |
+|---|--:|--:|--:|
+| slab nominal replay, release, profile on | 47.2 ms | (not taken) | 35.1 ms |
+| plate nominal replay, release, profile on | 283 ms | (not taken) | 149 ms |
+| the chamber drive row, test profile, sequential harness, one take | 368.0 s | 239.7 s | 225.0 s |
+
+**The hosted before/after** (`memories/perf-measurement-lane.md`: a
+hosted runner's numbers, read with the spread in mind; the instruction
+counts above are the numbers of record). Base: run 34812106311, the
+nearest code-tier PR run to the merge base — which is TRIM-3 PR-2's
+HEAD (`8e53655d`), not the merge base itself, so its cpu-s carry that
+PR's change beside the runner's contention; no run of the merge base
+alone exists (main pushes carry no test matrix). After: SYM-4's PR
+run 34823472408 on head `3d7f3526b` (all twelve `test` jobs and five
+`k-lint` unifications green). The nextest `count:*/2` partition re-cut
+around the new row and the change filter bought a different set of
+suites (2,406 → 3,810 tests in the interval `1/2` shards), so
+per-shard durations do not compare and per-test cpu-s carry
+contention from whatever shared the runner — the spread between two
+runs of one tree is itself large (the frozen head's second run read a
+shard at 92 s that its first run read at 169 s, ~1.8×), so the
+DIRECTION of the per-test drops below survives it and their
+magnitudes do not. The rows are the ones in both runs' top-20 tables:
+
+| interval lane, cpu-s per test | base (shard) | SYM-4 (shard) |
+|---|--:|--:|
+| `m10_7_r2 … r2_the_drive_is_bit_identical_across_repeats_and_the_rayon_schedule` | 302.9 (default 2/2); 302.0 (1e-12 2/2) | 212.2; 248.7 |
+| `m10_7_r2 … r2_the_tier_off_serialization_carries_no_symbolic_line` | 278.5; 259.4 | 189.8; 203.2 |
+| `m10_10_r2_probes::r2_rule_d_agrees_with_a_by_hand_closed_form…` (geom-core) | 70.0; 52.7 | 44.1; 42.5 |
+| `m10_10_pins … eps_relative_ceilings_under_the_shipped_set` | 30.4 (default 1/2); 29.9 (1e-12 1/2) | 16.1 (default 2/2); 17.4 (1e-12 2/2) |
+| `m10_3_r2 … my_own_drive_is_bit_identical_across_repeats_and_schedules` | 19.6; 19.7 | 13.1; 12.3 |
+| `m10_3_driver … a_sliver_wrapped_in_the_ops_own_error…` | 14.1; 13.9 | 9.4; 10.6 |
+| **the chamber row** `m10_3_r1 … the_driven_chamber_replays_bit_identically…` | **121.96 (default 1/2); 130.98 (1e-12 1/2)** | **did not run** — the suite is gated to the driver's paths, not the tier's (`work/tcost/m10-3-chamber-probes-gated-away-from-the-symbolic-tier`) |
+
+Shard walls, for the record and not for comparison: `test (interval,
+eps = default, 1/2)` 147 → 169 s, `2/2` 355 → 248 s, `1e-6 1/2` 129 →
+123 s, `1e-6 2/2` 138 → 136 s, `1e-12 1/2` 558 → 118 s, `1e-12 2/2`
+355 → 826 s (the 479-cpu-s tolerance-study probe moved shards and
+read 760 cpu-s beside the two `m10_7_r2` drives).
+
+**Disclosed deviations.** (1) `unary_at_zero`'s `Acos` arm — `acos(0)
+= π/2` — was `Poly::indet(π)` with its coefficient multiplied by ½ and
+is now `Poly::term(π, ½)`: the same polynomial to the bit, one
+`Rat::mul` fewer, so the profile's `rat ops` is one lower per
+`acos(0)` fold (zero on the slab and the plate at their nominals,
+whose rat-ops lines are identical; it would read on a document that
+folds `acos(0)`) — an instrument-only change, no decision. (2) Four
+files outside the spec's list changed only where they read the map's
+API or spelt a one-term polynomial: `sym/algebra.rs`, `sym/signed.rs`,
+`sym/trig.rs`, `sym/report.rs`. (3) The fix pass adopted the reviews'
+rows — the canonical-`Rat` row in `rational.rs` (red under a gcd
+skipped on every shape, green on the tree), three `form.rs` rows on
+the vector's invariant, the six-document walk-ledger evidence row
+(`the_walk_ledger_on_the_unmeasured_documents`: the plate, both
+brackets, the annulus, the pad, the link — the coverage this record
+did not claim; both reviewers ran that differential identical), and
+the largest-form growth guard on the pinned row (slab 10, plate 90 —
+a guard that fails LEGIBLY, not fast: it is read after the replay
+returns, so a compounding growth mutant still times out before the
+assertion is reached, as the delta measured; a non-compounding one
+names itself) — and made `Poly::terms` private behind an accessor.
+`mul` shrinks its product to fit (+0.14 % instructions, inside the
+spread); `add` still allocates `|a| + |b|` and keeps what the merge
+drops (~1.8 MB of slack on the plate's nominal, the delta's probe) — a
+half-fix on the slack class, memory and not a decision, left as is.
+
+**What was measured and not taken, with its number.** The monomial
+inline (`smallvec` at width four, the slab's maximum and nine tenths
+of the plate's monomials): 413 M against 417 M on the slab and 971 M
+against 976 M on the plate — under one percent, because a 224-byte
+term entry costs in memmove and clone most of what the allocator
+saves and the crate's non-inlined `cmp` eats the rest; a new shipped
+dependency in the kernel crate does not buy one percent. The product
+loop as collect-then-sort-and-merge: 436 M and 1,020 M, a fifth worse
+on both. A scratch monomial reused across the product loop: a wash
+(418 M / 980 M), because a product here is mostly one term by one. A
+cached degree: `within`'s self cost is 1.1 % of the slab and
+`Poly::degree`'s own row 1.2 % of the plate where it is not inlined,
+so the cache's whole gain is bounded by about one percent and it was
+not written.
+
+**What remains, as the next input.** The storage class is still the
+largest number on both documents (40 % / 51 %), and it is now the
+allocator's per-form traffic — one `Vec` per monomial, one `Rc<Form>`
+per memo entry, the term vector's clone on every `add`, `neg` and
+`recip` — not a tree. The walk's own overhead and the DAG build are
+the second number on the slab (24 %, `intern` 18 %): the volume, and
+the drive-scoped plain memo that would remove it is the session-model
+decision this unit was cut not to take. The ring is 9 % of the slab
+and 15 % of the plate, its `from_parts` 5.7 % and 10.4 % inclusive,
+`strip_twos` 1.5 % and 3.1 %. The assertion's share is unchanged as a
+fraction (a tenth of the slab's plain forms, 95 % of its early forms)
+and is the item's separate question.
+
 ## Coverage: which rows DO red with the tier off
 
 The observation above ("all nine M10-3 rows pass with `enabled:

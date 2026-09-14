@@ -149,8 +149,7 @@
 //! plane faces' rows re-stated with their frames, the curved faces'
 //! untouched), the graft copies them verbatim onto fresh keys, and
 //! that row's contract is that the producer's final mint re-derives
-//! every row of the merged body — which is also what re-parks a
-//! periodic chart's loop wrap where the reversed walk needs it. This verb is a
+//! every row of the merged body. This verb is a
 //! producer and runs [`crate::pcurves::mint_pcurves`] once, on the
 //! assembled body, before `validate_geometric` — the verb's own
 //! whole-body pass, and it stays whole-body: it is what discharges

@@ -19,7 +19,7 @@ use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::{Body, mass_properties, validate_geometric};
 
 use geom_core::Tol;
-use revolve_common::{axis_y, full_pappus_y, p2, validated};
+use revolve_common::{axis_y, donut_profile, full_pappus_y, p2, validated};
 
 /// Tight relative tolerance for closed-form-vs-closed-form agreement.
 fn assert_close(what: &str, got: f64, expect: f64) {
@@ -148,12 +148,8 @@ fn cone_matches_closed_forms() {
 
 #[test]
 fn donut_matches_closed_forms() {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(2.0, -0.5), 1.0),
-        ProfileVertex::new(p2(2.0, 0.5), 1.0),
-    ]);
     let t = revolve(
-        &validated(vec![lp]),
+        &validated(vec![donut_profile()]),
         axis_y(),
         Revolution::Full,
         Tol::witness(),

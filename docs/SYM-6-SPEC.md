@@ -15,13 +15,8 @@ logged before the draw:** difficulty **M**, task-class **STRUCTURAL**.
   decides (`Interval`) witnesses by an exact meet and ignores the
   parameter; what changes is which lies the cheap `f64` check catches.
 
-**Conditional on `[ev]` PR #2552.** This spec implements route (1)
-of D1, the orchestrator's recommendation. If Ev picks (2) the spec is
-amended before dispatch; if Ev picks (0) the slot closes short and
-this unit is withdrawn with its row deferred on that answer. D2's
-recommendation (one arm, the receipt as the loud channel, a
-fixture-scale zero-refusals row) is Phase 3 and lands only if Ev
-agrees.
+**Ev picked route (1) of D1 on `[ev]` PR #2552 (2026-09-14)**, which
+this spec implements. D2 is held (Phase 3, Amendment A1 below).
 
 **Read first, in full:** `docs/prompts/implementer-discipline.md`; the
 two items whole (the measured failure of the absolute-ε spelling — CI
@@ -98,15 +93,20 @@ from a holder, say so before threading.
    green at every ε row; `m10_9_witness_limits_interval` re-read and
    its numbers re-taken where the slack enters them.
 
-## Phase 3 — D2 (only if Ev agrees on #2552)
+## Phase 3 — D2 (HELD: Ev's answer on #2552 is pending)
 
-One arm stays. The loud channel is the receipt: a fixture-scale row
-asserting `registrations_refused == 0` on the M10 documents at all
-three ε rows (the plate, the annulus, the bracket, the pad, the link
-— the M10-10 evidence documents), so a registrant that starts lying
-on a real document reds a row. `the-span-identity-is-not-a-theorem-of-the-floats`
-closes on that row; its "note for whoever takes it" (the rim
-assertion removed with the span one) is recorded as settled.
+**Amendment A1 (2026-09-14, at dispatch).** Ev picked D1 = (1) and
+asked about D2; the orchestrator's refined proposal is on #2552: split
+`SymRegistration::Contradicted` by WITNESS KIND — `Contradicted`
+reserved for an exact witness (`Interval`'s disjoint certified
+brackets, a proof; a registrant may assert on it) and a new arm for an
+inexact witness refused at its slack (`f64`, `Probe`; counted, never
+asserted) — plus the fixture-scale row asserting zero `Contradicted`
+on the M10 documents in the `Interval` lane, closing
+`the-span-identity-is-not-a-theorem-of-the-floats`. **Nothing of
+Phase 3 is in scope until the orchestrator amends this spec with Ev's
+pick.** If the pick arrives before Phase 2 is at PR it lands here as
+A2; otherwise as a follow-on unit. The lane does not wait on it.
 
 ## Scope
 
@@ -118,7 +118,7 @@ assertion removed with the span one) is recorded as settled.
   parameter and nothing else); tests under `crates/geom-core/tests/m10_9_*`
   and `crates/editor-core/tests/m10_9_*`.
 - No change to what any registrant states, to the registry, to
-  `SymRegistration`'s arms (D2 keeps one), or to `Interval`'s witness.
+  `SymRegistration`'s arms (Phase 3, held), or to `Interval`'s witness.
 - No new tolerance anywhere: `tol` arrives or the code does not compile.
 
 ## Acceptance

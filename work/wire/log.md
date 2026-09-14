@@ -4312,3 +4312,43 @@ Worth noting the same sweep re-homed a row the operand-door lane filed —
 from a killed background job, **traced it rather than reporting it
 missing.** That is the tracker's own promise working: a row moves, it
 does not drop, and the id is what finds it.
+
+## Announced seam from TOPO (2026-09-14): the stamping call, with the typed-absence unit
+
+TOPO's `geom-source-absence-conflates-four-origins` (branch
+`topo/geom-source-typed-absence`) makes provenance absence say which
+absence it is on the identity channel (`crates/topo/src/source.rs`).
+WIRE's `crates/editor-core/src/eval/wire.rs` `stamp_minted` is read;
+if the stamping door's signature moves, that one call is edited by
+this seam and the PR names it. The reader that would answer Ev's
+PR-2404 question is reported to WIRE, not built. Signed (TOPO
+orchestrator).
+
+## Reported from TOPO's fix pass (2026-09-14): `wire.rs`'s absence vocabulary, unedited
+
+The seam announced above is discharged without a diff — `stamp_minted`'s
+signature did not move, and `crates/editor-core/src/eval/wire.rs` was
+read, not edited, in the unit or in its fix pass. Two facts for WIRE,
+reported rather than changed, because the file is WIRE's:
+
+- `stamp_minted`/`stamp_minted_from` and `compose_placed` still say
+  "unsourced" in their docs, with no pointer to the door that now says
+  which absence an unsourced description is (`topo::GeomOrigin`, read
+  through `Body::surface_origin` and its siblings). The word is still
+  exact — those functions speak of `GeomSource`, and
+  `Body::surface_source` answers exactly what it answered before — so
+  this is a vocabulary gap, not a defect: a reader of `wire.rs` cannot
+  find the channel from there.
+- `stamp_minted_from`'s selector (`body.surface_source(k).is_none()`)
+  and `compose_placed`'s `filter_map` are byte-identical in behaviour
+  after the change: `surface_source` is now the projection of
+  `GeomOrigin`'s `Recipe` arm, and every other arm projects to `None`.
+  A description that carries `Imported` or `Cleared` is therefore
+  stamped by `stamp_minted` exactly as an unmarked one used to be; the
+  stamp overwrites the mark, and over `Imported` that is lossy (see
+  `work/exch/log.md`'s addendum of the same date).
+
+The reader that would answer Ev's PR-2404 question is still WIRE's to
+place; `GeomOrigin` is the door it would use.
+
+Signed (TOPO fix-pass lane, `geom-source-absence-conflates-four-origins`).

@@ -11037,3 +11037,65 @@ forced by `draw_one`'s exhaustive match).
 `revolve-tool-unreachable-no-axisinplane-form` had two stale claims
 refreshed: the type name, and the member order it quoted as
 `Plane, Axis, Point, Frame`, which PR 2046 reordered to form order.
+
+## `two-partial-mirrors-in-the-viewer-have-no-growth-alarm` — closed, one macro in two shapes (`view/partial-mirror-alarms`)
+
+**The row asked whether one instrument covers both sites. It does, and
+they take different shapes of it, and the shape split is not
+cosmetic.** `partial_mirror!` moved out of `forms` to `vocab.rs` beside
+`vocabulary!` — the move its own doc named for the moment a second
+caller arrived — and grew from one arm to three, sharing the exhaustive
+half through an internal `@exhaustive` rule.
+
+- **`labelled <list>`** (`MATE_PRIMITIVES`) and **`bare <list>`**
+  (`SUBJECTS_WITH_AN_EXPIRY_ISSUER`) are the two shapes `vocabulary!`
+  already draws and carry its words. They differ only in whether a seat
+  reads `list[n].0` or `list[n]`, and both get the seat half: one
+  `assert!` per offered entry, and the count check.
+- **`onto <Choice>`** (`DatumKindChoice` over `DatumSpec`) gets the
+  exhaustive half ALONE, and the reason is structural rather than a
+  saving. Its offering is an enum whose `ALL` is projected from the
+  declaration, so there is no second copy of the membership for a seat
+  assertion to hold — naming `DatumKindChoice::X` as a counterpart
+  already says the radio row draws it. The roster is the spec-to-kind
+  mapping instead, which is the direction that was held by nothing.
+
+**The alarms are falsified, not assumed.** A sixth `Subject` reds
+`E0004` at the roster's match; classifying it offered without growing
+the list reds `E0080`, index out of bounds, at the seat assertion; a
+sixth `DatumSpec` arm reds `E0004` at the `onto` roster — and at
+`datum_node`'s lowering match, which is the point: that match asks what
+a spec lowers to and says nothing about whether the FORM offers it.
+
+**It survives the revolve row, demonstrated.** With
+`revolve-tool-unreachable-no-axisinplane-form`'s fix simulated —
+`DatumKindChoice` grown to five, `AxisInPlane` moved from the roster's
+absent section to its offered section, `DatumSpec` and
+`datums::DatumKind` untouched — the only reds are `pane::create`'s
+three matches over `DatumKindChoice`, which that row has to write
+anyway. #2561's ruling is intact: nothing here holds the form enum
+against the draw tag, because what the roster mirrors is `DatumSpec`.
+
+**The row's own citation named a symbol that does not exist.** It cited
+`subject_of`'s match at `frame.rs:572`; there is no `subject_of` in
+that file (the only one in the tree is a test helper in
+`crates/geom-core/tests/bounds_census.rs`). The function is
+`joined_subject` and the `_ => Subject::Document` arm is at `:574`.
+That arm was the EVIDENCE for the first bullet's claim, so the wrong
+name cost the argument its check. Corrected in place with a note; the
+claim was true.
+
+**Swept, and a third site filed.** The shape grep — a deliberately
+partial mirror of an enum, in `crates/viewer/src/` — turns up
+`session::author::PatternRuleSpec` over `pncad::document::PatternKind`
+(two of three, `Explicit` ruled out by the plan). It is the one of the
+three whose mirrored enum lives in another crate, so it is the
+strongest case of the three and the only one where growth reds nothing
+in the viewer at all; and `onto` does not serve it, because that arm
+names its counterpart as a VALUE and both `PatternRuleSpec` arms carry
+`Expr`s. Filed as
+`patternrulespec-is-a-partial-mirror-with-no-growth-alarm` rather than
+fixed, with the two answers stated. What the grep could not match:
+mirrors that are not `const` items or enum declarations (an inline list
+in a test row), mirrors spelled across two crates with no shared token,
+and a list whose partiality is stated nowhere.
