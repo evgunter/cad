@@ -421,14 +421,40 @@ the table.
   "disjoint"; the shell verb's own precondition escalates the same way
   and never proceeds to build.
 
-  **What check 9 does NOT match, enumerated** (an unstated blind spot
-  is an unverified claim): one-point TANGENCY between two edges at a
-  point that is a vertex of neither (circle-circle internal or
-  external, line-circle) and a transversal CROSSING at a non-vertex
+  **What check 9's contact arms do NOT match, enumerated** (an unstated
+  blind spot is an unverified claim): one-point TANGENCY between two
+  edges at a point that is a vertex of neither (circle-circle internal
+  or external, line-circle) and a transversal CROSSING at a non-vertex
   point — three-sample locus agreement cannot see a single shared
   point, and the closed forms that could need an arc-containment test
   this predicate has not got; and `Ellipse`/NURBS carriers in the two
   locus arms, whose endpoints the vertex arm still covers.
+
+  **The other half of the same sentence is stated at rest too**: a ring
+  is a hole *strictly inside* the region its face trims, so a ring that
+  stands clear of its outer loop and yet lies OUTSIDE it is refused by
+  name as well (`ValidationError::RingOutsideOuter`, carrying the face,
+  the ring and the ring vertex the walk placed outside). That is the
+  statement an inverted host/guest pick at the rim glue falsifies. The
+  instrument is the crate's one trilean containment walk
+  (`splitting::point_in_loop`) over the ring's vertices, and a pair no
+  query could place is reported (`ValidationError::RingNestingUndecided`)
+  rather than read as nested — the same escalate-never-guess direction
+  the contact arms take.
+
+  **What the nesting half does NOT match, in the same shape**: any face
+  on a non-planar surface, and any planar face whose outer loop is not
+  in the ray-parity class — the disc class (every edge an arc of one
+  circle, whose region `boolean::contain`'s `disc_side` decides exactly
+  and tier 3 does not yet reach) and the no-walk class (arc-bearing
+  over fewer than three vertices, whose polygon has zero area). Both
+  are silent rather than answered, because answering from a polygon
+  that is not the region would REFUSE valid bodies. So is a loop the
+  classifier could not read at all. And inside the gate: a ring that
+  CROSSES its outer loop, part in and part out, passes whenever the
+  first vertex the walk decides is an inside one. Filed, with the
+  widening that closes the disc third:
+  `work/topo/check-9-nesting-is-line-bounded-only.md`.
 
   **Why nothing caught it, and the transferable lesson.** Not "the rim
   lift never had a consumer": `offd2_r1_probes::probe_opened_vessel_cup`

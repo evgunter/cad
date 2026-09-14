@@ -24,6 +24,21 @@ structural assertion "the designated void face dies" caught it; the
 R1 e2e row (`shell5_r1_probes::r1_e2e_hollow_twice_then_open_the_inner_wall`)
 passed on the mutant.
 
+**Correction (this unit's fix pass, 2026-09-14).** That last sentence
+is no longer true of the tree, and the premise it rests on was never
+true of `shell_open`. Both blinded reviews re-installed the SHELL-5 R1
+mutant at this unit's head and measured the verb, not the validator:
+`shell_open` refuses the inverted pick with
+`ShellError::Corrupt { key: Edge(..) }` from the naming record's
+`ring_rows` walk — the glued ring's entities have no source row on an
+inverted pick, and the record is built before the verb's closing
+`validate_geometric` runs — so the R1 e2e row now FAILS on the mutant,
+at the verb, and the closing validate never sees the inverted body.
+What the unit's nesting arm buys is therefore not a refusal inside
+`shell_open`; it is the statement at rest, which makes an inverted
+`kfmrh` glue loud wherever else it is minted. The comment at
+`shell.rs`'s `(host, guest)` assignment says this in that shape.
+
 Consequences: (1) check 9 (`RingMeetsOuter`) is a contact check and
 no tier-3 check states ring-inside-outer, so a face with a ring
 surrounding its outer loop is a body every structural tier blesses;

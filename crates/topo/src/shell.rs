@@ -287,6 +287,16 @@
 //! ([`ValidationError::RingMeetsOuter`]), so a ring standing on its own
 //! outer loop is loud wherever it is minted and not only here.
 //!
+//! **Check 9 has a second half now, and it states the other half of
+//! the same sentence**: a ring must lie strictly INSIDE its face's
+//! outer loop, not merely stand clear of it
+//! ([`ValidationError::RingOutsideOuter`], with
+//! [`ValidationError::RingNestingUndecided`] for the pair it cannot
+//! certify). That is the statement an inverted host/guest pick at the
+//! rim glue below falsifies, and it reaches a planar face whose outer
+//! loop is in the ray-parity class; check 9's own banner enumerates
+//! what it leaves out.
+//!
 //! **An UNDECIDABLE separation refuses too** and never proceeds to
 //! build ([`ShellError::Escalated`]) — the glue is a write, and
 //! building on a gap the predicate layer could not certify is the
@@ -1486,16 +1496,28 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
         // mouth dies. The role is read off the sealed arm's decided
         // shell list and nothing re-derives it HERE: `ring_outer_contact`
         // below decides CONTACT between the two loops, not which
-        // encloses which. What falsifies an inverted assignment is tier
-        // 3's check 9, whose nesting half states ring-inside-outer and
-        // refuses the glued body at the verb's closing
-        // `validate_geometric` — on the shapes that half reaches, which
-        // is a planar rim face whose surviving outer loop is a polygon
-        // of line carriers (check 9's banner enumerates the rest). On a
-        // rim outside that reach the assignment is still pinned only
-        // structurally: the void-ceiling row asserts the designated void
-        // face DIES, and the pairing row reads each thin solid's twin
-        // through the record.
+        // encloses which.
+        //
+        // What an inverted assignment meets first is not a validator
+        // but the NAMING RECORD: `ring_rows` walks the glued ring's
+        // entities for the source each one came from, and on an
+        // inverted pick the ring is the wrong boundary, so no entity
+        // has one and the verb refuses `ShellError::Corrupt` before
+        // its closing `validate_geometric` is reached at all. The
+        // statement that an inverted glue is WRONG, rather than merely
+        // unexplainable, is tier 3's check 9: its nesting half says a
+        // ring lies strictly inside its face's outer loop and refuses
+        // the inverted body by name, on the shapes that half reaches
+        // — a planar face whose outer loop is in the ray-parity class
+        // (check 9's banner enumerates the rest). Nothing in this verb
+        // relies on that arm; what it buys is the class being loud
+        // wherever else it is minted. On a rim outside its reach — an
+        // annular rim between two CIRCLES, every shelled vessel of
+        // revolution — the assignment here is pinned only
+        // structurally: the void-ceiling row asserts the designated
+        // void face DIES, and the pairing row reads each thin solid's
+        // twin through the record
+        // (`work/topo/check-9-nesting-is-line-bounded-only.md`).
         let (host, guest) = match side {
             RimShell::Void => (counterpart, mouth),
             RimShell::Outer => (mouth, counterpart),

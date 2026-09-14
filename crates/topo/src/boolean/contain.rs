@@ -177,7 +177,12 @@ pub fn contfp<T: Decide>(
 
 /// Which walk can express a loop's region — the question [`contfp`]'s
 /// interior/exterior step must answer before it asks any other.
-enum LoopShape<T: geom_core::Real> {
+///
+/// Visible to the crate because it is the classification tier 3's
+/// check 9 gates its nesting arm on as well: the same question, about
+/// the same loops, and a second spelling of it was a second answer to
+/// maintain.
+pub(crate) enum LoopShape<T: geom_core::Real> {
     /// Every edge is an arc of ONE circle: the region is that circle's
     /// disc and [`disc_side`] is exact on it.
     Disc(LoopCircle<T>),
@@ -201,7 +206,7 @@ enum LoopShape<T: geom_core::Real> {
 /// The circle a disc-class loop bounds — its own type, because three
 /// components of one datum read better named than positional.
 #[derive(Clone, Copy)]
-struct LoopCircle<T: geom_core::Real> {
+pub(crate) struct LoopCircle<T: geom_core::Real> {
     /// The circle's centre.
     center: Point3<T>,
     /// Its plane normal (sign-free: only `cross` reads it).
@@ -251,7 +256,12 @@ struct LoopCircle<T: geom_core::Real> {
 /// [`curved_face_containment`] does — an in-band margin is not a
 /// licence to fall through to a walk whose domain this loop is
 /// outside.
-fn loop_shape<T: Decide>(
+///
+/// # Errors
+///
+/// [`ContainError`] — a carrier-agreement escalation, or a loop this
+/// walk cannot read.
+pub(crate) fn loop_shape<T: Decide>(
     body: &Body<T>,
     r#loop: crate::entity::LoopKey,
     band: Band,
