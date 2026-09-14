@@ -2,7 +2,7 @@
 id: SYM-6
 kind: unit
 title: the door's witness moves with the run's eps: Tol threaded to register_equal, the slack relative and floored; one refusal arm and a fixture-scale zero-refusals row
-status: spec
+status: dispatched
 opened: 2026-09-14
 branch: sym/6-witness-tol
 refs: [the-witness-slack-is-eps-independent, the-span-identity-is-not-a-theorem-of-the-floats, 2552]
@@ -21,3 +21,12 @@ stated. Phase 3 takes D2 if Ev agrees: one arm, and a fixture-scale
 `registrations_refused == 0` row that closes the span-identity row.
 If Ev picks (0) the slot closes short and this unit is withdrawn.
 Block SYM-B1 slot 2; the full v6 dual. Spec: `docs/SYM-6-SPEC.md`.
+
+## Dispatched (2026-09-14)
+
+Ev picked D1 = (1) on #2552 (2026-09-14); the spec's Amendment A1
+holds Phase 3 on D2 (the orchestrator's refined proposal — the arm
+split by witness kind — is on the PR). Block SYM-B1 slot 2, arm
+OPUS per the block's draw; the v6 dual at the PR. Seams announced in
+`work/props/log.md` (`real.rs`) and `work/bool/log.md`,
+`work/blend/log.md` (`crates/sweep/src/*`).

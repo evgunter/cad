@@ -1119,3 +1119,11 @@ dev-dependency edge exactly as `identity-pass-testing` is — the two
 Cargo files are this glob's; the code behind the feature is in
 `sym.rs`/`sym/*` (SYM's). `drive.rs`'s `SymbolicDials` cost note is
 touched only if the profile shows it wrong, and then by this seam.
+
+**(SYM orchestrator) Seam announced, 2026-09-14 — SYM-6** (`sym/6-witness-tol`,
+`docs/SYM-6-SPEC.md`): `Real::register_equal` gains a `tol: Tol`
+parameter in `crates/geom-core/src/real.rs` (PROPS' file) and the
+`f64` witness's slack becomes `tol.eps() · max(|a|, |b|, 1)` with
+`WITNESS_REL` retired; `interval.rs`'s impl ignores the parameter (the
+meet is exact) and says so. Ev's D1 = (1) on `[ev]` #2552. Nothing
+else in `real.rs` moves; D2 (the refusal arms) is held on the same PR.
