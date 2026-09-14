@@ -26,17 +26,21 @@
 //!   and `shell` is the PROPS inventory — the sphere flux arm's
 //!   `props_band_coplanar` premise refuses the OPERAND's own wall
 //!   today — and that wall is pinned with its payload below;
-//! - the KLEIN ELBOW (torus wall) solves end to end as well: its
-//!   corners through the carried-datum arm, and its rim EDGE through
-//!   the door's one kind-changing mint — the moved cap cuts the torus
-//!   in a spiric, and the rim is minted as the exact `Curve3::Spiric`
-//!   it is. What stands between the elbow and `shell` is the same
-//!   PROPS inventory the lune waits on, at the torus wall's boundary
-//!   parse rather than the sphere flux premise.
+//! - the KLEIN ELBOW (torus wall) mints its rims as well: its corners
+//!   through the carried-datum arm, and its rim EDGES through the
+//!   door's one kind-changing mint — the moved cap cuts the torus in a
+//!   spiric, and the rim is minted as the exact `Curve3::Spiric` it
+//!   is. What stands between the elbow and `shell` now is its EQUATOR
+//!   SEAMS: a disc's two profile vertices revolve into
+//!   `RevolvedPoint`-declared chart seams, and the re-author of a
+//!   declaration refuses a corner the moved cap has displaced off the
+//!   family's own sketch plane. The sectioned VESSEL (`spiric_rim`),
+//!   whose torus band has no such seam, hollows to tier 3 and stops at
+//!   the props inventory.
 //!
 //! So the partial revolve's rim was a circle-profile wall's gap at two
-//! doors, and both are built; the hollows of both stop at tier 3's
-//! volume.
+//! doors, and both carrier doors are built; what stops each hollow
+//! now is named by its own row.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -535,9 +539,10 @@ fn hollow_moves(body: &Body<f64>, t: f64) -> Vec<topo::ChartMove<f64>> {
         .collect()
 }
 
-/// **The klein elbow's rim MINTS, and the elbow stops at the props
-/// door** — the row that used to pin the carrier mint's refusal,
-/// flipped, with the old door recorded.
+/// **The klein elbow's rim MINTS, and the elbow stops at its equator
+/// seams' re-author** — the row that used to pin the carrier mint's
+/// refusal, flipped, with the old door recorded and the predicted
+/// door named beside the measured one.
 ///
 /// **The old door, verbatim (measured at the unit's head before the
 /// mint):** `ShellError::Face { error: TogetherAxialEdge { what: "a
@@ -554,15 +559,21 @@ fn hollow_moves(body: &Body<f64>, t: f64) -> Vec<topo::ChartMove<f64>> {
 /// a circle would make equal, and which is why the carrier changes
 /// KIND: the door mints `Curve3::Spiric` from the cap's normal and
 /// stand-off and the moved tube's radii, reads both endpoints back
-/// onto it and meters its midpoint against both moved surfaces. The
-/// hollow then walks certification, insertion and pcurves to tier 3,
-/// whose +V invariant needs a volume the props inventory cannot yet
-/// give a spiric-bounded torus wall: check 7 refuses
-/// `VolumeUncomputable { Face { NotIsoRectangle { "torus boundary edge
-/// is not a circle" } } }` — the torus wall's boundary parse, visited
-/// before the caps in arena order (a cap first would read
-/// `loop_vector_area`'s `Unimplemented`). The lune's row next door
-/// stands at the same door on a different premise
+/// onto it and meters its midpoint against both moved surfaces (a
+/// mutant that names the other oval refuses there with a gap of
+/// `2√((R + r′cos v)² − d²)`, the two ovals' separation; one that
+/// flips the reach guard refuses at the guard). **Then the EQUATOR
+/// SEAMS refuse.** The disc's two profile vertices revolve into
+/// `Chart`-described, `RevolvedPoint`-DECLARED seams between the two
+/// torus faces, and `restate` re-authors a declaration in its own
+/// sketch plane — but the moved start cap has displaced the seam's
+/// start corner `t` off that plane, so `offset_axial_reauthor_plane`
+/// refuses `TogetherAxialEdge` on the seam. The spec predicted tier
+/// 3's check 7 (the props inventory); the prediction measured the
+/// rims' authority (`Derived`, no re-author) and not the seams'. The
+/// sectioned vessel, whose band has no such seam, does reach check 7
+/// (`spiric_rim::the_sectioned_vessel_stops_at_the_props_door`). The
+/// lune's row next door stands at the props door on its own premise
 /// (`props_band_coplanar`).
 ///
 /// **The latitude posture's off-axis refusal is no longer reachable
@@ -598,25 +609,15 @@ fn torax_the_klein_elbow_rim_refuses_at_the_carrier_mint() {
         .body
     };
     let e = topo::shell(&elbow, 0.05, tol())
-        .expect_err("shell's +V invariant needs the volume the props lane cannot yet give");
+        .expect_err("the equator seams' declarations cannot be re-authored off their plane");
     println!("[torax] the elbow's next door: {e}");
-    let ShellError::NotValid { errors } = e else {
-        panic!("the hollow must reach tier 3 and stop at the props inventory, got {e:?}");
+    let ShellError::Face { error, .. } = e else {
+        panic!("not the offset door's refusal: {e}");
     };
-    assert!(
-        matches!(
-            errors[..],
-            [topo::ValidationError::VolumeUncomputable {
-                source: topo::MassPropsError::Face {
-                    source: geom_brep::PropsError::NotIsoRectangle {
-                        what: "torus boundary edge is not a circle"
-                    },
-                    ..
-                },
-            }]
-        ),
-        "check 7 at the torus wall's boundary parse, got {errors:?}"
-    );
+    let topo::ReplaceFaceError::TogetherAxialEdge { what, .. } = *error else {
+        panic!("the seam must refuse at its re-author: {error:?}");
+    };
+    assert_eq!(what, "a revolved point's moved corner stands out of the family's own sketch plane, so the same rotation does not pass through it");
 
     // The section that rim edge would need is not a circle.
     let (big, small) = (1.2_f64, r - 0.05);

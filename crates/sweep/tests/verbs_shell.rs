@@ -1193,8 +1193,11 @@ fn klein_elbow(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
 /// moved cap now MINTS: the moved cap stands `t` off the axis,
 /// parallel to it, and cuts the torus in a spiric, which the axial
 /// door mints as the exact `Curve3::Spiric` it is. What this row pins
-/// now is the door AFTER the carrier: tier 3's volume, which the
-/// props inventory cannot yet give a spiric-bounded torus wall.
+/// now is the door AFTER the carrier: the elbow's EQUATOR SEAMS, the
+/// disc's two profile vertices revolved as `RevolvedPoint`-declared
+/// chart seams, whose re-author refuses a corner the moved cap has
+/// displaced off the family's own sketch plane
+/// (`offset_axial_reauthor_plane`).
 ///
 /// **The old door, verbatim (measured at the unit's head before the
 /// mint):** `ShellError::Face { error: TogetherAxialEdge { what: "a
@@ -1214,17 +1217,17 @@ fn klein_elbow(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
 /// premise — a wall its OPERAND already stands behind. What is missing
 /// here is exactly the torus's moved-rim CARRIER.
 ///
-/// **What would retire it**, concretely, is the props quadrature lane
-/// for a spiric-bounded face: the cap's oval area is an elliptic
-/// integral and the torus wall's flux has no closed form in the
-/// rim-or-meridian parse, so tier 3 refuses `VolumeUncomputable`
-/// from the torus wall's boundary parse (visited before the caps in
-/// arena order; a cap first would read `loop_vector_area`'s
-/// `Unimplemented`). The C5 table is not involved: the axial door
-/// mints the rim inline, and `plane_torus_section` keeps refusing the
-/// tilted pose. `torax_axial` carries the section's own measurement —
-/// on this elbow's numbers the half-width and half-height differ by
-/// `2.03e-4` m, a circle's do not.
+/// **What would retire it**, concretely, is two doors: a re-author
+/// for a revolved point's declaration whose corner leaves the sketch
+/// plane (the seam's family still passes through the moved corner —
+/// rotated to the corner's own azimuth — but that re-authoring is a
+/// design question, not this row's), and then the props quadrature
+/// lane for a spiric-bounded face, where the sectioned vessel already
+/// stands (`spiric_rim`). The C5 table is not involved: the axial
+/// door mints the rim inline, and `plane_torus_section` keeps refusing
+/// the tilted pose. `torax_axial` carries the section's own
+/// measurement — on this elbow's numbers the half-width and
+/// half-height differ by `2.03e-4` m, a circle's do not.
 ///
 /// The comparison this row would make once that lands: topology exactly
 /// equal, stored radii within one ulp (the two spellings reach the
@@ -1260,37 +1263,31 @@ fn the_klein_wall_pair_waits_on_the_partial_revolve_rim() {
         .collect();
     assert_eq!(caps.len(), 2, "a partial revolve has two meridian end caps");
 
-    let props_door = |e: &ShellError<f64>| {
-        matches!(
-            e,
-            ShellError::NotValid { errors }
-                if matches!(
-                    errors[..],
-                    [topo::ValidationError::VolumeUncomputable {
-                        source: topo::MassPropsError::Face {
-                            source: geom_brep::PropsError::NotIsoRectangle {
-                                what: "torus boundary edge is not a circle"
-                            },
-                            ..
-                        },
-                    }]
-                )
-        )
+    let seam_reauthor = |e: ShellError<f64>| {
+        let ShellError::Face { face, error } = e else {
+            panic!("expected the offset door's refusal, got {e}");
+        };
+        let topo::ReplaceFaceError::TogetherAxialEdge { edge, what } = *error else {
+            panic!("expected the seam re-author's refusal, got {error}");
+        };
+        assert_eq!(what, "a revolved point's moved corner stands out of the family's own sketch plane, so the same rotation does not pass through it");
+        (face, edge, what)
     };
-    let open = topo::shell_open(&solid, KLEIN_WALL, &caps, Tol::witness())
-        .expect_err("the opened elbow reaches tier 3 and stops at the props inventory");
-    assert!(
-        props_door(&open),
-        "the open arm stops at check 7's torus parse, got {open:?}"
+    let open = seam_reauthor(
+        topo::shell_open(&solid, KLEIN_WALL, &caps, Tol::witness())
+            .expect_err("the opened elbow's equator seam cannot be re-authored off its plane"),
     );
 
-    // The sealed arm stops at the same wall — the blocker is the props
-    // inventory, not the opening — asserted on the PAYLOAD.
-    let sealed = topo::shell(&solid, KLEIN_WALL, Tol::witness())
-        .expect_err("the sealed arm meets the same props door");
-    assert!(
-        props_door(&sealed),
-        "the sealed arm stops at the same door, got {sealed:?}"
+    // The sealed arm stops at the same wall, on the same edge — the
+    // blocker is the seam, not the opening — asserted on the PAYLOAD
+    // (same door face, same edge, same predicate).
+    let sealed = seam_reauthor(
+        topo::shell(&solid, KLEIN_WALL, Tol::witness())
+            .expect_err("the sealed arm meets the same seam"),
+    );
+    assert_eq!(
+        sealed, open,
+        "the sealed arm's refusal is the open arm's: same wall, same edge, same predicate"
     );
 }
 

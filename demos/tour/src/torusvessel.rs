@@ -77,9 +77,10 @@
 //!    wants — and the moved meridian cap cuts the torus in a SPIRIC,
 //!    which the axial door mints as the exact `Curve3::Spiric` rim it
 //!    is; the hollow then reaches tier 3 and stops at the props
-//!    inventory, whose torus parse has no arm for a rim that is
-//!    neither a circle about the axis nor a meridian. Probed live
-//!    below (wall 1). The sphere half of the same rim family stands
+//!    inventory, at the cap's loop area (an elliptic integral, no
+//!    closed form; the torus wall behind it has no parse arm for a
+//!    rim that is neither a circle about the axis nor a meridian).
+//!    Probed live below (wall 1). The sphere half of the same rim family stands
 //!    at the same door on a different premise
 //!    (`torax_the_sphere_lune_next_door_is_the_props_inventory`). The
 //!    props quadrature lane for a spiric-bounded face is the spiric
@@ -676,7 +677,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // parallel to it, and cuts the torus band in a SPIRIC, which the
     // axial door now mints as the exact carrier it is; what the hollow
     // still lacks is tier 3's volume, which the props inventory cannot
-    // give a spiric-bounded torus wall.
+    // give a spiric-bounded face — the cap's oval area is an elliptic
+    // integral, and the cap is visited before the torus wall.
     let quarter = revolved(
         meridian(R_BELLIED, ArcSweep::Ccw, tol),
         Revolution::Partial(core::f64::consts::FRAC_PI_2),
@@ -703,9 +705,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                         errors[..],
                         [pncad::topo::ValidationError::VolumeUncomputable {
                             source: pncad::topo::MassPropsError::Face {
-                                source: pncad::geom_brep::PropsError::NotIsoRectangle {
-                                    what: "torus boundary edge is not a circle"
-                                },
+                                source: pncad::geom_brep::PropsError::Unimplemented,
                                 ..
                             },
                         }]
@@ -784,11 +784,13 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  cap stands a wall off the axis and parallel to it, cutting the torus \
                  band in a SPIRIC — which the axial door now mints as the exact \
                  carrier it is, so the hollow walks to tier 3 and stops at the props \
-                 inventory: the torus wall's boundary parse has no arm for a rim that \
-                 is neither a circle about the axis nor a meridian, and the +V \
-                 invariant refuses VolumeUncomputable. That is the klein elbow's wall \
-                 (`torax_the_klein_elbow_rim_refuses_at_the_carrier_mint`) on this \
-                 scene's own body, and the two retire together. The SPHERE half of the \
+                 inventory: the cap's oval area is an elliptic integral with no closed \
+                 form (and the torus wall's parse behind it has no arm for a rim that \
+                 is neither a circle about the axis nor a meridian), so the +V \
+                 invariant refuses VolumeUncomputable. The klein elbow's wall \
+                 (`torax_the_klein_elbow_rim_refuses_at_the_carrier_mint`) mints the \
+                 same carrier and stops one door earlier, at its equator seams' \
+                 re-author; the sectioned vessel has no such seam. The SPHERE half of the \
                  same rim family stands at the same door on a different premise: the \
                  flux arm's props_band_coplanar premise cannot give tier 3 a lune's \
                  volume either (`torax_the_sphere_lune_next_door_is_the_props_inventory`). THE \

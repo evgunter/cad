@@ -132,7 +132,11 @@
 //! from the axis, past the shrunk circle's `r − t = 0.25`) — both
 //! `torax_axial`; `TogetherNotAxial`'s oblique-plane arm;
 //! `TogetherEdgeDisagreement` (`sf2b_r1_probes`, `sf2b_r2_probes`,
-//! and `shell7_seam_corner`'s three-quarter-turn cone frustum).
+//! and `shell7_seam_corner`'s three-quarter-turn cone frustum); the
+//! re-author's out-of-plane refusal (a disc revolved a quarter turn:
+//! its equator seams are revolved-point declarations whose start
+//! corner the moved cap displaces off the sketch plane — the klein
+//! elbow, `torax_axial`, `verbs_shell`, `shell7_seam_corner`).
 //!
 //! **A hand-made operand, or the door called directly:** the
 //! no-profile-constraint refusal (a wedge's axis edge split by
@@ -158,8 +162,7 @@
 //! station arm and its off-axis-circle arm (a torus meridian cannot
 //! contain a pole, `R − r > 0` keeps it clear), the seam arms'
 //! refusing sides, the off-axis rim mint's four refusing predicates,
-//! the re-author's out-of-plane refusal, and the over-determined-
-//! azimuth arm — no constructible body here has more than one plane
+//! and the over-determined-azimuth arm — no constructible body here has more than one plane
 //! through the axis at a corner that is not also all-planar.
 //!
 //! # What this door does not do

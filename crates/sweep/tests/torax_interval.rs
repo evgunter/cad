@@ -328,8 +328,9 @@ fn interval_the_sphere_lune_rim_encloses_its_corners() {
 /// **The klein elbow at `T = Interval`**: the carried-datum arm, the
 /// kind-changing spiric mint (its six `decide` sites) and both
 /// endpoint meters execute at the certified scalar on the way to the
-/// same door f64 measures — tier 3's volume at the torus wall's
-/// boundary parse. The old door, verbatim: `TogetherAxialEdge { what:
+/// same door f64 measures — the equator seams' re-author, which
+/// refuses a `RevolvedPoint` corner displaced off its sketch plane
+/// (`torax_axial`). The old door, verbatim: `TogetherAxialEdge { what:
 /// "a circular edge between two charts whose centre is off the axis"
 /// }`, the latitude mint's `offset_axial_centre`. An escalation at a
 /// strict band is the certified scalar's honest answer and is pinned
@@ -359,19 +360,13 @@ fn interval_the_klein_elbow_rim_refuses_at_the_carrier_mint() {
     .expect("the elbow revolves")
     .body;
     let e = topo::shell(&body, iv(0.05), tol)
-        .expect_err("the elbow's hollow reaches tier 3 and stops at the props inventory");
+        .expect_err("the elbow's equator seams cannot be re-authored off their plane");
     match e {
-        ShellError::NotValid { ref errors }
+        ShellError::Face { ref error, .. }
             if matches!(
-                errors[..],
-                [ValidationError::VolumeUncomputable {
-                    source: topo::MassPropsError::Face {
-                        source: geom_brep::PropsError::NotIsoRectangle {
-                            what: "torus boundary edge is not a circle"
-                        },
-                        ..
-                    },
-                }]
+                **error,
+                topo::ReplaceFaceError::TogetherAxialEdge { what, .. }
+                    if what == "a revolved point's moved corner stands out of the family's own sketch plane, so the same rotation does not pass through it"
             ) => {}
         ShellError::Face { ref error, .. }
             if tol.eps() < DEFAULT_EPS
@@ -379,10 +374,10 @@ fn interval_the_klein_elbow_rim_refuses_at_the_carrier_mint() {
         {
             stood_down(
                 &format!("the klein elbow's interval rim, eps = {:e}", tol.eps()),
-                "the certified scalar escalated before the props door was reachable, so \
-                 THIS RUN ASSERTS ONLY the door's own typed escalation",
+                "the certified scalar escalated before the seam re-author's refusal was \
+                 reachable, so THIS RUN ASSERTS ONLY the door's own typed escalation",
             );
         }
-        other => panic!("expected the props inventory's check-7 refusal, got {other:?}"),
+        other => panic!("expected the seam re-author's out-of-plane refusal, got {other:?}"),
     }
 }

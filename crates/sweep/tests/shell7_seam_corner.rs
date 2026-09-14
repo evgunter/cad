@@ -603,23 +603,23 @@ fn a_line_profile_beside_one_meridian_cap_refuses_on_a_hand_split_wedge() {
     );
 }
 
-/// **A partial two-arc torus mints its spiric rims and stops at the
-/// props door** (R1's row, flipped): the quarter-turn elbow of the
-/// two-arc profile has a [torus, meridian cap] corner whose azimuth
-/// the MOVED cap fixes — off the sketch plane — and the rim edge
-/// between the torus and the cap is minted as the spiric it is (the
-/// klein elbow's wall, `torax_axial`). The old door, verbatim:
-/// `TogetherAxialEdge { what: "a circular edge between two charts
-/// whose centre is off the axis" }`, the latitude mint's
+/// **A partial two-arc torus mints its spiric rims and stops at its
+/// equator seams' re-author** (R1's row, flipped): the quarter-turn
+/// elbow of the two-arc profile has a [torus, meridian cap] corner
+/// whose azimuth the MOVED cap fixes — off the sketch plane — and the
+/// rim edge between the torus and the cap is minted as the spiric it
+/// is (the klein elbow's wall, `torax_axial`). The old door,
+/// verbatim: `TogetherAxialEdge { what: "a circular edge between two
+/// charts whose centre is off the axis" }`, the latitude mint's
 /// `offset_axial_centre`.
 ///
 /// The claim this row used to carry — that no door-built operand
-/// reaches the re-author's out-of-plane decide — is re-measured by
-/// the same run: the two equator seams are `RevolvedPoint`
-/// declarations whose moved start corners stand ON the sketch plane
-/// (the door moves a seam's corner within its own meridian), so the
-/// decide answers Zero and the hollow walks on to tier 3, which
-/// refuses at the torus wall's boundary parse.
+/// reaches the re-author's out-of-plane decide — is REFUTED by the
+/// same run: the two equator seams are `RevolvedPoint` declarations,
+/// their moved start corners stand `t` off the sketch plane (the
+/// moved cap's own displacement), and `offset_axial_reauthor_plane`
+/// refuses typed. That decide is now door-built-reachable, and this
+/// row is what reaches it.
 #[test]
 fn a_partial_two_arc_torus_refuses_at_its_spiric_rim() {
     let (big_r, r) = (2.0, 0.5);
@@ -631,24 +631,9 @@ fn a_partial_two_arc_torus_refuses_at_its_spiric_rim() {
         Revolution::Partial(FRAC_PI_2),
     );
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
-    let e = topo::shell(&body, 0.05, tol()).expect_err("tier 3's volume");
-    let ShellError::NotValid { errors } = &e else {
-        panic!("the hollow must reach tier 3 and stop at the props inventory, got {e}");
-    };
-    assert!(
-        matches!(
-            errors[..],
-            [topo::ValidationError::VolumeUncomputable {
-                source: topo::MassPropsError::Face {
-                    source: geom_brep::PropsError::NotIsoRectangle {
-                        what: "torus boundary edge is not a circle"
-                    },
-                    ..
-                },
-            }]
-        ),
-        "check 7 at the torus wall's boundary parse, got {errors:?}"
-    );
+    let e = topo::shell(&body, 0.05, tol()).expect_err("the seam re-author");
+    let (_, what) = edge_refusal(&e).unwrap_or_else(|| panic!("not an edge refusal: {e}"));
+    assert_eq!(what, "a revolved point's moved corner stands out of the family's own sketch plane, so the same rotation does not pass through it");
 }
 
 /// **A three-quarter-turn cone frustum refuses `TogetherEdgeDisagreement`**

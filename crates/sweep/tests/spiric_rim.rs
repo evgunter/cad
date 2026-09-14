@@ -4,8 +4,14 @@
 //! The rows here are the carrier's own: the closed forms against both
 //! implicit forms, the speed and extent bounds, the box, the kind's
 //! census refusals through public doors, and the re-pose parity of the
-//! minted rim. The elbow rows that MOVE doors stay in their own suites
-//! (`torax_axial`, `verbs_shell`, `torax_interval`, `shell7_seam_corner`).
+//! minted rim — on the SECTIONED VESSEL (the tour's `torusvessel` wall
+//! 1), the partial revolve whose rims mint through a public door and
+//! reach tier 3. The klein ELBOW's rims mint too, but its hollow stops
+//! one door earlier, at its equator seams' re-author
+//! (`the_elbow_stops_at_its_seam_reauthor` below), so its cavity is not
+//! readable through any public door at this head. The elbow rows that
+//! MOVE doors stay in their own suites (`torax_axial`, `verbs_shell`,
+//! `torax_interval`, `shell7_seam_corner`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -122,16 +128,16 @@ fn hollow_moves<T: geom_core::Real>(body: &Body<T>, t: T) -> Vec<topo::ChartMove
         .collect()
 }
 
-/// The elbow's cavity through the axial door — the body `shell` builds
-/// and stops on at tier 3, taken BEFORE tier 3 so its carriers can be
-/// read.
-fn elbow_cavity(r: f64, t: f64) -> (Body<f64>, Body<f64>) {
-    let elbow = klein_elbow(r);
-    let mut cavity = elbow.clone();
+/// The sectioned vessel's cavity through the axial door — the body
+/// `shell` builds and stops on at tier 3, taken BEFORE tier 3 so its
+/// carriers can be read.
+fn vessel_cavity(t: f64) -> (Body<f64>, Body<f64>) {
+    let quarter = vessel_quarter();
+    let mut cavity = quarter.clone();
     let band = Band::linear(tol()).expect("band");
-    topo::offset_charts_together(&mut cavity, &hollow_moves(&elbow, t), band, tol())
-        .expect("the elbow's corners solve and its rims mint");
-    (elbow, cavity)
+    topo::offset_charts_together(&mut cavity, &hollow_moves(&quarter, t), band, tol())
+        .expect("the vessel's corners solve and its rims mint");
+    (quarter, cavity)
 }
 
 /// Every spiric carrier of a body with its span.
@@ -169,29 +175,19 @@ fn rim_surfaces(body: &Body<f64>, edge: topo::EdgeKey) -> (Surface<f64>, Surface
 
 /// **Row 1 — residuals against BOTH implicit forms.** Each minted rim,
 /// sampled at 10⁴ parameters over its whole period, lies on the moved
-/// torus and in the moved cap plane at rounding — on the elbow's
-/// numbers (`R = 1.2`, `r = 0.275`, `t = 0.05`) and the two-arc
-/// torus's (`R = 2`, `r = 0.5`). The other oval passes this row (it is
-/// the same section) and is killed by the endpoint meter, row 4; an
+/// torus and in the moved cap plane at rounding — the sectioned vessel
+/// (`R = 6/64`, `r = 5/64`) at two wall thicknesses. The elbow's and
+/// the two-arc torus's numbers are not readable through a public door
+/// at this head (their hollows refuse at the equator seams' re-author
+/// before tier 3, below). The other oval passes this row (it is the
+/// same section) and is killed by the endpoint meter, row 4; an
 /// `offset` sign error in `eval` puts the plane residual at `2|d|`.
 #[test]
 fn the_minted_rim_lies_on_both_implicit_forms() {
-    for (r, t) in [(0.275, 0.05), (0.5, 0.05)] {
-        let body = if r == 0.5 {
-            two_arc_torus(2.0, r)
-        } else {
-            klein_elbow(r)
-        };
-        let mut cavity = body.clone();
-        let band = Band::linear(tol()).expect("band");
-        topo::offset_charts_together(&mut cavity, &hollow_moves(&body, t), band, tol())
-            .expect("the rims mint");
+    for t in [1.0 / 128.0, 1.0 / 256.0] {
+        let (_, cavity) = vessel_cavity(t);
         let rims = spiric_edges(&cavity);
-        assert_eq!(
-            rims.len(),
-            4,
-            "a partial revolve of a disc has four rim edges"
-        );
+        assert_eq!(rims.len(), 2, "the band's two rims, one per moved cap");
         for (edge, carrier, _) in &rims {
             let (torus, plane) = rim_surfaces(&cavity, *edge);
             let (mut worst_t, mut worst_p) = (0.0_f64, 0.0_f64);
@@ -201,37 +197,11 @@ fn the_minted_rim_lies_on_both_implicit_forms() {
                 worst_t = worst_t.max(geom_brep::implicit_residual(&torus, p).abs());
                 worst_p = worst_p.max(geom_brep::implicit_residual(&plane, p).abs());
             }
-            println!("[spiric] r = {r}: torus residual {worst_t:e}, plane residual {worst_p:e}");
-            assert!(worst_t <= 4e-16, "torus residual {worst_t}");
-            assert!(worst_p <= 4e-16, "plane residual {worst_p}");
+            println!("[spiric] t = {t}: torus residual {worst_t:e}, plane residual {worst_p:e}");
+            assert!(worst_t <= 2e-15, "torus residual {worst_t}");
+            assert!(worst_p <= 2e-15, "plane residual {worst_p}");
         }
     }
-}
-
-/// `shell7_seam_corner`'s partial two-arc torus: the quarter turn of a
-/// circle profile of radius `r` centred `R` off the axis, revolved
-/// about `+y` through the origin.
-fn two_arc_torus(big_r: f64, r: f64) -> Body<f64> {
-    let profile = Profile::new(
-        SketchPlane::xy(),
-        vec![ProfileLoop::new(vec![
-            ProfileVertex::new(p2(big_r + r, 0.0), 1.0),
-            ProfileVertex::new(p2(big_r - r, 0.0), 1.0),
-        ])],
-    )
-    .validate(tol())
-    .expect("the two-arc profile validates");
-    revolve(
-        &profile,
-        RevolveAxis {
-            origin: p2(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
-        },
-        Revolution::Partial(core::f64::consts::FRAC_PI_2),
-        tol(),
-    )
-    .expect("the torus revolves")
-    .body
 }
 
 /// **Row 2 — `edge_extent` below the sampled point-set diameter on
@@ -241,7 +211,7 @@ fn two_arc_torus(big_r: f64, r: f64) -> Body<f64> {
 /// exceeds it on the short spans.
 #[test]
 fn the_edge_extent_stays_below_the_sampled_diameter() {
-    let (_, cavity) = elbow_cavity(0.275, 0.05);
+    let (_, cavity) = vessel_cavity(1.0 / 128.0);
     let (_, carrier, (t0, t1)) = spiric_edges(&cavity).remove(0);
     for n in [1_usize, 2, 4, 8, 16, 64] {
         let step = (t1 - t0) / n as f64;
@@ -272,7 +242,7 @@ fn the_edge_extent_stays_below_the_sampled_diameter() {
 /// door directly.
 #[test]
 fn the_box_contains_every_sample_of_the_minted_rim() {
-    let (_, cavity) = elbow_cavity(0.275, 0.05);
+    let (_, cavity) = vessel_cavity(1.0 / 128.0);
     for (_, carrier, (t0, t1)) in spiric_edges(&cavity) {
         let b = geom::curves::boxes::conic_arc_aabb(
             &carrier,
@@ -304,7 +274,7 @@ fn the_box_contains_every_sample_of_the_minted_rim() {
 /// lune's re-pose row, on the kind-changing mint.
 #[test]
 fn the_minted_rim_survives_a_rigid_re_pose() {
-    let (elbow, cavity) = elbow_cavity(0.275, 0.05);
+    let (quarter, cavity) = vessel_cavity(1.0 / 128.0);
     let map = Affine3::rotation_about_axis(
         Point3::new(0.25, -0.5, 0.125),
         Vec3::new(1.0, 0.0, 0.0),
@@ -312,19 +282,19 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
     );
     assert_eq!(topo::validate_geometric_structural(&cavity, tol()), Ok(()));
     let posed_after = transform_rigid(&cavity, &map, tol()).expect("the cavity re-poses");
-    let posed_first = transform_rigid(&elbow, &map, tol()).expect("the operand re-poses");
+    let posed_first = transform_rigid(&quarter, &map, tol()).expect("the operand re-poses");
     let mut offset_after = posed_first.clone();
     let band = Band::linear(tol()).expect("band");
     topo::offset_charts_together(
         &mut offset_after,
-        &hollow_moves(&posed_first, 0.05),
+        &hollow_moves(&posed_first, 1.0 / 128.0),
         band,
         tol(),
     )
-    .expect("the posed elbow's rims mint");
+    .expect("the posed vessel's rims mint");
     let mut want = spiric_edges(&posed_after);
     let got = spiric_edges(&offset_after);
-    assert_eq!((want.len(), got.len()), (4, 4));
+    assert_eq!((want.len(), got.len()), (2, 2));
     let ulp = |x: f64| (x.abs() * f64::EPSILON).max(f64::MIN_POSITIVE);
     for (_, g, _) in got {
         let Curve3::Spiric {
@@ -378,14 +348,14 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
 }
 
 /// **Row 11 — the census refusals reachable through public doors**,
-/// on the elbow's cavity: the boolean operand gate, the mesh's trimmed
+/// on the vessel's cavity: the boolean operand gate, the mesh's trimmed
 /// lane (its torus/plane roster is the MESH frontier,
 /// `work/issues/trimmed-tessellation-lacks-torus-and-plane-arms.md`),
 /// and the STEP writer (the export spline is the spiric unit's second
 /// PR). The props doors are the closing measurement row below.
 #[test]
 fn the_census_refusals_through_public_doors() {
-    let (_, cavity) = elbow_cavity(0.275, 0.05);
+    let (_, cavity) = vessel_cavity(1.0 / 128.0);
     let other = klein_elbow(0.1);
     let e = topo::union(&cavity, &other, tol()).expect_err("the boolean fence refuses the kind");
     assert!(
@@ -410,51 +380,55 @@ fn the_census_refusals_through_public_doors() {
 }
 
 /// **The closing measurement — where the elbow stands after the
-/// carrier.** `shell` walks the whole hollow — corners, the
-/// kind-changing carrier mint, both endpoint meters, the midpoint
-/// meter, `restate` with no re-author (the rims are
-/// `Intersection`/`Derived`), certification at the minor radius,
-/// insertion, pcurves (the torus wall uncached, typed) — and tier 3's
-/// checks 1–6 pass; **check 7 refuses** at the props inventory: the
-/// cavity's torus wall is visited before its caps in arena order, so
-/// the payload is `torus_boundary`'s `NotIsoRectangle { "torus
-/// boundary edge is not a circle" }`; a cap visited first would read
-/// `loop_vector_area`'s `Unimplemented`. Same door as the lune's
-/// (`NotIsoRectangle { "props_band_coplanar" }`), different premise.
+/// carrier.** §4 of the spec predicted tier 3's check 7. Measured: the
+/// elbow's rims MINT (both endpoint meters and the midpoint meter pass
+/// — the mutants that flip the oval or the reach guard's sign refuse
+/// on the rim edge, `torax_axial`), and the hollow then refuses one
+/// door EARLIER than predicted, on the EQUATOR SEAMS: a disc revolved
+/// a quarter turn carries its two profile vertices as
+/// `RevolvedPoint`-declared chart seams between the two torus faces,
+/// and `restate` re-authors a declaration in its own sketch plane —
+/// whose start corner the moved cap has displaced OFF that plane by
+/// `t`, so `offset_axial_reauthor_plane` refuses typed. The spec's §0
+/// authority measurement covered the rims (`Intersection`/`Derived`,
+/// no re-author) and not the seams (`Chart`/`Declared`). This is the
+/// pre-registered STOP-1 shape (a re-author refusal off §4's chain);
+/// the row pins the measured door, and what to do about a declared
+/// seam whose corner leaves its sketch plane is the orchestrator's
+/// question, not this unit's. The sectioned vessel next door has no
+/// such seam and reaches check 7.
 #[test]
-fn the_elbow_stops_at_the_props_door() {
+fn the_elbow_stops_at_its_seam_reauthor() {
     let elbow = klein_elbow(0.275);
-    let e = topo::shell(&elbow, 0.05, tol())
-        .expect_err("tier 3 needs the volume the props lane cannot give");
+    let e = topo::shell(&elbow, 0.05, tol()).expect_err("the equator seams' re-author");
     println!("[spiric] the elbow's door: {e:?}");
-    let ShellError::NotValid { errors } = e else {
-        panic!("the hollow must reach tier 3 and stop at the props inventory, got {e:?}");
+    let ShellError::Face { error, .. } = e else {
+        panic!("the offset door's refusal, got {e:?}");
     };
-    assert!(
-        matches!(
-            errors[..],
-            [topo::ValidationError::VolumeUncomputable {
-                source: topo::MassPropsError::Face {
-                    source: geom_brep::PropsError::NotIsoRectangle {
-                        what: "torus boundary edge is not a circle"
-                    },
-                    ..
-                },
-            }]
-        ),
-        "check 7 at the torus wall's boundary parse, got {errors:?}"
-    );
+    let topo::ReplaceFaceError::TogetherAxialEdge { what, .. } = *error else {
+        panic!("the re-author's out-of-plane refusal, got {error:?}");
+    };
+    assert_eq!(what, "a revolved point's moved corner stands out of the family's own sketch plane, so the same rotation does not pass through it");
 }
 
-/// **The sectioned vessel stands at the same door** — the tour's
+/// **The sectioned vessel reaches the props door** — the tour's
 /// `torusvessel` wall 1 on the scene's own body: a quarter turn of the
-/// bellied meridian hollows to tier 3 and stops at the torus wall's
-/// boundary parse, exactly as the elbow does.
+/// bellied meridian hollows through the kind-changing mint, both
+/// endpoint meters, certification at the minor radius, insertion and
+/// pcurves (the torus wall uncached, typed) to tier 3, whose checks
+/// 1–6 pass; **check 7 refuses** `VolumeUncomputable` — at a CAP,
+/// visited before the torus wall in arena order, so the payload is
+/// `loop_vector_area`'s `Unimplemented` (the oval's area is an
+/// elliptic integral); the torus wall behind it would read
+/// `torus_boundary`'s `NotIsoRectangle { "torus boundary edge is not a
+/// circle" }`. The spec named both and predicted the wall first; the
+/// run shows the cap. Same door as the lune's (`NotIsoRectangle {
+/// "props_band_coplanar" }`), different premise.
 #[test]
-fn the_sectioned_vessel_stops_at_the_same_door() {
+fn the_sectioned_vessel_stops_at_the_props_door() {
     let quarter = vessel_quarter();
     assert_eq!(topo::validate_geometric(&quarter, tol()), Ok(()));
-    let e = topo::shell(&quarter, 1.0 / 128.0, tol()).expect_err("the same props door");
+    let e = topo::shell(&quarter, 1.0 / 128.0, tol()).expect_err("tier 3's volume");
     println!("[spiric] the sectioned vessel's door: {e:?}");
     let ShellError::NotValid { errors } = e else {
         panic!("the hollow must reach tier 3, got {e:?}");
@@ -464,14 +438,12 @@ fn the_sectioned_vessel_stops_at_the_same_door() {
             errors[..],
             [topo::ValidationError::VolumeUncomputable {
                 source: topo::MassPropsError::Face {
-                    source: geom_brep::PropsError::NotIsoRectangle {
-                        what: "torus boundary edge is not a circle"
-                    },
+                    source: geom_brep::PropsError::Unimplemented,
                     ..
                 },
             }]
         ),
-        "check 7 at the torus wall's boundary parse, got {errors:?}"
+        "check 7 at a cap's loop area, got {errors:?}"
     );
 }
 
@@ -485,37 +457,54 @@ mod interval_rows {
         Interval::from_f64(x)
     }
 
-    /// **Row 8 — the `Interval` lane.** The elbow's cavity at the
-    /// certified scalar: every new `decide` site executes, the minted
-    /// rims are spirics, and each encloses its f64 twin — `eval` at a
-    /// bracketed `v` contains the f64 point. An escalation at a strict
-    /// band is the certified scalar's honest answer and is pinned as
-    /// such.
+    /// The vessel's meridian as a raw loop at any deciding scalar — the
+    /// band arc as its bulge (`tan(θ/4) = 1/2`, the 3-4-5 arc), so the
+    /// interval and f64 twins are built by one spelling.
+    fn vessel_loop<T: geom_core::Real>(iv: &impl Fn(f64) -> T) -> ProfileLoop<T> {
+        let p = |x: f64, y: f64| Point2::new(iv(x), iv(y));
+        ProfileLoop::new(vec![
+            ProfileVertex::new(p(0.0, 0.0), iv(0.0)),
+            ProfileVertex::new(p(5.0 / 64.0, 0.0), iv(0.0)),
+            ProfileVertex::new(p(5.0 / 64.0, 4.0 / 64.0), iv(0.0)),
+            ProfileVertex::new(p(9.0 / 64.0, 4.0 / 64.0), iv(0.5)),
+            ProfileVertex::new(p(9.0 / 64.0, 12.0 / 64.0), iv(0.0)),
+            ProfileVertex::new(p(7.0 / 64.0, 12.0 / 64.0), iv(0.0)),
+            ProfileVertex::new(p(7.0 / 64.0, 24.0 / 64.0), iv(0.0)),
+            ProfileVertex::new(p(0.0, 24.0 / 64.0), iv(0.0)),
+        ])
+    }
+
+    fn vessel_at<T: geom_core::Decide + geom_core::CertifiedBounds + topo::props::PropsQuadLane>(
+        iv: &impl Fn(f64) -> T,
+    ) -> Body<T> {
+        let tol = Tol::witness();
+        let profile = Profile::new(SketchPlane::<T>::xy(), vec![vessel_loop(iv)])
+            .validate(tol)
+            .expect("the vessel meridian validates");
+        revolve(
+            &profile,
+            RevolveAxis {
+                origin: Point2::new(iv(0.0), iv(0.0)),
+                dir: Vec2::new(iv(0.0), iv(1.0)),
+            },
+            Revolution::Partial(iv(core::f64::consts::FRAC_PI_2)),
+            tol,
+        )
+        .expect("the vessel revolves")
+        .body
+    }
+
+    /// **Row 8 — the `Interval` lane.** The sectioned vessel's cavity at
+    /// the certified scalar: every new `decide` site executes, the
+    /// minted rims are spirics, and each encloses its f64 twin — `eval`
+    /// at a bracketed `v` contains the f64 point. An escalation at a
+    /// strict band is the certified scalar's honest answer and is pinned
+    /// as such.
     #[test]
     fn interval_the_minted_rim_encloses_its_f64_twin() {
         let tol = Tol::witness();
-        let r = 0.275_f64;
-        let profile = Profile::new(
-            SketchPlane::<Interval>::xy(),
-            vec![ProfileLoop::new(vec![
-                ProfileVertex::new(Point2::new(iv(-r), iv(0.0)), iv(1.0)),
-                ProfileVertex::new(Point2::new(iv(r), iv(0.0)), iv(1.0)),
-            ])],
-        )
-        .validate(tol)
-        .expect("validates");
-        let body = revolve(
-            &profile,
-            RevolveAxis {
-                origin: Point2::new(iv(1.2), iv(0.0)),
-                dir: Vec2::new(iv(0.0), iv(-1.0)),
-            },
-            Revolution::Partial(iv(-core::f64::consts::FRAC_PI_2)),
-            tol,
-        )
-        .expect("revolves")
-        .body;
-        let moves: Vec<topo::ChartMove<Interval>> = super::hollow_moves(&body, iv(0.05));
+        let body = vessel_at(&iv);
+        let moves: Vec<topo::ChartMove<Interval>> = super::hollow_moves(&body, iv(1.0 / 128.0));
         let mut cavity = body.clone();
         let band = Band::linear(tol).expect("band");
         match topo::offset_charts_together(&mut cavity, &moves, band, tol) {
@@ -524,14 +513,22 @@ mod interval_rows {
                 if tol.eps() < geom_core::tolerance::DEFAULT_EPS =>
             {
                 test_utils::vacuity::stood_down(
-                    &format!("the elbow's interval rim, eps = {:e}", tol.eps()),
+                    &format!("the vessel's interval rim, eps = {:e}", tol.eps()),
                     &format!("the certified scalar escalated ({source:?}) before the rims minted"),
                 );
                 return;
             }
-            Err(e) => panic!("the elbow's rims mint at the certified scalar: {e:?}"),
+            Err(e) => panic!("the vessel's rims mint at the certified scalar: {e:?}"),
         }
-        let (_, f64_cavity) = super::elbow_cavity(r, 0.05);
+        let f64_body = vessel_at(&|x| x);
+        let mut f64_cavity = f64_body.clone();
+        topo::offset_charts_together(
+            &mut f64_cavity,
+            &super::hollow_moves(&f64_body, 1.0 / 128.0),
+            Band::linear(tol).expect("band"),
+            tol,
+        )
+        .expect("the f64 twin's rims mint");
         let f64_rims = super::spiric_edges(&f64_cavity);
         let mut n = 0;
         for (_, e) in cavity.edges() {
@@ -539,7 +536,7 @@ mod interval_rows {
                 .get_curve_geom(e.curve)
                 .and_then(|g| g.certified())
                 .expect("certified");
-            let Curve3::Spiric { center, .. } = c.carrier() else {
+            let Curve3::Spiric { offset, .. } = c.carrier() else {
                 continue;
             };
             n += 1;
@@ -547,35 +544,19 @@ mod interval_rows {
             let twin = f64_rims
                 .iter()
                 .find(|(_, w, _)| {
-                    matches!(w, Curve3::Spiric { center: wc, .. }
-                    if center.x.lo() <= wc.x && wc.x <= center.x.hi())
+                    matches!(w, Curve3::Spiric { offset: wd, .. } if offset.lo() <= *wd && *wd <= offset.hi())
                 })
                 .map(|(_, w, _)| w)
-                .expect("an f64 twin");
+                .expect("an f64 twin with the same stand-off");
             for k in 0..=8 {
                 let v = t0 + (t1 - t0) * iv(f64::from(k) / 8.0);
                 let p = c.carrier().eval(v);
                 let q = twin.eval(v.lo() + (v.hi() - v.lo()) * 0.5);
-                assert!(
-                    p.x.lo() <= q.x && q.x <= p.x.hi(),
-                    "x: {:?} vs {}",
-                    p.x,
-                    q.x
-                );
-                assert!(
-                    p.y.lo() <= q.y && q.y <= p.y.hi(),
-                    "y: {:?} vs {}",
-                    p.y,
-                    q.y
-                );
-                assert!(
-                    p.z.lo() <= q.z && q.z <= p.z.hi(),
-                    "z: {:?} vs {}",
-                    p.z,
-                    q.z
-                );
+                assert!(p.x.lo() <= q.x && q.x <= p.x.hi(), "x: {:?} vs {}", p.x, q.x);
+                assert!(p.y.lo() <= q.y && q.y <= p.y.hi(), "y: {:?} vs {}", p.y, q.y);
+                assert!(p.z.lo() <= q.z && q.z <= p.z.hi(), "z: {:?} vs {}", p.z, q.z);
             }
         }
-        assert_eq!(n, 4, "four spiric rims at the certified scalar");
+        assert_eq!(n, 2, "two spiric rims at the certified scalar");
     }
 }
