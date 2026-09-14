@@ -6254,3 +6254,10 @@ Slot 1 CONCLUDED 2026-09-14: `revert-leaves-a-periodic-charts-loop-wrap-mid-chai
 candidate; the lane relaunched once on its recovered WIP after a
 container restart). Slots 0 and 2 open (slot 0's dual concluded,
 ordinal 2710, fix pass live; slot 2 dispatched).
+
+Slot 0 CONCLUDED 2026-09-14: `geom-source-absence-conflates-four-origins`
+(OPUS; M / STRUCTURAL; PR #2576, ordinal 2710, sample #195, one
+code-class tally candidate — R2's unilateral executed MAJOR on
+`mark_imported` overwriting the `Cleared` arm; the lane relaunched
+once on its recovered WIP after a container restart). Slot 2 open
+(dispatched, PR pending).
