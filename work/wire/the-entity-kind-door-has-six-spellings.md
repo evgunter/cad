@@ -2,9 +2,10 @@
 id: the-entity-kind-door-has-six-spellings
 kind: issue
 title: Read a name, test its EntityKey kind, refuse: three copies in eval/wire.rs and six spellings of the refusal across the crate, with no shared door
-status: open
+status: closed
 pr: 2517
 opened: 2026-09-12
+closed: 2026-09-14
 ---
 
 
@@ -180,3 +181,68 @@ name rather than the resolved key. The census cannot see past
 thing this unit learned: **a census that finds its sites by the
 spelling it is normalising can only ever find the ones that already
 comply.** It is in the suite's own doc, with the known members named.
+
+
+## Closed 2026-09-14 (PR 2517) — a partial fix, labelled, after three review rounds
+
+**Four sites of at least nine.** The three identical copies plus
+`MeasureSelectionKind` go through one door; the other five are on four
+programs' slates, each with its own row rather than a sentence in a PR
+body.
+
+### The door, after the guard it started with was defeated three ways
+
+It began as a textual guard over the roads' shape. R2 defeated that three
+ways — an inner closure, a one-line IIFE, and a `let`-bound closure
+inside the argument list, the last being the shape the guard's own doc
+declared impossible — all with the suite green, because the road's answer
+happened to be *correct*.
+
+The answer was to stop policing the spelling: `entity_door::Found` is a
+newtype over `EntityKind` whose field is private to the door's module, so
+a road passes a kind through and **cannot write one**. All four defeats
+then failed `cargo build`, and R3 confirmed the out-of-crate case is
+total — **eight attack shapes, eight compile errors**, including a
+struct-update `E0451` checked in isolation so other errors could not mask
+it.
+
+### And R3 found the last mile, which is the durable lesson here
+
+The token makes the **word** unforgeable; the **key the word is read off**
+was still the caller's. A road could hand the door a synthetic
+`EntityKey` of any kind — variants are `pub`, payloads are slotmap keys
+with `Default` — and the door would mint the lie for it. Compiled, with
+a byte-identical success path, and **the census passed on it.**
+
+Closed as far as this unit reaches, in two moves rather than one
+overstatement:
+
+- **the claim is narrowed at the site**, in the door's own words, and
+  measured rather than hedged: `EntityKey` is constructed in about **150
+  places** crate-wide and `EntityRef` in 30, nearly all legitimate
+  naming-layer mints, so full closure is a naming-layer redesign and not
+  this unit. The narrower `Resolved`-token option fails today on module
+  privacy — `ladder` lives inside `eval::wire` and `entity` does not —
+  and the row records that so a taker does not re-derive it.
+- **`read` became `fn(EntityKey) -> Option<R>`**, not a closure. A `fn`
+  cannot capture, so the value the door returns and the kind it reports
+  come off **the same key**: a road that substitutes a key substitutes it
+  for its own success path too and **stops working**, instead of
+  succeeding on one entity while refusing about another. That does not
+  make the key unforgeable; it makes a forgery **self-defeating rather
+  than invisible**, which is what the compiled attack depended on.
+
+What remains is `work/wire/the-entity-doors-key-comes-from-its-caller.md`,
+carrying the compiled attack, what the `fn` change closes, the realistic
+residue (a road passing the wrong key **by mistake**), what covers it
+today (the byte-exact rows), and the measured reason it was not closed
+structurally.
+
+### What the token did and did not buy, kept in the narrowing
+
+`Found` is **not** a new spelling in this row's sense. A spelling is a
+second thing that can *answer differently*; `Found` computes nothing and
+forwards `kind`/`article`/`noun` unchanged. It made three of the six
+spellings' failure modes **unspellable rather than merely unwritten**,
+and out-of-crate the result is total. The narrowing takes back the last
+mile, not the move.
