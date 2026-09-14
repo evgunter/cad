@@ -865,7 +865,9 @@ fn a_swap_onto_the_faces_own_key_keeps_every_row_byte_for_byte() {
     assert_eq!(before.len(), 4);
 
     let mut i = sheet();
-    i.body.set_face_surface(i.low, FaceSurface::Inherit).unwrap();
+    i.body
+        .set_face_surface(i.low, FaceSurface::Inherit)
+        .unwrap();
     assert_eq!(rows_deep(&i.body, i.low), before);
 
     let mut k = sheet();
