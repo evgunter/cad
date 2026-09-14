@@ -845,3 +845,16 @@ elsewhere, and nothing in the verb relies on the arm.
 Whether the glue should adopt the nesting decide as a second
 precondition is still SHELL's call and still untouched; `encloses`
 stays where it is. Signed (TOPO, the ring-nesting lane).
+
+## Announced seam from TOPO (2026-09-14): one clause in `shell.rs` with the revert-wrap unit
+
+`crates/topo/src/shell.rs`'s "The closing mint" paragraph said the
+verb's final `mint_pcurves` is "also what re-parks a periodic chart's
+loop wrap where the reversed walk needs it". `Body::revert` re-parks
+the wrap itself now (each curved loop's anchor moves to its source
+predecessor, so the wrap sits at the reversed closure — the anchor
+bullet in `revert`'s module docs), so the clause was deleted; the
+paragraph's claim that the closing mint discharges the graft's
+`Transfers` row over the whole merged body stands as written, and
+nothing else in the file moved. Signed (TOPO, the revert-wrap lane,
+`topo/revert-reparks-the-wrap`).

@@ -92,3 +92,36 @@ announced seam (announce on `work/trim/log.md` in the PR).
 Branch `topo/revert-reparks-the-wrap`. PR title: "TOPO: revert re-parks
 a periodic chart's wrap at the reversed closure". Do not close the
 item; the dual runs at review.
+
+## Built (TOPO lane, 2026-09-14; branch `topo/revert-reparks-the-wrap`)
+
+Phase 1, against the brief's two closings. Measured (the recovered
+probe, extended): the finding sits on the SECOND half-edge of the
+reversed cycle — the source's `prev(first)` — on the two-arc sphere,
+its cavity, and a cone through its apex; the tube torus, a two-arc
+torus, the drum, the collinear-cap drum and its cavity, and a half
+drum report nothing but `NegativeVolume`. Why: the forward walk parks
+a wrap only at the closure, so with `first` fixed the reversal puts
+that joint right after `first`; and a loop wraps at closure only when
+it has an azimuth-free joint (a pole, an apex) where the walk skips
+the shift — a torus has none, a full rim absorbs a drum's azimuth.
+The arithmetic re-park of closing (a) — `shift_branch` per row — is
+NOT a bitwise involution: `(x + τ) − τ` is `x` for the walk's own
+azimuths (`0`, `π`, `τ`: 40 rows measured, 0 broken) and is not for
+`1 + ε`, so a body with a finer azimuth would round-trip to different
+bits. Neither (a) as written nor (b) was taken: `revert` moves each
+curved loop's `Cycle::first` to its source predecessor, which is the
+same joint at the reversed closure with no row touched — exact
+structure, `prev`/`next` swap under the map, so the second reversal's
+`prev` of the moved anchor is the source's `next` of it, and the
+involution is proved rather than measured. Plane loops keep their
+anchor (no period, no wrap; the planar battery's bits stay).
+
+Rows: `sweep`'s `revert_periodic_wrap` (sphere and cavity, apex cone
+— red on the merge base with `LoopDiscontinuity`; the six
+non-wrapping periodic controls; the twisted loft as the non-periodic
+control; each pins the anchor move, rows bit for bit, the wrap at the
+reversed closure, tier 3 exactly `NegativeVolume`, and the
+involution), and `revert::tests`' anchor row on `ops_cube` and a
+lone plane face. Seams: one prose paragraph in TRIM's `pcurves.rs`
+and one clause in SHELL's `shell.rs`, announced on both logs.
