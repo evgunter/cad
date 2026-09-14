@@ -4,6 +4,7 @@ kind: issue
 title: A profile placed on a derived frame does not certify on the symbolic lane under a widened upstream parameter: the kernel's symbolic budget freezes re-normalised stored unit vectors
 status: open
 opened: 2026-09-04
+parent: SYM-5
 ---
 
 

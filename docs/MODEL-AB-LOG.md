@@ -6030,3 +6030,40 @@ Block TOPO-B2 slot 2 concluded 2026-09-14 at merge `7aaeb095d`
 CONCLUDED record above is complete: three slots, three duals, zero
 tally candidates, pre-draw fields clean. The next TOPO kernel-answer
 unit draws block TOPO-B3.
+
+D263 review ordinal fixed at dispatch (2026-09-14, PR #2548 open —
+frozen head `a46911a20`; unit `work/topo/D263.md`): **ordinal 2706**
+(TOPO band). Pre-draw fields (logged in `work/topo/log.md` at
+`daa30ee99` BEFORE block TOPO-B3 was drawn — clean): difficulty **M**,
+task class **STRUCTURAL-GEOMETRIC**. Implementer arm per block TOPO-B3
+slot 1 (record branch-side on `topo/b3-block`). Protocol v6 dual: draw
+= `/dev/urandom` byte **194**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**.
+Method, recorded before either review runs: CONCURRENT same-head on
+frozen `a46911a20`, both briefs authored and STORED with sha256 before
+either dispatches (identical text modulo lane name, target and scratch
+paths, verified by diff), neither reviewer sees the other's report, v6
+item 5 isolation in both briefs; the implementer's unit log entry is
+not written until the dual concludes. Shared-box note applying to
+BOTH arms equally: one 4-core cloud box beside one other lane (block
+slot 0's implementer), `-j2`; R1's target is the implementer's warm
+one, R2's is seeded from an older warm build — wall-clock asymmetry
+only.
+
+Loop-re-parenting review ordinal fixed at dispatch (2026-09-14, PR
+#2549 open — frozen head `d57e8ba53`; unit
+`work/topo/loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart`):
+**ordinal 2707** (TOPO band). Pre-draw fields (logged in
+`work/topo/log.md` at `daa30ee99` BEFORE block TOPO-B3 was drawn —
+clean): difficulty **S/M**, task class **STRUCTURAL**. Implementer arm
+per block TOPO-B3 slot 0 (record branch-side on `topo/b3-block`).
+Protocol v6 dual: draw = `/dev/urandom` byte **158**, parity 0 ⇒ **R1
+= OPUS, R2 = FABLE**. Method, recorded before either review runs:
+CONCURRENT same-head on frozen `d57e8ba53`, both briefs authored and
+STORED with sha256 before either dispatches (identical text modulo lane
+name, target and scratch paths, verified by diff), neither reviewer
+sees the other's report, v6 item 5 isolation in both briefs; the
+implementer's unit log entry is not written until the dual concludes.
+Shared-box note applying to BOTH arms equally: one 4-core cloud box
+beside one other lane (D263's fix pass), `-j2`; R1's target is the
+implementer's warm one, R2's is seeded from an older warm build —
+wall-clock asymmetry only.
