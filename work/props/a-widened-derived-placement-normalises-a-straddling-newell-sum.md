@@ -61,10 +61,19 @@ callers are named.
 
 Measured on the height document at `5e-2`, with `sign_within` at a band
 of `1e-300` (so nothing is decided by tolerance) at every call, in
-order: **eight calls per replay, and exactly one straddles.** The cube's
-six (near cap, four side planes, far cap) and the BOSS's cap all decide
-every component of `normal_sum`; the boss's first SIDE plane does not —
-`sum.y` is `[-2.0507, 0.8977]` where its true value is `−0.125`.
+order: **eight calls per replay, and exactly one straddles in the
+DECISION channel.** The cube's six (near cap, four side planes, far
+cap) and the BOSS's cap all DECIDE every component of `normal_sum` —
+but that is `Decide for Sym` answering through the FORM (`h − h` is
+the zero form), not the value: their x/y VALUE enclosures already
+straddle (the cube's far cap `N.x, N.y ∈ [-0.8, 0.8]`, the boss's cap
+`±1.33`, `±1.36`, against a true 0), and `normalize()`,
+`orthonormal_basis` and the point placement compute with the value.
+The boss's first SIDE plane is where the sign is undecided in both
+channels: `sum.y` is `[-2.0507, 0.8977]` where its true value is
+`−0.5` (twice the wall's area). The authored control — the same
+widened origin with exact axes — walks the same translate-to-origin
+step at its side planes and stays off zero (`[-0.9, -0.1]`).
 
 The seed is one level up, in the SAME translate-to-origin step, and it
 is visible in the offsets the cross-sum is built from. At that eighth
@@ -90,12 +99,16 @@ translation before the cross products would help wherever the offsets,
 not the loop, carry the widening, and that is every one of the five
 callers.
 
-**What this reading does not claim.** SYM-5's review lane read the
-cascade as three straddling sites (the cube's cap, the boss's cap, the
-boss's side); the probe above reproduces only the third as a straddle,
-with the other two decided — the difference is whether a site is read
-by its own `normal_sum` or by the offsets feeding it. Both readings
-agree on the mechanism and on the site that refuses.
+**The two readings, reconciled** (the review's delta round, by
+execution). The review read a three-site CASCADE — the cube's cap
+seeds it (`h − h` widened to `±0.8` in `N.x, N.y`), the boss's cap
+amplifies it on already-widened corners, the boss's side straddles;
+the lane's probe read ONE straddling site. Both are right about what
+they measure: the lane's probe asks the decision channel, where the
+first seven calls are decided by their zero FORMS; the review reads
+the value channel, where the seed's site is the cube's cap. So the
+seed is the cube's cap and candidate 1 must apply at the caps too —
+which "every one of the five callers" already says.
 
 ## Why it matters beyond the one document
 

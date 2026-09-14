@@ -119,7 +119,7 @@ these two sites are a class or a pair.
   the widened parameter: at the boss's side plane the translate-to-origin
   offset `(p − centroid).z` encloses `[-0.19954, 0.44840]` for a true
   `−0.125`, the cross-sum's `N.y` then encloses `[-2.0507, 0.8977]` for
-  a true `−0.125`, and `Vec3::normalize` divides by a length whose
+  a true `−0.5`, and `Vec3::normalize` divides by a length whose
   enclosure is `[0, 2.0924]` — so the margin is not merely wide, it is
   `MarginDiag::Invalid` and clause 1 refuses before the symbolic tier is
   asked. The tier PROVES that residual zero (its early form is the zero

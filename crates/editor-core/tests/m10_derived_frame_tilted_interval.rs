@@ -4,11 +4,12 @@
 //! on. DOCM's own document (`m10_derived_frame_interval`) is a pure
 //! z-TRANSLATION: every normalised quantity in it is constant in the
 //! parameter, so rule A0 folds the whole normalisation chain and no
-//! degree mechanism is left to measure. Tilt the frame — or widen the
-//! profile instead of the height — and the `sqrt(S)` over the stored
-//! unit vector is a sqrt of a NON-constant form that no constant fold
-//! reaches, the re-normalised forms freeze on DEGREE, and the identity
-//! is not reached.
+//! degree mechanism is left to measure. Tilt the frame so its AXES
+//! carry the parameter and the `sqrt(S)` over the stored unit vector
+//! is a sqrt of a NON-constant form that no constant fold reaches, the
+//! re-normalised forms freeze on DEGREE, and the identity is not
+//! reached. (Widening the PROFILE instead of the height is NOT a third
+//! case: A0 clears it — the width row below.)
 //!
 //! Every row here is EVIDENCE-ONLY and `#[ignore]`d: each prints a
 //! ladder, a profile or a budget sweep and asserts nothing about the
@@ -117,9 +118,9 @@ fn param_doc(name: &str, nominal: f64, half: f64, r: &mut Recorder) {
     });
 }
 
-/// A box whose WIDTH (not height) is the widened parameter, so the cap
-/// normal's norm is `sqrt(16·w²)` — a sqrt of a NON-constant form that
-/// A0 cannot fold — and the derived frame's axes carry it.
+/// A box whose WIDTH (not height) is the widened parameter. Measured
+/// NOT to be a third case: A0 clears it (frozen 0, no refusal on either
+/// lane at either width) — its `u`, `v` come out exact.
 fn boss_on_widened_width_box(half: f64) -> ProfileDoc {
     let mut r = Recorder::new();
     param_doc("w", 0.5, half, &mut r);

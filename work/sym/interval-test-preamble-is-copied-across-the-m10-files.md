@@ -30,7 +30,7 @@ through `Sym<Interval>`:
   defaults to those constants;
 - **`param_doc`** — the `DocEdit::SetDocParam` /
   `DocParam::Continuous` / `Distribution::Uniform` preamble, inline in
-  **37** `m10_*` and `docm*` suites (45 across `tests/` in total);
+  **37** `m10_*` and `docm*` suites (75 files under `editor-core/tests` mention `DocEdit::SetDocParam` at all; the 37 are the `m10_*` and `docm*` suites the row is about);
 - **`failures`** — the `ev.order` walk that renders
   `NodeResult::Failed` and `NodeResult::Poisoned` into `Vec<String>`,
   in 13 files with three slightly different string formats;
