@@ -193,3 +193,6 @@ mod m10_10_atan2_interval;
 mod m10_10_r1_sym_probes;
 #[path = "m10_10_r2_probes.rs"]
 mod m10_10_r2_probes;
+
+#[path = "sym6_r2_door_probes.rs"]
+mod sym6_r2_door_probes;

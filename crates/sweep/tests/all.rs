@@ -689,3 +689,6 @@ mod census_containment_cause;
 
 #[path = "wire_loft_end_profile_lift.rs"]
 mod wire_loft_end_profile_lift;
+
+#[path = "sym6_r2_e2e.rs"]
+mod sym6_r2_e2e;
