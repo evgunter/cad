@@ -4,6 +4,8 @@
 use core::f64::consts::TAU;
 
 use geom_brep::Pcurve;
+use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use sweep::Revolution;
 use topo::{Body, HalfEdgeKey, ValidationError};
 
 use super::common::latitude_seam::{door_cavity, two_arc_sphere};
@@ -67,6 +69,17 @@ fn fixtures() -> Vec<(&'static str, Body<f64>)> {
         ("cavity", door_cavity(&two_arc_sphere(), 0.05)),
         ("torus", tube_torus(2.0, 0.5)),
         ("drum", drum(1.0, 2.0)),
+        ("cone", polyline(&[(0.0, 0.0), (1.0, 0.0), (0.0, 2.0)], Revolution::Full)),
+        ("revolved-torus", {
+            revolved(
+                ProfileLoop::new(vec![
+                    ProfileVertex::new(p2(2.0, -0.5), 1.0),
+                    ProfileVertex::new(p2(2.0, 0.5), 1.0),
+                ]),
+                Revolution::Full,
+            )
+        }),
+        ("half-drum", polyline(&[(0.0, 0.0), (1.0, 0.0), (1.0, 2.0), (0.0, 2.0)], Revolution::Partial(core::f64::consts::PI))),
     ]
 }
 
