@@ -119,3 +119,16 @@ input") — no public input is invalid there. Proposed disposition:
 close the row with this reading, unless Ev wants D1's postcondition to
 refuse typed rather than assert (a change to a ratified clause, which
 this PR does not make). The row is not edited until the ruling lands.
+
+## Ruled (2026-09-14, PR 2527)
+
+Ev: "yep, (A)". A chart lives in one solid is a `Body` invariant and
+the mover keeps it: `move_shells_to_new_solid` re-mints, per moved
+shell, every surface key its faces wear that a stayer also wears
+(curves need none — shells move whole), the invariant is stated at
+`Body` and checked by tier 1 as one reference-coherence pass,
+SHELL-8's `ChartSpansSolids` arm retires by announced seam with a row
+pinning the re-mint, the mover's doc loses "every key kept". The
+disconnecting subtract's one-solid filing stays S-BOOL's. Kernel
+answer: draws a block slot (TOPO-B6 or the next cut); the row is now
+a unit with the scope paragraph above as its brief's spine.

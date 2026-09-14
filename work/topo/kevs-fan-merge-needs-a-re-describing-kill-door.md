@@ -237,3 +237,48 @@ them. Counter-argument: (a) needs a scope to track "every run this
 scope re-based" and a close-time sweep over them, which no scope
 carries today; (c) is smaller and keeps the generator green but leaves
 two doors for one kill.
+
+## Why (a) over (c) — elaboration for Ev (TOPO, 2026-09-14, PR 2527)
+
+The obligation both shapes carry: after `kev` merges two fans at one
+vertex, the surviving edges' carriers were certified against endpoints
+that no longer hold, and something must re-certify them before the
+body is observed. The two shapes differ in WHERE that obligation
+lives.
+
+**(c) puts it on the operator call.** A second public door
+(`kev` that re-describes, taking or deriving the new carriers) beside
+plain `kev`, which refuses where any carrier would go stale. Costs:
+two public kill doors for one topological operation, and every caller
+decides at the call site which one — a decision that needs exactly
+the "does a carrier go stale here" computation the operator already
+performs, so the caller either always takes the new door (plain `kev`
+becomes dead weight) or duplicates the gate. The blend kills many
+edges mid-surgery and re-describes ONCE at its door's end today; under
+(c) it re-describes per kill, or is handed a door whose semantics are
+"carry now, I will fix it later" — which is (a) without the scope that
+holds the promise. The generator's fourteen rows switch doors either
+way. And it is the two-homes class: two doors, one reading of the same
+obligation.
+
+**(a) puts it on the boundary the kernel already has.** A body is
+observable at a door's close, and the surgery scope IS that boundary
+(D1, PR 2305: tier 1's postcondition paid once per door at the scope's
+close; the blend already opens one scope for the whole blend —
+`crates/sweep/src/blend/surgery.rs`, "One surgery scope for the whole
+blend"). Plain `kev` outside a scope refuses typed where a carrier
+would go stale; inside a scope it carries and RECORDS the re-based run
+on the scope; the scope's close re-certifies every recorded run and
+refuses typed if one fails. One kill door. The blend pays once at its
+close — what it does by hand today, made a mechanism. The generator's
+kills either open a scope (test support) or accept the refusal, and
+its cost is its own: it was producing stale-carrier bodies and
+filtering around them. Cost of (a): the scope grows a list of
+re-based runs and a close-time sweep over it. That list is the same
+mechanism question 4's enforcement wants (a scope-close mint of
+missing pcurve rows), so one scope-close obligation list serves both
+rows. What holds the scope closed is the RAII guard (D9), not a
+convention.
+
+**(b)** reports at the blend door only and leaves plain `kev` with the
+defect; smallest and weakest.

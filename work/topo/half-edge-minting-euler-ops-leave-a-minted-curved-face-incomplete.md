@@ -67,3 +67,51 @@ TOPO recommends the **declared posture**, stated at each op and in
 `pcurves.rs`'s posture table, with the `Fitted`/`General` frontier and
 this row as the record; the ripple stays available if a consumer
 appears that needs a minted edge to arrive cached.
+
+## Context for Ev (TOPO, 2026-09-14, PR 2527)
+
+**What a pcurve row is.** For a face on a curved chart, each half-edge
+stores the 2D image of its edge in the face's parameter chart,
+certified against the 3D carrier; tier 3 validates curved faces
+through these rows (`crates/topo/src/pcurves.rs`). A face is
+"cached"/"minted" when every half-edge of its loops has a row.
+
+**The defect.** `mev`, `mef` and `mekr` add new half-edges into an
+existing loop. On a cached curved face the two new halves have no
+row, so the face is tier-3 invalid on return (`MissingCache` per new
+half) until a caller runs `mint_pcurves_of(face)`. Measured: one
+`mev_line` on a minted cylinder wall, `Ok`, then two `MissingCache`.
+
+**Why the operator does not mint.** A brand-new edge's chart image
+has to be DERIVED (the 3D carrier projected into the surface's
+parameters, or fitted), and every derivation door carries the bound
+`T: PcurveFittedLane` — the fitting lane — while the Euler operators
+are generic over `T: Decide` only. Widening them widens every generic
+caller (boolean, splitting, sweep, blend, the recipe layer); a
+sibling bound widening was measured at forty signatures across four
+crates without converging. `split_edge` could close its own instance
+because a child's image is the parent's RESTRICTED, which re-certifies
+under `Decide` — no derivation.
+
+**What holds today.** `pcurves::staleness_posture::DECLARED` records
+each of these ops as `Neither` (mints nothing, drops nothing), and
+every producer (extrude, boolean, blend, shell, …) runs a closing
+mint at its own door — a prose convention spelled thirteen times
+(`producer-closing-mint-is-a-convention-with-thirteen-copies`),
+unenforced, whose backstop does not fire in this exact state.
+
+**The choice.** (i) The bound ripple: operators self-contained, a
+curved face tier-3 valid on return, at the signature cost above.
+(ii) The declared primitive posture: each op's doc and the posture
+table say "mints no row; a caller on a cached face runs
+`mint_pcurves_of` at its door's close", which is what every producer
+does. (iii) Enforce the convention at the surgery scope's close: the
+scope records cached faces its operators touched and its close mints
+their missing rows (or refuses) — the same scope-close list question
+3's shape (a) needs for re-based runs; the convention becomes a
+mechanism without moving any operator's bound.
+
+TOPO recommends **(ii) now, with (iii) as the enforcement unit** cut
+beside (a); the ripple only if a consumer appears that needs a minted
+edge cached on return. The yes/no asked: yes to the declared posture
+as the operators' contract.
