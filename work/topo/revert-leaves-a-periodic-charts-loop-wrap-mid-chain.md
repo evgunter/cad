@@ -6,6 +6,7 @@ status: dispatched
 opened: 2026-09-14
 refs: [revert-does-not-mirror-plane-chart-images, SHELL-9]
 branch: topo/revert-reparks-the-wrap
+pr: 2573
 ---
 
 Found by the lane that closed `revert-does-not-mirror-plane-chart-images`
