@@ -369,3 +369,170 @@ SYM-4 (M / STRUCTURAL), slot 1 = SYM-5 (H / NUMERIC), slot 2 = SYM-6
 (0)). SYM-4 dispatches now on the seed target; SYM-5 when a lane
 frees; SYM-6 on Ev's answer. The SYM-6 spec is on the orchestrator
 branch and reaches `main` with this entry.
+
+
+## SYM-3 merged (2026-09-14): what stands at a bulge that is not 1
+
+PR #2558, fix-pass head `da1f21e50`, hosted run 34819053293 green on
+the full matrix; one review outside the experiment (no row), its
+delta confirming the fix pass by execution. The record is the item's
+`## What stands (SYM-3)`; the fixtures `m10_bulge_interval.rs` and the
+committed renders; the split table now has one home
+(`m10_8_harness::{split, split_at_the_nominal, assert_split}`, five
+callers) and every pin asserts the WHOLE table, so a predicate that
+appears reds naming it.
+
+**What stands, per document.** The boss (literal `bulge = 2`):
+`carrier_matches_mapped_source` 6 of 54 is a coefficient-ring freeze
+(a rim component's `Sub` at ~318 bits against 256; every trig atom
+folded); `carrier_on_surface_2` 27 of 90 is an `abs` over a
+non-constant argument (`seg.rs`'s `signed_radius.abs()`) that A0 does
+not reach; the rim identity `carrier_endpoint_start` stands on the
+same two residues on every D-tab (24/0/8/4) — the review's MAJOR, in
+none of the first cut's record. The parameter bulge's residual at the
+dyadic control is identically zero given `abs(R)² = R²`; the sign
+enters only through `arc_span = 4·atan|b|` against the pushforward's
+`4·atan b`; route A (rule C over `abs`) touches 50 decisions, route B
+(the door's already-decided turn) 8 — counted, not chosen. The
+literal D-tab's ceiling is the widening class (third site).
+
+**The finding that reshaped the block.** Opening the atom loses
+discharges: `abs(X) = X` on a syntactically non-negative `X` (patch
+C) folds 20 of 40 and freezes 20 on the products the opened atom
+joins, and TEN door decisions are lost (48 → 38 registered); the
+square substitution (patch A) with a 512-bit ring drops the parameter
+D-tab's ceiling `3.52e2 → 2.82e2·ε` — the reviewer could not
+reproduce that number, and the fix pass recorded all three patches
+as diffs and re-measured by pair: the fall is patch A's own (a square
+substituted as a form carries the box's width into a predicate the
+atom had kept out of it), C + 512 is the shipped bracket bit for bit.
+A frozen node is one opaque indeterminate keyed by its content hash,
+so two frozen twins cancel and a partial opening breaks the symmetry
+(`coefficient-ring-width-is-not-monotone-in-reach`). The ring at 512
+costs 3.9× per probe on the boss and 9× on the parameter D-tab. So
+the ring's reach is a design conversation — what should freeze, and
+when widening helps — before it is a rule unit, and block SYM-B1's
+third slot went to the door's witness instead. The corpus: 14 tour
+stops author a non-unit bulge, 31 test files on the stated pattern —
+the unit bulge is the circle's only, and the boss buys a family.
+
+**Class findings from the review, recorded**: the per-predicate split
+table had five spellings across the M10 evidence files (now one
+home); the ceilings evidence row ran five more documents by default
+once the dyadic controls joined the shared index (now `controls()`,
+by name). Lane commits carried no trailer; the orchestrator's
+state-sync rides the PR last. `rule-d-reaches-the-unit-bulge-only`
+stays open on its first ask's residue, carried by the ring
+conversation.
+
+
+## SYM-5 PR-1 merged (2026-09-14): the derived-frame freeze, measured — and the item's real case found
+
+PR #2568, fix-pass head `869fd55bf`, hosted run 34834096015 green on the
+full matrix; block SYM-B1 slot 1, whose Phase 1 this is — one review
+outside the experiment (no row; the dual runs at PR-2's dispatch),
+its delta confirming the fix pass by execution. The spec stands with
+Amendment A1 (the fixture), the unit stays open on PR-2.
+
+**The measurement refuted the diagnosis the unit was cut on — on the
+document it was cut on.** DOCM's two rows, ported: the transform-lifted
+row is GREEN at all three ε rows and is now a pin; the parity row is
+green at ε/8, 1e-6 and 1e-3 under both lifts and red at 5e-2 alone.
+On DOCM's height document the rule ladder says the constant fold ALONE
+(A0, M10-8) freezes zero and certifies at 1e-3, the shipped set
+freezes 1,253 at the nominal and not one costs a decision, and under
+`none` at 4096/65536 the document freezes one form and refuses
+identically — opaque constant atoms, never the budget, were the
+refusal, even on DOCM's own tree (its probes predate M10-8's fold by
+one day). Rendered, every atom in the freezing chain is a `sqrt` of a
+CONSTANT form: the placement is a pure translation. The one refusal
+left at 5e-2 is the numeric channel's — `newell_plane`'s normal
+normalised by a length whose enclosure contains zero, the residual's
+early form being `0` and clause 1 never asking — the widening class,
+filed on PROPS with three candidate fixes and recorded as
+`real-margin-dependency-widening`'s fourth site. The review and the
+lane disagree on where the straddle first appears (a three-site
+cascade against one straddling site fed by widened offsets); both
+readings are on the PROPS row, unsmoothed.
+
+**The review built the item's real case.** A derived frame whose AXES
+carry the parameter (an authored frame tilted by `t = 0.25 ± half`, a
+cube on it, a `FaceFrame` on its cap, the boss on that): the derived
+boss refuses on every rung — `none`/A0/A on `carrier_endpoint_start`
+at `[0, 1.8e-2]` (18× the width, the item's original shape), the
+shipped set on `newell_plane_residual` with a plain straddle and 632
+`Degree` freezes on kids at degree 69–128; the residual's early form
+is non-zero over a NON-constant `sqrt(S)` with two frozen `Mul` nodes
+on its path; a budget of 4096/65536 leaves 483 frozen and the same
+refusal. Under `Guided` the authored twin certifies on every rung
+while the plain lane refuses it. The reviewer's rows are adopted
+(`m10_derived_frame_tilted_interval.rs`); the item's title says the
+measured state; Phase 2 runs there as PR-2 under the same arm.
+
+**Class findings recorded**: the interval test preamble is copied
+across the M10 files (budget in two spellings across 18, `param_doc`
+inline in 37, `failures` in 13 — `interval-test-preamble-is-copied-across-the-m10-files`);
+the M10-3 chamber row is gated away from `sym/` (SYM-4's filing on
+S-TCOST). The spec's Phase-1-first structure is what caught the wrong
+premise; the fixture, not the lane, was the fault, and it was the
+dispatcher's.
+
+## SYM-4 merged (2026-09-14): the cost of a form — block SYM-B1 slot 0, the program's first dual
+
+PR #2565, fix-pass head `972d802ff`, hosted run 34837400778 green on the
+full matrix; ordinal **4700**, sample #193; the v6 dual on
+frozen head `1c98847fb` — R1 (OPUS) MERGEABLE 0/2/5, rubric 4/5/4;
+R2 (FABLE) MERGEABLE 0/1/6, rubric 4/4/5; no MAJOR either side, no
+tally candidate; one glimpse disclosed (a `pgrep` printing another
+lane's process name, no finding), the pair flagged and counted. The
+row is in `docs/MODEL-AB-LOG.md`'s SYM section.
+
+**What it did.** `Poly`'s `BTreeMap<Mono, Rat>` is a sorted vector in
+the map's own order, so every digest, atom key, freeze and discharge
+is unchanged — held by the M10-8/9/10 pins, the tier-off byte rows,
+the goldens and a new walk-ledger row that chains every memoized
+form's digest per walk and origin (captured on the branch point,
+green at head; red on a term-order swap while every count stays —
+both reviewers' mutants). `Rat::from_parts` skips the gcd on the
+dyadic shape and the ring's products by one. Every count identical
+before → after on the slab, the plate and (both reviews, by their own
+differential) four documents the unit did not measure; the only
+profile line that moves is the heap-path op count, halved.
+
+**What it bought** (release, instructions per nominal replay): slab
+141.5 M → 99.0 M (−30 %), plate 1,300 M → 713 M (−45 %); storage class
+53.5 → 40 % on the slab, the ring's `num-bigint` share on the plate
+13 → 0.7 %; the M10-3 chamber drive 368 → 225 s locally (test
+profile). Hosted, per-test cpu-s on the interval shards fell by a
+third to a half on every tier-heavy row; the chamber row itself did
+not run on the PR — `m10_3_r1_probes_interval` is gated to driver
+paths and not to `sym/`, filed on S-TCOST's slate
+(`m10-3-chamber-probes-gated-away-from-the-symbolic-tier`). The
+reviewers' own re-takes reproduced the instruction counts to 0.1 %.
+
+**What the reviews added**: the ring's canonical form had no unit row
+(both reviewers wrote one; adopted, one home); the growth mutants red
+by timeout rather than assertion (a bounded-time guard added);
+`Poly::terms` held its sortedness by a doc comment (now private behind
+an accessor); the `acos(0)` fold's dropped `Rat::mul` was an
+undisclosed instrument change (disclosed); the hosted "before" was
+another PR's head and the hosted spread ~1.8× between two runs of one
+tree (stated; instruction counts are the numbers of record); the
+`# Cost` claim site carries its #651 sentence.
+
+**What remains, by number** (the item's ask 3, next inputs): storage
+40 % / 51 %, the walk and DAG build 24 % on the slab, the ring 9 % /
+15 %; the drive-scoped plain memo (the slab's volume) goes to Ev as a
+decision document; the assertion discharge is on the item.
+
+**Fix pass** (the union of both reviews, `972d802ff`): A–D all taken
+— the canonical-`Rat` row (red under the gcd-skip-everywhere mutant
+where the module's three pre-existing rows stay green), R2's three
+`form.rs` rows, the six-document ledger evidence row, the growth
+guard (largest form pinned: slab 10, plate 90), `Poly::terms` private
+behind an accessor (20 read sites), one `merge_sorted` for `add` and
+`mono_mul` (callgrind reproduced within 0.5 %), `Poly::term` at every
+one-term spelling, `shrink_to_fit` after `mul` (+0.14 %, the memo
+holds no slack), the disclosures. Declined as adjudicated: the
+`form.rs` split (recorded on the split item) and the degree cache.
+Delta by R1 on the fixed head.
