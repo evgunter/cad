@@ -651,6 +651,9 @@ mod shell9_probe;
 #[path = "revert_plane_charts.rs"]
 mod revert_plane_charts;
 
+#[path = "revert_periodic_wrap.rs"]
+mod revert_periodic_wrap;
+
 #[path = "shell9_rows.rs"]
 mod shell9_rows;
 
