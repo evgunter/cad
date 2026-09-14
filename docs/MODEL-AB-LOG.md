@@ -6528,3 +6528,19 @@ claim followed the slot line branch-side. The next TOPO kernel-answer
 unit draws block TOPO-B4.
 
 SYM-4 RECORDED AT MERGE (2026-09-14, PR #2565 merged; sample #193 — prior highest #192 on main at merge; block SYM-B1 slot 0 concluded; the block record stays on `sym/b1-block` until the block concludes). No unilateral MAJOR; one glimpse disclosed and flagged (a process name, no finding). Tokens per phase: impl ~455k, fix ~73k, reviews 224k (R1) + 270k (R2), delta 268k.
+
+## Block TOPO-B5 — draw record (branch-side until the block concludes)
+
+Protocol: three slots {opus, opus, fable}, fable position = byte mod 3.
+Pre-draw fields for all three slots were committed to `work/topo/log.md`
+at `41eb35f5c` (2026-09-14) BEFORE the draw. Draw 2026-09-14:
+`/dev/urandom` byte **7** (accepted, < 252) ⇒ 7 mod 3 = **1** ⇒
+fable at slot 1.
+
+| slot | arm | unit | pre-draw fields |
+|---|---|---|---|
+| 0 | OPUS | `set-face-surface-leaves-a-complete-face-certified-against-the-chart-it-left` | difficulty S, task class STRUCTURAL — logged before the draw |
+| 1 | FABLE | `mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows` | difficulty M, task class STRUCTURAL — logged before the draw |
+| 2 | OPUS | `a-null-edge-can-be-re-based-onto-a-distinct-point` (+ `the-re-basing-gate-refuses-m7-8-where-nothing-moves`) | difficulty M, task class STRUCTURAL — logged before the draw |
+
+Ordinal claims go to main at each review dispatch (band 2700–2799).
