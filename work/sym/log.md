@@ -480,7 +480,7 @@ dispatcher's.
 ## SYM-4 merged (2026-09-14): the cost of a form — block SYM-B1 slot 0, the program's first dual
 
 PR #2565, fix-pass head `972d802ff`, hosted run 34837400778 green on the
-full matrix; ordinal **4700**, sample #192; the v6 dual on
+full matrix; ordinal **4700**, sample #193; the v6 dual on
 frozen head `1c98847fb` — R1 (OPUS) MERGEABLE 0/2/5, rubric 4/5/4;
 R2 (FABLE) MERGEABLE 0/1/6, rubric 4/4/5; no MAJOR either side, no
 tally candidate; one glimpse disclosed (a `pgrep` printing another
