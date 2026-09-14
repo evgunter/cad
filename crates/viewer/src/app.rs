@@ -59,9 +59,9 @@ use pncad::geom_core::Tol;
 use crate::camera::{self, Camera, CameraError};
 use crate::display::DisplayView;
 use crate::drafts::Drafts;
+use crate::evalseam::FitService;
 #[cfg(not(target_family = "wasm"))]
 use crate::evalseam::ThreadEvaluator;
-use crate::evalseam::FitService;
 use crate::frame::{self, IdQueryLog, StatusUpdate};
 use crate::generation::Generation;
 use crate::gpu::{DEPTH_BITS, ViewportRenderer};

@@ -1,9 +1,10 @@
-//! The two seams the picture is built across — where a document
-//! becomes a result DAG, and where that DAG becomes the pick index the
-//! viewport draws and picks against. **The one place in this crate
-//! that OWNS a thread**: `app` spawns both workers because it decides
-//! which implementation this build runs, and every join handle,
-//! channel and hand-off between them is here.
+//! The three seams the picture is built across — where a document
+//! becomes a result DAG, where the display budget prices that result
+//! to choose the δ it is drawn at, and where the DAG becomes the pick
+//! index the viewport draws and picks against. **The one place in this
+//! crate that OWNS a thread**: `app` spawns all three workers because
+//! it decides which implementation this build runs, and every join
+//! handle, channel and hand-off between them is here.
 //!
 //! # Why a seam at all
 //!
@@ -13,7 +14,7 @@
 //! natively a background thread, on wasm a Worker or an inline slice,
 //! with no source change above this boundary. So the vocabulary here
 //! is submit / poll over a [`Generation`] — plus cancel, for the one
-//! of the two seams whose work can be stopped — and
+//! of the three whose work can be stopped — and
 //! [`InlineEvaluator`] — which runs the whole evaluation inside
 //! `poll` — satisfies it exactly as well as [`ThreadEvaluator`] does.
 //! Every test in this crate drives the inline one; the application
@@ -551,8 +552,9 @@ pub enum FitSubject {
     /// unbounded per-document work, and the frame is where this one
     /// used to run.
     Ungathered {
-        /// The document, copied so the worker owns what it reads.
-        doc: Doc<ProfileProgram>,
+        /// The document, shared: this is the landing's own copy, which
+        /// nothing edits.
+        doc: Arc<Doc<ProfileProgram>>,
         /// The run it gathers, shared.
         evaluation: Arc<Evaluation<f64>>,
     },

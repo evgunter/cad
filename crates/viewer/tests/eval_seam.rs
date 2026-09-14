@@ -746,7 +746,7 @@ fn the_fit_seams_gathering_arm_answers_what_the_shared_body_answers() {
         generation,
         requested: fit_delta_request(),
         subject: FitSubject::Ungathered {
-            doc: pair_doc.clone(),
+            doc: Arc::new(pair_doc.clone()),
             evaluation: Arc::clone(session.evaluation_arc().expect("a landed run")),
         },
         tol,

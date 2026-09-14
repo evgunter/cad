@@ -1617,10 +1617,11 @@ pub enum Progress {
     /// running** — what a cancel leaves behind. A spinner over that
     /// alone would be a lie about work nobody is doing.
     ///
-    /// `indexing` is whether the OTHER seam is nonetheless busy, and
-    /// it is carried here rather than answered by a second indicator
-    /// because this is the one state where the two seams disagree
-    /// about whether anything is happening: an index build submitted
+    /// `indexing` is whether a seam BELOW the evaluation is
+    /// nonetheless busy — an index build, or the display fit the index
+    /// waits on — and it is carried here rather than answered by a
+    /// second indicator because this is the one state where the seams
+    /// disagree about whether anything is happening: a build submitted
     /// before the cancel is still running, and it will change the
     /// picture. The rule the payload buys is **the spinner follows the
     /// work, never the name** — so a canceled evaluation with a live

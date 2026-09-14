@@ -1347,7 +1347,10 @@ fn a_refused_index_is_attempted_once_per_generation_and_not_once_per_frame() {
         CacheStep::Held,
         "a refused build is not retried on the next frame"
     );
-    assert_eq!(cache.sync(session.index_inputs(), Some(delta())), CacheStep::Held);
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(delta())),
+        CacheStep::Held
+    );
     assert!(cache.pump().is_empty(), "and nothing was sent to answer");
     assert_eq!(
         submits.load(Ordering::Relaxed),

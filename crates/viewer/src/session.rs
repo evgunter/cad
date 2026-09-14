@@ -1324,7 +1324,7 @@ impl DocSession {
             Some(body) => crate::evalseam::FitSubject::Landed(Arc::clone(body)),
             None if run.fault.is_some() => return None,
             None => crate::evalseam::FitSubject::Ungathered {
-                doc: run.doc.as_ref().clone(),
+                doc: Arc::clone(&run.doc),
                 evaluation: Arc::clone(&run.evaluation),
             },
         };
