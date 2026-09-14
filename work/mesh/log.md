@@ -493,3 +493,34 @@ instrument note for the twelve: Dual A's ladders ran forward spans only.
 Slate state: MESH-9 parked on its trigger; MESH-R open; three open
 findings on this slate (1615, 1618, the period-headroom margin). The
 next unit is a slate decision.
+
+## The memo suite's two re-keying rows, by seam (2026-09-14)
+
+TOPO's `topo/set-face-surface-drops-rows-on-chart-change` (PR 2594)
+makes `Body::set_face_surface` drop a face's pcurve rows when the swap
+re-charts the face, the answer the loop-re-parenting doors took in PR
+2549. Two rows in `crates/mesh/tests/patch_memo.rs` built their
+"after" body by swapping a surface on a body that already carried
+rows, and so read rows about the chart the face had left:
+
+- `arena_keys_are_not_in_the_key_a_reminted_surface_key_hits_on_every_lane`
+  re-keys every face of every corpus body to the surface it already
+  had; the analytic curved faces (`rounded_prism`, `ball`, `cone`,
+  `washer`, `donut`) lose their rows, because two keys holding an equal
+  surface with no `GeomSource` read as two charts
+  (`work/topo/two-provenance-free-keys-holding-one-surface-read-as-two-charts`,
+  which now carries this caller as evidence). It calls
+  `topo::mint_pcurves` after the re-key — the setter's own prescription,
+  and on an equal surface it re-derives the rows that were there, so the
+  row measures the memo's key exactly as before.
+- `the_trimmed_nurbs_lane_misses_when_its_surface_changes` perturbs one
+  weight of a loft wall's net. Those rows CANNOT be re-minted: the
+  wall's boundary carriers are iso-curves of the original net and do not
+  certify against the reweighted one. The row now saves the wall's rows
+  before the swap and puts them back with `Body::attach_pcurve`, with
+  the reason written beside it — the trimmed-NURBS lane cannot run on a
+  rowless face, and the body this row needs is the old rows under the
+  new fit, built deliberately rather than left behind by a silence.
+
+No mesh source changed and neither row's subject moved. Signed (TOPO,
+the set_face_surface lane).
