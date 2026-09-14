@@ -220,3 +220,166 @@ a whole-body rebuild (`revert` and `combine` are the two, both above).
 | `revert` (`revert.rs`) | **inert** — see pattern 2 |
 | `boolean::combine` (`boolean/combine.rs`) | **inert** — see pattern 2 |
 | `kfmrh` / `ring_move` (`euler_ring.rs`) | out of scope here: they re-parent LOOPS between faces, not half-edges between vertices (TOPO-B3 slot 0's subject) |
+
+## For Ev, on the open `[ev]` PR (TOPO, 2026-09-14)
+
+The three landing shapes above are a choice about what a kill
+operator owes: (a) makes plain `kev` refuse outside a surgery scope and
+lets a door pay at its close (Ev's PR-2305 shape), at the cost of the
+generator's eleven kills opening scopes or re-describing; (b) reports
+at the blend door and leaves plain `kev` with the defect; (c) adds a
+re-describing kill door and leaves plain `kev` refusing where carriers
+would go stale. TOPO recommends **(a)**: it is the shape the kernel
+already chose for tier 1's postcondition, it makes every public
+operator honest, and the generator's cost is the generator's — it
+was producing stale-carrier bodies all along and filtering around
+them. Counter-argument: (a) needs a scope to track "every run this
+scope re-based" and a close-time sweep over them, which no scope
+carries today; (c) is smaller and keeps the generator green but leaves
+two doors for one kill.
+
+## Why (a) over (c) — elaboration for Ev (TOPO, 2026-09-14, PR 2527)
+
+The obligation both shapes carry: after `kev` merges two fans at one
+vertex, the surviving edges' carriers were certified against endpoints
+that no longer hold, and something must re-certify them before the
+body is observed. The two shapes differ in WHERE that obligation
+lives.
+
+**(c) puts it on the operator call.** A second public door
+(`kev` that re-describes, taking or deriving the new carriers) beside
+plain `kev`, which refuses where any carrier would go stale. Costs:
+two public kill doors for one topological operation, and every caller
+decides at the call site which one — a decision that needs exactly
+the "does a carrier go stale here" computation the operator already
+performs, so the caller either always takes the new door (plain `kev`
+becomes dead weight) or duplicates the gate. The blend kills many
+edges mid-surgery and re-describes ONCE at its door's end today; under
+(c) it re-describes per kill, or is handed a door whose semantics are
+"carry now, I will fix it later" — which is (a) without the scope that
+holds the promise. The generator's fourteen rows switch doors either
+way. And it is the two-homes class: two doors, one reading of the same
+obligation.
+
+**(a) puts it on the boundary the kernel already has.** A body is
+observable at a door's close, and the surgery scope IS that boundary
+(D1, PR 2305: tier 1's postcondition paid once per door at the scope's
+close; the blend already opens one scope for the whole blend —
+`crates/sweep/src/blend/surgery.rs`, "One surgery scope for the whole
+blend"). Plain `kev` outside a scope refuses typed where a carrier
+would go stale; inside a scope it carries and RECORDS the re-based run
+on the scope; the scope's close re-certifies every recorded run and
+refuses typed if one fails. One kill door. The blend pays once at its
+close — what it does by hand today, made a mechanism. The generator's
+kills either open a scope (test support) or accept the refusal, and
+its cost is its own: it was producing stale-carrier bodies and
+filtering around them. Cost of (a): the scope grows a list of
+re-based runs and a close-time sweep over it. That list is the same
+mechanism question 4's enforcement wants (a scope-close mint of
+missing pcurve rows), so one scope-close obligation list serves both
+rows. What holds the scope closed is the RAII guard (D9), not a
+convention.
+
+**(b)** reports at the blend door only and leaves plain `kev` with the
+defect; smallest and weakest.
+
+## Second elaboration for Ev (TOPO, 2026-09-14, PR 2527): (c) as the default `kev`
+
+Ev: "if we can make the variant in (c), why can't we just make that
+the default one?" — the definition of (c) is `kev_describing` above: a
+kill that takes the merged fan's re-descriptions alongside the
+half-edge, certifies each supplied spec against the endpoints the merge
+WILL give its edge (through `certify_rebased_run`'s door), refuses
+typed before any mutation, and writes topology and descriptions
+together.
+
+**Made the default it is one door**: `kev(he, redescriptions)` — for
+each merged member, certify the supplied spec if one is given, else
+re-certify the member's existing carrier against its new endpoint;
+refuse typed if either fails; write together. An empty list is the
+common case (every merged member's carrier still ends where the edge
+does — the valence-one survivor, coincident points). That door has no
+intermediate stale state at all: the obligation is discharged at the
+call, which is the `mev` gate's own shape (refuse before mutating) and
+D9 row 0's spirit (the stale-carrier state cannot be produced by a
+door). No scope list, no close-time sweep.
+
+**What (a) offered over it was deferral** — a composite door carrying
+stale carriers mid-surgery and paying at its close — and the
+measurement above says who would use it: the blend, and the
+generator. The blend does not need it: its two `kev` sites already
+compute the carriers they later hand to `attach_contact`, so under the
+default they hand them to the kill instead. The generator's three
+sites (walk, `roundtrip`'s `SplitEdge` inverse, `teardown`) have no
+specs — but the roundtrip inverse is already the two-op `kev` then
+`set_edge_curve` with a chord spec, which becomes one call; the walk
+and teardown kills at distinct coordinates either supply the same
+chord spec or keep the `split_site`-style filter they have today. So
+the only caller that wanted deferral can pay at the call too, and (a)'s
+extra mechanism buys nothing (a) alone needs. The earlier
+recommendation leaned on a deferral no caller requires; Ev's question
+is right.
+
+**Revised recommendation: (c) as the default and only `kev`**, with
+the signature change's cost stated: 76 one-argument `kev` call sites
+in `topo`'s own tests plus the blend's two and the generator's three
+(the row's own measurement), which is churn rather than design. The
+fuzz's "tier 1 at every step" property is unaffected — it never
+depended on carriers.
+
+## Third elaboration for Ev (TOPO, 2026-09-14, PR 2527): the default, and signature harmony
+
+Ev: "i didn't realize it would need a default... that's not great.
+also how harmonious would the type signature there be with the other
+operations?"
+
+**The signatures as they stand.** The make-operators take a site, the
+geometry of what they make, and a band: `mev(site, point, curve, tol)`,
+`mev_line(site, point, tol)`, `mev_null(site, …)`, `mef(…,
+FaceSurface, tol)`, `mekr(site, …, tol)`. The kill-operators take keys
+only: `kev(he)`, `kef(he)`, `kemr(he1, he2)`, `kfmrh(f1, f2)` — a kill
+creates no geometry, so it carries none. `kev`'s fan merge is the one
+kill that CHANGES geometry (it re-bases every merged edge's endpoint),
+which is exactly why it is the one kill with something to describe.
+
+**On the default.** The list has no default in the valence-one case —
+the merged fan is empty, so the list is exactly empty — but in every
+other case an empty list means "keep every carrier and re-certify it",
+which is a default in all but name. A total form (every merged member
+listed as `Keep` or `Redescribe(spec)`, refused if one is missing)
+removes the default at the cost of the common caller spelling out
+`Keep` per member. Neither is the kill family's shape.
+
+**The shape that keeps the family harmonious is the original (c): two
+doors.** `kev(he)` stays keys-only like every other kill and REFUSES
+typed, before mutating, where any merged carrier would go stale — the
+S93 gate inside the kill, naming the members in its refusal — so plain
+`kev` never produces the defect and never needs a list; and
+`kev_describing(he, &[(EdgeKey, EdgeCurveSpec<T>)], tol)` is the kill
+that takes geometry, shaped like `mev` (a spec and a band) for the
+callers that re-describe (the blend's two sites, the generator's
+roundtrip inverse). That is the variant-family pattern one operator
+already has: `mev` / `mev_line` / `mev_null` are one operator with
+three doors differing in the geometry argument. No default anywhere;
+the kill family stays keys-only; the describing door reads like the
+make-operator it mirrors.
+
+**Cost.** The two blend sites and the generator's three switch to the
+describing door or accept the refusal (the row's measurement); no
+other caller's signature moves. **Recommendation: (c) as two doors**
+— which is (c) as written above; the "default" reading was mine, not
+the shape's.
+
+## Ruled (2026-09-14, PR 2527)
+
+Ev: "(c) sounds good then!" — two doors. `kev(he)` stays keys-only
+and refuses typed, before mutating, where any merged carrier would go
+stale, naming the members; `kev_describing(he, &[(EdgeKey,
+EdgeCurveSpec<T>)], tol)` takes the merged fan's re-descriptions,
+certifies each against the endpoint the merge will give its edge,
+refuses typed before any mutation, and writes topology and
+descriptions together — the `mev`/`mev_line`/`mev_null` variant-family
+shape. The blend's two sites and the generator's roundtrip inverse
+take the describing door; the generator's other kills supply a chord
+spec or keep their filter. Kernel answer: a block slot; this row is
+now the unit, and `S93` closes with it.
