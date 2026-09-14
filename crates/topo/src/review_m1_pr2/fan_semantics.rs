@@ -97,9 +97,9 @@ fn valence_five_fan_split_moves_the_clockwise_run() {
         he2: g.he_plus,
     };
     // The run is what this test is about, and the certified door will
-    // not move it: each moved spoke's chord runs from `v`, not from the
-    // new vertex. The coincident door performs the same surgery with
-    // every spoke still on its own carrier.
+    // not move it TO p(9.0): each moved spoke's chord runs from `v`,
+    // not from that point. The coincident door performs the same
+    // surgery with every spoke still on its own carrier.
     assert!(matches!(
         body.clone().mev_line(site, p(9.0), tol),
         Err(crate::EulerOpError::RebasedCarrier { .. })
@@ -237,9 +237,9 @@ fn cross_loop_fan_on_the_digon_pillow_stack() {
         he1: tri.he_minus,
         he2: ab.he_plus,
     };
-    // As everywhere a run moves: the certified door refuses to take
-    // `tri`'s chord off its own endpoint, so the cross-loop splice is
-    // pinned through the coincident door.
+    // As everywhere a run moves to a different point: the certified
+    // door refuses to take `tri`'s chord off its own endpoint, so the
+    // cross-loop splice is pinned through the coincident door.
     assert!(matches!(
         body.clone().mev_line(site, Point3::new(0.0, -1.0, 0.0), tol),
         Err(crate::EulerOpError::RebasedCarrier { edge, .. }) if edge == tri.edge

@@ -592,14 +592,28 @@ mod tests {
     }
 
     #[test]
-    fn pillow_is_isomorphic_across_different_op_orders() {
+    fn pillow_is_isomorphic_when_the_chord_is_addressed_from_the_other_half() {
         // Same structure (v2 e2 f2 digon pillow, same coordinates)
-        // reached through two entirely different operator sequences —
-        // different key histories, different loop anchors.
+        // reached by the SAME three operators in the same order with
+        // the same keys, and `mef_chord`'s two halves swapped: the
+        // mint carves the complementary face, so the two loops anchor
+        // on different halves and the chord runs the other way. That
+        // — anchor choice and chord direction — is what this row
+        // pins, and the two canonical forms come out EQUAL, so the
+        // oracle's verdict is not the only witness to it.
+        //
+        // This row used to reach `b` through a genuinely different
+        // operator sequence (mef(Lone)'s self-loop circle, then a fan
+        // mev splitting its vertex), which is a wider claim than what
+        // stands here. That route built its pillow by moving the
+        // circle's plus half off the vertex the circle still ran from:
+        // it is a refusal now, pinned as
+        // `the_circle_route_to_the_pillow_moved_an_edge_off_its_carrier`.
         let a = pillow_via_segment();
         let b = pillow_via_mirrored_chord();
         assert_eq!(crate::validate::validate(&a), Ok(()));
         assert_eq!(crate::validate::validate(&b), Ok(()));
+        assert_eq!(canonical_form(&a), canonical_form(&b));
         assert!(isomorphic(&a, &b));
     }
 

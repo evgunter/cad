@@ -162,15 +162,20 @@ fn mk_kill_roundtrip_every_mev_site_case() {
     // Fan asymmetric valence-5, non-wrapping run [b .. d) = {b, c}.
     let (mut body, _seed, [_a, b, _c, d, _e]) = five_spoke_star(tol);
     let before = canonical_form(&body);
-    let split = body
-        .mev_null(
-            MevSite::Fan {
-                he1: b.he_plus,
-                he2: d.he_plus,
-            },
-            crate::NewVertexSide::Above,
-        )
-        .unwrap();
+    let site = MevSite::Fan {
+        he1: b.he_plus,
+        he2: d.he_plus,
+    };
+    // The certified door first, as the `mev` pins do: p(9.0) is a
+    // vertex the run's chords do not run to and the re-basing gate
+    // refuses it, so each split below runs through the coincident door
+    // and the killed-on body carries a null edge — tier-1 valid, and
+    // tier 2 refuses it at rest.
+    assert!(matches!(
+        body.clone().mev_line(site, p(9.0), tol),
+        Err(EulerOpError::RebasedCarrier { .. })
+    ));
+    let split = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
     body.kev(split.he_plus).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(canonical_form(&body), before, "v5 fan mev∘kev");
@@ -179,15 +184,15 @@ fn mk_kill_roundtrip_every_mev_site_case() {
     // anchor).
     let (mut body, _seed, [_a, b, _c, d, _e]) = five_spoke_star(tol);
     let before = canonical_form(&body);
-    let split = body
-        .mev_null(
-            MevSite::Fan {
-                he1: d.he_plus,
-                he2: b.he_plus,
-            },
-            crate::NewVertexSide::Above,
-        )
-        .unwrap();
+    let site = MevSite::Fan {
+        he1: d.he_plus,
+        he2: b.he_plus,
+    };
+    assert!(matches!(
+        body.clone().mev_line(site, p(9.0), tol),
+        Err(EulerOpError::RebasedCarrier { .. })
+    ));
+    let split = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
     body.kev(split.he_plus).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(canonical_form(&body), before, "v5 wrapping fan mev∘kev");
@@ -205,15 +210,15 @@ fn mk_kill_roundtrip_every_mev_site_case() {
         )
         .unwrap();
     let before = canonical_form(&body);
-    let fan = body
-        .mev_null(
-            MevSite::Fan {
-                he1: seg.he_plus,
-                he2: split_faces.he_plus,
-            },
-            crate::NewVertexSide::Above,
-        )
-        .unwrap();
+    let site = MevSite::Fan {
+        he1: seg.he_plus,
+        he2: split_faces.he_plus,
+    };
+    assert!(matches!(
+        body.clone().mev_line(site, p(9.0), tol),
+        Err(EulerOpError::RebasedCarrier { .. })
+    ));
+    let fan = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
     body.kev(fan.he_plus).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(canonical_form(&body), before, "cross-loop fan mev∘kev");
@@ -345,18 +350,21 @@ fn kev_from_both_ends_of_an_asymmetric_valence_five_split() {
     // REMAINING fan {d, e, a} to w in unchanged clockwise cyclic order.
     let (mut body, seed, [a, b, c, d, e]) = five_spoke_star(tol);
     let before = canonical_form(&body);
-    // The coincident door: the certified one will not put a spoke on a
-    // vertex its chord does not run to, and both kills below are about
-    // the fan MERGE, which needs the split to have happened at all.
-    let split = body
-        .mev_null(
-            MevSite::Fan {
-                he1: b.he_plus,
-                he2: d.he_plus,
-            },
-            crate::NewVertexSide::Above,
-        )
-        .unwrap();
+    let site = MevSite::Fan {
+        he1: b.he_plus,
+        he2: d.he_plus,
+    };
+    // The certified door first, as the `mev` pins do: it will not put
+    // a spoke on p(9.0), a vertex its chord does not run to. Both
+    // kills below are about the fan MERGE, which needs the split to
+    // have happened at all, so it runs through the coincident door —
+    // and the body they kill on carries a null edge, tier-1 valid and
+    // refused by tier 2 at rest.
+    assert!(matches!(
+        body.clone().mev_line(site, p(9.0), tol),
+        Err(EulerOpError::RebasedCarrier { .. })
+    ));
+    let split = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
     // End 1: kill the new vertex.
     {
         let mut probe = body.clone();
@@ -546,7 +554,8 @@ fn some_single_op_reaches(
 #[test]
 fn kef_mate_alone_has_a_single_op_remake_when_survivor_is_bare_outer() {
     let tol = Tol::witness();
-    // THE FALSIFICATION ATTEMPT for skip case (b). Circular-edge config:
+    // THE FALSIFICATION ATTEMPT for the `kef` skip subcase.
+    // Circular-edge config:
     // face A = big loop [seg+, circ+, seg−], face B outer = [circ−]
     // alone. kef(circ.he_plus) kills the BIG side (mate's loop [m]
     // alone). Claim under test: no single op re-makes the pre-kill
@@ -625,10 +634,14 @@ fn kef_mate_alone_with_ring_on_survivor_has_no_single_op_remake() {
 #[test]
 fn kev_mirror_has_no_single_op_remake() {
     let tol = Tol::witness();
-    // Skip case (a): kev from the valence-1 side of an edge whose far
-    // vertex carries a fan. Exhaustive single-op search over the
-    // post-kill body, trying every site and every plausibly-relevant
-    // coordinate (including the killed vertex's).
+    // The mirror kill: kev from the valence-1 side of an edge whose
+    // far vertex carries a fan. It is no longer a case of its own in
+    // the skip taxonomy — every fan-merging kev is skipped, the
+    // general merge included (`euler_kill`'s re-make taxonomy) — and
+    // this row is the exhaustive evidence for the mirror shape
+    // specifically: a single-op search over the post-kill body, trying
+    // every site and every plausibly-relevant coordinate (including
+    // the killed vertex's).
     let (mut body, seed, seg) = segment(tol);
     let strut = body
         .mev_line(

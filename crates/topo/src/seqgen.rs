@@ -111,6 +111,20 @@
 //!   restoration of the topology over geometry that had quietly
 //!   moved. (Killing the same edge from a valence-1 far vertex is the
 //!   segment or strut kill, which IS exactly invertible.)
+//!
+//!   **What the widening cost, measured** on the 64 × 32 stream set
+//!   [`tests::selection_is_pinned_over_a_fixed_stream_set`] pins: 136
+//!   `Kev` selections, of which 39 execute the roundtrip (the strut
+//!   and segment kills) and 97 skip — 28 the mirror adjacency, which
+//!   skipped before, and **69 the general fan merge, newly skipped**.
+//!   Property (c) therefore no longer runs on a little over half of
+//!   this walk's kills of an edge into a fan, and what it stopped
+//!   proving there is a topological restoration laid over geometry
+//!   that had quietly moved. The other side of the same narrowing:
+//!   [`mev_fan_candidates`] now offers 374 strut sites and **0
+//!   run-moving fan sites** on those streams (225 before), and
+//!   [`assert_run_site_refuses`] fires 237 times over them, so the
+//!   refusal that replaced those steps is itself fuzzed.
 //! - `kef(he)` where the mate's loop is `[mate]` alone (the killed edge
 //!   is then necessarily a self-loop, tol) AND the surviving singleton loop
 //!   is a ring — or the outer of a face that has rings. The one-op
@@ -287,6 +301,32 @@ impl OpChoice {
             self,
             Self::Kev(_) | Self::Kef(_) | Self::KfmrhFuse(..) | Self::Movefac(_)
         )
+    }
+
+    /// [`OpChoice::may_skip_roundtrip`] refined by the SITE, for the
+    /// one arm where the site is what decides.
+    ///
+    /// The per-KIND list is too coarse to see anything about `Kev`:
+    /// every `Kev` is on it, so a bound built from it reads the same
+    /// whether the skip covers the mirror adjacency alone or every fan
+    /// merge — it could not have reported the widening this walk took.
+    /// The kill's taxonomy is decidable from the pre-kill
+    /// neighbourhood, though: `kev(he)` has a single-op re-make exactly
+    /// where the far vertex carries NO fan (`next(he) == mate(he)` —
+    /// the strut and segment kills), so that is asked here and a `Kev`
+    /// on any other site must execute its roundtrip. The other three
+    /// arms have no cheaper site question and fall through to the kind.
+    pub(crate) fn may_skip_roundtrip_at(&self, body: &Body<f64>) -> bool {
+        let Self::Kev(he) = *self else {
+            return self.may_skip_roundtrip();
+        };
+        match (body.mate(he), body.get_half_edge(he)) {
+            (Some(mate), Some(he_data)) => he_data.next != mate,
+            // An unresolvable site is the operator's to refuse, not
+            // this classifier's; leave the skip permitted and let the
+            // roundtrip's own unwrap be the loud one.
+            _ => true,
+        }
     }
 }
 
@@ -569,6 +609,11 @@ fn empty_loops(body: &Body<f64>) -> Vec<LoopKey> {
 /// applicable sites, not addressable ones. Fans themselves are still
 /// built and walked — a valence-k vertex is k strut mevs — and what
 /// is unreachable from here is splitting one.
+///
+/// **The refusal this rests on is asserted, not argued**:
+/// [`assert_run_site_refuses`] runs on every `MevFan` step, at the
+/// body in hand and the point about to be minted, and says why a
+/// refusing op cannot be a candidate instead.
 fn mev_fan_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
     body.half_edges()
         .map(|(he, _)| OpChoice::MevFan(he, he))
@@ -921,9 +966,9 @@ fn split_site(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> Option<(f64, EdgeCur
     // sugar uses, so a candidate that passes here cannot poison one.
     // It is also what keeps the distinct-coordinate minting policy
     // true of the one op whose point comes from GEOMETRY rather than
-    // the counter, and the two fan-site enumerators
-    // ([`mev_fan_candidates`], [`kev_candidates`]) read that policy to
-    // know their sites refuse.
+    // the counter — the policy [`mev_fan_candidates`] reads to know
+    // its run sites refuse, and the irreversible-`kev` taxonomy reads
+    // to know its fan merges have no re-make.
     //
     // Raw `Decide::sign_within` rather than the `k_stats` funnel, and
     // the rule genuinely does not bite here (`boolean/ops.rs` records
@@ -1020,6 +1065,82 @@ fn next_point(counter: &mut u32) -> Point3<f64> {
     Point3::new(f64::from(*counter), 0.5, 0.25)
 }
 
+/// `true` iff `edge`'s stored certificate still re-derives against its
+/// own endpoints — the at-rest question [`split_site`] asks of a split
+/// candidate, asked here of a fan site's moved run.
+fn carrier_is_coherent(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> bool {
+    let Some(edge_data) = body.get_edge(edge) else {
+        return false;
+    };
+    let hp = edge_data.he_plus;
+    let (Some(start), Some(end)) = (
+        body.get_half_edge(hp).map(|h| h.start),
+        body.half_edge_end(hp),
+    ) else {
+        return false;
+    };
+    let (Some(p0), Some(p1)) = (
+        body.get_vertex(start).and_then(|v| body.get_point(v.point)),
+        body.get_vertex(end).and_then(|v| body.get_point(v.point)),
+    ) else {
+        return false;
+    };
+    let (Some(curve), Ok(band)) = (
+        body.get_curve_geom(edge_data.curve)
+            .and_then(crate::null::CurveGeom::certified),
+        Band::linear(tol),
+    ) else {
+        return false;
+    };
+    curve
+        .recertify(*p0, *p1, |k| body.get_surface(k).cloned(), band)
+        .is_ok()
+}
+
+/// **The re-basing gate under fuzz**, at the site
+/// [`mev_fan_candidates`] narrowed away.
+///
+/// That enumerator offers strut sites only, and its reason is a CLAIM
+/// about every body this walk builds: a run site's chords never reach a
+/// freshly minted point, so the certified door refuses it. The claim is
+/// checked here, on the body in hand and at the very point about to be
+/// minted, rather than left standing in prose — so the narrowing and
+/// the refusal it rests on move together.
+///
+/// **Why the run sites are not candidates instead.** A candidate is an
+/// op the walk APPLIES: `apply` unwraps it, the E–P ledger adds its
+/// Euler vector, [`roundtrip`] re-makes it, and the pinned selection
+/// fingerprint counts it. An op that refuses does none of those and
+/// would have to be excluded from each in turn, and what the walk would
+/// learn from applying it is exactly what this assertion already says.
+///
+/// Skipped where the moved edge's carrier is ALREADY stale — `kev`'s
+/// fan merge leaves exactly that, and the gate carries a defect this
+/// move does not create (`euler`'s `certify_rebased_run`).
+fn assert_run_site_refuses(body: &Body<f64>, he1: HalfEdgeKey, point: Point3<f64>, tol: Tol) {
+    let orbit = body.vertex_orbit(he1).expect("valid body: orbit closes");
+    if orbit.len() < 2 {
+        return; // valence 1: the only fan site here IS the strut
+    }
+    let i = orbit
+        .iter()
+        .position(|&h| h == he1)
+        .expect("the orbit contains its own seed");
+    let he2 = orbit[(i + 1) % orbit.len()];
+    let edge = body.get_half_edge(he1).expect("resolves").edge;
+    if !carrier_is_coherent(body, edge, tol) {
+        return;
+    }
+    let err = body
+        .clone()
+        .mev_line(MevSite::Fan { he1, he2 }, point, tol)
+        .expect_err("a run site at a freshly minted point must refuse");
+    assert!(
+        matches!(err, crate::EulerOpError::RebasedCarrier { edge: e, .. } if e == edge),
+        "the run site refused, but not for its moved run: {err:?}"
+    );
+}
+
 /// Executes one choice. Panics on operator errors: [`choose_op`] only
 /// returns applicable sites, so an error here is a bug in either the
 /// enumeration or the operator.
@@ -1033,7 +1154,9 @@ pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32, t
                 .unwrap();
         }
         OpChoice::MevFan(he1, he2) => {
-            body.mev_line(MevSite::Fan { he1, he2 }, next_point(counter), tol)
+            let point = next_point(counter);
+            assert_run_site_refuses(body, he1, point, tol);
+            body.mev_line(MevSite::Fan { he1, he2 }, point, tol)
                 .unwrap();
         }
         OpChoice::MefChords(he1, he2) => {
@@ -1513,11 +1636,13 @@ mod tests {
         pub(super) selected: usize,
         pub(super) executed: usize,
         pub(super) skipped: usize,
-        /// Selections on a choice [`OpChoice::may_skip_roundtrip`]
-        /// names. Every documented irreversible subcase lives in one
-        /// of those arms of [`roundtrip`], so a selection on any other
-        /// choice MUST execute — which is what bounds the skip count
-        /// against the run rather than against a measured constant.
+        /// Selections [`OpChoice::may_skip_roundtrip_at`] admits.
+        /// Every documented irreversible subcase lives in one of those
+        /// arms of [`roundtrip`], so a selection on any other choice
+        /// MUST execute — which is what bounds the skip count against
+        /// the run rather than against a measured constant. For `Kev`
+        /// the admission is per-SITE, so a strut or segment kill
+        /// counts here as a selection that must execute.
         pub(super) skippable: usize,
     }
 
@@ -1542,9 +1667,13 @@ mod tests {
                 return Err(TestCaseError::fail("no applicable op (kernel bug)"));
             };
             if d3 % 4 == 0 {
-                // Property (c): op ∘ exact inverse nets nothing.
+                // Property (c): op ∘ exact inverse nets nothing. The
+                // site classification is read BEFORE the roundtrip,
+                // which is the only moment the pre-kill neighbourhood
+                // exists.
+                let may_skip = choice.may_skip_roundtrip_at(&body);
                 tally.selected += 1;
-                if choice.may_skip_roundtrip() {
+                if may_skip {
                     tally.skippable += 1;
                 }
                 if roundtrip(&mut body, choice, &mut counter, Tol::witness())
@@ -1557,9 +1686,9 @@ mod tests {
                     // skip anywhere else is property (c) quietly
                     // ceasing to run, not a case the design excuses.
                     prop_assert!(
-                        choice.may_skip_roundtrip(),
+                        may_skip,
                         "roundtrip skipped {:?}, which has no documented \
-                         no-re-make subcase",
+                         no-re-make subcase at this site",
                         choice
                     );
                     tally.skipped += 1;
