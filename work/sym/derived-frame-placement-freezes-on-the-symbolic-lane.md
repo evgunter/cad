@@ -178,7 +178,56 @@ normalisation simplified before squaring, or a degree-resetting
 `sqrt` each have something to act on. The clause-1 residue on DOCM's
 document is the PROPS row above and closes separately.
 
-## Re-pointed at SYM-5's measurement (2026-09-14)
+## What PR-2 took (SYM-5 phase 2, 2026-09-14)
+
+**Rule E — the quotient's common factor** (`geom_core::sym::quotient`,
+`SymRules::common_factor`), chosen by the measurement among the three
+candidates the spec names, closes this row's mechanism. In the early
+walk every form has the monomial its two halves share divided out, and
+a numerator that is a rational multiple of its denominator folds to
+that rational. Both are equalities of rational functions wherever the
+denominator is non-zero, which clause 1 guarantees; nothing reads a
+value.
+
+**Why it is the one.** The chain the tilted document freezes on is
+`sqrt(P/P)` for a degree-8 `P` in the frame's parameter — the number
+ONE, carried as an opaque atom because neither half of `P/P` is a
+constant for A0 to read — and above it the shared power of the
+normalisation's `sqrt` atom, multiplied by every further normalisation
+and doubled by every square. Candidate (a), a unit-vector atom, and
+candidate (c), a degree-resetting `sqrt`, both re-key the atom and
+leave that shared factor in place; candidate (b) is this one, with the
+cancellation taken at every node of the early walk rather than only at
+the `Powi 2`. Measured: with the rule off the derived boss refuses at
+every rung under `Guided`, with it on it certifies where the authored
+twin does, and raising the budget to 4,096 / 65,536 does not do it
+(483 frozen, the same refusal) — so this was reach, not a cost wall.
+
+| rung (`half = 1e-3`, `Guided`, whole box) | rule E off | rule E on |
+| --- | --- | --- |
+| `none` / `A0` / A alone | refuses `carrier_endpoint_start` `[0, 1.7951e-2]` | (the rule needs the early walk) |
+| `shipped` | refuses `newell_plane_residual` `[-6.857e-2, 6.841e-2]`, frozen 632 | **certifies** |
+| the authored twin, every rung | certifies | certifies |
+
+**What it moves elsewhere, and what it does not.** R1's boss at
+`bulge = 2`: `carrier_on_surface_2` 63/0/0/27 → 81/0/0/9 (18 numeric
+decisions became THEOREMS), `witness_on_surface_2` 7/0/0/3 → 9/0/0/1,
+`carrier_matches_mapped_source` 72/0/48/6 → 72/0/54/0 through the door,
+and the document's whole-certifying ceiling `8.2611e2 · ε →
+9.3559e2 · ε`. The D-tab's `carrier_endpoint_start` 24/0/8/4 →
+24/0/12/0 on both spellings. No count falls anywhere; no ceiling on the
+five measured documents moves by a digit. Cost (release, one probe):
+plate 0.23 → 0.47 s, annulus 0.17 → 0.34, bracket 0.53 → 1.23, pad
+3.73 → 10.90, link 3.42 → 2.28 (cheaper).
+
+**What still stands on the tilted document, and it is not the tier's.**
+At a half-width of `5e-2` the derived boss refuses with a clause-1
+`Invalid` on `newell_plane_residual` — the same defect PR-1 filed as
+`work/props/a-widened-derived-placement-normalises-a-straddling-newell-sum`,
+at the boss's cap plane instead of its side plane. The tier has done
+its work there; the value channel has not.
+
+## Re-pointed at SYM-5's measurement (2026-09-14)## Re-pointed at SYM-5's measurement (2026-09-14)
 
 DOCM has left the tracker (`docs/DOC-LEDGER.md` sweep 14); the walk and
 the directory are recoverable at the SHA that sweep names. The

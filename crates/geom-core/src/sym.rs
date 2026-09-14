@@ -332,6 +332,65 @@
 //! channel exactly as before. What the PLAIN form alone reaches is
 //! [`form`]'s own docs.
 //!
+//! # Rule E — the quotient's common factor (SYM-5)
+//!
+//! **What a normalisation costs the plain form, and what it buys
+//! back.** [`form`]'s quotient cancels no common factor, so a unit
+//! vector — `v / sqrt(v·v)`, three quotients over one atom `A` —
+//! leaves `A` in both halves of everything built from it, each further
+//! normalisation multiplies the shared power and each square doubles
+//! it. [`SymRules::common_factor`] divides that factor out in the
+//! EARLY walk, at every node: the monomial both halves share, and then
+//! the whole quotient when the numerator is a rational multiple of the
+//! denominator. Both are equalities of rational functions wherever the
+//! denominator is non-zero, which clause 1 guarantees; [`quotient`]
+//! carries the argument and the shapes it must not fold.
+//!
+//! **What it reaches, measured** (the tilted derived frame:
+//! `Datum::Frame { u: (1,0,0), v: (0,1,t) }`, a cube extruded from it,
+//! a `FaceFrame` on its cap, a boss on that —
+//! `editor-core/tests/m10_derived_frame_tilted_interval`). With the
+//! rule off the derived boss refuses under `Guided` at every rung
+//! (`carrier_endpoint_start` at `[0, 1.8e-2]` under the plain form and
+//! A0, `newell_plane_residual` straddling under the shipped set, 632
+//! frozen on DEGREE with kids at total degree 69–128) while its
+//! authored twin certifies; with it on the derived boss certifies
+//! where the twin does, at every width the twin certifies at. Raising
+//! the budget to 4,096 / 65,536 does NOT do it — 483 frozen and the
+//! same refusal — so this is reach and not a cost wall. The frozen
+//! forms carry `sqrt(P/P)` for a degree-8 `P`: the number one, held as
+//! an opaque atom because neither half of `P/P` is a constant for A0
+//! to read.
+//!
+//! **What it moves on the measured documents** (`m10_bulge_interval`,
+//! `m10_10_pins_interval`): R1's boss at `bulge = 2`
+//! `carrier_on_surface_2` 63/0/0/27 → 81/0/0/9 in THEOREMS — 18
+//! numeric decisions became theorems — `witness_on_surface_2`
+//! 7/0/0/3 → 9/0/0/1, and `carrier_matches_mapped_source` 72/0/48/6 →
+//! 72/0/54/0 through the door; its whole-certifying CEILING moves
+//! `8.2611e2 · ε → 9.3559e2 · ε` (1.13×), which is the move
+//! `work/sym/rule-d-reaches-the-unit-bulge-only` measured a 512-bit
+//! ring making and the rule makes at [`rational::COEFF_BITS`]. The
+//! D-tab's `carrier_endpoint_start` 24/0/8/4 → 24/0/12/0 on both
+//! spellings, and its `carrier_matches_mapped_source` 126/0/36/18 →
+//! 126/0/42/12 on the literal against 126/0/38/16 on the parameter —
+//! the one row where the two spellings part. **No count falls
+//! anywhere, and no ceiling on the five measured documents moves by a
+//! digit** (plate, annulus, link, bracket, pad: the bracket at both
+//! ends and the counts at ceiling + δ are identical with the rule on
+//! and off).
+//!
+//! **What it costs** (release, one probe of the ceiling bisection, off
+//! → on): plate 0.23 → 0.47 s, annulus 0.17 → 0.34 s, bracket 0.53 →
+//! 1.23 s, pad 3.73 → 10.90 s, link 3.42 → **2.28 s** — cheaper on the
+//! link, because the forms the rule shrinks are the ones the walk then
+//! multiplies. Three of the five stay under the affordability line of
+//! 1.6 s and the link improves; the pad, already the dearest by three
+//! times, is the one that pays. It SHIPS on that balance: a document
+//! class the tier could not reach at all, a ceiling moved on a sixth,
+//! four pinned splits raised, nothing lost.
+//! [`SymRules::without_rule_e`] is M10-10's tier bit for bit.
+//!
 //! # Node ids are CONTENT HASHES (D9)
 //!
 //! A node's id is a 128-bit structural hash of `(op, children ids,

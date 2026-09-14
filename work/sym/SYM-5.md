@@ -56,3 +56,32 @@ a pin), three pins, the adopted review rows as evidence, the item's
 the PROPS one above and
 `work/sym/interval-test-preamble-is-copied-across-the-m10-files`.
 No change to `crates/geom-core/`.
+
+## Outcome — phase 2 (PR-2, 2026-09-14)
+
+**Rule E — the quotient's common factor** ships, dial
+`SymRules::common_factor`, on in `SymRules::shipped`;
+`SymRules::without_rule_e` is M10-10's tier bit for bit. In the early
+walk every form has the monomial its numerator and denominator share
+divided out, and a numerator that is a rational multiple of its
+denominator folds to that rational — equalities of rational functions
+wherever the denominator is non-zero, which clause 1 guarantees.
+Module and soundness argument: `crates/geom-core/src/sym/quotient.rs`.
+
+Chosen among the spec's three candidates by the measurement: what the
+tilted document freezes on is `sqrt(P/P)` for a degree-8 `P` — the
+number one held as an opaque atom — and above it the shared power of
+the normalisation's own `sqrt` atom. (a) and (c) re-key the atom and
+leave that factor; (b) is this rule, taken at every node rather than
+only at the `Powi 2`.
+
+Acceptance: the tilted derived boss certifies where its authored twin
+does under BOTH lifts at ε/8 and `1e-3`
+(`m10_the_tilted_derived_boss_certifies_where_its_authored_twin_does`);
+R1's boss at `bulge = 2` gains 18 THEOREMS and its ceiling moves
+`8.2611e2 → 9.3559e2 · ε`; no count falls anywhere and no ceiling on
+the five measured documents moves by a digit; cost per release probe
+plate 0.23 → 0.47 s, annulus 0.17 → 0.34, bracket 0.53 → 1.23, pad
+3.73 → 10.90, link 3.42 → 2.28. At `5e-2` the tilted document still
+refuses, on the clause-1 `Invalid` PR-1 filed on PROPS — not the
+tier's.
