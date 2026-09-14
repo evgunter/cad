@@ -852,7 +852,9 @@ fn scratch_degree_two_fixture_measurement() {
         .filter(|h| he_surface(&body, *h) == key)
         .collect();
     for h in &hes {
-        let cache = body.pcurve(*h).expect("the bowed face's cache set is complete");
+        let cache = body
+            .pcurve(*h)
+            .expect("the bowed face's cache set is complete");
         let (t0, t1) = cache.params();
         let kind = match cache.pcurve() {
             Pcurve::General(img) => format!(
@@ -913,7 +915,13 @@ fn scratch_degree_two_fixture_measurement() {
         .find(|(_, f)| f.surface == key)
         .expect("the bowed wall has a face");
     let mut off = body.clone();
-    let r = topo::replace_face_offset(&mut off, fk, INTERIOR_COLUMN_SCALE / 16.0, band(), Tol::witness());
+    let r = topo::replace_face_offset(
+        &mut off,
+        fk,
+        INTERIOR_COLUMN_SCALE / 16.0,
+        band(),
+        Tol::witness(),
+    );
     println!("SCRATCH offset(bowed, scale/16): {r:?}");
     let (_, obowed, _, _) = flat_bowed_seam(&oracle, INTERIOR_COLUMN_SCALE);
     let (ofk, _) = oracle
