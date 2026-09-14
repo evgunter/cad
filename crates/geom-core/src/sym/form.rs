@@ -10,19 +10,9 @@
 //! rule: nothing is factored, and no simplification is attempted.
 //!
 //! What remains outside the PLAIN form: no factoring, and no functional
-//! identity of any opaque atom — each atom is an indeterminate keyed by
-//! its argument's form, so two occurrences of ONE atom cancel and
-//! nothing else about it is known there. The SHIPPED tier layers the
-//! atom algebra on top (the M10-8, M10-9 and M10-10 sections of the
-//! tier's own docs):
-//! `sqrt(x)·sqrt(x) − x` and `sin² + cos² − 1` DO decide as theorems
-//! under [`super::SymRules::shipped`] (rules A and B, over the top residual
-//! and per node), and `sin`/`cos` of `q · atan X` fold to closed forms
-//! (rule D). What still stands with the shipped set is what needs a
-//! SIGN: `|x| − x` on a nonnegative `x` is rule C's, and rule C is
-//! dial-off. These are limits of the tier and not bugs in it —
-//! over-refusal is the safe direction, and every such margin falls to
-//! the numeric channel exactly as before.
+//! identity of any opaque atom — each atom is an indeterminate keyed by its
+//! argument's form, so two occurrences of ONE atom cancel and nothing else
+//! about it is known there.
 
 use std::collections::BTreeMap;
 

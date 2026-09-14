@@ -311,7 +311,7 @@
 //! worked to the end, so the leaf costs what the whole walk costs);
 //! bracket 0.51 → 0.81 s; annulus 0.09 → 0.17 s; pad 2.2 → 10.1 s;
 //! link 0.42 → 5.0 s. The ring stays
-//! at [`rational::COEFF_BITS`] = 256: the plate's four residuals discharge there
+//! at [`rational::COEFF_BITS`]: the plate's four residuals discharge there
 //! once the zero normalization and A1's folds are in (the first three
 //! needed the normalization, the fourth A1 — neither needed a wider
 //! ring), and 512 and 1024 add no discharge (measured before the
@@ -319,6 +319,18 @@
 //! three at 12 s per nominal replay — the coefficient growth was the
 //! artefact, not the reach; A1's folds are width-independent and are
 //! pinned at all three widths).
+//!
+//! **What the rules add to the plain form, and what still stands.** The
+//! SHIPPED tier layers the atom algebra on top (the M10-8, M10-9 and M10-10
+//! sections above): `sqrt(x)·sqrt(x) − x` and `sin² + cos² − 1` DO decide
+//! as theorems under [`SymRules::shipped`] (rules A and B, over the top
+//! residual and per node), and `sin`/`cos` of `q · atan X` fold to closed
+//! forms (rule D). What still stands with the shipped set is what needs a
+//! SIGN: `|x| − x` on a nonnegative `x` is rule C's, and rule C is
+//! dial-off. These are limits of the tier and not bugs in it — over-refusal
+//! is the safe direction, and every such margin falls to the numeric
+//! channel exactly as before. What the PLAIN form alone reaches is
+//! [`form`]'s own docs.
 //!
 //! # Node ids are CONTENT HASHES (D9)
 //!
@@ -432,19 +444,17 @@
 //! misses, the form freezes, and the decision falls to the numeric
 //! channel.
 //!
-//! **The tier is not "never partially on".** A node minted before the session
-//! was installed is not IN the session's table, so its form freezes to
-//! an indeterminate keyed by its own id — and two occurrences of that
-//! same node share the id, so they still cancel: `a − a` decides `Zero`
-//! for such an `a`, inside a session that never saw it built. That is
-//! SOUND (one id is one expression, so the cancellation is a real
-//! theorem about a real subexpression) but it is not "off". The true
-//! statement is narrower and it is the one that matters: **a node the
-//! session cannot expand contributes an unknown, never a value** — so
-//! the tier can only ever discharge FEWER identities than it would with
-//! the full table, never more, and mixing a pre-session node into a
-//! session's DAG cannot manufacture a theorem that a fully-recorded
-//! replay would not also reach.
+//! **A node the session cannot expand contributes an unknown, never a
+//! value.** A node minted before the session was installed is not IN the
+//! session's table, so its form freezes to an indeterminate keyed by its
+//! own id — and two occurrences of that same node share the id, so they
+//! still cancel: `a − a` decides `Zero` for such an `a`, inside a session
+//! that never saw it built. That is SOUND (one id is one expression, so the
+//! cancellation is a real theorem about a real subexpression) but it is not
+//! "off": the tier can only ever discharge FEWER identities than it would
+//! with the full table, never more, and mixing a pre-session node into a
+//! session's DAG cannot manufacture a theorem that a fully-recorded replay
+//! would not also reach.
 
 use core::cell::{Cell, RefCell};
 use core::ops::{Add, Div, Mul, Neg, Sub};
