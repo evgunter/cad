@@ -55,6 +55,30 @@
 //! folds arms with. The cone's arm is the radial distance ρ (→ 0 at the
 //! apex: near the apex every feature is tiny and angular classification
 //! honestly escalates).
+//!
+//! # Circle-carrier enclosures, and the one that is SAMPLED
+//!
+//! The residual of a whole circle or of one arc of it against a
+//! surface is enclosed here, for the boolean lane's clearance rungs.
+//! Two constructions live behind three doors, and the difference
+//! matters to a reader:
+//!
+//! - **Closed-form**, for the plane, the sphere and the cylinder: the
+//!   composed residual is a trigonometric polynomial of degree ≤ 2, so
+//!   `circle_residual_harmonics`' `(c₀, A₁, A₂)` bounds both its range
+//!   (exactly, for the first-harmonic kinds) and its second
+//!   derivative. Nothing is sampled.
+//! - **Sampled and CHARGED**, for the torus: the composed residual
+//!   carries a `√` of a trigonometric polynomial and has no harmonic
+//!   form at all, so [`circle_arc_residual_range`] walks
+//!   [`ARC_RESIDUAL_SAMPLES`] sub-arcs and widens the sample hull by
+//!   the chord-dip charge `f2·h²/8`. It is a certified enclosure, not
+//!   an estimate — but it is a WIDER one, and it is what
+//!   [`circle_residual_extremes`] falls back to for that kind.
+//!
+//! Both are outer bounds, so slack only ever sends a pair to the
+//! typed frontier and never clears one that meets; the cost of the
+//! second is `K + 1` residual evaluations per call.
 
 use geom::Surface;
 use geom_core::{Point3, Real, Vec3};
@@ -342,19 +366,117 @@ pub fn implicit_max_normal_curvature<T: Real>(s: &Surface<T>, p: Point3<T>) -> T
 /// the boolean lane decides: over an arc of angular span `Δθ` whose
 /// composed residual has second-derivative bound `f2`, the enclosure
 /// is the sample hull widened by the chord-dip charge
-/// `f2·(Δθ/K)²/8`, so the arc clears iff its true clearance exceeds
-/// that charge plus the run's band. The charge falls as `K⁻²`; the
-/// cost is `K + 1` residual evaluations per examined pair.
+/// `f2·(Δθ/K)²/8`, so an arc whose true clearance exceeds that charge
+/// plus the run's definite threshold clears. The converse does not
+/// hold and is not claimed: the sample hull is itself an inner bound
+/// on the true range, so an arc can fail to clear for want of a
+/// sample rather than for want of room. "The run's definite
+/// threshold" is `Band::escalate` — `K_band·ε`, not `ε`, since a
+/// margin inside the ambiguity band escalates rather than deciding.
+///
+/// The charge falls as `K⁻²`. The cost is `K + 1` residual
+/// evaluations per call and TWO calls per examined circle ×
+/// curved-face pair — the reduction reads the whole carrier and the
+/// edge's own arc — so **514 evaluations** at this constant.
 ///
 /// `K = 256` is the ratified value (`docs/CURVED-TORUS-SPEC.md`
 /// §PR-2, ruling 3). It is set by the tightest measured consumer: the
 /// lily stem's 22° outer-equator seam against the arch's torus
 /// carrier clears by 8.6 mm with an arc-scoped `f2` of ~1.4e3 m/rad²,
 /// a charge of 0.39 mm — and still resolves against the much looser
-/// full-carrier `f2` of 7.9e3, whose charge is 2.2 mm. An adaptive
+/// full-carrier `f2` of 8.36e3, whose charge is 2.3 mm. An adaptive
 /// count is not offered until a consumer needs a finer arc than this
 /// law admits.
 pub const ARC_RESIDUAL_SAMPLES: usize = 256;
+
+/// **The chord-dip charge, spelled once for this crate**: how far a
+/// C² function of second-derivative bound `f2` can leave the chord of
+/// a sub-interval of width `step` — `f2·step²/8`.
+///
+/// `topo`'s `boolean::boxes::subdivision_charge` is the same quantity
+/// in the crate above, and cannot be depended on from here; the two
+/// spellings are one class, filed as
+/// `work/curved/the-chord-dip-charge-has-two-homes.md`.
+pub(crate) fn chord_dip_charge<T: Real>(f2: T, step: T) -> T {
+    f2 * step.powi(2) * T::from_f64(0.125)
+}
+
+/// The parameter of sample `k` of the arc schedule, **spelled once**.
+///
+/// `K + 1` parameters across `[t₀, t₁]` in the LERP form, so that
+/// `sample(0)` is exactly `t₀` and `sample(K)` is exactly `t₁`. That
+/// exactness is load-bearing, not tidiness: the chord-dip argument
+/// charges each of the `K` sub-intervals against BOTH of its ends, so
+/// a schedule that stops one parameter short leaves the last
+/// sub-interval uncharged and the enclosure unsound — a defect no
+/// fixture row can see, since it hides wherever the residual's
+/// extreme sits in the final cell. Pinned by
+/// `the_sample_schedule_reaches_both_ends_of_the_arc`.
+fn arc_sample<T: Real>(t0: T, t1: T, k: usize) -> T {
+    let f = T::from_f64(k as f64) / T::from_f64(ARC_RESIDUAL_SAMPLES as f64);
+    t0 * (T::one() - f) + t1 * f
+}
+
+/// One walk of the schedule, carrying everything BOTH arc readers
+/// need: the residual's sample hull, and — for the torus, whose
+/// curvature bound is arc-scoped — the radial and axial ranges over
+/// the same samples.
+///
+/// One walk rather than two. The bound and the enclosure are read off
+/// the same parameters by construction, so they cannot disagree about
+/// which arc they describe, and a torus pair pays `K + 1` residual
+/// evaluations instead of `2(K + 1)`.
+struct ArcScan<T> {
+    /// `(min, max)` of [`implicit_residual`] over the samples.
+    residual: (T, T),
+    /// `(min, max)` of `|w|` about the torus axis; `(0, 0)` for every
+    /// other kind, which reads neither field.
+    rho: (T, T),
+    /// `max |q·n|` about the torus axis.
+    h_abs_hi: T,
+}
+
+fn scan_arc<T: Real>(
+    s: &Surface<T>,
+    center: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    u_ref: Vec3<T>,
+    t0: T,
+    t1: T,
+) -> ArcScan<T> {
+    let v = axis.cross(u_ref);
+    let hub = match *s {
+        Surface::Torus {
+            center: tc,
+            axis: tn,
+            ..
+        } => Some((tc, tn)),
+        _ => None,
+    };
+    let at = |k: usize| {
+        let (sin, cos) = arc_sample(t0, t1, k).sin_cos();
+        let p = center + u_ref * (radius * cos) + v * (radius * sin);
+        let (rho, h_abs) = hub.map_or((T::zero(), T::zero()), |(tc, tn)| {
+            let (h, w) = axial_radial(p, tc, tn);
+            (w.norm(), h.abs())
+        });
+        (implicit_residual(s, p), rho, h_abs)
+    };
+    let (r0, rho0, h0) = at(0);
+    let mut scan = ArcScan {
+        residual: (r0, r0),
+        rho: (rho0, rho0),
+        h_abs_hi: h0,
+    };
+    for k in 1..=ARC_RESIDUAL_SAMPLES {
+        let (r, rho, h_abs) = at(k);
+        scan.residual = (scan.residual.0.min(r), scan.residual.1.max(r));
+        scan.rho = (scan.rho.0.min(rho), scan.rho.1.max(rho));
+        scan.h_abs_hi = scan.h_abs_hi.max(h_abs);
+    }
+    scan
+}
 
 /// A conservative enclosure of [`implicit_residual`] over an **arc**
 /// `θ ∈ [t₀, t₁]` of the circle carrier
@@ -363,11 +485,20 @@ pub const ARC_RESIDUAL_SAMPLES: usize = 256;
 ///
 /// The residual is sampled at [`ARC_RESIDUAL_SAMPLES`] + 1 parameters
 /// spanning the arc and the sample hull is widened by the chord-dip
-/// charge `f2·h²/8` of one sub-arc of width `h`: a C² function leaves
-/// the chord of a sub-interval of width `h` by at most `max|F″|·h²/8`,
-/// and `f2` encloses `|F″|` over this arc. It is `arc_extent`'s
-/// doctrine in residual space, and the consumer's two-endpoint chord
-/// dip is its `K = 1` instance.
+/// charge of one sub-arc: a C² function leaves the chord of a
+/// sub-interval of width `h` by at most `max|F″|·h²/8`, and `f2`
+/// encloses `|F″|` over this arc. It is `arc_extent`'s doctrine in
+/// residual space, and the consumer's two-endpoint chord dip is its
+/// `K = 1` instance.
+///
+/// **Precondition on the frame, unchecked:** `axis` and `u_ref` must
+/// be unit and mutually orthogonal, as every `Curve3::Circle` minted
+/// in this tree is. Nothing here normalizes them, and nothing can
+/// afford to: the carrier's own `radius` is the `ρ_c` every term of
+/// the curvature bound is stated at, so a non-unit `u_ref` rescales
+/// the sampled curve without rescaling the bound and the enclosure
+/// stops enclosing. A caller synthesising a frame owes the
+/// normalization.
 ///
 /// Returns `(lo, hi)` in METERS (the residual's own linearized units),
 /// or `None` for the kinds with no curvature bound at all (cone,
@@ -387,22 +518,14 @@ pub fn circle_arc_residual_range<T: Real>(
     t0: T,
     t1: T,
 ) -> Option<(T, T)> {
-    let f2 = arc_curvature_bound(s, center, axis, radius, u_ref, t0, t1)?;
-    let v = axis.cross(u_ref);
-    let step = (t1 - t0) / T::from_f64(ARC_RESIDUAL_SAMPLES as f64);
-    let at = |k: usize| {
-        let (sin, cos) = (t0 + step * T::from_f64(k as f64)).sin_cos();
-        implicit_residual(s, center + u_ref * (radius * cos) + v * (radius * sin))
+    let scan = scan_arc(s, center, axis, radius, u_ref, t0, t1);
+    let f2 = match circle_residual_harmonics(s, center, axis, radius, u_ref) {
+        Some((_, a1, a2)) => a1 + T::from_f64(4.0) * a2,
+        None => torus_curvature_bound(s, axis, radius, u_ref, t0, t1, &scan)?,
     };
-    let mut lo = at(0);
-    let mut hi = lo;
-    for k in 1..=ARC_RESIDUAL_SAMPLES {
-        let r = at(k);
-        lo = lo.min(r);
-        hi = hi.max(r);
-    }
-    let charge = f2 * step.powi(2) * T::from_f64(0.125);
-    Some((lo - charge, hi + charge))
+    let step = (t1 - t0) / T::from_f64(ARC_RESIDUAL_SAMPLES as f64);
+    let charge = chord_dip_charge(f2, step);
+    Some((scan.residual.0 - charge, scan.residual.1 + charge))
 }
 
 /// A conservative enclosure of [`implicit_residual`] over an ENTIRE
@@ -420,7 +543,13 @@ pub fn circle_arc_residual_range<T: Real>(
 /// `√` of a trigonometric polynomial — so the whole turn is enclosed
 /// by [`circle_arc_residual_range`] over `[0, τ]` instead. That
 /// enclosure is a sampled one and is looser than a closed form would
-/// be, in the direction that refuses rather than clears.
+/// be, in the direction that refuses rather than clears. The two
+/// answers are therefore not the same KIND of answer behind one name,
+/// and a caller that needs to know which it got must ask the surface
+/// (Q7's class; the doc says it here rather than splitting the door).
+///
+/// The frame precondition of [`circle_arc_residual_range`] binds here
+/// too: `axis` and `u_ref` unit and mutually orthogonal, unchecked.
 ///
 /// Returns `(lo, hi)` in METERS (the residual's own linearized
 /// units), or `None` for kinds with neither form (cone, NURBS,
@@ -450,10 +579,13 @@ pub fn circle_residual_extremes<T: Real>(
 /// only against a cylinder), so differentiating twice multiplies the
 /// harmonics by `1` and `4`: `|F″| ≤ A₁ + 4A₂`. Against a torus the
 /// bound is the certified one of `docs/CURVED-TORUS-SPEC.md` §PR-2
-/// (see `arc_curvature_bound`). With it, a smooth function's dip
+/// (see `torus_curvature_bound`). With it, a smooth function's dip
 /// below its ENDPOINT CHORD is at most `|F″|max·Δθ²/8` — the same
 /// total-arithmetic bound the line row uses along a segment, and the
 /// reason an arc can clear where the whole circle it rides cannot.
+///
+/// The frame precondition of [`circle_arc_residual_range`] binds here
+/// too: `axis` and `u_ref` unit and mutually orthogonal, unchecked.
 ///
 /// `None` for the kinds with no bound at all (cone, NURBS, `Approx`).
 /// Total arithmetic: poison in, poison out.
@@ -472,11 +604,30 @@ pub fn circle_residual_curvature_bound<T: Real>(
 /// enclosure of `|F″|` over `θ ∈ [t₀, t₁]` only.
 ///
 /// The harmonic kinds ignore the arc — their bound is a property of
-/// the carrier, and restricting it would need the harmonic phases.
-/// The **torus** arm is where the arc earns its keep, and its bound
-/// is built from the composed squared distance to the spine circle.
-/// With `q = C(θ) − c`, `h = q·n`, `w = q − h·n`, `ρ = |w|` and
-/// `d² = (ρ − R)² + h²`, the residual is `(d² − r²)/2r`, so
+/// the carrier, and restricting it would need the harmonic phases —
+/// so only the torus walks the schedule here.
+fn arc_curvature_bound<T: Real>(
+    s: &Surface<T>,
+    center: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    u_ref: Vec3<T>,
+    t0: T,
+    t1: T,
+) -> Option<T> {
+    if let Some((_, a1, a2)) = circle_residual_harmonics(s, center, axis, radius, u_ref) {
+        return Some(a1 + T::from_f64(4.0) * a2);
+    }
+    let scan = scan_arc(s, center, axis, radius, u_ref, t0, t1);
+    torus_curvature_bound(s, axis, radius, u_ref, t0, t1, &scan)
+}
+
+/// The **torus** arm of the curvature bound, over the arc the scan
+/// walked. `None` for every other kind.
+///
+/// This is where the arc earns its keep. With `q = C(θ) − c`,
+/// `h = q·n`, `w = q − h·n`, `ρ = |w|` and `d² = (ρ − R)² + h²`, the
+/// residual is `(d² − r²)/2r`, so
 /// `(d²)″ = 2[(ρ′)² + (ρ−R)ρ″] + 2[(h′)² + h·h″]` and
 ///
 /// ```text
@@ -490,64 +641,55 @@ pub fn circle_residual_curvature_bound<T: Real>(
 /// `|ρ″| ≤ ρ_c + 2ρ_c²/ρ_min`; `h` is an EXACT first harmonic of
 /// amplitude `a_h`, so `|h′|, |h″| ≤ a_h` on any arc at all.
 ///
-/// `ρ_min`, `ρ_max` and `H_max` are the arc's own ranges — sampled at
-/// the same parameters the enclosure uses and widened by the
-/// Lipschitz charge `ρ_c·h/2`, since every parameter of the arc is
-/// within half a step of a sample and both `ρ` and `h` are
+/// `D_max` is TWO-SIDED (`max` over both ends of the `ρ` range, not
+/// the far end alone) because `|ρ − R|` is largest at whichever end
+/// stands further from the spine, and on a circle that crosses the
+/// spine radius that is the INNER end. `H_max` is the range of `|h|`,
+/// not of `h`: the product `h·h″` is bounded by `|h|·|h″|`, and a
+/// signed range whose maximum is negative would bound it by a
+/// negative number.
+///
+/// `ρ_min`, `ρ_max` and `H_max` come from the scan's samples widened
+/// by the Lipschitz charge `ρ_c·h/2`, since every parameter of the arc
+/// is within half a step of a sample and both `ρ` and `h` are
 /// `ρ_c`-Lipschitz. Scoping them to the arc is what makes the bound
 /// usable: on the lily's stem seam the full-carrier `D_max` is 7.86 m
-/// against the arc's 0.95 m, an eight-fold difference in the
-/// dominant term.
+/// against the arc's 0.95 m, an eight-fold difference in the dominant
+/// term.
 ///
 /// `ρ_min = 0` — an arc that may reach the axis — divides by zero and
 /// yields an infinite (interval lane: poisoned) bound. That is the
 /// honest answer: the residual has a kink on the axis. No branch
 /// tests for it.
-fn arc_curvature_bound<T: Real>(
+fn torus_curvature_bound<T: Real>(
     s: &Surface<T>,
-    center: Point3<T>,
     axis: Vec3<T>,
     radius: T,
     u_ref: Vec3<T>,
     t0: T,
     t1: T,
+    scan: &ArcScan<T>,
 ) -> Option<T> {
     let Surface::Torus {
-        center: tc,
         axis: tn,
         major_radius,
         minor_radius,
         ..
     } = *s
     else {
-        let (_, a1, a2) = circle_residual_harmonics(s, center, axis, radius, u_ref)?;
-        return Some(a1 + T::from_f64(4.0) * a2);
+        return None;
     };
     let two = T::from_f64(2.0);
     let v = axis.cross(u_ref);
     let a_h = radius * (u_ref.dot(tn).powi(2) + v.dot(tn).powi(2)).sqrt();
     let step = (t1 - t0) / T::from_f64(ARC_RESIDUAL_SAMPLES as f64);
     let lipschitz = radius * step.abs() / two;
-    let at = |k: usize| {
-        let (sin, cos) = (t0 + step * T::from_f64(k as f64)).sin_cos();
-        let p = center + u_ref * (radius * cos) + v * (radius * sin);
-        let (h, w) = axial_radial(p, tc, tn);
-        (w.norm(), h.abs())
-    };
-    let (rho0, h0) = at(0);
-    let (mut rho_lo, mut rho_hi, mut h_hi) = (rho0, rho0, h0);
-    for k in 1..=ARC_RESIDUAL_SAMPLES {
-        let (rho, h) = at(k);
-        rho_lo = rho_lo.min(rho);
-        rho_hi = rho_hi.max(rho);
-        h_hi = h_hi.max(h);
-    }
     // A radius is never negative, so the clamp is the honest floor
     // rather than a guard — and clamping to zero is what hands the
     // through-axis case its infinity.
-    let rho_min = (rho_lo - lipschitz).max(T::zero());
-    let rho_max = rho_hi + lipschitz;
-    let h_max = h_hi + lipschitz;
+    let rho_min = (scan.rho.0 - lipschitz).max(T::zero());
+    let rho_max = scan.rho.1 + lipschitz;
+    let h_max = scan.h_abs_hi + lipschitz;
     let d_max = (rho_min - major_radius)
         .abs()
         .max((rho_max - major_radius).abs());
@@ -940,6 +1082,8 @@ mod tests {
 mod arc_clearance_tests {
     use core::f64::consts::{PI, TAU};
 
+    use test_utils::fuzz;
+
     use super::*;
 
     /// One (surface, circle) pair the rows below sample.
@@ -1161,17 +1305,22 @@ mod arc_clearance_tests {
         }
     }
 
-    /// **The chord-dip lower bound must LOWER-bound the arc.** This is
-    /// the boolean circle row's accepting computation, verbatim: an arc
-    /// clears when `min(F(t0), F(t1)) − |F″|·Δθ²/8` is positive, so
-    /// that expression must never exceed the arc's true minimum. Every
-    /// span from a sliver to a full turn, on every case.
+    /// **The enclosure's lower end must LOWER-bound the arc.** This is
+    /// the boolean circle row's accepting computation, read through
+    /// the door the row actually calls: an arc clears when
+    /// [`circle_arc_residual_range`]'s `lo` is positive, so `lo` must
+    /// never exceed the arc's true minimum. Every span from a sliver
+    /// to a full turn, on every case.
     ///
-    /// The same `4.0 → 2.0` corruption reds this row too, and it is the
+    /// It used to spell the deleted two-endpoint chord dip by hand —
+    /// arithmetic no shipped code computes any more, so a row over it
+    /// was testing a formula rather than a door.
+    ///
+    /// The same `4.0 → 2.0` corruption reds this row, and it is the
     /// row that names the CONSEQUENCE: the bound would claim clearance
     /// the arc does not have.
     #[test]
-    fn the_chord_dip_bound_never_exceeds_the_arcs_true_minimum() {
+    fn the_enclosure_never_exceeds_the_arcs_true_minimum() {
         const N: usize = 512;
         for Case {
             name,
@@ -1182,24 +1331,24 @@ mod arc_clearance_tests {
             u_ref: u,
         } in cases()
         {
-            let f2 = circle_residual_curvature_bound(&s, c, axis, r, u).expect("closed form");
             for span_steps in 1..=16 {
                 let span = TAU * f64::from(span_steps) / 16.0;
                 for start_steps in 0..8 {
                     let t0 = TAU * f64::from(start_steps) / 8.0;
                     let t1 = t0 + span;
-                    let claimed = residual_at(&s, c, axis, r, u, t0)
-                        .min(residual_at(&s, c, axis, r, u, t1))
-                        - f2 * span.powi(2) * 0.125;
+                    let (claimed, top) = circle_arc_residual_range(&s, c, axis, r, u, t0, t1)
+                        .expect("every case here has a curvature bound");
                     let mut truth = f64::INFINITY;
+                    let mut peak = f64::NEG_INFINITY;
                     for k in 0..=N {
                         let t = t0 + span * k as f64 / N as f64;
                         truth = truth.min(residual_at(&s, c, axis, r, u, t));
+                        peak = peak.max(residual_at(&s, c, axis, r, u, t));
                     }
                     assert!(
-                        claimed <= truth + 1e-9,
-                        "{name}: span {span} from {t0}: chord-dip claims {claimed} \
-                         but the arc dips to {truth}"
+                        claimed <= truth + 1e-9 && top >= peak - 1e-9,
+                        "{name}: span {span} from {t0}: the enclosure [{claimed}, {top}] \
+                         does not hold the arc's [{truth}, {peak}]"
                     );
                 }
             }
@@ -1235,11 +1384,11 @@ mod arc_clearance_tests {
             "the carrier must straddle for this row to mean anything: {carrier_margin}"
         );
         let (t0, t1) = (0.0, PI / 3.0);
-        let f2 = circle_residual_curvature_bound(&s, c, axis, r, u).expect("closed form");
-        let dip = f2 * (t1 - t0).powi(2) * 0.125;
-        let r_u = residual_at(&s, c, axis, r, u, t0);
-        let r_v = residual_at(&s, c, axis, r, u, t1);
-        let arc_margin = (r_u.min(r_v) - dip).max(-(r_u.max(r_v) + dip));
+        // Through the door, not through the deleted two-endpoint fold:
+        // this is the arithmetic `reduce.rs` runs.
+        let (arc_lo, arc_hi) =
+            circle_arc_residual_range(&s, c, axis, r, u, t0, t1).expect("closed form");
+        let arc_margin = arc_lo.max(-arc_hi);
         assert!(
             arc_margin > 1e-3,
             "the arc must clear DEFINITELY, well outside any band: {arc_margin}"
@@ -1299,7 +1448,7 @@ mod arc_clearance_tests {
     #[cfg(feature = "interval")]
     #[test]
     fn a_through_axis_circle_poisons_the_interval_lane() {
-        use geom_core::{Bounds, Interval};
+        use geom_core::Interval;
         let i = Interval::from_f64;
         let s = Surface::Torus {
             center: Point3::new(i(0.0), i(0.0), i(0.0)),
@@ -1319,11 +1468,249 @@ mod arc_clearance_tests {
             Interval::tau(),
         )
         .expect("the torus arm answers");
+        // The claim is POISON, specifically. A finite
+        // `[−charge, +charge]` also satisfies "never certifies a
+        // clearance", so a weaker assertion here could not tell the
+        // arithmetic's honest refusal from a branch that clamped
+        // `ρ_min` off zero and returned a finite bound.
         let margin = lo.max(-hi);
         assert!(
-            margin.is_poison() || margin.hi() <= 0.0,
-            "the interval lane must refuse on the axis, never certify a \
-             clearance: [{lo:?}, {hi:?}]"
+            lo.is_poison() && hi.is_poison() && margin.is_poison(),
+            "the interval lane must POISON on the axis, not enclose: [{lo:?}, {hi:?}]"
         );
+        let bound = circle_residual_curvature_bound(
+            &s,
+            center,
+            Vec3::new(i(0.0), i(0.0), i(1.0)),
+            i(0.5),
+            Vec3::new(i(1.0), i(0.0), i(0.0)),
+        )
+        .expect("the torus arm answers");
+        assert!(
+            bound.is_poison(),
+            "and so must the bound behind it: {bound:?}"
+        );
+    }
+
+    /// **The schedule reaches BOTH ends of the arc, exactly.** The
+    /// chord-dip argument charges each of the `K` sub-intervals
+    /// against both of its ends; a schedule that stops one parameter
+    /// short leaves the last sub-interval uncharged, and the
+    /// enclosure is then unsound wherever the residual's extreme sits
+    /// in that cell — which no fixture row can be relied on to catch.
+    ///
+    /// Both ends are pinned to EXACT equality, which the lerp form
+    /// gives and `t₀ + step·k` does not.
+    #[test]
+    fn the_sample_schedule_reaches_both_ends_of_the_arc() {
+        for (t0, t1) in [
+            (0.0, TAU),
+            (0.0, 0.383_972_435_438_75),
+            (-0.5, 0.5),
+            (2.9, 3.4),
+            (1.0, 1.000_001),
+            (TAU, 0.0),
+        ] {
+            assert!(
+                arc_sample(t0, t1, 0) == t0,
+                "sample 0 must be exactly t0: {} vs {t0}",
+                arc_sample(t0, t1, 0)
+            );
+            assert!(
+                arc_sample(t0, t1, ARC_RESIDUAL_SAMPLES) == t1,
+                "sample K must be exactly t1: {} vs {t1}",
+                arc_sample(t0, t1, ARC_RESIDUAL_SAMPLES)
+            );
+            // And the interior is monotone and inside, so the `K`
+            // sub-intervals really tile the arc.
+            let mut prev = t0;
+            for k in 1..=ARC_RESIDUAL_SAMPLES {
+                let t = arc_sample(t0, t1, k);
+                assert!(
+                    (t - prev) * (t1 - t0) >= 0.0,
+                    "the schedule must advance toward t1: {prev} -> {t}"
+                );
+                prev = t;
+            }
+        }
+    }
+
+    /// **The ARC-SCOPED bound, against a dense analytic oracle, on
+    /// random configurations.** Adopted from the v6 dual on
+    /// `f0f46ebb5` — TARM-R1's probe P1 and TARM-R2's probe C1, which
+    /// converged on the same gap: every shipped bound row called the
+    /// `[0, τ]` form, so the arc-scoped `f2` — this unit's novelty —
+    /// had no direct soundness row at all, and three planted defects
+    /// (a signed `h` range, a one-sided `D_max`, a schedule one
+    /// parameter short) passed the whole suite.
+    ///
+    /// The oracle is the closed second derivative of the composed
+    /// residual, `(d²)″/2r` with
+    /// `(d²)″ = 2[(ρ′)² + (ρ−R)ρ″] + 2[(h′)² + h·h″]` evaluated from
+    /// `C′` and `C″` directly — not the bound's own algebra, so a term
+    /// dropped or sign-flipped in the bound cannot hide in it.
+    #[test]
+    fn the_arc_scoped_bound_never_falls_below_a_dense_second_derivative() {
+        /// The composed residual's exact `F″` at one parameter.
+        fn g2(c: &TorusArcCase, t: f64) -> f64 {
+            let Surface::Torus {
+                center: tc,
+                axis: tn,
+                major_radius,
+                minor_radius,
+                ..
+            } = c.surface
+            else {
+                unreachable!("torus fixture")
+            };
+            let v = c.axis.cross(c.u_ref);
+            let (st, ct) = t.sin_cos();
+            let p = c.center + c.u_ref * (c.radius * ct) + v * (c.radius * st);
+            let c1 = c.u_ref * (-c.radius * st) + v * (c.radius * ct);
+            let c2 = c.u_ref * (-c.radius * ct) + v * (-c.radius * st);
+            let q = p - tc;
+            let (h, h1, h2) = (q.dot(tn), c1.dot(tn), c2.dot(tn));
+            let (w, w1, w2) = (q - tn * h, c1 - tn * h1, c2 - tn * h2);
+            let rho = w.norm();
+            let rho1 = w.dot(w1) / rho;
+            let rho2 = (w1.dot(w1) + w.dot(w2)) / rho - w.dot(w1).powi(2) / rho.powi(3);
+            let d2pp = 2.0 * (rho1 * rho1 + (rho - major_radius) * rho2) + 2.0 * (h1 * h1 + h * h2);
+            d2pp / (2.0 * minor_radius)
+        }
+
+        let mut rng = fuzz::start("implicit::arc_scoped_bound_vs_dense_second_derivative");
+        let cases = fuzz::scaled(200);
+        let dense = fuzz::scaled(600);
+        let (mut min_ratio, mut infinite, mut checked) = (f64::INFINITY, 0u32, 0u32);
+        for i in 0..cases {
+            let c = random_torus_arc(&mut rng, i);
+            let f2 =
+                arc_curvature_bound(&c.surface, c.center, c.axis, c.radius, c.u_ref, c.t0, c.t1)
+                    .expect("the torus arm answers");
+            if !f2.is_finite() {
+                infinite += 1;
+                continue;
+            }
+            let mut worst = 0.0f64;
+            for k in 0..=dense {
+                let t = c.t0 + (c.t1 - c.t0) * k as f64 / dense as f64;
+                worst = worst.max(g2(&c, t).abs());
+            }
+            assert!(
+                f2 >= worst * (1.0 - 1e-9),
+                "case {i}: the arc-scoped bound {f2} falls below the dense \
+                 |F''| {worst} — {}",
+                fuzz::replay()
+            );
+            checked += 1;
+            if worst > 0.0 {
+                min_ratio = min_ratio.min(f2 / worst);
+            }
+        }
+        println!(
+            "arc-scoped bound: {checked} finite configurations, {infinite} \
+             through-axis (infinite by arithmetic); tightest ratio {min_ratio:.4}"
+        );
+        // The bound must also be USABLE, not merely sound: a bound
+        // orders of magnitude over the truth everywhere would pass the
+        // assertion above and resolve nothing.
+        assert!(
+            min_ratio < 1e4,
+            "the bound is sound but useless at its tightest: {min_ratio}"
+        );
+    }
+
+    /// One random torus, circle and arc — the configuration family the
+    /// two dense-oracle rows share.
+    struct TorusArcCase {
+        surface: Surface<f64>,
+        center: Point3<f64>,
+        axis: Vec3<f64>,
+        radius: f64,
+        u_ref: Vec3<f64>,
+        t0: f64,
+        t1: f64,
+    }
+
+    fn random_dir(rng: &mut fuzz::Rng) -> Vec3<f64> {
+        loop {
+            let v = Vec3::new(
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            );
+            if v.norm() > 0.2 && v.norm() < 1.0 {
+                return v.normalize();
+            }
+        }
+    }
+
+    fn random_perp(rng: &mut fuzz::Rng, a: Vec3<f64>) -> Vec3<f64> {
+        loop {
+            let d = random_dir(rng);
+            let p = d - a * a.dot(d);
+            if p.norm() > 0.2 {
+                return p.normalize();
+            }
+        }
+    }
+
+    /// Spans are log-uniform over three decades and centres are drawn
+    /// near the torus a quarter of the time, so the family reaches
+    /// slivers, whole turns and near-axis circles rather than only
+    /// comfortable ones (TARM-R1's `rand_cfg`).
+    fn random_torus_arc(rng: &mut fuzz::Rng, i: usize) -> TorusArcCase {
+        let big_r = rng.range(0.5, 3.0);
+        let tn = random_dir(rng);
+        let tc = Point3::new(
+            rng.range(-1.0, 1.0),
+            rng.range(-1.0, 1.0),
+            rng.range(-1.0, 1.0),
+        );
+        let minor = big_r * rng.range(0.05, 0.6);
+        let t_u = random_perp(rng, tn);
+        let surface = Surface::Torus {
+            center: tc,
+            axis: tn,
+            major_radius: big_r,
+            minor_radius: minor,
+            u_ref: t_u,
+        };
+        let t0 = rng.range(0.0, TAU);
+        let span = 10f64.powf(rng.range(-3.0, TAU.log10()));
+        // One case in eight is a RING-PLANE circle that reaches from
+        // near the axis out past the spine, so the radial range
+        // straddles `R` with its far-from-spine end at the INNER side.
+        // That is the only family where a one-sided `D_max` (the far
+        // end alone) under-bounds, and it is a defect no comfortable
+        // configuration can see.
+        if i % 8 == 1 {
+            let e = big_r * rng.range(0.5, 0.7);
+            return TorusArcCase {
+                surface,
+                center: tc + t_u * e,
+                axis: tn,
+                radius: big_r * rng.range(0.4, 0.5),
+                u_ref: t_u,
+                t0,
+                t1: t0 + span,
+            };
+        }
+        let spread = if i.is_multiple_of(4) { 0.5 } else { 4.0 };
+        let axis = random_dir(rng);
+        TorusArcCase {
+            surface,
+            center: tc
+                + Vec3::new(
+                    rng.range(-spread, spread),
+                    rng.range(-spread, spread),
+                    rng.range(-spread, spread),
+                ),
+            axis,
+            radius: rng.range(0.05, 4.0),
+            u_ref: random_perp(rng, axis),
+            t0,
+            t1: t0 + span,
+        }
     }
 }
