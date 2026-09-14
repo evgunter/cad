@@ -1394,3 +1394,27 @@ closed; no A/B row (non-dual). Slot 2
 with the D107 lane's target retired and the typed-absence R2 target
 re-seeded as its own. Live: the revert-wrap fix pass, the
 typed-absence fix pass, slot 2.
+
+## Revert-wrap merged (PR 2573); row 2709 recorded, sample #194; slot 1 concluded (2026-09-14)
+
+The fix pass took all nine items on head `0b5000154`, run 34844909382
+green: the golden account rewritten to what moved (four verdict
+signs, flux-compensated) with a sorted-multiset row beside the census
+golden; the anchor invariant stated at `LoopBoundary::Cycle` and in
+the reversal tripwire; the uniform rule adopted — every loop's
+`first` moves — and the two STEP fixtures it moved (`die`,
+`kiss_assembly`) regenerated with entity and line counts and
+id-stripped line multisets identical; `RevertError::Corrupt` now
+carries a closed `RevertLink` and refuses a dead `prev` typed; the
+receipt widened to `first` as an order with a `chart_boundary`
+result-kind row across the reversal; two fixtures shared, the `1e-9`
+literal replaced by an exact whole-period test; DESIGN's D1 revert
+clause re-worded by code (its `git log -S` names only an editing
+pass). Two rows filed: TINT's ordered-FNV verdict channel is
+anchor-sensitive; PROPS' `props_rim_side`/`props_rim_dir_group` signs
+are facts about cycle order. Merged at `cbf5d1a49`; the row (ordinal
+2709, sample #194, no tally candidate — the converged golden finding
+is doc-class) and the unit's closure are on a docs PR from
+`topo/row-2709`; slot 1 concluded on `topo/b4-block`. The
+implementer's target retired (20 GB free). Live: the typed-absence
+fix pass and slot 2.
