@@ -40,11 +40,7 @@
 
 use std::collections::BTreeMap;
 
-<<<<<<< HEAD
-use geom::Surface;
-=======
 use geom::{NetState, Surface};
->>>>>>> origin/main
 use geom_brep::SurfaceKind;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Tol};
 use slotmap::SecondaryMap;
@@ -1310,14 +1306,12 @@ impl<T: Decide> Body<T> {
             }
         }
         if !any {
-<<<<<<< HEAD
-            return Ok(MergeCoplanarOutcome {
-                groups: Vec::new(),
-                skipped: declined_records(self),
-            });
-=======
+            // Nothing to merge: the declined declared pairs still
+            // ship (they are a statement about the caller's argument,
+            // not about any merge), on the outcome whose placeholder
+            // census the initializer already took.
+            outcome.skipped = declined_records(self);
             return Ok(outcome);
->>>>>>> origin/main
         }
         // ---- Group labeling (face-arena order seeds, DFS worklist). ----
         //
