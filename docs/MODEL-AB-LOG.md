@@ -6645,3 +6645,21 @@ dual concludes. Method note applying to BOTH arms equally: the pair
 runs alone on one 4-core cloud box, dev profile plus a release build
 for the ceilings rows, `CARGO_INCREMENTAL=0`, one crate at a time.
 Sample number at merge.
+
+## Block SYM-B2 — record (branch-side on `sym/b2-block` until the block concludes; opened 2026-09-14)
+
+Block SYM-B2 pre-draw fields (2026-09-14, logged before the draw):
+slot 0 = SYM-7 (`docs/SYM-7-SPEC.md`, the plain form outlives the leaf
+— a drive-scoped memo shared across the drive's rayon workers, `frozen`
+re-defined as distinct-over-the-drive; D3 = (1) on `[ev]` #2581) —
+difficulty **H**, task-class **STRUCTURAL**; slot 1 = SYM-8
+(`docs/SYM-8-SPEC.md`, the manifest sign — `abs` and `copysign` atoms
+whose sign the form already shows, measured first on the tilt-U wall
+SYM-5 PR-2's review found, gated on the ring item's recorded loss) —
+**H / NUMERIC**; slot 2 = SYM-9 (`docs/SYM-9-SPEC.md`, what a refused
+decision may retry — the wider ring and the kept atom, measured first
+on the six documents) — **H / NUMERIC**. All three specs on `main`
+(#2600, #2602) before this draw. SYM-7 edits `drive.rs` (PROPS') by
+announced seam at its dispatch; SYM-8 and SYM-9 stay inside
+`sym.rs`/`sym/*` and the program's test globs. Dispatch order: slot 0
+first, when SYM-5's lanes retire; slots 1 and 2 as lanes free.
