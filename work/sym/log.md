@@ -750,3 +750,15 @@ new row for the revolved cap
 declined as adjudicated — a step cap, the `Form::quotient`
 canonicalisation (the next shape, on the item), shipping the dial
 off. Delta by R1 on the fixed head: MERGEABLE-AFTER-FIXES — the two MAJORs closed (the denominator list swept and found exhaustive; the width row asserts the loss; the ledger pins the order), five items by execution, and nine residue items named, of which the sign row was the gate: it did not red under its own mutant because its pivot at ±1 hit the fix pass's new no-op fast path before the scale step. Residue in one commit (`fdb026205`): the row reaches the step (red under `s.recip()` and only that row, re-verified on the final head), the ordering comment states the four ledger lines the other order reds (the plate's early-decision frozen 8 → 48 — a reach requirement, not a convention), the leaf table is the header's instrument with the pad, bracket AND link over the line disclosed, the stale count at `m10_bulge_interval.rs:107`, `MAX_HALVINGS`'s attribution corrected (the bound follows from one halving and `atan`'s range), `Poly::mul`'s doc restored, the spin un-labelled as reach and R1's third reached shape added, the stacked-2 lift named at both sites. One more commit (`d7df4cdf1`) re-baselined SYM-6's new per-document `registered` pin on the pad (86 → 104: rule E carries 18 more decisions through the door — the pin's own second cause, measured at both dials, no refusal).
+
+## Block SYM-B1 concluded; SYM-8 dispatched (2026-09-14)
+
+With SYM-5 PR-2 merged, block SYM-B1's three slots are concluded and
+its record (`sym/b1-block`) is on main: SYM-4 (FABLE, sample #193),
+SYM-5 (OPUS, #198), SYM-6 (OPUS, #197); two unilateral MAJORs, both
+R2's (FABLE) and both confirmed by their fix passes — the width loss on
+SYM-5 and the 2ε lie passing the fixture row on SYM-6; three glimpses
+disclosed (a process name, command lines after delivery, a worktree
+listing), none carrying a finding. SYM-8 (the manifest sign, block
+SYM-B2 slot 1, OPUS) dispatched on the lane SYM-5 freed while SYM-7's
+dual runs.
