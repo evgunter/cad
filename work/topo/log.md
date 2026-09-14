@@ -1015,3 +1015,20 @@ reaches its answer by accident (R1); two spellings of the placeholder
 question across `topo` (R2, filed). No tally candidate. Seven-item fix
 pass to a fresh lane on the inherited branch; a poisoned face refuses
 typed unless the lane reads `NetState`'s rule otherwise and says so.
+
+## Loop re-parenting delivered; dual out at ordinal 2707 (2026-09-14)
+
+Slot 0 `topo/loop-reparenting-rows` delivered as PR 2549, head
+`d57e8ba53`, full matrix green (run 34808121136). Phase 1 found a
+third door (`mfkrh`/`mfkrh_plug` promote a ring onto a caller-named
+surface and were silent the same way), a fourth direction the item
+lacked, and the item's `kfmrh` citation wrong (`euler_ring.rs`, not
+`euler_kill.rs`). Shape: carry on one surface key, drop on another —
+re-stating is a derivation and every derivation door carries the
+fitted-lane bound; refusing is ruled out by the producers reaching
+`kfmrh` mid-pipeline. Thirteen rows, four red on the merge base; the
+`mef`/`kef` half-edge-run siblings measured and filed; a second seam
+into GUARD's discard register found by CI. Dual dispatched on the
+frozen head beside D263's fix pass: ordinal 2707, byte 158 ⇒ R1 OPUS,
+R2 FABLE; briefs stored with sha256 privately. `S93` (slot 2) waits
+for the D263 fix pass to free its lane.
