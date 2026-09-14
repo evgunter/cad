@@ -503,22 +503,40 @@ fn r2_cost_plate_param_ladder() {
     ladder("plate_param hole_r", &cd.doc, &field, RangeSeed::symmetric(0.01), &[4, 16, 64]);
 }
 
-/// The tour's die (77 nodes, 21 declared subtracts): its +z pip's
-/// extrusion distance slot on a leaf-budget ladder.
+/// The tour's die (77 nodes, 21 declared subtracts). Its pip
+/// `Distance` is `-pip_depth` (an expression: the slot field refuses
+/// `SlotIsNotALiteral`), so the field is the `pip_depth` PARAMETER;
+/// and the cube's own literal `Distance` slot.
 #[test]
 fn r2_cost_die_ladder() {
     let cd = corpus::die::document();
-    let field = RangeField::Slot {
+    let pip = RangeField::Slot {
         node: cd.bump_root,
         slot: SlotId::Distance,
     };
-    let t = Instant::now();
-    let d = derive(&cd.doc, &field, RangeSeed::symmetric(0.01), tol()).unwrap();
-    println!("die derive: {:.2?}, nominal {}", t.elapsed(), d.nominal);
+    println!(
+        "die pip Distance slot: {:?}",
+        derive(&cd.doc, &pip, RangeSeed::symmetric(0.01), tol()).err()
+    );
     let t = Instant::now();
     let _ = f64_run(&cd.doc);
     println!("die one f64 evaluation: {:.2?}", t.elapsed());
-    ladder("die pz Distance", &cd.doc, &field, RangeSeed::symmetric(0.01), &[2, 8, 32]);
+    let field = RangeField::Param(name("pip_depth"));
+    ladder("die pip_depth", &cd.doc, &field, RangeSeed::symmetric(0.01), &[2, 4]);
+    let cube = cd
+        .doc
+        .order()
+        .iter()
+        .copied()
+        .find(|&id| {
+            matches!(cd.doc.node(id), Some(Node::Extrude { distance, .. }) if distance.literal_value().is_some())
+        })
+        .expect("the cube's extrude has a literal distance");
+    let field = RangeField::Slot {
+        node: cube,
+        slot: SlotId::Distance,
+    };
+    ladder("die cube Distance slot", &cd.doc, &field, RangeSeed::symmetric(0.01), &[2]);
 }
 
 // ------------------------------------------------------------ misc
