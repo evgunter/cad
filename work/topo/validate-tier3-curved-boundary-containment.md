@@ -30,9 +30,8 @@ What IS covered today, so the gap is stated precisely:
   face's own outer loop, decided by the crate's trilean containment walk over the
   ring's vertices. Added by `tier3-accepts-a-ring-outside-its-outer-loop`. It
   reaches a face on a `Plane` whose outer loop is in `boolean::contain`'s
-  ray-parity class — which includes a loop bearing ARCS over three or more
-  vertices, not only a line-carrier polygon — and is silent on the disc class,
-  the no-walk class, and any non-planar face
+  `Polygon` class (no arc anywhere, so the walked polygon IS the loop's
+  region) and is silent on every arc-bearing class and on any non-planar face
   (`work/topo/check-9-nesting-is-line-bounded-only.md`).
 
 What remains uncovered:

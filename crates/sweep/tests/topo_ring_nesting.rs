@@ -208,13 +208,17 @@ fn two_rings_on_one_face() {
     nested_then_inverted("two-ring plate", &body, true);
 }
 
-/// **An arc in the outer loop no longer shuts the gate.** The gate is
-/// the loop's CLASS, and a loop bearing arcs over three or more
-/// vertices is the parity class — the polygon through its vertices is
-/// a proper region, and the walk is measured correct there. A plate
-/// with one rounded end is decided in both directions.
+/// **A bowed end on the outer loop does not cost the pair its
+/// refusal.** The honest face's outer loop bears an arc, so check 9's
+/// nesting arm is silent on it — the polygon through an arc-bearing
+/// loop's vertices is a proper region but not the LOOP's region, and
+/// an arm that refuses a body on `Out` may not read one from it. The
+/// INVERTED body's outer loop is the rectangular hole, which is all
+/// lines, so the inverted glue is still refused by name. The gate
+/// itself is asserted directly crate-side, in
+/// `validate::tests::an_arc_bearing_outer_loop_is_the_gates_residue`.
 #[test]
-fn a_plate_with_one_rounded_end_is_decided() {
+fn a_plate_with_one_rounded_end_still_refuses_its_inversion() {
     let outer = vec![
         (0.0, 0.0, 0.0),
         (3.0, 0.0, 0.5),
@@ -227,11 +231,11 @@ fn a_plate_with_one_rounded_end_is_decided() {
 
 // ---- the gate's residue, measured in both directions ---------------------
 
-/// **The disc class is the residue, and it is exactly the disc class.**
-/// A loop every edge of which is an arc of ONE circle has a region the
-/// parity polygon does not express — the polygon through two
-/// semicircle endpoints has zero area — so the arm says nothing rather
-/// than refusing a valid body. `boolean::contain`'s `disc_side`
+/// **The disc class is a residue too, and it is the one with a known
+/// widening.** A loop every edge of which is an arc of ONE circle has
+/// a region the parity polygon does not express — the polygon through
+/// two semicircle endpoints has zero area — so the arm says nothing
+/// rather than refusing a valid body. `boolean::contain`'s `disc_side`
 /// decides that class exactly and reaching it from tier 3 is the
 /// widening `work/topo/check-9-nesting-is-line-bounded-only.md` holds.
 #[test]

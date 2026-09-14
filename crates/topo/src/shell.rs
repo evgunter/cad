@@ -294,8 +294,8 @@
 //! [`ValidationError::RingNestingUndecided`] for the pair it cannot
 //! certify). That is the statement an inverted host/guest pick at the
 //! rim glue below falsifies, and it reaches a planar face whose outer
-//! loop is in the ray-parity class; check 9's own banner enumerates
-//! what it leaves out.
+//! loop bears no arc; check 9's own banner enumerates what it leaves
+//! out.
 //!
 //! **An UNDECIDABLE separation refuses too** and never proceeds to
 //! build ([`ShellError::Escalated`]) — the glue is a write, and
@@ -1508,8 +1508,8 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
         // unexplainable, is tier 3's check 9: its nesting half says a
         // ring lies strictly inside its face's outer loop and refuses
         // the inverted body by name, on the shapes that half reaches
-        // — a planar face whose outer loop is in the ray-parity class
-        // (check 9's banner enumerates the rest). Nothing in this verb
+        // — a planar face whose outer loop bears no arc (check 9's
+        // banner enumerates the rest). Nothing in this verb
         // relies on that arm; what it buys is the class being loud
         // wherever else it is minted. On a rim outside its reach — an
         // annular rim between two CIRCLES, every shelled vessel of

@@ -502,11 +502,33 @@ over three or more vertices to the parity walk, where the copy refused
 every arc under a reason (`Out` for interior points) that `loop_shape`
 confines to its `NoWalk` class. The copy is retired.
 
-**The change, in full: `contain::loop_shape`, `contain::LoopShape` and
-its `LoopCircle` payload become `pub(crate)`, re-exported from
-`boolean/mod.rs` as `pub(crate) use`.** One visibility change, no logic
-change, no signature change, no new caller inside `boolean`. `contfp`
-dispatches on it exactly as before.
+**The change, in two parts.**
+
+1. **Visibility.** `contain::loop_shape`, `contain::LoopShape` and its
+   `LoopCircle` payload become `pub(crate)`, re-exported from
+   `boolean/mod.rs` as `pub(crate) use`. No signature change and no
+   new caller inside `boolean`.
+2. **One variant split, which the classifier's own doc already made in
+   prose.** `LoopShape::Parity` covered two cases that its doc said
+   were different — *"no arc at all (the polygon IS the region), or
+   arcs over ≥ 3 vertices, where … Unproven in general: an arc bowing
+   outward puts region between the polygon and the boundary"*. They
+   are now `LoopShape::Polygon` and `LoopShape::ArcParity`. **`contfp`
+   walks both, exactly as before** — `LoopShape::Polygon |
+   LoopShape::ArcParity => point_in_loop(..)` — so no verdict, no
+   margin and no recorded row moves anywhere in `boolean`.
+
+Why the split rather than a second gate in `validate.rs`: the lane
+first shipped check 9's nesting arm over the whole `Parity` class and
+a VALID body refused —
+`review_fillet_h7_r1_probes::a_cap_carrying_a_ring_keeps_it_through_the_cut_off`'s
+bored D-rod, whose transverse cap's major arc dips past the chord its
+vertices span, leaving the bore in the lune between polygon and
+boundary, where the walk reads `Out`. `contfp` may read that `Out` as
+one point's classification; a validator may not refuse a body on it.
+That is a real difference between the two consumers, and it belongs in
+the classifier as a class rather than in each consumer as a second
+census.
 
 `disc_side` is NOT touched and stays private. Reaching it from tier 3
 is the widening `work/topo/check-9-nesting-is-line-bounded-only.md`

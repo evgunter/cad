@@ -443,16 +443,22 @@ the table.
   the contact arms take.
 
   **What the nesting half does NOT match, in the same shape**: any face
-  on a non-planar surface, and any planar face whose outer loop is not
-  in the ray-parity class — the disc class (every edge an arc of one
-  circle, whose region `boolean::contain`'s `disc_side` decides exactly
-  and tier 3 does not yet reach) and the no-walk class (arc-bearing
-  over fewer than three vertices, whose polygon has zero area). Both
-  are silent rather than answered, because answering from a polygon
-  that is not the region would REFUSE valid bodies. So is a loop the
-  classifier could not read at all. And inside the gate: a ring that
-  CROSSES its outer loop, part in and part out, passes whenever the
-  first vertex the walk decides is an inside one. Filed, with the
+  on a non-planar surface, and any planar face whose outer loop bears
+  an ARC at all — the loop classes `boolean::contain`'s `loop_shape`
+  calls `ArcParity` (arcs over three or more vertices, where the
+  polygon through them is a proper region but not the loop's region:
+  an arc bowing outward leaves region between polygon and boundary),
+  `Disc` (every edge an arc of one circle, whose region `disc_side`
+  decides exactly and tier 3 does not yet reach) and `NoWalk`
+  (arc-bearing over fewer than three vertices, whose polygon has zero
+  area). All three are silent rather than answered, and so is a loop
+  the classifier could not read, because this arm REFUSES a body on an
+  `Out` and answering from a polygon that is not the region would
+  refuse valid ones — measured, on a bored D-rod's transverse cap.
+  `contfp` takes the opposite posture on `ArcParity` because one
+  point's classification is not a refusal. And inside the gate: a ring
+  that CROSSES its outer loop, part in and part out, passes whenever
+  the first vertex the walk decides is an inside one. Filed, with the
   widening that closes the disc third:
   `work/topo/check-9-nesting-is-line-bounded-only.md`.
 

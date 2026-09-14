@@ -2642,8 +2642,8 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///   kinds' orientation half is covered by check 6's curved arm
 ///   (M6-6: boundary material side vs the sense bit), and its NESTING
 ///   half — a ring lying inside the outer loop of its own face — by
-///   check 9's nesting arm, on planar faces whose outer loop is in the
-///   ray-parity class ([`crate::boolean::loop_shape`]). What remains
+///   check 9's nesting arm, on planar faces whose outer loop bears no
+///   arc ([`crate::boolean::loop_shape`]'s `Polygon` class). What remains
 ///   deferred is containment against curved surfaces and the
 ///   region-bounding statement for curved faces and for the planar loop
 ///   classes that arm is silent on — the nesting arm's own residue,
@@ -4620,9 +4620,17 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // than answered a second time in a narrower spelling. Three
     // classes, three postures:
     //
-    // - **`Parity`** — the ray-parity polygon IS this loop's region
-    //   (no arc anywhere), or is a measured-sound stand-in for it
-    //   (arcs over at least three vertices). The arm runs.
+    // - **`Polygon`** — no arc anywhere, so the ray-parity polygon IS
+    //   this loop's region. The arm runs, and only here.
+    // - **`ArcParity`** — arcs over at least three vertices. The
+    //   polygon is a proper region and the walk is measured correct on
+    //   it, but it is not the LOOP's region: an arc bowing outward
+    //   leaves region between the polygon and the boundary, and a
+    //   point there reads `Out` when it is in. `contfp` walks it —
+    //   one point's verdict — and this arm must not, because here an
+    //   `Out` REFUSES a body. Measured, on a bored D-rod's transverse
+    //   cap, whose major arc dips past the chord its vertices span
+    //   and whose bore sits in the lune between the two.
     // - **`Disc`** — every edge an arc of ONE circle, whose region is
     //   that circle's disc. `disc_side` decides the class exactly and
     //   belongs to `boolean::contain`; reaching it from here is a
@@ -4630,8 +4638,12 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     //   (`work/topo/check-9-nesting-is-line-bounded-only.md`).
     // - **`NoWalk`** — arc-bearing over fewer than three vertices,
     //   where the polygon has zero area and the walk answers `Out`
-    //   for every interior point. Silent, in the only safe direction:
-    //   answering would REFUSE valid bodies.
+    //   for every interior point. Silent for the same reason.
+    //
+    // Three silences, one rule: this arm answers only where the
+    // polygon it walks IS the region, because everywhere else an
+    // `Out` it cannot trust would refuse a valid body, and that is
+    // the one direction it must never fail in.
     //
     // A face on a non-planar surface is outside the gate for the
     // neighbouring reason — no plane for the walk to run in — and so
@@ -4940,9 +4952,11 @@ pub(crate) fn ring_outer_contact<T: Decide>(
 /// polygon expresses. That second question is
 /// [`crate::boolean::loop_shape`]'s — the classifier
 /// `boolean::contfp` dispatches its own walks on — so it is asked
-/// there rather than answered again here in a narrower spelling.
-/// `Disc` and `NoWalk` are silent, and so is a loop the classifier
-/// could not read; check 9's banner states what each silence costs.
+/// there rather than answered again here in a narrower spelling. Only
+/// the `Polygon` class — where the polygon IS the region — is
+/// answered; `ArcParity`, `Disc`, `NoWalk` and a loop the classifier
+/// could not read are all silent, and check 9's banner states what
+/// each silence costs.
 fn nesting_normal<T: Decide>(
     body: &Body<T>,
     surface: crate::geometry::SurfaceKey,
@@ -4953,8 +4967,13 @@ fn nesting_normal<T: Decide>(
         return None;
     };
     match crate::boolean::loop_shape(body, outer, band) {
-        Ok(crate::boolean::LoopShape::Parity) => Some(normal),
-        Ok(crate::boolean::LoopShape::Disc(_) | crate::boolean::LoopShape::NoWalk) | Err(_) => None,
+        Ok(crate::boolean::LoopShape::Polygon) => Some(normal),
+        Ok(
+            crate::boolean::LoopShape::ArcParity
+            | crate::boolean::LoopShape::Disc(_)
+            | crate::boolean::LoopShape::NoWalk,
+        )
+        | Err(_) => None,
     }
 }
 
@@ -8205,14 +8224,15 @@ mod tests {
         }
     }
 
-    /// **An arc over three or more vertices is DECIDED**, not gated
-    /// out. The gate is the outer loop's class
-    /// ([`crate::boolean::loop_shape`]) and not a line-carrier census:
-    /// one edge of a four-vertex outer loop re-carried as an arc keeps
-    /// the loop in the parity class, and the arm goes on deciding it
-    /// in both directions.
+    /// **An arc anywhere in the outer loop shuts the gate**, in BOTH
+    /// directions, and the control beside it is what makes the silence
+    /// a measurement. One edge of a four-vertex outer loop re-carried
+    /// as an arc moves the loop from `boolean::loop_shape`'s `Polygon`
+    /// class to its `ArcParity` class, where the polygon the walk
+    /// reads is a proper region but not the LOOP's region — so an
+    /// `Out` from it is not a fact this arm may refuse a body on.
     #[test]
-    fn an_arc_bearing_outer_loop_over_three_vertices_is_decided() {
+    fn an_arc_bearing_outer_loop_is_the_gates_residue() {
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the run's band");
         let p = Point3::new;
@@ -8229,6 +8249,12 @@ mod tests {
             p(4.0, 6.0, 0.0),
         ];
         let (body, face) = lamina_with_ring(&outer, &ring, tol);
+        assert!(
+            check_9_words(&invert_roles(&body, face), band, tol)
+                .iter()
+                .any(|e| matches!(e, ValidationError::RingOutsideOuter { .. })),
+            "the control: the all-line inversion IS refused"
+        );
         for (name, base) in [
             ("nested", body.clone()),
             ("inverted", invert_roles(&body, face)),
@@ -8248,18 +8274,11 @@ mod tests {
                 CurveGeom::Certified(crate::fixtures::test_curve(p(1.0e3, 1.0e3, 1.0e3), tol));
             let f = c.get_face(face).unwrap();
             assert!(
-                nesting_normal(&c, f.surface, f.outer, band).is_some(),
-                "{name}: an arc over four vertices stays in the parity class"
+                nesting_normal(&c, f.surface, f.outer, band).is_none(),
+                "{name}: one arc shuts the gate"
             );
-            let got = check_9_words(&c, band, tol);
-            let refused = got
-                .iter()
-                .any(|e| matches!(e, ValidationError::RingOutsideOuter { .. }));
-            assert_eq!(
-                refused,
-                name == "inverted",
-                "{name}: the arm must decide it; got {got:?}"
-            );
+            let got = nesting_words(&c, band, tol);
+            assert!(got.is_empty(), "arc-bearing {name}: not silent: {got:?}");
         }
     }
 

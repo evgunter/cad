@@ -146,7 +146,9 @@ pub fn contfp<T: Decide>(
     let inside = |lk| -> Result<LoopContainment, ContainError> {
         match loop_shape(body, lk, band)? {
             LoopShape::Disc(disc) => disc_side(disc, q, band),
-            LoopShape::Parity => Ok(point_in_loop(body, lk, normal, q, band)?),
+            LoopShape::Polygon | LoopShape::ArcParity => {
+                Ok(point_in_loop(body, lk, normal, q, band)?)
+            }
             LoopShape::NoWalk => Err(ContainError::ArcLoopUnsupported { r#loop: lk }),
         }
     };
@@ -186,12 +188,25 @@ pub(crate) enum LoopShape<T: geom_core::Real> {
     /// Every edge is an arc of ONE circle: the region is that circle's
     /// disc and [`disc_side`] is exact on it.
     Disc(LoopCircle<T>),
-    /// The ray-parity walk's polygon IS this loop's region, or is a
-    /// sound stand-in for it: no arc anywhere (the polygon is the
-    /// region exactly), or arcs over at least three vertices, where
-    /// the polygon is a proper region and the walk has been measured
-    /// correct (a slot, a rounded rectangle).
-    Parity,
+    /// No arc anywhere: the ray-parity walk's polygon IS this loop's
+    /// region, exactly.
+    Polygon,
+    /// Arc-bearing over at least three vertices: the polygon through
+    /// them is a proper region and the parity walk has been measured
+    /// correct on it at the shapes reviewed (a slot, a rounded
+    /// rectangle) — but it is NOT this loop's region, and saying so is
+    /// this variant's whole job. An arc bowing OUTWARD leaves region
+    /// between the polygon and the boundary, and a point there reads
+    /// `Out` when it is in: measured on a bored D-rod's transverse
+    /// cap, whose major arc dips past the chord its vertices span and
+    /// whose bore sits in the lune between them.
+    ///
+    /// [`contfp`] walks it anyway — one point's verdict, the posture
+    /// it has always taken, with #1076 owning the general case. A
+    /// consumer that would REFUSE a body on an `Out` must not: tier
+    /// 3's check 9 gates its nesting arm on [`Self::Polygon`] alone
+    /// for exactly that reason.
+    ArcParity,
     /// **No walk expresses this region.** Arc-bearing over fewer than
     /// three vertices: the polygon through them is a segment of ZERO
     /// AREA, so the parity walk answers `Out` for every interior
@@ -230,13 +245,16 @@ pub(crate) struct LoopCircle<T: geom_core::Real> {
 ///   region is that circle's disc exactly; [`disc_side`] decides it.
 ///   The planar analog of the curved door's iso-bounded class
 ///   ([`curved_face_containment`]).
-/// - **[`LoopShape::Parity`]** — no arc at all (the polygon IS the
-///   region), or arcs over ≥ 3 vertices, where the polygon is a proper
-///   region and the walk is measured correct at the shapes reviewed (a
-///   slot, a rounded rectangle). Unproven in general: an arc bowing
-///   outward puts region between the polygon and the boundary, and
-///   only the ≥ 3-vertex shapes actually measured are relied on here
-///   (#1076 owns the general case).
+/// - **[`LoopShape::Polygon`]** — no arc at all: the polygon IS the
+///   region.
+/// - **[`LoopShape::ArcParity`]** — arcs over ≥ 3 vertices, where the
+///   polygon is a proper region and the walk is measured correct at
+///   the shapes reviewed (a slot, a rounded rectangle). Unproven in
+///   general: an arc bowing outward puts region between the polygon
+///   and the boundary (#1076 owns the general case). Separated from
+///   [`LoopShape::Polygon`] because that gap is a different answer for
+///   a consumer that refuses on `Out` than for one that classifies a
+///   point.
 /// - **[`LoopShape::NoWalk`]** — arc-bearing over < 3 vertices, where
 ///   the polygon has zero area and the answer is demonstrably wrong.
 ///
@@ -332,7 +350,8 @@ pub(crate) fn loop_shape<T: Decide>(
     Ok(match (one_circle, circle) {
         (true, Some(c)) => LoopShape::Disc(c),
         _ if bears_arc && vertices < 3 => LoopShape::NoWalk,
-        _ => LoopShape::Parity,
+        _ if bears_arc => LoopShape::ArcParity,
+        _ => LoopShape::Polygon,
     })
 }
 
@@ -1020,7 +1039,7 @@ mod tests {
                 assert!(
                     matches!(
                         loop_shape(&body, lk, band).expect("the box walks"),
-                        LoopShape::Parity
+                        LoopShape::Polygon
                     ),
                     "a straight-edged loop bounds no disc and needs no gate"
                 );
