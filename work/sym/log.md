@@ -138,3 +138,93 @@ with the first dual unit, whose pre-draw fields go in
 `docs/MODEL-AB-LOG.md` before the draw. Lane commits carry no model
 trailer regardless, so the convention is uniform when a blinded unit
 follows.
+
+## SYM-2 merged (2026-09-14): the tier's file split
+
+PR #2532, fix-pass head `b73b289a2`, hosted run 34806691533 green on
+the full matrix; one style review outside the experiment (no row), its
+delta round confirming every fix item by execution. `sym.rs` 4,478 →
+3,540 lines (header 491 → 457); `sym/rational.rs` 532 (the coefficient
+tower, its own argument for the bound) and `sym/form.rs` 417 (the
+polynomial and the quotient form, its own limits); six archaeology cuts
+from the header and two twin arguments collapsed to one home each; the
+readings that argued for `COEFF_BITS` read as readings again. The
+review's one MINOR was a cut that changed tense into a present claim
+nothing pins; taken. **Filed, not fixed** (the unit edits no sentence's
+technical content): `sym-header-says-every-freeze-is-counted`,
+`sym-header-dag-paragraph-disagrees-with-the-code`,
+`sym-header-claims-outrun-the-code` (three more header sentences the
+code has outgrown — D9's "every insertion order" against the opaque
+sequence; the two-clause `Zero` against `Registered`/`SignGated`; the
+constructor census against `sweep::extrude`'s arc wall, whose route
+through the wrapper the allowlist gate does not see) and
+`sym-item-docs-carry-unit-archaeology` (the §4 sweep the header pass was
+fenced out of). **Not landed**: the reviewer's cheap fourth cut — the
+test module out, 1,045 lines — trips `register-equal-allowlist.sh`,
+which exempts `sym.rs` whole as a definition home and so hides the
+tier's thirteen test calls of the door; the lane reverted rather than
+edit `guard`'s gate and filed
+`work/guard/register-equal-allowlist-exempts-a-whole-file-and-hides-test-calls`
+(the reviewer's view, recorded for `guard`: a `#[cfg(test)]`-aware read
+rather than a `TEST_HOMES` list, since the same whole-file skip hides
+new calls in the other four definition homes too). `dag.rs` deferred
+with two conditions on the item. The item stays open on both cuts.
+Lane commits carried no trailer; the orchestrator's state-sync rides
+the PR last.
+
+
+## SYM-1 merged (2026-09-14): the profile inside the normal form
+
+PR #2530, landing head `9153d39be` (fix-pass head `55b8857f5` merged
+with SYM-2's split, every hook re-sited verbatim and read by the
+reviewer), hosted run 34808710532 green on the full matrix; one review
+outside the experiment (no row), its delta confirming every fix item by
+execution and its numbers reproduced on a second box to the digit.
+
+**What the tier costs, measured** (release, instruction share of one
+nominal replay; the record is the item's `## The profile (SYM-1)`):
+on the M10-3 slab term storage — the allocator, the `BTreeMap` per
+form, a heap `Vec` per monomial — is 57 %, the walk and the DAG build
+19 %, the coefficient ring 10 % (`BigInt` 1.3 %), and NOTHING freezes
+at any of the drive's 2,559 leaves: the slab's cost is volume (10,604
+plain forms per leaf for 1,490 decisions, the same 12,208-node DAG
+interned afresh per leaf) times a fixed cost per tiny form (mean 1.5
+terms). On the plate storage is the same 57 %, the ring 27 %, and 1,032
+of 1,312 freezes are on DEGREE inside the per-node A/B reduction (53 %
+of the plate's instructions) — the derived-frame mechanism, visible
+there and absent on the slab. The term budget is never the wall (max 90
+terms against 4,096); `drive.rs`'s note is confirmed by count.
+
+**The review's MAJOR, by execution, and what it changed.** The
+`Decide` impl runs `discharge` inside a `debug_assert!` on every
+DEFINITE margin, and the workspace keeps debug assertions on in
+release, so the profile had charged the assertion's work to the tier:
+the instrument now splits every walk by origin (decision / assertion /
+report) and the record reads against the split — on the slab the
+assertion is a tenth of the plain forms and 95 % of the early-walk
+forms (43 of 162 walk-seconds over the drive), on the plate a third of
+the freezes (488 of 1,312). The header sentence claiming the tier skips
+definite margins was false in every profile this workspace builds; it
+now says what holds. The assertion is on the proposal list as a
+next-unit input with its numbers and the design question it raises (a
+soundness cross-check that is a second walk).
+
+**The four proposals** (inputs, not designs): a small-vector
+polynomial (bounded by the 57 %); a drive-scoped plain memo (the plain
+form is a function of the content hash — a session-model change, with
+its three side effects named: atoms registered in `combine`, `frozen`
+incremented inside the walk, the opaque sequence load-bearing across
+leaves); a cheaper `Rat::from_parts` normalisation on the dyadic shape
+and a cached degree; and the assertion. The cost-fix unit is cut from
+these and is this program's first dual.
+
+**Two things the reviews caught that the lane had not**: its own
+freeze rows had asked DEFINITE margins, so their freezes were the
+assertion's — the instrument's first catch, rewritten to numerically
+zero margins; and the CI red on its own new code (a report type's
+`Display` rendering struct payloads through `Debug`, which the pncad-py
+prose census rejects; now a `render()`), which the lane did not see
+because the outage killed it between opening the PR and reading the
+run. `symbolic-tier-costs-95-percent-of-the-m10-3-drive` stays open on
+ask 3 (the change), carried by the next unit. Lane commits carried no
+trailer; the orchestrator's state-sync rides the PR last.

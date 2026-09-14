@@ -2570,3 +2570,34 @@ it (PROPS's row). The rule above; the unit's record is its row in
 `MODEL-AB-LOG.md` and its MERGED entry in `work/docm/log.md`.
 
 - `DOCM-9-SPEC.md` — DOCM-9, the certified locally-valid range query (#2534)
+
+## Per-merge deletion — SYM-2's spec (2026-09-14)
+
+Recoverable at `git show b73b289a2c01677b2a328899fc1ce8336e023778:docs/SYM-2-SPEC.md`
+(the fix-pass head). One of its three moves did not land: the header's
+"What remains outside the PLAIN form" paragraph was named as `form.rs`'s
+whole, and half of it binds the rules (`algebra`, `trig`, `signed`,
+`SymRules`), so that half went back to `sym.rs` in the fix pass. The
+reviewer's proposed fourth move (the 1,045-line test module out) was
+attempted and reverted: `scripts/gates/register-equal-allowlist.sh`
+exempts `sym.rs` whole and hides the tier's thirteen test calls of the
+door, filed on `guard`'s slate. Recorded in the PR body and the unit's
+log entry.
+
+- `SYM-2-SPEC.md` — SYM-2, the tier's file split: the coefficient tower and the polynomial out of `sym.rs`, the header distributed with them (#2532)
+
+
+## Per-merge deletion — SYM-1's spec (2026-09-14)
+
+Recoverable at `git show 9153d39be:docs/SYM-1-SPEC.md` (the landing
+head). Two of its sentences did not survive the measurement: the
+feature it named `sym-profile` is `sym-profile-testing` (the
+`test-features-dev-only.sh` gate recognises only that suffix), and its
+premise that the tier "skips where the numeric channel already
+answers" was false in every profile this workspace builds — the
+`Decide` impl's `debug_assert!` runs the discharge on every definite
+margin, which the review found by execution and the unit's instrument
+now tells apart from the decision path's walks. Recorded in the PR body
+and the unit's log entry.
+
+- `SYM-1-SPEC.md` — SYM-1, the profile inside the normal form (#2530)
