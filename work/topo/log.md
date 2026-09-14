@@ -1452,3 +1452,23 @@ and on step 3, which had no row: filed on this slate as
 source beside `GeomSource`, TOPO's ground per the cut). Not yet cut
 into a block; the program decides its slot when it takes it. Both
 changes ride the row-2710 PR.
+
+## Slot 2 delivered (PR 2587); dual dispatched, ordinal 2711 (2026-09-14)
+
+The slot 2 lane delivered `edge-carrier-kind-has-no-readback-door` on
+head `36d4b9e76`, run 34853345271 green. Phase 1: one walk
+(`readback::certified_carrier`) shared by `edge_pose` and the new
+`readback::edge_carrier_kind`; `CurveKind` stays in `query.rs` on the
+ground that `crates/verbs/README.md` §1 S1 is ratified text (the
+reviewers are asked to run CLAUDE.md's `git log -S` check on that
+claim); the chain stops before Python, with the twin filed on LIB's
+slate and a `B-EDGE-KIND` gap family added to the binding census.
+Two rows filed (LIB: the Python twin; TOPO: the program's `keep_out`
+names SEAT, which left the tracker). Ordinal **2711** claimed on main
+(PR opened from `topo/claim-2711`); parity byte 127 ⇒ R1 FABLE, R2
+OPUS; briefs stored with sha256 (template c8a19edc…, R1 1b741b52…, R2
+da904e08…; diff 4 lines); both reviewers dispatched concurrently on
+the frozen head. The correctness lane leans on the fresh-instance
+check (any other edge → carrier walk left outside the one door), the
+ratification claim, the census gap family's honesty, and the
+delegation witness the query seat's own rows cannot give.
