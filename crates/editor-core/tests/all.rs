@@ -523,3 +523,5 @@ mod wire_frame_placement_carry;
 mod wire_operand_door;
 #[path = "wire_product_gather_tie.rs"]
 mod wire_product_gather_tie;
+#[path = "sym5_r2_probes_interval.rs"]
+mod sym5_r2_probes_interval;
