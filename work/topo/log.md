@@ -925,3 +925,16 @@ the only origin of a plane-face row. Five-item fix pass to a fresh
 lane on the inherited branch: one `map_points`-shaped door for the
 image map, `shift_branch` swept onto it, the variants deleted, both
 reviewers' rows adopted, fixtures shared.
+
+## Revert merged; block TOPO-B2 concluded (2026-09-14)
+
+PR 2542 merged at `7aaeb095d` (green run 34803151950 on `8e4d5a4e9`,
+full matrix, verified job by job). The unit closed; row recorded at
+merge (ordinal 2705, sample #188), no tally candidate; slot 2 marked
+concluded on `topo/b2-block` and in the published record. The fix
+pass's one disagreement was right: the affine door takes the
+point-action and the linear part as two closures because deriving one
+from the other is not bit-exact under translation — `shift_branch`'s
+pin would have moved. Block TOPO-B2 closes with three duals and no
+tally candidate; every pre-draw field was logged before the byte. No
+lane is running. The next kernel-answer unit draws TOPO-B3.
