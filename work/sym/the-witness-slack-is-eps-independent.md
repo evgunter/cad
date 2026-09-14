@@ -4,7 +4,10 @@ kind: issue
 title: the door's f64 witness is a relative constant, not the run's eps: at a tight eps row it is many band-widths loose
 status: open
 opened: 2026-09-06
-needs_ev: true
+<<<<<<< HEAD
+=======
+parent: SYM-6
+>>>>>>> origin/main
 ---
 
 **Raised in review of M10-9** (R1, on the registered-identity door),
@@ -121,3 +124,8 @@ counted) plus a document-scale row asserting the count is zero on the
 M10 fixtures — the row's own suggestion — and close that row on it.
 The alternative, a third arm keyed on the witness's scale, is a second
 tolerance and is not recommended.
+
+## Ev's answer (2026-09-14): route (1)
+
+"definitely (1)" on #2552. Taken as SYM-6 (`docs/SYM-6-SPEC.md`,
+block SYM-B1 slot 2); this row closes at its merge.

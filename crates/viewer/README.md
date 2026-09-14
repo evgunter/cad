@@ -603,7 +603,7 @@ neither.
 
 | Module | Holds |
 |---|---|
-| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `PathVerb`, `ArcMode`, `DatumKind`, `ShapeKind`, `PatternKindChoice`, `MATE_PRIMITIVES` — mirror a kernel or sketch enum, and the MIRROR is what is hand-maintained: the five enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum, while `MATE_PRIMITIVES` mirrors an enum in another crate deliberately partially and says so. A kernel vocabulary this crate offers WHOLE is not mirrored at all: the boolean form draws one button per entry of `topo::BooleanOp::ALL` and writes only the labels, at an exhaustive match. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
+| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `PathVerb`, `ArcMode`, `DatumKindChoice`, `ShapeKind`, `PatternKindChoice`, `MATE_PRIMITIVES` — mirror a kernel or sketch enum, and the MIRROR is what is hand-maintained: the five enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum, while `MATE_PRIMITIVES` mirrors an enum in another crate deliberately partially and says so. A kernel vocabulary this crate offers WHOLE is not mirrored at all: the boolean form draws one button per entry of `topo::BooleanOp::ALL` and writes only the labels, at an exhaustive match. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
 | `drafts` | `Drafts` and `CommitFault`: the in-flight form state, its defaults, and its lowering of typed field values to `Expr` and `LoopProgram` — the same layer as `session::author`, and today the larger half of it |
 | `frame` | The per-frame policies the viewport runs, as values: what the chrome has to say and which of its two channels says it (`Subject`, `Message`, `StatusUpdate`, `Badge`, the doors that build them, and the two that spend them — `apply` for a ranked verdict or a retirement, `deliver` for a policy that may or may not have news), what the id pass is asked this frame, and what the environment offers (`ChooserBackend`, the XDG preferences path, the WSL probe). The charter is that the frame loop still decides WHEN to call one and no longer decides what it MEANS — which argues for taking each out of `app` and **not** for their being one module. A new concern is written against this row; that the row cannot honestly cover the ones already here is `work/view/frame-module-has-eight-concerns-and-no-holds-row.md`, which owns the split |
 
@@ -1323,6 +1323,23 @@ rather than an exception:
   two of five `Subject`s, each tool's seat list names its own seats,
   and `MATE_PRIMITIVES` offers three of four mate primitives because
   the fourth exists to be refused. Each says why in its own doc.
+
+**A partial MIRROR is told when the enum it mirrors grows**, which is
+the weaker thing that is true of it and the whole of what a mechanism
+may force here. `src/vocab.rs`'s `partial_mirror!` holds a roster
+classifying every variant of the mirrored enum as offered or as
+deliberately absent WITH ITS REASON, over a match with no wildcard: a
+variant added to that enum is neither until someone writes one of the
+two, and the build says so. Three sites take it — `MATE_PRIMITIVES`
+over `MatePrimitive`, `SUBJECTS_WITH_AN_EXPIRY_ISSUER` over `Subject`,
+and `forms::DatumKindChoice` over `session::DatumSpec` — in two shapes,
+because what a site OFFERS decides whether a seat of it can drift: a
+hand-written list gets a per-seat assertion and a count check, while an
+enum whose `ALL` is projected has no second copy of its membership to
+hold, so its roster names a counterpart instead. A tool's seat list
+takes neither and is not a mirror: it SPECIFIES that tool rather than
+tracking `Seat`'s membership, so a new seat no tool asked for is
+absent from it correctly.
 
 A list that mirrors a vocabulary ANOTHER crate owns is not a third
 kind, and the boolean form is why: **a mirror claiming completeness is

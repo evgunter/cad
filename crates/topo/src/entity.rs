@@ -328,14 +328,27 @@ pub enum LoopBoundary {
         /// The lone vertex this loop consists of.
         vertex: VertexKey,
     },
-    /// A circular cycle of half-edges, entered at an arbitrary
-    /// representative. The full cycle is reached by following
-    /// [`HalfEdge::next`]; the validator checks that the walk closes and
-    /// that every member points back via
-    /// [`HalfEdge::parent_loop`].
+    /// A circular cycle of half-edges, entered at a representative. The
+    /// full cycle is reached by following [`HalfEdge::next`]; the
+    /// validator checks that the walk closes and that every member
+    /// points back via [`HalfEdge::parent_loop`].
     Cycle {
-        /// A representative half-edge of the cycle (which one is
-        /// arbitrary and carries no meaning).
+        /// The cycle's anchor: the half-edge every walk of the cycle
+        /// starts at. Any member closes the cycle, and tier 1 asks
+        /// nothing more of it — but on a loop whose face carries
+        /// stored pcurve rows on a periodic chart the anchor is
+        /// load-bearing: the one-branch loop walk
+        /// (`crate::pcurves`, "The one-branch walk") pins every joint
+        /// of the cycle to its predecessor's exit, so a one-period
+        /// wrap of the chart's azimuth can be REPORTED only at the
+        /// closure — the joint between the cycle's last half-edge and
+        /// this one — and the stored rows are continuous in the
+        /// walk's order from here. A producer that reverses a cycle
+        /// therefore moves `first` to its source predecessor
+        /// (`crate::Body::revert`), which keeps that joint the
+        /// closure; a producer that re-anchors a minted loop anywhere
+        /// else owes a re-mint of its rows (the `Transfers` posture in
+        /// `crate::pcurves`).
         first: HalfEdgeKey,
     },
 }

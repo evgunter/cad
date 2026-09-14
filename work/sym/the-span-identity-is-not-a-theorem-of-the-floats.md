@@ -91,3 +91,20 @@ Asked with `the-witness-slack-is-eps-independent`'s D2 on the same
 this scale". The orchestrator's recommendation is one arm, the receipt
 as the loud channel, and a fixture-scale zero-refusals row closing this
 row.
+
+## Ev's question and the refined proposal (2026-09-14)
+
+Ev: the two cases (the claim is false / the arithmetic could not tell
+at this scale) seem important to distinguish. The orchestrator's reply
+on #2552: not by the GAP — at the torus the sides are many ULPs apart,
+so a scale-keyed arm is a second tolerance that misfiles its own case —
+but by the KIND of witness. `Interval`'s witness is exact (disjoint
+certified brackets prove the two reals differ); `f64`'s and `Probe`'s
+is a slack comparison that cannot say. Refined proposal, recommended:
+`Contradicted` reserved for an exact witness (a proof; a registrant
+may assert on it, so M10-9's removed assertions return soundly in the
+lane that decides), and a new arm for an inexact refusal (counted in
+the receipt, never asserted). Plus the fixture-scale row asserting
+zero `Contradicted` on the M10 documents in the `Interval` lane, which
+closes this row. Lands as SYM-6's Phase 3 (A2) or a follow-on unit on
+Ev's pick. `needs_ev` stays until then.

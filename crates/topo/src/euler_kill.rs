@@ -99,9 +99,9 @@
 //!   `MevSite::Lone`.
 //! - The mirror adjacency (`next(m) = he`) is `v`-valence-1: `v`'s only
 //!   edge was the killed one and the whole fan migrates to it. Handled
-//!   by the same unsplice, not a separate surgery case — but note it is
-//!   the one `kev` site that undoes no single `mev` (see the re-make
-//!   taxonomy below).
+//!   by the same unsplice, not a separate surgery case — and, like
+//!   every other `kev` that merges a fan, it undoes no single `mev`
+//!   (see the re-make taxonomy below).
 //!
 //! Re-anchoring rules (unconditional): the loop of `he` re-anchors at
 //! the first survivor after `he` in `next` order (`next(he)`, or
@@ -216,18 +216,20 @@
 //! and in the kill∘make direction the re-make sites are derived from the
 //! pre-kill neighborhood (`kev` ↔ `mev(Fan{next(he), next(mate(he))})`
 //! etc., tol). The make∘kill direction is exact for every site; the
-//! kill∘make direction is exact for every site EXCEPT two subcases with
-//! no single-op re-make (the roundtrip property tests skip exactly
-//! these — precise statement and proof sketch in the seqgen
-//! test-support module):
+//! kill∘make direction is exact for every site EXCEPT the subcases
+//! below, which have no single-op re-make (the roundtrip property
+//! tests skip exactly these — precise statement and proof sketch in
+//! the seqgen test-support module):
 //!
-//! - `kev` from the valence-1 side of an edge whose far vertex carries
-//!   a fan (the mirror adjacency): the full-fan `mev` run is
-//!   inexpressible under the ratified empty-run convention, and the
-//!   strut re-make puts the fan at the wrong coordinates (given
-//!   distinct vertex coordinates — coordinate-coincident endpoints
+//! - `kev` wherever the far vertex carries a fan, the mirror adjacency
+//!   and the general merge alike. The mirror's full-fan `mev` run is
+//!   inexpressible under the ratified empty-run convention and its
+//!   strut re-make puts the fan at the wrong coordinates; the general
+//!   merge's re-make is a fan `mev` that would have to start the
+//!   merged members at a vertex their chords do not run to, which
+//!   `mev`'s re-basing gate refuses. (Coordinate-coincident endpoints
 //!   would collapse the distinction, inside the oracle's documented
-//!   twin blind spot).
+//!   twin blind spot.)
 //! - `kef` mate-alone where the surviving singleton loop is a ring or
 //!   its face carries rings (see the degenerate-case list above); the
 //!   bare-outer subcase IS one-op re-makeable and is exercised, not
@@ -523,18 +525,24 @@ impl<T: Decide> Body<T> {
     /// `None` (segment kill — the loop is [`LoopBoundary::Empty`] at the
     /// survivor again).
     ///
-    /// **The merged fan's carriers are NOT re-described.** The far
-    /// vertex's surviving edges are re-based onto `start(he)` and each
-    /// keeps the curve it was certified with against the dead vertex's
-    /// point. If the two points differ, every merged edge is left
-    /// describing a locus that no longer ends where the edge does:
-    /// tier 1 does not constrain it and no operator re-checks it,
-    /// tier 3 reports it at rest, and the next `split_edge` or
-    /// `set_edge_curve` on such an edge refuses typed. **Re-describe
-    /// the merged fan** (via [`Body::set_edge_curve`]) whenever the two
-    /// points differ. This is the exact inverse of [`Body::mev`]'s fan
-    /// note, and the same posture as
-    /// [`Body::set_face_surface`]'s.
+    /// **The merged fan's carriers are left certified against the dead
+    /// vertex.** The far vertex's surviving edges are re-based onto
+    /// `start(he)` and each keeps the curve it was certified with,
+    /// which pins `carrier(t₀)` (or `carrier(t₁)`) to the point that
+    /// died; where the two vertices' points differ, every merged edge
+    /// describes a locus that no longer ends where the edge does.
+    ///
+    /// Nothing enforces a re-description. Tier 1 does not constrain
+    /// it, this operator does not check it, and no later operator
+    /// repairs it: tier 3 reports it at rest, and `split_edge` and
+    /// [`Body::set_edge_curve`] refuse typed on such an edge.
+    /// [`Body::mev`]'s fan site refuses exactly this state; this door
+    /// does not, and the asymmetry is measured rather than chosen —
+    /// the fan merge's live callers kill MID-SURGERY, so a
+    /// precondition here would refuse a promise that does not exist
+    /// yet at the call. The measurement, the landing shapes and the
+    /// decision are
+    /// `work/topo/kevs-fan-merge-needs-a-re-describing-kill-door.md`.
     ///
     /// # Precondition check order
     ///
@@ -1003,6 +1011,16 @@ impl<T: Decide> Body<T> {
     /// yields an **empty-outer face** — the `mvfs`-face shape, now
     /// operator-reachable inside a larger body.
     ///
+    /// **Pcurve rows** ([`crate::pcurves`]): the promoted ring's stored
+    /// rows are a curve stated in the DEMOTING face's chart.
+    /// [`FaceSurface::Inherit`] — and a [`FaceSurface::Shared`] naming
+    /// that same key, or one the body records as the same description
+    /// ([`Body::same_chart`]) — keeps them, since the chart does not
+    /// move; any other surface DROPS them, for the reasons and with
+    /// the consequences [`Body::drop_rows_on_chart_change`] states. A
+    /// new face's rows are the caller's to mint either way
+    /// ([`crate::pcurves::mint_pcurves`]).
+    ///
     /// Euler vector: `(v 0, e 0, f +1, h −1, r −1, s 0)` — arena delta
     /// +1 face (the "−1 ring" is the surviving loop's promotion, not a
     /// kill; genus is derived, not stored).
@@ -1073,6 +1091,7 @@ impl<T: Decide> Body<T> {
             unreachable!("mfkrh: the ring resolved in the plan phase")
         };
         loop_data.face = face;
+        self.drop_rows_on_chart_change(ring, inherit_surface, surface);
         let Some(shell_data) = self.get_shell_mut(shell) else {
             unreachable!("mfkrh: the shell resolved in the plan phase")
         };
@@ -1096,6 +1115,15 @@ impl<T: Decide> Body<T> {
     /// [`Body::set_face_surface`] before rest). Mirrors the M1
     /// fresh-surface semantics for the migrated suites and for
     /// promotions whose real surface is not yet known.
+    ///
+    /// **Pcurve rows**: the promoted ring arrives rowless whenever it
+    /// brought rows. A placeholder is not a described surface at all,
+    /// so it is not the chart any row was stated in and cannot be —
+    /// the drop here is decided by KIND, not by whether the door
+    /// minted a fresh key, and a `Shared` placeholder would read the
+    /// same way. [`Body::drop_rows_on_chart_change`] carries the rest;
+    /// the promoted face's rows are the caller's to mint once it gives
+    /// the face a real surface.
     ///
     /// # Errors
     ///
@@ -1477,16 +1505,22 @@ mod tests {
         // back to v, and the orbit must be the original four spokes.
         let (mut body, seed, [a, b, c, d]) = four_spoke_star();
         let before = canonical_form(&body);
-        let split = body
-            .mev_line(
-                MevSite::Fan {
-                    he1: b.he_plus,
-                    he2: d.he_plus,
-                },
-                p(5.0),
-                Tol::witness(),
-            )
-            .unwrap();
+        let site = MevSite::Fan {
+            he1: b.he_plus,
+            he2: d.he_plus,
+        };
+        // The certified door first, as the `mev` pins do: at p(5.0) it
+        // refuses to move a spoke onto a vertex its chord does not run
+        // to (`euler`'s re-basing gate). So the split runs through the
+        // coincident door, and the body this row kills on carries a
+        // NULL edge — tier-1 valid, and tier 2 refuses it at rest
+        // ([`crate::ValidationError::NullEdgeAtRest`]). The merge back
+        // is this test's subject, not the split.
+        assert!(matches!(
+            body.clone().mev_line(site, p(5.0), Tol::witness()),
+            Err(EulerOpError::RebasedCarrier { edge, .. }) if edge == b.edge
+        ));
+        let split = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
         let result = body.kev(split.he_plus).unwrap();
         assert_eq!(validate(&body), Ok(()));
 
@@ -1532,16 +1566,19 @@ mod tests {
             )
             .unwrap();
         let before = canonical_form(&body);
-        let fan = body
-            .mev_line(
-                MevSite::Fan {
-                    he1: seg.he_plus,
-                    he2: split.he_plus,
-                },
-                p(2.0),
-                Tol::witness(),
-            )
-            .unwrap();
+        let site = MevSite::Fan {
+            he1: seg.he_plus,
+            he2: split.he_plus,
+        };
+        // The certified door first, as in the valence-4 row: p(2.0) is
+        // a vertex `seg`'s chord does not run to, so the splice is
+        // pinned through the coincident door and the killed-on body
+        // carries a null edge (tier-1 valid, tier-2 refused at rest).
+        assert!(matches!(
+            body.clone().mev_line(site, p(2.0), Tol::witness()),
+            Err(EulerOpError::RebasedCarrier { edge, .. }) if edge == seg.edge
+        ));
+        let fan = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
         // The new halves landed in different loops (pinned by PR 2's
         // test); now undo.
         let result = body.kev(fan.he_plus).unwrap();
@@ -1560,8 +1597,12 @@ mod tests {
         // kev from the tip side: he = strut.he_minus starts at the
         // valence-1 tip and points at the fan-carrying vertex. The fan
         // migrates to the tip. (Documented asymmetry: THIS kill has no
-        // single-mev re-make — the full-fan run is mev-inexpressible —
-        // but the result must still be tier-1 valid.)
+        // single-op re-make — the re-making mev would have to start
+        // the migrated fan at a vertex its chords do not run to, which
+        // `mev`'s re-basing gate refuses — but the result must still be
+        // tier-1 valid. That the migrated chords now miss their own
+        // endpoint is this door's open residue,
+        // `work/topo/kevs-fan-merge-needs-a-re-describing-kill-door.md`.)
         let (mut body, seed, seg, strut) = strutted();
         let result = body.kev(strut.he_minus).unwrap();
         assert_eq!(validate(&body), Ok(()));
@@ -1579,6 +1620,35 @@ mod tests {
         // The segment now runs seed.vertex → strut.vertex.
         assert_eq!(body.get_half_edge(seg.he_plus).unwrap().start, seed.vertex);
         assert_eq!(body.half_edge_end(seg.he_plus), Some(strut.vertex));
+    }
+
+    #[test]
+    fn the_merged_fan_keeps_a_carrier_its_endpoint_left_and_split_edge_refuses_on_it() {
+        // The symptom, still live on the kill side
+        // (`work/topo/kevs-fan-merge-needs-a-re-describing-kill-door.md`),
+        // and the state `mev`'s fan site used to produce and now
+        // refuses. After the mirror merge, `seg` runs to the strut tip
+        // while its chord still runs to the dead vertex's point, so
+        // `split_edge` — which certifies both children against the
+        // CURRENT endpoints — refuses on it. This is what `seqgen`'s
+        // split filter routes around, and what a re-describing kill
+        // door would close.
+        let (mut body, _seed, seg, strut) = strutted();
+        body.kev(strut.he_minus).unwrap();
+        let curve = body.get_edge(seg.edge).unwrap().curve;
+        let (t0, t1) = body
+            .get_curve_geom(curve)
+            .unwrap()
+            .certified()
+            .unwrap()
+            .params();
+        let err = body
+            .split_edge(seg.edge, 0.5f64.mul_add(t1 - t0, t0), Tol::witness())
+            .unwrap_err();
+        assert!(
+            matches!(err, EulerOpError::Certification { .. }),
+            "the merged edge's own carrier misses its endpoint: {err:?}"
+        );
     }
 
     #[test]

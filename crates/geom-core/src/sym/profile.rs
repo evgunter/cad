@@ -30,7 +30,7 @@ use std::time::{Duration, Instant};
 
 use super::form::Form;
 use super::report::{FormSize, size_of};
-use super::{SymBudget, SymOp};
+use super::{Hash128, SymBudget, SymOp};
 
 /// Why a node froze — the refusal the ring or the budget made, noted
 /// where it was made.
@@ -165,6 +165,14 @@ pub struct WalkProfile {
     /// — dropping the memos and the table — is outside every walk and
     /// no clock here sees it.
     pub time: Duration,
+    /// **The forms themselves, folded**: every form the walk put in its
+    /// memo under this origin, in build order, each by its canonical
+    /// digest ([`Form::digest`] — the key an atom over it is minted
+    /// under), chained through one hash. Two profiles agree here iff
+    /// the walk built the same forms in the same order, to the
+    /// coefficient and the term order, so a change to what a form IS
+    /// in memory that moved what it SAYS reads as a different number.
+    pub digest: u128,
 }
 
 impl WalkProfile {
@@ -173,7 +181,13 @@ impl WalkProfile {
         self.forms += o.forms;
         self.frozen += o.frozen;
         self.time += o.time;
+        self.digest = chain(self.digest, o.digest);
     }
+}
+
+/// One more link in a digest chain.
+fn chain(acc: u128, next: u128) -> u128 {
+    Hash128::new().wide(acc).wide(next).finish()
 }
 
 /// A timed counter: calls and wall time.
@@ -293,7 +307,7 @@ pub(super) fn note_within(budget: SymBudget, f: &Form) {
     if !active() {
         return;
     }
-    let terms = f.num.terms.len() > budget.max_terms || f.den.terms.len() > budget.max_terms;
+    let terms = f.num.terms().len() > budget.max_terms || f.den.terms().len() > budget.max_terms;
     NOTE.set(Some(if terms {
         FreezeCause::Terms
     } else {
@@ -351,6 +365,7 @@ pub(super) fn record_node(op: SymOp, walk: Walk, kids: [&Form; 2], made: Option<
         match made {
             Some(f) => {
                 let s = size_of(f);
+                w.digest = chain(w.digest, f.digest());
                 o.built += 1;
                 o.terms_out += terms(s);
                 o.degree_out += u64::from(degree(s));
@@ -541,6 +556,25 @@ impl SymProfile {
         out
     }
 
+    /// **The walk ledger**: one line per walk and origin — calls, forms,
+    /// frozen, and the digest chain of the forms built — with no clock
+    /// on it, so it is the same text on every box and a row can pin
+    /// it. `frozen` and the digest are both of the plain walk's forms
+    /// whoever asked; the pin reads the whole table.
+    #[must_use]
+    pub fn walk_ledger(&self) -> String {
+        use core::fmt::Write as _;
+        let mut f = String::new();
+        for ((w, o), p) in &self.walks {
+            let _ = writeln!(
+                f,
+                "{w:?}/{o:?} calls {} forms {} frozen {} digest {:032x}",
+                p.calls, p.forms, p.frozen, p.digest
+            );
+        }
+        f
+    }
+
     /// The tables, as text: totals; each walk by origin; the early
     /// walk's inner clocks; the ring; per op; freezes by cause and op.
     #[must_use]
@@ -556,17 +590,21 @@ impl SymProfile {
             self.frozen(),
             self.unnoted()
         );
-        let _ = writeln!(f, "walk   | origin     | calls | forms | frozen | time");
+        let _ = writeln!(
+            f,
+            "walk   | origin     | calls | forms | frozen | time | digest"
+        );
         for ((w, o), p) in &self.walks {
             let _ = writeln!(
                 f,
-                "{:6} | {:10} | {:5} | {:5} | {:6} | {:?}",
+                "{:6} | {:10} | {:5} | {:5} | {:6} | {:?} | {:032x}",
                 format!("{w:?}"),
                 format!("{o:?}"),
                 p.calls,
                 p.forms,
                 p.frozen,
-                p.time
+                p.time,
+                p.digest
             );
         }
         let _ = writeln!(

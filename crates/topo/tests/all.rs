@@ -66,6 +66,8 @@ mod crosslap_rest;
 mod cube_by_hand;
 #[path = "display_contract.rs"]
 mod display_contract;
+#[path = "geom_origin_rows.rs"]
+mod geom_origin_rows;
 #[path = "geometric_cube.rs"]
 mod geometric_cube;
 #[path = "graft_disjoint.rs"]
@@ -78,6 +80,8 @@ mod interval_body;
 mod issue86_double_subtract;
 #[path = "issue93_nested_islands.rs"]
 mod issue93_nested_islands;
+#[path = "loop_reparenting_pcurve_rows.rs"]
+mod loop_reparenting_pcurve_rows;
 #[path = "m3_pr1_surgery.rs"]
 mod m3_pr1_surgery;
 #[path = "m3_pr2_reduce.rs"]

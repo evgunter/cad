@@ -26,7 +26,6 @@ use std::collections::BTreeMap;
 
 use editor_core::ProfileDoc;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
-use geom_core::sym::report::ShapeOutcome;
 use geom_core::{SymRules, Tol};
 
 use crate::m10_8_arc_family_interval::replay;
@@ -160,16 +159,11 @@ fn m10_9_per_predicate_split_at_the_nominal() {
         for (col, (_, rules)) in door_rows().into_iter().enumerate() {
             let (shapes, _, counts) = replay(&doc, &box_, rules, tol);
             println!("== {name} {:?}", counts);
-            for s in &shapes {
-                let row = table.entry(s.predicate).or_default();
-                let k = match s.outcome {
-                    ShapeOutcome::Theorem => 0,
-                    ShapeOutcome::SignGated => 1,
-                    ShapeOutcome::Registered => 2,
-                    _ => 3,
-                };
-                row[col][k] += 1;
-                totals[col][k] += 1;
+            for (pred, row) in crate::m10_8_harness::split(&shapes) {
+                table.entry(pred).or_default()[col] = row;
+                for k in 0..4 {
+                    totals[col][k] += row[k];
+                }
             }
         }
         for (pred, cols) in &table {

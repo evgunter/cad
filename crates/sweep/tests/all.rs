@@ -489,6 +489,9 @@ mod ring_clearance_forms;
 #[path = "r1_probes_m9_3.rs"]
 mod r1_probes_m9_3;
 
+#[path = "curved_mergedoor.rs"]
+mod curved_mergedoor;
+
 #[path = "verbs_gate_r1_probes.rs"]
 mod verbs_gate_r1_probes;
 
@@ -650,6 +653,9 @@ mod shell9_probe;
 
 #[path = "revert_plane_charts.rs"]
 mod revert_plane_charts;
+
+#[path = "revert_periodic_wrap.rs"]
+mod revert_periodic_wrap;
 
 #[path = "shell9_rows.rs"]
 mod shell9_rows;

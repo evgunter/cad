@@ -45,97 +45,111 @@ announce rather than land) and **`crates/profile/*`** (S-BOOL's glob —
 the lift door is minted there by announced seam, exactly as EVAL's
 EVAL-1 and FILLET's fillet door did).
 
-## The slate
+## The slate — present state, 2026-09-14
 
-| item | class | what it is | where the work lands |
-| --- | --- | --- | --- |
-| `placement-lifts-its-affine-by-hand-beside-affine3-map` | **E** | `Mat3::map`/`Affine3::map` already exist; two functions collapse to one call | `crates/editor-core/src/placement.rs:202,215-218` |
-| `wire-expected-phrases-spell-family-words-as-literals` | **E** | **SEVEN** literals swap to existing consts, not nine, and there are **eight** composed sites (six distinct strings), not seven — the lane re-counted against the tree and the item was also internally inconsistent before it moved. The composed ones stay prose. | `crates/editor-core/src/eval/wire.rs`, `crates/editor-core/src/eval/mod.rs` (`family` consts at `:426`) |
-| `names-flush-and-select-discard-a-refusal-with-map-err-underscore` | **~~E~~ → H** | **The estimate was wrong.** Four sites not two, across two crates and three refusal surfaces, ten files — and the decision the item delegated to the owner could not be made without a measurement that refutes a doc in a third crate. That measurement, not the edit, was the unit. | `names/{flush,select,discriminate,geompred,emit}.rs`, `names/README.md`, `crates/pncad-py/src/*` (LIB, forced), `crates/editor-core/tests/display_contract.rs` |
-| `frame-f64-placement-is-re-evaluated-per-profile` | **M** | One crate's eval module, but carries a correctness arm over values and possibly keys | `crates/editor-core/src/eval/mod.rs`, `crates/editor-core/src/eval/wire.rs`, `crates/editor-core/src/eval/slots.rs` (+ content keys) |
-| `profile-has-no-scalar-lift-door` | **M** | Mint a door by an existing convention, but door and caller sit on two fences | `crates/profile/src/` (`map_scalar` on `ProfileVertex`, `ProfileLoop`, `Section` — `lib.rs`/`structure.rs`/`lift.rs`), `crates/sweep/src/loft.rs` (`end_profile`) |
-| `profile-embed-lift-has-two-homes-anchor-and-loft` | **M** | New public lift API across three crates; owner undecided and D385 door shape must be settled | `crates/profile/src/*` (new `map_scalar`/lift door, `validate.rs`), `crates/sweep/src/loft.rs:225-245`, `crates/editor-core/tests/pinned_lift_validates_once.rs`, `crates/profile/tests/common/mod.rs` |
-| `D364` | **M** | Two crates, shape known from PR 1475, but a new census must be built | `crates/profile/src/path/program.rs` (`Target` enum: tag + `ALL`), `crates/editor-core/src/program.rs` (`res_target`/`res_spec` `tgt` closure), new census test under `crates/editor-core/tests/` or `crates/profile/tests/` |
-| `product-gather-refuses-a-split-root-whose-tie-spans-both-halves` | **M** | Needs a stated rule for a tie spanning one root's bodies; probe exists, fix is local. | `crates/editor-core/src/product.rs` (`carry_names` :786-816), `crates/editor-core/src/names/table.rs:186-189`, a regression test in `crates/editor-core/tests/` |
-| `S40` | *(deferred)* | One residue after the split: `WitnessSlot` + `NodeErrorKind::WitnessBifurcation`, reserved for a solver M6 shipped without. The other three bullets are PROPS's and SHELL's now. | `crates/editor-core/src/eval/mod.rs` (`WitnessSlot`, `WitnessBifurcation`) |
-| `interrogate-writes-the-family-vocabulary-a-third-time` | **E** | A fourth reader of the family vocabulary, in a file no program owns; the taker draws the fence in its PR | `crates/editor-core/src/names/interrogate.rs:438-446` |
-| `wire-refusals-answer-found-with-a-negation-of-expected` | **E** | Two sites, but it moves user-visible refusal text, so it owes the assertion sweep | `crates/editor-core/src/eval/wire.rs:978,4191` |
-| `composed-expected-phrases-are-hand-copied-across-sites` | **M** | Needs a licensing rule that covers narrower-than, wider-than and sentence cases, or a home for the repeated phrases | `crates/editor-core/src/eval/wire.rs`, `mate/member.rs:716`, `verbs/split.rs:157` |
-| `frame-plane-lane-and-axis-frame-are-one-door` | **E** | Two functions, one destructure, one refusal; the comment saying so is the evidence | `crates/editor-core/src/eval/wire.rs:1011-1032,1072-1094` |
-| `wire-rs-module-header-describes-five-sixths-of-the-file` | **E** | The header claim is falsified by a 720-line subsystem; correcting it is a sentence | `crates/editor-core/src/eval/wire.rs:1-5` |
-| `frame-linear-generic-door-has-no-consumers` | **E** | Zero call sites workspace-wide; the decision is delete / keep-as-API / demote, and it is a public surface call | `crates/editor-core/src/placement.rs:230-232` |
-| `placement-rs-states-its-exactness-rule-in-nine-paragraphs` | **M** | One rule, nine homes, plus a `#[must_use]` inconsistency and a 60% prose ratio | `crates/editor-core/src/placement.rs` |
-| `emit-topo-destroys-the-edge-key-in-a-split-lineage-cycle` | **E** | One site, the kind stays honest and the locator dies; same class, weaker instance | `crates/editor-core/src/names/emit_topo.rs:127` |
-| `S195` | ~~**H**~~ → **E**, corrected by measurement (PR 2447) | The **H** was wrong. Three of the row's four claims were already discharged when the lane measured them: `ArcMode::ALL` exists, four `ALL`-anchored censuses exist, and the corpus generates from `ALL`. What remained was one unforced site and a message that did not localise. See the ordering note below. | `crates/editor-core/tests/switch_program_vocabulary.rs` |
-| `axis-flavoured-declarations-have-no-channel` | **H** | Needs a new placement-level identity channel; item itself calls it an `[ev]`-shaped design question | `crates/verbs/` (`ParamSource`, README §3 P1/P2), `crates/topo/src/boolean/join.rs` (`cs_pair_frame`, `CoaxialEvidence`), `crates/topo/src/source.rs`, germ/`pair_section_frame` dispatch |
-| `two-verb-seats-do-not-compose` | **H** | Items (2)/(3) are an unratified design round on kernel identity; waits for a replay consumer | `crates/verbs/` (README §5, verb decls), `crates/topo/src/source.rs` birth records, `crates/editor-core/src/eval/` |
+**The opening slate is discharged.** Twenty-seven rows are closed; what
+remains arrived after the program opened, from three sources, and the
+sources matter more than the count because they want different handling.
+
+### From DOCM's exit sweep (2026-09-13) — seven rows, unread by this program
+
+DOCM closed and re-homed residue here. Each carries a `Re-homed` section
+naming the sweep. **None has been read against the tree by this
+program**, and the 2026-09-11 cut's lesson applies directly: *read a row
+against the tree before dispatching it, not against its own prose* — two
+rows that cut estimated **H** turned out three-quarters discharged by
+adjacent work. Treat every class estimate below as unmade.
+
+| row | where it lands |
+| --- | --- |
+| `two-emitter-refusals-a-legal-declared-union-reaches` | boolean emitter refusals |
+| `member-space-look-through-stops-at-splits-containment-and-fragmented-merges` | member-space declaration resolution |
+| `the-pair-verbs-declared-merge-is-asymmetric-in-its-operands` | declared-merge operands |
+| `product-refuses-naming-when-one-instance-is-placed-under-two-roots` | `product.rs` |
+| `nobodyroots-classification-has-two-homes` | the empty-document rule |
+| `blend-slit-name-collides-when-two-rims-share-a-meridian` | blend name emitter |
+| `cut-off-arc-persists-as-a-corner-arc` | ruled-band names |
+
+### Residues this program's own units produced — the receipts of eight merges
+
+| row | why it is open |
+| --- | --- |
+| `the-entity-doors-key-comes-from-its-caller` | the last mile of the token door: the word is unforgeable, the key is the caller's. Carries the compiled attack and the measured reason (≈150 `EntityKey` mints) it was not closed structurally |
+| `the-declared-pair-refusal-reads-the-authored-kind` | reads the authored kind, not the resolved key; tests a **pair**, so the entity door's single-key shape does not fit |
+| `direction-role-words-respell-the-operand-phrases` | composition needs the macro layer extended from words to phrases — `concat!` takes literals and a `const` is not one |
+| `wire-rs-accumulation-residue-comment-ratio-and-wire-sweep` | the two findings the header row did not discharge |
+| `sentinel-region-extractor-has-three-homes` | one caller left, and it has **already drifted** (it includes the opening sentinel where the shared function excludes it) |
+| `the-third-tag-vocabulary-macro-owes-a-unification-trigger` | and `document_vocabulary!` is now a third tag macro, so the trigger this row asks about may have fired |
+| `frame-linear-generic-door-has-no-consumers` | half disposed; the `profile` `map_scalar` rungs are the live half, outside this fence |
+| `product-gate-says-verbatim-then-states-the-difference` | grew on inspection: the policy has **no home** and is stated at seven sites across three crates, one of them a consumer *relying* on it |
+
+### Carried from the opening slate
+
+`guided-lift-refuses-a-nominal-degeneracy-it-never-reads`,
+`res-target-slot-roles-are-unguarded-and-duplicate-spec-slots`,
+`section-of-re-derives-the-whole-f64-precompute-…`,
+`name-placed-union-spells-the-narrowing-rule-itself`,
+`parallel-node-map-loses-the-funnel-and-the-symbolic-session`,
+`loft-path-loses-nine-predicate-families-from-the-probe-stream`.
+
+### Not takeable
+
+`axis-shaped-identity-channel` is `parked` on its step 1, a TOPO row.
+`S40` and `two-verb-seats-do-not-compose` are `deferred` — ratified
+not-now, and no lane resolves a deferred row by implementing it.
+
+## What eight units taught, and what it costs to ignore
+
+These are **this program's working rules**, earned by rounds that broke
+things rather than by argument. They are not ratified discipline: the
+case for promoting them to `docs/prompts/reviewer-style-lane.md` is Ev's
+and goes out as an `[ev]` PR.
+
+1. **Prefer a bijection.** A floor over a hand-written roster is the
+   defect one level up. A floor is what you write when you have *proved*
+   no bijection exists — and then you write why, at the site.
+2. **A set equality is not automatically safe.** It passes when both
+   sides are empty; and if both derive from one scan, a scan that died —
+   or **one member silently leaving both sides at once** — reads as a
+   pass. Every equality owes a non-emptiness assertion on its **own**
+   derived set, with a message naming that failure mode.
+3. **Assert the rule, not a proxy for it.** A census whose message
+   states one rule and whose assertion checks another is one refactor
+   from useless, and the refactor may be in the same commit.
+4. **A census that finds its sites by the spelling it is normalising can
+   only ever find the ones that already comply.** Corollary: the sweep
+   that found the seventh instance had already printed the eighth and
+   ninth — *triage the sweep to the end.*
+5. **Stop policing the spelling; make the wrong thing unspellable — and
+   know where that moves the forgery.** Making a word unforgeable moves
+   it to whatever the word is computed **from**, and the move is complete
+   only when that input is not the caller's to choose either. A guard
+   that looks total because its own type is airtight is the most
+   expensive partial guard, because it retires the guard covering the
+   rest.
+6. **A bounded walk is guardable exactly when something outside the
+   crate can write a step of it.** That replaced three copies of an
+   "unguardable, and here is why" survey with one checkable property —
+   and two of those three copies were **false**.
+7. **An "unguardable" note is a claim about a call graph.** Q6's
+   discharge is available only when the guard cannot be built, and twice
+   the evidence against it was in the same file's own tests.
 
 ## Order
 
-The four E rows open the program and are one PR each.
-`contact-class-has-two-content-tag-functions` **closed on 2026-09-11**
-without a unit: the reading held, `contact_class_tag` is not in the tree,
-and the persist module's string vocabulary is a second projection of one
-enum over `ALL` rather than the twin the finding reported. The other
-three dispatched together as the opening block.
+Read the DOCM rows against the tree **before** grouping them: seven rows
+from another program's exit are seven unread findings, and this program
+has twice paid for dispatching on a row's prose. Group by **file**
+thereafter, which is what decides whether two units collide in a merge
+and whether one mints the duplication the other closes.
 
-Then the lift pair in one sequence — `profile-has-no-scalar-lift-door`
-mints the door, `profile-embed-lift-has-two-homes-anchor-and-loft`
-retires the second home against it — because staffing them apart mints
-the door twice, which is the standing trap on work of this shape:
-**the fix mints a fresh instance of the defect it closes**, and naming
-that in your own PR body does not prevent it. Only a reader who did not
-write the fix has ever caught it.
+The residues group naturally: the three vocabulary/macro rows
+(`direction-role-words`, `the-third-tag-vocabulary-macro`, and the
+`document_vocabulary!` trigger question) are one subject now that a third
+tag macro exists; the two door residues (`the-entity-doors-key…`,
+`the-declared-pair-refusal…`) are the entity door's own last mile and
+share its argument.
 
-`frame-f64-placement-…` and `product-gather-…` follow.
-
-**`D364` is a subset of `S195` and they are staffed as one sequence.**
-`S195`'s finding names *"the same shape, in three smaller pairs"* —
-`ProgramTarget`/`WireTarget`, `ArcSide`/`WireSide`,
-`ArcSweep`/`WireWinding` — and the first of those three IS `D364`'s
-vocabulary, at the same `res_spec`/`res_target` hop in
-`crates/editor-core/src/program.rs`. Staffing them apart builds the
-census twice, which is `plan.md`'s ordering rule 5 again, one vocabulary
-family over. So: **`D364` runs first as the prototype** — its shape is
-known from PR 1475, it is the smallest of the four, and it produces a
-working `ALL`-anchored census.
-
-**The second half of that plan was wrong, and this paragraph invited the
-correction it got** (*"If `D364`'s lane finds the census does not
-generalise, that is a finding and this paragraph is wrong; say so in the
-PR"*). It said `S195` would **generalise** `D364` over the remaining
-three pairs plus `ArcData`, answering one-census-or-four with a built
-thing. It did not, because there was nothing left to build:
-
-- `ArcData` already had `ArcMode::ALL` and four `ALL`-anchored censuses
-  before either unit was dispatched;
-- `ArcSide`/`WireSide` and `ArcSweep`/`WireWinding` **need no anchor at
-  all**, measured rather than argued (PR 2447): all four conversions are
-  exhaustive with no `_` arm, so both directions are compiler-forced,
-  and both enums are binary **by geometry** — a half-plane bit and a
-  travel sense — so there is no third variant to add;
-- **one-census-or-four is therefore still untouched**, and the prior
-  question (what counts as the third instance that triggers unifying the
-  tag macros) is `work/wire/the-third-tag-vocabulary-macro-owes-a-unification-trigger.md`,
-  not this pair of units.
-
-What `S195` became instead was a **measurement**: add a seventh arc mode
-and record what the compiler and the censuses do. That is the entry to
-read before dispatching anything else in this family.
-
-`S40` is no longer the H tail. It was four residues on three programs'
-ground; it is now one, `deferred` against `docs/DESIGN.md`'s roadmap
-sentence that the sketch solver re-opens as its own design pass when
-constraint-driven sketches have a consumer. The other three bullets are
-their own files on PROPS's and SHELL's slates — the split is recorded in
-`work/wire/S40.md`.
-
-**Not takeable, and deliberately.** `axis-flavoured-declarations-have-no-channel`
-is the `[ev]`-shaped fork between a placement-level declaration
-(CURVED's shape) and frame-level identity (TOPO's); it opens as an
-`[ev]` PR, not as a unit. `two-verb-seats-do-not-compose` is `deferred`
-— ratified not-now, waiting on a replay consumer — and no lane resolves
-a deferred row by implementing it.
 
 ## Review posture
 
@@ -160,13 +174,36 @@ lane that finds the call wrong:
 | `profile-has-no-scalar-lift-door` + `profile-embed-lift-has-two-homes-anchor-and-loft` | a new public lift API across three crates, and `end_profile` re-`validate`s the lift at `T` today; getting the door wrong changes what a loft builds |
 | `product-gather-refuses-a-split-root-whose-tie-spans-both-halves` | a stated rule about the product's aggregate name table, and the rule decides whether a name survives |
 | `D364` | a census is a claim about a vocabulary's completeness; a census with a hole reports green |
+| **the operand-door unit** — `the-is-this-a-frame-door-was-deleted-…` + `frame-plane-lane-and-axis-frame-are-one-door` + `composed-expected-phrases-are-hand-copied-across-sites` + `wire-refusals-answer-found-with-a-negation-of-expected`, **raised to full at dispatch** against three **E** class estimates | four rows are the same ten lines of `eval/wire.rs` seen from four angles, and the unit gives "is this a frame" a home to replace the one PR 2435 deleted. It moves user-visible refusal text, it sweeps a shape that recurs over seven other kinds, and it is the sixth-instance ground of the standing trap where a unit closing a duplication mints a fresh instance of it |
 | ~~`S195`~~ **lowered to light at review time** | the row turned out to be three-quarters discharged by work that landed after it was filed, so the unit was dispatched as a MEASUREMENT and its diff is 58 lines of test on a failure path with the assertion untouched. The census it was going to build already exists; nothing here can report green over a hole. The measurement itself is the deliverable and the reviewer re-takes it, which a light review does |
 
-Everything else is a light style review: the three E units, and any
+Everything else is a light style review: the E units and any
 prose or tracker pass. A light review is still a review — the reviewer
 gets claims to falsify and
 `docs/prompts/reviewer-style-lane.md` by path — it is just not paired
 with a correctness arm of its own.
+
+### What the posture has cost and bought, eight units in
+
+Kept unchanged, and the record supports it rather than merely permitting
+it. Of the units given a **full** review, three had a MAJOR that a light
+review would not have been looking for: a census that reported green
+whenever a variant carried an attribute; an *"unguardable"* note that was
+false with the guard already idiomatic in the same file; and a token whose
+guarantee stopped one level short of where its doc claimed.
+
+Of the units given a **light** review, none produced a MAJOR, and two
+produced findings sharper than their brief asked for. So the dial is set
+about right and the cost is visible: the full-review units took **three
+rounds each on two occasions**, and every round found what the previous
+could not have.
+
+**The rule that emerged for when a further round is worth running**, and
+it is the one to keep: *a round is worth running when the diff contains a
+mechanism no previous round has seen* — not because a unit is important,
+and not as ritual. Three times a lane invoked it **against its own
+work**, which is the outcome the standing lesson is meant to produce
+rather than the one where a reviewer finds it.
 
 ## How the class column is read
 
