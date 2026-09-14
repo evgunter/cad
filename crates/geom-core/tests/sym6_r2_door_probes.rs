@@ -28,16 +28,35 @@ fn check<T: Real + Copy + core::fmt::Debug>(lane: &str, lift: impl Fn(f64) -> T)
             let realised = (b - a).abs() / (tol.eps() * a.abs().max(b.abs()).max(1.0));
             let fwd = lift(a).register_equal(lift(b), tol);
             let rev = lift(b).register_equal(lift(a), tol);
-            println!("   [{lane}] eps={:e} a={a:e} k={k} realised k={realised:.4}: {fwd:?} / {rev:?}", tol.eps());
-            assert_ne!(fwd, SymRegistration::Contradicted, "an inexact witness never answers Contradicted");
-            assert_ne!(rev, SymRegistration::Contradicted, "an inexact witness never answers Contradicted");
+            println!(
+                "   [{lane}] eps={:e} a={a:e} k={k} realised k={realised:.4}: {fwd:?} / {rev:?}",
+                tol.eps()
+            );
+            assert_ne!(
+                fwd,
+                SymRegistration::Contradicted,
+                "an inexact witness never answers Contradicted"
+            );
+            assert_ne!(
+                rev,
+                SymRegistration::Contradicted,
+                "an inexact witness never answers Contradicted"
+            );
             assert_eq!(fwd, rev, "the witness is symmetric");
             // Decide by the REALISED ratio so a rounded `a + gap` is not
             // a false red; the printed column shows how close to 1 it sat.
             if realised < 0.999 {
-                assert_eq!(fwd, SymRegistration::Witnessed, "a={a:e} k={k}: inside the slack");
+                assert_eq!(
+                    fwd,
+                    SymRegistration::Witnessed,
+                    "a={a:e} k={k}: inside the slack"
+                );
             } else if realised > 1.001 {
-                assert_eq!(fwd, SymRegistration::Disputed, "a={a:e} k={k}: outside the slack");
+                assert_eq!(
+                    fwd,
+                    SymRegistration::Disputed,
+                    "a={a:e} k={k}: outside the slack"
+                );
             }
         }
     }
@@ -63,19 +82,30 @@ fn sym6_r2_interval_meet_is_exact_and_ignores_tol() {
     for a in [1.0_f64, 1e9, 1e12] {
         let up = f64::from_bits(a.to_bits() + 1);
         // One ULP apart: inside every eps row's f64 slack, yet disjoint.
-        assert_eq!(<f64 as Real>::register_equal(a, up, tol), SymRegistration::Witnessed);
+        assert_eq!(
+            <f64 as Real>::register_equal(a, up, tol),
+            SymRegistration::Witnessed
+        );
         let point = Interval::from_bounds(a, a);
         let next = Interval::from_bounds(up, up);
         let r = point.register_equal(next, tol);
-        println!("   [Interval] eps={:e} [{a:e}] vs [{up:e}]: {r:?}", tol.eps());
-        assert_eq!(r, SymRegistration::Contradicted, "disjoint enclosures are a proof, at every eps");
+        println!(
+            "   [Interval] eps={:e} [{a:e}] vs [{up:e}]: {r:?}",
+            tol.eps()
+        );
+        assert_eq!(
+            r,
+            SymRegistration::Contradicted,
+            "disjoint enclosures are a proof, at every eps"
+        );
         // Meeting enclosures a geometric amount apart in midpoint: witnessed.
         let wide = Interval::from_bounds(a * 0.9, a * 1.1);
         let other = Interval::from_bounds(a * 1.05, a * 1.2);
         assert_eq!(wide.register_equal(other, tol), SymRegistration::Witnessed);
         // Touching at one endpoint still meets.
         assert_eq!(
-            Interval::from_bounds(a * 0.9, a).register_equal(Interval::from_bounds(a, a * 1.1), tol),
+            Interval::from_bounds(a * 0.9, a)
+                .register_equal(Interval::from_bounds(a, a * 1.1), tol),
             SymRegistration::Witnessed
         );
     }
@@ -83,6 +113,10 @@ fn sym6_r2_interval_meet_is_exact_and_ignores_tol() {
         Interval::from_bounds(0.0, 1.0).register_equal(Interval::from_bounds(2.0, 3.0), tol),
         Interval::from_bounds(1.0, 1.0).register_equal(Interval::from_bounds(1.0, 1.0), tol),
     ] {
-        assert_ne!(r, SymRegistration::Disputed, "an exact witness never answers Disputed");
+        assert_ne!(
+            r,
+            SymRegistration::Disputed,
+            "an exact witness never answers Disputed"
+        );
     }
 }

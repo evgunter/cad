@@ -12,11 +12,10 @@
 
 use geom_core::sym::with_session_rules;
 use geom_core::{
-    Decide, ParamSymbol, Point2, Point3, Real, Sym, SymBudget, SymCounts, SymRules, Tol, Vec2,
-    Vec3,
+    Decide, ParamSymbol, Point2, Point3, Real, Sym, SymBudget, SymCounts, SymRules, Tol, Vec2, Vec3,
 };
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use sweep::{Extrusion, RevolveAxis, Revolution};
+use sweep::{Extrusion, Revolution, RevolveAxis};
 
 fn budget() -> SymBudget {
     SymBudget {
@@ -84,7 +83,12 @@ fn washer_revolve<T: Decide + geom_brep::PcurveFittedLane>(d: T, r: T) -> Result
 
 const PLACEMENTS: [f64; 3] = [0.0, 1e6, 1e9];
 
-fn report(lane: &str, d: f64, built: (Result<usize, String>, Result<usize, String>), c: &SymCounts) {
+fn report(
+    lane: &str,
+    d: f64,
+    built: (Result<usize, String>, Result<usize, String>),
+    c: &SymCounts,
+) {
     println!(
         "   [{lane}] eps={:e} d={d:e}: counts {c:?} | extrude {:?} revolve {:?}",
         Tol::witness().eps(),
@@ -101,8 +105,14 @@ fn sym6_r2_bare_f64_builds_both_bodies_at_every_placement() {
     for d in PLACEMENTS {
         let e = stadium_extrude::<f64>(d, 0.5);
         let r = washer_revolve::<f64>(d, 1.0);
-        println!("   [f64] eps={:e} d={d:e}: extrude {e:?} revolve {r:?}", Tol::witness().eps());
-        assert!(d > 0.0 || (e.is_ok() && r.is_ok()), "d={d:e}: {e:?} / {r:?}");
+        println!(
+            "   [f64] eps={:e} d={d:e}: extrude {e:?} revolve {r:?}",
+            Tol::witness().eps()
+        );
+        assert!(
+            d > 0.0 || (e.is_ok() && r.is_ok()),
+            "d={d:e}: {e:?} / {r:?}"
+        );
     }
 }
 
@@ -111,10 +121,18 @@ fn sym6_r2_bare_f64_builds_both_bodies_at_every_placement() {
 fn sym6_r2_bare_probe_builds_both_bodies_at_every_placement() {
     use geom_core::Probe;
     for d in PLACEMENTS {
-        let e = stadium_extrude::<Probe>(<Probe as Real>::from_f64(d), <Probe as Real>::from_f64(0.5));
-        let r = washer_revolve::<Probe>(<Probe as Real>::from_f64(d), <Probe as Real>::from_f64(1.0));
-        println!("   [Probe] eps={:e} d={d:e}: extrude {e:?} revolve {r:?}", Tol::witness().eps());
-        assert!(d > 0.0 || (e.is_ok() && r.is_ok()), "d={d:e}: {e:?} / {r:?}");
+        let e =
+            stadium_extrude::<Probe>(<Probe as Real>::from_f64(d), <Probe as Real>::from_f64(0.5));
+        let r =
+            washer_revolve::<Probe>(<Probe as Real>::from_f64(d), <Probe as Real>::from_f64(1.0));
+        println!(
+            "   [Probe] eps={:e} d={d:e}: extrude {e:?} revolve {r:?}",
+            Tol::witness().eps()
+        );
+        assert!(
+            d > 0.0 || (e.is_ok() && r.is_ok()),
+            "d={d:e}: {e:?} / {r:?}"
+        );
     }
 }
 
@@ -124,18 +142,32 @@ fn sym6_r2_bare_probe_builds_both_bodies_at_every_placement() {
 #[test]
 fn sym6_r2_sym_f64_refuses_no_true_identity_at_1e9_at_this_eps() {
     for d in PLACEMENTS {
-        let run = || with_session_rules(budget(), SymRules::shipped(), || {
-            let dd: Sym<f64> = Sym::param(ParamSymbol::of("d"), d);
-            let r: Sym<f64> = Sym::param(ParamSymbol::of("r"), 1.0);
-            (stadium_extrude(dd, r * Sym::from_f64(0.5)), washer_revolve(dd, r))
-        });
+        let run = || {
+            with_session_rules(budget(), SymRules::shipped(), || {
+                let dd: Sym<f64> = Sym::param(ParamSymbol::of("d"), d);
+                let r: Sym<f64> = Sym::param(ParamSymbol::of("r"), 1.0);
+                (
+                    stadium_extrude(dd, r * Sym::from_f64(0.5)),
+                    washer_revolve(dd, r),
+                )
+            })
+        };
         let Ok((built, counts)) = std::panic::catch_unwind(run) else {
-            println!("   [Sym<f64>] eps={:e} d={d:e}: PANICKED inside the session (the sym.rs theorem-vs-numeric debug_assert, off this door; counts lost)", Tol::witness().eps());
+            println!(
+                "   [Sym<f64>] eps={:e} d={d:e}: PANICKED inside the session (the sym.rs theorem-vs-numeric debug_assert, off this door; counts lost)",
+                Tol::witness().eps()
+            );
             continue;
         };
         report("Sym<f64>", d, built.clone(), &counts);
-        assert!(d > 0.0 || (built.0.is_ok() && built.1.is_ok()), "d={d:e}: {built:?}");
-        assert!(counts.registered > 0 || d > 0.0, "d={d:e}: the door was never consulted: {counts:?}");
+        assert!(
+            d > 0.0 || (built.0.is_ok() && built.1.is_ok()),
+            "d={d:e}: {built:?}"
+        );
+        assert!(
+            counts.registered > 0 || d > 0.0,
+            "d={d:e}: the door was never consulted: {counts:?}"
+        );
         assert_eq!(
             counts.registrations_refused, 0,
             "d={d:e}: the inexact witness refused a TRUE identity: {counts:?}"
@@ -148,18 +180,33 @@ fn sym6_r2_sym_f64_refuses_no_true_identity_at_1e9_at_this_eps() {
 fn sym6_r2_sym_probe_refuses_no_true_identity_at_1e9_at_this_eps() {
     use geom_core::Probe;
     for d in PLACEMENTS {
-        let run = || with_session_rules(budget(), SymRules::shipped(), || {
-            let dd: Sym<Probe> = Sym::param(ParamSymbol::of("d"), <Probe as Real>::from_f64(d));
-            let r: Sym<Probe> = Sym::param(ParamSymbol::of("r"), <Probe as Real>::from_f64(1.0));
-            (stadium_extrude(dd, r * Sym::from_f64(0.5)), washer_revolve(dd, r))
-        });
+        let run = || {
+            with_session_rules(budget(), SymRules::shipped(), || {
+                let dd: Sym<Probe> = Sym::param(ParamSymbol::of("d"), <Probe as Real>::from_f64(d));
+                let r: Sym<Probe> =
+                    Sym::param(ParamSymbol::of("r"), <Probe as Real>::from_f64(1.0));
+                (
+                    stadium_extrude(dd, r * Sym::from_f64(0.5)),
+                    washer_revolve(dd, r),
+                )
+            })
+        };
         let Ok((built, counts)) = std::panic::catch_unwind(run) else {
-            println!("   [Sym<Probe>] eps={:e} d={d:e}: PANICKED inside the session (the sym.rs theorem-vs-numeric debug_assert, off this door; counts lost)", Tol::witness().eps());
+            println!(
+                "   [Sym<Probe>] eps={:e} d={d:e}: PANICKED inside the session (the sym.rs theorem-vs-numeric debug_assert, off this door; counts lost)",
+                Tol::witness().eps()
+            );
             continue;
         };
         report("Sym<Probe>", d, built.clone(), &counts);
-        assert!(d > 0.0 || (built.0.is_ok() && built.1.is_ok()), "d={d:e}: {built:?}");
-        assert!(counts.registered > 0 || d > 0.0, "d={d:e}: the door was never consulted: {counts:?}");
+        assert!(
+            d > 0.0 || (built.0.is_ok() && built.1.is_ok()),
+            "d={d:e}: {built:?}"
+        );
+        assert!(
+            counts.registered > 0 || d > 0.0,
+            "d={d:e}: the door was never consulted: {counts:?}"
+        );
         assert_eq!(
             counts.registrations_refused, 0,
             "d={d:e}: the inexact witness refused a TRUE identity: {counts:?}"
@@ -178,26 +225,43 @@ fn sym6_r2_sym_interval_receipt_is_the_same_document_at_every_eps() {
     use geom_core::Interval;
     let eps = Tol::witness().eps();
     for d in PLACEMENTS {
-        let run = || with_session_rules(budget(), SymRules::shipped(), || {
-            let dd: Sym<Interval> = Sym::param(
-                ParamSymbol::of("d"),
-                Interval::from_bounds(d - eps / 64.0, d + eps / 64.0),
-            );
-            let r: Sym<Interval> = Sym::param(
-                ParamSymbol::of("r"),
-                Interval::from_bounds(1.0 - eps / 64.0, 1.0 + eps / 64.0),
-            );
-            (stadium_extrude(dd, r * Sym::from_f64(0.5)), washer_revolve(dd, r))
-        });
+        let run = || {
+            with_session_rules(budget(), SymRules::shipped(), || {
+                let dd: Sym<Interval> = Sym::param(
+                    ParamSymbol::of("d"),
+                    Interval::from_bounds(d - eps / 64.0, d + eps / 64.0),
+                );
+                let r: Sym<Interval> = Sym::param(
+                    ParamSymbol::of("r"),
+                    Interval::from_bounds(1.0 - eps / 64.0, 1.0 + eps / 64.0),
+                );
+                (
+                    stadium_extrude(dd, r * Sym::from_f64(0.5)),
+                    washer_revolve(dd, r),
+                )
+            })
+        };
         let Ok((built, counts)) = std::panic::catch_unwind(run) else {
-            println!("   [Sym<Interval>] eps={:e} d={d:e}: PANICKED inside the session (the sym.rs theorem-vs-numeric debug_assert, off this door; counts lost)", Tol::witness().eps());
+            println!(
+                "   [Sym<Interval>] eps={:e} d={d:e}: PANICKED inside the session (the sym.rs theorem-vs-numeric debug_assert, off this door; counts lost)",
+                Tol::witness().eps()
+            );
             continue;
         };
         report("Sym<Interval>", d, built.clone(), &counts);
-        assert!(d > 0.0 || (built.0.is_ok() && built.1.is_ok()), "d={d:e}: {built:?}");
-        assert!(counts.registered > 0 || d > 0.0, "d={d:e}: the door was never consulted: {counts:?}");
+        assert!(
+            d > 0.0 || (built.0.is_ok() && built.1.is_ok()),
+            "d={d:e}: {built:?}"
+        );
+        assert!(
+            counts.registered > 0 || d > 0.0,
+            "d={d:e}: the door was never consulted: {counts:?}"
+        );
         assert_eq!(
-            (counts.registrations_refused, counts.registrations_contradicted),
+            (
+                counts.registrations_refused,
+                counts.registrations_contradicted
+            ),
             (0, 0),
             "d={d:e}: the exact witness refused on a real document: {counts:?}"
         );
