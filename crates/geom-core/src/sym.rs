@@ -435,6 +435,35 @@
 //! not definite and the decision path builds the same forms either
 //! way.
 //!
+//! **Across a DRIVE that volume is one DAG's worth of forms, computed
+//! once per leaf** — which is what [`DriveMemo`] removes. Over the
+//! M10-3 chamber drive (2,559 sessions) the plain walk computes
+//! 19,099,919 forms for 18,833 DISTINCT ids: every leaf builds the same
+//! 7,464 of them and a memo keyed by the id can answer 1,014 of every
+//! 1,015. The plate at 256 leaves (511 sessions) is 9,005,864 forms for
+//! 17,624 distinct ids — 17,624 per leaf, the same set every time. What
+//! the memo comes to at the drive's end is that DAG and no more: on the
+//! slab 18,833 forms and 41 atoms in 6.98 MB, on the plate 17,624 forms
+//! and 359 atoms in 9.78 MB, pinned as ceilings by
+//! `editor-core`'s `m10_sym_drive_memo_interval`.
+//!
+//! Measured on the drives at the test profile, one take on the
+//! measuring box: the slab at 1,280 leaves 157.1 s → 78.2 s
+//! sequentially and 40.1 s → 21.0 s over four workers; the plate at 256
+//! leaves 247.5 s → 205.4 s and 65.0 s → 51.4 s. The slab halves
+//! because the plain walk is half of its replay and nearly all of it is
+//! recomputation; the plate moves by a fifth, because what dominates
+//! there is the per-node rule A/B reduction inside the EARLY walk,
+//! which consults the leaf's registry and stays per leaf.
+//!
+//! The memo's own cost on a leaf that gains nothing from it — the
+//! bookkeeping, and the `Arc` the forms are held behind so that a hit
+//! hands back the allocation rather than a copy of it — is measured
+//! rather than assumed: one bare replay at the nominal, in release
+//! under callgrind, 98.78 M → 98.90 M instructions on the slab
+//! (+0.1 %) and 711.14 M → 711.31 M on the plate. `Rc` is kept only
+//! where a form cannot cross a leaf at all (rule D's closed forms).
+//!
 //! Those are the shares AFTER two changes to what a form costs to
 //! hold and to normalise, each measured against the tree before it
 //! with every count — forms, atoms, frozen, decisions by outcome, and
@@ -1236,7 +1265,13 @@ struct AtomInfo {
 }
 
 /// One leaf replay's DAG: the hash-consing table, the memoized forms and
-/// the counts. Dropped with the leaf; nothing is shared across leaves.
+/// the counts. Dropped with the leaf.
+///
+/// Everything here is this leaf's own, with ONE exception: `memo`, a
+/// handle on the drive's shared plain forms when a driver installed one
+/// ([`with_session_memo`]). The hash-consing table, the early and door
+/// memos, the registry, the parameter brackets and the counts never
+/// leave the leaf.
 struct Session {
     budget: SymBudget,
     rules: SymRules,
@@ -1397,6 +1432,11 @@ impl Drop for OpaqueSeqGuard {
 /// reach another leaf, and the counts are that leaf's own. Nesting is
 /// refused rather than silently flattened — an inner session would count
 /// a different leaf's decisions into the outer one's receipt.
+///
+/// This door installs NO drive memo, so the session it makes holds
+/// nothing across leaves at all; [`with_session_memo`] is the spelling
+/// a driver uses to share the plain forms across the leaves of one
+/// drive.
 pub fn with_session<R>(budget: SymBudget, f: impl FnOnce() -> R) -> (R, SymCounts) {
     with_session_rules(budget, SymRules::shipped(), f)
 }

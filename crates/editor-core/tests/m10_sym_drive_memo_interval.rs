@@ -485,3 +485,44 @@ fn plain_memo_wall_times() {
 /// minutes rather than the driver's default, which on this document is
 /// a number no lane has ever driven to.
 const PLATE_WALL_LEAVES: usize = 256;
+
+/// **The callgrind target for the memo** — `CAD_SYM_MEMO_DOC`
+/// (`slab` | `plate`, default `slab`) driven sequentially to
+/// `CAD_SYM_MEMO_LEAVES` leaves (default 8) with the plain memo on
+/// unless `CAD_SYM_MEMO=0`, and nothing else in the process.
+///
+/// `m10_sym_profile_interval::sym_profile_callgrind_replay` measures ONE
+/// leaf, where a drive memo is empty and can only cost; this row is the
+/// same instrument at the scale the memo exists for, so the number it
+/// prints is an instruction count rather than a wall time on a shared
+/// box. The command that takes it is in the unit's PR body.
+#[test]
+#[ignore = "evidence-only: the callgrind target — drives one document, nothing else"]
+fn sym_memo_callgrind_drive() {
+    let tol = Tol::witness();
+    let doc = match std::env::var("CAD_SYM_MEMO_DOC").as_deref() {
+        Ok("plate") => the_plate(tol),
+        _ => slab(),
+    };
+    let max_leaves: usize = std::env::var("CAD_SYM_MEMO_LEAVES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(8);
+    let plain_memo = std::env::var("CAD_SYM_MEMO").as_deref() != Ok("0");
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let cfg = DriveConfig {
+        max_leaves,
+        plain_memo,
+        ..DriveConfig::default()
+    };
+    let t0 = Instant::now();
+    let v = drive(&doc, &analyzed, &cfg, tol).unwrap();
+    println!(
+        "drive {max_leaves} leaves memo={plain_memo}: wall {:?} receipt {:?} decisions {:?} \
+         memo {:?}",
+        t0.elapsed(),
+        v.receipt(),
+        v.decisions(),
+        v.plain_memo()
+    );
+}
