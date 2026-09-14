@@ -513,6 +513,8 @@ mod m10_derived_frame_tilted_interval;
 #[path = "m10_sym_profile_interval.rs"]
 mod m10_sym_profile_interval;
 
+#[path = "sym5_r2_probes_interval.rs"]
+mod sym5_r2_probes_interval;
 #[path = "wire_band_cause.rs"]
 mod wire_band_cause;
 #[path = "wire_entity_door.rs"]
@@ -523,5 +525,3 @@ mod wire_frame_placement_carry;
 mod wire_operand_door;
 #[path = "wire_product_gather_tie.rs"]
 mod wire_product_gather_tie;
-#[path = "sym5_r2_probes_interval.rs"]
-mod sym5_r2_probes_interval;
