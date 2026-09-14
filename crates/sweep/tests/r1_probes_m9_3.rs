@@ -321,22 +321,29 @@ fn probe_partial_engagement_never_silent() {
                 "partial engagement unioned: v = {v:.17e} vs {:.17e}",
                 vp + vq
             );
-            assert_eq!(v, vp + vq, "if it unions it must be exactly additive");
+            // Exact additivity on the 4-ULP relative oracle the MATE-2
+            // suites use (`mate2_common::assert_additive`): the π terms
+            // of the peg and the bore do not cancel, so a bitwise pin
+            // is not available here. This branch first RAN when the
+            // merge door stopped refusing the cylindrical declared
+            // pair; first measured 0.672 ULP (the sibling scenes
+            // measure ~1.5 ULP).
+            crate::mate2_common::assert_additive(v, vp, vq);
             if let Err(errs) = topo::validate_geometric(&body, Tol::witness()) {
                 panic!("must be tier-3 valid: {errs:?}");
             }
         }
         Err(err) => {
             eprintln!("partial engagement refused: {err:?}");
-            // `Merge(InvalidDeclaration)` is the F7 output stage
-            // speaking: `merge_coplanar_faces_declared` is a COPLANAR
-            // merge and takes planar declared surfaces only, while the
-            // boolean hands it every surviving declared `Rest` pair
-            // whatever its carrier. A partially engaged bore leaves a
-            // cylindrical pair alive in the result, so the pair reaches
-            // a door with no type for it. Typed and loud, which is all
-            // this probe asserts — where the frontier SITS is not a
-            // baseline this row defends.
+            // `JoinDesync { "minted-edge description failed
+            // certification" }` is the F7 output stage's edge
+            // re-description refusing a `Line` chord the declared-REST
+            // zip minted on a bore wall where a cap rim cuts it
+            // (`work/curved/rest-zip-seam-chord-on-cylinder-wall`);
+            // the merge door's own arm for a cylindrical declared pair
+            // records, and that is what exposed it. Typed and loud,
+            // which is all this probe asserts — where the frontier
+            // SITS is not a baseline this row defends.
             assert!(
                 matches!(
                     err,
@@ -345,7 +352,6 @@ fn probe_partial_engagement_never_silent() {
                         | BooleanError::Join(_)
                         | BooleanError::CurvedPierceUnsupported { .. }
                         | BooleanError::CurvedBooleanUnsupported { .. }
-                        | BooleanError::Merge(topo::MergeCoplanarError::InvalidDeclaration { .. })
                 ),
                 "typed only: {err:?}"
             );

@@ -234,3 +234,14 @@ soundness suite and a random-configuration row are the fix; the spec
 amended (the monotonicity theorem, the charge table at the arc-scoped
 `f2`). Both fix passes dispatched. Pacing: **the spiric PR-1a dual is
 HELD for next week's budget**; PR-1a itself continues.
+
+## CURVED-MERGEDOOR merged (2026-09-14) — block CURVED-B1 concludes
+
+PR #2105, ordinal 2202, sample #192; block CURVED-B1's last slot. The
+dual's fix pass took all eleven items (fourteen rows, fifteen mutants
+red); the record is keyed off the declaration and documented so. Next
+on the merge-door lane: `rest-zip-seam-chord-on-cylinder-wall` (the zip
+defect the door had hidden). Operations: the fix pass's push produced
+no `synchronize` run and the lane dispatched the workflow by hand (the
+render lanes skip on a dispatch); the state-sync push re-rolls a real
+run before the merge.
