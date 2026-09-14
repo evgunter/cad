@@ -127,7 +127,7 @@
 //! refuses and the form FREEZES, which is loud and sound but is a
 //! cancellation lost. R2's row
 //! `rule_e_can_cost_a_theorem_to_the_coefficient_ring`
-//! (`editor-core`'s `m10_rule_e_rows_interval`) is the demonstration:
+//! (`geom-core`'s `sym_rule_e_rows`) is the demonstration:
 //! an identity the early walk reaches with the rule OFF and not with
 //! it on, at `s` = 0.1's 52 bits against a 200-bit `1/q`. "Nothing
 //! lost" is therefore a MEASUREMENT on the documents this unit names
