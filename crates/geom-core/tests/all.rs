@@ -131,6 +131,8 @@ mod span_hull_window;
 mod span_newtype;
 #[path = "spline_hull.rs"]
 mod spline_hull;
+#[path = "sym5_review_r1_probes.rs"]
+mod sym5_review_r1_probes;
 #[path = "tolerance_init.rs"]
 mod tolerance_init;
 
