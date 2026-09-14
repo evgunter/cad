@@ -96,6 +96,7 @@
 //! its real study, and the two folds together are what takes it.
 
 use std::rc::Rc;
+use std::sync::Arc;
 
 use super::form::{Form, Mono, Poly, within};
 use super::rational::{Int, Rat};
@@ -176,7 +177,7 @@ pub(super) const MAX_HALVINGS: u32 = 2;
 
 /// The argument form read as `(k / 2ᵐ) · atan(X)`: `(k, m, X)`, or
 /// `None` where the form is not of that shape.
-fn read_argument(arg: &Form, sess: &Session) -> Option<(i128, u32, Rc<Form>)> {
+fn read_argument(arg: &Form, sess: &Session) -> Option<(i128, u32, Arc<Form>)> {
     if arg.poisoned {
         return None;
     }
@@ -309,7 +310,7 @@ fn sqrt_atom(arg: Form, sess: &mut Session) -> u128 {
     sess.atoms.entry(id).or_insert_with(|| AtomInfo {
         op: SymOp::Sqrt,
         payload: 0,
-        args: [Some(Rc::new(arg)), None],
+        args: [Some(Arc::new(arg)), None],
     });
     id
 }
@@ -453,6 +454,10 @@ mod tests {
             registry: IdMap::default(),
             trig_closed: IndetMap::default(),
             counts: Default::default(),
+            memo: None,
+            plain_built: Vec::new(),
+            plain_atoms: Vec::new(),
+            plain_frozen: Vec::new(),
         };
         for (id, op) in [(atan, SymOp::Atan), (atan2, SymOp::Atan2)] {
             sess.atoms.insert(
@@ -460,7 +465,7 @@ mod tests {
                 AtomInfo {
                     op,
                     payload: 0,
-                    args: [Some(Rc::new(x.clone())), Some(Rc::new(x.clone()))],
+                    args: [Some(Arc::new(x.clone())), Some(Arc::new(x.clone()))],
                 },
             );
         }
