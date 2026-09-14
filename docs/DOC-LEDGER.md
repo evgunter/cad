@@ -2601,3 +2601,18 @@ now tells apart from the decision path's walks. Recorded in the PR body
 and the unit's log entry.
 
 - `SYM-1-SPEC.md` — SYM-1, the profile inside the normal form (#2530)
+
+
+## Per-merge deletion — SYM-3's spec (2026-09-14)
+
+Recoverable at `git show da1f21e50:docs/SYM-3-SPEC.md` (the fix-pass
+head). Its second ask's premise did not survive the render: the boss's
+residue at `bulge = 2` is not the item's `atan|b|`-against-`atan b`
+guess (`abs(2)` folds) but a coefficient-ring freeze first and an
+`abs` over a non-constant argument second — and opening either
+partially LOSES door discharges, which the spec's four-cause menu did
+not foresee; that finding is filed as
+`coefficient-ring-width-is-not-monotone-in-reach`. Recorded in the PR
+body and the unit's log entry.
+
+- `SYM-3-SPEC.md` — SYM-3, what stands at a bulge that is not 1 (#2558)
