@@ -5,6 +5,7 @@ title: The E12 symbolic tier is 95% of the M10-3 interval drive: 20.8x measured,
 status: open
 opened: 2026-09-11
 parent: SYM-1
+needs_ev: true
 ---
 
 
@@ -619,3 +620,62 @@ no-op would leave those green and the pins above red. The tier's
 answers are therefore pinned in the tree — in the M10-8/9/10 pin
 suites and not in the M10-3 suite that pays for them, which is the
 row S-TCOST's cost question is about.
+
+## Decision for Ev (2026-09-14, `[ev]` PR from the SYM orchestrator): the plain form's memo and the leaf
+
+**Where the cost stands after SYM-4.** In release, one nominal replay
+of the M10-3 slab is 99 M instructions (was 141.5 M); storage 40 %,
+the walk and the DAG build 24 %, the ring 9 %. Nothing freezes on the
+slab. What the slab pays for is VOLUME: ~10,000 plain forms per leaf
+for 1,490 decisions, and the same 12,208-node DAG interned afresh in
+each of a drive's 2,559 sessions (21.7 M `intern`s over the drive; 19
+M plain forms). The plain walk is half of every leaf's replay and it
+recomputes, leaf after leaf, forms that are the SAME function of the
+same content hash.
+
+**The fact the proposal rests on.** A node's id is a content hash of
+`(op, children, payload)`, leaf-invariant (a `Param` carries only its
+symbol, a `Lit` its bits, an `Opaque` the per-leaf sequence — the
+same on every leaf of one drive by D9's fixed single-threaded walk),
+and the PLAIN form reads no value: it is a function of the id and the
+session's budget alone. So a plain form computed on one leaf is valid
+on every other leaf of the same drive.
+
+**D3 — may the tier's plain-form memo outlive the leaf?** Today the
+hash-consing table is per-leaf-replay, holds nothing across leaves,
+and is dropped with the leaf (`sym.rs`, the D9 section — the tier's
+own module docs, not ERROR-DESIGN E12, which says only "memoized per
+node").
+
+- **(1) A drive-scoped plain memo**, keyed by `SymId`, installed by the
+  drive around its leaves and dropped with the drive; the early and
+  door walks stay per leaf (they consult the registry and the leaf's
+  rules). Three side effects, each with a definition to choose:
+  `sess.atoms` are registered inside the plain walk and read by the
+  top-residual reduce and by `reduce_steps` — the memo carries its
+  atoms; `SymCounts::frozen` is incremented inside the walk — it
+  becomes "distinct nodes frozen over the drive" on the drive's
+  receipt while each leaf's receipt keeps its decision counts (the
+  per-leaf accounting goldens' `frozen` column moves and is
+  re-blessed as the acceptance's own move); the opaque-sequence
+  argument becomes load-bearing across leaves (a pin). **Recommended**:
+  it removes up to the plain walk's half from every leaf after the
+  first — the largest lever left on the slab — and its soundness
+  argument is the one the tier already makes for two occurrences of a
+  node inside one leaf, applied across leaves.
+- **(2) Keep the per-leaf session** (status quo, ratified as not-now):
+  the leaf stays a self-contained unit with a self-contained receipt;
+  the cost is the volume above, paid on every drive.
+- **(3) A subtree memo**: a child leaf inherits its parent's memo at
+  the split and drops it with the subtree — (1) confined to the
+  bisection tree, the same side effects one level down. Not
+  recommended over (1): it buys most of the win with a second scope
+  to reason about.
+
+The orchestrator's pick is (1), as a unit in block SYM-B2 (H,
+STRUCTURAL — the receipt semantics are the design, the memo is the
+code), unless Ev prefers the leaf to stay self-contained, in which
+case this proposal closes with (2) on the record. The assertion
+discharge (the `Decide` impl's `debug_assert!` — a tenth of the
+slab's plain forms, 95 % of its early-walk forms) is a separate
+question and is not asked here.
