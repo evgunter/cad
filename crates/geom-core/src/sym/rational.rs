@@ -1,19 +1,21 @@
 //! **The coefficients are arbitrary-precision dyadic-scaled rationals**
-//! ([`Rat`], over `num-bigint`), bounded at [`rational::COEFF_BITS`] bits. A
-//! whole-box replay reports `frozen: 0` on the bracket because the
-//! `Decide` impl skips the form of a margin the numeric channel has
-//! already proved non-zero. M10-8 measured the case the whole-box
-//! replays cannot see: at a document's NOMINAL, where every identity
-//! margin is near zero and every form is built, the plate froze 1,056
-//! forms, R2's bracket 1,978 and R1's annulus 1,034 — and the plate's
-//! own ceiling residual (`carrier_endpoint_start`, the rim's
-//! `‖q − c‖ = r`) is a polynomial of degree 12 in a radius whose nominal
-//! is an `f64` literal with a 53-bit mantissa. Three such factors
-//! overflow an `i128`; the residual has twelve. The overflow was the
-//! freeze, the freeze was the ceiling, and no rule can reach an atom
-//! inside a frozen form. The bound keeps the freeze discipline: a
-//! coefficient past it is refused exactly as an overflow was, so a
-//! blow-up is a counted freeze and never an allocation to the ceiling.
+//! ([`Rat`], over `num-bigint`), bounded at [`rational::COEFF_BITS`]
+//! bits. The readings that argued for the bound, none of them pinned
+//! and none of them a claim about today's tree: the i128-era whole-box
+//! replays reported `frozen: 0` on the bracket, because the `Decide`
+//! impl skips the form of a margin the numeric channel has already
+//! proved non-zero; and M10-8 measured the case a whole-box replay
+//! cannot see — at a document's NOMINAL, where every identity margin is
+//! near zero and every form is built, the plate froze 1,056 forms, R2's
+//! bracket 1,978 and R1's annulus 1,034. The plate's own ceiling
+//! residual (`carrier_endpoint_start`, the rim's `‖q − c‖ = r`) is a
+//! polynomial of degree 12 in a radius whose nominal is an `f64` literal
+//! with a 53-bit mantissa. Three such factors overflow an `i128`; the
+//! residual has twelve. The overflow was the freeze, the freeze was the
+//! ceiling, and no rule can reach an atom inside a frozen form. The
+//! bound keeps the freeze discipline: a coefficient past it is refused
+//! exactly as an overflow was, so a blow-up is a counted freeze and
+//! never an allocation to the ceiling.
 
 use num_bigint::BigInt;
 use num_integer::Integer;
