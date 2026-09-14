@@ -5,32 +5,17 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::f64::consts::{FRAC_PI_2, PI};
+use std::f64::consts::PI;
 
 use geom_core::{Point2, Tol, Vec3};
-use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use profile::{ProfileVertex, RawLoop};
 use sweep::Revolution;
 use topo::{Body, FaceKey};
 
+use super::common::latitude_seam::two_arc_sphere;
 use super::shell7_common::{drum, hollow_moves, p2, polyline, revolved, tol};
 use super::shell8_common::beside;
 use super::verbs_shell::{boxy, vessel};
-
-/// The unit's two-arc sphere: one sphere in four faces, a same-surface
-/// latitude seam at `v = π/4`.
-fn two_arc_sphere() -> Body<f64> {
-    let r = 1.0;
-    let v = PI / 4.0;
-    let (s, c) = v.sin_cos();
-    revolved(
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, -r), ((FRAC_PI_2 + v) / 4.0).tan()),
-            ProfileVertex::new(p2(r * c, r * s), ((FRAC_PI_2 - v) / 4.0).tan()),
-            ProfileVertex::new(p2(0.0, r), 0.0),
-        ]),
-        Revolution::Full,
-    )
-}
 
 fn bulge(a: Point2<f64>, b: Point2<f64>, c: Point2<f64>) -> f64 {
     let (u, v) = (a - c, b - c);
