@@ -1137,3 +1137,13 @@ no Ev ratification found by `git log -S`), and Ev's D1 = (1) on #2552
 is what reversed it. Disclosed in the PR body; the dual reads it. A
 row on this slate from the same lane:
 `register-equals-witness-limits-citation-names-no-file`.
+
+**(SYM orchestrator) Seam amendment, 2026-09-14 — SYM-6 fix pass** (PR
+#2604): the fix pass also re-points `Real::register_equal`'s dangling
+citation of `m10_9_witness_limits_interval.rs` (a file that never
+existed) at the rows that establish the clause, in the same doc
+paragraph the unit re-takes, and closes the row the lane had filed
+here (`register-equals-witness-limits-citation-names-no-file`) as
+fixed by that PR; and adds one sentence to E12 in
+`docs/ERROR-DESIGN.md` recording the refusal arms by witness kind (Ev's
+D2 on #2552), beside the ε sentence already disclosed.
