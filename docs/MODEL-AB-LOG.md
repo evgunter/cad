@@ -6274,6 +6274,32 @@ non-dual style review), `-j2`; R1's target is the implementer's warm
 one, R2's is seeded from an older warm build — wall-clock asymmetry
 only.
 
+Typed-absence review ordinal fixed at dispatch (2026-09-14, PR #2576
+open — frozen head `52c1868e8`; unit
+`work/topo/geom-source-absence-conflates-four-origins.md`): **ordinal
+2710** (TOPO band). Pre-draw fields (logged in `work/topo/log.md` at
+`4b813113a` BEFORE block TOPO-B4 was drawn — clean): difficulty **M**,
+task class **STRUCTURAL**. Implementer arm per block TOPO-B4 slot 0
+(record branch-side on `topo/b4-block`; byte 223 ⇒ fable at slot 1,
+so slot 0 is OPUS). Protocol v6 dual: draw = `/dev/urandom` byte
+**219**, parity 1 ⇒ **R1 = FABLE, R2 = OPUS**. Method, recorded before
+either review runs: CONCURRENT same-head on frozen `52c1868e8`, both
+briefs authored and STORED with sha256 before either dispatches
+(identical text modulo lane name, target and scratch paths, verified
+by diff: 4 lines), neither reviewer sees the other's report, v6 item
+5 isolation in both briefs; the implementer's unit log entry is not
+written until the dual concludes. Disclosed: the implementer lane was
+killed by a container restart ten minutes in and relaunched on its
+own recovered WIP commit — one arm, same model, same brief; noise in
+the implementer's wall figure only. Disclosed: the claim is written
+minutes before the dispatch, which waits for the box's third lane to
+free (two fix passes live); both arms dispatch together when it
+does. Shared-box note applying to BOTH arms equally: one 4-core cloud
+box, two fix-pass lanes live at dispatch, `-j2`; R1's target is the
+implementer's warm one (its incremental cache dropped for disk), R2's
+is another lane's warm workspace build at a different head —
+wall-clock asymmetry only.
+
 ## SYM program rows (work/sym/; band 4700–4799; blocks named SYM-B<n>)
 
 SYM-4 review ordinal fixed at dispatch (2026-09-14, PR #2565 open —
