@@ -628,3 +628,12 @@ a refused decision may retry at a wider ring or with the opening rule
 off, on refusals only, counted in the receipt. Pre-draw fields and the
 draw go on `sym/b2-block` once the specs are on `main`; SYM-7
 dispatches first, when SYM-5's lanes retire.
+
+## SYM-7 dispatched: block SYM-B2 opens (2026-09-14)
+
+Block SYM-B2 drawn on `sym/b2-block` (pre-draw fields logged first:
+SYM-7 H / STRUCTURAL, SYM-8 H / NUMERIC, SYM-9 H / NUMERIC; byte 56 ⇒
+fable at slot 2, so SYM-7 and SYM-8 run on Opus and SYM-9 on Fable).
+SYM-7 dispatched first, while SYM-5 PR-2 and SYM-6 are in their delta
+rounds; the `drive.rs` seam announced to PROPS. SYM-8 and SYM-9
+dispatch as lanes free.

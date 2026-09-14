@@ -1147,3 +1147,13 @@ here (`register-equals-witness-limits-citation-names-no-file`) as
 fixed by that PR; and adds one sentence to E12 in
 `docs/ERROR-DESIGN.md` recording the refusal arms by witness kind (Ev's
 D2 on #2552), beside the ε sentence already disclosed.
+
+**(SYM orchestrator) Seam announced, 2026-09-14 — SYM-7** (`sym/7-plain-memo`,
+`docs/SYM-7-SPEC.md`): `crates/editor-core/src/drive.rs` (PROPS') gains
+the creation of one `DriveMemo` per drive around the level loop,
+passed into `classify`'s `with_session_rules` call, a `DriveConfig.plain_memo`
+flag (default on), and `frozen` on the drive's receipt re-defined as
+distinct nodes frozen over the drive (its `serialize`/`render` docs) —
+nothing else in that file. Ev's D3 = (1) on `[ev]` #2581. The M10-3
+receipt-identity row across schedules is the acceptance the memo is
+shared (not per worker) to keep.
