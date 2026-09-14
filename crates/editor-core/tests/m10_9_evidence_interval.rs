@@ -51,34 +51,32 @@ fn door_rows() -> [(&'static str, SymRules); 2] {
     ]
 }
 
-/// The four documents, each as a function of the SCALE of its real
-/// study, so a ceiling is a multiple of the study a user would ask for.
+/// The five documents, in THIS file's reporting order — the builders
+/// themselves live once, in the gating half's measured table
+/// (`m10_9_pins_interval::measured_studies`), so a document that is
+/// re-cut moves in one place (R1 S1; this file used to carry a second
+/// copy of all five).
 fn documents(tol: Tol) -> Vec<NamedStudy> {
-    vec![
-        (
-            "two_hole_plate",
-            Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0)
-                as Box<dyn Fn(f64) -> ProfileDoc>,
-        ),
-        (
-            "r2_filleted_bracket",
-            Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
-        ),
-        (
-            "r1_annulus",
-            Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
-        ),
-        (
-            "r2_rounded_pad",
-            Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
-        ),
-        // R2's own arc document, adopted so the corrected diagnosis is
-        // read on the same five documents both reviews measured.
-        (
-            "r2_link",
-            Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
-        ),
+    let mut by_name: BTreeMap<&'static str, Box<dyn Fn(f64) -> ProfileDoc>> =
+        crate::m10_9_pins_interval::measured_studies(tol)
+            .into_iter()
+            .map(|study| (study.name, study.at))
+            .collect();
+    [
+        "two_hole_plate",
+        "r2_filleted_bracket",
+        "r1_annulus",
+        "r2_rounded_pad",
+        "r2_link",
     ]
+    .into_iter()
+    .map(|name| {
+        let at = by_name
+            .remove(name)
+            .unwrap_or_else(|| panic!("{name} is not in measured_studies"));
+        (name, at)
+    })
+    .collect()
 }
 
 /// **The ceilings, door OFF and door ON, and THE OVER-BAND SET AT

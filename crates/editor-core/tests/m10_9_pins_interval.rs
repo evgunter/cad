@@ -48,13 +48,69 @@ use geom_core::{SymRules, Tol};
 
 use crate::m10_8_harness::{certifies_whole, dials};
 
-/// A named study, as a function of the SCALE of its real study, with ONE
-/// measured scale — a multiple of ε.
-type StudyAtCeiling<'a> = (&'static str, f64, &'a dyn Fn(f64) -> ProfileDoc);
+/// **One measured document, and everything measured about it** — the
+/// single home for the five studies this file and
+/// `m10_9_evidence_interval` drive.
+///
+/// Every field is a MEASUREMENT, not a target: `certifies_at` and
+/// `refuses_at` are the two ends of the ceiling's bracket in multiples
+/// of ε, and `registered` is how many decisions the registered-identity
+/// door discharges on the document at `certifies_at` (ε-independent —
+/// the same at `1e-6`, `1e-9` and `1e-12`, and both reviews re-measured
+/// it). Three rows read this array; a re-measured ceiling or a moved
+/// count is edited once (R1 S1: it used to be typed out three times,
+/// magic constants and builders both).
+pub(crate) struct Study {
+    pub(crate) name: &'static str,
+    /// A multiple of ε that certifies whole.
+    pub(crate) certifies_at: f64,
+    /// A multiple of ε that refuses.
+    pub(crate) refuses_at: f64,
+    /// `SymCounts::registered` at `certifies_at`, shipped set.
+    pub(crate) registered: u64,
+    pub(crate) at: Box<dyn Fn(f64) -> ProfileDoc>,
+}
 
-/// The same, with the measured ceiling as the BRACKET it is: a multiple
-/// of ε that certifies whole and one that refuses, both asserted.
-type Bracketed<'a> = (&'static str, f64, f64, &'a dyn Fn(f64) -> ProfileDoc);
+/// The five, in the order every row here reports them.
+pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
+    [
+        Study {
+            name: "two_hole_plate",
+            certifies_at: 7.811e2,
+            refuses_at: 7.814e2,
+            registered: 140,
+            at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
+        },
+        Study {
+            name: "r1_annulus",
+            certifies_at: 7.805e2,
+            refuses_at: 7.810e2,
+            registered: 140,
+            at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
+        },
+        Study {
+            name: "r2_link",
+            certifies_at: 4.930e2,
+            refuses_at: 4.934e2,
+            registered: 90,
+            at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
+        },
+        Study {
+            name: "r2_filleted_bracket",
+            certifies_at: 3.870e2,
+            refuses_at: 3.873e2,
+            registered: 144,
+            at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
+        },
+        Study {
+            name: "r2_rounded_pad",
+            certifies_at: 2.083e3,
+            refuses_at: 2.084e3,
+            registered: 86,
+            at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
+        },
+    ]
+}
 
 /// One whole-box replay at `Sym<Interval>`: the session's counts and the
 /// first node that refused.
@@ -305,24 +361,8 @@ fn m10_9_the_value_channel_is_untouched_on_a_certifying_box() {
 fn m10_9_the_ceilings_are_unmoved_and_both_ends_are_the_measured_bracket() {
     let tol = Tol::witness();
     let eps = tol.eps();
-    let docs: [Bracketed<'_>; 5] = [
-        ("two_hole_plate", 7.811e2, 7.814e2, &|s: f64| {
-            crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0
-        }),
-        ("r1_annulus", 7.805e2, 7.810e2, &|s: f64| {
-            crate::m10_8_r1_probes_interval::annulus(s, tol).0
-        }),
-        ("r2_link", 4.930e2, 4.934e2, &|s: f64| {
-            crate::m10_9_r2_probes_interval::link(s, tol).0
-        }),
-        ("r2_filleted_bracket", 3.870e2, 3.873e2, &|s: f64| {
-            crate::m10_7_r2_probes_interval::bracket(s, tol).0
-        }),
-        ("r2_rounded_pad", 2.083e3, 2.084e3, &|s: f64| {
-            crate::m10_8_r2_probes_interval::pad(s, tol).0
-        }),
-    ];
-    for (name, lo, hi, at) in docs {
+    for study in measured_studies(tol) {
+        let (name, lo, hi, at) = (study.name, study.certifies_at, study.refuses_at, &study.at);
         for (rules, label) in [(opened(), "open"), (closed(), "shut")] {
             assert!(
                 certifies_whole(&at(lo * eps), rules, tol),
@@ -339,72 +379,68 @@ fn m10_9_the_ceilings_are_unmoved_and_both_ends_are_the_measured_bracket() {
     }
 }
 
-/// **NO REGISTRATION IS REFUSED ON A REAL DOCUMENT** — the loud
-/// channel the door was missing, at fixture scale.
+/// **NO REGISTRANT LIES ON A REAL DOCUMENT** — the loud channel the
+/// door was missing, at fixture scale, and the three assertions that
+/// make it one.
 ///
-/// The five M10-10 evidence documents are replayed at `Sym<Interval>`
-/// with the shipped set, at the scale each certifies whole at, and the
-/// session's receipt must report `registrations_refused == 0`. In THIS
-/// lane every arm that feeds that count is a proof of a defect:
-/// `SymRegistration::Contradicted` is the exact witness reporting two
-/// DISJOINT certified enclosures — either the registrant did not build
-/// what its theorem says or an upstream enclosure does not contain its
-/// real — and `Cyclic` is a registrant aliasing a node into its own
-/// expression. `Disputed`, the inexact witness's refusal, cannot arise
-/// here: no `f64` compares anything in this lane.
+/// The five measured documents are replayed at `Sym<Interval>` with the
+/// shipped set, at the scale each certifies whole at
+/// (`measured_studies`). **The width the row reads at is the ANALYZED
+/// BOX** — `analyzed_box(doc, AnalysisPolicy::default())`, the same box
+/// the driver replays over — and that width is what the exact witness
+/// tests against, so the claim below is about the door's answers over
+/// that box and not over a point.
 ///
-/// **Why this row and not an assertion inside the registrants.** A
-/// registrant's theorem is a theorem of the REALS, so it may not
-/// promise that every configuration a door admits is one where the
-/// arithmetic agrees — an adversarial torus at a minor radius of 10¹⁸
-/// contradicts the span identity at `f64` with nothing wrong
-/// (`work/sym/the-span-identity-is-not-a-theorem-of-the-floats`). What
-/// a registrant CAN promise is a claim about the documents the kernel
-/// is measured on, and that is this row: a registrant that starts
-/// stating a lie on a real document reds it. The `Interval` arm keeps
-/// its assertion too, in the registrants, where the refusal is a proof.
+/// **What each assertion catches, because no one of them catches
+/// everything** (R2 MAJOR-1 / R1 MINOR-4 measured exactly this):
+///
+/// - **`registered`, pinned PER DOCUMENT.** A registration the exact
+///   witness ADMITS but should not is invisible to a refusal count: at
+///   `Sym<Interval>` two certified enclosures that still MEET are
+///   `Witnessed`, which is the door's contract and not a defect it can
+///   see. R2 planted `‖q − c‖ ≡ r · (1 + 2ε)` in `register_rim_identity`
+///   and the enclosures still met — but the registry stops discharging,
+///   so `registered` collapses (plate 140 → 16, annulus 140 → 16, link
+///   90 → 16, bracket 144 → 20, pad 86 → 24) and `numeric` rises
+///   (470 → 594 on the plate). **These counts are what a small lie
+///   moves**, so they are pinned, and they are ε-independent: the same
+///   five numbers at `1e-6`, `1e-9` and `1e-12`.
+/// - **The registrants' own `debug_assert!`** (`swept::handle_registration`).
+///   A GEOMETRIC lie separates the enclosures, the exact witness answers
+///   `Contradicted`, and the registrant aborts — first, and in every CI
+///   profile, because this workspace ships `debug-assertions = true` in
+///   release too. So a 0.1 % lie reds this row through a panic and never
+///   reaches the count below.
+/// - **`registrations_refused == 0`.** What is left once those two have
+///   had their turn: `Cyclic`, and any FUTURE registrant that binds the
+///   refusal without asserting. It is the backstop, not the loud
+///   channel, and saying otherwise was the first cut's mistake.
 ///
 /// The ε rows are the suite's: one process per ε, so this row runs at
 /// `1e-6`, `1e-9` and `1e-12` and the claim is all three.
 #[test]
-fn m10_9_no_registration_is_refused_on_any_measured_document() {
+fn m10_9_no_registrant_lies_on_any_measured_document() {
     let tol = Tol::witness();
     let eps = tol.eps();
-    // The certifying end of each document's measured bracket
-    // (`m10_9_the_ceilings_are_unmoved_and_both_ends_are_the_measured_bracket`).
-    let docs: [StudyAtCeiling<'_>; 5] = [
-        ("two_hole_plate", 7.811e2, &|s: f64| {
-            crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0
-        }),
-        ("r1_annulus", 7.805e2, &|s: f64| {
-            crate::m10_8_r1_probes_interval::annulus(s, tol).0
-        }),
-        ("r2_link", 4.930e2, &|s: f64| {
-            crate::m10_9_r2_probes_interval::link(s, tol).0
-        }),
-        ("r2_filleted_bracket", 3.870e2, &|s: f64| {
-            crate::m10_7_r2_probes_interval::bracket(s, tol).0
-        }),
-        ("r2_rounded_pad", 2.083e3, &|s: f64| {
-            crate::m10_8_r2_probes_interval::pad(s, tol).0
-        }),
-    ];
-    for (name, scale, at) in docs {
-        let doc = at(scale * eps);
+    for study in measured_studies(tol) {
+        let name = study.name;
+        let doc = (study.at)(study.certifies_at * eps);
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         let (refusal, counts) =
             replay_counts(&doc, &ParamBox::of(&analyzed), SymRules::shipped(), tol);
         println!("   {name} at eps={eps:e}: {counts:?} -> {refusal:?}");
-        assert!(
-            counts.registered > 0,
-            "{name}: the registrants reach this document, so the row below is about \
-             something — if this fails the document stopped exercising the door: {counts:?}"
+        assert_eq!(
+            counts.registered, study.registered,
+            "{name} at eps={eps:e}: the door discharges a DIFFERENT number of decisions \
+             than the measurement — a registrant that started stating something slightly \
+             false stops discharging without being refused, which is exactly what this \
+             pin is for: {counts:?}"
         );
         assert_eq!(
             counts.registrations_refused, 0,
-            "{name} at eps={eps:e}: a registrant stated something the EXACT witness \
-             refused on a real document — its theorem or an upstream enclosure is \
-             wrong: {counts:?}"
+            "{name} at eps={eps:e}: a registration was refused on a real document — at \
+             this lane that is `Cyclic`, or an exact-witness refusal from a registrant \
+             that binds it instead of asserting: {counts:?}"
         );
     }
 }
@@ -434,18 +470,10 @@ fn m10_9_the_bound_at_ceiling_plus_delta_is_the_scaffold_pushforward() {
     let eps = tol.eps();
     // The refusing end of each measured bracket (the row above asserts
     // that these refuse; this one says WHAT is over the band there).
-    let docs: [StudyAtCeiling<'_>; 3] = [
-        ("two_hole_plate", 7.814e2, &|s: f64| {
-            crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0
-        }),
-        ("r1_annulus", 7.810e2, &|s: f64| {
-            crate::m10_8_r1_probes_interval::annulus(s, tol).0
-        }),
-        ("r2_link", 4.934e2, &|s: f64| {
-            crate::m10_9_r2_probes_interval::link(s, tol).0
-        }),
-    ];
-    for (name, hi, at) in docs {
+    // The three documents a gate can afford to name the set for; the
+    // shared table's first three, at their refusing end.
+    for study in measured_studies(tol).into_iter().take(3) {
+        let (name, hi, at) = (study.name, study.refuses_at, &study.at);
         for (rules, label) in [(opened(), "open"), (closed(), "shut")] {
             let doc = at(hi * eps);
             let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
