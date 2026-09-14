@@ -3,8 +3,11 @@
 //! bits. The readings that argued for the bound, none of them pinned
 //! and none of them a claim about today's tree: the i128-era whole-box
 //! replays reported `frozen: 0` on the bracket, because the `Decide`
-//! impl skips the form of a margin the numeric channel has already
-//! proved non-zero; and M10-8 measured the case a whole-box replay
+//! impl's DECISION PATH never asks the form of a margin the numeric
+//! channel has already proved non-zero (the contradiction assertion
+//! at that site builds it wherever debug assertions are on — every
+//! profile this workspace builds — and `frozen` counts it, whoever
+//! asked); and M10-8 measured the case a whole-box replay
 //! cannot see — at a document's NOMINAL, where every identity margin is
 //! near zero and every form is built, the plate froze 1,056 forms, R2's
 //! bracket 1,978 and R1's annulus 1,034. The plate's own ceiling
@@ -22,6 +25,8 @@ use num_integer::Integer;
 use num_traits::{Signed, ToPrimitive};
 
 use super::Hash128;
+#[cfg(feature = "sym-profile-testing")]
+use super::profile;
 
 /// **The coefficient integer: an `i128` inline, a `BigInt` only past
 /// it.** The ring is arbitrary-precision under [`COEFF_BITS`], but the
@@ -104,12 +109,21 @@ impl Int {
         }
     }
 
+    /// Whether both are on the inline path (the cost profile's
+    /// promotion count).
+    #[cfg(feature = "sym-profile-testing")]
+    fn both_small(&self, o: &Self) -> bool {
+        matches!((self, o), (Self::Small(_), Self::Small(_)))
+    }
+
     fn add(&self, o: &Self) -> Self {
         if let (Self::Small(a), Self::Small(b)) = (self, o)
             && let Some(v) = a.checked_add(*b)
         {
             return Self::Small(v);
         }
+        #[cfg(feature = "sym-profile-testing")]
+        profile::big_path(self.both_small(o));
         Self::from_big(self.big() + o.big())
     }
 
@@ -119,6 +133,8 @@ impl Int {
         {
             return Self::Small(v);
         }
+        #[cfg(feature = "sym-profile-testing")]
+        profile::big_path(self.both_small(o));
         Self::from_big(self.big() * o.big())
     }
 
@@ -129,6 +145,8 @@ impl Int {
         {
             return Self::Small(v);
         }
+        #[cfg(feature = "sym-profile-testing")]
+        profile::big_path(matches!(self, Self::Small(_)));
         Self::from_big(self.big() << k)
     }
 
@@ -141,6 +159,8 @@ impl Int {
                 Err(_) => Self::from_big(BigInt::from(g)),
             };
         }
+        #[cfg(feature = "sym-profile-testing")]
+        profile::big_path(false);
         Self::from_big(self.big().gcd(&o.big()))
     }
 
@@ -151,6 +171,8 @@ impl Int {
         {
             return Self::Small(v);
         }
+        #[cfg(feature = "sym-profile-testing")]
+        profile::big_path(self.both_small(d));
         Self::from_big(self.big() / d.big())
     }
 
@@ -316,6 +338,8 @@ impl Rat {
     /// zero denominator and an integer past [`COEFF_BITS`].
     fn from_parts(num: Int, den: Int, exp2: i32) -> Option<Self> {
         if den.is_zero() {
+            #[cfg(feature = "sym-profile-testing")]
+            profile::note(profile::FreezeCause::ZeroDivisor);
             return None;
         }
         if num.is_zero() {
@@ -334,12 +358,25 @@ impl Rat {
         };
         let (num, nz) = num.strip_twos();
         let (den, dz) = den.strip_twos();
-        let exp2 = exp2
-            .checked_add(i32::try_from(nz).ok()?)?
-            .checked_sub(i32::try_from(dz).ok()?)?;
+        let Some(exp2) = i32::try_from(nz)
+            .ok()
+            .and_then(|nz| exp2.checked_add(nz))
+            .and_then(|e| i32::try_from(dz).ok().and_then(|dz| e.checked_sub(dz)))
+        else {
+            #[cfg(feature = "sym-profile-testing")]
+            profile::note(profile::FreezeCause::Overflow);
+            return None;
+        };
         if num.bits() > COEFF_BITS || den.bits() > COEFF_BITS {
+            #[cfg(feature = "sym-profile-testing")]
+            {
+                profile::coefficient_bits(num.bits().max(den.bits()), false);
+                profile::note(profile::FreezeCause::Coefficient);
+            }
             return None;
         }
+        #[cfg(feature = "sym-profile-testing")]
+        profile::coefficient_bits(num.bits().max(den.bits()), true);
         Some(Self { num, den, exp2 })
     }
 
@@ -347,6 +384,8 @@ impl Rat {
     /// (which cannot be a coefficient of a real polynomial).
     pub(super) fn of_f64(x: f64) -> Option<Self> {
         if !x.is_finite() {
+            #[cfg(feature = "sym-profile-testing")]
+            profile::note(profile::FreezeCause::Overflow);
             return None;
         }
         if x == 0.0 {
@@ -381,11 +420,15 @@ impl Rat {
         if other.is_zero() {
             return Some(self.clone());
         }
+        #[cfg(feature = "sym-profile-testing")]
+        profile::rat_op();
         // Align on the smaller exponent, shifting the other numerator up.
         let lo = self.exp2.min(other.exp2);
         let shift = |r: &Self| -> Option<Int> {
             let k = usize::try_from(r.exp2.checked_sub(lo)?).ok()?;
             if k as u64 > COEFF_BITS {
+                #[cfg(feature = "sym-profile-testing")]
+                profile::note(profile::FreezeCause::Coefficient);
                 return None;
             }
             Some(r.num.shl(k))
@@ -415,11 +458,14 @@ impl Rat {
         if self.is_zero() || other.is_zero() {
             return Some(Self::zero());
         }
-        Self::from_parts(
-            self.num.mul(&other.num),
-            self.den.mul(&other.den),
-            self.exp2.checked_add(other.exp2)?,
-        )
+        #[cfg(feature = "sym-profile-testing")]
+        profile::rat_op();
+        let Some(exp2) = self.exp2.checked_add(other.exp2) else {
+            #[cfg(feature = "sym-profile-testing")]
+            profile::note(profile::FreezeCause::Overflow);
+            return None;
+        };
+        Self::from_parts(self.num.mul(&other.num), self.den.mul(&other.den), exp2)
     }
 
     /// The reciprocal; `None` for zero.
