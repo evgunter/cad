@@ -4155,7 +4155,7 @@ struct TrimCell {
 /// every image this head's producer mints (`PXN_IMAGE_DEGREE = 1`).
 fn lune_area(block: &[RPt2], a: (f64, f64), b: (f64, f64)) -> f64 {
     let (cu, cv) = (b.0 - a.0, b.1 - a.1);
-    let len = (cu * cu + cv * cv).sqrt();
+    let len = (cu.powi(2) + cv.powi(2)).sqrt();
     if block.len() <= 2 {
         return 0.0;
     }
@@ -4215,7 +4215,7 @@ fn piece_monotone<T: Decide>(
     band: Band,
 ) -> Result<Sign, PropsError> {
     let (cu, cv) = (b.0 - a.0, b.1 - a.1);
-    let len = (cu * cu + cv * cv).sqrt();
+    let len = (cu.powi(2) + cv.powi(2)).sqrt();
     if len <= 0.0 || !len.is_finite() {
         // A chord of zero length has no direction to be monotone over.
         return Ok(Sign::Zero);
@@ -4416,7 +4416,7 @@ fn chord_cuts(
                 // knot and ℓ(u)}`, whose chart area is at most
                 // `½·w²·|ℓ′|` on each side of the cut.
                 let w = us.width();
-                sliver += w * w * (dv / du).mag();
+                sliver += w.powi(2) * (dv / du).mag();
             }
         }
     }
