@@ -4,6 +4,7 @@ kind: issue
 title: The E12 symbolic tier is 95% of the M10-3 interval drive: 20.8x measured, and nothing has profiled inside the normal form
 status: open
 opened: 2026-09-11
+parent: SYM-1
 ---
 
 
