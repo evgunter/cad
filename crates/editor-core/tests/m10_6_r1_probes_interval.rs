@@ -264,29 +264,48 @@ fn the_min_clearance_bracket_bounds_the_trimmed_faces_from_below() {
     );
 }
 
-/// The same fixture, read the way the review reads it: the bracket the
-/// engine actually returns, printed, with its receipt. EVIDENCE-ONLY —
-/// it asserts the SHAPE of the looseness (the window's `LIFT` inside
-/// the bracket) so a fix that tightens windows turns it red and says
-/// so, rather than letting the counterexample above silently pass.
+/// The same fixture, re-expressed at TRIM-3 PR-2 (spec §4, row E9).
+///
+/// This row used to assert `hi < true_notch_clearance()` — the
+/// window's own `LIFT` sitting inside the bracket — precisely so that
+/// a fix which tightened the windows would turn it red and send a
+/// reader back to the row above. The fix landed: `min_separation`
+/// discharges a cell pair the L cap's chart boundary certifies empty
+/// of face, so the notch no longer pulls `hi` down to `LIFT`.
+///
+/// What replaces it is the pair of statements that survive the
+/// tightening, and the one that does not. **`lo` still bounds the
+/// faces from below**, which is the end every gate reads. **`hi` is no
+/// longer the notch's 0.1**, which is what the tightening bought.
+/// And `Certified::LowerBoundOnly` still refuses an `AtMost`/`Holds`
+/// arm, because a tightened window is still a window: cells that
+/// straddle the boundary, or lie within `K · ε` of it, are KEPT by
+/// construction, so `m = M` does not hold and `hi` is still not a
+/// bound on the faces (`work/trim/exact-region-cells-for-lower-bound-only.md`).
 #[test]
-fn the_notch_bracket_is_the_windows_not_the_faces() {
+fn the_notch_bracket_is_tightened_and_is_still_a_window() {
     let (doc, measure, _) = notch(0.2, AssertionDir::AtLeast);
     let ev = eval_over::<geom_core::Interval>(&doc, None);
     let value = measure_value(&ev, measure).expect("the measure has an interval value");
+    let truth = true_notch_clearance();
+    let k_eps = geom_core::Tol::witness().k() * geom_core::Tol::witness().eps();
     eprintln!(
-        "EVIDENCE notch bracket [{}, {}] vs window distance {LIFT} vs face distance {}",
+        "E9 notch bracket [{}, {}] vs window distance {LIFT} vs face distance {truth}",
         value.lo(),
-        value.hi(),
-        true_notch_clearance()
+        value.hi()
     );
     assert!(
-        value.hi() < true_notch_clearance(),
-        "if this fails the window looseness is closed: un-ignore the row above"
+        value.lo() <= truth,
+        "`lo` bounds the faces' minimum from below: {} vs {truth}",
+        value.lo()
     );
-    // The f64 geometry puts the underside at `1.1 − 1.0`, one ulp-ish
-    // above `0.1`, so the window's own distance is compared with slack.
-    assert!(value.lo() <= LIFT + 1e-15 && LIFT <= value.hi());
+    assert!(
+        value.hi() >= truth - k_eps,
+        "`hi` is no longer the notch's {LIFT}: the cells straight under the block are \
+         proven empty of the L's cap, so nothing realizes a separation below the faces' \
+         own {truth}: {}",
+        value.hi()
+    );
 }
 
 /// **Finding (MAJOR, the consequence):** `min_clearance(cap, underside)

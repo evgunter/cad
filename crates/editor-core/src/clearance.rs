@@ -73,9 +73,22 @@
 //!
 //! The inner subdivision runs over each face's **carrier window** — the
 //! rectangle of surface parameters derived in [`window_of`]. A window
-//! is a conservative SUPERSET of the face's trimmed region: an L-shaped
-//! planar face's window is its bounding rectangle, and a cylindrical
-//! face's window is the whole turn at the face's axial span.
+//! is a conservative SUPERSET of the face's trimmed region, and it
+//! stays one: a plane's or a cylinder's is cut to the hull of the
+//! face's boundary in that window's own chart, and then every CELL the
+//! same boundary certifies empty of face is discharged vacuously
+//! rather than classified. A cell straddling that boundary, or within
+//! `K · ε` of it, is kept — the description is a certificate and every
+//! rounding in it keeps the cell — so the window is narrower and still
+//! a superset.
+//!
+//! **Cone, sphere and torus keep the whole-carrier rectangles**: the
+//! full turn, the full latitude, the symmetric slant range around an
+//! apex. Their region side needs an argument this module does not make
+//! (`work/trim/clearance-window-cone-sphere-torus.md`), and
+//! [`ClearanceReport::windows`] counts how many of a query's windows
+//! carry a description and how many do not, so a reader can tell which
+//! kind of window a verdict came off.
 //!
 //! So the looseness runs one way, and it is the safe way for a defect
 //! gate. `Holds` covers strictly more than the faces and is therefore
@@ -84,17 +97,17 @@
 //! the same direction, and the same sentence, `topo::shell`'s own
 //! closed-form `wall_clearance` gate states about its projected
 //! footprints: it may refuse a body whose faces do not really face each
-//! other; it cannot miss a pair that does. Tightening a window to the
-//! trimmed region needs the face's boundary in CHART coordinates, which
-//! is the pcurve layer's description work and not this module's; the
-//! size of the looseness is measured, and the fix scoped, in
-//! `work/trim/clearance-window-tightening-needs-chart-boundary.md`.
-//! Two shapes are worth naming here because a consumer will meet them:
-//! a NON-CONVEX planar face (an L-shaped cap's window covers the
-//! notch, so a body parked in the notch is reported at 0 m from a face
-//! it is 0.45 m from) and a COPLANAR pair (two faces on one carrier
-//! have overlapping windows in that carrier's own parameters however
-//! far apart the faces are).
+//! other; it cannot miss a pair that does. Two shapes used to meet a
+//! consumer immediately and no longer do: a NON-CONVEX planar face (an
+//! L-shaped cap's window covers the notch, so a body parked in the
+//! notch was reported at 0 m from a face it is 0.45 m from) and a
+//! COPLANAR pair (two faces on one carrier have overlapping windows in
+//! that carrier's own parameters however far apart the faces are).
+//! Both are the description's own cases. What survives is a cell the
+//! description cannot decide, a carrier it does not cover, and a
+//! boundary walk that refuses;
+//! `work/trim/clearance-window-tightening-needs-chart-boundary.md`
+//! measured the class.
 //!
 //! # No ε here, and two funnelled compares
 //!
@@ -128,9 +141,9 @@ use bvh::{Aabb, Bvh};
 use geom::Surface;
 use geom_core::interval::Interval;
 use geom_core::k_stats::decide;
-use geom_core::{Band, Bounds, Margin, MarginDiag, Point3, Real, Sign, Tol, Vec3};
-use topo::Body;
+use geom_core::{Band, Bounds, Margin, MarginDiag, Point3, Real, Sign, Tol, Tolerance, Vec3};
 use topo::entity::{EdgeKey, FaceKey, LoopBoundary, VertexKey};
+use topo::{Body, MetredBound, MetredRect, chart_boundary};
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
 use crate::doc::{Doc, ParamName};
@@ -481,6 +494,12 @@ pub struct GeometryWitness {
     /// Its carrier parameters, IN THE CHART `a_chart_axis` names —
     /// which for a planar face is the engine's own re-chart, not the
     /// stored one.
+    ///
+    /// On a periodic carrier `u` is an azimuth **on the walk's own
+    /// branch**, a real number and never folded into `[0, τ)`: a face
+    /// swept by a negative-angle revolve occupies `[θ, 0]` with `θ`
+    /// negative, and a witness there reports a negative `u`. Fold it
+    /// and it names a different point of the same surface.
     pub a_uv: (f64, f64),
     /// Which world axis the planar re-chart crossed the normal with, so
     /// a consumer can rebuild the same chart
@@ -762,6 +781,13 @@ pub struct CellReceipt {
     pub refused: usize,
     /// Cell pairs that were split.
     pub splits: usize,
+    /// **A sub-count of `discharged`, not a bucket of its own**: cell
+    /// pairs discharged VACUOUSLY, because one side's chart-boundary
+    /// description certified its cell empty of face. Nothing was
+    /// measured and nothing decided at the clearance site, so the pair
+    /// contributes no discharge width; `outside <= discharged` and the
+    /// receipt identity is untouched.
+    pub outside: usize,
     /// Cell pairs the sweep never classified because it had already
     /// verified a violation and stopped.
     pub abandoned: usize,
@@ -783,6 +809,7 @@ impl CellReceipt {
         self.violated += other.violated;
         self.refused += other.refused;
         self.splits += other.splits;
+        self.outside += other.outside;
         self.abandoned += other.abandoned;
     }
 }
@@ -843,6 +870,7 @@ pub struct ClearanceReport {
     verdict: ClearanceVerdict,
     receipt: CellReceipt,
     widths: DischargeWidths,
+    windows: (usize, usize),
 }
 
 impl ClearanceReport {
@@ -861,6 +889,22 @@ impl ClearanceReport {
         self.widths
     }
 
+    /// **How many of the query's carrier windows carry a chart-boundary
+    /// description, and how many do not** — `(tightened, loose)`, one
+    /// count per window the sweep ran over, both sides, so a query
+    /// against itself counts each face twice.
+    ///
+    /// A loose window is the whole carrier rectangle M10-5 shipped: a
+    /// cone, a sphere or a torus, whose region side this engine does
+    /// not describe, or a plane or cylinder whose boundary walk
+    /// refused. It is the instrument for reading a `Violated`: a
+    /// violation reported over a loose window may still be a window
+    /// pair neither face occupies, and this pair of counts is what says
+    /// which windows those could have been.
+    pub fn windows(&self) -> (usize, usize) {
+        self.windows
+    }
+
     /// The report's goldening form: a deterministic, float-exact text
     /// rendering, in the driver's own idiom (every float as its exact
     /// bits, so the text is a faithful image rather than a rounded
@@ -872,13 +916,14 @@ impl ClearanceReport {
         let _ = writeln!(
             s,
             "receipt candidates={} discharged={} violated={} refused={} splits={} \
-             abandoned={} holds={}",
+             abandoned={} outside={} holds={}",
             r.candidates,
             r.discharged,
             r.violated,
             r.refused,
             r.splits,
             r.abandoned,
+            r.outside,
             r.holds()
         );
         match &self.verdict {
@@ -935,6 +980,11 @@ impl ClearanceReport {
             render(self.widths.narrowest),
             self.widths.deepest
         );
+        let _ = writeln!(
+            s,
+            "windows tightened={} loose={}",
+            self.windows.0, self.windows.1
+        );
         s
     }
 
@@ -978,9 +1028,15 @@ impl ClearanceReport {
         let r = self.receipt;
         let _ = writeln!(
             s,
-            "  {} candidate pair(s); {} discharged, {} violated, {} refused, {} split, \
-             {} abandoned",
-            r.candidates, r.discharged, r.violated, r.refused, r.splits, r.abandoned
+            "  {} candidate pair(s); {} discharged ({} of them vacuously, off the face), \
+             {} violated, {} refused, {} split, {} abandoned",
+            r.candidates, r.discharged, r.outside, r.violated, r.refused, r.splits, r.abandoned
+        );
+        let _ = writeln!(
+            s,
+            "  {} of {} carrier window(s) tightened to the face's chart boundary",
+            self.windows.0,
+            self.windows.0 + self.windows.1
         );
         let w = self.widths;
         let _ = writeln!(
@@ -1001,6 +1057,7 @@ impl ClearanceReport {
             verdict: ClearanceVerdict::Refused(refusal),
             receipt: CellReceipt::default(),
             widths: DischargeWidths::empty(),
+            windows: (0, 0),
         }
     }
 }
@@ -1089,7 +1146,7 @@ pub fn clearance_with(
     };
     let ev: Evaluation<Interval> = evaluate(doc, None, &CancelToken::new(), &opts, query.tol);
 
-    let windows_a = match windows_of(&ev, a) {
+    let windows_a = match windows_of(&ev, a, Some(band)) {
         Ok(w) => w,
         Err(r) => return ClearanceReport::refused(r),
     };
@@ -1100,7 +1157,7 @@ pub fn clearance_with(
     let windows_b = if a == b {
         windows_a.clone()
     } else {
-        match windows_of(&ev, b) {
+        match windows_of(&ev, b, Some(band)) {
             Ok(w) => w,
             Err(r) => return ClearanceReport::refused(r),
         }
@@ -1156,6 +1213,7 @@ pub fn clearance_over(
         verdict: ClearanceVerdict::Holds,
         receipt: CellReceipt::default(),
         widths: DischargeWidths::empty(),
+        windows: (0, 0),
         leaves: Vec::new(),
         mass: ClearanceMass::empty(verdict.accounting()),
         drive_accounting: verdict.accounting().clone(),
@@ -1173,6 +1231,8 @@ pub fn clearance_over(
         fold.mass.price(&report.verdict, mass);
         fold.receipt.add(report.receipt);
         fold.widths.fold(report.widths);
+        fold.windows.0 += report.windows.0;
+        fold.windows.1 += report.windows.1;
         fold.verdict = combine(fold.verdict, report.verdict.clone());
         fold.leaves.push(LeafAnswer {
             box_: box_.clone(),
@@ -1270,6 +1330,9 @@ pub struct LeafFold {
     pub receipt: CellReceipt,
     /// The measured limit, folded.
     pub widths: DischargeWidths,
+    /// The summed window description counts
+    /// ([`ClearanceReport::windows`]) over every leaf.
+    pub windows: (usize, usize),
     /// Every certified leaf's own answer, in the drive's order.
     pub leaves: Vec<LeafAnswer>,
     /// Where the certified mass went once this question was asked.
@@ -1378,11 +1441,15 @@ impl Default for MinSeparationConfig {
 /// measure may read `lo` and may not read `hi`, and the two arms that
 /// would have read `hi` refuse typed rather than answering.
 ///
-/// A worked counterexample, in the suite: an L-shaped cap under a
-/// block parked over its notch brackets `[0.100…, 0.100…]` while the
-/// faces are `0.269` apart — the window pair straight across the notch
-/// belongs to neither face
-/// (`m10_6_r1_probes_interval::the_notch_bracket_is_the_windows_not_the_faces`).
+/// The gap is SMALLER than it was — a window whose face carries a
+/// chart-boundary description no longer offers the cells that face
+/// does not occupy, and the L-shaped cap under a block parked over its
+/// notch, which used to bracket `[0.100…, 0.100…]` against a true
+/// `0.269`, now reaches the faces' own separation
+/// (`m10_6_r1_probes_interval::the_notch_bracket_is_tightened_and_is_still_a_window`).
+/// It is not CLOSED: a cell straddling the described boundary, or
+/// within `K · ε` of it, is kept, so `hi` is still a minimum over a
+/// superset of the faces and still bounds `M` in neither direction.
 ///
 /// # Budget-honest, and no width rule anywhere
 ///
@@ -1397,9 +1464,12 @@ impl Default for MinSeparationConfig {
 ///
 /// # What closes the gap
 ///
-/// [`crate::measure::WINDOW_TIGHTENING`]: a window tightened to its
-/// trimmed face makes `m = M` and every arm sound again. Until then
-/// the asymmetry is typed rather than papered over.
+/// Exact-region cells: a cell classification that answers
+/// inside/outside exactly rather than conservatively, so the set the
+/// sweep minimises over is the trimmed face and nothing else. Only
+/// then is `m = M` and only then is every arm sound again
+/// (`work/trim/exact-region-cells-for-lower-bound-only.md`). Until
+/// then the asymmetry is typed rather than papered over.
 ///
 /// # How WIDE the bracket actually is (M10-6's review, MINOR-13)
 ///
@@ -1516,9 +1586,9 @@ impl MinSeparation {
         let r = self.receipt;
         let _ = writeln!(
             s,
-            "  {} candidate pair(s) subdivided, {} excluded at admission; {} discharged, \
-             {} refused, {} split, {} abandoned",
-            r.candidates, self.excluded, r.discharged, r.refused, r.splits, r.abandoned
+            "  {} candidate pair(s) subdivided, {} excluded at admission; {} discharged \
+             ({} of them vacuously, off the face), {} refused, {} split, {} abandoned",
+            r.candidates, self.excluded, r.discharged, r.outside, r.refused, r.splits, r.abandoned
         );
         let _ = writeln!(
             s,
@@ -1537,7 +1607,8 @@ impl MinSeparation {
         let r = self.receipt;
         format!(
             "min_separation lo={:016x} hi={:016x} excluded={}\nreceipt candidates={} \
-             discharged={} violated={} refused={} splits={} abandoned={} holds={}\n",
+             discharged={} violated={} refused={} splits={} abandoned={} outside={} \
+             holds={}\n",
             self.lo.to_bits(),
             self.hi.to_bits(),
             self.excluded,
@@ -1547,6 +1618,7 @@ impl MinSeparation {
             r.refused,
             r.splits,
             r.abandoned,
+            r.outside,
             r.holds()
         )
     }
@@ -1593,10 +1665,22 @@ pub fn min_separation(
     if a.faces.is_empty() || b.faces.is_empty() {
         return Err(ClearanceRefusal::EmptyScope);
     }
+    // **The one band this door does read, and why it is not a
+    // tolerance argument.** Nothing the bracket is made of decides:
+    // enclosures are computed and their endpoints minimised, which is
+    // the paragraph above. The chart-boundary description is the one
+    // question here that DOES decide — a cell is dropped only on a
+    // definite sign at `K · eps` — so it needs the run's own linear
+    // band. It is read through the NON-COMMITTING door: this door
+    // commits no tolerance, and a run that has not committed one gets
+    // `None` and the loose windows M10-5 shipped, which is the
+    // identity.
+    let band = Tolerance::committed_report()
+        .and_then(|r| Band::new(r.tolerance.eps, r.tolerance.eps * r.tolerance.k).ok());
     let windows = |s: &MinSepSelection<'_>| -> Result<Vec<Window>, ClearanceRefusal> {
         s.faces
             .iter()
-            .map(|&k| window_of(s.body, s.at, s.index, k))
+            .map(|&k| window_of(s.body, s.at, s.index, k, band))
             .collect()
     };
     let wa = windows(a)?;
@@ -1722,6 +1806,23 @@ pub fn min_separation(
                 continue;
             };
             let pair = task.pair;
+            // Off the face, before anything is enclosed — the clearance
+            // sweep's own rule, and the bracket keeps its meaning under
+            // it. The dropped pair narrows neither end: it never
+            // reaches `hi`, so no separation between places the faces
+            // do not occupy can pull the upper bound down, and it never
+            // reaches `floor`, which is only ever fed by pairs the
+            // sweep could not finish. `lo` stays a lower bound on the
+            // faces' minimum because every point of both faces is in a
+            // cell that was kept.
+            if let Some(band) = band
+                && (certified_off_the_face(x, pair.a.u, pair.a.v, band)
+                    || certified_off_the_face(y, pair.b.u, pair.b.v, band))
+            {
+                receipt.discharged += 1;
+                receipt.outside += 1;
+                continue;
+            }
             let pa = enclosure(&x.surface, pair.a.u, pair.a.v);
             let pb = enclosure(&y.surface, pair.b.u, pair.b.v);
             let sep = separation(&pa, &pb);
@@ -1841,6 +1942,7 @@ impl LeafFold {
                 verdict: self.verdict.clone(),
                 receipt: self.receipt,
                 widths: self.widths,
+                windows: self.windows,
             }
             .serialize()
         );
@@ -1873,6 +1975,7 @@ impl LeafFold {
             verdict: self.verdict.clone(),
             receipt: self.receipt,
             widths: self.widths,
+            windows: self.windows,
         }
         .render();
         let m = &self.mass;
@@ -1965,13 +2068,72 @@ struct Window {
     surface: Surface<Interval>,
     u: (f64, f64),
     v: (f64, f64),
+    /// **The face's trimmed region, bounded in this window's own
+    /// chart** — the description the root above was cut to, kept so
+    /// every cell the subdivision reaches can be asked the same
+    /// question. `None` where there is none: a carrier this engine does
+    /// not describe, or a boundary walk that refused. A cell it
+    /// certifies outside holds no point of the FACE, so classifying
+    /// that cell would classify a place the body does not occupy.
+    bound: Option<MetredBound<Interval>>,
     /// The face's boundary vertices — the wedge rule's currency, read
     /// off topology and never off geometry.
     vertices: BTreeSet<VertexKey>,
 }
 
+/// **The chart's metring arms** — metres per chart unit — for the two
+/// carriers whose trimmed region this engine describes, and `None` for
+/// every other.
+///
+/// Both are EXACT, which is why no bound rides them: a plane's `(u, v)`
+/// are arc lengths along an orthonormal frame, so both arms are 1, and
+/// a cylinder's `v` is the axial arc length while its `u` is an azimuth
+/// whose arc length is `r · u`. Metring is what makes every margin the
+/// outside test decides a LENGTH — the quantity the linear band
+/// governs — rather than a mixture of metres and radians.
+fn chart_arms(surface: &Surface<Interval>) -> Option<(Interval, Interval)> {
+    let one = Interval::from_f64(1.0);
+    match surface {
+        Surface::Plane { .. } => Some((one, one)),
+        Surface::Cylinder { radius, .. } => Some((*radius, one)),
+        _ => None,
+    }
+}
+
+/// A cell, as the metred rectangle the description decides about.
+///
+/// Rounded OUTWARD on both axes, because the arm is an interval on a
+/// cylinder: a wider rectangle is harder to separate from the boundary
+/// and harder to put outside it, so the rounding can only KEEP a cell.
+fn metred_rect(arms: (Interval, Interval), u: (f64, f64), v: (f64, f64)) -> MetredRect {
+    let lo = |x: f64, a: Interval| (Interval::from_f64(x) * a).lo();
+    let hi = |x: f64, a: Interval| (Interval::from_f64(x) * a).hi();
+    MetredRect::new(
+        lo(u.0, arms.0),
+        hi(u.1, arms.0),
+        lo(v.0, arms.1),
+        hi(v.1, arms.1),
+    )
+}
+
+/// **Does this window's description certify the cell empty of face?**
+///
+/// `false` whenever there is no description or the carrier carries no
+/// exact arms — the identity, which is what the engine did before this
+/// question existed.
+fn certified_off_the_face(w: &Window, u: (f64, f64), v: (f64, f64), band: Band) -> bool {
+    let (Some(bound), Some(arms)) = (w.bound.as_ref(), chart_arms(&w.surface)) else {
+        return false;
+    };
+    bound.certifies_outside(metred_rect(arms, u, v), band)
+}
+
 /// Reads a selection's faces out of the leaf's replay, one window each.
-fn windows_of(ev: &Evaluation<Interval>, sel: &Selection) -> Result<Vec<Window>, ClearanceRefusal> {
+fn windows_of(
+    ev: &Evaluation<Interval>,
+    sel: &Selection,
+    band: Option<Band>,
+) -> Result<Vec<Window>, ClearanceRefusal> {
     let refuse = ClearanceRefusal::Selection;
     let Some(NodeResult::Ok(value)) = ev.nodes.get(&sel.at) else {
         return Err(refuse(SelectionRefusal::NodeDidNotBuild { node: sel.at }));
@@ -2004,7 +2166,7 @@ fn windows_of(ev: &Evaluation<Interval>, sel: &Selection) -> Result<Vec<Window>,
         }
     };
     keys.into_iter()
-        .map(|k| window_of(body, sel.at, sel.body, k))
+        .map(|k| window_of(body, sel.at, sel.body, k, band))
         .collect()
 }
 
@@ -2062,6 +2224,7 @@ fn window_of(
     at: RecipeNodeId,
     index: u32,
     face: FaceKey,
+    band: Option<Band>,
 ) -> Result<Window, ClearanceRefusal> {
     let unsupported = |carrier| Err(ClearanceRefusal::Unsupported { carrier, face });
     let Some(f) = body.get_face(face) else {
@@ -2115,6 +2278,54 @@ fn window_of(
         Surface::Torus { .. } => (full_turn(), full_turn()),
         Surface::Nurbs(_) | Surface::Approx(_) => return unsupported("a free-form face"),
     };
+    // **The trimmed region's own bound, where there is one.** The
+    // window above is the CARRIER's rectangle; the description below
+    // bounds the FACE inside it, in the very chart the arm above
+    // named, and the root is cut to it.
+    //
+    // `v` is the intersection of two certified supersets of the face's
+    // `v`-extent, so it is one too. `u` is the same on a plane — but on
+    // a CYLINDER it is not an intersection at all: `u` there is an
+    // azimuth on the walk's branch, a real number and not a residue mod
+    // `τ`, so intersecting a `[θ, 0]` band with the canonical full turn
+    // would empty a window that is perfectly good. The hull is taken
+    // verbatim when it spans no more than a whole turn, and the whole
+    // turn stands when it spans more.
+    let (mut u, mut v) = (u, v);
+    let mut bound = None;
+    if let Some(band) = band
+        && let Some(arms) = chart_arms(&charted)
+    {
+        match chart_boundary(body, face, &charted, band) {
+            Ok(described) => {
+                let metred = described.metred(arms);
+                let hull = metred.hull();
+                // Back to chart units from the METRED hull — the one
+                // widened by every envelope's certificate slack — with
+                // the division rounded outward, so a cut can only be
+                // looser than the description.
+                let hu = ((hull.u_min / arms.0).lo(), (hull.u_max / arms.0).hi());
+                let hv = ((hull.v_min / arms.1).lo(), (hull.v_max / arms.1).hi());
+                v = narrowed(v, hv);
+                u = match &charted {
+                    Surface::Cylinder { .. } => {
+                        if hu.1 - hu.0 <= core::f64::consts::TAU.next_up() {
+                            hu
+                        } else {
+                            full_turn()
+                        }
+                    }
+                    _ => narrowed(u, hu),
+                };
+                bound = Some(metred);
+            }
+            Err(_) => {
+                // A description the walk could not certify is no
+                // description: today's window stands, unchanged, and
+                // the report counts the window loose.
+            }
+        }
+    }
     if !(u.0.is_finite() && u.1.is_finite() && v.0.is_finite() && v.1.is_finite()) {
         return unsupported("a face whose carrier window is not a finite rectangle");
     }
@@ -2132,8 +2343,24 @@ fn window_of(
         surface: charted,
         u,
         v,
+        bound,
         vertices,
     })
+}
+
+/// One axis of a window, cut to a second certified superset of the same
+/// extent — and left where it was when the two do not overlap in a
+/// usable range.
+///
+/// Two supersets of one set intersect in a superset of it, so the cut
+/// is sound whenever it is a range at all. It is not a range when the
+/// description is degenerate on that axis (a face whose chart image is
+/// a segment) or when rounding has crossed the two ends, and there the
+/// window the engine already had is the answer: keeping a wider window
+/// classifies more cells, never fewer.
+fn narrowed(window: (f64, f64), hull: (f64, f64)) -> (f64, f64) {
+    let cut = (window.0.max(hull.0), window.1.min(hull.1));
+    if cut.0 < cut.1 { cut } else { window }
 }
 
 /// **A certified in-plane direction, minted here rather than read off
@@ -2479,6 +2706,22 @@ impl Sweep {
                 };
                 let pair = task.pair;
                 self.deepest = self.deepest.max(pair.depth);
+                // **Off the face, before anything is enclosed.** A cell
+                // the window's own boundary description certifies holds
+                // no point of the face is a leaf, and the discharge is
+                // VACUOUS: no separation is measured, nothing is
+                // decided at the clearance site, and no discharge width
+                // is recorded, because none was paid. The certificate
+                // the sweep ends with is unchanged in what it is about
+                // — the two roots minus cells proven empty of face
+                // still contain the two faces.
+                if certified_off_the_face(x, pair.a.u, pair.a.v, self.band)
+                    || certified_off_the_face(y, pair.b.u, pair.b.v, self.band)
+                {
+                    receipt.discharged += 1;
+                    receipt.outside += 1;
+                    continue;
+                }
                 let pa = enclosure(&x.surface, pair.a.u, pair.a.v);
                 let pb = enclosure(&y.surface, pair.b.u, pair.b.v);
                 let margin = separation(&pa, &pb) - Interval::from_f64(c);
@@ -2631,6 +2874,11 @@ impl Sweep {
             frontier = next;
         }
         widths.deepest = self.deepest;
+        // One count per window the sweep ran over, both sides: a query
+        // against itself was handed two copies of one list and counts
+        // each face twice, which is what "per window" means here.
+        let tightened = wa.iter().chain(wb).filter(|w| w.bound.is_some()).count();
+        let windows = (tightened, wa.len() + wb.len() - tightened);
 
         let verdict = match (violation, first_refusal) {
             (Some(geometry), _) => ClearanceVerdict::Violated(Box::new(Violation {
@@ -2644,6 +2892,7 @@ impl Sweep {
             verdict,
             receipt,
             widths,
+            windows,
         }
     }
 }
@@ -2840,13 +3089,31 @@ fn verify_witness(
     // `f64` distance under `total_cmp`. It is a SEARCH, not a solve: the
     // field docs on [`GeometryWitness`] say so, and the true closest
     // point pair on two trimmed patches is a different unit's problem.
+    //
+    // **A station the window's boundary description puts off the face
+    // is not a candidate.** The stations are `f64` and the description
+    // is at the interval scalar, so a definite verdict there holds for
+    // every realization the interval covers — the `f64` rebuild's own
+    // chart included. A cell pair with no admitted station on either
+    // side leaves `best` empty and the caller reports
+    // `WitnessUnverified`, which is the honest answer for a cell the
+    // interval pass proved violating whose face material, if any, sits
+    // between stations: the violation is real about the WINDOW and
+    // there is no point of the FACE to exhibit it at.
     let stations = |span: (f64, f64)| [span.0, mid_of(span), span.1];
+    let admits = |w: &Window, u: f64, v: f64| !certified_off_the_face(w, (u, u), (v, v), band);
     let mut best: Option<Station> = None;
     for au in stations(ca.u) {
         for av in stations(ca.v) {
+            if !admits(x, au, av) {
+                continue;
+            }
             let pa = sa.eval(au, av);
             for bu in stations(cb.u) {
                 for bv in stations(cb.v) {
+                    if !admits(y, bu, bv) {
+                        continue;
+                    }
                     let pb = sb.eval(bu, bv);
                     let d = separation_f64(&pa, &pb);
                     if best

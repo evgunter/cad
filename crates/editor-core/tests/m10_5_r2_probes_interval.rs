@@ -626,19 +626,23 @@ fn self_intersection_over_a_sound_body_examines_nothing_r2_finding() {
 
 // ------------------------------ 3. D3: a witness outside the trimmed face
 
-/// **Deviation D3, as a number.** The L's bottom cap is L-shaped; its
-/// window is the bounding square, which covers the notch. A block
-/// parked in that notch stands 0.45 m from the FACE and 0 m from the
-/// WINDOW, so a bound of 0.3 — which the two faces satisfy with 50 %
-/// to spare — is reported `Violated`, with a witness whose `(u, v)`
-/// lands where the body has no material at all.
+/// **Deviation D3, as a number — FLIPPED, and now the contract.** The
+/// L's bottom cap is L-shaped and its WINDOW is still the bounding
+/// square, which still covers the notch. What changed is what the
+/// engine does with the notch: the cap's window now carries the face's
+/// boundary in its own chart, every cell that boundary certifies empty
+/// of face is discharged vacuously, and no lattice station out in the
+/// notch is a witness candidate.
 ///
-/// The direction is the safe one and the module states it at the door.
-/// What this row adds is the SIZE: the reported violation is not a
-/// near-miss at the rounding scale, and the witness point is a place
-/// the face does not reach.
+/// So the block parked in the notch — 0.45 m from the FACE, 0 m from
+/// the WINDOW — no longer breaks a bound of 0.3, which is what the two
+/// faces always satisfied. The finding this row pinned (a witness
+/// whose `(u, v)` lands where the body has no material) was fixed by
+/// TRIM-3 PR-2; `outside > 0` is the row's grip on WHY, because a
+/// `Holds` bought by a smaller budget or a pruned candidate would look
+/// the same.
 #[test]
-fn a_violation_witness_can_land_where_the_face_is_not() {
+fn a_violation_witness_cannot_land_where_the_face_is_not() {
     let (doc, ell, block_node) = ell_with_a_block_in_the_notch();
     let cap = named(ell, vec![cap_name(ell)]);
     let block = Selection::body_of(block_node);
@@ -649,29 +653,30 @@ fn a_violation_witness_can_land_where_the_face_is_not() {
         &block,
         &at_least(0.3, cfg(65_536, 40)),
     );
-    let ClearanceVerdict::Violated(v) = report.verdict() else {
-        panic!(
-            "the cap's WINDOW reaches the block even though its face does not: {}",
-            report.serialize()
-        );
-    };
     println!(
-        "[r2 D3] witness on the L cap at (u, v) = {:?}, points {:?} / {:?}, d = {}",
-        v.geometry.a_uv, v.geometry.a_point, v.geometry.b_point, v.geometry.distance
+        "[r2 D3] L cap vs the block in the notch at c = 0.3: windows {:?}, {}",
+        report.windows(),
+        report.serialize()
     );
-    assert!(
-        v.geometry.distance < 0.3,
-        "the witness violates the bound it was minted for: {}",
-        v.geometry.distance
-    );
-    // The cap's material nearest the block is 0.45 m away, so a bound
-    // of 0.3 is one the two FACES satisfy — and it is reported broken.
-    assert!(
-        v.geometry.distance < 0.45,
-        "R2: the reported approach is inside the true face separation of 0.45: {}",
-        v.geometry.distance
+    assert_eq!(
+        report.verdict(),
+        &ClearanceVerdict::Holds,
+        "the cap's material is 0.45 m from the block, so 0.3 holds on the faces: {}",
+        report.serialize()
     );
     assert!(report.receipt().holds());
+    assert!(
+        report.receipt().outside > 0,
+        "and it holds because the notch cells were proven empty of face, not because          nothing was examined: {}",
+        report.serialize()
+    );
+    assert_eq!(
+        report.windows().1,
+        0,
+        "every window in this query is a planar one the description covers, so none is \
+         left loose: {}",
+        report.serialize()
+    );
 }
 
 /// The other direction of D3, which is the one soundness rests on: a

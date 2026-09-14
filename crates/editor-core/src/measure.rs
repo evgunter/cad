@@ -797,10 +797,21 @@ pub enum UnevaluatedReason {
     },
 }
 
-/// **The tracker item that retires [`UnevaluatedReason::WindowSuperset`]**:
-/// tightening a carrier window to its trimmed face needs the trim
-/// boundary in chart coordinates. Named from the type so the recourse
-/// travels with the refusal instead of living in a reader's memory.
+/// **The tracker item that SHRINKS [`UnevaluatedReason::WindowSuperset`]**,
+/// and does not retire it: a carrier window cut to the chart boundary
+/// of its trimmed face, so the engine stops offering cells the face
+/// does not occupy. Named from the type so the recourse travels with
+/// the refusal instead of living in a reader's memory.
+///
+/// **What it does not buy.** The refusal retires when `m = M` — when
+/// the set the engine measures over is the trimmed face exactly. A
+/// tightened window is not that: a cell straddling the described
+/// boundary, or lying within `K · ε` of it, is KEPT, because the
+/// description is a certificate and every rounding in it keeps the
+/// cell. So `hi` remains a minimum over a superset and the two unsound
+/// arms still refuse. The recourse that would retire them is
+/// exact-region cells,
+/// `work/trim/exact-region-cells-for-lower-bound-only.md`.
 pub const WINDOW_TIGHTENING: &str = "work/trim/clearance-window-tightening-needs-chart-boundary.md";
 
 /// **How much of a measured enclosure is certified for the thing the
@@ -827,7 +838,8 @@ pub const WINDOW_TIGHTENING: &str = "work/trim/clearance-window-tightening-needs
 /// | `AtMost c` | `Holds` | `hi` | **no** |
 ///
 /// The two unsound arms refuse [`UnevaluatedReason::WindowSuperset`]
-/// rather than answering; [`WINDOW_TIGHTENING`] retires the refusal.
+/// rather than answering; [`WINDOW_TIGHTENING`] narrows the superset
+/// and does not retire the refusal.
 /// Both gating directions survive: a clearance requirement (`AtLeast`)
 /// still certifies, and a maximum-gap requirement (`AtMost`) still
 /// fails loudly.

@@ -283,14 +283,20 @@ fn l_plate_and_floating_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Reci
 /// (the block's cap corner to the L's inner edge); the two WINDOWS
 /// come within 0.5.
 ///
-/// At `c = 0.52` the truth is `Holds` and the engine reports
-/// `Violated`, with a witness whose plate point lies where the plate
-/// has no material (`x > 1 ∧ y > 1`). Disclosed at the module door
-/// (D3), and this is the disclosure exercised: a defect gate built on
-/// this verdict refuses a sound design. `Holds` at `c = 0.45` stays
-/// sound.
+/// At `c = 0.52` the truth is `Holds`, and it used to be reported
+/// `Violated` with a witness whose plate point lay where the plate has
+/// no material (`x > 1 ∧ y > 1`) — deviation D3, a defect gate
+/// refusing a sound design. **FLIPPED by TRIM-3 PR-2**: the plate
+/// cap's window carries the L's boundary in its own chart, and the
+/// quadrant the plate does not occupy is proven empty of face rather
+/// than classified. Both bounds now read `Holds`, which is the truth
+/// at both.
+///
+/// A box-only description would not do it: the L's bounding box IS
+/// this window, so a `Holds` here is evidence that the POLYGON, not
+/// the box, is what the engine reads.
 #[test]
-fn an_l_shaped_face_is_violated_where_it_has_no_material() {
+fn an_l_shaped_face_holds_where_it_has_no_material() {
     let (doc, plate, block, floated) = l_plate_and_floating_block();
     let top = Selection {
         at: plate,
@@ -312,34 +318,23 @@ fn an_l_shaped_face_is_violated_where_it_has_no_material() {
     );
     assert!(sound.receipt().holds());
 
-    let loose = clearance(&doc, &leaf, &top, &bottom, 0.52, Tol::witness());
-    assert!(loose.receipt().holds(), "{:?}", loose.receipt());
-    let ClearanceVerdict::Violated(v) = loose.verdict() else {
-        panic!(
-            "the carrier windows come within 0.5, so today this is Violated: {}",
-            loose.serialize()
-        );
-    };
-    let d = recomputed_distance(&loose);
-    assert!(
-        (d - v.geometry.distance).abs() <= 1e-12,
-        "{d} vs {}",
-        v.geometry.distance
-    );
-    assert!((0.5 - 1e-9..0.52).contains(&d), "the phantom approach: {d}");
-    let p = v.geometry.a_point;
-    assert!(
-        (p.z - 1.0).abs() <= 1e-9,
-        "the plate witness lies on the cap's plane: {p:?}"
-    );
-    assert!(
-        p.x > 1.0 && p.y > 1.0,
-        "the plate witness lies in the quadrant the L does not occupy — a point on the \
-         carrier window and not on the face: {p:?}"
-    );
+    let tight = clearance(&doc, &leaf, &top, &bottom, 0.52, Tol::witness());
     println!(
-        "[r1] L-plate witness: {:?} -> {:?} d = {d}",
-        p, v.geometry.b_point
+        "[r1] L-plate vs floating block at c = 0.52: windows {:?}, {}",
+        tight.windows(),
+        tight.serialize()
+    );
+    assert!(tight.receipt().holds(), "{:?}", tight.receipt());
+    assert_eq!(
+        tight.verdict(),
+        &ClearanceVerdict::Holds,
+        "the faces are √(0.2² + 0.5²) ≈ 0.539 apart, so 0.52 holds on them: {}",
+        tight.serialize()
+    );
+    assert!(
+        tight.receipt().outside > 0,
+        "and it holds because the missing quadrant's cells were proven empty of face: {}",
+        tight.serialize()
     );
 }
 
@@ -382,14 +377,20 @@ fn bumped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 /// body with one rounded feature. The bump face's window is the whole
 /// cylinder, whose phantom lower half touches the bottom wall's plane,
 /// and the bottom wall shares no vertex with the bump — so the wedge
-/// rule keeps the pair and the engine must classify a separation whose
-/// true value on the WINDOWS is 0. What the strictly-positive question
-/// answers on this body is printed; the row asserts only the receipt
-/// and the arm. (Prediction, from the measured limit: `c = 0⁺` has no
-/// slack, so neither `Violated` nor `Holds` is reachable and the answer
-/// is a budget refusal — a sound rounded body gets no answer.)
+/// rule kept the pair and the engine had to classify a separation
+/// whose true value on the WINDOWS was 0. At `c = 0⁺` there is no
+/// slack, so neither `Violated` nor `Holds` was reachable and a sound
+/// rounded body got a budget refusal for its answer.
+///
+/// **FLIPPED by TRIM-3 PR-2.** The bump's window `u` is the
+/// description's azimuth hull — the half turn the face actually
+/// occupies — and not the whole turn, so the phantom lower half is
+/// gone before the tree is built. The body's real minimum gap is 0.5,
+/// which the proximity prune excludes outright, and the row records
+/// that `candidates` may now be 0: a full-turn root is exactly what
+/// this `Holds` proves absent.
 #[test]
-fn a_block_with_a_rounded_bump_asks_the_self_intersection_question() {
+fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
     let (doc, solid, _placed) = bumped_block();
     let sel = Selection::body_of(solid);
     let q = ClearanceQuery {
@@ -411,15 +412,23 @@ fn a_block_with_a_rounded_bump_asks_the_self_intersection_question() {
     if let ClearanceVerdict::Refused(ClearanceRefusal::Selection(s)) = report.verdict() {
         panic!("the bumped block did not build at the interval scalar: {s}");
     }
-    assert!(
-        r.candidates >= 1,
-        "the bump's full-turn window reaches the bottom wall, so at least that pair is a \
-         candidate: {r:?}"
+    println!(
+        "[r1] bumped block candidates = {}, windows = {:?}",
+        r.candidates,
+        report.windows()
     );
-    assert_ne!(
+    assert_eq!(
         report.verdict(),
         &ClearanceVerdict::Holds,
-        "a window at separation zero cannot be certified strictly positive: {}",
+        "the bump's window is its own half turn now, so nothing on this sound body is at \
+         separation zero: {}",
+        report.serialize()
+    );
+    assert_eq!(
+        report.windows().1,
+        0,
+        "every carrier here is a plane or a cylinder, so every window carries a \
+         description: {}",
         report.serialize()
     );
 }
@@ -503,10 +512,16 @@ fn a_partial_revolve_band_reports_its_phantom_turn() {
 /// `orthonormal_basis(axis)`, and for `axis = ẑ` that frame is clean
 /// while for `axis = ŷ` (`n.z = 0`) it is the two-sided hull. The
 /// engine re-charts PLANES only, and `refines` tests one halving, so a
-/// hulled cylinder passes the door and then cannot decide. Both
-/// verdicts are printed; the row asserts only the receipt.
+/// hulled cylinder passes the door and then cannot decide.
+///
+/// **The control is now an ASSERTION** (TRIM-3 PR-2): with a clean
+/// `u_ref` the band's description certifies, the window `u` is cut to
+/// the quarter turn the revolve actually swept, and the block sitting
+/// where the other three quarters would be is more than 2 away from
+/// every face of it. `Holds` at `c = 1.0`, where a full-turn root
+/// reported the phantom quadrant.
 #[test]
-fn a_partial_revolve_about_z_is_the_control_for_the_hulled_band() {
+fn a_partial_revolve_about_z_holds_against_the_phantom_quadrant() {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
     // Profile on the xz-plane (u = x̂, v = ẑ): the rectangle r ∈ [1, 2],
@@ -541,6 +556,7 @@ fn a_partial_revolve_about_z_is_the_control_for_the_hulled_band() {
         report.serialize()
     );
     assert!(report.receipt().holds());
+    println!("[r1] z-axis windows = {:?}", report.windows());
     if let ClearanceVerdict::Violated(v) = report.verdict() {
         println!(
             "[r1] z-axis phantom-turn witness d = {}: {:?} -> {:?}",
@@ -549,6 +565,13 @@ fn a_partial_revolve_about_z_is_the_control_for_the_hulled_band() {
             v.geometry.b_point
         );
     }
+    assert_eq!(
+        report.verdict(),
+        &ClearanceVerdict::Holds,
+        "the quarter annulus and the block are more than 2 apart; only the phantom three \
+         quarters ever came within 1.0: {}",
+        report.serialize()
+    );
 }
 
 // ------------------------------------------------ claim 4: totality
@@ -816,14 +839,20 @@ fn channel_and_slider(place_half: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeI
 /// **E2E, the ε-box arm.** What a consumer gets when the box is one the
 /// kernel can replay.
 ///
-/// First the WHOLE-BODY question, slider against channel (evidence):
-/// the channel's two caps are U-shaped, their windows are the full
+/// First the WHOLE-BODY question, slider against channel: the
+/// channel's two caps are U-shaped, their windows are the full
 /// `[0,3]×[0,2]` rectangles, and the slider's caps lie IN those
 /// rectangles on the same planes — so the windows are at distance 0
-/// and the whole-body question is `Violated` at every bound, however
-/// generous. That is D3 met on the first realistic document: a part
-/// inside a pocket or channel cannot be asked a whole-body clearance
-/// question at all.
+/// and the whole-body question used to be `Violated` at every bound,
+/// however generous. That was D3 met on the first realistic document:
+/// a part inside a pocket or channel could not be asked a whole-body
+/// clearance question at all.
+///
+/// **FLIPPED by TRIM-3 PR-2**: a coplanar pair whose windows overlap
+/// is exactly the case the boundary description settles, because the
+/// overlap is in cells neither face occupies. The whole-body question
+/// holds at 0.3, which is the truth — the slider clears the channel by
+/// 0.5 on every side.
 ///
 /// Then the question a user would have to learn to ask instead — the
 /// slider against the channel's three INNER faces — where the
@@ -835,12 +864,23 @@ fn e2e_channel_slider_over_an_epsilon_box() {
     let (sc, ss) = (Selection::body_of(channel), Selection::body_of(slider));
     let leaf = box_of("place");
     let whole = clearance(&doc, &leaf, &sc, &ss, 0.3, Tol::witness());
-    println!("[r1 e2e] whole-body c = 0.3: {}", whole.serialize());
+    println!(
+        "[r1 e2e] whole-body c = 0.3: windows {:?}, {}",
+        whole.windows(),
+        whole.serialize()
+    );
     assert!(whole.receipt().holds());
     assert_eq!(
         whole.verdict().label(),
-        "Violated",
-        "the U-shaped caps' windows overlap the slider's caps: {}",
+        "Holds",
+        "the U-shaped caps' windows still overlap the slider's caps, but the cells that \
+         overlap are proven empty of face: {}",
+        whole.serialize()
+    );
+    assert!(
+        whole.receipt().outside > 0,
+        "and that is why it holds — the coplanar pair was discharged off the face, not \
+         pruned away: {}",
         whole.serialize()
     );
     let inner = Selection {
