@@ -6186,3 +6186,20 @@ provenance-free case; TOPO: `set_face_surface` leaving a complete face
 on the wrong chart). Tokens: impl ≈190k, fix ≈300k, state-sync ≈15k,
 R1 ≈225k, R2 ≈210k. Wall: impl ≈120 min, fix ≈125 min, R1 ≈43 min, R2
 ≈22 min; no gaps. Tally after this entry: candidates +2, unchanged.
+
+S93 review ordinal fixed at dispatch (2026-09-14, PR #2562 open —
+frozen head `cb400cfe1`; unit `work/topo/S93.md`): **ordinal 2708**
+(TOPO band). Pre-draw fields (logged in `work/topo/log.md` at
+`daa30ee99` BEFORE block TOPO-B3 was drawn — clean): difficulty **S**,
+task class **STRUCTURAL**. Implementer arm per block TOPO-B3 slot 2
+(record branch-side on `topo/b3-block`). Protocol v6 dual: draw =
+`/dev/urandom` byte **160**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**.
+Method, recorded before either review runs: CONCURRENT same-head on
+frozen `cb400cfe1`, both briefs authored and STORED with sha256 before
+either dispatches (identical text modulo lane name, target and scratch
+paths, verified by diff), neither reviewer sees the other's report, v6
+item 5 isolation in both briefs; the implementer's unit log entry is
+not written until the dual concludes. Shared-box note applying to
+BOTH arms equally: one 4-core cloud box, no other lane live, `-j2`;
+R1's target is the implementer's warm one, R2's is seeded from an
+older warm build — wall-clock asymmetry only.
