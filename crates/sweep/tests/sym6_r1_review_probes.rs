@@ -9,7 +9,7 @@
 use geom_core::sym::{SymRegistration, with_session_rules};
 use geom_core::{Point2, Real, SymBudget, SymRules, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use sweep::{Extrusion, RevolveAxis, Revolution, extrude, revolve};
+use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 
 fn budget() -> SymBudget {
     SymBudget {
@@ -76,7 +76,10 @@ fn r1_the_far_revolve_registers_and_refuses_nothing_at_interval() {
     );
     println!("   Sym<Interval> far washer at eps={eps:e}: built={built} {counts:?}");
     assert_eq!(
-        (counts.registrations_refused, counts.registrations_contradicted),
+        (
+            counts.registrations_refused,
+            counts.registrations_contradicted
+        ),
         (0, 0),
         "nothing refused at 1e9 at eps={eps:e}: {counts:?}"
     );
@@ -136,7 +139,10 @@ fn r1_the_slack_is_relative_and_floored_at_1e9() {
     // 1e9 is ~1.2e-7); the relative spelling witnesses it at every row.
     let rounded = f64::from_bits(a.to_bits() + 1000);
     let ulps = 1000;
-    println!("   rounding at 1e9: (3a)/3 - a = {:e} ({ulps} ulp)", rounded - a);
+    println!(
+        "   rounding at 1e9: (3a)/3 - a = {:e} ({ulps} ulp)",
+        rounded - a
+    );
     assert_eq!(
         <f64 as Real>::register_equal(a, rounded, Tol::witness()),
         SymRegistration::Witnessed,
@@ -169,7 +175,11 @@ fn r1_the_arm_is_keyed_to_the_kind_of_witness() {
             Interval::from_bounds(blo, bhi),
             Tol::witness(),
         );
-        assert_ne!(got, SymRegistration::Disputed, "{alo}..{ahi} vs {blo}..{bhi}");
+        assert_ne!(
+            got,
+            SymRegistration::Disputed,
+            "{alo}..{ahi} vs {blo}..{bhi}"
+        );
     }
     // Inexact witnesses never answer Contradicted, however far apart.
     for (a, b) in [(1.0_f64, 2.0), (0.0, 1.0e300), (-1.0e18, 1.0e18)] {
@@ -244,7 +254,10 @@ fn r1_the_far_arc_extrude_at_interval() {
     );
     println!("   Sym<Interval> far arc at eps={eps:e}: built={built} {counts:?}");
     assert_eq!(
-        (counts.registrations_refused, counts.registrations_contradicted),
+        (
+            counts.registrations_refused,
+            counts.registrations_contradicted
+        ),
         (0, 0),
         "nothing refused at 1e9 at eps={eps:e}: {counts:?}"
     );
@@ -261,4 +274,3 @@ fn r1_the_far_arc_extrude_at_f64() {
         "nothing refused at 1e9 at eps={eps:e}: {counts:?}"
     );
 }
-
