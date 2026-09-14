@@ -582,6 +582,111 @@ mod tests {
         );
     }
 
+    /// **R1's SYM-4 review probe — the canonical shape survives the gcd
+    /// skip.** Over a corpus closed under the ring's own operations
+    /// (including `recip` and `sqrt_exact`, the two doors that mint a
+    /// `den` past one, so the NON-dyadic branch is exercised beside the
+    /// dyadic one): every `Rat` is canonical — `den > 0`, `num` and
+    /// `den` odd and coprime — and any two that differ by zero are the
+    /// SAME value structurally and feed the hasher the same bytes. A
+    /// non-canonical `Rat` escaping the reduction is two spellings of
+    /// one number with two digests, which is two atom keys for one
+    /// argument (D9).
+    #[test]
+    fn r1_probe_the_ring_keeps_one_spelling_and_one_digest_per_value() {
+        fn canonical(r: &Rat) -> bool {
+            if r.num.is_zero() {
+                return r.den.is_one() && r.exp2 == 0;
+            }
+            !r.den.is_negative()
+                && !r.den.is_zero()
+                && r.num.strip_twos().1 == 0
+                && r.den.strip_twos().1 == 0
+                && r.num.abs().gcd(&r.den).is_one()
+        }
+        fn dig(r: &Rat) -> u128 {
+            r.feed(Hash128::new()).finish()
+        }
+        // Seeds: dyadic literals, deliberately UNREDUCED pairs, and
+        // non-dyadic denominators (3, 5, 6, 9) the gcd branch must
+        // still reduce.
+        let mut corpus: Vec<Rat> = Vec::new();
+        for (n, d, e) in [
+            (1i128, 1i128, 0i32),
+            (2, 1, 0),
+            (-3, 1, 2),
+            (6, 4, 0),
+            (-6, 4, 0),
+            (12, 18, 3),
+            (1, 3, 0),
+            (2, 6, 1),
+            (5, 9, -2),
+            (-5, 9, -2),
+            (7, 5, 0),
+            (1024, 3, -10),
+            (3, -9, 0),
+            (0, 7, 4),
+        ] {
+            corpus.push(Rat::new(n, d, e).expect("a small literal is in the ring"));
+        }
+        for x in [0.1f64, -0.1, 2.5, 1.0 / 3.0, 1e-9, 12345.678] {
+            corpus.push(Rat::of_f64(x).expect("a finite float is a dyadic rational"));
+        }
+        // Two rounds of closure under the operations the unit touched.
+        for _ in 0..2 {
+            let seeds = corpus.clone();
+            for a in &seeds {
+                for op in [Rat::neg, Rat::recip, Rat::sqrt_exact] {
+                    if let Some(r) = op(a) {
+                        corpus.push(r);
+                    }
+                }
+                for b in &seeds {
+                    if let Some(r) = a.add(b) {
+                        corpus.push(r);
+                    }
+                    if let Some(r) = a.mul(b) {
+                        corpus.push(r);
+                    }
+                }
+            }
+            let mut seen: Vec<u128> = Vec::new();
+            corpus.retain(|r| {
+                let d = dig(r);
+                let fresh = !seen.contains(&d);
+                if fresh {
+                    seen.push(d);
+                }
+                fresh
+            });
+            corpus.truncate(600);
+        }
+        assert!(corpus.len() > 500, "corpus too thin: {}", corpus.len());
+        let mut non_dyadic = 0;
+        for r in &corpus {
+            assert!(canonical(r), "non-canonical rational: {r:?}");
+            if !r.den.is_one() {
+                non_dyadic += 1;
+            }
+        }
+        assert!(
+            non_dyadic > 50,
+            "the non-dyadic branch is barely exercised: {non_dyadic}"
+        );
+        // Equal values — a difference of zero — are one spelling and
+        // one digest.
+        for (i, a) in corpus.iter().enumerate() {
+            for b in corpus.iter().skip(i + 1) {
+                let Some(neg) = b.neg() else { continue };
+                let Some(diff) = a.add(&neg) else { continue };
+                if diff.is_zero() {
+                    assert_eq!(a, b, "equal values, different representations");
+                    assert_eq!(dig(a), dig(b), "equal values, different digests");
+                }
+            }
+        }
+    }
+
     /// The rational is exact on every `f64` it accepts, and refuses the
     /// ones that are not real numbers.
     #[test]

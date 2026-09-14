@@ -337,3 +337,57 @@ fn the_forms_the_walks_build_are_pinned_per_eps_row() {
         );
     }
 }
+
+/// **R1's SYM-4 review probe — the walk ledger on four documents the
+/// unit did not measure.** The annulus, the bracket, the pad and the
+/// link at their nominals through the same doors, with the whole
+/// ledger, the decision counts and the ring line printed. Run on the
+/// tree before either lever and on the head and diffed; nothing is
+/// asserted here, the diff is the instrument.
+#[test]
+#[ignore = "R1 review probe: evidence only"]
+fn r1_probe_the_unmeasured_documents_ledgers() {
+    let tol = Tol::witness();
+    let docs: Vec<(&str, ProfileDoc)> = vec![
+        (
+            "annulus",
+            crate::m10_8_r1_probes_interval::annulus(1.0e2 * tol.eps(), tol).0,
+        ),
+        (
+            "bracket",
+            crate::m10_7_r2_probes_interval::bracket(1.0e2 * tol.eps(), tol).0,
+        ),
+        (
+            "pad",
+            crate::m10_8_r2_probes_interval::pad(1.0e2 * tol.eps(), tol).0,
+        ),
+        (
+            "link",
+            crate::m10_9_r2_probes_interval::link(1.0e2 * tol.eps(), tol).0,
+        ),
+    ];
+    for (name, doc) in &docs {
+        let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
+        let nominal = nominal_box(&analyzed);
+        start_profile();
+        let (shapes, _, counts) = replay(doc, &nominal, SymRules::shipped(), tol);
+        let p = take_profile();
+        println!("=== R1PROBE {name} ===");
+        println!("R1PROBE counts {counts:?}");
+        println!("R1PROBE outcomes {:?}", outcomes(&shapes));
+        println!(
+            "R1PROBE totals sessions {} nodes {} atoms {} frozen {}",
+            p.sessions,
+            p.nodes,
+            p.atoms,
+            p.frozen()
+        );
+        println!(
+            "R1PROBE ring rat_ops {} big_ops {} promotions {} widest {} refused {}",
+            p.rat_ops, p.big_ops, p.promotions, p.widest_bits, p.widest_refused_bits
+        );
+        for line in p.walk_ledger().lines() {
+            println!("R1PROBE ledger {line}");
+        }
+    }
+}
