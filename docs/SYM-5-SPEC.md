@@ -65,6 +65,38 @@ reals under clause 1; the freeze discipline; D9 content-hash ids; the
 budgets' values (`DEFAULT_SYM_MAX_DEGREE` = 128 is not the lever —
 measured).
 
+## Amendment A1 (2026-09-14, after PR-1's review) — the fixture
+
+Phase 1 ran on DOCM's own document (PR #2568, PR-1) and found it the
+NARROW case: its derived placement is a pure translation, every
+normalised quantity is constant in the parameter, and M10-8's constant
+fold collapses the chain — no rule of the atom algebra moves a decision
+there, and the one refusal is the numeric channel's (filed on PROPS).
+The review built the case the item was filed on — **a derived frame
+whose axes carry the parameter** (an authored
+`Datum::Frame { u: (1,0,0), v: (0,1,t) }`, `t = 0.25 ± half`, a cube
+extruded from it, a `FaceFrame` on its cap, the boss on that; the twin
+is the boss on the tilted frame directly) — and there the mechanism
+stands on every rung: the derived boss refuses under `none`/A0/A on
+`carrier_endpoint_start` (`[0, 1.8e-2]` at half `1e-3`) and under the
+shipped set on `newell_plane_residual` with a plain straddle, frozen
+632 on `Degree` with kids at degree 69–128; the refused residual's
+early form is non-zero with a NON-constant `sqrt(S)` and two frozen
+`Mul` nodes on its path; raising the budget to 4096/65536 leaves 483
+frozen and the same refusal. Under `Guided` the authored twin
+certifies on every rung while the plain lane refuses it.
+
+**So Phases 2 and 3 run as PR-2 on the tilted document** (its rows are
+adopted in PR-1 as `m10_derived_frame_tilted_interval.rs` or the file
+PR-1 names): Phase 1's table and chain are re-taken there as PR-2's
+starting point (the rendered chain naming the non-constant `sqrt(S)`
+and which square first crosses the budget), and the acceptance below
+reads "the tilted parity row" wherever it says "the two DOCM rows" —
+the derived boss certifies where the authored twin does, under BOTH
+lifts, at the widths the twin certifies at. DOCM's height document's
+rows stay as PR-1 left them (pins at their measured state). Everything
+else in this spec stands, including the stop condition.
+
 ## Phase 1 — measure before touching anything
 
 1. **Port the two DOCM rows** as `#[ignore]`d evidence rows under
