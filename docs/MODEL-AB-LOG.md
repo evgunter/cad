@@ -4339,6 +4339,24 @@ orchestrator (the measured frontier became the acceptance; comment
 pause and a six-day Fable-side outage) and resumed from transcript,
 recorded for 3(e)'s reading at the blinded coding.
 
+## CURVED-TORUS PR-2 review ordinal fixed at dispatch (2026-09-14)
+
+CURVED-TORUS PR-2 (`work/curved/circle-residual-harmonics-needs-torus-arm.md`,
+PR #2535 open — frozen head `f0f46ebb`): **ordinal 2203** (CURVED band).
+Pre-draw fields at the spec (`docs/CURVED-TORUS-SPEC.md` §PR shape):
+difficulty **M**, task-class **NUMERIC**; implementer arm per block
+CURVED-B2 slot 0 (record branch-side on `curved/b1-block`). Protocol v6
+dual: draw = `/dev/urandom` byte **21**, parity 1 ⇒ **R1 = FABLE, R2 = OPUS**.
+Method, recorded before either review runs: CONCURRENT same-head on
+frozen `f0f46ebb`, both briefs authored and STORED with sha256 before
+either dispatches (027a698dcd8af1d2… r1 / fbad3d0fd05c69f3… r2 — identical text modulo lane
+names, verified by diff), neither reviewer sees the other's report, v6
+item 5 isolation in both briefs, PRIVATE `CARGO_TARGET_DIR` per
+reviewer (fresh for both); the implementer's unit log entry is not
+written until the dual concludes. Method note applying to BOTH arms
+equally: the implementer arm ran uninterrupted on a shared box (its
+three-ε local battery never obtained a slot; CI is its record).
+
 ## DOCM program rows (work/docm/; band 1800–1899; blocks named DOCM-B<n>)
 
 Block DOCM-B1 pre-draw fields (2026-09-04, logged before the draw):
