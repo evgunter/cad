@@ -1628,3 +1628,22 @@ the full bound ripple only if it cannot split; the closing-mint
 convention's thirteen copies retire; the declared posture is the
 interim only. Both written on the items and the PR body, one comment
 posted. Waiting on Ev's letter for 3 and yes/no for 4.
+
+## Ev's third reply: 4 ratified; 3's signature question answered with the two-door shape (2026-09-14)
+
+Ev: 4 "sounds good!" — the long-term minting target ratified (rows
+minted at the mint site; closed-form split under `Decide` first,
+typed refusal at the fitted frontier, ripple only if it cannot split;
+the closing-mint convention retires); the row is now a unit for a
+block slot. 3: Ev did not like the list-with-empty-default and asked
+how the signature sits beside the other operators. Answer written on
+the item and posted: the make-operators take geometry and a band, the
+kills take keys only; `kev`'s fan merge is the one kill that changes
+geometry. The harmonious shape is (c) as originally written — two
+doors: `kev(he)` keys-only, refusing typed where a merged carrier
+would go stale (the S93 gate inside the kill), and
+`kev_describing(he, specs, tol)` shaped like `mev` for the callers
+that re-describe — the `mev`/`mev_line`/`mev_null` variant-family
+pattern. No default anywhere. Recommendation: (c) as two doors; the
+"default" reading was the orchestrator's, not the shape's. Waiting
+on Ev's letter.
