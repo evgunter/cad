@@ -361,6 +361,69 @@
 //! past and the freeze discipline that bound keeps — are
 //! [`rational`]'s own docs.
 //!
+//! # Cost: where the tier's time goes, by count
+//!
+//! Measured with two instruments — `valgrind --tool=callgrind` over
+//! one leaf replay, and the structural profile behind the test-only
+//! `sym-profile-testing` feature (`profile`: forms per op with their
+//! sizes, every freeze with the cause noted at the refusal site, the
+//! ring's promotions, each walk's clock, and each walk's ORIGIN) — on
+//! the M10-3 slab and the two-hole plate at their nominals; the rows
+//! are `editor-core/tests/m10_sym_profile_interval`, the tables and
+//! the re-run method
+//! `work/sym/symbolic-tier-costs-95-percent-of-the-m10-3-drive`.
+//!
+//! **Who asks for the forms.** The `Decide` impl has three callers of
+//! the walks and only one is the tier deciding: its DECISION path asks
+//! a form only where the numeric channel cannot answer; the
+//! contradiction ASSERTION runs the discharge on every DEFINITE margin
+//! wherever debug assertions are on — dev, test, and this workspace's
+//! release profile, so every profile measured here and only the
+//! published build not; and the shape report, when installed, renders
+//! blocked residuals through the walks. On the slab at its nominal the
+//! decision path builds 9,686 plain forms in 980 calls and 36 early
+//! forms in 16; the assertion builds 918 plain and 1,958 early forms
+//! in 510 calls each — a tenth of the plain walk's forms and 95 % of
+//! the early walk's, so the slab's `reduce_steps` count (1,994 calls)
+//! is the assertion's. Over the chamber drive it is 1.57 M of 19.1 M
+//! plain forms and 3.18 M of 3.35 M early forms, 43 s of 162 s in
+//! the walks. On the plate at its nominal the assertion freezes 488 of
+//! 1,312 (360 of the plain walk's 1,044 `frozen`), the decision path
+//! 824. `SymCounts::frozen` counts the plain walk whoever asked it.
+//!
+//! **The tier's instructions are TERM STORAGE, not arithmetic and not
+//! degree.** In release, 56 % of a replay's instructions on both
+//! documents are the allocator, the `BTreeMap` of terms and the heap
+//! `Vec` each monomial is, against 10 % in the coefficient ring on the
+//! slab (27 % on the plate, `num-bigint` 1.3 % and 12.8 % of those),
+//! 0.3–1 % in the atom algebra's own code, and a session's teardown —
+//! dropping the memos and the table, which no walk clock sees — 10 %
+//! on the slab and 4 % on the plate. The slab's forms are tiny — 1.5
+//! terms on average, 10 at most, total degree up to 68, and NOT ONE
+//! freezes at any leaf of the chamber drive (19.1 M plain forms,
+//! `frozen = 0`) — so what the slab pays is volume times a fixed cost
+//! per form: at the nominal 10,604 plain forms per leaf (9,686 the
+//! decision's) for 1,490 decisions, at ~7.5 k instructions each, over
+//! a DAG of 12,208 nodes interned afresh per leaf (`intern` is 13 % of
+//! a release replay); a leaf of the drive averages 8,488 nodes and
+//! 7,463 plain forms. The plain walk is 57 % of a slab replay
+//! inclusive, the early walk 15 %, the per-node rule A/B reduction
+//! 4 %; the answer is the same at the nominal and over a leaf-sized
+//! box, because over 2 ε an identity's enclosure is still not definite
+//! and the decision path builds the same forms either way.
+//!
+//! On the plate the same storage share sits inside `reduce_steps` —
+//! rules A/B per node, 53 % of the replay — and the freeze population
+//! is what the budget note in `editor-core`'s `SymbolicDials` says it
+//! is: 1,312 freezes over the three walks (1,044 in the plain walk),
+//! **1,032 on DEGREE** with the kids already at total degree 40–117 in
+//! one to seven terms, 280 on the coefficient bound (widest refused
+//! 401 bits against [`rational::COEFF_BITS`]), and none on the term budget —
+//! no form on either document comes within 40× of it. Rule D's fold is
+//! 0.4 % of the plate's replay; the ring's heap path is 9 % of its
+//! operations and 12.8 % of its instructions, 1.5 % and 1.3 % on the
+//! slab, so the `i128` inline path holds on both.
+//!
 //! # The census: which identity-shaped predicates this tier reaches
 //!
 //! Two greps over `crates/` and `demos/` — one for the names handed to a
@@ -472,6 +535,8 @@ mod algebra;
 /// and the pure operations on a form.
 #[path = "sym/form.rs"]
 mod form;
+#[cfg(feature = "sym-profile-testing")]
+pub mod profile;
 /// The coefficient tower: the exact rational the normal form's
 /// coefficients are, the integer under it, and the bound they are
 /// frozen at.
@@ -1280,9 +1345,12 @@ pub fn with_session_rules<R>(
         });
     });
     let out = f();
-    let counts = SESSION
-        .with(|s| s.borrow_mut().take())
-        .map_or_else(SymCounts::default, |s| s.counts);
+    let sess = SESSION.with(|s| s.borrow_mut().take());
+    #[cfg(feature = "sym-profile-testing")]
+    if let Some(s) = &sess {
+        profile::session_done(s.nodes.len(), s.atoms.len());
+    }
+    let counts = sess.map_or_else(SymCounts::default, |s| s.counts);
     (out, counts)
 }
 
@@ -1501,7 +1569,12 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
         // Rule D (early walk only): `sin`/`cos` of `q · atan(X)` in
         // closed form; any other argument shape keeps the atom.
         SymOp::Sin | SymOp::Cos if early && sess.rules.trig_of_atan && !a.poisoned => {
-            match trig::fold(node.op, a, sess) {
+            #[cfg(feature = "sym-profile-testing")]
+            let t0 = profile::clock();
+            let folded = trig::fold(node.op, a, sess);
+            #[cfg(feature = "sym-profile-testing")]
+            profile::trig_done(t0);
+            match folded {
                 Some(f) => Some(gate(f)),
                 None => atom1(node.op, sess),
             }
@@ -1640,6 +1713,8 @@ fn form_in(
             // Not in this session's table: an unrecorded leaf, or a node
             // minted before the session was installed. An unknown
             // function of the parameters is exactly an indeterminate.
+            #[cfg(feature = "sym-profile-testing")]
+            profile::record_unrecorded(profile::Walk::of(early, registry));
             let f = frozen(sess, id);
             memo.insert(id, f);
             continue;
@@ -1674,6 +1749,8 @@ fn form_in(
                 fa.as_deref().unwrap_or(&empty),
                 fb.as_deref().unwrap_or(&empty),
             ];
+            #[cfg(feature = "sym-profile-testing")]
+            profile::clear_note();
             let combined = combine(&node, kids, sess, early);
             // The per-node A/B reduction (`SymRules::early_ab`),
             // bounded in steps and in the size of the form it is asked
@@ -1684,7 +1761,13 @@ fn form_in(
                     if f.num.terms.len() + f.den.terms.len() > EARLY_AB_TERMS {
                         return f;
                     }
-                    algebra::reduce_steps(&f, sess.rules, budget, &sess.atoms, EARLY_STEPS)
+                    #[cfg(feature = "sym-profile-testing")]
+                    let t0 = profile::clock();
+                    let reduced =
+                        algebra::reduce_steps(&f, sess.rules, budget, &sess.atoms, EARLY_STEPS);
+                    #[cfg(feature = "sym-profile-testing")]
+                    profile::reduce_done(t0);
+                    reduced
                         .filter(|g| within(budget, g))
                         // The gate has ONE home: `algebra::apply`
                         // carries the input form's gate through every
@@ -1705,7 +1788,15 @@ fn form_in(
             } else {
                 combined
             };
-            combined.filter(|f| within(budget, f))
+            let made = combined.filter(|f| within(budget, f));
+            #[cfg(feature = "sym-profile-testing")]
+            profile::record_node(
+                node.op,
+                profile::Walk::of(early, registry),
+                kids,
+                made.as_ref(),
+            );
+            made
         };
         drop((fa, fb));
         let f = match made {
@@ -1723,7 +1814,11 @@ fn form_in(
 /// applied, no value read. Memoized in the session's persistent table.
 fn plain_form(sess: &mut Session, root: SymId) -> Rc<Form> {
     let mut memo = core::mem::take(&mut sess.forms);
+    #[cfg(feature = "sym-profile-testing")]
+    let t0 = profile::clock();
     let out = form_in(sess, &mut memo, root, false, false);
+    #[cfg(feature = "sym-profile-testing")]
+    profile::walk_done(profile::Walk::Plain, t0);
     sess.forms = memo;
     out
 }
@@ -1752,7 +1847,11 @@ const EARLY_AB_TERMS: usize = 512;
 /// [`EARLY_STEPS`] and rule C's fold at each `sqrt`/`abs`.
 fn early_form(sess: &mut Session, root: SymId) -> Rc<Form> {
     let mut memo = core::mem::take(&mut sess.forms_early);
+    #[cfg(feature = "sym-profile-testing")]
+    let t0 = profile::clock();
     let out = form_in(sess, &mut memo, root, true, false);
+    #[cfg(feature = "sym-profile-testing")]
+    profile::walk_done(profile::Walk::Early, t0);
     sess.forms_early = memo;
     out
 }
@@ -1764,7 +1863,11 @@ fn early_form(sess: &mut Session, root: SymId) -> Rc<Form> {
 /// needed for.
 fn door_form(sess: &mut Session, root: SymId) -> Rc<Form> {
     let mut memo = core::mem::take(&mut sess.forms_door);
+    #[cfg(feature = "sym-profile-testing")]
+    let t0 = profile::clock();
     let out = form_in(sess, &mut memo, root, true, true);
+    #[cfg(feature = "sym-profile-testing")]
+    profile::walk_done(profile::Walk::Door, t0);
     sess.forms_door = memo;
     out
 }
@@ -1829,12 +1932,15 @@ fn discharge(id: SymId) -> Option<Discharge> {
         // (An earlier cut asked the door here and said in its own
         // comment that it asked last; under `SymRules::all()` that
         // attributed A/B theorems to `registered`. R1 m1 / R2 MINOR-4.)
-        if (rules.sqrt_square || rules.pythagoras)
-            && algebra::reduce(&plain, rules, sess.budget, &sess.atoms)
-                .as_ref()
-                .is_some_and(|f| f.is_zero())
-        {
-            return Some(Discharge::Theorem);
+        if rules.sqrt_square || rules.pythagoras {
+            #[cfg(feature = "sym-profile-testing")]
+            let t0 = profile::clock();
+            let reduced = algebra::reduce(&plain, rules, sess.budget, &sess.atoms);
+            #[cfg(feature = "sym-profile-testing")]
+            profile::reduce_top_done(t0);
+            if reduced.as_ref().is_some_and(|f| f.is_zero()) {
+                return Some(Discharge::Theorem);
+            }
         }
         // THE DOOR, asked LAST and only where there is a registration
         // to ask about ([`Sym::register_equal`]): only where every walk
@@ -2451,6 +2557,13 @@ impl<T: Decide> Decide for Sym<T> {
             if door_zero(self.node) {
                 count_registration_contradicted();
             }
+            // The assertion below RUNS THE DISCHARGE — the plain walk
+            // and the early one — on every definite margin, in every
+            // profile with debug assertions on (dev, test, and this
+            // workspace's release). The cost profile charges those
+            // walks to `Origin::Assertion`, apart from the decision's.
+            #[cfg(feature = "sym-profile-testing")]
+            let origin = profile::set_origin(profile::Origin::Assertion);
             debug_assert!(
                 !matches!(
                     discharge(self.node),
@@ -2459,6 +2572,8 @@ impl<T: Decide> Decide for Sym<T> {
                 "the numeric channel proved this margin nonzero and the form says it is \
                  identically zero: the two channels contradict each other"
             );
+            #[cfg(feature = "sym-profile-testing")]
+            profile::set_origin(origin);
             count_decision(None);
             report::record(&numeric, None, None, self.value.enclosure_probe());
             return numeric;
@@ -2486,7 +2601,11 @@ impl<T: Decide> Decide for Sym<T> {
         // only when the instrument is installed, so an ordinary replay
         // never pays for it.
         if report::active() {
+            #[cfg(feature = "sym-profile-testing")]
+            let origin = profile::set_origin(profile::Origin::Report);
             let text = report::render_node(self.node);
+            #[cfg(feature = "sym-profile-testing")]
+            profile::set_origin(origin);
             report::record(&numeric, None, text, self.value.enclosure_probe());
         }
         numeric

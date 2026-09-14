@@ -134,3 +134,363 @@ direction, its figures and its successor rows
 row here is justified by a cpu-second without S-TCOST's measurement behind it.
 
 From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.
+
+## The profile (SYM-1)
+
+Taken 2026-09-13/14 on the SYM-1 lane's box (4 vCPU / 15 GB, shared
+with one other lane; valgrind 3.22.0; the workspace's pinned
+toolchain). LOCAL readings, an iteration tool and not a result of
+record (`memories/perf-measurement-lane.md`) — but the instrument is
+in tree and every number below is a count a hosted re-run
+reproduces, so a later unit's before/after is one dispatch away.
+Instruction shares are callgrind's and are contention-proof; wall
+times are the profile's `Instant` clocks and are not (the drive's wall
+read 349 s and 255 s on two takes of the same binary).
+
+**Instrument.** Two halves, as the spec asked. `geom_core::sym::profile`
+(behind the test-only cargo feature `sym-profile-testing`, forwarded on
+`editor-core`'s dev-dependency edge exactly as `identity-pass-testing`
+is; with the feature off none of it compiles) records per op the forms
+built and their sizes; every FREEZE with the cause noted at the refusal
+site (`Terms` / `Degree` / `Coefficient` / `Overflow` / `ZeroDivisor` /
+`Unrecorded`, and `Unnoted` asserted zero); the ring's promotions off
+the `i128` path and the widest coefficient kept and refused; and per
+walk (plain / early / door) AND PER ORIGIN the calls, the forms built
+and the wall time — the origin being WHO asked: the decision's own
+discharge (`Decision`), the contradiction assertion the `Decide` impl
+runs on every DEFINITE margin wherever debug assertions are on
+(`Assertion` — dev, test, and this workspace's release profile, so
+every profile measured here), or the shape report's rendering
+(`Report`). Inside the early walk the per-node rule A/B reduction and
+rule D's fold are timed. `valgrind --tool=callgrind` gives the
+instruction split by function. The rows are
+`crates/editor-core/tests/m10_sym_profile_interval.rs`, all
+`#[ignore]`d evidence.
+
+**What the existing counters said first.** `SymCounts::frozen` on the
+slab's chamber drive: **0**, at every leaf of 2,559. On the plate at
+its nominal: 1,044 (the header's 1,056 was M10-8's reading; the zero
+normalisation and A1's folds since moved it) — and `frozen` counts the
+plain walk whoever asked it, so 360 of those 1,044 are the assertion's.
+The shape report sizes a residual but not the population, and neither
+says WHY a form froze, who asked for it, or what it cost — which is
+what the profile adds.
+
+### Method — re-run it
+
+```
+# the row: bounded_chamber(60ε, 30ε, 100ε), the M10-3 chamber S-TCOST bisected on
+# (`m10_3_r1_probes_interval::the_driven_chamber_replays_bit_identically_…`)
+export CARGO_TARGET_DIR=…                                  # a private one
+cargo test -p editor-core --features interval --test all --no-run            # test profile, as S-TCOST measured
+cargo test --release -p editor-core --features interval --test all --no-run  # release, beside it
+B=<the executable each prints>
+# structural profile (feature on through the dev edge; nothing to enable)
+$B --ignored --exact m10_sym_profile_interval::sym_profile_slab_replays --nocapture   # nominal / leaf (±ε) / root
+$B --ignored --exact m10_sym_profile_interval::sym_profile_slab_drive   --nocapture   # the whole row, 1280 leaves
+$B --ignored --exact m10_sym_profile_interval::sym_profile_plate_nominal --nocapture
+# callgrind over a BARE replay (no shape report, no profile; one replay per repeat, nothing else)
+CAD_SYM_PROFILE_DOC=slab  CAD_SYM_PROFILE_BOX=nominal CAD_SYM_PROFILE_REPEATS=4 \
+  valgrind --tool=callgrind --callgrind-out-file=cg-slab.out \
+  $B --ignored --exact m10_sym_profile_interval::sym_profile_callgrind_replay --nocapture --test-threads=1
+CAD_SYM_PROFILE_DOC=plate CAD_SYM_PROFILE_BOX=nominal CAD_SYM_PROFILE_REPEATS=1 \
+  valgrind --tool=callgrind --callgrind-out-file=cg-plate.out $B --ignored --exact … --test-threads=1
+callgrind_annotate --threshold=100 cg-slab.out                  # self Ir per function
+callgrind_annotate --threshold=100 --inclusive=yes cg-slab.out  # inclusive Ir per function
+```
+
+The self-cost classes below partition EVERY instruction the process
+retired, by function name (`num_bigint::*` is the BigInt ring;
+`<Int>`/`<Rat>` the `i128` path with its gcd; `collections::btree` the
+term maps; `malloc`/`free`/`memcpy` the allocator; `Poly`/`Form`/
+`mono_mul`/`within` the merge loops; `form_in`/`intern`/`discharge` the
+walk and the DAG build; `hashbrown` the memo maps), and the rows below
+sum to 100 % because the residual row `other` is shown. A test-profile
+listing spreads a quarter of the count over `core` iterator and
+`ub_checks` glue that release inlines away (chiefly `Hash128::word`'s
+byte loop, 31.7 % inclusive at opt-0 against 0.6 % self in release) —
+the ranking is read from release and the test profile is given beside
+it because the wall S-TCOST measured is the test profile's.
+
+### 1. The ranking
+
+Self instruction share of one bare replay at the nominal, release
+profile (test profile in brackets). Slab: 141 M Ir per replay (831 M
+at opt-0); plate: 1,305 M (6,827 M). Every row of the partition:
+
+| class | slab | plate |
+|---|--:|--:|
+| **term storage** — allocator + memcpy | 34.0 % (9.5) | 30.3 % (9.5) |
+| **term storage** — `BTreeMap<Mono, Rat>` walk / insert / clone / drop | 16.4 % (16.5) | 21.3 % (19.5) |
+| **term storage** — `Vec<(u128,u32)>` monomials, `Rc<Form>`, clone/drop glue | 6.0 % (6.6) | 5.1 % (9.4) |
+| **term storage, total (candidate 3)** | **56.4 %** (32.6) | **56.7 %** (38.3) |
+| **the ring** — `Rat`/`Int` on the `i128` path, `from_parts`' gcd and `strip_twos` | 8.7 % (3.7) | 14.6 % (5.3) |
+| **the ring** — `num-bigint` | 1.3 % (1.1) | 12.8 % (12.4) |
+| **the ring, total (candidate 2)** | **10.0 %** (4.8) | **27.4 %** (17.7) |
+| polynomial merge loops (`Poly::mul`/`insert`/`add` self, `within`) | 9.7 % (5.0) | 7.8 % (6.6) |
+| the walk and the DAG build — `form_in`, `intern` (node ids + table) | 15.5 % (2.2) | 3.7 % (0.7) |
+| memo maps (`hashbrown`) + content hashing (`Hash128`, digests) | 3.0 % (16.7) | 1.0 % (4.4) |
+| `Sym<Interval>`'s `Real` ops (the DAG build above `intern`) | 1.0 % (1.9) | 0.3 % (0.9) |
+| rules A/B (`algebra`) self; rule D and rule C | 0.3 % (0.1); 0.0 | 1.0 % (0.6); 0.0 |
+| the numeric channel (`Interval`) | 2.6 % (1.6) | 0.6 % (0.4) |
+| `core`/`std` generic glue (iterators, `ub_checks`; opt-0 only) | 0.1 % (28.6) | 0.1 % (22.4) |
+| the kernel above the scalar | 0.1 % (0.2) | 0.1 % (0.1) |
+| other (libc, the harness, unclassified) | 1.4 % (6.3) | 1.4 % (8.1) |
+
+Inclusive, release (test): slab — `sign_within` 72.4 % (55.8),
+`discharge` 72.2 % (55.7), `plain_form` 56.6 % (42.7), `early_form`
+14.7 % (12.4), `intern` 12.9 % (35.6), `Poly::mul` 25.3 % (19.0),
+`Poly::insert` 9.6 % (5.5), `Poly::add` 5.9 % (3.2), `Rat::mul` 8.1 %
+(5.7), `Rat::add` 1.8 % (1.4), `Rat::from_parts` 6.6 % (5.6),
+`reduce_steps` 4.2 % (2.6); the session's TEARDOWN, which no walk clock
+sees — `drop_glue::<Session>` 10.0 %, of which `Rc<Form>::drop_slow`
+9.4 % (the memos' forms). Plate — `sign_within` 92.2 % (90.3),
+`discharge` 85.3 % (82.9), `plain_form` 11.3 % (10.9), `early_form`
+60.5 % (61.4), `door_form` 20.2 % (17.9), `reduce_steps` 53.0 %
+(47.2), `Poly::mul` 44.0 % (51.0), `Poly::insert` 19.3 % (19.1),
+`Rat::mul` 23.4 % (30.1), `Rat::add` 5.6 % (7.1), `Rat::from_parts`
+24.2 % (34.6), `intern` 2.1 % (6.4), `trig::fold` 0.4 % (0.5);
+teardown 3.7 % (`Rc<Form>::drop_slow` 4.4 %).
+
+**The ranking, on the slab: (3) term storage and allocation, 56 %;
+then the walk's own overhead and the DAG build, 19 %; then (2) the
+coefficient ring, 10 %, of which `BigInt` is 1.3 %; (1) degree growth
+is not a cost on this document at all.** The slab's forms are TINY:
+mean 1.5 terms out (max 10), total degree up to 68, `SymCounts::frozen
+= 0` on every one of the drive's 2,559 leaves, no form within a factor
+of 400 of the term budget. What the slab pays for is VOLUME times a
+fixed cost per form: 10,604 plain forms per nominal replay — 9,686 of
+them the decision's, 918 the assertion's — for 1,490 decisions (964
+theorems, 526 numeric), at ~7.5 k instructions per form in release
+(`plain_form` inclusive ÷ forms) — one `BTreeMap`, one heap `Vec` per
+monomial per term, one `Rc`, one hash of the node, one gcd per
+coefficient, for a form that is mostly `q^k` over `sqrt(q²)^j`. On the
+plate the same storage share (57 %) sits beside a real ring share
+(27 %, `BigInt` 12.8 %), and BOTH ride inside the per-node A/B
+reduction (`reduce_steps`, 53 % inclusive), whose substitutions build
+the products that freeze on degree — so on the plate (1) is the
+freeze MECHANISM and (3)+(2) are the cost of reaching it.
+
+### 2. The two scales, the assertion's share, and the whole row
+
+Per walk and origin, one slab replay (release clocks; test clocks in
+brackets). `D` is the decision's discharge, `A` the assertion's, `R`
+the shape report's (calls only, every one a memo hit):
+
+| slab replay | decisions (theorem / numeric) | plain calls D / A / R | plain forms D / A | early calls D / A | early forms D / A | `reduce_steps` calls | wall, plain D / A, early D / A |
+|---|---|---|---|---|---|--:|---|
+| nominal, 56.0 ms (166) | 964 / 526 | 980 / 510 / 16 | 9,686 / 918 | 16 / 510 | 36 / 1,958 | 1,994 | 27.4 / 3.4, 0.1 / 7.1 ms (69.9 / 9.3, 0.3 / 19.2) |
+| leaf-sized, nominal ± ε, 32.8 ms (142) | 964 / 526 | 980 / 510 / 16 | 9,686 / 918 | 16 / 510 | 36 / 1,958 | 1,994 | 14.2 / 2.0, 0.1 / 4.0 ms (62.3 / 7.9, 0.3 / 17.9) |
+| root box (±100 ε), 1.0 ms (5.6) | 100 / 86 | 118 / 68 / 18 | 82 / 91 | 18 / 68 | 41 / 102 | 143 | — |
+
+A form is charged to the origin that FIRST built it; the assertion
+walks a definite margin's DAG whose kids the decision path then finds
+memoized, so with the assertion removed (the reviewer's mutation) the
+decision's plain forms read 9,938 and early 66 — the 252 and 30
+between are shared nodes. Read either way: **the decision path builds
+nine tenths of the slab's plain forms and next to none of its early
+ones; the early walk on the slab — its 1,994 `reduce_steps` calls, its
+36 atoms of the 56 — is the assertion's.** The answer is the same at
+the nominal and over a leaf: over a box 2 ε wide an identity margin's
+enclosure `[0, c·w]` is still not definite, so the decision path builds
+exactly the forms it builds at the nominal, and the assertion runs on
+the same 510 definite margins. The root box refuses at its second node
+(the extrusion vector straddles zero over ±100 ε).
+
+The drive over the whole row (test profile, sequential, profile on):
+2,559 sessions (1,280 leaves + 1,279 splits), 21.7 M nodes interned
+(8,488 per session against 12,208 at the nominal), wall 254.9 s:
+
+| origin | plain calls | plain forms | early calls | early forms | plain wall | early wall |
+|---|--:|--:|--:|--:|--:|--:|
+| decision | 1,569,376 | 17,528,640 (6,850 / session) | 43,236 | 171,363 | 117.6 s | 1.4 s |
+| assertion | 803,738 | 1,571,279 | 803,738 | 3,182,424 | 13.7 s | 29.2 s |
+
+0 frozen; `reduce_steps` 3.35 M calls 5.8 s, `trig::fold` 20 k calls
+87 ms, top-residual reduce 847 k calls 1.0 s; 33.0 M `Rat` operations,
+418 k on the heap path (1.27 %), 104.6 k promotions (0.32 %), widest
+coefficient 201 bits; max terms 10, max degree 68. The assertion is
+8 % of the drive's plain forms, 95 % of its early forms, and 43 s of
+the 162 s the walks take.
+
+### 3. The freeze population
+
+Slab, at every scale and over the whole drive: **none** — no `Terms`,
+no `Degree`, no `Coefficient`, no `Overflow`. Plate at its nominal,
+1,312 freezes over the three walks (plain 1,044 = `SymCounts::frozen`;
+early 164; door 104 — a node the plain walk freezes is frozen again by
+each later memo), split by who asked:
+
+| origin | plain `Degree` | plain `Coefficient` | early `Coefficient` | door `Coefficient` | total |
+|---|--:|--:|--:|--:|--:|
+| decision | 672 | 0 | 48 | 104 | 824 |
+| assertion | 360 | 12 | 116 | 0 | 488 |
+
+(With the assertion removed the decision's plain count reads 684: 12
+of the assertion's `Degree` freezes are on nodes the decision path
+then meets in the memo.) By cause and op, both origins, with the kids'
+sizes at the freeze:
+
+| cause | op | count | kid total degree min / mean / max | kid terms min / mean / max |
+|---|---|--:|---|---|
+| `Degree` | `Powi` | 516 | 70 / 96.3 / 117 | 1 / 3.0 / 7 |
+| `Degree` | `Mul` | 408 | 40 / 85.9 / 117 | 1 / 2.1 / 4 |
+| `Degree` | `Sub` | 108 | 66 / 70.1 / 74 | 1 / 2.0 / 3 |
+| `Coefficient` | `Powi` | 232 | 0 / 6.8 / 34 | 2 / 7.0 / 10 |
+| `Coefficient` | `Add` | 48 | 4 / 5.3 / 8 | 14 / 37.8 / 90 |
+| `Terms`, `Overflow`, `ZeroDivisor`, `Unrecorded`, `Unnoted` | — | 0 | | |
+
+Widest coefficient kept 249 bits (the bound is 256), widest refused
+401 bits. **The derived-frame mechanism is visible here and absent on
+the slab**: 1,032 of 1,312 freezes are on DEGREE, on a square or a
+product whose kids already stand at degree 40–117 with one to seven
+terms — a monomial-shaped quotient whose degree the carried
+denominators doubled once too often (`Powi`'s degree in → out on the
+plate is 18.9 → 13.8 mean but 122 max; on the slab 11.4 → 22.8, never
+past 68). The 280 coefficient freezes are the other shape M10-8 named:
+low degree, many terms, 53-bit mantissa products past 256 bits.
+`drive.rs`'s note — degree binds, terms never do — is confirmed on
+both documents by count: no form on either is within 40× of
+`DEFAULT_SYM_MAX_TERMS`. The decision path alone freezes 824 (672 on
+degree); the assertion's 488 are the same two shapes on the definite
+margins' DAGs.
+
+### 4. The promotion count
+
+| | `Rat` ops | heap-path `Int` ops | promotions (`Small`→`Big`) | `BigInt` self share, release |
+|---|--:|--:|--:|--:|
+| slab, one replay | 19,568 | 288 (1.5 %) | 72 (0.37 %) | 1.3 % |
+| slab, the whole drive | 33,022,715 | 418,392 (1.27 %) | 104,598 (0.32 %) | — |
+| plate, nominal | 232,169 | 21,132 (9.1 %) | 2,967 (1.28 %) | 12.8 % |
+
+The `BigInt` arithmetic's share of the instructions matches its share
+of the operations on the slab (1.3 % against 1.5 %) and is ~1.4× it
+on the plate (12.8 % against 9.1 %: a heap op costs more, and most of
+that 12.8 % is `biguint_shr2` and `sub_assign` — `strip_twos` and the
+gcd inside `Rat::from_parts`, run after every product). The `i128`
+inline path holds: promotions are under half a percent of the ring's
+operations on the slab and just over one percent on the plate. (The
+ring counts are not split by origin; on the slab the assertion's forms
+are a fifth of all forms built, on the plate a quarter.)
+
+### 5. Where the walks spend it
+
+Release wall by the profile's clocks (test profile in brackets), the
+decision's share then the assertion's:
+
+| | plain walk D / A | early walk D / A | door walk D / A | of the early walk: `reduce_steps` | rule D `trig::fold` | top-residual A/B |
+|---|---|---|---|---|---|---|
+| slab nominal, 56.0 ms (166) | 27.4 / 3.4 ms (69.9 / 9.3) | 0.1 / 7.1 ms (0.3 / 19.2) | — | 3.1 ms (4.4), 1,994 calls, 36 the decision's | 6 µs, 8 calls | 0.3 ms, 526 calls |
+| plate nominal, 256.7 ms (1,119) | 40.2 / 7.1 ms (141.6 / 25.8) | 93.4 / 16.6 ms (498.2 / 86.4) | 46.0 / 0.0 ms (213.0 / 0.1) | 97.6 ms (452.8), 23,001 calls | 1.1 ms (5.0), 553 calls | 0.5 ms, 610 calls |
+
+On the slab the plain walk is the tier (57 % of the replay's
+instructions inclusive; 980 decision calls building 9,686 forms), and
+the early walk is the assertion's: the decision path asks it 16 times
+for 36 forms, the assertion 510 times for 1,958. Rules A/B per node
+are 4 % of the replay and almost entirely the assertion's — the slab
+has 56 atoms and eight trig nodes. On the plate the early and door
+walks are 80 % of the replay and `reduce_steps` — rules A/B per node
+— is 53 % alone, 89 % of the early walk's wall, five sixths of it the
+decision's (early D 93.4 ms against A 16.6); rule D's fold is 0.4 %,
+its closed forms memoized per argument. Outside every clock: the
+session's teardown, 10 % of a slab replay and 4 % of a plate replay
+inclusive (release), and the DAG build (`intern`, 13 % and 2 %).
+
+### What a fix would target — one proposal per candidate, the number behind it
+
+Ask 3 (the change) is NOT taken here; these are the next unit's
+inputs, each with the count that argues for it, none with a design.
+
+- **Candidate 3, term storage — the largest number on both documents
+  (56 % of instructions in release).** A form averages 1.5 terms and
+  never exceeds 10 on the slab (90 on the plate); every one is a
+  `BTreeMap<Vec<(u128, u32)>, Rat>` — a tree node plus one heap `Vec`
+  per monomial, cloned on every `add`, `mul`, `neg` and memo insert,
+  and the allocator alone is a third of the count; the teardown that
+  frees them is another tenth. The proposal: a small-vector polynomial
+  — terms as a sorted `Vec` with the monomial inline for the
+  one-to-three-indeterminate case — so a form of ten terms is one
+  allocation, not eleven. The bound on the win is the storage share
+  itself; the merge loops it feeds are 9.7 %.
+- **The assertion — not one of the three, and the second number on
+  the slab's early walk.** `Decide for Sym<T>` runs `discharge` inside
+  a `debug_assert!` on every margin the numeric channel proved
+  non-zero, and this workspace's release profile keeps
+  `debug-assertions = true`, so in every profile it builds the plain
+  AND early forms of every definite margin: a tenth of the slab's
+  plain forms and 95 % of its early forms (1,958 of 1,994 nominal
+  forms; 3.18 M of 3.35 M over the drive; 43 s of the drive's 162 s in
+  the walks), and 488 of the plate's 1,312 freezes. The design
+  question it raises, for the next unit and not decided here: a
+  soundness cross-check that is a second full walk — whether it
+  belongs on every definite decision, on a sample of them, or behind
+  its own feature, and what the published build (where the release
+  stanza "comes back OUT") loses when it goes.
+- **The volume behind it — not one of the three, and the third
+  number on the slab.** 9,686 decision-built plain forms per nominal
+  leaf for 980 decisions the numeric channel could not answer, and a
+  DAG interned afresh in each of 2,559 sessions (21.7 M `intern`s,
+  8,488 per session; `intern` is 13 % of a nominal replay in release,
+  36 % at opt-0 where `Hash128::word`'s byte loop is not inlined). The
+  plain form reads no value — it is a function of the node's content
+  hash alone — so its memo is valid across leaves of one drive; today
+  the session "holds nothing across leaves" by design (module header,
+  D9 section). The proposal is a drive-scoped plain memo keyed by
+  `SymId`, which would remove up to the plain walk's 57 % from every
+  leaf after the first — with the premises a design has to meet: the
+  plain walk has SIDE EFFECTS a memo hit would skip (`combine`
+  registers every atom in `sess.atoms`, which the top-residual reduce
+  and `reduce_steps` read; `frozen` is incremented inside the walk, so
+  a hit would leave the receipt first-leaf-only), and the opaque
+  sequence (`OPAQUE_SEQ`, per replay by D9's argument) becomes
+  load-bearing across leaves. Inputs, not a design; it is a
+  session-model change and needs the design conversation before the
+  code.
+- **Candidate 2, the ring (10 % slab, 27 % plate).** `Rat::from_parts`
+  runs a gcd and two `strip_twos` after EVERY `add` and `mul` (self
+  3.5 % slab / 7.5 % plate; the `BigInt` shifts and subtractions
+  under it are most of the plate's 12.8 %). Promotions are rare
+  (0.3–1.3 % of ops), so the inline path is right; the proposal is
+  to make the normalisation cheaper on the common shape — skip the
+  gcd when the denominator is one (a dyadic coefficient, which
+  `exp2` already carries), and reduce lazily where the product is
+  about to be refused anyway. `Poly::degree` walks every term twice
+  per product and twice per `within` (7.8 % inclusive at opt-0,
+  1.4 % `within` self in release): a cached degree is the small
+  version of the same idea.
+- **Candidate 1, degree growth from carried denominators — no cost
+  on the slab; the freeze mechanism on the plate.** 1,032 of the
+  plate's 1,312 freezes are `Degree` on kids at 40–117 (672 of them
+  the decision's), inside the per-node A/B reduction that is 53 % of
+  the plate's instructions. The fix that targets it is the one
+  `derived-frame-placement-freezes-on-the-symbolic-lane` names — a
+  degree-resetting atom for a value-exact norm, or normalisation
+  simplified before squaring — and that row owns it; the number this
+  unit adds is that the term budget is never the wall (no `Terms`
+  freeze anywhere; max 90 terms against 4,096) and the coefficient
+  bound is a fifth of the freezes (280, widest refused 401 bits).
+
+## Coverage: which rows DO red with the tier off
+
+The observation above ("all nine M10-3 rows pass with `enabled:
+false`") has its answer: those nine rows' subject is the DRIVER —
+its accounting, the flips it names, containment, the grid floor —
+on boxes sized in ε where the tier's theorems change no verdict, so
+they pass either way by construction and pin nothing about the tier.
+What pins the tier's answers is elsewhere (`rg -n
+"SymbolicDials::off|without_the_algebra|SymBudget::none"
+crates/*/tests`, 21 files): **`m10_10_pins_interval`** asserts the
+plate's per-predicate theorem / gated / registered / numeric split at
+the nominal (180/0/0/0 and the door's 72) and the plate's and the
+annulus's ceilings as fractions of their REAL studies at three ε rows
+— with the tier off, or regressed to pre-E12 answers, every one of
+those reds; **`m10_9_pins_interval`** pins the registered column and
+that the door is inert on straight geometry; **`m10_8_pins_interval`**
+pins the bracket's discharge under the shipped set and the A0 set's
+inertness on straight geometry; `m10_3_driver_interval::the_tier_off_reproduces_the_pre_e12_refusal`
+and `m10_7_r2_probes_interval`'s byte-identity row pin the OFF lane
+itself (the pre-E12 bytes), so a regression that made the tier a
+no-op would leave those green and the pins above red. The tier's
+answers are therefore pinned in the tree — in the M10-8/9/10 pin
+suites and not in the M10-3 suite that pays for them, which is the
+row S-TCOST's cost question is about.
