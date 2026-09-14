@@ -450,29 +450,60 @@
 //! 1,312 (360 of the plain walk's 1,044 `frozen`), the decision path
 //! 824. `SymCounts::frozen` counts the plain walk whoever asked it.
 //!
-//! **The tier's instructions are TERM STORAGE, not arithmetic and not
-//! degree.** In release, 56 % of a replay's instructions on both
-//! documents are the allocator, the `BTreeMap` of terms and the heap
-//! `Vec` each monomial is, against 10 % in the coefficient ring on the
-//! slab (27 % on the plate, `num-bigint` 1.3 % and 12.8 % of those),
-//! 0.3–1 % in the atom algebra's own code, and a session's teardown —
-//! dropping the memos and the table, which no walk clock sees — 10 %
-//! on the slab and 4 % on the plate. The slab's forms are tiny — 1.5
-//! terms on average, 10 at most, total degree up to 68, and NOT ONE
-//! freezes at any leaf of the chamber drive (19.1 M plain forms,
-//! `frozen = 0`) — so what the slab pays is volume times a fixed cost
-//! per form: at the nominal 10,604 plain forms per leaf (9,686 the
-//! decision's) for 1,490 decisions, at ~7.5 k instructions each, over
-//! a DAG of 12,208 nodes interned afresh per leaf (`intern` is 13 % of
-//! a release replay); a leaf of the drive averages 8,488 nodes and
-//! 7,463 plain forms. The plain walk is 57 % of a slab replay
-//! inclusive, the early walk 15 %, the per-node rule A/B reduction
-//! 4 %; the answer is the same at the nominal and over a leaf-sized
-//! box, because over 2 ε an identity's enclosure is still not definite
-//! and the decision path builds the same forms either way.
+//! **The tier's instructions are TERM STORAGE, then the walk itself;
+//! arithmetic is second on the plate and degree is nowhere on the
+//! slab.** In release, one bare replay at the nominal is 99.0 M
+//! instructions on the slab and 713 M on the plate (`callgrind`, self
+//! cost by function, partitioned by class): the allocator, the term
+//! vector and the heap `Vec` each monomial is are 40 % on the slab
+//! and 51 % on the plate; the coefficient ring 9 % and 15 %
+//! (`num-bigint` 0.1 % and 0.7 % of those); the walk and the DAG
+//! build — `form_in`, `intern` — 24 % and 6 %; the merge loops of
+//! `Poly` 12 % and 18 %; the atom algebra's own code 0.3 % and 2 %;
+//! and a session's teardown — dropping the memos and the table, which
+//! no walk clock sees — 12 % on the slab and 6 % on the plate. The
+//! slab's forms are tiny — 1.5 terms on average, 10 at most, total
+//! degree up to 68, and NOT ONE freezes at any leaf of the chamber
+//! drive (19.1 M plain forms, `frozen = 0`) — so what the slab pays
+//! is volume times a fixed cost per form: at the nominal 10,604 plain
+//! forms per leaf (9,686 the decision's) for 1,490 decisions, at
+//! ~4.7 k instructions each (`plain_form` inclusive over the forms it
+//! builds), over a DAG of 12,208 nodes interned afresh per leaf
+//! (`intern` is 18 % of a release replay); a leaf of the drive
+//! averages 8,488 nodes and 7,463 plain forms. The plain walk is 50 %
+//! of a slab replay inclusive, the early walk 12 %, the per-node rule
+//! A/B reduction 3 %; the answer is the same at the nominal and over a
+//! leaf-sized box, because over 2 ε an identity's enclosure is still
+//! not definite and the decision path builds the same forms either
+//! way.
+//!
+//! Those are the shares AFTER two changes to what a form costs to
+//! hold and to normalise, each measured against the tree before it
+//! with every count — forms, atoms, frozen, decisions by outcome, and
+//! the digest chain of every form the walks build
+//! (`m10_sym_profile_interval`'s walk ledger) — identical. A `Poly`'s
+//! terms as one sorted vector in the map's order instead of a
+//! `BTreeMap` ([`form`]'s header): a slab replay 141.5 M → 104.3 M
+//! instructions, a plate replay 1,300 M → 976 M, the storage class
+//! from 54 % to 38 % of the slab and 56 % to 38 % of the plate — the
+//! tree nodes, their allocation and their teardown gone, the heap
+//! monomial (measured inline at width four: under one percent more,
+//! not taken) and the `Rc<Form>` per memo entry still there. The ring
+//! skipping the gcd and the products by one on the dyadic shape
+//! ([`rational`]'s `from_parts`): the slab 104.3 M → 99.0 M, the plate
+//! 976 M → 713 M — the plate's `num-bigint` share from 13 % to 0.7 %,
+//! because nearly all of its heap arithmetic was gcds against one and
+//! products by one on 256-bit numerators. The chamber drive's test-
+//! profile wall, one sequential take on the measuring box: 368 s →
+//! 240 s → 225 s. The shares are a measurement with no guard and no
+//! register: they are re-taken by running the named rows, and nothing
+//! reds when they stop being true, because an instruction share is a
+//! reading of one box on one day and not a contract the tier makes —
+//! what the tier contracts (every count, every form's digest) is what
+//! the walk-ledger row pins.
 //!
 //! On the plate the same storage share sits inside `reduce_steps` —
-//! rules A/B per node, 53 % of the replay — and the freeze population
+//! rules A/B per node, 51 % of the replay — and the freeze population
 //! is what the budget note in `editor-core`'s `SymbolicDials` says it
 //! is: 1,312 freezes over the three walks (1,044 in the plain walk),
 //! **1,032 on DEGREE** with the kids already at total degree 40–117 in
@@ -480,8 +511,7 @@
 //! 401 bits against [`rational::COEFF_BITS`]), and none on the term budget —
 //! no form on either document comes within 40× of it. Rule D's fold is
 //! 0.4 % of the plate's replay; the ring's heap path is 9 % of its
-//! operations and 12.8 % of its instructions, 1.5 % and 1.3 % on the
-//! slab, so the `i128` inline path holds on both.
+//! operations, so the `i128` inline path holds on both documents.
 //!
 //! # The census: which identity-shaped predicates this tier reaches
 //!
@@ -1536,14 +1566,10 @@ fn unary_at_zero(op: SymOp) -> Option<Form> {
         SymOp::Cos => Some(Form::poly(Poly::one())),
         // acos 0 = π/2 — expressible, because π is an indeterminate of
         // the form rather than a number.
-        SymOp::Acos => {
-            let mut p = Poly::indet(INDET_PI);
-            let half = Rat::new(1, 2, 0)?;
-            for c in p.terms.values_mut() {
-                *c = c.mul(&half)?;
-            }
-            Some(Form::poly(p))
-        }
+        SymOp::Acos => Some(Form::poly(Poly::term(
+            vec![(INDET_PI, 1)],
+            Rat::new(1, 2, 0)?,
+        ))),
         // 1/0 is not a real; the numeric channel owns that refusal.
         _ => None,
     }
@@ -1865,7 +1891,7 @@ fn form_in(
             // not fit.
             let combined = if early && sess.rules.early_ab {
                 combined.map(|f| {
-                    if f.num.terms.len() + f.den.terms.len() > EARLY_AB_TERMS {
+                    if f.num.terms().len() + f.den.terms().len() > EARLY_AB_TERMS {
                         return f;
                     }
                     #[cfg(feature = "sym-profile-testing")]

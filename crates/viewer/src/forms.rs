@@ -18,12 +18,16 @@
 //! whether `PathVerb` still names every `PathStep` is forced by
 //! `PathVerb::of`'s exhaustive match, while a DELIBERATELY PARTIAL
 //! list claims no completeness and so cannot be held to it.
-//! `MATE_PRIMITIVES` is held to the weaker thing that IS true of it:
-//! `partial_mirror!` classifies every `MatePrimitive` variant as
-//! offered here or as deliberately absent, so the mirrored enum
-//! cannot grow past this form in silence. `DatumKindChoice`'s four of
-//! `DatumSpec`'s five arms are held to nothing. Each says so at its
-//! own site. (Code spans rather
+//! Both partial mirrors on this page are held to the weaker thing that
+//! IS true of them: `partial_mirror!` (`crates/viewer/src/vocab.rs`)
+//! classifies every variant of the mirrored enum as offered here or as
+//! deliberately absent with its reason, so neither `MatePrimitive` nor
+//! `DatumSpec` can grow past this form in silence. The two take
+//! different shapes of that one macro, because what they offer differs:
+//! `MATE_PRIMITIVES` is a hand-written list and its roster holds a seat
+//! per offered entry, while `DatumKindChoice` is an enum whose `ALL` is
+//! projected, so its roster names a counterpart and has no seat to
+//! hold. Each says so at its own site. (Code spans rather
 //! than links: everything on this page is `pub(crate)`, so an
 //! intra-doc link from a public module page does not resolve.)
 //!
@@ -38,8 +42,9 @@ use pncad::profile::{ArcSide, ArcSweep};
 use pncad::quantity::UnitDef;
 
 use crate::props;
+use crate::session::DatumSpec;
 use crate::sketch::{ArcSpec, PathStep, PathTarget};
-use crate::vocab::vocabulary;
+use crate::vocab::{partial_mirror, vocabulary};
 
 vocabulary! {
     /// The pattern form's rule choice — the two PARAMETRIC rules, an enum
@@ -115,6 +120,28 @@ vocabulary! {
     /// offering, in form order, and a drawing's tag claims no such
     /// thing.
     ///
+    /// **A partial mirror, told when `DatumSpec` grows.** The
+    /// direction the compiler already held is kind-to-spec:
+    /// `pane::create`'s lowering match is exhaustive over
+    /// this enum, so a choice with no spec to lower to does not
+    /// build. Spec-to-kind was held by nothing, so a `DatumSpec` arm
+    /// this form SHOULD offer could arrive with no form edit and
+    /// nothing saying so — not hypothetical, since `AxisInPlane` is
+    /// exactly that, and the revolve tool ships with a seat no form
+    /// can fill in consequence.
+    /// The `partial_mirror!` invocation below is the roster that now
+    /// classifies every `DatumSpec` arm as offered here or as
+    /// deliberately absent with its reason. It takes the `onto` shape
+    /// rather than a seat roster because the offering is an ENUM whose
+    /// `ALL` is projected from its declaration, so naming a
+    /// counterpart there already says the radio row draws it
+    /// (`crates/viewer/src/vocab.rs`).
+    ///
+    /// **That roster holds nothing between this enum and
+    /// [`crate::datums::DatumKind`]**, which stay two types whose four
+    /// members match by coincidence: what it mirrors is `DatumSpec`,
+    /// and the draw tag is not party to it.
+    ///
     /// **Declared in FORM order**, which is the order [`DatumKindChoice::ALL`]
     /// is projected in and therefore the order the radio row is drawn
     /// in: the frame sits next to the plane because that is the choice
@@ -134,6 +161,24 @@ vocabulary! {
 
     /// Every kind with its radio label, in form order.
     pub(crate) const ALL;
+}
+
+partial_mirror! {
+    DatumSpec, onto DatumKindChoice,
+    offered [
+        Plane { .. } => Plane,
+        Axis { .. } => Axis,
+        Point { .. } => Point,
+        Frame { .. } => Frame,
+    ],
+    absent [
+        AxisInPlane { .. } => "its frame is a PICK and not a field, and \
+                               this form authors plain numbers; making it \
+                               authorable moves this entry to the offered \
+                               section and grows the enum above by one, \
+                               which is what the revolve tool's unfillable \
+                               seat asks for",
+    ],
 }
 
 vocabulary! {
@@ -512,9 +557,10 @@ impl FieldWriting {
 ///
 /// **A decision per variant, and the compiler holds the decision.**
 /// Nothing here forces the list to be COMPLETE — completeness is what
-/// it does not claim. What `partial_mirror!` below forces is that every
-/// [`MatePrimitive`] variant is either offered at a seat of this list
-/// or named below as deliberately absent, with the reason it is
+/// it does not claim. What the `partial_mirror!` invocation below
+/// forces (`crates/viewer/src/vocab.rs` declares the macro) is that
+/// every [`MatePrimitive`] variant is either offered at a seat of this
+/// list or named below as deliberately absent, with the reason it is
 /// absent. A primitive added to the kernel enum is neither until
 /// someone writes one of the two, and the build says so.
 pub(crate) const MATE_PRIMITIVES: [(MatePrimitive, &str); 3] = [
@@ -523,78 +569,8 @@ pub(crate) const MATE_PRIMITIVES: [(MatePrimitive, &str); 3] = [
     (MatePrimitive::PlanarRest { offset: 0.0 }, "planar rest"),
 ];
 
-/// **A partial mirror, told when the mirrored enum grows.**
-///
-/// Takes the mirrored enum, a `[(Variant, &str); N]` list of what the
-/// chrome offers, and a ROSTER that classifies every variant of the
-/// enum as offered or as deliberately absent. It expands to two halves
-/// that close on each other:
-///
-/// - `every_variant_is_offered_or_named_absent` is a match over the
-///   enum with one arm per roster entry — both sections — and no
-///   wildcard. A variant added to the enum has no arm, so `E0004` reds
-///   here and names it. The only way to silence it is to put that
-///   variant in one section or the other, which is the decision this
-///   instrument exists to force.
-/// - one `assert!` per OFFERED entry, in a `const` block, saying the
-///   list holds that variant at that seat. Classifying a new variant
-///   as offered therefore asserts `list[n]` for a seat the old list
-///   does not have — a const-eval error, out of bounds, until the list
-///   itself grows. Classifying it as absent asserts nothing further,
-///   which is the whole point: the list stays three long and the
-///   roster says why.
-///
-/// A trailing count check closes the third direction: an entry added
-/// to the list with no roster classification leaves the list longer
-/// than the offered section, and an entry moved from offered to absent
-/// leaves it shorter.
-///
-/// **The absent section is not a second hand-written list.** It is the
-/// other half of the one roster the exhaustive match holds against the
-/// enum, so it cannot fall behind what it mirrors any more than the
-/// offered half can. The reason string is required by the grammar
-/// rather than asserted over: an author cannot write an absence
-/// without saying what makes it deliberate.
-///
-/// One caller, so the assertion knows this list's element shape
-/// (`(Variant, &str)`) rather than taking a projection. A bare
-/// `[Variant; N]` mirror wants a second arm, and lifting this beside
-/// [`crate::vocab::vocabulary`] is the move at the moment a second
-/// partial mirror takes it — not before, when the two shapes it would
-/// have to serve are one shape and a guess.
-macro_rules! partial_mirror {
-    (
-        $ty:ident, $list:expr,
-        offered [ $($ov:ident $({ $($op:tt)* })?),+ $(,)? ],
-        absent [ $($av:ident $({ $($ap:tt)* })? => $why:literal),* $(,)? ] $(,)?
-    ) => {
-        const _: () = {
-            #[allow(dead_code)]
-            fn every_variant_is_offered_or_named_absent(primitive: $ty) {
-                match primitive {
-                    $($ty::$ov $({ $($op)* })? => (),)+
-                    $($ty::$av $({ $($ap)* })? => (),)*
-                }
-            }
-            let mut seat = 0;
-            $(
-                assert!(
-                    matches!($list[seat].0, $ty::$ov $({ $($op)* })?),
-                    "the form has drifted from its roster: this seat \
-                     does not offer the variant the roster puts here"
-                );
-                seat += 1;
-            )+
-            assert!(
-                seat == $list.len(),
-                "the form offers a variant its roster does not classify"
-            );
-        };
-    };
-}
-
 partial_mirror! {
-    MatePrimitive, MATE_PRIMITIVES,
+    MatePrimitive, labelled MATE_PRIMITIVES,
     offered [FrameCoincidence, Coaxial, PlanarRest { .. }],
     absent [
         Clocking => "the kernel represents it so it can REFUSE it \

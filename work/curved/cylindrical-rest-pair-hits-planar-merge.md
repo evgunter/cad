@@ -1,11 +1,14 @@
 ---
 id: cylindrical-rest-pair-hits-planar-merge
-kind: issue
+kind: unit
 title: A surviving cylindrical declared Rest pair reaches the planar-only F7 merge door
-status: open
+status: closed
 opened: 2026-08-31
 github: 1415
 refs: [1032, 1417]
+branch: curved/merge-door
+closed: 2026-09-14
+pr: 2105
 ---
 
 ## From GitHub issue 1415
@@ -95,3 +98,16 @@ kind arm — placeholder keeps refusing, poisoned is the census's
 refusal — and `SurfaceKind` only to name the carrier in
 `DeclaredCarrierUnsupported::kind`. The spec carries the same note
 beside the arm.
+
+## Closed (2026-09-14)
+
+PR #2105 merged (ordinal 2202, sample #192): the planar merge door
+records a non-planar declared pair instead of refusing it — shape (1),
+at the door, one record per declared pair, none for a pair with no live
+faces. Shape (2) (a curved declared rung) has its consumer measured AT
+the door (scene F, two stacked equal pegs with walls declared) and is
+banked on S-BOOL's `cosurface-disjoint-curved-walls-refuse`. What the
+old refusal hid: the REST-zip mints a `Line` chord on the bore wall on
+the floating/mid-bore scenes (`rest-zip-seam-chord-on-cylinder-wall`,
+filed by the lane, the next unit on this lane); those scenes now refuse
+`JoinDesync` typed, pinned red-the-day.
