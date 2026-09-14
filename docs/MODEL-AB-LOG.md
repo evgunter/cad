@@ -4682,7 +4682,9 @@ depend on which unit takes it.
 slot 0 = VERBS-C5ARMS PR-2 (OPUS) — concluded 2026-09-05 at merge ae69dfeb2, ordinal 2200, sample #143 (pair EXCLUDED from the tally under 3(e): R2 interrupted twice by the usage limit; R1's unilateral MAJ-1 noted as a would-be candidate).
 slot 1 = CURVED-TORUS PR-1 (OPUS, after the reorder) — concluded 2026-09-07 at merge 8424e2021, ordinal 2201, sample #152 (R1's unilateral MAJOR a tally CANDIDATE; no reviewer interruption; implementer paused twice by the usage limit).
 
-Block CURVED-B2 (branch-side on `curved/b1-block`, the CURVED block branch; B1's slot 2 still open):
+slot 2 = CURVED-MERGEDOOR (FABLE) — concluded 2026-09-14 at merge 0e1d06b47, ordinal 2202, sample #192 (no unilateral candidate; R2 paused once by the usage limit, 3(e)). **Block CURVED-B1 CONCLUDED** — {OPUS, OPUS, FABLE} all executed; the record folded to main (PR #2578).
+
+Block CURVED-B2 (branch-side on `curved/b1-block`, the CURVED block branch; B1 concluded 2026-09-14):
 
 Block CURVED-B2 pre-draw fields (2026-09-13, logged before the draw):
 slot 0 = CURVED-TORUS PR-2 (`docs/CURVED-TORUS-SPEC.md` §PR-2, the
