@@ -1191,3 +1191,20 @@ beside them as the third lane, test support only. Seams announced to
 WIRE (the stamping call) and TRIM (a reverse-parking helper). Slot 2
 (`edge-carrier-kind-has-no-readback-door`) dispatches when a lane
 frees.
+
+## Container restart killed all three B4 lanes; WIP recovered, lanes relaunched (2026-09-14)
+
+A container restart (~10:40 UTC) killed the three live lanes about ten
+minutes in. Their worktrees survived with uncommitted edits; each was
+committed as-is as one `wip: uncommitted work recovered after a
+container restart…` commit on its branch and pushed
+(`topo/geom-source-typed-absence` 3b2d9fd49,
+`topo/revert-reparks-the-wrap` 73b66589e,
+`topo/d107-kemr-hammer-fixture` bebf5dc46), the worktrees unlocked and
+removed, and fresh lanes launched on the pushed branches with the same
+briefs plus a preamble: read the WIP, keep what is right, redo what is
+not, say in the PR body that the branch starts from a recovered WIP.
+Model assignment unchanged (slot 0 OPUS, slot 1 FABLE, D107 OPUS); the
+draw is not re-rolled by a restart. Lanes are now told to push early
+and often, since only pushed commits survive a restart. Not a review
+event, so nothing in the block record moves.
