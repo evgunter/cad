@@ -2568,7 +2568,17 @@ mod ladder {
 ///
 /// The one thing neither this door nor its callers can supply is the
 /// KIND: [`super::entity_door::Found`] is mintable only inside that
-/// module, so `refuse` receives it and passes it on.
+/// module, so `refuse` receives it and passes it on. **That is why the
+/// door is in two files and this half is here**: the token's field has
+/// to be private to a module that is not an ancestor of these roads,
+/// and the roads are in this one. What this door adds is the
+/// resolution and the boxed name; what it cannot add, and does not
+/// try to, is the word.
+///
+/// The KEY, though, is this door's own — it comes off
+/// `ladder::resolve_in` two lines below and nowhere else, which is the
+/// property `entity_door`'s module docs say the type system does not
+/// carry.
 ///
 /// # Errors
 ///
@@ -2579,7 +2589,7 @@ fn named_entity<R>(
     doc: &crate::doc::Doc<ProfileProgram>,
     table: &NameTable,
     unresolved: impl Fn(Box<crate::resolve::ResolveError>) -> NodeErrorKind,
-    read: impl FnOnce(names::EntityKey) -> Option<R>,
+    read: fn(names::EntityKey) -> Option<R>,
     refuse: impl FnOnce(Box<names::StableName>, super::entity_door::Found) -> NodeErrorKind,
 ) -> Result<R, NodeErrorKind> {
     let ent = ladder::resolve_in(name, doc, table, unresolved)?;
@@ -2639,6 +2649,32 @@ struct Selected<'v, T: Decide> {
     key: crate::names::EntityKey,
 }
 
+/// What a measure reference is allowed to scope over — the whole body,
+/// or one face of it.
+///
+/// It exists so [`Selected::faces`]'s projection can be a `fn`: the
+/// entity door takes a `fn` so that no `read` can answer from a key it
+/// captured rather than the one the door holds, which means the body
+/// work has to happen after the door rather than inside it. The two
+/// arms are the two admitted kinds, so neither this enum nor the match
+/// below has an unreachable case.
+enum Scope {
+    /// A body-kind reference: every face of it.
+    WholeBody,
+    /// A face-kind reference: that one face.
+    One(topo::entity::FaceKey),
+}
+
+/// The scope a key denotes, or `None` for a kind that is neither — the
+/// entity door's `read` for the measure road.
+fn scope_of(key: names::EntityKey) -> Option<Scope> {
+    match key {
+        names::EntityKey::Body => Some(Scope::WholeBody),
+        names::EntityKey::Face(k) => Some(Scope::One(k)),
+        names::EntityKey::Edge(_) | names::EntityKey::Vertex(_) => None,
+    }
+}
+
 impl<T: Decide> Selected<'_, T> {
     /// The faces this selection scopes over: every face of the body for
     /// a body-kind reference (arena order, which is the deterministic
@@ -2651,18 +2687,16 @@ impl<T: Decide> Selected<'_, T> {
     /// [`NodeErrorKind::MeasureSelectionKind`], naming what was
     /// selected instead.
     fn faces(&self) -> Result<Vec<topo::entity::FaceKey>, NodeErrorKind> {
-        super::entity_door::entity(
-            self.key,
-            |key| match key {
-                names::EntityKey::Body => Some(self.body.faces().map(|(k, _)| k).collect()),
-                names::EntityKey::Face(k) => Some(vec![k]),
-                names::EntityKey::Edge(_) | names::EntityKey::Vertex(_) => None,
-            },
-            |found| NodeErrorKind::MeasureSelectionKind {
+        let scope = super::entity_door::entity(self.key, scope_of, |found| {
+            NodeErrorKind::MeasureSelectionKind {
                 verb: "min_clearance",
                 found,
-            },
-        )
+            }
+        })?;
+        Ok(match scope {
+            Scope::WholeBody => self.body.faces().map(|(k, _)| k).collect(),
+            Scope::One(k) => vec![k],
+        })
     }
 }
 

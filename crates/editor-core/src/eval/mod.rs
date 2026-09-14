@@ -829,13 +829,50 @@ impl core::fmt::Display for NodeRefusal {
 /// spelling is enforceable only by a reader or a census — both of
 /// which can be walked past by a road that computes its own answer and
 /// passes it where the door's belongs. [`entity_door::Found`] removes
-/// the question: it carries the kind, its field is private to this
-/// module, and [`entity_door::entity`] is the only thing that can mint
-/// one. A road picks WHICH refusal to build and what else it carries;
-/// the kind inside it is not something the road is able to choose.
+/// that: it carries the kind, its field is private to this module, and
+/// [`entity_door::entity`] is the only thing that can mint one.
 ///
 /// The refusals therefore keep their own identities — four variants,
 /// four sentences — while the one fact they share has one source.
+///
+/// # Why the door is in two files
+///
+/// [`entity`] is here and `eval::wire`'s `named_entity` — the
+/// designation road, which resolves an authored name and then comes
+/// here — is there. That split is not a preference: [`Found`]'s field
+/// must be private to a module that is NOT an ancestor of the roads,
+/// and the roads live in `eval::wire`, so the minting site cannot live
+/// there with them. Putting [`Found`] beside
+/// [`crate::names::EntityKind`] instead would need a crate-visible
+/// constructor, which every road could call — the guarantee would be
+/// gone. `named_entity`'s own docs carry the other half of this
+/// sentence.
+///
+/// **What an outside reader gets from this module is [`Found`]**, which
+/// a refusal renders and a test reads through [`Found::kind`]. The door
+/// itself is `pub(crate)`: nothing outside this crate resolves an
+/// entity, so nothing outside it has a key to ask about.
+///
+/// # What this does NOT promise, stated because the difference matters
+///
+/// **The WORD is unforgeable; the KEY it is read off is the caller's.**
+/// [`entity_door::entity`] computes the kind from the
+/// [`crate::names::EntityKey`] it was handed, so a road that hands it
+/// the wrong key gets a refusal that truthfully describes that key and
+/// falsely describes the entity the road was talking about. Nothing
+/// here prevents that, and no census in this repo does either: closing
+/// it would mean making [`crate::names::EntityKey`] itself unforgeable,
+/// and the naming layer constructs one in about 150 places.
+///
+/// What IS closed is the shape that made such a substitution
+/// invisible. `read` is a `fn` pointer, not a closure, so it cannot
+/// capture a second key: it answers from the key the door holds or not
+/// at all. A road that substitutes a key therefore substitutes it for
+/// its own success path too and stops working, rather than succeeding
+/// on one entity while refusing about another. The byte-exact refusals
+/// in `crates/editor-core/tests/wire_entity_door.rs` are what covers
+/// the rest, and
+/// `work/wire/the-entity-doors-key-comes-from-its-caller.md` is the row.
 pub mod entity_door {
     use crate::names::{EntityKey, EntityKind};
 
@@ -884,13 +921,23 @@ pub mod entity_door {
     /// verb, a measure's reference names a scope — and it is handed
     /// the one thing it could not otherwise have.
     ///
+    /// **`read` is a `fn` pointer rather than a closure, and that is
+    /// the door's second guarantee.** A capturing `read` can ignore its
+    /// argument and answer from a key it closed over, which lets a road
+    /// succeed on one entity while the refusal beside it describes
+    /// another — a lie with a byte-identical success path. A `fn`
+    /// cannot capture, so the value this door returns and the kind it
+    /// reports come off the same key. What remains is that the key is
+    /// the caller's (module docs), and a road that substitutes one
+    /// breaks its own success path in the same stroke.
+    ///
     /// # Errors
     ///
     /// `refuse`'s own refusal, when `read` finds the key is not the
     /// entity asked for.
     pub(crate) fn entity<R>(
         key: EntityKey,
-        read: impl FnOnce(EntityKey) -> Option<R>,
+        read: fn(EntityKey) -> Option<R>,
         refuse: impl FnOnce(Found) -> NodeErrorKind,
     ) -> Result<R, NodeErrorKind> {
         read(key).ok_or_else(|| refuse(Found(key.kind())))

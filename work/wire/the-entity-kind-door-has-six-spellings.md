@@ -67,22 +67,47 @@ records this class as what it cannot see.
 
 ## Closed 2026-09-13 (PR 2517)
 
-**One home, in two doors**, the way `operand`/`node_operand` is one
-home for the value-kind question. `eval/wire.rs`'s `ENTITY-DOOR`
-sentinels hold:
+**One home, and the word it answers with is unspellable by a road.**
 
-- `entity(key, read, refuse)` — the kind test itself. `read` is the
-  projection (`EntityKey::face`, `EntityKey::edge`, or a wider one);
-  `refuse` is the road's own refusal, handed the one word it may not
-  write. **`found:` is computed here**, off the key, once.
-- `named_entity(name, doc, table, unresolved, read, refuse)` — the
-  designation road: the `ladder::resolve_in` walk, then `entity`. It
-  also makes the `Box::new(name.clone())` the three name-carrying
-  refusals need, which was written three times.
+- `crate::eval::entity_door` (in `eval/mod.rs`) holds
+  `Found(EntityKind)` — **field private to that module** — and
+  `entity(key, read, refuse)`, the only thing that can mint one. `read`
+  is the projection (`EntityKey::face`, `EntityKey::edge`, or a wider
+  one) and is a **`fn` pointer**, so it cannot capture a second key:
+  the value the door returns and the kind it reports come off the same
+  key. `refuse` is the road's own refusal constructor, handed the
+  token.
+- `named_entity(name, doc, table, unresolved, read, refuse)` stays in
+  `eval/wire.rs` — the designation road: the `ladder::resolve_in`
+  walk, then `entity`, plus the `Box::new(name.clone())` the three
+  name-carrying refusals need, which was written three times.
+
+The door is in **two files**, and that is forced rather than chosen:
+`Found`'s field must be private to a module that is not an ancestor of
+the roads, and the roads are in `eval/wire.rs`. Putting `Found` beside
+`EntityKind` in `names/` would need a crate-visible constructor every
+road could call, which is no guarantee at all. Both sites say so.
+
+There are no `ENTITY-DOOR` sentinels: the earlier shape had them, for a
+census that policed the rule textually, and both are gone.
 
 `EntityKey::face`/`edge` are new projections beside `EntityKey::kind`
 in `names/table.rs`, so no call site hand-writes a `match` over
 `EntityKey` to say "a face".
+
+**This shape was reached by being wrong twice, and the reasoning was
+corrected a third time.** The first version asked roads not to write
+`found:` and guarded it with a census that passed partially vacuously.
+The second tightened the census to require the refusal be a closure
+body binding `found`; a review defeated that three ways in one sitting,
+each under a green suite. The third — this one — made the word
+unforgeable, and a further review showed the KEY the word is read off
+is still the caller's. That last gap is real, is narrowed but not
+closed (the `fn` pointer above), and has its own row:
+`work/wire/the-entity-doors-key-comes-from-its-caller.md`. The lesson
+the program paid for: **stop policing the spelling, make the wrong
+thing unspellable — and then check which level the spelling moved
+to.**
 
 ### The three error kinds kept their identities
 
@@ -144,7 +169,9 @@ all three — and the first pass stopped early.
 carriers; the other five sit on four other error types
 (`InterrogateError`, `MintRefusal`, `SelectionRefusal`, and the pair
 refusal's own variant), each now on a slate rather than only in a PR
-body.
+body. And the four that ARE closed are closed against a road writing
+the word, not against a road handing the door the wrong subject —
+`work/wire/the-entity-doors-key-comes-from-its-caller.md`.
 
 **The residue**: three words for one answer (`found`, `wanted`, `kind`)
 across those error types, and one site that answers off the authored
