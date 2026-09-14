@@ -4119,3 +4119,92 @@ made this argument for a sibling and now makes it for both.
 *"The door's shape changed, so this is a mechanism no review has seen"* —
 the lane's own words, against its own work, matching the condition I set.
 Third time today a lane has asked for the scrutiny that costs it.
+
+## 2026-09-14 — the token door round: the forgery moved down a level, and it corrects MY lesson
+
+**1 MAJOR, 2 NOTE, 5 style.** The finding is the deepest of the session
+and it lands against a sentence **this log wrote three times**.
+
+### From outside the crate the token is airtight, and that was verified properly
+
+Eight attack shapes, eight compile errors — `Found(k)` E0423,
+`Found::default()` E0599, struct-update **E0451 checked in isolation so
+other errors could not mask it**, pattern-match E0532, a foreign `From`
+E0117, a child module of the caller E0423, the door itself E0603, and
+`transmute` refused by `-F unsafe-code`. R2's three defeats plus a bare
+construction all fail to **compile**.
+
+### And inside the crate, the road can still choose the kind
+
+`entity` computes the token from a key the **caller supplies** —
+`read(key).ok_or_else(|| refuse(Found(key.kind())))` — and `EntityKey`'s
+variants are `pub` with slotmap payloads that have `Default`. So a road
+hands the door a synthetic key of whatever kind it wants plus a `read`
+that returns `None`, and **the door mints the lie for it.**
+
+Compiled, in the sharp form: `resolve_open_faces` rewritten to resolve
+the **real** key, project through `ent.key.face()` so the success path is
+byte-identical, and hand the door a **forged `EntityKey::Vertex`**. It
+compiles, and **the rewritten census passes on it.** Only the byte-exact
+document rows catch it — which is exactly the textual-guard dependency
+the token was adopted to replace. And the deleted `.kind()`-read-once row
+was the thing that used to cover it.
+
+### The correction, and it is to my own sentence
+
+I wrote **"stop policing the spelling, make the wrong thing
+unspellable"** into this log three times today, as the lesson the census
+anchor, the projected roster and this door all taught. The reviewer's
+closing line is the correction:
+
+> what the token makes unforgeable is the **word**, while the **key the
+> word is computed from** is still the road's to pass. That is a
+> spelling **moved one level down**, not eliminated.
+
+The rule survives and is narrower than I stated it: **making a thing
+unspellable moves the forgery to whatever the unspellable thing is
+computed FROM, and the move is only complete when that input is not the
+caller's to choose either.** A guard that looks total because its own
+type is airtight is the most expensive kind of partial guard, because it
+retires the guard that covered the rest — which is precisely what
+happened here.
+
+Directed: narrow the claim to the truth at the site, **then** decide what
+covers the key path — the realistic defect is not an adversarial forgery
+but a road that resolved one entity and handed the door another,
+yielding a confidently wrong refusal. What is not available is leaving
+the doc claiming the gap does not exist.
+
+### Two notes worth their own lines
+
+**The row's own closing text is stale and it is the done-state of
+record** — it still describes the `ENTITY-DOOR` sentinels that a later
+commit deleted, with the type-change section appended below a paragraph
+describing an arrangement that no longer exists.
+
+**And the `sentinel_region` hand-roll in `topo` is NOT byte-identical**:
+it *includes* the opening sentinel where the shared function excludes it.
+That divergence is the exact drift the shared function exists to stop, so
+calling it "a second instance of a different shared function" undersold
+it. A copy that has already drifted is worth more than a copy that has
+not.
+
+### What the token did buy, kept rather than deleted in the narrowing
+
+`Found` is **not** a new spelling in the sense the row means — a spelling
+is a second thing that can *answer differently*, and `Found` computes
+nothing, forwarding `kind`/`article`/`noun` unchanged. It made three of
+the six spellings' failure modes unspellable rather than merely
+unwritten, and out-of-crate the result is total. The narrowing takes back
+the last mile, not the move.
+
+### A process note: the mutex was starved and the reviewer routed around it
+
+The main build slot was held by neighbouring lanes for ~90 minutes —
+seven lanes were contending at one point, two CURVED, two MDOOR, two
+TRIM and mine — and the express lane's 600 s cap cannot finish
+`editor-core`'s test binary. The reviewer lifted the census **verbatim
+into a standalone rig against `test-utils`** and ran its mutations in
+seconds each. That is the right response to a starved mutex, and it is
+worth knowing the technique exists: a source census has no dependency on
+the crate it reads.
