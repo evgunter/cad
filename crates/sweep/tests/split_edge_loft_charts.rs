@@ -55,13 +55,17 @@ fn line_prism() -> Body<f64> {
 
 /// A bulged-profile prism: one profile edge is an arc, so that wall's
 /// rims carry `IsoArc` rows — the chart's own rational-quadratic
-/// parameter rather than the arc angle.
+/// parameter rather than the arc angle. The bulge is chosen so the arc
+/// is a THREE-span rational quadratic (`breaks` has interior knots at
+/// 1/3 and 2/3): a restriction that re-parameterized the map rather
+/// than restricting it would move the image at a break first, and a
+/// single-span arc could not tell the two apart.
 fn bulged_prism() -> Body<f64> {
     let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
     let bulged = || {
         vec![ProfileLoop::new(vec![
             v(0.0, 0.0, 0.0),
-            v(2.0, 0.0, 0.4),
+            v(2.0, 0.0, 1.6),
             v(2.0, 2.0, 0.0),
             v(0.0, 2.0, 0.0),
         ])]
@@ -112,11 +116,9 @@ fn edge_with_kind(body: &Body<f64>, want: &str) -> (EdgeKey, (f64, f64)) {
 /// PARENT's chart image — the same `Debug` bytes — with only the
 /// interval moved, and the body tier-3 valid with no caller mint.
 ///
-/// Split near `t₀`, at mid-parameter and near `t₁`, and for the arc rim
-/// also at fractions whose sub-interval strictly contains one of the
-/// chart's interior `breaks` knots: the `IsoArc` map is a piecewise
-/// rational-quadratic, and a restriction that re-parameterized it
-/// rather than restricting it would move the image there first.
+/// Split near `t₀`, at mid-parameter, near `t₁`, and at fractions whose
+/// sub-intervals straddle the arc chart's interior `breaks` knots
+/// (1/3 and 2/3 — see the fixture).
 #[test]
 fn a_split_on_a_spline_chart_carries_the_parents_image() {
     for which in ["IsoLine", "IsoArc"] {
