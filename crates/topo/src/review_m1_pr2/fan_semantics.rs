@@ -92,16 +92,19 @@ fn valence_five_fan_split_moves_the_clockwise_run() {
     // Split Fan{he1: t2+, he2: g+}: the CW run [t2+ .. g+) wraps:
     // {t2+, t3+, t4+}. The mirrored (CCW) bug would move {t2+, t1+}.
     // Run length 3 vs complement 2 -- fully asymmetric.
-    let z = body
-        .mev_line(
-            MevSite::Fan {
-                he1: t2.he_plus,
-                he2: g.he_plus,
-            },
-            p(9.0),
-            tol,
-        )
-        .unwrap();
+    let site = MevSite::Fan {
+        he1: t2.he_plus,
+        he2: g.he_plus,
+    };
+    // The run is what this test is about, and the certified door will
+    // not move it TO p(9.0): each moved spoke's chord runs from `v`,
+    // not from that point. The coincident door performs the same
+    // surgery with every spoke still on its own carrier.
+    assert!(matches!(
+        body.clone().mev_line(site, p(9.0), tol),
+        Err(crate::EulerOpError::RebasedCarrier { .. })
+    ));
+    let z = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
     assert_eq!(validate(&body), Ok(()));
 
     let start = |body: &Body<f64>, he| body.get_half_edge(he).unwrap().start;
@@ -230,16 +233,18 @@ fn cross_loop_fan_on_the_digon_pillow_stack() {
     // The cross-loop fan: Fan{he1: tri.he_minus, he2: ab.he_plus} -- the
     // run is [tri.he_minus] only (one spoke, from the NEW loop), he_plus
     // lands in tri.he_minus's loop, he_minus in ab.he_plus's loop.
-    let f = body
-        .mev_line(
-            MevSite::Fan {
-                he1: tri.he_minus,
-                he2: ab.he_plus,
-            },
-            Point3::new(0.0, -1.0, 0.0),
-            tol,
-        )
-        .unwrap();
+    let site = MevSite::Fan {
+        he1: tri.he_minus,
+        he2: ab.he_plus,
+    };
+    // As everywhere a run moves to a different point: the certified
+    // door refuses to take `tri`'s chord off its own endpoint, so the
+    // cross-loop splice is pinned through the coincident door.
+    assert!(matches!(
+        body.clone().mev_line(site, Point3::new(0.0, -1.0, 0.0), tol),
+        Err(crate::EulerOpError::RebasedCarrier { edge, .. }) if edge == tri.edge
+    ));
+    let f = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
     assert_eq!(validate(&body), Ok(()));
 
     // Moved: exactly the run member, across the loop boundary.

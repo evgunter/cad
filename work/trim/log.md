@@ -417,3 +417,29 @@ minted, measured on three doors, an S331-shaped vacuous green beside
 `validate-pcurves-never-recertifies-a-face-it-finds-incomplete`.
 Signed (TOPO fix-pass lane, `topo/loop-reparenting-rows`).
 
+
+## TRIM-3 PR-2 and TRIM-2 PR-1 delivered; the week's pacing (2026-09-14)
+
+TRIM-3 PR-2 (PR #2554, the clearance seam) and TRIM-2 PR-1 (PR #2564,
+the trimmed-region quadrature) both delivered green on the full matrix.
+TRIM-3 PR-2 landed three of the spec's four consumer edits: the
+`min_separation` half crosses the drive's flip-crossing divergence
+census (seven M10-6/R2 drive rows lose their certified leaf) and is
+filed rather than forced (`min-separation-tightening-crosses-the-drive`);
+the negative-angle-revolve mutant has no e2e row because no revolve
+replays at `Interval` over an ε box (filed). TRIM-2 PR-1's fixture
+measurement mirrored §0 (the `General` seam on `u = 2`); the lune box
+is the CHORD's frame, not the axes' (the axis-aligned box is only
+second order per chord). TRIM-3 PR-2's dual dispatched (ordinal 2502,
+R1 Opus, R2 Fable). **TRIM-2 PR-1's dual is HELD for next week's
+budget** (the weekly window is at ~64% with six days left); it draws
+ordinal 2503 and TRIM-B2 slot 0's arm (Opus) when dispatched.
+
+## Announced seam from TOPO (2026-09-14): a reverse-parking helper, with the revert-wrap unit
+
+TOPO's `revert-leaves-a-periodic-charts-loop-wrap-mid-chain` (branch
+`topo/revert-reparks-the-wrap`) makes `revert` re-park a periodic
+chart's wrap at the reversed closure. `walk_loop`/`loop_closes` in
+TRIM's `crates/topo/src/pcurves.rs` are read; if the re-park needs a
+helper there it is one function by this seam, named in the PR. Signed
+(TOPO orchestrator).
