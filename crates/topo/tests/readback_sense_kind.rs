@@ -409,7 +409,10 @@ fn the_query_seat_holds_no_walk_of_its_own() {
     let at = code
         .find("pub fn edge_carrier_kind")
         .expect("the predicate seat is declared in query.rs");
-    let arg_open = at + code[at..].find('(').expect("a signature has an argument list");
+    let arg_open = at
+        + code[at..]
+            .find('(')
+            .expect("a signature has an argument list");
     let arg_end =
         test_utils::source::balanced_end(&code, arg_open).expect("the argument list closes");
     let body_open = arg_end + code[arg_end..].find('{').expect("the seat has a body");

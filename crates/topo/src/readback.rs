@@ -494,10 +494,7 @@ pub fn edge_carrier_ref<T: Real>(
         .ok_or(CarrierAbsence::Dangling(DanglingRef::Geometry(
             GeomRef::Curve(e.curve),
         )))?;
-    Ok(geom
-        .certified()
-        .ok_or(CarrierAbsence::NoCarrier)?
-        .carrier())
+    Ok(geom.certified().ok_or(CarrierAbsence::NoCarrier)?.carrier())
 }
 
 /// **An edge's carrier kind** — the [`CurveKind`] tag of the curve the
@@ -766,9 +763,9 @@ mod tests {
     };
     use crate::body::Body;
     use crate::entity::{GeomRef, Vertex};
-    use crate::geometry::CurveKey;
     use crate::euler::{MefSite, MevSite};
     use crate::fixtures::{ops_cube, ops_genus2, ops_holed_box, prov};
+    use crate::geometry::CurveKey;
     use crate::validate::validate;
 
     #[test]
