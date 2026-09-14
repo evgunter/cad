@@ -361,12 +361,12 @@ pub use query::{
 };
 pub use readback::{DanglingRef, EulerCounts, EulerParityError, Pose, ReadbackError};
 pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offset};
-pub use revert::RevertError;
+pub use revert::{RevertError, RevertLink};
 pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
 pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
 };
-pub use source::{GeomSource, Or, SourceAttachError, SourceExpr};
+pub use source::{GeomOrigin, GeomSource, Or, SourceAttachError, SourceExpr};
 pub use split::SplitEdgeCreated;
 pub use splitting::{
     ArcWindowCase, LoopContainment, NullEdgeRecord, PlaneSide, PointInLoopError, Section,

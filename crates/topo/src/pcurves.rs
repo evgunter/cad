@@ -162,17 +162,18 @@
 //! below) is on no face, so it is on no plane face, and it travels as
 //! found — not a refusal, because the boolean's `revert` of a split
 //! operand carries such rows routinely, and the graft or the
-//! producer's closing mint disposes of them. What the reversal does
-//! NOT re-state is the loop walk's branch choice: where a forward
-//! walk parked a periodic chart's one-period wrap at a loop's
-//! closure, the wrap sits mid-chain once the loop runs the other way,
-//! and tier 3 of the reverted body reports it as a
-//! `LoopDiscontinuity` — `sweep`'s SHELL-9 probe rows measure that on
-//! the two-arc sphere's reverted cavity, and measure the drum's
-//! reverted cavity reporting nothing but `NegativeVolume`
-//! (`work/topo/revert-leaves-a-periodic-charts-loop-wrap-mid-chain`).
-//! The wrap is the producer's closing mint's to re-derive, as it does
-//! today.
+//! producer's closing mint disposes of them. The loop walk's branch
+//! choice is re-stated too, without touching a row: the forward walk
+//! parks a periodic chart's one-period wrap at the loop's closure,
+//! the joint before `first`, and that joint would sit mid-chain once
+//! the loop runs the other way — so `revert` moves every loop's
+//! `first` to its source predecessor, which puts the same joint at
+//! the reversed closure (`crate::entity::LoopBoundary::Cycle`'s
+//! `first` states the invariant; the anchor bullet in `revert`'s
+//! module docs carries the argument). Tier 3 of a reverted body whose
+//! faces carry rows reports nothing but `NegativeVolume`; `sweep`'s
+//! `revert_periodic_wrap` rows pin that on the two-arc sphere's
+//! cavity and a cone through its apex.
 //!
 //! The **loop-re-parenting** doors hold the same posture for a
 //! different reason: [`crate::Body::kfmrh`],
@@ -2763,6 +2764,11 @@ pub(crate) mod staleness_posture {
             ("set_curve_source", Neither, "GeomSource metadata"),
             ("set_point_source", Neither, "GeomSource metadata"),
             ("clear_geom_sources", Neither, "GeomSource metadata"),
+            (
+                "mark_imported",
+                Neither,
+                "origin metadata beside the GeomSource maps (`crate::GeomOrigin`)",
+            ),
             (
                 "set_surface_field_source",
                 Neither,

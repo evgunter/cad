@@ -66,6 +66,8 @@ mod crosslap_rest;
 mod cube_by_hand;
 #[path = "display_contract.rs"]
 mod display_contract;
+#[path = "geom_origin_rows.rs"]
+mod geom_origin_rows;
 #[path = "geometric_cube.rs"]
 mod geometric_cube;
 #[path = "graft_disjoint.rs"]

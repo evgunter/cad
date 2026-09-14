@@ -63,6 +63,8 @@ mod corpus_fold;
 mod curve_promotion_report;
 #[path = "freecad.rs"]
 mod freecad;
+#[path = "geom_origin_import_arm.rs"]
+mod geom_origin_import_arm;
 #[path = "halfcap_pole.rs"]
 mod halfcap_pole;
 #[path = "inst_review_probes.rs"]

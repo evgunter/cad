@@ -5,7 +5,7 @@ title: Build the ratified axis-shaped identity channel: a per-component, placeme
 status: parked
 opened: 2026-09-12
 refs: [2404, 1593, 1604]
-blocked_on: [geom-source-absence-conflates-four-origins]
+blocked_on: [step-import-discards-the-entity-ids-that-are-its-identity-channel, axis-per-component-source-beside-geom-source]
 ---
 
 
@@ -179,3 +179,15 @@ is the fail-loud direction, it was ratified knowing it, and the row is
 re-declarable.** A taker who makes it exact by comparing composed
 motions numerically has replaced a token comparison with a measurement
 and broken ruling 1.
+
+### Re-parked (TOPO orchestrator, 2026-09-14)
+
+Step 1 landed (PR 2576: `GeomOrigin { Recipe, Imported, KernelDirect,
+Cleared }`, one map per kind, `KernelDirect` written at the mint), so
+the named trigger fired and `parked` on it was false by the tracker's
+rule. Re-parked on the cut's next movers, which are the two rows that
+now gate WIRE's steps: step 2 (EXCH's
+`step-import-discards-the-entity-ids-that-are-its-identity-channel`)
+and step 3, filed on TOPO's slate as
+`axis-per-component-source-beside-geom-source` so the park names a row
+that exists. The cut above is unchanged.
