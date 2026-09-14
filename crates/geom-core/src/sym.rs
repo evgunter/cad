@@ -1429,14 +1429,10 @@ fn unary_at_zero(op: SymOp) -> Option<Form> {
         SymOp::Cos => Some(Form::poly(Poly::one())),
         // acos 0 = π/2 — expressible, because π is an indeterminate of
         // the form rather than a number.
-        SymOp::Acos => {
-            let mut p = Poly::indet(INDET_PI);
-            let half = Rat::new(1, 2, 0)?;
-            for c in p.terms.values_mut() {
-                *c = c.mul(&half)?;
-            }
-            Some(Form::poly(p))
-        }
+        SymOp::Acos => Some(Form::poly(Poly::term(
+            vec![(INDET_PI, 1)],
+            Rat::new(1, 2, 0)?,
+        ))),
         // 1/0 is not a real; the numeric channel owns that refusal.
         _ => None,
     }

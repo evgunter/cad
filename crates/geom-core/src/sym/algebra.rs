@@ -70,7 +70,7 @@ fn one_minus_cos_squared(arg: &Form, payload: u64) -> Option<Form> {
 /// `None` when no rule reaches an even-power atom of `f`.
 fn find_square(f: &Form, rules: SymRules, atoms: &IndetMap<AtomInfo>) -> Option<Square> {
     for poly in [&f.num, &f.den] {
-        for mono in poly.terms.keys() {
+        for mono in poly.monos() {
             for &(id, e) in mono {
                 if e < 2 {
                     continue;
@@ -124,7 +124,7 @@ fn poly_subst_square(poly: &Poly, id: u128, repl: &Form, budget: SymBudget) -> O
         return Some(Form::poison());
     }
     let half = |m: &Mono| m.iter().find(|(i, _)| *i == id).map_or(0, |(_, e)| *e / 2);
-    let h = poly.terms.keys().map(half).max().unwrap_or(0);
+    let h = poly.monos().map(half).max().unwrap_or(0);
     let nums = powers(&repl.num, h, budget)?;
     let dens = powers(&repl.den, h, budget)?;
     let mut acc = Poly::zero();

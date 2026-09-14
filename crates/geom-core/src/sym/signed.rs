@@ -76,11 +76,7 @@ fn cmp_mono(a: &Mono, b: &Mono, ids: &[u128]) -> core::cmp::Ordering {
 
 /// Every indeterminate id of `p`, sorted.
 fn ids_of(p: &Poly) -> Vec<u128> {
-    let mut ids: Vec<u128> = p
-        .terms
-        .keys()
-        .flat_map(|m| m.iter().map(|(i, _)| *i))
-        .collect();
+    let mut ids: Vec<u128> = p.monos().flat_map(|m| m.iter().map(|(i, _)| *i)).collect();
     ids.sort_unstable();
     ids.dedup();
     ids
@@ -241,10 +237,7 @@ fn single(m: Mono, c: Rat) -> Option<Poly> {
 
 /// The monomial `m^e` as a polynomial with coefficient one.
 fn mono_poly(m: &Mono, e: u32) -> Poly {
-    let mut p = Poly::zero();
-    let powered: Mono = m.iter().map(|&(i, k)| (i, k * e)).collect();
-    p.terms.insert(powered, Rat::one());
-    p
+    Poly::term(m.iter().map(|&(i, k)| (i, k * e)).collect(), Rat::one())
 }
 
 /// A rational coefficient as a ring enclosure ([`Rat::f64_bracket`]):
@@ -318,7 +311,7 @@ pub(super) fn fold(
     // every argument of a real document fails, and it costs one pass
     // over the ids where the polynomial root would cost the recurrence.
     let enclosable = |p: &Poly| {
-        p.terms.keys().all(|m| {
+        p.monos().all(|m| {
             m.iter()
                 .all(|&(id, _)| id == INDET_PI || params.contains_key(&id))
         })

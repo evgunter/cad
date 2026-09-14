@@ -212,9 +212,8 @@ fn explain(sess: &mut Session, root: SymId, levels: usize) -> String {
             && e.num.terms.len() == 1
             && e.num
                 .terms
-                .keys()
-                .next()
-                .is_some_and(|m| m.as_slice() == [(id.bits(), 1)]);
+                .first()
+                .is_some_and(|(m, _)| m.as_slice() == [(id.bits(), 1)]);
         let payload = match node.op {
             SymOp::Lit => format!(" {}", f64::from_bits(node.payload)),
             SymOp::Powi => format!(" ^{}", node.payload as u32 as i32),
