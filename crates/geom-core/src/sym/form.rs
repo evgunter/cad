@@ -23,6 +23,8 @@
 
 use std::collections::BTreeMap;
 
+#[cfg(feature = "sym-profile-testing")]
+use super::profile;
 use super::rational::Rat;
 use super::{Hash128, SymBudget};
 
@@ -142,9 +144,23 @@ impl Poly {
     /// cancellation that a product of two nonzero polynomials over a
     /// field does not produce.
     pub(super) fn mul(&self, other: &Self, budget: SymBudget) -> Option<Self> {
-        if self.terms.len().checked_mul(other.terms.len())? > budget.max_terms
-            || self.degree().checked_add(other.degree())? > budget.max_degree
+        if self
+            .terms
+            .len()
+            .checked_mul(other.terms.len())
+            .is_none_or(|t| t > budget.max_terms)
         {
+            #[cfg(feature = "sym-profile-testing")]
+            profile::note(profile::FreezeCause::Terms);
+            return None;
+        }
+        if self
+            .degree()
+            .checked_add(other.degree())
+            .is_none_or(|d| d > budget.max_degree)
+        {
+            #[cfg(feature = "sym-profile-testing")]
+            profile::note(profile::FreezeCause::Degree);
             return None;
         }
         let mut out = Self::zero();
@@ -179,7 +195,12 @@ pub(super) fn mono_mul(a: &Mono, b: &Mono) -> Option<Mono> {
     while i < a.len() || j < b.len() {
         match (a.get(i), b.get(j)) {
             (Some(&(ia, ea)), Some(&(ib, eb))) if ia == ib => {
-                out.push((ia, ea.checked_add(eb)?));
+                let Some(e) = ea.checked_add(eb) else {
+                    #[cfg(feature = "sym-profile-testing")]
+                    profile::note(profile::FreezeCause::Overflow);
+                    return None;
+                };
+                out.push((ia, e));
                 i += 1;
                 j += 1;
             }
@@ -395,7 +416,12 @@ impl Form {
 /// exactly what a numerator does.
 pub(super) fn within(budget: SymBudget, f: &Form) -> bool {
     let ok = |p: &Poly| p.terms.len() <= budget.max_terms && p.degree() <= budget.max_degree;
-    ok(&f.num) && ok(&f.den)
+    let inside = ok(&f.num) && ok(&f.den);
+    #[cfg(feature = "sym-profile-testing")]
+    if !inside {
+        profile::note_within(budget, f);
+    }
+    inside
 }
 
 /// `base^n` for `n >= 0`, budget-checked at every step so a large

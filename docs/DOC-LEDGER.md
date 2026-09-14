@@ -2585,3 +2585,19 @@ door, filed on `guard`'s slate. Recorded in the PR body and the unit's
 log entry.
 
 - `SYM-2-SPEC.md` — SYM-2, the tier's file split: the coefficient tower and the polynomial out of `sym.rs`, the header distributed with them (#2532)
+
+
+## Per-merge deletion — SYM-1's spec (2026-09-14)
+
+Recoverable at `git show 9153d39be:docs/SYM-1-SPEC.md` (the landing
+head). Two of its sentences did not survive the measurement: the
+feature it named `sym-profile` is `sym-profile-testing` (the
+`test-features-dev-only.sh` gate recognises only that suffix), and its
+premise that the tier "skips where the numeric channel already
+answers" was false in every profile this workspace builds — the
+`Decide` impl's `debug_assert!` runs the discharge on every definite
+margin, which the review found by execution and the unit's instrument
+now tells apart from the decision path's walks. Recorded in the PR body
+and the unit's log entry.
+
+- `SYM-1-SPEC.md` — SYM-1, the profile inside the normal form (#2530)
