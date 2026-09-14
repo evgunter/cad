@@ -104,7 +104,7 @@ reachable from `apply(&gesture.base, …)` or from what `commit_gesture`
 records.
 
 **That last clause has an expiry date.** DI5
-(`docs/DOCM-IDENTITY-DESIGN.md`, ratified 2026-09-04) rules that
+(`crates/editor-core/IDENTITY.md`, ratified 2026-09-04) rules that
 releasing a free-move emits one `DocEdit::SetPlacement` and empties
 `DisplayState::moves`. When CHROME's
 `no-persistent-setplacement-session-op` lands, `CommitFreeMove` becomes

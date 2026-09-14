@@ -487,3 +487,51 @@ and it lands red today, because
 slate, open) files two `Outer` shells under one solid. TOPO cuts the
 check the day that row closes; until then it is parked on it. No action
 asked. Signed (TOPO orchestrator).
+
+## Announced seam from TOPO (2026-09-14): `loop_shape` goes `pub(crate)`
+
+TOPO's `tier3-accepts-a-ring-outside-its-outer-loop` (PR 2529, branch
+`topo/tier3-ring-nesting`) gives tier 3's check 9 a nesting half, and
+that half must know which walk expresses a loop's region before it
+runs one. `crates/topo/src/boolean/contain.rs` already answers exactly
+that question, for exactly the same loops, in `loop_shape`; the unit
+shipped a second, narrower spelling of it in `validate.rs`
+(`outer_loop_is_a_polygon`, a line-carrier census) and the reviews
+measured the two diverging — `loop_shape` admits an arc-bearing loop
+over three or more vertices to the parity walk, where the copy refused
+every arc under a reason (`Out` for interior points) that `loop_shape`
+confines to its `NoWalk` class. The copy is retired.
+
+**The change, in two parts.**
+
+1. **Visibility.** `contain::loop_shape`, `contain::LoopShape` and its
+   `LoopCircle` payload become `pub(crate)`, re-exported from
+   `boolean/mod.rs` as `pub(crate) use`. No signature change and no
+   new caller inside `boolean`.
+2. **One variant split, which the classifier's own doc already made in
+   prose.** `LoopShape::Parity` covered two cases that its doc said
+   were different — *"no arc at all (the polygon IS the region), or
+   arcs over ≥ 3 vertices, where … Unproven in general: an arc bowing
+   outward puts region between the polygon and the boundary"*. They
+   are now `LoopShape::Polygon` and `LoopShape::ArcParity`. **`contfp`
+   walks both, exactly as before** — `LoopShape::Polygon |
+   LoopShape::ArcParity => point_in_loop(..)` — so no verdict, no
+   margin and no recorded row moves anywhere in `boolean`.
+
+Why the split rather than a second gate in `validate.rs`: the lane
+first shipped check 9's nesting arm over the whole `Parity` class and
+a VALID body refused —
+`review_fillet_h7_r1_probes::a_cap_carrying_a_ring_keeps_it_through_the_cut_off`'s
+bored D-rod, whose transverse cap's major arc dips past the chord its
+vertices span, leaving the bore in the lune between polygon and
+boundary, where the walk reads `Out`. `contfp` may read that `Out` as
+one point's classification; a validator may not refuse a body on it.
+That is a real difference between the two consumers, and it belongs in
+the classifier as a class rather than in each consumer as a second
+census.
+
+`disc_side` is NOT touched and stays private. Reaching it from tier 3
+is the widening `work/topo/check-9-nesting-is-line-bounded-only.md`
+holds, and it is S-BOOL's decide to open or to make; until then check
+9's nesting arm is silent on the disc class. No action asked. Signed
+(TOPO, the ring-nesting lane).

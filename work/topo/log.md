@@ -729,3 +729,240 @@ decide, the parameter split of a cached pcurve for the mint — for
 phase 1 to verify; the usage-limit cut of 2026-09-12 23:00 to
 2026-09-13 21:45 sat between the draw and the dispatch, with nothing
 running.
+
+## Both slots delivered; the split-edge dual out at ordinal 2703 (2026-09-13)
+
+Slot 1 `topo/split-edge-pcurve-rows` delivered as PR 2531, head
+`880654600`, full matrix green (run 34787766875). Phase 1 chose
+closing (a): a `Pcurve` is a function of the carrier parameter with
+no interval of its own, so each child's chart image is the parent's
+restricted to its sub-interval; `PcurveCache::certify` needs only
+`T: Decide`, so the op carries its rows in the plan phase with no
+caller's bound moved. Phase 1 also found the parent halves' rows going
+stale in CONTENT on the merge base with `validate_pcurves` skipping
+any face it finds incomplete — filed on TRIM's slate — and that the
+half-edge-minting Euler operators leave a minted curved face
+incomplete (filed here, with the `Fitted`/`General` residue). SHELL-7's
+`p4` probe row re-baselined from pinning the defect to pinning the
+fix. Dual dispatched on the frozen head: ordinal 2703, parity byte 20
+⇒ R1 OPUS, R2 FABLE; briefs stored with sha256 privately.
+
+Slot 0 `topo/tier3-ring-nesting` delivered as PR 2529, head
+`a8703bdc9`, full matrix green (run 34787728506). Phase 1 corrected
+the brief's instrument — `ray_parity.rs` directly would have minted a
+second home for the 3-D frame; the entry is
+`splitting::containment::point_in_loop` — and showed `shell.rs`'s
+`encloses` unsound at rest (a 10×0.2 plate with an end hole reads
+un-nested: a false refusal), and the `shell.rs` comment already
+repaired on main before the lane. Check 9 gains its nesting half on
+planar faces whose outer loop is a polygon of line carriers; the
+arc-bounded and curved cases are the enumerated residue, filed. Its
+dual (byte 0 ⇒ R1 OPUS, R2 FABLE; briefs stored) dispatches when the
+split-edge pair frees the box — two reviewer pairs at once would
+starve four cores. The claim entry for its ordinal goes to main at
+that dispatch.
+
+## Split-edge adjudicated (2026-09-13)
+
+Both blinded reviews on frozen `880654600`, both
+MERGEABLE-AFTER-FIXES. R1: 1/4/2, rubric 3/3/3 — MAJOR: the carry's
+mint-identity claim is false on spline charts (loft prisms' `IsoLine`
+walls and `IsoArc` rims: the carry is exact and tier 3 reads `Ok`, but
+`mint_pcurves`, the named recovery step, still refuses — a
+pre-existing refusal now reached silently), unfiled. R2: 0/3/3, rubric
+4/4/3 — the same fact executed on the bulged loft, filed as MINOR
+("cylinder-only"). CONVERGED on the fact, DIVERGENT on severity: no
+unilateral executed MAJOR, no tally candidate. Converged also: the
+class receipt's re-parenting rows are wrong (`kfmrh` onto a plane
+keeps four cylinder rows under a planar face with tier 3 silent — R2
+executed; `ring_move` the same mechanism — R1 read), the
+mint-identity rows compare intervals not bytes, `split_cache`'s window
+hull is a third spelling of `validate_pcurves`' (the trap check, both),
+the one-use alias, `Posture::Carries` a comment wearing an enum, and
+four statements of one bound argument. Unilateral, taken: `IsoArc::
+chart_box`'s premise sentence in geom-brep invalidated (R1); a
+`Corrupt` swallowed into `Ok(None)` (R1); the residue row's caller
+list short by `mesh` (R1); `split_cache` reads the carrier's interval,
+not the row's (R2). Both reproduced the merge-base readings and the
+plan-phase contract under two mutants. Seven-item fix pass to a fresh
+lane on the inherited branch (the implementer's worktree was gone);
+both reviewers' probes handed over. The ring-nesting dual dispatches
+now beside it: claim for ordinal 2704 to main.
+
+## Ring-nesting dual out at ordinal 2704 (2026-09-13)
+
+Claim merged to main; both reviewers dispatched concurrently on frozen
+`a8703bdc9` beside the split-edge fix pass: byte 0 ⇒ R1 OPUS, R2
+FABLE; briefs stored with sha256 privately at the unit's delivery,
+re-verified identical modulo lane paths at dispatch.
+
+## Ring nesting adjudicated (2026-09-14)
+
+Both blinded reviews on frozen `a8703bdc9`, both
+MERGEABLE-AFTER-FIXES, neither with a MAJOR. R1: 0/9/4, rubric 3/4/2;
+R2: 0/4/7, rubric 4/3/3. Both executed the arm through every honest
+fixture they built and every inverted glue on a polygonal outer,
+`Body::revert` on both orientations, an escalation plant (never read
+as nested) and the classify obligations (each deletion reds by name).
+CONVERGED: the seam sentence written into `shell.rs` claims check 9
+refuses the inverted pick at the verb's closing validate, and both
+found the SHELL-5 mutant dies earlier at `Corrupt` in the naming
+record's walk — the arm is never reached through `shell_open`; the
+polygon gate is a second, narrower spelling of `boolean::contain`'s
+`loop_shape` (which admits arc-bearing loops over three vertices —
+R1 executed the divergence; R2 measured a round-holed square inverted
+and silent); the control row stays green with the gate forced shut
+(R2 executed); `Inside` carries two meanings against the code; the
+gate is computed for ring-free faces; the residue "every vertex on
+the boundary while contact reads disjoint" is unreachable; the
+red-first row's comment contradicts its assertion; the H item
+understates tier 3's coverage. Unilateral, taken: the PR body's
+`encloses` counterexample does not compute — R1 re-did the arithmetic
+(outer mean 5.0, ring 2.0, nested) and built a cross fixture that
+genuinely false-refuses; an empty `kemr` ring reads `Inside` (R1
+planted one outside the square); `KERNEL-VERBS.md` and a second
+`shell.rs` comment still state check 9 as contact-only (R1); the K
+roster has no mechanical guard (both noted; filed on INSTR). No
+tally candidate. Ten-item fix pass to a fresh lane on the inherited
+branch: the gate reaches `loop_shape` by announced seam to S-BOOL
+(one visibility change), which widens the decide to the loops the
+walk is measured correct on and retires the copy; a valid body the
+widened arm refuses falls back to the line-only gate, stated.
+
+## Split-edge merged; block TOPO-B2 slot 1 concluded (2026-09-14)
+
+PR 2531 merged at `dffd2bf34` (green run 34793938681 on `8ae4e0ec8`,
+full matrix, verified job by job). The unit closed. The fix pass took
+every item; its one disagreement was with the brief's "pre-existing,
+no regression" framing — the unsplit loft controls show the pass is
+fine with spline charts and the honest statement is that the iso
+arms cannot re-derive a SUB-edge, which is how the TRIM row now reads.
+Row recorded at merge (ordinal 2703, sample #186), no tally candidate;
+slot 1 marked concluded on `topo/b2-block`. Three rows filed by the
+fix pass (one on TRIM, two here); `split_edge` now declares
+`Transfers` in the posture table. The ring-nesting fix pass is the one
+lane running; slot 2 (`revert`, FABLE) dispatches when it frees.
+
+## Slot 2 dispatched: `revert` mirrors the plane chart's images (2026-09-14)
+
+Block TOPO-B2's last slot (FABLE) dispatched on
+`topo/revert-mirrors-chart-images` with a brief section in the item:
+the transform hypothesis `(u, v) ↦ (u, −v)` on every `Chart` image
+and pcurve row of a reverted plane's faces, per image kind, with the
+bitwise involution and SHELL's drum as the red-first rows; seam to
+TRIM announced for the row transform; `chart.rs`/`chart_iso.rs` are
+unowned ground where the PR draws the fence. Beside it, the
+ring-nesting fix pass is the other lane.
+
+## Revert delivered; dual out at ordinal 2705 (2026-09-14)
+
+Slot 2 `topo/revert-mirrors-chart-images` delivered as PR 2542, head
+`f8ced386b`, full matrix green (run 34798088825; a new advisory
+`render drift (gui)` job sits neutral in the matrix). Phase 1
+confirmed the frame derivation and found the transform exact in all
+five image kinds — a sign flip on the `v` components, bitwise
+involution — so nothing is re-minted; the geom-brep chart certifier
+was right to refuse and is not edited; plane faces mint no pcurve
+rows, so the row arm is reachable only through `attach_pcurve`.
+Certificates travel verbatim through three new geom-brep doors. Four
+red-first rows red on the merge base (the drum's reverted cavity now
+tier 3 `[NegativeVolume]` only, `insert_voids` accepts it); three
+SHELL probe rows flipped from pinning the refusal to pinning the fix.
+Four deviations disclosed, two of them the ones to weigh (`revert`
+cannot enter the posture guard's table — it walks `&mut self` doors
+only; dead-key rows travel as found). Two rows filed (the periodic
+chart's loop wrap under `revert`, here; a bug-proof drum row, SHELL).
+Dual dispatched on the frozen head beside the ring-nesting fix pass:
+ordinal 2705, byte 83 ⇒ R1 FABLE, R2 OPUS; briefs stored with sha256
+privately.
+
+## Ring nesting merged; block TOPO-B2 slots 0 and 1 concluded (2026-09-14)
+
+PR 2529 merged at `dc868f1f9` (green run 34796525445 on `7e56ec2f9`,
+full matrix, verified job by job). The unit closed. The fix pass's one
+finding of its own is the important one: gating the arm on
+`loop_shape`'s arc-parity class REFUSED a valid body (a bored D-rod
+whose cap's major arc dips past its chord, the bore in the lune the
+polygon excludes), so the gate fell back to the no-arc class with the
+reason stated, and `LoopShape::Parity` split into `Polygon`/`ArcParity`
+in S-BOOL's `contain.rs` (bit-identical for `contfp`; announced on
+S-BOOL's and CURVED's boards). The round-hole-in-square inversion
+therefore stays silent (the disc class, `disc_side`'s), which the
+residue row now says exactly. Fourteen reviewer rows adopted. Row
+recorded at merge (ordinal 2704, sample #187), no tally candidate; the
+block's CONCLUDED record published beneath it with slot 2's row to
+follow at its merge. The revert dual is the only work running.
+
+## Revert adjudicated (2026-09-14)
+
+Both blinded reviews on frozen `f8ced386b`, both
+MERGEABLE-AFTER-FIXES. R1: 0/4/3, rubric 3/3/3. R2: 2/8/3, rubric
+3/4/3. Both executed the transform in all five image kinds (exact,
+bitwise involution), the certificate-verbatim pin under a certificate
+mutant (live, not decorative), the four red-first rows and the four
+flipped rows on a merge-base emulation, and the class receipt's frame
+readers. CONVERGED on the facts, DIVERGENT on severity: R2's two
+MAJORs — `mirror_v` re-implements `NurbsCurve2::map_points` and so
+mints two `RevertError` variants nothing can produce (R2 executed the
+equivalence on a rational net; R1 read `validate_counts` and filed it
+MINOR), and the header contract still says "every certification
+survives" where the lane's own filed row says the sphere's cavity
+falsifies it (R1 MINOR) — so no unilateral executed MAJOR and no tally
+candidate. Converged also: the `shell.rs` sentence saying reverted
+rows go stale; four of five mirror arms untested (R2's `None`-on-every-
+arm mutant left every suite green); the guard's blindness to
+`&self -> Self` producers owes a TRIM row. Unilateral, taken: "three
+postures exist" falsified in the same doc comment, an invented
+certificate field in the load-bearing paragraph, the dead-key
+exception absent from the posture's home, `MIRROR-DESIGN.md`'s recipe
+for the future mirror unit now incomplete, the `Pcurve` type's own
+variant miscount, the receipt's extent short by seven `.dv` consumers
+(all invariant) (R2); `revert_plane_charts.rs` re-deriving the drum
+fixtures and the graft meter a third time, the `is_err()` refusal
+unpinned (R1). Both corrected the brief: `with_chart_v_mirrored` lives
+in `certify.rs`; only `mirror_v` matches per kind; `attach_pcurve` is
+the only origin of a plane-face row. Five-item fix pass to a fresh
+lane on the inherited branch: one `map_points`-shaped door for the
+image map, `shift_branch` swept onto it, the variants deleted, both
+reviewers' rows adopted, fixtures shared.
+
+## Revert merged; block TOPO-B2 concluded (2026-09-14)
+
+PR 2542 merged at `7aaeb095d` (green run 34803151950 on `8e4d5a4e9`,
+full matrix, verified job by job). The unit closed; row recorded at
+merge (ordinal 2705, sample #188), no tally candidate; slot 2 marked
+concluded on `topo/b2-block` and in the published record. The fix
+pass's one disagreement was right: the affine door takes the
+point-action and the linear part as two closures because deriving one
+from the other is not bit-exact under translation — `shift_branch`'s
+pin would have moved. Block TOPO-B2 closes with three duals and no
+tally candidate; every pre-draw field was logged before the byte. No
+lane is running. The next kernel-answer unit draws TOPO-B3.
+
+## Block TOPO-B3 cut; pre-draw fields logged BEFORE the byte (2026-09-14)
+
+Three kernel answers on this program's files, slot order fixed here
+and the byte drawn only after this entry is committed:
+
+- slot 0 `loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart`
+  — difficulty **S/M**, task class **STRUCTURAL** (two Euler doors
+  made honest about the rows of the loop they move; the loud pass
+  already exists).
+- slot 1 `D263` — difficulty **M**, task class **STRUCTURAL-GEOMETRIC**
+  (the regime classification gains the placeholder arm; the door's
+  grouping changes on the placeholder cube).
+- slot 2 `S93` — difficulty **S**, task class **STRUCTURAL** (two
+  prose-held obligations become checked preconditions).
+
+Held: the periodic-chart wrap under `revert` and the half-edge-minting
+ops' pcurve posture (the bound ripple is Ev's question, added to the
+open `[ev]` PR's scope at its next revision).
+
+## Block TOPO-B3 drawn; slots 0 and 1 dispatched (2026-09-14)
+
+Byte drawn after the pre-draw entry was committed (`daa30ee99`): 19
+⇒ 19 mod 3 = 1 ⇒ fable at slot 1. Record branch-side on
+`topo/b3-block`. Slot 0 (`loop-reparenting-…`, `topo/loop-reparenting-rows`)
+and slot 1 (`D263`, `topo/d263-placeholder-regime`) dispatched
+together with brief sections in their items; slot 2 (`S93`)
+dispatches when one frees. Seam announced to TRIM (two posture notes).
