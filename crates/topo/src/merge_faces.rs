@@ -2603,7 +2603,7 @@ mod tests {
         let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
         let mut keys = vec![key];
         for f in &faces[1..] {
-            let plane = body.surfaces.insert(flat_plane());
+            let plane = body.add_surface(flat_plane());
             body.faces.get_mut(*f).expect("live").surface = plane;
             keys.push(plane);
         }
@@ -3275,12 +3275,12 @@ mod tests {
         // Both surfaces are set here: the fixture's faces carry the
         // mvfs placeholder, and the row is about KINDS, not about
         // which kind a fixture happens to leave behind.
-        let plane = body.surfaces.insert(Surface::Plane {
+        let plane = body.add_surface(Surface::Plane {
             origin: geom_core::Point3::new(0.0, 0.0, 0.0),
             normal: geom_core::Vec3::new(0.0, 0.0, 1.0),
             u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
         });
-        let cylinder = body.surfaces.insert(Surface::Cylinder {
+        let cylinder = body.add_surface(Surface::Cylinder {
             origin: geom_core::Point3::new(0.0, 0.0, 0.0),
             axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
             u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
@@ -3313,7 +3313,7 @@ mod tests {
 
         // The placeholder is the third kind, and a group holding one
         // beside a described face of EITHER kind has no contract.
-        let placeholder = body.surfaces.insert(Surface::nurbs_placeholder());
+        let placeholder = body.add_surface(Surface::nurbs_placeholder());
         body.faces
             .get_mut(other)
             .expect("the pair's second face is live")

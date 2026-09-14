@@ -6300,6 +6300,130 @@ implementer's warm one (its incremental cache dropped for disk), R2's
 is another lane's warm workspace build at a different head —
 wall-clock asymmetry only.
 
+Revert-wrap row, recorded AT MERGE (2026-09-14, merge `cbf5d1a49`, PR
+#2573; `work/topo/revert-leaves-a-periodic-charts-loop-wrap-mid-chain.md`
+CLOSED at this merge): `Body::revert` moves every loop's `Cycle::first`
+to its source predecessor so a periodic chart's one-period wrap, which
+the walk can only report at the closure joint, stays at the closure
+once the cycle runs the other way — no row touched, no re-certification,
+the involution proved by the prev/next swap; the invariant stated at
+`LoopBoundary::Cycle` and in `transform.rs`'s reversal tripwire; the
+plan phase resolves and refuses a dead `prev` typed. Difficulty **M**,
+task class NUMERIC (logged before the block draw — clean). Implementer
+arm **FABLE** (block TOPO-B4 slot 1, byte 223); the lane was killed by
+a container restart ten minutes in and relaunched on its own recovered
+WIP (a phase-1 probe, no fix) — one arm, disclosed in the claim.
+**DUAL: ordinal 2709; sample #194 (ledger max #193 at this writing;
+main's merge order rules if a concurrent recorder collides); byte 12
+parity 0 ⇒ R1 OPUS + R2 FABLE; CONCURRENT same-head on frozen
+`725d3c204`; briefs stored with sha256 before dispatch, identical
+modulo lane paths (diff 4 lines).** R1 MERGEABLE-AFTER-FIXES, counts
+2/4/5, rubric idiom 4 / tests 3 / docs 3. R2 MERGEABLE-AFTER-FIXES,
+counts 1/4/6, rubric 4/4/3. **No unilateral MAJOR.** CONVERGED on the
+central finding, both by execution: the PR's account of the census
+golden re-cut ("same multiset, same answers, different order") was
+false — both dumped `voided_rod`'s forty verdicts and diffed them as
+multisets; four changed SIGN (`props_rim_side`, `props_rim_dir_group`,
+two each; the readings compensated by the flux) — doc/claim class,
+excluded per instrument 3b and recorded. Converged, severity divergent
+(R1 MAJOR, R2 MINOR): the anchor's new meaning written only in
+`revert.rs` while the type said it carries none and the reversal
+tripwire listed only `sense` — the fresh-instance shape. Converged
+(Q1): the plane/curved partition two rules where one would do — R1's
+mutant re-anchoring every loop left the planar battery and census
+green, so nothing but the lane's own assertion observed it; the fix
+pass took the uniform rule and two STEP fixtures moved (entity and
+line counts and id-stripped line multisets identical). R1 unique,
+MINOR, executed: the plan phase pushed `.prev` unresolved (a planted
+dead key reached the debug postcondition, no typed `Corrupt`);
+`chart_boundary`'s torus lever unpinned under the anchor move. R2
+unique: the `first`-as-ORDER receipt derived and measured (the
+17-fixture STEP corpus exported byte-identical on both trees; the two
+duplicated fixtures; the `1e-9` literal in a test reader). Brief
+corrections by both: C4's "controls green on the merge base" was wrong
+(all seven red on the anchor assertion); the `.next =` sweep the PR
+skipped is clean. Fix pass (same arm): all nine items taken, none
+refuted; the golden account rewritten and a sorted-multiset row added
+beside the census golden; two rows filed (TINT: an ordered-FNV verdict
+channel is anchor-sensitive; PROPS: two predicates whose sign is a fact
+about cycle order). Tokens: impl ≈140k (relaunched lane), fix ≈260k,
+claim/state-sync ≈10k, R1 ≈200k, R2 ≈260k. Wall: impl ≈160 min (+10
+min lost to the restart), fix ≈105 min, R1 ≈43 min, R2 ≈105 min
+(concurrent; R2's target seeded cold). Tally after this entry:
+candidates +3, unchanged.
+
+Typed-absence row, recorded AT MERGE (2026-09-14, merge `1adddd884`,
+PR #2576; `work/topo/geom-source-absence-conflates-four-origins.md`
+CLOSED at this merge): a description's provenance is one enum-valued
+map per kind — `GeomOrigin { Recipe(GeomSource), Imported,
+KernelDirect, Cleared }` — with `KernelDirect` written positively at
+the three mint doors so the map is total over live keys (a missing row
+on a live key is `unreachable!`, D9 row 4), `Cleared` written by the
+rigid transform's clearing door only where a recipe source was
+dropped, `Imported` by the STEP importer, and `surface_source` and its
+siblings projecting the `Recipe` arm so every N6 reader is byte-
+identical in behaviour. Difficulty **M**, task class STRUCTURAL (logged
+before the block draw — clean). Implementer arm **OPUS** (block
+TOPO-B4 slot 0, byte 223); the lane was killed by a container restart
+ten minutes in and relaunched on its own recovered WIP — one arm,
+disclosed in the claim. **DUAL: ordinal 2710; sample #195 (ledger max
+#194 at this writing; main's merge order rules if a concurrent
+recorder collides); byte 219 parity 1 ⇒ R1 FABLE + R2 OPUS; CONCURRENT
+same-head on frozen `52c1868e8`; briefs stored with sha256 before
+dispatch, identical modulo lane paths (diff 4 lines); dispatched with
+two fix-pass lanes live, disclosed in the claim.** R1
+MERGEABLE-AFTER-FIXES, counts 1/4/4, rubric idiom 3 / tests 3 / docs 4.
+R2 MERGEABLE-AFTER-FIXES, counts 3/4/5, rubric 3/2/3. CONVERGED, both by
+execution, on the two structural findings: the storage shape (three
+`OriginMark` maps beside three `GeomSource` maps, exclusion by twelve
+to sixteen mirror sites and a `debug_assert!`, where one enum per kind
+makes it a type — both named the shape the PR's H2 argued past) and
+`KernelDirect` as the unmarked state read as a positive claim (R1's
+mutant clearing every mark in `revert` and R2's deleting two of three
+graft carries left the suite green: R1 MAJOR / R2 MAJOR). **One
+unilateral executed MAJOR (R2 M2): `Body::mark_imported` overwrote the
+`Cleared` defect arm silently** — a probe (stamp, transform, mark:
+the key reads `Imported`), never mentioned by R1 at any severity;
+contract-API class on a public door, latent (no caller reaches it
+today; EXCH's step 2 will): **tally candidate +1, code class**. R2
+unique otherwise: the "both channels" revert row and the re-stamp row
+run on fully stamped bodies and pin nothing about the origin arms;
+point/curve graft carries unpinned; the stale-key row leaning on
+foreignness. R1 unique: a recipe stamp over `Imported` erases the
+import fact undocumented (MINOR); `carve`'s point and curve orphan
+loops reach no side table (pre-existing); the release profile keeps
+debug assertions on so the assert fired in both profiles. Fix pass
+(same arm): all seven items taken, none refuted — write sites 30 → 23,
+maps 6 → 3, mirror pairs 16 → 0; R1's M5 now reds 21 rows and R2's M3
+69 where each reddened one or none; `mark_imported` leaves `Cleared`
+and `Recipe` alone, documented, with R2's row inverted; a mixed
+fixture under the revert and re-stamp rows; `carve` removes the row in
+all three loops. Tokens: impl ≈195k (relaunched lane), fix ≈220k,
+claim/state-sync ≈10k, R1 ≈147k, R2 ≈185k. Wall: impl ≈102 min (+10
+min lost to the restart), fix ≈180 min, R1 ≈70 min, R2 ≈31 min
+(concurrent; R1's target warm, R2's another lane's at a different
+head). Tally after this entry: candidates +4 (code class: D265, this;
+doc class, recorded and excluded: S330, S93).
+
+Edge-kind-door review ordinal fixed at dispatch (2026-09-14, PR #2587
+open — frozen head `36d4b9e76`; unit
+`work/topo/edge-carrier-kind-has-no-readback-door.md`): **ordinal
+2711** (TOPO band). Pre-draw fields (logged in `work/topo/log.md` at
+`4b813113a` BEFORE block TOPO-B4 was drawn — clean): difficulty **S**,
+task class **STRUCTURAL**. Implementer arm per block TOPO-B4 slot 2
+(record branch-side on `topo/b4-block`; byte 223 ⇒ fable at slot 1, so
+slot 2 is OPUS). Protocol v6 dual: draw = `/dev/urandom` byte **127**,
+parity 1 ⇒ **R1 = FABLE, R2 = OPUS**. Method, recorded before either
+review runs: CONCURRENT same-head on frozen `36d4b9e76`, both briefs
+authored and STORED with sha256 before either dispatches (identical
+text modulo lane name, target and scratch paths, verified by diff: 4
+lines), neither reviewer sees the other's report, v6 item 5 isolation
+in both briefs; the implementer's unit log entry is not written until
+the dual concludes. Shared-box note applying to BOTH arms equally: one
+4-core cloud box, no other lane live, `-j2`; R1's target is the
+implementer's warm one, R2's a copy of it with the incremental cache
+dropped — wall-clock asymmetry only.
+
 ## SYM program rows (work/sym/; band 4700–4799; blocks named SYM-B<n>)
 
 SYM-4 review ordinal fixed at dispatch (2026-09-14, PR #2565 open —

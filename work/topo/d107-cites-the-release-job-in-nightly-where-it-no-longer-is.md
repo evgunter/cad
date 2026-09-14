@@ -2,8 +2,10 @@
 id: d107-cites-the-release-job-in-nightly-where-it-no-longer-is
 kind: issue
 title: D107's pointer and its verification recipe both say the release-profile job lives in nightly.yml; it is back in ci.yml
-status: open
+status: closed
 opened: 2026-09-12
+closed: 2026-09-14
+pr: 2575
 ---
 
 
@@ -60,3 +62,20 @@ D107 hands the work to is TOPO's call, not this row's.
 
 `work/tcost/nightly-demotions-c1-c3-were-bought-with-billed-minutes`
 (closed at PR 2434) carries the re-cost and the wall-clock readings.
+
+## Closed 2026-09-14
+
+All three sites repaired in `work/topo/D107.md` by the `D107` lane, in
+the PR that closed that unit. Site 3 — the executable recipe — was
+re-run at the merge base: `grep -n "corrupt input"
+.github/workflows/*.yml` returns four hits, all `.github/workflows/ci.yml`
+(the `filter` job's comment, the job's `name:`, and the two `grep -q`
+lines in its verification step), and `nightly.yml` names the job
+nowhere. The tombstone comment the row quoted is gone with the restore,
+so that quotation was deleted rather than corrected.
+
+D107's routing sentence is left as it was written: the premise it rested
+on (*"that is a `ci.yml` question"*) is true again, so nothing needed
+re-routing. Its `--nocapture` disposition is now moot — D107's unit
+asserts the exposure rather than printing it, so the count is on the CI
+board with no workflow change.
