@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, Margin, Sign};
-use geom_core::sym::{DriveMemo, with_session, with_session_memo};
+use geom_core::sym::{DriveMemo, with_session_memo, with_session_rules};
 use geom_core::{Real, Sym, SymBudget, SymCounts, SymRules, Tol};
 
 fn budget() -> SymBudget {
@@ -47,12 +47,19 @@ fn decisions(c: SymCounts) -> (u64, u64, u64) {
 /// `form_in`'s unrecorded branch pushes the id to `plain_built`, so the
 /// leaf that saw the node unrecorded hands its freeze to every leaf
 /// after it. Here `c = 2` is minted BEFORE leaf A's session (so A does
-/// not record it) and INSIDE leaf B's. Without a memo B decides
-/// `c·c − 4` as a symbolic zero; with A's memo it decides it
-/// numerically — a decision count moved.
+/// not record it) and INSIDE leaf B's. The dials are the plain walk
+/// with A0 and no early walk, so nothing downstream can rescue the
+/// form: without a memo B folds `c·c − 4` to the zero form; with A's
+/// memo it takes `ind_c² − 4` and decides numerically — a decision
+/// count moved. (Under `SymRules::shipped` the EARLY walk, which stays
+/// per leaf, re-folds it and hides the move.)
 #[test]
 fn r2_an_unrecorded_freeze_published_by_one_leaf_is_served_to_a_leaf_that_recorded_the_node() {
-    let (_, reference) = with_session(budget(), || {
+    let rules = SymRules {
+        const_fold: true,
+        ..SymRules::none()
+    };
+    let (_, reference) = with_session_rules(budget(), rules, || {
         let c = lit(2.0);
         zero(c * c - lit(4.0))
     });
@@ -62,17 +69,21 @@ fn r2_an_unrecorded_freeze_published_by_one_leaf_is_served_to_a_leaf_that_record
         "without a memo the recorded node folds: {reference:?}"
     );
 
-    let m = memo();
+    let m = Arc::new(DriveMemo::new(budget(), rules));
     // Leaf A: `c` minted outside any session — unrecorded, frozen.
     let c_outside = lit(2.0);
-    let (_, a) = with_session_memo(budget(), SymRules::shipped(), &m, || {
+    let (_, a) = with_session_memo(budget(), rules, &m, || {
         zero(c_outside * c_outside - lit(4.0))
     });
-    assert_eq!(decisions(a), (0, 1, 0), "leaf A freezes the unrecorded node: {a:?}");
+    assert_eq!(
+        decisions(a),
+        (0, 1, 0),
+        "leaf A freezes the unrecorded node: {a:?}"
+    );
     assert!(a.frozen >= 1, "{a:?}");
 
     // Leaf B: `c` minted inside its session — recorded, foldable.
-    let (_, b) = with_session_memo(budget(), SymRules::shipped(), &m, || {
+    let (_, b) = with_session_memo(budget(), rules, &m, || {
         let c = lit(2.0);
         zero(c * c - lit(4.0))
     });
@@ -153,7 +164,10 @@ fn r2_a_hit_finds_the_atoms_the_leaf_never_minted() {
     };
     let (a, ca) = leaf();
     let (b, cb) = leaf();
-    assert!(a && b, "sqrt(x)² − x is a theorem under rule A: {ca:?} {cb:?}");
+    assert!(
+        a && b,
+        "sqrt(x)² − x is a theorem under rule A: {ca:?} {cb:?}"
+    );
     assert_eq!(decisions(ca), decisions(cb), "{ca:?} {cb:?}");
     println!("memo: {m:?}");
 }

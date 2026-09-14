@@ -49,7 +49,11 @@ fn r2_dump_serializations() {
                 s.push_str(&format!("\nrefused-decisions {i} {:?}", l.decisions));
             }
             std::fs::write(format!("{out}/{label}-{sched}.txt"), s).unwrap();
-            println!("{label} {sched}: receipt {:?} decisions {:?}", v.receipt(), v.decisions());
+            println!(
+                "{label} {sched}: receipt {:?} decisions {:?}",
+                v.receipt(),
+                v.decisions()
+            );
         }
     }
 }

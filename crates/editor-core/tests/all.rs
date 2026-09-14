@@ -514,10 +514,10 @@ mod m10_derived_frame_tilted_interval;
 mod m10_sym_drive_memo_interval;
 #[path = "m10_sym_profile_interval.rs"]
 mod m10_sym_profile_interval;
-#[path = "m10_sym_r2_memo_probes_interval.rs"]
-mod m10_sym_r2_memo_probes_interval;
 #[path = "m10_sym_r2_base_dump_interval.rs"]
 mod m10_sym_r2_base_dump_interval;
+#[path = "m10_sym_r2_memo_probes_interval.rs"]
+mod m10_sym_r2_memo_probes_interval;
 
 #[path = "wire_band_cause.rs"]
 mod wire_band_cause;

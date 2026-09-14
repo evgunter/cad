@@ -73,12 +73,27 @@ fn assert_same(label: &str, a: &ParamBoxVerdict, b: &ParamBoxVerdict) {
     assert_eq!(a.serialize(), b.serialize(), "{label}: serialization");
     assert_eq!(a.content_key(), b.content_key(), "{label}: content key");
     assert_eq!(a.receipt(), b.receipt(), "{label}: receipt");
-    assert_eq!(a.decisions(), b.decisions(), "{label}: drive decisions, frozen included");
-    assert_eq!(a.certified().len(), b.certified().len(), "{label}: certified count");
-    assert_eq!(a.refused().len(), b.refused().len(), "{label}: refused count");
+    assert_eq!(
+        a.decisions(),
+        b.decisions(),
+        "{label}: drive decisions, frozen included"
+    );
+    assert_eq!(
+        a.certified().len(),
+        b.certified().len(),
+        "{label}: certified count"
+    );
+    assert_eq!(
+        a.refused().len(),
+        b.refused().len(),
+        "{label}: refused count"
+    );
     for (i, (x, y)) in a.certified().iter().zip(b.certified()).enumerate() {
         assert_eq!(x.box_, y.box_, "{label}: certified {i} box");
-        assert_eq!(x.verdict_vector_key, y.verdict_vector_key, "{label}: certified {i} key");
+        assert_eq!(
+            x.verdict_vector_key, y.verdict_vector_key,
+            "{label}: certified {i} key"
+        );
         assert_eq!(x.results, y.results, "{label}: certified {i} results");
         assert_eq!(
             decisions_of(x.decisions),
@@ -135,7 +150,10 @@ fn r2_a_freezing_drive_is_identical_across_schedules_thread_counts_and_the_dial(
             seq_on.decisions().frozen > 0,
             "{label}: the row is about the moved column and it must be non-zero here"
         );
-        assert!(seq_on.plain_memo().forms > 0, "{label}: the memo held forms");
+        assert!(
+            seq_on.plain_memo().forms > 0,
+            "{label}: the memo held forms"
+        );
 
         let t0 = Instant::now();
         let seq_off = run(&doc, &analyzed, false, false);
@@ -155,7 +173,11 @@ fn r2_a_freezing_drive_is_identical_across_schedules_thread_counts_and_the_dial(
                 t0.elapsed(),
                 leaves_own_frozen(&par_on)
             );
-            assert_same(&format!("{label} par@{threads} on vs seq on"), &par_on, &seq_on);
+            assert_same(
+                &format!("{label} par@{threads} on vs seq on"),
+                &par_on,
+                &seq_on,
+            );
         }
         let par2_off = on_pool(2, || run(&doc, &analyzed, true, false));
         assert_same(&format!("{label} par@2 off vs seq on"), &par2_off, &seq_on);
