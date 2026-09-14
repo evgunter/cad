@@ -62,12 +62,14 @@ From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the
 
 ## After SYM-2
 
-SYM-2 took the two moves the list above names and the header with them
-(`sym.rs` 4,478 -> 3,530 lines, its header 491 -> 447; `sym/rational.rs`
-533, `sym/form.rs` 433). The next cut, proposed by that lane and not
-taken by it:
+SYM-2 took the two moves the list above names and the header with them,
+and its fix pass took the test module as well: `sym.rs` 4,478 -> 2,499
+lines, its header 491 -> 457; `sym/rational.rs` 532 (header 18),
+`sym/form.rs` 417 (header 22), `sym/tests.rs` 1,040. The next cut, proposed by that lane and DEFERRED
+by the orchestrator:
 
-**The ids and the nodes -> `sym/dag.rs`, ~240 lines.** `SymId`,
+**The ids and the nodes -> `sym/dag.rs`, ~240 lines** (deferred; the
+taker meets two conditions, below). `SymId`,
 `Hash128`, `ParamSymbol`, `SymOp` with its `tag`/`arity` tables and
 `SymNode` with its `id` — the whole of what a node IS and how it is
 keyed, between the `// ids` and `// the session` banners. It has the
@@ -79,6 +81,16 @@ HASHES (D9)`). Two callers cross the line: `intern` (session state) and
 `indet_atom`/`indet_param`/`indet_opaque` (the form's keys), both of
 which stay where they are and reach `Hash128` and `SymOp::tag` through
 `pub(super)`, exactly as SYM-2's moves do.
+
+**The two conditions the deferral names.** (1) `SymId` and `ParamSymbol`
+are PUBLIC types, so the move needs `pub use dag::{SymId, ParamSymbol};`
+in `sym.rs` to keep `geom_core::sym::SymId` naming the same path — every
+other item SYM-2 moved was crate-private, and this is the first that is
+not. (2) `SymOp::Opaque`'s doc and `OPAQUE_SEQ`'s D9 argument are one
+argument about one mechanism, and `OPAQUE_SEQ` is session state that
+would stay behind: the move would put them in different files, which is
+the drift class this item exists to reduce. Take the cut with a decision
+about where that argument lives, not before.
 
 **Not the session and the walk, yet.** `Session`, `combine`, `form_in`,
 the three memos, `Discharge`, the registry and the `Decide` impl are
