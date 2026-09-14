@@ -424,3 +424,55 @@ by name). Lane commits carried no trailer; the orchestrator's
 state-sync rides the PR last. `rule-d-reaches-the-unit-bulge-only`
 stays open on its first ask's residue, carried by the ring
 conversation.
+
+
+## SYM-5 PR-1 merged (2026-09-14): the derived-frame freeze, measured — and the item's real case found
+
+PR #2568, fix-pass head `869fd55bf`, hosted run 34834096015 green on the
+full matrix; block SYM-B1 slot 1, whose Phase 1 this is — one review
+outside the experiment (no row; the dual runs at PR-2's dispatch),
+its delta confirming the fix pass by execution. The spec stands with
+Amendment A1 (the fixture), the unit stays open on PR-2.
+
+**The measurement refuted the diagnosis the unit was cut on — on the
+document it was cut on.** DOCM's two rows, ported: the transform-lifted
+row is GREEN at all three ε rows and is now a pin; the parity row is
+green at ε/8, 1e-6 and 1e-3 under both lifts and red at 5e-2 alone.
+On DOCM's height document the rule ladder says the constant fold ALONE
+(A0, M10-8) freezes zero and certifies at 1e-3, the shipped set
+freezes 1,253 at the nominal and not one costs a decision, and under
+`none` at 4096/65536 the document freezes one form and refuses
+identically — opaque constant atoms, never the budget, were the
+refusal, even on DOCM's own tree (its probes predate M10-8's fold by
+one day). Rendered, every atom in the freezing chain is a `sqrt` of a
+CONSTANT form: the placement is a pure translation. The one refusal
+left at 5e-2 is the numeric channel's — `newell_plane`'s normal
+normalised by a length whose enclosure contains zero, the residual's
+early form being `0` and clause 1 never asking — the widening class,
+filed on PROPS with three candidate fixes and recorded as
+`real-margin-dependency-widening`'s fourth site. The review and the
+lane disagree on where the straddle first appears (a three-site
+cascade against one straddling site fed by widened offsets); both
+readings are on the PROPS row, unsmoothed.
+
+**The review built the item's real case.** A derived frame whose AXES
+carry the parameter (an authored frame tilted by `t = 0.25 ± half`, a
+cube on it, a `FaceFrame` on its cap, the boss on that): the derived
+boss refuses on every rung — `none`/A0/A on `carrier_endpoint_start`
+at `[0, 1.8e-2]` (18× the width, the item's original shape), the
+shipped set on `newell_plane_residual` with a plain straddle and 632
+`Degree` freezes on kids at degree 69–128; the residual's early form
+is non-zero over a NON-constant `sqrt(S)` with two frozen `Mul` nodes
+on its path; a budget of 4096/65536 leaves 483 frozen and the same
+refusal. Under `Guided` the authored twin certifies on every rung
+while the plain lane refuses it. The reviewer's rows are adopted
+(`m10_derived_frame_tilted_interval.rs`); the item's title says the
+measured state; Phase 2 runs there as PR-2 under the same arm.
+
+**Class findings recorded**: the interval test preamble is copied
+across the M10 files (budget in two spellings across 18, `param_doc`
+inline in 37, `failures` in 13 — `interval-test-preamble-is-copied-across-the-m10-files`);
+the M10-3 chamber row is gated away from `sym/` (SYM-4's filing on
+S-TCOST). The spec's Phase-1-first structure is what caught the wrong
+premise; the fixture, not the lane, was the fault, and it was the
+dispatcher's.
