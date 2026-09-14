@@ -212,7 +212,7 @@ frame kind.** An AUTHORED frame's plane stays f64 under every lift
 (`mint_frame_placement`, from the frame node's own slots, carried on its
 value and read by `profile_plane_f64`), so its profile's placed
 coordinates are exact points at every scalar. A DERIVED frame
-(`Datum::FaceFrame`, DOCM-REFERENCES-DESIGN DM1) has no document
+(`Datum::FaceFrame`, `crates/editor-core/REFERENCES.md` DM1) has no document
 elaboration — its value is read off the evaluated body — so its profile
 is placed at the lane scalar through `frame_plane_lane` under every
 lift, and its placed coordinates at `Interval` are enclosures, which is

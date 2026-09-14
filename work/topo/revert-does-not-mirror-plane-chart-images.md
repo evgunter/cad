@@ -1,9 +1,11 @@
 ---
 id: revert-does-not-mirror-plane-chart-images
-kind: issue
+kind: unit
 title: Body::revert negates a plane's normal but leaves its Chart images and cache rows unmirrored, so a same-plane Chart edge fails certification on the reverted body
-status: open
+status: dispatched
 opened: 2026-09-08
+branch: topo/revert-mirrors-chart-images
+pr: 2542
 ---
 
 
@@ -55,3 +57,126 @@ id` holds. Pin: the reverted drum cavity's tier 3 reports exactly
 `π(r−t)²(h−2t)`. `work/shell/void-insertion-refuses-a-cavity-with-a-same-surface-latitude-seam`
 keeps its drum half open on this item; its sphere half is SHELL-9's
 (the missing closing mint in `shell`). Signed (SHELL orchestrator).
+
+## Brief (TOPO, 2026-09-14) — block TOPO-B2 slot 2, dual at review
+
+**The answer to give.** `Body::revert` keeps its contract at
+`revert.rs`'s header — "every certification survives the map" — on a
+plane carrying `Chart` edges with a non-zero `v` channel: after the
+reversal, every `Chart` image on a reverted plane and every pcurve
+cache row of that plane's faces describe the same locus under the
+reversed frame, so `validate_geometric(&body.revert())` certifies what
+`validate_geometric(&body)` did, and `revert ∘ revert` is the identity
+on those descriptions bit for bit.
+
+**Mechanism (hypothesis — verify in phase 1).** The plane's frame is
+`(origin, normal, u_ref)` with `v_ref = normal × u_ref` derived at
+`eval`, so negating `normal` maps the chart by `(u, v) ↦ (u, −v)`;
+the row's measurement says the re-derived image is the stored one
+with `v` negated at all nine samples. So the transform is: for every
+`Chart` edge description whose surface is a reverted plane, negate the
+image's `v` components (for `Harmonic { p0, pa, pb }` that is the `v`
+of each point; say what it is for every other image kind the crate
+stores — enumerate them from the type, not from prose); for every
+pcurve cache row of a face on a reverted plane, the same map on the
+stored pcurve (an `IsoLine`/`IsoArc`/`Harmonic` row's chart
+coordinates), re-certified against the reverted plane in the same
+pass, or dropped and re-minted by `mint_pcurves_of` if the map is
+not exact for some kind — phase 1 decides per kind and says why. The
+M5 S12 curved arm (`Face::sense` flip on non-plane surfaces) is
+untouched: a non-plane chart is not mirrored by the reversal.
+
+**Red-first rows.** SHELL's diagnosis rows on branch `shell/9-probe`
+(`crates/sweep/tests/shell9_probe.rs` at `0cbb6593c`, rows 1–2) —
+the drum whose top cap carries a collinear profile vertex: the door's
+cavity is tier-3 valid, `validate_geometric` of its `revert()` fails
+`EdgeCertification { ChartResidual, sample 1 }` on the ring's two
+half-circles with residual `0.3827` at `t = π/8`, while the six
+radial line edges pass. Rebuild it as a `topo`-side row where the
+fixture can be built without `shell` (a plane face with a `Chart`
+circle edge whose image has a `v` channel), plus the drum row in
+`sweep/tests` as the e2e (announced S-TCOST seam). Assert the
+merge-base refusal, the head's `Ok`, the bitwise involution, and
+that `insert_voids` no longer refuses `Recertify` on that drum (the
+consequence the row names for `shell`).
+
+**Class receipt.** Every reader of a plane's frame that would see the
+mirror: `Surface::Plane::eval`, the chart-image certifiers in
+`geom-brep`'s `certify.rs`, the pcurve rows, `Chart` images, any
+cached `v`-dependent datum (`chart.rs`'s cache rows, `chart_iso.rs`);
+say for each whether `revert` transforms it, leaves it invariant, or
+leaves it stale — and file what is stale and outside this unit on the
+owner's slate.
+
+**Seams.** `crates/topo/src/pcurves.rs` (TRIM's) — the row transform,
+if it lands there, is one function by announced seam; `chart.rs` and
+`chart_iso.rs` are UNOWNED in the program's `keep_out` sense — a row
+landing there draws the fence in the PR; `geom-brep`'s `certify.rs`
+is read, not edited, unless the certifier itself is the bug — say so
+if it is and stop for the orchestrator.
+
+Branch `topo/revert-mirrors-chart-images`. PR title: "TOPO: revert
+mirrors the plane chart's images with its frame". Do not close the
+item; the dual runs at review.
+
+## Built (TOPO lane, 2026-09-14; branch `topo/revert-mirrors-chart-images`)
+
+Phase 1 against the hypotheses above. (1) `Plane::eval` derives
+`v_ref = normal × u_ref` (`crates/geom/src/surfaces.rs`, `eval` and
+`jet`), so negating `normal` alone reflects the chart — confirmed;
+`geom-brep`'s chart certifier (`certify.rs`, check 4's `Chart` arm)
+meters `|C(t) − S(P(t))|` with the stored image against the reverted
+plane and is right to refuse — the certifier is not the bug. (2) The
+five image kinds (`Pcurve::{Harmonic, Fitted, General, IsoLine,
+IsoArc}`) are each linear in their chart coefficients, so the
+reflection is a `v` sign flip on stored coefficients in every kind —
+EXACT, not re-minted, and a bitwise involution; a NURBS image is
+rebuilt with its own knots and weights (`Pcurve::mirror_v`). (3)
+Certificates travel verbatim (`EdgeCurve::with_chart_v_mirrored`,
+`PcurveCache::mirrored_v`): the mirrored image on the mirrored chart
+evaluates to the same 3-D points, bit-identical up to the sign of a
+zero a distance squares away; pinned by re-certifying a mirrored row
+on the reverted body and comparing the certificate byte for byte.
+(4) Plane faces carry NO minted rows (`pcurves.rs`, `chart_mints`:
+planes derive on demand), so the row arm is reachable only through
+`attach_pcurve` — pinned that way. (5) The drum's reverted cavity
+reports exactly `NegativeVolume`; `shell` of the collinear-cap drum
+reaches `π r² h − π(r−t)²(h−2t)` — both pins hold. The one thing the
+contract still misses is the two-arc sphere's loop wrap, filed as
+`revert-leaves-a-periodic-charts-loop-wrap-mid-chain`.
+
+Against the brief (read after the fact — it reached `main` in #2540
+while this lane was building from the item body): the row transform
+lands as two `geom-brep` doors, not in `pcurves.rs`; the rows are
+neither re-certified in the pass nor dropped and re-minted — they
+travel with their certificate VERBATIM (`PcurveCache::mirrored_v`),
+the `with_remapped_surfaces` argument, because `revert` is `T: Real`
+and tol-free and a re-certification would need `Decide` and a band;
+the pin that this is not a laundered certificate is the byte-identical
+fresh run. The topo-side row the brief asks for is
+`revert::tests::revert_mirrors_a_plane_chart_image_and_its_certificate_survives`
+(a lone `mev` on a plane face carrying a half-circle at rest in its
+chart; the merge-base refusal kept as the control by re-certifying the
+SOURCE against the reverted plane).
+
+## Fix pass (TOPO, 2026-09-14; the two blinded reviews' items)
+
+The mirror is infallible end to end: `Pcurve::map_affine` (one door
+for an affine map of the chart, a NURBS net through
+`NurbsCurve2::map_points`) is what `mirror_v` AND `shift_branch` are
+now, `PcurveCache::mirrored_v` and `EdgeCurve::with_chart_v_mirrored`
+return `Self`, and `RevertError::{ChartImage, PcurveRow}` are gone
+with the unreachable `.ok()?` they reported. The "Validity class"
+paragraph in `revert.rs` is scoped to what holds (every edge
+certification and every plane or curved row; the periodic chart's
+loop wrap named as the frontier, pointing at
+`revert-leaves-a-periodic-charts-loop-wrap-mid-chain`). The
+certificate-verbatim argument has one home, `Pcurve::mirror_v`.
+Rows: `geom-brep`'s `pcurve_mirror_v` covers all five image kinds at
+the door (four of `mirror_v`'s arms were covered by nothing on the
+tree), `revert_plane_charts` carries the body-level IsoLine / Fitted
+/ General rows and the signed-zero row, the row test pins its
+refusal's kind, and the drum, the sphere, the door's cavity and the
+graft's meter are shared through `sweep`'s `common::latitude_seam`.
+Filed on TRIM's slate:
+`pcurve-posture-guard-is-blind-to-body-producing-doors`.

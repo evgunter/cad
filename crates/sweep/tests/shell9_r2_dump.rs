@@ -6,13 +6,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
-use std::f64::consts::{FRAC_PI_2, PI};
-
 use geom_core::{Point2, Tol};
 use profile::{ProfileLoop, ProfileVertex, RawLoop};
 use sweep::Revolution;
 use topo::{Body, FaceKey};
 
+use super::common::latitude_seam::two_arc_sphere;
 use super::shell7_common::{drum, p2, revolved, tol, tube_torus, tube_torus_hollow};
 use super::shell8_common::beside;
 use super::verbs_shell::{boxy, tube, vessel};
@@ -66,20 +65,6 @@ fn cone_frustum(r0: f64, r1: f64, h: f64) -> Body<f64> {
             ProfileVertex::new(p2(r0, 0.0), 0.0),
             ProfileVertex::new(p2(r1, h), 0.0),
             ProfileVertex::new(p2(0.0, h), 0.0),
-        ]),
-        Revolution::Full,
-    )
-}
-
-fn two_arc_sphere() -> Body<f64> {
-    let r = 1.0;
-    let v = PI / 4.0;
-    let (s, c) = v.sin_cos();
-    revolved(
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, -r), ((FRAC_PI_2 + v) / 4.0).tan()),
-            ProfileVertex::new(p2(r * c, r * s), ((FRAC_PI_2 - v) / 4.0).tan()),
-            ProfileVertex::new(p2(0.0, r), 0.0),
         ]),
         Revolution::Full,
     )

@@ -421,14 +421,46 @@ the table.
   "disjoint"; the shell verb's own precondition escalates the same way
   and never proceeds to build.
 
-  **What check 9 does NOT match, enumerated** (an unstated blind spot
-  is an unverified claim): one-point TANGENCY between two edges at a
-  point that is a vertex of neither (circle-circle internal or
-  external, line-circle) and a transversal CROSSING at a non-vertex
+  **What check 9's contact arms do NOT match, enumerated** (an unstated
+  blind spot is an unverified claim): one-point TANGENCY between two
+  edges at a point that is a vertex of neither (circle-circle internal
+  or external, line-circle) and a transversal CROSSING at a non-vertex
   point — three-sample locus agreement cannot see a single shared
   point, and the closed forms that could need an arc-containment test
   this predicate has not got; and `Ellipse`/NURBS carriers in the two
   locus arms, whose endpoints the vertex arm still covers.
+
+  **The other half of the same sentence is stated at rest too**: a ring
+  is a hole *strictly inside* the region its face trims, so a ring that
+  stands clear of its outer loop and yet lies OUTSIDE it is refused by
+  name as well (`ValidationError::RingOutsideOuter`, carrying the face,
+  the ring and the ring vertex the walk placed outside). That is the
+  statement an inverted host/guest pick at the rim glue falsifies. The
+  instrument is the crate's one trilean containment walk
+  (`splitting::point_in_loop`) over the ring's vertices, and a pair no
+  query could place is reported (`ValidationError::RingNestingUndecided`)
+  rather than read as nested — the same escalate-never-guess direction
+  the contact arms take.
+
+  **What the nesting half does NOT match, in the same shape**: any face
+  on a non-planar surface, and any planar face whose outer loop bears
+  an ARC at all — the loop classes `boolean::contain`'s `loop_shape`
+  calls `ArcParity` (arcs over three or more vertices, where the
+  polygon through them is a proper region but not the loop's region:
+  an arc bowing outward leaves region between polygon and boundary),
+  `Disc` (every edge an arc of one circle, whose region `disc_side`
+  decides exactly and tier 3 does not yet reach) and `NoWalk`
+  (arc-bearing over fewer than three vertices, whose polygon has zero
+  area). All three are silent rather than answered, and so is a loop
+  the classifier could not read, because this arm REFUSES a body on an
+  `Out` and answering from a polygon that is not the region would
+  refuse valid ones — measured, on a bored D-rod's transverse cap.
+  `contfp` takes the opposite posture on `ArcParity` because one
+  point's classification is not a refusal. And inside the gate: a ring
+  that CROSSES its outer loop, part in and part out, passes whenever
+  the first vertex the walk decides is an inside one. Filed, with the
+  widening that closes the disc third:
+  `work/topo/check-9-nesting-is-line-bounded-only.md`.
 
   **Why nothing caught it, and the transferable lesson.** Not "the rim
   lift never had a consumer": `offd2_r1_probes::probe_opened_vessel_cup`

@@ -1,5 +1,6 @@
 //! **The sense beside the pose, and the carrier-kind read** — the two
-//! read-back doors DOCM-REFERENCES-DESIGN DM1a and DM2 add.
+//! read-back doors `crates/editor-core/REFERENCES.md` DM1a and DM2
+//! add.
 //!
 //! What is pinned here is the kernel half of the contract: the pose's
 //! `sense` is the face record's stored flag and nothing else (both
