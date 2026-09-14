@@ -126,3 +126,36 @@ reversed closure, tier 3 exactly `NegativeVolume`, and the
 involution), and `revert::tests`' anchor row on `ops_cube` and a
 lone plane face. Seams: one prose paragraph in TRIM's `pcurves.rs`
 and one clause in SHELL's `shell.rs`, announced on both logs.
+
+## Fix pass (TOPO, 2026-09-14; two blinded reviews, both MERGEABLE-AFTER-FIXES)
+
+The rule is now ONE rule: every loop's `first` moves to its source
+predecessor, plane loops included (a plane chart has no period, so
+the move is a no-op in meaning; the partition's only observable
+consequence was the assertion written to observe it — R1 re-anchored
+every loop and the planar battery and the census stayed green). The
+invariant the anchor now carries is stated at the type
+(`crates/topo/src/entity.rs`, `LoopBoundary::Cycle`'s `first`) and
+in `transform.rs`'s orientation-reversing tripwire; `revert.rs`'s
+anchor bullet is the invariant and a pointer.
+
+The argument for the mechanism NOT taken lives here, not in the
+module header. The brief's closing (a) as written — a `shift_branch`
+per row — re-parks the wrap by arithmetic on the stored rows, and
+`revert ∘ revert` is then bit-identical only where the addition is
+exact: `(x + τ) − τ` is `x` for the walk's own azimuths on this tree
+(`0`, `π`, `τ`; 40 rows measured, 0 broken) and is not for
+`x = 1 + ε`, so a body with a finer azimuth would round-trip to
+different bits, and `revert`'s D9 involution is the rule's, not the
+fixtures'. Moving the anchor is (a)'s answer by exact structure:
+`prev`/`next` swap under the map, so the moved anchor's `prev` in
+the result is its `next` in the source, and the second reversal lands
+on the source anchor with no arithmetic anywhere.
+
+The census golden's first account was false: four of `voided_rod`'s
+40 verdicts changed SIGN (`props_rim_side ×2`, `props_rim_dir_group
+×2`, both anchor-relative by construction in `props/curved.rs`), 36
+moved; the PR body carries the corrected account and the suite now
+carries the sorted-multiset row beside the golden. Filed:
+`work/tint/census-verdict-golden-hashes-an-anchor-ordered-stream.md`,
+`work/props/rim-side-and-rim-dir-group-signs-are-facts-about-cycle-order.md`.
