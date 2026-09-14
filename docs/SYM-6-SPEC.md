@@ -15,13 +15,8 @@ logged before the draw:** difficulty **M**, task-class **STRUCTURAL**.
   decides (`Interval`) witnesses by an exact meet and ignores the
   parameter; what changes is which lies the cheap `f64` check catches.
 
-**Conditional on `[ev]` PR #2552.** This spec implements route (1)
-of D1, the orchestrator's recommendation. If Ev picks (2) the spec is
-amended before dispatch; if Ev picks (0) the slot closes short and
-this unit is withdrawn with its row deferred on that answer. D2's
-recommendation (one arm, the receipt as the loud channel, a
-fixture-scale zero-refusals row) is Phase 3 and lands only if Ev
-agrees.
+**Ev picked route (1) of D1 on `[ev]` PR #2552 (2026-09-14)**, which
+this spec implements; D2 was settled the same day (Phase 3, Amendment A2).
 
 **Read first, in full:** `docs/prompts/implementer-discipline.md`; the
 two items whole (the measured failure of the absolute-ε spelling — CI
@@ -98,15 +93,49 @@ from a holder, say so before threading.
    green at every ε row; `m10_9_witness_limits_interval` re-read and
    its numbers re-taken where the slack enters them.
 
-## Phase 3 — D2 (only if Ev agrees on #2552)
+## Phase 3 — D2: the refusal arm split by witness kind (Amendment A2)
 
-One arm stays. The loud channel is the receipt: a fixture-scale row
-asserting `registrations_refused == 0` on the M10 documents at all
-three ε rows (the plate, the annulus, the bracket, the pad, the link
-— the M10-10 evidence documents), so a registrant that starts lying
-on a real document reds a row. `the-span-identity-is-not-a-theorem-of-the-floats`
-closes on that row; its "note for whoever takes it" (the rim
-assertion removed with the span one) is recorded as settled.
+**Amendment A1 (2026-09-14, at dispatch)** held this phase on Ev's D2
+pick. **Amendment A2 (2026-09-14, ~17:00Z): Ev took the refined
+proposal on #2552** ("that refinement sounds good"), so Phase 3 is in
+scope for this unit, after Phase 2, as follows. The door cannot tell
+"the claim is false" from "the arithmetic could not tell at this
+scale" by the GAP (at the torus the sides are many ULPs apart, so a
+scale-keyed arm would be a second tolerance that misfiles its own
+case); it can by the KIND of witness.
+
+1. `SymRegistration` gains an arm **`Disputed`**: REFUSED by an
+   INEXACT witness — the lane scalar compares points at a slack
+   (`f64`, `Probe`) and the two values were apart by more than it. The
+   claim may be true and the arithmetic could not tell at this scale.
+   Nothing is recorded; it is counted in `registrations_refused` as
+   `Contradicted` is today; **never asserted on**.
+2. **`Contradicted` is reserved for an EXACT witness**: `Interval`'s
+   certified brackets are disjoint — a proof that the two reals differ
+   at a point of the box, or an upstream enclosure that does not
+   contain its real; a defect either way. Its doc says so in the
+   present tense; `f64` and `Probe` never answer it.
+3. `Sym::register_equal` forwards its value channel's arm unchanged
+   (a `Disputed` value channel refuses exactly as a `Contradicted` one:
+   nothing reaches the registry). Every `match` on the enum is updated
+   — the compiler is the sweep. The two sweep registrants bind
+   `Disputed` without asserting (today's handling, the comment
+   re-pointed) and **`debug_assert!` on `Contradicted`** — the
+   assertion M10-9's fix pass removed returns, in the lane where a
+   refusal is a proof. The two adversarial probes stay green (they run
+   at `f64`, where the answer is now `Disputed`); their refusal counts
+   are stated per arm.
+4. **The fixture-scale row**: at `Sym<Interval>` on the five M10-10
+   evidence documents at all three ε rows, the receipt's
+   `registrations_refused == 0` (in that lane the count is
+   `Contradicted` + `Cyclic`, each a proof of a defect), so a
+   registrant that starts stating a lie on a real document reds a
+   row. `the-span-identity-is-not-a-theorem-of-the-floats` closes on
+   that row; its note about the rim assertion is recorded as settled
+   by item 3.
+5. No new tolerance anywhere. No new receipt column unless the row
+   needs one to say `Disputed` apart from `Contradicted` at `f64`
+   (state which, and why, if taken).
 
 ## Scope
 
@@ -117,8 +146,9 @@ assertion removed with the span one) is recorded as settled.
   (S-BOOL's and BLEND's territory — announced; the change is the
   parameter and nothing else); tests under `crates/geom-core/tests/m10_9_*`
   and `crates/editor-core/tests/m10_9_*`.
-- No change to what any registrant states, to the registry, to
-  `SymRegistration`'s arms (D2 keeps one), or to `Interval`'s witness.
+- No change to what any registrant states, to the registry, or to
+  `Interval`'s witness; `SymRegistration`'s arms change only as Phase 3
+  says (one arm added, one arm's meaning narrowed).
 - No new tolerance anywhere: `tol` arrives or the code does not compile.
 
 ## Acceptance
@@ -127,7 +157,10 @@ assertion removed with the span one) is recorded as settled.
   probes green at every ε row with their refusal counts stated
   before/after; the M10-9 pins unmoved.
 - `WITNESS_REL` gone; the `f64` impl's doc carries the argument.
-- The call-site table; the refusal-count table; the D2 row if taken.
+- The call-site table; the refusal-count table per arm; `Disputed`
+  never answered by `Interval` and `Contradicted` never by `f64`/`Probe`
+  (each impl's doc); the registrants' `Contradicted` assertion restored;
+  the fixture-scale zero-refusals row green at every ε row.
 
 ## Review
 
@@ -138,7 +171,11 @@ driven at `Sym<Interval>` before/after; (2) the slack is relative and
 floored, and a true identity at coordinates of 10⁹ is witnessed at
 every ε row (the reviewers build one); (3) a lie of `k · ε · scale`
 for `k > 1` is refused at every ε row (a planted registrant); (4) the
-refusal counts on the adversarial probes are what the PR says; plus
+refusal counts on the adversarial probes are what the PR says; (5)
+`Interval` never answers `Disputed` and `f64`/`Probe` never answer
+`Contradicted` — a planted swap in either impl reds a row; (6) the
+fixture-scale row reds under a planted lying registrant, and the
+restored assertion fires only in the `Interval` lane; plus
 `docs/prompts/reviewer-style-lane.md` in full. Union fix pass on the
 implementer's lane; delta by R1; the row lands at merge.
 
