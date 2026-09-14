@@ -49,6 +49,33 @@ use crate::m10_3_r1_probes_interval::{CHAMBER_LEAVES, bounded_chamber};
 use crate::m10_7_plate::plate;
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::nominal_box;
+use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
+use editor_core::{CancelToken, EvalOptions, ProfileLift, evaluate};
+use geom_core::SymBudget;
+use geom_core::sym::with_session_rules;
+use std::sync::Arc;
+
+/// One replay at `Sym<Interval>` over `box_` with NOTHING installed —
+/// no shape report (which renders every blocked residual through the
+/// walks, ~1 % of a replay's instructions) — so a callgrind count over
+/// it is the tier's and the numeric channel's alone.
+fn bare_replay(doc: &ProfileDoc, box_: &ParamBox, tol: Tol) -> geom_core::SymCounts {
+    let opts = EvalOptions {
+        param_box: Some(Arc::new(box_.clone())),
+        profile_lift: ProfileLift::Guided,
+        ..EvalOptions::default()
+    };
+    let budget = SymBudget {
+        max_terms: DEFAULT_SYM_MAX_TERMS,
+        max_degree: DEFAULT_SYM_MAX_DEGREE,
+    };
+    let (_, counts) = with_session_rules(budget, SymRules::shipped(), || {
+        let ev: editor_core::Evaluation<geom_core::Sym<geom_core::Interval>> =
+            evaluate(doc, None, &CancelToken::new(), &opts, tol);
+        ev.order.len()
+    });
+    counts
+}
 
 fn eps() -> f64 {
     Tol::witness().eps()
@@ -122,7 +149,8 @@ fn profiled_replay(label: &str, doc: &ProfileDoc, box_: &ParamBox, tol: Tol) {
     if let Some(r) = refusal {
         println!("first refusal: {r}");
     }
-    print!("{profile}");
+    assert_eq!(profile.unnoted(), 0, "a refusal site without a note");
+    print!("{}", profile.render());
 }
 
 /// **The slab, one replay at each scale** — the nominal (every form
@@ -160,7 +188,8 @@ fn sym_profile_slab_drive() {
         v.receipt(),
         v.decisions()
     );
-    print!("{profile}");
+    assert_eq!(profile.unnoted(), 0, "a refusal site without a note");
+    print!("{}", profile.render());
 }
 
 /// **The plate at its nominal**, the freeze population only — the
@@ -176,9 +205,10 @@ fn sym_profile_plate_nominal() {
 
 /// **The callgrind target**: `CAD_SYM_PROFILE_DOC` (`slab` | `plate`,
 /// default `slab`) replayed over `CAD_SYM_PROFILE_BOX` (`nominal` |
-/// `leaf` | `root`, default `nominal`) `CAD_SYM_PROFILE_REPEATS` times (default
-/// 1), the profile NOT installed, so an instruction count over the
-/// process is the tier's own. Prints the counts per replay.
+/// `leaf` | `root`, default `nominal`) `CAD_SYM_PROFILE_REPEATS` times
+/// (default 1), neither the profile nor the shape report installed
+/// ([`bare_replay`]), so an instruction count over the process is the
+/// tier's own. Prints the counts per replay.
 #[test]
 #[ignore = "evidence-only: the callgrind target — replays one box, nothing else"]
 fn sym_profile_callgrind_replay() {
@@ -198,11 +228,10 @@ fn sym_profile_callgrind_replay() {
         .expect("CAD_SYM_PROFILE_BOX is `nominal`, `leaf` or `root`");
     for i in 0..repeats {
         let t0 = Instant::now();
-        let (shapes, _, counts) = replay(&doc, &box_, SymRules::shipped(), tol);
+        let counts = bare_replay(&doc, &box_, tol);
         println!(
-            "replay {i} {scale}: wall {:?} decisions {:?} counts {counts:?}",
-            t0.elapsed(),
-            outcomes(&shapes)
+            "replay {i} {scale}: wall {:?} counts {counts:?}",
+            t0.elapsed()
         );
     }
 }

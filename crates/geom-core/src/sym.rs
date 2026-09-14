@@ -378,8 +378,11 @@
 //! `geom-core`'s runtime dependencies were `libm` alone and that
 //! nothing measured was losing a cancellation to the overflow — the
 //! whole-box replays reported `frozen: 0` on the bracket because the
-//! `Decide` impl skips the form of a margin the numeric channel has
-//! already proved non-zero. M10-8 measured the case the whole-box
+//! `Decide` impl's DECISION PATH never asks the form of a margin the
+//! numeric channel has already proved non-zero — and `frozen` counts
+//! the plain walk whoever asked it, so that zero also says the
+//! contradiction assertion (below) found nothing to freeze there.
+//! M10-8 measured the case the whole-box
 //! replays cannot see: at a document's NOMINAL, where every identity
 //! margin is near zero and every form is built, the plate froze 1,056
 //! forms, R2's bracket 1,978 and R1's annulus 1,034 — and the plate's
@@ -398,27 +401,50 @@
 //! one leaf replay, and the structural profile behind the test-only
 //! `sym-profile-testing` feature (`profile`: forms per op with their
 //! sizes, every freeze with the cause noted at the refusal site, the
-//! ring's promotions, each walk's clock) — on the M10-3 slab and the
-//! two-hole plate at their nominals; the rows are
-//! `editor-core/tests/m10_sym_profile_interval`, the tables and the
-//! re-run method `work/sym/symbolic-tier-costs-95-percent-of-the-m10-3-drive`.
+//! ring's promotions, each walk's clock, and each walk's ORIGIN) — on
+//! the M10-3 slab and the two-hole plate at their nominals; the rows
+//! are `editor-core/tests/m10_sym_profile_interval`, the tables and
+//! the re-run method
+//! `work/sym/symbolic-tier-costs-95-percent-of-the-m10-3-drive`.
+//!
+//! **Who asks for the forms.** The `Decide` impl has three callers of
+//! the walks and only one is the tier deciding: its DECISION path asks
+//! a form only where the numeric channel cannot answer; the
+//! contradiction ASSERTION runs the discharge on every DEFINITE margin
+//! wherever debug assertions are on — dev, test, and this workspace's
+//! release profile, so every profile measured here and only the
+//! published build not; and the shape report, when installed, renders
+//! blocked residuals through the walks. On the slab at its nominal the
+//! decision path builds 9,686 plain forms in 980 calls and 36 early
+//! forms in 16; the assertion builds 918 plain and 1,958 early forms
+//! in 510 calls each — a tenth of the plain walk's forms and 95 % of
+//! the early walk's, so the slab's `reduce_steps` count (1,994 calls)
+//! is the assertion's. Over the chamber drive it is 1.57 M of 19.1 M
+//! plain forms and 3.18 M of 3.35 M early forms, 43 s of 162 s in
+//! the walks. On the plate at its nominal the assertion freezes 488 of
+//! 1,312 (360 of the plain walk's 1,044 `frozen`), the decision path
+//! 824. `SymCounts::frozen` counts the plain walk whoever asked it.
 //!
 //! **The tier's instructions are TERM STORAGE, not arithmetic and not
-//! degree.** In release, 57 % of a replay's instructions on both
+//! degree.** In release, 56 % of a replay's instructions on both
 //! documents are the allocator, the `BTreeMap` of terms and the heap
 //! `Vec` each monomial is, against 10 % in the coefficient ring on the
-//! slab (27 % on the plate, `num-bigint` 1.3 % and 12.7 % of those) and
-//! 0.3–1 % in the atom algebra's own code. The slab's forms are tiny —
-//! 1.5 terms on average, 10 at most, total degree up to 68, and NOT
-//! ONE freezes at any leaf of the chamber drive (19.1 M plain forms,
+//! slab (27 % on the plate, `num-bigint` 1.3 % and 12.8 % of those),
+//! 0.3–1 % in the atom algebra's own code, and a session's teardown —
+//! dropping the memos and the table, which no walk clock sees — 10 %
+//! on the slab and 4 % on the plate. The slab's forms are tiny — 1.5
+//! terms on average, 10 at most, total degree up to 68, and NOT ONE
+//! freezes at any leaf of the chamber drive (19.1 M plain forms,
 //! `frozen = 0`) — so what the slab pays is volume times a fixed cost
-//! per form: 10,604 plain forms per leaf for 1,490 decisions, at
-//! ~7.6 k instructions each, over a DAG of 12,208 nodes interned afresh
-//! per leaf (`intern` is 12.6 % of a release replay). The plain walk is
-//! 56 % of a slab replay inclusive, the early walk 14 %, the per-node
-//! rule A/B reduction 4 %; the answer is the same at the nominal and
-//! over a leaf-sized box, because over 2 ε an identity's enclosure is
-//! still not definite and every identity's form is built either way.
+//! per form: at the nominal 10,604 plain forms per leaf (9,686 the
+//! decision's) for 1,490 decisions, at ~7.5 k instructions each, over
+//! a DAG of 12,208 nodes interned afresh per leaf (`intern` is 13 % of
+//! a release replay); a leaf of the drive averages 8,488 nodes and
+//! 7,463 plain forms. The plain walk is 57 % of a slab replay
+//! inclusive, the early walk 15 %, the per-node rule A/B reduction
+//! 4 %; the answer is the same at the nominal and over a leaf-sized
+//! box, because over 2 ε an identity's enclosure is still not definite
+//! and the decision path builds the same forms either way.
 //!
 //! On the plate the same storage share sits inside `reduce_steps` —
 //! rules A/B per node, 53 % of the replay — and the freeze population
@@ -429,7 +455,7 @@
 //! 401 bits against [`COEFF_BITS`]), and none on the term budget —
 //! no form on either document comes within 40× of it. Rule D's fold is
 //! 0.4 % of the plate's replay; the ring's heap path is 9 % of its
-//! operations and 12.7 % of its instructions, 1.5 % and 1.3 % on the
+//! operations and 12.8 % of its instructions, 1.5 % and 1.3 % on the
 //! slab, so the `i128` inline path holds on both.
 //!
 //! # The census: which identity-shaped predicates this tier reaches
@@ -748,37 +774,6 @@ impl SymOp {
             Self::Copysign => 22,
             Self::Hull => 23,
             Self::Opaque => 24,
-        }
-    }
-
-    /// The op's name, for the cost profile's tables.
-    #[cfg(feature = "sym-profile-testing")]
-    fn name(self) -> &'static str {
-        match self {
-            Self::Param => "Param",
-            Self::Opaque => "Opaque",
-            Self::Lit => "Lit",
-            Self::Pi => "Pi",
-            Self::Add => "Add",
-            Self::Sub => "Sub",
-            Self::Mul => "Mul",
-            Self::Neg => "Neg",
-            Self::Powi => "Powi",
-            Self::Inv => "Inv",
-            Self::Sqrt => "Sqrt",
-            Self::Abs => "Abs",
-            Self::Sin => "Sin",
-            Self::Cos => "Cos",
-            Self::Tan => "Tan",
-            Self::Asin => "Asin",
-            Self::Acos => "Acos",
-            Self::Atan => "Atan",
-            Self::Floor => "Floor",
-            Self::Atan2 => "Atan2",
-            Self::Min => "Min",
-            Self::Max => "Max",
-            Self::Copysign => "Copysign",
-            Self::Hull => "Hull",
         }
     }
 
@@ -1147,6 +1142,8 @@ impl Rat {
     /// zero denominator and an integer past [`COEFF_BITS`].
     fn from_parts(num: Int, den: Int, exp2: i32) -> Option<Self> {
         if den.is_zero() {
+            #[cfg(feature = "sym-profile-testing")]
+            profile::note(profile::FreezeCause::ZeroDivisor);
             return None;
         }
         if num.is_zero() {
@@ -1165,9 +1162,15 @@ impl Rat {
         };
         let (num, nz) = num.strip_twos();
         let (den, dz) = den.strip_twos();
-        let exp2 = exp2
-            .checked_add(i32::try_from(nz).ok()?)?
-            .checked_sub(i32::try_from(dz).ok()?)?;
+        let Some(exp2) = i32::try_from(nz)
+            .ok()
+            .and_then(|nz| exp2.checked_add(nz))
+            .and_then(|e| i32::try_from(dz).ok().and_then(|dz| e.checked_sub(dz)))
+        else {
+            #[cfg(feature = "sym-profile-testing")]
+            profile::note(profile::FreezeCause::Overflow);
+            return None;
+        };
         if num.bits() > COEFF_BITS || den.bits() > COEFF_BITS {
             #[cfg(feature = "sym-profile-testing")]
             {
@@ -3514,6 +3517,13 @@ impl<T: Decide> Decide for Sym<T> {
             if door_zero(self.node) {
                 count_registration_contradicted();
             }
+            // The assertion below RUNS THE DISCHARGE — the plain walk
+            // and the early one — on every definite margin, in every
+            // profile with debug assertions on (dev, test, and this
+            // workspace's release). The cost profile charges those
+            // walks to `Origin::Assertion`, apart from the decision's.
+            #[cfg(feature = "sym-profile-testing")]
+            let origin = profile::set_origin(profile::Origin::Assertion);
             debug_assert!(
                 !matches!(
                     discharge(self.node),
@@ -3522,6 +3532,8 @@ impl<T: Decide> Decide for Sym<T> {
                 "the numeric channel proved this margin nonzero and the form says it is \
                  identically zero: the two channels contradict each other"
             );
+            #[cfg(feature = "sym-profile-testing")]
+            profile::set_origin(origin);
             count_decision(None);
             report::record(&numeric, None, None, self.value.enclosure_probe());
             return numeric;
@@ -3549,7 +3561,11 @@ impl<T: Decide> Decide for Sym<T> {
         // only when the instrument is installed, so an ordinary replay
         // never pays for it.
         if report::active() {
+            #[cfg(feature = "sym-profile-testing")]
+            let origin = profile::set_origin(profile::Origin::Report);
             let text = report::render_node(self.node);
+            #[cfg(feature = "sym-profile-testing")]
+            profile::set_origin(origin);
             report::record(&numeric, None, text, self.value.enclosure_probe());
         }
         numeric

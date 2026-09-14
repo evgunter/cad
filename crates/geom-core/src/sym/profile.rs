@@ -8,11 +8,13 @@
 //! kids' forms and of the form built, or — where the node FROZE — the
 //! CAUSE the ring or the budget refused for, noted at the refusal site
 //! itself ([`FreezeCause`]) rather than re-derived afterwards. Per walk
-//! ([`Walk`]): how many forms each built and the wall time it took.
-//! For the coefficient ring: every `Rat` operation, every one that
-//! left the `i128` inline path, and the widest coefficient any form
-//! carried. Inside the early walk: the per-node rule A/B reduction and
-//! rule D's trig fold, each with its call count and wall time.
+//! ([`Walk`]) and per ORIGIN ([`Origin`] — the decision's own discharge,
+//! the contradiction assertion on a definite sign, or the shape
+//! report's rendering): how many forms each built and the wall time it
+//! took. For the coefficient ring: every `Rat` operation, every one
+//! that left the `i128` inline path, and the widest coefficient any
+//! form carried. Inside the early walk: the per-node rule A/B reduction
+//! and rule D's trig fold, each with its call count and wall time.
 //!
 //! **With the feature off none of this compiles** — no counter, no
 //! branch, no clock: the hooks below are the only entry points, every
@@ -26,7 +28,7 @@ use core::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
-use super::report::FormSize;
+use super::report::{FormSize, size_of};
 use super::{Form, SymBudget, SymOp};
 
 /// Why a node froze — the refusal the ring or the budget made, noted
@@ -45,15 +47,19 @@ pub enum FreezeCause {
     /// than it (`Rat::add`).
     Coefficient,
     /// An arithmetic OVERFLOW the ring refuses: a monomial exponent
-    /// (`mono_mul`), a dyadic exponent (`Rat::mul`), a non-finite
-    /// literal (`Rat::of_f64`).
+    /// (`mono_mul`), a dyadic exponent (`Rat::mul`, `Rat::from_parts`),
+    /// a non-finite literal (`Rat::of_f64`).
     Overflow,
+    /// A rational with a zero denominator (`Rat::from_parts`) — the
+    /// reciprocal of a zero coefficient.
+    ZeroDivisor,
     /// A node not in the session's table — minted before the session
     /// was installed, or never recorded.
     Unrecorded,
     /// `combine` declined and no refusal site noted a cause — a shape
-    /// this instrument does not name. Zero on every measured document;
-    /// a non-zero count here is a hook missing, not a fifth cause.
+    /// this instrument does not name. A non-zero count here is a hook
+    /// missing, not a further cause, and the evidence rows assert it
+    /// zero.
     Unnoted,
 }
 
@@ -79,9 +85,31 @@ impl Walk {
     }
 }
 
+/// WHY a walk was asked — the `Decide` site has three callers of the
+/// normal form, and only one of them is the tier deciding.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Origin {
+    /// The decision's own discharge: the numeric channel could not
+    /// answer, and the form is what decides. The shipped release
+    /// check of a registered zero against a definite sign
+    /// (`door_zero`) counts here too — it is the decision path.
+    Decision,
+    /// The contradiction ASSERTION on a definite sign: `Decide for
+    /// Sym<T>` runs `discharge` inside a `debug_assert!` on every
+    /// margin the numeric channel proved non-zero, so under debug
+    /// assertions (dev, test, and this workspace's release profile)
+    /// those forms are built by the assertion and not by the tier.
+    Assertion,
+    /// The shape report's rendering of a blocked residual
+    /// (`report::render_node`), when the report is installed.
+    Report,
+}
+
 /// What one op kind did across every node of that kind.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct OpProfile {
+    /// The op, as `SymOp`'s `Debug` renders it.
+    pub op: String,
     /// Forms built (not frozen).
     pub built: u64,
     /// Nodes frozen.
@@ -103,32 +131,48 @@ pub struct OpProfile {
     pub max_degree_out: u32,
 }
 
-/// One freeze: the node's op, the cause, the walk, and the kids'
-/// sizes at the moment of the refusal.
+/// One freeze: the node's op, the cause, the walk and its origin, and
+/// the kids' sizes at the moment of the refusal.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FreezeSite {
-    /// The op of the node that froze (`"?"` for an unrecorded node).
-    pub op: &'static str,
+    /// The op's tag (`SymOp::tag`), the key of [`SymProfile::ops`];
+    /// `None` for an unrecorded node. [`SymProfile::op_name`] renders
+    /// it.
+    pub op: Option<u64>,
     /// The refusal.
     pub cause: FreezeCause,
     /// The walk that was building it.
     pub walk: Walk,
+    /// Why the walk was asked.
+    pub origin: Origin,
     /// The kids' forms, in slot order; `None` for an absent slot.
     pub kids: [Option<FormSize>; 2],
 }
 
-/// One walk's totals.
+/// One walk's totals under one origin.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct WalkProfile {
-    /// Calls to the walk (one per decision asked of it, memo hits
-    /// included).
+    /// Calls to the walk — one per discharge asked of it, memo hits
+    /// included, whether the discharge was the decision's, the
+    /// assertion's or the report's ([`Origin`]).
     pub calls: u64,
     /// Forms the walk put in its memo, frozen ones included.
     pub forms: u64,
     /// Of those, frozen.
     pub frozen: u64,
-    /// Wall time inside the walk, by `Instant`.
+    /// Wall time inside the walk, by `Instant`. The session's teardown
+    /// — dropping the memos and the table — is outside every walk and
+    /// no clock here sees it.
     pub time: Duration,
+}
+
+impl WalkProfile {
+    fn absorb(&mut self, o: Self) {
+        self.calls += o.calls;
+        self.forms += o.forms;
+        self.frozen += o.frozen;
+        self.time += o.time;
+    }
 }
 
 /// A timed counter: calls and wall time.
@@ -149,10 +193,10 @@ pub struct SymProfile {
     pub nodes: u64,
     /// Opaque atoms minted, summed over those sessions.
     pub atoms: u64,
-    /// Per op kind.
-    pub ops: BTreeMap<&'static str, OpProfile>,
-    /// Per walk.
-    pub walks: BTreeMap<Walk, WalkProfile>,
+    /// Per op kind, keyed by `SymOp::tag`.
+    pub ops: BTreeMap<u64, OpProfile>,
+    /// Per walk and origin.
+    pub walks: BTreeMap<(Walk, Origin), WalkProfile>,
     /// Every freeze, in order.
     pub freezes: Vec<FreezeSite>,
     /// `Rat` additions and multiplications.
@@ -180,9 +224,13 @@ pub struct SymProfile {
     pub trig: Timed,
 }
 
+// The install / take scaffold is `report`'s, spelled again: two
+// `Cell`s and a `RefCell` of a different payload, which is less than a
+// generic would cost to name. `report.rs` says the same at its copy.
 thread_local! {
     static ACTIVE: Cell<bool> = const { Cell::new(false) };
     static NOTE: Cell<Option<FreezeCause>> = const { Cell::new(None) };
+    static ORIGIN: Cell<Origin> = const { Cell::new(Origin::Decision) };
     static PROFILE: RefCell<SymProfile> = RefCell::new(SymProfile::default());
 }
 
@@ -193,7 +241,8 @@ pub fn start_profile() {
 }
 
 /// Removes the profile and answers everything recorded since
-/// [`start_profile`].
+/// [`start_profile`] — or, if it was not installed, whatever a hook
+/// recorded regardless, which is nothing when every hook is gated.
 pub fn take_profile() -> SymProfile {
     ACTIVE.set(false);
     PROFILE.with(|p| core::mem::take(&mut *p.borrow_mut()))
@@ -208,6 +257,13 @@ fn with(f: impl FnOnce(&mut SymProfile)) {
     if active() {
         PROFILE.with(|p| f(&mut p.borrow_mut()));
     }
+}
+
+/// Sets the origin the next walks are charged to, answering the one
+/// it replaces so the caller restores it.
+#[inline]
+pub(super) fn set_origin(origin: Origin) -> Origin {
+    ORIGIN.replace(origin)
 }
 
 /// A clock reading when the profile is installed, `None` otherwise —
@@ -246,18 +302,15 @@ pub(super) fn note_within(budget: SymBudget, f: &Form) {
 
 /// Clears the note before a node is combined, so a refusal a recovered
 /// path made earlier (a fold that fell back to an atom) is never read
-/// as this node's cause.
+/// as this node's cause. The note is a thread-local side channel
+/// because the refusal sites answer `None` and nothing else; the
+/// convention it holds by is that `form_in` clears it before each
+/// `combine` and reads it once, at the freeze, and no site reads it
+/// otherwise.
 #[inline]
 pub(super) fn clear_note() {
     if active() {
         NOTE.set(None);
-    }
-}
-
-fn size_of(f: &Form) -> FormSize {
-    FormSize {
-        num: (f.num.terms.len(), f.num.degree()),
-        den: (f.den.terms.len(), f.den.degree()),
     }
 }
 
@@ -280,15 +333,19 @@ pub(super) fn record_node(op: SymOp, walk: Walk, kids: [&Form; 2], made: Option<
         (arity >= 1).then(|| size_of(kids[0])),
         (arity >= 2).then(|| size_of(kids[1])),
     ];
-    let name = op.name();
+    let tag = op.tag();
     let cause = NOTE.take();
+    let origin = ORIGIN.get();
     with(|p| {
-        let o = p.ops.entry(name).or_default();
+        let o = p.ops.entry(tag).or_insert_with(|| OpProfile {
+            op: format!("{op:?}"),
+            ..OpProfile::default()
+        });
         for s in sizes.into_iter().flatten() {
             o.terms_in += terms(s);
             o.degree_in += u64::from(degree(s));
         }
-        let w = p.walks.entry(walk).or_default();
+        let w = p.walks.entry((walk, origin)).or_default();
         w.forms += 1;
         match made {
             Some(f) => {
@@ -303,9 +360,10 @@ pub(super) fn record_node(op: SymOp, walk: Walk, kids: [&Form; 2], made: Option<
                 o.frozen += 1;
                 w.frozen += 1;
                 p.freezes.push(FreezeSite {
-                    op: name,
+                    op: Some(tag),
                     cause: cause.unwrap_or(FreezeCause::Unnoted),
                     walk,
+                    origin,
                     kids: sizes,
                 });
             }
@@ -315,25 +373,27 @@ pub(super) fn record_node(op: SymOp, walk: Walk, kids: [&Form; 2], made: Option<
 
 /// Records a freeze of a node the session never recorded.
 pub(super) fn record_unrecorded(walk: Walk) {
+    let origin = ORIGIN.get();
     with(|p| {
-        let w = p.walks.entry(walk).or_default();
+        let w = p.walks.entry((walk, origin)).or_default();
         w.forms += 1;
         w.frozen += 1;
         p.freezes.push(FreezeSite {
-            op: "?",
+            op: None,
             cause: FreezeCause::Unrecorded,
             walk,
+            origin,
             kids: [None, None],
         });
     });
 }
 
-/// Records one call to a walk: how many forms it added to its memo and
-/// how long it took.
+/// Records one call to a walk and how long it took.
 pub(super) fn walk_done(walk: Walk, t0: Option<Instant>) {
     let dt = elapsed(t0);
+    let origin = ORIGIN.get();
     with(|p| {
-        let w = p.walks.entry(walk).or_default();
+        let w = p.walks.entry((walk, origin)).or_default();
         w.calls += 1;
         w.time += dt;
     });
@@ -398,23 +458,52 @@ pub(super) fn session_done(nodes: usize, atoms: usize) {
     });
 }
 
+/// The kids' sizes over one `(cause, op)` class of freezes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FreezeSummary {
+    /// Freezes in the class.
+    pub count: u64,
+    /// Kid slots summarised (up to two per freeze).
+    pub kids: u64,
+    /// The smallest and largest kid total degree, `None` with no kid.
+    pub degree_range: Option<(u32, u32)>,
+    /// The sum of kid total degrees (for the mean).
+    pub degree_sum: u64,
+    /// The fewest and most kid terms (numerator plus denominator),
+    /// `None` with no kid.
+    pub terms_range: Option<(u64, u64)>,
+    /// The sum of kid terms (for the mean).
+    pub terms_sum: u64,
+}
+
+fn widen<T: Ord + Copy>(range: Option<(T, T)>, v: T) -> Option<(T, T)> {
+    Some(range.map_or((v, v), |(lo, hi)| (lo.min(v), hi.max(v))))
+}
+
 impl SymProfile {
-    /// Freezes by `(cause, op)`, with the kids' total degrees and term
-    /// counts summarised: `(count, min degree, max degree, min terms,
-    /// max terms)` over every kid slot at those freezes.
+    /// The name of an op the profile saw, by its tag; `"?"` for an
+    /// unrecorded node or a tag it never saw.
     #[must_use]
-    pub fn freezes_by_cause(&self) -> BTreeMap<(FreezeCause, &'static str), FreezeSummary> {
-        let mut out: BTreeMap<(FreezeCause, &'static str), FreezeSummary> = BTreeMap::new();
+    pub fn op_name(&self, op: Option<u64>) -> &str {
+        op.and_then(|t| self.ops.get(&t))
+            .map_or("?", |o| o.op.as_str())
+    }
+
+    /// Freezes by `(cause, op name)`, with the kids' total degrees and
+    /// term counts summarised over every kid slot at those freezes.
+    #[must_use]
+    pub fn freezes_by_cause(&self) -> BTreeMap<(FreezeCause, String), FreezeSummary> {
+        let mut out: BTreeMap<(FreezeCause, String), FreezeSummary> = BTreeMap::new();
         for f in &self.freezes {
-            let s = out.entry((f.cause, f.op)).or_default();
+            let s = out
+                .entry((f.cause, self.op_name(f.op).to_owned()))
+                .or_default();
             s.count += 1;
             for k in f.kids.into_iter().flatten() {
                 let d = degree(k);
                 let t = terms(k);
-                s.min_degree = s.min_degree.min(d);
-                s.max_degree = s.max_degree.max(d);
-                s.min_terms = s.min_terms.min(t);
-                s.max_terms = s.max_terms.max(t);
+                s.degree_range = widen(s.degree_range, d);
+                s.terms_range = widen(s.terms_range, t);
                 s.degree_sum += u64::from(d);
                 s.terms_sum += t;
                 s.kids += 1;
@@ -423,76 +512,63 @@ impl SymProfile {
         out
     }
 
-    /// Frozen nodes in total, every walk.
+    /// Frozen nodes in total, every walk and origin.
     #[must_use]
     pub fn frozen(&self) -> u64 {
         self.freezes.len() as u64
     }
-}
 
-/// The kids' sizes over one `(cause, op)` class of freezes.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct FreezeSummary {
-    /// Freezes in the class.
-    pub count: u64,
-    /// Kid slots summarised (up to two per freeze).
-    pub kids: u64,
-    /// The smallest kid total degree.
-    pub min_degree: u32,
-    /// The largest kid total degree.
-    pub max_degree: u32,
-    /// The sum of kid total degrees (for the mean).
-    pub degree_sum: u64,
-    /// The fewest kid terms (numerator plus denominator).
-    pub min_terms: u64,
-    /// The most kid terms.
-    pub max_terms: u64,
-    /// The sum of kid terms (for the mean).
-    pub terms_sum: u64,
-}
-
-impl Default for FreezeSummary {
-    fn default() -> Self {
-        Self {
-            count: 0,
-            kids: 0,
-            min_degree: u32::MAX,
-            max_degree: 0,
-            degree_sum: 0,
-            min_terms: u64::MAX,
-            max_terms: 0,
-            terms_sum: 0,
-        }
+    /// Freezes whose cause no refusal site noted — zero unless a hook
+    /// is missing.
+    #[must_use]
+    pub fn unnoted(&self) -> u64 {
+        self.freezes
+            .iter()
+            .filter(|f| f.cause == FreezeCause::Unnoted)
+            .count() as u64
     }
-}
 
-fn mean(sum: u64, n: u64) -> f64 {
-    if n == 0 { 0.0 } else { sum as f64 / n as f64 }
-}
+    /// One walk's totals summed over every origin.
+    #[must_use]
+    pub fn walk(&self, walk: Walk) -> WalkProfile {
+        let mut out = WalkProfile::default();
+        for ((w, _), p) in &self.walks {
+            if *w == walk {
+                out.absorb(*p);
+            }
+        }
+        out
+    }
 
-impl core::fmt::Display for SymProfile {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        writeln!(
+    /// The tables, as text: totals; each walk by origin; the early
+    /// walk's inner clocks; the ring; per op; freezes by cause and op.
+    #[must_use]
+    pub fn render(&self) -> String {
+        use core::fmt::Write as _;
+        let mut f = String::new();
+        let _ = writeln!(
             f,
-            "sessions {}  nodes {}  atoms {}  frozen {}",
+            "sessions {}  nodes {}  atoms {}  frozen {}  unnoted {}",
             self.sessions,
             self.nodes,
             self.atoms,
-            self.frozen()
-        )?;
-        writeln!(f, "walk   | calls | forms | frozen | time")?;
-        for (w, p) in &self.walks {
-            writeln!(
+            self.frozen(),
+            self.unnoted()
+        );
+        let _ = writeln!(f, "walk   | origin     | calls | forms | frozen | time");
+        for ((w, o), p) in &self.walks {
+            let _ = writeln!(
                 f,
-                "{:6} | {:5} | {:5} | {:6} | {:?}",
+                "{:6} | {:10} | {:5} | {:5} | {:6} | {:?}",
                 format!("{w:?}"),
+                format!("{o:?}"),
                 p.calls,
                 p.forms,
                 p.frozen,
                 p.time
-            )?;
+            );
         }
-        writeln!(
+        let _ = writeln!(
             f,
             "early: reduce_steps {} calls {:?}; trig::fold {} calls {:?}; top reduce {} calls {:?}",
             self.reduce.calls,
@@ -501,22 +577,24 @@ impl core::fmt::Display for SymProfile {
             self.trig.time,
             self.reduce_top.calls,
             self.reduce_top.time
-        )?;
-        writeln!(
+        );
+        let _ = writeln!(
             f,
             "ring: rat ops {}  big-path int ops {}  promotions {}  widest coefficient kept {} bits, refused {} bits",
             self.rat_ops, self.big_ops, self.promotions, self.widest_bits, self.widest_refused_bits
-        )?;
-        writeln!(
+        );
+        let _ = writeln!(
             f,
             "op       | built | frozen | terms in->out (mean) | degree in->out (mean) | max terms | max degree"
-        )?;
-        for (op, o) in &self.ops {
+        );
+        let mut ops: Vec<&OpProfile> = self.ops.values().collect();
+        ops.sort_by(|a, b| a.op.cmp(&b.op));
+        for o in ops {
             let n = o.built + o.frozen;
-            writeln!(
+            let _ = writeln!(
                 f,
                 "{:8} | {:5} | {:6} | {:8.1} -> {:8.1} | {:6.1} -> {:6.1} | {:9} | {:10}",
-                op,
+                o.op,
                 o.built,
                 o.frozen,
                 mean(o.terms_in, n),
@@ -525,31 +603,54 @@ impl core::fmt::Display for SymProfile {
                 mean(o.degree_out, o.built),
                 o.max_terms_out,
                 o.max_degree_out
-            )?;
+            );
         }
         if !self.freezes.is_empty() {
-            writeln!(
+            let mut by_origin: BTreeMap<(Origin, Walk, FreezeCause), u64> = BTreeMap::new();
+            for site in &self.freezes {
+                *by_origin
+                    .entry((site.origin, site.walk, site.cause))
+                    .or_default() += 1;
+            }
+            let _ = writeln!(f, "freezes by origin | walk | cause | count");
+            for ((o, w, c), n) in by_origin {
+                let _ = writeln!(
+                    f,
+                    "{:10} | {:6} | {:12} | {:5}",
+                    format!("{o:?}"),
+                    format!("{w:?}"),
+                    format!("{c:?}"),
+                    n
+                );
+            }
+            let _ = writeln!(
                 f,
                 "freeze cause | op       | count | kid degree min/mean/max | kid terms min/mean/max"
-            )?;
+            );
             for ((cause, op), s) in self.freezes_by_cause() {
-                writeln!(
+                let (dlo, dhi) = s.degree_range.unwrap_or((0, 0));
+                let (tlo, thi) = s.terms_range.unwrap_or((0, 0));
+                let _ = writeln!(
                     f,
                     "{:12} | {:8} | {:5} | {:3} / {:6.1} / {:3} | {:4} / {:7.1} / {:4}",
                     format!("{cause:?}"),
                     op,
                     s.count,
-                    if s.kids == 0 { 0 } else { s.min_degree },
+                    dlo,
                     mean(s.degree_sum, s.kids),
-                    s.max_degree,
-                    if s.kids == 0 { 0 } else { s.min_terms },
+                    dhi,
+                    tlo,
                     mean(s.terms_sum, s.kids),
-                    s.max_terms
-                )?;
+                    thi
+                );
             }
         }
-        Ok(())
+        f
     }
+}
+
+fn mean(sum: u64, n: u64) -> f64 {
+    if n == 0 { 0.0 } else { sum as f64 / n as f64 }
 }
 
 #[cfg(test)]
@@ -559,7 +660,7 @@ mod tests {
     use crate::k_stats::decide;
     use crate::predicate::Margin;
     use crate::real::Real;
-    use crate::sym::{ParamSymbol, Sym, SymRules, with_session_rules};
+    use crate::sym::{Int, ParamSymbol, Rat, Sym, SymRules, with_session_rules};
     use crate::tolerance::Tol;
 
     fn p(name: &str, v: f64) -> Sym<f64> {
@@ -586,55 +687,74 @@ mod tests {
         take_profile()
     }
 
-    /// Every freeze as `(cause, op, walk)`. A node the plain walk
-    /// freezes is frozen AGAIN by the early walk (a second memo, the
-    /// same refusal), so under the shipped rules a freeze appears
+    /// Every freeze as `(cause, op, walk, origin)`. A node the plain
+    /// walk freezes is frozen AGAIN by the early walk (a second memo,
+    /// the same refusal), so under the shipped rules a freeze appears
     /// once per walk — which is why this profile's `frozen()` is not
     /// `SymCounts::frozen`, the plain walk's count alone.
-    fn causes(p: &SymProfile) -> Vec<(FreezeCause, &'static str, Walk)> {
-        p.freezes.iter().map(|f| (f.cause, f.op, f.walk)).collect()
+    fn causes(p: &SymProfile) -> Vec<(FreezeCause, String, Walk, Origin)> {
+        p.freezes
+            .iter()
+            .map(|f| (f.cause, p.op_name(f.op).to_owned(), f.walk, f.origin))
+            .collect()
     }
 
-    /// **Uninstalled, the profile records nothing** — the hooks are one
-    /// flag read, and a session run before `start_profile` leaves no
-    /// trace in what a later `take_profile` answers.
+    fn per_walk(cause: FreezeCause, op: &str) -> Vec<(FreezeCause, String, Walk, Origin)> {
+        vec![
+            (cause, op.to_owned(), Walk::Plain, Origin::Decision),
+            (cause, op.to_owned(), Walk::Early, Origin::Decision),
+        ]
+    }
+
+    /// **Uninstalled, the hooks record nothing**: with the profile taken
+    /// (not installed), a session that freezes, promotes and walks
+    /// leaves the next `take_profile` empty — a hook that wrote while
+    /// inactive would show here, because nothing resets the store
+    /// between the two takes.
     #[test]
     fn nothing_is_recorded_while_uninstalled() {
-        let _ = with_session_rules(budget(4096, 128), SymRules::shipped(), || {
-            ask(p("x", 1.0) * p("y", 2.0) - p("y", 2.0) * p("x", 1.0));
+        let _ = take_profile();
+        let _ = with_session_rules(budget(3, 128), SymRules::shipped(), || {
+            let (x, y) = (p("x", 1.0), p("y", 2.0));
+            ask((x + y) * (x - y));
         });
-        start_profile();
         let out = take_profile();
-        assert_eq!(out.sessions, 0, "{out:?}");
-        assert!(out.ops.is_empty() && out.freezes.is_empty(), "{out:?}");
+        assert_eq!(out.sessions, 0, "{}", out.render());
+        assert!(out.ops.is_empty(), "{}", out.render());
+        assert!(
+            out.walks.is_empty() && out.freezes.is_empty(),
+            "{}",
+            out.render()
+        );
+        assert_eq!((out.rat_ops, out.big_ops, out.widest_bits), (0, 0, 0));
     }
 
     /// **A product past the term budget freezes for `Terms`**, on the
     /// `Mul` that asked for it, with the kids' sizes at the freeze —
     /// `(x + y)·(x − y)` has four candidate terms and a budget of three
-    /// refuses it before it is built.
+    /// refuses it before it is built. At `x = y` the margin is
+    /// numerically zero, so it is the DECISION that asks the form.
     #[test]
     fn a_term_budget_refusal_is_a_terms_freeze_on_the_product() {
         let out = profiled(budget(3, 128), || {
-            let (x, y) = (p("x", 1.0), p("y", 2.0));
+            let (x, y) = (p("x", 1.0), p("y", 1.0));
             ask((x + y) * (x - y));
         });
         assert_eq!(out.sessions, 1);
         assert_eq!(
             causes(&out),
-            vec![
-                (FreezeCause::Terms, "Mul", Walk::Plain),
-                (FreezeCause::Terms, "Mul", Walk::Early),
-            ],
-            "{out}"
+            per_walk(FreezeCause::Terms, "Mul"),
+            "{}",
+            out.render()
         );
         let site = out.freezes[0];
         assert_eq!(site.kids[0].unwrap().num, (2, 1), "x + y");
         assert_eq!(site.kids[1].unwrap().num, (2, 1), "x − y");
-        assert_eq!(out.ops["Mul"].frozen, 2, "once per walk");
-        assert_eq!(out.walks[&Walk::Plain].frozen, 1);
-        assert_eq!(out.walks[&Walk::Early].frozen, 1);
+        assert_eq!(out.ops[&SymOp::Mul.tag()].frozen, 2, "once per walk");
+        assert_eq!(out.walk(Walk::Plain).frozen, 1);
+        assert_eq!(out.walk(Walk::Early).frozen, 1);
         assert_eq!(out.frozen(), 2);
+        assert_eq!(out.unnoted(), 0);
     }
 
     /// **A product past the degree budget freezes for `Degree`** —
@@ -643,20 +763,21 @@ mod tests {
     #[test]
     fn a_degree_budget_refusal_is_a_degree_freeze_with_the_kids_degrees() {
         let out = profiled(budget(4096, 2), || {
-            let x = p("x", 1.0);
+            // Numerically zero, so the decision asks the form.
+            let x = p("x", 0.0);
             ask(x * x * x);
         });
         assert_eq!(
             causes(&out),
-            vec![
-                (FreezeCause::Degree, "Mul", Walk::Plain),
-                (FreezeCause::Degree, "Mul", Walk::Early),
-            ],
-            "{out}"
+            per_walk(FreezeCause::Degree, "Mul"),
+            "{}",
+            out.render()
         );
         let site = out.freezes[0];
         let degrees: Vec<u32> = site.kids.iter().flatten().map(|k| k.num.1).collect();
         assert_eq!(degrees, vec![2, 1]);
+        let s = out.freezes_by_cause()[&(FreezeCause::Degree, "Mul".to_owned())];
+        assert_eq!(s.degree_range, Some((1, 2)));
     }
 
     /// **A coefficient past the ring's bound freezes for
@@ -669,40 +790,90 @@ mod tests {
             // Minted INSIDE the session: a literal built before it is
             // not in the session's table and freezes as `Unrecorded`.
             let m = Sym::<f64>::from_f64(9_007_199_254_740_991.0);
-            let x = p("x", 1.0);
+            // Numerically zero, so the decision asks the form.
+            let x = p("x", 0.0);
             ask(x * m * m * m * m * m);
         });
         assert_eq!(
             causes(&out),
-            vec![
-                (FreezeCause::Coefficient, "Mul", Walk::Plain),
-                (FreezeCause::Coefficient, "Mul", Walk::Early),
-            ],
-            "{out}"
+            per_walk(FreezeCause::Coefficient, "Mul"),
+            "{}",
+            out.render()
         );
-        assert_eq!(out.widest_refused_bits, 265, "{out}");
-        assert_eq!(out.widest_bits, 212, "four mantissas: {out}");
-        assert!(out.promotions >= 1, "the third product leaves i128: {out}");
+        assert_eq!(out.widest_refused_bits, 265, "{}", out.render());
+        assert_eq!(out.widest_bits, 212, "four mantissas: {}", out.render());
+        assert!(
+            out.promotions >= 1,
+            "the third product leaves i128: {}",
+            out.render()
+        );
     }
 
-    /// **The walks and the ring are counted**: a theorem asked of the
-    /// plain form is one plain-walk call with its forms, no early walk,
-    /// and every `Rat` operation the forms took.
+    /// **The walks and the ring are counted, and a walk knows its
+    /// origin**: a theorem asked of the plain form is one plain-walk
+    /// call under `Decision` with its forms and no early walk; a
+    /// definite margin's forms are the ASSERTION's, under debug
+    /// assertions, and are charged to it.
     #[test]
-    fn the_walks_and_the_ring_are_counted() {
+    fn the_walks_and_the_ring_are_counted_by_origin() {
         let out = profiled(budget(4096, 128), || {
             let (x, y) = (p("x", 1.0), p("y", 2.0));
             ask(x * y - y * x);
         });
-        let plain = out.walks[&Walk::Plain];
+        let plain = out.walks[&(Walk::Plain, Origin::Decision)];
         assert_eq!(plain.calls, 1);
         // x, y, x·y, y·x and the difference: five nodes, five forms.
-        assert_eq!(plain.forms, 5, "{out}");
-        assert!(!out.walks.contains_key(&Walk::Early), "{out}");
-        assert_eq!(out.ops["Mul"].built, 2);
-        assert_eq!(out.ops["Sub"].built, 1);
+        assert_eq!(plain.forms, 5, "{}", out.render());
+        assert!(
+            out.walks
+                .keys()
+                .all(|(w, o)| *w == Walk::Plain && *o == Origin::Decision),
+            "{}",
+            out.render()
+        );
+        assert_eq!(out.ops[&SymOp::Mul.tag()].built, 2);
+        assert_eq!(out.ops[&SymOp::Sub.tag()].op, "Sub");
         assert_eq!(out.nodes, 5);
-        assert!(out.rat_ops > 0 && out.promotions == 0, "{out}");
+        assert!(out.rat_ops > 0 && out.promotions == 0, "{}", out.render());
         assert_eq!(out.frozen(), 0);
+
+        // A definite sign: the decision path builds no form; the
+        // contradiction assertion does (dev and test profiles), and the
+        // profile charges every walk it asks to `Assertion`.
+        let out = profiled(budget(4096, 128), || {
+            let (x, y) = (p("x", 1.0), p("y", 2.0));
+            ask(x * y + y * x);
+        });
+        let decision = out.walks.keys().any(|(_, o)| *o == Origin::Decision);
+        assert!(!decision, "{}", out.render());
+        if cfg!(debug_assertions) {
+            assert_eq!(
+                out.walks[&(Walk::Plain, Origin::Assertion)].forms,
+                5,
+                "{}",
+                out.render()
+            );
+            assert_eq!(
+                out.walks[&(Walk::Early, Origin::Assertion)].calls,
+                1,
+                "{}",
+                out.render()
+            );
+        } else {
+            assert!(out.walks.is_empty(), "{}", out.render());
+        }
+    }
+
+    /// **A zero divisor is a noted cause**: a rational with a zero
+    /// denominator (`Rat::from_parts`, the reciprocal of a zero
+    /// coefficient) notes `ZeroDivisor`, so no freeze it causes reads
+    /// as `Unnoted`.
+    #[test]
+    fn a_zero_denominator_is_noted_as_a_zero_divisor() {
+        start_profile();
+        clear_note();
+        assert!(Rat::from_parts(Int::one(), Int::zero(), 0).is_none());
+        assert_eq!(NOTE.get(), Some(FreezeCause::ZeroDivisor));
+        let _ = take_profile();
     }
 }
