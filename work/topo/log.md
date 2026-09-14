@@ -957,3 +957,12 @@ and the byte drawn only after this entry is committed:
 Held: the periodic-chart wrap under `revert` and the half-edge-minting
 ops' pcurve posture (the bound ripple is Ev's question, added to the
 open `[ev]` PR's scope at its next revision).
+
+## Block TOPO-B3 drawn; slots 0 and 1 dispatched (2026-09-14)
+
+Byte drawn after the pre-draw entry was committed (`daa30ee99`): 19
+⇒ 19 mod 3 = 1 ⇒ fable at slot 1. Record branch-side on
+`topo/b3-block`. Slot 0 (`loop-reparenting-…`, `topo/loop-reparenting-rows`)
+and slot 1 (`D263`, `topo/d263-placeholder-regime`) dispatched
+together with brief sections in their items; slot 2 (`S93`)
+dispatches when one frees. Seam announced to TRIM (two posture notes).
