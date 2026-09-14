@@ -507,14 +507,14 @@ fn link_half_edges_still_announces_rather_than_discards() {
     );
 }
 
-/// **D107's claim on the standard matrix**, which is where the two
-/// hammer rows are not: they are `cfg(not(debug_assertions))` and run in
+/// **The `kemr` coverage claim on the standard matrix**, which is where
+/// the two hammer rows are not: they are `cfg(not(debug_assertions))` and run in
 /// one job, and until this row the fact that `kemr` reaches a mutation
 /// phase at all was carried only by a printed exposure line that a
 /// passing test's captured stdout never shows. This states it in one
 /// call, profile-independently, and states its converse too.
 ///
-/// The converse is the half that explains S161: it is not that the
+/// The converse is the half that explains the gap: it is not that the
 /// sweep drew too few samples, it is that a cube has no input for
 /// `kemr` at all. Every mate pair of every cube edge — both argument
 /// orders — refuses at `NotSameLoop`, because a closed cube's every
@@ -737,7 +737,7 @@ const CALLS: &str = "operator calls";
 /// distinct faces, so its halves sit in two loops and the plan phase
 /// refuses at `NotSameLoop` — a structural fact about the fixture, not
 /// a sampling shortfall, which is why the gap survived a sweep of
-/// ~1900 `kemr` calls (S161 / D107).
+/// ~1900 `kemr` calls.
 /// [`crate::fixtures::ops_ring_bridge`] is the holed box with its hole
 /// rim joined back into the top face's outer loop by one `mekr`: the
 /// bridge edge has both halves in that loop, both sides of the split
@@ -991,9 +991,9 @@ fn torn_bodies_never_reach_a_row_four_unreachable() {
             fuzz::replay()
         ),
     );
-    // `kemr` BY NAME, under the slack. It is the operator D107 bought
-    // and the only one whose mutation phase needs a fixture the sweep
-    // would not otherwise build: drop [`crate::fixtures::ops_ring_bridge`]
+    // `kemr` BY NAME, under the slack. It is the only operator here
+    // whose mutation phase needs a fixture the sweep would not otherwise
+    // build: drop [`crate::fixtures::ops_ring_bridge`]
     // from [`FIXTURES`], or let the mate-pair enumeration in [`hammer`]
     // go back to arbitrary pairs, and `kemr` silently returns to 0 while
     // the floor above still passes on the other five.
@@ -1002,8 +1002,8 @@ fn torn_bodies_never_reach_a_row_four_unreachable() {
         1,
         &format!(
             "`kemr` entered no mutation phase in the whole sweep, so its two \
-             `link_half_edges` splices are attacked by nothing and this row is back \
-             where S161 found it — {}",
+             `link_half_edges` splices are attacked by nothing and this row asserts \
+             nothing about them — {}",
             fuzz::replay()
         ),
     );
