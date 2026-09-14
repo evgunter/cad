@@ -1374,6 +1374,8 @@ pub fn with_session_rules<R>(
             counts: SymCounts::default(),
         });
     });
+    #[cfg(feature = "sym-profile-testing")]
+    profile::session_start();
     let out = f();
     let sess = SESSION.with(|s| s.borrow_mut().take());
     #[cfg(feature = "sym-profile-testing")]
@@ -1742,6 +1744,10 @@ fn form_in(
             #[cfg(feature = "sym-profile-testing")]
             profile::record_unrecorded(profile::Walk::of(early, registry));
             let f = frozen(sess, id);
+            #[cfg(feature = "sym-profile-testing")]
+            if !early && !registry {
+                profile::record_plain_id(id.bits());
+            }
             memo.insert(id, f);
             continue;
         };
@@ -1829,6 +1835,10 @@ fn form_in(
             Some(p) => Rc::new(p),
             None => frozen(sess, id),
         };
+        #[cfg(feature = "sym-profile-testing")]
+        if !early && !registry {
+            profile::record_plain_id(id.bits());
+        }
         memo.insert(id, f);
     }
     memo.get(&root)
@@ -2115,6 +2125,8 @@ impl<T> Sym<T> {
             c.set(n.wrapping_add(1));
             n
         });
+        #[cfg(feature = "sym-profile-testing")]
+        profile::record_opaque(indet_opaque(seq));
         Self::nullary(value, SymOp::Opaque, seq)
     }
 
