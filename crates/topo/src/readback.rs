@@ -429,10 +429,7 @@ pub fn vertex_point_ref<T: Real>(
 /// readings of one edge's geometry, which is the thing the layering
 /// note above forbids, one level down from the crate boundary it
 /// names.
-fn certified_carrier<T: Real>(
-    body: &Body<T>,
-    edge: EdgeKey,
-) -> Result<&Curve3<T>, ReadbackError> {
+fn certified_carrier<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<&Curve3<T>, ReadbackError> {
     let e = body.get_edge(edge).ok_or(ReadbackError::Dangling {
         what: DanglingRef::Entity(EntityId::Edge(edge)),
     })?;
