@@ -366,7 +366,7 @@ pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, S
 pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
 };
-pub use source::{GeomSource, Or, SourceAttachError, SourceExpr};
+pub use source::{GeomOrigin, GeomSource, Or, SourceAttachError, SourceExpr};
 pub use split::SplitEdgeCreated;
 pub use splitting::{
     ArcWindowCase, LoopContainment, NullEdgeRecord, PlaneSide, PointInLoopError, Section,

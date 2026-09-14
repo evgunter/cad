@@ -6,6 +6,7 @@ status: dispatched
 opened: 2026-09-12
 refs: [2404]
 branch: topo/geom-source-typed-absence
+pr: 2576
 ---
 
 
