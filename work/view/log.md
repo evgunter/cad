@@ -11260,3 +11260,57 @@ fit `onto`, whose counterpart is a *value*, because both
 macro doc stating the restriction and naming the site.
 
 **VIEW stands at 72 open / 91 closed, nothing waiting on Ev.**
+
+## 2026-09-14 — `ui-thread-work-after-the-index-seam`, hit (1) taken
+
+**One of three, and the other two re-stated from a stopwatch rather
+than from a shape.** The item said each hit was its own decision; the
+lane took (1), the display budget's probe tessellation, and measured
+all three before choosing.
+
+**(1) moved onto a third worker.** `evalseam` gains `FitService`,
+`FitRequest`/`FitSubject`/`FitDone`, `InlineFitter` and `ThreadFitter`
+beside the two seams it had — the index seam's shape exactly, keyed by
+generation alone because the δ is the request's ANSWER. The ordering
+the item asked about turned out to be **load-bearing**: the index is
+built at the δ the fit chooses, so it has to wait for it.
+`PickCache::sync`'s δ became an `Option`, and an unsettled one takes
+the same nothing-to-index way out the nothing-landed arm takes —
+forgetting the held index, so *current or absent, never behind* is
+unchanged in the new window. Making it an `Option` rather than an `if`
+at the call site is the point: the un-budgeted build cannot be
+submitted by forgetting to write the guard.
+
+**Measured, release, over `viewer`'s own corpus.** The ladder costs
+**0.10–0.13 of a full tessellation** on every document dense enough to
+matter — this file's "about an eighth" confirmed with an instrument —
+which is 118 ms (`loft_prism`), 116 ms (`tube_ring`), 64 ms
+(`hollow_tube_ring`) of frozen window at 1e-5, and is what makes 6b's
+6.5 s `hollowring` row the ~0.8 s the item recorded.
+
+**The ranking the item guessed is inverted.** It said "(2) and (3) in
+particular could be milliseconds". (3) is: `DocSession::land` is under
+6 ms on 27 of 28 corpus documents, one outlier at 197 ms. **(2) is the
+biggest of the three by an order of magnitude** — `scene_focused` over
+an already-built index reads **5 123 ms** on `hollow_tube_ring` at
+1e-5, 2 322 ms on `tube_ring`, 1 682 ms on `loft_prism` — and it runs
+per HIDE and per FOCUS change rather than once per document. It is
+also **ten times a full tessellation of the same body**, which is the
+part a taker should chase before assuming the answer is a seam: at
+~5 µs per triangle, a corner-copy-and-normal walk is not doing what it
+looks like it is doing.
+
+**Two citations repointed as the orchestrator said** — `fit_delta` at
+`scene.rs:1094` (was `:994-1000`), `scene_focused` at
+`pickindex.rs:941` (was `:894`); subjects present at both new numbers.
+`build_parts_focused` at `scene.rs:439` and `DocSession::land` at
+`session.rs:966` were exact.
+
+**Filed out of the way:** `crates/viewer/README.md`'s "23 hits" sweep
+count reads 24 under a mechanical re-take of its own words, on
+`origin/main` and before this change —
+`viewer-readme-multi-field-write-sweep-count-does-not-reproduce`.
+
+**VIEW stands at 73 open / 91 closed, nothing waiting on Ev** — 72
+before this lane, plus the sweep-count row above. The item itself stays
+OPEN: one hit of three is done.

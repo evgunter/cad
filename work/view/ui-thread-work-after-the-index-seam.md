@@ -93,3 +93,83 @@ path, at the fit's own call site (`scene::product_of_evaluation`, in
 runs once per opened document rather than per landing — but it is a
 gather on the UI thread, so it belongs on this list rather than only in
 `refused-a5-gate-eats-the-body-the-fit-then-regathers`.
+
+## Hit (1) is DONE (2026-09-14) — and the other two are MEASURED
+
+The lane took hit (1) only, and measured all three first. Method:
+release build, `viewer`'s own corpus (`tests/corpus`), each document
+landed through `DocSession::inline` and then timed at the two δ the
+budget rows use (1e-4 and 1e-5). The numbers below are one machine's;
+what they are for is RANKING the three, which is what the item asked a
+taker to do.
+
+### (1) — moved, and the ordering was load-bearing
+
+`scene::fit_delta` (now `crates/viewer/src/scene.rs:1094`, not the
+`:994-1000` recorded above) runs on a **third worker**: `evalseam`'s
+`FitService` / `FitRequest` / `FitDone`, with `InlineFitter` and
+`ThreadFitter` beside the two seams that were there. `app.rs`'s fit
+block submits and `ViewerApp::take_fit` takes.
+
+The ordering WAS load-bearing, and that is what made the fix bigger
+than a `spawn`: the fit's answer is the δ the index is built at, so the
+index cannot be submitted while a fit is outstanding without paying the
+un-budgeted build the budget exists to avoid. `PickCache::sync` now
+takes an `Option<DisplayTolerance>` and an unsettled δ takes the
+nothing-to-index way out, which drops the previous document's index in
+that window exactly as a submit would.
+
+Measured cost of the ladder, which is what stopped being on the frame:
+**118 ms** (`loft_prism`, 1e-5), **116 ms** (`tube_ring`), **64 ms**
+(`hollow_tube_ring`). The ratio to a full tessellation of the same body
+is **0.10–0.13** across every document dense enough to matter, which
+reproduces this file's "about an eighth" as a measurement rather than
+an estimate — and is what makes 6b's 6.5 s `hollowring` row the ~0.8 s
+of frozen window recorded above.
+
+The gather on the refused-A5-gate path went with it: the fit request's
+`FitSubject::Ungathered` arm names the pair and the WORKER gathers.
+`refused-a5-gate-eats-the-body-the-fit-then-regathers` still owns the
+double gather itself; what is settled here is only where it runs.
+
+### (2) is the BIGGEST of the three, by an order of magnitude — still open
+
+`PickIndex::scene_focused` is at `crates/viewer/src/pickindex.rs:941`,
+not the `:894` recorded above; `SceneMesh::build_parts_focused` is at
+`scene.rs:439` as recorded.
+
+The guess above — "(2) and (3) in particular could be milliseconds" —
+is **false for (2)**. Timed over an index already built, at 1e-5:
+
+| document | `scene_focused` |
+| --- | --- |
+| `hollow_tube_ring` | **5 123 ms** |
+| `tube_ring` | 2 322 ms |
+| `loft_prism` | 1 682 ms |
+| `hollow_tube_elbow` | 205 ms |
+| `die_composed_tour` | 132 ms |
+
+At 1e-4 the same documents read 82 / 38 / 39 / 16 / 8 ms. This runs on
+every HIDE and every FOCUS change over an index that is already
+current, so unlike (1) it is not once per document — it is once per
+interaction, and it is **ten times a full tessellation of the same
+body** (`hollow_tube_ring` tessellates in 511 ms).
+
+**That ratio is the thing a taker should chase first.** The step is a
+linear walk that copies corners and computes one normal per triangle;
+at ~5 µs per triangle it is far more expensive than a copy loop can
+account for, so *where the time goes* is an open question and not
+obviously answered by moving the walk to a worker. Two candidates
+worth separating before choosing a seam: the index holds a mesh per
+(node, body) rather than one for the product, so the walk may be over
+several times the product's triangles; and the per-triangle work
+itself may be doing more than it looks.
+
+### (3) is the SMALLEST of the three — still open, and smaller than recorded
+
+`DocSession::land` is at `crates/viewer/src/session.rs:966` as
+recorded. Timed as one call on the landing frame: **under 6 ms on 27 of the 28
+corpus documents that gather**, with one outlier at **197 ms**
+(`loft_prism`). It does not depend on δ. So the class is real and the
+instance is small: a row worth keeping for the outlier, not a frozen
+window.
