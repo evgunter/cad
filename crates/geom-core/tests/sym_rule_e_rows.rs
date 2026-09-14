@@ -178,7 +178,7 @@ fn the_shared_factor_folded_where_it_vanishes_is_refused_by_clause_one() {
             let x = p("x", x0);
             let a = p("a", 3.0);
             let b = p("b", 5.0);
-            ((x.clone() * a.clone()) / (x * b.clone())).sqrt() - (a / b).sqrt()
+            ((x * a) / (x * b)).sqrt() - (a / b).sqrt()
         }
     };
     assert_eq!(
