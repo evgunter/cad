@@ -6300,6 +6300,58 @@ implementer's warm one (its incremental cache dropped for disk), R2's
 is another lane's warm workspace build at a different head —
 wall-clock asymmetry only.
 
+Revert-wrap row, recorded AT MERGE (2026-09-14, merge `cbf5d1a49`, PR
+#2573; `work/topo/revert-leaves-a-periodic-charts-loop-wrap-mid-chain.md`
+CLOSED at this merge): `Body::revert` moves every loop's `Cycle::first`
+to its source predecessor so a periodic chart's one-period wrap, which
+the walk can only report at the closure joint, stays at the closure
+once the cycle runs the other way — no row touched, no re-certification,
+the involution proved by the prev/next swap; the invariant stated at
+`LoopBoundary::Cycle` and in `transform.rs`'s reversal tripwire; the
+plan phase resolves and refuses a dead `prev` typed. Difficulty **M**,
+task class NUMERIC (logged before the block draw — clean). Implementer
+arm **FABLE** (block TOPO-B4 slot 1, byte 223); the lane was killed by
+a container restart ten minutes in and relaunched on its own recovered
+WIP (a phase-1 probe, no fix) — one arm, disclosed in the claim.
+**DUAL: ordinal 2709; sample #194 (ledger max #193 at this writing;
+main's merge order rules if a concurrent recorder collides); byte 12
+parity 0 ⇒ R1 OPUS + R2 FABLE; CONCURRENT same-head on frozen
+`725d3c204`; briefs stored with sha256 before dispatch, identical
+modulo lane paths (diff 4 lines).** R1 MERGEABLE-AFTER-FIXES, counts
+2/4/5, rubric idiom 4 / tests 3 / docs 3. R2 MERGEABLE-AFTER-FIXES,
+counts 1/4/6, rubric 4/4/3. **No unilateral MAJOR.** CONVERGED on the
+central finding, both by execution: the PR's account of the census
+golden re-cut ("same multiset, same answers, different order") was
+false — both dumped `voided_rod`'s forty verdicts and diffed them as
+multisets; four changed SIGN (`props_rim_side`, `props_rim_dir_group`,
+two each; the readings compensated by the flux) — doc/claim class,
+excluded per instrument 3b and recorded. Converged, severity divergent
+(R1 MAJOR, R2 MINOR): the anchor's new meaning written only in
+`revert.rs` while the type said it carries none and the reversal
+tripwire listed only `sense` — the fresh-instance shape. Converged
+(Q1): the plane/curved partition two rules where one would do — R1's
+mutant re-anchoring every loop left the planar battery and census
+green, so nothing but the lane's own assertion observed it; the fix
+pass took the uniform rule and two STEP fixtures moved (entity and
+line counts and id-stripped line multisets identical). R1 unique,
+MINOR, executed: the plan phase pushed `.prev` unresolved (a planted
+dead key reached the debug postcondition, no typed `Corrupt`);
+`chart_boundary`'s torus lever unpinned under the anchor move. R2
+unique: the `first`-as-ORDER receipt derived and measured (the
+17-fixture STEP corpus exported byte-identical on both trees; the two
+duplicated fixtures; the `1e-9` literal in a test reader). Brief
+corrections by both: C4's "controls green on the merge base" was wrong
+(all seven red on the anchor assertion); the `.next =` sweep the PR
+skipped is clean. Fix pass (same arm): all nine items taken, none
+refuted; the golden account rewritten and a sorted-multiset row added
+beside the census golden; two rows filed (TINT: an ordered-FNV verdict
+channel is anchor-sensitive; PROPS: two predicates whose sign is a fact
+about cycle order). Tokens: impl ≈140k (relaunched lane), fix ≈260k,
+claim/state-sync ≈10k, R1 ≈200k, R2 ≈260k. Wall: impl ≈160 min (+10
+min lost to the restart), fix ≈105 min, R1 ≈43 min, R2 ≈105 min
+(concurrent; R2's target seeded cold). Tally after this entry:
+candidates +3, unchanged.
+
 ## SYM program rows (work/sym/; band 4700–4799; blocks named SYM-B<n>)
 
 SYM-4 review ordinal fixed at dispatch (2026-09-14, PR #2565 open —

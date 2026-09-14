@@ -2,11 +2,12 @@
 id: revert-leaves-a-periodic-charts-loop-wrap-mid-chain
 kind: unit
 title: Body::revert re-states plane rows with their frames but leaves a periodic chart's one-period loop wrap where the forward walk parked it, so tier 3 of a reverted body with such a loop reports LoopDiscontinuity
-status: dispatched
+status: closed
 opened: 2026-09-14
 refs: [revert-does-not-mirror-plane-chart-images, SHELL-9]
 branch: topo/revert-reparks-the-wrap
 pr: 2573
+closed: 2026-09-14
 ---
 
 Found by the lane that closed `revert-does-not-mirror-plane-chart-images`
