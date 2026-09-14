@@ -21,13 +21,15 @@
 //!
 //! **What this suite also RECORDS is where the lane stops**, because
 //! the stopping point is the unit's measurement and not an omission:
-//! an admitted torus pair reaches the crossing layer and refuses there
-//! at the curved-pierce frontier. Every edge a torus-walled body
-//! carries is a CIRCLE, and the circle×face clearance enclosure the
-//! frontier consults has no torus arm, so it declines before the
-//! declared-cover rung behind it can be consulted at all. Two rows
-//! below hold that boundary still, so the day the enclosure grows an
-//! arm they are what changes.
+//! an admitted torus pair reaches the crossing layer and refuses
+//! there. The enclosure the circle rung consults HAS a torus arm now
+//! (`geom_brep::circle_arc_residual_range`), so the rung no longer
+//! declines for want of one — it decides, and on a COINCIDENT pair it
+//! decides definitely-not-one-sided, because the residual is
+//! identically zero along a seam meridian and the sampled enclosure
+//! is `±charge` about it. The declared-cover rung behind it needs a
+//! `Zero` and is still never consulted. Two rows below hold that
+//! boundary, and the one that names it carries the measurement.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -419,18 +421,39 @@ fn the_admitted_torus_lane_stops_at_the_curved_pierce_frontier() {
     let err = topo::union_with(&a, &b, &decls, Tol::witness())
         .expect_err("a coincident torus pair still has no crossing verdict");
     println!("the admitted torus lane answers {err:?}");
+    // **The PROPERTY, not the variant.** Both arms of the v6 dual
+    // agreed the conservative reading is the one to pin: a coincident
+    // torus pair must never reach a validated BODY, and which typed
+    // refusal carries that is the run's band's business, not this
+    // row's. Matching on whichever the run selects made the row a
+    // restatement of the implementation rather than a claim about it.
+    assert!(
+        matches!(
+            err,
+            BooleanError::CurvedPierceUnsupported { .. } | BooleanError::Escalated { .. }
+        ),
+        "a coincident torus pair must refuse TYPED, never grant: {err:?}"
+    );
+    // And where the run's band puts the margin inside the ambiguity
+    // window, the escalation's payload is pinned — so a charge that
+    // drifts is visible here rather than silently reclassifying the
+    // refusal. The margin is the chord-dip charge on this fixture's
+    // seam meridian, which is a half meridian: 4.56e-6 m.
     let band = Band::linear(Tol::witness()).expect("the run's linear band");
-    // The chord-dip charge on this fixture's seam meridian, measured.
     const MARGIN: f64 = 4.559_414_566_271_785e-6;
-    if MARGIN >= band.escalate() {
+    if MARGIN < band.escalate() && MARGIN > band.zero() {
+        let BooleanError::Escalated { diag } = &err else {
+            panic!("inside the ambiguity band the clearance predicate escalates: {err:?}");
+        };
+        let text = format!("{diag:?}");
         assert!(
-            matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
-            "beyond the ambiguity band the rung refuses typed: {err:?}"
+            text.contains("bool_circle_curved_clearance"),
+            "the escalation must name the clearance predicate: {text}"
         );
-    } else {
         assert!(
-            matches!(err, BooleanError::Escalated { .. }),
-            "inside the ambiguity band the clearance predicate escalates: {err:?}"
+            text.contains("-4.559414566271785e-6"),
+            "and carry the measured margin, so a drifting charge is \
+             visible rather than silent: {text}"
         );
     }
 }

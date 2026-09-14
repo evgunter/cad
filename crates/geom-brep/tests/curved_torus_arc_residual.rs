@@ -26,12 +26,20 @@ use geom_brep::{
     ARC_RESIDUAL_SAMPLES, circle_arc_residual_range, circle_residual_curvature_bound,
     implicit_residual,
 };
-use geom_core::{Point3, Vec3};
+use geom_core::{Band, Point3, Tol, Vec3};
 use test_utils::fuzz;
 
 /// The step one sub-arc of a full-turn carrier spans.
 fn full_turn_step() -> f64 {
     TAU / ARC_RESIDUAL_SAMPLES as f64
+}
+
+/// The chord-dip charge, spelled once for this suite:
+/// `f2·step²/8`. `geom-brep`'s own `implicit::chord_dip_charge` is
+/// `pub(crate)`, so a test binary cannot read it; the two-homes class
+/// is `work/curved/the-chord-dip-charge-has-two-homes.md`.
+fn chord_dip(f2: f64, step: f64) -> f64 {
+    f2 * step.powi(2) * 0.125
 }
 
 /// **§PR-2's bound, transcribed independently of the implementation.**
@@ -124,14 +132,23 @@ fn a_coaxial_circle_reads_its_closed_form_residual_within_the_charge() {
     // `a_h = 0`: the circle's plane is perpendicular to the axis, so
     // the axial channel contributes nothing and the whole width is
     // the radial channel's charge.
-    let charge = f2_oracle(big_r, minor, rho_c, TAU, (rho_c, rho_c), h, 0.0)
-        * full_turn_step().powi(2)
-        * 0.125;
+    let charge = chord_dip(
+        f2_oracle(big_r, minor, rho_c, TAU, (rho_c, rho_c), h, 0.0),
+        full_turn_step(),
+    );
+    // ONE-DIRECTIONAL, deliberately. The transcription is a FLOOR on
+    // the shipped charge, never an equality: a future bound that is
+    // strictly safer (larger) is an improvement, and a row that reds
+    // on it would be defending the arithmetic rather than the
+    // soundness. The other direction — that the charge is not
+    // unboundedly loose — is carried by the dense-oracle rows in
+    // `review_m6_surgery_rider.rs` and by the tightest-ratio floor in
+    // `implicit.rs`'s arc-scoped bound row.
     let width = (hi - lo) / 2.0;
     assert!(
-        (width - charge).abs() <= 1e-9 * charge,
-        "the charge is §PR-2's bound to the last term: got {width}, the \
-         transcription says {charge}"
+        width >= charge * (1.0 - 1e-9),
+        "the charge is below §PR-2's bound: got {width}, the transcription \
+         says {charge}"
     );
 }
 
@@ -156,23 +173,27 @@ fn a_ring_plane_circle_reaches_both_closed_form_extremes() {
     let (lo, hi) =
         circle_arc_residual_range(&s, center, Vec3::unit_z(), rho_c, Vec3::unit_x(), 0.0, TAU)
             .expect("the torus arm answers");
-    let charge = f2_oracle(
-        big_r,
-        minor,
-        rho_c,
-        TAU,
-        (offset - rho_c, offset + rho_c),
-        0.0,
-        0.0,
-    ) * full_turn_step().powi(2)
-        * 0.125;
+    let charge = chord_dip(
+        f2_oracle(
+            big_r,
+            minor,
+            rho_c,
+            TAU,
+            (offset - rho_c, offset + rho_c),
+            0.0,
+            0.0,
+        ),
+        full_turn_step(),
+    );
+    // One-directional: the shipped enclosure must reach AT LEAST the
+    // transcription's charge past each closed-form extreme.
     assert!(
-        (lo - (near - charge)).abs() <= 1e-9 * charge.max(1.0),
-        "lo {lo} is not the near extreme {near} less the charge {charge}"
+        lo <= near - charge * (1.0 - 1e-9),
+        "lo {lo} does not reach the near extreme {near} less the charge {charge}"
     );
     assert!(
-        (hi - (far + charge)).abs() <= 1e-9 * charge.max(1.0),
-        "hi {hi} is not the far extreme {far} plus the charge {charge}"
+        hi >= far + charge * (1.0 - 1e-9),
+        "hi {hi} does not reach the far extreme {far} plus the charge {charge}"
     );
 }
 
@@ -195,9 +216,10 @@ fn a_circle_parallel_to_the_axis_pins_the_bounds_axial_channel() {
     let (lo, hi) =
         circle_arc_residual_range(&s, center, axis, rho_c, u_ref, 0.0, TAU).expect("the torus arm");
     let rho_far = (offset.powi(2) + rho_c.powi(2)).sqrt();
-    let charge = f2_oracle(big_r, minor, rho_c, TAU, (offset, rho_far), rho_c, rho_c)
-        * full_turn_step().powi(2)
-        * 0.125;
+    let charge = chord_dip(
+        f2_oracle(big_r, minor, rho_c, TAU, (offset, rho_far), rho_c, rho_c),
+        full_turn_step(),
+    );
     let residual_at_rho =
         |rho: f64, h: f64| ((rho - big_r).powi(2) + h.powi(2) - minor.powi(2)) / (2.0 * minor);
     // The residual's extremes over this circle: `ρ² + h²` is CONSTANT
@@ -212,13 +234,14 @@ fn a_circle_parallel_to_the_axis_pins_the_bounds_axial_channel() {
         bottom < top,
         "the fixture's residual falls as rho rises: {bottom}, {top}"
     );
+    // One-directional, as in rows 1 and 2.
     assert!(
-        (lo - (bottom - charge)).abs() <= 1e-9 * charge.max(1.0),
-        "lo {lo} is not the far-point extreme {bottom} less the charge {charge}"
+        lo <= bottom - charge * (1.0 - 1e-9),
+        "lo {lo} does not reach the far-point extreme {bottom} less the charge {charge}"
     );
     assert!(
-        (hi - (top + charge)).abs() <= 1e-9 * charge.max(1.0),
-        "hi {hi} is not the near-point extreme {top} plus the charge {charge}"
+        hi >= top + charge * (1.0 - 1e-9),
+        "hi {hi} does not reach the near-point extreme {top} plus the charge {charge}"
     );
 }
 
@@ -348,8 +371,19 @@ fn weld_tangent() -> Vec3<f64> {
 /// the run matrix uses.
 #[test]
 fn the_lily_weld_pairs_resolve_at_the_ratified_sample_count() {
-    // The run matrix's three eps cells (`DEFAULT_EPS`, 1e-6, 1e-12).
-    let bands = [1e-9, 1e-6, 1e-12];
+    // The run matrix's three eps cells (`DEFAULT_EPS`, 1e-6, 1e-12),
+    // read at the DEFINITE threshold. A margin above `ε` alone is not
+    // a definite sign — anything under `Band::escalate` (`K·ε`) is
+    // ambiguous and escalates — so the row asserts against the
+    // threshold the clearance predicate actually decides on.
+    let bands: Vec<f64> = [1e-9, 1e-6, 1e-12]
+        .into_iter()
+        .map(|eps| {
+            Band::new(eps, Tol::witness().k() * eps)
+                .expect("a linear band at this eps")
+                .escalate()
+        })
+        .collect();
     // (a) the stem's outer-equator seam, a 22° arc, against the arch.
     let seam = circle_arc_residual_range(
         &arch_torus(),
@@ -450,18 +484,28 @@ fn the_arc_scoped_curvature_bound_beats_the_whole_carrier_one() {
     let (lo, hi) = circle_arc_residual_range(&s, c, axis, radius, u, 0.0, D22).expect("torus arm");
     let (dense_lo, dense_hi) = dense_range(&s, c, axis, radius, u, (0.0, D22));
     let arc_charge = ((hi - dense_hi) + (dense_lo - lo)) / 2.0;
-    let arc_f2 = arc_charge / ((D22 / ARC_RESIDUAL_SAMPLES as f64).powi(2) * 0.125);
+    let arc_f2 = arc_charge / chord_dip(1.0, D22 / ARC_RESIDUAL_SAMPLES as f64);
+    // The claim is a RELATION, not a two-significant-figure window:
+    // what the arc scoping buys is that the dominant `D_max` term is
+    // taken over 22 degrees rather than over the whole 5.06 m circle,
+    // and the measured factor on this fixture is about 6. A window
+    // around a quoted number is blind to the number being wrong —
+    // which is how `7.9e3` survived in three places while the code
+    // computed 8.36e3.
     assert!(
-        (7_000.0..9_000.0).contains(&whole),
-        "the whole-carrier bound is the spec's 7.9e3: {whole}"
+        arc_f2 * 5.0 <= whole,
+        "arc scoping must buy at least a factor of 5 on this fixture: \
+         arc-scoped {arc_f2}, whole-carrier {whole}"
     );
     assert!(
-        (1_000.0..2_000.0).contains(&arc_f2),
-        "the arc-scoped bound is ~1.4e3: {arc_f2}"
+        arc_f2 > 0.0 && whole.is_finite(),
+        "both bounds must be finite and positive: {arc_f2}, {whole}"
     );
+    // And the charge it produces resolves the seam with room to
+    // spare: the true clearance is 8.6 mm.
     assert!(
-        arc_charge < 1e-3 && arc_charge > 1e-4,
-        "the seam's charge is ~0.39 mm, two orders under its 8.6 mm clearance: {arc_charge}"
+        arc_charge * 10.0 < 0.008_615,
+        "the seam's charge must stay an order under its clearance: {arc_charge}"
     );
 }
 
@@ -534,7 +578,7 @@ fn the_k_sample_margin_never_falls_below_the_two_endpoint_one_by_more_than_a_cel
         let f2 = circle_residual_curvature_bound(&s, center, axis, radius, u_ref)
             .expect("a harmonic kind");
         let old = {
-            let dip = f2 * (t1 - t0).powi(2) * 0.125;
+            let dip = chord_dip(f2, t1 - t0);
             let a = implicit_residual(&s, circle_point(center, axis, radius, u_ref, t0));
             let b = implicit_residual(&s, circle_point(center, axis, radius, u_ref, t1));
             (a.min(b) - dip).max(-(a.max(b) + dip))
@@ -542,7 +586,7 @@ fn the_k_sample_margin_never_falls_below_the_two_endpoint_one_by_more_than_a_cel
         let (lo, hi) = circle_arc_residual_range(&s, center, axis, radius, u_ref, t0, t1)
             .expect("a harmonic kind");
         let new = lo.max(-hi);
-        let cell_charge = f2 * ((t1 - t0) / ARC_RESIDUAL_SAMPLES as f64).powi(2) * 0.125;
+        let cell_charge = chord_dip(f2, (t1 - t0) / ARC_RESIDUAL_SAMPLES as f64);
         let deficit = old - new;
         assert!(
             deficit <= cell_charge + 1e-12 * (1.0 + old.abs()),
@@ -551,7 +595,12 @@ fn the_k_sample_margin_never_falls_below_the_two_endpoint_one_by_more_than_a_cel
             fuzz::replay()
         );
         worst_deficit = worst_deficit.max(deficit);
-        if new > old {
+        // "Improved" carries a FLOOR — strictly tighter by at least
+        // one whole cell's charge. Without one the count is satisfied
+        // by a last-bit difference, and a row whose accepting
+        // direction can be met by rounding noise is not asserting the
+        // accepting direction.
+        if new - old >= cell_charge {
             improved += 1;
         }
     }
@@ -560,8 +609,8 @@ fn the_k_sample_margin_never_falls_below_the_two_endpoint_one_by_more_than_a_cel
     // lost the subdivision.
     assert!(
         improved * 10 >= cases * 9,
-        "only {improved}/{cases} arcs got a TIGHTER margin from subdivision \
-         (worst deficit {worst_deficit}) — {}",
+        "only {improved}/{cases} arcs got a margin tighter by at least one \
+         cell's charge (worst deficit {worst_deficit}) — {}",
         fuzz::replay()
     );
 }
@@ -601,14 +650,14 @@ fn the_k_sample_door_is_not_monotone_and_this_is_the_bound() {
     );
     let ends = |t: f64| implicit_residual(&s, circle_point(center, axis, radius, u_ref, t));
     let old = {
-        let dip = f2 * span.powi(2) * 0.125;
+        let dip = chord_dip(f2, span);
         let (a, b) = (ends(t0), ends(t1));
         (a.min(b) - dip).max(-(a.max(b) + dip))
     };
     let (lo, hi) =
         circle_arc_residual_range(&s, center, axis, radius, u_ref, t0, t1).expect("plane arm");
     let new = lo.max(-hi);
-    let cell_charge = f2 * (span / ARC_RESIDUAL_SAMPLES as f64).powi(2) * 0.125;
+    let cell_charge = chord_dip(f2, span / ARC_RESIDUAL_SAMPLES as f64);
     assert!(
         new < old,
         "this fixture exists to show the K-sample door LOSING: {new} vs {old}"
@@ -665,19 +714,28 @@ fn a_coincident_torus_pair_encloses_pm_charge_and_reads_negative() {
         lo < 0.0 && hi > 0.0 && (lo + hi).abs() < 1e-9 * hi,
         "a coincident pair encloses symmetrically about zero: [{lo}, {hi}]"
     );
+    // One-directional: a SAFER (larger) charge keeps the conclusion —
+    // the margin is further from zero, not nearer — so the row pins a
+    // floor on the charge and not its exact value.
     let margin = lo.max(-hi);
     assert!(
-        (-margin - 1.8e-5).abs() < 2e-6,
-        "the charge on this fixture is 1.8e-5 m: {}",
+        -margin >= 1.8e-5,
+        "the charge on this fixture is at least 1.8e-5 m: {}",
         -margin
     );
     // Every eps cell in the matrix is orders under the charge, so the
-    // verdict is Negative at all three and the covered rung — which
-    // needs a Zero — is out of reach on this fixture.
-    for band in [1e-9, 1e-6, 1e-12] {
+    // verdict is definitely Negative at all three — read at the
+    // DEFINITE threshold `Band::escalate`, since a margin inside the
+    // ambiguity band escalates rather than deciding — and the covered
+    // rung, which needs a Zero, is out of reach on this fixture.
+    for eps in [1e-9, 1e-6, 1e-12] {
+        let definite = Band::new(eps, Tol::witness().k() * eps)
+            .expect("a linear band at this eps")
+            .escalate();
         assert!(
-            margin < -band,
-            "at band {band} the margin {margin} must be a definite NEGATIVE, not a Zero"
+            margin < -definite,
+            "at eps {eps} (definite threshold {definite}) the margin {margin} \
+             must be a definite NEGATIVE, not a Zero and not an escalation"
         );
     }
 }
