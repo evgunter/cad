@@ -2,8 +2,10 @@
 id: attach-postconditions-validate-the-whole-body-and-panic
 kind: issue
 title: set_face_surface / set_edge_curve run validate(&self) as a postcondition: a whole-body tier-1 walk per write, and a panic on a malformed body reachable through public doors under the release profile
-status: open
+status: closed
 opened: 2026-09-08
+closed: 2026-09-14
+pr: 2527
 ---
 
 
@@ -66,3 +68,9 @@ half is PERF-4's. That the workspace's release profile keeps debug
 assertions on until the publish step is D9's own note. So the
 postcondition complies as it stands and the row closes on this
 reading; the close lands when Ev confirms on the PR.
+
+## Closed (2026-09-14, PR 2527)
+
+Ev: "cool" to the D9 reading above. Closed on it: the postcondition
+stays an assertion (kernel-bug state, D9 row 5); the spent-graft class
+is S14's; the cost half is PERF-4's. No code moves.

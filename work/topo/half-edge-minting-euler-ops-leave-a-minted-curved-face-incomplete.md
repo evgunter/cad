@@ -115,3 +115,42 @@ TOPO recommends **(ii) now, with (iii) as the enforcement unit** cut
 beside (a); the ripple only if a consumer appears that needs a minted
 edge cached on return. The yes/no asked: yes to the declared posture
 as the operators' contract.
+
+## The cleanest long-term shape, ignoring churn (TOPO, 2026-09-14, PR 2527)
+
+Ev: "what would be the cleanest way to do this long-term, ignoring
+the cost of churn?" — the operator completes the face it touches, the
+same principle question 3 settles on (discharge the obligation at the
+call; no half-done state a door can produce). Concretely:
+
+1. **An operator that mints a half-edge into a cached curved face
+   mints its row at the mint site**, so a face is never half-minted
+   after any Euler operator — D9 row 0 applied to "cached with holes":
+   the state becomes unproducible. The closing-mint convention (thirteen
+   prose copies) retires, and `validate_pcurves`'s `MissingCache` arm
+   becomes a kernel-bug detector rather than a caller-obligation
+   reporter.
+2. **Which derivation the operator may run.** The carriers the Euler
+   operators mint are lines and closed-form arcs; on the analytic
+   charts (plane, cylinder, sphere, torus, cone) their chart images
+   have closed forms — the door `mint_face` already routes every
+   non-`General` image through. If that closed-form derivation can be
+   stated under `T: Decide` (phase 1's question: today `pcurve_of`
+   carries `PcurveFittedLane` because one body serves both lanes), the
+   operators mint the closed-form rows under their present bound and
+   REFUSE typed (`UnsupportedCarrier`-shaped) where only the fitted
+   lane could derive the image — honest, and the fitted case is a
+   NURBS chart, which the Euler operators reach only from callers that
+   hold the fitted lane anyway. If it cannot be split, the full bound
+   ripple (`Decide → PcurveFittedLane` on the minting operators and
+   their generic callers) is the price, and it is a one-time signature
+   cost, not a design cost.
+3. The declared posture (ii) is then only the interim statement of
+   what holds until 1–2 land, and (iii) the scope-close mint is
+   unnecessary — the same conclusion as question 3's, where (a)'s
+   scope bookkeeping was the deferral nobody needed.
+
+So the long-term answer is (i) in its honest form: closed-form rows
+minted at the site under `Decide` with a typed refusal at the fitted
+frontier, the ripple only if the split fails. Recommended as the
+target; the interim posture stated meanwhile.

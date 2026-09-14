@@ -282,3 +282,47 @@ convention.
 
 **(b)** reports at the blend door only and leaves plain `kev` with the
 defect; smallest and weakest.
+
+## Second elaboration for Ev (TOPO, 2026-09-14, PR 2527): (c) as the default `kev`
+
+Ev: "if we can make the variant in (c), why can't we just make that
+the default one?" — the definition of (c) is `kev_describing` above: a
+kill that takes the merged fan's re-descriptions alongside the
+half-edge, certifies each supplied spec against the endpoints the merge
+WILL give its edge (through `certify_rebased_run`'s door), refuses
+typed before any mutation, and writes topology and descriptions
+together.
+
+**Made the default it is one door**: `kev(he, redescriptions)` — for
+each merged member, certify the supplied spec if one is given, else
+re-certify the member's existing carrier against its new endpoint;
+refuse typed if either fails; write together. An empty list is the
+common case (every merged member's carrier still ends where the edge
+does — the valence-one survivor, coincident points). That door has no
+intermediate stale state at all: the obligation is discharged at the
+call, which is the `mev` gate's own shape (refuse before mutating) and
+D9 row 0's spirit (the stale-carrier state cannot be produced by a
+door). No scope list, no close-time sweep.
+
+**What (a) offered over it was deferral** — a composite door carrying
+stale carriers mid-surgery and paying at its close — and the
+measurement above says who would use it: the blend, and the
+generator. The blend does not need it: its two `kev` sites already
+compute the carriers they later hand to `attach_contact`, so under the
+default they hand them to the kill instead. The generator's three
+sites (walk, `roundtrip`'s `SplitEdge` inverse, `teardown`) have no
+specs — but the roundtrip inverse is already the two-op `kev` then
+`set_edge_curve` with a chord spec, which becomes one call; the walk
+and teardown kills at distinct coordinates either supply the same
+chord spec or keep the `split_site`-style filter they have today. So
+the only caller that wanted deferral can pay at the call too, and (a)'s
+extra mechanism buys nothing (a) alone needs. The earlier
+recommendation leaned on a deferral no caller requires; Ev's question
+is right.
+
+**Revised recommendation: (c) as the default and only `kev`**, with
+the signature change's cost stated: 76 one-argument `kev` call sites
+in `topo`'s own tests plus the blend's two and the generator's three
+(the row's own measurement), which is churn rather than design. The
+fuzz's "tier 1 at every step" property is unaffected — it never
+depended on carriers.
