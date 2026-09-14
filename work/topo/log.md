@@ -938,3 +938,22 @@ from the other is not bit-exact under translation — `shift_branch`'s
 pin would have moved. Block TOPO-B2 closes with three duals and no
 tally candidate; every pre-draw field was logged before the byte. No
 lane is running. The next kernel-answer unit draws TOPO-B3.
+
+## Block TOPO-B3 cut; pre-draw fields logged BEFORE the byte (2026-09-14)
+
+Three kernel answers on this program's files, slot order fixed here
+and the byte drawn only after this entry is committed:
+
+- slot 0 `loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart`
+  — difficulty **S/M**, task class **STRUCTURAL** (two Euler doors
+  made honest about the rows of the loop they move; the loud pass
+  already exists).
+- slot 1 `D263` — difficulty **M**, task class **STRUCTURAL-GEOMETRIC**
+  (the regime classification gains the placeholder arm; the door's
+  grouping changes on the placeholder cube).
+- slot 2 `S93` — difficulty **S**, task class **STRUCTURAL** (two
+  prose-held obligations become checked preconditions).
+
+Held: the periodic-chart wrap under `revert` and the half-edge-minting
+ops' pcurve posture (the bound ripple is Ev's question, added to the
+open `[ev]` PR's scope at its next revision).
