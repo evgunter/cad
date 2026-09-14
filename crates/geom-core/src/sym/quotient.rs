@@ -61,19 +61,43 @@
 //! ```
 //!
 //! **Why the side conditions are free.** `g` divides `D`, so `g = 0`
-//! implies `D = 0`, and `D = r⁻¹·N'`… in both steps the only condition
-//! is `D ≠ 0` at the point. A form's denominator is built from
-//! nothing but the numerators of the `Inv` nodes above it
-//! (`Form::recip` swaps the two halves,
-//! `Form::mul` and
-//! `Form::add` multiply them), and each of
-//! those denotes a real the value channel actually DIVIDED by. So a
-//! point of the box where `D` vanishes is a point where the scalar
-//! divided by zero, and clause 1 of the theorem — the value channel
-//! certified the computation on the WHOLE box — has already refused
-//! there. On a box clause 1 admits, the two forms denote the same real
-//! function at every point, which is exactly what the theorem needs.
+//! implies `D = 0`; in both steps the only condition is `D ≠ 0` at the
+//! point. A denominator has FOUR sources and the argument has to cover
+//! all four — it is NOT "only what the value channel divided by", and
+//! saying that is the mistake this paragraph replaces.
 //!
+//! **(i) The numerators of the `Inv` nodes above the form.**
+//! `Form::recip` swaps the two halves and `Form::mul`/`Form::add`
+//! multiply them, so every factor that enters this way denotes a real
+//! the value channel actually DIVIDED by. A point of the box where one
+//! vanishes is a point where the scalar divided by zero, and clause 1 —
+//! the value channel certified the computation on the WHOLE box — has
+//! already refused there.
+//!
+//! **(ii) Rule D's closed-form denominators.** `trig`'s
+//! `build_closed_forms` manufactures `Dx·S` and, per halving,
+//! `2·Dx·S·c₂` — factors nothing divided by. They are non-zero for
+//! another reason, and it is the same range argument rule D's own
+//! soundness rests on: `S = sqrt(1 + X²) ≥ 1` for every real `X`, and
+//! each `c₂` is `cos(φ/2ʲ)` for `φ = atan X ∈ (−π/2, π/2)` and
+//! `1 ≤ j ≤ MAX_HALVINGS`, so `|φ/2ʲ| < π/4` and
+//! `c₂ > cos(π/4) = √2/2`. Both bounds are facts about the FUNCTIONS,
+//! not about any value; `MAX_HALVINGS` is what keeps the second one
+//! true and `trig::read_argument` is where it is enforced.
+//!
+//! **(iii) Rule A's substituted denominator.** `algebra`'s
+//! `poly_subst_square` puts `D_repl^h` under the result, where `D_repl`
+//! is the denominator of the form an atom's square is replaced by —
+//! itself a denominator already in the DAG, so a power of something
+//! (i) or (ii) covers.
+//!
+//! **(iv) Rule C's polynomial square root** (`signed::fold`, dial-off
+//! in the shipped set): the new denominator `d` satisfies `d² = D` for
+//! the old `D`, and the site refuses a zero `d` outright, so `d = 0`
+//! iff `D = 0` — again a power of something already covered.
+//!
+//! On a box clause 1 admits, then, the two forms denote the same real
+//! function at every point, which is exactly what the theorem needs.
 //! This is the same posture rule A takes (`sqrt(X)² = X` needs
 //! `X ≥ 0`, which holds wherever the atom has a real value) and the
 //! same one the quotient normal form itself rests on.
@@ -86,14 +110,30 @@
 //! is a numeric decision. `(2x + y)/(x + y)` is not folded, and
 //! `x²/x` becomes `x/1` rather than anything smaller.
 //!
-//! **No step cap, and the reason is structural.** Rules A/B need
-//! `EARLY_STEPS` because a substitution can
+//! **No step cap, and the reason is structural — in two of the three
+//! budgets.** Rules A/B need `EARLY_STEPS` because a substitution can
 //! REINTRODUCE reducible atoms and grow the form; this rule cannot. It
-//! is one pass over the terms of both halves, it allocates no product,
-//! and every form it returns has at most as many terms and at most the
-//! total degree of the form it was given. Its cost is therefore
-//! bounded by the size of a form the budget already bounds, and a step
-//! cap beside it would be a claim the code does not keep.
+//! is one pass over the terms of both halves plus one sort, it
+//! allocates no product, and every form it returns has at most as many
+//! terms and at most the total degree of the form it was given. So in
+//! TERMS and in DEGREE the rule is monotone and a step cap beside it
+//! would be a claim the code does not keep.
+//!
+//! **It is NOT monotone in the third budget, the COEFFICIENT width,
+//! and the scale step is why.** Dividing both halves by `1/|s|` puts
+//! `s`'s odd part into the denominator of every numerator coefficient,
+//! so a form whose coefficients were `c` becomes one whose are `c/s` —
+//! up to `s`'s bits wider. Past `rational::COEFF_BITS` the ring
+//! refuses and the form FREEZES, which is loud and sound but is a
+//! cancellation lost. R2's row
+//! `rule_e_can_cost_a_theorem_to_the_coefficient_ring`
+//! (`editor-core`'s `m10_rule_e_rows_interval`) is the demonstration:
+//! an identity the early walk reaches with the rule OFF and not with
+//! it on, at `s` = 0.1's 52 bits against a 200-bit `1/q`. "Nothing
+//! lost" is therefore a MEASUREMENT on the documents this unit names
+//! and never a structural fact;
+//! `work/sym/coefficient-ring-width-is-not-monotone-in-reach` carries
+//! the class.
 //!
 //! **What CAN grow is the walk, and it is not the same thing.** A form
 //! the rule brings back under the budget is one that no longer freezes
@@ -102,15 +142,51 @@
 //! count falls 48 → 8 and its largest form grows 90 → 288 terms
 //! (`editor-core/tests/m10_sym_profile_interval`'s growth guard, which
 //! pins both numbers). On the M10-3 slab, where nothing freezes, the
-//! largest form only falls, 10 → 6. Measured on the tilted derived
-//! frame the rule makes a Guided replay CHEAPER, not dearer.
+//! largest form only falls, 10 → 6.
+//!
+//! **The wall-clock cuts both ways, and the sign is the document's.**
+//! Where the rule keeps a form small the walk that used to multiply it
+//! gets cheaper; where it un-freezes a form the walk builds what the
+//! freeze cut off and gets dearer. Measured (R2, `Pinned`, one
+//! evaluation, off → on): two stacked derived frames 220.7 → 1.1 s,
+//! the tilt about `u` 0.7 → 1.9 s. The five measured documents' own
+//! numbers are in `sym.rs`'s rule-E section.
+//!
+//! # What it reaches, and what it does not
+//!
+//! The rule is not a class result and the reach is the DOCUMENT's.
+//! Reached (both reviews, by execution): a frame tilted about `v`, a
+//! spin (`u = (1,t,0)`, `v = (−t,1,0)`), non-unit stored axes
+//! (`u = (2,0,0)`, `v = (0,2,t)` — the datum door normalises them and
+//! no false `Zero` appears), and derived frames STACKED two deep.
+//! NOT reached: a frame tilted about `u` (`u = (1,0,t)`), where the
+//! rule turns the DEGREE wall into a TERM wall — the frozen `Powi`
+//! kid goes from 606 terms at degree 60 to 440 terms at degree 28, and
+//! `440² > MAX_TERMS` — behind the `abs(1/sqrt(…))` and `copysign`
+//! atoms a `FaceFrame`'s `u_ref` derivation mints; and a `FaceFrame`
+//! on a REVOLVED body's cap, which neither dial certifies.
+//! `editor-core/tests/m10_derived_frame_tilted_interval` carries both
+//! as evidence rows, and
+//! `work/sym/derived-frame-placement-freezes-on-the-symbolic-lane`
+//! the numbers.
 
-use super::form::{Form, Mono, Poly};
+use super::form::{Form, Mono, Poly, exp_of};
 use super::rational::Rat;
 
-/// The monomial every term of `p` is divisible by — per indeterminate,
-/// the smallest exponent that appears in all of them. The empty
-/// monomial for the zero polynomial and whenever the terms share no
+/// **The monomial in both `a` and `b`** — per indeterminate, the
+/// smaller exponent, and nothing where either lacks it.
+fn shared(a: &Mono, b: &Mono) -> Mono {
+    a.iter()
+        .filter_map(|&(id, e)| {
+            let k = e.min(exp_of(b, id));
+            (k > 0).then_some((id, k))
+        })
+        .collect()
+}
+
+/// The monomial every term of `p` is divisible by — the same
+/// min-exponent merge as [`shared`], folded over the terms. The empty
+/// monomial for the zero polynomial and wherever the terms share no
 /// indeterminate.
 fn content(p: &Poly) -> Mono {
     let mut it = p.monos();
@@ -122,63 +198,47 @@ fn content(p: &Poly) -> Mono {
         if g.is_empty() {
             break;
         }
-        g = g
-            .iter()
-            .filter_map(|&(id, e)| {
-                let other = m.iter().find(|(i, _)| *i == id).map_or(0, |(_, e)| *e);
-                let k = e.min(other);
-                (k > 0).then_some((id, k))
-            })
-            .collect();
+        g = shared(&g, m);
     }
     g
 }
 
-/// The monomial in both `a` and `b`: per indeterminate, the smaller
-/// exponent.
-fn shared(a: &Mono, b: &Mono) -> Mono {
-    a.iter()
-        .filter_map(|&(id, e)| {
-            let other = b.iter().find(|(i, _)| *i == id).map_or(0, |(_, e)| *e);
-            let k = e.min(other);
-            (k > 0).then_some((id, k))
-        })
-        .collect()
-}
-
-/// `p` with every term divided by `g` — exact, because `g` divides
-/// every term by construction. Monomials stay sorted by id and carry
-/// no zero exponent, so the key ordering is preserved and no two terms
-/// can collide.
+/// `p` with every term divided by `g`, or `None` where `g` does not
+/// divide one — the caller's invariant is that it does (`g` is the
+/// shared content of both halves), and refusing rather than dropping
+/// an indeterminate costs one comparison and keeps a future caller
+/// from getting a silently wrong polynomial.
+///
+/// **The result is re-sorted, not re-used in place.** Dividing does NOT
+/// preserve the monomial order — `[(1,1),(2,1)] < [(1,2)]`, but after
+/// dividing by `[(1,1)]` the first is `[(2,1)]` and the second
+/// `[(1,1)]`, and the order has flipped — so the terms are collected
+/// and sorted ONCE, which is `n log n` against the `n` binary-searched
+/// inserts (each an `O(n)` memmove) the first spelling cost.
 fn divide(p: &Poly, g: &Mono) -> Option<Poly> {
     if g.is_empty() {
         return Some(p.clone());
     }
-    let mut out = Poly::zero();
+    let mut terms: Vec<(Mono, Rat)> = Vec::with_capacity(p.terms().len());
     for (m, c) in p.terms() {
-        let rest: Mono = m
-            .iter()
-            .filter_map(|&(id, e)| {
-                let d = g.iter().find(|(i, _)| *i == id).map_or(0, |(_, e)| *e);
-                (e > d).then_some((id, e - d))
-            })
-            .collect();
-        out.insert(rest, c.clone())?;
+        let mut rest = Mono::with_capacity(m.len());
+        for &(id, e) in m {
+            let d = exp_of(g, id);
+            if e < d {
+                return None;
+            }
+            if e > d {
+                rest.push((id, e - d));
+            }
+        }
+        terms.push((rest, c.clone()));
     }
-    Some(out)
-}
-
-/// `p` with every coefficient multiplied by `k`.
-fn scale(p: &Poly, k: &Rat) -> Option<Poly> {
-    let mut out = Poly::zero();
-    for (m, c) in p.terms() {
-        out.insert(m.clone(), c.mul(k)?)?;
-    }
-    Some(out)
+    terms.sort_by(|(a, _), (b, _)| a.cmp(b));
+    Poly::from_sorted_terms(terms)
 }
 
 /// `r` where `n = r·d` as polynomials, or `None` where no such rational
-/// exists. Both maps are sorted by monomial, so one zip decides it.
+/// exists. Both halves are sorted by monomial, so one zip decides it.
 fn constant_ratio(n: &Poly, d: &Poly) -> Option<Rat> {
     if n.terms().len() != d.terms().len() || d.is_zero() {
         return None;
@@ -228,8 +288,8 @@ pub(super) fn cancel(f: &Form) -> Form {
     // non-negativity rule D's A1 fold reads.
     let (num, den) = match den.terms().first() {
         Some((_, s)) => match s.abs().recip().and_then(|k| {
-            let n = scale(&num, &k)?;
-            let d = scale(&den, &k)?;
+            let n = num.scaled(&k)?;
+            let d = den.scaled(&k)?;
             Some((n, d))
         }) {
             Some(pair) => pair,

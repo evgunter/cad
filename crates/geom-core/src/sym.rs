@@ -301,8 +301,12 @@
 //! 60-term, degree-16 products (`work/sym/symbolic-tier-census`).
 //! And the reach is the UNIT bulge: a parameter bulge is outside the
 //! mechanism (R2's D-tab: `3.52e2 · ε` on and off alike) and a literal
-//! bulge other than 1 leaves residue (R1's boss at bulge 2: 6 of 54
-//! and 27 of 90 still numeric, ceiling unmoved) —
+//! bulge other than 1 leaves residue — at M10-10 R1's boss at bulge 2
+//! stood at `carrier_matches_mapped_source` 6 of 54 and
+//! `carrier_on_surface_2` 27 of 90 numeric with its ceiling unmoved;
+//! SYM-5's rule E has since taken the first six and eighteen of the
+//! twenty-seven and moved that ceiling `8.2611e2 → 9.3559e2 · ε`, so
+//! what stands there now is 0 of 54 and 9 of 90 —
 //! `work/sym/rule-d-reaches-the-unit-bulge-only`.
 //!
 //! **What it costs** (release, one whole-box leaf, algebra off → on):
@@ -355,7 +359,10 @@
 //! A0, `newell_plane_residual` straddling under the shipped set, 632
 //! frozen on DEGREE with kids at total degree 69–128) while its
 //! authored twin certifies; with it on the derived boss certifies
-//! where the twin does, at every width the twin certifies at. Raising
+//! where the twin does at `ε/8` and `1e-3` — NOT at `5e-2`, where the
+//! refusal left is the value channel's (a clause-1 `Invalid` margin,
+//! `work/props/a-widened-derived-placement-normalises-a-straddling-newell-sum`)
+//! and the tier has already proved the residual zero. Raising
 //! the budget to 4,096 / 65,536 does NOT do it — 483 frozen and the
 //! same refusal — so this is reach and not a cost wall. The frozen
 //! forms carry `sqrt(P/P)` for a degree-8 `P`: the number one, held as
@@ -1167,6 +1174,7 @@ impl SymRules {
     /// | D + A/B per node (`trig_of_atan`, `early_ab`, `sqrt_square`, `pythagoras`), with A1's `atan2` and half-π folds under D's dial | the plate's four identity residuals all go: the plate certifies 0.24–0.26 and the annulus 0.70–0.84 of their REAL studies, their ceilings bounded by dependency widening of real margins; pad 1.20× | plate 0.15 s at its real study, pad 2.1 → 10.5 s, link 0.43 → 4.1 s (with rule D's `sin`/`cos` pair built once) | **yes** |
     /// | A/B over the top residual (`sqrt_square`/`pythagoras` at `discharge`'s site, once the walks have declined) | none, alone or with rule D: the plate's nominal split is M10-9's under it alone and rule D's with D (`CAD_M10_10_RULES=top_only`, `d_top_only`); M10-8 measured it inert and it still is | +18% on the plate's `1e2·ε` leaf (0.131 → 0.154 s with rule D), +12% on the link (0.76 → 0.85 s) | ships only because it shares the per-node walk's dials — disclosed as M10-10's D17, not chosen |
     /// | C in the early walk (`signed_root`) | none; folds on no document at 256 bits | ~2× | no (inert; reads a value) |
+    /// | E, the quotient's common factor (`common_factor`, SYM-5) | none on the five; R1's boss at bulge 2 `8.2611e2 → 9.3559e2 · ε` (1.13×), and a derived frame whose AXES carry a parameter certifies where its authored twin does, which no dial reached before | one whole-box leaf, release: plate 0.11 → 0.30 s, annulus 0.08 → 0.19, bracket 0.43 → 1.81, link 2.87 → 1.94, pad 3.75 → 15.07 | **yes**, with the bracket and the pad over the 1.6 s line disclosed |
     ///
     /// The pins in `m10_8_pins_interval.rs`, `m10_9_pins_interval.rs`
     /// and `m10_10_pins_interval.rs` hold each layer to what it
@@ -1922,14 +1930,20 @@ fn form_in(
                 combined
             };
             // **Rule E**, after the per-node A/B reduction and before
-            // the budget check. AFTER, because rule A needs the EVEN
-            // POWER of an atom that a shared factor would take away:
-            // cancelling `C²·a / (C·b)` to `C·a / b` leaves no square
-            // for `sqrt(X)² = X` to substitute, and R2's
-            // `r2_rule_d_decides_over_negative_straddling_and_wide_boxes`
-            // is what says so. Before the budget check, because the
-            // rule can only SHRINK a form, so one it cancels may fit
-            // where the raw one would have frozen.
+            // the budget check. AFTER is the CONVENTION "reduce per
+            // node, then canonicalise the quotient" — the same order
+            // `trig::sqrt_atom` applies to a form it builds by hand,
+            // which is what makes the two spellings of one arc key one
+            // atom. It is not a soundness or a reach requirement: both
+            // of SYM-5's reviewers planted rule E BEFORE the reduction
+            // and every `m10` row stayed green, with exactly one walk
+            // ledger digest moving (the slab's `Early/Assertion` at
+            // ε = 1e-9, every count identical). So the ledger
+            // (`editor-core/tests/m10_sym_profile_interval`) is what
+            // pins this order, and it is the only thing that does.
+            // Before the budget check, because the rule can only
+            // SHRINK a form in terms and degree, so one it cancels may
+            // fit where the raw one would have frozen.
             let combined = if early && sess.rules.common_factor {
                 combined.map(|f| quotient::cancel(&f))
             } else {
