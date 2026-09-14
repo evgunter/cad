@@ -1561,3 +1561,46 @@ on the order of operations (drop before or after the orphan
 removal), `same_chart`'s rungs at this door, whether the `mesh`
 re-attach papers over a kernel hole, and the fresh-instance sweep of
 every other chart-swapping door.
+
+## Ev's first reply on the [ev] PR; edge-door merged (PR 2587); row 2711; block B4 CONCLUDED; the set-face-surface dual dispatched (2026-09-14)
+
+Ev on PR 2527: 1 ruled **(A)** — a chart lives in one solid is a
+`Body` invariant and the mover keeps it; recorded on the item, a unit
+for the next cut. 2 conditional on DESIGN.md's panic-versus-error
+strategy: the D9 reading (a torn body at a setter is a kernel-bug
+state, row 5, MUST panic; the graft's spent-body class is S14's) is
+written on the item and the PR, close proposed on it. 3 and 4 asked
+for elaboration: written on the items and the PR body, one comment
+posted leading with the role tag — (a) puts the obligation on the
+boundary the kernel already has (the surgery scope's close; the blend
+already opens one scope for the whole blend) while (c) puts it on the
+operator call with two doors for one kill; the minting posture's
+context, with a third option (enforce the closing-mint convention at
+the scope's close, sharing (a)'s list) recommended as the enforcement
+unit beside the declared posture. Waiting on Ev's letter for 3 and
+yes/no for 2 and 4.
+
+The edge-door fix pass took all nine items on head `e7a4241c9`, run
+34868453112 green: the ratification claim corrected with the pickaxe
+result and the disagreement between the ratified VERB-SEAT sentence
+and the code filed `needs_ev`; the washer row (a constant-return
+mutant now reds exactly it); the third refusal pinned from a
+crate-internal plant; the delegation pinned by a source-rules row
+(the merge-base walk restored in the seat is the only red
+workspace-wide); `carrier_surface` shared by both face doors and
+`rim_of` routed through `edge_carrier_ref` with `CarrierAbsence` as the
+shared refusal (the `NotAnArc { kind: None }` conflation left and
+filed — an arm's meaning would change); the five interrogate ladders
+collapsed onto one reader; the fence row closed. Merged at
+`b84de2f1a`; the row (ordinal 2711, sample #196, no tally candidate —
+the converged findings are doc/claim class or MINOR) and the unit's
+closure ride the docs PR from `topo/row-2711`, which also publishes
+block TOPO-B4's CONCLUDED record. Block TOPO-B4: three duals, one
+code-class tally candidate (typed absence), all three implementer
+lanes relaunched once after the container restart.
+
+The set-face-surface dual (ordinal 2712, R1 OPUS on the implementer's
+target, R2 FABLE on the edge fix pass's retired target) dispatched on
+frozen `71d846be4` the moment the fix pass freed the box. Live: the
+two reviewers. B5 slots 1 and 2 dispatch when disk allows a third
+seed.
