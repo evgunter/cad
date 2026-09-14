@@ -493,9 +493,10 @@ impl<T: SpanLocate> Pcurve<T> {
             //
             // This is the WHOLE-SEGMENT box, and it deliberately
             // ignores `t0`/`t1`: sound at every window (a sub-window's
-            // image is a sub-segment) and TIGHT at the full span, which
-            // is the only span any mint asks for. A sub-window would
-            // get a conservative box — never a wrong one.
+            // image is a sub-segment) and TIGHT at the full span. A
+            // sub-span — what a restriction of a stored row to one
+            // child of a parameter split asks for — gets a
+            // conservative box, never a wrong one.
             Pcurve::IsoArc { p0, pd, .. } => {
                 let b = Point2::new(p0.x + pd.x, p0.y + pd.y);
                 ChartWindow {
