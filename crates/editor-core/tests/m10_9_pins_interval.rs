@@ -345,6 +345,9 @@ fn m10_9_the_value_channel_is_untouched_on_a_certifying_box() {
 /// | R2 filleted bracket | `3.870e2 · ε` | `3.873e2 · ε` | `{carrier_matches_mapped_source}`, `[0, 1.0001 · ε]` |
 /// | R2 rounded pad | `2.083e3 · ε` | `2.084e3 · ε` | `{carrier_matches_mapped_source}`, `[0, 1.0001 · ε]` |
 ///
+/// The table above is PROSE; `measured_studies` is the checked copy of
+/// the same numbers, and it is what the rows below read.
+///
 /// **Twenty drives, and they were profiled before they were written**
 /// ([[test-suite-cost]]: cost concentrates savagely). The pad is ~80%
 /// of this file, and it is bought deliberately — it is the document
@@ -432,9 +435,11 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
         assert_eq!(
             counts.registered, study.registered,
             "{name} at eps={eps:e}: the door discharges a DIFFERENT number of decisions \
-             than the measurement — a registrant that started stating something slightly \
-             false stops discharging without being refused, which is exactly what this \
-             pin is for: {counts:?}"
+             than the measurement. The cause this pin exists for is a registrant that \
+             started stating something slightly false — it stops discharging without \
+             ever being refused — but the count moves for other reasons too: a changed \
+             fold rule, a new normal-form shortcut that discharges a residual earlier, \
+             or a re-cut document. Decide which before re-baselining: {counts:?}"
         );
         assert_eq!(
             counts.registrations_refused, 0,
@@ -470,10 +475,16 @@ fn m10_9_the_bound_at_ceiling_plus_delta_is_the_scaffold_pushforward() {
     let eps = tol.eps();
     // The refusing end of each measured bracket (the row above asserts
     // that these refuse; this one says WHAT is over the band there).
-    // The three documents a gate can afford to name the set for; the
-    // shared table's first three, at their refusing end.
-    for study in measured_studies(tol).into_iter().take(3) {
-        let (name, hi, at) = (study.name, study.refuses_at, &study.at);
+    // The three documents a gate can afford to name the set for,
+    // selected BY NAME out of the shared table: a positional `take(3)`
+    // would let a reorder or an insert change what this row measures
+    // while the doc above still named these three.
+    for name in ["two_hole_plate", "r1_annulus", "r2_link"] {
+        let study = measured_studies(tol)
+            .into_iter()
+            .find(|study| study.name == name)
+            .unwrap_or_else(|| panic!("{name} is not in measured_studies"));
+        let (hi, at) = (study.refuses_at, &study.at);
         for (rules, label) in [(opened(), "open"), (closed(), "shut")] {
             let doc = at(hi * eps);
             let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());

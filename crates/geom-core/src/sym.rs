@@ -2321,9 +2321,9 @@ impl<T: Real> Sym<T> {
     pub fn register_equal(self, other: Self, tol: Tol) -> SymRegistration {
         // The witness first: a claim the value channel refused
         // (`Contradicted` or `Disputed`) or could not witness
-        // (`Unwitnessed`) never reaches the registry at all. A refusal is COUNTED — the
-        // receipt is where a constructor that states a lie becomes
-        // visible — and the value channel's ARM is FORWARDED unchanged,
+        // (`Unwitnessed`) never reaches the registry at all. A refusal
+        // is COUNTED — the receipt is where a constructor that states a
+        // lie becomes visible — and the value channel's ARM is FORWARDED unchanged,
         // because which refusal it is is a fact about the lane scalar's
         // witness rather than about the registry: `Contradicted` is a
         // proof (`Interval`'s disjoint certified enclosures),
@@ -3351,6 +3351,61 @@ mod tests {
             });
         assert_eq!(rows, ["numeric", "numeric"]);
         assert_eq!((counts.registered, counts.numeric), (0, 2));
+    }
+
+    /// **The slack's SHAPE, away from the origin** — adopted from R1's
+    /// SYM-6 review row `r1_the_slack_is_relative_and_floored_at_1e9`,
+    /// because nothing else in the suite asserted the
+    /// relative-and-floored spelling anywhere but near 1.
+    ///
+    /// Three claims at one scale, `a = 10⁹`, at whatever ε row the
+    /// process runs at:
+    ///
+    /// - **RELATIVE**: a gap of `k · ε · a` is witnessed for `k` below
+    ///   one and `Disputed` above it, so the slack tracks the magnitude
+    ///   rather than a constant;
+    /// - **FLOORED at one**: the same `k` sweep near zero is compared
+    ///   ABSOLUTELY at ε, so the relative form does not shrink to no
+    ///   slack at all where the magnitudes do;
+    /// - **and a TRUE identity survives**: two values 1000 ULP apart at
+    ///   10⁹ differ by ~1e-7, which an ABSOLUTE ε would refuse at the
+    ///   1e-9 and 1e-12 rows. That refusal is the measurement that
+    ///   killed the absolute spelling (CI run 34048088597), and this is
+    ///   the row that keeps it dead.
+    #[test]
+    fn the_slack_is_relative_and_floored_at_1e9() {
+        let tol = Tol::witness();
+        let eps = tol.eps();
+        let a = 1.0e9_f64;
+        for (k, want) in [
+            (0.99_f64, SymRegistration::Witnessed),
+            (1.01_f64, SymRegistration::Disputed),
+        ] {
+            let b = a + k * eps * a;
+            let got = <f64 as Real>::register_equal(a, b, tol);
+            println!("   k={k} eps={eps:e} a={a:e} b-a={:e} -> {got:?}", b - a);
+            assert_eq!(got, want, "k={k} at eps={eps:e}: the slack is k·ε·|a|");
+        }
+        // The floor: near zero the comparison is ABSOLUTE at ε.
+        assert_eq!(
+            <f64 as Real>::register_equal(1.0e-30, 1.0e-30 + 0.99 * eps, tol),
+            SymRegistration::Witnessed,
+            "inside the floor at eps={eps:e}"
+        );
+        assert_eq!(
+            <f64 as Real>::register_equal(1.0e-30, 1.0e-30 + 1.01 * eps, tol),
+            SymRegistration::Disputed,
+            "outside the floor at eps={eps:e}"
+        );
+        // A true identity at 1e9 whose two sides differ by rounding only.
+        let rounded = f64::from_bits(a.to_bits() + 1000);
+        println!("   1000 ulp at 1e9 is {:e}", rounded - a);
+        assert_eq!(
+            <f64 as Real>::register_equal(a, rounded, tol),
+            SymRegistration::Witnessed,
+            "a true identity at 1e9 must be witnessed at eps={eps:e}; an absolute ε \
+             refuses it, which is why the slack is relative"
+        );
     }
 
     /// **Outside a session the claim is witnessed and nothing is
