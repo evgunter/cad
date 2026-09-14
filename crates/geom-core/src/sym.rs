@@ -398,6 +398,15 @@
 //! four pinned splits raised, nothing lost.
 //! [`SymRules::without_rule_e`] is M10-10's tier bit for bit.
 //!
+//! **The reach is the DOCUMENT's, not a class.** Reached: the tilt
+//! about `v` above, non-unit authored axes, and derived frames stacked
+//! two deep (220.7 s with the dial off against 1.1 s with it on). NOT
+//! reached: a tilt about `u`, where the rule turns the degree wall
+//! into a TERM wall, and a `FaceFrame` on a REVOLVED body's cap, which
+//! neither dial certifies. [`quotient`]'s header carries the mechanism
+//! and `editor-core/tests/m10_derived_frame_tilted_interval`'s
+//! `sym5_the_reach_on_documents_the_unit_did_not_build` the numbers.
+//!
 //! # Node ids are CONTENT HASHES (D9)
 //!
 //! A node's id is a 128-bit structural hash of `(op, children ids,

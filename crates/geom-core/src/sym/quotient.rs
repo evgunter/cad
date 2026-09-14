@@ -155,16 +155,25 @@
 //! # What it reaches, and what it does not
 //!
 //! The rule is not a class result and the reach is the DOCUMENT's.
-//! Reached (both reviews, by execution): a frame tilted about `v`, a
-//! spin (`u = (1,t,0)`, `v = (−t,1,0)`), non-unit stored axes
-//! (`u = (2,0,0)`, `v = (0,2,t)` — the datum door normalises them and
-//! no false `Zero` appears), and derived frames STACKED two deep.
-//! NOT reached: a frame tilted about `u` (`u = (1,0,t)`), where the
-//! rule turns the DEGREE wall into a TERM wall — the frozen `Powi`
-//! kid goes from 606 terms at degree 60 to 440 terms at degree 28, and
-//! `440² > MAX_TERMS` — behind the `abs(1/sqrt(…))` and `copysign`
-//! atoms a `FaceFrame`'s `u_ref` derivation mints; and a `FaceFrame`
-//! on a REVOLVED body's cap, which neither dial certifies.
+//! **Reached**, by execution on the `Guided` lift at half `1e-3`: a
+//! frame tilted about `v` (SYM-5's own document), non-unit stored axes
+//! (`u = (2,0,0)`, `v = (0,2,t)` — the datum door normalises them, one
+//! refusal becomes none, and no false `Zero` appears), and derived
+//! frames STACKED two deep, where the rule is also what makes the
+//! replay affordable (220.7 s with the dial off against 1.1 s with it
+//! on, `Pinned`).
+//! **NOT reached**: a frame tilted about `u` (`u = (1,0,t)`), which
+//! refuses `carrier_endpoint_end` identically with the dial on and off
+//! — the rule turns the DEGREE wall into a TERM wall there (the frozen
+//! `Powi` kid goes from 606 terms at degree 60 to 440 terms at degree
+//! 28, and `440² > MAX_TERMS`) behind the `abs(1/sqrt(…))` and
+//! `copysign` atoms a `FaceFrame`'s `u_ref` derivation mints; and a
+//! `FaceFrame` on a REVOLVED body's cap, which neither dial certifies
+//! (the refusal moves to `pcurve_loop_continuity` with the rule on,
+//! frozen 3 → 902).
+//! **Neither**: an in-plane spin (`u = (1,t,0)`, `v = (−t,1,0)`)
+//! certifies with the dial off as well as on, so it says nothing
+//! either way.
 //! `editor-core/tests/m10_derived_frame_tilted_interval` carries both
 //! as evidence rows, and
 //! `work/sym/derived-frame-placement-freezes-on-the-symbolic-lane`
