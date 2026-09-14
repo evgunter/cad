@@ -592,3 +592,19 @@ the five M10-10 documents, on which
 rows now carry their answers; #2552 merges. The pre-draw fields (M /
 STRUCTURAL) stand: no certification decision moves; the arm says what
 the lane can know and adds no tolerance.
+
+## D3 settled: the plain memo outlives the leaf — SYM-7 opens block SYM-B2 (2026-09-14)
+
+Ev on #2581: "(1) sounds good!" — the drive-scoped plain-form memo,
+keyed by `SymId`, installed by the drive and dropped with it; the
+early and door walks stay per leaf; the three side effects defined
+(the memo carries its atoms; `frozen` becomes distinct-nodes-over-the-
+drive on the drive's receipt with the per-leaf goldens' column
+re-blessed as the acceptance's own move; the opaque-sequence argument
+pinned across leaves). #2581 merged with the answer on the cost row;
+both `[ev]` PRs are closed and no decision is open with Ev. The unit
+is SYM-7 (H / STRUCTURAL, pre-draw), the first slot of block SYM-B2;
+its spec is cut next, the block's other two slots named from the
+slate when it is drawn, and its dispatch waits for a lane (SYM-5's
+fix pass and SYM-6 hold the two heavy lanes; SYM-5's retire at its
+merge).
