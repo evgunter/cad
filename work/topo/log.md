@@ -1191,3 +1191,153 @@ beside them as the third lane, test support only. Seams announced to
 WIRE (the stamping call) and TRIM (a reverse-parking helper). Slot 2
 (`edge-carrier-kind-has-no-readback-door`) dispatches when a lane
 frees.
+
+## Container restart killed all three B4 lanes; WIP recovered, lanes relaunched (2026-09-14)
+
+A container restart (~10:40 UTC) killed the three live lanes about ten
+minutes in. Their worktrees survived with uncommitted edits; each was
+committed as-is as one `wip: uncommitted work recovered after a
+container restart…` commit on its branch and pushed
+(`topo/geom-source-typed-absence` 3b2d9fd49,
+`topo/revert-reparks-the-wrap` 73b66589e,
+`topo/d107-kemr-hammer-fixture` bebf5dc46), the worktrees unlocked and
+removed, and fresh lanes launched on the pushed branches with the same
+briefs plus a preamble: read the WIP, keep what is right, redo what is
+not, say in the PR body that the branch starts from a recovered WIP.
+Model assignment unchanged (slot 0 OPUS, slot 1 FABLE, D107 OPUS); the
+draw is not re-rolled by a restart. Lanes are now told to push early
+and often, since only pushed commits survive a restart. Not a review
+event, so nothing in the block record moves.
+
+## D107 delivered (PR 2575, green); style review dispatched (2026-09-14)
+
+The relaunched D107 lane delivered on head `d695dffd0`, run
+34837521903 green (twelve `test`, five `k-lint`, the release-profile
+corruption job that runs the hammer rows). Phase 1 found `kemr`
+blocked twice over: no fixture presents an edge whose two halves sit
+in one loop, and the hammer never enumerated an edge's own mate pair
+— each alone keeps `kemr` at zero while the aggregate floor stays
+green (the anti-vacuity class, evidence added to S-TINT's existing
+row rather than a duplicate). `ops_ring_bridge` (a holed box with one
+`mekr_chord` bridge) plus the mate-pair enumeration takes `kemr` to
+2 on the spent graft and ~45 under sampling; the exposure table is
+now asserted, not printed, on all twelve test jobs. The module doc's
+"every operator that reaches `link_half_edges`" claim was false both
+ways (`mfkrh_plug` reaches it nowhere; `mekr` reaches it at twelve
+splices and was never driven) — narrowed, with `mekr` filed on this
+slate (`review-d18-drives-no-mekr-though-it-reaches-link-half-edges`).
+The citation fix lands as briefed; the `--nocapture` question is
+moot. Both items closed on the PR. Non-dual: one style review
+dispatched on the frozen head (brief at
+`/home/user/topo-d107r-scratch/brief.md`, sha256 e4096369…); merge
+after its fixes ride.
+
+## Slot 1 delivered (PR 2573); dual dispatched, ordinal 2709 (2026-09-14)
+
+The relaunched slot 1 lane delivered `revert-leaves-a-periodic-charts-loop-wrap-mid-chain`
+on head `725d3c204`, run green (twelve `test`, five `k-lint`). Phase 1
+measured the finding at the source's `prev(first)` and found the
+brief's mechanism unsound as a rule: a `shift_branch` per row
+round-trips only where the addition is exact, so the lane moved each
+curved loop's `Cycle::first` to its source predecessor instead — no
+row touched, the involution proved by the prev/next swap. The torus
+hypothesis is false (no azimuth-free joint; both tori are controls).
+One golden moved (`voided_rod`'s census verdict hash — same multiset
+claimed, different order), two `shell9_probe` rows re-baselined from
+pinning the defect to pinning the fix, one discard registered. Ordinal
+**2709** claimed on main (PR opened from `topo/claim-2709`); parity
+byte 12 ⇒ R1 OPUS, R2 FABLE; briefs stored with sha256 in
+`/home/user/topo-orch/brief-hashes.txt` (template ebc58bf6…, R1
+27d51383…, R2 a52dd601…; diff 4 lines), both reviewers dispatched
+concurrently on the frozen head. The brief's correctness lane leans
+on the golden re-cut (verdicts diffed as multisets), the receipt of
+`first` as an ORDER (exports, mesh, census, naming) rather than only
+as branch parking, and the fresh-instance check.
+
+## Slot 0 delivered (PR 2576); dual queued behind lane capacity (2026-09-14)
+
+The relaunched slot 0 lane delivered `geom-source-absence-conflates-four-origins`
+on head `52c1868e8`, run green. Shape: `GeomOrigin<'a>` (`Recipe`,
+`Imported`, `KernelDirect`, `Cleared`) in three side maps beside the
+N6 maps, holding only origins a description carries while it holds no
+`GeomSource`; `revert.rs` and `transform.rs` unedited, so N6 decides
+nothing differently. Two disclosed deviations: `Constructed`/`Derived`
+collapse to `KernelDirect` (the arena doors carry no caller identity;
+filed on this slate) and `Cleared` carries no `by` (one caller). The
+dual dispatches (ordinal 2710, byte drawn then) when the D107 style
+review frees its lane; three heavy lanes is the box's ceiling.
+
+## D107 style review adjudicated; fix pass dispatched (2026-09-14)
+
+Verdict MERGEABLE-AFTER-FIXES, fourteen findings, every PR claim
+reproduced (exposure table exact both columns, four mutants behave as
+stated, the release job's exact selection green). Adjudicated: two
+fresh instances of the closed defect are the substance — the new
+`FIXTURES` const is an enumerated dimension with no floor (dropping
+`ops_cube` passes green; S5, sure) and the sampling row's aggregate
+`require_nonzero_among(LINK_OPS, n-1)` keeps five operators under the
+slack `kemr` sat under (S6, half-fix) — both go to the fix pass with
+`require_each` as the shape. Three stale prose counts in the file
+whose subject is unheld counts (S1–S3), an assertion narrower than
+its comment (S7), the one-splice `kemr` strut undriven (S8), the
+`NotSameLoop` sentence witnessed for one fixture of three (S10), an
+unreachable guard (S9), two PR-body overpromises (S4 gating, S11
+territory's globs not covering `work/`), one filed-row cost estimate
+(S12). Fix pass dispatched as a fresh lane on the inherited branch;
+merge and close when its run is green. The review's report is
+archived at `/home/user/topo-orch/d107-style-report.md`.
+
+## Revert-wrap dual concluded (ordinal 2709); fix pass dispatched (2026-09-14)
+
+Both reviews MERGEABLE-AFTER-FIXES on `725d3c204`, converging. The
+mechanism held under every mutant either side planted (`next` for
+`prev`, anchor write dropped, graft carrying `next`): the anchor move
+is exactly `prev(first)`, the involution bitwise, the rows untouched.
+The substance: (1) the golden re-cut's account is false — both
+reviewers dumped `voided_rod`'s forty verdicts and diffed them as
+multisets: `props_rim_side` and `props_rim_dir_group` changed SIGN
+(two each), the readings compensated downstream; the PR said "same
+multiset, same answers"; (2) the anchor's new meaning lives only in
+`revert.rs` while `LoopBoundary::Cycle::first` still says it carries
+no meaning and `transform.rs`'s reversal tripwire lists only `sense`
+— the fresh-instance shape; (3) the plane/curved partition is two
+rules where one would do — R1 re-anchored every loop and the planar
+battery and census stayed green, so nothing but the lane's own
+assertion observes it; ruled: uniform rule, re-baseline what moves.
+Also: an unresolved `.prev` in the plan phase (no typed `Corrupt`),
+the receipt scoped to branch parking rather than `first` as an order
+(R2 derived the order readers and exported the STEP corpus
+byte-identical; R1 found `chart_boundary`'s torus lever unpinned),
+stale sibling prose (`shell7_seam_corner.rs`, DESIGN's revert
+clause), two duplicated fixtures, a `1e-9` literal in a test reader,
+and the characterisation "only azimuth-free joints wrap" measured
+sufficient, not necessary. Brief corrections: C4's "controls green on
+the merge base" was wrong (all seven red on the anchor assertion);
+the skipped `.next =` sweep is clean (both ran it). Fix pass
+dispatched as a fresh lane on the inherited branch, same arm as the
+implementer; reports archived at `/home/user/topo-orch/wrap-r{1,2}-report.md`.
+Row recorded at merge.
+
+## Typed-absence dual prepared, ordinal 2710 claimed; dispatch waits on lane capacity (2026-09-14)
+
+Parity byte 219 ⇒ R1 FABLE, R2 OPUS. Briefs stored with sha256 in
+`/home/user/topo-orch/brief-hashes.txt` (template c9deb907…, R1
+b8f56a7d…, R2 811ec39b…; diff 4 lines); claim PR opened from
+`topo/claim-2710`. The correctness lane leans on the fresh-instance
+check (`KernelDirect` is "the state no door marked" — an absence read
+as a positive claim, the closed defect one level down?), the
+storage shape the brief did not name (one enum-valued map per kind
+with the `Recipe` arm projected, exclusion by type, against six
+discharge sites and a `debug_assert!`), the deviations' honesty, and
+the import/graft path. Both arms dispatch together when the D107 fix
+pass frees the box's third lane; the wait is disclosed in the claim
+entry.
+
+## Typed-absence dual dispatched (ordinal 2710) with two fix passes live (2026-09-14)
+
+Claim merged on main. The wait for the D107 fix pass to free a lane
+was cut short: the box's load was 1.5 on four cores with both fix
+passes in their reading phase, so R1 (FABLE) and R2 (OPUS) dispatched
+together on the frozen head `52c1868e8` with two fix-pass lanes live
+— the condition the claim entry's shared-box note records, applying
+to both arms equally.

@@ -168,11 +168,15 @@ representation of reversal. Normative consequences:
 - The interior-left rule is stated against the sense-signed chart
   normal.
 - Orientation reversal is **exact structure**, never a numeric decide:
-  `revert` flips `sense` on every face carried by a non-plane surface
-  and negates the stored normal of `Plane`-carried faces. The two
-  encodings are exclusive by surface kind, so every outward normal is
-  negated exactly once and `revert ∘ revert` is bit-identical at every
-  scalar backend.
+  `revert` flips `sense` on every face carried by a non-plane surface,
+  negates the stored normal of `Plane`-carried faces, and moves every
+  loop's cycle anchor to its source predecessor (the anchor is where a
+  periodic chart's loop wrap is reported, and a reversed cycle keeps it
+  at the closure only if the anchor moves with the direction —
+  `topo`'s `LoopBoundary::Cycle`). The two normal encodings are
+  exclusive by surface kind, so every outward normal is negated exactly
+  once, the anchor move is a key swap, and `revert ∘ revert` is
+  bit-identical at every scalar backend.
 - A face **fragment** inherits its parent's `sense`: `mef` and `mfkrh`
   mint `true` for a new or foreign surface, but a face landing on the
   old face's surface key takes that face's bit. Key equality, never a

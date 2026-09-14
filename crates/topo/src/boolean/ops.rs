@@ -208,8 +208,10 @@ pub struct BooleanNaming {
     /// result keys.
     pub merge_groups: Vec<(FaceKey, Vec<FaceKey>)>,
     /// Merge groups the output stage did NOT glue, as outside the
-    /// never-elide inventory (M4 PR 5) — the group's faces plus the
-    /// typed [`MergeCoplanarError`](crate::merge_faces::MergeCoplanarError)
+    /// never-elide inventory (M4 PR 5), and declared surface pairs
+    /// the door has no rung for (a non-planar carrier) — the record's
+    /// faces plus the typed
+    /// [`MergeCoplanarError`](crate::merge_faces::MergeCoplanarError)
     /// that stopped each, carried whole. WHICH groups are recorded
     /// here rather than refusing the whole call is the regime's own
     /// statement, at
@@ -905,7 +907,10 @@ pub(super) fn describe_minted_edges<T: Decide>(
     // those groups' classification anticipated did NOT happen, so
     // their in-plane cut edges may carry descriptions citing
     // no-longer-adjacent surfaces — they must be re-checked against
-    // the ACTUAL adjacency below).
+    // the ACTUAL adjacency below). A declared pair the door declined
+    // (a non-planar carrier) enters this worklist through the same
+    // field: its faces were left as the zip shipped them, and their
+    // boundaries are re-checked here for the same reason.
     let group_faces = merged
         .groups
         .iter()
