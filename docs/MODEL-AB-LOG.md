@@ -4377,6 +4377,52 @@ call and paused twice by the usage limit, all resumed from transcript
 (recorded for 3(e)'s reading); the reviewers dispatch when the box's
 lane count allows (paced for the weekly budget), both together.
 
+CURVED-MERGEDOOR RECORDED AT MERGE (2026-09-14, PR #2105, sample #192 — prior highest #191 on main at merge; block CURVED-B1 slot 2 concluded — the block CONCLUDES; its record folds from `curved/b1-block` at this merge):
+
+| MDOOR | 2026-09-14 | CURVED-MERGEDOOR (PR #2105; spec docs/CURVED-MERGEDOOR-SPEC.md, #1415): the planar merge door RECORDS a non-planar declared pair (`SkippedMerge { faces, reason: DeclaredCarrierUnsupported { pair, kind } }`) instead of refusing `InvalidDeclaration` — the door's own `RecordsASkip` doctrine applied to the one arm that broke it; mixed kinds still `Err`; one record per declared pair (dedup at the door); no record for a pair with zero live faces. STOP 2 fired and was RE-SCOPED: with the door recording, scenes A/B proceed into the REST-zip and refuse `JoinDesync` at a `Line` chord minted on the bore wall — a real upstream defect the false refusal had hidden (filed `rest-zip-seam-chord-on-cylinder-wall`), pinned red-the-day; scenes C/D/F union with records; F (stacked equal pegs, walls declared) is the curved declared rung's consumer AT the door, refuting the spec's "no reachable consumer" | S / STRUCTURAL (pre-logged at the spec) | FABLE (block CURVED-B1 slot 2) | **DUAL (ordinal 2202; byte 225 parity 1 ⇒ R1 FABLE + R2 OPUS; CONCURRENT same-head on frozen 3b42b3e1; briefs stored with sha256 pre-dispatch; R2 disclosed an incidental model-name glimpse in the ORCHESTRATOR's dispatch-commit trailer — not an implementer commit; v6 instrument).** R1 MERGEABLE-AFTER-FIXES, rubric 4/4/3/5/5, 4 MIN + 4 NOTE; R2 MERGEABLE-AFTER-FIXES, rubric 4/4/3/4/5, 1 MAJ + 4 MIN + 5 NOTE. BOTH executed the honesty crux identically (door reverted / record suppressed / recorded-faces walk removed / describe skipped — the chord is the zip's); BOTH found by execution that "M6 not observable" was false (a sub-period curved run commits through the kind-agnostic same-key rung), the empty-faces record, the unpinned `kind`, the vacuous `merge_groups` assertions, the wrong mechanism claim, and that the additivity assert had never run before. Unique: R1 the record-order and second-key pins; R2 the dedup amplification and the record's over-claim. **Tally: every substantive finding bilateral — no candidate; R1 nudged (not killed); R2 paused once by the usage limit (3(e)); the implementer arm killed twice (a usage pause, the six-day Fable outage) and re-scoped once.** | 0 silent — every deviation reported; the mechanism claim and the M6 sentence were WRONG, not silent | 4 | R1 3 / R2 3 | R1 5 / R2 4 | substantial, ADJUDICATED — eleven union items all taken (fourteen rows, fifteen mutants red); both reviewers' fixtures adopted authorship-preserving | impl CI 34784570539 GREEN (twelve `test` jobs); fix CI 34827206527 GREEN via `workflow_dispatch` after the push's synchronize event produced no run (render lanes skipped on dispatch — re-rolled by the state-sync push / a reopen before merge); merged #2105 at sample #192 | impl ~318k / fix ~430k / R1 ~254k / R2 ~229k | impl ~2.2 h agent time over six days wall (the outage) / fix ~2.7 h (2 h slot wait) / R1 ~2.6 h / R2 ~21 min agent time over ~9 h wall (one usage pause) |
+
+## Block CURVED-B1 — CONCLUDED record (folded from `curved/b1-block` at the last slot's merge, per the branch-side shape; 2026-09-14)
+
+## CURVED program rows (work/curved/; band 2200–2299; blocks named CURVED-B<n>)
+
+Opened for dispatch 2026-09-04 (`work/curved/log.md`); same orchestrator
+as TRIM (band 2500–2599, its own block series TRIM-B<n>). Block
+CURVED-B1's draw and slot record live branch-side (`curved/b1-block`)
+until the block concludes, per the block-draw redaction ruling; the
+record follows. Implementer ratio fable:opus 1:2 (the 2026-09-04
+amendment) — v3 triple {opus, opus, fable}, fable's position = byte mod 3.
+
+Block CURVED-B1 pre-draw fields (2026-09-04, logged before the draw):
+slot 0 = VERBS-C5ARMS PR-2 (`docs/VERBS-C5ARMS-SPEC.md` §PR-2, the
+coaxial cone×cylinder section arm; branch `curved/c5arms-2`) —
+difficulty **M** (the spec's own pre-log: "M, at the low end"; the
+weight is the re-expression of ordering/refusal pins 6/7/7b, not the
+closed form), task-class **NUMERIC** (two new metered margins,
+`cc_cone_axes_parallel` and `cc_cone_coaxial`, and a section decision
+on them). Slots 1–2 bank for the next dispatches in order
+(`cylindrical-rest-pair-hits-planar-merge`, then
+`torus-operand-boxes-span-whole-ring`), pre-draw fields at their specs.
+
+Block CURVED-B1 draw (2026-09-04, after the pre-draw fields above; one
+/dev/urandom byte, reject ≥252): byte **53**, 53 mod 3 = 2 = fable's
+position ⇒ **fable at slot 2**. So: slot 0 VERBS-C5ARMS PR-2 = OPUS,
+slot 1 = OPUS, slot 2 = FABLE. Recorded branch-side; this record
+reaches main when the block's last slot's reviews conclude; each
+ordinal claim at review dispatch goes to main on its own.
+
+Block CURVED-B1 slot record (branch-side, appended as each slot concludes):
+Reorder (2026-09-04, before any slot-1 dispatch): slot 1 = CURVED-TORUS
+PR-1 (`docs/CURVED-TORUS-SPEC.md` §PR-1, `torus-operand-boxes-span-whole-ring`;
+pre-draw **M / NUMERIC**, logged at the spec), slot 2 = the merge-door
+unit (`cylindrical-rest-pair-hits-planar-merge`, spec pending). Reason:
+the torus spec ratified first (#1874) while the merge-door spec lane
+was still measuring. The draw is untouched — a slot's arm does not
+depend on which unit takes it.
+slot 0 = VERBS-C5ARMS PR-2 (OPUS) — concluded 2026-09-05 at merge ae69dfeb2, ordinal 2200, sample #143 (pair EXCLUDED from the tally under 3(e): R2 interrupted twice by the usage limit; R1's unilateral MAJ-1 noted as a would-be candidate).
+slot 1 = CURVED-TORUS PR-1 (OPUS, after the reorder) — concluded 2026-09-07 at merge 8424e2021, ordinal 2201, sample #152 (R1's unilateral MAJOR a tally CANDIDATE; no reviewer interruption; implementer paused twice by the usage limit).
+slot 2 = CURVED-MERGEDOOR (FABLE) — concluded 2026-09-14 at merge 0e1d06b47, ordinal 2202, sample #192 (no unilateral candidate; R2 paused once by the usage limit, 3(e)). **Block CURVED-B1 CONCLUDED** — {OPUS, OPUS, FABLE} all executed; this record folds to main at this merge, per the branch-side shape. Block CURVED-B2's draw stays branch-side on `curved/b1-block` until it concludes.
+
+
 ## DOCM program rows (work/docm/; band 1800–1899; blocks named DOCM-B<n>)
 
 Block DOCM-B1 pre-draw fields (2026-09-04, logged before the draw):
@@ -6203,6 +6249,30 @@ not written until the dual concludes. Shared-box note applying to
 BOTH arms equally: one 4-core cloud box, no other lane live, `-j2`;
 R1's target is the implementer's warm one, R2's is seeded from an
 older warm build — wall-clock asymmetry only.
+
+Revert-wrap review ordinal fixed at dispatch (2026-09-14, PR #2573
+open — frozen head `725d3c204`; unit
+`work/topo/revert-leaves-a-periodic-charts-loop-wrap-mid-chain.md`):
+**ordinal 2709** (TOPO band). Pre-draw fields (logged in
+`work/topo/log.md` at `4b813113a` BEFORE block TOPO-B4 was drawn —
+clean): difficulty **M**, task class **NUMERIC**. Implementer arm per
+block TOPO-B4 slot 1 (record branch-side on `topo/b4-block`; byte 223
+⇒ fable at slot 1). Protocol v6 dual: draw = `/dev/urandom` byte
+**12**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**. Method, recorded before
+either review runs: CONCURRENT same-head on frozen `725d3c204`, both
+briefs authored and STORED with sha256 before either dispatches
+(identical text modulo lane name, target and scratch paths, verified
+by diff: 4 lines), neither reviewer sees the other's report, v6 item
+5 isolation in both briefs; the implementer's unit log entry is not
+written until the dual concludes. Disclosed: the implementer lane was
+killed by a container restart ten minutes in and relaunched on its
+own recovered WIP commit (a phase-1 probe, no fix) — one arm, same
+model, same brief; the restart is noise in the implementer's wall
+figure, not in the review. Shared-box note applying to BOTH arms
+equally: one 4-core cloud box, one other review lane live (a
+non-dual style review), `-j2`; R1's target is the implementer's warm
+one, R2's is seeded from an older warm build — wall-clock asymmetry
+only.
 
 ## SYM program rows (work/sym/; band 4700–4799; blocks named SYM-B<n>)
 

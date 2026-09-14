@@ -2616,3 +2616,17 @@ not foresee; that finding is filed as
 body and the unit's log entry.
 
 - `SYM-3-SPEC.md` — SYM-3, what stands at a bulge that is not 1 (#2558)
+
+## Per-merge deletion — CURVED-MERGEDOOR's spec (2026-09-14)
+
+Recoverable at `git show 0e1d06b47:docs/CURVED-MERGEDOOR-SPEC.md` (PR
+#2105's merge commit, the last head carrying it). Every clause was met
+as ruled: the spec's STOP 2 fired (scenes A/B reach the REST-zip's chord
+on a cylinder wall once the door records) and the orchestrator re-scoped
+the rows to the measured frontier (comment 5568446264); the rulings
+§Rulings (public-door posture; `faces` carried) and the re-scope ruling
+(no record for a pair with zero live faces; dedup at the door) are in
+the unit's record — `work/curved/cylindrical-rest-pair-hits-planar-merge.md`'s
+`## Closed` and the MERGED entry in `work/curved/log.md`; its A/B row is
+MODEL-AB-LOG MDOOR. Shape (2) is banked on S-BOOL's
+`cosurface-disjoint-curved-walls-refuse` with its consumer measured.
