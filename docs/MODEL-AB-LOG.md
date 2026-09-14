@@ -5984,6 +5984,8 @@ fable at slot 1.
 |---|---|---|---|
 | 0 | OPUS | `loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart` — CONCLUDED 2026-09-14 at merge `7f249e2dd`, ordinal 2707, sample #190 (no tally candidate) | difficulty S/M, task class STRUCTURAL — logged before the draw |
 | 1 | FABLE | `D263` — CONCLUDED 2026-09-14 at merge `4628d4e6a`, ordinal 2706, sample #189 (no tally candidate) | difficulty M, task class STRUCTURAL-GEOMETRIC — logged before the draw |
-| 2 | OPUS | `S93` | difficulty S, task class STRUCTURAL — logged before the draw |
+| 2 | OPUS | `S93` — CONCLUDED 2026-09-14 at merge `21a0de4ce`, ordinal 2708, sample #191 (one doc-class tally candidate; the unit stays open on its `kev` half) | difficulty S, task class STRUCTURAL — logged before the draw |
 
 Ordinal claims go to main at each review dispatch (band 2700–2799).
+
+Block TOPO-B3 CONCLUDED 2026-09-14; the record is published on main in the TOPO section of this file.
