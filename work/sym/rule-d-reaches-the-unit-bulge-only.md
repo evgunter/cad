@@ -324,7 +324,8 @@ budget):
 **Patch C — `abs(X) = X` for an `X` non-negative by syntax** (the
 `atan2` fold's own test; `crates/geom-core/src/sym.rs`, the `Sqrt |
 Abs` arm of the early walk, after A0's constant fold declines — so it
-runs in every walk that runs A0, the plain one included):
+runs wherever A0 runs, which under the shipped set is the early walk
+only: `a0 = const_fold && (early || !rules.early)`):
 
 ```diff
              match folded {
@@ -349,7 +350,7 @@ FILES; the pattern is `.arc_to(`, `.fillet(`, `tangent_arc_to`,
 `CircleSplit {` and `ArcData::Bulge {`, with `circle(`/`LoopProgram::Circle`
 read as the unit bulge. Re-taken at the fix pass on `e833a1417`.
 
-- **The tour**: 14 stops author an arc at a non-unit bulge —
+- **The tour**: 13 registered stops author an arc at a non-unit bulge —
   `bodies.rs`'s `bracket` (`.fillet(0.5)`: `tan(π/8)`), `vase` and
   `sheave` (`arc_to(Via)`, revolved) and `budrim` (`bud_rim`'s
   `arc_to(Via)`, registered by `probe`), `budfillet` (`arc_to`),
@@ -365,9 +366,9 @@ read as the unit bulge. Re-taken at the fix pass on `e833a1417`.
   pushforward, so the mapped-source identity is never asked of them.
 - **The test corpus**: 31 files under `crates/*/tests` match
   `.arc_to(|.fillet(|tangent_arc_to` (every one a non-unit bulge by
-  the rule below: 23 in `profile/tests`, 5 in `sweep/tests`, and
+  the rule below: 22 in `profile/tests`, 5 in `sweep/tests`, and
   `editor-core`'s `bool12r2_ec_probe`, `mesh`'s `m5_s11_concave_sense`,
-  `pncad`'s `all`, `step-export`'s `common`); 47 with `ArcData::Bulge {`
+  `pncad`'s `all`, `step-export`'s `common`); 24 files (50 occurrences) across `crates/` with `ArcData::Bulge {`
   added, whose literal `b:` sites are non-unit in nine files (the boss
   `2`; the D-tab `0.4`/a parameter; `m4_pr6_eps_diff` `2e-6`;
   `m4_pr6_golden` `0.25`; `switch_program_vocabulary` `0.3`;

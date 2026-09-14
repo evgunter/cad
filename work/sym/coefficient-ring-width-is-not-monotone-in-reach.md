@@ -48,10 +48,12 @@ LOST.
   14.4 s a probe), and so does the ring alone — though at the nominal
   the two pairs print the same table (`carrier_matches` 126/0/38/16,
   `carrier_endpoint_start` 24/0/12/0 with the rim identity closing).
-  So the fall is patch A's own: a square substituted as a form over
-  the box carries the box's width into a predicate the atom had kept
-  out of it, and the wide ring then holds that form where the narrow
-  one froze it.
+  So the fall is patch A's own, and its mechanism is this row's
+  thesis: rendered at the fallen ceiling, the bounding decision's
+  early form is `sqrt(?#…)` over a `Powi^2` node that is FROZEN even
+  at 512 bits — the opened `abs²` product does not fit the ring, so
+  the discharge the opaque atom gave is lost and the numeric channel
+  decides at the box width (the delta review's render, `likely`).
 
 **The ring's cost** (dev build, one whole-box probe of the bisection,
 256 → 512 bits): boss 0.81 → 3.17 s (3.9×), parameter D-tab 1.45 →
