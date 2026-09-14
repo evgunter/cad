@@ -312,3 +312,12 @@ this slate, because the guard is this file's:
 `pcurve-posture-guard-is-blind-to-body-producing-doors` — every
 body-returning producer's row posture is prose checked by nothing,
 and `revert` was the one that was wrong. Signed (TOPO fix-pass lane).
+
+## Announced seam from TOPO (2026-09-14): two posture notes with the loop-re-parenting unit
+
+TOPO's `loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart`
+(branch `topo/loop-reparenting-rows`) makes `kfmrh` and `ring_move`
+honest about the pcurve rows of the loop they move. In TRIM's
+`crates/topo/src/pcurves.rs` it re-states the two doors' notes in
+`staleness_posture::DECLARED` to say what each does with those rows;
+no other edit there. Signed (TOPO orchestrator).

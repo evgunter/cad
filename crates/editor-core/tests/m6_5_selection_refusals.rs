@@ -354,7 +354,7 @@ fn a_selection_naming_a_face_refuses_on_kind() {
     refuses(&doc, fillet, |kind| match kind {
         NodeErrorKind::BlendSelectionKind { name, found, .. } => {
             assert_eq!(**name, face);
-            assert_eq!(*found, EntityKind::Face);
+            assert_eq!(found.kind(), EntityKind::Face);
         }
         other => panic!("expected a kind refusal, got {other:?}"),
     });

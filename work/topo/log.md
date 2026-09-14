@@ -892,3 +892,77 @@ residue row now says exactly. Fourteen reviewer rows adopted. Row
 recorded at merge (ordinal 2704, sample #187), no tally candidate; the
 block's CONCLUDED record published beneath it with slot 2's row to
 follow at its merge. The revert dual is the only work running.
+
+## Revert adjudicated (2026-09-14)
+
+Both blinded reviews on frozen `f8ced386b`, both
+MERGEABLE-AFTER-FIXES. R1: 0/4/3, rubric 3/3/3. R2: 2/8/3, rubric
+3/4/3. Both executed the transform in all five image kinds (exact,
+bitwise involution), the certificate-verbatim pin under a certificate
+mutant (live, not decorative), the four red-first rows and the four
+flipped rows on a merge-base emulation, and the class receipt's frame
+readers. CONVERGED on the facts, DIVERGENT on severity: R2's two
+MAJORs — `mirror_v` re-implements `NurbsCurve2::map_points` and so
+mints two `RevertError` variants nothing can produce (R2 executed the
+equivalence on a rational net; R1 read `validate_counts` and filed it
+MINOR), and the header contract still says "every certification
+survives" where the lane's own filed row says the sphere's cavity
+falsifies it (R1 MINOR) — so no unilateral executed MAJOR and no tally
+candidate. Converged also: the `shell.rs` sentence saying reverted
+rows go stale; four of five mirror arms untested (R2's `None`-on-every-
+arm mutant left every suite green); the guard's blindness to
+`&self -> Self` producers owes a TRIM row. Unilateral, taken: "three
+postures exist" falsified in the same doc comment, an invented
+certificate field in the load-bearing paragraph, the dead-key
+exception absent from the posture's home, `MIRROR-DESIGN.md`'s recipe
+for the future mirror unit now incomplete, the `Pcurve` type's own
+variant miscount, the receipt's extent short by seven `.dv` consumers
+(all invariant) (R2); `revert_plane_charts.rs` re-deriving the drum
+fixtures and the graft meter a third time, the `is_err()` refusal
+unpinned (R1). Both corrected the brief: `with_chart_v_mirrored` lives
+in `certify.rs`; only `mirror_v` matches per kind; `attach_pcurve` is
+the only origin of a plane-face row. Five-item fix pass to a fresh
+lane on the inherited branch: one `map_points`-shaped door for the
+image map, `shift_branch` swept onto it, the variants deleted, both
+reviewers' rows adopted, fixtures shared.
+
+## Revert merged; block TOPO-B2 concluded (2026-09-14)
+
+PR 2542 merged at `7aaeb095d` (green run 34803151950 on `8e4d5a4e9`,
+full matrix, verified job by job). The unit closed; row recorded at
+merge (ordinal 2705, sample #188), no tally candidate; slot 2 marked
+concluded on `topo/b2-block` and in the published record. The fix
+pass's one disagreement was right: the affine door takes the
+point-action and the linear part as two closures because deriving one
+from the other is not bit-exact under translation — `shift_branch`'s
+pin would have moved. Block TOPO-B2 closes with three duals and no
+tally candidate; every pre-draw field was logged before the byte. No
+lane is running. The next kernel-answer unit draws TOPO-B3.
+
+## Block TOPO-B3 cut; pre-draw fields logged BEFORE the byte (2026-09-14)
+
+Three kernel answers on this program's files, slot order fixed here
+and the byte drawn only after this entry is committed:
+
+- slot 0 `loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart`
+  — difficulty **S/M**, task class **STRUCTURAL** (two Euler doors
+  made honest about the rows of the loop they move; the loud pass
+  already exists).
+- slot 1 `D263` — difficulty **M**, task class **STRUCTURAL-GEOMETRIC**
+  (the regime classification gains the placeholder arm; the door's
+  grouping changes on the placeholder cube).
+- slot 2 `S93` — difficulty **S**, task class **STRUCTURAL** (two
+  prose-held obligations become checked preconditions).
+
+Held: the periodic-chart wrap under `revert` and the half-edge-minting
+ops' pcurve posture (the bound ripple is Ev's question, added to the
+open `[ev]` PR's scope at its next revision).
+
+## Block TOPO-B3 drawn; slots 0 and 1 dispatched (2026-09-14)
+
+Byte drawn after the pre-draw entry was committed (`daa30ee99`): 19
+⇒ 19 mod 3 = 1 ⇒ fable at slot 1. Record branch-side on
+`topo/b3-block`. Slot 0 (`loop-reparenting-…`, `topo/loop-reparenting-rows`)
+and slot 1 (`D263`, `topo/d263-placeholder-regime`) dispatched
+together with brief sections in their items; slot 2 (`S93`)
+dispatches when one frees. Seam announced to TRIM (two posture notes).

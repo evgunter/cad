@@ -28,8 +28,9 @@ use core::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
+use super::form::Form;
 use super::report::{FormSize, size_of};
-use super::{Form, SymBudget, SymOp};
+use super::{SymBudget, SymOp};
 
 /// Why a node froze — the refusal the ring or the budget made, noted
 /// where it was made.
@@ -660,7 +661,8 @@ mod tests {
     use crate::k_stats::decide;
     use crate::predicate::Margin;
     use crate::real::Real;
-    use crate::sym::{Int, ParamSymbol, Rat, Sym, SymRules, with_session_rules};
+    use crate::sym::rational::Rat;
+    use crate::sym::{ParamSymbol, Sym, SymRules, with_session_rules};
     use crate::tolerance::Tol;
 
     fn p(name: &str, v: f64) -> Sym<f64> {
@@ -864,15 +866,15 @@ mod tests {
         }
     }
 
-    /// **A zero divisor is a noted cause**: a rational with a zero
-    /// denominator (`Rat::from_parts`, the reciprocal of a zero
-    /// coefficient) notes `ZeroDivisor`, so no freeze it causes reads
-    /// as `Unnoted`.
+    /// **A zero divisor is a noted cause**: the reciprocal of the zero
+    /// coefficient reaches `Rat::from_parts` with a zero denominator,
+    /// which notes `ZeroDivisor`, so no freeze it causes reads as
+    /// `Unnoted`.
     #[test]
     fn a_zero_denominator_is_noted_as_a_zero_divisor() {
         start_profile();
         clear_note();
-        assert!(Rat::from_parts(Int::one(), Int::zero(), 0).is_none());
+        assert!(Rat::zero().recip().is_none());
         assert_eq!(NOTE.get(), Some(FreezeCause::ZeroDivisor));
         let _ = take_profile();
     }
