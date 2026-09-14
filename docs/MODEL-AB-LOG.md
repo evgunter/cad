@@ -5707,6 +5707,8 @@ fable at slot 2.
 |---|---|---|---|
 | 0 | OPUS | `tier3-accepts-a-ring-outside-its-outer-loop` — CONCLUDED 2026-09-14 at merge `dc868f1f9`, ordinal 2704, sample #187 (no tally candidate) | difficulty M, task class STRUCTURAL-GEOMETRIC — logged before the draw |
 | 1 | OPUS | `split-edge-children-lack-pcurve-rows-on-curved-charts` — CONCLUDED 2026-09-14 at merge `dffd2bf34`, ordinal 2703, sample #186 (no tally candidate) | difficulty S/M, task class STRUCTURAL-NUMERIC — logged before the draw |
-| 2 | FABLE | `revert-does-not-mirror-plane-chart-images` | difficulty M, task class NUMERIC — logged before the draw |
+| 2 | FABLE | `revert-does-not-mirror-plane-chart-images` — CONCLUDED 2026-09-14 at merge `7aaeb095d`, ordinal 2705, sample #188 (no tally candidate) | difficulty M, task class NUMERIC — logged before the draw |
 
 Ordinal claims go to main at each review dispatch (band 2700–2799).
+
+Block TOPO-B2 CONCLUDED 2026-09-14; the record is published on main in the TOPO section of this file.
