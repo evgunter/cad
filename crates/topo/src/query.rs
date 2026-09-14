@@ -100,6 +100,7 @@ use geom_core::{
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::null::CurveGeom;
+use crate::readback::{CarrierAbsence, DanglingRef};
 
 /// Which [`Curve3`] variant a carrier is: the fieldless mirror of the
 /// curve enum, and the edge-side twin of [`SurfaceKind`].
@@ -1093,15 +1094,26 @@ fn same_pair(a: (SurfaceKey, SurfaceKey), b: (SurfaceKey, SurfaceKey)) -> bool {
 /// chain, [`RimError::NotIntact`] on a dangling key or an unreadable
 /// reference.
 pub fn rim_of<T: Bounds>(body: &Body<T>, edge: EdgeKey) -> Result<Vec<EdgeKey>, RimError> {
-    let seed_edge = body
-        .get_edge(edge)
-        .ok_or(RimError::NotIntact(EntityId::Edge(edge)))?;
-    let seed_carrier = match body
-        .get_curve_geom(seed_edge.curve)
-        .and_then(CurveGeom::certified)
-    {
-        Some(c) => c.carrier().clone(),
-        None => return Err(RimError::NotAnArc { edge, kind: None }),
+    // The seed's carrier comes through the crate's one walk to it
+    // (`readback::edge_carrier_ref`), renamed here: this door's
+    // vocabulary is `RimError`, and the rename is exhaustive so a
+    // fourth way for that walk to come back empty cannot arrive
+    // silently.
+    let seed_carrier = match crate::readback::edge_carrier_ref(body, edge) {
+        Ok(carrier) => carrier.clone(),
+        Err(CarrierAbsence::Dangling(DanglingRef::Entity(id))) => {
+            return Err(RimError::NotIntact(id));
+        }
+        // A curve key a live edge names and the arena does not hold is
+        // NOT a null scaffold, and this door says the same thing about
+        // both: `NotIntact` carries an `EntityId` and a curve key is
+        // not one. The conflation is
+        // `work/topo/rim-of-flattens-a-dangling-curve-key.md`; telling
+        // them apart changes what a `RimError` arm means, which is not
+        // this unit's to decide.
+        Err(CarrierAbsence::Dangling(DanglingRef::Geometry(_)) | CarrierAbsence::NoCarrier) => {
+            return Err(RimError::NotAnArc { edge, kind: None });
+        }
     };
     let Some(seed_circle) = circle_id(&seed_carrier) else {
         return Err(RimError::NotAnArc {

@@ -16,7 +16,14 @@
 //! The edge rows also pin the two seats against each other: the
 //! predicate seat's `query::edge_carrier_kind` is this door flattened,
 //! and the pair of refusals it flattens to one `None` are two
-//! different facts about the body.
+//! different facts about the body. That the seat is the flattening and
+//! not a second copy of the walk is not a behaviour any row can see —
+//! the two bodies are extensionally equal — so it is pinned as a fact
+//! about the source text, in the last row here.
+//!
+//! The walk's third refusal, a curve key a live edge names and the
+//! arena does not hold, is rowed in `readback.rs`'s own `mod tests`:
+//! planting it needs a crate-private arena writer.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -366,4 +373,54 @@ fn edge_carrier_kind_refuses_dangling_and_no_carrier_and_nothing_else() {
     assert_eq!(query::edge_carrier_kind(&scaffold, null.edge), None);
     // …while a live edge is neither.
     assert_eq!(edge_carrier_kind(&body, edge), Ok(CurveKind::Line));
+}
+
+/// The query seat's body, whitespace-normalised: the door called, and
+/// its refusal flattened. Nothing else — no `get_edge`, no
+/// `get_curve_geom`, no `certified`.
+const SEAT_BODY: &str = "crate::readback::edge_carrier_kind(body, e).ok()";
+
+/// **The predicate seat is the door flattened, structurally** — it
+/// holds no walk of its own.
+///
+/// The rows above cannot see this and say so: the seat and a
+/// hand-written arena walk are extensionally EQUAL, so restoring the
+/// walk leaves every row in the workspace green. What is being pinned
+/// is therefore a fact about the source text, in the shape
+/// `editor-core`'s `wire_operand_door.rs` pins "built in one place":
+/// the seat's body is one call, and a second reading of an edge's
+/// carrier tag re-entering `query.rs` reds here.
+///
+/// It is a SOURCE-TEXT pin, so it says nothing about what the door
+/// itself does — that is what the rows above are for — and nothing
+/// about a walk written in a third file.
+///
+/// Ungated: it reads one file and runs no geometry.
+#[test]
+fn the_query_seat_holds_no_walk_of_its_own() {
+    let query = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"))
+        .join("src")
+        .join("query.rs");
+    let text = std::fs::read_to_string(&query).expect("topo's query.rs is readable");
+    // Comments and literals blanked: a doc comment quoting the call
+    // must not answer for the body, and neither must a string.
+    let code = test_utils::source::code_only(&text);
+
+    let at = code
+        .find("pub fn edge_carrier_kind")
+        .expect("the predicate seat is declared in query.rs");
+    let arg_open = at + code[at..].find('(').expect("a signature has an argument list");
+    let arg_end =
+        test_utils::source::balanced_end(&code, arg_open).expect("the argument list closes");
+    let body_open = arg_end + code[arg_end..].find('{').expect("the seat has a body");
+    let body_end = test_utils::source::balanced_end(&code, body_open).expect("the body closes");
+
+    let body = code[body_open + 1..body_end]
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert_eq!(
+        body, SEAT_BODY,
+        "query::edge_carrier_kind is the typed door flattened and nothing else; a walk here          would be a second reading of one edge's carrier tag"
+    );
 }

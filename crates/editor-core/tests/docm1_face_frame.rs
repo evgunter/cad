@@ -329,6 +329,41 @@ fn edge_carrier_kind_answers_a_named_edge_and_walks_the_edge_frame_ladder() {
     );
 }
 
+/// **The door answers a CURVED carrier too, so the read is a read.**
+///
+/// The box fixture the row above uses is all straight edges, and the
+/// arena-key door it compares against answers `Line` on every one of
+/// them — so both of that row's positive assertions hold of a door
+/// that returns `CurveKind::Line` and reads nothing at all. The washer
+/// is a revolved rectangle: its edges include circles, and a door that
+/// does not read cannot say so.
+#[test]
+fn edge_carrier_kind_answers_a_curved_carrier_not_only_the_box_lines() {
+    let (doc, washer) = washer_doc();
+    let ev = eval(&doc);
+    let names = all_edges(&ev, washer);
+    assert!(!names.is_empty(), "edges to read");
+
+    let mut kinds: Vec<CurveKind> = names
+        .iter()
+        .map(|name| edge_carrier_kind(&ev, washer, name).expect("a live named edge"))
+        .collect();
+    kinds.sort_unstable();
+    kinds.dedup();
+    assert!(
+        kinds.contains(&CurveKind::Circle),
+        "a revolved rectangle has circular edges; got {kinds:?}"
+    );
+
+    for name in &names {
+        assert_eq!(
+            edge_carrier_kind(&ev, washer, name),
+            Ok(kernel_edge_kind(&ev, washer, name)),
+            "twin agrees off the all-line fixture too"
+        );
+    }
+}
+
 /// The leading `//!` block of a Rust file, read through the shared
 /// reader's PROSE view.
 ///

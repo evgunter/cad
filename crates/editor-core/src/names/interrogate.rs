@@ -243,11 +243,7 @@ pub fn face_frame<T: Decide>(
     node: RecipeNodeId,
     name: &StableName,
 ) -> Result<Pose<T>, InterrogateError> {
-    let (body, key) = entity_of(ev, node, name)?;
-    match key {
-        EntityKey::Face(f) => Ok(readback::face_pose(body, f)?),
-        other => Err(kind_mismatch(EntityKind::Face, other)),
-    }
+    read(ev, node, name, readback::face_pose)
 }
 
 /// **What kind of carrier is the face I selected?** — the named
@@ -270,11 +266,7 @@ pub fn face_carrier_kind<T: Decide>(
     node: RecipeNodeId,
     name: &StableName,
 ) -> Result<SurfaceKind, InterrogateError> {
-    let (body, key) = entity_of(ev, node, name)?;
-    match key {
-        EntityKey::Face(f) => Ok(readback::face_carrier_kind(body, f)?),
-        other => Err(kind_mismatch(EntityKind::Face, other)),
-    }
+    read(ev, node, name, readback::face_carrier_kind)
 }
 
 /// **Where is the edge I selected?** — the named edge's certified
@@ -289,11 +281,7 @@ pub fn edge_frame<T: Decide>(
     node: RecipeNodeId,
     name: &StableName,
 ) -> Result<Pose<T>, InterrogateError> {
-    let (body, key) = entity_of(ev, node, name)?;
-    match key {
-        EntityKey::Edge(e) => Ok(readback::edge_pose(body, e)?),
-        other => Err(kind_mismatch(EntityKind::Edge, other)),
-    }
+    read(ev, node, name, readback::edge_pose)
 }
 
 /// **What kind of carrier is the edge I selected?** — the named
@@ -319,11 +307,7 @@ pub fn edge_carrier_kind<T: Decide>(
     node: RecipeNodeId,
     name: &StableName,
 ) -> Result<CurveKind, InterrogateError> {
-    let (body, key) = entity_of(ev, node, name)?;
-    match key {
-        EntityKey::Edge(e) => Ok(readback::edge_carrier_kind(body, e)?),
-        other => Err(kind_mismatch(EntityKind::Edge, other)),
-    }
+    read(ev, node, name, readback::edge_carrier_kind)
 }
 
 /// **Where is the vertex I selected?** — the named vertex's stored
@@ -337,11 +321,7 @@ pub fn vertex_position<T: Decide>(
     node: RecipeNodeId,
     name: &StableName,
 ) -> Result<geom_core::Point3<T>, InterrogateError> {
-    let (body, key) = entity_of(ev, node, name)?;
-    match key {
-        EntityKey::Vertex(v) => Ok(readback::vertex_point(body, v)?),
-        other => Err(kind_mismatch(EntityKind::Vertex, other)),
-    }
+    read(ev, node, name, readback::vertex_point)
 }
 
 /// **Where an entity IS**, in ONE point, for any entity kind — the
@@ -374,6 +354,81 @@ pub(crate) fn entity_point<T: Decide>(
         EntityKey::Edge(e) => Ok(readback::edge_pose(body, e)?.origin),
         EntityKey::Face(f) => Ok(readback::face_pose(body, f)?.origin),
         EntityKey::Body => Err(InterrogateError::WholeBody),
+    }
+}
+
+/// **Name → the one kernel read** — the body every door above is,
+/// with the door's own kernel function as its only argument.
+///
+/// The five public names each resolve a name, check that what it
+/// denotes is the kind that door reads, and hand the arena key to one
+/// `topo::readback` function. That is one shape, and it is written
+/// here once: a sixth read door is a delegate line, not a sixth copy
+/// of the ladder, and the `WrongKind` refusal cannot drift between
+/// doors because there is one site that builds it.
+///
+/// # Errors
+///
+/// The node ladder and `NoSuchName`/`Ambiguous` through
+/// [`entity_of`], [`InterrogateError::WrongKind`] (or
+/// [`InterrogateError::WholeBody`]) where the name denotes another
+/// kind, and the wrapped [`ReadbackError`] the kernel door refuses
+/// with.
+fn read<T: Decide, K: Denoted, R>(
+    ev: &Evaluation<T>,
+    node: RecipeNodeId,
+    name: &StableName,
+    door: fn(&Body<T>, K) -> Result<R, ReadbackError>,
+) -> Result<R, InterrogateError> {
+    let (body, key) = entity_of(ev, node, name)?;
+    match K::of(key) {
+        Some(k) => Ok(door(body, k)?),
+        None => Err(kind_mismatch(K::KIND, key)),
+    }
+}
+
+/// **An arena key kind a read door takes**, and the two facts [`read`]
+/// needs about it: which [`EntityKind`] a name must denote to reach
+/// that door, and the key itself where a resolved [`EntityKey`] holds
+/// one.
+///
+/// The projections are exhaustive with no wildcard arm, so a fifth
+/// entity kind fails to compile here rather than resolving to `None`
+/// and refusing at run time.
+trait Denoted: Copy {
+    /// The kind a door reading this key asks for.
+    const KIND: EntityKind;
+    /// This kind's key, where the resolved entity is of this kind.
+    fn of(key: EntityKey) -> Option<Self>;
+}
+
+impl Denoted for topo::FaceKey {
+    const KIND: EntityKind = EntityKind::Face;
+    fn of(key: EntityKey) -> Option<Self> {
+        match key {
+            EntityKey::Face(f) => Some(f),
+            EntityKey::Body | EntityKey::Edge(_) | EntityKey::Vertex(_) => None,
+        }
+    }
+}
+
+impl Denoted for topo::EdgeKey {
+    const KIND: EntityKind = EntityKind::Edge;
+    fn of(key: EntityKey) -> Option<Self> {
+        match key {
+            EntityKey::Edge(e) => Some(e),
+            EntityKey::Body | EntityKey::Face(_) | EntityKey::Vertex(_) => None,
+        }
+    }
+}
+
+impl Denoted for topo::VertexKey {
+    const KIND: EntityKind = EntityKind::Vertex;
+    fn of(key: EntityKey) -> Option<Self> {
+        match key {
+            EntityKey::Vertex(v) => Some(v),
+            EntityKey::Body | EntityKey::Face(_) | EntityKey::Edge(_) => None,
+        }
     }
 }
 
