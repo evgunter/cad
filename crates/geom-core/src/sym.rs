@@ -1857,10 +1857,7 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
                 SymOp::Min | SymOp::Max => a.is_zero() && b.is_zero(),
                 SymOp::Copysign => a.is_zero(),
                 SymOp::Atan2 => {
-                    early
-                        && sess.rules.trig_of_atan
-                        && a.is_zero()
-                        && manifest::nonneg(b, sess)
+                    early && sess.rules.trig_of_atan && a.is_zero() && manifest::nonneg(b, sess)
                 }
                 _ => false,
             };

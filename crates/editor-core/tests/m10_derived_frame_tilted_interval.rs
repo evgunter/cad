@@ -844,10 +844,7 @@ fn sym8_phase1_the_tilt_u_wall_with_and_without_the_manifest_sign() {
                         }
                         if let Some(e) = &s.explain {
                             let frozen = e.lines().filter(|l| l.contains("FROZEN")).count();
-                            println!(
-                                "    explain: {} lines, {frozen} FROZEN",
-                                e.lines().count()
-                            );
+                            println!("    explain: {} lines, {frozen} FROZEN", e.lines().count());
                             for l in e.lines() {
                                 if l.contains("FROZEN") || l.contains(": num") {
                                     println!("      {}", head(l, 200));
