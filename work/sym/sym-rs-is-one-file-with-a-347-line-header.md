@@ -67,6 +67,11 @@ SYM-2 took the two moves the list above names and the header with them:
 532 (header 18), `sym/form.rs` 417 (header 22). Two further cuts are
 identified and neither is taken.
 
+**`sym/form.rs` is three concerns under one header** (SYM-4's R1, Q8):
+the monomial and its product, the polynomial, and the quotient form
+with its budget — a candidate cut, recorded here as accumulation and
+not taken by SYM-4, whose fence was the representation.
+
 **The test module -> `sym/tests.rs`, 1,040 lines.** A pure move, written
 and reverted in the fix pass (`c9a38f5e4`, `c9811f408`): it is BLOCKED by
 `scripts/gates/register-equal-allowlist.sh`, whose whole-file skip

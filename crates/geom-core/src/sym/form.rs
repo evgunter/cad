@@ -21,8 +21,6 @@
 //! argument's form, so two occurrences of ONE atom cancel and nothing else
 //! about it is known there.
 
-use std::collections::BTreeMap;
-
 #[cfg(feature = "sym-profile-testing")]
 use super::profile;
 use super::rational::Rat;
@@ -30,14 +28,36 @@ use super::{Hash128, SymBudget};
 
 /// A monomial: indeterminate ids with their exponents, sorted by id and
 /// carrying no zero exponent. The empty vector is the constant monomial.
+/// Its `Ord` — the vector's lexicographic order — is the term order of
+/// [`Poly`].
 pub(super) type Mono = Vec<(u128, u32)>;
 
 /// The polynomial normal form over the parameter symbols, π and the
 /// opaque atoms — with exact rational coefficients, and no zero
 /// coefficient stored, so **the form is zero iff it has no terms**.
+///
+/// # What a `Poly` is in memory, and why the order is the map's
+///
+/// The terms are one **sorted vector** of `(monomial, coefficient)`
+/// pairs — sorted by the monomial under [`Mono`]'s own `Ord`, each
+/// monomial at most once, no zero coefficient — so a form of ten terms
+/// is one allocation for the terms and one per monomial rather than a
+/// tree node per term. The order is exactly the order a
+/// `BTreeMap<Mono, Rat>` iterates in, and that is not a convenience:
+/// [`Poly::digest`] feeds the terms to the hasher in this order, the
+/// digest is the key an opaque atom is minted under, and the atom key
+/// is what a decision reads. Every operation below keeps the vector
+/// sorted by merging or by binary search; nothing sorts after the
+/// fact, so no term is ever out of place between two operations.
+/// `m10_sym_profile_interval`'s walk ledger pins the digests the tier
+/// builds on the slab and the plate at their nominals.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub(super) struct Poly {
-    pub(super) terms: BTreeMap<Mono, Rat>,
+    /// Sorted by monomial, no monomial twice, no zero coefficient — the
+    /// invariant every constructor and [`Poly::insert`] keep, and
+    /// private so that nothing outside this module can break it;
+    /// [`Poly::terms`] reads it.
+    terms: Vec<(Mono, Rat)>,
 }
 
 impl Poly {
@@ -50,17 +70,22 @@ impl Poly {
     }
 
     pub(super) fn constant(c: Rat) -> Self {
-        let mut terms = BTreeMap::new();
-        if !c.is_zero() {
-            terms.insert(Mono::new(), c);
-        }
-        Self { terms }
+        Self::term(Mono::new(), c)
     }
 
     /// The form of a single indeterminate, coefficient one.
     pub(super) fn indet(id: u128) -> Self {
-        let mut terms = BTreeMap::new();
-        terms.insert(vec![(id, 1)], Rat::one());
+        Self::term(vec![(id, 1)], Rat::one())
+    }
+
+    /// The one-term polynomial `c · m` — the zero polynomial when `c`
+    /// is zero.
+    pub(super) fn term(mono: Mono, c: Rat) -> Self {
+        let terms = if c.is_zero() {
+            Vec::new()
+        } else {
+            vec![(mono, c)]
+        };
         Self { terms }
     }
 
@@ -68,88 +93,111 @@ impl Poly {
         self.terms.is_empty()
     }
 
+    /// The terms, sorted by monomial.
+    pub(super) fn terms(&self) -> &[(Mono, Rat)] {
+        &self.terms
+    }
+
+    /// The monomials, in the terms' order.
+    pub(super) fn monos(&self) -> impl Iterator<Item = &Mono> {
+        self.terms.iter().map(|(m, _)| m)
+    }
+
     /// The value of a CONSTANT polynomial (no indeterminate).
     pub(super) fn as_constant(&self) -> Option<Rat> {
-        match self.terms.len() {
-            0 => Some(Rat::zero()),
-            1 => {
-                let (m, c) = self.terms.iter().next()?;
-                m.is_empty().then(|| c.clone())
-            }
+        match self.terms.as_slice() {
+            [] => Some(Rat::zero()),
+            [(m, c)] => m.is_empty().then(|| c.clone()),
             _ => None,
         }
     }
 
     /// The largest total degree of any term (zero for the zero form).
     pub(super) fn degree(&self) -> u32 {
-        self.terms
-            .keys()
+        self.monos()
             .map(|m| m.iter().map(|(_, e)| *e).sum::<u32>())
             .max()
             .unwrap_or(0)
     }
 
+    /// Adds `c · mono`, merging into the term already there, and drops
+    /// the term when the sum is zero. `None` where the ring refuses
+    /// the sum.
     pub(super) fn insert(&mut self, mono: Mono, c: Rat) -> Option<()> {
         if c.is_zero() {
             return Some(());
         }
-        match self.terms.remove(&mono) {
-            None => {
-                self.terms.insert(mono, c);
-            }
-            Some(existing) => {
-                let sum = existing.add(&c)?;
-                if !sum.is_zero() {
-                    self.terms.insert(mono, sum);
-                }
-            }
+        match self.terms.binary_search_by(|(m, _)| m.cmp(&mono)) {
+            Err(i) => self.terms.insert(i, (mono, c)),
+            Ok(i) => self.merge_at(i, &c)?,
         }
         Some(())
     }
 
-    pub(super) fn add(&self, other: &Self) -> Option<Self> {
-        let mut out = self.clone();
-        for (m, c) in &other.terms {
-            out.insert(m.clone(), c.clone())?;
+    /// Adds `c` into the coefficient at `i` (that term's first), and
+    /// drops the term when the sum is zero.
+    fn merge_at(&mut self, i: usize, c: &Rat) -> Option<()> {
+        let sum = self.terms[i].1.add(c)?;
+        if sum.is_zero() {
+            self.terms.remove(i);
+        } else {
+            self.terms[i].1 = sum;
         }
-        Some(out)
+        Some(())
+    }
+
+    /// The sum: one merge of the two sorted vectors, adding the
+    /// coefficients where a monomial is in both (this side's first).
+    pub(super) fn add(&self, other: &Self) -> Option<Self> {
+        let mut terms = Vec::with_capacity(self.terms.len() + other.terms.len());
+        merge_sorted(
+            &self.terms,
+            &other.terms,
+            |t| &t.0,
+            |(m, ca), (_, cb)| {
+                let sum = ca.add(cb)?;
+                Some((!sum.is_zero()).then(|| (m.clone(), sum)))
+            },
+            Clone::clone,
+            &mut terms,
+        )?;
+        Some(Self { terms })
     }
 
     pub(super) fn neg(&self) -> Option<Self> {
-        let mut out = Self::zero();
-        for (m, c) in &self.terms {
-            out.terms.insert(m.clone(), c.neg()?);
-        }
-        Some(out)
+        let terms = self
+            .terms
+            .iter()
+            .map(|(m, c)| Some((m.clone(), c.neg()?)))
+            .collect::<Option<Vec<_>>>()?;
+        Some(Self { terms })
     }
 
     /// The product, or `None` for the caller to freeze.
     ///
     /// **Refused BEFORE it is built**, on bounds that cost nothing to
-    /// compute: the product has at most `|a|*|b|` terms and degree
-    /// exactly `deg(a) + deg(b)`. The first version built the whole
-    /// product and let [`within`] reject it afterwards, which is how a
-    /// single multiplication came to take 10.8 s on a reviewer's
-    /// bracket — the work was done and then thrown away. Freezing is
-    /// the same outcome either way; only the bill differs.
+    /// compute: at most `|a|·|b|` terms — an UPPER bound, since
+    /// colliding monomials merge, so a product that would have merged
+    /// down under the budget is refused too, and the frozen counts on
+    /// the measured documents say nothing sits in that gap — and
+    /// degree exactly `deg(a) + deg(b)`, which is exact for the leading
+    /// monomial because a product of two nonzero polynomials over a
+    /// field cannot cancel it. Building first and refusing after would
+    /// do the work and throw it away.
     ///
-    /// The term bound is an UPPER one (colliding monomials merge), so a
-    /// product whose terms would have collided down under the budget is
-    /// refused where the old code would have kept it. That is a real
-    /// difference and it is measured rather than assumed: on the M10-3
-    /// slab and the tour's plate the frozen counts are unchanged, so
-    /// nothing the shipped fixtures rely on sat in that gap. The degree
-    /// bound is exact for the leading monomial in every case the form
-    /// reaches, cancellation of a whole leading term needing coefficient
-    /// cancellation that a product of two nonzero polynomials over a
-    /// field does not produce.
+    /// Built by inserting each product term in `(a-term, b-term)` order
+    /// — the order the coefficient sums are taken in, which the ring's
+    /// refusals can see — each by binary search into the sorted vector;
+    /// the other spellings measured, and their numbers, are on the
+    /// item (`work/sym/symbolic-tier-costs-95-percent-of-the-m10-3-drive`,
+    /// `## The change (SYM-4)`).
     pub(super) fn mul(&self, other: &Self, budget: SymBudget) -> Option<Self> {
-        if self
-            .terms
-            .len()
-            .checked_mul(other.terms.len())
-            .is_none_or(|t| t > budget.max_terms)
-        {
+        let Some(pairs) = self.terms.len().checked_mul(other.terms.len()) else {
+            #[cfg(feature = "sym-profile-testing")]
+            profile::note(profile::FreezeCause::Terms);
+            return None;
+        };
+        if pairs > budget.max_terms {
             #[cfg(feature = "sym-profile-testing")]
             profile::note(profile::FreezeCause::Terms);
             return None;
@@ -163,18 +211,22 @@ impl Poly {
             profile::note(profile::FreezeCause::Degree);
             return None;
         }
-        let mut out = Self::zero();
+        let mut out = Self {
+            terms: Vec::with_capacity(pairs),
+        };
         for (ma, ca) in &self.terms {
             for (mb, cb) in &other.terms {
                 out.insert(mono_mul(ma, mb)?, ca.mul(cb)?)?;
             }
         }
+        out.terms.shrink_to_fit();
         Some(out)
     }
 
     /// The form's canonical digest — the key an opaque atom is minted
     /// under, so two atoms with equal-form arguments are one
-    /// indeterminate.
+    /// indeterminate. The terms feed the hasher in the vector's order,
+    /// which is the monomial order.
     pub(super) fn digest(&self) -> u128 {
         let mut h = Hash128::new().word(0x504f_4c59_4e46_524d);
         for (m, c) in &self.terms {
@@ -191,39 +243,60 @@ impl Poly {
 /// The product of two monomials, refusing an exponent overflow.
 pub(super) fn mono_mul(a: &Mono, b: &Mono) -> Option<Mono> {
     let mut out: Mono = Vec::with_capacity(a.len() + b.len());
+    merge_sorted(
+        a,
+        b,
+        |t| &t.0,
+        |&(id, ea), &(_, eb)| {
+            let Some(e) = ea.checked_add(eb) else {
+                #[cfg(feature = "sym-profile-testing")]
+                profile::note(profile::FreezeCause::Overflow);
+                return None;
+            };
+            Some(Some((id, e)))
+        },
+        |t| *t,
+        &mut out,
+    )?;
+    Some(out)
+}
+
+/// One walk over two vectors sorted by `key`, in key order, appended
+/// to `out`: an element whose key is on one side only goes through
+/// `one`; a pair with equal keys goes through `both`, whose `None`
+/// refuses the whole merge (the ring's or the exponent's refusal) and
+/// whose `Some(None)` drops the pair (a sum that cancelled). The two
+/// merges of this module — a polynomial sum and a monomial product —
+/// are this with different `both`s.
+fn merge_sorted<T, K: Ord + ?Sized>(
+    a: &[T],
+    b: &[T],
+    key: impl Fn(&T) -> &K,
+    mut both: impl FnMut(&T, &T) -> Option<Option<T>>,
+    mut one: impl FnMut(&T) -> T,
+    out: &mut Vec<T>,
+) -> Option<()> {
     let (mut i, mut j) = (0, 0);
-    while i < a.len() || j < b.len() {
-        match (a.get(i), b.get(j)) {
-            (Some(&(ia, ea)), Some(&(ib, eb))) if ia == ib => {
-                let Some(e) = ea.checked_add(eb) else {
-                    #[cfg(feature = "sym-profile-testing")]
-                    profile::note(profile::FreezeCause::Overflow);
-                    return None;
-                };
-                out.push((ia, e));
+    while i < a.len() && j < b.len() {
+        match key(&a[i]).cmp(key(&b[j])) {
+            core::cmp::Ordering::Less => {
+                out.push(one(&a[i]));
+                i += 1;
+            }
+            core::cmp::Ordering::Greater => {
+                out.push(one(&b[j]));
+                j += 1;
+            }
+            core::cmp::Ordering::Equal => {
+                out.extend(both(&a[i], &b[j])?);
                 i += 1;
                 j += 1;
             }
-            (Some(&(ia, ea)), Some(&(ib, _))) if ia < ib => {
-                out.push((ia, ea));
-                i += 1;
-            }
-            (Some(_), Some(&(ib, eb))) => {
-                out.push((ib, eb));
-                j += 1;
-            }
-            (Some(&(ia, ea)), None) => {
-                out.push((ia, ea));
-                i += 1;
-            }
-            (None, Some(&(ib, eb))) => {
-                out.push((ib, eb));
-                j += 1;
-            }
-            (None, None) => break,
         }
     }
-    Some(out)
+    out.extend(a[i..].iter().map(&mut one));
+    out.extend(b[j..].iter().map(&mut one));
+    Some(())
 }
 
 /// **The normal form: a quotient of two polynomials** over the parameter
@@ -440,4 +513,146 @@ pub(super) fn powi_form(base: &Form, n: u32, budget: SymBudget) -> Option<Form> 
         }
     }
     Some(acc)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    //! The sorted-vector polynomial's invariant and its digest, on the
+    //! cases a vector can handle differently from a map — a monomial
+    //! arriving twice, a sum that cancels to zero, the empty
+    //! polynomial, the constant term's position, and the products
+    //! built in either operand order. Rows from SYM-4's reviews
+    //! (`origin/sym/4-review-r2`, with `origin/sym/4-review-r1`'s
+    //! differential run beside them), adopted as ordinary rows.
+    use super::*;
+
+    fn budget() -> SymBudget {
+        SymBudget {
+            max_terms: 4096,
+            max_degree: 128,
+        }
+    }
+
+    fn r(a: i128, b: i128) -> Rat {
+        Rat::new(a, b, 0).unwrap()
+    }
+
+    /// Sorted strictly by monomial, no zero coefficient.
+    fn canonical(p: &Poly) -> bool {
+        p.terms().windows(2).all(|w| w[0].0 < w[1].0) && p.terms().iter().all(|(_, c)| !c.is_zero())
+    }
+
+    fn poly(terms: &[(&[(u128, u32)], Rat)]) -> Poly {
+        let mut p = Poly::zero();
+        for (m, c) in terms {
+            p.insert(m.to_vec(), c.clone()).unwrap();
+        }
+        p
+    }
+
+    #[test]
+    fn a_monomial_arriving_twice_merges_and_a_cancelling_sum_drops_the_term() {
+        let x: &[(u128, u32)] = &[(7, 1)];
+        let mut p = Poly::zero();
+        p.insert(x.to_vec(), r(1, 3)).unwrap();
+        p.insert(x.to_vec(), r(2, 3)).unwrap();
+        assert_eq!(p.terms().len(), 1);
+        assert_eq!(p.terms()[0].1, Rat::one());
+        assert!(canonical(&p));
+        // The same value inserted in the other order, and via `add`.
+        let mut q = Poly::zero();
+        q.insert(x.to_vec(), r(2, 3)).unwrap();
+        q.insert(x.to_vec(), r(1, 3)).unwrap();
+        assert_eq!(p, q);
+        assert_eq!(p.digest(), q.digest());
+        let s = Poly::term(x.to_vec(), r(1, 3))
+            .add(&Poly::term(x.to_vec(), r(2, 3)))
+            .unwrap();
+        assert_eq!(s, p);
+        // Cancel to zero, three ways: insert, add, add of neg.
+        p.insert(x.to_vec(), r(-1, 1)).unwrap();
+        assert!(p.is_zero() && p.terms().is_empty());
+        assert_eq!(p, Poly::zero());
+        assert_eq!(p.digest(), Poly::zero().digest());
+        let t = q.add(&q.neg().unwrap()).unwrap();
+        assert!(t.is_zero());
+        assert_eq!(t.digest(), Poly::zero().digest());
+        assert_eq!(t.as_constant(), Some(Rat::zero()));
+        // A middle term cancelling out of a three-term sum keeps the
+        // rest sorted and contiguous.
+        let a = poly(&[(&[], r(1, 1)), (&[(3, 1)], r(2, 1)), (&[(5, 2)], r(4, 1))]);
+        let b = poly(&[(&[(3, 1)], r(-2, 1)), (&[(9, 1)], r(1, 1))]);
+        let c = a.add(&b).unwrap();
+        assert_eq!(c.terms().len(), 3);
+        assert!(canonical(&c));
+        assert_eq!(
+            c,
+            poly(&[(&[], r(1, 1)), (&[(5, 2)], r(4, 1)), (&[(9, 1)], r(1, 1))])
+        );
+        assert_eq!(c, b.add(&a).unwrap());
+    }
+
+    #[test]
+    fn the_constant_term_is_first_and_the_empty_polynomial_is_the_zero() {
+        // The empty monomial is the least under `Vec`'s lexicographic
+        // `Ord`, so the constant term is the first entry — as it was
+        // the first key of the map.
+        let p = poly(&[(&[(2, 1)], r(3, 1)), (&[], r(5, 1)), (&[(1, 3)], r(1, 1))]);
+        assert!(p.terms()[0].0.is_empty());
+        assert_eq!(p.terms()[0].1, r(5, 1));
+        assert!(canonical(&p));
+        assert_eq!(p.as_constant(), None);
+        assert_eq!(Poly::constant(r(5, 1)).as_constant(), Some(r(5, 1)));
+        assert_eq!(Poly::constant(Rat::zero()), Poly::zero());
+        assert_eq!(Poly::term(vec![(4, 1)], Rat::zero()), Poly::zero());
+        assert_eq!(Poly::zero().degree(), 0);
+        assert_eq!(Poly::zero().add(&Poly::zero()).unwrap(), Poly::zero());
+        assert_eq!(Poly::zero().mul(&p, budget()).unwrap(), Poly::zero());
+        assert_eq!(p.mul(&Poly::zero(), budget()).unwrap(), Poly::zero());
+        assert_eq!(Poly::zero().neg().unwrap(), Poly::zero());
+        assert_eq!(p.degree(), 3);
+        assert_eq!(
+            Poly::one().add(&Poly::one()).unwrap().as_constant(),
+            Some(r(2, 1))
+        );
+    }
+
+    #[test]
+    fn products_in_either_operand_order_and_either_association_are_one_polynomial() {
+        // (1 + x + y)(1 - x + y²) and its mirror; then a cube two ways.
+        let x: &[(u128, u32)] = &[(11, 1)];
+        let y: &[(u128, u32)] = &[(13, 1)];
+        let y2: &[(u128, u32)] = &[(13, 2)];
+        let a = poly(&[(&[], r(1, 1)), (x, r(1, 1)), (y, r(1, 1))]);
+        let b = poly(&[(&[], r(1, 1)), (x, r(-1, 1)), (y2, r(1, 1))]);
+        let ab = a.mul(&b, budget()).unwrap();
+        let ba = b.mul(&a, budget()).unwrap();
+        assert!(canonical(&ab));
+        assert_eq!(ab, ba);
+        assert_eq!(ab.digest(), ba.digest());
+        // 1 + x + y - x - x² - xy + y² + xy² + y³ = 1 + y - x² - xy + y² + xy² + y³
+        assert_eq!(ab.terms().len(), 7);
+        let abc = ab.mul(&a, budget()).unwrap();
+        let bca = b.mul(&a.mul(&a, budget()).unwrap(), budget()).unwrap();
+        assert_eq!(abc, bca);
+        assert_eq!(abc.digest(), bca.digest());
+        assert!(canonical(&abc));
+        // Sums associate and commute to the bit.
+        let s1 = a.add(&b).unwrap().add(&ab).unwrap();
+        let s2 = ab.add(&b.add(&a).unwrap()).unwrap();
+        assert_eq!(s1, s2);
+        assert_eq!(s1.digest(), s2.digest());
+        // Coefficients through the dyadic and the non-dyadic shape
+        // agree term by term: (1/3)·(3x) == x == 0.5·(2x).
+        let third_x = Poly::term(x.to_vec(), r(1, 3));
+        let three = Poly::constant(r(3, 1));
+        let half_x = Poly::term(x.to_vec(), Rat::of_f64(0.5).unwrap());
+        let two = Poly::constant(Rat::of_f64(2.0).unwrap());
+        let p = third_x.mul(&three, budget()).unwrap();
+        let q = half_x.mul(&two, budget()).unwrap();
+        assert_eq!(p, q);
+        assert_eq!(p, Poly::indet(11));
+        assert_eq!(p.digest(), Poly::indet(11).digest());
+    }
 }
