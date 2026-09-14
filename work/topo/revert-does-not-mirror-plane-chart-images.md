@@ -2,10 +2,11 @@
 id: revert-does-not-mirror-plane-chart-images
 kind: unit
 title: Body::revert negates a plane's normal but leaves its Chart images and cache rows unmirrored, so a same-plane Chart edge fails certification on the reverted body
-status: dispatched
+status: closed
 opened: 2026-09-08
 branch: topo/revert-mirrors-chart-images
 pr: 2542
+closed: 2026-09-14
 ---
 
 
