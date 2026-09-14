@@ -828,3 +828,17 @@ branch: the gate reaches `loop_shape` by announced seam to S-BOOL
 (one visibility change), which widens the decide to the loops the
 walk is measured correct on and retires the copy; a valid body the
 widened arm refuses falls back to the line-only gate, stated.
+
+## Split-edge merged; block TOPO-B2 slot 1 concluded (2026-09-14)
+
+PR 2531 merged at `dffd2bf34` (green run 34793938681 on `8ae4e0ec8`,
+full matrix, verified job by job). The unit closed. The fix pass took
+every item; its one disagreement was with the brief's "pre-existing,
+no regression" framing — the unsplit loft controls show the pass is
+fine with spline charts and the honest statement is that the iso
+arms cannot re-derive a SUB-edge, which is how the TRIM row now reads.
+Row recorded at merge (ordinal 2703, sample #186), no tally candidate;
+slot 1 marked concluded on `topo/b2-block`. Three rows filed by the
+fix pass (one on TRIM, two here); `split_edge` now declares
+`Transfers` in the posture table. The ring-nesting fix pass is the one
+lane running; slot 2 (`revert`, FABLE) dispatches when it frees.
