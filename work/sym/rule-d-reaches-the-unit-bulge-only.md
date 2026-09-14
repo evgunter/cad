@@ -5,6 +5,7 @@ title: rule D's reach is the unit bulge: a parameter bulge is outside the mechan
 status: open
 opened: 2026-09-12
 refs: [2100, plate-ceiling-is-now-the-scaffold-pushforward, symbolic-tier-census]
+parent: SYM-3
 ---
 
 **Filed by M10-10's fix pass from both reviews' end-to-end probes**

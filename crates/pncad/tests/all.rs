@@ -4293,22 +4293,35 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   answer `stackup` already carries. `VerdictVector`, `VerdictRow`
 ///   and `VerdictVectorKey` are the STRICT form of the verdict diff and
 ///   are argued with the instrumentation family above.
-const NOT_CARRIED: [&str; 84] = [
+///
+///   **The CERTIFIED-RANGE query is interior** (`CertifiedRange`,
+///   `DerivedRange`, `RangeField`, `RangeRefusal`, `RangeSeed`,
+///   `RangeSide`, `certified_range`). It is the on-demand answer to
+///   "how far can this field move before the build stops being this
+///   build" — the proof the sampling probe stands in for — and the
+///   Python door for it is FILED and not built, which is the whole of
+///   why these are here rather than in `crate::analysis`. The row is
+///   `work/lib/certified-range-has-no-python-door`, and carrying this
+///   family is part of what it schedules; a promise made only in this
+///   comment would be gone the moment someone edited it.
+const NOT_CARRIED: [&str; 91] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
     "AppearanceRecord",
     "AppearanceResolution",
     "Attr",
-    "BracketEnd",
     "AttrSet",
     "AxisScalar",
     "BifurcationKind",
+    "BracketEnd",
     "BranchCertification",
     "BranchMarginEvidence",
     "CarriedRefusal",
+    "CertifiedRange",
     "ContentKey",
     "Coset",
+    "DerivedRange",
     "Diagnosis",
     "DocDiff",
     "EntityKey",
@@ -4336,6 +4349,10 @@ const NOT_CARRIED: [&str; 84] = [
     "PredicateDivergence",
     "ProfilePayload",
     "Qualifier",
+    "RangeField",
+    "RangeRefusal",
+    "RangeSeed",
+    "RangeSide",
     "RecipeEditRef",
     "Resolved",
     "Rgba8",
@@ -4362,6 +4379,7 @@ const NOT_CARRIED: [&str; 84] = [
     "appearance_rebind_suggestions",
     "apply_with_names",
     "body_name",
+    "certified_range",
     "derivation_nodes",
     "diff_summaries",
     "diff_verdicts",
@@ -4494,8 +4512,8 @@ fn module_pub_use_names(code: &str) -> std::collections::BTreeSet<String> {
 ///    the hole is an accounting one — public names growing with
 ///    nobody made to decide about them — rather than a leak.
 /// 2. A `pub` item written DIRECTLY in `editor-core/src/lib.rs`
-///    rather than re-exported. That root declares 32 `pub mod` at
-///    column 0, four of them behind `#[cfg(feature = "interval")]`,
+///    rather than re-exported. That root declares 34 `pub mod` at
+///    column 0, five of them behind `#[cfg(feature = "interval")]`,
 ///    and no `pub` item of any other kind — so nothing type-like
 ///    escapes this scan today, held shut by the root's shape rather
 ///    than by a rule. [`root_declared_pub_names`] is the mechanism

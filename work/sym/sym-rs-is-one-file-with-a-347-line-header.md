@@ -4,6 +4,7 @@ kind: issue
 title: geom-core's sym.rs is 3898 lines behind a 347-line header: the tier is one file and its argument is one preamble
 status: open
 opened: 2026-09-06
+parent: SYM-2
 ---
 
 **Found by M10-9's fix pass**, filed as a CLASS item: this is a

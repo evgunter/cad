@@ -60,3 +60,13 @@ and the three rows that are Ev's decisions rather than work.
 commit, per that entry's rule; the posture is inherited from S-TCOST's
 test-only track, which records no A/B row, so the band is bookkeeping
 until Ev says otherwise.
+
+**(SYM orchestrator) Seam announced, 2026-09-13 — SYM-1** (`sym/1-profile`,
+`docs/SYM-1-SPEC.md`): the profile inside `geom_core::sym` that
+`work/sym/symbolic-tier-costs-95-percent-of-the-m10-3-drive` asks for
+first. One new row file under `crates/editor-core/tests/m10_*`
+(subject-named, `m10_sym_profile_interval.rs`), registered in
+`tests/all.rs`, every row `#[ignore]` with a reason or gated behind a
+test-only feature — the hosted gate's wall does not move, and the PR
+states both runs' editor-core interval shard timings. S-TCOST's
+measurement stays the result of record; nothing here re-takes it.
