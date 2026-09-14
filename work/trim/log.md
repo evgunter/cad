@@ -220,6 +220,13 @@ twice:
   `Transfers` — the posture that moves each row onto the key that now
   carries what it says — with its note saying what it restricts.
 
+**One line in `crates/geom-brep/src/pcurve_cache.rs`, also this
+board's**: `Pcurve::chart_box`'s `IsoArc` arm said its whole-segment box
+is tight "at the full span, which is the only span any mint asks for".
+A restriction of a stored row to one child of a split asks for a
+sub-span, so the sentence is false at this head; it now says a sub-span
+gets the conservative box. The arm's arithmetic is untouched.
+
 **A second finding for this board, filed in the same PR**:
 `iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain` —
 `nurbs_iso_derive`'s two rim arms map an edge's whole carrier interval
