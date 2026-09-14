@@ -56,6 +56,24 @@ fn cylinder() -> Surface<f64> {
     }
 }
 
+/// A coaxial cylinder of another radius — a chart nothing on this
+/// sheet is stated in.
+fn other_cylinder() -> Surface<f64> {
+    Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: axis(),
+        radius: 2.0,
+        u_ref: u_ref(),
+    }
+}
+
+/// One recipe source. Two keys carrying the same one are two spellings
+/// of one description (N6), which is how a body records that a second
+/// key is the same chart.
+fn one_recipe() -> topo::GeomSource {
+    topo::GeomSource::minted(7, 0)
+}
+
 /// The sheet's point at chart coordinates `(u, v)`.
 fn at(u: f64, v: f64) -> Point3<f64> {
     let w = axis().cross(u_ref());
@@ -236,6 +254,20 @@ fn rows_of(body: &Body<f64>, face: FaceKey) -> (usize, usize) {
     (stored, rowless)
 }
 
+/// The first half-edge of `face`'s outer loop.
+fn first_he(body: &Body<f64>, face: FaceKey) -> topo::HalfEdgeKey {
+    let outer = body.get_face(face).unwrap().outer;
+    let topo::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+        panic!("the fixture's faces are bounded by cycles")
+    };
+    first
+}
+
+/// Every stored row of the whole body.
+fn rows_total(body: &Body<f64>) -> usize {
+    body.faces().map(|(fk, _)| rows_of(body, fk).0).sum()
+}
+
 /// The one ring of `face`.
 fn ring_of(body: &Body<f64>, face: FaceKey) -> LoopKey {
     let rings = &body.get_face(face).unwrap().rings;
@@ -251,13 +283,52 @@ fn missing(findings: &[PcurveMintError]) -> usize {
         .count()
 }
 
+/// The two curved panels carry a complete row set and the pcurve pass
+/// accepts the body. That is the whole of what this fixture is for and
+/// the whole of what this row asserts — the row below measures what it
+/// does NOT claim.
 #[test]
-fn the_fixture_is_complete_and_tier_three_clean() {
+fn the_fixture_is_pcurve_complete_and_the_pcurve_pass_accepts_it() {
     let s = sheet();
     assert_eq!(rows_of(&s.body, s.low), (4, 0));
     assert_eq!(rows_of(&s.body, s.up), (4, 0));
     assert_eq!(rows_of(&s.body, s.plane), (0, 6));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+}
+
+/// **The fixture is a pcurve fixture, not a valid solid**, and this
+/// measures the difference so no row above is read as more than it is.
+/// The sheet's back is a plane through the six vertices that does not
+/// contain the two rim ARCS bounding it (the module docs say so), so
+/// the structural battery refuses the body — every finding is about
+/// that planar face's geometry, and none of them is about a pcurve
+/// row. The pcurve pass and the structural battery ask different
+/// questions of the same body and this suite asks only the first.
+#[test]
+fn the_fixture_is_not_a_structurally_valid_body() {
+    let s = sheet();
+    let errors = topo::validate::validate_geometric_structural(&s.body, tol())
+        .expect_err("a plane that does not contain its own rim arcs is not a valid face");
+    let mut kinds: Vec<String> = errors
+        .iter()
+        .map(|e| {
+            format!("{e:?}")
+                .split(|c: char| !c.is_alphanumeric())
+                .next()
+                .unwrap_or("?")
+                .to_string()
+        })
+        .collect();
+    kinds.sort();
+    kinds.dedup();
+    assert_eq!(
+        kinds,
+        vec![
+            "PlanarBoundaryResidual".to_string(),
+            "ScaffoldAtRest".to_string(),
+            "TransverseNotIntrinsic".to_string(),
+        ]
+    );
 }
 
 /// Onto a chart that mints nothing the rows can neither be re-stated
@@ -387,14 +458,20 @@ fn mfkrh_inheriting_the_chart_carries_every_row() {
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
 
-/// Onto a DIFFERENT minting chart the rows are dropped too — and this
-/// is the row that shows what the drop gives up. The promoted face is
-/// a curved one, so the stale rows used to be measured and refused
-/// (one `Certify` each); now there is nothing to refuse, and the face
-/// reads as exactly what it is, one the minting pass has not run on.
-/// That pass is the caller's step and it restores them.
+/// **The loud-to-silent trade, door one of three.** A target face that
+/// is CURVED and carries no rows of its own reads, after the drop, as
+/// a face the minting pass has not run on — and that pass says nothing
+/// about such a face, so the findings go from one `Certify` per moved
+/// row to nothing at all. That is not one direction of one door: it is
+/// every rowless curved target through every door here, and the two
+/// rows below are the other two doors. What the trade buys is that the
+/// body no longer HOLDS a row about another surface for `props`, the
+/// tessellator and `chart_boundary` to read; the caller's re-mint is
+/// what restores the face. That `validate_pcurves` cannot tell a
+/// never-minted face from one a door emptied is filed as
+/// `work/trim/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`.
 #[test]
-fn mfkrh_onto_a_different_curved_chart_drops_the_rows_rather_than_storing_a_lie() {
+fn mfkrh_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet() {
     let mut s = sheet();
     s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
@@ -459,10 +536,31 @@ fn a_same_surface_move_keeps_every_row_byte_for_byte() {
     assert_eq!(rows_deep(&r.body, r.up), after);
 }
 
-/// The caller's step after every move that dropped a row. The minting
-/// pass derives exactly the rows the DESTINATION chart wants: none on
-/// a planar face, which is the pass's own posture, and the full set on
-/// a curved one, so the body is whole again either way.
+/// **A carried row is the row the minting pass derives.** A carry is
+/// not "some rows survived": the rows that arrive on the target are
+/// the ones the pass would put there, which is what a door that
+/// carried a row onto a chart it is not stated in would break.
+/// Measured by re-minting the carried body and comparing interval,
+/// image and certificate.
+#[test]
+fn a_carried_row_is_the_row_the_minting_pass_derives() {
+    let mut s = sheet();
+    s.body.kfmrh(s.up, s.low).unwrap();
+    let carried = rows_deep(&s.body, s.up);
+    assert_eq!(carried.len(), 8);
+    topo::mint_pcurves(&mut s.body, tol()).unwrap();
+    assert_eq!(
+        rows_deep(&s.body, s.up),
+        carried,
+        "a carried row is not the row the pass derives for that face"
+    );
+}
+
+/// And the other side of the trade: what a drop gives up is a re-mint
+/// and nothing else. Each move below dropped every row it moved; the
+/// pass makes the body whole, on the destination's own chart — none
+/// on a planar face, which is that pass's posture, and the full set on
+/// a curved one.
 #[test]
 fn the_minting_pass_restores_what_each_move_left_the_caller() {
     // `kfmrh` onto the plane: there is nothing to restore, and the
@@ -493,4 +591,158 @@ fn the_minting_pass_restores_what_each_move_left_the_caller() {
     topo::mint_pcurves(&mut s.body, tol()).unwrap();
     assert_eq!(rows_of(&s.body, s.up), (10, 0));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+}
+
+
+// ---------------------------------------------------------------
+// Two keys, one surface: which of them is a chart CHANGE.
+// ---------------------------------------------------------------
+
+/// **A second key the body records as the same description carries
+/// every row** (`kfmrh`). Splitting the sheet's two curved panels onto
+/// two keys changes no row's meaning — both keys hold the cylinder —
+/// and the rows still certify. So when the loop moves between them the
+/// door carries them: what decides is the CHART, not the key, and the
+/// body says the two keys are one chart by carrying one
+/// [`topo::GeomSource`] on both (the merge door's second hard rung).
+#[test]
+fn kfmrh_onto_a_second_key_the_body_records_as_one_surface_carries_every_row() {
+    let mut s = sheet();
+    let cyl = s.body.get_face(s.low).unwrap().surface;
+    let second = s
+        .body
+        .set_face_surface(s.up, FaceSurface::New(cylinder()))
+        .unwrap();
+    assert_ne!(second, cyl, "`New` mints a fresh key for an equal surface");
+    s.body.set_surface_source(cyl, one_recipe()).unwrap();
+    s.body.set_surface_source(second, one_recipe()).unwrap();
+    assert_eq!(rows_of(&s.body, s.up), (4, 0));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+
+    s.body.kfmrh(s.low, s.up).unwrap();
+    assert_eq!(rows_of(&s.body, s.low), (8, 0));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+}
+
+/// The same through `mfkrh`: a ring promoted onto a second key that
+/// the body records as the same description keeps its rows.
+#[test]
+fn mfkrh_onto_a_second_key_the_body_records_as_one_surface_carries_every_row() {
+    let mut s = sheet();
+    let cyl = s.body.get_face(s.low).unwrap().surface;
+    let second = s
+        .body
+        .set_face_surface(s.plane, FaceSurface::New(cylinder()))
+        .unwrap();
+    assert_ne!(second, cyl);
+    s.body.set_surface_source(cyl, one_recipe()).unwrap();
+    s.body.set_surface_source(second, one_recipe()).unwrap();
+
+    s.body.kfmrh(s.low, s.up).unwrap();
+    let ring = ring_of(&s.body, s.low);
+    let made = s.body.mfkrh(ring, FaceSurface::Shared(second)).unwrap();
+    assert_eq!(rows_of(&s.body, made.face), (4, 0));
+    assert_eq!(rows_of(&s.body, s.low), (4, 0));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+}
+
+/// **What the door cannot see, measured rather than asserted.** Two
+/// keys holding an equal surface with NO record tying them read as two
+/// charts, and the moved loop's rows go. The body was complete and
+/// correct before the move and is merely unminted after it — a
+/// re-mint, never a wrong row — which is the conservative direction of
+/// an identity channel that can be absent but never wrong. Deciding
+/// those two keys equal means reading the surfaces' scalars
+/// structurally, which needs a bound these doors do not carry:
+/// `work/topo/two-provenance-free-keys-holding-one-surface-read-as-two-charts`.
+#[test]
+fn two_keys_holding_one_surface_with_no_provenance_read_as_two_charts() {
+    let mut s = sheet();
+    let cyl = s.body.get_face(s.low).unwrap().surface;
+    let second = s
+        .body
+        .set_face_surface(s.up, FaceSurface::New(cylinder()))
+        .unwrap();
+    assert_ne!(second, cyl);
+    assert!(s.body.surface_source(cyl).is_none());
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+
+    s.body.kfmrh(s.low, s.up).unwrap();
+    assert_eq!(rows_of(&s.body, s.low), (4, 4));
+    let findings = validate_pcurves(&s.body, band());
+    assert_eq!((missing(&findings), findings.len()), (4, 4));
+
+    topo::mint_pcurves(&mut s.body, tol()).unwrap();
+    assert_eq!(rows_of(&s.body, s.low), (8, 0));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+}
+
+// ---------------------------------------------------------------
+// The loud-to-silent trade, doors two and three: every rowless
+// CURVED target, not one direction of one door.
+// ---------------------------------------------------------------
+
+/// **Door two** (`kfmrh`). The sheet's back is put on a chart of its
+/// own and left rowless; the curved panel's four rows demote into it
+/// and are dropped, and the pass — which says nothing about a face it
+/// has not minted — reports nothing. Without the drop those four rows
+/// would be measured against the target's chart and refused.
+#[test]
+fn kfmrh_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet() {
+    let mut s = sheet();
+    s.body
+        .set_face_surface(s.plane, FaceSurface::New(other_cylinder()))
+        .unwrap();
+    assert_eq!(rows_of(&s.body, s.plane), (0, 6));
+
+    s.body.kfmrh(s.plane, s.low).unwrap();
+    assert_eq!(rows_of(&s.body, s.plane), (0, 10));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+}
+
+/// **Door three** (`ring_move`), the same class again: a ring of four
+/// rows onto a rowless curved face leaves it rowless, and quiet.
+#[test]
+fn ring_move_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet() {
+    let mut s = sheet();
+    s.body
+        .set_face_surface(s.plane, FaceSurface::New(other_cylinder()))
+        .unwrap();
+    s.body.kfmrh(s.low, s.up).unwrap();
+    let ring = ring_of(&s.body, s.low);
+    s.body.ring_move(ring, s.plane).unwrap();
+    assert_eq!(rows_of(&s.body, s.plane), (0, 10));
+    assert_eq!(rows_of(&s.body, s.low), (4, 0));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+}
+
+// ---------------------------------------------------------------
+// The loop with no cycle.
+// ---------------------------------------------------------------
+
+/// A ring whose boundary is not a cycle holds no half-edge, so it
+/// holds no row, and moving it between charts moves nothing. This is
+/// the arm the discard register files `audited` at
+/// `pcurves::loop_rows`, measured rather than argued.
+#[test]
+fn an_empty_boundary_ring_moves_with_the_map_untouched() {
+    let mut s = sheet();
+    let he = first_he(&s.body, s.low);
+    let v = s.body.get_half_edge(he).unwrap().start;
+    let p = *s.body.get_point(s.body.get_vertex(v).unwrap().point).unwrap();
+    let spur = s
+        .body
+        .mev_line(MevSite::Fan { he1: he, he2: he }, p + axis() * 0.05, tol())
+        .unwrap();
+    let ring = s.body.kemr(spur.he_plus, spur.he_minus).unwrap().ring;
+    assert!(matches!(
+        s.body.get_loop(ring).unwrap().boundary,
+        topo::LoopBoundary::Empty { .. }
+    ));
+
+    let before_low = rows_deep(&s.body, s.low);
+    let before_total = rows_total(&s.body);
+    s.body.ring_move(ring, s.plane).unwrap();
+    assert_eq!(rows_deep(&s.body, s.low), before_low);
+    assert_eq!(rows_total(&s.body), before_total);
 }
