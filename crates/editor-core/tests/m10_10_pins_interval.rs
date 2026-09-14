@@ -45,11 +45,10 @@ use std::collections::BTreeMap;
 
 use editor_core::ProfileDoc;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
-use geom_core::sym::report::ShapeOutcome;
 use geom_core::{SymRules, Tol};
 
 use crate::m10_8_arc_family_interval::replay;
-use crate::m10_8_harness::{certifies_whole, nominal_box, over_band_set};
+use crate::m10_8_harness::{certifies_whole, over_band_set};
 
 /// A named study with its measured bracket: a scale that certifies
 /// whole and one that refuses, both asserted. The scale's UNIT is the
@@ -112,23 +111,11 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
     );
 }
 
-/// The per-predicate split of one nominal replay:
-/// `predicate -> [theorem, gated, registered, numeric]`.
+/// The plate's per-predicate split at the nominal
+/// (`m10_8_harness::split_at_the_nominal`).
 fn split_at_the_nominal(rules: SymRules, tol: Tol) -> BTreeMap<&'static str, [u64; 4]> {
     let doc = crate::m10_7_plate::plate(5.0e-5, 1.0e-5, tol).0;
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let (shapes, _, _) = replay(&doc, &nominal_box(&analyzed), rules, tol);
-    let mut table: BTreeMap<&'static str, [u64; 4]> = BTreeMap::new();
-    for s in &shapes {
-        let row = table.entry(s.predicate).or_default();
-        row[match s.outcome {
-            ShapeOutcome::Theorem => 0,
-            ShapeOutcome::SignGated => 1,
-            ShapeOutcome::Registered => 2,
-            _ => 3,
-        }] += 1;
-    }
-    table
+    crate::m10_8_harness::split_at_the_nominal(&doc, rules, tol)
 }
 
 /// **ALL FOUR OF THE PLATE'S, at the nominal, each through its own

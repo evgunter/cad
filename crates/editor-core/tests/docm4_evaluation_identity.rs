@@ -1,6 +1,6 @@
 //! DOCM-4 — an evaluation carries the identity of the document it is
 //! of, and every door taking a (document, evaluation) pair refuses a
-//! mismatch typed (`docs/DOCM-IDENTITY-DESIGN.md` DI3).
+//! mismatch typed (`crates/editor-core/IDENTITY.md` DI3).
 //!
 //! The defect these rows close is silent: node ids are minted per
 //! document by a per-document counter, so two documents built from one

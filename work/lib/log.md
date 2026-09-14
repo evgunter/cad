@@ -2720,7 +2720,7 @@ and multi-unit surfaces. The next LIB unit is a substantive one.
 
 `no-door-mints-mate-frame-from-face` re-homed here by header-preserving
 `git mv`: the frozen-at-authoring answer is ratified as the mate side's
-(`docs/DOCM-REFERENCES-DESIGN.md` DM1, the asymmetry paragraph), the
+(`crates/editor-core/REFERENCES.md` DM1, the asymmetry paragraph), the
 viewer's mate tool already derives its frames that way, and what is
 left is the headless door — a `Pose` into a `MateFrame` from the façade
 — which is LIB's surface. Signed (DOCM orchestrator).

@@ -25,7 +25,7 @@ ordinal from the band above and records it in `docs/MODEL-AB-LOG.md`.
 
 `layer3-recipenodeid-aliases-across-rewinds` re-homed here by
 header-preserving `git mv`: the rule is ratified
-(`docs/DOCM-IDENTITY-DESIGN.md` DI1 — a held id is valid on the history
+(`crates/editor-core/IDENTITY.md` DI1 — a held id is valid on the history
 branch that minted it; tools clear on history replacement), the build
 is the viewer's. Signed (DOCM orchestrator).
 
@@ -111,7 +111,7 @@ tool set that unit 1's charter collapses.
 
 ## DI1's build is parked on a door DOCM owns, and item 5 was half misfiled (2026-09-04)
 
-Two corrections from reading `docs/DOCM-IDENTITY-DESIGN.md` against the
+Two corrections from reading `crates/editor-core/IDENTITY.md` against the
 tree, both landing before any dispatch rather than at one.
 
 **The plan's item 5 named two builds and only one is ours.** It read
@@ -10753,3 +10753,287 @@ says why against each.
 `test (…)` rows green (both lanes x three eps x two shards), five
 `k-lint (gate, …)` rows green, `gate ok` green, run conclusion
 `success`. 39 jobs total, which is not the instrument.
+
+## 2026-09-13 — #2519 merged; the item's fork was false, and a rate limit cost a day
+
+**#2519 merged** (`722d39fd32`), verified from the job list: **39 jobs,
+12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok` success**.
+
+**An 18-hour outage first.** The lane dispatched against this row died
+to a **weekly rate limit** while still reading `plan.md`, having done no
+work — its branch never left `main`, verified rather than assumed. Four
+check-ins queued into a session that could not act. The re-dispatch
+reused the clean worktree, re-synced it (`main` had moved 7,717 commits,
+almost all of it one long-lived branch's August history landing late),
+and told the lane to **skim the register for the rules that bear on its
+unit rather than chunk all ~1000 lines** — reading the register to death
+before touching the tree is what spent the budget.
+
+**The shape taken is the third: `egui::Style::number_formatter`**,
+installed on both styles through `Context::all_styles_mut` beside
+`apply_polarity`. `number_field` is untouched.
+
+**The item's fork was false, and that is the finding.** It framed the
+choice as *visibility OR guarantee*. Taking the formatter costs the door
+nothing — the door keeps `.custom_formatter(number_text)`, its doc and
+every row over it. The context default is a **floor under** a site that
+misses the door, not a replacement for it.
+
+**The helper case decided it.** Shapes 1 and 2 detect a TOKEN, and the
+token is `DragValue::new`; they catch a new helper only because the
+helper writes that token one level down, and catch nothing that reaches
+a numeric field another way. Setting the default is not a detection at
+all: a site that does not deliberately spell its own formatter is
+already right, so there is no arrival to notice. The escape table in the
+PR body has `use egui::DragValue as DV` defeating the text guard and an
+`egui::Slider` needing a second pattern in both detector shapes.
+
+**The test-invisibility cost was a SITING cost, not the shape's** — it
+follows only from installing inside app startup. A `pub(crate)` fn is
+callable from a bare `egui::Context`, so the new rows drive a
+`DragValue::new` that has never seen the door, which is wider than any
+existing row. Perturbation receipt: `all_styles_mut` →
+`style_mut_of(Theme::Dark, …)` reds `a_bare_field_survives_a_theme_switch`
+and nothing else. One residual stated rather than papered: the line in
+`ViewerApp::new` is untested, because nothing constructs an
+`eframe::CreationContext` — which is why `apply_polarity` two lines
+above is untested too.
+
+### Three corrections, two of which I had repeated
+
+1. **The item's second cost is overstated and I passed it on.**
+   `reader_census.rs`'s own header cedes `scripts/`: its gates read Rust
+   through `scripts/gates/lib.sh`'s `gate_rust_code`, *"a second home,
+   in a second language, which this row cannot see and does not claim
+   to."* So a `scripts/gates/*.sh` guard — the family VIEW already owns
+   two of — owes **no** line in test-utils. A cheaper shape than either
+   the item or I costed; still not taken, on the escape table.
+2. **There is no `egui::Slider` anywhere in this repo.** Verified here:
+   zero hits across `crates/`, `demos/`, `tools/`. The item's *"the only
+   shape that also catches an `egui::Slider`"* is true in mechanism and
+   catches nothing today — a claim about the next one, not this one.
+3. **`docs/prompts/implementer-discipline.md` §2 is false about the
+   python suite, and this PR's own run is the counterexample.** The doc
+   says *"A closure seeded only in one of those two skips it"* —
+   `viewer` and `test-utils`. This PR is seeded on `viewer` alone and
+   `python suite (wheel + guide + north-star)` **ran and passed**,
+   visible in the job list. The gate was deleted on 2026-09-12
+   (`b6cc8d4d2e`); the paragraph dates from 2026-09-06, when it was
+   true. Filed on META's slate (`docs/prompts/` by `work.py territory`)
+   as `implementer-discipline-python-suite-paragraph-describes-a-
+   deleted-gate`, with a why-not-a-duplicate against three neighbours.
+   **It bears on every dispatch this program writes**, since that
+   paragraph is what tells a lane what a green run covers.
+
+**And the split-span trap caught me a third time in one day.** Checking
+correction 3, `grep -n "closure seeded only in one of those two"`
+returned nothing and I nearly recorded the lane's quote as
+unverifiable — the sentence spans a newline (*"seeded only in\none of
+those two"*). A multiline-safe read found it immediately. That is the
+same blind spot as `implementer-discipline.md` §6 yesterday and the
+TINT citation the day before. **A line-based grep over prose is a proxy
+for the prose**; when one returns nothing, re-run it joined before
+believing the absence.
+
+**VIEW stands at 73 open / 88 closed, nothing waiting on Ev.**
+## 2026-09-14 — `view/toolbar-wrap`: the row was measured, and it misses by 580 points
+
+`the-toolbar-row-does-not-wrap` — **closed.** The row's own framing
+was that a repair chosen before the measurement is a guess, and its
+stated
+blocker ("this crate has no headless egui harness") had already stopped
+being true when it was written — `widgets.rs`, `pane/view.rs` and
+`pane/viewport.rs` each drive a headless `egui::Context` with
+`RawInput`. So the measurement came first.
+
+**What it took to measure the REAL toolbar rather than a replica of
+it.** Two extractions, neither of which changes what any frame draws.
+`ViewerApp::new` is split into `assemble` — everything startup does
+that needs no graphics device: document, evaluation, tessellation,
+camera, preferences and the two context-wide styles — and the device
+half that installs the viewport pipeline, which is the only part a
+headless context cannot run (`StartupError::NoWgpuRenderState` was the
+whole blocker). The toolbar's 280 inline lines come out of
+`ViewerApp::ui` as `ViewerApp::toolbar_ui`. A measurement of a
+hand-built row with the same twelve labels would have been evidence
+about the replica.
+
+**The numbers.** The row's natural width is **964 points** at the
+default style, on the startup document, with no gesture in flight and
+no status line — every one of those a lower bound. A 400-point window
+(an upright phone browser, which `run_web` ships this same toolbar
+into) offers the panel 384: **580 points, 60% of the row, laid out past
+the right edge.** Not a phone-only case either — 964 does not fit a
+desktop window tiled to half of a 1920-point screen (960).
+
+**The item's control list was short**, which makes the doors worse off
+than it says. Beyond the twelve it names the row also holds the theme
+`ComboBox` (`viewer_theme`, landed `cf2164600f` on 2026-09-03, before
+the item was filed), up to three badges and the status label — all of
+them to the RIGHT of the two cancel doors. The doors are not at the
+end of the row; they are near the middle of it, and still off-screen.
+
+**`ui.horizontal_wrapped`, and the cost the item feared is not real.**
+egui's wrapped horizontal layout wraps only when the content does not
+fit, so at every width where the old row fitted the new one is
+identical — "it changes the toolbar's look at every width" is not what
+the layout does. `ScrollArea::horizontal` was refused on the doors'
+own siting argument: a scrolled-off control is still not visible, and a
+cancel door reachable only after a user notices a scrollbar is the same
+defect with an extra step.
+
+**A row, not prose, and no pixel of the toolbar is pinned.**
+`the_toolbar_asks_for_more_width_than_a_narrow_window_gives` holds that
+the wrapping is answering something; `the_toolbar_wraps_rather_than_
+running_past_a_narrow_window` holds that the row stays inside the
+window it is given. The only number either fixes is the WINDOW's (400
+points, stated and argued at `NARROW`) — the row's own width is read,
+never asserted, so a relabelled control re-baselines nothing. If the
+toolbar ever shrinks enough to fit 400, the first row reads red and
+says in its message that both should be retired.
+
+`crates/viewer/README.md`'s cancel-door siting paragraph carried the
+parenthetical *"Drawn, not reachable at every window width"* and cited
+this item; it now claims both and names the two rows. Record half,
+VIEW's own, and a re-wording forced by the code the clause describes.
+
+**Filed, in fence.** `nothing-holds-startups-two-context-wide-style-
+installs` — the numeric-field-door unit disclosed on 2026-09-13 that
+nothing holds `apply_polarity` or `install_number_formatter` being
+CALLED at startup, and argued the gap from a blocker: `ViewerApp::new`
+takes an `eframe::CreationContext` no test can build, so a guard meant
+a `scripts/gates/` member. That row closed without giving the residue a
+file. The split above removes the blocker — `assemble` takes an
+`&egui::Context` and `app.rs`'s test module builds one — so the row
+exists now and says what is still open about it (what the assertion
+should read). VIEW's own ground; not a duplicate of the closed
+`nothing-holds-a-new-numeric-field-to-the-fields-door`, whose subject
+is the rule rather than the call.
+
+**Sweep.** `grep -rn 'ui\.horizontal(' crates/viewer/src/` — 48 hits,
+47 of them rows inside a pane or a form. `grep -rn 'Panel::top|
+Panel::bottom|Panel::left|Panel::right|TopBottomPanel|SidePanel'` over
+the same tree returns the toolbar and nothing else, so the toolbar is
+the crate's ONLY panel: every other non-wrapping row lives in a tile a
+user can resize or re-split, and none of them is anybody's only exit
+from a modal state. Not swept, and not this unit: whether a pane's own
+rows clip at a narrow tile. What the greps cannot match: a row laid
+out through `Layout::left_to_right` or `ui.columns` directly —
+`grep -rn 'left_to_right|ui.columns('` returns nothing in the crate
+today.
+
+## 2026-09-14 — #2541 merged; the lane built the instrument instead of guessing
+
+**#2541 merged** (`c759a216fa`), verified from the job list: **40 jobs,
+12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok` success**; six skipped;
+`render drift (gui)` **neutral**, which passes.
+
+**The item said "measure first" and named the blocker; the lane removed
+the blocker.** `ViewerApp::new` needed a wgpu render state, which is why
+nothing could build this app in a test. It split that into
+`ViewerApp::assemble` (everything startup does that needs no device)
+plus the device half, pulled the toolbar's 280 inline lines out of
+`ViewerApp::ui` as `ViewerApp::toolbar_ui`, and laid **the real
+toolbar** out in a headless `egui::Context` — a hand-built row with the
+same labels would have been evidence about the replica, not the row.
+
+| | |
+|---|---|
+| the row's natural width | **964.09 points** |
+| a 400-point window gives the panel | 384 |
+| laid out past the right edge | **580.09 — 60% of the row** |
+
+All lower bounds: default style, startup document, no gesture in
+flight, no status line. **Not only a phone** — 964 does not fit a
+desktop window tiled to half of a 1920-point screen.
+
+**And the item's stated cost for the repair is not real, measured the
+same way.** `ui.horizontal_wrapped` was held back by *"it changes the
+toolbar's look at every width"*; at 1280 the two layouts produce the
+**identical rect** `[[8.0 2.0] - [972.1 20.0]]`, height 18. So the
+objection that kept the one-word fix off the table for three days
+evaporated the moment anyone could measure it. `ScrollArea::horizontal`
+was refused on the doors' own siting argument: a scrolled-off door is
+still not visible.
+
+**A row, not prose, and the open question answered.** I had asked
+whether the measurement should become a hold pinned to a pixel width,
+with its own maintenance cost. The lane's answer is that the two rows
+pin the **window** (400, argued at `NARROW`) and never the row:
+`..._asks_for_more_width_than_a_narrow_window_gives` keeps the second
+from being a tautology, `..._wraps_rather_than_running_past_a_narrow_window`
+holds the property, and a relabelled control re-baselines nothing. Both
+verified failing with `ui.horizontal` restored.
+
+**Where my dispatch was incomplete.** I repeated the item's list of
+twelve controls. Beyond those the row holds the theme `ComboBox`
+(landed 2026-09-03, **before the item was filed**), up to three badges
+and the status label — **all to the right of the two cancel doors**. So
+the doors are not at the end of the row; they are near the middle of a
+964-point one, and the item understated its own case.
+
+**A harness fact worth keeping**: driving the app headlessly requires
+`output.textures_delta.clear()` or epaint panics in `Drop`.
+`widgets.rs:1311` already does it; the lane's first run died exactly
+there. Anyone driving a `Context` in this crate needs that line.
+
+**Filed**: `nothing-holds-startups-two-context-wide-style-installs`
+(VIEW's own). #2519 disclosed that nothing holds `apply_polarity` and
+`install_number_formatter` being *called*, argued it from the
+`CreationContext` blocker, and closed without giving the residue a
+file. **This split removes that blocker**, so the row now exists and
+says what is still open.
+
+**VIEW stands at 73 open / 89 closed, nothing waiting on Ev.**
+
+## `two-datumkind-enums-name-the-same-four-datum-kinds` — closed, two types kept (`view/two-datumkinds`)
+
+Settled **two types, not one**, and removed the name collision that was
+the whole of the defect. `forms::DatumKind` is now
+`forms::DatumKindChoice` (`crates/viewer/src/forms.rs:124`),
+`pub(crate)` behind `app` as before, so no public surface moved;
+`viewer::DatumKind` (`crates/viewer/src/datums.rs:344`, re-exported at
+`lib.rs:129`) is untouched.
+
+**The argument.** The two are different functions of the same domain,
+not two spellings of one concept. The draw tag partitions
+`DatumValue`'s five arms onto four DRAWINGS — `AxisInPlane` is a line
+in space, drawn as the axis it is — while the form choice selects four
+of `DatumSpec`'s five arms for what a plain-numbers form can AUTHOR,
+`AxisInPlane` being the one that needs a frame pick first. The same arm
+is both the value that collapses and the spec that is not offered, for
+unrelated reasons, and that coincidence is the entire reason the
+memberships matched. Merging would make `ALL` — which the radio row
+walks — claim that everything drawable is offered by the add-datum
+form, and `revolve-tool-unreachable-no-axisinplane-form` is already on
+this board asking for the counterexample: its fix grows the form choice
+to five while the draw tag stays at four.
+
+`Choice` is not a coinage. It is what this crate already spells a form
+choice with where there is a thing chosen among — `PatternKindChoice`
+beside the kernel's `PatternKind`, `blend::BlendKindChoice` — and the
+add-datum form was the one that took the bare name.
+
+**No mechanical hold, deliberately.** There is no invariant between the
+two to assert; a test pinning them identical would hold the coincidence
+and would have to be deleted the day the revolve row lands. What holds
+them honest is the name plus a stated relationship at both
+declarations.
+
+String tags and `ALL` did not move: the words stay table data on the
+form side (`add_datum_ui` walks `DatumKindChoice::ALL` for them), and
+the draw tag keeps its hand-written `label` match and gains no `ALL`,
+since nothing iterates it for words and it is not a vocabulary the
+chrome offers. It therefore does not become a `vocabulary!`
+declaration; the item's note that "the survivor should be declared
+through `vocab.rs`" applied to the merge outcome, which was not taken.
+
+**Neighbour rows.** `two-partial-mirrors-in-the-viewer-have-no-growth-alarm`
+is **not closed and not subsumed** — the spec-to-kind growth alarm it
+asks for is still unwritten. Its title and citations are respelled for
+the rename, with a note that the public draw tag is not a third site
+for that instrument (no `ALL`, not a partial mirror, growth already
+forced by `draw_one`'s exhaustive match).
+`revolve-tool-unreachable-no-axisinplane-form` had two stale claims
+refreshed: the type name, and the member order it quoted as
+`Plane, Axis, Point, Frame`, which PR 2046 reordered to form order.

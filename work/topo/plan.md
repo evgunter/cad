@@ -106,29 +106,38 @@ here while those ran — SHELL's six diagnoses on TOPO's files, plus the
 rows that carried over (`S93`, `D107`, `D263`, `D262`, `D20`, the H
 item and the residues).
 
-**Block TOPO-B2** takes the three placed rows that are kernel answers
-on this program's own files and need no other program's decision
-first, in this slot order (fixed before the block byte is drawn):
+**Block TOPO-B2** is concluded (2026-09-14): the ring-nesting decide,
+`split_edge`'s carried pcurve rows and `revert`'s mirrored chart
+images, three duals, no tally candidate.
 
-- slot 0 — `tier3-accepts-a-ring-outside-its-outer-loop`: check 9
-  decides contact, not nesting, so a face whose ring ENCLOSES its outer
-  loop validates. The unit adds the nesting decide to tier 3 and
-  refuses typed; `shell.rs`'s `encloses` is the shape and moves to the
-  validator with SHELL's agreement (seam announced).
-- slot 1 — `split-edge-children-lack-pcurve-rows-on-curved-charts`:
-  `split_edge` mints no pcurve rows for its children, so a split on a
-  curved chart leaves the body tier-3 invalid until `mint_pcurves`
-  runs. The unit either mints the children's rows from the parent's
-  (the parameter split of a cached pcurve) or states the caveat at the
-  op with the caller's step named — phase 1 decides which, with TRIM's
-  `pcurves.rs` read by announced seam.
-- slot 2 — `revert-does-not-mirror-plane-chart-images`: `revert`
-  negates a plane's normal and leaves `Chart` images and pcurve rows
-  on that plane unmirrored, so a same-plane `Chart` edge fails
-  certification on the reverted body. The unit transforms the images
-  with the frame (`v` negated) and pins it red-first on SHELL's drum.
+**Block TOPO-B3** takes three kernel answers on this program's own
+files, in this slot order (fixed before the block byte is drawn):
+
+- slot 0 — `loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart`:
+  `kfmrh` and `ring_move` move a loop between faces and leave its
+  pcurve rows certified against the chart it left; onto a planar face
+  tier 3 is silent. The unit makes the re-parenting ops honest about
+  the rows they carry — dropped where the destination's chart is not
+  the rows' (loud, by the existing `MissingCache` pass), kept where it
+  is — with the receipt of both doors and both directions.
+- slot 1 — `D263`: `group_regime` asks "is it a plane" and the `mvfs`
+  placeholder answers "curved" by default, so the whole placeholder
+  cube groups as one curved group and `merge_coplanar_faces` returns
+  `Ok` with a skip over a body with no coplanar adjacency. The unit
+  gives the placeholder its own arm (a placeholder is neither) and
+  pins the cube.
+- slot 2 — `S93`: the prose-held caller obligations at `mev`'s fan
+  site and `kev`'s fan merge become checked preconditions with typed
+  refusals, and `seqgen`'s hand-kept copy goes.
 
 Two lanes run at once; slot 2 dispatches when one frees.
+
+Held for the block after: `revert-leaves-a-periodic-charts-loop-wrap-mid-chain`
+(closing shape undecided between re-parking the wrap and re-minting)
+and `half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete`
+(a bound ripple from `Decide` to `PcurveFittedLane` on every Euler
+operator, or the declared primitive posture stated at each op — a
+question for Ev with the chart ruling).
 
 **Not in the block**, and why:
 
