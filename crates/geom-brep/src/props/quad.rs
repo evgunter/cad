@@ -4159,7 +4159,7 @@ fn lune_area(block: &[RPt2], a: (f64, f64), b: (f64, f64)) -> f64 {
     if block.len() <= 2 {
         return 0.0;
     }
-    if !(len > 0.0) {
+    if len <= 0.0 || !len.is_finite() {
         // No chord direction to resolve the hull in: fall back to the
         // axis-aligned box, which contains the oblique one.
         let (bu, bv) = block_box(block);
@@ -4216,7 +4216,7 @@ fn piece_monotone<T: Decide>(
 ) -> Result<Sign, PropsError> {
     let (cu, cv) = (b.0 - a.0, b.1 - a.1);
     let len = (cu * cu + cv * cv).sqrt();
-    if !(len > 0.0) {
+    if len <= 0.0 || !len.is_finite() {
         // A chord of zero length has no direction to be monotone over.
         return Ok(Sign::Zero);
     }
@@ -5852,7 +5852,7 @@ mod tests {
     /// The bounds of an outcome, whichever arm it took.
     fn bounds_of(out: &RoundOutcome) -> FaceCutBounds {
         match out {
-            RoundOutcome::Converged(b) | RoundOutcome::Open { bounds: b, .. } => b.clone(),
+            RoundOutcome::Converged(b) | RoundOutcome::Open { bounds: b, .. } => *b,
         }
     }
 
@@ -6124,23 +6124,33 @@ mod tests {
 
     /// **Q7 — interior knots the chord crosses.**
     ///
-    /// Q1's loop on a chart with an interior knot in each direction
-    /// and a NON-UNIFORM net, so the two `v` spans carry genuinely
-    /// different polynomials: `S(u, v) = (u, w(v), c)` with `w` the
-    /// piecewise-linear map `(0, 0.3, 1)` on knots `(0, ½, 1)`. The
-    /// integrand `f = c·w′(v)` then JUMPS at `v = ½`, and the diagonal
-    /// crosses it at `u = ½` — off the `u` knot at `¼`, so the
-    /// crossing cut is the only thing that can put the sub-chord
-    /// inside one cell. A uniform net would make the surface globally
-    /// linear and this row could not see an unsplit sub-chord at all.
+    /// Q1's loop on a chart with one interior knot per direction and a
+    /// NON-UNIFORM net, so each direction's two spans carry genuinely
+    /// different polynomials: `S(u, v) = (x(u), w(v), c)` with `x` and
+    /// `w` the piecewise-linear maps through `(0, ½, 1)` on knots
+    /// `(0, 0.4, 1)` and `(0, 0.3, 1)`. The integrand
+    /// `f = c·x′(u)·w′(v)` therefore JUMPS at both, and the diagonal
+    /// crosses the `v` knot at `u = 0.3`.
+    ///
+    /// **Three things about this fixture are load-bearing, and two of
+    /// them were measured rather than reasoned.** A UNIFORM net makes
+    /// the surface globally linear and every rule exact whether or not
+    /// the sub-chord is split. And NEITHER knot may sit on the round's
+    /// own uniform piece grid: at `v = ½` the crossing lands exactly on
+    /// a boundary of the `TRIM_INIT_PIECES = 8` subdivision, no
+    /// sub-chord straddles it, and a lane that had dropped the crossing
+    /// cut entirely still answers correctly — as does one that dropped
+    /// the `u`-knot cut while the `u` knot sat at `0.25`. `0.3` and
+    /// `0.4` are off that grid; `0.25` and `0.5` are on it.
     #[test]
     fn q7_a_chord_crossing_interior_knots_is_split_at_them() {
         let c = 3.0;
-        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.25, 1.0, 1.0], 1).unwrap();
-        let kvv = KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap();
+        let (uk, vk) = (0.4, 0.3);
+        let ku = KnotVector::clamped(vec![0.0, 0.0, uk, 1.0, 1.0], 1).unwrap();
+        let kvv = KnotVector::clamped(vec![0.0, 0.0, vk, 1.0, 1.0], 1).unwrap();
         let mut control = Vec::new();
-        for u in [0.0, 0.25, 1.0] {
-            for v in [0.0, 0.3, 1.0] {
+        for u in [0.0, 0.5, 1.0] {
+            for v in [0.0, 0.5, 1.0] {
                 control.push([pt(u), pt(v), pt(c)]);
             }
         }
@@ -6150,10 +6160,21 @@ mod tests {
             iso((1.0, 0.0), (1.0, 1.0)),
             general(&[(1.0, 1.0), (0.0, 0.0)], 0.0),
         ];
-        // `f = c·w′` and `g = |w′|` with `w′ = 0.6` on `v < ½` and
-        // `1.4` above, over the triangle `{0 < v < u < 1}`:
-        // `∫₀¹ w′(v)·(1 − v) dv`.
-        let g_int = 0.6 * (0.5 - 0.5 * 0.5 * 0.5) + 1.4 * (0.5 - (0.5 - 0.5 * 0.5 * 0.5));
+        // `f = c·x′·w′` and `g = |x′·w′|` over the triangle
+        // `{0 < v < u < 1}`, where `∫∫ = ∫₀¹ x′(u)·w(u) du` because
+        // `w(0) = 0`. `x′` is constant and `w` affine on each of the
+        // three stretches `[0, vk]`, `[vk, uk]`, `[uk, 1]`, so the
+        // trapezoid below is the closed form and not a quadrature.
+        let xp = |u: f64| if u < uk { 0.5 / uk } else { 0.5 / (1.0 - uk) };
+        let wv = |v: f64| {
+            if v < vk {
+                0.5 / vk * v
+            } else {
+                0.5 + 0.5 / (1.0 - vk) * (v - vk)
+            }
+        };
+        let seg = |a: f64, b: f64| xp(0.5 * (a + b)) * 0.5 * (wv(a) + wv(b)) * (b - a);
+        let g_int = seg(0.0, vk) + seg(vk, uk) + seg(uk, 1.0);
         let out = trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE)
             .expect("the knot-crossing diagonal certifies");
         let b = bounds_of(&out);

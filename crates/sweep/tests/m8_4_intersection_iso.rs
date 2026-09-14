@@ -622,8 +622,24 @@ fn an_interior_column_intersection_mints_a_general_image() {
     // widened chart has interior knots in its degree-1 `u` direction,
     // and `mesh`'s patch-bound gate refuses that C⁰ crease first
     // (`geom_brep::patch_bound::PatchBoundError::Degree1Crease`). ----
-    let props = topo::mass_properties(&body, Tol::witness());
-    println!("M8-4 DEG1 mass_properties on the trimmed chart: {props:?}");
+    let props = topo::mass_properties(&body, Tol::witness())
+        .unwrap_or_else(|e| panic!("the trimmed lane answers the degree-1 body too: {e:?}"));
+    let want = topo::mass_properties(&prism(INTERIOR_COLUMN_SCALE), Tol::witness())
+        .expect("the oracle prism's own lanes answer it");
+    println!(
+        "M8-4 DEG1 mass_properties on the trimmed chart: volume {:e} ± {:e}, area {:e} ± {:e}",
+        props.volume, props.volume_pad, props.surface_area, props.area_pad
+    );
+    assert!(
+        props.volume - props.volume_pad <= want.volume + want.volume_pad
+            && want.volume - want.volume_pad <= props.volume + props.volume_pad,
+        "the degree-1 widening is the SAME solid as the oracle prism, so its volume \
+         enclosure must overlap: {:e} ± {:e} vs {:e} ± {:e}",
+        props.volume,
+        props.volume_pad,
+        want.volume,
+        want.volume_pad
+    );
     let tess = mesh::tessellate(&body, 1e-5, Tol::witness());
     let Err(mesh::TessellateError::UnsupportedNurbsFace { note, .. }) = tess else {
         panic!("the trimmed face's tessellation lane moved — re-pin this row")
