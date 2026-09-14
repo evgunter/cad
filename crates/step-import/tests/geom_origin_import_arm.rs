@@ -21,7 +21,7 @@ fn every_description_is_imported(name: &str) {
     for (k, _) in body.surfaces() {
         assert_eq!(
             body.surface_origin(k),
-            Some(GeomOrigin::Imported),
+            Some(&GeomOrigin::Imported),
             "{name}: surface {k:?}"
         );
         assert!(body.surface_source(k).is_none(), "{name}: surface {k:?}");
@@ -30,7 +30,7 @@ fn every_description_is_imported(name: &str) {
     for (k, _) in body.curves() {
         assert_eq!(
             body.curve_origin(k),
-            Some(GeomOrigin::Imported),
+            Some(&GeomOrigin::Imported),
             "{name}: curve {k:?}"
         );
         n += 1;
@@ -38,7 +38,7 @@ fn every_description_is_imported(name: &str) {
     for (k, _) in body.points() {
         assert_eq!(
             body.point_origin(k),
-            Some(GeomOrigin::Imported),
+            Some(&GeomOrigin::Imported),
             "{name}: point {k:?}"
         );
         n += 1;
@@ -57,6 +57,11 @@ fn a_single_solid_import_marks_every_description() {
 /// `graft_disjoint` into the shipped arena. An adopted description
 /// held no recipe source, so the clear dropped nothing and left no
 /// trace; the mark goes on afterwards and covers every grafted key.
+///
+/// Both halves are pinned rather than narrated, because
+/// `Body::mark_imported` marks only the `KernelDirect` arm: a clear
+/// that left a trace here would ship `Cleared`, and a graft that
+/// dropped a row would ship a live key with no row at all.
 #[test]
 fn a_placed_multi_instance_import_marks_every_description() {
     every_description_is_imported("kiss_assembly");

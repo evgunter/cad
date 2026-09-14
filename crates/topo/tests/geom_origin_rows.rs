@@ -1,10 +1,18 @@
 //! **The origin channel**: `Body::surface_origin` and its siblings
 //! answer *which* absence a missing `GeomSource` is.
 //!
-//! The channel these rows test is `topo::GeomOrigin`, read beside the
-//! N6 `GeomSource` maps and never inside them — so every row here also
-//! states what the `GeomSource` maps say, and those statements are the
-//! merge base's whole answer, unchanged by this channel's existence.
+//! The channel these rows test is `topo::GeomOrigin`, the one
+//! provenance row a body keeps per description — so every row here also
+//! states what the `GeomSource` projection says, and those statements
+//! are the merge base's whole answer, unchanged by the other three arms
+//! existing.
+//!
+//! **Rows that assert on the origin channel run on a body whose
+//! non-recipe arms are NON-EMPTY.** A fully stamped body carries
+//! nothing but `Recipe`, so a door that dropped every `Imported` and
+//! `Cleared` row would leave such a row green: [`mixed`] is the fixture
+//! that refuses that, and `arms_are_mixed` is the assertion that keeps
+//! it honest.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
@@ -51,8 +59,8 @@ fn arms(b: &Body<f64>) -> Vec<String> {
 }
 
 /// The same readout through the MERGE BASE's only reader: the
-/// `GeomSource` maps. Every row that changes an origin asserts this
-/// too, because N6 decides on these maps and on nothing else.
+/// `GeomSource` projection. Every row that changes an origin asserts
+/// this too, because N6 decides on it and on nothing else.
 fn sources(b: &Body<f64>) -> Vec<String> {
     let mut v: Vec<String> = b
         .surfaces()
@@ -88,9 +96,51 @@ fn stamp_all(b: &mut Body<f64>, node: u64) {
     }
 }
 
+/// Stamps the SURFACES only, leaving curves and points on whatever arm
+/// they already hold — the half-stamped shape [`mixed`] is built from.
+fn stamp_surfaces(b: &mut Body<f64>, node: u64) {
+    let sk: Vec<_> = b.surfaces().map(|(k, _)| k).collect();
+    for (i, k) in sk.into_iter().enumerate() {
+        b.set_surface_source(k, GeomSource::minted(node, i as u32))
+            .unwrap();
+    }
+}
+
+/// A body carrying all three non-`KernelDirect` arms at once:
+/// `Imported` on every curve and point (adopted, never stamped),
+/// `Cleared` on the surfaces a recipe stamped and a placement cleared,
+/// and `Recipe` on the one surface re-stamped afterwards.
+///
+/// Every row that asserts about the origin channel runs on this rather
+/// than on a fully stamped body, because a fully stamped body's only
+/// arm is `Recipe` and a door that dropped the other two would go
+/// unseen.
+fn mixed() -> Body<f64> {
+    let tol = Tol::witness();
+    let mut adopted = brick();
+    adopted.mark_imported();
+    stamp_surfaces(&mut adopted, 9001);
+    let mut b = transform_rigid(&adopted, &aside(), tol).unwrap();
+    let first = b.surfaces().map(|(k, _)| k).next().unwrap();
+    b.set_surface_source(first, GeomSource::minted(9001, 0).placed(77, 0))
+        .unwrap();
+    b
+}
+
+/// Asserts `b` exercises all three arms `mixed` promises — the guard
+/// that keeps a row over [`mixed`] from quietly becoming vacuous.
+fn arms_are_mixed(b: &Body<f64>) {
+    let a = arms(b);
+    for arm in ["Imported", "Cleared", "Recipe"] {
+        assert!(a.iter().any(|s| s == arm), "no {arm} arm in {a:?}");
+    }
+}
+
 /// CONTROL: a body built through the kernel's own doors, with no
 /// recipe above it, reads `KernelDirect` at every description — a
-/// positive origin, not an inference from a missing row.
+/// positive origin **written at the mint**, not a default read off a
+/// missing row. A description that reached an arena without one makes
+/// the reader `unreachable!`, so what this row reads is a written mark.
 #[test]
 fn a_hand_built_body_reads_kernel_direct() {
     let b = brick();
@@ -138,65 +188,75 @@ fn a_cleared_body_and_a_hand_built_one_are_no_longer_one_answer() {
 }
 
 /// CONTROL: the transform-then-re-stamp path — the one the recipe
-/// layer actually runs — leaves the channel with the composed stamps
-/// and **no `Cleared` residue**: every mark the clearing door wrote is
-/// discharged by the re-stamp that answers for it.
+/// layer actually runs — discharges every `Cleared` mark **and leaves
+/// the arms it did not clear alone**. Run on a body whose curves and
+/// points are `Imported`, so a clearing door that marked every live key
+/// or a re-stamp that reached past its own keys is visible here.
 #[test]
 fn the_restamp_discharges_every_cleared_mark() {
     let tol = Tol::witness();
-    let mut stamped = brick();
-    stamp_all(&mut stamped, 9001);
-    let before = sources(&stamped);
-    let mut placed = transform_rigid(&stamped, &aside(), tol).unwrap();
+    let mut adopted = brick();
+    adopted.mark_imported();
+    stamp_surfaces(&mut adopted, 9001);
+    let before = sources(&adopted);
+    let mut placed = transform_rigid(&adopted, &aside(), tol).unwrap();
+
+    // The clear touched the surfaces and nothing else.
+    for (k, _) in placed.surfaces() {
+        assert_eq!(placed.surface_origin(k), Some(&GeomOrigin::Cleared));
+    }
+    for (k, _) in placed.curves() {
+        assert_eq!(placed.curve_origin(k), Some(&GeomOrigin::Imported));
+    }
+    for (k, _) in placed.points() {
+        assert_eq!(placed.point_origin(k), Some(&GeomOrigin::Imported));
+    }
 
     // `compose_placed`'s rule, spelled through the public doors: keys
     // are stable across the map, so the input's rows map key for key.
-    let s: Vec<_> = stamped
+    let s: Vec<_> = adopted
         .surfaces()
-        .map(|(k, _)| (k, stamped.surface_source(k).unwrap().placed(77, 0)))
+        .map(|(k, _)| (k, adopted.surface_source(k).unwrap().placed(77, 0)))
         .collect();
     for (k, src) in s {
         placed.set_surface_source(k, src).unwrap();
     }
-    let c: Vec<_> = stamped
-        .curves()
-        .map(|(k, _)| (k, stamped.curve_source(k).unwrap().placed(77, 0)))
-        .collect();
-    for (k, src) in c {
-        placed.set_curve_source(k, src).unwrap();
-    }
-    let p: Vec<_> = stamped
-        .points()
-        .map(|(k, _)| (k, stamped.point_source(k).unwrap().placed(77, 0)))
-        .collect();
-    for (k, src) in p {
-        placed.set_point_source(k, src).unwrap();
-    }
 
     assert!(
-        origins(&placed).iter().all(|o| o.starts_with("Recipe(")),
+        !arms(&placed).iter().any(|a| a == "Cleared"),
         "{:?}",
-        origins(&placed)
+        arms(&placed)
     );
-    // And the stamps are the composed ones, not the pre-placement
-    // ones — the channel moved exactly as N6 says it does.
-    assert_ne!(sources(&placed), before);
     for (k, _) in placed.surfaces() {
+        assert!(matches!(
+            placed.surface_origin(k),
+            Some(GeomOrigin::Recipe(_))
+        ));
+        // And the stamps are the composed ones, not the pre-placement
+        // ones — the channel moved exactly as N6 says it does.
         assert_eq!(
             placed.surface_origin(k),
-            Some(GeomOrigin::Recipe(placed.surface_source(k).unwrap()))
+            Some(&GeomOrigin::Recipe(
+                placed.surface_source(k).unwrap().clone()
+            ))
         );
     }
+    for (k, _) in placed.curves() {
+        assert_eq!(placed.curve_origin(k), Some(&GeomOrigin::Imported));
+    }
+    assert_ne!(sources(&placed), before);
 }
 
 /// CONTROL: `revert ∘ revert` leaves both channels byte-identical, and
-/// one `revert` moves N6's orient tag and nothing else. The origin ARM
-/// is untouched by a reversal — a reversal neither stamps nor clears —
-/// while the `Recipe` arm's payload IS the source, so it flips with it.
+/// one `revert` moves N6's orient tag and nothing else. The non-recipe
+/// arms are untouched by a reversal — a reversal neither stamps nor
+/// clears — while the `Recipe` arm's payload IS the source, so it flips
+/// with it. Run on [`mixed`]: on a fully stamped body the other two
+/// arms are empty and a `revert` that dropped them would go unseen.
 #[test]
 fn revert_twice_leaves_both_channels_identical() {
-    let mut stamped = brick();
-    stamp_all(&mut stamped, 9001);
+    let stamped = mixed();
+    arms_are_mixed(&stamped);
     let s0 = sources(&stamped);
     let o0 = origins(&stamped);
     let a0 = arms(&stamped);
@@ -213,6 +273,44 @@ fn revert_twice_leaves_both_channels_identical() {
     let twice = once.revert().unwrap();
     assert_eq!(sources(&twice), s0);
     assert_eq!(origins(&twice), o0);
+}
+
+/// A `revert` carries a non-recipe origin through untouched — the half
+/// `revert_twice_leaves_both_channels_identical` could not see before
+/// [`mixed`] existed, spelled on the arm with no source to flip.
+#[test]
+fn revert_preserves_a_non_recipe_origin() {
+    let mut b = brick();
+    b.mark_imported();
+    let once = b.revert().unwrap();
+    for (k, _) in once.surfaces() {
+        assert_eq!(once.surface_origin(k), Some(&GeomOrigin::Imported));
+    }
+    for (k, _) in once.curves() {
+        assert_eq!(once.curve_origin(k), Some(&GeomOrigin::Imported));
+    }
+    for (k, _) in once.points() {
+        assert_eq!(once.point_origin(k), Some(&GeomOrigin::Imported));
+    }
+}
+
+/// The defect arm survives everything short of a re-stamp: a second
+/// placement finds nothing left to clear and a reversal has no source
+/// to flip, so a lost re-stamp stays nameable however far the body
+/// travels afterwards.
+#[test]
+fn a_second_transform_and_a_revert_keep_the_cleared_mark() {
+    let tol = Tol::witness();
+    let mut stamped = brick();
+    let k = stamped.surfaces().map(|(k, _)| k).next().unwrap();
+    stamped
+        .set_surface_source(k, GeomSource::minted(1, 0))
+        .unwrap();
+    let once = transform_rigid(&stamped, &aside(), tol).unwrap();
+    let twice = transform_rigid(&once, &aside(), tol).unwrap();
+    assert_eq!(twice.surface_origin(k), Some(&GeomOrigin::Cleared));
+    let reverted = twice.revert().unwrap();
+    assert_eq!(reverted.surface_origin(k), Some(&GeomOrigin::Cleared));
 }
 
 /// CONTROL: the clearing door touches only what it dropped. A body
@@ -240,16 +338,68 @@ fn clearing_marks_only_the_descriptions_that_held_a_source() {
         .set_surface_source(first, GeomSource::minted(5, 0))
         .unwrap();
     let placed = transform_rigid(&mixed, &aside(), tol).unwrap();
-    assert_eq!(placed.surface_origin(first), Some(GeomOrigin::Cleared));
+    assert_eq!(placed.surface_origin(first), Some(&GeomOrigin::Cleared));
     let others: Vec<_> = placed
         .surfaces()
         .filter(|&(k, _)| k != first)
         .map(|(k, _)| placed.surface_origin(k))
         .collect();
     assert!(
-        others.iter().all(|o| *o == Some(GeomOrigin::KernelDirect)),
+        others.iter().all(|o| *o == Some(&GeomOrigin::KernelDirect)),
         "{others:?}"
     );
+}
+
+/// `Body::mark_imported` marks the `KernelDirect` arm and leaves the
+/// defect arm alone: an import claim laid over a `Cleared` row would
+/// erase, one public door away, exactly the evidence the clearing door
+/// recorded. The recipe arm is left alone for the older reason — the
+/// recipe is the finer identity.
+#[test]
+fn mark_imported_leaves_the_cleared_and_recipe_arms_alone() {
+    let mut b = mixed();
+    arms_are_mixed(&b);
+    let before = arms(&b);
+    let cleared: Vec<_> = b
+        .surfaces()
+        .map(|(k, _)| k)
+        .filter(|&k| b.surface_origin(k) == Some(&GeomOrigin::Cleared))
+        .collect();
+    assert!(!cleared.is_empty());
+
+    b.mark_imported();
+
+    for k in cleared {
+        assert_eq!(
+            b.surface_origin(k),
+            Some(&GeomOrigin::Cleared),
+            "the defect arm did not survive mark_imported"
+        );
+    }
+    assert_eq!(
+        arms(&b),
+        before,
+        "every description was already Imported, Cleared or Recipe — nothing to mark"
+    );
+}
+
+/// A recipe stamp over `Imported` is **lossy**: the import fact is
+/// gone for good, and a later clear leaves `Cleared`, never `Imported`.
+/// No caller in the tree can reach this today — nothing stamps an
+/// adopted body — and `work/exch/step-import-discards-the-entity-ids-
+/// that-are-its-identity-channel` (EXCH's step 2) is the change that
+/// will, so the behaviour is characterised here rather than left to be
+/// discovered then.
+#[test]
+fn stamping_an_imported_body_erases_the_import_fact() {
+    let tol = Tol::witness();
+    let mut b = brick();
+    b.mark_imported();
+    let k = b.surfaces().map(|(k, _)| k).next().unwrap();
+    b.set_surface_source(k, GeomSource::minted(1, 0)).unwrap();
+    assert!(matches!(b.surface_origin(k), Some(GeomOrigin::Recipe(_))));
+    let placed = transform_rigid(&b, &aside(), tol).unwrap();
+    assert_eq!(placed.surface_origin(k), Some(&GeomOrigin::Cleared));
 }
 
 /// CONTROL: an origin rides the graft with its description, and the
@@ -273,24 +423,47 @@ fn an_origin_rides_the_graft_and_the_destination_keeps_its_own() {
         .collect();
     assert_eq!(grafted.len(), native.len());
     for k in grafted {
-        assert_eq!(dst.surface_origin(k), Some(GeomOrigin::Imported));
+        assert_eq!(dst.surface_origin(k), Some(&GeomOrigin::Imported));
     }
     for k in native {
-        assert_eq!(dst.surface_origin(k), Some(GeomOrigin::KernelDirect));
+        assert_eq!(dst.surface_origin(k), Some(&GeomOrigin::KernelDirect));
     }
 }
 
-/// `None` from an origin reader is the key failing to resolve, not an
-/// origin — the same answer every other lookup on `Body` gives a key
-/// it does not hold.
+/// The same carry for the other two arenas, which the surface row
+/// above cannot see: a graft that carried surfaces and dropped points
+/// and curves would leave it green.
 #[test]
-fn a_key_the_body_does_not_hold_has_no_origin() {
-    let b = brick();
-    let empty = Body::<f64>::new();
-    let (sk, _) = b.surfaces().next().unwrap();
-    let (ck, _) = b.curves().next().unwrap();
-    let (pk, _) = b.points().next().unwrap();
-    assert_eq!(empty.surface_origin(sk), None);
-    assert_eq!(empty.curve_origin(ck), None);
-    assert_eq!(empty.point_origin(pk), None);
+fn a_graft_carries_the_point_and_curve_origins_too() {
+    let tol = Tol::witness();
+    let mut dst = brick();
+    let native_p: Vec<_> = dst.points().map(|(k, _)| k).collect();
+    let native_c: Vec<_> = dst.curves().map(|(k, _)| k).collect();
+    let mut src = brick();
+    src.mark_imported();
+    let src = transform_rigid(&src, &aside(), tol).unwrap();
+    graft_disjoint(&mut dst, &src, tol).unwrap();
+
+    let mut grafted_p = 0usize;
+    for (k, _) in dst.points() {
+        if !native_p.contains(&k) {
+            assert_eq!(dst.point_origin(k), Some(&GeomOrigin::Imported), "{k:?}");
+            grafted_p += 1;
+        }
+    }
+    let mut grafted_c = 0usize;
+    for (k, _) in dst.curves() {
+        if !native_c.contains(&k) {
+            assert_eq!(dst.curve_origin(k), Some(&GeomOrigin::Imported), "{k:?}");
+            grafted_c += 1;
+        }
+    }
+    assert_eq!(grafted_p, native_p.len());
+    assert_eq!(grafted_c, native_c.len());
+    for k in native_p {
+        assert_eq!(dst.point_origin(k), Some(&GeomOrigin::KernelDirect));
+    }
+    for k in native_c {
+        assert_eq!(dst.curve_origin(k), Some(&GeomOrigin::KernelDirect));
+    }
 }
