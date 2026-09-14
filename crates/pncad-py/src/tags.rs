@@ -696,6 +696,15 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::FaceFrameNotPlanar { .. } => "face_frame_not_planar",
         NodeErrorKind::FaceFrameReadback { .. } => "face_frame_readback",
         NodeErrorKind::DerivedFrameSection { .. } => "derived_frame_section",
+        // **No new word.** A carried frame refusal is the SAME fact
+        // as the one raised at the frame itself — zero length,
+        // non-finite length, underflow, escalation — and the arm
+        // exists to add the frame's id to the prose, not to split the
+        // fact in two. So it answers the word the frame's own raise
+        // answers, and a caller matching `degenerate_direction` keeps
+        // matching. `DirectionRefusal::node_error` is the one
+        // spelling of that map, so this cannot drift from it.
+        NodeErrorKind::FrameDirection { refusal, .. } => node_error_tag(&refusal.node_error()),
         // The projection node's two refusals (DOCM-2): a half with no
         // material, and an instance index outside the pattern's count.
         // Tags only — the Python surface for `Node.part` is LIB's
@@ -824,6 +833,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::FaceFrameNotPlanar { .. } => None,
         NodeErrorKind::FaceFrameReadback { error } => Some(readback_error_tag(error)),
         NodeErrorKind::DerivedFrameSection { .. } => None,
+        NodeErrorKind::FrameDirection { .. } => None,
         NodeErrorKind::WitnessBifurcation(_) => None,
         NodeErrorKind::Part { .. } => None,
         NodeErrorKind::Mate(_) => None,
@@ -1257,6 +1267,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::MissingUpstream { .. } => "missing_upstream",
         NamingError::Emission { .. } => "emission",
         NamingError::SplitLineage(_) => "split_lineage_cycle",
+        NamingError::FragmentLineage { .. } => "fragment_lineage_cycle",
         NamingError::Band(e) => band_error_tag(e),
         NamingError::Escalated { .. } => "escalated",
     }
@@ -2298,6 +2309,8 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::Pcurve { .. } => "pcurve",
         ValidationError::RingMeetsOuter { .. } => "ring_meets_outer",
         ValidationError::RingContactEscalated { .. } => "ring_contact_escalated",
+        ValidationError::RingOutsideOuter { .. } => "ring_outside_outer",
+        ValidationError::RingNestingUndecided { .. } => "ring_nesting_undecided",
         ValidationError::UndeclaredContact { .. } => "undeclared_contact",
         ValidationError::StaleContactDeclaration { .. } => "stale_contact_declaration",
         ValidationError::ContactContradicted { .. } => "contact_contradicted",
