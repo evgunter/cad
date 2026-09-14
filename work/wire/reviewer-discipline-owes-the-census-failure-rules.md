@@ -2,9 +2,9 @@
 id: reviewer-discipline-owes-the-census-failure-rules
 kind: ruling
 title: Should the census/guard failure rules eight WIRE units paid for become standing reviewer discipline?
-status: open
+status: closed
 opened: 2026-09-14
-needs_ev: true
+closed: 2026-09-14
 ---
 
 ## The question
@@ -101,3 +101,45 @@ imperatives make it more checklist-shaped. If that cost is not worth
 paying, the honest alternative is to leave all five in `plan.md` and
 accept that the next program rediscovers them — which is what happened
 twice inside this one.
+
+
+## Declined by Ev, 2026-09-14 (PR 2555)
+
+**"i lean declining these changes. they seem like they're adding more
+words to a rule that's already there; i believe the problem was there but
+i don't know if stating the rule in more words would've helped"**
+
+Accepted, and the test in that second clause is the one I failed to
+apply to my own proposal: *would stating the rule have helped?* The
+evidence says no. `reviewer-style-lane.md` already tells a reviewer that
+naming the trap in a PR body does not prevent it and that **only a reader
+who did not write the fix has ever caught it** — and all five of these
+were caught by a reader, not by a rule. The lane that wrote the
+proxy-assert had read the brief. The file also opens by insisting its
+questions are *"not a checklist"*, a cost I named in the PR and then
+proposed against anyway.
+
+The five rules stay in `work/wire/plan.md`, where they cost nothing and
+bind nobody.
+
+## And Ev corrected the framing, which produced the better result
+
+> *"a scan that died reads as a pass" — this sounds like it could be a
+> bug? if it "died" in the sense of encountering an error condition, it
+> shouldn't be returning an empty set*
+
+Right, and the sentence hid two different things. A scan that hits an
+**error** and returns empty is a bug in the scan; guarding it downstream
+treats a symptom. What these censuses actually met is the other case: the
+scan ran correctly and **honestly found nothing**, because its needle had
+stopped matching — a sentinel renamed, a file moved, a type path
+re-spelled.
+
+But the question points past my rule. **If a scan over a file that must
+contain its markers finds none, that is not an honest zero either — its
+premise is broken and it should refuse at the scan**, which is this
+project's own fail-loud rule applied one level earlier than I was
+applying it. That is a code change, not a paragraph, and it is checkable
+where the prose was not.
+
+Carried to `work/wire/a-source-census-scan-that-matches-nothing-should-refuse-at-the-scan.md`.
