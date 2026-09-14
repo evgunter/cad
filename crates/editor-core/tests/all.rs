@@ -512,6 +512,8 @@ mod m10_derived_frame_interval;
 mod m10_derived_frame_tilted_interval;
 #[path = "m10_sym_profile_interval.rs"]
 mod m10_sym_profile_interval;
+#[path = "sym5_review_r1_docs_interval.rs"]
+mod sym5_review_r1_docs_interval;
 
 #[path = "wire_band_cause.rs"]
 mod wire_band_cause;
