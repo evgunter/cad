@@ -4,7 +4,7 @@ kind: issue
 title: The klein elbow's equator seams (RevolvedPoint-declared chart seams) refuse at reauthor once the spiric rims mint - the moved cap displaces the corner off the sketch plane
 status: open
 opened: 2026-09-14
-refs: [spiric-rim-carrier, c5-plane-torus-cone-cylinder-arms, 2566]
+refs: [c5-plane-torus-cone-cylinder-arms, spiric-carrier-ruling, 2566]
 ---
 
 
