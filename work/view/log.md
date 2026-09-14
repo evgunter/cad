@@ -10985,3 +10985,55 @@ file. **This split removes that blocker**, so the row now exists and
 says what is still open.
 
 **VIEW stands at 73 open / 89 closed, nothing waiting on Ev.**
+
+## `two-datumkind-enums-name-the-same-four-datum-kinds` — closed, two types kept (`view/two-datumkinds`)
+
+Settled **two types, not one**, and removed the name collision that was
+the whole of the defect. `forms::DatumKind` is now
+`forms::DatumKindChoice` (`crates/viewer/src/forms.rs:124`),
+`pub(crate)` behind `app` as before, so no public surface moved;
+`viewer::DatumKind` (`crates/viewer/src/datums.rs:344`, re-exported at
+`lib.rs:129`) is untouched.
+
+**The argument.** The two are different functions of the same domain,
+not two spellings of one concept. The draw tag partitions
+`DatumValue`'s five arms onto four DRAWINGS — `AxisInPlane` is a line
+in space, drawn as the axis it is — while the form choice selects four
+of `DatumSpec`'s five arms for what a plain-numbers form can AUTHOR,
+`AxisInPlane` being the one that needs a frame pick first. The same arm
+is both the value that collapses and the spec that is not offered, for
+unrelated reasons, and that coincidence is the entire reason the
+memberships matched. Merging would make `ALL` — which the radio row
+walks — claim that everything drawable is offered by the add-datum
+form, and `revolve-tool-unreachable-no-axisinplane-form` is already on
+this board asking for the counterexample: its fix grows the form choice
+to five while the draw tag stays at four.
+
+`Choice` is not a coinage. It is what this crate already spells a form
+choice with where there is a thing chosen among — `PatternKindChoice`
+beside the kernel's `PatternKind`, `blend::BlendKindChoice` — and the
+add-datum form was the one that took the bare name.
+
+**No mechanical hold, deliberately.** There is no invariant between the
+two to assert; a test pinning them identical would hold the coincidence
+and would have to be deleted the day the revolve row lands. What holds
+them honest is the name plus a stated relationship at both
+declarations.
+
+String tags and `ALL` did not move: the words stay table data on the
+form side (`add_datum_ui` walks `DatumKindChoice::ALL` for them), and
+the draw tag keeps its hand-written `label` match and gains no `ALL`,
+since nothing iterates it for words and it is not a vocabulary the
+chrome offers. It therefore does not become a `vocabulary!`
+declaration; the item's note that "the survivor should be declared
+through `vocab.rs`" applied to the merge outcome, which was not taken.
+
+**Neighbour rows.** `two-partial-mirrors-in-the-viewer-have-no-growth-alarm`
+is **not closed and not subsumed** — the spec-to-kind growth alarm it
+asks for is still unwritten. Its title and citations are respelled for
+the rename, with a note that the public draw tag is not a third site
+for that instrument (no `ALL`, not a partial mirror, growth already
+forced by `draw_one`'s exhaustive match).
+`revolve-tool-unreachable-no-axisinplane-form` had two stale claims
+refreshed: the type name, and the member order it quoted as
+`Plane, Axis, Point, Frame`, which PR 2046 reordered to form order.
