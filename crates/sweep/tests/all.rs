@@ -648,6 +648,9 @@ mod shell7_r2_probes;
 #[path = "shell9_probe.rs"]
 mod shell9_probe;
 
+#[path = "revert_plane_charts.rs"]
+mod revert_plane_charts;
+
 #[path = "shell9_rows.rs"]
 mod shell9_rows;
 

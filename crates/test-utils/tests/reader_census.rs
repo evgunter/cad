@@ -128,6 +128,11 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // unreachable-variant scan, code view
     },
     Entry {
+        path: "crates/editor-core/tests/wire_entity_door.rs",
+        disposition: Shared, // entity-door and entity-kind-carrier census over
+                             // eval/wire.rs and eval/mod.rs, code view
+    },
+    Entry {
         path: "crates/editor-core/tests/wire_operand_door.rs",
         disposition: Shared, // operand-door and expected-phrase census over
                              // eval/wire.rs and verbs/split.rs, code and

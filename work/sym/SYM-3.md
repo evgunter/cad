@@ -2,10 +2,12 @@
 id: SYM-3
 kind: unit
 title: what stands at a bulge that is not 1: the boss and the D-tab rendered, the parameter bulge's two routes counted
-status: spec
+status: closed
 opened: 2026-09-13
 branch: sym/3-bulge
 refs: [rule-d-reaches-the-unit-bulge-only]
+closed: 2026-09-14
+pr: 2558
 ---
 
 

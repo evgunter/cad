@@ -230,9 +230,13 @@ pub struct DriveConfig {
 ///
 /// Two things keep that bill down and both are measured rather than
 /// argued. A margin the numeric channel has already proved NON-ZERO
-/// never has its form built at all (`geom_core::sym`'s `Decide` impl —
+/// is never DECIDED by its form (`geom_core::sym`'s `Decide` impl —
 /// a certified enclosure excluding zero is a proof no normal form can
-/// contradict), which is most margins on most documents. And
+/// contradict), which is most margins on most documents; the form is
+/// still BUILT for it wherever debug assertions are on (dev, test and
+/// this workspace's release profile), by the contradiction assertion
+/// at that site — a tenth of the slab's plain forms, measured
+/// (`geom_core::sym`'s `# Cost`). And
 /// `Poly::mul` refuses on pre-bounds instead of building a product and
 /// discarding it, so an over-budget multiplication costs its two
 /// operands' sizes rather than their product.

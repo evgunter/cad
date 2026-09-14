@@ -2,10 +2,12 @@
 id: SYM-1
 kind: unit
 title: the profile inside the normal form: where the E12 tier's time goes on the M10-3 slab, and what freezes
-status: spec
+status: closed
 opened: 2026-09-13
 branch: sym/1-profile
 refs: [symbolic-tier-costs-95-percent-of-the-m10-3-drive, derived-frame-placement-freezes-on-the-symbolic-lane]
+closed: 2026-09-14
+pr: 2530
 ---
 
 

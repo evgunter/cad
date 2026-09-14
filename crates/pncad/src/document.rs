@@ -191,10 +191,18 @@ pub use editor_core::{Distribution, DistributionFault, DistributionField};
 // a memo was refused without naming it. The name is not the memo's —
 // it is the one payload all three pairing doors carry (DI3), which is
 // why it is spelled for the QUESTION rather than for any one door.
+// `Found` rides with `NodeErrorKind` by the same rule: it is the
+// `found` field of the four entity-kind refusals, so a consumer can
+// match those variants but not name what they say was there instead.
+// It carries an `EntityKind`, never a key, so it is not the LB13
+// exception `EntityKey` is — and it cannot be CONSTRUCTED from here,
+// which is the point of it: its field is private to the door that
+// mints it.
 pub use editor_core::{
     Arity, BooleanValue, CancelToken, DatumValue, DirectionRefusal, EvalOptions, EvalOutcome,
-    Evaluation, FramePlacement, Mispaired, NodeError, NodeErrorKind, NodeRefusal, NodeResult,
-    NodeValue, ProfileLift, SplitSide, UnitVec3, UnitVec3Error, ValuePayload, VerbKind, evaluate,
+    Evaluation, Found, FramePlacement, Mispaired, NodeError, NodeErrorKind, NodeRefusal,
+    NodeResult, NodeValue, ProfileLift, SplitSide, UnitVec3, UnitVec3Error, ValuePayload, VerbKind,
+    evaluate,
 };
 
 // Persistence: the doors, verbatim.

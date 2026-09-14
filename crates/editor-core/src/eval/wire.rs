@@ -19,7 +19,11 @@
 //! makes the order a type rather than a convention. It maps to no
 //! kernel op either: the kernel takes entity keys, and everything that
 //! turns an authored name into one, or into an N5 refusal, is this
-//! module's.
+//! module's. What a resolved name DENOTES is the question after it,
+//! and it has one door too: [`named_entity`] over
+//! [`super::entity_door`]. A road supplies the projection and its own
+//! refusal and CANNOT supply the word for the kind it found — that
+//! word arrives as a token only the door can mint.
 //!
 //! **The declaration routing.** A union's declared face pairs are
 //! authored against its MEMBERS and consumed by a fold of pairwise
@@ -1482,15 +1486,14 @@ fn wire_datum<T: Decide>(
             let table = &value_of(results, *at)?.name_table;
             // The fillet's ladder: rung 1 against the document, rungs
             // 2 and 3 against the body's own table.
-            let ent = ladder::resolve_in(face, doc, table, |error| {
-                NodeErrorKind::FaceFrameResolve { error }
-            })?;
-            let names::EntityKey::Face(key) = ent.key else {
-                return Err(NodeErrorKind::FaceFrameKind {
-                    name: Box::new(face.clone()),
-                    found: ent.key.kind(),
-                });
-            };
+            let key = named_entity(
+                face,
+                doc,
+                table,
+                |error| NodeErrorKind::FaceFrameResolve { error },
+                names::EntityKey::face,
+                |name, found| NodeErrorKind::FaceFrameKind { name, found },
+            )?;
             // DM1b / DM2: the carrier's KIND is a stored tag, and a
             // sketch frame wants a plane. A comparison of tags, not a
             // predicate.
@@ -2383,7 +2386,8 @@ fn wire_shell<T: Decide + crate::verbs::shell::ShellLane>(
 
 /// Resolves a shell's open-face designation against the target's name
 /// table — [`resolve_selection`]'s twin over FACES, through the same
-/// [`ladder`], with two differences that are the door's own arity: an
+/// [`ladder`] and the same [`named_entity`] door, with two differences
+/// that are this door's own arity: an
 /// empty list is legal (the sealed hollow), and the keys come back in
 /// DESIGNATION ORDER rather than arena order. D9's arena-order rule is
 /// for DERIVED lists; here the order is authored data the kernel reads
@@ -2399,20 +2403,16 @@ fn resolve_open_faces(
     doc: &crate::doc::Doc<ProfileProgram>,
     target: &NameTable,
 ) -> Result<Vec<topo::FaceKey>, NodeErrorKind> {
-    use crate::names::EntityKey;
-
     let mut keys = Vec::with_capacity(open.len());
     for name in open {
-        let ent = ladder::resolve_in(name, doc, target, |error| NodeErrorKind::ShellOpenResolve {
-            error,
-        })?;
-        let EntityKey::Face(k) = ent.key else {
-            return Err(NodeErrorKind::ShellOpenKind {
-                name: Box::new(name.clone()),
-                found: ent.key.kind(),
-            });
-        };
-        keys.push(k);
+        keys.push(named_entity(
+            name,
+            doc,
+            target,
+            |error| NodeErrorKind::ShellOpenResolve { error },
+            names::EntityKey::face,
+            |name, found| NodeErrorKind::ShellOpenKind { name, found },
+        )?);
     }
     Ok(keys)
 }
@@ -2565,13 +2565,60 @@ mod ladder {
     }
 }
 
+/// **The entity-kind question asked of an authored NAME** — the
+/// designation road, for every door that reads a name out of the
+/// recipe: resolve it through the [`ladder`] first, then hand the key
+/// to [`super::entity_door::entity`].
+///
+/// It is a door of its own rather than a second copy because the name
+/// is a second thing the refusal CARRIES, not a second way of asking:
+/// all three of these refusals name the offending designation so the
+/// author knows which of a list failed, and the boxed clone that puts
+/// it there is made here, once, rather than at each road.
+///
+/// `unresolved` is the road's N5 vocabulary and `refuse` its kind
+/// refusal; the two are separate because they are separate answers — a
+/// name that stopped resolving is not a name of the wrong kind, and
+/// rung 1 outranks this door entirely ([`ladder::Live`]).
+///
+/// The one thing neither this door nor its callers can supply is the
+/// KIND: [`super::entity_door::Found`] is mintable only inside that
+/// module, so `refuse` receives it and passes it on. **That is why the
+/// door is in two files and this half is here**: the token's field has
+/// to be private to a module that is not an ancestor of these roads,
+/// and the roads are in this one. What this door adds is the
+/// resolution and the boxed name; what it cannot add, and does not
+/// try to, is the word.
+///
+/// The KEY, though, is this door's own — it comes off
+/// `ladder::resolve_in` two lines below and nowhere else, which is the
+/// property `entity_door`'s module docs say the type system does not
+/// carry.
+///
+/// # Errors
+///
+/// The [`ladder`]'s closed N5 trio through `unresolved`, and `refuse`'s
+/// own refusal when `read` finds the name denotes another kind.
+fn named_entity<R>(
+    name: &names::StableName,
+    doc: &crate::doc::Doc<ProfileProgram>,
+    table: &NameTable,
+    unresolved: impl Fn(Box<crate::resolve::ResolveError>) -> NodeErrorKind,
+    read: fn(names::EntityKey) -> Option<R>,
+    refuse: impl FnOnce(Box<names::StableName>, super::entity_door::Found) -> NodeErrorKind,
+) -> Result<R, NodeErrorKind> {
+    let ent = ladder::resolve_in(name, doc, table, unresolved)?;
+    super::entity_door::entity(ent.key, read, |found| refuse(Box::new(name.clone()), found))
+}
+
 /// Resolves a fillet's edge selection against the target's name table
 /// (M6-5). Single-operand, so simpler than
 /// [`resolve_declarations`] — but the refusal vocabulary is the SAME
 /// N5 trio, deliberately: the two sites answer the same question, and
 /// they answer it through the same [`ladder`], which owns rung order
 /// and payload shapes. What stays here is this door's arity — one
-/// table — and its kind refusal: a selection names EDGES.
+/// table — and which kind it reads for: a selection names EDGES, and
+/// the test and its refusal go through [`named_entity`].
 ///
 /// The returned keys are in TARGET-ARENA order, not selection order,
 /// so the kernel sees the deterministic order every derived list in
@@ -2582,24 +2629,19 @@ fn resolve_selection(
     doc: &crate::doc::Doc<ProfileProgram>,
     target: &NameTable,
 ) -> Result<Vec<topo::EdgeKey>, NodeErrorKind> {
-    use crate::names::EntityKey;
-
     if selection.is_empty() {
         return Err(NodeErrorKind::BlendSelectionEmpty { verb });
     }
     let mut keys = Vec::with_capacity(selection.len());
     for name in selection {
-        let ent = ladder::resolve_in(name, doc, target, |error| {
-            NodeErrorKind::BlendSelectionResolve { verb, error }
-        })?;
-        let EntityKey::Edge(k) = ent.key else {
-            return Err(NodeErrorKind::BlendSelectionKind {
-                verb,
-                name: Box::new(name.clone()),
-                found: ent.key.kind(),
-            });
-        };
-        keys.push(k);
+        keys.push(named_entity(
+            name,
+            doc,
+            target,
+            |error| NodeErrorKind::BlendSelectionResolve { verb, error },
+            names::EntityKey::edge,
+            |name, found| NodeErrorKind::BlendSelectionKind { verb, name, found },
+        )?);
     }
     // D9 order; the kernel refuses a repeated edge itself, so a
     // duplicate that survived canonicalization still fails loudly.
@@ -2622,6 +2664,32 @@ struct Selected<'v, T: Decide> {
     key: crate::names::EntityKey,
 }
 
+/// What a measure reference is allowed to scope over — the whole body,
+/// or one face of it.
+///
+/// It exists so [`Selected::faces`]'s projection can be a `fn`: the
+/// entity door takes a `fn` so that no `read` can answer from a key it
+/// captured rather than the one the door holds, which means the body
+/// work has to happen after the door rather than inside it. The two
+/// arms are the two admitted kinds, so neither this enum nor the match
+/// below has an unreachable case.
+enum Scope {
+    /// A body-kind reference: every face of it.
+    WholeBody,
+    /// A face-kind reference: that one face.
+    One(topo::entity::FaceKey),
+}
+
+/// The scope a key denotes, or `None` for a kind that is neither — the
+/// entity door's `read` for the measure road.
+fn scope_of(key: names::EntityKey) -> Option<Scope> {
+    match key {
+        names::EntityKey::Body => Some(Scope::WholeBody),
+        names::EntityKey::Face(k) => Some(Scope::One(k)),
+        names::EntityKey::Edge(_) | names::EntityKey::Vertex(_) => None,
+    }
+}
+
 impl<T: Decide> Selected<'_, T> {
     /// The faces this selection scopes over: every face of the body for
     /// a body-kind reference (arena order, which is the deterministic
@@ -2634,18 +2702,16 @@ impl<T: Decide> Selected<'_, T> {
     /// [`NodeErrorKind::MeasureSelectionKind`], naming what was
     /// selected instead.
     fn faces(&self) -> Result<Vec<topo::entity::FaceKey>, NodeErrorKind> {
-        match self.key {
-            crate::names::EntityKey::Body => Ok(self.body.faces().map(|(k, _)| k).collect()),
-            crate::names::EntityKey::Face(k) => Ok(vec![k]),
-            crate::names::EntityKey::Edge(_) => Err(NodeErrorKind::MeasureSelectionKind {
+        let scope = super::entity_door::entity(self.key, scope_of, |found| {
+            NodeErrorKind::MeasureSelectionKind {
                 verb: "min_clearance",
-                found: "an edge",
-            }),
-            crate::names::EntityKey::Vertex(_) => Err(NodeErrorKind::MeasureSelectionKind {
-                verb: "min_clearance",
-                found: "a vertex",
-            }),
-        }
+                found,
+            }
+        })?;
+        Ok(match scope {
+            Scope::WholeBody => self.body.faces().map(|(k, _)| k).collect(),
+            Scope::One(k) => vec![k],
+        })
     }
 }
 

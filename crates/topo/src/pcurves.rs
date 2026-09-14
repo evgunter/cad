@@ -82,8 +82,11 @@
 //! # Persistence and transfer posture
 //!
 //! Caches are minted at construction and are immutable with the body;
-//! there is no invalidation machinery and none is needed (content-keyed
-//! cache transfer stays banked, C4). Persistence (M4 PR 6 / D6.1) is
+//! there is no general invalidation machinery, and what stands in for
+//! one is per door: a door declares its posture below, and the three
+//! that move a whole loop between charts dispose of the moved rows
+//! themselves ([`crate::Body::drop_rows_on_chart_change`]).
+//! Content-keyed cache transfer stays banked (C4). Persistence (M4 PR 6 / D6.1) is
 //! **recipe-level**: a document stores its edit list, and loading
 //! re-evaluates it — so a round-trip **re-mints** pcurves from the same
 //! deterministic pipeline rather than reading stored bytes, and no
@@ -142,21 +145,76 @@
 //! carried row is the row the pass would derive is a claim about the
 //! ANALYTIC charts, where the pass runs.
 //!
-//! **Neither clears nor re-mints** — the Euler operators, the kill ops,
-//! ring surgery. These are primitives, and they are what the stale-row
-//! consequence below is about.
+//! **[`crate::Body::revert`] carries the map, re-stated with the
+//! frames.** Not a fourth posture: the three above classify the
+//! `&mut Body` doors the guard walks, and `revert` is a `&self ->
+//! Self` producer outside that walk (the guard's "does NOT establish"
+//! list below), so this is a prose position with nothing checking it.
+//! Every row keeps its key, its interval and its certificate: the
+//! curved charts' frames do not move under a reversal (those faces
+//! flip their `sense` bit), so their rows are the rows; a `Plane`'s
+//! frame is reflected (`v_ref` negates with the normal), so the rows
+//! on its faces are re-stated under `(u, v) ↦ (u, −v)` through
+//! [`geom_brep::PcurveCache::mirrored_v`] — why the certificate is
+//! still the certificate is stated once, on
+//! [`geom_brep::Pcurve::mirror_v`]. The dead-key exception: a row
+//! whose half-edge no longer resolves (the stale-row consequence
+//! below) is on no face, so it is on no plane face, and it travels as
+//! found — not a refusal, because the boolean's `revert` of a split
+//! operand carries such rows routinely, and the graft or the
+//! producer's closing mint disposes of them. What the reversal does
+//! NOT re-state is the loop walk's branch choice: where a forward
+//! walk parked a periodic chart's one-period wrap at a loop's
+//! closure, the wrap sits mid-chain once the loop runs the other way,
+//! and tier 3 of the reverted body reports it as a
+//! `LoopDiscontinuity` — `sweep`'s SHELL-9 probe rows measure that on
+//! the two-arc sphere's reverted cavity, and measure the drum's
+//! reverted cavity reporting nothing but `NegativeVolume`
+//! (`work/topo/revert-leaves-a-periodic-charts-loop-wrap-mid-chain`).
+//! The wrap is the producer's closing mint's to re-derive, as it does
+//! today.
+//!
+//! The **loop-re-parenting** doors hold the same posture for a
+//! different reason: [`crate::Body::kfmrh`],
+//! [`crate::Body::mfkrh`] and [`crate::Body::ring_move`] move a whole
+//! LOOP between faces, which changes the CHART every row on that loop
+//! is stated in while changing no key. Each carries the moved loop's
+//! rows where the two faces are on one CHART
+//! ([`crate::Body::same_chart`]) and drops them where they are not,
+//! deriving nothing — [`crate::Body::drop_rows_on_chart_change`]
+//! carries the whole argument, including what the drop gives up: every
+//! rowless CURVED target, through every one of the three doors, trades
+//! a loud reading (the moved rows re-certified against the target's
+//! chart and refused) for a silent one (a face this pass says nothing
+//! about). Their `Neither` reading was the one the guard's table could
+//! not see: no posture makes a claim about what a row MEANS, and these
+//! doors changed nothing else.
+//!
+//! **Neither clears nor re-mints** — the remaining Euler operators and
+//! kill ops. These are primitives, and they are what the stale-row
+//! consequence below is about. Two of them move half-edges between
+//! loops of DIFFERENT faces rather than a whole loop
+//! ([`crate::Body::mef`]'s moved run, [`crate::Body::kef`]'s remnant),
+//! so the rows on those halves change chart exactly as a re-parented
+//! loop's do and are left saying the old face's chart
+//! (`work/topo/mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows`).
 //!
 //! The consequence is bounded but real: a `SecondaryMap` row outlives
 //! its key until the slot is reused, so surgery on a body that already
 //! carries caches can leave a row attached to a half-edge that no
 //! longer means what the cache says (or, once a slot is recycled, to a
-//! different half-edge entirely). What makes that bounded rather than
-//! dangerous is the backstop: the tier-3 pcurve pass catches a stale
-//! row LOUD — it re-certifies against the current
-//! carrier/surface/window and fails, or breaks its face loop's
-//! continuity. So the posture is fail-loud, not silent-wrong — but an
-//! op that mutates an already-minted body must either clear the map or
-//! re-mint before returning, and must say which.
+//! different half-edge entirely). What bounds it is the backstop, and
+//! the backstop's reach is exactly one shape: the tier-3 pcurve pass
+//! reads a face it finds INCOMPLETE, and a face whose rows are all
+//! present but no longer certify against the current
+//! carrier/surface/window or break their loop's continuity, and
+//! reports either loud. It says nothing about the two shapes outside
+//! that — a COMPLETE face whose rows were stated in another chart and
+//! certify against this one anyway, and a face on a chart
+//! [`chart_mints`] refuses, which the pass skips entirely. So the
+//! posture is fail-loud where the pass looks, and an op that mutates
+//! an already-minted body must either clear the map or re-mint before
+//! returning, and must say which.
 //!
 //! **Where it says which, and what checks it.** For a `&mut Body` door
 //! in this crate, in
@@ -1374,6 +1432,46 @@ pub(crate) struct StoredRows<T: Real> {
     pub(crate) window: Option<ChartWindow<T>>,
 }
 
+/// One loop's half-edge cycle, as this module's walks read it —
+/// [`loop_rows`]'s answer.
+pub(crate) enum LoopRows {
+    /// The loop walked: its half-edges in cycle order. These are the
+    /// keys the map is keyed on for this loop, and the only ones.
+    Cycle(Vec<HalfEdgeKey>),
+    /// The loop's boundary is not a cycle
+    /// ([`crate::LoopBoundary::Empty`]): there is nothing to walk and
+    /// nothing wrong. It holds no half-edge, so it holds no row.
+    NoCycle,
+    /// The loop record or its cycle did not resolve — tier 1's
+    /// corruption, which each caller reports in its own vocabulary.
+    Corrupt,
+}
+
+/// **The one per-loop rows walk**: the half-edges of `r#loop` a pcurve
+/// row can be keyed on.
+///
+/// A row is keyed on a half-edge and belongs to the face that
+/// half-edge's loop is on, so every question this module asks about
+/// one loop's rows — which rows a face STORES ([`stored_rows`], and
+/// through it [`validate_pcurves`] and [`split_cache`]), and which
+/// rows a door that re-parents the loop must dispose of
+/// ([`crate::Body::drop_rows_on_chart_change`]) — is a walk of this
+/// one cycle. Two spellings of it would be two answers to "which rows
+/// does this loop have", and a door and the validator disagreeing
+/// about that is exactly the defect neither could see.
+pub(crate) fn loop_rows<T: Decide>(body: &Body<T>, r#loop: LoopKey) -> LoopRows {
+    let Some(loop_data) = body.get_loop(r#loop) else {
+        return LoopRows::Corrupt;
+    };
+    let crate::entity::LoopBoundary::Cycle { first } = loop_data.boundary else {
+        return LoopRows::NoCycle;
+    };
+    match body.loop_cycle(first) {
+        Some(cycle) => LoopRows::Cycle(cycle),
+        None => LoopRows::Corrupt,
+    }
+}
+
 /// [`StoredRows`] for one face: its loops walked once, and the chart
 /// window its stored rows hull out to.
 pub(crate) fn stored_rows<T: Decide>(body: &Body<T>, face: &crate::entity::Face) -> StoredRows<T> {
@@ -1382,16 +1480,13 @@ pub(crate) fn stored_rows<T: Decide>(body: &Body<T>, face: &crate::entity::Face)
         window: None,
     };
     for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
-        let Some(loop_data) = body.get_loop(lk) else {
-            out.loops.push(None);
-            continue;
-        };
-        let crate::entity::LoopBoundary::Cycle { first } = loop_data.boundary else {
-            continue;
-        };
-        let Some(cycle) = body.loop_cycle(first) else {
-            out.loops.push(None);
-            continue;
+        let cycle = match loop_rows(body, lk) {
+            LoopRows::NoCycle => continue,
+            LoopRows::Corrupt => {
+                out.loops.push(None);
+                continue;
+            }
+            LoopRows::Cycle(cycle) => cycle,
         };
         for &he in &cycle {
             let Some(row) = body.pcurve(he) else {
@@ -1947,14 +2042,7 @@ pub(crate) fn walk_loop<T: PcurveFittedLane>(
                             None => T::zero(),
                         },
                     };
-                    // The impossible-rebuild arm (see
-                    // `Pcurve::shift_branch`) surfaces as a
-                    // corrupt-body finding rather than being swallowed
-                    // into an unshifted branch.
-                    let Some(mut shifted) = cand.shift_branch(ku, u_period.unwrap_or_else(T::zero))
-                    else {
-                        return Err(PcurveMintError::Corrupt);
-                    };
+                    let mut shifted = cand.shift_branch(ku, u_period.unwrap_or_else(T::zero));
                     if v_arm.is_some() {
                         let ry = shifted.eval(entry_t).y;
                         let kv = (prev.y - ry).periodic_branch(tau);
@@ -2443,14 +2531,26 @@ pub(crate) mod staleness_posture {
         /// own body); an entry declares it only when the re-mint is one
         /// delegation away, which a source read cannot see.
         Maintains,
-        /// Moves each row onto the key that now carries what it says
-        /// — the transplanted half-edge's fresh key, or the two keys a
-        /// parameter split leaves where one edge was — and drops the
-        /// rest.
+        /// Disposes of every row whose KEY or MEANING the door
+        /// changed, rather than leaving one behind: moves it onto the
+        /// key that now carries what it says — the transplanted
+        /// half-edge's fresh key, or the two keys a parameter split
+        /// leaves where one edge was — and drops what no key can
+        /// carry, including a row whose key never moved but whose
+        /// chart did (the loop-re-parenting doors). What a door in
+        /// this bucket never does is return with a row that says
+        /// something the body no longer holds.
         Transfers,
         /// Leaves the map exactly as it found it — a primitive, or a
-        /// write the map is not keyed on. Safe because the tier-3
-        /// pcurve pass catches the consequence loud.
+        /// write the map is not keyed on. What this bucket rests on is
+        /// the tier-3 pcurve pass, and only as far as that pass looks
+        /// (module docs): it reports an INCOMPLETE face, and a face
+        /// whose rows no longer certify; it is silent about a complete
+        /// face whose rows were stated in another chart and certify
+        /// against this one, and about any face on a chart
+        /// [`super::chart_mints`] refuses. Two entries here are known
+        /// to leave rows in that blind spot
+        /// (`work/topo/mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows`).
         Neither,
     }
 
@@ -2553,8 +2653,9 @@ pub(crate) mod staleness_posture {
             (
                 "insert_voids",
                 Transfers,
-                "the void-insertion door: reverts the cavity (rows keep their keys, going \
-             stale in CONTENT like any surgery) and grafts through `boolean::combine`, \
+                "the void-insertion door: reverts the cavity (`Body::revert` carries every \
+             row key for key, the plane faces' rows mirrored with their frames — the \
+             module docs' producer position) and grafts through `boolean::combine`, \
              which remaps the transplanted rows onto fresh keys; every producer's final \
              mint pass — the boolean's, the revolve's and `shell`'s — re-derives every \
              row of the merged body",
@@ -2577,17 +2678,40 @@ pub(crate) mod staleness_posture {
             ("mef_chord", Neither, "Euler operator (sugar over `mef`)"),
             ("mekr", Neither, "Euler operator"),
             ("mekr_chord", Neither, "Euler operator (sugar over `mekr`)"),
-            ("mfkrh", Neither, "Euler operator"),
-            ("mfkrh_plug", Neither, "Euler operator (sugar over `mfkrh`)"),
             ("kemr", Neither, "Euler operator"),
-            ("kfmrh", Neither, "Euler operator"),
             ("kev", Neither, "kill op"),
             ("kef", Neither, "kill op"),
             ("kvfs", Neither, "kill op"),
+            // ---- Transfers: the loop-re-parenting doors, which carry
+            // a moved loop's rows onto the target face and drop them
+            // when that face is on another CHART. ----
+            (
+                "kfmrh",
+                Transfers,
+                "Euler operator, and a loop re-parenting: `f2`'s demoted outer loop keeps its \
+             rows where `f1` is on the same chart (`Body::same_chart`) and loses them where \
+             it is not (`Body::drop_rows_on_chart_change`)",
+            ),
+            (
+                "mfkrh",
+                Transfers,
+                "Euler operator, and a loop re-parenting: the promoted ring keeps its rows \
+             under `FaceSurface::Inherit` (and a `Shared` naming the same chart) and loses \
+             them under any other surface",
+            ),
+            (
+                "mfkrh_plug",
+                Transfers,
+                "`mfkrh` with a PLACEHOLDER surface — see `mfkrh`; a placeholder is not a \
+             described surface, so it is not the chart any row was stated in and the \
+             promoted ring's rows always go. Decided by kind, not by the fresh key the \
+             sugar happens to mint",
+            ),
             (
                 "ring_move",
-                Neither,
-                "ring surgery: re-parents a ring, mints no half-edge",
+                Transfers,
+                "ring surgery: re-parents a ring, mints no half-edge, and carries or drops \
+             the ring's rows by whether the two faces are on one chart — see `kfmrh`",
             ),
             (
                 "movefac",
@@ -2611,8 +2735,11 @@ pub(crate) mod staleness_posture {
             (
                 "set_face_surface",
                 Neither,
-                "a surface swap is content staleness the tier-3 pass re-certifies against, \
-             not a key the map can lose",
+                "a surface swap is content staleness, not a key the map can lose — and the \
+             tier-3 pass re-certifies against the new surface only where that surface \
+             mints: a swap onto a plane or a placeholder leaves a COMPLETE row set stated \
+             in the chart the face left, which this pass skips \
+             (`work/topo/set-face-surface-leaves-a-complete-face-certified-against-the-chart-it-left`)",
             ),
             (
                 "set_edge_curve",
