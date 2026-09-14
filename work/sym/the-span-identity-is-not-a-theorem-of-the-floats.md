@@ -4,7 +4,6 @@ kind: issue
 title: the arc span identity is a theorem of the reals and not of the floats: an adversarial torus at minor radius 1e18 contradicts it at the witness
 status: open
 opened: 2026-09-06
-needs_ev: true
 ---
 
 **Found by M10-9's fix pass, by an assertion it added and then removed
@@ -108,3 +107,11 @@ the receipt, never asserted). Plus the fixture-scale row asserting
 zero `Contradicted` on the M10 documents in the `Interval` lane, which
 closes this row. Lands as SYM-6's Phase 3 (A2) or a follow-on unit on
 Ev's pick. `needs_ev` stays until then.
+
+## Ev's answer (2026-09-14): the split
+
+"that refinement sounds good!" on #2552. Taken as SYM-6's Phase 3
+(`docs/SYM-6-SPEC.md` Amendment A2): `Disputed` for an inexact
+witness's refusal, `Contradicted` reserved for `Interval`'s exact one
+with the registrants' assertion restored there, and the fixture-scale
+zero-refusals row at `Sym<Interval>`, on which this row closes.
