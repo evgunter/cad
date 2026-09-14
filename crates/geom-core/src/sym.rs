@@ -2086,9 +2086,7 @@ fn form_in(
 /// indeterminates stand for, which a leaf that takes the form from the
 /// memo needs and never mints itself.
 fn mint_atom(sess: &mut Session, id: u128, early: bool, info: impl FnOnce() -> AtomInfo) {
-    if !sess.atoms.contains_key(&id) {
-        sess.atoms.insert(id, info());
-    }
+    sess.atoms.entry(id).or_insert_with(info);
     // Noted whether or not this walk is what first recorded it: an
     // earlier EARLY walk may have minted the same atom, and the plain
     // form about to reference it is published either way.

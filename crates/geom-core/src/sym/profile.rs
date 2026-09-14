@@ -264,7 +264,7 @@ thread_local! {
 
     /// The `Opaque` ids the session now installed has minted, flushed
     /// into [`SymProfile::opaque_ids`] when it ends.
-    static OPAQUE_LEAF: RefCell<BTreeSet<u128>> = RefCell::new(BTreeSet::new());
+    static OPAQUE_LEAF: RefCell<BTreeSet<u128>> = const { RefCell::new(BTreeSet::new()) };
 }
 
 /// Installs the profile on this thread, dropping anything recorded.

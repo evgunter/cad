@@ -173,13 +173,17 @@ impl DriveMemo {
         }
     }
 
-    /// A poisoned lock is a panic in another leaf's publish, which has
-    /// left the map half-written; serving from it would make a receipt
-    /// that reports a drive nobody ran.
+    /// A poisoned lock is RECOVERED rather than re-panicked, the same
+    /// choice `k_stats` makes at its own: a poisoned memo is a leaf that
+    /// panicked mid-publish, and what that leaves behind is FEWER
+    /// entries, never a wrong one — each insert is a whole `(id, form)`
+    /// pair of a form that was already built. The panic is the leaf's
+    /// own and propagates there; re-panicking here would turn it into
+    /// every other worker's too.
     fn read(&self) -> std::sync::RwLockReadGuard<'_, Inner> {
         self.inner
             .read()
-            .expect("the drive memo's lock is poisoned: a leaf panicked mid-publish")
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     /// The plain form of `id`, if another leaf of this drive has already
@@ -237,7 +241,7 @@ impl DriveMemo {
         let mut inner = self
             .inner
             .write()
-            .expect("the drive memo's lock is poisoned: a leaf panicked mid-publish");
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         for id in frozen {
             inner.frozen.insert(id, ());
         }
@@ -275,7 +279,7 @@ fn push_atoms(form: &Form, out: &mut Vec<u128>) {
 /// caller).
 fn form_bytes(form: &Form) -> usize {
     let poly = |p: &super::Poly| {
-        p.terms().len() * core::mem::size_of::<(super::form::Mono, super::Rat)>()
+        core::mem::size_of_val(p.terms())
             + p.monos()
                 .map(|m| m.len() * core::mem::size_of::<(u128, u32)>())
                 .sum::<usize>()

@@ -1443,6 +1443,12 @@ enum LeafVerdict {
 /// claims — which is exactly the failure the symbolic tier could
 /// otherwise hide, since an expression that is identically zero on
 /// paper says nothing about whether the code computed it.
+// One parameter per named input the leaf replay needs: the document,
+// the box, the witness build and its vector, the tier's dials and the
+// drive's plain memo. Nothing here is state to thread — every one is
+// read by the leaf and none is written — so a bundle would be a struct
+// that exists to satisfy a count.
+#[allow(clippy::too_many_arguments)]
 fn classify(
     doc: &Doc<ProfileProgram>,
     box_: &ParamBox,
