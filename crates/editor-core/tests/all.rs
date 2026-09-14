@@ -116,6 +116,8 @@ mod docm6_seam_declarations;
 mod docm7_union_declare;
 #[path = "docm8_flat_merged.rs"]
 mod docm8_flat_merged;
+#[path = "docm9_range.rs"]
+mod docm9_range;
 #[path = "dsc_checks.rs"]
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
@@ -504,9 +506,13 @@ mod m10_10_pins_interval;
 mod m10_10_r1_probes_interval;
 #[path = "m10_10_r2_probes_interval.rs"]
 mod m10_10_r2_probes_interval;
+#[path = "m10_sym_profile_interval.rs"]
+mod m10_sym_profile_interval;
 
 #[path = "wire_band_cause.rs"]
 mod wire_band_cause;
+#[path = "wire_entity_door.rs"]
+mod wire_entity_door;
 #[path = "wire_frame_placement_carry.rs"]
 mod wire_frame_placement_carry;
 #[path = "wire_operand_door.rs"]

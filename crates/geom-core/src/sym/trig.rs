@@ -87,10 +87,9 @@
 
 use std::rc::Rc;
 
-use super::{
-    AtomInfo, Form, INDET_PI, Mono, Poly, Rat, Session, SymBudget, SymOp, indet_atom, signed,
-    within,
-};
+use super::form::{Form, Mono, Poly, within};
+use super::rational::{Int, Rat};
+use super::{AtomInfo, INDET_PI, Session, SymBudget, SymOp, indet_atom, signed};
 
 /// **`atan2(0, N) = 0` for an `N` that is non-negative BY ITS SYNTAX**
 /// — the second fold of rule D, on the same posture as the half-angle
@@ -193,7 +192,7 @@ fn read_argument(arg: &Form, sess: &Session) -> Option<(i128, u32, Rc<Form>)> {
     if !q.den.is_one() {
         return None;
     }
-    let super::Int::Small(k) = q.num else {
+    let Int::Small(k) = q.num else {
         return None;
     };
     // The multiple `k · 2^e` is formed by CHECKED multiplication, never
@@ -259,7 +258,7 @@ fn fold_at_half_pi(op: SymOp, arg: &Form) -> Option<Form> {
     if !q.den.is_one() || q.exp2 < -1 {
         return None;
     }
-    let super::Int::Small(n) = q.num else {
+    let Int::Small(n) = q.num else {
         return None;
     };
     // Only `k mod 4` is read, for `k = n · 2^(e+1)` with `n` ODD (`Rat`

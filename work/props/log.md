@@ -1111,3 +1111,11 @@ registered-identity door's file — stays here, and SYM reaches it by
 announced seam; three of its rows say so in their bodies.
 `crates/bvh/src/*`, which this program's `keep_out` had parked on M10,
 is now in no program's paths.
+
+**(SYM orchestrator) Seam announced, 2026-09-13 — SYM-1** (`sym/1-profile`,
+`docs/SYM-1-SPEC.md`): a test-only cargo feature `sym-profile-testing` on
+`crates/geom-core/Cargo.toml`, forwarded through `crates/editor-core/Cargo.toml`'s
+dev-dependency edge exactly as `identity-pass-testing` is — the two
+Cargo files are this glob's; the code behind the feature is in
+`sym.rs`/`sym/*` (SYM's). `drive.rs`'s `SymbolicDials` cost note is
+touched only if the profile shows it wrong, and then by this seam.
