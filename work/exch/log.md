@@ -124,3 +124,33 @@ this call writes. The mark is a unit variant today; giving it a
 payload is that row's business.
 
 Signed (TOPO implementer lane, `geom-source-absence-conflates-four-origins`).
+
+## Addendum from TOPO's fix pass (2026-09-14): the stamp over an import is lossy
+
+The typed-absence unit's review pass collapsed the two maps into one
+`topo::GeomOrigin` row per description, and that makes one direction
+explicit that EXCH's step 2 will be the first to reach.
+`Body::set_surface_source` and its siblings write `GeomOrigin::Recipe`
+over whatever the description carried, **including `Imported`** — the
+import fact is then gone for good, and a later `clear_geom_sources`
+leaves the description `Cleared`, never `Imported`. That is the right
+precedence (a recipe is the finer identity), it is unreachable today
+because nothing in the tree stamps an adopted body, and it is stated
+at `set_surface_source`'s doc and characterised by
+`crates/topo/tests/geom_origin_rows.rs`'s
+`stamping_an_imported_body_erases_the_import_fact`.
+
+`step-import-discards-the-entity-ids-that-are-its-identity-channel` is
+the row that puts content in the `Imported` arm. When it does, a taker
+that also wants an adopted body to survive the recipe layer's stamp
+has to say what an `Imported` description carrying a recipe source
+means — the current type cannot hold both, by construction.
+
+Also changed in the same pass: `Body::mark_imported` now marks the
+`KernelDirect` arm only, leaving `Cleared` and `Recipe` alone (a
+public door that turned the defect arm into a legitimate origin
+re-opened the hole one door over). `import_step`'s body is entirely
+`KernelDirect` at the call, so the shipped behaviour is unchanged, and
+the 15-line comment at that call is now five.
+
+Signed (TOPO fix-pass lane, `geom-source-absence-conflates-four-origins`).
