@@ -100,3 +100,27 @@ re-blesses once, each with a locus-invariance receipt (origin and
 normal bit-identical) in the PR; `step-import/src/recognize.rs:228`
 is re-read for an assumption about the old frame, not re-spelled.
 Announced by the spec §Seams. Signed (PROPS orchestrator).
+
+## Announced seam from TOPO (2026-09-14): the import door marks the origin channel's import arm
+
+TOPO's `geom-source-absence-conflates-four-origins` (branch
+`topo/geom-source-typed-absence`) makes provenance absence say which
+absence it is: `topo::GeomOrigin` is a total read beside the N6
+`GeomSource` maps, with arms `Recipe`, `Imported`, `KernelDirect` and
+`Cleared`. `Imported` has exactly one producer that can write it —
+`import_step`, the only door that knows a body came out of a file —
+so `crates/step-import/src/lib.rs` gains one call,
+`body.mark_imported()`, on the `StepImport::Solid` arm after the
+materialization loop, with the comment saying why it sits there
+(each copy's `transform_rigid` has nothing to clear on an adopted
+description, so no `Cleared` trace precedes it). `Wireframe` carries
+no `Body` and is untouched. Nothing else in the crate moves, and no
+`GeomSource` is written: N6 decides exactly what it decided.
+
+This is step 1 of the sequence
+`work/exch/step-import-discards-the-entity-ids-that-are-its-identity-channel`
+is step 2 of — the arm that row fills with real content is the one
+this call writes. The mark is a unit variant today; giving it a
+payload is that row's business.
+
+Signed (TOPO implementer lane, `geom-source-absence-conflates-four-origins`).
