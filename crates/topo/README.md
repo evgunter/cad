@@ -17,7 +17,7 @@ feeds a decision, every walk is bounded.
 
 | Area | Modules |
 |---|---|
-| Arenas, entities, provenance | `src/body.rs`, `src/entity.rs`, `src/geometry.rs`, `src/provenance.rs`, `src/source.rs` (`GeomSource`, a description's recipe identity), `src/live.rs` |
+| Arenas, entities, provenance | `src/body.rs`, `src/entity.rs`, `src/geometry.rs`, `src/provenance.rs`, `src/source.rs` (`GeomSource`, a description's recipe identity; `GeomOrigin`, the total read of where a description came from when it holds no recipe identity — imported, kernel-direct, or cleared-and-not-re-stamped), `src/live.rs` |
 | Euler operators | `src/euler.rs` (make), `src/euler_kill.rs` (kill duals), `src/euler_ring.rs` (rings/genus), `src/split.rs`, `src/movefac.rs`, `src/revert.rs`, `src/attach.rs` |
 | Validation tiers 1–3, 3′ | `src/validate.rs` (`validate`, `validate_closed`, `validate_geometric`, `validate_pseudomanifold`), `src/face_normal.rs`, `src/sector_face.rs`, `src/sector_shape.rs`, `src/coherence.rs` |
 | Coincidence census, at rest | `src/census.rs` (`census_and_certify`: the BVH pre-filter (`Candidates` — the sweeps and the backstop examine only pairs whose padded boxes overlap, a cleared pair being decided apart by the box answer with pad ≥ escalate + 2·zero, so carrier-stage escalations and refusals about entities the boxes prove apart are not raised), the sweeps, the backing rungs, the confirm pass, the cross-solid backstop) |

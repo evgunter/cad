@@ -776,6 +776,7 @@ pub fn import_step(
             // per-solid gates above stay tier 3: contact is an
             // aggregate-body fact, and the aggregate census sweeps
             // every entity of every instance.
+            //
             // **The origin channel's import arm** (`topo::GeomOrigin`,
             // D7). Every description in the shipped body came out of
             // this file, and this is the one door in a position to say

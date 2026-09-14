@@ -602,11 +602,20 @@ impl<T: Real> Body<T> {
     /// and its siblings drop the mark when they stamp, and
     /// [`Body::clear_geom_sources`] writes a mark only where it removed
     /// a stamp — so the arm order here is exhaustiveness, not a
-    /// precedence rule a caller could be surprised by.
+    /// precedence rule a caller could be surprised by. The exclusion is
+    /// maintained by those doors rather than by the types, so it is
+    /// ASSERTED here: drop the mark-removal from a stamping door and a
+    /// transform-then-re-stamp body fires this on the first read.
     fn origin_of<'a>(
         source: Option<&'a GeomSource>,
         mark: Option<&OriginMark>,
     ) -> GeomOrigin<'a> {
+        debug_assert!(
+            source.is_none() || mark.is_none(),
+            "description carries a recipe source and the origin mark {mark:?} at once — \
+             a stamping door failed to discharge the mark, or a mark was written over a \
+             live stamp (kernel bug)",
+        );
         match (source, mark) {
             (Some(source), _) => GeomOrigin::Recipe(source),
             (None, Some(mark)) => mark.origin(),
