@@ -36,17 +36,34 @@ LOST.
   and the ring freezes on the products. With both patches (the fold and
   512 bits) the same predicate is 72/0/50/4 — four numeric where the
   ring alone left none.
-- On R2's parameter D-tab, the two patches together move the ceiling
-  DOWN, `3.52e2·ε` → `2.82e2·ε`, and the over-band set at ceiling + δ
-  changes predicate: `witness_at_mid_parameter` 1/11 where the shipped
-  tree has `carrier_matches_mapped_source` 1/89. At 512 bits alone it
-  is unmoved.
+- On R2's parameter D-tab the pair `abs(X)² = X²` in rule A's walk
+  (patch A on the item) WITH the 512-bit ring moves the ceiling DOWN,
+  `3.5218e2 → 2.8211e2 .. 2.8222e2·ε`, and the over-band set at
+  ceiling + δ changes predicate: `witness_at_mid_parameter` 1/11 where
+  the shipped tree has `carrier_matches_mapped_source` 1/89 —
+  re-measured at the fix pass from the recorded diff, 16.8 s a probe.
+  The pair `abs(X) = X` on a syntactically non-negative `X` (patch C)
+  with the 512-bit ring leaves the bracket bit-identical to shipped
+  (`3.5218e2 .. 3.5232e2·ε`, `carrier_matches_mapped_source` 1/89,
+  14.4 s a probe), and so does the ring alone — though at the nominal
+  the two pairs print the same table (`carrier_matches` 126/0/38/16,
+  `carrier_endpoint_start` 24/0/12/0 with the rim identity closing).
+  So the fall is patch A's own: a square substituted as a form over
+  the box carries the box's width into a predicate the atom had kept
+  out of it, and the wide ring then holds that form where the narrow
+  one froze it.
+
+**The ring's cost** (dev build, one whole-box probe of the bisection,
+256 → 512 bits): boss 0.81 → 3.17 s (3.9×), parameter D-tab 1.45 →
+13.2 s (9×), the `0.5` parameter control 7.9 → 26 s under a
+fold-plus-512 pair; the literal D-tab 0.64 → 0.66 s (its forms freeze
+on constants either way).
 
 So the ring's width is not monotone in what the tier discharges, and
 neither is opening an atom: a unit that widens `COEFF_BITS` or folds an
-`abs` owes the full per-document split, not the one predicate it is
-after, and a ceiling that MOVED DOWN under a "stronger" tier is this
-mechanism before it is a bug. The measurement's numbers are on the
+`abs` owes the full per-document split AND the bracket, not the one
+predicate it is after, and a ceiling that MOVED DOWN under a
+"stronger" tier is this mechanism before it is a bug. The measurement's numbers are on the
 item; the renders in `crates/editor-core/tests/m10_bulge_renders.txt`.
 
 ## What would settle it

@@ -32,6 +32,10 @@ documents that author a bulge any other way measure the limit.
   what the carrier's frame carries at a non-unit bulge is `atan|b|`
   against the pushforward's `atan b` and the sagitta forms in `b`
   that the unit bulge collapses; the ring closes only part of it.
+  (SYM-3's render corrects this guess: at a literal bulge `abs(2)`
+  folds and the two atans are one; what stands is the carrier's
+  `abs(signed_radius)` over the coefficient ring — "What stands
+  (SYM-3)" below.)
 - **A PARAMETER bulge** (R2's D-tab: a rectangle whose right side is
   an `ArcTo(Bulge)` arc, the bulge a document parameter, a hole
   inside; `r2_evidence_the_d_tab_end_to_end`): ceiling `3.52e2·ε`
@@ -184,7 +188,14 @@ nothing on the boss's ceiling until the ring can hold what it opens.
 ### The parameter bulge: the residual in `b`, and the two routes
 
 At the nominal the parameter D-tab's split is the literal's number for
-number (126/0/36/18, 117/0/0/27, 13/0/0/3, 135/0/0/9, 15/0/0/1), and
+number (126/0/36/18, 117/0/0/27, 13/0/0/3, 135/0/0/9, 15/0/0/1, and
+`carrier_endpoint_start` 24/0/8/4 — the rim identity `‖q − c‖ = r`,
+the plate's own former ceiling residual, standing on the same two
+residues: its early form carries `abs(R(b))` with the `fl(0.4)`
+denominator and two frozen nodes; 24/0/12/0 on the `0.5` control,
+12/0/12/0 on the boss, still 24/0/8/4 with the ring at 512 bits alone
+and 24/0/12/0 once an `abs` fold rides with it — rendered in
+`m10_bulge_renders.txt` and pinned), and
 every blocked form at `0.4` carries frozen nodes with `fl(0.4)`'s odd
 52-bit mantissa (`3602879701896397·2^-53`) in every denominator: the
 radius `L(1+b²)/(4b)` has a 156-bit numerator over it and its square
@@ -196,13 +207,18 @@ arc wall's rim, `carrier_on_surface_2`, fully rendered, no freeze,
 `0.5`, `b = ½ + δ`, `L = 4e-3` the chord:
 
 ```
-( L⁴·(5/32 + 5/2·δ + 7/2·δ² + 2δ³ + δ⁴)
-  − L²·(¼ + δ + δ²)·abs(R(b))²·… )  /  ( 2·abs(R(b))·… ),
+( L⁴·(25/16 + 5/2·δ + 7/2·δ² + 2δ³ + δ⁴)
+  − 16·L²·(¼ + δ + δ²)·abs(R(b))² )  /  ( 2·abs(R(b))·16·L²·(¼ + δ + δ²) ),
         R(b) = (5764607523034235·2^-60 + 1152921504606847·2^-58·δ + 1152921504606847·2^-58·δ²)/(2 + 4·δ)
              = L·(1 + b²)/(4b)
 ```
 
-which is identically zero for EVERY `b ≠ 0` given `abs(R)² = R²` — no
+(read off the committed render: the constant `44171…·2^-236 / L⁴ =
+25/16`, the `abs` group's coefficients `1329…·2^-112 = 16·L²` and
+`1329…·2^-114 = 4·L²`; `¼ + δ + δ² = b²` and `25/16 + 5/2·δ + 7/2·δ² +
+2δ³ + δ⁴ = (1 + b²)²`), i.e. `L⁴(1 + b²)² − 16L²b²·abs(R)²` over
+`32·L²b²·abs(R)` — identically zero for EVERY `b ≠ 0` given `abs(R)² =
+R²` — no
 sign enters at this sample at all; the same `abs(signed_radius)` as
 the boss's. Where the sign DOES enter is `carrier_matches_mapped_source`
 (16 numeric at `0.5`): under the frozen `Add #f550918f` the carrier
@@ -267,31 +283,97 @@ No choice is made here. The structural route changes what a
 constructor states (or registers); that is Ev's call with the
 orchestrator.
 
+### The measurement patches, as applied (each built, measured, reverted)
+
+**Patch B — the ring at 512 bits** (`crates/geom-core/src/sym/rational.rs`):
+
+```diff
+-pub(super) const COEFF_BITS: u64 = 256;
++pub(super) const COEFF_BITS: u64 = 512;
+```
+
+Its cost, dev build, one whole-box probe of the bisection: boss 0.81 →
+3.17 s (3.9×), parameter D-tab 1.45 → 13.2 s (9×), literal D-tab 0.64 →
+0.66 s (its forms freeze on constants either way); the `0.5` parameter
+control 7.9 → 26 s under a fold-plus-512 pair.
+
+**Patch A — `abs(X)² = X²` in rule A's per-node walk**
+(`crates/geom-core/src/sym/algebra.rs`; `find_square` gains the
+budget):
+
+```diff
+-fn find_square(f: &Form, rules: SymRules, atoms: &IndetMap<AtomInfo>) -> Option<Square> {
++fn find_square(
++    f: &Form,
++    rules: SymRules,
++    atoms: &IndetMap<AtomInfo>,
++    budget: SymBudget,
++) -> Option<Square> {
+@@ match info.op {
+                     SymOp::Sqrt if rules.sqrt_square => {
+                         return Some(Square { id, x: (**arg).clone() });
+                     }
++                    SymOp::Abs if rules.sqrt_square => {
++                        return Some(Square { id, x: (**arg).mul(arg, budget)? });
++                    }
+@@ reduce_steps
+-        let Some(sq) = find_square(&cur, rules, atoms) else {
++        let Some(sq) = find_square(&cur, rules, atoms, budget) else {
+```
+
+**Patch C — `abs(X) = X` for an `X` non-negative by syntax** (the
+`atan2` fold's own test; `crates/geom-core/src/sym.rs`, the `Sqrt |
+Abs` arm of the early walk, after A0's constant fold declines — so it
+runs in every walk that runs A0, the plain one included):
+
+```diff
+             match folded {
+                 Some(k) => Some(gate(Form::poly(Poly::constant(k)))),
++                None if a0 && node.op == SymOp::Abs && trig::manifestly_nonneg(a, sess) => {
++                    Some(gate(a.clone()))
++                }
+                 None if c => match signed::fold(node.op, a, &sess.params, budget) {
+```
+
+Measured: A, B and C alone; A + B; C + B. The parameter D-tab's
+ceiling under each pair is on the ring issue
+(`coefficient-ring-width-is-not-monotone-in-reach`), with the pair the
+`2.82e2·ε` bracket belongs to named there.
+
 ### Instance or class: the corpus sweep
 
-Pattern swept (merge base `f2180ad59`): `ArcData::Bulge {`/`b:` values,
-`.arc_to(`, `.fillet(`, `tangent_arc_to`, `CircleSplit`, `circle(` and
-`LoopProgram::Circle` across `demos/tour/src`, `demos/wild/src`,
-`crates/*/tests` and `crates/profile`.
+Pattern swept, and its unit: the tour is counted in registered `Stop`
+names (`Stop { name: … }` and `stop(name, …)` constructors — `lily` is
+one stop whose ten `lily_*` names are its pieces); the test corpus in
+FILES; the pattern is `.arc_to(`, `.fillet(`, `tangent_arc_to`,
+`CircleSplit {` and `ArcData::Bulge {`, with `circle(`/`LoopProgram::Circle`
+read as the unit bulge. Re-taken at the fix pass on `e833a1417`.
 
-- **The tour**: 13 stops author an arc at a non-unit bulge — `bracket`
-  (`.fillet(0.5)`: `tan(π/8)`), `vase` and `sheave` (`arc_to(Via)`,
-  revolved), `budfillet` (`arc_to`), `fivewall` (two `arc_to`),
-  `klein` (four `.fillet`, four `tangent_arc_to`), `lily` (six
-  `arc_to`), `rocker` (`.fillet(R_KNEE)`), `s_duct` (`chain`'s
-  `arc_to(Via)`), `teapot` (`CircleSplit(4)`: `tan(π/8)`, and
-  centre-spelled arcs), `torusvessel` and `torusvesselcup`
-  (`arc_to`). Unit only: `diefillet`'s three stops (`b: 1.0`),
-  `plate`, `ring`, `bossplate`, `curvedcut`, `mcplate` (`Circle`).
+- **The tour**: 14 stops author an arc at a non-unit bulge —
+  `bodies.rs`'s `bracket` (`.fillet(0.5)`: `tan(π/8)`), `vase` and
+  `sheave` (`arc_to(Via)`, revolved) and `budrim` (`bud_rim`'s
+  `arc_to(Via)`, registered by `probe`), `budfillet` (`arc_to`),
+  `fivewall` (two `arc_to`), `klein` (four `.fillet`, four
+  `tangent_arc_to`), `lily` (six `arc_to`), `rocker` (`.fillet(R_KNEE)`),
+  `s_duct` (`chain`'s `arc_to(Via)`), `teapot` (`CircleSplit(4)`:
+  `tan(π/8)`, and centre-spelled arcs), `torusvessel` and
+  `torusvesselcup` (`arc_to`). Unit only: `diefillet`'s three stops
+  (`b: 1.0`), `plate`, `ring`, `bossplate`, `curvedcut`, `mcplate`
+  (`Circle`). Ten of the tour's stop modules match the pattern.
 - **The wild corpus**: eight STEP-imported cells, NO authored bulge —
   their arcs arrive as `Curve3::Circle` carriers with no sketch
   pushforward, so the mapped-source identity is never asked of them.
-- **The test corpus**: nine files author a bulge other than `1` (the
-  boss `2`; the D-tab `0.4`/a parameter; `m4_pr6_eps_diff` `2e-6`;
+- **The test corpus**: 31 files under `crates/*/tests` match
+  `.arc_to(|.fillet(|tangent_arc_to` (every one a non-unit bulge by
+  the rule below: 23 in `profile/tests`, 5 in `sweep/tests`, and
+  `editor-core`'s `bool12r2_ec_probe`, `mesh`'s `m5_s11_concave_sense`,
+  `pncad`'s `all`, `step-export`'s `common`); 47 with `ArcData::Bulge {`
+  added, whose literal `b:` sites are non-unit in nine files (the boss
+  `2`; the D-tab `0.4`/a parameter; `m4_pr6_eps_diff` `2e-6`;
   `m4_pr6_golden` `0.25`; `switch_program_vocabulary` `0.3`;
-  `switch_slots` `0.2`, `0.45`; `m9_d1_r1_probes` a variable; profile's
-  `path_program` `0.5`, `cert4r1_e2e`/`generic_replay` a variable);
-  eight author `1.0`.
+  `switch_slots` `0.2`, `0.45`; `m9_d1_r1_probes` a variable;
+  profile's `path_program` `0.5`, `cert4r1_e2e`/`generic_replay` a
+  variable) and `1.0` in eight.
 
 **The pattern**: every fillet is `tan(θ/4)` of its corner, every `Via`
 or `tangent_arc_to` arc is whatever its geometry makes it, and
