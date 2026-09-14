@@ -507,6 +507,34 @@ takes; the walls are local and say so.
 | plate nominal replay, release, profile on | 283 ms | (not taken) | 149 ms |
 | the chamber drive row, test profile, sequential harness, one take | 368.0 s | 239.7 s | 225.0 s |
 
+**The hosted before/after** (`memories/perf-measurement-lane.md`: a
+hosted runner's numbers, read with the spread in mind; the instruction
+counts above are the numbers of record). Base: run 34812106311, the
+nearest code-tier PR run to the merge base (TRIM-3 PR-2, head
+`8e53655d`). After: SYM-4's PR run 34823472408 on head `3d7f3526b`
+(all twelve `test` jobs and five `k-lint` unifications green). The
+nextest `count:*/2` partition re-cut around the new row and the change
+filter bought a different set of suites (2,406 → 3,810 tests in the
+interval `1/2` shards), so per-shard durations do not compare and
+per-test cpu-s carry contention from whatever shared the runner; the
+rows below are the ones in both runs' top-20 tables:
+
+| interval lane, cpu-s per test | base (shard) | SYM-4 (shard) |
+|---|--:|--:|
+| `m10_7_r2 … r2_the_drive_is_bit_identical_across_repeats_and_the_rayon_schedule` | 302.9 (default 2/2); 302.0 (1e-12 2/2) | 212.2; 248.7 |
+| `m10_7_r2 … r2_the_tier_off_serialization_carries_no_symbolic_line` | 278.5; 259.4 | 189.8; 203.2 |
+| `m10_10_r2_probes::r2_rule_d_agrees_with_a_by_hand_closed_form…` (geom-core) | 70.0; 52.7 | 44.1; 42.5 |
+| `m10_10_pins … eps_relative_ceilings_under_the_shipped_set` | 30.4 (default 1/2); 29.9 (1e-12 1/2) | 16.1 (default 2/2); 17.4 (1e-12 2/2) |
+| `m10_3_r2 … my_own_drive_is_bit_identical_across_repeats_and_schedules` | 19.6; 19.7 | 13.1; 12.3 |
+| `m10_3_driver … a_sliver_wrapped_in_the_ops_own_error…` | 14.1; 13.9 | 9.4; 10.6 |
+| **the chamber row** `m10_3_r1 … the_driven_chamber_replays_bit_identically…` | **121.96 (default 1/2); 130.98 (1e-12 1/2)** | **did not run** — the suite is gated to the driver's paths, not the tier's (`work/tcost/m10-3-chamber-probes-gated-away-from-the-symbolic-tier`) |
+
+Shard walls, for the record and not for comparison: `test (interval,
+eps = default, 1/2)` 147 → 169 s, `2/2` 355 → 248 s, `1e-6 1/2` 129 →
+123 s, `1e-6 2/2` 138 → 136 s, `1e-12 1/2` 558 → 118 s, `1e-12 2/2`
+355 → 826 s (the 479-cpu-s tolerance-study probe moved shards and
+read 760 cpu-s beside the two `m10_7_r2` drives).
+
 **What was measured and not taken, with its number.** The monomial
 inline (`smallvec` at width four, the slab's maximum and nine tenths
 of the plate's monomials): 413 M against 417 M on the slab and 971 M
