@@ -2923,6 +2923,73 @@ mod tests {
         (body, seed, [a, b, c, d])
     }
 
+    /// The carrier of `edge`, printed — the byte-for-byte comparison
+    /// this module makes about a certificate that must not move.
+    fn carrier_bits(body: &Body<f64>, edge: EdgeKey) -> String {
+        let curve = body.get_edge(edge).unwrap().curve;
+        format!("{:?}", body.get_curve_geom(curve).unwrap())
+    }
+
+    #[test]
+    fn a_fan_mev_that_would_move_a_run_off_its_carriers_refuses_untouched() {
+        // The red-first row. On the merge base this returned `Ok` and
+        // left every moved spoke describing a locus that no longer ran
+        // to it — the state `split_edge` and `set_edge_curve` then
+        // refused on, and the one `seqgen`'s split filter routes
+        // around. The refusal names the first re-based edge in run
+        // order, and the body is untouched to the byte.
+        let (mut body, _seed, [_a, b, _c, d]) = four_spoke_star();
+        let before = deep_snapshot(&body);
+        let err = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: b.he_plus,
+                    he2: d.he_plus,
+                },
+                p(5.0),
+                Tol::witness(),
+            )
+            .unwrap_err();
+        assert!(
+            matches!(
+                err,
+                EulerOpError::RebasedCarrier {
+                    edge,
+                    error: geom_brep::CertifyError::ResidualExceeded {
+                        check: geom_brep::CertCheck::EndpointStart,
+                        sample: 0,
+                    },
+                } if edge == b.edge
+            ),
+            "{err:?}"
+        );
+        assert_eq!(deep_snapshot(&body), before);
+    }
+
+    #[test]
+    fn a_coincident_fan_split_carries_every_certificate_byte_for_byte() {
+        // The control. `mev_null`'s new vertex takes the old vertex's
+        // point as a bitwise copy, so no re-based edge's endpoint
+        // moves: the gate has nothing to refuse and nothing is
+        // re-minted — each moved spoke carries the certificate it
+        // already had.
+        let (mut body, _seed, [_a, b, c, d]) = four_spoke_star();
+        let before = [carrier_bits(&body, b.edge), carrier_bits(&body, c.edge)];
+        body.mev_null(
+            MevSite::Fan {
+                he1: b.he_plus,
+                he2: d.he_plus,
+            },
+            crate::NewVertexSide::Above,
+        )
+        .unwrap();
+        let after = [carrier_bits(&body, b.edge), carrier_bits(&body, c.edge)];
+        assert_eq!(
+            before, after,
+            "the moved run's certificates are the ones it had"
+        );
+    }
+
     #[test]
     fn fan_mev_moves_the_clockwise_run_exclusive_of_he2() {
         // THE direction-pinning test. At a valence-4 vertex with

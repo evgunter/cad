@@ -1594,6 +1594,35 @@ mod tests {
     }
 
     #[test]
+    fn the_merged_fan_keeps_a_carrier_its_endpoint_left_and_split_edge_refuses_on_it() {
+        // The symptom, still live on the kill side
+        // (`work/topo/kevs-fan-merge-needs-a-re-describing-kill-door.md`),
+        // and the state `mev`'s fan site used to produce and now
+        // refuses. After the mirror merge, `seg` runs to the strut tip
+        // while its chord still runs to the dead vertex's point, so
+        // `split_edge` — which certifies both children against the
+        // CURRENT endpoints — refuses on it. This is what `seqgen`'s
+        // split filter routes around, and what a re-describing kill
+        // door would close.
+        let (mut body, _seed, seg, strut) = strutted();
+        body.kev(strut.he_minus).unwrap();
+        let curve = body.get_edge(seg.edge).unwrap().curve;
+        let (t0, t1) = body
+            .get_curve_geom(curve)
+            .unwrap()
+            .certified()
+            .unwrap()
+            .params();
+        let err = body
+            .split_edge(seg.edge, 0.5f64.mul_add(t1 - t0, t0), Tol::witness())
+            .unwrap_err();
+        assert!(
+            matches!(err, EulerOpError::Certification { .. }),
+            "the merged edge's own carrier misses its endpoint: {err:?}"
+        );
+    }
+
+    #[test]
     fn kev_rejects_self_loops_and_stale_keys() {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0)).unwrap();
