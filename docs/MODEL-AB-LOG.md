@@ -6232,3 +6232,19 @@ disk read before every seed. Sample number at merge.
 
 | # | date | task | difficulty (pre-flip) | arm | review findings (MAJ/MIN/NOTE) | silent devs | idiom | tests | docs | fix-pass size | battery | tokens | wall-clock |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+
+## Block TOPO-B4 — draw record (branch-side until the block concludes)
+
+Protocol: three slots {opus, opus, fable}, fable position = byte mod 3.
+Pre-draw fields for all three slots were committed to `work/topo/log.md`
+at `4b813113a` (2026-09-14) BEFORE the draw. Draw 2026-09-14:
+`/dev/urandom` byte **223** (accepted, < 252) ⇒ 223 mod 3 = **1** ⇒
+fable at slot 1.
+
+| slot | arm | unit | pre-draw fields |
+|---|---|---|---|
+| 0 | OPUS | `geom-source-absence-conflates-four-origins` | difficulty M, task class STRUCTURAL — logged before the draw |
+| 1 | FABLE | `revert-leaves-a-periodic-charts-loop-wrap-mid-chain` | difficulty M, task class NUMERIC — logged before the draw |
+| 2 | OPUS | `edge-carrier-kind-has-no-readback-door` | difficulty S, task class STRUCTURAL — logged before the draw |
+
+Ordinal claims go to main at each review dispatch (band 2700–2799).
