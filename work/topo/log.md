@@ -1418,3 +1418,125 @@ is doc-class) and the unit's closure are on a docs PR from
 `topo/row-2709`; slot 1 concluded on `topo/b4-block`. The
 implementer's target retired (20 GB free). Live: the typed-absence
 fix pass and slot 2.
+
+## Typed-absence merged (PR 2576); row 2710 recorded, sample #195; slot 0 concluded (2026-09-14)
+
+The fix pass took all seven items on head `5fdba8217`, run
+34852906131 green: one `GeomOrigin` map per kind with the `Recipe`
+arm projected (write sites 30 → 23, maps 6 → 3, mirror pairs 16 → 0,
+the `debug_assert!` and the stored/borrowed enum pair gone);
+`KernelDirect` written at the three mint doors so the map is total
+over live keys — R1's graft mutant now reds 21 rows and R2's revert
+mutant 69, where each reddened one or none; `mark_imported` leaves
+`Cleared` and `Recipe` alone, documented; the revert and re-stamp rows
+rebuilt on a mixed fixture; `carve` removes the row in all three
+orphan loops; the stale-key row minted-then-removed in one body; the
+`verbs` README's stale table name re-worded. Merged at `1adddd884`.
+Row (ordinal 2710, sample #195) recorded with one code-class tally
+candidate: R2's unilateral executed MAJOR that `mark_imported`
+overwrote the `Cleared` defect arm — a public door's contract, latent
+today, never mentioned by R1. Tally: candidates +4 (code class D265
+and this; doc class S330 and S93). Unit closed on the row PR from
+`topo/row-2710`; slot 0 concluded on `topo/b4-block`. Slot 2 is the
+block's last open slot. Targets retired; 17 GB free.
+
+## Step 1's closure fired WIRE's park; re-parked, step 3 filed (2026-09-14)
+
+Closing `geom-source-absence-conflates-four-origins` made WIRE's
+`axis-shaped-identity-channel` (parked on it as step 1 of the ratified
+axis-channel cut) fail lint — a fired trigger is not a blocker. The
+cut names steps 2 and 3 as the next movers, so the row is re-parked on
+EXCH's `step-import-discards-the-entity-ids-that-are-its-identity-channel`
+and on step 3, which had no row: filed on this slate as
+`axis-per-component-source-beside-geom-source` (the per-component
+source beside `GeomSource`, TOPO's ground per the cut). Not yet cut
+into a block; the program decides its slot when it takes it. Both
+changes ride the row-2710 PR.
+
+## Slot 2 delivered (PR 2587); dual dispatched, ordinal 2711 (2026-09-14)
+
+The slot 2 lane delivered `edge-carrier-kind-has-no-readback-door` on
+head `36d4b9e76`, run 34853345271 green. Phase 1: one walk
+(`readback::certified_carrier`) shared by `edge_pose` and the new
+`readback::edge_carrier_kind`; `CurveKind` stays in `query.rs` on the
+ground that `crates/verbs/README.md` §1 S1 is ratified text (the
+reviewers are asked to run CLAUDE.md's `git log -S` check on that
+claim); the chain stops before Python, with the twin filed on LIB's
+slate and a `B-EDGE-KIND` gap family added to the binding census.
+Two rows filed (LIB: the Python twin; TOPO: the program's `keep_out`
+names SEAT, which left the tracker). Ordinal **2711** claimed on main
+(PR opened from `topo/claim-2711`); parity byte 127 ⇒ R1 FABLE, R2
+OPUS; briefs stored with sha256 (template c8a19edc…, R1 1b741b52…, R2
+da904e08…; diff 4 lines); both reviewers dispatched concurrently on
+the frozen head. The correctness lane leans on the fresh-instance
+check (any other edge → carrier walk left outside the one door), the
+ratification claim, the census gap family's honesty, and the
+delegation witness the query seat's own rows cannot give.
+
+## Edge-door dual concluded (ordinal 2711); fix pass dispatched; the stale SEAT fence retired (2026-09-14)
+
+Both reviews MERGEABLE-AFTER-FIXES on `36d4b9e76`, converging; no
+unilateral MAJOR. The code held under every mutant either side
+planted (the shared walk's arms swapped, a live NURBS reported
+`NoCarrier`, the refusals collapsed, `CurveKind::of` one arm at a
+time — each reds exactly the row whose name says why; `edge_pose`
+bit-identical to the merge base). The substance: (1) the PR's
+load-bearing reason for keeping `CurveKind` in `query.rs` — that
+`crates/verbs/README.md` §1 S1 is ratified text — is false by
+CLAUDE.md's own check, run by both: the sentence was agent-authored at
+SEAT-2 and reached the README in the closing sweep; what Ev ratified
+at #1388 says "`CurveKind` moves down beside `Curve3`" (R2 MAJOR, R1
+MINOR); (2) the document twin's row is green under a constant-return
+mutant — the box fixture's edges are all lines (R2 MAJOR, R1 MINOR;
+both wrote the washer probe); (3) the walk's third refusal
+`Dangling { Geometry(Curve) }` is pinned nowhere and IS plantable from
+a crate-internal test (both); (4) the delegation is unwitnessed —
+restoring the merge-base arena walk in the query seat leaves every
+row green (both; R2 names `test_utils::source`'s built-in-one-place
+instrument); (5) the same walk is open-coded on the face side of the
+same file (`face_pose`/`face_carrier_kind`, no `certified_surface`)
+and across the crate with its own vocabularies (`rim_of` flattening
+the very pair the door tells apart, `attach.rs`, `coherence.rs`,
+`props.rs`, `split.rs`, `revert.rs`, `euler_kill.rs`) — the
+fresh-instance shape (R2 MINOR, R1 NOTE); (6) the §5 blind-spot
+sentence is false for four tag-only `matches!` sites (R2); (7) the
+interrogate ladder's fifth copy (both, Q1); (8) `edge_pose`'s rows
+pin only the line success path (both). R2: the PR is dirty against
+main (`work/wire/log.md`). Ruled: `CurveKind` stays in `query.rs` on
+its true reasons (both readers in `topo`; the door imports its answer
+type as it does `SurfaceKind`), the PR body corrected, and the
+divergence between the ratified VERB-SEAT sentence and the code filed
+on this slate for Ev rather than re-decided by a lane. TOPO's own
+`keep_out` clause sending `query.rs` seams to SEAT's closed board
+(R2 MINOR-8; the lane's filed row) is retired here in `program.md`;
+the row closes on the fix pass. Fix pass dispatched as a fresh lane
+on the inherited branch, same arm as the implementer; reports
+archived at `/home/user/topo-orch/edge-r{1,2}-report.md`. Row
+recorded at merge.
+
+## Block TOPO-B5 cut; pre-draw fields logged BEFORE the byte (2026-09-14)
+
+Cut while B4's last slot is in its fix pass (lane capacity allows one
+implementer now, the rest when the fix pass frees). Three kernel
+answers on this program's files, slot order fixed here, the byte
+drawn only after this entry is committed:
+
+- slot 0 `set-face-surface-leaves-a-complete-face-certified-against-the-chart-it-left`
+  — difficulty **S**, task class **STRUCTURAL** (a setter takes the
+  loop doors' carry-or-drop through `same_chart`).
+- slot 1 `mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows`
+  — difficulty **M**, task class **STRUCTURAL** (a run's rows on two
+  core operators; `kef`'s precondition order is the question).
+- slot 2 `a-null-edge-can-be-re-based-onto-a-distinct-point` with
+  `the-re-basing-gate-refuses-m7-8-where-nothing-moves` — difficulty
+  **M**, task class **STRUCTURAL** (a gate's hole and its over-refusal
+  answered without a point-identity door).
+
+## Block TOPO-B5 drawn (2026-09-14)
+
+Byte drawn after the pre-draw entry was committed (`41eb35f5c`): 7 ⇒
+7 mod 3 = 1 ⇒ fable at slot 1. Record branch-side on `topo/b5-block`.
+Slot 0 (`set-face-surface-leaves-…`, OPUS) dispatches now on a target
+seeded from the edge lane's warm build; slots 1 (`mef-and-kef-…`,
+FABLE) and 2 (`a-null-edge-…` + `the-re-basing-gate-…`, OPUS) dispatch
+as the edge-door fix pass frees the box.

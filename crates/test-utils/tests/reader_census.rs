@@ -301,6 +301,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/topo/tests/readback_sense_kind.rs",
+        disposition: Shared, // the query seat's body, code view
+    },
+    Entry {
         path: "crates/topo/tests/quad_lane_is_the_certified_lane.rs",
         disposition: Shared, // the props.rs lane impls, code view: their bodies ARE the pin
     },
