@@ -2,10 +2,11 @@
 id: edge-carrier-kind-has-no-readback-door
 kind: issue
 title: query::edge_carrier_kind has no readback twin, so the two-homes ruling does not reach the edge side
-status: dispatched
+status: closed
 opened: 2026-09-06
 branch: topo/edge-carrier-kind-readback-door
 pr: 2587
+closed: 2026-09-14
 ---
 
 
