@@ -2,7 +2,7 @@
 id: SYM-4
 kind: unit
 title: the cost of a form: the polynomial's storage as a sorted vector and the ring's normalisation skipped on the dyadic shape, every decision bit-identical
-status: spec
+status: review
 opened: 2026-09-14
 branch: sym/4-form-cost
 refs: [symbolic-tier-costs-95-percent-of-the-m10-3-drive, SYM-1]

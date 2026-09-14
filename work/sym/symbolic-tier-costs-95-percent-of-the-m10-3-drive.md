@@ -470,6 +470,71 @@ inputs, each with the count that argues for it, none with a design.
   freeze anywhere; max 90 terms against 4,096) and the coefficient
   bound is a fifth of the freezes (280, widest refused 401 bits).
 
+## The change (SYM-4)
+
+Ask 3, on the two in-session levers the profile ranked first and
+third: **a `Poly`'s terms are one sorted vector in the `BTreeMap`'s
+own order**, and **the ring skips the gcd and the products by one on
+the dyadic shape**. Every count identical before → after on both
+documents — forms, atoms, frozen, decisions by outcome, and the digest
+chain of every form the walks build, which
+`m10_sym_profile_interval::the_forms_the_walks_build_are_pinned_per_eps_row`
+now pins per ε row on the slab and once on the plate (captured on the
+merge base, asserted since). The one profile line that moved is the
+ring's `big-path int ops` (slab 288 → 144, plate 21,132 → 10,584):
+the heap gcds against one and products by one the second lever
+removed. Method as SYM-1's, re-taken on the SYM-4 lane's box (4 vCPU,
+shared with one review lane); instruction counts are callgrind's over
+one bare replay at the nominal and reproduce to within 500 Ir across
+takes; the walls are local and say so.
+
+| instructions, release (one replay) | before | vector terms | + dyadic ring |
+|---|--:|--:|--:|
+| slab, total | 141.5 M | 104.3 M (−26 %) | 99.0 M (−30 %) |
+| slab, term storage (allocator + `BTreeMap` + monomial/`Rc`/glue) | 75.7 M · 53 % | 39.8 M · 38 % | 39.7 M · 40 % |
+| slab, the ring (`i128` path + `num-bigint`) | 13.2 M · 9.4 % | 13.2 M · 12.7 % | 8.6 M · 8.7 % |
+| slab, `Rat::from_parts` inclusive | 6.6 % | 9.0 % | 5.7 % |
+| slab, `plain_form` inclusive ÷ plain forms | 7.6 k | 5.0 k | 4.7 k |
+| plate, total | 1,300 M | 976 M (−25 %) | 713 M (−45 %) |
+| plate, term storage | 728 M · 56 % | 371 M · 38 % | 365 M · 51 % |
+| plate, the ring | 346 M · 27 % | 346 M · 35 % | 109 M · 15 % |
+| plate, `num-bigint` alone | 169 M · 13 % | 169 M · 17 % | 5.0 M · 0.7 % |
+| plate, `Rat::from_parts` inclusive | 24.3 % | 32.3 % | 10.4 % |
+
+| local walls (an iteration reading, not a result) | before | vector terms | + dyadic ring |
+|---|--:|--:|--:|
+| slab nominal replay, release, profile on | 47.2 ms | (not taken) | 35.1 ms |
+| plate nominal replay, release, profile on | 283 ms | (not taken) | 149 ms |
+| the chamber drive row, test profile, sequential harness, one take | 368.0 s | 239.7 s | 225.0 s |
+
+**What was measured and not taken, with its number.** The monomial
+inline (`smallvec` at width four, the slab's maximum and nine tenths
+of the plate's monomials): 413 M against 417 M on the slab and 971 M
+against 976 M on the plate — under one percent, because a 224-byte
+term entry costs in memmove and clone most of what the allocator
+saves and the crate's non-inlined `cmp` eats the rest; a new shipped
+dependency in the kernel crate does not buy one percent. The product
+loop as collect-then-sort-and-merge: 436 M and 1,020 M, a fifth worse
+on both. A scratch monomial reused across the product loop: a wash
+(418 M / 980 M), because a product here is mostly one term by one. A
+cached degree: `within`'s self cost is 1.1 % of the slab and
+`Poly::degree`'s own row 1.2 % of the plate where it is not inlined,
+so the cache's whole gain is bounded by about one percent and it was
+not written.
+
+**What remains, as the next input.** The storage class is still the
+largest number on both documents (40 % / 51 %), and it is now the
+allocator's per-form traffic — one `Vec` per monomial, one `Rc<Form>`
+per memo entry, the term vector's clone on every `add`, `neg` and
+`recip` — not a tree. The walk's own overhead and the DAG build are
+the second number on the slab (24 %, `intern` 18 %): the volume, and
+the drive-scoped plain memo that would remove it is the session-model
+decision this unit was cut not to take. The ring is 9 % of the slab
+and 15 % of the plate, its `from_parts` 5.7 % and 10.4 % inclusive,
+`strip_twos` 1.5 % and 3.1 %. The assertion's share is unchanged as a
+fraction (a tenth of the slab's plain forms, 95 % of its early forms)
+and is the item's separate question.
+
 ## Coverage: which rows DO red with the tier off
 
 The observation above ("all nine M10-3 rows pass with `enabled:
