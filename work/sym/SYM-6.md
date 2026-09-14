@@ -1,8 +1,8 @@
 ---
 id: SYM-6
 kind: unit
-title: the door's witness moves with the run's eps: Tol threaded to register_equal, the slack relative and floored; one refusal arm and a fixture-scale zero-refusals row
-status: dispatched
+title: the door's witness moves with the run's eps: Tol threaded to register_equal, the slack relative and floored; the refusal arm split by witness kind and a fixture-scale zero-refusals row
+status: review
 opened: 2026-09-14
 branch: sym/6-witness-tol
 refs: [the-witness-slack-is-eps-independent, the-span-identity-is-not-a-theorem-of-the-floats, 2552]
