@@ -164,6 +164,8 @@ mod tree_shape;
 mod undo_tree;
 #[path = "valid_range.rs"]
 mod valid_range;
+#[path = "docm9_review_r2_probe.rs"]
+mod docm9_review_r2_probe;
 
 /// The aggregation and ONE HOME checks, whose one home — the walk, the
 /// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
