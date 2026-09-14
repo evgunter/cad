@@ -6663,3 +6663,12 @@ on the six documents) — **H / NUMERIC**. All three specs on `main`
 announced seam at its dispatch; SYM-8 and SYM-9 stay inside
 `sym.rs`/`sym/*` and the program's test globs. Dispatch order: slot 0
 first, when SYM-5's lanes retire; slots 1 and 2 as lanes free.
+
+Block SYM-B2 draw (2026-09-14, after the pre-draw fields above; the
+2026-09-04 ratio amendment — triple {opus, opus, fable}, one
+/dev/urandom byte, reject ≥ 252, byte mod 3 = fable's position): byte
+**56**, 56 mod 3 = 2 = fable's position ⇒ **fable at slot 2**.
+Recorded branch-side on `sym/b2-block`; this record reaches `main`
+when the block's last slot's reviews conclude.
+
+Block SYM-B2 slot record (branch-side, appended as each slot concludes):
