@@ -2954,6 +2954,35 @@ mod tests {
             "the declared-pair contradiction carries its recourse"
         );
     }
+
+    /// **The placeholder cube forms no merge group.** Every face of
+    /// `ops_cube` carries the `mvfs` seed's surface on one key, and
+    /// the structural rung reads one key as one surface — but that
+    /// surface describes no locus, so there is nothing to glue: the
+    /// door returns `Ok` with no group and no skip, names the six
+    /// faces as placeholders, and leaves the body byte-identical.
+    ///
+    /// Reds against reading the placeholder as curved: the whole cube
+    /// then groups as one curved run, the absorption kills five edges
+    /// on the trial clone, the survivor's duplicates read as a period
+    /// closure, and the door returns `Ok` with a `PeriodClosure` skip
+    /// over six faces that were never a cosurface run.
+    #[test]
+    fn the_placeholder_cube_forms_no_group_and_its_faces_are_named() {
+        let tol = Tol::witness();
+        let mut body = ops_cube(tol).body;
+        let before = crate::fixtures::deep_snapshot(&body);
+        let outcome = body
+            .merge_coplanar_faces(tol)
+            .expect("nothing to glue is not a refusal");
+        assert!(outcome.groups.is_empty(), "{:?}", outcome.groups);
+        assert!(
+            outcome.skipped.is_empty(),
+            "a placeholder run is not a curved run: {:?}",
+            outcome.skipped
+        );
+        assert_eq!(crate::fixtures::deep_snapshot(&body), before);
+    }
 }
 
 /// **The winding arm's own rows** (`loop_winding`): the carriers the
