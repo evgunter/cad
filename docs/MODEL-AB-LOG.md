@@ -6133,3 +6133,14 @@ spec's orchestrator PR) before this draw. SYM-6 edits `real.rs`
 (PROPS') and `crates/sweep/src/*` (S-BOOL's/BLEND's) by announced seam
 at its dispatch; SYM-4 and SYM-5 stay inside `sym.rs`/`sym/*` and the
 program's test glob.
+
+Block SYM-B1 draw (2026-09-14, after the pre-draw fields above; the
+2026-09-04 ratio amendment — triple {opus, opus, fable}, one
+/dev/urandom byte, reject ≥ 252, byte mod 3 = fable's position): byte
+**105**, 105 mod 3 = 0 = fable's position ⇒ **fable at slot 0**.
+Recorded branch-side on `sym/b1-block`; this record reaches `main`
+when the block's last slot's reviews conclude. Dispatch order: slot 0
+first (its lane is ready); slot 1 when a lane frees; slot 2 on Ev's
+D1 answer.
+
+Block SYM-B1 slot record (branch-side, appended as each slot concludes):
