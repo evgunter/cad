@@ -42,15 +42,24 @@ either an input witness or the written finding that there is none.
 of what D107's `ops_ring_bridge` leaves behind, since the bridge
 consumes the ring. `ops_holed_box` presents one, but reaching it needs
 a target/ring pair in two loops of ONE face, which the hammer's
-`halves × take(4)` enumeration cannot be relied on to draw, and the
-empty-loop variants need a body with an `Empty` loop that no `ops_*`
-fixture carries after construction. That is a unit, not a line.
+`halves × take(4)` enumeration cannot be relied on to draw. That is a
+unit, not a line.
 
 ## What it would cost
 
 An O(n²) pair enumeration for `MekrSite::Cycles`, loop-keyed
-enumerations for the other three variants, `ops_holed_box` (and a body
-with a live `Empty` loop) added to `FIXTURES`, and the exposure table in
-`review_d18.rs` re-derived. Fence: `crates/topo/src/review_d18.rs`,
-`crates/topo/src/fixtures.rs` — both this program's, Track P's
-review-and-fixture sub-lane.
+enumerations for the other three variants, `ops_holed_box` added to
+`FIXTURES`, and the exposure table in `review_d18.rs` re-derived.
+Fence: `crates/topo/src/review_d18.rs`, `crates/topo/src/fixtures.rs` —
+both this program's, Track P's review-and-fixture sub-lane.
+
+**One term of this is cheaper than first written** (amended by D107's
+fix pass): the empty-loop variants do NOT need a new fixture for the
+`Empty` loop. It is true that no `ops_*` builder leaves one behind, but
+every body the torn sweep hammers carries one anyway —
+`review_d18.rs`'s own `recycled_dead_half_edge` runs an `mvfs` on the
+body under test and then `kev`s its only edge, which returns that
+loop to `LoopBoundary::Empty` and leaves it live for the rest of the
+sweep. So `mekr_empty_ring` / `mekr_empty_target` / `mekr_both_empty`
+need the loop-keyed enumeration and nothing else; what still needs a
+fixture is only the `Cycles` variant's ring-carrying face.
