@@ -1172,12 +1172,14 @@ impl<T: Decide> Body<T> {
         // complete whether or not anything merges, and so a poisoned
         // net refuses before any group forms.
         let kinds = self.kind_census()?;
-        let mut outcome = MergeCoplanarOutcome::default();
-        outcome.placeholders = self
-            .faces()
-            .map(|(k, _)| k)
-            .filter(|&k| kinds.get(k) == Some(&MergeKind::Placeholder))
-            .collect();
+        let mut outcome = MergeCoplanarOutcome {
+            placeholders: self
+                .faces()
+                .map(|(k, _)| k)
+                .filter(|&k| kinds.get(k) == Some(&MergeKind::Placeholder))
+                .collect(),
+            ..MergeCoplanarOutcome::default()
+        };
         // ---- Mergeable adjacency (read-only, edge-arena order). ----
         let mut neighbors: SecondaryMap<FaceKey, Vec<FaceKey>> = SecondaryMap::new();
         let mut declared_faces: std::collections::BTreeSet<FaceKey> =
