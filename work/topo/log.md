@@ -853,3 +853,42 @@ bitwise involution and SHELL's drum as the red-first rows; seam to
 TRIM announced for the row transform; `chart.rs`/`chart_iso.rs` are
 unowned ground where the PR draws the fence. Beside it, the
 ring-nesting fix pass is the other lane.
+
+## Revert delivered; dual out at ordinal 2705 (2026-09-14)
+
+Slot 2 `topo/revert-mirrors-chart-images` delivered as PR 2542, head
+`f8ced386b`, full matrix green (run 34798088825; a new advisory
+`render drift (gui)` job sits neutral in the matrix). Phase 1
+confirmed the frame derivation and found the transform exact in all
+five image kinds — a sign flip on the `v` components, bitwise
+involution — so nothing is re-minted; the geom-brep chart certifier
+was right to refuse and is not edited; plane faces mint no pcurve
+rows, so the row arm is reachable only through `attach_pcurve`.
+Certificates travel verbatim through three new geom-brep doors. Four
+red-first rows red on the merge base (the drum's reverted cavity now
+tier 3 `[NegativeVolume]` only, `insert_voids` accepts it); three
+SHELL probe rows flipped from pinning the refusal to pinning the fix.
+Four deviations disclosed, two of them the ones to weigh (`revert`
+cannot enter the posture guard's table — it walks `&mut self` doors
+only; dead-key rows travel as found). Two rows filed (the periodic
+chart's loop wrap under `revert`, here; a bug-proof drum row, SHELL).
+Dual dispatched on the frozen head beside the ring-nesting fix pass:
+ordinal 2705, byte 83 ⇒ R1 FABLE, R2 OPUS; briefs stored with sha256
+privately.
+
+## Ring nesting merged; block TOPO-B2 slots 0 and 1 concluded (2026-09-14)
+
+PR 2529 merged at `dc868f1f9` (green run 34796525445 on `7e56ec2f9`,
+full matrix, verified job by job). The unit closed. The fix pass's one
+finding of its own is the important one: gating the arm on
+`loop_shape`'s arc-parity class REFUSED a valid body (a bored D-rod
+whose cap's major arc dips past its chord, the bore in the lune the
+polygon excludes), so the gate fell back to the no-arc class with the
+reason stated, and `LoopShape::Parity` split into `Polygon`/`ArcParity`
+in S-BOOL's `contain.rs` (bit-identical for `contfp`; announced on
+S-BOOL's and CURVED's boards). The round-hole-in-square inversion
+therefore stays silent (the disc class, `disc_side`'s), which the
+residue row now says exactly. Fourteen reviewer rows adopted. Row
+recorded at merge (ordinal 2704, sample #187), no tally candidate; the
+block's CONCLUDED record published beneath it with slot 2's row to
+follow at its merge. The revert dual is the only work running.
