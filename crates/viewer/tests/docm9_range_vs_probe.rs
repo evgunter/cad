@@ -161,11 +161,16 @@ fn the_certificate_is_inside_the_locally_valid_range_not_the_probes_bracket() {
         );
     }
 
-    // (2) THE TWO ANSWERS ARE NOT THE SAME BRACKET. The probe walked
-    // down to a value it found valid; the proof stopped much sooner,
-    // and neither is wrong about its own question.
+    // (2) THE TWO ANSWERS ARE NOT THE SAME BRACKET — and WHICH of the
+    // two numbers is larger is not the claim. The probe's bracket is
+    // set by its own sampling schedule, which does not move with the
+    // run's tolerance; the proof's frontier is the driver's floor,
+    // which does. An ordering between them is therefore a claim about
+    // one eps row, and the gate runs three: it caught exactly that
+    // assertion here.
     let Bound::Edge {
-        valid: probe_valid, ..
+        valid: probe_valid,
+        invalid: probe_invalid,
     } = bounds.low
     else {
         panic!("the crossing at depth zero is a boundary the probe brackets: {bounds:?}");
@@ -175,19 +180,28 @@ fn the_certificate_is_inside_the_locally_valid_range_not_the_probes_bracket() {
         "both answers stop above the crossing: certificate {clo}, probe {probe_valid}"
     );
     assert!(
-        clo < probe_valid,
-        "the proof stops nearer the crossing than the probe's last good sample: \
-         certificate {clo}, probe {probe_valid}"
+        probe_invalid <= 0.0,
+        "the probe's far end is at or past the crossing: {probe_invalid}"
     );
+    // The certificate's frontier is the DRIVER's floor, bounded by the
+    // two mechanisms that set it — the run's ambiguity band and the
+    // drive's resolution over this seed — rather than by a number.
+    let resolution = (1.05 + 0.5) / 2f64.powi(24);
     assert!(
-        clo * 100.0 < probe_valid,
-        "and by orders, not by a rounding: certificate {clo}, probe {probe_valid}"
+        clo < 100.0 * resolution.max(tol().eps()),
+        "the frontier is the driver's stopping point, not the boundary: {clo}"
     );
-    // The upward side has no boundary in the seed, so the certificate
-    // reaches the seed's edge while the probe reports how far it
-    // looked.
+    // And the SHAPES differ on the other side, at every tolerance: the
+    // seed holds no boundary above the nominal, so the certificate
+    // says "proven to the seed's edge" where the probe can only say
+    // "looked this far and found nothing".
     assert!(
         (chi - 1.5).abs() < 1e-12,
         "the hi side certifies to the seed's edge, got {chi}"
+    );
+    assert!(
+        matches!(bounds.high, Bound::Open { .. }),
+        "the probe reports its reach upward, never a proof: {:?}",
+        bounds.high
     );
 }

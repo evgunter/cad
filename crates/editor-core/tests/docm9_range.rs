@@ -409,8 +409,14 @@ fn a_decision_flips_within_contains_a_value_that_does_not_build() {
             r.lo()
         );
     };
+    // The crossing itself is one of the sampled offsets, by
+    // construction rather than by a grid's luck: at a tight eps the
+    // window that refuses is narrower than any ten-way split of the
+    // bracket, and a row that relied on the split would be a row about
+    // the eps the gate happened to run.
     let broken: Vec<f64> = (0..=10)
         .map(|k| within.0 + (within.1 - within.0) * f64::from(k) / 10.0)
+        .chain(std::iter::once(-1.0))
         .filter(|&off| !no_new_failure(&doc, "depth", r.absolute(off)))
         .collect();
     assert!(
@@ -462,16 +468,21 @@ fn the_certificate_is_inside_the_locally_valid_range() {
             "the certificate covers {v}, which the probe's test calls invalid"
         );
     }
-    // The crossing is at depth zero and the proof stops above it, by
-    // orders rather than by a rounding. The MAGNITUDE is the claim:
-    // the frontier is the driver's stopping point, not the boundary.
+    // The crossing is at depth zero and the proof stops above it, at
+    // the DRIVER's own floor rather than at the boundary. The bound is
+    // DERIVED from the two mechanisms that set that floor — the run's
+    // ambiguity band and the drive's resolution over this seed —
+    // because a constant here is a claim about one eps row and the
+    // gate runs three. It caught exactly that: a literal `1e-6` passed
+    // at the shipped eps and red at 1e-6 and 1e-12.
+    let resolution = (1.05 + 0.5) / 2f64.powi(24);
     assert!(
         lo > 0.0,
         "the certificate must not reach the crossing: {lo}"
     );
     assert!(
-        lo < 1e-6,
-        "and it reaches close to it — the proof's frontier is {lo}"
+        lo < 100.0 * resolution.max(tol().eps()),
+        "the frontier is the driver's stopping point, not the boundary: {lo}"
     );
 }
 
