@@ -163,13 +163,12 @@ fn mk_kill_roundtrip_every_mev_site_case() {
     let (mut body, _seed, [_a, b, _c, d, _e]) = five_spoke_star(tol);
     let before = canonical_form(&body);
     let split = body
-        .mev_line(
+        .mev_null(
             MevSite::Fan {
                 he1: b.he_plus,
                 he2: d.he_plus,
             },
-            p(9.0),
-            tol,
+            crate::NewVertexSide::Above,
         )
         .unwrap();
     body.kev(split.he_plus, tol).unwrap();
@@ -181,13 +180,12 @@ fn mk_kill_roundtrip_every_mev_site_case() {
     let (mut body, _seed, [_a, b, _c, d, _e]) = five_spoke_star(tol);
     let before = canonical_form(&body);
     let split = body
-        .mev_line(
+        .mev_null(
             MevSite::Fan {
                 he1: d.he_plus,
                 he2: b.he_plus,
             },
-            p(9.0),
-            tol,
+            crate::NewVertexSide::Above,
         )
         .unwrap();
     body.kev(split.he_plus, tol).unwrap();
@@ -208,13 +206,12 @@ fn mk_kill_roundtrip_every_mev_site_case() {
         .unwrap();
     let before = canonical_form(&body);
     let fan = body
-        .mev_line(
+        .mev_null(
             MevSite::Fan {
                 he1: seg.he_plus,
                 he2: split_faces.he_plus,
             },
-            p(9.0),
-            tol,
+            crate::NewVertexSide::Above,
         )
         .unwrap();
     body.kev(fan.he_plus, tol).unwrap();
@@ -348,14 +345,16 @@ fn kev_from_both_ends_of_an_asymmetric_valence_five_split() {
     // REMAINING fan {d, e, a} to w in unchanged clockwise cyclic order.
     let (mut body, seed, [a, b, c, d, e]) = five_spoke_star(tol);
     let before = canonical_form(&body);
+    // The coincident door: the certified one will not put a spoke on a
+    // vertex its chord does not run to, and both kills below are about
+    // the fan MERGE, which needs the split to have happened at all.
     let split = body
-        .mev_line(
+        .mev_null(
             MevSite::Fan {
                 he1: b.he_plus,
                 he2: d.he_plus,
             },
-            p(9.0),
-            tol,
+            crate::NewVertexSide::Above,
         )
         .unwrap();
     // End 1: kill the new vertex.
@@ -624,12 +623,14 @@ fn kef_mate_alone_with_ring_on_survivor_has_no_single_op_remake() {
 }
 
 #[test]
-fn kev_mirror_has_no_single_op_remake() {
+fn the_mirror_kev_is_refused_rather_than_left_without_a_remake() {
     let tol = Tol::witness();
-    // Skip case (a): kev from the valence-1 side of an edge whose far
-    // vertex carries a fan. Exhaustive single-op search over the
-    // post-kill body, trying every site and every plausibly-relevant
-    // coordinate (including the killed vertex's).
+    // The site that used to be skip case (a): kev from the valence-1
+    // side of an edge whose far vertex carries a fan. It had no
+    // single-op re-make BECAUSE it left the migrated fan on a vertex
+    // its chords did not run to, and that is the state `kev`'s
+    // re-basing gate refuses — so the site is not a kill with no
+    // inverse any more, it is not a kill at all.
     let (mut body, seed, seg) = segment(tol);
     let strut = body
         .mev_line(
@@ -643,14 +644,27 @@ fn kev_mirror_has_no_single_op_remake() {
         .unwrap();
     // seg.vertex carries fan [seg−, strut+]; strut.he_minus starts at
     // the valence-1 tip and points at it — the mirror kill.
-    let before = canonical_form(&body);
-    body.kev(strut.he_minus, tol).unwrap();
-    assert_eq!(validate(&body), Ok(()));
-    let coords = [p(0.0), p(1.0), p(2.0)];
-    assert!(
-        !some_single_op_reaches(&body, &before, &coords, tol),
-        "found an unexpected single-op re-make of the mirror kev"
-    );
+    let before = deep_snapshot(&body);
+    assert!(matches!(
+        body.kev(strut.he_minus, tol),
+        Err(EulerOpError::RebasedCarrier { edge, .. }) if edge == seg.edge
+    ));
+    assert_eq!(deep_snapshot(&body), before, "refused with the body untouched");
+    // The strut kill from the other half stands, and is exactly
+    // invertible as it always was.
+    let canonical = canonical_form(&body);
+    let killed = body.kev(strut.he_plus, tol).unwrap();
+    assert_eq!(killed.killed_vertex, strut.vertex);
+    body.mev_line(
+        MevSite::Fan {
+            he1: seg.he_minus,
+            he2: seg.he_minus,
+        },
+        p(2.0),
+        tol,
+    )
+    .unwrap();
+    assert_eq!(canonical_form(&body), canonical);
     let _ = seed;
 }
 
@@ -1420,7 +1434,11 @@ fn seqgen_generates_every_op_kind_and_every_site_shape() {
     let expected: BTreeSet<&'static str> = [
         "mvfs",
         "mev_lone",
-        "mev_fan",
+        // No `mev_fan` with a run: the generator mints every vertex at
+        // its own coordinates, so a moved run's chords would never
+        // reach the new vertex and `mev`'s re-basing gate refuses the
+        // site. `mev_fan_candidates` enumerates only the strut, and
+        // that is the site shape this row can expect.
         "mev_fan_strut",
         "mef_chords",
         "mef_chords_self",
@@ -1495,11 +1513,8 @@ fn seqgen_generates_every_op_kind_and_every_site_shape() {
                 OpChoice::Mvfs => "mvfs",
                 OpChoice::MevLone(_) => "mev_lone",
                 OpChoice::MevFan(h1, h2) => {
-                    if h1 == h2 {
-                        "mev_fan_strut"
-                    } else {
-                        "mev_fan"
-                    }
+                    assert_eq!(h1, h2, "the generator offers only strut fan sites");
+                    "mev_fan_strut"
                 }
                 OpChoice::MefChords(h1, h2) => {
                     if h1 == h2 {
@@ -1644,13 +1659,14 @@ fn seqgen_kvfs_availability_instrumented() {
 // =====================================================================
 // 11. The SameFace error guidance: an edge joining two loops of ONE
 //     face (kfmrh on adjacent faces makes it). kef must refuse with
-//     SameFace; kev must be able to kill it when endpoints are
-//     distinct (the Display text's advice); the self-loop variant has
-//     NO direct one-op killer (mfkrh+kef is the escape).
+//     SameFace; kev is the door the Display text points at, and it
+//     kills such an edge exactly where no fan migrates with it; the
+//     self-loop variant has NO direct one-op killer (mfkrh+kef is the
+//     escape).
 // =====================================================================
 
 #[test]
-fn same_face_bridge_edge_kef_refuses_and_kev_kills() {
+fn same_face_bridge_edge_kef_refuses_and_so_does_the_kev_it_points_at() {
     let tol = Tol::witness();
     // Cube; kfmrh(top, front): front's outer becomes a ring of top;
     // the shared top/front edge now has one half in top's outer, the
@@ -1678,9 +1694,18 @@ fn same_face_bridge_edge_kef_refuses_and_kev_kills() {
     let err = body.kef(bridge).unwrap_err();
     assert!(matches!(err, EulerOpError::SameFace { .. }));
     assert_eq!(deep_snapshot(&body), before);
-    // kev (the error text's advice): endpoints are distinct cube
-    // corners, so it kills the edge (and the far vertex, fan merged).
-    body.kev(bridge, tol).unwrap();
+    // kev is the operator the error text points at, and on THIS body it
+    // refuses too: the endpoints are distinct cube corners, so merging
+    // the far corner's fan onto the near one would take three cube
+    // edges off the chords they run on. The advice names the right
+    // door; the kill is available at a bridge whose far vertex carries
+    // no fan, and this one carries three.
+    let before = deep_snapshot(&body);
+    assert!(matches!(
+        body.kev(bridge, tol),
+        Err(EulerOpError::RebasedCarrier { .. })
+    ));
+    assert_eq!(deep_snapshot(&body), before);
     assert_eq!(validate(&body), Ok(()));
 }
 
