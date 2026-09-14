@@ -49,6 +49,54 @@ WIDENING of the translate-to-origin cross-sum over a placement that
 reaches the loop's points through the derived frame's own newell and
 normalisation.
 
+## The cascade, and the five callers
+
+`newell_plane` is called **five times** in the kernel — three in
+`sweep::extrude` (the near cap, the far cap, and each side plane:
+`extrude.rs:596`, `:694`, `:1102`) and twice in `sweep::loft` (the
+bottom and top caps: `loft.rs:378`, `:511`) — so a document that stacks
+an extrude on a derived frame walks the door repeatedly, each time over
+points the previous walk helped place. Line numbers ride along; the
+callers are named.
+
+Measured on the height document at `5e-2`, with `sign_within` at a band
+of `1e-300` (so nothing is decided by tolerance) at every call, in
+order: **eight calls per replay, and exactly one straddles.** The cube's
+six (near cap, four side planes, far cap) and the BOSS's cap all decide
+every component of `normal_sum`; the boss's first SIDE plane does not —
+`sum.y` is `[-2.0507, 0.8977]` where its true value is `−0.125`.
+
+The seed is one level up, in the SAME translate-to-origin step, and it
+is visible in the offsets the cross-sum is built from. At that eighth
+call the first corner's `(p − centroid).z` is
+
+```
+[-0.19954, 0.44840]        (true value: -0.125)
+```
+
+— a 0.648-wide enclosure over a parameter half-width of `0.05`, while
+the same offset at the cube's own caps is decided. The boss's side loop
+mixes corners placed through the derived frame (origin carries `h`)
+with corners at the boss's own far cap (`h + 0.25`), and their `h`
+occurrences do not cancel against a centroid built from all four. That
+is `work/sym/real-margin-dependency-widening`'s mechanism — the `h − h`
+a translate-to-origin step performs at a cap — arriving here amplified
+by the derived frame's RE-DERIVATION of a placement the parameter
+already passed through.
+
+So candidate 1 below tightens only the last of these, which is where
+this document's refusal is; a formulation that cancels the shared
+translation before the cross products would help wherever the offsets,
+not the loop, carry the widening, and that is every one of the five
+callers.
+
+**What this reading does not claim.** SYM-5's review lane read the
+cascade as three straddling sites (the cube's cap, the boss's cap, the
+boss's side); the probe above reproduces only the third as a straddle,
+with the other two decided — the difference is whether a site is read
+by its own `normal_sum` or by the offsets feeding it. Both readings
+agree on the mechanism and on the site that refuses.
+
 ## Why it matters beyond the one document
 
 The symbolic tier PROVES this margin. Under `SymRules::shipped()` the

@@ -1,20 +1,39 @@
-//! **A profile placed on a DERIVED frame, on the symbolic lane** —
-//! SYM-5's rows, ported from DOCM-1's review lane R1 (`docm/1-review-r1`,
-//! `docm1_review_r1_probes_interval.rs`) unchanged in what they assert,
-//! and the measurement that says why they stood red.
+//! **A profile placed on a DERIVED frame whose placement is a pure
+//! TRANSLATION, on the symbolic lane** — DOCM-1 review lane R1's two
+//! rows (`docm/1-review-r1`, `docm1_review_r1_probes_interval.rs`),
+//! ported unchanged in what they assert, and the measurement of what
+//! answers them.
 //!
 //! A derived frame (`Datum::FaceFrame`) reads its axes off the body it
 //! is placed on, so those axes are the kernel's ALREADY-normalised
-//! stored vectors — each a rational form over a `sqrt(v·v)` atom — and
-//! the boss extrude above it normalises them AGAIN and squares them in
-//! certification. Every normalisation adds a denominator and every
-//! square doubles the degree, so the forms reach the budget and freeze;
-//! a frozen subtree cancels nothing, and the identity `u·u = 1` that
-//! an authored frame's literal axes reach for free is lost.
+//! stored vectors and the boss extrude above normalises them again.
+//! On THIS document the widened parameter is the cube's HEIGHT, so
+//! every normalised quantity in the chain is CONSTANT in it: the
+//! `sqrt` atoms are `sqrt(16384/256)` and friends, rule A0 folds them
+//! to exact rationals, and the degree mechanism the item describes has
+//! nothing to act on. Measured, on the whole declared box: with A0
+//! alone the document freezes NOTHING and certifies up to a half-width
+//! of `1e-3`; with every rule off it refuses at both measured widths
+//! on `carrier_endpoint_start`.
 //!
-//! The two ported rows are the pins. The `#[ignore]`d rows beside them
-//! are the measurement: the freeze population by origin and cause, and
-//! the frozen kids rendered far enough to name the normalisation chain.
+//! **This is the narrow case, not the item's.** A derived frame whose
+//! AXES carry the parameter keeps a `sqrt` of a NON-constant form that
+//! no constant fold reaches, and there the freezes are on degree and
+//! the identity is not reached: `m10_derived_frame_tilted_interval` is
+//! that document, and SYM-5's Phase 2 (PR-2) runs on it.
+//!
+//! Three rows here are PINS (`m10_*`): the transform-lifted row, which
+//! DOCM filed red and which is green; the measured parity state of the
+//! other ported row; and that the refusal left at `5e-2` is not a
+//! freeze. The ported parity row itself stays `#[ignore]`d — it is red
+//! at one width, for a reason that is the value channel's
+//! (`work/props/a-widened-derived-placement-normalises-a-straddling-newell-sum`).
+//! The `sym5_phase1_*` rows are evidence-only and assert nothing.
+//!
+//! The preamble this file shares with its siblings — `param_doc`,
+//! `failures`, the budget constants — is copied across the `m10_*`
+//! family; the class is
+//! `work/sym/interval-test-preamble-is-copied-across-the-m10-files`.
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -23,7 +42,7 @@ use std::sync::Arc;
 use crate::fixture::{self, Recorder, ang, len, scl};
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
-use editor_core::drive::SymbolicDials;
+use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
 use editor_core::{
     CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, DocParam, EvalOptions,
     Evaluation, Expr, Node, NodeResult, ParamName, ProfileDoc, ProfileLift, RecipeNodeId, RoleSeg,
@@ -51,10 +70,9 @@ fn param_doc(name: &str, nominal: f64, half: f64, r: &mut Recorder) {
 }
 
 fn budget() -> geom_core::SymBudget {
-    let dials = SymbolicDials::default();
     geom_core::SymBudget {
-        max_terms: dials.max_terms,
-        max_degree: dials.max_degree,
+        max_terms: DEFAULT_SYM_MAX_TERMS,
+        max_degree: DEFAULT_SYM_MAX_DEGREE,
     }
 }
 
@@ -83,13 +101,23 @@ fn sym_failures_under(
     lift: ProfileLift,
     rules: SymRules,
 ) -> (Vec<String>, geom_core::SymCounts) {
+    sym_failures_in(doc, lift, rules, budget())
+}
+
+/// The same, under a chosen rule set AND a chosen budget.
+fn sym_failures_in(
+    doc: &ProfileDoc,
+    lift: ProfileLift,
+    rules: SymRules,
+    budget: geom_core::SymBudget,
+) -> (Vec<String>, geom_core::SymCounts) {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
     let opts = EvalOptions {
         param_box: Some(Arc::new(ParamBox::of(&analyzed))),
         profile_lift: lift,
         ..EvalOptions::default()
     };
-    geom_core::sym::with_session_rules(budget(), rules, || {
+    geom_core::sym::with_session_rules(budget, rules, || {
         let ev: Evaluation<geom_core::Sym<Interval>> =
             evaluate(doc, None, &CancelToken::new(), &opts, Tol::witness());
         failures(&ev)
@@ -214,12 +242,7 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
 /// unchanged in what it asserts: whatever the kernel does with a
 /// widened placement, it must do the same for the two frame kinds.
 #[test]
-#[ignore = "red at ONE point only — half = 5e-2, all three eps rows: the derived boss's \
-            side-plane newell normalises a cross-sum whose enclosure straddles zero, so \
-            clause 1 refuses a margin the tier's early form already proves zero \
-            (work/sym/a-widened-derived-placement-normalises-a-straddling-newell-sum). \
-            m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width \
-            pins the measured state meanwhile."]
+#[ignore = "red at half = 5e-2 only: work/props/a-widened-derived-placement-normalises-a-straddling-newell-sum"]
 fn m10_an_extrude_on_a_widened_derived_frame_versus_the_authored_guided_twin() {
     let e = eps();
     let mut mismatch = Vec::new();
@@ -535,15 +558,28 @@ fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width(
         );
     }
     // The one width where they part, and the reason, read off the
-    // refusal the kernel reports.
+    // refusal the kernel reports. Both lifts, because the derived
+    // placement is at `T` under either and the refusal is identical.
     let (derived, _, _) = boss_on_widened_box(5.0e-2);
     let (authored, _) = boss_on_widened_authored_frame(5.0e-2);
-    let refusal = sym_failures(&derived, ProfileLift::Pinned);
-    assert_eq!(refusal.len(), 1, "one refusal at 5e-2: {refusal:?}");
-    assert!(
-        refusal[0].contains("newell_plane_residual") && refusal[0].contains("margin is invalid"),
-        "the 5e-2 refusal is clause 1's, on the newell residual: {refusal:?}"
-    );
+    for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
+        let refusal = sym_failures(&derived, lift);
+        assert_eq!(
+            refusal.len(),
+            1,
+            "{lift:?}: one refusal at 5e-2: {refusal:?}"
+        );
+        assert!(
+            refusal[0].contains("newell_plane_residual")
+                && refusal[0].contains("margin is invalid"),
+            "THIS ROW PINS A DEFECT AS THE CURRENT BEHAVIOUR, NOT A DESIRED ONE: at 5e-2 the \
+             derived-frame boss still refuses where its authored twin certifies, on a clause-1 \
+             invalid margin from newell's normalisation of a straddling cross-sum \
+             (work/props/a-widened-derived-placement-normalises-a-straddling-newell-sum). When \
+             that row is answered this assertion FAILS, and the ported parity row above — the \
+             acceptance test — takes its place. {lift:?}: {refusal:?}"
+        );
+    }
     assert!(
         sym_failures(&authored, ProfileLift::Guided).is_empty(),
         "the authored twin still certifies at 5e-2"
@@ -593,4 +629,75 @@ fn m10_the_derived_frames_refusal_is_not_a_freeze() {
         a0_fails[0].contains("newell_plane_residual") && a0_fails[0].contains("margin is invalid"),
         "with no freeze left the refusal is clause 1's: {a0_fails:?}"
     );
+}
+
+/// **What answered DOCM's rows, and what never explained them**
+/// (adopted from SYM-5's review lane, `sym/5-review` at `a3e2b1b46`).
+/// DOCM's probes were taken on `20f04189` (2026-09-04), the day before
+/// M10-8's constant fold landed (#1828, 2026-09-05), and the `none`
+/// rung reproduces their refusal while A0 alone clears it. The BUDGET
+/// never explained the refusal on this document: raise it to
+/// 4,096 / 65,536 under `none` and it still refuses with the same
+/// enclosure, freezing almost nothing — what stood was OPAQUE CONSTANT
+/// ATOMS, which is exactly what A0 folds, and rule A alone (`sqrt(X)²
+/// = X`, no constant fold) does not clear either.
+#[test]
+#[ignore = "evidence-only: SYM-5 phase 1 — the budget never explained the height document's refusal"]
+fn sym5_phase1_the_height_document_under_a_raised_budget_and_rule_a_alone() {
+    let (derived, _, _) = boss_on_widened_box(1.0e-3);
+    let big = geom_core::SymBudget {
+        max_terms: 65536,
+        max_degree: 4096,
+    };
+    let a_only = SymRules {
+        sqrt_square: true,
+        ..SymRules::none()
+    };
+    for (name, rules, b) in [
+        ("none/default", SymRules::none(), budget()),
+        ("none/4096", SymRules::none(), big),
+        ("A_only/default", a_only, budget()),
+        ("A_only/4096", a_only, big),
+        (
+            "A0/default",
+            SymRules {
+                const_fold: true,
+                ..SymRules::none()
+            },
+            budget(),
+        ),
+    ] {
+        let (fails, counts) = sym_failures_in(&derived, ProfileLift::Pinned, rules, b);
+        println!(
+            "height 1e-3 {name}: {counts:?}\n  fails {} {}",
+            fails.len(),
+            head(fails.first().map_or("", String::as_str), 300)
+        );
+    }
+}
+
+/// **The 5e-2 refusal, printed whole** (adopted from `sym/5-review`):
+/// the counts and every failure string under the shipped set, so the
+/// diagnostic the pins match on is readable beside them.
+#[test]
+#[ignore = "evidence-only: SYM-5 phase 1 — the newell refusal at 5e-2, in full"]
+fn sym5_phase1_the_newell_refusal_at_5e_2() {
+    let (derived, _, _) = boss_on_widened_box(5.0e-2);
+    eprintln!("--- plain Interval lane, Pinned");
+    let p = interval_failures(&derived, ProfileLift::Pinned);
+    println!("derived 5e-2 plain Pinned: fails {}", p.len());
+    for f in &p {
+        println!("  {}", head(f, 400));
+    }
+    for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
+        eprintln!("--- Sym<Interval> lane, {lift:?}");
+        let (fails, counts) = sym_failures_in(&derived, lift, SymRules::shipped(), budget());
+        println!(
+            "derived 5e-2 shipped {lift:?}: {counts:?} fails {}",
+            fails.len()
+        );
+        for f in &fails {
+            println!("  {}", head(f, 400));
+        }
+    }
 }

@@ -113,6 +113,21 @@ these two sites are a class or a pair.
   with a literal bulge, the third site; `m10_10_evidence_interval`'s
   `m10_10_ceilings_and_the_over_band_set` at `CAD_M10_10_DOCS=r2_d_tab_literal`
   reproduces the bracket.
+- **A derived placement's re-derived Newell offsets — the fourth site,
+  and the first where the widening stops being a bound and becomes a
+  REFUSAL.** A boss on a `Datum::FaceFrame` over a body whose height is
+  the widened parameter: at the boss's side plane the translate-to-origin
+  offset `(p − centroid).z` encloses `[-0.19954, 0.44840]` for a true
+  `−0.125`, the cross-sum's `N.y` then encloses `[-2.0507, 0.8977]` for
+  a true `−0.125`, and `Vec3::normalize` divides by a length whose
+  enclosure is `[0, 2.0924]` — so the margin is not merely wide, it is
+  `MarginDiag::Invalid` and clause 1 refuses before the symbolic tier is
+  asked. The tier PROVES that residual zero (its early form is the zero
+  form), which makes this the sharpest statement of what this class
+  costs. The row, with the eight-call probe and three candidate fixes,
+  is `work/props/a-widened-derived-placement-normalises-a-straddling-newell-sum`;
+  its acceptance test is
+  `editor-core/tests/m10_derived_frame_interval`'s ported parity row.
 
 ## Re-homed at M10's exit sweep (2026-09-13)
 

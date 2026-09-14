@@ -1,7 +1,7 @@
 ---
 id: derived-frame-placement-freezes-on-the-symbolic-lane
 kind: issue
-title: A profile placed on a derived frame does not certify on the symbolic lane under a widened upstream parameter: the kernel's symbolic budget freezes re-normalised stored unit vectors
+title: A profile placed on a derived frame whose AXES carry a widened parameter does not certify on the symbolic lane: the re-normalised stored unit vectors freeze on degree and the identity is not reached (on a purely TRANSLATED derived frame the chain is constant and rule A0 folds it)
 status: open
 opened: 2026-09-04
 parent: SYM-5
@@ -73,55 +73,110 @@ the mechanism and names DOCM.
 
 From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.
 
-## What stands, and what moved (SYM-5)
+## What stands, and what moved (SYM-5, phase 1)
 
-SYM-5 measured this row on `origin/main` at `d0d430fc7` before
-touching the tier, and the measurement retires most of the diagnosis
-above. The two DOCM R1 probes are ported unchanged as
-`crates/editor-core/tests/m10_derived_frame_interval.rs`.
+SYM-5 measured this row on `origin/main` at `d0d430fc7` before touching
+the tier. **The measurement splits the row in two**: DOCM's own
+document is the NARROW case and is answered; a derived frame whose
+AXES carry the parameter is the case this row was filed about, and on
+it the mechanism stands on every rung. Phase 2 (PR-2 of SYM-5) runs on
+the second document.
 
-**What moved.** The transform-lifted row
-(`..._the_prs_transform_lifted_shape_with_an_extrude_above_it`) is
-GREEN at all three ε rows and is now a kernel pin. The parity row
-(`..._an_extrude_on_a_widened_derived_frame_versus_the_authored_guided_twin`)
-is green on the symbolic lane at half-widths ε/8, `1e-6` and `1e-3`
-under both `ProfileLift`s — the widths this row said refused — and red
-at `5e-2` alone.
+Every count below is a DATED READING taken at `d0d430fc7` on one box,
+not a pinned number: the only assertions over them are
+`frozen > 0` / `frozen == 0` and the refusal's predicate and
+diagnostic. Re-take them by re-running the rows named.
 
-**The mechanism is not degree.** The rule ladder on the derived-frame
-document, at the whole declared box:
+### DOCM's document: a pure TRANSLATION, and A0 answers it
+
+The two DOCM R1 probes are ported unchanged as
+`crates/editor-core/tests/m10_derived_frame_interval.rs`. The
+transform-lifted row is GREEN at all three ε rows and is now a kernel
+pin. The parity row is green on the symbolic lane at half-widths ε/8,
+`1e-6` and `1e-3` under both `ProfileLift`s — the widths this row said
+refused — and red at `5e-2` alone.
+
+The rule ladder there, at the whole declared box, at the two widths
+measured (`1e-3` and `5e-2`; no other width was run under `none`):
 
 | rules | frozen | refusals |
 | --- | --- | --- |
-| `none` | 12 | `carrier_endpoint_start` at BOTH widths |
+| `none` | 12 | `carrier_endpoint_start`, at both measured widths |
 | `const_fold` alone (A0, replacing) | **0** | none at `1e-3`; `newell_plane_residual` **Invalid** at `5e-2` |
-| `+ early`, `+ door`, `without_the_algebra`, `shipped` | 369 | the same one |
+| `+ early`, `+ door`, `without_the_algebra`, `shipped` | 1,253 at the nominal / 369 at the box | the same one |
 
-So M10-8's exact constant fold is what carries this document — the
-normalisation chain is `sqrt(16384/256)` and
-`abs(128/(16·sqrt(16384/256)))` nested under a further `sqrt` of a
-degree-88 polynomial in them, and A0 collapses the lot to rationals —
-and the freezes the shipped set makes in its early walk (1,253 at the
-nominal, on `Powi`/`Add`/`Sub` with kids at total degree 65–128 in
-13–192 terms, the same SHAPE as SYM-1's plate table) cost this document
-no decision: every predicate at the nominal is a `Theorem`.
+The document's widened parameter is the cube's HEIGHT, so every
+normalised quantity in the chain is CONSTANT in it: the chain is
+`sqrt(16384/256)` and `abs(128/(16·sqrt(16384/256)))` nested under a
+further `sqrt` of a degree-88 polynomial in them, and M10-8's exact
+constant fold collapses the lot to rationals. The freezes the shipped
+set still makes in its early walk (`Powi`/`Add`/`Sub`, kids at total
+degree 65–128 in 13–192 terms — the same SHAPE as SYM-1's plate table)
+cost this document no decision: every predicate at the nominal is a
+`Theorem`.
 
-**What stands is clause 1, not the tier.** The one refusal left is a
-single `newell_plane_residual` of 29, diagnosed `Invalid`: the boss's
-side plane is built by `newell_plane`, whose `normal_sum.normalize()`
-divides by a norm whose enclosure is `[0, 2.0924]` because the
-cross-sum's `y` component encloses `[-2.0507, 0.8977]` under dependency
-widening. The tier's own early form for that residual is the ZERO form.
-No rule of the atom algebra — a unit-vector atom, a normalisation
-simplified before squaring, or a degree-resetting `sqrt` — can reach a
-margin the value channel never certifies, so SYM-5 stopped after its
-measurement and filed the residue where its mechanism lives:
-`work/props/a-widened-derived-placement-normalises-a-straddling-newell-sum`.
-That row's acceptance test is this row's parity probe.
+**What moved the parity row, and what never explained it.** DOCM's
+probes were taken on `20f04189` (2026-09-04); M10-8's constant fold
+landed the next day (#1828, 2026-09-05). The `none` rung reproduces
+DOCM's refusal and A0 alone clears it, so A0 is what moved the row —
+not M10-9's door and not M10-10's algebra, which are bit-identical to
+`without_the_algebra` here. And on DOCM's own tree the BUDGET never
+explained the refusal: under `none` at 4,096 / 65,536 the document
+freezes 1 and still refuses with the identical enclosure, and rule A
+alone (`sqrt(X)² = X`, no constant fold) does not clear it at either
+budget. What stood was OPAQUE CONSTANT ATOMS, which is exactly what A0
+folds
+(`sym5_phase1_the_height_document_under_a_raised_budget_and_rule_a_alone`).
 
-**This row therefore stays open on one claim only**: that a derived
-frame and its authored twin should agree at EVERY width. They agree up
-to `1e-3` and part at `5e-2`, for a reason that is the value channel's.
+**What is left there is clause 1's, not the tier's.** One
+`newell_plane_residual` of 29 at `5e-2` is `Invalid` — `newell_plane`
+divides a cross-sum whose `y` component encloses `[-2.0507, 0.8977]`
+by a length enclosing `[0, 2.0924]` — and the tier's early form for
+that residual is the ZERO form. Filed as
+`work/props/a-widened-derived-placement-normalises-a-straddling-newell-sum`,
+with the eight-call probe, the offsets that seed it and three
+candidate fixes; its acceptance test is the ported parity row.
+
+### The document this row was filed about: the AXES carry the parameter
+
+SYM-5's review lane built it and the rows are adopted as
+`crates/editor-core/tests/m10_derived_frame_tilted_interval.rs`
+(from `sym/5-review` at `a3e2b1b46`): an authored
+`Datum::Frame { u: (1,0,0), v: (0,1,t) }` with `t = 0.25 ± half`, a
+cube extruded from it, a `FaceFrame` on its cap, the same boss; the
+twin is the boss on the tilted frame directly. The frame normal is
+`(0, −t, 1)/sqrt(1 + t²)` — a stored unit vector over a `sqrt` of a
+NON-CONSTANT form, which no constant fold reaches.
+
+Measured at `half = 1e-3`, `ProfileLift::Guided`, whole declared box:
+
+| rung | derived | authored twin |
+| --- | --- | --- |
+| plain `Interval` | refuses `carrier_endpoint_start` | refuses `carrier_endpoint_start` |
+| `none` / `A0` / A alone | refuses `carrier_endpoint_start`, enclosure `[0, 1.7951e-2]` — 18× the half-width, the shape this row was filed on | certifies |
+| `shipped` | refuses `newell_plane_residual`, a plain STRADDLE `[-6.857e-2, 6.841e-2]` (not `Invalid`), frozen 632 | certifies |
+
+So the tier CARRIES the authored twin where the plain lane refuses it,
+and does not carry the derived one. The refused residual's early form
+is non-zero and carries a non-constant `sqrt(S)` with two frozen `Mul`
+nodes on its path; the freezes are 642 by the profile, overwhelmingly
+`Degree` — `Add` 308, `Powi` 159, `Mul` 101, `Sub` 64, on kids at
+total degree 69–128. And the budget is not the lever, by execution:
+raising it to 512/16,384 leaves 383 frozen and to 4,096/65,536 leaves
+483, with the identical refusal at every rung.
+
+That is the item's own mechanism, alive. A widened PROFILE (the width
+parameter instead of the height) is not a third case: A0 clears it too
+(frozen 0, no refusal on either lane at either width).
+
+### Where this row stands
+
+Open, on the TIER's mechanism — not on one clause-1 residue. SYM-5's
+Phase 1 (PR-1) is the measurement and the narrow case; **Phase 2
+(PR-2) runs on the tilted document**, where a unit-vector atom, a
+normalisation simplified before squaring, or a degree-resetting
+`sqrt` each have something to act on. The clause-1 residue on DOCM's
+document is the PROPS row above and closes separately.
 
 ## Re-pointed at SYM-5's measurement (2026-09-14)
 
