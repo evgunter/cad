@@ -842,3 +842,14 @@ slot 1 marked concluded on `topo/b2-block`. Three rows filed by the
 fix pass (one on TRIM, two here); `split_edge` now declares
 `Transfers` in the posture table. The ring-nesting fix pass is the one
 lane running; slot 2 (`revert`, FABLE) dispatches when it frees.
+
+## Slot 2 dispatched: `revert` mirrors the plane chart's images (2026-09-14)
+
+Block TOPO-B2's last slot (FABLE) dispatched on
+`topo/revert-mirrors-chart-images` with a brief section in the item:
+the transform hypothesis `(u, v) ↦ (u, −v)` on every `Chart` image
+and pcurve row of a reverted plane's faces, per image kind, with the
+bitwise involution and SHELL's drum as the red-first rows; seam to
+TRIM announced for the row transform; `chart.rs`/`chart_iso.rs` are
+unowned ground where the PR draws the fence. Beside it, the
+ring-nesting fix pass is the other lane.
