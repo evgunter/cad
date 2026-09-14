@@ -1282,12 +1282,9 @@ impl ViewerApp {
             // operation itself would give — the value that knows
             // carries the words, so the two cannot disagree.
             for door in self.session.cancel_doors() {
-                let button =
-                    ui.add_enabled(door.blocked.is_none(), egui::Button::new(door.label));
+                let button = ui.add_enabled(door.blocked.is_none(), egui::Button::new(door.label));
                 let clicked = match &door.blocked {
-                    Some(refusal) => {
-                        button.on_disabled_hover_text(refusal.to_string()).clicked()
-                    }
+                    Some(refusal) => button.on_disabled_hover_text(refusal.to_string()).clicked(),
                     None => button.clicked(),
                 };
                 if clicked {
@@ -2125,8 +2122,14 @@ mod tests {
                     let mut ops: Vec<SessionOp> = Vec::new();
                     let mut chosen = Theme::ALL[0];
                     row.available = ui.available_width();
-                    app.toolbar_ui(ui, &mut ops, &mut chosen);
-                    row.occupied = ui.min_rect().width();
+                    // The row's OWN rect, through a scope: a panel's
+                    // `Ui` is expanded to the panel's width whatever
+                    // it holds, so its `min_rect` answers the window
+                    // rather than the toolbar.
+                    let laid_out = ui.scope(|ui| {
+                        app.toolbar_ui(ui, &mut ops, &mut chosen);
+                    });
+                    row.occupied = laid_out.response.rect.width();
                 });
             });
             // Nothing here paints, so the frame's texture delta is
