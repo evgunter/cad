@@ -324,7 +324,10 @@ fn probe_partial_engagement_never_silent() {
             // Exact additivity on the 4-ULP relative oracle the MATE-2
             // suites use (`mate2_common::assert_additive`): the π terms
             // of the peg and the bore do not cancel, so a bitwise pin
-            // is not available here. Measured: 0.672 ULP.
+            // is not available here. This branch first RAN when the
+            // merge door stopped refusing the cylindrical declared
+            // pair; first measured 0.672 ULP (the sibling scenes
+            // measure ~1.5 ULP).
             crate::mate2_common::assert_additive(v, vp, vq);
             if let Err(errs) = topo::validate_geometric(&body, Tol::witness()) {
                 panic!("must be tier-3 valid: {errs:?}");

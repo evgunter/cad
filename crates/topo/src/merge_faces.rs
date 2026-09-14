@@ -74,12 +74,14 @@ pub struct MergedGroup {
     pub killed_vertices: Vec<VertexKey>,
 }
 
-/// A merge group that was NOT glued: its shape is outside the merge's
-/// never-elide Euler inventory. Loud in the record, never a silent
-/// drop — and never a partial commit. The same record also carries a
-/// declared pair the door has NO RUNG for — a legal declaration on a
-/// non-planar carrier ([`MergeCoplanarError::DeclaredCarrierUnsupported`]),
-/// whose `faces` are every live face on either declared surface.
+/// One record, two subjects, told apart by `reason`: a merge GROUP
+/// that was NOT glued (its shape is outside the merge's never-elide
+/// Euler inventory — loud in the record, never a silent drop, never a
+/// partial commit), or a declared surface PAIR the door has no rung
+/// for — a legal declaration on a non-planar carrier
+/// ([`MergeCoplanarError::DeclaredCarrierUnsupported`]). A consumer
+/// that walks `faces` treats both alike: faces the door left as they
+/// were.
 ///
 /// **The scope statements below are the KERNEL's, not the type's.**
 /// Both fields are public and there is no private constructor, so
@@ -90,7 +92,10 @@ pub struct MergedGroup {
 /// mints carries no such promise and none is claimed for it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SkippedMerge {
-    /// The group's faces (group order).
+    /// The faces the record is about: a group's faces in group
+    /// order, or every live face on either surface of a declared
+    /// pair in face-arena order. Never empty for a kernel-minted
+    /// record.
     pub faces: Vec<FaceKey>,
     /// The inventory refusal that stopped the glue, carried whole:
     /// the same [`MergeCoplanarError`] vocabulary the door refuses
@@ -320,7 +325,12 @@ pub enum MergeCoplanarError {
     /// it is an inventory statement, not an arena fault. Like
     /// [`MergeCoplanarError::GroupNotClosed`], that is a fact about
     /// where the kernel constructs it, not something the type
-    /// enforces.
+    /// enforces. The record is keyed off the DECLARATION: it states
+    /// what this door did with the caller's argument, not what the
+    /// geometry admits — a pair whose surviving faces are a slit's
+    /// two sides is recorded the same as one a curved arm would glue.
+    /// A pair with no live face on either surface is not recorded at
+    /// all, so a record's `faces` is never empty.
     DeclaredCarrierUnsupported {
         /// The declared surface pair, as the caller passed it. Both
         /// keys resolved when the door read them; a caller that
@@ -1027,6 +1037,8 @@ impl<T: Decide> Body<T> {
         };
         let mut eq = DeclaredSurfaceEq::default();
         let mut declined: Vec<((SurfaceKey, SurfaceKey), SurfaceKind)> = Vec::new();
+        let mut declined_seen: std::collections::BTreeSet<(SurfaceKey, SurfaceKey)> =
+            std::collections::BTreeSet::new();
         for &(k1, k2) in declared {
             let (kind1, kind2) = (kind_of(k1)?, kind_of(k2)?);
             if kind1 != kind2 {
@@ -1038,24 +1050,38 @@ impl<T: Decide> Body<T> {
             }
             if kind1 == SurfaceKind::Plane {
                 eq.union(k1, k2);
-            } else {
+            } else if declined_seen.insert((k1, k2)) {
+                // One record per declared pair: a caller that lowers
+                // several face pairs to one surface pair hands the
+                // door copies, and a copy names nothing new.
                 declined.push(((k1, k2), kind1));
             }
         }
         // The declined pairs' records name every live face on either
         // declared surface, read off the body the caller RECEIVES —
         // `self` when nothing merges, the staged result otherwise —
-        // so a recorded face is never a dead key.
+        // so a recorded face is never a dead key (a same-key run on
+        // one of the pair's surfaces can COMMIT beside the declined
+        // pair, absorbing a face the pre-surgery body still had;
+        // `curved_mergedoor::record_beside_a_committing_curved_run_names_only_live_faces`
+        // pins it). A pair with NO live face on either surface — a
+        // surface kept alive by an edge description after every face
+        // left it — gets no record: the declaration served nothing at
+        // this door, and a record naming nothing would be the silent
+        // shape (`curved_mergedoor::pair_with_no_live_faces_mints_no_record`).
         let declined_records = |body: &Self| -> Vec<SkippedMerge> {
             declined
                 .iter()
-                .map(|&(pair, kind)| SkippedMerge {
-                    faces: body
+                .filter_map(|&(pair, kind)| {
+                    let faces: Vec<FaceKey> = body
                         .faces()
                         .filter(|(_, face)| face.surface == pair.0 || face.surface == pair.1)
                         .map(|(key, _)| key)
-                        .collect(),
-                    reason: MergeCoplanarError::DeclaredCarrierUnsupported { pair, kind },
+                        .collect();
+                    (!faces.is_empty()).then_some(SkippedMerge {
+                        faces,
+                        reason: MergeCoplanarError::DeclaredCarrierUnsupported { pair, kind },
+                    })
                 })
                 .collect()
         };
