@@ -1062,3 +1062,15 @@ floor is 33 not 34 (R1); the item's `kfmrh` citation (R2). Seven-item
 fix pass to a fresh lane on the inherited branch: the predicate
 becomes surface equality with both mutants pinned, the trade scoped
 truthfully with a TRIM row filed, one home for the loop's rows walk.
+
+## D263 merged; block TOPO-B3 slot 1 concluded; S93 dispatched (2026-09-14)
+
+PR 2548 merged at `4628d4e6a` (green run 34811005145 on `9584efdcc`,
+full matrix, verified job by job). `D263` closed. The fix pass took
+every item and decided the poisoned-net question the reviewers had
+only noted: a poisoned description refuses before any surgery, under
+`NetState`'s "must fail at every consumer's described arm". Row
+recorded at merge (ordinal 2706, sample #189), no tally candidate;
+slot 1 marked concluded on `topo/b3-block`. `S93` (slot 2, OPUS)
+dispatched on `topo/s93-rebased-carriers` with a brief section in
+its item, beside the loop-re-parenting fix pass.
