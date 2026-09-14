@@ -6671,3 +6671,27 @@ sequence, on one 4-core box shared with SYM-5's fix pass). Sample
 number at merge.
 
 SYM-6 RECORDED AT MERGE (2026-09-14, PR #2604 merged; sample #197 — prior highest #196 on main at merge; block SYM-B1 slot 2 concluded; the block's record on `sym/b1-block` merges to main when slot 1 (SYM-5 PR-2) merges). One unilateral MAJOR half (R2, FABLE) confirmed by the fix pass; one glimpse disclosed and flagged (R2, `git worktree list`, nothing read). Tokens per phase: impl ~241k, fix ~320k cumulative, reviews 236k (R1) + 307k (R2), delta ~65k (R1 cumulative 301k).
+
+SYM-7 review ordinal fixed at dispatch (2026-09-14, PR #2609 open —
+frozen head `65408aa3f`, run 34899186752 GREEN on the full matrix,
+twelve `test (…)` and five `k-lint (gate, …)`): **ordinal 4703** (SYM
+band). Pre-draw fields at the spec (`docs/SYM-7-SPEC.md`): difficulty
+**H**, task-class **STRUCTURAL** (the drive-scoped plain-form memo,
+shared across the drive's rayon workers behind one `RwLock` with one
+publish per leaf, keyed on `(budget, rules)`, installed by `drive.rs`
+behind `DriveConfig.plain_memo`; `frozen` on the drive's receipt the
+distinct set over the drive; the opaque-sequence premise pinned across
+leaves by execution; slab drive 157 → 78 s sequential, callgrind
+2.12× on the slab; no certification decision moves); implementer arm
+OPUS per block SYM-B2 slot 0 (record branch-side on `sym/b2-block`).
+Protocol v6 dual: draw = `/dev/urandom` byte **126**, parity 0 ⇒
+**R1 = OPUS, R2 = FABLE**. Method, recorded before either review runs:
+CONCURRENT same-head on frozen `65408aa3f`, both briefs generated from
+one template with the lane name substituted and STORED with sha256 on
+`sym/b2-block` before either dispatches, neither reviewer sees the
+other's report, v6 item 5 isolation in both briefs (the `pgrep -af`,
+unfiltered `ps` and `git worktree list` hazards named after the
+SYM-4/5/6 glimpses), PRIVATE `CARGO_TARGET_DIR` and scratch per
+reviewer, each seeded by its own warm build (in sequence, on one
+4-core box shared with SYM-5 PR-2's residue run). Sample number at
+merge.
