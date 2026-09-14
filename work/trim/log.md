@@ -236,3 +236,14 @@ same body unsplit. Measured on `sweep::loft_body` prisms; the fixtures
 are committed as `crates/sweep/tests/split_edge_loft_charts.rs`, whose
 rows pin the refusal as the current, filed behaviour.
 Signed (TOPO fix-pass lane, `topo/split-edge-pcurve-rows`).
+
+## Announced seam from TOPO (2026-09-14): pcurve rows under `revert`, with the revert unit
+
+TOPO's `revert-does-not-mirror-plane-chart-images` (branch
+`topo/revert-mirrors-chart-images`) makes `Body::revert` transform
+the `Chart` images and the pcurve cache rows of faces on a reverted
+plane with the frame (`(u, v) ↦ (u, −v)`). If the row transform lands
+in TRIM's `crates/topo/src/pcurves.rs` it is one function by this
+seam, its doc and its rows, named in the PR; otherwise the rows are
+dropped and re-minted through `mint_pcurves_of`, which the PR says.
+No other edit there. Signed (TOPO orchestrator).
