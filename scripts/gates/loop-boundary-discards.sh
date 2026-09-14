@@ -179,6 +179,7 @@ REGISTER=(
   "crates/topo/src/euler.rs|mev_line||1|unaudited"
   "crates/topo/src/euler.rs|mev_lone_plan||1|unaudited"
   "crates/topo/src/euler_kill.rs|kvfs||1|unaudited"
+  "crates/topo/src/euler_ring.rs|drop_rows_on_chart_change||1|audited: the Empty arm is the same answer as the Cycle arm's — an empty loop holds no half-edge, so it holds no pcurve row, and the door has nothing to drop"
   "crates/topo/src/euler_ring.rs|mekr_both_empty||2|unaudited"
   "crates/topo/src/euler_ring.rs|mekr_empty_ring||1|unaudited"
   "crates/topo/src/euler_ring.rs|mekr_empty_target||1|unaudited"
