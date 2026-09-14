@@ -31,9 +31,9 @@
 //!   counts on `CAD_FUZZ_EFFORT`, monotone in the safe direction.
 //!
 //!   **The driven set is not the whole class**, and this file claims
-//!   only the driven set. `mekr` reaches `link_half_edges` too — twelve
-//!   splices across its four site variants — and nothing here drives it;
-//!   that gap is
+//!   only the driven set. `mekr` reaches `link_half_edges` too, at every
+//!   one of its four site variants, and nothing here drives it; the site
+//!   tally and the grep it came from are on the row that owns the gap,
 //!   `work/topo/review-d18-drives-no-mekr-though-it-reaches-link-half-edges`.
 //!
 //!   **Calling is not reaching, and the two rows say which they did.**
@@ -810,8 +810,8 @@ const KEMR_EMPTY_RING: &str = "kemr: empty ring side";
 /// **exactly**, because that row is deterministic end to end — one
 /// fixture, one tear, one graft, one hammer, no `Rng` and no effort
 /// dial. Asserted rather than written in a comment: the comment this
-/// replaced said `mev_line 60` against a measured 52, which is what a
-/// count with nothing holding it does.
+/// replaced named a per-operator count that nothing held, and it had
+/// been wrong for the row's whole life.
 ///
 /// A change that moves one of these is not a failure to be edited back
 /// into line; re-derive the row and say in the PR what moved and why it
@@ -1159,8 +1159,8 @@ fn torn_bodies_never_reach_a_row_four_unreachable() {
     // EVERY link-reaching operator reaches a mutation phase here, and
     // each is floored BY NAME. An aggregate with slack in it cannot see
     // one operator go silent — which is not hypothetical: `kemr` sat at
-    // 0 for this row's whole life under a floor of 4 of 6, and the other
-    // five carried it.
+    // 0 for this row's whole life under an aggregate floor with slack in
+    // it, and the operators that did reach carried that floor.
     //
     // The floor is 1 because the headroom is enormous, not because one
     // is a lot: at the floor of the effort dial, across six seeds, the
