@@ -1605,6 +1605,18 @@ frozen `71d846be4` the moment the fix pass freed the box. Live: the
 two reviewers. B5 slots 1 and 2 dispatch when disk allows a third
 seed.
 
+## `[ev]` PR: is "a chart lives in one solid" a `Body` invariant? (2026-09-13)
+
+The chart-spans-solids row (SHELL-8's placement) is a design choice,
+proposed to Ev on an `[ev]` PR from `topo/ev-chart-spans-solids`:
+(A) the mover re-mints and tier 1 states the invariant (recommended —
+what every other producer does; the shape the boolean's fix needs),
+(B) the shell doors group per (solid, surface), (C) keep the typed
+refusal. The attach postcondition's panic half rides in the same PR
+with a proposed close: no public input can present a torn body to a
+setter, so it is D1's contract firing late, not a D9 refusal owed.
+`needs_ev: true` on the chart row; the attach row waits unedited.
+
 ## Ev's second reply on the [ev] PR: 2 closed; (c) becomes the default kev; the minting posture's long-term target (2026-09-14)
 
 Ev: 2 "cool" — `attach-postconditions-validate-the-whole-body-and-panic`
