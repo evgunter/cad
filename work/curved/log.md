@@ -181,3 +181,56 @@ main into the block branch conflicted in the A/B log and the
 orchestrator committed the markers before noticing — repaired by a
 resolving commit (union of both appended sections), never rewritten;
 the whole-tree marker grep is now part of every merge here.
+
+## Announced seam from TOPO (2026-09-14): the `loop_shape` change is on your ground too
+
+`crates/topo/src/boolean/*` is claimed by both S-BOOL and this
+program, so the announcement written on `work/bool/log.md` for
+2026-09-14 — `contain::loop_shape` and `LoopShape` going
+`pub(crate)`, and `LoopShape::Parity` splitting into `Polygon` and
+`ArcParity` with `contfp`'s behaviour unchanged — is repeated here
+rather than left visible from one side only. Read it there; nothing
+differs. TOPO PR 2529, branch `topo/tier3-ring-nesting`. No action
+asked. Signed (TOPO, the ring-nesting lane).
+
+## Announced from TOPO (2026-09-14): `docs/CURVED-MERGEDOOR-SPEC.md`'s citations of `merge_faces.rs` moved; its design did not
+
+TOPO `D263` (PR 2548, `topo/d263-placeholder-regime`) gives the merge
+door a third surface kind, `topo::MergeKind { Plane, Curved,
+Placeholder }`: `group_regime` is now `group_contract` (returning
+`GroupContract::Runs { regime, kind } | SetAside`), `GroupKindSplit`'s
+fields are `face, kind, other, other_kind`, and a `Nurbs` net in
+`NetState::Poisoned` refuses `MergeCoplanarError::PoisonedSurfaceDescription`
+before any group forms. The spec's citations of `group_regime`
+"untouched" and of `GroupKindSplit`'s old lines were re-worded on that
+branch — a description that moved, not a design change; the spec's
+shape and fences are as they were. One note was added beside the
+plan's "one non-planar kind on both sides → a skip record" arm: it
+must read `MergeKind`, not `SurfaceKind` alone, or a declared
+placeholder pair would be skipped where the door refuses it. The
+finding is recorded on `cylindrical-rest-pair-hits-planar-merge`
+(`## Read MergeKind at the classification`). No action asked. Signed
+(TOPO, the D263 fix pass).
+
+## Merge-door and torus-arm duals adjudicated (2026-09-14)
+
+Merge-door (PR #2105, ordinal 2202): both arms MERGEABLE-AFTER-FIXES
+and both EXECUTED the honesty crux the same way — the bore chord
+pre-exists on the merge base (with the door reverted, the record
+suppressed, and the whole recorded-faces walk removed, scene A still
+refuses `JoinDesync`; with `describe_minted_edges` skipped the volume
+backstop rejects the same body); the STOP-2 re-scope stands. Fixes:
+the record's liveness invariant pinned (the PR's "M6 not observable"
+was false — a sub-period curved run commits through the kind-agnostic
+same-key rung), no record for a pair with zero live faces, sphere/torus
+rows, the vacuous `merge_groups` assertions replaced, dedup at the
+door, the mechanism and additivity history corrected. Torus arm
+(PR #2535, ordinal 2203): both arms MERGEABLE-AFTER-FIXES; the bound
+and enclosure held under both arms' random dense oracles, but the
+shipped rows could not see a wrong bound on an ordinary fixture (the
+PR's "M2 merely loose" was false in the unsafe direction — real
+escapes on random fixtures); a torus family in the dense-sampling
+soundness suite and a random-configuration row are the fix; the spec
+amended (the monotonicity theorem, the charge table at the arc-scoped
+`f2`). Both fix passes dispatched. Pacing: **the spiric PR-1a dual is
+HELD for next week's budget**; PR-1a itself continues.

@@ -521,15 +521,11 @@ fn every_operand_refusal_names_the_phrase_asked_for_and_the_family_found() {
 /// Those files are the lists; a copy here would be a second one.
 mod source_rules {
     use test_utils::source;
+    use test_utils::source::{boundary_before, line};
 
     const WIRE: &str = include_str!("../src/eval/wire.rs");
     const SPLIT: &str = include_str!("../src/verbs/split.rs");
     const MOD: &str = include_str!("../src/eval/mod.rs");
-
-    /// The line `at` is on, for a refusal a reader can open.
-    fn line(text: &str, at: usize) -> usize {
-        text[..at].lines().count()
-    }
 
     /// The byte range of the operand door, located once.
     fn door() -> std::ops::Range<usize> {
@@ -539,17 +535,6 @@ mod source_rules {
             "OPERAND-DOOR BEGIN",
             "OPERAND-DOOR END",
         )
-    }
-
-    /// Is the byte before `at` part of an identifier? Used to make a
-    /// name match a whole name: without it `operand` matches inside
-    /// `wrong_operand`, and `fn operand` matches inside
-    /// `fn operand_refusal`.
-    fn boundary_before(code: &str, at: usize) -> bool {
-        code[..at]
-            .chars()
-            .next_back()
-            .is_none_or(|c| !c.is_alphanumeric() && c != '_')
     }
 
     /// Every `fn` declared in the door region, with the position of its

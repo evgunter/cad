@@ -161,8 +161,20 @@ pair by carrier kind:
 - two DIFFERENT kinds → `InvalidDeclaration { what: "declared surfaces
   are not one kind" }`, an `Err`: one carrier cannot be two kinds, the
   boolean's own verification never lets this through, and the public
-  door keeps refusing it (the `GroupKindSplit` posture, `:227-241`);
-- one NON-PLANAR kind on both sides → a skip record, not an error:
+  door keeps refusing it (the `GroupKindSplit` posture: a group whose
+  members are not one `topo::MergeKind` refuses, naming both members
+  and their kinds);
+- one NON-PLANAR kind on both sides → a skip record, not an error —
+  **read through `topo::MergeKind`, not `SurfaceKind` alone**: a
+  declared pair naming a placeholder key (`MergeKind::Placeholder`, a
+  `Nurbs` net in `NetState::Placeholder`, no description) is not a
+  carrier this door could skip over and keeps refusing `InvalidDeclaration
+  { what: "declared surface is not a plane" }` as today, and a net in
+  `NetState::Poisoned` refuses `MergeCoplanarError::PoisonedSurfaceDescription`
+  at the door's kind census; the door's placeholder rule is
+  `Body::merge_coplanar_faces_declared`'s *The placeholder is a third
+  kind, not a curved one*. `SurfaceKind` names the carrier in the
+  record below and nothing more:
 
       SkippedMerge {
           faces:  every live face whose surface is k1 or k2, face-arena order,
@@ -247,7 +259,8 @@ which rung is missing and what happened instead. Never "invalid". The
   before the loop), the new variant and its `Display` arm, and the doc
   sentences on `SkippedMerge`, `MergeCoplanarOutcome::skipped` and the
   fn docs that say "planes only". Nothing else in that file:
-  `planes_declared_equal`, `group_regime`, `merge_group`, winding and
+  `planes_declared_equal`, `group_contract` (the door's kind and
+  regime decision, `GroupContract`-valued), `merge_group`, winding and
   strut code untouched.
 - `crates/topo/src/boolean/ops.rs` and `rest.rs`: **no edit** under the
   recommended shape. Under the fallback shape: `declared_surface_pairs`,

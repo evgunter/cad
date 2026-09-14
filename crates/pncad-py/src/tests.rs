@@ -1900,29 +1900,26 @@ fn the_stl_writers_arms_are_construction_only() {
 }
 
 /// The shell node's refusal tags, exercised by CONSTRUCTION for every
-/// arm buildable without geometry: the op family at its f64 witness,
-/// the mis-kinded open name, the lane refusal. `shell_open_resolve`
-/// carries a `ResolveError`, whose constructors are the document
-/// layer's own, so its spelling is driven through a real document in
-/// `tests/test_shell.py` rather than minted here.
+/// arm buildable without geometry: the op family at its f64 witness
+/// and the lane refusal.
+///
+/// **Two arms are driven through a real document instead**, in
+/// `tests/test_shell.py`, and for one reason in two forms: their
+/// payloads are not this layer's to mint. `shell_open_resolve` carries
+/// a `ResolveError`, whose constructors belong to the document layer;
+/// `shell_open_kind` carries the entity door's `Found`, which has a
+/// private field and is mintable only inside
+/// `editor_core::eval::entity_door` — a refusal that says what an
+/// entity turned out to be cannot be assembled by anything that did
+/// not resolve one. `test_an_edge_in_the_open_list_refuses_typed`
+/// reaches it through a real edge and asserts the same tag.
 #[test]
 fn shell_refusal_tags_are_stable() {
     use crate::tags::node_error_tag;
-    use pncad::document::{NodeErrorKind, RecipeNodeId};
-    use pncad::prelude::StableName;
-    use pncad::select::{EntityKind, RoleSeg};
+    use pncad::document::NodeErrorKind;
     use pncad::topo::ShellError;
     let op = NodeErrorKind::Shell(Box::new(ShellError::Thickness { thickness: -0.5 }));
     assert_eq!(node_error_tag(&op), "shell");
-    let kind = NodeErrorKind::ShellOpenKind {
-        name: Box::new(StableName {
-            kind: EntityKind::Edge,
-            node: RecipeNodeId(0),
-            path: vec![RoleSeg::OutputBody],
-        }),
-        found: EntityKind::Edge,
-    };
-    assert_eq!(node_error_tag(&kind), "shell_open_kind");
     let lane = NodeErrorKind::ShellLaneUnsupported { lane: "Dual" };
     assert_eq!(node_error_tag(&lane), "shell_lane_unsupported");
 }
@@ -4798,6 +4795,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "poisoned_surface_description",
             "ring_contact_escalated",
             "ring_meets_outer",
+            "ring_nesting_undecided",
+            "ring_outside_outer",
             "scaffold_at_rest",
             "scaffolding_empty_loop",
             "scaffolding_strut_vertex",

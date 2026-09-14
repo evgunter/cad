@@ -103,6 +103,14 @@ pub mod germ_pair;
 /// reader three suites check a cone face with, so it routes here.
 pub mod cone_nappe;
 
+/// The same-surface latitude-seam fixtures the SHELL-9 suites and
+/// `revert_plane_charts` share — the collinear-cap drum, the two-arc
+/// sphere, the axial door's cavity of either — and the three readers
+/// their rows run over one (the graft's meter, the void evidence, a
+/// body's plane-chart images). Body authoring plus readers that
+/// evaluate no surface, so it routes here.
+pub mod latitude_seam;
+
 /// The closed-form volumes those suites meter against. Not a fixture
 /// and not a check of a body, but a truth derived WITHOUT the kernel;
 /// its module doc carries the rule for which per-suite spellings come

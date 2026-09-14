@@ -21,7 +21,7 @@
 //! `MATE_PRIMITIVES` is held to the weaker thing that IS true of it:
 //! `partial_mirror!` classifies every `MatePrimitive` variant as
 //! offered here or as deliberately absent, so the mirrored enum
-//! cannot grow past this form in silence. `DatumKind`'s four of
+//! cannot grow past this form in silence. `DatumKindChoice`'s four of
 //! `DatumSpec`'s five arms are held to nothing. Each says so at its
 //! own site. (Code spans rather
 //! than links: everything on this page is `pub(crate)`, so an
@@ -43,7 +43,7 @@ use crate::vocab::vocabulary;
 
 vocabulary! {
     /// The pattern form's rule choice — the two PARAMETRIC rules, an enum
-    /// for the reason [`DatumKind`] is one. `Explicit` is absent by the
+    /// for the reason [`DatumKindChoice`] is one. `Explicit` is absent by the
     /// plan's ruling: a list of absolute frames is not a form's job.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub(crate) enum PatternKindChoice {
@@ -99,13 +99,29 @@ vocabulary! {
     /// ([`crate::pane::create`]'s match is exhaustive over this enum), and not
     /// every spec has a kind here.
     ///
-    /// **Declared in FORM order**, which is the order [`DatumKind::ALL`]
+    /// **`Choice` because `viewer::DatumKind` is a different type** —
+    /// the tag [`crate::datums::DatumDraw`] carries for how a datum is
+    /// DRAWN, which partitions the datum VALUES rather than selecting
+    /// among the specs. This crate already spells a form's choice
+    /// apart from the thing chosen among that way
+    /// ([`PatternKindChoice`], [`crate::blend::BlendKindChoice`]), and
+    /// this was the one form choice that did not. The two carry the
+    /// same four members today only because `AxisInPlane` happens to
+    /// be both the spec this form does not author and the value that
+    /// tag collapses onto `Axis` — nothing holds that identity and
+    /// nothing should, since a datum that drew distinctly but needed a
+    /// PICK to author would be a member there and none here. `ALL` is
+    /// this side's alone in consequence: it is the radio row's
+    /// offering, in form order, and a drawing's tag claims no such
+    /// thing.
+    ///
+    /// **Declared in FORM order**, which is the order [`DatumKindChoice::ALL`]
     /// is projected in and therefore the order the radio row is drawn
     /// in: the frame sits next to the plane because that is the choice
     /// a reader is actually making — the same surface, with or without
     /// a stated direction on it.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub(crate) enum DatumKind {
+    pub(crate) enum DatumKindChoice {
         /// A plane datum.
         Plane = "plane",
         /// A sketch frame — an oriented plane.
@@ -124,7 +140,7 @@ vocabulary! {
     /// The add-profile form's loop choice: the two templates, or a PATH
     /// authored verb by verb.
     ///
-    /// An enum for the reason [`DatumKind`] is one — and the templates
+    /// An enum for the reason [`DatumKindChoice`] is one — and the templates
     /// stay in it rather than being folded into the path arm because they
     /// are not chains: a circle is a seamless closed carrier no chain of
     /// legs can spell, and a rectangle is four `line_to`s nobody should

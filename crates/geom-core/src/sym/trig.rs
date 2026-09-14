@@ -62,7 +62,17 @@
 //!
 //! The `sqrt` atoms this module mints are recorded like every other
 //! atom, so rule A reaches their squares, and they are keyed by their
-//! argument's form, so the two spellings of one arc mint ONE atom each.
+//! argument's form, so the two spellings of one arc mint ONE atom each
+//! — at a LITERAL bulge. At a bulge that is not `1` what stands is not
+//! this module's: at `bulge = 2` every trig atom folds and the residue
+//! is the carrier's `abs(signed_radius)` (which no rule squares away)
+//! over the coefficient ring's width (the odd half-multiples' closed
+//! forms freeze at `COEFF_BITS`); with the bulge a document PARAMETER
+//! `b`, the carrier's span `4·atan|b|` and the pushforward's `4·atan b`
+//! mint `sqrt(1 + abs(b)²)` and `sqrt(1 + b²)` — two atoms for one
+//! quantity, related only through the sign of `b`, which no value-free
+//! rule reads (`m10_10_evidence_interval` at `CAD_M10_10_DOC=r1_segment_boss`
+//! and the `r2_d_tab_*` documents; the pins in `m10_bulge_interval`).
 //!
 //! **The second fold: `atan2(0, N) = 0` for an `N` non-negative by its
 //! syntax** (`manifestly_nonneg`) — the cylinder chart's phase,
@@ -87,10 +97,9 @@
 
 use std::rc::Rc;
 
-use super::{
-    AtomInfo, Form, INDET_PI, Mono, Poly, Rat, Session, SymBudget, SymOp, indet_atom, signed,
-    within,
-};
+use super::form::{Form, Mono, Poly, within};
+use super::rational::{Int, Rat};
+use super::{AtomInfo, INDET_PI, Session, SymBudget, SymOp, indet_atom, signed};
 
 /// **`atan2(0, N) = 0` for an `N` that is non-negative BY ITS SYNTAX**
 /// — the second fold of rule D, on the same posture as the half-angle
@@ -193,7 +202,7 @@ fn read_argument(arg: &Form, sess: &Session) -> Option<(i128, u32, Rc<Form>)> {
     if !q.den.is_one() {
         return None;
     }
-    let super::Int::Small(k) = q.num else {
+    let Int::Small(k) = q.num else {
         return None;
     };
     // The multiple `k · 2^e` is formed by CHECKED multiplication, never
@@ -259,7 +268,7 @@ fn fold_at_half_pi(op: SymOp, arg: &Form) -> Option<Form> {
     if !q.den.is_one() || q.exp2 < -1 {
         return None;
     }
-    let super::Int::Small(n) = q.num else {
+    let Int::Small(n) = q.num else {
         return None;
     };
     // Only `k mod 4` is read, for `k = n · 2^(e+1)` with `n` ODD (`Rat`

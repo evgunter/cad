@@ -5,6 +5,7 @@ title: placement.rs asserts exact / by bits / D9-deterministic in nine separate 
 status: closed
 opened: 2026-09-11
 refs: [2375]
+branch: wire/placement-prose
 pr: 2475
 closed: 2026-09-13
 ---

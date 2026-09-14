@@ -17,9 +17,11 @@
 use core::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 
+use super::form::{Form, Poly};
+use super::rational::Rat;
 use super::{
-    Discharge, Form, INDET_PI, ParamSymbol, Poly, Rat, SESSION, Session, SymId, SymOp, early_form,
-    indet_param, plain_form,
+    Discharge, INDET_PI, ParamSymbol, SESSION, Session, SymId, SymOp, early_form, indet_param,
+    plain_form,
 };
 use crate::predicate::{Indeterminate, MarginDiag, Sign};
 
@@ -88,6 +90,9 @@ pub struct DecisionShape {
     pub enclosure: Option<(f64, f64)>,
 }
 
+// The install / take scaffold below is spelled again in `profile`
+// (two `Cell`s and a `RefCell` of a different payload): less than a
+// generic would cost to name, and each copy says so.
 thread_local! {
     static ACTIVE: Cell<bool> = const { Cell::new(false) };
     /// How many levels below a blocked residual [`explain`] walks
@@ -251,7 +256,9 @@ fn explain(sess: &mut Session, root: SymId, levels: usize) -> String {
     out
 }
 
-fn size_of(f: &Form) -> FormSize {
+/// The size of a form — this report's and the cost profile's one
+/// spelling of it.
+pub(super) fn size_of(f: &Form) -> FormSize {
     FormSize {
         num: (f.num.terms.len(), f.num.degree()),
         den: (f.den.terms.len(), f.den.degree()),

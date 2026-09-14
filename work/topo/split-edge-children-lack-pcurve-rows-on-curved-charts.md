@@ -2,9 +2,11 @@
 id: split-edge-children-lack-pcurve-rows-on-curved-charts
 kind: unit
 title: Body::split_edge mints no pcurve cache rows for its children — a split on a curved chart leaves the body tier-3 invalid until mint_pcurves runs
-status: dispatched
+status: closed
 opened: 2026-09-08
+pr: 2531
 branch: topo/split-edge-pcurve-rows
+closed: 2026-09-14
 ---
 
 

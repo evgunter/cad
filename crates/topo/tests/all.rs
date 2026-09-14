@@ -78,6 +78,8 @@ mod interval_body;
 mod issue86_double_subtract;
 #[path = "issue93_nested_islands.rs"]
 mod issue93_nested_islands;
+#[path = "loop_reparenting_pcurve_rows.rs"]
+mod loop_reparenting_pcurve_rows;
 #[path = "m3_pr1_surgery.rs"]
 mod m3_pr1_surgery;
 #[path = "m3_pr2_reduce.rs"]
@@ -212,6 +214,8 @@ mod shell_roles;
 mod shell_tolerance_chain;
 #[path = "solid_separation.rs"]
 mod solid_separation;
+#[path = "split_edge_pcurve_rows.rs"]
+mod split_edge_pcurve_rows;
 #[path = "trim_3_chart_bound.rs"]
 mod trim_3_chart_bound;
 #[path = "void_door.rs"]
