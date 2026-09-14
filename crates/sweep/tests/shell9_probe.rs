@@ -10,10 +10,13 @@
 //! plane image under the frame reflection, and the drum rows pin that
 //! the reverted cavity re-certifies edge for edge and the void door
 //! takes it (the reversal's own rows: `revert_plane_charts`). The
-//! sphere goes wrong at the stored pcurve rows the
-//! reversal leaves stale in content and the graft copies verbatim onto
-//! the twins; `shell`'s closing mint re-derives them, and the last row
-//! reads the verb's rows against a hand re-mint of the same graft.
+//! sphere used to go wrong inside `Body::revert` too — the one-period
+//! wrap the forward loop walk parks at a loop's closure sat mid-chain
+//! once the loop ran the other way; the reversal now moves each curved
+//! loop's anchor with the direction (its own rows:
+//! `revert_periodic_wrap`), so the stored rows travel verbatim through
+//! the graft and stay continuous on the twins, and the last row reads
+//! the verb's rows against a hand re-mint of the same graft.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -79,22 +82,24 @@ fn drum_reverted_cavity_re_certifies_and_the_void_door_takes_it() {
 
 /// **Sphere, stage by stage.** Every edge re-certifies on the reverted
 /// body (the sphere carries its reversal on `Face::sense`, so its
-/// images stay right), yet the reversal alone already fails tier 3
-/// with a pcurve `LoopDiscontinuity`: the stored rows are key for key
-/// the cavity's, and the one-period azimuth wrap the forward walk
-/// parked at a loop's closure sits mid-chain once the loop runs the
-/// other way. The graft is taken and copies the rows verbatim, so the
-/// grafted body reports the same finding.
+/// images stay right), and the reversal alone reports exactly the
+/// complement: the stored rows are key for key the cavity's, and the
+/// one-period azimuth wrap the forward walk parked at each lune's
+/// closure sits at the reversed closure because the loop's anchor
+/// moved with the direction. The graft is taken, copies the rows
+/// verbatim onto the twins and carries each loop's anchor through its
+/// key map, so the grafted body is tier-3 valid on the carried rows
+/// alone.
 #[test]
-fn sphere_reverted_cavity_and_the_grafted_loop() {
+fn sphere_reverted_cavity_re_certifies_and_the_grafted_loop_is_continuous() {
     let t = 0.05;
     let body = two_arc_sphere();
     let cavity = door_cavity(&body, t);
     let reverted = cavity.revert().expect("revert");
-    let v = topo::validate_geometric(&reverted, tol());
-    assert!(
-        matches!(&v, Err(errors) if errors.iter().any(|f| format!("{f:?}").contains("LoopDiscontinuity"))),
-        "revert() alone breaks the stored pcurve loop, got {v:?}"
+    assert_eq!(
+        topo::validate_geometric(&reverted, tol()),
+        Err(vec![topo::ValidationError::NegativeVolume]),
+        "revert() alone leaves every stored loop continuous"
     );
     assert!(
         graft_recertify_failures(&reverted).is_empty(),
@@ -104,10 +109,10 @@ fn sphere_reverted_cavity_and_the_grafted_loop() {
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
     topo::insert_voids(&mut out, &solids, cavity, &void_evidence(&reverted), tol())
         .expect("the sphere's graft is taken");
-    let v = topo::validate_geometric(&out, tol());
-    assert!(
-        matches!(&v, Err(errors) if errors.iter().any(|f| format!("{f:?}").contains("LoopDiscontinuity"))),
-        "the grafted body carries the stale rows, got {v:?}"
+    assert_eq!(
+        topo::validate_geometric(&out, tol()),
+        Ok(()),
+        "the grafted body is tier-3 valid on the carried rows"
     );
 }
 
@@ -185,14 +190,15 @@ fn drum_reverted_plane_circle_image_is_the_one_a_fresh_derivation_gives() {
     assert_eq!(circles, 2, "the latitude ring's two half-circles");
 }
 
-/// **Sphere, the closing mint.** The grafted body's only tier-3
-/// finding is the stale rows; one `mint_pcurves` pass re-derives them
-/// and the body is tier-3 valid at the thin solid's closed form. That
-/// pass is what `shell` runs on the body it assembles: the verb's
+/// **Sphere, the closing mint.** The grafted body is tier-3 valid on
+/// the rows the graft carried, and the closing `mint_pcurves` pass —
+/// which `shell` runs on the body it assembles, the `Transfers` row's
+/// contract for a producer — clears and re-derives them, leaving the
+/// body tier-3 valid at the thin solid's closed form: the verb's
 /// result carries exactly the rows the hand re-mint of the same graft
 /// carries, key for key and bit for bit.
 #[test]
-fn sphere_grafted_body_is_tier_3_valid_after_the_closing_mint_which_shell_runs() {
+fn sphere_grafted_body_is_tier_3_valid_before_and_after_the_closing_mint_which_shell_runs() {
     let (r, t) = (1.0, 0.05);
     let body = two_arc_sphere();
     let cavity = door_cavity(&body, t);
@@ -200,9 +206,10 @@ fn sphere_grafted_body_is_tier_3_valid_after_the_closing_mint_which_shell_runs()
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
     let evidence = void_evidence(&cavity);
     topo::insert_voids(&mut out, &solids, cavity, &evidence, tol()).expect("the graft is taken");
-    assert!(
-        topo::validate_geometric(&out, tol()).is_err(),
-        "the grafted body carries stale rows"
+    assert_eq!(
+        topo::validate_geometric(&out, tol()),
+        Ok(()),
+        "the grafted body is tier-3 valid on the carried rows"
     );
     topo::mint_pcurves(&mut out, tol()).expect("the re-mint takes the grafted body");
     assert_eq!(

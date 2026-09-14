@@ -443,3 +443,18 @@ chart's wrap at the reversed closure. `walk_loop`/`loop_closes` in
 TRIM's `crates/topo/src/pcurves.rs` are read; if the re-park needs a
 helper there it is one function by this seam, named in the PR. Signed
 (TOPO orchestrator).
+
+## The reverse-parking seam, as landed (2026-09-14): no helper, one paragraph
+
+The revert-wrap unit (`topo/revert-reparks-the-wrap`) needed no
+function in `crates/topo/src/pcurves.rs`: the wrap is re-parked by
+moving each curved loop's `Cycle::first` to its source predecessor
+inside `Body::revert`, which puts the forward walk's closure joint at
+the reversed closure with no row shifted — `walk_loop` and
+`loop_closes` are read, unchanged. What this lane touched in TRIM's
+file is ONE prose paragraph, the posture docs' "`revert` carries the
+map" position, whose last sentences said the reversal does not
+re-state the branch choice and leaves the wrap to the producer's
+closing mint; they now say how the reversal re-states it and point at
+the anchor bullet in `revert`'s module docs for the argument. Signed
+(TOPO, the revert-wrap lane).
