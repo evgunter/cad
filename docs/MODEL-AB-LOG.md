@@ -6676,3 +6676,4 @@ slot 0 = SYM-7 implementer dispatch (2026-09-14, ~20:10Z): arm OPUS per the draw
 slot 0 = SYM-7 review dispatch (2026-09-14, ~21:55Z): PR #2609 open, frozen head `65408aa3f3ac3d60bf01ddf00d6ca82c335e8768`, run 34899186752 GREEN on the full matrix (twelve `test (…)`, five `k-lint (gate, …)`); ordinal 4703 claimed on main; R1/R2 byte 126 ⇒ parity 0 ⇒ R1 = OPUS, R2 = FABLE; briefs stored here before dispatch —
 830d68e913697ce3d1379780c18aea18cadb9063baa70cfb83a646316f5fbb80  sym-7-review-brief-r1.md
 6e1c03f8d9e91e09da7512a7d4edf0b6ea9a11b22ce791a53925f1ceff30c8e7  sym-7-review-brief-r2.md
+slot 1 = SYM-8 implementer dispatch (2026-09-14, ~22:05Z): arm OPUS per the draw above (byte 56); `docs/SYM-8-SPEC.md` (H / NUMERIC, pre-draw); brief `/home/user/sym-briefs/unit-8-brief.md` (lane-local; the spec is the binding text), sha256 cc14d3557b309d05444ff87de10254845f4086fbaa2a9d3997fb0cdcff02e40b. Review ordinal claimed on main at the dual's dispatch.
