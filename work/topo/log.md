@@ -1208,3 +1208,26 @@ Model assignment unchanged (slot 0 OPUS, slot 1 FABLE, D107 OPUS); the
 draw is not re-rolled by a restart. Lanes are now told to push early
 and often, since only pushed commits survive a restart. Not a review
 event, so nothing in the block record moves.
+
+## D107 delivered (PR 2575, green); style review dispatched (2026-09-14)
+
+The relaunched D107 lane delivered on head `d695dffd0`, run
+34837521903 green (twelve `test`, five `k-lint`, the release-profile
+corruption job that runs the hammer rows). Phase 1 found `kemr`
+blocked twice over: no fixture presents an edge whose two halves sit
+in one loop, and the hammer never enumerated an edge's own mate pair
+— each alone keeps `kemr` at zero while the aggregate floor stays
+green (the anti-vacuity class, evidence added to S-TINT's existing
+row rather than a duplicate). `ops_ring_bridge` (a holed box with one
+`mekr_chord` bridge) plus the mate-pair enumeration takes `kemr` to
+2 on the spent graft and ~45 under sampling; the exposure table is
+now asserted, not printed, on all twelve test jobs. The module doc's
+"every operator that reaches `link_half_edges`" claim was false both
+ways (`mfkrh_plug` reaches it nowhere; `mekr` reaches it at twelve
+splices and was never driven) — narrowed, with `mekr` filed on this
+slate (`review-d18-drives-no-mekr-though-it-reaches-link-half-edges`).
+The citation fix lands as briefed; the `--nocapture` question is
+moot. Both items closed on the PR. Non-dual: one style review
+dispatched on the frozen head (brief at
+`/home/user/topo-d107r-scratch/brief.md`, sha256 e4096369…); merge
+after its fixes ride.
