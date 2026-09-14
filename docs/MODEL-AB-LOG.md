@@ -5848,3 +5848,22 @@ break" claim (the 0.4-bulge fixture is single-span) by moving to a
 three-span fixture. Tokens: impl ≈335k, fix ≈267k, state-sync ≈15k,
 R1 ≈260k, R2 ≈290k. Wall: impl ≈110 min, fix ≈85 min, R1 ≈80 min, R2
 ≈35 min; no gaps. Tally after this entry: candidates +2, unchanged.
+
+Revert review ordinal fixed at dispatch (2026-09-14, PR #2542 open —
+frozen head `f8ced386b`; unit
+`work/topo/revert-does-not-mirror-plane-chart-images`, SHELL's
+placement): **ordinal 2705** (TOPO band). Pre-draw fields (logged in
+`work/topo/log.md` at `41edc9d2a` BEFORE block TOPO-B2 was drawn —
+clean): difficulty **M**, task class **NUMERIC**. Implementer arm per
+block TOPO-B2 slot 2 (record branch-side on `topo/b2-block`). Protocol
+v6 dual: draw = `/dev/urandom` byte **83**, parity 1 ⇒ **R1 = FABLE,
+R2 = OPUS**. Method, recorded before either review runs: CONCURRENT
+same-head on frozen `f8ced386b`, both briefs authored and STORED with
+sha256 before either dispatches (identical text modulo lane name,
+target and scratch paths, verified by diff), neither reviewer sees the
+other's report, v6 item 5 isolation in both briefs; the implementer's
+unit log entry is not written until the dual concludes. Shared-box
+note applying to BOTH arms equally: one 4-core cloud box beside one
+other lane (the ring-nesting fix pass), `-j2`; R1's target is the
+implementer's warm one, R2's is seeded from an older warm build —
+wall-clock asymmetry only.
