@@ -966,3 +966,22 @@ Byte drawn after the pre-draw entry was committed (`daa30ee99`): 19
 and slot 1 (`D263`, `topo/d263-placeholder-regime`) dispatched
 together with brief sections in their items; slot 2 (`S93`)
 dispatches when one frees. Seam announced to TRIM (two posture notes).
+
+## D263 delivered; dual out at ordinal 2706 (2026-09-14)
+
+Slot 1 `topo/d263-placeholder-regime` delivered as PR 2548, head
+`a46911a20`, full matrix green (run 34806202964). The regime's
+two-way question is three-way: `MergeKind { Plane, Curved,
+Placeholder }` read through the two-homes door and S330's
+`net_state()`; a placeholder run forms no group and the outcome names
+every placeholder face; a source stamp joining a placeholder to a
+described face refuses typed (`GroupKindSplit` with both kinds
+named), because the boolean reads a `SkippedMerge` as a glue it
+anticipated. Phase 1 corrected the brief: the D265 control row it
+named does not exist; the direct red-first row is the witness (merge
+base: one curved run over six placeholder faces with a
+`PeriodClosure` skip). The rungs stay kind-agnostic; `merge_group`
+takes `curved` from the contract and its `OpPlacement` table is eight
+sites. Dual dispatched on the frozen head beside the loop-re-parenting
+lane: ordinal 2706, byte 194 ⇒ R1 OPUS, R2 FABLE; briefs stored with
+sha256 privately.
