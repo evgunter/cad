@@ -4123,15 +4123,59 @@ fn norm_lo(v: RVec3) -> f64 {
 }
 
 /// One piece of the chord polygon: its chord, and — for a `General`
-/// arc — the box the lune between arc and chord lives in.
+/// arc — the lune between arc and chord, as the region the integrand
+/// sups are read over and the chart AREA that region's lune occupies.
 struct TrimCell {
     a: (f64, f64),
     b: (f64, f64),
-    /// The piece box, `None` for an exact iso chord (no arc, no lune).
-    boxed: Option<(RingInterval, RingInterval)>,
+    /// The axis-aligned chart hull of the piece's control polygon —
+    /// where `sup|f|` and `sup g` are read. `None` for an exact chord
+    /// (an iso image, or a degree-1 block, which IS its chord).
+    hull: Option<(RingInterval, RingInterval)>,
+    /// The chart area of the lune, `0` for an exact chord.
+    ///
+    /// **The box is the chord's own frame's, not the axes'.** The lune
+    /// lies inside the control polygon's hull, and that hull's
+    /// OBLIQUE box — the extent along the chord by the extent across
+    /// it — is `h × sagitta = O(h³)` for a smooth arc, so the sum over
+    /// `L/h` pieces is `O(L³κ/m²)`, second order in the round's lever.
+    /// The AXIS-ALIGNED box is `O(h²)` on a chord that is neither
+    /// horizontal nor vertical, whose sum is first order and never
+    /// leaves the round window.
+    lune_area: f64,
     /// The chart-space radius of the wider of the two endpoint
     /// brackets — the vertex pad's lever.
     slack: f64,
+}
+
+/// The lune's chart area for one bracketed control block over its own
+/// chord: the extent ALONG the chord times the extent ACROSS it, both
+/// taken outward off the brackets. Exactly zero for a two-point block
+/// — a degree-1 arc IS its chord, so there is no lune at all, which is
+/// every image this head's producer mints (`PXN_IMAGE_DEGREE = 1`).
+fn lune_area(block: &[RPt2], a: (f64, f64), b: (f64, f64)) -> f64 {
+    let (cu, cv) = (b.0 - a.0, b.1 - a.1);
+    let len = (cu * cu + cv * cv).sqrt();
+    if block.len() <= 2 {
+        return 0.0;
+    }
+    if !(len > 0.0) {
+        // No chord direction to resolve the hull in: fall back to the
+        // axis-aligned box, which contains the oblique one.
+        let (bu, bv) = block_box(block);
+        return bu.width() * bv.width();
+    }
+    let (du, dv) = (pt(cu / len), pt(cv / len));
+    let project = |k: fn(RPt2, RingInterval, RingInterval) -> RingInterval| -> f64 {
+        let mut acc = k(block[0], du, dv);
+        for q in &block[1..] {
+            acc = RingInterval::hull(acc, k(*q, du, dv));
+        }
+        acc.width()
+    };
+    let along = project(|q, du, dv| q.0 * du + q.1 * dv);
+    let across = project(|q, du, dv| q.1 * du - q.0 * dv);
+    along * across
 }
 
 /// The typed refusal a piece that is not a graph over its chord earns,
@@ -4212,7 +4256,8 @@ fn trim_cells<T: Decide>(
             out.push(TrimCell {
                 a: vertex(c.a),
                 b: vertex(c.b),
-                boxed: None,
+                hull: None,
+                lune_area: 0.0,
                 slack: vertex_slack(c.a).max(vertex_slack(c.b)),
             });
             continue;
@@ -4272,10 +4317,12 @@ fn trim_cells<T: Decide>(
                 stack.push((l, depth + 1));
                 continue;
             }
+            let area = lune_area(&block, a, b);
             out.push(TrimCell {
                 a,
                 b,
-                boxed: Some(block_box(&block)),
+                hull: (area > 0.0).then(|| block_box(&block)),
+                lune_area: area,
                 slack: vertex_slack(block[0]).max(vertex_slack(block[block.len() - 1])),
             });
         }
@@ -4703,10 +4750,10 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
             // connectors from a midpoint to the true endpoint sweep at
             // most `chord·slack` of chart area, which is what this pays.
             vertex_pad += chord_len * c.slack;
-            let Some((bu, bv)) = c.boxed else {
+            let Some((bu, bv)) = c.hull else {
                 continue;
             };
-            let a = bu.width() * bv.width();
+            let a = c.lune_area;
             let ov = (
                 Collapse::Over(bu.lo(), bu.hi()),
                 Collapse::Over(bv.lo(), bv.hi()),
@@ -5717,5 +5764,400 @@ mod tests {
             }
             other => panic!("expected the rational refusal, got {other:?}"),
         }
+    }
+
+    // ---------------------------------------------------------------
+    // TRIM-2 PR-1 — the trimmed-region lane (Q1–Q7)
+    //
+    // Every chart here is hand-built and key-free, and every truth is
+    // a closed form: the flat `z = c` bilinear patch has `S_u×S_v ≡ ẑ`,
+    // so `f = ⟨S, S_u×S_v⟩ ≡ c` and `g ≡ 1` — which turns "the flux of
+    // a curved trim region" into "c times its chart area", a number a
+    // reader can check by hand.
+    // ---------------------------------------------------------------
+
+    /// The flat chart `S(u, v) = (u, v, c)` on `[0,1]²`, bilinear.
+    fn flat_chart(c: f64) -> (KnotVector, KnotVector, Vec<RVec3>, Vec<f64>) {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let mut control = Vec::new();
+        for i in 0..2 {
+            for j in 0..2 {
+                control.push([pt(f64::from(i)), pt(f64::from(j)), pt(c)]);
+            }
+        }
+        (kv.clone(), kv, control, vec![1.0; 4])
+    }
+
+    /// One exact chord of a trim polygon (an iso image's class):
+    /// endpoints by structure, no arc, no lune.
+    fn iso(a: (f64, f64), b: (f64, f64)) -> TrimChord {
+        TrimChord {
+            a: (pt(a.0), pt(a.1)),
+            b: (pt(b.0), pt(b.1)),
+            piece: None,
+            forward: true,
+            len: ((b.0 - a.0).powi(2) + (b.1 - a.1).powi(2)).sqrt(),
+            env: pt(0.0),
+        }
+    }
+
+    /// A `General` chord: the single-span Bézier image through
+    /// `points`, walked forward, with the control polygon's length as
+    /// its metric bound (the chart map is an isometry in `(u, v)` for
+    /// every fixture here).
+    fn general(points: &[(f64, f64)], env: f64) -> TrimChord {
+        let p = points.len() - 1;
+        let mut knots = vec![0.0; p + 1];
+        knots.extend(std::iter::repeat_n(1.0, p + 1));
+        let (a, b) = (points[0], points[points.len() - 1]);
+        let len = points
+            .windows(2)
+            .map(|w| ((w[1].0 - w[0].0).powi(2) + (w[1].1 - w[0].1).powi(2)).sqrt())
+            .sum();
+        TrimChord {
+            a: (pt(a.0), pt(a.1)),
+            b: (pt(b.0), pt(b.1)),
+            piece: Some(TrimPiece {
+                knots: KnotVector::clamped(knots, p).unwrap(),
+                control: points.iter().map(|q| (pt(q.0), pt(q.1))).collect(),
+                weights: vec![1.0; points.len()],
+            }),
+            forward: true,
+            len,
+            env: pt(env),
+        }
+    }
+
+    /// The lane over the whole schedule, at the run's own ε and band.
+    fn trimmed(
+        ku: &KnotVector,
+        kvv: &KnotVector,
+        control: &[RVec3],
+        w: &[f64],
+        chords: &[TrimChord],
+        window: RoundWindow,
+    ) -> Result<RoundOutcome, PropsError> {
+        trimmed_patch_face_rounds::<f64>(
+            ku,
+            kvv,
+            control,
+            w,
+            chords,
+            Tol::witness().get().eps,
+            Band::linear(Tol::witness()).unwrap(),
+            window,
+        )
+    }
+
+    /// The bounds of an outcome, whichever arm it took.
+    fn bounds_of(out: &RoundOutcome) -> FaceCutBounds {
+        match out {
+            RoundOutcome::Converged(b) | RoundOutcome::Open { bounds: b, .. } => b.clone(),
+        }
+    }
+
+    fn encloses(x: RingInterval, truth: f64, label: &str) {
+        assert!(
+            x.lo() <= truth && truth <= x.hi(),
+            "{label}: the closed form {truth} escapes the certified enclosure {x:?}"
+        );
+    }
+
+    /// **Q1 — a flat patch with a DIAGONAL `General` trim.**
+    ///
+    /// The loop `(0,0) → (1,0) → (1,1) → (0,0)` closes with a
+    /// degree-1 `General` image, which is the class this head's
+    /// producer actually mints (`PXN_IMAGE_DEGREE = 1`): the region is
+    /// half the unit square, so `flux = c/2` and `area = 1/2`
+    /// exactly. The rectangle lane cannot answer it at all — it reads
+    /// endpoints and calls a diagonal a refusal — so this row is the
+    /// whole point of the door.
+    #[test]
+    fn q1_a_flat_patch_with_a_diagonal_general_trim() {
+        let c = 3.0;
+        let (ku, kvv, control, w) = flat_chart(c);
+        let chords = vec![
+            iso((0.0, 0.0), (1.0, 0.0)),
+            iso((1.0, 0.0), (1.0, 1.0)),
+            general(&[(1.0, 1.0), (0.0, 0.0)], 0.0),
+        ];
+        let out = trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE)
+            .expect("the diagonal trim certifies");
+        let RoundOutcome::Converged(b) = out else {
+            panic!("an exactly-integrated chord polygon converges at round 0: {out:?}")
+        };
+        encloses(b.flux, c * 0.5, "Q1 flux");
+        encloses(b.area, 0.5, "Q1 area");
+        // The chord polygon is integrated EXACTLY and a degree-1 image
+        // IS its chord, so the only width here is ring rounding — the
+        // target is four decades above it at every ε the matrix draws.
+        let target = QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
+        assert!(
+            b.flux.width() < target * 3.0 * b.area.lo(),
+            "Q1: width {:e} is not inside the reporting target's own bound",
+            b.flux.width()
+        );
+    }
+
+    /// **Q2 — a flat patch with an ARC trim, and its lune pad.**
+    ///
+    /// The quarter-disc-shaped region closed by a degree-2 `General`
+    /// image (a parabola, so the arc is genuinely off its chord): the
+    /// chart area is the triangle plus the quadratic Bézier's own
+    /// bulge, `⅔` of its control triangle's area (Archimedes). The pad
+    /// this costs is the LUNE pad, and it must be second order in the
+    /// round's lever — the oblique box's whole reason.
+    #[test]
+    fn q2_an_arc_trim_pads_its_lunes_and_the_pad_is_second_order() {
+        let c = 1.0;
+        let (ku, kvv, control, w) = flat_chart(c);
+        let arc = [(1.0, 0.0), (0.7, 0.7), (0.0, 1.0)];
+        let chords = vec![
+            iso((0.0, 0.0), (1.0, 0.0)),
+            general(&arc, 0.0),
+            iso((0.0, 1.0), (0.0, 0.0)),
+        ];
+        // ½ (the chord triangle) + ⅔·(the control triangle) — the
+        // parabolic segment's area, which is what the lune bounds.
+        let tri = 0.5
+            * (arc[0].0 * (arc[1].1 - arc[2].1)
+                + arc[1].0 * (arc[2].1 - arc[0].1)
+                + arc[2].0 * (arc[0].1 - arc[1].1))
+                .abs();
+        let truth = 0.5 + 2.0 / 3.0 * tri;
+        let mut widths = Vec::new();
+        for round in 0..2 {
+            let out = trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::at(round))
+                .unwrap_or_else(|e| panic!("Q2 round {round}: {e:?}"));
+            let b = bounds_of(&out);
+            encloses(b.flux, c * truth, &format!("Q2 round {round} flux"));
+            encloses(b.area, truth, &format!("Q2 round {round} area"));
+            widths.push(b.flux.width());
+        }
+        assert!(
+            widths[0] > 1e-6,
+            "Q2: an arc off its chord must COST a lune pad, got width {:e}",
+            widths[0]
+        );
+        assert!(
+            widths[0] / widths[1] >= 3.0,
+            "Q2: the lune pad is O(h³) per piece, so doubling the lever must shrink the \
+             width by ~4× — got {:e} then {:e} (ratio {})",
+            widths[0],
+            widths[1],
+            widths[0] / widths[1]
+        );
+    }
+
+    /// **Q3 — an all-iso rectangle loop through the NEW door agrees
+    /// with the rectangle certificate.**
+    ///
+    /// The dispatch keeps every loft/sweep wall on today's lane
+    /// (§8.1), so nothing routes here in production; the row exists
+    /// because two engines that answer the same face must answer it
+    /// the same, and a trapezoid sum that disagreed with the exact
+    /// per-span rule would be caught nowhere else.
+    #[test]
+    fn q3_the_rectangle_loop_agrees_with_the_rectangle_certificate() {
+        let c = 2.0;
+        let (ku, kvv, control, w) = flat_chart(c);
+        let chords = vec![
+            iso((0.0, 0.0), (1.0, 0.0)),
+            iso((1.0, 0.0), (1.0, 1.0)),
+            iso((1.0, 1.0), (0.0, 1.0)),
+            iso((0.0, 1.0), (0.0, 0.0)),
+        ];
+        let mine = bounds_of(
+            &trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE)
+                .expect("the rectangle loop certifies through the trimmed door"),
+        );
+        let theirs = nurbs_patch_face_rounds::<f64>(
+            &ku,
+            &kvv,
+            &control,
+            &w,
+            (0.0, 1.0, 0.0, 1.0),
+            4.0,
+            0.0,
+            Tol::witness().get().eps,
+            Band::linear(Tol::witness()).unwrap(),
+            RoundWindow::SCHEDULE,
+        )
+        .map(|o| bounds_of(&o))
+        .expect("the rectangle certificate answers its own fixture");
+        encloses(mine.flux, c, "Q3 flux");
+        encloses(mine.area, 1.0, "Q3 area");
+        assert!(
+            mine.flux.lo() <= theirs.flux.hi() && theirs.flux.lo() <= mine.flux.hi(),
+            "Q3: the two lanes' flux enclosures do not overlap: {:?} vs {:?}",
+            mine.flux,
+            theirs.flux
+        );
+        assert!(
+            mine.area.lo() <= theirs.area.hi() && theirs.area.lo() <= mine.area.hi(),
+            "Q3: the two lanes' area enclosures do not overlap: {:?} vs {:?}",
+            mine.area,
+            theirs.area
+        );
+    }
+
+    /// **Q4 — the planted envelope.**
+    ///
+    /// The certificate's envelope says the TRUE trim edge is within
+    /// `env` metres of the stored image, so the lane owes the region
+    /// that displacement can reach. Displacing Q1's diagonal outward
+    /// by `env` grows the region's area by `L·env` to first order —
+    /// exactly the `boundary_defect` this lane pads with, and `c·L·env`
+    /// of flux against a pad of `L·env·p_bound` with
+    /// `p_bound = sup|u| + sup|v| + |c| = 2 + c`. At `c = 10` the full
+    /// pad covers the displaced truth and HALF of it does not, which
+    /// is the mutant this row is written for.
+    #[test]
+    fn q4_the_planted_envelope_covers_the_displacement_it_states() {
+        let c = 10.0;
+        let env = 1.0e-4;
+        let (ku, kvv, control, w) = flat_chart(c);
+        let diag_len = 2.0_f64.sqrt();
+        let square = |e: f64| {
+            vec![
+                iso((0.0, 0.0), (1.0, 0.0)),
+                iso((1.0, 0.0), (1.0, 1.0)),
+                general(&[(1.0, 1.0), (0.0, 0.0)], e),
+            ]
+        };
+        let read = |e: f64| {
+            bounds_of(
+                &trimmed(&ku, &kvv, &control, &w, &square(e), RoundWindow::SCHEDULE)
+                    .unwrap_or_else(|err| panic!("Q4 env {e:e}: {err:?}")),
+            )
+        };
+        let bare = read(0.0);
+        let padded = read(env);
+        let half = read(env * 0.5);
+        // The pad enters at FULL strength, both channels.
+        let grew_flux = padded.flux.width() - bare.flux.width();
+        let grew_area = padded.area.width() - bare.area.width();
+        let want_flux = 2.0 * diag_len * env * (2.0 + c);
+        let want_area = 2.0 * diag_len * env;
+        assert!(
+            (grew_flux - want_flux).abs() <= 1e-9 * want_flux,
+            "Q4: the flux pad is L·env·p_bound each side — wanted {want_flux:e}, grew {grew_flux:e}"
+        );
+        assert!(
+            (grew_area - want_area).abs() <= 1e-9 * want_area,
+            "Q4: the area pad is L·env each side — wanted {want_area:e}, grew {grew_area:e}"
+        );
+        // And it covers the displacement it states, where half does not.
+        let displaced = c * (0.5 + diag_len * env);
+        encloses(padded.flux, displaced, "Q4 displaced flux");
+        assert!(
+            half.flux.hi() < displaced,
+            "Q4: HALF the stated envelope must not reach the displacement the whole one \
+             states — {:?} still covers {displaced}",
+            half.flux
+        );
+    }
+
+    /// **Q5 — a fold refuses typed, naming its row.**
+    ///
+    /// A piece whose derivative reverses along its own chord is not a
+    /// graph over it, so `|w_k| ≤ 1` — the lune bound's premise — has
+    /// no argument. The lane bisects to its fixed depth first (a piece
+    /// that merely LOOKS folded at the round's lever resolves) and
+    /// then refuses rather than padding.
+    #[test]
+    fn q5_a_fold_over_its_chord_refuses_typed() {
+        let (ku, kvv, control, w) = flat_chart(1.0);
+        let chords = vec![
+            iso((0.0, 0.0), (1.0, 0.0)),
+            iso((1.0, 0.0), (1.0, 1.0)),
+            iso((1.0, 1.0), (0.0, 1.0)),
+            // v runs 1 → 2 → 0 along the chord 1 → 0: definitely
+            // backwards over the first half, at every bisection depth.
+            general(&[(0.0, 1.0), (0.0, 2.0), (0.0, 0.0)], 0.0),
+        ];
+        match trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE) {
+            Err(PropsError::QuadratureUnsupported { what }) => {
+                assert!(
+                    what.contains("monotone"),
+                    "Q5: the refusal names the row that decided it: {what}"
+                );
+            }
+            other => panic!("Q5: a fold has no certified answer, got {other:?}"),
+        }
+    }
+
+    /// **Q6 — a chart outside the Newton–Cotes window refuses typed.**
+    ///
+    /// The chord integrand's `u`-degree is `3p_u + 3p_v − 1`, and the
+    /// exact closed rule's node count tops out at 12, so a
+    /// degree-`(3, 2)` chart is past the window. The composite
+    /// fallback is `work/trim/trimmed-quadrature-composite-rounds.md`;
+    /// a silent composite here would be a wide answer wearing an exact
+    /// rule's name.
+    #[test]
+    fn q6_a_chart_past_the_newton_cotes_window_refuses_typed() {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let kvv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let mut control = Vec::new();
+        for u in [0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0] {
+            for v in [0.0, 0.5, 1.0] {
+                control.push([pt(u), pt(v), pt(1.0)]);
+            }
+        }
+        let w = vec![1.0; 12];
+        let chords = vec![
+            iso((0.0, 0.0), (1.0, 0.0)),
+            iso((1.0, 0.0), (1.0, 1.0)),
+            general(&[(1.0, 1.0), (0.0, 0.0)], 0.0),
+        ];
+        match trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE) {
+            Err(PropsError::QuadratureUnsupported { what }) => {
+                assert!(
+                    what.contains("Newton–Cotes window"),
+                    "Q6: the refusal names its own window: {what}"
+                );
+            }
+            other => panic!("Q6: degree (3, 2) is past the exact rule, got {other:?}"),
+        }
+    }
+
+    /// **Q7 — interior knots the chord crosses.**
+    ///
+    /// Q1's loop on a chart with an interior knot in each direction
+    /// and a NON-UNIFORM net, so the two `v` spans carry genuinely
+    /// different polynomials: `S(u, v) = (u, w(v), c)` with `w` the
+    /// piecewise-linear map `(0, 0.3, 1)` on knots `(0, ½, 1)`. The
+    /// integrand `f = c·w′(v)` then JUMPS at `v = ½`, and the diagonal
+    /// crosses it at `u = ½` — off the `u` knot at `¼`, so the
+    /// crossing cut is the only thing that can put the sub-chord
+    /// inside one cell. A uniform net would make the surface globally
+    /// linear and this row could not see an unsplit sub-chord at all.
+    #[test]
+    fn q7_a_chord_crossing_interior_knots_is_split_at_them() {
+        let c = 3.0;
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.25, 1.0, 1.0], 1).unwrap();
+        let kvv = KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap();
+        let mut control = Vec::new();
+        for u in [0.0, 0.25, 1.0] {
+            for v in [0.0, 0.3, 1.0] {
+                control.push([pt(u), pt(v), pt(c)]);
+            }
+        }
+        let w = vec![1.0; 9];
+        let chords = vec![
+            iso((0.0, 0.0), (1.0, 0.0)),
+            iso((1.0, 0.0), (1.0, 1.0)),
+            general(&[(1.0, 1.0), (0.0, 0.0)], 0.0),
+        ];
+        // `f = c·w′` and `g = |w′|` with `w′ = 0.6` on `v < ½` and
+        // `1.4` above, over the triangle `{0 < v < u < 1}`:
+        // `∫₀¹ w′(v)·(1 − v) dv`.
+        let g_int = 0.6 * (0.5 - 0.5 * 0.5 * 0.5) + 1.4 * (0.5 - (0.5 - 0.5 * 0.5 * 0.5));
+        let out = trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE)
+            .expect("the knot-crossing diagonal certifies");
+        let b = bounds_of(&out);
+        encloses(b.flux, c * g_int, "Q7 flux");
+        encloses(b.area, g_int, "Q7 area");
     }
 }
