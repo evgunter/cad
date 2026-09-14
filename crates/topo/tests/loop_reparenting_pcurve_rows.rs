@@ -593,7 +593,6 @@ fn the_minting_pass_restores_what_each_move_left_the_caller() {
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
 
-
 // ---------------------------------------------------------------
 // Two keys, one surface: which of them is a chart CHANGE.
 // ---------------------------------------------------------------
@@ -729,7 +728,10 @@ fn an_empty_boundary_ring_moves_with_the_map_untouched() {
     let mut s = sheet();
     let he = first_he(&s.body, s.low);
     let v = s.body.get_half_edge(he).unwrap().start;
-    let p = *s.body.get_point(s.body.get_vertex(v).unwrap().point).unwrap();
+    let p = *s
+        .body
+        .get_point(s.body.get_vertex(v).unwrap().point)
+        .unwrap();
     let spur = s
         .body
         .mev_line(MevSite::Fan { he1: he, he2: he }, p + axis() * 0.05, tol())
