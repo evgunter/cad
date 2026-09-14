@@ -283,11 +283,96 @@ fn arena_keys_are_not_in_the_key_a_reminted_surface_key_hits_on_every_lane() {
                 .set_face_surface(fk, FaceSurface::New(surface))
                 .expect("the same surface under a new key attaches");
         }
+        // The setter drops a face's pcurve rows when it cannot see the
+        // two keys as one chart, and an equal surface under a fresh key
+        // with no `GeomSource` is exactly that case
+        // (`topo::Body::set_face_surface`). Re-minting is the door's
+        // own prescription, and on a surface equal to the one it
+        // replaced it re-derives the rows that were there — so what
+        // this row measures is still the memo's key and nothing else.
+        topo::mint_pcurves(&mut after, Tol::witness()).expect("the re-keyed body mints");
         assert!(
             misses_between(&body, &after).is_empty(),
             "{name}: every surface key moved and no face missed"
         );
     }
+}
+
+/// `(rows stored, half-edges with no row)` over every loop of `face`.
+fn rows_of(body: &Body<f64>, face: FaceKey) -> (usize, usize) {
+    let f = body.get_face(face).unwrap();
+    let (mut stored, mut rowless) = (0, 0);
+    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        let topo::LoopBoundary::Cycle { first } = body.get_loop(lk).unwrap().boundary else {
+            continue;
+        };
+        for he in body.loop_cycle(first).unwrap() {
+            if body.pcurve(he).is_some() {
+                stored += 1;
+            } else {
+                rowless += 1;
+            }
+        }
+    }
+    (stored, rowless)
+}
+
+/// **The two answers `topo::Body::set_face_surface` gives a re-key, on
+/// the bodies that can tell them apart.** Putting a face on a fresh key
+/// holding the surface it already had is a chart change the setter
+/// cannot see through when the surface is ANALYTIC — two keys, an equal
+/// surface, no `GeomSource` — and the face's rows go, which is the
+/// bound the row above re-mints past. A described-NURBS or `Approx`
+/// surface is a shared payload: cloning the `Surface` clones the `Arc`,
+/// the setter's predicate reads the two keys as one chart, and the rows
+/// stand untouched.
+///
+/// The pin lives here because this corpus is where minted SPLINE-charted
+/// faces are: a chart image on a loft wall is minted from the wall's own
+/// iso-curves, so `topo`'s own suites (whose fixtures are analytic) hold
+/// no face that exercises the rung.
+#[test]
+fn a_rekey_keeps_a_spline_faces_rows_and_drops_an_analytic_faces() {
+    let (mut splines, mut analytic) = (0usize, 0usize);
+    for (name, body) in corpus() {
+        let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+        for fk in faces {
+            let before = rows_of(&body, fk);
+            if before.0 == 0 {
+                // A face the minting pass leaves alone (every planar
+                // one) has nothing to carry either way.
+                continue;
+            }
+            let surface = body
+                .get_surface(body.get_face(fk).unwrap().surface)
+                .unwrap()
+                .clone();
+            let spline = matches!(surface, Surface::Nurbs(_) | Surface::Approx(_));
+            let mut after = body.clone();
+            after
+                .set_face_surface(fk, FaceSurface::New(surface))
+                .expect("the same surface under a new key attaches");
+            if spline {
+                assert_eq!(
+                    rows_of(&after, fk),
+                    before,
+                    "{name}: one `Arc` is one chart, and the rows stand"
+                );
+                splines += 1;
+            } else {
+                assert_eq!(
+                    rows_of(&after, fk),
+                    (0, before.0 + before.1),
+                    "{name}: two provenance-free keys read as two charts"
+                );
+                analytic += 1;
+            }
+        }
+    }
+    assert!(
+        splines > 0 && analytic > 0,
+        "the corpus states both answers ({splines} spline, {analytic} analytic)"
+    );
 }
 
 /// **What this proves is that the CARRIER is keyed.** A moved vertex
@@ -557,12 +642,30 @@ fn the_trimmed_nurbs_lane_misses_when_its_surface_changes() {
     )
     .expect("a reweighted net");
     let mut after = base.clone();
+    // The wall's stored rows, saved before the swap. A reweighted net is
+    // another chart, so `set_face_surface` drops them — and they cannot
+    // be re-minted, because the wall's boundary carriers are iso-curves
+    // of the ORIGINAL net and do not certify against the reweighted one
+    // (`mint_pcurves` refuses `Certify`). What this row is about is the
+    // memo's key, and the trimmed-NURBS lane cannot run on a rowless
+    // face at all, so the body it needs is the one that carries the old
+    // rows under the new fit — put back deliberately, through the
+    // caller's own row-level door, rather than left behind by a silence.
+    let saved: Vec<(HalfEdgeKey, PcurveCache<f64>)> = base
+        .half_edges()
+        .filter(|(_, he)| base.get_loop(he.parent_loop).unwrap().face == fk)
+        .filter_map(|(hek, _)| base.pcurve(hek).cloned().map(|cache| (hek, cache)))
+        .collect();
+    assert!(!saved.is_empty(), "the wall's loop carries stored pcurves");
     after
         .set_face_surface(
             fk,
             FaceSurface::New(Surface::Nurbs(std::sync::Arc::new(moved))),
         )
         .unwrap();
+    for (hek, cache) in saved {
+        after.attach_pcurve(hek, cache);
+    }
     // The chord pass reads a NURBS face's certified bound to size the
     // chords of its edges (`chords::nurbs_tighten`), so the wall's
     // reweighting moves the chord points of every edge it shares —
