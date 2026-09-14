@@ -177,7 +177,7 @@ use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
 use crate::session::{AtRestBadge, Outstanding, Refusal, SessionOp};
-use crate::vocab::vocabulary;
+use crate::vocab::{partial_mirror, vocabulary};
 
 /// **What something the chrome shows is ABOUT** — carried by a
 /// [`Message`] on the line and by a [`Badge`] on the toolbar alike.
@@ -287,6 +287,24 @@ pub enum Subject {
 /// (one name for "swept only by `Clear`") would have to be renamed
 /// three ways the first time any of them grew an issuer.
 pub const SUBJECTS_WITH_AN_EXPIRY_ISSUER: [Subject; 2] = [Subject::Camera, Subject::Cursor];
+
+partial_mirror! {
+    Subject, bare SUBJECTS_WITH_AN_EXPIRY_ISSUER,
+    offered [Camera, Cursor],
+    absent [
+        Document => "its event is the next act the document ACCEPTS, \
+                     which nothing marks yet; what sweeps it today is \
+                     the subject-blind `StatusUpdate::Clear`",
+        Display => "its event is the next rebuild of the thing the \
+                    message is about, which nothing marks yet; the \
+                    held facts about the picture badge instead, and \
+                    the news that does wear this subject is swept only \
+                    by `StatusUpdate::Clear`",
+        Preferences => "its event is the next write of the preferences \
+                        file, which nothing marks yet; swept only by \
+                        `StatusUpdate::Clear`, for `Display`'s reason",
+    ],
+}
 
 /// **One frame's news**: what it is about, and its own words.
 ///
