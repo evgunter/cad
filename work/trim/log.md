@@ -193,3 +193,39 @@ incomplete face is accepted unmeasured. Measured on the item's own
 fixture. Neighbour of `S331`, and distinct from it: that row is about a
 CLEARED face, this one about an INCOMPLETE one.
 Signed (TOPO implementer lane, `topo/split-edge-pcurve-rows`).
+
+## The seam as built, and a second finding (2026-09-14, PR #2531 fix pass)
+
+The announced helper landed with two changes to what was announced,
+both inside the same seam and both narrowing what this file spells
+twice:
+
+- **`split_cache` takes the edge's two half-edges, not one**, and
+  derives the face's chart window **once per face** instead of once per
+  half. `SplitRows<T>` is gone: a one-use alias for
+  `Option<(PcurveCache<T>, PcurveCache<T>)>` named nothing the tuple did
+  not.
+- **The window has one home in this file.** `stored_rows(body, face)`
+  walks a face's loops once and returns each loop's cycle with the hull
+  of the chart boxes its stored rows carry; `validate_pcurves`'s passes
+  0 and 1 now read it instead of walking the same loops and hulling the
+  same boxes themselves, and `split_cache` reads the same function. The
+  findings `validate_pcurves` reports, and their order, are unchanged.
+  `mint_face`'s window is deliberately NOT this one — it hulls the
+  images it is deriving, none of which is stored yet.
+- **`Posture::Carries` was dropped.** The posture walk only
+  distinguishes `Maintains` from everything else, so a fourth arm no
+  walk can read was a comment wearing an enum's clothes (and it made the
+  module docs' "three postures exist" false). `split_edge` is declared
+  `Transfers` — the posture that moves each row onto the key that now
+  carries what it says — with its note saying what it restricts.
+
+**A second finding for this board, filed in the same PR**:
+`iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain` —
+`nurbs_iso_derive`'s two rim arms map an edge's whole carrier interval
+onto the chart's whole `u` domain, so `mint_pcurves` refuses on any
+body whose spline-chart wall edge has been split, while minting the
+same body unsplit. Measured on `sweep::loft_body` prisms; the fixtures
+are committed as `crates/sweep/tests/split_edge_loft_charts.rs`, whose
+rows pin the refusal as the current, filed behaviour.
+Signed (TOPO fix-pass lane, `topo/split-edge-pcurve-rows`).
