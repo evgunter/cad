@@ -68,6 +68,8 @@ mod assembly_display;
 mod assembly_walk;
 #[path = "blend_authoring.rs"]
 mod blend_authoring;
+#[path = "r1_range_vs_probe.rs"]
+mod r1_range_vs_probe;
 #[path = "camera_ops.rs"]
 mod camera_ops;
 #[path = "cascade_delete.rs"]
