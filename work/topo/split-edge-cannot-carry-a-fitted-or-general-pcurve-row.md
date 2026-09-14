@@ -30,7 +30,12 @@ sit in the NEXT impl block of the same file —
 `split_edge` widens that operator's bound from `Decide`, and with it
 every generic caller's: `topo::splitting::classify`'s crossing
 driver, `topo::boolean::reduce`'s `split_at`, `sweep::blend::surgery`'s
-two split sites, and their own callers. That is the same ripple
+two split sites, and their own callers. `crates/mesh/src/curved.rs`
+calls it too — `split_each_edge_then_place`'s walk and the two splits in
+`split_and_placed_frustum_wedge` — from `mesh`'s own in-crate rows at a
+concrete `f64`, so those sites cost the ripple nothing and are named
+here because they are where a `General`-row split would first be
+reached from outside `topo`. That is the same ripple
 `topo::pcurves::mint_faces`'s `UnsupportedCarrier` arm banks in its
 comment ("wiring it into this pass needs the `PcurveFittedLane` bound
 on every constructor and is banked with that ripple").

@@ -125,18 +125,22 @@
 //! [`crate::graft_disjoint`] through it) remaps each row onto the
 //! transplanted half-edge's fresh key and DROPS any row whose key the
 //! graft walk did not reach, which is exactly the staleness test.
-//!
-//! **Carries the map** — [`crate::Body::split_edge`]. A split does not
-//! derive anything new: a [`geom_brep::Pcurve`] is a function of the
-//! carrier parameter, so each child's chart image IS the parent's,
-//! restricted to the child's sub-interval. The op re-certifies both
-//! restrictions before it mutates ([`split_cache`]) and writes them
-//! onto the parent halves and the two new halves, so the faces it
-//! touches come out complete rather than half-minted. It mints nothing
-//! where there was nothing. What it cannot carry is a
-//! `Fitted`/`General` row, whose certification doors carry the
-//! [`PcurveFittedLane`] bound; such a face is left exactly as found,
-//! and [`split_cache`]'s entry carries that frontier.
+//! [`crate::Body::split_edge`] holds the same posture at a parameter
+//! split: a [`geom_brep::Pcurve`] is a function of the carrier
+//! parameter, so each child's chart image IS the parent's restricted
+//! to the child's sub-interval. The op re-certifies both restrictions
+//! before it mutates ([`split_cache`]) and writes them onto the parent
+//! halves and the two new halves, deriving nothing and minting nothing
+//! where there was nothing. Two frontiers ride with it, both stated at
+//! [`split_cache`]: a `Fitted`/`General` row is left exactly as found
+//! (its certification doors carry the [`PcurveFittedLane`] bound), and
+//! on a SPLINE chart the carry is exact but [`mint_pcurves`] — the
+//! recovery step this module's caveats name for a face left rowless —
+//! refuses on the split body, because [`nurbs_iso_derive`]'s rim arms
+//! map an edge's whole carrier interval onto the chart's whole `u`
+//! domain, which a sub-edge no longer spans. So the claim that a
+//! carried row is the row the pass would derive is a claim about the
+//! ANALYTIC charts, where the pass runs.
 //!
 //! **Neither clears nor re-mints** — the Euler operators, the kill ops,
 //! ring surgery. These are primitives, and they are what the stale-row
@@ -1344,30 +1348,135 @@ pub(crate) struct Walked<T: Real> {
     t1: T,
 }
 
-/// The two children's certified chart rows, in child order (`[t0, t]`
-/// then `[t, t1]`) — [`split_cache`]'s answer, `None` where there is
-/// nothing to carry.
-pub(crate) type SplitRows<T> = Option<(PcurveCache<T>, PcurveCache<T>)>;
+/// One face's boundary as this module's passes walk it: each loop's
+/// half-edge cycle, and the **chart window the rows that boundary
+/// already STORES hull out to**.
+///
+/// The one home for that window: [`validate_pcurves`]'s presence pass
+/// derives it to replay stored certificates against, and
+/// [`split_cache`] derives it to certify a restriction against. They
+/// want the same hull of the same boxes over the same loops, and a
+/// second spelling of one window is a second answer to one question.
+/// [`mint_face`]'s window is a different question — it hulls the
+/// images it is DERIVING, none of which is stored yet.
+pub(crate) struct StoredRows<T: Real> {
+    /// The face's loops in walk order: `Some(cycle)` where the loop
+    /// walked, `None` where the loop record or its cycle did not
+    /// resolve — tier 1's corruption, which each caller reports in its
+    /// own vocabulary. A loop whose boundary is not a `Cycle` is
+    /// ABSENT from this list: there is nothing to walk and nothing
+    /// wrong.
+    pub(crate) loops: Vec<Option<Vec<HalfEdgeKey>>>,
+    /// The hull of the chart boxes of every row those cycles store,
+    /// `None` when the face's boundary stores no row at all — which is
+    /// also the answer to "has this face been minted", since a face
+    /// carrying one row is required to carry them all.
+    pub(crate) window: Option<ChartWindow<T>>,
+}
 
-/// The **restriction of one half-edge's stored pcurve row to the two
+/// [`StoredRows`] for one face: its loops walked once, and the chart
+/// window its stored rows hull out to.
+pub(crate) fn stored_rows<T: Decide>(body: &Body<T>, face: &crate::entity::Face) -> StoredRows<T> {
+    let mut out = StoredRows {
+        loops: Vec::new(),
+        window: None,
+    };
+    for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        let Some(loop_data) = body.get_loop(lk) else {
+            out.loops.push(None);
+            continue;
+        };
+        let crate::entity::LoopBoundary::Cycle { first } = loop_data.boundary else {
+            continue;
+        };
+        let Some(cycle) = body.loop_cycle(first) else {
+            out.loops.push(None);
+            continue;
+        };
+        for &he in &cycle {
+            let Some(row) = body.pcurve(he) else {
+                continue;
+            };
+            let (t0, t1) = row.params();
+            let b = row.pcurve().chart_box(t0, t1);
+            out.window = Some(match out.window {
+                None => b,
+                Some(acc) => acc.hull(b),
+            });
+        }
+        out.loops.push(Some(cycle));
+    }
+    out
+}
+
+/// Why [`split_cache`] could not state a restriction.
+#[derive(Clone, Debug)]
+pub(crate) enum SplitRowError {
+    /// The topology the stored row is ABOUT does not resolve: the
+    /// half-edge, its edge's certified curve, its parent loop, that
+    /// loop's face, that face's surface, or that face's boundary not
+    /// carrying the half-edge whose row this is. A row states a curve
+    /// in a FACE's chart, so without the chart there is nothing to
+    /// restrict it to, and a body that holds the row and not the chart
+    /// is tier-1 corrupt — the caller reports it as the stale key it
+    /// is, rather than proceeding rowless.
+    ///
+    /// Not reachable from [`crate::Body::split_edge`]: its own gates
+    /// resolve both halves live and their edge's curve `Certified`
+    /// before this runs, and a live half-edge's loop, face and surface
+    /// are tier-1 invariants of a body that passed them.
+    Stale {
+        /// The half-edge whose row could not be placed.
+        half_edge: HalfEdgeKey,
+    },
+    /// The parent's image, restricted to one child's sub-interval,
+    /// failed the closed-form certification the whole image passed. A
+    /// covered lane that refuses here is a genuine defect and is
+    /// raised, never swallowed.
+    Certify {
+        /// The parent half-edge whose row was being restricted.
+        half_edge: HalfEdgeKey,
+        /// The typed certification failure.
+        error: PcurveCertifyError,
+    },
+}
+
+/// The **restriction of an edge's two half-edge rows to the two
 /// children of a parameter split** — [`crate::Body::split_edge`]'s
 /// pcurve limb, and the reason that op carries its rows across the
-/// surgery instead of staling them.
+/// surgery instead of staling them. The answer holds one entry per
+/// given half-edge: that half-edge's two child rows in child order
+/// (`[t₀, t]` then `[t, t₁]`), or `None` where there is nothing to
+/// carry.
 ///
 /// A [`Pcurve`] is a function of the **carrier parameter** and carries
 /// no interval of its own ([`Pcurve::eval`]), exactly as an
 /// [`geom_brep::EdgeCurve`]'s carrier does: the children of a split at
 /// `t` have the parent's chart image, restricted to `[t₀, t]` and
 /// `[t, t₁]`. So this re-certifies the parent's own image over each
-/// sub-interval rather than deriving anything, which is why it needs
-/// only `T: Decide` — the derivation lanes are what carry
-/// [`PcurveFittedLane`], and a restriction derives nothing.
+/// sub-interval rather than deriving anything — and that one sentence
+/// is the whole bound argument: a restriction re-certifies through
+/// [`PcurveCache::certify`], which `geom-brep` declares in an
+/// `impl<T: Decide>` block, so `split_edge` keeps the `Decide` bound it
+/// has and no caller's bound moves. `PcurveFittedLane` is the
+/// DERIVATION lanes' bound, and nothing here derives.
 ///
-/// The chart `window` is re-derived from the face's STORED rows, the
-/// self-referential way [`mint_face`] builds it and
-/// [`validate_pcurves`] re-builds it; a restriction's chart box can
+/// **`t₀` and `t₁` are the EDGE's certified interval**, read from the
+/// carrier through [`half_edge_carrier`] — the same interval
+/// `EdgeCurve::split_specs` cuts the children's curves from — and not
+/// the row's own stored `cache.params()`. The two agree on a face the
+/// minting pass wrote; where a stored row disagrees, the edge is what
+/// the children are made of and the row is what is being re-certified,
+/// so the carrier decides the sub-intervals and the certification
+/// measures the row against them.
+///
+/// The chart `window` each restriction certifies against is the face's
+/// own, hulled from the rows that face already stores ([`stored_rows`],
+/// shared with [`validate_pcurves`]); a restriction's chart box can
 /// only shrink, so the face's window after the split is inside the one
-/// certified against here.
+/// certified against here. It is derived **once per face**: an edge's
+/// two halves usually bound two different faces, and a seam edge whose
+/// halves bound one face pays for one walk.
 ///
 /// Read-only, so a refusal reaches `split_edge` before any mutation
 /// and the op's "untouched on `Err`" contract is unaffected.
@@ -1376,87 +1485,88 @@ pub(crate) type SplitRows<T> = Option<(PcurveCache<T>, PcurveCache<T>)>;
 ///
 /// - `half_edge` carries no row (the ordinary case: an all-planar
 ///   body, or a body that never ran the minting pass);
-/// - a key needed to state the restriction does not resolve — tier 1's
-///   finding to report, and this pass only refuses to guess;
 /// - the row's image is [`Pcurve::Fitted`] or [`Pcurve::General`],
 ///   whose certification doors are the `PcurveFittedLane` ones
 ///   ([`PcurveCache::certify_fitted`] / [`PcurveCache::certify_general`],
 ///   which need the mate operand and the fitted machinery). Widening
 ///   `split_edge` to reach them is the bound ripple banked at
-///   [`mint_faces`]; until it lands, a split of a spline-chart edge
-///   carrying a `General` row leaves that face exactly as it found it
-///   — the pre-existing behaviour, tracked on TOPO's slate as
+///   [`mint_faces`]; until it lands, a split of an edge carrying a
+///   `General` row leaves that face exactly as it found it — the
+///   pre-existing behaviour, tracked on TOPO's slate as
 ///   `split-edge-cannot-carry-a-fitted-or-general-pcurve-row`.
 ///
-/// In every `None` case the caller writes nothing, so the map is left
-/// exactly as found.
+/// In both cases the caller writes nothing, so the map is left exactly
+/// as found. A key that does not resolve is NOT one of them: it
+/// refuses [`SplitRowError::Stale`].
+///
+/// # The SPLINE-chart frontier
+///
+/// The carry is exact on every kind it covers, spline charts included
+/// (a described-NURBS wall's `IsoLine` and `IsoArc` rows restrict like
+/// any other, and tier 3 reads `Ok` after the split). What a spline
+/// chart does not have is the RECOVERY step: [`mint_pcurves`], the
+/// pass a rowless face's caveat names, refuses on the body such a
+/// split produces, because [`nurbs_iso_derive`]'s rim arms map an
+/// edge's WHOLE carrier interval onto the chart's whole `u` domain,
+/// which a sub-edge no longer spans (`IsoUnsupported` on an arc rim, a
+/// loop-continuity finding on a line rim). Pre-existing and untouched
+/// here — the split now leaves nothing for that pass to do — and filed
+/// on TRIM's slate as
+/// `iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain`.
+/// So "the carried rows are the mint pass's rows" is a claim about the
+/// ANALYTIC charts (cylinder, sphere, torus), where the pass runs.
 ///
 /// # Errors
 ///
-/// [`PcurveCertifyError`] — the parent's image over a sub-interval
-/// failed the closed-form certification the whole image passed. A
-/// covered lane that refuses here is a genuine defect and is raised,
-/// never swallowed.
+/// [`SplitRowError`] — a certification the whole image passed failing
+/// over a sub-interval, or a key the restriction needs not resolving.
 pub(crate) fn split_cache<T: Decide>(
     body: &Body<T>,
-    half_edge: HalfEdgeKey,
+    halves: [HalfEdgeKey; 2],
     t: T,
     band: Band,
-) -> Result<SplitRows<T>, PcurveCertifyError> {
-    let Some(cache) = body.pcurve(half_edge) else {
-        return Ok(None);
-    };
-    if matches!(cache.pcurve(), Pcurve::Fitted(_) | Pcurve::General(_)) {
-        return Ok(None);
-    }
-    let (Ok((carrier, t0, t1)), Ok(surface)) = (
-        half_edge_carrier(body, half_edge),
-        half_edge_surface(body, half_edge),
-    ) else {
-        return Ok(None);
-    };
-    // The face's chart window, as the hull of that face's STORED rows'
-    // chart boxes — `mint_face`'s own window when the face is fully
-    // minted, and the one `validate_pcurves` re-derives.
-    let Some(face) = body
-        .get_half_edge(half_edge)
-        .and_then(|he| body.get_loop(he.parent_loop))
-        .and_then(|lp| body.get_face(lp.face))
-    else {
-        return Ok(None);
-    };
-    let loops: Vec<LoopKey> = core::iter::once(face.outer)
-        .chain(face.rings.iter().copied())
-        .collect();
-    let mut window: Option<ChartWindow<T>> = None;
-    for lk in loops {
-        let Some(crate::entity::LoopBoundary::Cycle { first }) =
-            body.get_loop(lk).map(|lp| lp.boundary)
-        else {
+) -> Result<[Option<(PcurveCache<T>, PcurveCache<T>)>; 2], SplitRowError> {
+    // At most one entry per face: an edge's two halves bound two
+    // faces, or one face twice when the edge is a seam.
+    let mut windows: Vec<(FaceKey, ChartWindow<T>)> = Vec::new();
+    let mut rows = [None, None];
+    for (slot, half_edge) in halves.into_iter().enumerate() {
+        let Some(cache) = body.pcurve(half_edge) else {
             continue;
         };
-        let Some(cycle) = body.loop_cycle(first) else {
+        if matches!(cache.pcurve(), Pcurve::Fitted(_) | Pcurve::General(_)) {
             continue;
-        };
-        for he in cycle {
-            let Some(row) = body.pcurve(he) else {
-                continue;
-            };
-            let (a, b) = row.params();
-            let chart_box = row.pcurve().chart_box(a, b);
-            window = Some(match window {
-                None => chart_box,
-                Some(acc) => acc.hull(chart_box),
-            });
         }
+        let stale = || SplitRowError::Stale { half_edge };
+        let (carrier, t0, t1) = half_edge_carrier(body, half_edge).map_err(|_| stale())?;
+        let surface = half_edge_surface(body, half_edge).map_err(|_| stale())?;
+        let face_key = body
+            .get_half_edge(half_edge)
+            .and_then(|he| body.get_loop(he.parent_loop))
+            .map(|lp| lp.face)
+            .ok_or_else(stale)?;
+        let window = match windows.iter().find(|(f, _)| *f == face_key) {
+            Some(&(_, w)) => w,
+            None => {
+                let face = body.get_face(face_key).ok_or_else(stale)?;
+                // `None` here is a face whose boundary stores no row at
+                // all — and this half-edge, which stores one, is
+                // supposed to be on it.
+                let w = stored_rows(body, face).window.ok_or_else(stale)?;
+                windows.push((face_key, w));
+                w
+            }
+        };
+        let image = cache.pcurve().clone();
+        let certify = |a: T, b: T, image: Pcurve<T>| {
+            PcurveCache::certify(image, a, b, &carrier, &surface, window, band)
+                .map_err(|error| SplitRowError::Certify { half_edge, error })
+        };
+        let first = certify(t0, t, image.clone())?;
+        let second = certify(t, t1, image)?;
+        rows[slot] = Some((first, second));
     }
-    let Some(window) = window else {
-        return Ok(None);
-    };
-    let image = cache.pcurve().clone();
-    let first = PcurveCache::certify(image.clone(), t0, t, &carrier, &surface, window, band)?;
-    let second = PcurveCache::certify(image, t, t1, &carrier, &surface, window, band)?;
-    Ok(Some((first, second)))
+    Ok(rows)
 }
 
 /// Mints (and certifies) the pcurve caches of every curved face of
@@ -2200,70 +2310,40 @@ pub fn validate_pcurves<T: PcurveFittedLane>(body: &Body<T>, band: Band) -> Vec<
             continue;
         }
         let surface = surface.clone();
-        let loops: Vec<LoopKey> = core::iter::once(face.outer)
-            .chain(face.rings.iter().copied())
-            .collect();
-        // Pass 0: does this face carry caches at all? A body that
-        // never ran the minting pass (every sweep output, every
-        // pre-M5 body) simply has none — absence is not a defect, and
+        // Passes 0 and 1, over ONE walk of the face's loops
+        // ([`stored_rows`], shared with `split_cache`): the window its
+        // stored rows hull out to, and the presence check over the
+        // half-edges that walk reached.
+        //
+        // No window at all is a face that carries no cache: a body
+        // that never ran the minting pass (every sweep output, every
+        // pre-M5 body) simply has none, absence is not a defect, and
         // the pass says nothing about it. Once ONE half-edge of a face
         // carries a cache, the set must be COMPLETE: a half-minted
         // face is the defect this checks for.
-        let mut cycles: Vec<Vec<HalfEdgeKey>> = Vec::new();
-        let mut any_cache = false;
-        for lp in &loops {
-            let Some(loop_data) = body.get_loop(*lp) else {
-                continue;
-            };
-            let crate::entity::LoopBoundary::Cycle { first } = loop_data.boundary else {
-                continue;
-            };
-            let Some(cycle) = body.loop_cycle(first) else {
-                continue;
-            };
-            any_cache |= cycle.iter().any(|he| body.pcurve(*he).is_some());
-        }
-        if !any_cache {
+        let StoredRows { loops, window } = stored_rows(body, face);
+        let Some(window) = window else {
             continue;
-        }
-        // Pass 1: presence + the face's window from the stored caches.
-        let mut window: Option<ChartWindow<T>> = None;
+        };
+        let mut cycles: Vec<Vec<HalfEdgeKey>> = Vec::new();
         let mut complete = true;
-        for lp in &loops {
-            let Some(loop_data) = body.get_loop(*lp) else {
-                findings.push(PcurveMintError::Corrupt);
-                complete = false;
-                continue;
-            };
-            let crate::entity::LoopBoundary::Cycle { first } = loop_data.boundary else {
-                continue;
-            };
-            let Some(cycle) = body.loop_cycle(first) else {
+        for walked in loops {
+            let Some(cycle) = walked else {
                 findings.push(PcurveMintError::Corrupt);
                 complete = false;
                 continue;
             };
             for &he in &cycle {
-                match body.pcurve(he) {
-                    None => {
-                        findings.push(PcurveMintError::MissingCache { half_edge: he });
-                        complete = false;
-                    }
-                    Some(cache) => {
-                        let (t0, t1) = cache.params();
-                        let b = cache.pcurve().chart_box(t0, t1);
-                        window = Some(match window {
-                            None => b,
-                            Some(acc) => acc.hull(b),
-                        });
-                    }
+                if body.pcurve(he).is_none() {
+                    findings.push(PcurveMintError::MissingCache { half_edge: he });
+                    complete = false;
                 }
             }
             cycles.push(cycle);
         }
-        let (Some(window), true) = (window, complete) else {
+        if !complete {
             continue;
-        };
+        }
         // Pass 2: replay every stored certificate against that window.
         for cycle in &cycles {
             for &he in cycle {
@@ -2352,18 +2432,15 @@ pub(crate) mod staleness_posture {
         /// own body); an entry declares it only when the re-mint is one
         /// delegation away, which a source read cannot see.
         Maintains,
-        /// Remaps each row onto the surviving key and drops the rest.
+        /// Moves each row onto the key that now carries what it says
+        /// — the transplanted half-edge's fresh key, or the two keys a
+        /// parameter split leaves where one edge was — and drops the
+        /// rest.
         Transfers,
         /// Leaves the map exactly as it found it — a primitive, or a
         /// write the map is not keyed on. Safe because the tier-3
         /// pcurve pass catches the consequence loud.
         Neither,
-        /// Carries each row it could have staled onto the keys that now
-        /// mean what it says, re-certified — deriving nothing, so it
-        /// needs neither the pass nor its bound. Read out of an entry:
-        /// no walk can see that a restriction is the right one, and the
-        /// door's own rows are what say so.
-        Carries,
     }
 
     /// `(door, posture, note)` — the doors that do NOT re-mint the
@@ -2376,7 +2453,7 @@ pub(crate) mod staleness_posture {
     /// can read it. That row is the only other reader; this table
     /// stays this guard's.
     pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
-        use Posture::{Carries, Maintains, Neither, Transfers};
+        use Posture::{Maintains, Neither, Transfers};
         &[
             // ---- Maintains, one delegation away from the re-mint. ----
             (
@@ -2433,7 +2510,8 @@ pub(crate) mod staleness_posture {
              simultaneous offset doors); it cannot discharge the whole-body claim, and its \
              own docs carry why",
             ),
-            // ---- Transfers: the graft's remap-and-drop. ----
+            // ---- Transfers: the graft's remap-and-drop, and the
+            // split's restriction onto the two keys it leaves. ----
             (
                 "graft_disjoint",
                 Transfers,
@@ -2470,6 +2548,14 @@ pub(crate) mod staleness_posture {
              mint pass — the boolean's, the revolve's and `shell`'s — re-derives every \
              row of the merged body",
             ),
+            (
+                "split_edge",
+                Transfers,
+                "restricts each parent half-edge's row to the two children's sub-intervals \
+             and re-certifies both before it mutates (`split_cache`), so no row it could \
+             have staled survives; a `Fitted`/`General` row is the one lane it leaves as \
+             found",
+            ),
             // ---- Neither: the primitives. Their stale rows are what
             // the tier-3 pcurve pass exists to catch. ----
             ("mvfs", Neither, "Euler operator"),
@@ -2501,13 +2587,6 @@ pub(crate) mod staleness_posture {
                 "move_shells_to_new_solid",
                 Neither,
                 "re-parents shells between solids; no half-edge key changes meaning",
-            ),
-            (
-                "split_edge",
-                Carries,
-                "restricts each parent half-edge's row to the two children's sub-intervals \
-             and re-certifies both before it mutates (`split_cache`); a `Fitted`/`General` \
-             row is the one lane it leaves as found",
             ),
             // ---- Neither: the caller's own row-level control of the
             // map, and writes the map is not keyed on. ----

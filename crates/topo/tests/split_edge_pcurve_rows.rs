@@ -205,20 +205,60 @@ fn pick(body: &Body<f64>, which: &str) -> (EdgeKey, (f64, f64)) {
     (edge, params)
 }
 
-/// Every stored row, as (half-edge, interval, both chart endpoints) — a
-/// reading that a shifted branch, a widened interval or a re-derived
-/// (rather than restricted) image would move.
-fn sample(body: &Body<f64>) -> Vec<(String, (f64, f64), [f64; 4])> {
-    let mut rows: Vec<_> = body
-        .pcurves()
-        .map(|(he, c)| {
-            let (a, b) = c.params();
-            let (pa, pb) = (c.pcurve().eval(a), c.pcurve().eval(b));
-            (format!("{he:?}"), (a, b), [pa.x, pa.y, pb.x, pb.y])
-        })
-        .collect();
-    rows.sort_by(|a, b| a.0.cmp(&b.0));
-    rows
+/// A whole-body textual snapshot: every arena, every field a reader
+/// can see through the public API, and every stored row with BOTH its
+/// image and its certificate. What the mint-identity row compares — a
+/// re-derived (rather than restricted) image, a shifted branch, a
+/// widened interval or a certificate assembled from a different window
+/// all move a line of it.
+fn deep(body: &Body<f64>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for (k, v) in body.vertices() {
+        out.push(format!("V {k:?} {:?} {:?}", v.point, v.emanating));
+    }
+    for (k, e) in body.edges() {
+        out.push(format!(
+            "E {k:?} {:?} {:?} {:?}",
+            e.he_plus, e.he_minus, e.curve
+        ));
+    }
+    for (k, h) in body.half_edges() {
+        out.push(format!(
+            "H {k:?} start={:?} edge={:?} loop={:?} next={:?} prev={:?}",
+            h.start, h.edge, h.parent_loop, h.next, h.prev
+        ));
+    }
+    for (k, l) in body.loops() {
+        out.push(format!("L {k:?} face={:?} b={:?}", l.face, l.boundary));
+    }
+    for (k, f) in body.faces() {
+        out.push(format!("F {k:?} {:?} {:?} {:?}", f.outer, f.rings, f.surface));
+    }
+    for (k, s) in body.shells() {
+        out.push(format!("S {k:?} {s:?}"));
+    }
+    for (k, s) in body.solids() {
+        out.push(format!("O {k:?} {s:?}"));
+    }
+    for (k, pt) in body.points() {
+        out.push(format!("P {k:?} {pt:?}"));
+    }
+    for (k, c) in body.curves() {
+        out.push(format!("C {k:?} {c:?}"));
+    }
+    for (k, u) in body.surfaces() {
+        out.push(format!("U {k:?} {u:?}"));
+    }
+    for (k, c) in body.pcurves() {
+        out.push(format!(
+            "R {k:?} {:?} {:?} {:?}",
+            c.params(),
+            c.pcurve(),
+            c.certificate()
+        ));
+    }
+    out.sort();
+    out
 }
 
 /// **The unit's row.** Splitting a rim (circle carrier) or a meridian
@@ -268,18 +308,47 @@ fn a_split_on_a_curved_chart_leaves_every_half_edge_a_row() {
     }
 }
 
-/// The rows the op carries are the rows the minting pass derives: run
-/// `mint_pcurves` over the split body and nothing moves, image or
-/// interval. That is what makes the carry a RESTRICTION of the parent's
-/// certified image rather than a second answer beside it.
+/// **The rows the op carries are the rows the minting pass derives,
+/// BYTE FOR BYTE** — every split site, both carrier kinds: run
+/// `mint_pcurves` over the split body and no line of the whole-body
+/// snapshot moves, image, interval, certificate or arena. That is what
+/// makes the carry a RESTRICTION of the parent's certified image
+/// rather than a second answer beside it.
+///
+/// **The claim is about an ANALYTIC chart** — this cylinder, and the
+/// sphere and torus that certify through the same closed-form door.
+/// On a SPLINE chart the carry is exact too, but the mint pass refuses
+/// on the split body rather than agreeing with it, so there is no
+/// identity to state: `sweep`'s `split_edge_loft_charts` carries that
+/// frontier and the row that pins it.
+///
+/// At this unit's merge base the op left 8 rows where the pass then
+/// derived 10, and the parent halves' rows still read the parent's
+/// whole interval against the pass's narrowed one.
 #[test]
-fn the_carried_rows_are_the_mint_passs_rows() {
-    let (mut body, _) = wall(0.2, 1.4, 0.0, 1.0);
-    let (edge, (t0, t1)) = pick(&body, "rim");
-    body.split_edge(edge, (t0 + t1) * 0.5, tol()).unwrap();
-    let carried = sample(&body);
-    topo::mint_pcurves(&mut body, tol()).unwrap();
-    assert_eq!(sample(&body), carried);
+fn the_carried_rows_are_the_mint_passs_rows_byte_for_byte() {
+    for which in ["rim", "meridian"] {
+        for frac in [0.001_f64, 0.02, 0.5, 0.98, 0.999] {
+            let (mut body, _) = wall(0.2, 1.4, 0.0, 1.0);
+            let (edge, (t0, t1)) = pick(&body, which);
+            body.split_edge(edge, t0 + (t1 - t0) * frac, tol()).unwrap();
+            let carried = deep(&body);
+            topo::mint_pcurves(&mut body, tol()).unwrap();
+            let after = deep(&body);
+            let moved: Vec<_> = carried.iter().zip(after.iter()).filter(|(a, b)| a != b).collect();
+            assert_eq!(
+                carried.len(),
+                after.len(),
+                "{which} @{frac}: the mint pass changed the row/arena count"
+            );
+            assert!(
+                moved.is_empty(),
+                "{which} @{frac}: the mint pass moved {} snapshot line(s), first {:?}",
+                moved.len(),
+                moved.first()
+            );
+        }
+    }
 }
 
 /// **Absence is never a claim.** A body that never ran the minting pass
@@ -298,17 +367,4 @@ fn a_body_with_no_rows_still_has_none_after_a_split() {
     bare.split_edge(edge, (t0 + t1) * 0.5, tol()).unwrap();
     assert_eq!(bare.pcurves().count(), 0);
     assert_eq!(topo::pcurves::validate_pcurves(&bare, band()), vec![]);
-}
-
-/// The split stays byte-identical on replay with rows in play (D9):
-/// the carry introduces no order-dependent derivation.
-#[test]
-fn the_carry_is_deterministic() {
-    let build = || {
-        let (mut body, _) = wall(0.2, 1.4, 0.0, 1.0);
-        let (edge, (t0, t1)) = pick(&body, "rim");
-        body.split_edge(edge, t0 + (t1 - t0) * 0.37, tol()).unwrap();
-        sample(&body)
-    };
-    assert_eq!(build(), build());
 }

@@ -1,6 +1,10 @@
-//! **SHELL-7 review probes (R2).** Rows that try to FALSIFY the unit's
-//! claims, plus the consumer's-seat end-to-end exercise. Nothing here
-//! is a gate for the unit; every row states what it measured.
+//! **SHELL-7 review probes (R2),** plus the consumer's-seat end-to-end
+//! exercise. Most rows were written to FALSIFY a claim of that unit and
+//! still read that way. `p4` no longer does: its claim (a split on a
+//! curved chart leaves its children rowless) was a defect, the defect
+//! was closed, and the row was re-baselined onto what the op does now.
+//! Nothing here is a gate for SHELL-7; every row states what it
+//! measured.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

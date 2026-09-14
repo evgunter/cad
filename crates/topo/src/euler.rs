@@ -779,6 +779,8 @@ pub enum EulerOpError {
     /// defect, never a licence to leave the face half-minted
     /// (`crate::pcurves::split_cache`).
     PcurveSplit {
+        /// The edge being split.
+        edge: EdgeKey,
         /// The parent half-edge whose row was being restricted.
         half_edge: HalfEdgeKey,
         /// The typed certification failure, nested whole.
@@ -965,10 +967,14 @@ impl fmt::Display for EulerOpError {
                 "split_edge: interiority test on edge {edge:?} escalated \
                  ({diag})"
             ),
-            Self::PcurveSplit { half_edge, error } => write!(
+            Self::PcurveSplit {
+                edge,
+                half_edge,
+                error,
+            } => write!(
                 f,
-                "split_edge: half-edge {half_edge:?}'s stored pcurve row does not \
-                 re-certify over a child's sub-interval: {error}"
+                "split_edge: on edge {edge:?}, half-edge {half_edge:?}'s stored pcurve \
+                 row does not re-certify over a child's sub-interval: {error}"
             ),
             Self::CrossSolid { f1, f2 } => write!(
                 f,
@@ -1077,6 +1083,7 @@ pub(crate) fn every_euler_op_error_once()
             },
         },
         EulerOpError::PcurveSplit {
+            edge: ek,
             half_edge: he,
             error: geom_brep::PcurveCertifyError::UnsupportedCarrier,
         },

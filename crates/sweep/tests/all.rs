@@ -228,6 +228,8 @@ mod m6_5_fillet_naming;
 mod m6_chart_mints;
 #[path = "m6_loft_body.rs"]
 mod m6_loft_body;
+#[path = "split_edge_loft_charts.rs"]
+mod split_edge_loft_charts;
 #[path = "m6_rider.rs"]
 mod m6_rider;
 #[path = "m6_surgery.rs"]

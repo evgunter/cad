@@ -132,16 +132,29 @@ impl<T: Decide> Body<T> {
     /// [`geom_brep::Pcurve`] is a function of the carrier parameter
     /// and holds no interval of its own, so each child's image is the
     /// parent's restricted to its sub-interval, exactly as each
-    /// child's carrier is. Both restrictions are re-certified in the
-    /// plan phase ([`crate::pcurves::split_cache`]), so a face this op
-    /// touches is never left half-minted and a refusal
+    /// child's carrier is. A restriction DERIVES nothing, which is why
+    /// it re-certifies through `PcurveCache::certify` — `geom-brep`
+    /// declares that door `impl<T: Decide>` — and why this op keeps
+    /// the `Decide` bound and no caller of it moves. Both restrictions
+    /// are certified in the plan phase
+    /// ([`crate::pcurves::split_cache`]), so a face this op touches is
+    /// never left half-minted and a refusal
     /// ([`EulerOpError::PcurveSplit`]) arrives with the body
     /// untouched. A half-edge with no row keeps none: absence is never
     /// a claim, and the op does not start caching a body whose
-    /// producer chose not to. The one lane it cannot carry is a
-    /// `Fitted`/`General` row, whose certification doors are the
-    /// `PcurveFittedLane` ones — `split_cache`'s entry carries that
-    /// frontier.
+    /// producer chose not to.
+    ///
+    /// Two frontiers, both stated at `split_cache`. A
+    /// `Fitted`/`General` row is left exactly as found, because its
+    /// certification doors are the `PcurveFittedLane` ones. And on a
+    /// SPLINE chart the carry is exact — a described-NURBS wall's
+    /// `IsoLine`/`IsoArc` rows restrict like any other and tier 3
+    /// reads `Ok` — but the recovery step the caveat below names,
+    /// `mint_pcurves`, refuses on the body the split produces: the iso
+    /// derivation's rim arms map an edge's WHOLE interval onto the
+    /// chart's whole `u` domain, which a sub-edge no longer spans.
+    /// Pre-existing, filed on TRIM's slate; what changed here is that
+    /// a split of such a wall no longer NEEDS that pass.
     ///
     /// # Tier-3 caveat (review F2)
     ///
@@ -248,18 +261,19 @@ impl<T: Decide> Body<T> {
         // stored chart row, restricted to the two children's
         // sub-intervals and re-certified. Read-only, so a refusal
         // leaves the body untouched like every gate above it.
-        let rows_plus = crate::pcurves::split_cache(self, hp.key(), t, band).map_err(|error| {
-            EulerOpError::PcurveSplit {
-                half_edge: hp.key(),
-                error,
-            }
-        })?;
-        let rows_minus = crate::pcurves::split_cache(self, hm.key(), t, band).map_err(|error| {
-            EulerOpError::PcurveSplit {
-                half_edge: hm.key(),
-                error,
-            }
-        })?;
+        let [rows_plus, rows_minus] =
+            crate::pcurves::split_cache(self, [hp.key(), hm.key()], t, band).map_err(|e| match e {
+                crate::pcurves::SplitRowError::Stale { half_edge } => EulerOpError::StaleKey {
+                    key: EntityId::HalfEdge(half_edge),
+                },
+                crate::pcurves::SplitRowError::Certify { half_edge, error } => {
+                    EulerOpError::PcurveSplit {
+                        edge,
+                        half_edge,
+                        error,
+                    }
+                }
+            })?;
 
         // ---- Mutation (infallible from here on). ----
         // Minting order (documented above): point, curve1, curve2,
