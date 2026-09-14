@@ -2,8 +2,9 @@
 id: the-span-identity-is-not-a-theorem-of-the-floats
 kind: issue
 title: the arc span identity is a theorem of the reals and not of the floats: an adversarial torus at minor radius 1e18 contradicts it at the witness
-status: open
+status: closed
 opened: 2026-09-06
+closed: 2026-09-14
 ---
 
 **Found by M10-9's fix pass, by an assertion it added and then removed
