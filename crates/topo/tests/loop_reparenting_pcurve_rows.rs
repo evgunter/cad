@@ -349,11 +349,7 @@ fn ring_move_between_faces_on_one_surface_carries_every_row() {
     s.body.kfmrh(s.up, s.plane).unwrap();
     let rings = s.body.get_face(s.up).unwrap().rings.clone();
     assert_eq!(rings.len(), 2, "the rows ring, then the rowless one");
-    let sibling = s
-        .body
-        .mfkrh(rings[1], FaceSurface::Inherit)
-        .unwrap()
-        .face;
+    let sibling = s.body.mfkrh(rings[1], FaceSurface::Inherit).unwrap().face;
     assert_eq!(rows_of(&s.body, s.up), (8, 0));
     assert_eq!(rows_of(&s.body, sibling), (0, 6));
     s.body.ring_move(rings[0], sibling).unwrap();
