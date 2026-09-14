@@ -537,6 +537,10 @@ mod algebra;
 mod form;
 #[cfg(feature = "sym-profile-testing")]
 pub mod profile;
+/// Rule E: the quotient's common factor — the shared monomial divided
+/// out, and a constant ratio folded to its constant.
+#[path = "sym/quotient.rs"]
+mod quotient;
 /// The coefficient tower: the exact rational the normal form's
 /// coefficients are, the integer under it, and the bound they are
 /// frozen at.
@@ -995,6 +999,34 @@ pub struct SymRules {
     /// the ring — and why a zero reached through it is counted
     /// `sign_gated` rather than `symbolic_zero`. Needs `early`.
     pub signed_root: bool,
+    /// **E — the quotient's COMMON FACTOR** ([`quotient`]): in the
+    /// early walk every form has the monomial its numerator and
+    /// denominator share divided out, and a numerator that is a
+    /// rational multiple of its denominator folds to that rational.
+    /// Both are equalities of rational functions wherever the
+    /// denominator is non-zero, which clause 1 guarantees — a point
+    /// where a form's denominator vanishes is one the value channel
+    /// divided by zero at, and the whole-box certification has already
+    /// refused there.
+    ///
+    /// It is what a NORMALISATION needs. `Vec3::normalize` is
+    /// `self / self.norm()`, so a unit vector reaches the DAG as three
+    /// quotients over one `sqrt(v·v)` atom and everything built from it
+    /// carries that atom in both halves; the plain form cancels no
+    /// common factor, so each further normalisation multiplies the
+    /// shared power and each square doubles it. On a derived frame
+    /// whose axes carry a parameter the forms reach total degree 128 in
+    /// a handful of terms and freeze — and the already-unit vector's
+    /// own norm is `sqrt(P/P)`, the literal number one carried as an
+    /// opaque atom because neither half of `P/P` is a constant for A0
+    /// to read.
+    ///
+    /// No step cap beside it: unlike rules A/B the fold cannot
+    /// reintroduce anything, it is one pass over the terms, and every
+    /// form it returns has at most the terms and at most the degree of
+    /// the one it was given ([`quotient`]'s docs carry the argument).
+    /// Needs `early`.
+    pub common_factor: bool,
     /// **The REGISTERED-IDENTITY DOOR** (M10-9, ERROR-DESIGN E12's
     /// provenance reserve): the early walk consults the session's
     /// registry ([`Sym::register_equal`]), so a node a constructor
@@ -1023,6 +1055,7 @@ impl SymRules {
             early_ab: true,
             trig_of_atan: true,
             signed_root: true,
+            common_factor: true,
             registered: true,
         }
     }
@@ -1059,6 +1092,7 @@ impl SymRules {
             early_ab: true,
             trig_of_atan: true,
             signed_root: false,
+            common_factor: true,
             registered: true,
         }
     }
@@ -1075,6 +1109,7 @@ impl SymRules {
             early_ab: false,
             trig_of_atan: false,
             signed_root: false,
+            common_factor: false,
             registered: false,
         }
     }
@@ -1092,6 +1127,7 @@ impl SymRules {
             pythagoras: false,
             early_ab: false,
             trig_of_atan: false,
+            common_factor: false,
             ..Self::shipped()
         }
     }
@@ -1104,6 +1140,19 @@ impl SymRules {
     pub const fn shipped_without_the_door() -> Self {
         Self {
             registered: false,
+            common_factor: false,
+            ..Self::shipped()
+        }
+    }
+    /// **The shipped set with rule E SHUT** — the quotient's common
+    /// factor left uncancelled, every other rule as it is: M10-10's
+    /// tier exactly, bit for bit, and the differential every claim
+    /// about what rule E costs and what it buys is measured against
+    /// ([`Self::common_factor`]).
+    #[must_use]
+    pub const fn without_rule_e() -> Self {
+        Self {
+            common_factor: false,
             ..Self::shipped()
         }
     }
@@ -1785,6 +1834,20 @@ fn form_in(
                         })
                         .unwrap_or(f)
                 })
+            } else {
+                combined
+            };
+            // **Rule E**, after the per-node A/B reduction and before
+            // the budget check. AFTER, because rule A needs the EVEN
+            // POWER of an atom that a shared factor would take away:
+            // cancelling `C²·a / (C·b)` to `C·a / b` leaves no square
+            // for `sqrt(X)² = X` to substitute, and R2's
+            // `r2_rule_d_decides_over_negative_straddling_and_wide_boxes`
+            // is what says so. Before the budget check, because the
+            // rule can only SHRINK a form, so one it cancels may fit
+            // where the raw one would have frozen.
+            let combined = if early && sess.rules.common_factor {
+                combined.map(|f| quotient::cancel(&f))
             } else {
                 combined
             };

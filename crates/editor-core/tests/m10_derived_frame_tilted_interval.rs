@@ -319,7 +319,7 @@ fn sym5_tilted_derived_guided_profiled() {
         };
         start_profile();
         start_shape_report();
-        explain_depth(2);
+        explain_depth(6);
         let (refusal, counts) = geom_core::sym::with_session_rules(budget(), rules, || {
             let ev: Evaluation<geom_core::Sym<Interval>> =
                 evaluate(&doc, None, &CancelToken::new(), &o, Tol::witness());
@@ -345,6 +345,7 @@ fn sym5_tilted_derived_guided_profiled() {
         for ((cause, where_), s) in profile.freezes_by_cause() {
             println!("  {cause:?} {where_} -> {s:?}");
         }
+        print!("{}", profile.render());
         let mut seen: std::collections::BTreeSet<&str> = Default::default();
         for s in &shapes {
             if matches!(
@@ -363,7 +364,7 @@ fn sym5_tilted_derived_guided_profiled() {
                 if let Some(e) = &s.explain {
                     let n = e.lines().filter(|l| l.contains("FROZEN")).count();
                     println!("    explain: {} lines, {n} FROZEN", e.lines().count());
-                    for l in e.lines().filter(|l| l.contains("FROZEN")).take(6) {
+                    for l in e.lines() {
                         println!("      {}", head(l, 300));
                     }
                 }

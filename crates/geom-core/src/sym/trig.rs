@@ -303,7 +303,22 @@ fn fold_at_half_pi(op: SymOp, arg: &Form) -> Option<Form> {
 /// indeterminate id. Payload zero, which is what every `sqrt` node the
 /// scalar mints carries, so an expression that spells `sqrt(1 + X²)`
 /// itself shares the atom.
+///
+/// **The argument is normalised the way a walked one is.** An atom is
+/// keyed by its argument's FORM, and with rule E on
+/// ([`SymRules::common_factor`](super::SymRules::common_factor)) every
+/// form the walk memoizes has had its common factor divided out — so a
+/// form this module builds by hand has to have it divided out too, or
+/// the two spellings of one arc mint two atoms and the residual
+/// between them stays numeric. (`c₂`'s `(D + C)/(2·D)` is exactly such
+/// a quotient, and R2's `r2_rule_d_decides_over_negative_straddling_and_wide_boxes`
+/// is what says so when it is not.)
 fn sqrt_atom(arg: Form, sess: &mut Session) -> u128 {
+    let arg = if sess.rules.common_factor {
+        super::quotient::cancel(&arg)
+    } else {
+        arg
+    };
     let id = indet_atom(SymOp::Sqrt.tag(), 0, &[arg.digest()]);
     sess.atoms.entry(id).or_insert_with(|| AtomInfo {
         op: SymOp::Sqrt,
