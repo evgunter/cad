@@ -2735,8 +2735,11 @@ pub(crate) mod staleness_posture {
             (
                 "set_face_surface",
                 Neither,
-                "a surface swap is content staleness the tier-3 pass re-certifies against, \
-             not a key the map can lose",
+                "a surface swap is content staleness, not a key the map can lose — and the \
+             tier-3 pass re-certifies against the new surface only where that surface \
+             mints: a swap onto a plane or a placeholder leaves a COMPLETE row set stated \
+             in the chart the face left, which this pass skips \
+             (`work/topo/set-face-surface-leaves-a-complete-face-certified-against-the-chart-it-left`)",
             ),
             (
                 "set_edge_curve",
