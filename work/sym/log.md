@@ -608,3 +608,23 @@ its spec is cut next, the block's other two slots named from the
 slate when it is drawn, and its dispatch waits for a lane (SYM-5's
 fix pass and SYM-6 hold the two heavy lanes; SYM-5's retire at its
 merge).
+
+## Block SYM-B2 cut: SYM-7, SYM-8, SYM-9 (2026-09-14)
+
+Three specs on the slate for the second block, each measurement-first
+in SYM-5's shape (Phase 1 before any code, a stop condition, the
+remedy the measurement picks). **SYM-7** (H / STRUCTURAL) is D3's
+drive-scoped plain memo, shared across the drive's rayon workers so
+the receipt stays schedule-independent — the map the M10-3 receipt
+identity row forces. **SYM-8** (H / NUMERIC) is the wall SYM-5 PR-2's
+R2 found one axis over: a frame tilted about u refuses with rule E on
+exactly as off, the degree wall become a term wall behind
+`copysign(1, 1/sqrt(P))` and `abs(1/sqrt(P))` atoms of a manifestly
+positive quantity — rule F, the manifest sign, gated on the ring
+item's recorded loss (a split that moves down anywhere means the
+predicate narrows or the rule does not ship). **SYM-9** (H / NUMERIC)
+is the ring item's own ask: the ladder makes one attempt per rung, and
+a refused decision may retry at a wider ring or with the opening rule
+off, on refusals only, counted in the receipt. Pre-draw fields and the
+draw go on `sym/b2-block` once the specs are on `main`; SYM-7
+dispatches first, when SYM-5's lanes retire.

@@ -101,8 +101,11 @@ NOT certify their studies at any affordable dial.
 - **Block SYM-B2** — opens with **SYM-7**, the drive-scoped plain memo
   (D3 = (1) on `[ev]` #2581; carries
   `symbolic-tier-costs-95-percent-of-the-m10-3-drive`'s volume ask);
-  H / STRUCTURAL. The other two slots are cut from the slate when the
-  block is drawn.
+  H / STRUCTURAL; **SYM-8**, the manifest sign (`docs/SYM-8-SPEC.md`;
+  the tilt-U wall SYM-5's review found, measured first; H / NUMERIC);
+  **SYM-9**, the retry ladder (`docs/SYM-9-SPEC.md`; the ring's
+  non-monotone reach, measured first; H / NUMERIC). Pre-draw fields
+  and the draw on `sym/b2-block` once all three specs are on `main`.
 
 ## Review posture
 
