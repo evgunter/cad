@@ -172,3 +172,28 @@ on a widened box. `crates/geom-brep/src/newell.rs` is in no program's
 paths; the row is filed here because its mechanism and both candidate
 fixes 1 and 2 are this program's ground. Filed by SYM at SYM-5's
 phase-1 report (2026-09-14).
+
+## A fifth site, 50× narrower (SYM-5 PR-2's review R2, 2026-09-14)
+
+The widths above are this row's cheapest reproduction, not its floor.
+R2's STACKED document reaches the same clause-1 `Invalid` at
+`half = 1e-3` — fifty times narrower than the `5e-2` the two documents
+above refuse at. It is the `Guided` lift and the BOSS that refuse: with
+the symbolic tier's rule E on, both cubes are carried and the boss's
+side plane is the one margin left, at
+`newell_plane_residual … margin is invalid`. Under `Pinned` the same
+document certifies whole. The construction:
+
+- an authored `Datum::Frame { origin: 0, u: (1,0,0), v: (0,1,t) }` with
+  `t = 0.25 ± 1e-3` (a Scalar document parameter);
+- a unit square profile on it, extruded 1.0;
+- a `Datum::FaceFrame` on that cube's END cap;
+- a unit square on THAT, extruded 1.0, and a `FaceFrame` on its end cap;
+- a half-size square on the second derived frame, extruded 0.25.
+
+So the chain's depth moves the width at which the cross-sum's
+enclosure reaches zero, and two derived rungs are enough at a parameter
+half-width a document would actually carry.
+`editor-core/tests/m10_derived_frame_tilted_interval`'s
+`sym5_the_reach_on_documents_the_unit_did_not_build` builds it
+(`tiltV stacked-2`).

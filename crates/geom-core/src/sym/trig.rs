@@ -100,7 +100,7 @@ use std::sync::Arc;
 
 use super::form::{Form, Mono, Poly, within};
 use super::rational::{Int, Rat};
-use super::{AtomInfo, INDET_PI, Session, SymBudget, SymOp, indet_atom, signed};
+use super::{AtomInfo, INDET_PI, Session, SymOp, indet_atom, signed};
 
 /// **`atan2(0, N) = 0` for an `N` that is non-negative BY ITS SYNTAX**
 /// — the second fold of rule D, on the same posture as the half-angle
@@ -154,6 +154,14 @@ pub(super) fn manifestly_nonneg(n: &Form, sess: &Session) -> bool {
 /// The largest `|k|` in `q = k / 2ᵐ` this rule folds.
 pub(super) const MAX_MULTIPLE: i128 = 32;
 
+/// **Rule E leans on the halving being at LEAST one.** `quotient`'s
+/// soundness argument covers the denominators this module manufactures
+/// by `c₂ = cos(φ/2ʲ) > cos(π/4)`, which holds because every halving
+/// this loop performs has `j ≥ 1`; a zeroth halving would put `c₂` at
+/// `cos φ`, which `atan`'s range keeps positive but not away from
+/// zero. The cap below bounds `j` from ABOVE and is not what that
+/// argument needs.
+///
 /// The most halvings `m` in `q = k / 2ᵐ` this rule folds: the
 /// certifier's schedule needs quarter angles at most (`q = i/2` from
 /// the carrier's samples and `i/4` from the pushforward's `s·θ/2`), and
@@ -167,12 +175,16 @@ pub(super) const MAX_MULTIPLE: i128 = 32;
 ///
 /// **What the minted atoms are keyed on.** `sqrt(1 + X²)` is keyed on
 /// the form `1 + X·X` exactly as built here — the un-reduced square —
-/// and each half-angle `c₂` on the un-cancelled quotient `(D + C)/(2D)`.
-/// A hand-spelled `sqrt(1 + x·x)` over the same `x` shares the atom;
-/// one spelled with a `sqrt` or a denominator inside `X`, or with the
-/// quotient cancelled by hand, mints a different atom and the residual
-/// stays NUMERIC (never false: two atoms that are not the same node
-/// are two indeterminates).
+/// and each half-angle `c₂` on the quotient `(D + C)/(2D)` as rule E
+/// leaves it: under the shipped set that is `(½D + ½C)/D`, because
+/// [`sqrt_atom`] normalises what it keys the way the walk normalises a
+/// form it memoizes (rule E, `SymRules::common_factor`), and the two
+/// have to agree or the two spellings of one arc mint two atoms. With
+/// the rule off it is the un-cancelled `(D + C)/(2D)`. A hand-spelled
+/// `sqrt(1 + x·x)` over the same `x` shares the atom either way; one
+/// spelled with a `sqrt` or a denominator inside `X` mints a different
+/// atom and the residual stays NUMERIC (never false: two atoms that
+/// are not the same node are two indeterminates).
 pub(super) const MAX_HALVINGS: u32 = 2;
 
 /// The argument form read as `(k / 2ᵐ) · atan(X)`: `(k, m, X)`, or
@@ -305,7 +317,31 @@ fn fold_at_half_pi(op: SymOp, arg: &Form) -> Option<Form> {
 /// indeterminate id. Payload zero, which is what every `sqrt` node the
 /// scalar mints carries, so an expression that spells `sqrt(1 + X²)`
 /// itself shares the atom.
+///
+/// **The argument is normalised the way a walked one is, and this is
+/// LOAD-BEARING.** An atom is keyed by its argument's FORM, and with
+/// rule E on ([`SymRules::common_factor`](super::SymRules::common_factor))
+/// every form the walk memoizes has had its common factor divided out
+/// and its scale canonicalised — so a form this module builds by hand
+/// must have the same done to it, or the two spellings of one arc mint
+/// two atoms and the residual between them stays numeric. (`c₂`'s
+/// `(D + C)/(2·D)` against the walk's `(½D + ½C)/D` is exactly such a
+/// pair; remove this call and
+/// `geom-core/tests/m10_10_r2_probes::over_boxes::r2_rule_d_decides_over_negative_straddling_and_wide_boxes`
+/// goes red — both of SYM-5's reviewers re-took that.)
+///
+/// **The dial is the only gate, and that rests on a caller fact.**
+/// `fold` is called from `combine`'s `Sin`/`Cos` arm under
+/// `early && rules.trig_of_atan`, so every caller is already the EARLY
+/// walk and "rule E is early-only" survives; this site has no walk
+/// flag of its own to check. A plain-walk caller of `fold` would break
+/// that, and there is none.
 fn sqrt_atom(arg: Form, sess: &mut Session) -> u128 {
+    let arg = if sess.rules.common_factor {
+        super::quotient::cancel(&arg)
+    } else {
+        arg
+    };
     let id = indet_atom(SymOp::Sqrt.tag(), 0, &[arg.digest()]);
     sess.atoms.entry(id).or_insert_with(|| AtomInfo {
         op: SymOp::Sqrt,
@@ -315,9 +351,11 @@ fn sqrt_atom(arg: Form, sess: &mut Session) -> u128 {
     id
 }
 
-/// `c · p` for a small integer `c`.
-fn scaled(p: &Poly, c: i128, budget: SymBudget) -> Option<Poly> {
-    Poly::constant(Rat::new(c, 1, 0)?).mul(p, budget)
+/// `c · p` for a small integer `c` — [`Poly::scaled`](super::form::Poly::scaled)
+/// with the rational built, which is the one home for a polynomial
+/// times a constant.
+fn scaled(p: &Poly, c: i128) -> Option<Poly> {
+    p.scaled(&Rat::new(c, 1, 0)?)
 }
 
 /// **The fold**: the closed form of `sin`/`cos` (`op`) at the argument
@@ -398,12 +436,9 @@ fn build_closed_forms(arg: &Form, sess: &mut Session) -> Option<Closed> {
     // cos(θ/2) = (D + C) / (2·c₂·D), sin(θ/2) = S / (2·c₂·D).
     for _ in 0..m {
         let lifted = den.add(&cn)?;
-        let c2 = sqrt_atom(
-            Form::quotient(lifted.clone(), scaled(&den, 2, budget)?),
-            sess,
-        );
+        let c2 = sqrt_atom(Form::quotient(lifted.clone(), scaled(&den, 2)?), sess);
         cn = lifted;
-        den = scaled(&den.mul(&Poly::indet(c2), budget)?, 2, budget)?;
+        den = scaled(&den.mul(&Poly::indet(c2), budget)?, 2)?;
     }
     // k·ψ by angle addition from (cos 0, sin 0) = (1, 0), every
     // multiple over Dᵏ.

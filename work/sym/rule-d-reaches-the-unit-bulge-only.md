@@ -399,3 +399,41 @@ No rule, dial or budget moved. Rule C stays dial-off; `COEFF_BITS`
 stays 256; the trig bounds stay. The measurement patches were local
 and reverted, and their numbers are above so the next unit's claim has
 a before AND an after to be read against.
+
+## What SYM-5's rule E took (2026-09-14)
+
+Both residues above are largely gone, and the ceiling with them.
+SYM-5's **rule E** (the quotient's common factor,
+`SymRules::common_factor`) cancels the shared monomial in the early
+walk's quotients, which keeps the cross-multiplied numerators inside
+[`rational::COEFF_BITS`] — so it does at 256 bits what this row
+measured a 512-bit ring doing, and at 1.6× the probe cost rather than
+at a wider ring.
+
+Re-measured on R1's segment boss at `bulge = 2`, shipped set, rule E
+off → on:
+
+| predicate | off | on |
+| --- | --- | --- |
+| `carrier_matches_mapped_source` | 72/0/48/6 | **72/0/54/0** |
+| `carrier_on_surface_2` | 63/0/0/27 | **81/0/0/9** |
+| `witness_on_surface_2` | 7/0/0/3 | **9/0/0/1** |
+| `carrier_on_surface_1` | 81/0/0/9 | 81/0/0/9 |
+| `witness_on_surface_1` | 9/0/0/1 | 9/0/0/1 |
+
+and the whole-certifying CEILING `8.2611e2 · ε → 9.3559e2 · ε` (1.13×),
+which is exactly the move this row's local 512-bit experiment
+predicted, over-band set and all. Residue (a) is closed. Residue (b) —
+the `abs` A0 does not reach — is two thirds closed: 18 of its 27 are
+theorems now, 9 stand, and `carrier_on_surface_1`'s 9 and
+`witness_on_surface_1`'s 1 are untouched, so the `abs(signed_radius)`
+against its own square spelled without the `abs` is still what stands
+there.
+
+The D-tab is unchanged on every row but two: `carrier_endpoint_start`
+24/0/8/4 → 24/0/12/0 on both spellings, and
+`carrier_matches_mapped_source` 126/0/36/18 → 126/0/42/12 on the
+LITERAL against 126/0/38/16 on the PARAMETER — the first row where the
+two spellings part at the nominal, so this row's "the same table as
+the literal's" is now true of every row but that one
+(`m10_bulge_interval` pins both).
