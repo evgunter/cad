@@ -2,11 +2,12 @@
 id: geom-source-absence-conflates-four-origins
 kind: unit
 title: Option<GeomSource>::None covers imported, hand-built, kernel-derived AND a failed re-stamp, so absence cannot be read as any of them
-status: dispatched
+status: closed
 opened: 2026-09-12
 refs: [2404]
 branch: topo/geom-source-typed-absence
 pr: 2576
+closed: 2026-09-14
 ---
 
 
