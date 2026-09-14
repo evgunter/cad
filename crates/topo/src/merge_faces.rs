@@ -734,6 +734,7 @@ impl OpPlacement {
             | E::NullScaffoldCurve { .. }
             | E::SplitParamNotInterior { .. }
             | E::SplitParamEscalated { .. }
+            | E::PcurveSplit { .. }
             | E::CrossSolid { .. }
             | E::NoShellsNamed
             | E::ShellRepeated { .. }

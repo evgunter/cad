@@ -186,7 +186,14 @@ REGISTER=(
   "crates/topo/src/movefac.rs|movefac||1|unaudited"
   "crates/topo/src/offset_nappe.rs|corner_stations||1|unaudited"
   "crates/topo/src/pcurves.rs|clear_face_caches||1|unaudited"
-  "crates/topo/src/pcurves.rs|validate_pcurves||2|unaudited"
+  # The one walk of a face's loops that the tier-3 pcurve pass and
+  # `split_edge`'s row carry share (`validate_pcurves` and
+  # `split_cache` both read it, and neither discards a boundary of its
+  # own any more). Its arm is `clear_face_caches`'s above, walking the
+  # same loops of the same face for the same reason; left `unaudited`
+  # because that one is — inheriting a disposition that does not exist
+  # is the register's own failure mode.
+  "crates/topo/src/pcurves.rs|stored_rows||1|unaudited"
   "crates/topo/src/pcurves.rs|walk_loop||1|unaudited"
   "crates/topo/src/props.rs|loop_edges||1|unaudited"
   "crates/topo/src/replace_face.rs|boundary_edges_into||1|unaudited"
