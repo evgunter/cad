@@ -1032,3 +1032,33 @@ into GUARD's discard register found by CI. Dual dispatched on the
 frozen head beside D263's fix pass: ordinal 2707, byte 158 ⇒ R1 OPUS,
 R2 FABLE; briefs stored with sha256 privately. `S93` (slot 2) waits
 for the D263 fix pass to free its lane.
+
+## Loop re-parenting adjudicated (2026-09-14)
+
+Both blinded reviews on frozen `d57e8ba53`, both
+MERGEABLE-AFTER-FIXES. R1: 1/5/4, rubric 4/3/3. R2: 0/3/6, rubric
+4/3/4. Both reproduced the four red-first rows on the merge base and
+the byte-for-byte carry, both ran the never-drop and
+compare-by-surface mutants, both executed the empty-ring and
+broken-cycle plants and the discard gate. CONVERGED on the central
+fact at DIVERGENT severity: the helper drops on a KEY change where its
+name and the item say CHART — a ring promoted onto a second key
+holding the identical cylinder was complete and correct on the merge
+base and is silently unminted at the head, and the compare-by-surface
+mutant leaves every one of the 1,217 `topo` rows green (R1 MAJOR, R2
+MINOR with the same measurement inside its class finding). No
+unilateral executed MAJOR: no tally candidate. Converged also: the
+loud-to-silent trade is a class (every rowless curved target, all
+three doors) where the PR says "once" — the brief's own C3 premise
+was wrong; `Transfers` now names a door that moves no row; the helper
+is a fresh copy of the one-loop-cycle walk; the `mfkrh_plug` rule is
+attributed to the placeholder instead of the fresh-key mint; three
+header sentences the change invalidated stand. Unilateral, taken: the
+`set_face_surface` blind spot is this unit's mechanism, mis-filed to
+two rows that do not cover it (R1); the fixture is tier-3-invalid by
+the structural battery while a row's name says clean (R1); the merge
+door also moves runs through `kef` (R1); the loop-walk census row's
+floor is 33 not 34 (R1); the item's `kfmrh` citation (R2). Seven-item
+fix pass to a fresh lane on the inherited branch: the predicate
+becomes surface equality with both mutants pinned, the trade scoped
+truthfully with a TRIM row filed, one home for the loop's rows walk.
