@@ -216,11 +216,18 @@ decisions became THEOREMS), `witness_on_surface_2` 7/0/0/3 → 9/0/0/1,
 and the document's whole-certifying ceiling `8.2611e2 · ε →
 9.3559e2 · ε`. The D-tab's `carrier_endpoint_start` 24/0/8/4 →
 24/0/12/0 on both spellings. No count falls anywhere; no ceiling on the
-five measured documents moves by a digit. Cost on the affordability line's OWN instrument (one whole-box leaf,
+five measured documents moves by a digit. On M10-9's per-document pin
+one of the five moves and moves UP: the ROUNDED PAD's `registered`
+86 → 104, with `symbolic_zero` 695 → 858, `numeric` 1172 → 991 and
+`frozen` 2750 either way — 181 decisions leave `numeric`, 163 as
+theorems and 18 through the door, nothing refused or contradicted at
+either dial. The other four do not move in `registered`; the link and
+the bracket only shift `numeric` into `symbolic_zero` (485 → 515,
+1075 → 1083). Cost on the affordability line's OWN instrument (one whole-box leaf,
 `m10_10_leaf_cost_with_and_without_the_algebra`, release, off → on):
 plate at `1e2·ε` 0.132 → 0.358 s, plate at its real study
 0.141 → 0.340, annulus 0.120 → 0.287, bracket 0.438 → **1.699**, link
-3.312 → **2.462** (cheaper, and over at both dials), pad
+3.312 → **2.427** (cheaper, and over at both dials), pad
 3.850 → **14.404**. The line is 1.6 s: the bracket, the pad and the
 link are over it, disclosed. On the ceiling-bisection instrument —
 not what the line is defined for — the same five read 0.23 → 0.47,

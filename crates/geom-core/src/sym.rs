@@ -391,7 +391,7 @@
 //! whole-box leaf (`m10_10_leaf_cost_with_and_without_the_algebra`),
 //! release, rule E off → on: plate at `1e2 · ε` 0.132 → 0.358 s, plate
 //! at its REAL study 0.141 → 0.340, annulus 0.120 → 0.287, bracket
-//! 0.438 → **1.699**, link 3.312 → **2.462**, pad 3.850 → **14.404**.
+//! 0.438 → **1.699**, link 3.312 → **2.427**, pad 3.850 → **14.404**.
 //! The line is 1.6 s, so the bracket, the pad AND the link are over it
 //! — the link at BOTH dials, and cheaper with the rule than without,
 //! because the forms the rule shrinks are the ones the walk then
@@ -1229,7 +1229,7 @@ impl SymRules {
     /// | D + A/B per node (`trig_of_atan`, `early_ab`, `sqrt_square`, `pythagoras`), with A1's `atan2` and half-π folds under D's dial | the plate's four identity residuals all go: the plate certifies 0.24–0.26 and the annulus 0.70–0.84 of their REAL studies, their ceilings bounded by dependency widening of real margins; pad 1.20× | plate 0.15 s at its real study, pad 2.1 → 10.5 s, link 0.43 → 4.1 s (with rule D's `sin`/`cos` pair built once) | **yes** |
     /// | A/B over the top residual (`sqrt_square`/`pythagoras` at `discharge`'s site, once the walks have declined) | none, alone or with rule D: the plate's nominal split is M10-9's under it alone and rule D's with D (`CAD_M10_10_RULES=top_only`, `d_top_only`); M10-8 measured it inert and it still is | +18% on the plate's `1e2·ε` leaf (0.131 → 0.154 s with rule D), +12% on the link (0.76 → 0.85 s) | ships only because it shares the per-node walk's dials — disclosed as M10-10's D17, not chosen |
     /// | C in the early walk (`signed_root`) | none; folds on no document at 256 bits | ~2× | no (inert; reads a value) |
-    /// | E, the quotient's common factor (`common_factor`, SYM-5) | none on the five; R1's boss at bulge 2 `8.2611e2 → 9.3559e2 · ε` (1.13×), and a derived frame whose AXES carry a parameter certifies where its authored twin does, which no dial reached before | one whole-box leaf, release: plate 0.13 → 0.36 s, annulus 0.12 → 0.29, bracket 0.44 → 1.70, link 3.31 → 2.46, pad 3.85 → 14.40 | **yes**, with the bracket, the pad and the link over the 1.6 s line disclosed |
+    /// | E, the quotient's common factor (`common_factor`, SYM-5) | none on the five; R1's boss at bulge 2 `8.2611e2 → 9.3559e2 · ε` (1.13×), and a derived frame whose AXES carry a parameter certifies where its authored twin does, which no dial reached before | one whole-box leaf, release: plate 0.13 → 0.36 s, annulus 0.12 → 0.29, bracket 0.44 → 1.70, link 3.31 → 2.43, pad 3.85 → 14.40 | **yes**, with the bracket, the pad and the link over the 1.6 s line disclosed |
     ///
     /// The pins in `m10_8_pins_interval.rs`, `m10_9_pins_interval.rs`
     /// and `m10_10_pins_interval.rs` hold each layer to what it
