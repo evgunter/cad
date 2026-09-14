@@ -1793,11 +1793,6 @@ fn run_azimuth_window<T: Decide>(
                     }
                 }
                 base.shift_branch(k, tau)
-                    .ok_or(SplitJoinError::SectionInvariant {
-                        face,
-                        what: "a run edge's chart image could not be branch-shifted (the \
-                               re-validated rebuild refused)",
-                    })?
             }
         };
         let (lo, hi) =

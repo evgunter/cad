@@ -385,6 +385,35 @@ pub fn sentinel_region(text: &str, what: &str, begin: &str, end: &str) -> std::o
     b + begin.len()..e
 }
 
+/// **The 1-based line `at` falls on**, for a guard whose refusal a
+/// reader has to be able to open. Offsets come out of a blanked view
+/// and a view blanks in place, so this is correct against the raw text
+/// and against every view of it alike.
+///
+/// Shared because two censuses wrote it byte-identically before this
+/// existed, and a guard that spells its own version of a shared
+/// operation is the defect the module docs above argue against.
+#[must_use]
+pub fn line(text: &str, at: usize) -> usize {
+    text[..at].lines().count()
+}
+
+/// **Is the byte before `at` outside an identifier?** — what makes a
+/// needle match a WHOLE name. Without it `operand` matches inside
+/// `wrong_operand` and `kind(` inside `carrier_kind(`; `true` at the
+/// start of the text, where there is no preceding byte to disqualify
+/// the match.
+///
+/// A needle's own trailing boundary is usually carried by the needle
+/// (`kind(`, `Variant {`), so only the leading side needs asking.
+#[must_use]
+pub fn boundary_before(code: &str, at: usize) -> bool {
+    code[..at]
+        .chars()
+        .next_back()
+        .is_none_or(|c| !c.is_alphanumeric() && c != '_')
+}
+
 /// minimum count, a required file) should assert it on the result.
 #[must_use]
 pub fn rust_sources(dir: &std::path::Path) -> Vec<std::path::PathBuf> {

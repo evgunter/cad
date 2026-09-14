@@ -1423,6 +1423,8 @@ fn attribute(
         | ValidationError::Pcurve { .. }
         | ValidationError::RingMeetsOuter { .. }
         | ValidationError::RingContactEscalated { .. }
+        | ValidationError::RingOutsideOuter { .. }
+        | ValidationError::RingNestingUndecided { .. }
         | ValidationError::DanglingTopology { .. }
         | ValidationError::DanglingGeometry { .. }
         | ValidationError::NextPrevMismatch { .. }

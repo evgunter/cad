@@ -63,7 +63,7 @@ flight, preview replaces, a gesture that never previewed commits
 nothing — can be held once, the way `drag_ops` holds the widget mapping
 once, with the vocabularies as parameters.
 
-Note DI5 (`docs/DOCM-IDENTITY-DESIGN.md`, ratified) moves the free-move
+Note DI5 (`crates/editor-core/IDENTITY.md`, ratified) moves the free-move
 commit onto the document as a `DocEdit::SetPlacement`, which brings the
 two machines CLOSER, not further apart: after it, both commits land a
 document edit. Sequencing this after
