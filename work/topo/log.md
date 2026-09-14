@@ -1656,3 +1656,15 @@ the mint-at-site target. The `[ev]` PR merges when its docs tier is
 green on the recorded head; the three ruled units are listed in the
 plan for the next block cut (after B5's slots 1 and 2 dispatch and
 conclude).
+
+## B5 slot 1 dispatched; set-face-surface R2 delivered (2026-09-14)
+
+The typed-absence R2's retired target, freed again by the
+set-face-surface R2 (MERGEABLE-AFTER-FIXES, no MAJOR, report
+archived at `/home/user/topo-orch/sfs-r2-report.md`), is slot 1's
+seed: `mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows`
+(FABLE, `topo/mef-kef-runs-carry-or-drop-rows`) dispatched. Its brief
+is told that PR 2527 ruled the minting posture's long-term shape and
+that this unit leaves the minted halves' posture alone. Live: the
+set-face-surface R1 (finishing) and slot 1. Slot 2 waits for the next
+freed target.
