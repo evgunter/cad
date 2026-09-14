@@ -702,3 +702,17 @@ affordance (CHROME), the Python door and the export guard's cfg
 asymmetry (LIB), the parametric polygon loop (PROPS, widened). The
 spec is deleted into the ledger. Next: the exit walk (ratified in
 advance by Ev, 2026-09-13) and the sweep.
+
+## 2026-09-14 — DOCM closes
+
+The last unit merged (DOCM-9, #2534, sample #187) and block DOCM-B3's
+record is on main. The exit walk (`docs/DOCM-EXIT-WALK.md`) is written
+as ratified, on Ev's instruction of 2026-09-13; the two companion
+docs are README pages beside the code (`crates/editor-core/REFERENCES.md`,
+`IDENTITY.md`); the residue is re-homed — twelve rows to the successor
+EDIT (opened at this sweep on the same ground), seven to WIRE, four to
+S-BOOL, four to DOOR, two to S-TINT, one each to MSOLVE, CENSUS and
+PORT; one closed. The directory leaves the tracker with the sweep that
+follows this commit (`docs/DOC-LEDGER.md` sweep 14 names the SHA).
+Nine v6 duals, ordinals 1800–1808, ten tally candidates for the
+readout Ev keeps owed.

@@ -2,8 +2,9 @@
 id: docm
 kind: program
 title: DOCM — the document model
-status: open
+status: closed
 opened: 2026-09-03
+closed: 2026-09-14
 area: api
 prefix: docm/
 tag: (DOCM orchestrator)

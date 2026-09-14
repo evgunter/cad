@@ -1,6 +1,6 @@
 # DOCM — the document model (plan)
 
-**STATUS: OPEN (2026-09-03).** Opened 2026-09-03 from `docs/WORK-TRACKS-2026-09.md` (DOCM section), which is this
+**STATUS: CLOSED (2026-09-14) — exit walk `docs/DOCM-EXIT-WALK.md` ratified in advance by Ev (in-chat 2026-09-13); nine units merged; the residue re-homed (`docs/DOC-LEDGER.md` sweep 14), the successor EDIT opened.** Opened 2026-09-03 from `docs/WORK-TRACKS-2026-09.md` (DOCM section), which is this
 program's charter until this plan supersedes it. Live state is
 `work/docm/log.md`'s tail and the item files beside this plan, never
 this file.
