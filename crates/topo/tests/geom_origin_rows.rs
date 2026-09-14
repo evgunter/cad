@@ -58,14 +58,8 @@ fn sources(b: &Body<f64>) -> Vec<String> {
         .surfaces()
         .map(|(k, _)| format!("{:?}", b.surface_source(k)))
         .collect();
-    v.extend(
-        b.curves()
-            .map(|(k, _)| format!("{:?}", b.curve_source(k))),
-    );
-    v.extend(
-        b.points()
-            .map(|(k, _)| format!("{:?}", b.point_source(k))),
-    );
+    v.extend(b.curves().map(|(k, _)| format!("{:?}", b.curve_source(k))));
+    v.extend(b.points().map(|(k, _)| format!("{:?}", b.point_source(k))));
     v
 }
 
@@ -78,15 +72,18 @@ fn stamp_all(b: &mut Body<f64>, node: u64) {
     let pk: Vec<_> = b.points().map(|(k, _)| k).collect();
     let mut idx: u32 = 0;
     for k in sk {
-        b.set_surface_source(k, GeomSource::minted(node, idx)).unwrap();
+        b.set_surface_source(k, GeomSource::minted(node, idx))
+            .unwrap();
         idx += 1;
     }
     for k in ck {
-        b.set_curve_source(k, GeomSource::minted(node, idx)).unwrap();
+        b.set_curve_source(k, GeomSource::minted(node, idx))
+            .unwrap();
         idx += 1;
     }
     for k in pk {
-        b.set_point_source(k, GeomSource::minted(node, idx)).unwrap();
+        b.set_point_source(k, GeomSource::minted(node, idx))
+            .unwrap();
         idx += 1;
     }
 }
@@ -239,7 +236,9 @@ fn clearing_marks_only_the_descriptions_that_held_a_source() {
     // clear marks those and leaves the rest alone.
     let mut mixed = brick();
     let first = mixed.surfaces().map(|(k, _)| k).next().unwrap();
-    mixed.set_surface_source(first, GeomSource::minted(5, 0)).unwrap();
+    mixed
+        .set_surface_source(first, GeomSource::minted(5, 0))
+        .unwrap();
     let placed = transform_rigid(&mixed, &aside(), tol).unwrap();
     assert_eq!(placed.surface_origin(first), Some(GeomOrigin::Cleared));
     let others: Vec<_> = placed

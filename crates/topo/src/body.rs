@@ -606,10 +606,7 @@ impl<T: Real> Body<T> {
     /// maintained by those doors rather than by the types, so it is
     /// ASSERTED here: drop the mark-removal from a stamping door and a
     /// transform-then-re-stamp body fires this on the first read.
-    fn origin_of<'a>(
-        source: Option<&'a GeomSource>,
-        mark: Option<&OriginMark>,
-    ) -> GeomOrigin<'a> {
+    fn origin_of<'a>(source: Option<&'a GeomSource>, mark: Option<&OriginMark>) -> GeomOrigin<'a> {
         debug_assert!(
             source.is_none() || mark.is_none(),
             "description carries a recipe source and the origin mark {mark:?} at once — \
