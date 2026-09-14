@@ -329,11 +329,11 @@ fn the_two_fillet_forms() {
         // And what the door answers when the registrant states it.
         println!(
             "   register(|h_registrant|, r) -> {:?}",
-            h_registrant.abs().register_equal(r)
+            h_registrant.abs().register_equal(r, Tol::witness())
         );
         println!(
             "   register(|h_consumer|,   r) -> {:?}",
-            h_consumer.abs().register_equal(r)
+            h_consumer.abs().register_equal(r, Tol::witness())
         );
     });
     println!("   counts {counts:?}");

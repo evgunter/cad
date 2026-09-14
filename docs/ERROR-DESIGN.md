@@ -623,13 +623,15 @@ number.
   capability evaluation-code discipline exists to keep out of that
   position.
 
-  The point witness is also ε-INDEPENDENT: a relative constant
-  (`geom_core::real::WITNESS_REL`), not the run's tolerance, because a
-  library body may not mint one and the door takes no `tol`. At a tight
-  ε row it is many band-widths loose. Filed with the two routes out
-  (`work/sym/the-witness-slack-is-eps-independent`); the `Interval`
-  refusal, which is the one that matters over a box, carries no
-  tolerance at all.
+  The point witness moves with the RUN'S ε: the slack is
+  `tol.eps() · max(|a|, |b|, 1)` — relative because ε is a length in
+  metres and `f64` rounding far from the origin exceeds it, floored at
+  one so a near-zero pair is compared absolutely at ε. The tolerance
+  ARRIVES: `Real::register_equal` takes a `tol: Tol` handed down from
+  the registrant's caller, because a library body may not mint one
+  (`scripts/gates/witness-not-ambient.sh`). The `Interval` refusal,
+  which is the one that matters over a box, carries no tolerance at
+  all and ignores the parameter: its witness is the exact meet.
 
   The "same-OBJECT" limit in this bullet is exactly what M10-9
   measured, and it BINDS: the swept arc's rim and span identities

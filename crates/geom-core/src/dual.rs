@@ -143,6 +143,7 @@ use core::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::predicate::{Band, Decide, Indeterminate, Sign};
 use crate::real::{Bounds, Real};
+use crate::tolerance::Tol;
 
 #[cfg(feature = "interval")]
 use crate::interval::Interval;
@@ -452,8 +453,8 @@ impl<T: KinkJacobian> Real for Dual<T> {
     ///
     /// Nothing is recorded — a `Dual` tracks no expression
     /// ([`Real::register_equal`]).
-    fn register_equal(self, other: Self) -> crate::sym::SymRegistration {
-        self.value.register_equal(other.value)
+    fn register_equal(self, other: Self, tol: Tol) -> crate::sym::SymRegistration {
+        self.value.register_equal(other.value, tol)
     }
 
     /// `(1, 0)`.

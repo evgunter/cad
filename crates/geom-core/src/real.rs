@@ -66,6 +66,8 @@
 use core::fmt::Debug;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
+use crate::tolerance::Tol;
+
 /// **What the registered-identity door did with one registration**
 /// ([`crate::Sym::register_equal`], ERROR-DESIGN E12's provenance reserve).
 ///
@@ -98,9 +100,9 @@ pub enum SymRegistration {
     Already,
     /// **REFUSED, typed: the two values are not one real.** The lane
     /// scalar's own witness said so — certified enclosures that do not
-    /// MEET at [`crate::Interval`], `f64` values apart by more than
-    /// [`WITNESS_REL`] of the larger magnitude — so the constructor did not
-    /// build what it claims. Nothing is recorded, the registry is
+    /// MEET at [`crate::Interval`], `f64` values apart by more than the
+    /// run's ε relative to the larger magnitude — so the constructor did
+    /// not build what it claims. Nothing is recorded, the registry is
     /// unchanged, and every decision that would have rested on the
     /// record stays numeric.
     Contradicted,
@@ -126,41 +128,6 @@ pub enum SymRegistration {
     /// expression with no value witnesses nothing.
     Unwitnessed,
 }
-
-/// **The `f64` witness's slack: RELATIVE to the larger magnitude,
-/// floored at one — and DELIBERATELY not the run's ε.**
-///
-/// It gates whether a registration is RECORDED and nothing else:
-/// nothing is certified by it, no margin is classified against it, and
-/// a registration it admits is still an axiom whose soundness rests on
-/// the registrant's proof ([`Real::register_equal`]).
-///
-/// **Why it is not `Tol`'s ε, which a review asked for and this pass
-/// tried.** Two reasons, and the second is measured:
-///
-/// 1. **`Tol::witness()` in library code is an ambient read**, and
-///    `scripts/gates/witness-not-ambient.sh` forbids it for a reason
-///    that outranks this preference: the run's ε is an entry-point
-///    commitment, taken as a `tol: Tol` parameter and passed down. The
-///    door has no tolerance parameter — `Real::register_equal(self,
-///    other)` is called from generic constructor code that has none
-///    either — so making the slack ε-derived means threading `Tol`
-///    through the swept/revolve pipeline or putting one on the
-///    symbolic session. Both are real changes and neither belongs in a
-///    fix pass.
-/// 2. **An ABSOLUTE slack is wrong far from the origin.** ε is a length
-///    in metres; a rim at coordinates of 10⁹ carries `f64` rounding of
-///    ~10⁻⁷, so an absolute ε refuses a true identity and the
-///    registrants' `debug_assert!`s fire. Measured, not reasoned: the
-///    absolute spelling turned `mesh`'s far-placement ball probe and
-///    `sweep`'s tube-wall radii probe red in the `f64` lane.
-///
-/// So the slack stays relative and ε-independent, and the limit is
-/// FILED rather than hidden
-/// (`work/sym/the-witness-slack-is-eps-independent`): at a tight ε row
-/// this threshold is many band-widths loose, which weakens the witness
-/// exactly where the review said it does.
-pub const WITNESS_REL: f64 = 1e-9;
 
 /// The scalar type the geometry evaluation layer is generic over.
 ///
@@ -256,8 +223,9 @@ pub trait Real:
     ///   [`crate::sym::SymRegistration::Witnessed`] or, when the two
     ///   values are not the same real,
     ///   [`crate::sym::SymRegistration::Contradicted`] — `f64` and
-    ///   [`crate::Probe`] by a point tolerance
-    ///   ([`WITNESS_REL`]), [`crate::Interval`] by whether
+    ///   [`crate::Probe`] by a point comparison at the run's ε, taken
+    ///   as `tol` ([`Real::register_equal`]'s `f64` impl argues the
+    ///   spelling), [`crate::Interval`] by whether
     ///   the two certified enclosures MEET. Neither records anything:
     ///   there is no expression at a bare scalar to record it about;
     /// - [`crate::Sym`] asks its own lane scalar that question first
@@ -283,6 +251,16 @@ pub trait Real:
     /// two enclosures meet. The rows that establish this are
     /// `geom-core/tests/m10_9_witness_limits_interval.rs`.
     ///
+    /// **`tol` is the run's ε, and it ARRIVES.** The inexact witnesses
+    /// (`f64`, [`crate::Probe`]) compare at a slack, and a slack that
+    /// does not move with the run's ε is loosest exactly where the
+    /// numeric-first shield is tightest. The run's ε is an entry-point
+    /// commitment, so it is taken as a parameter and passed down from
+    /// whichever registrant holds one — kernel library code may not
+    /// mint a tolerance witness (`scripts/gates/witness-not-ambient.sh`).
+    /// A scalar whose witness is EXACT ([`crate::Interval`]'s meet of
+    /// two certified enclosures) ignores it, and says so at its impl.
+    ///
     /// **WHERE IT MAY BE CALLED.** This method hands every generic
     /// `T: Real` body a value COMPARISON — the capability
     /// evaluation-code discipline exists to keep out of that position,
@@ -298,7 +276,7 @@ pub trait Real:
     /// counted in the session's receipt
     /// ([`crate::SymCounts::registrations_refused`]).
     #[must_use]
-    fn register_equal(self, _other: Self) -> SymRegistration {
+    fn register_equal(self, _other: Self, _tol: Tol) -> SymRegistration {
         SymRegistration::Unwitnessed
     }
 
@@ -1547,20 +1525,36 @@ impl Real for f64 {
     /// the half of the door's contract that keeps a constructor from
     /// stating something it did not build.
     ///
-    /// The comparison is relative to the larger magnitude, floored at
-    /// one, at [`WITNESS_REL`] (whose docs argue the number and say why
-    /// it is not the run's ε). A poisoned value witnesses nothing: NaN
-    /// is not a real, so no claim about it is checkable.
+    /// **The slack is the run's ε, RELATIVE to the larger magnitude and
+    /// floored at one**: `|a − b| ≤ tol.eps() · max(|a|, |b|, 1)`. Each
+    /// of the three parts is a decision.
+    ///
+    /// - **The run's ε**, because this gates whether a registration is
+    ///   RECORDED, and a fixed constant is loosest exactly where the
+    ///   numeric-first shield is tightest: at ε = 1e-12 a constant of
+    ///   1e-9 admits two sides a thousand band-widths apart. It arrives
+    ///   as `tol` rather than being read ([`Real::register_equal`]).
+    /// - **Relative**, because ε is a length in metres and `f64`
+    ///   rounding at coordinates of 10⁹ is ~10⁻⁷: an absolute ε refuses
+    ///   a TRUE identity far from the origin. Measured, not reasoned —
+    ///   the absolute spelling turns `mesh`'s far-placement ball probe
+    ///   and `sweep`'s tube-wall radii probe red in this lane.
+    /// - **Floored at one**, so a pair near the origin is compared
+    ///   absolutely at ε and the relative form does not shrink to zero
+    ///   slack where the magnitudes do.
+    ///
+    /// A poisoned value witnesses nothing: NaN is not a real, so no
+    /// claim about it is checkable.
     ///
     /// It catches a lie AT THE POINT and nothing else — a claim true at
     /// the nominal and false elsewhere passes here as it passes at
     /// every scalar ([`Real::register_equal`]'s contract).
-    fn register_equal(self, other: Self) -> SymRegistration {
+    fn register_equal(self, other: Self, tol: Tol) -> SymRegistration {
         if self.is_nan() || other.is_nan() {
             return SymRegistration::Unwitnessed;
         }
         let scale = self.abs().max(other.abs()).max(1.0);
-        if (self - other).abs() <= WITNESS_REL * scale {
+        if (self - other).abs() <= tol.eps() * scale {
             SymRegistration::Witnessed
         } else {
             SymRegistration::Contradicted

@@ -557,6 +557,7 @@ use std::rc::Rc;
 use crate::predicate::{Band, Decide, Indeterminate, MarginDiag, Sign};
 use crate::real::{Bounds, CertifiedEnclosure, Real};
 use crate::spline::{KnotVector, SpanLocate, SpanSet};
+use crate::tolerance::Tol;
 
 /// The atom algebra: the rule A/B reductions over a residual.
 #[path = "sym/algebra.rs"]
@@ -2235,8 +2236,10 @@ impl<T: Real> Sym<T> {
     ///
     /// The lane scalar is asked first ([`Real::register_equal`]): at
     /// [`crate::Interval`] the two certified enclosures must MEET, at
-    /// `f64` the two values must agree to the funnel's own coincidence
-    /// threshold ([`Real::register_equal`]). Where they
+    /// `f64` the two values must agree to the run's ε relative to the
+    /// larger magnitude — which is why `tol` is a parameter here, and
+    /// why it is handed down rather than read ([`Real::register_equal`]).
+    /// Where they
     /// do not, the door records nothing and answers
     /// [`SymRegistration::Contradicted`], typed, so a constructor that
     /// does not build what it claims cannot state it. A registration
@@ -2278,12 +2281,12 @@ impl<T: Real> Sym<T> {
     /// argument runs.
     #[must_use = "a registration can be REFUSED, and a refusal a caller \
                   drops is a lie nobody sees"]
-    pub fn register_equal(self, other: Self) -> SymRegistration {
+    pub fn register_equal(self, other: Self, tol: Tol) -> SymRegistration {
         // The witness first: an unwitnessed or contradicted claim never
         // reaches the registry at all. A refusal is COUNTED — the
         // receipt is where a constructor that states a lie becomes
         // visible.
-        match self.value.register_equal(other.value) {
+        match self.value.register_equal(other.value, tol) {
             SymRegistration::Contradicted => {
                 count_registration_refused();
                 return SymRegistration::Contradicted;
@@ -2412,8 +2415,8 @@ impl<T: Real> Real for Sym<T> {
     /// **The one scalar that RECORDS** rather than only witnessing —
     /// the door itself ([`Sym::register_equal`], which carries the
     /// whole of the contract).
-    fn register_equal(self, other: Self) -> SymRegistration {
-        Sym::register_equal(self, other)
+    fn register_equal(self, other: Self, tol: Tol) -> SymRegistration {
+        Sym::register_equal(self, other, tol)
     }
 
     fn powi(self, n: i32) -> Self {
@@ -3110,7 +3113,10 @@ mod tests {
             with_session(budget(), || {
                 let (n, r, resid) = rim(3.0, 4.0, 5.0);
                 if register {
-                    assert_eq!(n.register_equal(r), SymRegistration::Recorded);
+                    assert_eq!(
+                        n.register_equal(r, Tol::witness()),
+                        SymRegistration::Recorded
+                    );
                 }
                 resid.map(how)
             })
@@ -3158,7 +3164,7 @@ mod tests {
                 let z = p("z", 2.0);
                 let to = if gated { (y * y).sqrt() } else { y };
                 assert_eq!(
-                    z.register_equal(to),
+                    z.register_equal(to, Tol::witness()),
                     SymRegistration::Recorded,
                     "both registrations are witnessed at the point"
                 );
@@ -3191,7 +3197,7 @@ mod tests {
             with_session(budget(), || {
                 let (n, r, resid) = rim(0.3, 0.4, 0.5000000001);
                 if register {
-                    let _ = n.register_equal(r);
+                    let _ = n.register_equal(r, Tol::witness());
                 }
                 [resid[0].value.to_bits(), resid[1].value.to_bits()]
             })
@@ -3224,7 +3230,7 @@ mod tests {
             let (n, r, resid) = rim(3.0, 4.0, 5.0);
             let two_r = Sym::from_f64(2.0) * r;
             assert_eq!(
-                n.register_equal(two_r),
+                n.register_equal(two_r, Tol::witness()),
                 SymRegistration::Contradicted,
                 "5 is not 10, and the witness says so at the point"
             );
@@ -3243,10 +3249,16 @@ mod tests {
         let (rows, counts) = with_session(budget(), || {
             let (n, r, resid) = rim(3.0, 4.0, 5.0);
             let first = how(resid[0]);
-            assert_eq!(n.register_equal(r), SymRegistration::Recorded);
+            assert_eq!(
+                n.register_equal(r, Tol::witness()),
+                SymRegistration::Recorded
+            );
             let second = how(resid[0]);
             // Idempotent, and a repeat invalidates nothing.
-            assert_eq!(n.register_equal(r), SymRegistration::Already);
+            assert_eq!(
+                n.register_equal(r, Tol::witness()),
+                SymRegistration::Already
+            );
             [first, second]
         });
         assert_eq!(
@@ -3266,10 +3278,16 @@ mod tests {
         with_session(budget(), || {
             let x = p("w", 1.0);
             let bigger = x * x;
-            assert_eq!(x.register_equal(bigger), SymRegistration::Cyclic);
+            assert_eq!(
+                x.register_equal(bigger, Tol::witness()),
+                SymRegistration::Cyclic
+            );
             // The other direction is not a cycle: `bigger` contains
             // `x`, `x` does not contain `bigger`.
-            assert_eq!(bigger.register_equal(x), SymRegistration::Recorded);
+            assert_eq!(
+                bigger.register_equal(x, Tol::witness()),
+                SymRegistration::Recorded
+            );
         });
     }
 
@@ -3280,7 +3298,10 @@ mod tests {
         let (rows, counts) =
             with_session_rules(budget(), SymRules::shipped_without_the_door(), || {
                 let (n, r, resid) = rim(3.0, 4.0, 5.0);
-                assert_eq!(n.register_equal(r), SymRegistration::Witnessed);
+                assert_eq!(
+                    n.register_equal(r, Tol::witness()),
+                    SymRegistration::Witnessed
+                );
                 resid.map(how)
             });
         assert_eq!(rows, ["numeric", "numeric"]);
@@ -3293,21 +3314,24 @@ mod tests {
     #[test]
     fn the_hook_is_a_no_op_off_the_symbolic_scalar() {
         assert_eq!(
-            <f64 as Real>::register_equal(1.0, 1.0 + 1e-15),
+            <f64 as Real>::register_equal(1.0, 1.0 + 1e-15, Tol::witness()),
             SymRegistration::Witnessed
         );
         assert_eq!(
-            <f64 as Real>::register_equal(1.0, 2.0),
+            <f64 as Real>::register_equal(1.0, 2.0, Tol::witness()),
             SymRegistration::Contradicted
         );
         assert_eq!(
-            <f64 as Real>::register_equal(f64::NAN, 1.0),
+            <f64 as Real>::register_equal(f64::NAN, 1.0, Tol::witness()),
             SymRegistration::Unwitnessed
         );
         // Outside `with_session` there is no table to record in.
         let a = Sym::<f64>::from_f64(2.0);
         let b = Sym::<f64>::from_f64(2.0);
-        assert_eq!(a.register_equal(b), SymRegistration::Witnessed);
+        assert_eq!(
+            a.register_equal(b, Tol::witness()),
+            SymRegistration::Witnessed
+        );
     }
 
     /// **Claim 9 — the axiom agrees with the tier where the tier can
@@ -3387,7 +3411,10 @@ mod tests {
         let (rows, counts) = with_session(budget(), || {
             let [p_end, q_to, resid] = span(0.4, 0.0);
             for (a, b) in p_end.into_iter().zip(q_to) {
-                assert_eq!(a.register_equal(b), SymRegistration::Recorded);
+                assert_eq!(
+                    a.register_equal(b, Tol::witness()),
+                    SymRegistration::Recorded
+                );
             }
             resid.map(how)
         });
@@ -3399,7 +3426,7 @@ mod tests {
             let [p_end, q_to, resid] = span(0.4, 1.0e-3);
             for (a, b) in p_end.into_iter().zip(q_to) {
                 assert_eq!(
-                    a.register_equal(b),
+                    a.register_equal(b, Tol::witness()),
                     SymRegistration::Contradicted,
                     "the witness separates a displaced far vertex"
                 );
@@ -3420,7 +3447,7 @@ mod tests {
         let run = || {
             with_session(budget(), || {
                 let (n, r, resid) = rim(3.0, 4.0, 5.0);
-                let _ = n.register_equal(r);
+                let _ = n.register_equal(r, Tol::witness());
                 // The registrant's node, recomputed: `Vec3::norm` is
                 // `norm_squared().sqrt()` and ids are content hashes, so
                 // the consumer's divisor is the very node registered.

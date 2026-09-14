@@ -368,7 +368,12 @@ pub(crate) fn turn_axis<T: Real>(turn: Sign, normal: Vec3<T>) -> Vec3<T> {
 /// `v / ‖v‖` at every lane. The rejected cheaper spelling is
 /// `v / radius`, which would buy the same cancellation by changing the
 /// `f64` lane's bits.
-pub(crate) fn register_rim_identity<T: Real>(rim: Vec3<T>, radius: T) {
+///
+/// `tol` is the run's ε, which the door's inexact witnesses compare at
+/// ([`geom_core::Real::register_equal`]). It ARRIVES from the caller —
+/// every registrant on this path is reached from a builder that already
+/// holds one, and kernel library code may not mint a tolerance witness.
+pub(crate) fn register_rim_identity<T: Real>(rim: Vec3<T>, radius: T, tol: Tol) {
     // THE TYPED ANSWER IS HANDLED, and handling it is not asserting on
     // it. A `Contradicted` means the lane scalar separated `‖q − c‖`
     // from `r`; the registration is then REFUSED — nothing is recorded,
@@ -387,7 +392,7 @@ pub(crate) fn register_rim_identity<T: Real>(rim: Vec3<T>, radius: T) {
     // (`work/sym/the-span-identity-is-not-a-theorem-of-the-floats`), and
     // an assertion there turns a door that correctly REFUSES into a
     // panic.
-    let _refused_registrations_are_counted_not_asserted = rim.norm().register_equal(radius);
+    let _refused_registrations_are_counted_not_asserted = rim.norm().register_equal(radius, tol);
 }
 
 /// **The swept arc's SPAN identity, registered** (M10-9 amendment A1;
@@ -426,7 +431,15 @@ pub(crate) fn register_rim_identity<T: Real>(rim: Vec3<T>, radius: T) {
 /// from it. Registered PER COMPONENT because that is what the consumer
 /// asks: `carrier.eval(t1).distance(end)` is the `sqrt` of a sum of
 /// squares, zero as a form exactly when each component's difference is.
-pub(crate) fn register_span_identity<T: Real>(carrier: &Curve3<T>, param_end: T, q_to: Point3<T>) {
+///
+/// `tol` is the run's ε, handed down as at the rim
+/// (`register_rim_identity` carries the argument).
+pub(crate) fn register_span_identity<T: Real>(
+    carrier: &Curve3<T>,
+    param_end: T,
+    q_to: Point3<T>,
+    tol: Tol,
+) {
     let Curve3::Circle {
         center,
         axis,
@@ -443,7 +456,7 @@ pub(crate) fn register_span_identity<T: Real>(carrier: &Curve3<T>, param_end: T,
     // is not asserted on (`register_rim_identity` carries the
     // argument and the measurement).
     for (built, held) in [(p.x, q_to.x), (p.y, q_to.y), (p.z, q_to.z)] {
-        let _refused_registrations_are_counted_not_asserted = built.register_equal(held);
+        let _refused_registrations_are_counted_not_asserted = built.register_equal(held, tol);
     }
 }
 
@@ -454,13 +467,17 @@ pub(crate) fn register_span_identity<T: Real>(carrier: &Curve3<T>, param_end: T,
 ///
 /// `place` and `normal` are the placement the segment is lowered
 /// through and its plane normal — the sketch placement for a base
-/// lamina, the translated or rotated one for the swept copy.
+/// lamina, the translated or rotated one for the swept copy. `tol` is
+/// the run's ε, carried through to the two identities the arc arm
+/// states (`register_rim_identity`, `register_span_identity`) and used
+/// for nothing else here.
 pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
     seg: &S,
     place: Affine3<T>,
     normal: Vec3<T>,
     q_from: Point3<T>,
     q_to: Point3<T>,
+    tol: Tol,
 ) -> EdgeCurveSpec<T> {
     let description = EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
         segment: sketch_segment(seg),
@@ -487,7 +504,7 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
             // (`register_rim_identity` carries the proof). Bound out of
             // the expression below rather than spelled twice: one
             // subtraction, one node, one set of bits.
-            register_rim_identity(rim, radius);
+            register_rim_identity(rim, radius, tol);
             let carrier = Curve3::Circle {
                 center: c_world,
                 axis: turn_axis(turn, normal),
@@ -501,7 +518,7 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
             // registrant states them about the very nodes the spec
             // carries — which is the whole of the same-object
             // condition.
-            register_span_identity(&carrier, param_end, q_to);
+            register_span_identity(&carrier, param_end, q_to, tol);
             EdgeCurveSpec {
                 description,
                 carrier,
