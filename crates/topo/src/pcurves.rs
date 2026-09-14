@@ -1409,6 +1409,17 @@ pub(crate) fn stored_rows<T: Decide>(body: &Body<T>, face: &crate::entity::Face)
     out
 }
 
+/// The two rows a parameter split leaves where ONE parent half-edge's
+/// row was, named by where they go: the first child's `[t₀, t]` stays
+/// on the parent half (which IS the first child's half), the second
+/// child's `[t, t₁]` goes to the new half minted beside it.
+pub(crate) struct CarriedRows<T: Real> {
+    /// The first child's row, for the parent half-edge.
+    pub(crate) parent_half: PcurveCache<T>,
+    /// The second child's row, for the half-edge minted beside it.
+    pub(crate) new_half: PcurveCache<T>,
+}
+
 /// Why [`split_cache`] could not state a restriction.
 #[derive(Clone, Debug)]
 pub(crate) enum SplitRowError {
@@ -1445,9 +1456,8 @@ pub(crate) enum SplitRowError {
 /// children of a parameter split** — [`crate::Body::split_edge`]'s
 /// pcurve limb, and the reason that op carries its rows across the
 /// surgery instead of staling them. The answer holds one entry per
-/// given half-edge: that half-edge's two child rows in child order
-/// (`[t₀, t]` then `[t, t₁]`), or `None` where there is nothing to
-/// carry.
+/// given half-edge: that half-edge's [`CarriedRows`], or `None` where
+/// there is nothing to carry.
 ///
 /// A [`Pcurve`] is a function of the **carrier parameter** and carries
 /// no interval of its own ([`Pcurve::eval`]), exactly as an
@@ -1525,7 +1535,7 @@ pub(crate) fn split_cache<T: Decide>(
     halves: [HalfEdgeKey; 2],
     t: T,
     band: Band,
-) -> Result<[Option<(PcurveCache<T>, PcurveCache<T>)>; 2], SplitRowError> {
+) -> Result<[Option<CarriedRows<T>>; 2], SplitRowError> {
     // At most one entry per face: an edge's two halves bound two
     // faces, or one face twice when the edge is a seam.
     let mut windows: Vec<(FaceKey, ChartWindow<T>)> = Vec::new();
@@ -1562,9 +1572,10 @@ pub(crate) fn split_cache<T: Decide>(
             PcurveCache::certify(image, a, b, &carrier, &surface, window, band)
                 .map_err(|error| SplitRowError::Certify { half_edge, error })
         };
-        let first = certify(t0, t, image.clone())?;
-        let second = certify(t, t1, image)?;
-        rows[slot] = Some((first, second));
+        rows[slot] = Some(CarriedRows {
+            parent_half: certify(t0, t, image.clone())?,
+            new_half: certify(t, t1, image)?,
+        });
     }
     Ok(rows)
 }

@@ -228,8 +228,6 @@ mod m6_5_fillet_naming;
 mod m6_chart_mints;
 #[path = "m6_loft_body.rs"]
 mod m6_loft_body;
-#[path = "split_edge_loft_charts.rs"]
-mod split_edge_loft_charts;
 #[path = "m6_rider.rs"]
 mod m6_rider;
 #[path = "m6_surgery.rs"]
@@ -360,6 +358,8 @@ mod s16_box_soundness;
 mod s49_census_jurisdiction;
 #[path = "seat6_germ_channel.rs"]
 mod seat6_germ_channel;
+#[path = "split_edge_loft_charts.rs"]
+mod split_edge_loft_charts;
 #[path = "turning_orientation.rs"]
 mod turning_orientation;
 #[path = "verbs_1031b_arcwind.rs"]

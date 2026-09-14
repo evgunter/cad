@@ -232,7 +232,10 @@ fn deep(body: &Body<f64>) -> Vec<String> {
         out.push(format!("L {k:?} face={:?} b={:?}", l.face, l.boundary));
     }
     for (k, f) in body.faces() {
-        out.push(format!("F {k:?} {:?} {:?} {:?}", f.outer, f.rings, f.surface));
+        out.push(format!(
+            "F {k:?} {:?} {:?} {:?}",
+            f.outer, f.rings, f.surface
+        ));
     }
     for (k, s) in body.shells() {
         out.push(format!("S {k:?} {s:?}"));
@@ -335,7 +338,11 @@ fn the_carried_rows_are_the_mint_passs_rows_byte_for_byte() {
             let carried = deep(&body);
             topo::mint_pcurves(&mut body, tol()).unwrap();
             let after = deep(&body);
-            let moved: Vec<_> = carried.iter().zip(after.iter()).filter(|(a, b)| a != b).collect();
+            let moved: Vec<_> = carried
+                .iter()
+                .zip(after.iter())
+                .filter(|(a, b)| a != b)
+                .collect();
             assert_eq!(
                 carried.len(),
                 after.len(),

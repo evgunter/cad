@@ -262,18 +262,20 @@ impl<T: Decide> Body<T> {
         // sub-intervals and re-certified. Read-only, so a refusal
         // leaves the body untouched like every gate above it.
         let [rows_plus, rows_minus] =
-            crate::pcurves::split_cache(self, [hp.key(), hm.key()], t, band).map_err(|e| match e {
-                crate::pcurves::SplitRowError::Stale { half_edge } => EulerOpError::StaleKey {
-                    key: EntityId::HalfEdge(half_edge),
-                },
-                crate::pcurves::SplitRowError::Certify { half_edge, error } => {
-                    EulerOpError::PcurveSplit {
-                        edge,
-                        half_edge,
-                        error,
+            crate::pcurves::split_cache(self, [hp.key(), hm.key()], t, band).map_err(
+                |e| match e {
+                    crate::pcurves::SplitRowError::Stale { half_edge } => EulerOpError::StaleKey {
+                        key: EntityId::HalfEdge(half_edge),
+                    },
+                    crate::pcurves::SplitRowError::Certify { half_edge, error } => {
+                        EulerOpError::PcurveSplit {
+                            edge,
+                            half_edge,
+                            error,
+                        }
                     }
-                }
-            })?;
+                },
+            )?;
 
         // ---- Mutation (infallible from here on). ----
         // Minting order (documented above): point, curve1, curve2,
@@ -320,13 +322,13 @@ impl<T: Decide> Body<T> {
         // halves take the second child's. Both children lie in their
         // parent's own loop, so the loop's one-branch unwrap is the
         // parent's and needs no re-pinning.
-        if let Some((first, second)) = rows_plus {
-            self.pcurves.insert(hp.key(), first);
-            self.pcurves.insert(n_plus, second);
+        if let Some(rows) = rows_plus {
+            self.pcurves.insert(hp.key(), rows.parent_half);
+            self.pcurves.insert(n_plus, rows.new_half);
         }
-        if let Some((first, second)) = rows_minus {
-            self.pcurves.insert(hm.key(), first);
-            self.pcurves.insert(n_minus, second);
+        if let Some(rows) = rows_minus {
+            self.pcurves.insert(hm.key(), rows.parent_half);
+            self.pcurves.insert(n_minus, rows.new_half);
         }
         // The parent's minus half now starts at w (the parent derives
         // its new end w through n⁺/n⁻'s starts).
