@@ -294,7 +294,7 @@ fn nurbs_edge() -> (Body<f64>, EdgeKey) {
 /// precisely what the model stores about it.
 #[test]
 fn edge_carrier_kind_copies_the_tag_out_for_every_kind() {
-    let rows: [(&str, (Body<f64>, EdgeKey), CurveKind); 4] = [
+    let rows = [
         ("line", line_edge(), CurveKind::Line),
         ("circle", conic_edge(circle()), CurveKind::Circle),
         ("ellipse", conic_edge(ellipse()), CurveKind::Ellipse),
