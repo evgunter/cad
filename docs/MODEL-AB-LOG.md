@@ -6144,3 +6144,7 @@ first (its lane is ready); slot 1 when a lane frees; slot 2 on Ev's
 D1 answer.
 
 Block SYM-B1 slot record (branch-side, appended as each slot concludes):
+slot 0 = SYM-4 implementer dispatch (2026-09-14, ~07:10Z): arm FABLE per the draw above (byte 105); `docs/SYM-4-SPEC.md` (M / STRUCTURAL, pre-draw); brief `/home/user/sym-briefs/unit-4-brief.md` (lane-local; the spec is the binding text). Review ordinal claimed on main at the dual's dispatch.
+slot 0 = SYM-4 review dispatch (2026-09-14): ordinal 4700 claimed on main; R1/R2 byte 86 ⇒ parity 0 ⇒ R1 = OPUS, R2 = FABLE; briefs stored here before dispatch —
+bd2bf9fba499ccae43a4e743a4fc6a79b4047a28b1db5824921deba82529e100  sym-4-review-brief-r1.md
+11e9ed5ba268814d39527f6be8f56bc457804c285ba376267444a95ea1151708  sym-4-review-brief-r2.md
