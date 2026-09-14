@@ -2,10 +2,11 @@
 id: loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart
 kind: unit
 title: kfmrh and ring_move re-parent a loop onto a face with a different chart; its pcurve rows keep their keys and lose their meaning, and tier 3 is silent whenever the target is planar
-status: dispatched
+status: closed
 opened: 2026-09-14
 pr: 2549
 branch: topo/loop-reparenting-rows
+closed: 2026-09-14
 ---
 
 Found by PR 2531's reviewers (R2 by execution on `kfmrh`, R1 by reading

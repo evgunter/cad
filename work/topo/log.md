@@ -1074,3 +1074,17 @@ recorded at merge (ordinal 2706, sample #189), no tally candidate;
 slot 1 marked concluded on `topo/b3-block`. `S93` (slot 2, OPUS)
 dispatched on `topo/s93-rebased-carriers` with a brief section in
 its item, beside the loop-re-parenting fix pass.
+
+## Loop re-parenting merged; block TOPO-B3 slot 0 concluded (2026-09-14)
+
+PR 2549 merged at `7f249e2dd` (green run 34815095925 on `59e956b0d`,
+full matrix, verified job by job). The unit closed. The fix pass's
+disagreement was the substantive one: the reviewers' bit-structural
+surface equality needs `Bounds`, and the bound ripples through forty
+signatures in four crates without converging — so the predicate is
+key-or-provenance, with the provenance-free two-keys-one-surface
+case pinned and filed rather than silently regressed. Row recorded at
+merge (ordinal 2707, sample #190), no tally candidate; slot 0
+concluded on `topo/b3-block`. `S93` (slot 2) is the one lane running;
+the box was reclaimed to twelve gigabytes free after the two fix
+passes' targets went.
