@@ -110,6 +110,17 @@ pub enum SymRegistration {
     /// [`crate::Probe`] never answer it — an inexact witness answers
     /// [`SymRegistration::Disputed`].
     ///
+    /// **A registrant's assertion on this arm is LIVE IN RELEASE, and
+    /// that is a deliberate change of behaviour.** This workspace ships
+    /// `[profile.release] debug-assertions = true`, so a registrant that
+    /// `debug_assert!`s here ABORTS in every profile, where before the
+    /// arm split the same configuration was a counted refusal in all of
+    /// them. It is the right shape: at an exact witness a refusal is a
+    /// proof of a soundness defect somewhere upstream, and this codebase
+    /// fails loud rather than recording a defect in a column. What is
+    /// bought with it is that nothing downstream can rest on a
+    /// registration the exact witness disproved.
+    ///
     /// Nothing is recorded, the registry is unchanged, and every
     /// decision that would have rested on the record stays numeric.
     Contradicted,
@@ -267,7 +278,8 @@ pub trait Real:
     /// only a lie visible AT THE POINT (`f64`, `Probe`, and there only
     /// as `Disputed`, which may also be the arithmetic giving up) or one
     /// whose two certified enclosures are DISJOINT over the box
-    /// (`Interval`, where the refusal is a proof) — and "the enclosures meet" is satisfied by every
+    /// (`Interval`, where the refusal is a proof) — and "the enclosures
+    /// meet" is satisfied by every
     /// coincidence, so `x² ≡ x` over `[0.9, 1.1]` is recorded, and a
     /// registration false by a geometric amount is recorded as soon as
     /// the box is wide enough for the two enclosures to overlap. **The
@@ -277,7 +289,11 @@ pub trait Real:
     /// the numeric-first shield is weakest — a residual whose two sides
     /// are dependency-widened straddles zero for the same reason its
     /// two enclosures meet. The rows that establish this are
-    /// `geom-core/tests/m10_9_witness_limits_interval.rs`.
+    /// `geom-core/tests/m10_9_r1_sym_probes.rs`
+    /// (`r1_a_coincidence_at_one_point_of_the_box_registers_and_decides_zero`
+    /// and `r1_a_geometric_lie_the_f64_witness_refuses_is_recorded_at_interval`)
+    /// and `geom-core/tests/m10_9_r2_sym_probes.rs`
+    /// (`r2_the_interval_witness_lets_a_geometric_lie_through_over_a_wide_box`).
     ///
     /// **`tol` is the run's ε, and it ARRIVES.** The inexact witnesses
     /// (`f64`, [`crate::Probe`]) compare at a slack, and a slack that
@@ -1570,6 +1586,19 @@ impl Real for f64 {
     /// - **Floored at one**, so a pair near the origin is compared
     ///   absolutely at ε and the relative form does not shrink to zero
     ///   slack where the magnitudes do.
+    ///
+    /// **The cost, stated rather than implied.** Tying the slack to ε
+    /// LOOSENS it at a loose ε: at ε = 1e-6 this witness admits two
+    /// sides a thousand times further apart than the retired 1e-9
+    /// constant did, so a lie between those two scales is now recorded
+    /// where it was refused. That is the same trade in the other
+    /// direction as the tightening at 1e-12, and it is the one a run
+    /// asked for by choosing its ε: a registration is an axiom the
+    /// registrant's proof carries, and this witness only ever refused
+    /// what was visible at the point. Measured: no additional
+    /// registration is recorded on any measured document at 1e-6
+    /// (`m10_9_no_registrant_lies_on_any_measured_document` pins
+    /// `registered` per document, identical at all three rows).
     ///
     /// **This witness is INEXACT, so its refusal is
     /// [`SymRegistration::Disputed`] and never

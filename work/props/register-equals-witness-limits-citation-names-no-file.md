@@ -2,7 +2,8 @@
 id: register-equals-witness-limits-citation-names-no-file
 kind: issue
 title: Real::register_equal's doc cites geom-core/tests/m10_9_witness_limits_interval.rs, a file that has never existed
-status: open
+status: closed
+closed: 2026-09-14
 opened: 2026-09-14
 ---
 
@@ -33,11 +34,11 @@ and the 0.1%-wrong rim recorded at `Interval` and refused at `f64`
 together with `m10_9_r2_sym_probes.rs`'s wide-box row
 (`r2_the_interval_witness_lets_a_geometric_lie_through_over_a_wide_box`).
 
-**Not fixed here.** SYM-6 reaches `real.rs` by an announced seam whose
-width is *the tolerance parameter and nothing else*, and re-pointing a
-citation is a second change in PROPS' file. The repair is one line: name
-the two probe files above, or whichever set PROPS judges to be the rows
-that establish the clause.
+**CLOSED by SYM-6's fix pass (PR #2604).** Both reviewers raised it
+independently (R1 S8, R2), the orchestrator amended the announced seam to
+cover the line, and the citation now names the three rows above — the same
+paragraph was being re-taken for the ε spelling, so the repair landed with
+it rather than waiting for PROPS.
 
 **Why it is worth a row rather than a shrug.** The discipline's citation
 rule is *cite by name; line numbers rot* — a name is supposed to be the

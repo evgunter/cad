@@ -899,10 +899,25 @@ pub struct SymCounts {
     /// `Sym<Interval>` — the lane the driver replays in — every
     /// contributing arm is a proof of a defect (`Contradicted`:
     /// disjoint certified enclosures; `Cyclic`), so a non-zero count on
-    /// a real document is a finding, and a fixture-scale row pins it at
-    /// zero. At `Sym<f64>` the count also collects `Disputed`, which
-    /// may be nothing worse than the arithmetic running out of
-    /// significand, so zero is not something to assert there.
+    /// a real document is a finding. At `Sym<f64>` the count also
+    /// collects `Disputed`, which may be nothing worse than the
+    /// arithmetic running out of significand, so zero is not something
+    /// to assert there.
+    ///
+    /// **This column is a BACKSTOP and not the loud channel, and the
+    /// difference is measured.** A registrant that starts stating a
+    /// small lie — one the exact witness still ADMITS, because the two
+    /// certified enclosures meet — is never refused, so it never
+    /// reaches this count; what moves is
+    /// [`SymCounts::registered`], which collapses as the registry stops
+    /// discharging. A registrant stating a GEOMETRIC lie is caught
+    /// earlier still, by its own `debug_assert!` on the exact witness's
+    /// refusal, which is live in every profile. What is left for this
+    /// column is `Cyclic` and any future registrant that binds an exact
+    /// refusal instead of asserting on it. The fixture-scale row asserts
+    /// all three together
+    /// (`editor-core/tests/m10_9_pins_interval.rs`,
+    /// `m10_9_no_registrant_lies_on_any_measured_document`).
     pub registrations_refused: u64,
     /// **Decisions where a REGISTERED zero met a DEFINITE numeric
     /// sign** — the two channels in contradiction, which for a
@@ -915,6 +930,15 @@ pub struct SymCounts {
     /// like any other, so the K vocabulary needs nothing new. What is
     /// new is the RECEIPT's statement that a stated identity was
     /// contradicted.
+    ///
+    /// **It does NOT count [`SymRegistration::Contradicted`]**, despite
+    /// the shared word: that arm is the door REFUSING a registration at
+    /// the moment it is stated, and it lands in
+    /// [`SymCounts::registrations_refused`] with every other refusal.
+    /// This column is about a registration the door ACCEPTED, later
+    /// contradicted by the numeric channel at a decide site — two
+    /// different events, one of which happens after the other could
+    /// not.
     pub registrations_contradicted: u64,
     /// Decisions handed to the numeric channel.
     pub numeric: u64,
@@ -2295,8 +2319,9 @@ impl<T: Real> Sym<T> {
     #[must_use = "a registration can be REFUSED, and a refusal a caller \
                   drops is a lie nobody sees"]
     pub fn register_equal(self, other: Self, tol: Tol) -> SymRegistration {
-        // The witness first: an unwitnessed or contradicted claim never
-        // reaches the registry at all. A refusal is COUNTED — the
+        // The witness first: a claim the value channel refused
+        // (`Contradicted` or `Disputed`) or could not witness
+        // (`Unwitnessed`) never reaches the registry at all. A refusal is COUNTED — the
         // receipt is where a constructor that states a lie becomes
         // visible — and the value channel's ARM is FORWARDED unchanged,
         // because which refusal it is is a fact about the lane scalar's

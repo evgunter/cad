@@ -633,6 +633,16 @@ number.
   which is the one that matters over a box, carries no tolerance at
   all and ignores the parameter: its witness is the exact meet.
 
+  **The refusal is TWO arms, split by the kind of witness** (Ev's D2
+  ruling on `[ev]` #2552, taken by SYM-6). `Disputed` is an INEXACT
+  witness's refusal — `f64` and `Probe`, two sides further apart than
+  the slack — and may be a lie or may be a theorem of the reals the
+  arithmetic lost at this scale, so it is counted and never asserted on.
+  `Contradicted` is reserved for the EXACT witness, `Interval`'s
+  disjoint certified enclosures: a proof that the two reals differ or
+  that an upstream enclosure does not contain its real, so a registrant
+  may assert on it and the swept and revolve registrants do.
+
   The "same-OBJECT" limit in this bullet is exactly what M10-9
   measured, and it BINDS: the swept arc's rim and span identities
   discharge because the registrant builds the very nodes the consumer
