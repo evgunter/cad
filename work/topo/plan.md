@@ -106,29 +106,41 @@ here while those ran — SHELL's six diagnoses on TOPO's files, plus the
 rows that carried over (`S93`, `D107`, `D263`, `D262`, `D20`, the H
 item and the residues).
 
-**Block TOPO-B2** takes the three placed rows that are kernel answers
-on this program's own files and need no other program's decision
-first, in this slot order (fixed before the block byte is drawn):
+**Block TOPO-B2** is concluded (2026-09-14): the ring-nesting decide,
+`split_edge`'s carried pcurve rows and `revert`'s mirrored chart
+images, three duals, no tally candidate.
 
-- slot 0 — `tier3-accepts-a-ring-outside-its-outer-loop`: check 9
-  decides contact, not nesting, so a face whose ring ENCLOSES its outer
-  loop validates. The unit adds the nesting decide to tier 3 and
-  refuses typed; `shell.rs`'s `encloses` is the shape and moves to the
-  validator with SHELL's agreement (seam announced).
-- slot 1 — `split-edge-children-lack-pcurve-rows-on-curved-charts`:
-  `split_edge` mints no pcurve rows for its children, so a split on a
-  curved chart leaves the body tier-3 invalid until `mint_pcurves`
-  runs. The unit either mints the children's rows from the parent's
-  (the parameter split of a cached pcurve) or states the caveat at the
-  op with the caller's step named — phase 1 decides which, with TRIM's
-  `pcurves.rs` read by announced seam.
-- slot 2 — `revert-does-not-mirror-plane-chart-images`: `revert`
-  negates a plane's normal and leaves `Chart` images and pcurve rows
-  on that plane unmirrored, so a same-plane `Chart` edge fails
-  certification on the reverted body. The unit transforms the images
-  with the frame (`v` negated) and pins it red-first on SHELL's drum.
+**Block TOPO-B3** is concluded (2026-09-14): the loop-re-parenting
+rows, D263's placeholder regime and S93's `mev` half; three duals, one
+doc-class tally candidate; `S93` stays open on its `kev` half.
 
-Two lanes run at once; slot 2 dispatches when one frees.
+**Block TOPO-B4** takes three kernel answers on this program's own
+files, in this slot order (fixed before the block byte is drawn):
+
+- slot 0 — `geom-source-absence-conflates-four-origins`: a bare
+  `None` from `surface_source` covers imported, hand-built,
+  kernel-derived and a failed re-stamp, so Ev's question "how do we
+  know when there is no provenance" has no answer. The unit makes
+  absence typed on the identity channel (`source.rs`), with the
+  cleared-and-not-re-stamped case distinguishable from never-stamped.
+- slot 1 — `revert-leaves-a-periodic-charts-loop-wrap-mid-chain`:
+  `revert` re-states plane rows with their frames but a periodic
+  chart's one-period wrap, parked at the forward loop's closure, sits
+  mid-chain once the loop runs the other way. The unit re-parks the
+  wrap (a `shift_branch` per row, no re-certification) or re-mints,
+  phase 1 deciding with the involution as the test.
+- slot 2 — `edge-carrier-kind-has-no-readback-door`: the two-homes
+  ruling gave faces a `readback` twin and left edges with only the
+  query-side door; the unit adds the readback door for the edge side
+  in the ratified shape.
+
+Beside the block, non-dual: `D107` (a `kemr` fixture past its plan
+phase for `review_d18`'s hammer — test support, style review only).
+
+The `kev` half of `S93` (three landing shapes on its row, each
+constrained by the generator's kills) and the half-edge-minting
+operators' pcurve posture (a bound ripple or a declared primitive
+posture) are Ev's questions, added to the open `[ev]` PR.
 
 **Not in the block**, and why:
 

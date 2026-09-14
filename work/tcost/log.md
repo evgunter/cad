@@ -2340,3 +2340,10 @@ first. One new row file under `crates/editor-core/tests/m10_*`
 test-only feature — the hosted gate's wall does not move, and the PR
 states both runs' editor-core interval shard timings. S-TCOST's
 measurement stays the result of record; nothing here re-takes it.
+
+**(SYM orchestrator) Seam announced, 2026-09-14 — SYM-5** (`sym/5-unit-vector`,
+`docs/SYM-5-SPEC.md`): one new row file under `crates/editor-core/tests/m10_*`
+(`m10_derived_frame_interval.rs`, DOCM's two red derived-frame rows
+ported and, once answered, un-ignored as the unit's pins at the
+nominal and one width), registered in `tests/all.rs`; the evidence
+rows stay `#[ignore]`; the pins' cost is stated in the PR body.

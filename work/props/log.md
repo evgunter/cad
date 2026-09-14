@@ -1113,7 +1113,7 @@ announced seam; three of its rows say so in their bodies.
 is now in no program's paths.
 
 **(SYM orchestrator) Seam announced, 2026-09-13 — SYM-1** (`sym/1-profile`,
-`docs/SYM-1-SPEC.md`): a test-only cargo feature `sym-profile` on
+`docs/SYM-1-SPEC.md`): a test-only cargo feature `sym-profile-testing` on
 `crates/geom-core/Cargo.toml`, forwarded through `crates/editor-core/Cargo.toml`'s
 dev-dependency edge exactly as `identity-pass-testing` is — the two
 Cargo files are this glob's; the code behind the feature is in
