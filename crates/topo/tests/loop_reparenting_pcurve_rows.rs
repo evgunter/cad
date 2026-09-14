@@ -408,3 +408,89 @@ fn mfkrh_onto_a_different_curved_chart_drops_the_rows_rather_than_storing_a_lie(
     assert_eq!(rows_of(&s.body, made.face), (0, 4));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
+
+/// Every stored row of `face`, with its interval, its image and its
+/// certificate — what "byte for byte" means for a carry.
+fn rows_deep(body: &Body<f64>, face: FaceKey) -> Vec<String> {
+    let f = body.get_face(face).unwrap();
+    let mut out = Vec::new();
+    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        let topo::LoopBoundary::Cycle { first } = body.get_loop(lk).unwrap().boundary else {
+            continue;
+        };
+        for he in body.loop_cycle(first).unwrap() {
+            if let Some(c) = body.pcurve(he) {
+                out.push(format!(
+                    "{he:?} {:?} {:?} {:?}",
+                    c.params(),
+                    c.pcurve(),
+                    c.certificate()
+                ));
+            }
+        }
+    }
+    out
+}
+
+/// A carry across one surface key moves nothing: the rows on the far
+/// side are the rows that were on the near side, interval, image and
+/// certificate alike.
+#[test]
+fn a_same_surface_move_keeps_every_row_byte_for_byte() {
+    let s = sheet();
+    let before = rows_deep(&s.body, s.low);
+    assert_eq!(before.len(), 4);
+
+    let mut k = sheet();
+    k.body.kfmrh(k.up, k.low).unwrap();
+    let after = rows_deep(&k.body, k.up);
+    assert_eq!(after.len(), 8);
+    for row in &before {
+        assert!(
+            after.contains(row),
+            "kfmrh lost or restated a row across one surface key: {row}"
+        );
+    }
+
+    let mut r = sheet();
+    r.body.kfmrh(r.up, r.low).unwrap();
+    let ring = ring_of(&r.body, r.up);
+    r.body.ring_move(ring, r.up).unwrap();
+    assert_eq!(rows_deep(&r.body, r.up), after);
+}
+
+/// The caller's step after every move that dropped a row. The minting
+/// pass derives exactly the rows the DESTINATION chart wants: none on
+/// a planar face, which is the pass's own posture, and the full set on
+/// a curved one, so the body is whole again either way.
+#[test]
+fn the_minting_pass_restores_what_each_move_left_the_caller() {
+    // `kfmrh` onto the plane: there is nothing to restore, and the
+    // face the rows left is gone with the op.
+    let mut s = sheet();
+    s.body.kfmrh(s.plane, s.low).unwrap();
+    topo::mint_pcurves(&mut s.body, tol()).unwrap();
+    assert_eq!(rows_of(&s.body, s.plane), (0, 10));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+
+    // `ring_move` onto the plane: the curved face the ring left keeps
+    // its own rows across the pass, and the plane still stores none.
+    let mut s = sheet();
+    s.body.kfmrh(s.low, s.up).unwrap();
+    let ring = ring_of(&s.body, s.low);
+    s.body.ring_move(ring, s.plane).unwrap();
+    topo::mint_pcurves(&mut s.body, tol()).unwrap();
+    assert_eq!(rows_of(&s.body, s.low), (4, 0));
+    assert_eq!(rows_of(&s.body, s.plane), (0, 10));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+
+    // `ring_move` onto a curved face left it incomplete; the pass
+    // mints the ring's rows on the chart it is now on.
+    let mut s = sheet();
+    s.body.kfmrh(s.low, s.plane).unwrap();
+    let ring = ring_of(&s.body, s.low);
+    s.body.ring_move(ring, s.up).unwrap();
+    topo::mint_pcurves(&mut s.body, tol()).unwrap();
+    assert_eq!(rows_of(&s.body, s.up), (10, 0));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+}
