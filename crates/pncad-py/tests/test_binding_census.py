@@ -2250,6 +2250,18 @@ NOT_BOUND = {
     # the fault's own `str()`. Nothing in Python hands one out and no
     # bound door takes one.
     "NodeRefusal": INTERIOR,
+    # The entity door's answer: what a name turned out to denote, on the
+    # four refusals that test an `EntityKey`'s kind
+    # (`shell_open_kind`, `face_frame_kind`, the two blend selection
+    # kinds, `measure_selection_kind`). Carried in Rust because a Rust
+    # consumer can match those variants and would otherwise be unable
+    # to NAME the field's type; interior here because Python never
+    # holds one. Those refusals cross as a tag word plus the prose the
+    # kind is already rendered into — `an edge`, `a vertex` — so a
+    # Python caller reads the answer in the message and branches on the
+    # tag. Its field is private to the door that mints it, so a bound
+    # constructor could not exist even if a caller wanted one.
+    "Found": INTERIOR,
     # DI3's pairing payload: the two document ids behind a refused
     # pair — a prior the memo dropped (`Evaluation.prior_refused` on
     # the Rust side), a gather handed the wrong evaluation, a solve
