@@ -4,7 +4,7 @@ kind: issue
 title: A member-space declaration resolves through merges only: a face consumed by a split, by containment, or inside a fragmented merged row is still order-shaped
 status: open
 opened: 2026-09-07
-refs: [DOCM-8, 2073]
+refs: [2073, 2073]
 ---
 
 ## What
@@ -68,3 +68,5 @@ Moved from `work/docm/` to `work/wire/` at DOCM's exit sweep (`docs/DOC-LEDGER.m
 sweep 14): the file it names is WIRE's (`names/emit*.rs`, `eval/wire.rs`, `product.rs` are in WIRE's paths). Id, body and header are unchanged; the directory is the
 claim (`work/README.md`). Any `## Home` section above is superseded by
 this line and is kept as the record of why the file was where it was.
+
+(At DOCM's exit sweep, `refs` names the PRs `DOCM-8` stood for: `DOCM-8` = #2073 — the unit rows left the tracker with `work/docm/`; `docs/DOC-LEDGER.md` sweep 14.)

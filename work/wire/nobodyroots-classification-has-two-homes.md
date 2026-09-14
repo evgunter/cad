@@ -4,7 +4,7 @@ kind: issue
 title: "The empty-document-is-not-a-fault rule is argued twice, in two crates, and ProductError carries no predicate for it"
 status: open
 opened: 2026-09-04
-refs: [check-registry-gathers-product-twice]
+refs: [1871]
 ---
 
 Found by VIEW-3's style review while moving one of the two copies
@@ -116,3 +116,5 @@ Moved from `work/docm/` to `work/wire/` at DOCM's exit sweep (`docs/DOC-LEDGER.m
 sweep 14): the file it names is WIRE's (`names/emit*.rs`, `eval/wire.rs`, `product.rs` are in WIRE's paths). Id, body and header are unchanged; the directory is the
 claim (`work/README.md`). Any `## Home` section above is superseded by
 this line and is kept as the record of why the file was where it was.
+
+(At DOCM's exit sweep, `refs` names the PRs `check-registry-gathers-product-twice` stood for: `check-registry-gathers-product-twice` = #1871 — the unit rows left the tracker with `work/docm/`; `docs/DOC-LEDGER.md` sweep 14.)

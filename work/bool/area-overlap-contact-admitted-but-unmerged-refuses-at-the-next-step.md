@@ -4,7 +4,7 @@ kind: issue
 title: A declared area-overlap cap contact is admitted without a merge, and the F7 gate refuses the two coplanar rows at the next boolean
 status: open
 opened: 2026-09-07
-refs: [DOCM-8, 2073]
+refs: [2073, 2073]
 ---
 
 ## What
@@ -60,3 +60,5 @@ Moved from `work/docm/` to `work/bool/` at DOCM's exit sweep (`docs/DOC-LEDGER.m
 sweep 14): the defect is the boolean's (`crates/topo/src/boolean/*` is S-BOOL's), reached from a declared union. Id, body and header are unchanged; the directory is the
 claim (`work/README.md`). Any `## Home` section above is superseded by
 this line and is kept as the record of why the file was where it was.
+
+(At DOCM's exit sweep, `refs` names the PRs `DOCM-8` stood for: `DOCM-8` = #2073 — the unit rows left the tracker with `work/docm/`; `docs/DOC-LEDGER.md` sweep 14.)

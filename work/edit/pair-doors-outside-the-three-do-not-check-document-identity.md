@@ -4,7 +4,7 @@ kind: issue
 title: Beyond product/assemble/placement, (document, evaluation) doors do not check the pairing, and the three that do spell the predicate three ways
 status: open
 opened: 2026-09-04
-refs: [DOCM-4]
+refs: [1808]
 ---
 
 
@@ -83,3 +83,5 @@ Moved from `work/docm/` to `work/edit/` at DOCM's exit sweep (`docs/DOC-LEDGER.m
 sweep 14): EDIT is DOCM's successor on the document-model ground (persist, the edit vocabulary, the node and resolver doors). Id, body and header are unchanged; the directory is the
 claim (`work/README.md`). Any `## Home` section above is superseded by
 this line and is kept as the record of why the file was where it was.
+
+(At DOCM's exit sweep, `refs` names the PRs `DOCM-4` stood for: `DOCM-4` = #1808 — the unit rows left the tracker with `work/docm/`; `docs/DOC-LEDGER.md` sweep 14.)

@@ -4,7 +4,7 @@ kind: issue
 title: "DeleteNode leaves a Declare whose payload names a dead node: DeleteWouldDangle reads inputs only"
 status: open
 opened: 2026-09-06
-refs: [DOCM-7, 2028]
+refs: [2028, 2028]
 ---
 
 
@@ -71,3 +71,5 @@ Moved from `work/docm/` to `work/edit/` at DOCM's exit sweep (`docs/DOC-LEDGER.m
 sweep 14): EDIT is DOCM's successor on the document-model ground (persist, the edit vocabulary, the node and resolver doors). Id, body and header are unchanged; the directory is the
 claim (`work/README.md`). Any `## Home` section above is superseded by
 this line and is kept as the record of why the file was where it was.
+
+(At DOCM's exit sweep, `refs` names the PRs `DOCM-7` stood for: `DOCM-7` = #2028 — the unit rows left the tracker with `work/docm/`; `docs/DOC-LEDGER.md` sweep 14.)
