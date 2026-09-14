@@ -228,7 +228,10 @@ fn r1_a_genuinely_non_unit_vector_is_never_normalised() {
     let s = SymRules::shipped();
     let v = || Vec3::new(p("x", 3.0), p("y", 4.0), p("z", 12.0));
     // ‖v‖ − 1 for a vector of norm 13.
-    sound("|v| - 1 (|v| = 13)", how_f64(s, || v().norm() - Sym::from_f64(1.0)));
+    sound(
+        "|v| - 1 (|v| = 13)",
+        how_f64(s, || v().norm() - Sym::from_f64(1.0)),
+    );
     // ‖v‖ − 13 is TRUE at the point but not an identity in the parameters.
     sound("|v| - 13", how_f64(s, || v().norm() - Sym::from_f64(13.0)));
     // v · v̂ − ‖v‖ IS an identity.
