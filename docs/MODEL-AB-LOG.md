@@ -6672,3 +6672,4 @@ Recorded branch-side on `sym/b2-block`; this record reaches `main`
 when the block's last slot's reviews conclude.
 
 Block SYM-B2 slot record (branch-side, appended as each slot concludes):
+slot 0 = SYM-7 implementer dispatch (2026-09-14, ~20:10Z): arm OPUS per the draw above (byte 56); `docs/SYM-7-SPEC.md` (H / STRUCTURAL, pre-draw); brief `/home/user/sym-briefs/unit-7-brief.md` (lane-local; the spec is the binding text), sha256 e12860e6dbcd72eaf4f3180071b1847a6b252b975c95235c1c573a0610566f98. Review ordinal claimed on main at the dual's dispatch.
