@@ -64,19 +64,19 @@ one per caller. That does not shrink the count above, which is of the
 OUTER `once(outer).chain(rings)` chain; it is the shape the rest of
 this row's sweep would take, demonstrated on two callers.
 
-## A 34th site (2026-09-14, the `set_face_surface` unit)
+## A 34th site, and then not (2026-09-14, the `set_face_surface` unit)
 
-That unit's face-level drop —
-`Body::drop_face_rows_on_chart_change` in `crates/topo/src/euler_ring.rs`
-— writes the outer chain out again
-(`core::iter::once(face_data.outer).chain(face_data.rings.iter().copied())`)
-before delegating per loop to `pcurves::loop_rows`. So the count above
-is **34 sites in 21 files** on that unit's head, and the inner half
-now has three callers with one home instead of two. The site is named
-here rather than left for the next re-count: it is the same shape as
-`pcurves::stored_rows`'s walk, which is the walk the validator reads
-the same face's rows with, and the two agreeing is load-bearing for
-the drop (the door and `validate_pcurves` must not disagree about
-which rows a face has). A sweep that gives the OUTER chain one home
-would be the thing that makes that agreement structural rather than
-asserted.
+That unit's first head wrote the outer chain out again in its
+face-level drop, taking the count to 34. Its fix pass deleted that
+copy: `Body::drop_face_rows` (`crates/topo/src/euler_ring.rs`) now
+calls `pcurves::stored_rows`, which is the walk
+`validate_pcurves` reads the same face's rows with — so the count
+stands at **33 sites in 21 files**, and the agreement the drop needs
+(the door and the validator must not disagree about which rows a face
+has) is structural rather than asserted.
+
+What the episode says about this row: a door whose correctness rests
+on agreeing with the validator's walk is exactly the caller the hoist
+is FOR, and it took a review to notice that the walk it needed already
+had a home two modules away. The other 32 are not all that caller —
+but `pcurves.rs`'s own four are the place to start.

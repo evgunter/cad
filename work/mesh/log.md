@@ -524,3 +524,22 @@ rows, and so read rows about the chart the face had left:
 
 No mesh source changed and neither row's subject moved. Signed (TOPO,
 the set_face_surface lane).
+
+## The reweighted-net body is now a row on this slate (2026-09-14)
+
+PR 2594's fix pass, on both reviewers' finding: the entry above
+disclosed the reweighted-NURBS body — a face left rowless by a chart
+swap whose carriers cannot certify against the new surface, with
+nothing able to re-derive it — and a disclosure is not a schedule
+(`work/README.md`). It is now
+`work/mesh/a-chart-swap-whose-carriers-cannot-certify-leaves-a-face-nothing-can-re-derive`,
+with R2's measurement (two `Certify` on the hand-restored body) and
+why the honest fixture needs a corpus body with an interior control
+point, which `loft_prism`'s 2x3 net has not.
+
+One row was ADDED to `crates/mesh/tests/patch_memo.rs` by that fix
+pass: `a_rekey_keeps_a_spline_faces_rows_and_drops_an_analytic_faces`,
+which pins both answers `set_face_surface` gives a re-key. It lives
+here because this corpus is where minted spline-charted faces are —
+`topo`'s own fixtures are analytic, so no row there can exercise the
+predicate's shared-`Arc` rung. Signed (TOPO, the set_face_surface lane).

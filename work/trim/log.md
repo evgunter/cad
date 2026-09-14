@@ -486,3 +486,23 @@ The pass's own silence on an emptied face is unchanged and is TRIM's
 row: evidence from this unit's measurements is added to
 `work/trim/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`.
 Signed (TOPO, the set_face_surface lane).
+
+## The module header's length is a row now (2026-09-14)
+
+PR 2594's fix pass, on R1's style finding: `crates/topo/src/pcurves.rs`
+opens with 264 doc lines that restate, per door class, what
+`staleness_posture::DECLARED` states below as a table with a mechanical
+reader. Filed as
+`work/trim/the-pcurves-module-header-restates-the-posture-table-below-it`.
+
+The same pass corrected two sentences in this file that PR 2594 had
+added: `set_edge_curve`'s posture note and the module paragraph beside
+it claimed a staled row is refused "wherever the row exists at all".
+It is not — `validate_pcurves` skips its re-certification on any face
+it finds incomplete
+(`work/trim/validate-pcurves-never-recertifies-a-face-it-finds-incomplete`),
+so a half-minted face swallows exactly those refusals. Both sentences
+now say the pass measures a stale row on a COMPLETE face and point at
+that row; `set_edge_curve` stays `Neither`, with the argument in its
+own docs and a row in `crates/topo/tests/loop_reparenting_pcurve_rows.rs`
+characterising the silence. Signed (TOPO, the set_face_surface lane).
