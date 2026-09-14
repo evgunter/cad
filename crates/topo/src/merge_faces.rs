@@ -871,6 +871,7 @@ impl OpPlacement {
             | E::OrbitBroken { .. }
             | E::EmptyAnchorsCollide { .. }
             | E::Certification { .. }
+            | E::RebasedCarrier { .. }
             | E::DescriptionNotAdjacent { .. }
             | E::FanStartMismatch { .. }
             | E::FanOrbitBroken { .. }
