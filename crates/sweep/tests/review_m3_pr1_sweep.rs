@@ -330,6 +330,6 @@ fn split_then_null_lifecycle_on_prism() {
         topo::MassPropsError::NullScaffoldEdge { .. }
     ));
     assert!(validate_closed(&body).is_err());
-    body.kev(created.he_plus).unwrap();
+    body.kev(created.he_plus, Tol::witness()).unwrap();
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
 }

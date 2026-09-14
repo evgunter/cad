@@ -48,7 +48,7 @@ fn tessellate_refuses_null_scaffold_typed() {
     // anchor rotates, so one face triangulates with a different (still
     // valid) diagonal. Positions and triangle counts are identical;
     // replay determinism (same history -> same mesh) is unaffected.
-    body.kev(created.he_plus).unwrap();
+    body.kev(created.he_plus, Tol::witness()).unwrap();
     let mesh_after = tessellate(&body, 0.01, Tol::witness()).unwrap();
     assert_eq!(
         format!("{:?}", mesh_before.positions),

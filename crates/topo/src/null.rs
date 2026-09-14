@@ -362,7 +362,7 @@ mod tests {
         );
         // Consumed by kev like any other edge; the scaffolding entry
         // dies with it and tier 2 is restored.
-        body.kev(created.he_plus).unwrap();
+        body.kev(created.he_plus, Tol::witness()).unwrap();
         assert_eq!(validate_closed(&body), Ok(()));
     }
 

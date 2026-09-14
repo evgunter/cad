@@ -525,10 +525,41 @@ mod tests {
         body
     }
 
-    /// The same digon pillow built through the OTHER degenerate route:
-    /// mvfs, mef(Lone) — the circular self-loop edge — then a fan mev
-    /// splitting the self-loop vertex into two.
-    fn pillow_via_circle() -> Body<f64> {
+    /// The same digon pillow with the chord addressed from the OTHER
+    /// side: mvfs, mev(Lone), mef(Chords) with the two halves swapped,
+    /// so the mint carves the complementary face and both loops anchor
+    /// on different halves.
+    fn pillow_via_mirrored_chord() -> Body<f64> {
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
+        let seg = body
+            .mev_line(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                pt(1.0, 0.0, 0.0),
+                Tol::witness(),
+            )
+            .unwrap();
+        body.mef_chord(
+            MefSite::Chords {
+                he1: seg.he_minus,
+                he2: seg.he_plus,
+            },
+            Tol::witness(),
+        )
+        .unwrap();
+        body
+    }
+
+    /// The route this test USED to take, kept as the row that says why
+    /// it cannot: mvfs, mef(Lone) — the circular self-loop edge — then
+    /// a fan mev splitting the self-loop vertex in two. The split moves
+    /// the circle's plus half onto the new vertex while the circle
+    /// still runs from the old one, so the built pillow carried an edge
+    /// its own carrier missed. `mev`'s re-basing gate refuses it now.
+    #[test]
+    fn the_circle_route_to_the_pillow_moved_an_edge_off_its_carrier() {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
         let circle = body
@@ -539,16 +570,17 @@ mod tests {
                 Tol::witness(),
             )
             .unwrap();
-        body.mev_line(
-            MevSite::Fan {
-                he1: circle.he_plus,
-                he2: circle.he_minus,
-            },
-            pt(1.0, 0.0, 0.0),
-            Tol::witness(),
-        )
-        .unwrap();
-        body
+        assert!(matches!(
+            body.mev_line(
+                MevSite::Fan {
+                    he1: circle.he_plus,
+                    he2: circle.he_minus,
+                },
+                pt(1.0, 0.0, 0.0),
+                Tol::witness(),
+            ),
+            Err(crate::EulerOpError::RebasedCarrier { edge, .. }) if edge == circle.edge
+        ));
     }
 
     #[test]
@@ -565,7 +597,7 @@ mod tests {
         // reached through two entirely different operator sequences —
         // different key histories, different loop anchors.
         let a = pillow_via_segment();
-        let b = pillow_via_circle();
+        let b = pillow_via_mirrored_chord();
         assert_eq!(crate::validate::validate(&a), Ok(()));
         assert_eq!(crate::validate::validate(&b), Ok(()));
         assert!(isomorphic(&a, &b));

@@ -504,7 +504,7 @@ fn demotion_attack_battery_no_debug_panic() {
     assert!(r.is_err(), "outer is not a ring: {r:?}");
 
     // kev on a self-mated... on a pillow edge (distinct ends required).
-    let _ = body.kev(rim_he);
+    let _ = body.kev(rim_he, Tol::witness());
 
     // kvfs on a multi-face solid must be rejected.
     let r = body.kvfs(seed.solid);
@@ -519,7 +519,7 @@ fn demotion_attack_battery_no_debug_panic() {
     let (mut other, _oseed, oseg) = pillow();
     let _ = other.kef(oseg.he_plus);
     let foreign_he = oseg.he_plus;
-    let _ = body.kev(foreign_he);
+    let _ = body.kev(foreign_he, Tol::witness());
     let _ = body.kef(foreign_he);
     let _ = body.kemr(foreign_he, foreign_he);
     let _ = body.mev_line(
@@ -550,10 +550,10 @@ fn stale_keys_yield_typed_errors() {
         )
         .unwrap();
     let dead_he = strut.he_plus;
-    let killed = body.kev(dead_he).unwrap();
+    let killed = body.kev(dead_he, Tol::witness()).unwrap();
     let _ = killed;
     for r in [
-        body.kev(dead_he).unwrap_err(),
+        body.kev(dead_he, Tol::witness()).unwrap_err(),
         body.kef(dead_he).unwrap_err(),
         body.kemr(dead_he, dead_he).unwrap_err(),
         body.mev_line(

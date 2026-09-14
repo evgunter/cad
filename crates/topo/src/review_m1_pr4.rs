@@ -139,7 +139,7 @@ fn mk_kill_roundtrip_every_mev_site_case() {
             tol,
         )
         .unwrap();
-    b3.kev(created.he_plus).unwrap();
+    b3.kev(created.he_plus, tol).unwrap();
     assert_eq!(deep_snapshot(&b3), deep3, "Lone mev∘kev deep identity");
 
     // Fan strut (he1 == he2): canonical identity.
@@ -155,7 +155,7 @@ fn mk_kill_roundtrip_every_mev_site_case() {
             tol,
         )
         .unwrap();
-    body.kev(strut.he_plus).unwrap();
+    body.kev(strut.he_plus, tol).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(canonical_form(&body), before, "strut mev∘kev");
 
@@ -172,7 +172,7 @@ fn mk_kill_roundtrip_every_mev_site_case() {
             tol,
         )
         .unwrap();
-    body.kev(split.he_plus).unwrap();
+    body.kev(split.he_plus, tol).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(canonical_form(&body), before, "v5 fan mev∘kev");
 
@@ -190,7 +190,7 @@ fn mk_kill_roundtrip_every_mev_site_case() {
             tol,
         )
         .unwrap();
-    body.kev(split.he_plus).unwrap();
+    body.kev(split.he_plus, tol).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(canonical_form(&body), before, "v5 wrapping fan mev∘kev");
 
@@ -217,7 +217,7 @@ fn mk_kill_roundtrip_every_mev_site_case() {
             tol,
         )
         .unwrap();
-    body.kev(fan.he_plus).unwrap();
+    body.kev(fan.he_plus, tol).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(canonical_form(&body), before, "cross-loop fan mev∘kev");
 }
@@ -361,13 +361,13 @@ fn kev_from_both_ends_of_an_asymmetric_valence_five_split() {
     // End 1: kill the new vertex.
     {
         let mut probe = body.clone();
-        let result = probe.kev(split.he_plus).unwrap();
+        let result = probe.kev(split.he_plus, tol).unwrap();
         assert_eq!(validate(&probe), Ok(()));
         assert_eq!(result.killed_vertex, split.vertex);
         assert_eq!(canonical_form(&probe), before);
     }
     // End 2: kill the OLD center v; w inherits everything.
-    let result = body.kev(split.he_minus).unwrap();
+    let result = body.kev(split.he_minus, tol).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(result.killed_vertex, seed.vertex);
     let start = |body: &Body<f64>, he| body.get_half_edge(he).unwrap().start;
@@ -644,7 +644,7 @@ fn kev_mirror_has_no_single_op_remake() {
     // seg.vertex carries fan [seg−, strut+]; strut.he_minus starts at
     // the valence-1 tip and points at it — the mirror kill.
     let before = canonical_form(&body);
-    body.kev(strut.he_minus).unwrap();
+    body.kev(strut.he_minus, tol).unwrap();
     assert_eq!(validate(&body), Ok(()));
     let coords = [p(0.0), p(1.0), p(2.0)];
     assert!(
@@ -1180,7 +1180,7 @@ fn failing_kill_calls_consume_no_keys_between_kills() {
         if with_failures {
             // A battery of failing calls between every real op.
             assert!(body.kvfs(seed.solid).is_err()); // grown solid
-            assert!(body.kev(HalfEdgeKey::default()).is_err()); // stale
+            assert!(body.kev(HalfEdgeKey::default(), tol).is_err()); // stale
         }
         let split = body
             .mef_chord(
@@ -1205,7 +1205,7 @@ fn failing_kill_calls_consume_no_keys_between_kills() {
                 tol,
             )
             .unwrap();
-        body.kev(strut.he_plus).unwrap();
+        body.kev(strut.he_plus, tol).unwrap();
         if with_failures {
             assert!(body.mfkrh_plug(seed.r#loop).is_err()); // outer, RingIsOuter
             assert!(body.kvfs(seed.solid).is_err());
@@ -1382,7 +1382,7 @@ fn kill_ops_survive_torn_bodies_without_panicking() {
     let _ = stray;
     let started = std::time::Instant::now();
     for &he in &halves {
-        let _ = body.clone().kev(he);
+        let _ = body.clone().kev(he, tol);
         let _ = body.clone().kef(he);
     }
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
@@ -1680,7 +1680,7 @@ fn same_face_bridge_edge_kef_refuses_and_kev_kills() {
     assert_eq!(deep_snapshot(&body), before);
     // kev (the error text's advice): endpoints are distinct cube
     // corners, so it kills the edge (and the far vertex, fan merged).
-    body.kev(bridge).unwrap();
+    body.kev(bridge, tol).unwrap();
     assert_eq!(validate(&body), Ok(()));
 }
 
@@ -1704,7 +1704,7 @@ fn same_face_self_loop_bridge_has_no_direct_killer_but_mfkrh_frees_it() {
     body.kfmrh(seed.face, circ.face).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert!(matches!(
-        body.kev(circ.he_plus).unwrap_err(),
+        body.kev(circ.he_plus, tol).unwrap_err(),
         EulerOpError::SelfLoopEdge { .. }
     ));
     assert!(matches!(

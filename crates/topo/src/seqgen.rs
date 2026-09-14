@@ -97,21 +97,17 @@
 //!
 //! The other two are kill sites proper:
 //!
-//! - `kev(he)` where `start(he)` has valence 1 and `end(he)` carries a
-//!   fan (the "mirror" adjacency `next(mate(he)) == he`): restoring it
-//!   would need `mev` to move the survivor's ENTIRE fan to the new
-//!   vertex, but the full-orbit run is mev-inexpressible — the ratified
-//!   `he1 == he2` site means the EMPTY run (strut), so the full run has
-//!   no address. The strut re-make from the same site instead leaves
-//!   the fan on the wrong-coordinate vertex, so with distinct vertex
-//!   coordinates (the generator's minting policy) no single op reaches
-//!   the original; coordinate-COINCIDENT endpoints would collapse that
-//!   distinction, but they sit inside the oracle's documented twin
-//!   blind spot and outside the generator's reach — kept true by
-//!   [`split_site`]'s separation filter, which is what stops the one
-//!   op whose point comes from geometry rather than the counter from
-//!   manufacturing them. (Killing the same edge from the other half is
-//!   the strut kill, which IS exactly invertible.)
+//! - `split_edge`, always. Its inverse is two ops — `kev` to undo the
+//!   topology, then a re-attach to restore the parent's full interval
+//!   — and the `kev` in the middle runs over a body where the parent
+//!   still carries its `[t₀, t]` restriction while its far endpoint
+//!   moves back. That is precisely what `kev`'s re-basing gate
+//!   refuses, and no ordering avoids it: any spec the parent could
+//!   carry before the kill must end at the split vertex, and any spec
+//!   it needs after must end past it. What would restore the row is an
+//!   ATOMIC inverse — one door that kills the split vertex and
+//!   re-describes the survivor in one certified step —
+//!   `work/topo/split-edge-has-no-certified-inverse.md`.
 //! - `kef(he)` where the mate's loop is `[mate]` alone (the killed edge
 //!   is then necessarily a self-loop, tol) AND the surviving singleton loop
 //!   is a ring — or the outer of a face that has rings. The one-op
@@ -286,7 +282,7 @@ impl OpChoice {
     pub(crate) fn may_skip_roundtrip(&self) -> bool {
         matches!(
             self,
-            Self::Kev(_) | Self::Kef(_) | Self::KfmrhFuse(..) | Self::Movefac(_)
+            Self::SplitEdge(_) | Self::Kef(_) | Self::KfmrhFuse(..) | Self::Movefac(_)
         )
     }
 }
@@ -558,15 +554,22 @@ fn empty_loops(body: &Body<f64>) -> Vec<LoopKey> {
         .collect()
 }
 
+/// `mev`'s fan sites, which on this walk are the STRUT sites and
+/// nothing else (`he1 == he2`, the empty run).
+///
+/// A site with `he1 != he2` re-bases a non-empty run onto the new
+/// vertex, and `mev`'s re-basing gate refuses it unless the run's
+/// carriers pass through that vertex. This walk mints every vertex at
+/// its own coordinates (the minting policy, [`apply`]) and every edge
+/// it mints carries a certified chord, so on a generated body they
+/// never do: the operator refuses, and this enumerator lists
+/// applicable sites, not addressable ones. Fans themselves are still
+/// built and walked — a valence-k vertex is k strut mevs — and what
+/// is unreachable from here is splitting one.
 fn mev_fan_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
-    let mut out = Vec::new();
-    for (he1, _) in body.half_edges() {
-        let orbit = body.vertex_orbit(he1).expect("valid body: orbit closes");
-        for he2 in orbit {
-            out.push(OpChoice::MevFan(he1, he2));
-        }
-    }
-    out
+    body.half_edges()
+        .map(|(he, _)| OpChoice::MevFan(he, he))
+        .collect()
 }
 
 fn mef_chords_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
@@ -863,22 +866,6 @@ const SPLIT_FRACTION: f64 = 0.618_033_988_749_895;
 /// rebuilt from the certified curve — `None` when the edge is not
 /// splittable.
 ///
-/// **Why the re-certification.** This lane fuzzes STRUCTURE: the
-/// fan-rebasing ops (`mev`'s fan site, `kev`'s fan merge) move a run
-/// of half-edges onto a different vertex without re-describing the
-/// survivors' carriers (each says so in its own docs), so an edge's
-/// stored curve is routinely stale against its own endpoints. Tier 1
-/// does not constrain that and the isomorphism oracle ignores
-/// carriers, but `split_edge` certifies both children against the
-/// CURRENT endpoint points and refuses. So the candidate test
-/// re-derives the parent's certificate against those points through
-/// [`geom_brep::EdgeCurve::recertify`] — the door `split_edge` itself
-/// certifies through, not tier 3's `recertify_nurbs_lane`, which
-/// admits a strictly wider class and so would let candidates past this
-/// gate that the operator then refuses. Its consequence is a real
-/// coverage limit, stated where it is caused: **only carrier-coherent
-/// edges are ever split here.**
-///
 /// **Why the spec comes back with it.** `split_edge` is the only
 /// catalog member that REPLACES existing geometry rather than only
 /// minting: the parent survives as the first child, carrying the
@@ -889,16 +876,8 @@ const SPLIT_FRACTION: f64 = 0.618_033_988_749_895;
 /// a `line_between` guess would not be.
 fn split_site(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> Option<(f64, EdgeCurveSpec<f64>)> {
     let edge_data = body.get_edge(edge)?;
-    let hp = edge_data.he_plus;
-    let start = body.get_half_edge(hp)?.start;
-    let end = body.half_edge_end(hp)?;
-    let p0 = *body.get_point(body.get_vertex(start)?.point)?;
-    let p1 = *body.get_point(body.get_vertex(end)?.point)?;
     let curve = body.get_curve_geom(edge_data.curve)?.certified()?;
     let band = Band::linear(tol).ok()?;
-    curve
-        .recertify(p0, p1, |k| body.get_surface(k).cloned(), band)
-        .ok()?;
     let (t0, t1) = curve.params();
     let t = SPLIT_FRACTION.mul_add(t1 - t0, t0);
     // **The generator's coordinate-distinctness policy, enforced.**
@@ -911,9 +890,11 @@ fn split_site(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> Option<(f64, EdgeCur
     // land one ulp apart, and `mef_chord` then refuses their chord as
     // an unmeterable zero-length carrier. Same metering the chord
     // sugar uses, so a candidate that passes here cannot poison one.
-    // This filter is also what keeps the irreversible-`kev` taxonomy's
-    // "outside the generator's reach" clause (module docs) true now
-    // that a non-counter point source exists.
+    // It is also what keeps the distinct-coordinate minting policy
+    // true of the one op whose point comes from GEOMETRY rather than
+    // the counter, and the two fan-site enumerators
+    // ([`mev_fan_candidates`], [`kev_candidates`]) read that policy to
+    // know their sites refuse.
     //
     // Raw `Decide::sign_within` rather than the `k_stats` funnel, and
     // the rule genuinely does not bite here (`boolean/ops.rs` records
@@ -941,9 +922,26 @@ fn split_site(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> Option<(f64, EdgeCur
     ))
 }
 
+/// `kev`'s sites, which on this walk are the kills whose far vertex has
+/// **valence 1** — the segment and strut kills, the ones that merge no
+/// fan.
+///
+/// A far vertex carrying a fan hands that fan to the survivor, and
+/// `kev`'s re-basing gate refuses unless the fan's carriers pass
+/// through the survivor's point; with this walk's distinct-coordinate
+/// minting policy they never do. This is the same bound from the
+/// other side as [`mev_fan_candidates`]', and it is what retired the
+/// mirror site from the irreversible taxonomy (module docs).
 fn kev_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
     body.half_edges()
         .filter(|&(he, he_data)| body.half_edge_end(he) != Some(he_data.start))
+        .filter(|&(he, _)| {
+            let mate = body.mate(he).expect("valid body: mate resolves");
+            body.vertex_orbit(mate)
+                .expect("valid body: orbit closes")
+                .len()
+                == 1
+        })
         .map(|(he, _)| OpChoice::Kev(he))
         .collect()
 }
@@ -1048,7 +1046,7 @@ pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32, t
             body.movefac(shell).unwrap();
         }
         OpChoice::Kev(he) => {
-            body.kev(he).unwrap();
+            body.kev(he, tol).unwrap();
         }
         OpChoice::Kef(he) => {
             body.kef(he).unwrap();
@@ -1122,13 +1120,13 @@ pub(crate) fn roundtrip(
             let created = body
                 .mev_line(MevSite::Lone { r#loop: l }, next_point(counter), tol)
                 .unwrap();
-            body.kev(created.he_plus).unwrap();
+            body.kev(created.he_plus, tol).unwrap();
         }
         OpChoice::MevFan(he1, he2) => {
             let created = body
                 .mev_line(MevSite::Fan { he1, he2 }, next_point(counter), tol)
                 .unwrap();
-            body.kev(created.he_plus).unwrap();
+            body.kev(created.he_plus, tol).unwrap();
         }
         OpChoice::MefChords(he1, he2) => {
             let created = body.mef_chord(MefSite::Chords { he1, he2 }, tol).unwrap();
@@ -1154,16 +1152,14 @@ pub(crate) fn roundtrip(
             body.ring_move(ring, to_face).unwrap();
             body.ring_move(ring, old_face).unwrap();
         }
-        OpChoice::SplitEdge(e) => {
-            // Two-op inverse, and the second op is not bookkeeping:
-            // `split_edge` replaces the parent's description with the
-            // `[t₀, t]` child, so `kev` restores the topology and the
-            // re-attach restores the geometry (see `split_site`).
-            let (t, spec) =
-                split_site(body, e, tol).expect("a split candidate has a splittable carrier");
-            let created = body.split_edge(e, t, tol).unwrap();
-            body.kev(created.he_minus).unwrap();
-            body.set_edge_curve(e, spec, tol).unwrap();
+        OpChoice::SplitEdge(_) => {
+            // No re-make from the site (module docs): the two-op
+            // inverse ran `kev` over a body where the parent still
+            // carried its `[t₀, t]` restriction, and `kev`'s re-basing
+            // gate now refuses exactly that. The inverse is an ATOMIC
+            // door — kill the split vertex and restore the parent's
+            // interval in one certified step — which does not exist.
+            return RoundtripOutcome::SkippedIrreversible;
         }
         // ---- kill ∘ make: the re-make site is derived pre-kill. ----
         OpChoice::Kemr(he1, he2) => {
@@ -1248,18 +1244,16 @@ pub(crate) fn roundtrip(
             let w_coords = *body
                 .get_point(body.get_vertex(w).expect("resolves").point)
                 .expect("resolves");
-            if d == he && b != mate {
-                // The mirror site: no single-mev re-make (module docs).
-                return RoundtripOutcome::SkippedIrreversible;
-            }
             let l1 = he_data.parent_loop;
-            body.kev(he).unwrap();
+            body.kev(he, tol).unwrap();
+            // `kev_candidates` offers only the valence-1 far vertex, so
+            // the merged fan is empty and the site is one of the two
+            // degenerate ones: the 2-cycle loop empties (segment), or
+            // the survivor keeps the strut's successor.
             let site = if b == mate && d == he {
                 MevSite::Lone { r#loop: l1 } // segment kill
-            } else if b == mate {
-                MevSite::Fan { he1: d, he2: d } // strut kill
             } else {
-                MevSite::Fan { he1: b, he2: d } // general fan merge
+                MevSite::Fan { he1: d, he2: d } // strut kill
             };
             body.mev_line(site, w_coords, tol).unwrap();
         }
@@ -1349,7 +1343,7 @@ pub(crate) fn teardown(body: &mut Body<f64>, tol: Tol) {
             continue;
         }
         if let Some(OpChoice::Kev(he)) = kev_candidates(body, tol).first().copied() {
-            body.kev(he).unwrap();
+            body.kev(he, tol).unwrap();
             continue;
         }
         if let Some(OpChoice::Kemr(he1, he2)) = kemr_candidates(body, tol).first().copied() {
@@ -1366,7 +1360,7 @@ pub(crate) fn teardown(body: &mut Body<f64>, tol: Tol) {
         // potential still shrinks.
         if let Some(site) = first_empty_ring_site(body) {
             let created = body.mekr_chord(site, tol).unwrap();
-            body.kev(created.he_plus).unwrap();
+            body.kev(created.he_plus, tol).unwrap();
             continue;
         }
         // Extra empty-outer faces (mfkrh leftovers): fold into a

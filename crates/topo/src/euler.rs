@@ -2936,7 +2936,16 @@ mod tests {
             he1: b.he_plus,
             he2: d.he_plus,
         };
-        let split = body.mev_line(site, p(5.0), Tol::witness()).unwrap();
+        // A certified mev cannot reach this surgery: the run's spokes
+        // would start at a vertex their chords do not run to, and the
+        // re-basing gate refuses. The surgery itself is `mev_null`'s,
+        // whose new vertex is the old one's point — nothing moves, so
+        // every spoke's certificate is still its own.
+        assert!(matches!(
+            body.clone().mev_line(site, p(5.0), Tol::witness()),
+            Err(EulerOpError::RebasedCarrier { edge, .. }) if edge == b.edge
+        ));
+        let split = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         let v = seed.vertex;
@@ -3000,16 +3009,18 @@ mod tests {
             Some(vec![seg.he_plus, split.he_plus])
         );
 
-        let fan = body
-            .mev_line(
-                MevSite::Fan {
-                    he1: seg.he_plus,
-                    he2: split.he_plus,
-                },
-                p(2.0),
-                Tol::witness(),
-            )
-            .unwrap();
+        let site = MevSite::Fan {
+            he1: seg.he_plus,
+            he2: split.he_plus,
+        };
+        // As in the valence-4 star: the certified door refuses to move
+        // `seg`'s chord onto a vertex it does not run to, so the
+        // cross-loop splice is pinned through the coincident door.
+        assert!(matches!(
+            body.clone().mev_line(site, p(2.0), Tol::witness()),
+            Err(EulerOpError::RebasedCarrier { edge, .. }) if edge == seg.edge
+        ));
+        let fan = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         // The run [seg.he_plus] moved to the new vertex.

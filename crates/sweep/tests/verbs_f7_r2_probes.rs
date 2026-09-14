@@ -149,7 +149,7 @@ fn r2_one_face_cap_via_kef_then_kev() {
     // kev the surviving meridian, killing the pole: pass the half
     // whose END is the pole, i.e. the mate of h1.
     let mate = c.mate(h1).expect("mate");
-    let kev_res = c.kev(mate);
+    let kev_res = c.kev(mate, Tol::witness());
     println!("R2-P2 kev => {:?}", kev_res.map(|_| "ok"));
     println!("R2-P2 after kev counts = {:?}", counts(&c));
     println!("R2-P2 tier1  = {:?}", validate(&c));
