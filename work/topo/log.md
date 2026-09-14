@@ -795,3 +795,36 @@ Claim merged to main; both reviewers dispatched concurrently on frozen
 `a8703bdc9` beside the split-edge fix pass: byte 0 ⇒ R1 OPUS, R2
 FABLE; briefs stored with sha256 privately at the unit's delivery,
 re-verified identical modulo lane paths at dispatch.
+
+## Ring nesting adjudicated (2026-09-14)
+
+Both blinded reviews on frozen `a8703bdc9`, both
+MERGEABLE-AFTER-FIXES, neither with a MAJOR. R1: 0/9/4, rubric 3/4/2;
+R2: 0/4/7, rubric 4/3/3. Both executed the arm through every honest
+fixture they built and every inverted glue on a polygonal outer,
+`Body::revert` on both orientations, an escalation plant (never read
+as nested) and the classify obligations (each deletion reds by name).
+CONVERGED: the seam sentence written into `shell.rs` claims check 9
+refuses the inverted pick at the verb's closing validate, and both
+found the SHELL-5 mutant dies earlier at `Corrupt` in the naming
+record's walk — the arm is never reached through `shell_open`; the
+polygon gate is a second, narrower spelling of `boolean::contain`'s
+`loop_shape` (which admits arc-bearing loops over three vertices —
+R1 executed the divergence; R2 measured a round-holed square inverted
+and silent); the control row stays green with the gate forced shut
+(R2 executed); `Inside` carries two meanings against the code; the
+gate is computed for ring-free faces; the residue "every vertex on
+the boundary while contact reads disjoint" is unreachable; the
+red-first row's comment contradicts its assertion; the H item
+understates tier 3's coverage. Unilateral, taken: the PR body's
+`encloses` counterexample does not compute — R1 re-did the arithmetic
+(outer mean 5.0, ring 2.0, nested) and built a cross fixture that
+genuinely false-refuses; an empty `kemr` ring reads `Inside` (R1
+planted one outside the square); `KERNEL-VERBS.md` and a second
+`shell.rs` comment still state check 9 as contact-only (R1); the K
+roster has no mechanical guard (both noted; filed on INSTR). No
+tally candidate. Ten-item fix pass to a fresh lane on the inherited
+branch: the gate reaches `loop_shape` by announced seam to S-BOOL
+(one visibility change), which widens the decide to the loops the
+walk is measured correct on and retires the copy; a valid body the
+widened arm refuses falls back to the line-only gate, stated.
