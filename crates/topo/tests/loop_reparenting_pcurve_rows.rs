@@ -9,6 +9,14 @@
 //! moved loop keeps its rows exactly where the two faces are on one
 //! surface key, and keeps none where they are not.
 //!
+//! **The suite grew a fourth door, and it is the class rather than the
+//! file that is the subject.** `Body::set_face_surface` re-charts a
+//! face in place: no loop moves and no key changes, and every row the
+//! face stores is a curve stated in the chart the face LEFT. The rows
+//! under the last heading are that door's, on this same fixture, and
+//! they take the same answer — carried across one chart, dropped
+//! across two.
+//!
 //! The fixture is a minted cylinder-wall sheet split at mid-height into
 //! two curved faces, with the sheet's other side put on a PLANE: three
 //! faces in one shell, two of them minting and one of them not. The
@@ -615,6 +623,10 @@ fn kfmrh_onto_a_second_key_the_body_records_as_one_surface_carries_every_row() {
     assert_ne!(second, cyl, "`New` mints a fresh key for an equal surface");
     s.body.set_surface_source(cyl, one_recipe()).unwrap();
     s.body.set_surface_source(second, one_recipe()).unwrap();
+    // The swap re-charted `up` before either key carried a source, so
+    // the setter read it as a chart change and dropped the face's rows;
+    // the pass is what puts them back, on the key the face is now on.
+    topo::mint_pcurves(&mut s.body, tol()).unwrap();
     assert_eq!(rows_of(&s.body, s.up), (4, 0));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 
@@ -664,6 +676,11 @@ fn two_keys_holding_one_surface_with_no_provenance_read_as_two_charts() {
         .unwrap();
     assert_ne!(second, cyl);
     assert!(s.body.surface_source(cyl).is_none());
+    // The setter reads the same two keys the same way and drops `up`'s
+    // rows; re-minting is what builds the body this row is about — one
+    // carrying rows on two provenance-free keys.
+    topo::mint_pcurves(&mut s.body, tol()).unwrap();
+    assert_eq!(rows_of(&s.body, s.up), (4, 0));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 
     s.body.kfmrh(s.low, s.up).unwrap();
@@ -747,4 +764,198 @@ fn an_empty_boundary_ring_moves_with_the_map_untouched() {
     s.body.ring_move(ring, s.plane).unwrap();
     assert_eq!(rows_deep(&s.body, s.low), before_low);
     assert_eq!(rows_total(&s.body), before_total);
+}
+
+// ---------------------------------------------------------------
+// The chart moving under the rows: `set_face_surface`.
+// ---------------------------------------------------------------
+//
+// The three doors above move a loop to another chart. The surface
+// setter moves the CHART, under every row the face stores at once, and
+// the rows are wrong in exactly the same way. Before this suite's
+// setter rows it changed nothing: a swap onto another cylinder left
+// four rows stated in the chart the face had left, which tier 3
+// measured and refused four times over, and a swap onto a PLANE left
+// the same four rows where `validate_pcurves` never looks — `(4, 0)`
+// rows and `[]` findings, silent.
+
+/// A plane nothing on the sheet is stated in.
+fn flat() -> Surface<f64> {
+    Surface::Plane {
+        origin: at(U0, V0),
+        normal: axis(),
+        u_ref: u_ref(),
+    }
+}
+
+/// **The silent direction, which is the row.** A minted cylinder face
+/// swapped onto a chart that mints nothing keeps none of its rows: the
+/// pass skips a planar face, so a row left here is one no reader could
+/// ever be warned about, and `props`, the tessellator and
+/// `chart_boundary` would read four cylinder curves off a plane.
+#[test]
+fn a_swap_onto_a_chart_that_mints_nothing_drops_the_faces_rows() {
+    let mut s = sheet();
+    s.body
+        .set_face_surface(s.low, FaceSurface::New(flat()))
+        .unwrap();
+    assert_eq!(rows_of(&s.body, s.low), (0, 4));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+    // Only this face: the sheet's other curved panel is untouched, and
+    // it is still complete.
+    assert_eq!(rows_of(&s.body, s.up), (4, 0));
+    // The pass is what puts a face's rows on the chart it is now on,
+    // and a plane is a chart it mints none for.
+    topo::mint_pcurves(&mut s.body, tol()).unwrap();
+    assert_eq!(rows_of(&s.body, s.low), (0, 4));
+    assert_eq!(rows_of(&s.body, s.up), (4, 0));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+}
+
+/// The loud direction loses its noise and keeps its meaning: onto
+/// ANOTHER minting chart the four rows used to survive and be refused
+/// one by one, and now they are gone and there is nothing to refuse.
+/// What the trade buys is the same thing it buys at the loop doors —
+/// the body no longer HOLDS a row about a surface the face is not on.
+///
+/// **And the loudness is not lost, it moves to where it belongs.** A
+/// face swapped onto a cylinder its own boundary does not lie on is
+/// geometrically wrong, not merely unminted, and the caller's re-mint
+/// is what says so: the pass refuses the face by name rather than
+/// deriving a row for it. The stored rows were never the thing that
+/// reported this.
+#[test]
+fn a_swap_onto_another_minting_chart_drops_the_rows_and_the_refusals_with_them() {
+    let mut s = sheet();
+    s.body
+        .set_face_surface(s.low, FaceSurface::New(other_cylinder()))
+        .unwrap();
+    assert_eq!(rows_of(&s.body, s.low), (0, 4));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+
+    let refused = topo::mint_pcurves(&mut s.body, tol())
+        .expect_err("a rim arc of radius 1 is not a curve of the radius-2 chart");
+    assert!(matches!(refused, PcurveMintError::Certify { .. }));
+}
+
+/// **A face's rows are its loops' rows, rings included.** A setter that
+/// walked only the outer loop would leave a demoted ring's four rows
+/// behind on the new chart, which is the same defect one level in.
+#[test]
+fn a_swap_drops_the_rows_of_every_loop_of_the_face() {
+    let mut s = sheet();
+    s.body.kfmrh(s.low, s.up).unwrap();
+    assert_eq!(rows_of(&s.body, s.low), (8, 0));
+    assert_eq!(s.body.get_face(s.low).unwrap().rings.len(), 1);
+
+    s.body
+        .set_face_surface(s.low, FaceSurface::New(flat()))
+        .unwrap();
+    assert_eq!(rows_of(&s.body, s.low), (0, 8));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+}
+
+/// **The control: the same key is the same chart**, and `Inherit` and
+/// `Shared` naming it move nothing at all — interval, image and
+/// certificate alike.
+#[test]
+fn a_swap_onto_the_faces_own_key_keeps_every_row_byte_for_byte() {
+    let s = sheet();
+    let before = rows_deep(&s.body, s.low);
+    assert_eq!(before.len(), 4);
+
+    let mut i = sheet();
+    i.body.set_face_surface(i.low, FaceSurface::Inherit).unwrap();
+    assert_eq!(rows_deep(&i.body, i.low), before);
+
+    let mut k = sheet();
+    let cyl = k.body.get_face(k.low).unwrap().surface;
+    k.body
+        .set_face_surface(k.low, FaceSurface::Shared(cyl))
+        .unwrap();
+    assert_eq!(rows_deep(&k.body, k.low), before);
+    assert_eq!(validate_pcurves(&k.body, band()), vec![]);
+}
+
+/// **The other control: a second key the body records as one
+/// description.** What decides is the CHART, not the key — the same
+/// rung the loop doors take — so a face swapped onto a fresh key
+/// carrying its old key's `GeomSource` keeps every row it had.
+#[test]
+fn a_swap_onto_a_second_key_the_body_records_as_one_surface_keeps_every_row() {
+    let mut s = sheet();
+    let cyl = s.body.get_face(s.low).unwrap().surface;
+    let before = rows_deep(&s.body, s.low);
+    // A second key for the same cylinder, minted on the rowless planar
+    // face so that nothing is dropped establishing it, and tied to the
+    // first by one recipe.
+    let second = s
+        .body
+        .set_face_surface(s.plane, FaceSurface::New(cylinder()))
+        .unwrap();
+    assert_ne!(second, cyl, "`New` mints a fresh key for an equal surface");
+    s.body.set_surface_source(cyl, one_recipe()).unwrap();
+    s.body.set_surface_source(second, one_recipe()).unwrap();
+
+    s.body
+        .set_face_surface(s.low, FaceSurface::Shared(second))
+        .unwrap();
+    assert_eq!(rows_deep(&s.body, s.low), before);
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+}
+
+/// **What the setter cannot see, measured rather than asserted**, the
+/// same bound as the loop doors': two keys holding an equal surface
+/// with no record tying them read as two charts and the rows go. A
+/// re-mint, never a wrong row
+/// (`work/topo/two-provenance-free-keys-holding-one-surface-read-as-two-charts`).
+#[test]
+fn a_swap_onto_an_equal_surface_with_no_provenance_reads_as_a_chart_change() {
+    let mut s = sheet();
+    let cyl = s.body.get_face(s.low).unwrap().surface;
+    assert!(s.body.surface_source(cyl).is_none());
+    s.body
+        .set_face_surface(s.low, FaceSurface::New(cylinder()))
+        .unwrap();
+    assert_eq!(rows_of(&s.body, s.low), (0, 4));
+
+    topo::mint_pcurves(&mut s.body, tol()).unwrap();
+    assert_eq!(rows_of(&s.body, s.low), (4, 0));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+}
+
+/// **The sibling setter is not the same case.** `set_edge_curve` moves
+/// neither a row's key nor its chart — it changes what the row must
+/// agree WITH — and the pcurve pass re-derives that agreement from the
+/// edge's CURRENT carrier on every run. So a carrier swap that leaves a
+/// row saying the old image is refused per half-edge, loud, on the same
+/// body where the surface setter was silent: this row swaps a rim ARC
+/// for the straight line between its own endpoints and reads the two
+/// refusals, one per side of the edge.
+#[test]
+fn an_edge_carrier_swap_leaves_rows_the_pcurve_pass_refuses_loud() {
+    let mut s = sheet();
+    let he = first_he(&s.body, s.low);
+    let edge = s.body.get_half_edge(he).unwrap().edge;
+    let start = s.body.get_half_edge(he).unwrap().start;
+    let end = s.body.half_edge_end(he).unwrap();
+    let p0 = *s
+        .body
+        .get_point(s.body.get_vertex(start).unwrap().point)
+        .unwrap();
+    let p1 = *s
+        .body
+        .get_point(s.body.get_vertex(end).unwrap().point)
+        .unwrap();
+
+    s.body
+        .set_edge_curve(edge, EdgeCurveSpec::line_between(p0, p1), tol())
+        .unwrap();
+    assert_eq!(rows_of(&s.body, s.low), (4, 0));
+    let findings = validate_pcurves(&s.body, band());
+    let certify = findings
+        .iter()
+        .filter(|f| matches!(f, PcurveMintError::Certify { .. }))
+        .count();
+    assert_eq!((certify, findings.len()), (2, 2));
 }

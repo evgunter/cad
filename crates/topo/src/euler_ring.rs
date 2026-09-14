@@ -1018,6 +1018,8 @@ impl<T: Decide> Body<T> {
     /// The pcurve limb of the loop-re-parenting doors: drops every
     /// stored row of `r#loop` when the loop's new face is on a
     /// different CHART from its old one.
+    /// [`Body::drop_face_rows_on_chart_change`] is the same answer for
+    /// a face re-charted in place, and delegates here.
     ///
     /// A pcurve row is a curve stated in a FACE's chart, keyed on a
     /// half-edge ([`crate::pcurves`]). Re-parenting a loop changes
@@ -1091,6 +1093,48 @@ impl<T: Decide> Body<T> {
         };
         for half_edge in cycle {
             self.pcurves.remove(half_edge);
+        }
+    }
+
+    /// [`Body::drop_rows_on_chart_change`] for a whole FACE: the same
+    /// answer where the chart moves under every row at once rather
+    /// than the rows moving to another chart.
+    ///
+    /// A surface setter re-charts a face in place — no loop moves, no
+    /// key changes, and every row the face stores is suddenly a curve
+    /// stated in the chart the face LEFT. That is the loop doors'
+    /// question with the two sides swapped, so it takes their answer:
+    /// same chart, every row stands; a different chart, the face's
+    /// rows go, deriving nothing.
+    ///
+    /// The face's rows are its loops' rows — the outer loop and every
+    /// ring, which is [`crate::pcurves::stored_rows`]'s walk — so this
+    /// delegates per loop and the predicate, the walk and the whole
+    /// argument for dropping stay in one place.
+    ///
+    /// Infallible on the same terms, and with one ordering duty on its
+    /// caller: `from` must still RESOLVE when it is called, because
+    /// [`Body::same_chart`] reads both keys' surfaces and
+    /// [`crate::GeomSource`]s. A setter that removes the orphaned old
+    /// surface first hands this a key that resolves to nothing, which
+    /// reads as a chart change whatever the two charts were.
+    pub(crate) fn drop_face_rows_on_chart_change(
+        &mut self,
+        face: FaceKey,
+        from: SurfaceKey,
+        to: SurfaceKey,
+    ) {
+        if self.same_chart(from, to) {
+            return;
+        }
+        let Some(face_data) = self.get_face(face) else {
+            return;
+        };
+        let loops: Vec<LoopKey> = core::iter::once(face_data.outer)
+            .chain(face_data.rings.iter().copied())
+            .collect();
+        for r#loop in loops {
+            self.drop_rows_on_chart_change(r#loop, from, to);
         }
     }
 

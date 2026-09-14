@@ -69,6 +69,21 @@ impl<T: Decide> Body<T> {
     /// can invalidate an adjacent edge's certification; tier 3 reports
     /// it — attach surfaces before upgrading edge descriptions.)
     ///
+    /// **The face's pcurve rows are not a cache this door may keep.** A
+    /// row is a curve stated in a face's CHART
+    /// ([`crate::pcurves`]), so re-charting the face in place makes
+    /// every one of its rows a statement about a surface the face is no
+    /// longer on — the loop-re-parenting doors' defect with the two
+    /// sides swapped, and it takes their answer: a swap onto the same
+    /// chart carries every row untouched, and a swap onto a different
+    /// one drops the face's rows
+    /// ([`Body::drop_face_rows_on_chart_change`]), deriving nothing. A
+    /// caller that wants the face's rows on its new chart runs
+    /// [`crate::pcurves::mint_pcurves`]; every producer in the tree
+    /// already does. Leaving them was silent wherever the new surface
+    /// does not mint — tier 3's pcurve pass skips such a face — so what
+    /// the drop removes is a wrong row no reader could be warned about.
+    ///
     /// # Errors
     ///
     /// [`EulerOpError::StaleKey`] if `face` does not resolve;
@@ -95,6 +110,9 @@ impl<T: Decide> Body<T> {
                 )
             };
             f.surface = new;
+            // Before the orphan sweep, which can take `old` out of the
+            // arena: the chart compare reads both keys.
+            self.drop_face_rows_on_chart_change(face, old, new);
             self.remove_surface_if_orphaned(old);
         }
 
@@ -160,6 +178,18 @@ impl<T: Decide> Body<T> {
     /// `he_plus` forward order; intrinsic/seam descriptions must also
     /// be **adjacency-coherent** (module docs). The old curve is
     /// removed iff no other edge references it.
+    ///
+    /// **A carrier swap leaves the pcurve rows where they are, and
+    /// that is not [`Body::set_face_surface`]'s case.** A row is stated
+    /// in a FACE's chart and keyed on a half-edge; this door moves
+    /// neither, so no row changes what it is ABOUT. What it does change
+    /// is what the row must agree WITH, and the tier-3 pcurve pass
+    /// re-derives that agreement from the edge's CURRENT curve on every
+    /// run — so a swap that leaves a row saying the old carrier's image
+    /// is refused per row, loud, wherever the row exists at all. The
+    /// blind spot that makes the surface setter's case different is a
+    /// face whose chart mints nothing: it is skipped by the pass, and
+    /// it holds no minted row for this door to stale.
     ///
     /// # Errors
     ///
