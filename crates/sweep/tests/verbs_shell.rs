@@ -1270,7 +1270,10 @@ fn the_klein_wall_pair_waits_on_the_partial_revolve_rim() {
         let topo::ReplaceFaceError::TogetherAxialEdge { edge, what } = *error else {
             panic!("expected the seam re-author's refusal, got {error}");
         };
-        assert_eq!(what, "a revolved point's moved corner stands out of the family's own sketch plane, so the same rotation does not pass through it");
+        assert_eq!(
+            what,
+            "a revolved point's moved corner stands out of the family's own sketch plane, so the same rotation does not pass through it"
+        );
         (face, edge, what)
     };
     let open = seam_reauthor(

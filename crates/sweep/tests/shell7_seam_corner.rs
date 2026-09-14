@@ -638,7 +638,10 @@ fn a_partial_two_arc_torus_refuses_at_its_spiric_rim() {
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
     let e = topo::shell(&body, 0.05, tol()).expect_err("the seam re-author");
     let (_, what) = edge_refusal(&e).unwrap_or_else(|| panic!("not an edge refusal: {e}"));
-    assert_eq!(what, "a revolved point's moved corner stands out of the family's own sketch plane, so the same rotation does not pass through it");
+    assert_eq!(
+        what,
+        "a revolved point's moved corner stands out of the family's own sketch plane, so the same rotation does not pass through it"
+    );
 }
 
 /// **A three-quarter-turn cone frustum refuses `TogetherEdgeDisagreement`**

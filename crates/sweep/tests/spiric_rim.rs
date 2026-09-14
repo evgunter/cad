@@ -408,7 +408,10 @@ fn the_elbow_stops_at_its_seam_reauthor() {
     let topo::ReplaceFaceError::TogetherAxialEdge { what, .. } = *error else {
         panic!("the re-author's out-of-plane refusal, got {error:?}");
     };
-    assert_eq!(what, "a revolved point's moved corner stands out of the family's own sketch plane, so the same rotation does not pass through it");
+    assert_eq!(
+        what,
+        "a revolved point's moved corner stands out of the family's own sketch plane, so the same rotation does not pass through it"
+    );
 }
 
 /// **The sectioned vessel reaches the props door** — the tour's
@@ -552,9 +555,24 @@ mod interval_rows {
                 let v = t0 + (t1 - t0) * iv(f64::from(k) / 8.0);
                 let p = c.carrier().eval(v);
                 let q = twin.eval(v.lo() + (v.hi() - v.lo()) * 0.5);
-                assert!(p.x.lo() <= q.x && q.x <= p.x.hi(), "x: {:?} vs {}", p.x, q.x);
-                assert!(p.y.lo() <= q.y && q.y <= p.y.hi(), "y: {:?} vs {}", p.y, q.y);
-                assert!(p.z.lo() <= q.z && q.z <= p.z.hi(), "z: {:?} vs {}", p.z, q.z);
+                assert!(
+                    p.x.lo() <= q.x && q.x <= p.x.hi(),
+                    "x: {:?} vs {}",
+                    p.x,
+                    q.x
+                );
+                assert!(
+                    p.y.lo() <= q.y && q.y <= p.y.hi(),
+                    "y: {:?} vs {}",
+                    p.y,
+                    q.y
+                );
+                assert!(
+                    p.z.lo() <= q.z && q.z <= p.z.hi(),
+                    "z: {:?} vs {}",
+                    p.z,
+                    q.z
+                );
             }
         }
         assert_eq!(n, 2, "two spiric rims at the certified scalar");

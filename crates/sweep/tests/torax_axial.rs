@@ -617,7 +617,10 @@ fn torax_the_klein_elbow_rim_refuses_at_the_carrier_mint() {
     let topo::ReplaceFaceError::TogetherAxialEdge { what, .. } = *error else {
         panic!("the seam must refuse at its re-author: {error:?}");
     };
-    assert_eq!(what, "a revolved point's moved corner stands out of the family's own sketch plane, so the same rotation does not pass through it");
+    assert_eq!(
+        what,
+        "a revolved point's moved corner stands out of the family's own sketch plane, so the same rotation does not pass through it"
+    );
 
     // The section that rim edge would need is not a circle.
     let (big, small) = (1.2_f64, r - 0.05);

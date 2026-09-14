@@ -1194,7 +1194,10 @@ mod tests {
             (lo - r).abs() <= 1e-15,
             "the floor is attained: {lo} vs {r}"
         );
-        assert!(hi > r * 1.0005, "the speed rises above the floor: {hi} vs {r}");
+        assert!(
+            hi > r * 1.0005,
+            "the speed rises above the floor: {hi} vs {r}"
+        );
     }
 
     /// `param_near` inverts `eval` on the branch nearest the anchor, on
