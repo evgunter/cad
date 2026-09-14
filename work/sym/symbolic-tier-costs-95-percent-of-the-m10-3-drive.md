@@ -5,7 +5,6 @@ title: The E12 symbolic tier is 95% of the M10-3 interval drive: 20.8x measured,
 status: open
 opened: 2026-09-11
 parent: SYM-1
-needs_ev: true
 ---
 
 
@@ -679,3 +678,14 @@ case this proposal closes with (2) on the record. The assertion
 discharge (the `Decide` impl's `debug_assert!` — a tenth of the
 slab's plain forms, 95 % of its early-walk forms) is a separate
 question and is not asked here.
+
+## Ev's answer (2026-09-14): (1), the drive-scoped plain memo
+
+"(1) sounds good!" on #2581. Taken as a unit of block SYM-B2 (H /
+STRUCTURAL): the plain-form memo keyed by `SymId`, installed by the
+drive and dropped with it; the early and door walks per leaf; the
+three side effects defined as above (the memo carries its atoms;
+`frozen` becomes distinct-nodes-over-the-drive on the drive's receipt,
+the per-leaf goldens' column re-blessed as the acceptance's own move;
+the opaque-sequence argument pinned across leaves). The assertion
+discharge stays a separate question.
