@@ -106,7 +106,23 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             name: "r2_rounded_pad",
             certifies_at: 2.083e3,
             refuses_at: 2.084e3,
-            registered: 86,
+            // 86 until SYM-5's rule E (`common_factor`). The pad is
+            // the one of the five whose `registered` the rule moves,
+            // and it moves it UP: with the dial off this replay reads
+            // `symbolic_zero: 695, registered: 86, numeric: 1172`, with
+            // it on `858 / 104 / 991` — 181 decisions leave `numeric`,
+            // 163 of them as theorems and 18 through the door, and
+            // `frozen` is 2750 either way. That is the SECOND cause
+            // the assertion below names (a changed fold rule that
+            // un-freezes a residual the door then recognises) and not
+            // the first: `registrations_refused` and
+            // `registrations_contradicted` are 0 at both dials, the
+            // registrants' own `debug_assert!` never fires, and no
+            // ceiling on this document moves. The other four are
+            // byte-identical at both dials except for `symbolic_zero`
+            // rising against `numeric` (link 485 → 515, bracket
+            // 1075 → 1083, plate and annulus unmoved).
+            registered: 104,
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -404,7 +420,9 @@ fn m10_9_the_ceilings_are_unmoved_and_both_ends_are_the_measured_bracket() {
 ///   see. R2 planted `‖q − c‖ ≡ r · (1 + 2ε)` in `register_rim_identity`
 ///   and the enclosures still met — but the registry stops discharging,
 ///   so `registered` collapses (plate 140 → 16, annulus 140 → 16, link
-///   90 → 16, bracket 144 → 20, pad 86 → 24) and `numeric` rises
+///   90 → 16, bracket 144 → 20, pad 86 → 24 — R2's measurement on the
+///   tier as it stood, whose pad base was 86; SYM-5's rule E has since
+///   moved that base and not the mechanism) and `numeric` rises
 ///   (470 → 594 on the plate). **These counts are what a small lie
 ///   moves**, so they are pinned, and they are ε-independent: the same
 ///   five numbers at `1e-6`, `1e-9` and `1e-12`.

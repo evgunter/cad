@@ -301,8 +301,12 @@
 //! 60-term, degree-16 products (`work/sym/symbolic-tier-census`).
 //! And the reach is the UNIT bulge: a parameter bulge is outside the
 //! mechanism (R2's D-tab: `3.52e2 · ε` on and off alike) and a literal
-//! bulge other than 1 leaves residue (R1's boss at bulge 2: 6 of 54
-//! and 27 of 90 still numeric, ceiling unmoved) —
+//! bulge other than 1 leaves residue — at M10-10 R1's boss at bulge 2
+//! stood at `carrier_matches_mapped_source` 6 of 54 and
+//! `carrier_on_surface_2` 27 of 90 numeric with its ceiling unmoved;
+//! SYM-5's rule E has since taken the first six and eighteen of the
+//! twenty-seven and moved that ceiling `8.2611e2 → 9.3559e2 · ε`, so
+//! what stands there now is 0 of 54 and 9 of 90 —
 //! `work/sym/rule-d-reaches-the-unit-bulge-only`.
 //!
 //! **What it costs** (release, one whole-box leaf, algebra off → on):
@@ -331,6 +335,88 @@
 //! is the safe direction, and every such margin falls to the numeric
 //! channel exactly as before. What the PLAIN form alone reaches is
 //! [`form`]'s own docs.
+//!
+//! # Rule E — the quotient's common factor (SYM-5)
+//!
+//! **What a normalisation costs the plain form, and what it buys
+//! back.** [`form`]'s quotient cancels no common factor, so a unit
+//! vector — `v / sqrt(v·v)`, three quotients over one atom `A` —
+//! leaves `A` in both halves of everything built from it, each further
+//! normalisation multiplies the shared power and each square doubles
+//! it. [`SymRules::common_factor`] divides that factor out in the
+//! EARLY walk, at every node: the monomial both halves share, and then
+//! the whole quotient when the numerator is a rational multiple of the
+//! denominator. Both are equalities of rational functions wherever the
+//! denominator is non-zero, which clause 1 guarantees; `quotient`
+//! carries the argument and the shapes it must not fold.
+//!
+//! **What it reaches, measured** (the tilted derived frame:
+//! `Datum::Frame { u: (1,0,0), v: (0,1,t) }`, a cube extruded from it,
+//! a `FaceFrame` on its cap, a boss on that —
+//! `editor-core/tests/m10_derived_frame_tilted_interval`). With the
+//! rule off the derived boss refuses under `Guided` at every rung
+//! (`carrier_endpoint_start` at `[0, 1.8e-2]` under the plain form and
+//! A0, `newell_plane_residual` straddling under the shipped set, 632
+//! frozen on DEGREE with kids at total degree 69–128) while its
+//! authored twin certifies; with it on the derived boss certifies
+//! where the twin does at `ε/8` and `1e-3` — NOT at `5e-2`, where the
+//! refusal left is the value channel's (a clause-1 `Invalid` margin,
+//! `work/props/a-widened-derived-placement-normalises-a-straddling-newell-sum`)
+//! and the tier has already proved the residual zero. Raising
+//! the budget to 4,096 / 65,536 does NOT do it — 483 frozen and the
+//! same refusal — so this is reach and not a cost wall. The frozen
+//! forms carry `sqrt(P/P)` for a degree-8 `P`: the number one, held as
+//! an opaque atom because neither half of `P/P` is a constant for A0
+//! to read.
+//!
+//! **What it moves on the measured documents** (`m10_bulge_interval`,
+//! `m10_10_pins_interval`): R1's boss at `bulge = 2`
+//! `carrier_on_surface_2` 63/0/0/27 → 81/0/0/9 in THEOREMS — 18
+//! numeric decisions became theorems — `witness_on_surface_2`
+//! 7/0/0/3 → 9/0/0/1, and `carrier_matches_mapped_source` 72/0/48/6 →
+//! 72/0/54/0 through the door; its whole-certifying CEILING moves
+//! `8.2611e2 · ε → 9.3559e2 · ε` (1.13×), which is the move
+//! `work/sym/rule-d-reaches-the-unit-bulge-only` measured a 512-bit
+//! ring making and the rule makes at [`rational::COEFF_BITS`]. The
+//! D-tab's `carrier_endpoint_start` 24/0/8/4 → 24/0/12/0 on both
+//! spellings, and its `carrier_matches_mapped_source` 126/0/36/18 →
+//! 126/0/42/12 on the literal against 126/0/38/16 on the parameter —
+//! the one row where the two spellings part. **No count falls
+//! anywhere, and no ceiling on the five measured documents moves by a
+//! digit** (plate, annulus, link, bracket, pad: the bracket at both
+//! ends and the counts at ceiling + δ are identical with the rule on
+//! and off).
+//!
+//! **What it costs** — on the affordability line's OWN instrument, one
+//! whole-box leaf (`m10_10_leaf_cost_with_and_without_the_algebra`),
+//! release, rule E off → on: plate at `1e2 · ε` 0.132 → 0.358 s, plate
+//! at its REAL study 0.141 → 0.340, annulus 0.120 → 0.287, bracket
+//! 0.438 → **1.699**, link 3.312 → **2.427**, pad 3.850 → **14.404**.
+//! The line is 1.6 s, so the bracket, the pad AND the link are over it
+//! — the link at BOTH dials, and cheaper with the rule than without,
+//! because the forms the rule shrinks are the ones the walk then
+//! multiplies. That is a disclosed deviation and not a silence.
+//!
+//! On the OTHER instrument — one probe of the ceiling bisection, which
+//! is not what the line is defined for — the same five read
+//! 0.23 → 0.47, 0.17 → 0.34, 0.53 → 1.23, 3.42 → 2.28 and
+//! 3.73 → 10.90. It SHIPS on the balance: a document class the tier
+//! could not reach at all, a ceiling moved on a sixth, four pinned
+//! splits raised, nothing lost, and the pad and the bracket are
+//! documents the tier already carries at no dial.
+//! [`SymRules::without_rule_e`] is M10-10's tier bit for bit.
+//!
+//! **The reach is the DOCUMENT's, not a class.** Reached: the tilt
+//! about `v` above, non-unit authored axes, and derived frames stacked
+//! two deep — under `Pinned` that document certifies at both dials and
+//! the rule is what makes it affordable (219.4 s off against 1.1 s on),
+//! and under `Guided` the rule takes its refusals 4 → 1, the one left
+//! being the value channel's clause-1 `Invalid` on the boss. NOT
+//! reached: a tilt about `u`, where the rule turns the degree wall
+//! into a TERM wall, and a `FaceFrame` on a REVOLVED body's cap, which
+//! neither dial certifies. [`quotient`]'s header carries the mechanism
+//! and `editor-core/tests/m10_derived_frame_tilted_interval`'s
+//! `sym5_the_reach_on_documents_the_unit_did_not_build` the numbers.
 //!
 //! # Node ids are CONTENT HASHES (D9)
 //!
@@ -568,6 +654,10 @@ mod algebra;
 mod form;
 #[cfg(feature = "sym-profile-testing")]
 pub mod profile;
+/// Rule E: the quotient's common factor — the shared monomial divided
+/// out, and a constant ratio folded to its constant.
+#[path = "sym/quotient.rs"]
+mod quotient;
 /// The coefficient tower: the exact rational the normal form's
 /// coefficients are, the integer under it, and the bound they are
 /// frozen at.
@@ -1060,6 +1150,34 @@ pub struct SymRules {
     /// the ring — and why a zero reached through it is counted
     /// `sign_gated` rather than `symbolic_zero`. Needs `early`.
     pub signed_root: bool,
+    /// **E — the quotient's COMMON FACTOR** ([`quotient`]): in the
+    /// early walk every form has the monomial its numerator and
+    /// denominator share divided out, and a numerator that is a
+    /// rational multiple of its denominator folds to that rational.
+    /// Both are equalities of rational functions wherever the
+    /// denominator is non-zero, which clause 1 guarantees — a point
+    /// where a form's denominator vanishes is one the value channel
+    /// divided by zero at, and the whole-box certification has already
+    /// refused there.
+    ///
+    /// It is what a NORMALISATION needs. `Vec3::normalize` is
+    /// `self / self.norm()`, so a unit vector reaches the DAG as three
+    /// quotients over one `sqrt(v·v)` atom and everything built from it
+    /// carries that atom in both halves; the plain form cancels no
+    /// common factor, so each further normalisation multiplies the
+    /// shared power and each square doubles it. On a derived frame
+    /// whose axes carry a parameter the forms reach total degree 128 in
+    /// a handful of terms and freeze — and the already-unit vector's
+    /// own norm is `sqrt(P/P)`, the literal number one carried as an
+    /// opaque atom because neither half of `P/P` is a constant for A0
+    /// to read.
+    ///
+    /// No step cap beside it: unlike rules A/B the fold cannot
+    /// reintroduce anything, it is one pass over the terms, and every
+    /// form it returns has at most the terms and at most the degree of
+    /// the one it was given ([`quotient`]'s docs carry the argument).
+    /// Needs `early`.
+    pub common_factor: bool,
     /// **The REGISTERED-IDENTITY DOOR** (M10-9, ERROR-DESIGN E12's
     /// provenance reserve): the early walk consults the session's
     /// registry ([`Sym::register_equal`]), so a node a constructor
@@ -1088,6 +1206,7 @@ impl SymRules {
             early_ab: true,
             trig_of_atan: true,
             signed_root: true,
+            common_factor: true,
             registered: true,
         }
     }
@@ -1110,6 +1229,7 @@ impl SymRules {
     /// | D + A/B per node (`trig_of_atan`, `early_ab`, `sqrt_square`, `pythagoras`), with A1's `atan2` and half-π folds under D's dial | the plate's four identity residuals all go: the plate certifies 0.24–0.26 and the annulus 0.70–0.84 of their REAL studies, their ceilings bounded by dependency widening of real margins; pad 1.20× | plate 0.15 s at its real study, pad 2.1 → 10.5 s, link 0.43 → 4.1 s (with rule D's `sin`/`cos` pair built once) | **yes** |
     /// | A/B over the top residual (`sqrt_square`/`pythagoras` at `discharge`'s site, once the walks have declined) | none, alone or with rule D: the plate's nominal split is M10-9's under it alone and rule D's with D (`CAD_M10_10_RULES=top_only`, `d_top_only`); M10-8 measured it inert and it still is | +18% on the plate's `1e2·ε` leaf (0.131 → 0.154 s with rule D), +12% on the link (0.76 → 0.85 s) | ships only because it shares the per-node walk's dials — disclosed as M10-10's D17, not chosen |
     /// | C in the early walk (`signed_root`) | none; folds on no document at 256 bits | ~2× | no (inert; reads a value) |
+    /// | E, the quotient's common factor (`common_factor`, SYM-5) | none on the five; R1's boss at bulge 2 `8.2611e2 → 9.3559e2 · ε` (1.13×), and a derived frame whose AXES carry a parameter certifies where its authored twin does, which no dial reached before | one whole-box leaf, release: plate 0.13 → 0.36 s, annulus 0.12 → 0.29, bracket 0.44 → 1.70, link 3.31 → 2.43, pad 3.85 → 14.40 | **yes**, with the bracket, the pad and the link over the 1.6 s line disclosed |
     ///
     /// The pins in `m10_8_pins_interval.rs`, `m10_9_pins_interval.rs`
     /// and `m10_10_pins_interval.rs` hold each layer to what it
@@ -1124,6 +1244,7 @@ impl SymRules {
             early_ab: true,
             trig_of_atan: true,
             signed_root: false,
+            common_factor: true,
             registered: true,
         }
     }
@@ -1140,6 +1261,7 @@ impl SymRules {
             early_ab: false,
             trig_of_atan: false,
             signed_root: false,
+            common_factor: false,
             registered: false,
         }
     }
@@ -1157,6 +1279,7 @@ impl SymRules {
             pythagoras: false,
             early_ab: false,
             trig_of_atan: false,
+            common_factor: false,
             ..Self::shipped()
         }
     }
@@ -1169,6 +1292,18 @@ impl SymRules {
     pub const fn shipped_without_the_door() -> Self {
         Self {
             registered: false,
+            ..Self::shipped()
+        }
+    }
+    /// **The shipped set with rule E SHUT** — the quotient's common
+    /// factor left uncancelled, every other rule as it is: M10-10's
+    /// tier exactly, bit for bit, and the differential every claim
+    /// about what rule E costs and what it buys is measured against
+    /// ([`Self::common_factor`]).
+    #[must_use]
+    pub const fn without_rule_e() -> Self {
+        Self {
+            common_factor: false,
             ..Self::shipped()
         }
     }
@@ -1846,6 +1981,30 @@ fn form_in(
                         })
                         .unwrap_or(f)
                 })
+            } else {
+                combined
+            };
+            // **Rule E**, after the per-node A/B reduction and before
+            // the budget check. AFTER is the order that lets the rule
+            // ACT, and the walk ledger
+            // (`editor-core/tests/m10_sym_profile_interval`) is what
+            // pins it: planted BEFORE the reduction, that ledger reds
+            // in four lines — the slab's `Early/Assertion` digest, and
+            // on the plate `Early/Decision` frozen 8 → 48 with its
+            // digest, `Early/Assertion`'s digest and `Door/Decision`'s
+            // — with the largest form the walk builds falling
+            // 288 → 90, the plate's early-decision walk back where it
+            // was before the rule. So under the other order the rule
+            // does almost nothing there: this is a REACH requirement
+            // and not only a convention. It is also the order
+            // `trig::sqrt_atom` applies to a form it builds by hand,
+            // which is what makes the two spellings of one arc key one
+            // atom.
+            // Before the budget check, because the rule can only
+            // SHRINK a form in terms and degree, so one it cancels may
+            // fit where the raw one would have frozen.
+            let combined = if early && sess.rules.common_factor {
+                combined.map(|f| quotient::cancel(&f))
             } else {
                 combined
             };

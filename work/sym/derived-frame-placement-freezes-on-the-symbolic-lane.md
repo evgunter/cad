@@ -178,6 +178,68 @@ normalisation simplified before squaring, or a degree-resetting
 `sqrt` each have something to act on. The clause-1 residue on DOCM's
 document is the PROPS row above and closes separately.
 
+## What PR-2 took (SYM-5 phase 2, 2026-09-14)
+
+**Rule E — the quotient's common factor** (`geom_core::sym::quotient`,
+`SymRules::common_factor`), chosen by the measurement among the three
+candidates the spec names, closes this row's mechanism. In the early
+walk every form has the monomial its two halves share divided out, and
+a numerator that is a rational multiple of its denominator folds to
+that rational. Both are equalities of rational functions wherever the
+denominator is non-zero, which clause 1 guarantees; nothing reads a
+value.
+
+**Why it is the one.** The chain the tilted document freezes on is
+`sqrt(P/P)` for a degree-8 `P` in the frame's parameter — the number
+ONE, carried as an opaque atom because neither half of `P/P` is a
+constant for A0 to read — and above it the shared power of the
+normalisation's `sqrt` atom, multiplied by every further normalisation
+and doubled by every square. Candidate (a), a unit-vector atom, and
+candidate (c), a degree-resetting `sqrt`, both re-key the atom and
+leave that shared factor in place; candidate (b) is this one, with the
+cancellation taken at every node of the early walk rather than only at
+the `Powi 2`. Measured: with the rule off the derived boss refuses at
+every rung under `Guided`, with it on it certifies where the authored
+twin does, and raising the budget to 4,096 / 65,536 does not do it
+(483 frozen, the same refusal) — so this was reach, not a cost wall.
+
+| rung (`half = 1e-3`, `Guided`, whole box) | rule E off | rule E on |
+| --- | --- | --- |
+| `none` / `A0` / A alone | refuses `carrier_endpoint_start` `[0, 1.7951e-2]` | (the rule needs the early walk) |
+| `shipped` | refuses `newell_plane_residual` `[-6.857e-2, 6.841e-2]`, frozen 632 | **certifies** |
+| the authored twin, every rung | certifies | certifies |
+
+**What it moves elsewhere, and what it does not.** R1's boss at
+`bulge = 2`: `carrier_on_surface_2` 63/0/0/27 → 81/0/0/9 (18 numeric
+decisions became THEOREMS), `witness_on_surface_2` 7/0/0/3 → 9/0/0/1,
+`carrier_matches_mapped_source` 72/0/48/6 → 72/0/54/0 through the door,
+and the document's whole-certifying ceiling `8.2611e2 · ε →
+9.3559e2 · ε`. The D-tab's `carrier_endpoint_start` 24/0/8/4 →
+24/0/12/0 on both spellings. No count falls anywhere; no ceiling on the
+five measured documents moves by a digit. On M10-9's per-document pin
+one of the five moves and moves UP: the ROUNDED PAD's `registered`
+86 → 104, with `symbolic_zero` 695 → 858, `numeric` 1172 → 991 and
+`frozen` 2750 either way — 181 decisions leave `numeric`, 163 as
+theorems and 18 through the door, nothing refused or contradicted at
+either dial. The other four do not move in `registered`; the link and
+the bracket only shift `numeric` into `symbolic_zero` (485 → 515,
+1075 → 1083). Cost on the affordability line's OWN instrument (one whole-box leaf,
+`m10_10_leaf_cost_with_and_without_the_algebra`, release, off → on):
+plate at `1e2·ε` 0.132 → 0.358 s, plate at its real study
+0.141 → 0.340, annulus 0.120 → 0.287, bracket 0.438 → **1.699**, link
+3.312 → **2.427** (cheaper, and over at both dials), pad
+3.850 → **14.404**. The line is 1.6 s: the bracket, the pad and the
+link are over it, disclosed. On the ceiling-bisection instrument —
+not what the line is defined for — the same five read 0.23 → 0.47,
+0.17 → 0.34, 0.53 → 1.23, 3.42 → 2.28, 3.73 → 10.90.
+
+**What still stands on the tilted document, and it is not the tier's.**
+At a half-width of `5e-2` the derived boss refuses with a clause-1
+`Invalid` on `newell_plane_residual` — the same defect PR-1 filed as
+`work/props/a-widened-derived-placement-normalises-a-straddling-newell-sum`,
+at the boss's cap plane instead of its side plane. The tier has done
+its work there; the value channel has not.
+
 ## Re-pointed at SYM-5's measurement (2026-09-14)
 
 DOCM has left the tracker (`docs/DOC-LEDGER.md` sweep 14); the walk and
@@ -187,3 +249,56 @@ door and to "DOCM's diagnosis" read as history: the derived-frame door
 (`Datum::FaceFrame`) has no live owner, its design is
 `crates/editor-core/REFERENCES.md` (DM1–DM6), and a row on it is filed
 where its mechanism lands.
+
+## What the two reviews added (SYM-5's PR-2 fix pass, 2026-09-14)
+
+Both reviews re-took every count and every ceiling to the digit and
+neither found a box where rule E folds a non-identity. What they added
+to this row:
+
+**The reach is the DOCUMENT's, not a class.** Measured on the `Guided`
+lift at half `1e-3`, rule E off → on:
+
+| document | off | on |
+| --- | --- | --- |
+| tilt about `v` (this row's) | refuses `newell_plane_residual` | **certifies** |
+| non-unit authored axes `u=(2,0,0)`, `v=(0,2,t)` | 1 refusal | **certifies** |
+| two derived frames STACKED, `Pinned` | certifies, 219.4 s | certifies, **1.1 s** |
+| two derived frames STACKED, `Guided` | 4 refusals | **1** — the boss, on the value channel's clause-1 `Invalid` |
+| in-plane spin `u=(1,t,0)`, `v=(−t,1,0)` | certifies | certifies — says nothing either way |
+| HALF spin `u=(1,t,0)`, `v=(0,1,0)` (R1) | refuses `carrier_endpoint_end` `[0, 1.43e-1]`, frozen 126 | **certifies**, frozen 1467 |
+| tilt about `u` (`u=(1,0,t)`) | refuses `carrier_endpoint_end` | refuses identically, frozen 37 both |
+| `FaceFrame` on a REVOLVED body's cap | 4 refusals, frozen 3 | 4 refusals, frozen 902, the refusal moves to `pcurve_loop_continuity` |
+
+The tilt-about-`u` wall is the rule turning a DEGREE wall into a TERM
+wall: R2 read the frozen `Powi` kid going from 606 terms at degree 60
+to 440 terms at degree 28, and `440² > MAX_TERMS`. It sits behind the
+`abs(1/sqrt(…))` and `copysign` atoms a `FaceFrame`'s `u_ref`
+derivation mints. The rows are
+`editor-core/tests/m10_derived_frame_tilted_interval`'s
+`sym5_the_reach_on_documents_the_unit_did_not_build` (adopted from R2).
+
+**The revolved cap is its own row**, filed as
+`work/sym/a-face-frame-on-a-revolved-cap-refuses-on-pcurve-loop-continuity`.
+
+**The (a)/(c) rejection is a reading, not a finding.** PR-2's body said
+candidates (a) and (c) "are not it". That is not measured: (a) is an
+atom PLUS the rule `Σ Uᵢ² = 1`, and that rule collapses a
+re-normalisation's `S'` to the constant 1 for A0 to fold — which is a
+different mechanism from re-keying alone and might reach the tilt-U
+wall that rule E does not. What is measured is that rule E reaches the
+documents above at the cost recorded there; (a) and (c) are unmeasured.
+
+**Two notes from R1.** (n-2) No scheduled register re-takes the
+ceilings or the leaf cost — the `#651`/`#667` shape: the numbers in
+`sym.rs`'s rule-E section and in this row are re-taken by running the
+evidence rows by hand, and nothing fires if they drift. (n-4)
+`datum_unit_norm` is untouched by the rule on every document measured
+(it is `Definite(Positive)` throughout), so the door's own unit-norm
+check is not what the rule moves.
+
+**The next shape, not taken** (R2 Q7): a canonical `Form::quotient` at
+CONSTRUCTION, dial-gated, would remove the two-site convention rule E
+now keeps — `form_in` cancels what the walk memoizes and
+`trig::sqrt_atom` cancels what rule D builds by hand, and the two have
+to agree by hand. Declined for PR-2; recorded here.

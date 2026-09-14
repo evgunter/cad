@@ -93,6 +93,17 @@ impl Poly {
         self.terms.is_empty()
     }
 
+    /// **A polynomial from terms already sorted by monomial**, with no
+    /// zero coefficient and no repeat — the invariant the type keeps,
+    /// checked here rather than assumed, because the one caller
+    /// ([`quotient::divide`](super::quotient)) builds its order back by
+    /// sorting and a wrong order would be a silently wrong polynomial.
+    /// `None` when the invariant does not hold.
+    pub(super) fn from_sorted_terms(terms: Vec<(Mono, Rat)>) -> Option<Self> {
+        let sorted = terms.windows(2).all(|w| w[0].0 < w[1].0);
+        (sorted && !terms.iter().any(|(_, c)| c.is_zero())).then_some(Self { terms })
+    }
+
     /// The terms, sorted by monomial.
     pub(super) fn terms(&self) -> &[(Mono, Rat)] {
         &self.terms
@@ -173,6 +184,20 @@ impl Poly {
         Some(Self { terms })
     }
 
+    /// `k · self` — every coefficient multiplied by one rational, the
+    /// monomials untouched. Cheaper than a product by a constant
+    /// polynomial (no budget check is needed: neither the term count
+    /// nor the degree can move) and the one home for what
+    /// [`quotient`](super::quotient)'s scale step and
+    /// [`trig`](super::trig)'s integer multiples both do.
+    pub(super) fn scaled(&self, k: &Rat) -> Option<Self> {
+        let mut out = Self::zero();
+        for (m, c) in self.terms() {
+            out.insert(m.clone(), c.mul(k)?)?;
+        }
+        Some(out)
+    }
+
     /// The product, or `None` for the caller to freeze.
     ///
     /// **Refused BEFORE it is built**, on bounds that cost nothing to
@@ -241,6 +266,15 @@ impl Poly {
 }
 
 /// The product of two monomials, refusing an exponent overflow.
+/// **The exponent of `id` in `m`** — zero where the monomial does not
+/// carry it. One home: a monomial is a sorted `(id, exponent)` vector,
+/// so every rule that asks "to what power does this atom appear" would
+/// otherwise spell the same `find` again ([`algebra`](super::algebra),
+/// [`quotient`](super::quotient) and [`signed`](super::signed) all ask).
+pub(super) fn exp_of(m: &Mono, id: u128) -> u32 {
+    m.iter().find(|(i, _)| *i == id).map_or(0, |(_, e)| *e)
+}
+
 pub(super) fn mono_mul(a: &Mono, b: &Mono) -> Option<Mono> {
     let mut out: Mono = Vec::with_capacity(a.len() + b.len());
     merge_sorted(
@@ -322,9 +356,13 @@ fn merge_sorted<T, K: Ord + ?Sized>(
 ///
 /// # What is deliberately absent
 ///
-/// No common-factor cancellation, so `x²/x` and `x/1` are DIFFERENT
-/// forms and an atom over one does not cancel against an atom over the
-/// other. That is the conservative direction — a missed cancellation is
+/// No common-factor cancellation IN THE PLAIN WALK, so there `x²/x`
+/// and `x/1` are DIFFERENT forms and an atom over one does not cancel
+/// against an atom over the other. (The EARLY walk does cancel the
+/// shared monomial and canonicalise the scale since SYM-5 —
+/// [`quotient`](super::quotient), `SymRules::common_factor` — which is
+/// why the tier with that dial off is the earlier one bit for bit and
+/// what is deliberately absent here is absent from the plain form.) That is the conservative direction — a missed cancellation is
 /// a numeric decision, which is what the kernel did before the tier
 /// existed — and it keeps the form's cost linear in the expression
 /// rather than in a polynomial GCD.
