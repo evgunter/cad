@@ -875,3 +875,20 @@ chart's loop wrap under `revert`, here; a bug-proof drum row, SHELL).
 Dual dispatched on the frozen head beside the ring-nesting fix pass:
 ordinal 2705, byte 83 ⇒ R1 FABLE, R2 OPUS; briefs stored with sha256
 privately.
+
+## Ring nesting merged; block TOPO-B2 slots 0 and 1 concluded (2026-09-14)
+
+PR 2529 merged at `dc868f1f9` (green run 34796525445 on `7e56ec2f9`,
+full matrix, verified job by job). The unit closed. The fix pass's one
+finding of its own is the important one: gating the arm on
+`loop_shape`'s arc-parity class REFUSED a valid body (a bored D-rod
+whose cap's major arc dips past its chord, the bore in the lune the
+polygon excludes), so the gate fell back to the no-arc class with the
+reason stated, and `LoopShape::Parity` split into `Polygon`/`ArcParity`
+in S-BOOL's `contain.rs` (bit-identical for `contfp`; announced on
+S-BOOL's and CURVED's boards). The round-hole-in-square inversion
+therefore stays silent (the disc class, `disc_side`'s), which the
+residue row now says exactly. Fourteen reviewer rows adopted. Row
+recorded at merge (ordinal 2704, sample #187), no tally candidate; the
+block's CONCLUDED record published beneath it with slot 2's row to
+follow at its merge. The revert dual is the only work running.

@@ -5867,3 +5867,77 @@ note applying to BOTH arms equally: one 4-core cloud box beside one
 other lane (the ring-nesting fix pass), `-j2`; R1's target is the
 implementer's warm one, R2's is seeded from an older warm build —
 wall-clock asymmetry only.
+
+Ring-nesting row, recorded AT MERGE (2026-09-14, merge `dc868f1f9`, PR
+#2529; `work/topo/tier3-accepts-a-ring-outside-its-outer-loop.md`,
+SHELL-5's placement): tier 3's check 9 gains its nesting half — a ring
+not inside its face's outer loop refuses typed (`RingOutsideOuter`
+with the witness vertex; `RingNestingUndecided`, never read as
+nested) through `splitting::containment::point_in_loop`, gated on
+`boolean::contain::loop_shape`'s no-arc class after a wider gate
+refused a valid bored D-rod (the arc-parity class is the stated
+residue; `LoopShape::Parity` split into `Polygon`/`ArcParity` with
+`contfp` bit-identical, by announced seam to S-BOOL and CURVED).
+Difficulty **M**, task class STRUCTURAL-GEOMETRIC (logged before the
+block draw — clean). Implementer arm **OPUS** (block TOPO-B2 slot 0,
+byte 215). **DUAL: ordinal 2704; sample #187 (ledger max #186 at this
+writing; main's merge order rules if a concurrent recorder collides);
+byte 0 parity 0 ⇒ R1 OPUS + R2 FABLE; CONCURRENT same-head on frozen
+`a8703bdc9`; briefs stored with sha256 at the unit's delivery,
+dispatched after the split-edge pair freed the box, identical modulo
+lane paths.** R1 MERGEABLE-AFTER-FIXES, counts 0/9/4, rubric idiom 3 /
+tests 4 / docs 2. R2 MERGEABLE-AFTER-FIXES, counts 0/4/7, rubric
+4/3/3. ZERO MAJORs both arms; **no tally candidate**. CONVERGED and
+executed by both: the seam sentence written into `shell.rs` claimed
+check 9 refuses the inverted pick at the verb's closing validate, and
+both found the SHELL-5 mutant dies earlier at `Corrupt` in the naming
+record's walk; the polygon gate a second, narrower spelling of
+`loop_shape` (R1 executed the divergence; R2 measured a round-holed
+square inverted and silent); the control row green with the gate
+forced shut (R2 executed); `Inside` carrying two meanings against the
+code; the gate computed for ring-free faces; the all-on-boundary
+residue unreachable (R2 executed three offsets); the red-first row's
+comment contradicting its assertion; the H item understating tier 3's
+coverage. Unilateral, taken: the PR body's `encloses` counterexample
+does not compute (R1 re-did the arithmetic and built a cross fixture
+that genuinely false-refuses); an empty `kemr` ring read `Inside` (R1
+planted one outside the square); `KERNEL-VERBS.md` and a second
+`shell.rs` comment still contact-only (R1); the K roster has no
+mechanical guard (both noted; filed on INSTR). Both ran the arm on
+every honest fixture they built and every inverted glue on a polygonal
+outer, `Body::revert` on both orientations, an escalation plant, and
+the four classify obligations (each deletion reds by name). Spec
+deviations: 5 reported; silent 7 (R1) / 1 (R2) — the seam sentence
+common to both. Method relaxations: none; shared-box note applies to
+both arms; R2's target seeded colder (wall-clock asymmetry only). Fix
+pass by a fresh lane on the inherited branch, ten items, union of both
+reviews: fourteen reviewer rows adopted (seven in `validate.rs`, seven
+as a public-API suite in `sweep/tests`), the gate on `loop_shape` with
+the arc class falling back after the D-rod refused, the empty ring
+decided on its vertex, the control row paired with its inversions,
+`KERNEL-VERBS.md` and the H item updated, two rows filed (INSTR, TOPO).
+The fix lane corrected the brief's ordering ("before `kfmrh`" — the
+record's walk runs after `kfmrh` and before the closing validate).
+Tokens: impl ≈205k, fix ≈318k, state-sync ≈15k, R1 ≈117k, R2 ≈290k.
+Wall: impl ≈150 min, fix ≈170 min (a 45-minute interval eps sweep of
+the tour suite), R1 ≈140 min, R2 ≈95 min; no gaps. Tally after this
+entry: candidates +2, unchanged.
+
+Block TOPO-B2 — CONCLUDED record (published from the orchestrator's
+branch-side record `topo/b2-block` at the last slot's dispatch and
+delivery; the slot-2 row follows when its dual concludes). Protocol:
+three slots {opus, opus, fable}, fable position = byte mod 3. Pre-draw
+fields for all three slots committed to `work/topo/log.md` at
+`41edc9d2a` BEFORE the draw — clean. Draw 2026-09-12: `/dev/urandom`
+byte **215** ⇒ 215 mod 3 = **2** ⇒ fable at slot 2. Slots: 0 =
+`tier3-accepts-a-ring-outside-its-outer-loop` (OPUS; M /
+STRUCTURAL-GEOMETRIC; PR #2529, ordinal 2704, sample #187, no tally
+candidate; concluded 2026-09-14); 1 =
+`split-edge-children-lack-pcurve-rows-on-curved-charts` (OPUS; S/M /
+STRUCTURAL-NUMERIC; PR #2531, ordinal 2703, sample #186, no tally
+candidate; concluded 2026-09-14); 2 =
+`revert-does-not-mirror-plane-chart-images` (FABLE; M / NUMERIC; PR
+#2542, ordinal 2705, dual in flight — its row and sample number land
+at its merge). No arm was exposed on main before its slot's claim
+named it, and every claim followed the slot line branch-side. The next
+TOPO kernel-answer unit draws block TOPO-B3.
