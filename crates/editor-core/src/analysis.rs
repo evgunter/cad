@@ -437,12 +437,6 @@ where
     }
 
     fn axis_named(name: &ParamName, lo: f64, hi: f64) -> Option<Self> {
-        // R1 REVIEW PROBE, NOT FOR MERGE: a VALUE-DEPENDENT opaque mint
-        // on the door a DRIVE actually takes.
-        let burn = if ((lo.to_bits() ^ hi.to_bits()) & 1) == 1 { 2 } else { 1 };
-        for _ in 0..burn {
-            let _b: geom_core::Sym<T> = geom_core::Sym::opaque(T::axis(lo, hi)?);
-        }
         // The bracket goes with the value: it is the one value the
         // symbolic tier reads (rule C's sign read, `geom_core::sym`).
         T::axis(lo, hi)
