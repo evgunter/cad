@@ -336,6 +336,15 @@ impl Rat {
 
     /// Reduces `num / den · 2^exp2` to the canonical shape, refusing a
     /// zero denominator and an integer past [`COEFF_BITS`].
+    ///
+    /// **The dyadic shape skips the gcd.** Nearly every coefficient a
+    /// document builds has `den` one — an `f64` literal is `m · 2^e`,
+    /// and a sum or product of such stays so — and a gcd against one
+    /// is one, so on that shape the reduction is the two `strip_twos`
+    /// alone. The result is the same to the bit; what goes is a binary
+    /// gcd over two `u128`s (or a heap gcd, where `num` is `Big`) per
+    /// product and per sum. The coefficient bound is checked after,
+    /// exactly as before, so a coefficient is refused where it was.
     fn from_parts(num: Int, den: Int, exp2: i32) -> Option<Self> {
         if den.is_zero() {
             #[cfg(feature = "sym-profile-testing")]
@@ -350,11 +359,15 @@ impl Rat {
         } else {
             (num, den)
         };
-        let g = num.gcd(&den);
-        let (num, den) = if g.is_one() {
+        let (num, den) = if den.is_one() {
             (num, den)
         } else {
-            (num.div_exact(&g), den.div_exact(&g))
+            let g = num.gcd(&den);
+            if g.is_one() {
+                (num, den)
+            } else {
+                (num.div_exact(&g), den.div_exact(&g))
+            }
         };
         let (num, nz) = num.strip_twos();
         let (den, dz) = den.strip_twos();
@@ -434,6 +447,11 @@ impl Rat {
             Some(r.num.shl(k))
         };
         let (a, b) = (shift(self)?, shift(other)?);
+        // Two dyadic coefficients add their aligned numerators; the
+        // cross-multiplication by one on each side is the same number.
+        if self.den.is_one() && other.den.is_one() {
+            return Self::from_parts(a.add(&b), Int::one(), lo);
+        }
         let num = a.mul(&other.den).add(&b.mul(&self.den));
         Self::from_parts(num, self.den.mul(&other.den), lo)
     }
@@ -465,7 +483,12 @@ impl Rat {
             profile::note(profile::FreezeCause::Overflow);
             return None;
         };
-        Self::from_parts(self.num.mul(&other.num), self.den.mul(&other.den), exp2)
+        let den = if self.den.is_one() && other.den.is_one() {
+            Int::one()
+        } else {
+            self.den.mul(&other.den)
+        };
+        Self::from_parts(self.num.mul(&other.num), den, exp2)
     }
 
     /// The reciprocal; `None` for zero.
