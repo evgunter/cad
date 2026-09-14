@@ -23,8 +23,8 @@ use std::sync::Arc;
 use pncad::document::{CancelToken, EvalOptions, EvalOutcome, ProfileProgram, SlotId, evaluate};
 use pncad::geom_core::Tol;
 use viewer::evalseam::{
-    EvalDone, EvalRequest, EvalService, IndexDone, IndexRequest, IndexService, InlineEvaluator,
-    InlineIndexer,
+    EvalDone, EvalRequest, EvalService, FitDone, FitRequest, FitService, FitSubject, IndexDone,
+    IndexRequest, IndexService, InlineEvaluator, InlineFitter, InlineIndexer,
 };
 use viewer::generation::Generation;
 use viewer::props::SlotValue;
@@ -667,4 +667,150 @@ fn the_index_seams_traffic_is_send() {
     assert_send::<IndexRequest>();
     assert_send::<IndexDone>();
     assert_send::<viewer::PickIndex>();
+}
+
+// --- the display budget's fit seam ----------------------------------
+
+/// The δ this suite's fit rows ask for. Finer than the plate needs, so
+/// the ladder has somewhere to descend from rather than answering off
+/// its first rung.
+fn fit_delta_request() -> DisplayTolerance {
+    DisplayTolerance::new(1.0e-5).expect("a positive delta")
+}
+
+/// **The fit seam answers with the key it was asked with, and answers
+/// what the function it wraps answers.**
+///
+/// The second half is the one that matters here: moving the ladder
+/// behind a seam moved the WORK and must not have moved the NUMBER, so
+/// the row prices the same body twice — once through the seam, once
+/// through `scene::fit_delta` directly — and compares.
+#[test]
+fn the_fit_seam_answers_with_the_key_it_was_asked_with() {
+    let tol = Tol::witness();
+    let (doc, _profile, _extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let generation = session.landed_generation().expect("a landed generation");
+    let body = session.landed_body().expect("the plate gathers");
+    let direct = viewer::scene::fit_delta(body, fit_delta_request(), tol).expect("the plate fits");
+
+    let mut seam = InlineFitter::new();
+    assert!(!seam.busy());
+    seam.submit(
+        session
+            .fit_request(fit_delta_request())
+            .expect("a landing with a body to price"),
+    );
+    assert!(seam.busy(), "asked, and not yet answered");
+    let done = seam.poll().expect("the inline seam answers inside poll");
+    assert!(!seam.busy());
+    assert_eq!(done.generation, generation);
+    assert_eq!(done.requested, fit_delta_request());
+    let fitted = done.fit.expect("the plate fits behind the seam too");
+    assert_eq!(
+        fitted.delta, direct.delta,
+        "the seam's answer is the function's answer",
+    );
+    assert_eq!(fitted.predicted, direct.predicted);
+    assert_eq!(fitted.probe_triangles, direct.probe_triangles);
+    assert!(seam.poll().is_none(), "and there is nothing else to take");
+}
+
+/// **The gathering arm gathers behind the seam, and answers the same
+/// δ.**
+///
+/// [`FitSubject::Ungathered`] is the landing shape with no body to
+/// share — an assembly whose A5 gate consumed the product it judged —
+/// and the point of the arm is that the gather it needs is paid on the
+/// worker rather than on the frame. Driven here by handing the seam
+/// the pair directly, because what is under test is the arm, not the
+/// landing that produces it.
+#[test]
+fn the_fit_seams_gathering_arm_answers_what_the_shared_body_answers() {
+    let tol = Tol::witness();
+    let (doc, _profile, _extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let generation = session.landed_generation().expect("a landed generation");
+    let shared = session
+        .fit_request(fit_delta_request())
+        .expect("a landing with a body to price");
+    assert!(
+        matches!(shared.subject, FitSubject::Landed(_)),
+        "a part document's landing keeps its body, or this row's two \
+         arms are the same arm",
+    );
+    let (pair_doc, _) = session.landed_pair().expect("a landed pair");
+    let gathering = FitRequest {
+        generation,
+        requested: fit_delta_request(),
+        subject: FitSubject::Ungathered {
+            doc: pair_doc.clone(),
+            evaluation: Arc::clone(session.evaluation_arc().expect("a landed run")),
+        },
+        tol,
+    };
+
+    let mut seam = InlineFitter::new();
+    seam.submit(shared);
+    let from_body = seam.poll().expect("the seam answers inside poll");
+    seam.submit(gathering);
+    let from_pair = seam.poll().expect("the seam answers inside poll");
+    assert_eq!(
+        from_body.fit.expect("the shared body fits").delta,
+        from_pair.fit.expect("the gathered body fits").delta,
+        "the arm decides who gathers, not what the answer is",
+    );
+}
+
+/// **Two submits, one answer, and it is the newer one** — the index
+/// seam's row over this seam, for its reason: the fit has no cancel
+/// either, so what is left to check is that the caller sees one answer
+/// for its latest ask.
+#[cfg(not(target_family = "wasm"))]
+#[test]
+fn the_threaded_fit_seam_answers_only_the_newest_of_two_submits() {
+    let tol = Tol::witness();
+    let (doc, _profile, _extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let coarse = DisplayTolerance::new(2.0e-4).expect("a positive delta");
+
+    let mut seam = viewer::evalseam::ThreadFitter::spawn().expect("the worker starts");
+    seam.submit(session.fit_request(coarse).expect("a landing to price"));
+    seam.submit(
+        session
+            .fit_request(fit_delta_request())
+            .expect("a landing to price"),
+    );
+
+    let mut results: Vec<FitDone> = Vec::new();
+    for _ in 0..10_000 {
+        while let Some(done) = seam.poll() {
+            results.push(done);
+        }
+        if !seam.busy() && !results.is_empty() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert!(!seam.busy());
+    assert_eq!(results.len(), 1, "one answer for one ask");
+    assert_eq!(
+        results[0].requested,
+        fit_delta_request(),
+        "and it is the newest ask, not the first",
+    );
+}
+
+/// The fit seam's traffic is `Send` too — checked here as well as by
+/// the compile-time assertion in the module, because the threaded
+/// implementation that would otherwise force it is absent on wasm.
+#[test]
+fn the_fit_seams_traffic_is_send() {
+    fn assert_send<T: Send>() {}
+    assert_send::<FitRequest>();
+    assert_send::<FitDone>();
+    assert_send::<FitSubject>();
 }
