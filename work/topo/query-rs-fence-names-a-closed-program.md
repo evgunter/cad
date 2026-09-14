@@ -2,8 +2,10 @@
 id: query-rs-fence-names-a-closed-program
 kind: issue
 title: TOPO's keep_out sends a query.rs seam to SEAT's board, which left the tracker on 2026-09-06
-status: open
+status: closed
 opened: 2026-09-14
+closed: 2026-09-14
+pr: 2587
 ---
 
 
@@ -46,3 +48,16 @@ neither this unit's:
 Same for `face-kind-read-has-two-homes`'s closed-record prose, which is
 history and correct as written — it records what was true when it
 landed and needs no edit.
+
+
+## Closed
+
+The orchestrator retired the clause: `work/topo/program.md`'s
+`keep_out` now reads "topo/src/query.rs and flush.rs were SEAT's until
+SEAT left the tracker on 2026-09-06 (docs/DOC-LEDGER.md sweep 8) — they
+are unowned now and this program edits them as its own ground where a
+readback or query door is the unit (edge-carrier-kind-has-no-readback-door),
+announcing nothing to a closed board"
+(`a236b816e`, "work/topo: retire the stale SEAT fence clause"). Both
+questions above are answered by it: the files stay out of the
+enumerated `paths`, and the clause names no addressee.

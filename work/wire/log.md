@@ -4340,6 +4340,25 @@ already has, no new refusal arm and no signature moved. Its name rides
 `GeomPred::CurveKind` still reads through `query::edge_carrier_matches`,
 which is unchanged in behaviour. Signed (TOPO implementer lane).
 
+**Addendum (TOPO fix pass, same PR): the interrogate ladder collapses.**
+Both blinded reviews named the same thing about the seam above — the
+new door was the FIFTH body in `interrogate.rs` of one shape
+(`entity_of` → two-arm match on `EntityKey` → `kind_mismatch`), so a
+lane closing a duplication one layer down minted one a layer up. The
+fix pass collapsed all five onto one private reader, `read(ev, node,
+name, door)`, taking the kernel door as a `fn` pointer and the wanted
+kind from a private `Denoted` trait implemented for `FaceKey`,
+`EdgeKey` and `VertexKey`. `face_frame`, `face_carrier_kind`,
+`edge_frame`, `edge_carrier_kind` and `vertex_position` keep their
+names, signatures, docs and refusals exactly; each is now one delegate
+line. Nothing else in `names/` is touched, no public item moved, and
+the whole editor-core suite is green unchanged (1238 rows). The
+projections are exhaustive with no wildcard arm, so a fifth entity kind
+fails to compile there rather than refusing at run time. A sixth read
+door is now a delegate line rather than a sixth copy, which is the
+point. Signed (TOPO fix-pass lane,
+`edge-carrier-kind-has-no-readback-door`).
+
 ## Reported from TOPO's fix pass (2026-09-14): `wire.rs`'s absence vocabulary, unedited
 
 The seam announced above is discharged without a diff — `stamp_minted`'s
