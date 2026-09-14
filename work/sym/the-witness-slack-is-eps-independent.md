@@ -79,3 +79,50 @@ f64 witness and lives in PROPS' `real.rs`, and what the row is about is what the
 tier's door accepts.
 
 From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.
+
+## Decision for Ev (2026-09-14, `[ev]` PR from the SYM orchestrator)
+
+**D1 — which route, or neither.** The finding stands: the door's `f64`
+witness is `WITNESS_REL = 1e-9` relative, not the run's ε, so at
+ε = 1e-12 it accepts a registration whose sides differ by a thousand
+band-widths — loosest exactly where the numeric shield is tightest.
+The deciding lane (`Interval`) refuses exactly, so soundness is
+bounded; what is weak is the cheap check.
+
+- **(1) Thread `Tol` to the door** — `Real::register_equal(self, other, tol: Tol)`,
+  `tol` passed to `swept::placed_segment_spec` and the revolve
+  builders from their callers (about twenty call sites in `sweep`);
+  the slack becomes `max(tol.eps(), WITNESS_REL · scale)` — the
+  relative floor stays, measured necessary. **Recommended**: it is how
+  every other tolerance in the kernel arrives, and the
+  `witness-not-ambient` gate exists for exactly this reason.
+- **(2) A `Tol` on the symbolic session**, applied by
+  `Sym::register_equal` as a second refusal after the value channel's
+  relative one. Confined to `geom-core`; leaves the trait alone; puts
+  a tolerance inside a type whose whole argument is that it carries
+  none. Not recommended for that reason.
+- **(0) Leave it, ratified as not-now** — the row becomes `deferred`
+  citing this answer: the cheap check is a cheap check, the exact
+  refusal is at the lane that decides, and the M10-9 pins hold
+  `registrations_contradicted == 0` on every fixture. Honest, and
+  the cheapest; it keeps the asymmetry the review named.
+
+The orchestrator's pick is (1), taken as a unit of its own (M,
+STRUCTURAL) in the block after SYM-B1, unless Ev picks (0), in which
+case the row is deferred on this section.
+
+**D2 — one refusal arm or two** (`the-span-identity-is-not-a-theorem-of-the-floats`):
+`Contradicted` today covers both "the claim is false" and "the
+arithmetic could not tell at this scale" (an adversarial torus at a
+minor radius of 10¹⁸ with a wall below one ULP). The door has one
+witness and cannot know which. **Recommended: keep one arm** and make
+the loud channel the drive's receipt (`registrations_refused`, already
+counted) plus a document-scale row asserting the count is zero on the
+M10 fixtures — the row's own suggestion — and close that row on it.
+The alternative, a third arm keyed on the witness's scale, is a second
+tolerance and is not recommended.
+
+## Ev's answer (2026-09-14): route (1)
+
+"definitely (1)" on #2552. Taken as SYM-6 (`docs/SYM-6-SPEC.md`,
+block SYM-B1 slot 2); this row closes at its merge.
