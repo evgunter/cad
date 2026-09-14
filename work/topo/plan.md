@@ -110,34 +110,37 @@ item and the residues).
 `split_edge`'s carried pcurve rows and `revert`'s mirrored chart
 images, three duals, no tally candidate.
 
-**Block TOPO-B3** takes three kernel answers on this program's own
+**Block TOPO-B3** is concluded (2026-09-14): the loop-re-parenting
+rows, D263's placeholder regime and S93's `mev` half; three duals, one
+doc-class tally candidate; `S93` stays open on its `kev` half.
+
+**Block TOPO-B4** takes three kernel answers on this program's own
 files, in this slot order (fixed before the block byte is drawn):
 
-- slot 0 — `loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart`:
-  `kfmrh` and `ring_move` move a loop between faces and leave its
-  pcurve rows certified against the chart it left; onto a planar face
-  tier 3 is silent. The unit makes the re-parenting ops honest about
-  the rows they carry — dropped where the destination's chart is not
-  the rows' (loud, by the existing `MissingCache` pass), kept where it
-  is — with the receipt of both doors and both directions.
-- slot 1 — `D263`: `group_regime` asks "is it a plane" and the `mvfs`
-  placeholder answers "curved" by default, so the whole placeholder
-  cube groups as one curved group and `merge_coplanar_faces` returns
-  `Ok` with a skip over a body with no coplanar adjacency. The unit
-  gives the placeholder its own arm (a placeholder is neither) and
-  pins the cube.
-- slot 2 — `S93`: the prose-held caller obligations at `mev`'s fan
-  site and `kev`'s fan merge become checked preconditions with typed
-  refusals, and `seqgen`'s hand-kept copy goes.
+- slot 0 — `geom-source-absence-conflates-four-origins`: a bare
+  `None` from `surface_source` covers imported, hand-built,
+  kernel-derived and a failed re-stamp, so Ev's question "how do we
+  know when there is no provenance" has no answer. The unit makes
+  absence typed on the identity channel (`source.rs`), with the
+  cleared-and-not-re-stamped case distinguishable from never-stamped.
+- slot 1 — `revert-leaves-a-periodic-charts-loop-wrap-mid-chain`:
+  `revert` re-states plane rows with their frames but a periodic
+  chart's one-period wrap, parked at the forward loop's closure, sits
+  mid-chain once the loop runs the other way. The unit re-parks the
+  wrap (a `shift_branch` per row, no re-certification) or re-mints,
+  phase 1 deciding with the involution as the test.
+- slot 2 — `edge-carrier-kind-has-no-readback-door`: the two-homes
+  ruling gave faces a `readback` twin and left edges with only the
+  query-side door; the unit adds the readback door for the edge side
+  in the ratified shape.
 
-Two lanes run at once; slot 2 dispatches when one frees.
+Beside the block, non-dual: `D107` (a `kemr` fixture past its plan
+phase for `review_d18`'s hammer — test support, style review only).
 
-Held for the block after: `revert-leaves-a-periodic-charts-loop-wrap-mid-chain`
-(closing shape undecided between re-parking the wrap and re-minting)
-and `half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete`
-(a bound ripple from `Decide` to `PcurveFittedLane` on every Euler
-operator, or the declared primitive posture stated at each op — a
-question for Ev with the chart ruling).
+The `kev` half of `S93` (three landing shapes on its row, each
+constrained by the generator's kills) and the half-edge-minting
+operators' pcurve posture (a bound ripple or a declared primitive
+posture) are Ev's questions, added to the open `[ev]` PR.
 
 **Not in the block**, and why:
 
