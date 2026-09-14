@@ -4243,3 +4243,72 @@ loops, state committed now.**
 The lever that would actually have cut consumption is stopping the
 subagent, and I am choosing not to pull it — stated plainly so the choice
 is visible rather than implied by silence.
+
+## 2026-09-14 — PR 2517 MERGED (`c6a723a82`): eight units, twenty-seven rows closed
+
+The entity door lands after **three review rounds**, the most any unit on
+this program has taken, and every round found what the previous could not
+have.
+
+### The arc, because it is the unit's real result
+
+A textual guard over the roads' shape → **defeated three ways**, all with
+the suite green because the road's answer happened to be *correct* → a
+token whose field is private to the door, so all four defeats **stop
+compiling** and out-of-crate the result is total (eight shapes, eight
+compile errors) → **and then the last mile**: the token makes the *word*
+unforgeable while the *key it is read off* was still the caller's, proven
+by a compiled attack with a byte-identical success path that the census
+passed on.
+
+Closed in two honest moves rather than one overstatement:
+
+- **the claim narrowed at the site, and measured**: `EntityKey` is
+  constructed in about **150 places** crate-wide, `EntityRef` in 30,
+  nearly all legitimate naming-layer mints — so full closure is a
+  naming-layer redesign, not this unit. The narrower `Resolved`-token
+  option fails today on module privacy, and the row says so, so a taker
+  does not re-derive it.
+- **`read` became `fn(EntityKey) -> Option<R>`, not a closure.** Verified
+  here by reading the door rather than on report: a `fn` **cannot
+  capture**, and both `read(key)` and `Found(key.kind())` take the same
+  binding — so a road that substitutes a key substitutes it for its own
+  success path too and **stops working**. It does not make the key
+  unforgeable; it makes a forgery **self-defeating instead of
+  invisible**, which is exactly what the compiled attack relied on. That
+  is a language guarantee, not a design claim, which is why no fourth
+  round ran.
+
+### Two instrument lessons against myself, both from my own polling
+
+**A background waiter's completion is not evidence of the thing it
+waited for.** My CI loops break on the condition *or* on exhausting their
+iterations and exit 0 either way, so "task completed" reads identically
+to "run concluded". I nearly merged on one. The fix is a real
+until-condition whose *event* is the evidence — which is what I armed,
+and which is what the harness had been pointing at.
+
+**And the accumulation was mine too.** The entity-door lane diagnosed
+itself spawning seventeen concurrent shell waiters because each timeout
+moved a loop to the background and it re-issued a fresh one instead of
+re-reading the runner's own output path. My pattern all session was the
+same shape. The cheaper rule, stated for whoever reads this: **when a
+runner or an API already records its result, re-read the record in a
+short call; do not block again.**
+
+### A re-home caught in the act
+
+Merging main brought a conflict on
+`pick-face-fuzz-anti-vacuity-guard-trips-at-effort-1.md`: I had appended
+the second-instance evidence to it in `work/docm/`, and **DOCM closed
+while this unit was in review**, moving the row to `work/tint/` on the
+argument that a probabilistic test guard is test-suite integrity. Both
+sides were additive, so the resolution is the union with the re-home note
+last, where it says the directory is the claim. My evidence survived to
+its new address.
+
+Worth noting the same sweep re-homed a row the operand-door lane filed —
+`work/docm/…mate-member` is now `work/door/…` — and that lane, waking
+from a killed background job, **traced it rather than reporting it
+missing.** That is the tracker's own promise working: a row moves, it
+does not drop, and the id is what finds it.
