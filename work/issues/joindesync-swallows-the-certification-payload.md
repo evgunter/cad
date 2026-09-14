@@ -4,7 +4,7 @@ kind: issue
 title: boolean::ops describe_minted_edges drops a Certification { ResidualExceeded } payload into a bare JoinDesync - the refusal a user sees for the zip's chord-on-cylinder defect
 status: open
 opened: 2026-09-13
-refs: [declared-surface-pairs-emits-duplicate-pairs, rest-zip-seam-chord-on-cylinder-wall, 2105]
+refs: [declared-surface-pairs-emits-duplicate-pairs, 2105]
 ---
 
 
