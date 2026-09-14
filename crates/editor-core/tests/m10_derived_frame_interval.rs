@@ -278,7 +278,6 @@ fn m10_the_transform_lifted_shape_with_an_extrude_above_it() {
 // Phase 1 — the measurement
 // ---------------------------------------------------------------
 
-
 /// The first `n` characters of a rendering — a form that reaches the
 /// budget renders to megabytes, and what a reader needs is its head.
 fn head(s: &str, n: usize) -> String {
@@ -321,7 +320,10 @@ fn frozen_chain(explain: &str) -> String {
             out.push('\n');
         }
     }
-    out.push_str(&format!("    ({n} lines of {} on the frozen path)\n", lines.len()));
+    out.push_str(&format!(
+        "    ({n} lines of {} on the frozen path)\n",
+        lines.len()
+    ));
     out
 }
 
@@ -372,10 +374,7 @@ fn measured_replay(
     println!("counts {counts:?}");
     println!("refusals {refusal:?}");
     println!("decisions {split:?}");
-    println!(
-        "freezes {} by (cause, op/walk/origin):",
-        profile.frozen()
-    );
+    println!("freezes {} by (cause, op/walk/origin):", profile.frozen());
     for ((cause, where_), s) in profile.freezes_by_cause() {
         println!("  {cause:?} {where_} -> {s:?}");
     }
@@ -442,7 +441,13 @@ fn sym5_phase1_the_derived_frame_under_the_earlier_tier() {
         let n = SymRules::none();
         let ladder = [
             ("none", n),
-            ("A0", SymRules { const_fold: true, ..n }),
+            (
+                "A0",
+                SymRules {
+                    const_fold: true,
+                    ..n
+                },
+            ),
             (
                 "A0+early",
                 SymRules {
