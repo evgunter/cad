@@ -24,6 +24,19 @@
 //!   flipping alongside), re-satisfying the convention that a face's
 //!   outward normal is its plane's stored normal. Negation is a
 //!   bitwise involution.
+//! - **Chart images and pcurve rows on a plane**: the flipped `v_ref`
+//!   is the plane's chart reflected, `(u, v) ↦ (u, −v)`, so every
+//!   datum stated in that chart's coordinates is re-stated under the
+//!   reflection with the frame — each [`geom_brep::EdgeDescription::Chart`]
+//!   image on a plane ([`geom_brep::EdgeCurve::with_chart_v_mirrored`])
+//!   and each stored [`geom_brep::PcurveCache`] row on a plane face
+//!   ([`geom_brep::PcurveCache::mirrored_v`]). Certificates travel
+//!   verbatim — why a certificate of the source is a certificate of
+//!   the result is stated once, on [`geom_brep::Pcurve::mirror_v`].
+//!   A `v` sign flip on the stored coefficients is a bitwise
+//!   involution, exact in every image kind. Images and rows on the
+//!   curved charts are untouched: those charts carry the reversal on
+//!   the face's `sense` bit and their frames do not move.
 //! - **Face senses** (M5 S12): every face whose surface is **not** a
 //!   `Plane` has [`crate::entity::Face::sense`] flipped. This is the
 //!   curved arm, and it is the *same* statement as the plane bullet —
@@ -47,11 +60,12 @@
 //!   honest `false` from S11's concave/inward constructors, which is
 //!   the whole point: reverting a body with mixed senses must flip
 //!   each of them, not stamp a constant.
-//! - Loops, faces, shells, solids, points, curves, provenance, and F9
-//!   null records are copied unchanged (`Cycle::first` still names a
-//!   member of its cycle; outer/ring designation is a maintained
-//!   designation and survives; null-entity sides refer to the
-//!   splitting surface, not the body's orientation).
+//! - Loops, faces, shells, solids, points, every curve not described
+//!   in a plane's chart, provenance, and F9 null records are copied
+//!   unchanged (`Cycle::first` still names a member of its cycle;
+//!   outer/ring designation is a maintained designation and survives;
+//!   null-entity sides refer to the splitting surface, not the body's
+//!   orientation).
 //!
 //! **No longer planar-only (M5 S12).** Originally (F5) non-`Plane`
 //! surfaces could not represent their orientation-reversed side at
@@ -76,11 +90,25 @@
 //! both-results-free, inherited by ∖'s use of revert).
 //!
 //! **Validity class**: a reverted body is **tier-2 currency** — every
-//! structural invariant and every certification survives the map — but
-//! deliberately NOT tier-3: it bounds the complement, so the +V
-//! invariant fails (exactly `NegativeVolume`, pinned by test). That is
-//! correct, not a defect: `revert(B)` is ∖'s transient operand, never
-//! an at-rest solid handed across the API.
+//! structural invariant survives the map, every EDGE certification
+//! survives it (the plane-chart images are re-stated with their
+//! frames; every other description is invariant), and every stored
+//! pcurve ROW is still a certified row of its edge (plane rows
+//! re-stated, curved rows untouched) — but deliberately NOT tier-3:
+//! it bounds the complement, so the +V invariant fails
+//! (`NegativeVolume`, pinned by test). That is correct, not a defect:
+//! `revert(B)` is ∖'s transient operand, never an at-rest solid
+//! handed across the API. What the map does NOT re-state is the loop
+//! walk's per-loop BRANCH choice on a periodic chart: where the
+//! forward walk parked a one-period wrap at a loop's closure, the
+//! wrap sits mid-chain once the loop runs the other way, and tier 3
+//! of such a body reports a pcurve `LoopDiscontinuity` beside the
+//! `NegativeVolume` — the frontier is
+//! `work/topo/revert-leaves-a-periodic-charts-loop-wrap-mid-chain`,
+//! measured on the two-arc sphere's cavity; a body whose stored rows
+//! are all on planes or non-periodic charts reports exactly
+//! `NegativeVolume` (the collinear-cap drum's cavity, pinned in
+//! `sweep`'s `revert_plane_charts`).
 //!
 //! Serves ch. 15 `setopfinish` (difference reverts `B`'s kept
 //! component) and the `A ∖ B ≡ A ∩ revert(B)` oracle (M3 PR 5).
@@ -94,6 +122,7 @@ use geom_core::Real;
 use crate::body::Body;
 use crate::entity::HalfEdgeKey;
 use crate::geometry::SurfaceKey;
+use crate::null::CurveGeom;
 
 /// A failed [`Body::revert`] precondition (closed enum, D3 style); the
 /// source body is never touched (revert is `&self`).
@@ -230,6 +259,39 @@ impl<T: Real> Body<T> {
                 *normal = -*normal;
             }
         }
+        // The plane charts' images and rows go with their frames
+        // (module docs): every datum stated in a plane's chart
+        // coordinates, re-stated under the reflection the negation
+        // above is. Chart images are walked by CURVE, so a carrier
+        // shared by several edges is mirrored once; stored rows by
+        // half-edge, resolved to their face through the SOURCE (the
+        // topology is key-for-key, and `out`'s is mid-map). A row
+        // whose half-edge no longer resolves is on no face, so it is
+        // on no plane face and travels as found — the dead-key
+        // exception `crate::pcurves`'s posture docs state for this
+        // door.
+        for (_, geom) in out.curves.iter_mut() {
+            let CurveGeom::Certified(curve) = geom else {
+                continue;
+            };
+            let on_plane = curve
+                .description()
+                .chart()
+                .is_some_and(|c| plane_surfaces.contains(&c.surface));
+            if on_plane {
+                *curve = curve.with_chart_v_mirrored();
+            }
+        }
+        for (he_key, row) in out.pcurves.iter_mut() {
+            let on_plane = self
+                .get_half_edge(he_key)
+                .and_then(|he| self.get_loop(he.parent_loop))
+                .and_then(|lp| self.get_face(lp.face))
+                .is_some_and(|face| plane_surfaces.contains(&face.surface));
+            if on_plane {
+                *row = row.mirrored_v();
+            }
+        }
         // The curved arm (M5 S12): the reversal a non-plane chart
         // cannot express goes on the FACE. Exclusive with the plane
         // negation above — a face is flipped in exactly one encoding —
@@ -297,6 +359,129 @@ mod tests {
         assert_eq!(
             format!("{:?}", reverted.revert().unwrap()),
             format!("{:?}", cube.body),
+        );
+    }
+
+    /// **A plane `Chart` image with a `v` channel survives the map.**
+    /// One plane face (`z = 0`, `u_ref = +x`) carrying a half-circle
+    /// at rest in its chart, built through the Euler door alone: the
+    /// image is `(cos t, sin t)`, and its `v` is what an unmirrored
+    /// reversal used to leave pointing the wrong way. After `revert`
+    /// the image is the stored one with `v` negated coefficient for
+    /// coefficient; the SOURCE's curve re-certified against the
+    /// reverted surfaces refuses `ChartResidual` at sample 1 (the
+    /// merge-base shape of the defect, kept as the control), the
+    /// reverted curve re-certified there yields the certificate it
+    /// carries, byte for byte, and the involution restores the bits.
+    #[test]
+    fn revert_mirrors_a_plane_chart_image_and_its_certificate_survives() {
+        use crate::{FaceSurface, MevSite};
+        use geom::{Curve3, Surface};
+        use geom_brep::certify::{CertCheck, CertifyError};
+        use geom_brep::{EdgeCurveSpec, Pcurve};
+        use geom_core::{Band, Point3, Vec3};
+
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let circle = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let (t0, t1) = (0.0, core::f64::consts::PI);
+        let (start, end) = (circle.eval(t0), circle.eval(t1));
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let mut body = crate::Body::<f64>::new();
+        let seed = body.mvfs(start).unwrap();
+        body.set_face_surface(seed.face, FaceSurface::New(plane))
+            .unwrap();
+        let chart = body.get_face(seed.face).unwrap().surface;
+        let spec = EdgeCurveSpec::arc_of_circle(circle, t0, t1)
+            .unwrap()
+            .at_rest_in_chart(chart, false);
+        body.mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            end,
+            spec,
+            tol,
+        )
+        .unwrap();
+        let curve_of = |b: &crate::Body<f64>| {
+            let (_, e) = b.edges().next().unwrap();
+            b.get_curve_geom(e.curve)
+                .unwrap()
+                .certified()
+                .unwrap()
+                .clone()
+        };
+        let image_of =
+            |c: &geom_brep::EdgeCurve<f64>| c.description().chart().unwrap().pcurve.clone();
+        let source = curve_of(&body);
+        let Pcurve::Harmonic { p0, pa, pb, pl } = image_of(&source) else {
+            panic!("a circle in a plane chart is a harmonic image")
+        };
+        assert!(
+            pb.y.abs() > 0.5,
+            "the image has a v channel (sin t · 1): pb = {pb:?}"
+        );
+
+        let reverted = body.revert().unwrap();
+        let mirrored = curve_of(&reverted);
+        let Pcurve::Harmonic {
+            p0: q0,
+            pa: qa,
+            pb: qb,
+            pl: ql,
+        } = image_of(&mirrored)
+        else {
+            panic!("the mirrored image keeps its kind")
+        };
+        for (before, after) in [(p0.x, q0.x), (pa.x, qa.x), (pb.x, qb.x), (pl.x, ql.x)] {
+            assert_eq!(
+                before.to_bits(),
+                after.to_bits(),
+                "u coefficients are untouched"
+            );
+        }
+        for (before, after) in [(p0.y, q0.y), (pa.y, qa.y), (pb.y, qb.y), (pl.y, ql.y)] {
+            assert_eq!(
+                (-before).to_bits(),
+                after.to_bits(),
+                "v coefficients are negated"
+            );
+        }
+        let surfaces = |k| reverted.get_surface(k).cloned();
+        // The control: the unmirrored image against the reverted plane
+        // is the defect, and the meter says so where it always did.
+        assert!(
+            matches!(
+                source.recertify(start, end, surfaces, band),
+                Err(CertifyError::ResidualExceeded {
+                    check: CertCheck::ChartResidual,
+                    sample: 1
+                })
+            ),
+            "the source's image is wrong on the reverted plane"
+        );
+        let rerun = mirrored
+            .recertify(start, end, surfaces, band)
+            .expect("the mirrored image certifies on the reverted plane");
+        assert_eq!(
+            format!("{rerun:?}"),
+            format!("{:?}", mirrored.certificate()),
+            "the certificate that travelled verbatim is the fresh run's"
+        );
+        assert_eq!(
+            format!("{:?}", reverted.revert().unwrap()),
+            format!("{body:?}"),
+            "bitwise involution"
         );
     }
 }

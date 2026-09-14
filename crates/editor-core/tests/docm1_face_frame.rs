@@ -1,6 +1,7 @@
-//! **DOCM-1 — the derived sketch frame at f64** (DOCM-REFERENCES-DESIGN
-//! DM1, DM1a, DM1b, DM2): acceptance rows A1–A9, the DM1c f64 half,
-//! and the read doors' document-layer twins.
+//! **DOCM-1 — the derived sketch frame at f64**
+//! (`crates/editor-core/REFERENCES.md` DM1, DM1a, DM1b, DM2):
+//! acceptance rows A1–A9, the DM1c f64 half, and the read doors'
+//! document-layer twins.
 //!
 //! The kernel half of the read doors is pinned in `topo`'s own suite;
 //! what is pinned HERE is everything a document exercises — the

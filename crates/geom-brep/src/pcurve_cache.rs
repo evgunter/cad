@@ -169,7 +169,7 @@ use crate::ssi::{SsiCertificate, SsiLimb, SsiOperand};
 /// A pcurve: the 2-D chart image of an edge's carrier, parameterized by
 /// **the carrier's own parameter** (module docs).
 ///
-/// Four variants; the closed enum is the D3 shape.
+/// Five variants; the closed enum is the D3 shape.
 ///
 /// # What separates them
 ///
@@ -201,10 +201,10 @@ use crate::ssi::{SsiCertificate, SsiLimb, SsiOperand};
 /// angle by a transcendental piecewise map. Each variant's own docs
 /// carry the derivation.
 ///
-/// **Not `Copy`.** Two variants carry heap payloads — `Fitted` an
-/// `Arc<NurbsCurve2>`, `IsoArc` a `Vec`-backed
+/// **Not `Copy`.** Three variants carry heap payloads — `Fitted` and
+/// `General` an `Arc<NurbsCurve2>` each, `IsoArc` a `Vec`-backed
 /// [`geom_core::spline::KnotVector`] — so [`Pcurve`] and
-/// [`PcurveCache`] are `Clone` only, and either variant alone is
+/// [`PcurveCache`] are `Clone` only, and any one of them alone is
 /// enough for that. Removing one does not make the enum `Copy`.
 #[derive(Clone, Debug)]
 pub enum Pcurve<T: Real> {
@@ -391,6 +391,111 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector) -> T {
         .unwrap_or_else(|| T::from_f64(f64::NAN))
 }
 
+impl<T: Real> Pcurve<T> {
+    /// The same image with every chart-space coefficient carried
+    /// through an **affine map of the chart**, given as its action on
+    /// points and its linear part on vectors: the constant term of a
+    /// harmonic image, an iso line's or arc's start, and a NURBS
+    /// image's control net go through `point`; a harmonic image's
+    /// `cos`/`sin`/linear coefficients, an iso line's velocity and an
+    /// iso arc's displacement go through `vector`. Knots, weights,
+    /// breaks and the carrier parameter are untouched, and every
+    /// variant keeps its variant — a map of the chart moves an image,
+    /// never its provenance. A sixth variant is a compile error here,
+    /// not a fall-through.
+    ///
+    /// Exact whenever the two closures are: every variant is linear in
+    /// its chart-space coefficients, so the coefficient-wise image IS
+    /// the pointwise image of the curve, and a NURBS net goes through
+    /// [`NurbsCurve2::map_points`] — the door a structural map takes
+    /// instead of `NurbsCurve2::new`, since a pointwise map of a
+    /// validated net has nothing left to validate. Infallible for
+    /// the same reason.
+    ///
+    /// # What the caller owes
+    ///
+    /// `vector` must be the linear part of `point` —
+    /// `point(p + v) = point(p) + vector(v)` — and nothing here checks
+    /// that; the two are taken separately, rather than derived from
+    /// one closure, because `point(v) − point(0)` is not the linear
+    /// part bit for bit (a translation by `k·period` would leave
+    /// `(v + k·period) − k·period` behind). The two callers state
+    /// their pair at their doors: [`Pcurve::mirror_v`] negates the
+    /// second channel of both, [`Pcurve::shift_branch`] translates the
+    /// first channel of points and leaves vectors alone.
+    #[must_use]
+    pub fn map_affine(
+        &self,
+        point: impl Fn(Point2<T>) -> Point2<T>,
+        vector: impl Fn(Vec2<T>) -> Vec2<T>,
+    ) -> Self {
+        match self {
+            Pcurve::Harmonic { p0, pa, pb, pl } => Pcurve::Harmonic {
+                p0: point(*p0),
+                pa: vector(*pa),
+                pb: vector(*pb),
+                pl: vector(*pl),
+            },
+            Pcurve::Fitted(image) => Pcurve::Fitted(Arc::new(image.map_points(point))),
+            Pcurve::General(image) => Pcurve::General(Arc::new(image.map_points(point))),
+            Pcurve::IsoLine { p0, pl } => Pcurve::IsoLine {
+                p0: point(*p0),
+                pl: vector(*pl),
+            },
+            Pcurve::IsoArc {
+                p0,
+                pd,
+                t0,
+                angle,
+                breaks,
+            } => Pcurve::IsoArc {
+                p0: point(*p0),
+                pd: vector(*pd),
+                t0: *t0,
+                angle: *angle,
+                breaks: breaks.clone(),
+            },
+        }
+    }
+
+    /// The same image under the chart reflection `(u, v) ↦ (u, −v)` —
+    /// the map a chart's OWN frame undergoes when its second axis is
+    /// negated (a `Plane` whose stored `normal` is negated with
+    /// `u_ref` fixed has `v_ref = normal × u_ref` negated with it), so
+    /// the mirrored image on the mirrored chart names the same locus,
+    /// point for point. [`Pcurve::map_affine`] with the second channel
+    /// negated on points and vectors alike: a sign flip on every `v`
+    /// coefficient, knots, weights, breaks and the carrier parameter
+    /// untouched. An IEEE sign flip is a bitwise involution, so
+    /// `mirror_v ∘ mirror_v` is the identity bit for bit.
+    ///
+    /// **Why a certificate of the source is a certificate of the
+    /// result** — stated once, here; the doors that carry one across
+    /// ([`crate::PcurveCache::mirrored_v`],
+    /// [`crate::EdgeCurve::with_chart_v_mirrored`]) point back rather
+    /// than restate. A certificate is a record of metred NORMS —
+    /// sampled residuals `|S(P(tᵢ)) − C(tᵢ)|`, an envelope over the
+    /// span, a hull sup-norm and a tube radius on the fitted lane —
+    /// and stores nothing in chart coordinates. On the mirrored chart
+    /// the mirrored image evaluates to the same 3-D point at every
+    /// parameter: `S'(u, −v) = origin + u_ref·u + (−v_ref)·(−v)`, and
+    /// `(−a)·(−b)` is `a·b` exactly in IEEE arithmetic, so every
+    /// coordinate is bit-identical up to the sign of a zero, which a
+    /// distance squares away (a squared zero is `+0`). The window a
+    /// face's rows hull mirrors with them (`(−a) − (−b)` is `b − a`
+    /// exactly). So every number the schedule would produce again is
+    /// the number it produced, and the certificate travels verbatim —
+    /// the same reading [`crate::EdgeCurve::with_remapped_surfaces`]
+    /// lands under: a re-statement under which no metred value can
+    /// move is not a geometry change. Where the signed zero does land
+    /// is the IMAGE (a coefficient that was `+0` reads `−0` after the
+    /// flip), which a `Debug` comparison sees and no certificate can.
+    #[must_use]
+    pub fn mirror_v(&self) -> Self {
+        self.map_affine(|p| Point2::new(p.x, -p.y), |v| Vec2::new(v.x, -v.y))
+    }
+}
+
 impl<T: SpanLocate> Pcurve<T> {
     /// The chart point at the **carrier parameter** `t` (module docs:
     /// the parameter is not re-mapped). Fixed evaluation order (D9);
@@ -512,78 +617,28 @@ impl<T: SpanLocate> Pcurve<T> {
     /// The azimuth channel shifted by `k` whole periods — the only
     /// branch freedom a pcurve on a periodic chart has (module docs:
     /// the branch is chosen once, by the face's loop walk, and never
-    /// per sample).
-    /// `None` only if a fitted image's control net could not be
-    /// re-wrapped with its own knots and weights — structurally
-    /// impossible, and therefore reported rather than swallowed (see
-    /// the arm's note).
-    pub fn shift_branch(&self, k: T, period: T) -> Option<Self> {
-        Some(match self {
-            Pcurve::Harmonic { p0, pa, pb, pl } => Pcurve::Harmonic {
-                p0: Point2::new(p0.x + k * period, p0.y),
-                pa: *pa,
-                pb: *pb,
-                pl: *pl,
-            },
-            // A whole-period shift of a NURBS chart image is a
-            // translation of its control net in the azimuth channel:
-            // exact, structure-preserving, and it moves the branch
-            // WITHOUT touching the parameter (the same one-branch
-            // contract the harmonic arm keeps).
-            //
-            // The rebuild takes the ORIGINAL knots and weights and a
-            // control net of the original length, so `NurbsCurve2::new`
-            // re-validates exactly what it validated once already and
-            // cannot fail. It is still not swallowed: the failing arm
-            // answers `None`, because silently returning the UNSHIFTED
-            // image would hand the loop walk a branch it did not ask
-            // for, and "the branch is chosen once and never guessed" is
-            // this method's whole point. The kernel never panics
-            // (D4 ¶2), so the impossible case is a typed absence the
-            // caller must handle, not an abort.
-            Pcurve::Fitted(image) | Pcurve::General(image) => {
-                let shifted: Vec<Point2<T>> = image
-                    .control()
-                    .iter()
-                    .map(|p| Point2::new(p.x + k * period, p.y))
-                    .collect();
-                let rebuilt =
-                    NurbsCurve2::new(image.knots().clone(), shifted, image.weights().to_vec())
-                        .ok()?;
-                // The arm reconstructs the ORIGINAL variant: a shift
-                // moves the branch, never the provenance.
-                if matches!(self, Pcurve::Fitted(_)) {
-                    Pcurve::Fitted(Arc::new(rebuilt))
-                } else {
-                    Pcurve::General(Arc::new(rebuilt))
-                }
-            }
-            // The iso lane lives on NURBS charts, which have no
-            // periodic azimuth — no minted iso line is ever shifted.
-            // Kept total (the same first-channel translation) rather
-            // than special-cased: a shift by k periods of a
-            // non-periodic chart is meaningless but harmless, and the
-            // loop walk never computes a nonzero k there.
-            Pcurve::IsoLine { p0, pl } => Pcurve::IsoLine {
-                p0: Point2::new(p0.x + k * period, p0.y),
-                pl: *pl,
-            },
-            // Same reasoning as the iso-line arm: NURBS charts have no
-            // periodic azimuth, so no minted arc rim is ever shifted.
-            Pcurve::IsoArc {
-                p0,
-                pd,
-                t0,
-                angle,
-                breaks,
-            } => Pcurve::IsoArc {
-                p0: Point2::new(p0.x + k * period, p0.y),
-                pd: *pd,
-                t0: *t0,
-                angle: *angle,
-                breaks: breaks.clone(),
-            },
-        })
+    /// per sample). [`Pcurve::map_affine`] with the first channel of
+    /// every POINT translated by `k·period` and every vector left as
+    /// it is: a whole-period shift is a translation of the chart, so
+    /// a harmonic image's constant term, an iso image's start and a
+    /// NURBS image's control net move, while the `cos`/`sin`/linear
+    /// coefficients, an iso velocity or displacement, knots, weights
+    /// and the parameter do not. Exact and structure-preserving, and
+    /// it moves the branch WITHOUT touching the parameter — the same
+    /// one-branch contract every arm keeps, and the reason the shift
+    /// is not a re-derivation: silently handing the loop walk a
+    /// branch it did not ask for is what "the branch is chosen once
+    /// and never guessed" forbids.
+    ///
+    /// The iso lane lives on NURBS charts, which have no periodic
+    /// azimuth, so no minted iso line or arc rim is ever shifted; the
+    /// map is kept total over them rather than special-cased — a
+    /// shift by `k` periods of a non-periodic chart is meaningless
+    /// but harmless, and the loop walk never computes a nonzero `k`
+    /// there.
+    #[must_use]
+    pub fn shift_branch(&self, k: T, period: T) -> Self {
+        self.map_affine(|p| Point2::new(p.x + k * period, p.y), |v| v)
     }
 }
 
@@ -1836,6 +1891,30 @@ impl<T: Real> PcurveCache<T> {
     /// The certification record of the run that admitted this cache.
     pub fn certificate(&self) -> &PcurveCertificate<T> {
         &self.certificate
+    }
+
+    /// The same certified cache with its image mirrored in `v`
+    /// ([`Pcurve::mirror_v`]), for a chart whose second frame axis was
+    /// negated — the interval and the certificate travel verbatim.
+    ///
+    /// Why the certificate is still the certificate is stated once,
+    /// on [`Pcurve::mirror_v`]: a certificate stores norms and nothing
+    /// in chart coordinates ([`PcurveCertificate`]'s fields are
+    /// `samples`, `max_residual`, `envelope`, `statement` and the
+    /// fitted lane's `ssi`), and every value the schedule metres is
+    /// bit-identical on the mirrored chart. So this is the same kind
+    /// of door as [`crate::EdgeCurve::with_remapped_surfaces`]: it
+    /// cannot express a geometry change, only the one re-statement
+    /// under which no metred value can move, which is why it hands
+    /// out a certificate without a run.
+    #[must_use]
+    pub fn mirrored_v(&self) -> Self {
+        Self {
+            pcurve: self.pcurve.mirror_v(),
+            param_start: self.param_start,
+            param_end: self.param_end,
+            certificate: self.certificate,
+        }
     }
 }
 
@@ -4922,9 +5001,7 @@ mod tests {
             dir: Vec3::unit_z(),
         };
         let base = chart_pcurve(&carrier, &cyl, band()).unwrap();
-        let wrapped = base
-            .shift_branch(1.0, TAU)
-            .expect("a harmonic image always shifts");
+        let wrapped = base.shift_branch(1.0, TAU);
         let wrapped_for_shift = wrapped.clone();
         let Pcurve::Harmonic { p0: a, .. } = base else {
             panic!("the closed-form lane stores harmonic images")

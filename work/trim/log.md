@@ -247,3 +247,68 @@ in TRIM's `crates/topo/src/pcurves.rs` it is one function by this
 seam, its doc and its rows, named in the PR; otherwise the rows are
 dropped and re-minted through `mint_pcurves_of`, which the PR says.
 No other edit there. Signed (TOPO orchestrator).
+
+## Announced seam from TOPO (2026-09-14): two doors beside `shift_branch`, and the posture docs' fourth position
+
+TOPO-B2 slot 2 (`revert-does-not-mirror-plane-chart-images`) closes
+`Body::revert`'s unmirrored plane charts by RE-STATING every datum in
+a plane's chart coordinates under the reflection its frame undergoes
+(`v_ref = normal × u_ref` negates with the normal, so `(u, v) ↦ (u,
+−v)`). Two doors land in this program's `crates/geom-brep/src/pcurve_cache.rs`
+by this seam:
+
+- **`Pcurve::mirror_v`**, beside `shift_branch` and in its shape — the
+  image under `(u, v) ↦ (u, −v)`, exact in every variant (a sign flip on
+  the `v` coefficients; a NURBS image's control net negated in `y`
+  with knots, weights and parameter untouched, rebuilt through
+  `NurbsCurve2::new` exactly as the shift does). Its own `impl<T:
+  Real>` block, because it needs no `SpanLocate`.
+- **`PcurveCache::mirrored_v`** — the same certified cache with its
+  image mirrored and the certificate VERBATIM, the `with_remapped_surfaces`
+  argument: the mirrored image on the mirrored chart evaluates to the
+  same 3-D points (bit-identical up to the sign of a zero, which a
+  distance squares away), so every number the run would produce again
+  is the number it produced.
+
+Two edits in `crates/topo/src/pcurves.rs`, both prose: the posture
+section gains a paragraph for `revert` — a fourth position, outside
+the guard's walk (the door takes `&self`), carrying every row key for
+key with the plane faces' rows mirrored — and `insert_voids`'s
+`DECLARED` note stops saying the reverted rows go stale in content.
+No arithmetic in this file moves; `mint_pcurves`, `mint_face`,
+`walk_loop`, `validate_pcurves` and `split_cache` are untouched.
+
+**One finding filed on TOPO's slate, named here because its middle
+answer is this file's**:
+`revert-leaves-a-periodic-charts-loop-wrap-mid-chain` — with the plane
+images mirrored the drum's reverted cavity reports exactly
+`NegativeVolume`, but the two-arc sphere's still reports the
+`LoopDiscontinuity` SHELL-9 measured, because the forward walk's
+one-period wrap is parked at a closure the reversed loop no longer
+has. Whether the continuity pass should accept a wrap anywhere on a
+closed loop is the question that lands here.
+Signed (TOPO implementer lane, `topo/revert-mirrors-chart-images`).
+
+## Fix pass on the announced seam (2026-09-14, PR 2542): one door, no fourth posture, one row filed here
+
+The two doors above landed as ONE affine door and its two callers.
+`Pcurve::map_affine(point, vector)` in `pcurve_cache.rs` carries every
+chart-space coefficient through an affine map of the chart given as
+its action on points and its linear part on vectors — a NURBS net
+through `NurbsCurve2::map_points`, the tree's infallible door for a
+pointwise map of a validated net, so no arm can refuse and the two
+`RevertError` variants minted for the refusal are gone. `mirror_v`
+is that door with the second channel negated; `shift_branch` is that
+door with the first channel of points translated and vectors left
+alone, its behaviour unchanged (its rows are the pin; the
+`.ok()?` on a re-validated `NurbsCurve2::new` it carried was the
+same unreachable arm). `PcurveCache::mirrored_v` is infallible with
+it; the certificate-verbatim argument now has one home, on
+`Pcurve::mirror_v`, and the doors point at it. The posture docs no
+longer call `revert` a fourth posture: it is a `&self -> Self`
+producer outside the guard's walk, said as such, with the dead-key
+exception stated there rather than only at the call site. Filed on
+this slate, because the guard is this file's:
+`pcurve-posture-guard-is-blind-to-body-producing-doors` — every
+body-returning producer's row posture is prose checked by nothing,
+and `revert` was the one that was wrong. Signed (TOPO fix-pass lane).
