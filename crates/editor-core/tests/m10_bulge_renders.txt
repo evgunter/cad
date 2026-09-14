@@ -1,0 +1,1540 @@
+# What stands at a bulge that is not 1 — the renders, trimmed
+# Made by m10_10_evidence_interval (CAD_M10_10_DOC=<name>, CAD_M10_10_RULES=shipped|off,
+# CAD_M10_10_EXPLAIN=4) at eps = 1e-9, dev build. Forms are cut at 420 characters; the
+# coefficient mantissas are as rendered (m·2^e). `?#id` is a node the walk froze (an opaque
+# indeterminate); FROZEN in an explain tree is the node the ring or the budget refused.
+# The split at 1e-6 and 1e-12 is the same table, with the same atoms, on every document.
+
+==============================================================================
+== R1 circular-segment boss, bulge = 2 (r1_segment_boss)
+==============================================================================
+--- at the NOMINAL, rules = shipped
+   carrier_matches_mapped_source      72/0/48/6  (theorem/gated/registered/numeric)
+   carrier_on_surface_1               81/0/0/9  (theorem/gated/registered/numeric)
+   carrier_on_surface_2               63/0/0/27  (theorem/gated/registered/numeric)
+   line_span                          0/0/0/2  (theorem/gated/registered/numeric)
+   pcurve_map_residual                0/0/18/0  (theorem/gated/registered/numeric)
+   witness_on_surface_1               9/0/0/1  (theorem/gated/registered/numeric)
+   witness_on_surface_2               7/0/0/3  (theorem/gated/registered/numeric)
+   carrier_matches_mapped_source in evaluation order: TTTTTTTTTRRRnRnRnRTTTTTTTTTTTTTTTTTTTTTTTTTTTRRRnRnRnRRRRRRRRRRRRRRRRRRRTTTTTTTTTTTTTTTTTTRRRRRRRRRRRRRRRRRRTTTTTTTTTTTTTTTTTT
+   first blocked carrier_matches_mapped_source [NumericZero] sizes Some([FormSize { num: (1, 1), den: (1, 0) }, FormSize { num: (1, 1), den: (1, 0) }])
+   PLAIN atoms {"abs": 66, "atan": 84, "cos": 24, "sin": 60, "sqrt": 2904}
+      1·sqrt((-28823037615171175·2^-13·sin(3·2^-1·atan(1·abs(2)))·sqrt(1)^64·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^16·sin(3·2^-1·atan(2))·sqrt((1329227995784915928244039281409·2^-106·sqrt(1)^16·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^4·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^6 + 1152921504606847·2^-46·sqrt(1)^1 …[106129 more chars]
+   EARLY atoms {"sqrt": 265}
+      1·sqrt((48218006176061232221028323515642696094512939453125·2^-51·sqrt(5)·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^2 + 14173474596091810705283907701021087741851806640625·2^-48·sqrt(5)·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^2·sqrt((1 + 1·sqrt(5)) / (2·sqrt(5))) + 50354297073666779774609375000000000000·sqr …[12232 more chars]
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Sqrt #cb82e1e6: num (1, 1) den (1, 0)
+        Add #ec67c8c2: num (63, 8) den (9, 6)
+          Add #4e2d9952: num (63, 8) den (9, 6)
+            Powi ^2 #d682d4d3: num (1, 2) den (1, 0)
+              Sub #21f7b5bf: FROZEN
+            Powi ^2 #64f6a1f1: num (54, 8) den (9, 6)
+              Sub #0f6d32f0: num (12, 4) den (4, 3)
+          Powi ^2 #4ae0c9b2: num (0, 0) den (1, 0)
+            Sub #23fc2e79: num (0, 0) den (1, 0)
+              Add #7fcebf31: num (0, 0) den (1, 0)
+              Add #aee7a06a: num (0, 0) den (1, 0)
+   carrier_on_surface_2 in evaluation order: TTTTTTTTTnnnnnnnnnTTTTTTTTTTTTTTTTTTnnnnnnnnnnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+   first blocked carrier_on_surface_2 [NumericZero] sizes Some([FormSize { num: (7, 94), den: (1, 93) }, FormSize { num: (8, 4), den: (3, 3) }])
+   PLAIN atoms {"abs": 2, "sqrt": 106}
+      (1329227995784915928244039281409·2^-86·sqrt(1)^58·sqrt((1329227995784915928244039281409·2^-118·sqrt(1)^4 + 1152921504606847·2^-58·sqrt(1)^4·chord_half + 1·sqrt(1)^4·chord_half^2) / (16·sqrt(1)^6·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^2))^4·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^8·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^20 + 1152921504606847·2^-26·sqrt(1)^58·sqrt((13 …[2738 more chars]
+   EARLY atoms {"abs": 6, "sqrt": 6}
+      (44171176619459611917571735596706337801018798399365527325632025·2^-232 + 38312388521647223851569068091606350623530185575·2^-171·chord_half + -1152921504606847·2^-50·chord_half·abs((5·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)) / (8))^2 + 99692099683868694618302946105675·2^-113·chord_half^2 + -256·chord_half^2·abs((5·sqrt(1329227995784915928244039281409·2^-116 + 1 …[713 more chars]
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #34402702: num (8, 4) den (3, 3)
+        Sub #03dbda99: num (8, 4) den (3, 2)
+          Add #27c4a887: num (5, 4) den (3, 2)
+            Add #915466f3: num (5, 4) den (3, 2)
+              Powi ^2 #dbec0603: num (3, 2) den (1, 0)
+              Powi ^2 #738e32c4: num (5, 4) den (3, 2)
+            Powi ^2 #ab685cd3: num (0, 0) den (1, 0)
+              Sub #8a763fc8: num (0, 0) den (1, 0)
+          Powi ^2 #b500b713: num (1, 2) den (1, 0)
+            Abs #88fd7915: num (1, 1) den (1, 0)
+              Mul #32b40ef4: num (1, 1) den (1, 0)
+        Inv #d57f989c: num (1, 0) den (1, 1)
+          Mul #2a16a308: num (1, 1) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   witness_on_surface_2 in evaluation order: TnTTnnTTTT
+   first blocked witness_on_surface_2 [NumericZero] sizes Some([FormSize { num: (16, 90), den: (1, 89) }, FormSize { num: (8, 4), den: (3, 3) }])
+   PLAIN atoms {"abs": 2, "sqrt": 87}
+      (1329227995784915928244039281409·2^-92·sqrt(1)^54·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^8·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^14 + 1152921504606847·2^-32·sqrt(1)^54·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^8·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^14·chord_half + 67108864·sqrt(1)^54·sqrt(132922799578491592 …[2896 more chars]
+   EARLY atoms {"abs": 6, "sqrt": 6}
+      (44171176619459611917571735596706337801018798399365527325632025·2^-232 + 38312388521647223851569068091606350623530185575·2^-171·chord_half + -1152921504606847·2^-50·chord_half·abs((5·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)) / (8))^2 + 99692099683868694618302946105675·2^-113·chord_half^2 + -256·chord_half^2·abs((5·sqrt(1329227995784915928244039281409·2^-116 + 1 …[713 more chars]
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #1306db14: num (8, 4) den (3, 3)
+        Sub #b983cd90: num (8, 4) den (3, 2)
+          Add #fb21abc2: num (5, 4) den (3, 2)
+            Add #3a5d4289: num (5, 4) den (3, 2)
+              Powi ^2 #9a05b3c2: num (3, 2) den (1, 0)
+              Powi ^2 #bc599b69: num (5, 4) den (3, 2)
+            Powi ^2 #df94ca40: num (0, 0) den (1, 0)
+              Sub #1e5460b0: num (0, 0) den (1, 0)
+          Powi ^2 #b500b713: num (1, 2) den (1, 0)
+            Abs #88fd7915: num (1, 1) den (1, 0)
+              Mul #32b40ef4: num (1, 1) den (1, 0)
+        Inv #d57f989c: num (1, 0) den (1, 1)
+          Mul #2a16a308: num (1, 1) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   carrier_on_surface_1 in evaluation order: nnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+   first blocked carrier_on_surface_1 [NumericZero] sizes Some([FormSize { num: (7, 94), den: (1, 93) }, FormSize { num: (8, 4), den: (3, 3) }])
+   PLAIN atoms {"abs": 2, "sqrt": 106}
+      (1329227995784915928244039281409·2^-86·sqrt(1)^58·sqrt((1329227995784915928244039281409·2^-118·sqrt(1)^4 + 1152921504606847·2^-58·sqrt(1)^4·chord_half + 1·sqrt(1)^4·chord_half^2) / (16·sqrt(1)^6·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^2))^4·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^8·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^20 + 1152921504606847·2^-26·sqrt(1)^58·sqrt((13 …[2738 more chars]
+   EARLY atoms {"abs": 6, "sqrt": 6}
+      (44171176619459611917571735596706337801018798399365527325632025·2^-232 + 38312388521647223851569068091606350623530185575·2^-171·chord_half + -1152921504606847·2^-50·chord_half·abs((5·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)) / (8))^2 + 99692099683868694618302946105675·2^-113·chord_half^2 + -256·chord_half^2·abs((5·sqrt(1329227995784915928244039281409·2^-116 + 1 …[713 more chars]
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #3414227c: num (8, 4) den (3, 3)
+        Sub #27d402a9: num (8, 4) den (3, 2)
+          Add #ef9760b0: num (5, 4) den (3, 2)
+            Add #dba02fbf: num (5, 4) den (3, 2)
+              Powi ^2 #0dcb3534: num (3, 2) den (1, 0)
+              Powi ^2 #b9f16b46: num (5, 4) den (3, 2)
+            Powi ^2 #a83e51fb: num (0, 0) den (1, 0)
+              Sub #61b2ff4e: num (0, 0) den (1, 0)
+          Powi ^2 #b500b713: num (1, 2) den (1, 0)
+            Abs #88fd7915: num (1, 1) den (1, 0)
+              Mul #32b40ef4: num (1, 1) den (1, 0)
+        Inv #d57f989c: num (1, 0) den (1, 1)
+          Mul #2a16a308: num (1, 1) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   witness_on_surface_1 in evaluation order: nTTTTTTTTT
+   first blocked witness_on_surface_1 [NumericZero] sizes Some([FormSize { num: (16, 90), den: (1, 89) }, FormSize { num: (8, 4), den: (3, 3) }])
+   PLAIN atoms {"abs": 2, "sqrt": 87}
+      (1329227995784915928244039281409·2^-92·sqrt(1)^54·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^8·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^14 + 1152921504606847·2^-32·sqrt(1)^54·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^8·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^14·chord_half + 67108864·sqrt(1)^54·sqrt(132922799578491592 …[2896 more chars]
+   EARLY atoms {"abs": 6, "sqrt": 6}
+      (44171176619459611917571735596706337801018798399365527325632025·2^-232 + 38312388521647223851569068091606350623530185575·2^-171·chord_half + -1152921504606847·2^-50·chord_half·abs((5·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)) / (8))^2 + 99692099683868694618302946105675·2^-113·chord_half^2 + -256·chord_half^2·abs((5·sqrt(1329227995784915928244039281409·2^-116 + 1 …[713 more chars]
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #ae97b06e: num (8, 4) den (3, 3)
+        Sub #fa3139c5: num (8, 4) den (3, 2)
+          Add #e50f2131: num (5, 4) den (3, 2)
+            Add #0c59c29b: num (5, 4) den (3, 2)
+              Powi ^2 #014bbc8a: num (3, 2) den (1, 0)
+              Powi ^2 #393a6708: num (5, 4) den (3, 2)
+            Powi ^2 #73afba7e: num (0, 0) den (1, 0)
+              Sub #f7a0d87a: num (0, 0) den (1, 0)
+          Powi ^2 #b500b713: num (1, 2) den (1, 0)
+            Abs #88fd7915: num (1, 1) den (1, 0)
+              Mul #32b40ef4: num (1, 1) den (1, 0)
+        Inv #d57f989c: num (1, 0) den (1, 1)
+          Mul #2a16a308: num (1, 1) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+
+--- at the NOMINAL, rules = off
+   carrier_matches_mapped_source      72/0/6/48  (theorem/gated/registered/numeric)
+   carrier_on_surface_1               81/0/0/9  (theorem/gated/registered/numeric)
+   carrier_on_surface_2               27/0/0/63  (theorem/gated/registered/numeric)
+   line_span                          0/0/0/2  (theorem/gated/registered/numeric)
+   pcurve_map_residual                0/0/0/18  (theorem/gated/registered/numeric)
+   witness_on_surface_1               9/0/0/1  (theorem/gated/registered/numeric)
+   witness_on_surface_2               3/0/0/7  (theorem/gated/registered/numeric)
+   carrier_matches_mapped_source in evaluation order: TTTTTTTTTRnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTRnnnnnnnnRnnnnnnnnRnnnnnnnnTTTTTTTTTTTTTTTTTTRnnnnnnnnRnnnnnnnnTTTTTTTTTTTTTTTTTT
+   first blocked carrier_matches_mapped_source [NumericZero] sizes Some([FormSize { num: (1, 1), den: (1, 0) }, FormSize { num: (1, 1), den: (1, 0) }])
+   PLAIN atoms {"abs": 66, "atan": 84, "cos": 24, "sin": 60, "sqrt": 2904}
+      1·sqrt((-28823037615171175·2^-13·sin(1·2^-1·atan(1·abs(2)))·sqrt(1)^64·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^16·sqrt((1329227995784915928244039281409·2^-106·sqrt(1)^16·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^4·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^6 + 1152921504606847·2^-46·sqrt(1)^16·sqrt(1329227995784 …[106129 more chars]
+   EARLY atoms {"abs": 15, "atan": 27, "cos": 9, "sin": 18, "sqrt": 154}
+      1·sqrt((28823037615171175·2^-42·sin(1·2^-2·atan(2))^2·sqrt((33230699894622898206100982035225·2^-116·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^2 + 28823037615171175·2^-56·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^2·chord_half + 100·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_ha …[16876 more chars]
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Sqrt #248e16c2: num (1, 1) den (1, 0)
+        Add #a904e5e8: num (27, 14) den (1, 8)
+          Add #c3b8cb62: num (27, 14) den (1, 8)
+            Powi ^2 #1526909a: num (45, 14) den (1, 8)
+              Sub #32ee8965: num (10, 7) den (1, 4)
+            Powi ^2 #23ea4d9d: num (45, 14) den (1, 8)
+              Sub #df5ea5c1: num (10, 7) den (1, 4)
+          Powi ^2 #6d95f557: num (0, 0) den (1, 8)
+            Sub #951b3966: num (0, 0) den (1, 4)
+              Add #83564537: num (0, 0) den (1, 1)
+              Add #59385857: num (0, 0) den (1, 3)
+   carrier_on_surface_2 in evaluation order: TTTTTTTTTnnnnnnnnnTTTTTTTTTTTTTTTTTTnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn
+   first blocked carrier_on_surface_2 [NumericZero] sizes Some([FormSize { num: (7, 94), den: (1, 93) }, FormSize { num: (4, 6), den: (1, 5) }])
+   PLAIN atoms {"abs": 2, "sqrt": 106}
+      (1329227995784915928244039281409·2^-86·sqrt(1)^58·sqrt((1329227995784915928244039281409·2^-118·sqrt(1)^4 + 1152921504606847·2^-58·sqrt(1)^4·chord_half + 1·sqrt(1)^4·chord_half^2) / (16·sqrt(1)^6·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^2))^4·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^8·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^20 + 1152921504606847·2^-26·sqrt(1)^58·sqrt((13 …[2738 more chars]
+   EARLY atoms {"abs": 2, "sqrt": 12}
+      (33230699894622898206100982035225·2^-112·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^2·sqrt((1329227995784915928244039281409·2^-118 + 1152921504606847·2^-58·chord_half + 1·chord_half^2) / (16))^2 + 28823037615171175·2^-52·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^2·sqrt((1329227995784915928244039281409·2^-118 …[968 more chars]
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #34402702: num (4, 6) den (1, 5)
+        Sub #03dbda99: num (4, 6) den (1, 4)
+          Add #27c4a887: num (3, 6) den (1, 4)
+            Add #915466f3: num (3, 6) den (1, 4)
+              Powi ^2 #dbec0603: num (3, 6) den (1, 4)
+              Powi ^2 #738e32c4: num (3, 6) den (1, 4)
+            Powi ^2 #ab685cd3: num (0, 0) den (1, 4)
+              Sub #8a763fc8: num (0, 0) den (1, 2)
+          Powi ^2 #b500b713: num (1, 2) den (1, 0)
+            Abs #88fd7915: num (1, 1) den (1, 0)
+              Mul #32b40ef4: num (1, 1) den (1, 0)
+        Inv #d57f989c: num (1, 0) den (1, 1)
+          Mul #2a16a308: num (1, 1) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   witness_on_surface_2 in evaluation order: TnTTnnnnnn
+   first blocked witness_on_surface_2 [NumericZero] sizes Some([FormSize { num: (16, 90), den: (1, 89) }, FormSize { num: (4, 4), den: (1, 3) }])
+   PLAIN atoms {"abs": 2, "sqrt": 87}
+      (1329227995784915928244039281409·2^-92·sqrt(1)^54·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^8·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^14 + 1152921504606847·2^-32·sqrt(1)^54·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^8·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^14·chord_half + 67108864·sqrt(1)^54·sqrt(132922799578491592 …[2896 more chars]
+   EARLY atoms {"abs": 2, "sqrt": 7}
+      (33230699894622898206100982035225·2^-112·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^2 + 28823037615171175·2^-52·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^2·chord_half + 1600·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^2·chord_half^2 + -1024·sqrt(132922799 …[423 more chars]
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #1306db14: num (4, 4) den (1, 3)
+        Sub #b983cd90: num (4, 4) den (1, 2)
+          Add #fb21abc2: num (3, 4) den (1, 2)
+            Add #3a5d4289: num (3, 4) den (1, 2)
+              Powi ^2 #9a05b3c2: num (3, 4) den (1, 2)
+              Powi ^2 #bc599b69: num (3, 4) den (1, 2)
+            Powi ^2 #df94ca40: num (0, 0) den (1, 2)
+              Sub #1e5460b0: num (0, 0) den (1, 1)
+          Powi ^2 #b500b713: num (1, 2) den (1, 0)
+            Abs #88fd7915: num (1, 1) den (1, 0)
+              Mul #32b40ef4: num (1, 1) den (1, 0)
+        Inv #d57f989c: num (1, 0) den (1, 1)
+          Mul #2a16a308: num (1, 1) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   carrier_on_surface_1 in evaluation order: nnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+   first blocked carrier_on_surface_1 [NumericZero] sizes Some([FormSize { num: (7, 94), den: (1, 93) }, FormSize { num: (4, 6), den: (1, 5) }])
+   PLAIN atoms {"abs": 2, "sqrt": 106}
+      (1329227995784915928244039281409·2^-86·sqrt(1)^58·sqrt((1329227995784915928244039281409·2^-118·sqrt(1)^4 + 1152921504606847·2^-58·sqrt(1)^4·chord_half + 1·sqrt(1)^4·chord_half^2) / (16·sqrt(1)^6·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^2))^4·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^8·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^20 + 1152921504606847·2^-26·sqrt(1)^58·sqrt((13 …[2738 more chars]
+   EARLY atoms {"abs": 2, "sqrt": 12}
+      (33230699894622898206100982035225·2^-112·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^2·sqrt((1329227995784915928244039281409·2^-118 + 1152921504606847·2^-58·chord_half + 1·chord_half^2) / (16))^2 + 28823037615171175·2^-52·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^2·sqrt((1329227995784915928244039281409·2^-118 …[968 more chars]
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #3414227c: num (4, 6) den (1, 5)
+        Sub #27d402a9: num (4, 6) den (1, 4)
+          Add #ef9760b0: num (3, 6) den (1, 4)
+            Add #dba02fbf: num (3, 6) den (1, 4)
+              Powi ^2 #0dcb3534: num (3, 6) den (1, 4)
+              Powi ^2 #b9f16b46: num (3, 6) den (1, 4)
+            Powi ^2 #a83e51fb: num (0, 0) den (1, 4)
+              Sub #61b2ff4e: num (0, 0) den (1, 2)
+          Powi ^2 #b500b713: num (1, 2) den (1, 0)
+            Abs #88fd7915: num (1, 1) den (1, 0)
+              Mul #32b40ef4: num (1, 1) den (1, 0)
+        Inv #d57f989c: num (1, 0) den (1, 1)
+          Mul #2a16a308: num (1, 1) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   witness_on_surface_1 in evaluation order: nTTTTTTTTT
+   first blocked witness_on_surface_1 [NumericZero] sizes Some([FormSize { num: (16, 90), den: (1, 89) }, FormSize { num: (4, 4), den: (1, 3) }])
+   PLAIN atoms {"abs": 2, "sqrt": 87}
+      (1329227995784915928244039281409·2^-92·sqrt(1)^54·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^8·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^14 + 1152921504606847·2^-32·sqrt(1)^54·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^8·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^14·chord_half + 67108864·sqrt(1)^54·sqrt(132922799578491592 …[2896 more chars]
+   EARLY atoms {"abs": 2, "sqrt": 7}
+      (33230699894622898206100982035225·2^-112·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^2 + 28823037615171175·2^-52·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^2·chord_half + 1600·sqrt(1329227995784915928244039281409·2^-116 + 1152921504606847·2^-56·chord_half + 4·chord_half^2)^2·chord_half^2 + -1024·sqrt(132922799 …[423 more chars]
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #ae97b06e: num (4, 4) den (1, 3)
+        Sub #fa3139c5: num (4, 4) den (1, 2)
+          Add #e50f2131: num (3, 4) den (1, 2)
+            Add #0c59c29b: num (3, 4) den (1, 2)
+              Powi ^2 #014bbc8a: num (3, 4) den (1, 2)
+              Powi ^2 #393a6708: num (3, 4) den (1, 2)
+            Powi ^2 #73afba7e: num (0, 0) den (1, 2)
+              Sub #f7a0d87a: num (0, 0) den (1, 1)
+          Powi ^2 #b500b713: num (1, 2) den (1, 0)
+            Abs #88fd7915: num (1, 1) den (1, 0)
+              Mul #32b40ef4: num (1, 1) den (1, 0)
+        Inv #d57f989c: num (1, 0) den (1, 1)
+          Mul #2a16a308: num (1, 1) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+
+--- at CEILING + delta, rules = shipped
+   OVER BAND carrier_matches_mapped_source      [   0.0000e0,  1.0004e-9]   1/125 
+   -- carrier_matches_mapped_source [Indeterminate] enclosure Some((0.0, 1.0003833075904422e-9)) sizes Some([FormSize { num: (1, 1), den: (1, 0) }, FormSize { num: (1, 1), den: (1, 0) }])
+   EARLY atoms {"sqrt": 265}
+
+--- at CEILING + delta, rules = off
+   OVER BAND carrier_matches_mapped_source      [   0.0000e0,  1.0004e-9]   1/125 
+   -- carrier_matches_mapped_source [Indeterminate] enclosure Some((0.0, 1.0003833075904422e-9)) sizes Some([FormSize { num: (1, 1), den: (1, 0) }, FormSize { num: (1, 1), den: (1, 0) }])
+   EARLY atoms {"abs": 15, "atan": 27, "cos": 9, "sin": 18, "sqrt": 154}
+
+==============================================================================
+== R2 D-tab, bulge a literal 0.4 (r2_d_tab_literal)
+==============================================================================
+--- at the NOMINAL, rules = shipped
+   carrier_matches_mapped_source      126/0/36/18  (theorem/gated/registered/numeric)
+   carrier_on_surface_1               135/0/0/9  (theorem/gated/registered/numeric)
+   carrier_on_surface_2               117/0/0/27  (theorem/gated/registered/numeric)
+   line_span                          0/0/0/8  (theorem/gated/registered/numeric)
+   pcurve_map_residual                0/0/18/0  (theorem/gated/registered/numeric)
+   witness_on_surface_1               15/0/0/1  (theorem/gated/registered/numeric)
+   witness_on_surface_2               13/0/0/3  (theorem/gated/registered/numeric)
+   carrier_matches_mapped_source in evaluation order: TTTTTTTTTnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTnnnnnnnnnTTTTTTTTTTTTTTTTTTRRRRRRRRRRRRRRRRRRTTTTTTTTTTTTTTTTTTRRRRRRRRRRRRRRRRRRTTTTTTTTTTTTTTTTTT
+   first blocked carrier_matches_mapped_source [NumericZero] sizes Some([FormSize { num: (1, 1), den: (1, 0) }, FormSize { num: (1, 1), den: (1, 0) }])
+   PLAIN atoms {"sqrt": 21}
+      1·sqrt((168499666669691536131110759964990513102678991074416291647028881·2^-204·sqrt(1329227995784915928244039281409·2^-116)^4·?#8f931f7b·sqrt(1)^12·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^4 + 168499666669691536131110759964990513102678991074416291647028881·2^-204·sqrt(1329227995784915928244039281409·2^-116)^4·?#5178ec45·sqrt(1)^12·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^4 + 1684996666696915361311107599649905131026789910744162 …[300 more chars]
+   EARLY atoms {"sqrt": 1}
+      1·sqrt(1·?#8f931f7b + 1·?#5178ec45)
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Sqrt #3c4cc114: num (1, 1) den (1, 0)
+        Add #45eaec5d: num (2, 1) den (1, 0)
+          Add #c6cee5c8: num (2, 1) den (1, 0)
+            Powi ^2 #8f931f7b: FROZEN
+              Sub #77944a5f: num (2, 1) den (1, 0)
+            Powi ^2 #5178ec45: FROZEN
+              Sub #652ba944: num (2, 1) den (1, 1)
+          Powi ^2 #37783de6: num (0, 0) den (1, 0)
+            Sub #faf0005e: num (0, 0) den (1, 0)
+              Add #f534d9af: num (0, 0) den (1, 0)
+              Add #93b7cd9c: num (0, 0) den (1, 0)
+   carrier_on_surface_2 in evaluation order: TTTTTTTTTnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTnnnnnnnnnnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+   first blocked carrier_on_surface_2 [NumericZero] sizes Some([FormSize { num: (4, 2), den: (1, 1) }, FormSize { num: (3, 1), den: (1, 0) }])
+   PLAIN atoms {"abs": 2, "sqrt": 2}
+      (1·?#ee7cf550^2 + -1·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116)) / (3602879701896397·2^-51))^2 + 1·?#c40dfe26 + 1·?#d53e8bed^2) / (2·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116)) / (3602879701896397·2^-51)))
+   EARLY atoms {}
+      (1329227995784915928244039281409·2^-118 + -1·?#15c91f04 + 1·?#70aa73b6) / (108501881555446236567625690174651791624286483031/3602879701896397·2^-112)
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #330687cb: num (3, 1) den (1, 0)
+        Sub #d1f72c28: num (3, 1) den (1, 0)
+          Add #993ac07a: num (2, 1) den (1, 0)
+            Add #7828d0f6: num (2, 1) den (1, 0)
+              Powi ^2 #70aa73b6: FROZEN
+              Powi ^2 #a2d83655: num (1, 0) den (1, 0)
+            Powi ^2 #c40dfe26: num (0, 0) den (1, 0)
+              Sub #b4d14de7: num (0, 0) den (1, 0)
+          Powi ^2 #15c91f04: FROZEN
+            Abs #c2f87b58: num (1, 0) den (1, 0)
+              Mul #d31c5db8: num (1, 0) den (1, 0)
+        Inv #7f4cf4c6: num (1, 0) den (1, 0)
+          Mul #8e2c3947: num (1, 0) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   witness_on_surface_2 in evaluation order: TnTTTTnnTTTTTTTT
+   first blocked witness_on_surface_2 [NumericZero] sizes Some([FormSize { num: (4, 2), den: (1, 1) }, FormSize { num: (3, 1), den: (1, 0) }])
+   PLAIN atoms {"abs": 2, "sqrt": 2}
+      (1·?#5b12f66c^2 + -1·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116)) / (3602879701896397·2^-51))^2 + 1·?#1929b77f^2 + 1·?#a80fa2f8^2) / (2·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116)) / (3602879701896397·2^-51)))
+   EARLY atoms {}
+      (1329227995784915928244039281409·2^-118 + -1·?#15c91f04 + 1·?#293b7623) / (108501881555446236567625690174651791624286483031/3602879701896397·2^-112)
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #0204ef47: num (3, 1) den (1, 0)
+        Sub #6af24772: num (3, 1) den (1, 0)
+          Add #97928c38: num (2, 1) den (1, 0)
+            Add #987c89db: num (2, 1) den (1, 0)
+              Powi ^2 #293b7623: FROZEN
+              Powi ^2 #6c2915e1: num (1, 0) den (1, 0)
+            Powi ^2 #8ef1947a: num (0, 0) den (1, 0)
+              Sub #5b12f66c: num (0, 0) den (1, 0)
+          Powi ^2 #15c91f04: FROZEN
+            Abs #c2f87b58: num (1, 0) den (1, 0)
+              Mul #d31c5db8: num (1, 0) den (1, 0)
+        Inv #7f4cf4c6: num (1, 0) den (1, 0)
+          Mul #8e2c3947: num (1, 0) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   carrier_on_surface_1 in evaluation order: TTTTTTTTTTTTTTTTTTnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+   first blocked carrier_on_surface_1 [NumericZero] sizes Some([FormSize { num: (4, 2), den: (1, 1) }, FormSize { num: (3, 1), den: (1, 0) }])
+   PLAIN atoms {"abs": 2, "sqrt": 2}
+      (-1·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116)) / (3602879701896397·2^-51))^2 + 1·?#b3ec800f^2 + 1·?#a2bf878c + 1·?#e226a1eb^2) / (2·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116)) / (3602879701896397·2^-51)))
+   EARLY atoms {}
+      (1329227995784915928244039281409·2^-118 + 1·?#acaa1e84 + -1·?#15c91f04) / (108501881555446236567625690174651791624286483031/3602879701896397·2^-112)
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #5d50121f: num (3, 1) den (1, 0)
+        Sub #cb84336c: num (3, 1) den (1, 0)
+          Add #253fd301: num (2, 1) den (1, 0)
+            Add #e70cb221: num (2, 1) den (1, 0)
+              Powi ^2 #acaa1e84: FROZEN
+              Powi ^2 #9e5b9f3b: num (1, 0) den (1, 0)
+            Powi ^2 #a2bf878c: num (0, 0) den (1, 0)
+              Sub #f21ef0e8: num (0, 0) den (1, 0)
+          Powi ^2 #15c91f04: FROZEN
+            Abs #c2f87b58: num (1, 0) den (1, 0)
+              Mul #d31c5db8: num (1, 0) den (1, 0)
+        Inv #7f4cf4c6: num (1, 0) den (1, 0)
+          Mul #8e2c3947: num (1, 0) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   witness_on_surface_1 in evaluation order: TTnTTTTTTTTTTTTT
+   first blocked witness_on_surface_1 [NumericZero] sizes Some([FormSize { num: (4, 2), den: (1, 1) }, FormSize { num: (3, 1), den: (1, 0) }])
+   PLAIN atoms {"abs": 2, "sqrt": 2}
+      (1·?#49772d4a^2 + -1·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116)) / (3602879701896397·2^-51))^2 + 1·?#521047e3^2 + 1·?#fa2fe948^2) / (2·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116)) / (3602879701896397·2^-51)))
+   EARLY atoms {}
+      (1329227995784915928244039281409·2^-118 + 1·?#e8f6a099 + -1·?#15c91f04) / (108501881555446236567625690174651791624286483031/3602879701896397·2^-112)
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #edf19c6b: num (3, 1) den (1, 0)
+        Sub #85b03495: num (3, 1) den (1, 0)
+          Add #900de2e7: num (2, 1) den (1, 0)
+            Add #b8bb60a8: num (2, 1) den (1, 0)
+              Powi ^2 #e8f6a099: FROZEN
+              Powi ^2 #4dfa81f2: num (1, 0) den (1, 0)
+            Powi ^2 #380cf2d2: num (0, 0) den (1, 0)
+              Sub #49772d4a: num (0, 0) den (1, 0)
+          Powi ^2 #15c91f04: FROZEN
+            Abs #c2f87b58: num (1, 0) den (1, 0)
+              Mul #d31c5db8: num (1, 0) den (1, 0)
+        Inv #7f4cf4c6: num (1, 0) den (1, 0)
+          Mul #8e2c3947: num (1, 0) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+
+--- at the NOMINAL, rules = off
+   carrier_matches_mapped_source      126/0/4/50  (theorem/gated/registered/numeric)
+   carrier_on_surface_1               63/0/0/81  (theorem/gated/registered/numeric)
+   carrier_on_surface_2               81/0/0/63  (theorem/gated/registered/numeric)
+   line_span                          0/0/0/8  (theorem/gated/registered/numeric)
+   pcurve_map_residual                0/0/0/18  (theorem/gated/registered/numeric)
+   witness_on_surface_1               7/0/0/9  (theorem/gated/registered/numeric)
+   witness_on_surface_2               9/0/0/7  (theorem/gated/registered/numeric)
+   carrier_matches_mapped_source in evaluation order: TTTTTTTTTnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTnnnnnnnnnTTTTTTTTTTTTTTTTTTRnnnnnnnnRnnnnnnnnTTTTTTTTTTTTTTTTTTRnnnnnnnnRnnnnnnnnTTTTTTTTTTTTTTTTTT
+   first blocked carrier_matches_mapped_source [NumericZero] sizes Some([FormSize { num: (1, 1), den: (1, 0) }, FormSize { num: (1, 1), den: (1, 0) }])
+   PLAIN atoms {"sqrt": 21}
+      1·sqrt((168499666669691536131110759964990513102678991074416291647028881·2^-204·sqrt(1329227995784915928244039281409·2^-116)^4·?#8f931f7b·sqrt(1)^12·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^4 + 168499666669691536131110759964990513102678991074416291647028881·2^-204·sqrt(1329227995784915928244039281409·2^-116)^4·?#5178ec45·sqrt(1)^12·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^4 + 1684996666696915361311107599649905131026789910744162 …[300 more chars]
+   EARLY atoms {"sqrt": 1}
+      1·sqrt(1·?#8f931f7b + 1·?#5178ec45 + 1·?#faf0005e^2)
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Sqrt #3c4cc114: num (1, 1) den (1, 0)
+        Add #45eaec5d: num (3, 2) den (1, 0)
+          Add #c6cee5c8: num (2, 1) den (1, 0)
+            Powi ^2 #8f931f7b: FROZEN
+              Sub #77944a5f: num (2, 1) den (1, 0)
+            Powi ^2 #5178ec45: FROZEN
+              Sub #652ba944: num (2, 1) den (1, 0)
+          Powi ^2 #37783de6: num (1, 2) den (1, 0)
+            Sub #faf0005e: FROZEN
+              Add #f534d9af: num (0, 0) den (1, 0)
+              Add #93b7cd9c: num (0, 0) den (1, 1)
+   carrier_on_surface_2 in evaluation order: TTTTTTTTTnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTnnnnnnnnnnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn
+   first blocked carrier_on_surface_2 [NumericZero] sizes Some([FormSize { num: (4, 2), den: (1, 1) }, FormSize { num: (4, 1), den: (1, 0) }])
+   PLAIN atoms {"abs": 2, "sqrt": 2}
+      (1·?#ee7cf550^2 + -1·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116)) / (3602879701896397·2^-51))^2 + 1·?#c40dfe26 + 1·?#d53e8bed^2) / (2·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116)) / (3602879701896397·2^-51)))
+   EARLY atoms {}
+      (1·?#c40dfe26 + 1·?#a2d83655 + -1·?#15c91f04 + 1·?#70aa73b6) / (108501881555446236567625690174651791624286483031/3602879701896397·2^-112)
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #330687cb: num (4, 1) den (1, 0)
+        Sub #d1f72c28: num (4, 1) den (1, 0)
+          Add #993ac07a: num (3, 1) den (1, 0)
+            Add #7828d0f6: num (2, 1) den (1, 0)
+              Powi ^2 #70aa73b6: FROZEN
+              Powi ^2 #a2d83655: FROZEN
+            Powi ^2 #c40dfe26: FROZEN
+              Sub #b4d14de7: num (0, 0) den (1, 0)
+          Powi ^2 #15c91f04: FROZEN
+            Abs #c2f87b58: num (1, 0) den (1, 0)
+              Mul #d31c5db8: num (1, 0) den (1, 0)
+        Inv #7f4cf4c6: num (1, 0) den (1, 0)
+          Mul #8e2c3947: num (1, 0) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   witness_on_surface_2 in evaluation order: TnTTTTnnTTTTnnnn
+   first blocked witness_on_surface_2 [NumericZero] sizes Some([FormSize { num: (4, 2), den: (1, 1) }, FormSize { num: (1, 1), den: (1, 0) }])
+   PLAIN atoms {"abs": 2, "sqrt": 2}
+      (1·?#5b12f66c^2 + -1·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116)) / (3602879701896397·2^-51))^2 + 1·?#1929b77f^2 + 1·?#a80fa2f8^2) / (2·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116)) / (3602879701896397·2^-51)))
+   EARLY atoms {}
+      1·?#0204ef47
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #0204ef47: FROZEN
+        Sub #6af24772: num (3, 1) den (1, 0)
+          Add #97928c38: num (2, 1) den (1, 0)
+            Add #987c89db: num (2, 1) den (1, 0)
+              Powi ^2 #293b7623: FROZEN
+              Powi ^2 #6c2915e1: FROZEN
+            Powi ^2 #8ef1947a: num (0, 0) den (1, 0)
+              Sub #5b12f66c: num (0, 0) den (1, 0)
+          Powi ^2 #15c91f04: FROZEN
+            Abs #c2f87b58: num (1, 0) den (1, 0)
+              Mul #d31c5db8: num (1, 0) den (1, 0)
+        Inv #7f4cf4c6: num (1, 0) den (1, 0)
+          Mul #8e2c3947: num (1, 0) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   carrier_on_surface_1 in evaluation order: TTTTTTTTTTTTTTTTTTnnnnnnnnnTTTTTTTTTnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+   first blocked carrier_on_surface_1 [NumericZero] sizes Some([FormSize { num: (4, 2), den: (1, 1) }, FormSize { num: (4, 1), den: (1, 0) }])
+   PLAIN atoms {"abs": 2, "sqrt": 2}
+      (-1·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116)) / (3602879701896397·2^-51))^2 + 1·?#b3ec800f^2 + 1·?#a2bf878c + 1·?#e226a1eb^2) / (2·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116)) / (3602879701896397·2^-51)))
+   EARLY atoms {}
+      (1·?#9e5b9f3b + 1·?#acaa1e84 + -1·?#15c91f04 + 1·?#a2bf878c) / (108501881555446236567625690174651791624286483031/3602879701896397·2^-112)
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #5d50121f: num (4, 1) den (1, 0)
+        Sub #cb84336c: num (4, 1) den (1, 0)
+          Add #253fd301: num (3, 1) den (1, 0)
+            Add #e70cb221: num (2, 1) den (1, 0)
+              Powi ^2 #acaa1e84: FROZEN
+              Powi ^2 #9e5b9f3b: FROZEN
+            Powi ^2 #a2bf878c: FROZEN
+              Sub #f21ef0e8: num (0, 0) den (1, 0)
+          Powi ^2 #15c91f04: FROZEN
+            Abs #c2f87b58: num (1, 0) den (1, 0)
+              Mul #d31c5db8: num (1, 0) den (1, 0)
+        Inv #7f4cf4c6: num (1, 0) den (1, 0)
+          Mul #8e2c3947: num (1, 0) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   witness_on_surface_1 in evaluation order: TTnTnnnnnnnnTTTT
+   first blocked witness_on_surface_1 [NumericZero] sizes Some([FormSize { num: (4, 2), den: (1, 1) }, FormSize { num: (1, 1), den: (1, 0) }])
+   PLAIN atoms {"abs": 2, "sqrt": 2}
+      (1·?#49772d4a^2 + -1·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116)) / (3602879701896397·2^-51))^2 + 1·?#521047e3^2 + 1·?#fa2fe948^2) / (2·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116)) / (3602879701896397·2^-51)))
+   EARLY atoms {}
+      1·?#edf19c6b
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #edf19c6b: FROZEN
+        Sub #85b03495: num (3, 1) den (1, 0)
+          Add #900de2e7: num (2, 1) den (1, 0)
+            Add #b8bb60a8: num (2, 1) den (1, 0)
+              Powi ^2 #e8f6a099: FROZEN
+              Powi ^2 #4dfa81f2: FROZEN
+            Powi ^2 #380cf2d2: num (0, 0) den (1, 0)
+              Sub #49772d4a: num (0, 0) den (1, 0)
+          Powi ^2 #15c91f04: FROZEN
+            Abs #c2f87b58: num (1, 0) den (1, 0)
+              Mul #d31c5db8: num (1, 0) den (1, 0)
+        Inv #7f4cf4c6: num (1, 0) den (1, 0)
+          Mul #8e2c3947: num (1, 0) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+
+--- at CEILING + delta, rules = shipped
+   OVER BAND arc_diameter_clearance             [ -5.1594e-8,  5.6265e-4]   1/3   
+   -- arc_diameter_clearance [Indeterminate] enclosure Some((-5.1593790356121647e-8, 0.0005626486345220986)) sizes Some([FormSize { num: (2, 1), den: (1, 0) }, FormSize { num: (2, 1), den: (1, 0) }])
+   EARLY atoms {"abs": 1, "sqrt": 2}
+
+--- at CEILING + delta, rules = off
+   OVER BAND carrier_matches_mapped_source      [   0.0000e0,  1.0002e-9]   1/117 
+   -- carrier_matches_mapped_source [Indeterminate] enclosure Some((0.0, 1.000176971625855e-9)) sizes Some([FormSize { num: (1, 1), den: (1, 0) }, FormSize { num: (1, 1), den: (1, 0) }])
+   EARLY atoms {"abs": 15, "atan": 27, "cos": 9, "sin": 18, "sqrt": 154}
+
+==============================================================================
+== R2 D-tab, bulge a document parameter (nominal 0.4) (r2_d_tab_parameter)
+==============================================================================
+--- at the NOMINAL, rules = shipped
+   carrier_matches_mapped_source      126/0/36/18  (theorem/gated/registered/numeric)
+   carrier_on_surface_1               135/0/0/9  (theorem/gated/registered/numeric)
+   carrier_on_surface_2               117/0/0/27  (theorem/gated/registered/numeric)
+   line_span                          0/0/0/8  (theorem/gated/registered/numeric)
+   pcurve_map_residual                0/0/18/0  (theorem/gated/registered/numeric)
+   witness_on_surface_1               15/0/0/1  (theorem/gated/registered/numeric)
+   witness_on_surface_2               13/0/0/3  (theorem/gated/registered/numeric)
+   carrier_matches_mapped_source in evaluation order: TTTTTTTTTnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTnnnnnnnnnTTTTTTTTTTTTTTTTTTRRRRRRRRRRRRRRRRRRTTTTTTTTTTTTTTTTTTRRRRRRRRRRRRRRRRRRTTTTTTTTTTTTTTTTTT
+   first blocked carrier_matches_mapped_source [NumericZero] sizes Some([FormSize { num: (1, 1), den: (1, 0) }, FormSize { num: (1, 1), den: (1, 0) }])
+   PLAIN atoms {"sqrt": 101}
+      1·sqrt((46768052394588901170963202449162931770298562773·2^-149·sqrt(1329227995784915928244039281409·2^-116)^4·sqrt(1)^12·?#77c99758·bulge·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^4 + 38942226439011211537434364744827·2^-97·sqrt(1329227995784915928244039281409·2^-116)^4·sqrt(1)^12·?#77c99758·bulge^2·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^4 + 3602879701896397·2^-43·sqrt(1329227995784915928244039281409·2^-116)^4·sqrt(1)^12·?#77c …[2612 more chars]
+   EARLY atoms {"abs": 2, "sqrt": 2}
+      1·sqrt((8834235323891922383514347119341267560203759679873105465126405·2^-236 + -1329227995784915928244039281409·2^-117·sqrt(1329227995784915928244039281409·2^-118 + 1·?#79cbfef0)·abs((108501881555446236567625690174651791624286483031·2^-164 + 4153837486827862419877810830259·2^-110·bulge + 1152921504606847·2^-58·bulge^2) / (3602879701896397·2^-51 + 4·bulge)) + -1532495540865888954062762723664254024941207423·2^-175·?#9b …[471 more chars]
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Sqrt #dff0b522: num (1, 1) den (1, 0)
+        Add #9cba4655: num (8, 3) den (2, 1)
+          Add #4e53e66c: num (8, 3) den (2, 1)
+            Powi ^2 #d258346b: num (3, 2) den (1, 0)
+              Sub #a65e5485: num (2, 1) den (1, 0)
+            Powi ^2 #77c99758: num (4, 2) den (2, 1)
+              Sub #f40d9e56: num (2, 1) den (1, 1)
+          Powi ^2 #54838f46: num (0, 0) den (1, 0)
+            Sub #3312deb5: num (0, 0) den (1, 0)
+              Add #749536ab: num (0, 0) den (1, 0)
+              Add #81a55ec0: num (0, 0) den (1, 0)
+   carrier_on_surface_2 in evaluation order: TTTTTTTTTnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTnnnnnnnnnnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+   first blocked carrier_on_surface_2 [NumericZero] sizes Some([FormSize { num: (4, 2), den: (1, 1) }, FormSize { num: (3, 2), den: (1, 1) }])
+   PLAIN atoms {"abs": 2, "sqrt": 6}
+      (1·?#0c26472d^2 + 1·?#a598161c + 1·?#8a34ce94^2 + -1·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116) + 3602879701896397·2^-52·sqrt(1329227995784915928244039281409·2^-116)·bulge + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge^2) / (3602879701896397·2^-51 + 4·bulge))^2) / (2·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116) + 36028 …[165 more chars]
+   EARLY atoms {"abs": 2}
+      (1329227995784915928244039281409·2^-118 + -1·abs((108501881555446236567625690174651791624286483031·2^-164 + 4153837486827862419877810830259·2^-110·bulge + 1152921504606847·2^-58·bulge^2) / (3602879701896397·2^-51 + 4·bulge))^2 + 1·?#6029ad7d) / (2·abs((108501881555446236567625690174651791624286483031·2^-164 + 4153837486827862419877810830259·2^-110·bulge + 1152921504606847·2^-58·bulge^2) / (3602879701896397·2^-51 + 4· …[8 more chars]
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #afe69616: num (3, 2) den (1, 1)
+        Sub #f43782e8: num (3, 2) den (1, 0)
+          Add #703d4c43: num (2, 1) den (1, 0)
+            Add #e7c6c3cb: num (2, 1) den (1, 0)
+              Powi ^2 #6029ad7d: FROZEN
+              Powi ^2 #8dfa6a3f: num (1, 0) den (1, 0)
+            Powi ^2 #a598161c: num (0, 0) den (1, 0)
+              Sub #fe5d2cb3: num (0, 0) den (1, 0)
+          Powi ^2 #805e18af: num (1, 2) den (1, 0)
+            Abs #b4e3eabb: num (1, 1) den (1, 0)
+              Mul #78de7116: num (3, 2) den (2, 1)
+        Inv #bb34bfdf: num (1, 0) den (1, 1)
+          Mul #88e06a30: num (1, 1) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   witness_on_surface_2 in evaluation order: TnTTTTnnTTTTTTTT
+   first blocked witness_on_surface_2 [NumericZero] sizes Some([FormSize { num: (4, 2), den: (1, 1) }, FormSize { num: (3, 2), den: (1, 1) }])
+   PLAIN atoms {"abs": 2, "sqrt": 6}
+      (1·?#cc5a03cb^2 + 1·?#219b4f3f^2 + 1·?#b66ea706^2 + -1·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116) + 3602879701896397·2^-52·sqrt(1329227995784915928244039281409·2^-116)·bulge + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge^2) / (3602879701896397·2^-51 + 4·bulge))^2) / (2·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116) + 360 …[167 more chars]
+   EARLY atoms {"abs": 2}
+      (1329227995784915928244039281409·2^-118 + -1·abs((108501881555446236567625690174651791624286483031·2^-164 + 4153837486827862419877810830259·2^-110·bulge + 1152921504606847·2^-58·bulge^2) / (3602879701896397·2^-51 + 4·bulge))^2 + 1·?#3213f684) / (2·abs((108501881555446236567625690174651791624286483031·2^-164 + 4153837486827862419877810830259·2^-110·bulge + 1152921504606847·2^-58·bulge^2) / (3602879701896397·2^-51 + 4· …[8 more chars]
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #ee345895: num (3, 2) den (1, 1)
+        Sub #43e340a0: num (3, 2) den (1, 0)
+          Add #c16d4807: num (2, 1) den (1, 0)
+            Add #61389d6a: num (2, 1) den (1, 0)
+              Powi ^2 #3213f684: FROZEN
+              Powi ^2 #1a576edd: num (1, 0) den (1, 0)
+            Powi ^2 #87a26dd0: num (0, 0) den (1, 0)
+              Sub #219b4f3f: num (0, 0) den (1, 0)
+          Powi ^2 #805e18af: num (1, 2) den (1, 0)
+            Abs #b4e3eabb: num (1, 1) den (1, 0)
+              Mul #78de7116: num (3, 2) den (2, 1)
+        Inv #bb34bfdf: num (1, 0) den (1, 1)
+          Mul #88e06a30: num (1, 1) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   carrier_on_surface_1 in evaluation order: TTTTTTTTTTTTTTTTTTnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+   first blocked carrier_on_surface_1 [NumericZero] sizes Some([FormSize { num: (4, 2), den: (1, 1) }, FormSize { num: (3, 2), den: (1, 1) }])
+   PLAIN atoms {"abs": 2, "sqrt": 6}
+      (1·?#76a568e0 + 1·?#ff4e4d4e^2 + 1·?#0febbc43^2 + -1·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116) + 3602879701896397·2^-52·sqrt(1329227995784915928244039281409·2^-116)·bulge + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge^2) / (3602879701896397·2^-51 + 4·bulge))^2) / (2·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116) + 36028 …[165 more chars]
+   EARLY atoms {"abs": 2}
+      (1329227995784915928244039281409·2^-118 + 1·?#930aef57 + -1·abs((108501881555446236567625690174651791624286483031·2^-164 + 4153837486827862419877810830259·2^-110·bulge + 1152921504606847·2^-58·bulge^2) / (3602879701896397·2^-51 + 4·bulge))^2) / (2·abs((108501881555446236567625690174651791624286483031·2^-164 + 4153837486827862419877810830259·2^-110·bulge + 1152921504606847·2^-58·bulge^2) / (3602879701896397·2^-51 + 4· …[8 more chars]
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #377a993d: num (3, 2) den (1, 1)
+        Sub #9f3c554e: num (3, 2) den (1, 0)
+          Add #b2febde4: num (2, 1) den (1, 0)
+            Add #8554b7f4: num (2, 1) den (1, 0)
+              Powi ^2 #930aef57: FROZEN
+              Powi ^2 #b11ba063: num (1, 0) den (1, 0)
+            Powi ^2 #76a568e0: num (0, 0) den (1, 0)
+              Sub #cb222283: num (0, 0) den (1, 0)
+          Powi ^2 #805e18af: num (1, 2) den (1, 0)
+            Abs #b4e3eabb: num (1, 1) den (1, 0)
+              Mul #78de7116: num (3, 2) den (2, 1)
+        Inv #bb34bfdf: num (1, 0) den (1, 1)
+          Mul #88e06a30: num (1, 1) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   witness_on_surface_1 in evaluation order: TTnTTTTTTTTTTTTT
+   first blocked witness_on_surface_1 [NumericZero] sizes Some([FormSize { num: (4, 2), den: (1, 1) }, FormSize { num: (3, 2), den: (1, 1) }])
+   PLAIN atoms {"abs": 2, "sqrt": 6}
+      (1·?#2a73fe48^2 + 1·?#abdb75c9^2 + -1·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116) + 3602879701896397·2^-52·sqrt(1329227995784915928244039281409·2^-116)·bulge + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge^2) / (3602879701896397·2^-51 + 4·bulge))^2 + 1·?#e2973c2a^2) / (2·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116) + 360 …[167 more chars]
+   EARLY atoms {"abs": 2}
+      (1329227995784915928244039281409·2^-118 + -1·abs((108501881555446236567625690174651791624286483031·2^-164 + 4153837486827862419877810830259·2^-110·bulge + 1152921504606847·2^-58·bulge^2) / (3602879701896397·2^-51 + 4·bulge))^2 + 1·?#b47aa63c) / (2·abs((108501881555446236567625690174651791624286483031·2^-164 + 4153837486827862419877810830259·2^-110·bulge + 1152921504606847·2^-58·bulge^2) / (3602879701896397·2^-51 + 4· …[8 more chars]
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #74029c8b: num (3, 2) den (1, 1)
+        Sub #40a4a33f: num (3, 2) den (1, 0)
+          Add #a912286f: num (2, 1) den (1, 0)
+            Add #ce62cd85: num (2, 1) den (1, 0)
+              Powi ^2 #b47aa63c: FROZEN
+              Powi ^2 #bd00c527: num (1, 0) den (1, 0)
+            Powi ^2 #4fcc2ea2: num (0, 0) den (1, 0)
+              Sub #abdb75c9: num (0, 0) den (1, 0)
+          Powi ^2 #805e18af: num (1, 2) den (1, 0)
+            Abs #b4e3eabb: num (1, 1) den (1, 0)
+              Mul #78de7116: num (3, 2) den (2, 1)
+        Inv #bb34bfdf: num (1, 0) den (1, 1)
+          Mul #88e06a30: num (1, 1) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+
+--- at the NOMINAL, rules = off
+   carrier_matches_mapped_source      126/0/4/50  (theorem/gated/registered/numeric)
+   carrier_on_surface_1               63/0/0/81  (theorem/gated/registered/numeric)
+   carrier_on_surface_2               81/0/0/63  (theorem/gated/registered/numeric)
+   line_span                          0/0/0/8  (theorem/gated/registered/numeric)
+   pcurve_map_residual                0/0/0/18  (theorem/gated/registered/numeric)
+   witness_on_surface_1               7/0/0/9  (theorem/gated/registered/numeric)
+   witness_on_surface_2               9/0/0/7  (theorem/gated/registered/numeric)
+   carrier_matches_mapped_source in evaluation order: TTTTTTTTTnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTnnnnnnnnnTTTTTTTTTTTTTTTTTTRnnnnnnnnRnnnnnnnnTTTTTTTTTTTTTTTTTTRnnnnnnnnRnnnnnnnnTTTTTTTTTTTTTTTTTT
+   first blocked carrier_matches_mapped_source [NumericZero] sizes Some([FormSize { num: (1, 1), den: (1, 0) }, FormSize { num: (1, 1), den: (1, 0) }])
+   PLAIN atoms {"sqrt": 101}
+      1·sqrt((46768052394588901170963202449162931770298562773·2^-149·sqrt(1329227995784915928244039281409·2^-116)^4·sqrt(1)^12·?#77c99758·bulge·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^4 + 38942226439011211537434364744827·2^-97·sqrt(1329227995784915928244039281409·2^-116)^4·sqrt(1)^12·?#77c99758·bulge^2·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^4 + 3602879701896397·2^-43·sqrt(1329227995784915928244039281409·2^-116)^4·sqrt(1)^12·?#77c …[2612 more chars]
+   EARLY atoms {"sqrt": 1}
+      1·sqrt(1·?#f40d9e56^2 + 1·?#3312deb5^2 + 1·?#d258346b)
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Sqrt #dff0b522: num (1, 1) den (1, 0)
+        Add #9cba4655: num (3, 2) den (1, 0)
+          Add #4e53e66c: num (2, 2) den (1, 0)
+            Powi ^2 #d258346b: FROZEN
+              Sub #a65e5485: num (4, 2) den (2, 1)
+            Powi ^2 #77c99758: num (1, 2) den (1, 0)
+              Sub #f40d9e56: FROZEN
+          Powi ^2 #54838f46: num (1, 2) den (1, 0)
+            Sub #3312deb5: FROZEN
+              Add #749536ab: num (0, 0) den (2, 1)
+              Add #81a55ec0: num (0, 0) den (3, 3)
+   carrier_on_surface_2 in evaluation order: TTTTTTTTTnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTnnnnnnnnnnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn
+   first blocked carrier_on_surface_2 [NumericZero] sizes Some([FormSize { num: (4, 2), den: (1, 1) }, FormSize { num: (4, 2), den: (1, 1) }])
+   PLAIN atoms {"abs": 2, "sqrt": 6}
+      (1·?#0c26472d^2 + 1·?#a598161c + 1·?#8a34ce94^2 + -1·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116) + 3602879701896397·2^-52·sqrt(1329227995784915928244039281409·2^-116)·bulge + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge^2) / (3602879701896397·2^-51 + 4·bulge))^2) / (2·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116) + 36028 …[165 more chars]
+   EARLY atoms {"abs": 2}
+      (1·?#8dfa6a3f + -1·abs((108501881555446236567625690174651791624286483031·2^-164 + 4153837486827862419877810830259·2^-110·bulge + 1152921504606847·2^-58·bulge^2) / (3602879701896397·2^-51 + 4·bulge))^2 + 1·?#a598161c + 1·?#6029ad7d) / (2·abs((108501881555446236567625690174651791624286483031·2^-164 + 4153837486827862419877810830259·2^-110·bulge + 1152921504606847·2^-58·bulge^2) / (3602879701896397·2^-51 + 4·bulge)))
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #afe69616: num (4, 2) den (1, 1)
+        Sub #f43782e8: num (4, 2) den (1, 0)
+          Add #703d4c43: num (3, 1) den (1, 0)
+            Add #e7c6c3cb: num (2, 1) den (1, 0)
+              Powi ^2 #6029ad7d: FROZEN
+              Powi ^2 #8dfa6a3f: FROZEN
+            Powi ^2 #a598161c: FROZEN
+              Sub #fe5d2cb3: num (0, 0) den (2, 1)
+          Powi ^2 #805e18af: num (1, 2) den (1, 0)
+            Abs #b4e3eabb: num (1, 1) den (1, 0)
+              Mul #78de7116: num (3, 2) den (2, 1)
+        Inv #bb34bfdf: num (1, 0) den (1, 1)
+          Mul #88e06a30: num (1, 1) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   witness_on_surface_2 in evaluation order: TnTTTTnnTTTTnnnn
+   first blocked witness_on_surface_2 [NumericZero] sizes Some([FormSize { num: (4, 2), den: (1, 1) }, FormSize { num: (9, 4), den: (3, 3) }])
+   PLAIN atoms {"abs": 2, "sqrt": 6}
+      (1·?#cc5a03cb^2 + 1·?#219b4f3f^2 + 1·?#b66ea706^2 + -1·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116) + 3602879701896397·2^-52·sqrt(1329227995784915928244039281409·2^-116)·bulge + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge^2) / (3602879701896397·2^-51 + 4·bulge))^2) / (2·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116) + 360 …[167 more chars]
+   EARLY atoms {"abs": 6}
+      (-17254365866976412102563600518939179334243780126761994910007081·2^-218·abs((108501881555446236567625690174651791624286483031·2^-164 + 4153837486827862419877810830259·2^-110·bulge + 1152921504606847·2^-58·bulge^2) / (3602879701896397·2^-51 + 4·bulge))^2 + -4789048565205903147599632984565284858446183373·2^-164·abs((108501881555446236567625690174651791624286483031·2^-164 + 4153837486827862419877810830259·2^-110·bulge + …[1468 more chars]
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #ee345895: num (9, 4) den (3, 3)
+        Sub #43e340a0: num (9, 4) den (3, 2)
+          Add #c16d4807: num (6, 3) den (3, 2)
+            Add #61389d6a: num (2, 1) den (1, 0)
+              Powi ^2 #3213f684: FROZEN
+              Powi ^2 #1a576edd: FROZEN
+            Powi ^2 #87a26dd0: num (0, 0) den (3, 2)
+              Sub #219b4f3f: num (0, 0) den (2, 1)
+          Powi ^2 #805e18af: num (1, 2) den (1, 0)
+            Abs #b4e3eabb: num (1, 1) den (1, 0)
+              Mul #78de7116: num (3, 2) den (2, 1)
+        Inv #bb34bfdf: num (1, 0) den (1, 1)
+          Mul #88e06a30: num (1, 1) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   carrier_on_surface_1 in evaluation order: TTTTTTTTTTTTTTTTTTnnnnnnnnnTTTTTTTTTnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+   first blocked carrier_on_surface_1 [NumericZero] sizes Some([FormSize { num: (4, 2), den: (1, 1) }, FormSize { num: (4, 2), den: (1, 1) }])
+   PLAIN atoms {"abs": 2, "sqrt": 6}
+      (1·?#76a568e0 + 1·?#ff4e4d4e^2 + 1·?#0febbc43^2 + -1·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116) + 3602879701896397·2^-52·sqrt(1329227995784915928244039281409·2^-116)·bulge + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge^2) / (3602879701896397·2^-51 + 4·bulge))^2) / (2·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116) + 36028 …[165 more chars]
+   EARLY atoms {"abs": 2}
+      (1·?#930aef57 + 1·?#76a568e0 + 1·?#b11ba063 + -1·abs((108501881555446236567625690174651791624286483031·2^-164 + 4153837486827862419877810830259·2^-110·bulge + 1152921504606847·2^-58·bulge^2) / (3602879701896397·2^-51 + 4·bulge))^2) / (2·abs((108501881555446236567625690174651791624286483031·2^-164 + 4153837486827862419877810830259·2^-110·bulge + 1152921504606847·2^-58·bulge^2) / (3602879701896397·2^-51 + 4·bulge)))
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #377a993d: num (4, 2) den (1, 1)
+        Sub #9f3c554e: num (4, 2) den (1, 0)
+          Add #b2febde4: num (3, 1) den (1, 0)
+            Add #8554b7f4: num (2, 1) den (1, 0)
+              Powi ^2 #930aef57: FROZEN
+              Powi ^2 #b11ba063: FROZEN
+            Powi ^2 #76a568e0: FROZEN
+              Sub #cb222283: num (0, 0) den (2, 1)
+          Powi ^2 #805e18af: num (1, 2) den (1, 0)
+            Abs #b4e3eabb: num (1, 1) den (1, 0)
+              Mul #78de7116: num (3, 2) den (2, 1)
+        Inv #bb34bfdf: num (1, 0) den (1, 1)
+          Mul #88e06a30: num (1, 1) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   witness_on_surface_1 in evaluation order: TTnTnnnnnnnnTTTT
+   first blocked witness_on_surface_1 [NumericZero] sizes Some([FormSize { num: (4, 2), den: (1, 1) }, FormSize { num: (9, 4), den: (3, 3) }])
+   PLAIN atoms {"abs": 2, "sqrt": 6}
+      (1·?#2a73fe48^2 + 1·?#abdb75c9^2 + -1·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116) + 3602879701896397·2^-52·sqrt(1329227995784915928244039281409·2^-116)·bulge + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge^2) / (3602879701896397·2^-51 + 4·bulge))^2 + 1·?#e2973c2a^2) / (2·abs((94110380560943752208267126725673·2^-106·sqrt(1329227995784915928244039281409·2^-116) + 360 …[167 more chars]
+   EARLY atoms {"abs": 6}
+      (-17254365866976412102563600518939179334243780126761994910007081·2^-218·abs((108501881555446236567625690174651791624286483031·2^-164 + 4153837486827862419877810830259·2^-110·bulge + 1152921504606847·2^-58·bulge^2) / (3602879701896397·2^-51 + 4·bulge))^2 + -4789048565205903147599632984565284858446183373·2^-164·abs((108501881555446236567625690174651791624286483031·2^-164 + 4153837486827862419877810830259·2^-110·bulge + …[1468 more chars]
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #74029c8b: num (9, 4) den (3, 3)
+        Sub #40a4a33f: num (9, 4) den (3, 2)
+          Add #a912286f: num (6, 3) den (3, 2)
+            Add #ce62cd85: num (2, 1) den (1, 0)
+              Powi ^2 #b47aa63c: FROZEN
+              Powi ^2 #bd00c527: FROZEN
+            Powi ^2 #4fcc2ea2: num (0, 0) den (3, 2)
+              Sub #abdb75c9: num (0, 0) den (2, 1)
+          Powi ^2 #805e18af: num (1, 2) den (1, 0)
+            Abs #b4e3eabb: num (1, 1) den (1, 0)
+              Mul #78de7116: num (3, 2) den (2, 1)
+        Inv #bb34bfdf: num (1, 0) den (1, 1)
+          Mul #88e06a30: num (1, 1) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+
+--- at CEILING + delta, rules = shipped
+   OVER BAND carrier_matches_mapped_source      [   0.0000e0,  1.0004e-9]   1/89  
+   -- carrier_matches_mapped_source [Indeterminate] enclosure Some((0.0, 1.0003705252120201e-9)) sizes Some([FormSize { num: (1, 1), den: (1, 0) }, FormSize { num: (1, 1), den: (1, 0) }])
+   EARLY atoms {"sqrt": 1}
+
+--- at CEILING + delta, rules = off
+   OVER BAND carrier_matches_mapped_source      [   0.0000e0,  1.0004e-9]   1/89  
+   -- carrier_matches_mapped_source [Indeterminate] enclosure Some((0.0, 1.0003705252120201e-9)) sizes Some([FormSize { num: (1, 1), den: (1, 0) }, FormSize { num: (1, 1), den: (1, 0) }])
+   EARLY atoms {"sqrt": 1}
+
+==============================================================================
+== control: D-tab, bulge a literal 0.5 (r2_d_tab_literal_dyadic)
+==============================================================================
+--- at the NOMINAL, rules = shipped
+   carrier_matches_mapped_source      126/0/36/18  (theorem/gated/registered/numeric)
+   carrier_on_surface_1               144/0/0/0  (theorem/gated/registered/numeric)
+   carrier_on_surface_2               126/0/0/18  (theorem/gated/registered/numeric)
+   line_span                          0/0/0/8  (theorem/gated/registered/numeric)
+   pcurve_map_residual                0/0/18/0  (theorem/gated/registered/numeric)
+   witness_on_surface_1               16/0/0/0  (theorem/gated/registered/numeric)
+   witness_on_surface_2               14/0/0/2  (theorem/gated/registered/numeric)
+   carrier_matches_mapped_source in evaluation order: TTTTTTTTTnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTnnnnnnnnnTTTTTTTTTTTTTTTTTTRRRRRRRRRRRRRRRRRRTTTTTTTTTTTTTTTTTTRRRRRRRRRRRRRRRRRRTTTTTTTTTTTTTTTTTT
+   first blocked carrier_matches_mapped_source [NumericZero] sizes Some([FormSize { num: (1, 1), den: (1, 0) }, FormSize { num: (1, 1), den: (1, 0) }])
+   PLAIN atoms {"abs": 4, "sqrt": 152}
+      1·sqrt((-11963051962064243354196353532681·2^-105·abs((5·2^-2·sqrt(1329227995784915928244039281409·2^-116)) / (2))·sqrt(1329227995784915928244039281409·2^-116)^16·sqrt((11963051962064243354196353532681·2^-118·sqrt(1329227995784915928244039281409·2^-116)^4·sqrt(1)^16·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^6 + 1329227995784915928244039281409·2^-114·sqrt(1329227995784915928244039281409·2^-116)^4·sqrt(1)^18·sqrt((1·sqrt(1)^4 …[3500 more chars]
+   EARLY atoms {"sqrt": 1}
+      1·sqrt(1·?#cf3e71c1)
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Sqrt #33c291b4: num (1, 1) den (1, 0)
+        Add #155546a6: num (1, 1) den (1, 0)
+          Add #a2461de2: num (1, 1) den (1, 0)
+            Powi ^2 #cf3e71c1: FROZEN
+              Sub #0919d7ff: num (0, 0) den (1, 0)
+                Add #80453911: num (1, 0) den (1, 0)
+                  Add #dc014b2b: num (1, 0) den (1, 0)
+                  Sub #9f8d2cc0: num (0, 0) den (1, 0)
+                Add #d56cf794: num (1, 0) den (1, 0)
+                  Add #69741444: num (1, 0) den (1, 0)
+                  Mul #f64d6c46: num (1, 0) den (1, 0)
+            Powi ^2 #5f9c2ac9: num (0, 0) den (1, 0)
+              Sub #59363ea3: num (0, 0) den (1, 0)
+                Add #8770dfd4: num (1, 0) den (1, 0)
+                  Add #a59173df: num (1, 0) den (1, 0)
+                Add #73271339: num (1, 0) den (1, 0)
+                  Add #197e81dd: num (0, 0) den (1, 0)
+                  Mul #2bf7465d: num (1, 0) den (1, 0)
+          Powi ^2 #de574794: num (0, 0) den (1, 0)
+            Sub #f0210274: num (0, 0) den (1, 0)
+              Add #361faf08: num (0, 0) den (1, 0)
+                Add #fed0f6bd: num (0, 0) den (1, 0)
+                  Add #ca1c63f4: num (0, 0) den (1, 0)
+                  Mul #aa674549: num (0, 0) den (1, 0)
+              Add #5696086d: num (0, 0) den (1, 0)
+                Add #6d7e52f5: num (0, 0) den (1, 0)
+                  Add #7bcddfaa: num (0, 0) den (1, 0)
+                Mul #6ae8fdfc: num (0, 0) den (1, 0)
+                  Add #463f8b10: num (0, 0) den (1, 0)
+                  Abs #8091ae48: num (1, 0) den (1, 0)
+   carrier_on_surface_2 in evaluation order: TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTnnnnnnnnnnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+   first blocked carrier_on_surface_2 [NumericZero] sizes Some([FormSize { num: (4, 2), den: (1, 1) }, FormSize { num: (2, 1), den: (1, 0) }])
+   PLAIN atoms {"abs": 2, "sqrt": 2}
+      (-1·abs((5·2^-2·sqrt(1329227995784915928244039281409·2^-116)) / (2))^2 + 1·?#2ecc90e9 + 1·?#0f5131ef + 1·?#38957934) / (2·abs((5·2^-2·sqrt(1329227995784915928244039281409·2^-116)) / (2)))
+   EARLY atoms {}
+      (-397540589575136507258145620370357040209169185594289745930688225·2^-244 + 33230699894622898206100982035225·2^-122·?#0f5131ef) / (191561942608236119257845340458031753117650927875·2^-182)
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #f16639ba: num (2, 1) den (1, 0)
+        Sub #b89b829a: num (2, 1) den (1, 0)
+          Add #d95c7e5a: num (2, 1) den (1, 0)
+            Add #fcc7d51b: num (2, 1) den (1, 0)
+              Powi ^2 #0f5131ef: FROZEN
+                Sub #10df82a2: num (1, 0) den (1, 0)
+                  Sub #945577d7: num (1, 0) den (1, 0)
+                  Mul #d0cd97d3: num (0, 0) den (1, 0)
+              Powi ^2 #38957934: num (1, 0) den (1, 0)
+                Sub #67152deb: num (1, 0) den (1, 0)
+                  Sub #b212f3af: num (1, 0) den (1, 0)
+                  Mul #f1a85107: num (0, 0) den (1, 0)
+            Powi ^2 #2ecc90e9: num (0, 0) den (1, 0)
+              Sub #f4176676: num (0, 0) den (1, 0)
+                Sub #c86424d9: num (0, 0) den (1, 0)
+                  Add #5696086d: num (0, 0) den (1, 0)
+                  Add #6d7e52f5: num (0, 0) den (1, 0)
+                Mul #fec7ca00: num (0, 0) den (1, 0)
+                  Sub #2f449f55: num (1, 0) den (1, 0)
+                  Add #e3a65cdb: num (0, 0) den (1, 0)
+          Powi ^2 #cb5a5a8e: num (1, 0) den (1, 0)
+            Abs #8091ae48: num (1, 0) den (1, 0)
+              Mul #a6d906ae: num (1, 0) den (1, 0)
+                Mul #5df06ea3: num (1, 0) den (1, 0)
+                  Sqrt #35fdfef1: num (1, 0) den (1, 0)
+                  Add #a82c0cdc: num (1, 0) den (1, 0)
+                Inv #a65073c4: num (1, 0) den (1, 0)
+                  Mul #acc651a0: num (1, 0) den (1, 0)
+        Inv #a32ce5c4: num (1, 0) den (1, 0)
+          Mul #1a7a2571: num (1, 0) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   witness_on_surface_2 in evaluation order: TTTTTTnnTTTTTTTT
+   first blocked witness_on_surface_2 [NumericZero] sizes Some([FormSize { num: (4, 2), den: (1, 1) }, FormSize { num: (2, 2), den: (1, 0) }])
+   PLAIN atoms {"abs": 2, "sqrt": 2}
+      (-1·abs((5·2^-2·sqrt(1329227995784915928244039281409·2^-116)) / (2))^2 + 1·?#448148d0 + 1·?#5bbd3923 + 1·?#5d7941ee) / (2·abs((5·2^-2·sqrt(1329227995784915928244039281409·2^-116)) / (2)))
+   EARLY atoms {}
+      (-7662477704329444770313813618321270124706037115·2^-174·?#01f687c9 + 1329227995784915928244039281409·2^-114·?#01f687c9^2) / (7662477704329444770313813618321270124706037115·2^-174)
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #982aa1af: num (2, 2) den (1, 0)
+        Sub #6816f570: num (2, 2) den (1, 0)
+          Add #e0f1f728: num (3, 2) den (1, 0)
+            Add #9a613ba3: num (3, 2) den (1, 0)
+              Powi ^2 #448148d0: num (3, 2) den (1, 0)
+                Sub #0aa82caa: num (2, 1) den (1, 0)
+                  Sub #f756c438: num (2, 1) den (1, 0)
+                  Mul #ddee4000: num (0, 0) den (1, 0)
+              Powi ^2 #5d7941ee: num (0, 0) den (1, 0)
+                Sub #89f90056: num (0, 0) den (1, 0)
+                  Sub #094cf566: num (0, 0) den (1, 0)
+                  Mul #24472c0c: num (0, 0) den (1, 0)
+            Powi ^2 #5bbd3923: num (0, 0) den (1, 0)
+              Sub #c9af8960: num (0, 0) den (1, 0)
+                Sub #32ade82e: num (0, 0) den (1, 0)
+                  Add #30b3269c: num (0, 0) den (1, 0)
+                  Add #6d7e52f5: num (0, 0) den (1, 0)
+                Mul #8185a79f: num (0, 0) den (1, 0)
+                  Sub #2f449f55: num (1, 0) den (1, 0)
+                  Add #54176b4d: num (0, 0) den (1, 0)
+          Powi ^2 #cb5a5a8e: num (1, 0) den (1, 0)
+            Abs #8091ae48: num (1, 0) den (1, 0)
+              Mul #a6d906ae: num (1, 0) den (1, 0)
+                Mul #5df06ea3: num (1, 0) den (1, 0)
+                  Sqrt #35fdfef1: num (1, 0) den (1, 0)
+                  Add #a82c0cdc: num (1, 0) den (1, 0)
+                Inv #a65073c4: num (1, 0) den (1, 0)
+                  Mul #acc651a0: num (1, 0) den (1, 0)
+        Inv #a32ce5c4: num (1, 0) den (1, 0)
+          Mul #1a7a2571: num (1, 0) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+
+--- at the NOMINAL, rules = off
+   carrier_matches_mapped_source      126/0/4/50  (theorem/gated/registered/numeric)
+   carrier_on_surface_1               63/0/0/81  (theorem/gated/registered/numeric)
+   carrier_on_surface_2               81/0/0/63  (theorem/gated/registered/numeric)
+   line_span                          0/0/0/8  (theorem/gated/registered/numeric)
+   pcurve_map_residual                0/0/0/18  (theorem/gated/registered/numeric)
+   witness_on_surface_1               8/0/0/8  (theorem/gated/registered/numeric)
+   witness_on_surface_2               10/0/0/6  (theorem/gated/registered/numeric)
+   carrier_matches_mapped_source in evaluation order: TTTTTTTTTnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTnnnnnnnnnTTTTTTTTTTTTTTTTTTRnnnnnnnnRnnnnnnnnTTTTTTTTTTTTTTTTTTRnnnnnnnnRnnnnnnnnTTTTTTTTTTTTTTTTTT
+   first blocked carrier_matches_mapped_source [NumericZero] sizes Some([FormSize { num: (1, 1), den: (1, 0) }, FormSize { num: (1, 1), den: (1, 0) }])
+   PLAIN atoms {"abs": 4, "sqrt": 152}
+      1·sqrt((-11963051962064243354196353532681·2^-105·abs((5·2^-2·sqrt(1329227995784915928244039281409·2^-116)) / (2))·sqrt(1329227995784915928244039281409·2^-116)^16·sqrt((11963051962064243354196353532681·2^-118·sqrt(1329227995784915928244039281409·2^-116)^4·sqrt(1)^16·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^6 + 1329227995784915928244039281409·2^-114·sqrt(1329227995784915928244039281409·2^-116)^4·sqrt(1)^18·sqrt((1·sqrt(1)^4 …[3500 more chars]
+   EARLY atoms {"sqrt": 1}
+      1·sqrt(1·?#5f9c2ac9 + 1·?#de574794 + 1·?#cf3e71c1)
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Sqrt #33c291b4: num (1, 1) den (1, 0)
+        Add #155546a6: num (3, 1) den (1, 0)
+          Add #a2461de2: num (2, 1) den (1, 0)
+            Powi ^2 #cf3e71c1: FROZEN
+              Sub #0919d7ff: num (0, 0) den (1, 0)
+                Add #80453911: num (1, 0) den (1, 0)
+                  Add #dc014b2b: num (1, 0) den (1, 0)
+                  Sub #9f8d2cc0: num (0, 0) den (1, 0)
+                Add #d56cf794: num (1, 0) den (1, 0)
+                  Add #69741444: num (1, 0) den (1, 0)
+                  Mul #f64d6c46: num (1, 0) den (1, 0)
+            Powi ^2 #5f9c2ac9: FROZEN
+              Sub #59363ea3: num (0, 0) den (1, 0)
+                Add #8770dfd4: num (1, 0) den (1, 0)
+                  Add #a59173df: num (1, 0) den (1, 0)
+                Add #73271339: num (1, 0) den (1, 0)
+                  Add #197e81dd: num (0, 0) den (1, 0)
+                  Mul #2bf7465d: num (1, 0) den (1, 0)
+          Powi ^2 #de574794: FROZEN
+            Sub #f0210274: num (0, 0) den (1, 0)
+              Add #361faf08: num (0, 0) den (1, 0)
+                Add #fed0f6bd: num (0, 0) den (1, 0)
+                  Add #ca1c63f4: num (0, 0) den (1, 0)
+                  Mul #aa674549: num (0, 0) den (1, 0)
+              Add #5696086d: num (0, 0) den (1, 0)
+                Add #6d7e52f5: num (0, 0) den (1, 0)
+                  Add #7bcddfaa: num (0, 0) den (1, 0)
+                Mul #6ae8fdfc: num (0, 0) den (1, 0)
+                  Add #463f8b10: num (0, 0) den (1, 0)
+                  Abs #8091ae48: num (1, 0) den (1, 0)
+   carrier_on_surface_2 in evaluation order: TTTTTTTTTnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTnnnnnnnnnnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn
+   first blocked carrier_on_surface_2 [NumericZero] sizes Some([FormSize { num: (3, 94), den: (1, 93) }, FormSize { num: (1, 1), den: (1, 0) }])
+   PLAIN atoms {"abs": 2, "sqrt": 46}
+      (-256·abs((5·2^-2·sqrt(1329227995784915928244039281409·2^-116)) / (2))^2·sqrt(1329227995784915928244039281409·2^-116)^8·sqrt(1)^60·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^20·sqrt((1329227995784915928244039281409·2^-120·sqrt(1)^4) / (1·sqrt(1)^6·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^2))^4 + 11963051962064243354196353532681·2^-114·sqrt(1329227995784915928244039281409·2^-116)^8·sqrt(1)^58·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^2 …[649 more chars]
+   EARLY atoms {}
+      (1·?#5686ffc2) / (5764607523034235·2^-60)
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #e4433672: num (1, 1) den (1, 0)
+        Sub #5686ffc2: FROZEN
+          Add #bed09a02: num (2, 1) den (1, 0)
+            Add #8d7d4452: num (2, 1) den (1, 0)
+              Powi ^2 #310f61d5: FROZEN
+                Sub #52889fe2: num (1, 0) den (1, 0)
+                  Sub #635a07ff: num (1, 0) den (1, 0)
+                  Mul #78b4b605: num (0, 0) den (1, 0)
+              Powi ^2 #776786e0: FROZEN
+                Sub #a56b87c3: num (1, 0) den (1, 0)
+                  Sub #a0688ff6: num (1, 0) den (1, 0)
+                  Mul #076b35e1: num (0, 0) den (1, 0)
+            Powi ^2 #ed96cf16: num (0, 0) den (1, 0)
+              Sub #8ddd4004: num (0, 0) den (1, 0)
+                Sub #77a3147e: num (0, 0) den (1, 0)
+                  Add #d50e25e9: num (0, 0) den (1, 0)
+                  Add #6d7e52f5: num (0, 0) den (1, 0)
+                Mul #8837a462: num (0, 0) den (1, 0)
+                  Sub #2f449f55: num (1, 0) den (1, 0)
+                  Add #9f48768f: num (0, 0) den (1, 0)
+          Powi ^2 #cb5a5a8e: num (1, 0) den (1, 0)
+            Abs #8091ae48: num (1, 0) den (1, 0)
+              Mul #a6d906ae: num (1, 0) den (1, 0)
+                Mul #5df06ea3: num (1, 0) den (1, 0)
+                  Sqrt #35fdfef1: num (1, 0) den (1, 0)
+                  Add #a82c0cdc: num (1, 0) den (1, 0)
+                Inv #a65073c4: num (1, 0) den (1, 0)
+                  Mul #acc651a0: num (1, 0) den (1, 0)
+        Inv #a32ce5c4: num (1, 0) den (1, 0)
+          Mul #1a7a2571: num (1, 0) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   witness_on_surface_2 in evaluation order: TTTTTTnnTTTTnnnn
+   first blocked witness_on_surface_2 [NumericZero] sizes Some([FormSize { num: (4, 2), den: (1, 1) }, FormSize { num: (4, 1), den: (1, 0) }])
+   PLAIN atoms {"abs": 2, "sqrt": 2}
+      (-1·abs((5·2^-2·sqrt(1329227995784915928244039281409·2^-116)) / (2))^2 + 1·?#448148d0 + 1·?#5bbd3923 + 1·?#5d7941ee) / (2·abs((5·2^-2·sqrt(1329227995784915928244039281409·2^-116)) / (2)))
+   EARLY atoms {}
+      (-33230699894622898206100982035225·2^-122 + 1·?#448148d0 + 1·?#5bbd3923 + 1·?#5d7941ee) / (5764607523034235·2^-60)
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #982aa1af: num (4, 1) den (1, 0)
+        Sub #6816f570: num (4, 1) den (1, 0)
+          Add #e0f1f728: num (3, 1) den (1, 0)
+            Add #9a613ba3: num (2, 1) den (1, 0)
+              Powi ^2 #448148d0: FROZEN
+                Sub #0aa82caa: num (2, 1) den (1, 0)
+                  Sub #f756c438: num (2, 1) den (1, 0)
+                  Mul #ddee4000: num (0, 0) den (1, 0)
+              Powi ^2 #5d7941ee: FROZEN
+                Sub #89f90056: num (2, 1) den (1, 0)
+                  Sub #094cf566: num (2, 1) den (1, 0)
+                  Mul #24472c0c: num (0, 0) den (1, 0)
+            Powi ^2 #5bbd3923: FROZEN
+              Sub #c9af8960: num (0, 0) den (1, 0)
+                Sub #32ade82e: num (0, 0) den (1, 0)
+                  Add #30b3269c: num (0, 0) den (1, 0)
+                  Add #6d7e52f5: num (0, 0) den (1, 0)
+                Mul #8185a79f: num (0, 0) den (1, 0)
+                  Sub #2f449f55: num (1, 0) den (1, 0)
+                  Add #54176b4d: num (0, 0) den (1, 0)
+          Powi ^2 #cb5a5a8e: num (1, 0) den (1, 0)
+            Abs #8091ae48: num (1, 0) den (1, 0)
+              Mul #a6d906ae: num (1, 0) den (1, 0)
+                Mul #5df06ea3: num (1, 0) den (1, 0)
+                  Sqrt #35fdfef1: num (1, 0) den (1, 0)
+                  Add #a82c0cdc: num (1, 0) den (1, 0)
+                Inv #a65073c4: num (1, 0) den (1, 0)
+                  Mul #acc651a0: num (1, 0) den (1, 0)
+        Inv #a32ce5c4: num (1, 0) den (1, 0)
+          Mul #1a7a2571: num (1, 0) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   carrier_on_surface_1 in evaluation order: TTTTTTTTTTTTTTTTTTnnnnnnnnnTTTTTTTTTnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+   first blocked carrier_on_surface_1 [NumericZero] sizes Some([FormSize { num: (3, 94), den: (1, 93) }, FormSize { num: (1, 1), den: (1, 0) }])
+   PLAIN atoms {"abs": 2, "sqrt": 46}
+      (-256·abs((5·2^-2·sqrt(1329227995784915928244039281409·2^-116)) / (2))^2·sqrt(1329227995784915928244039281409·2^-116)^8·sqrt(1)^60·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^20·sqrt((1329227995784915928244039281409·2^-120·sqrt(1)^4) / (1·sqrt(1)^6·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^2))^4 + 11963051962064243354196353532681·2^-114·sqrt(1329227995784915928244039281409·2^-116)^8·sqrt(1)^58·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^2 …[649 more chars]
+   EARLY atoms {}
+      (1·?#c0b1dd74) / (5764607523034235·2^-60)
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #bdcf662f: num (1, 1) den (1, 0)
+        Sub #c0b1dd74: FROZEN
+          Add #d701e805: num (2, 1) den (1, 0)
+            Add #2c250544: num (2, 1) den (1, 0)
+              Powi ^2 #9e4a8a94: FROZEN
+                Sub #1ebee9c9: num (1, 0) den (1, 0)
+                  Sub #007f14b3: num (1, 0) den (1, 0)
+                  Mul #21670e2c: num (0, 0) den (1, 0)
+              Powi ^2 #f626bff3: FROZEN
+                Sub #dbebdc63: num (1, 0) den (1, 0)
+                  Sub #56d8f0ae: num (1, 0) den (1, 0)
+                  Mul #0eb51568: num (0, 0) den (1, 0)
+            Powi ^2 #1b0c15b3: num (0, 0) den (1, 0)
+              Sub #127eff8b: num (0, 0) den (1, 0)
+                Sub #a0524378: num (0, 0) den (1, 0)
+                  Add #14845d45: num (0, 0) den (1, 0)
+                  Add #6d7e52f5: num (0, 0) den (1, 0)
+                Mul #473025f3: num (0, 0) den (1, 0)
+                  Sub #2f449f55: num (1, 0) den (1, 0)
+                  Add #897cba6e: num (0, 0) den (1, 0)
+          Powi ^2 #cb5a5a8e: num (1, 0) den (1, 0)
+            Abs #8091ae48: num (1, 0) den (1, 0)
+              Mul #a6d906ae: num (1, 0) den (1, 0)
+                Mul #5df06ea3: num (1, 0) den (1, 0)
+                  Sqrt #35fdfef1: num (1, 0) den (1, 0)
+                  Add #a82c0cdc: num (1, 0) den (1, 0)
+                Inv #a65073c4: num (1, 0) den (1, 0)
+                  Mul #acc651a0: num (1, 0) den (1, 0)
+        Inv #a32ce5c4: num (1, 0) den (1, 0)
+          Mul #1a7a2571: num (1, 0) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   witness_on_surface_1 in evaluation order: TTTTnnnnnnnnTTTT
+   first blocked witness_on_surface_1 [NumericZero] sizes Some([FormSize { num: (2, 71), den: (1, 72) }, FormSize { num: (2, 1), den: (1, 1) }])
+   PLAIN atoms {"sqrt": 73}
+      (-144115188075855875·2^-60·sqrt((1329227995784915928244039281409·2^-114·sqrt(1)^4·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^2) / (1·sqrt(1)^6·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^2))·sqrt(1329227995784915928244039281409·2^-116)^6·sqrt(1)^47·?#e18b622b·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^16 + -144115188075855875·2^-59·sqrt((1329227995784915928244039281409·2^-114·sqrt(1)^4·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^2) / (1·sqrt(1)^6 …[1185 more chars]
+   EARLY atoms {"sqrt": 1}
+      (-7662477704329444770313813618321270124706037115·2^-175·?#738e86d5 + -7662477704329444770313813618321270124706037115·2^-174·?#6b452af6) / (6646139978924579641220196407045·2^-115·sqrt(1·?#aebbf044^2 + 1·?#738e86d5^2 + 1·?#6b452af6^2))
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Add #8f8de2dd: num (2, 1) den (1, 1)
+        Add #a2c44454: num (2, 1) den (1, 1)
+          Mul #f1ce551e: num (1, 1) den (1, 1)
+            Sub #74430d20: num (1, 0) den (1, 0)
+              Add #df7325b5: num (0, 0) den (1, 0)
+                Add #ac38a051: num (1, 0) den (1, 0)
+                  Add #d882e81b: num (1, 0) den (1, 0)
+                  Sub #9f8d2cc0: num (0, 0) den (1, 0)
+                Mul #17497138: num (1, 0) den (1, 0)
+                  Mul #507b4beb: num (1, 0) den (1, 0)
+                  Add #13a6ab60: num (1, 0) den (1, 0)
+              Add #2eee4160: num (1, 0) den (1, 0)
+                Lit 0 #3ed3e64f: num (0, 0) den (1, 0)
+                Mul #a21b2dd8: num (1, 0) den (1, 0)
+                  Add #ce02d746: num (1, 0) den (1, 0)
+                  Inv #5eb68df4: num (1, 0) den (1, 0)
+            Mul #3f5e5a0a: num (1, 1) den (1, 1)
+              Add #738e86d5: FROZEN
+                Add #e18b622b: num (1, 1) den (1, 0)
+                  Add #1c254ad4: FROZEN
+                  Sub #19f5b266: num (0, 0) den (1, 0)
+                Sub #25710d85: num (0, 0) den (1, 0)
+                  Mul #042ce011: num (0, 0) den (1, 0)
+                  Mul #124a361f: num (0, 0) den (1, 0)
+              Inv #258dec08: num (1, 0) den (1, 1)
+                Sqrt #bcd0e0eb: num (1, 1) den (1, 0)
+                  Add #268383c9: num (3, 2) den (1, 0)
+          Mul #5b485320: num (1, 1) den (1, 1)
+            Sub #e31d0bee: num (1, 0) den (1, 0)
+              Add #82ef7e0f: num (1, 0) den (1, 0)
+                Add #2759be96: num (1, 0) den (1, 0)
+                  Add #15817531: num (1, 0) den (1, 0)
+                Mul #79864df5: num (0, 0) den (1, 0)
+                  Mul #22bab01a: num (0, 0) den (1, 0)
+              Add #e1e5438a: num (0, 0) den (1, 0)
+                Mul #2e23eaf4: num (0, 0) den (1, 0)
+                  Add #da04f497: num (0, 0) den (1, 0)
+            Mul #20c9a9eb: num (1, 1) den (1, 1)
+              Add #6b452af6: FROZEN
+                Add #80ddb1ba: num (1, 1) den (1, 0)
+                  Add #3cfb913a: FROZEN
+                  Sub #ae719b5b: num (0, 0) den (1, 0)
+                Sub #73138afa: num (0, 0) den (1, 0)
+                  Mul #085cb78d: num (0, 0) den (1, 0)
+                  Mul #199dbe00: num (0, 0) den (1, 0)
+        Mul #52d88f4a: num (0, 0) den (1, 1)
+          Sub #4c82609d: num (0, 0) den (1, 0)
+            Add #b357b36b: num (0, 0) den (1, 0)
+              Add #7875e754: num (0, 0) den (1, 0)
+                Add #4c4644c5: num (0, 0) den (1, 0)
+                  Add #b9c3f338: num (0, 0) den (1, 0)
+                  Mul #aa674549: num (0, 0) den (1, 0)
+              Mul #bb9e04f2: num (0, 0) den (1, 0)
+                Mul #e95c4646: num (0, 0) den (1, 0)
+                  Sub #51a80d3a: num (0, 0) den (1, 0)
+                  Inv #0ee70639: num (1, 0) den (1, 0)
+            Add #05ea5c17: num (0, 0) den (1, 0)
+              Mul #8ca0fd9c: num (0, 0) den (1, 0)
+                Add #1d3bb7c0: num (0, 0) den (1, 0)
+                  Add #9e7583e9: num (0, 0) den (1, 0)
+                  Sub #80cdba80: num (0, 0) den (1, 0)
+          Mul #e5425422: num (1, 1) den (1, 1)
+            Add #aebbf044: FROZEN
+              Add #09d953c7: num (2, 1) den (1, 0)
+                Add #5d9eb472: FROZEN
+                  Add #7711d19d: num (1, 0) den (1, 0)
+                  Sub #d4c0df58: num (1, 0) den (1, 0)
+                Sub #5f7aa8d0: num (1, 0) den (1, 0)
+                  Mul #d54cd963: num (1, 0) den (1, 0)
+                  Mul #b399e5b0: num (0, 0) den (1, 0)
+              Sub #7868ff03: num (1, 0) den (1, 0)
+                Mul #a77b412b: num (1, 0) den (1, 0)
+                  Sub #c6760612: num (1, 0) den (1, 0)
+                  Sub #951da121: num (1, 0) den (1, 0)
+                Mul #48cff4a8: num (1, 0) den (1, 0)
+                  Sub #ae15aeb2: num (1, 0) den (1, 0)
+                  Sub #b6cb2462: num (1, 0) den (1, 0)
+
+==============================================================================
+== control: D-tab, bulge a parameter (nominal 0.5) (r2_d_tab_parameter_dyadic)
+==============================================================================
+--- at the NOMINAL, rules = shipped
+   carrier_matches_mapped_source      126/0/38/16  (theorem/gated/registered/numeric)
+   carrier_on_surface_1               135/0/0/9  (theorem/gated/registered/numeric)
+   carrier_on_surface_2               117/0/0/27  (theorem/gated/registered/numeric)
+   line_span                          0/0/0/8  (theorem/gated/registered/numeric)
+   pcurve_map_residual                0/0/18/0  (theorem/gated/registered/numeric)
+   witness_on_surface_1               15/0/0/1  (theorem/gated/registered/numeric)
+   witness_on_surface_2               13/0/0/3  (theorem/gated/registered/numeric)
+   carrier_matches_mapped_source in evaluation order: TTTTTTTTTRnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTRnnnnnnnnTTTTTTTTTTTTTTTTTTRRRRRRRRRRRRRRRRRRTTTTTTTTTTTTTTTTTTRRRRRRRRRRRRRRRRRRTTTTTTTTTTTTTTTTTT
+   first blocked carrier_matches_mapped_source [NumericZero] sizes Some([FormSize { num: (1, 1), den: (1, 0) }, FormSize { num: (1, 1), den: (1, 0) }])
+   PLAIN atoms {"abs": 398, "atan": 506, "cos": 144, "sin": 362, "sqrt": 39910}
+      1·sqrt((75765995759740207909910239040313·2^-102·abs((5·2^-2·sqrt(1329227995784915928244039281409·2^-116) + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge^2) / (2 + 4·bulge))·sqrt(1329227995784915928244039281409·2^-116)^16·sin(1·2^-2·atan(1·2^-1 + 1·bulge))^2·sqrt(1)^64·bulge·sqrt((3987683987354747784732117844227·2^-116·sqrt(1329227995784915928244039281409·2 …[1102020 more chars]
+   EARLY atoms {"sqrt": 1}
+      1·sqrt(1·?#ae6b4b10^2 + 1·?#0e52aecc)
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Sqrt #de02a3cd: num (1, 1) den (1, 0)
+        Add #bdfb0202: num (2, 2) den (1, 0)
+          Add #2c3e6d93: num (2, 2) den (1, 0)
+            Powi ^2 #0e52aecc: FROZEN
+              Sub #39b7c271: num (67, 10) den (32, 9)
+                Add #3a69a053: num (35, 9) den (32, 9)
+                  Add #fe906b1f: num (35, 9) den (32, 9)
+                  Sub #9f8d2cc0: num (0, 0) den (1, 0)
+                Add #f550918f: FROZEN
+                  Add #1cfe09dd: num (3, 2) den (2, 1)
+                  Mul #cf5788d1: num (28, 10) den (24, 8)
+            Powi ^2 #2eea71e3: num (1, 2) den (1, 0)
+              Sub #ae6b4b10: FROZEN
+                Add #e52552c7: num (36, 10) den (32, 9)
+                  Add #49e83821: num (36, 10) den (32, 9)
+                Add #8223705b: num (26, 10) den (24, 8)
+                  Add #149974a3: num (0, 0) den (1, 0)
+                  Mul #51965da4: num (26, 10) den (24, 8)
+          Powi ^2 #4417b4dc: num (0, 0) den (1, 0)
+            Sub #e2481364: num (0, 0) den (1, 0)
+              Add #d5e5aea7: num (0, 0) den (1, 0)
+                Add #3ac84748: num (0, 0) den (1, 0)
+                  Add #d112b14f: num (0, 0) den (1, 0)
+                  Mul #aa674549: num (0, 0) den (1, 0)
+              Add #13a2527f: num (0, 0) den (1, 0)
+                Add #5d901bae: num (0, 0) den (1, 0)
+                  Add #f026aaeb: num (0, 0) den (1, 0)
+                Mul #7261393f: num (0, 0) den (1, 0)
+                  Add #fb19715c: num (0, 0) den (1, 0)
+                  Abs #9890340f: num (1, 1) den (1, 0)
+   carrier_on_surface_2 in evaluation order: TTTTTTTTTnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTnnnnnnnnnnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+   first blocked carrier_on_surface_2 [NumericZero] sizes Some([FormSize { num: (29, 102), den: (9, 101) }, FormSize { num: (8, 4), den: (3, 3) }])
+   PLAIN atoms {"abs": 18, "sqrt": 472}
+      (-4096·abs((5·2^-2·sqrt(1329227995784915928244039281409·2^-116) + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge^2) / (2 + 4·bulge))^2·sqrt(1329227995784915928244039281409·2^-116)^8·sqrt(1)^60·bulge·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^20·sqrt((1329227995784915928244039281409·2^-120·sqrt(1)^4) / (1·sqrt(1)^6·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^2))^4 + -28672 …[12198 more chars]
+   EARLY atoms {"abs": 6}
+      (44171176619459611917571735596706337801018798399365527325632025·2^-236 + 8834235323891922383514347119341267560203759679873105465126405·2^-233·bulge + -1329227995784915928244039281409·2^-112·bulge·abs((5764607523034235·2^-60 + 1152921504606847·2^-58·bulge + 1152921504606847·2^-58·bulge^2) / (2 + 4·bulge))^2 + 12367929453448691336920085967077774584285263551822347651176967·2^-233·bulge^2 + -13292279957849159282440392814 …[911 more chars]
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #2567ea7b: num (8, 4) den (3, 3)
+        Sub #e639589c: num (8, 4) den (3, 2)
+          Add #3e927ed8: num (5, 4) den (3, 2)
+            Add #27171eb9: num (5, 4) den (3, 2)
+              Powi ^2 #35880b32: num (5, 4) den (3, 2)
+                Sub #620828c5: num (3, 2) den (2, 1)
+                  Sub #646da626: num (3, 2) den (2, 1)
+                  Mul #b8ca4169: num (0, 0) den (1, 0)
+              Powi ^2 #ca7b70ec: num (1, 0) den (1, 0)
+                Sub #e1e7a734: num (1, 0) den (1, 0)
+                  Sub #ccbfb74b: num (1, 0) den (1, 0)
+                  Mul #cbcb6105: num (0, 0) den (1, 0)
+            Powi ^2 #6aeb8a7f: num (0, 0) den (1, 0)
+              Sub #ace4d787: num (0, 0) den (1, 0)
+                Sub #b20ce722: num (0, 0) den (1, 0)
+                  Add #d50e25e9: num (0, 0) den (1, 0)
+                  Add #5d901bae: num (0, 0) den (1, 0)
+                Mul #fc3bcbae: num (0, 0) den (1, 0)
+                  Sub #2f449f55: num (1, 0) den (1, 0)
+                  Add #bafcfc22: num (0, 0) den (1, 0)
+          Powi ^2 #eac5e6dd: num (1, 2) den (1, 0)
+            Abs #9890340f: num (1, 1) den (1, 0)
+              Mul #9eb8d769: num (3, 2) den (2, 1)
+                Mul #14369682: num (3, 2) den (1, 0)
+                  Sqrt #35fdfef1: num (1, 0) den (1, 0)
+                  Add #ef62bec9: num (3, 2) den (1, 0)
+                Inv #878dfc4c: num (1, 0) den (2, 1)
+                  Mul #d39185ed: num (2, 1) den (1, 0)
+        Inv #a09fb0a1: num (1, 0) den (1, 1)
+          Mul #1daf4a9a: num (1, 1) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   witness_on_surface_2 in evaluation order: TnTTTTnnTTTTTTTT
+   first blocked witness_on_surface_2 [NumericZero] sizes Some([FormSize { num: (56, 82), den: (9, 81) }, FormSize { num: (8, 4), den: (3, 3) }])
+   PLAIN atoms {"abs": 18, "sqrt": 379}
+      (-4096·abs((5·2^-2·sqrt(1329227995784915928244039281409·2^-116) + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge^2) / (2 + 4·bulge))^2·sqrt(1329227995784915928244039281409·2^-116)^8·sqrt(1)^48·bulge·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^16 + -28672·abs((5·2^-2·sqrt(1329227995784915928244039281409·2^-116) + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge  …[11828 more chars]
+   EARLY atoms {"abs": 6}
+      (44171176619459611917571735596706337801018798399365527325632025·2^-236 + 8834235323891922383514347119341267560203759679873105465126405·2^-233·bulge + -1329227995784915928244039281409·2^-112·bulge·abs((5764607523034235·2^-60 + 1152921504606847·2^-58·bulge + 1152921504606847·2^-58·bulge^2) / (2 + 4·bulge))^2 + 12367929453448691336920085967077774584285263551822347651176967·2^-233·bulge^2 + -13292279957849159282440392814 …[911 more chars]
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #f63057e5: num (8, 4) den (3, 3)
+        Sub #194676dc: num (8, 4) den (3, 2)
+          Add #c5f7eca3: num (5, 4) den (3, 2)
+            Add #8e35d2d1: num (5, 4) den (3, 2)
+              Powi ^2 #8d873c9a: num (5, 4) den (3, 2)
+                Sub #8ca5c6e8: num (3, 2) den (2, 1)
+                  Sub #4d478aa2: num (3, 2) den (2, 1)
+                  Mul #d8ef6a01: num (0, 0) den (1, 0)
+              Powi ^2 #28d22aa5: num (1, 0) den (1, 0)
+                Sub #6f8db6dd: num (1, 0) den (1, 0)
+                  Sub #7493d1a6: num (1, 0) den (1, 0)
+                  Mul #11fdbe8d: num (0, 0) den (1, 0)
+            Powi ^2 #6555d3ec: num (0, 0) den (1, 0)
+              Sub #c6a3cb2a: num (0, 0) den (1, 0)
+                Sub #f041b2a5: num (1, 0) den (1, 0)
+                  Add #94505cd9: num (1, 0) den (1, 0)
+                  Add #5d901bae: num (0, 0) den (1, 0)
+                Mul #d9265506: num (1, 0) den (1, 0)
+                  Sub #2f449f55: num (1, 0) den (1, 0)
+                  Add #e693c1d9: num (1, 0) den (1, 0)
+          Powi ^2 #eac5e6dd: num (1, 2) den (1, 0)
+            Abs #9890340f: num (1, 1) den (1, 0)
+              Mul #9eb8d769: num (3, 2) den (2, 1)
+                Mul #14369682: num (3, 2) den (1, 0)
+                  Sqrt #35fdfef1: num (1, 0) den (1, 0)
+                  Add #ef62bec9: num (3, 2) den (1, 0)
+                Inv #878dfc4c: num (1, 0) den (2, 1)
+                  Mul #d39185ed: num (2, 1) den (1, 0)
+        Inv #a09fb0a1: num (1, 0) den (1, 1)
+          Mul #1daf4a9a: num (1, 1) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   carrier_on_surface_1 in evaluation order: TTTTTTTTTTTTTTTTTTnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+   first blocked carrier_on_surface_1 [NumericZero] sizes Some([FormSize { num: (29, 102), den: (9, 101) }, FormSize { num: (8, 4), den: (3, 3) }])
+   PLAIN atoms {"abs": 18, "sqrt": 472}
+      (-4096·abs((5·2^-2·sqrt(1329227995784915928244039281409·2^-116) + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge^2) / (2 + 4·bulge))^2·sqrt(1329227995784915928244039281409·2^-116)^8·sqrt(1)^60·bulge·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^20·sqrt((1329227995784915928244039281409·2^-120·sqrt(1)^4) / (1·sqrt(1)^6·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^2))^4 + -28672 …[12198 more chars]
+   EARLY atoms {"abs": 6}
+      (44171176619459611917571735596706337801018798399365527325632025·2^-236 + 8834235323891922383514347119341267560203759679873105465126405·2^-233·bulge + -1329227995784915928244039281409·2^-112·bulge·abs((5764607523034235·2^-60 + 1152921504606847·2^-58·bulge + 1152921504606847·2^-58·bulge^2) / (2 + 4·bulge))^2 + 12367929453448691336920085967077774584285263551822347651176967·2^-233·bulge^2 + -13292279957849159282440392814 …[911 more chars]
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #254af51a: num (8, 4) den (3, 3)
+        Sub #06043bfd: num (8, 4) den (3, 2)
+          Add #8039b486: num (5, 4) den (3, 2)
+            Add #cb5af232: num (5, 4) den (3, 2)
+              Powi ^2 #47c86f5b: num (5, 4) den (3, 2)
+                Sub #009cc085: num (3, 2) den (2, 1)
+                  Sub #8fa0744a: num (3, 2) den (2, 1)
+                  Mul #49aba30c: num (0, 0) den (1, 0)
+              Powi ^2 #0ccb851e: num (1, 0) den (1, 0)
+                Sub #b77ab3c6: num (1, 0) den (1, 0)
+                  Sub #98ce22e3: num (1, 0) den (1, 0)
+                  Mul #3a878760: num (0, 0) den (1, 0)
+            Powi ^2 #b2671314: num (0, 0) den (1, 0)
+              Sub #53c59df9: num (0, 0) den (1, 0)
+                Sub #e85f3a90: num (0, 0) den (1, 0)
+                  Add #14845d45: num (0, 0) den (1, 0)
+                  Add #5d901bae: num (0, 0) den (1, 0)
+                Mul #78892b6f: num (0, 0) den (1, 0)
+                  Sub #2f449f55: num (1, 0) den (1, 0)
+                  Add #e69b4c1f: num (0, 0) den (1, 0)
+          Powi ^2 #eac5e6dd: num (1, 2) den (1, 0)
+            Abs #9890340f: num (1, 1) den (1, 0)
+              Mul #9eb8d769: num (3, 2) den (2, 1)
+                Mul #14369682: num (3, 2) den (1, 0)
+                  Sqrt #35fdfef1: num (1, 0) den (1, 0)
+                  Add #ef62bec9: num (3, 2) den (1, 0)
+                Inv #878dfc4c: num (1, 0) den (2, 1)
+                  Mul #d39185ed: num (2, 1) den (1, 0)
+        Inv #a09fb0a1: num (1, 0) den (1, 1)
+          Mul #1daf4a9a: num (1, 1) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   witness_on_surface_1 in evaluation order: TTnTTTTTTTTTTTTT
+   first blocked witness_on_surface_1 [NumericZero] sizes Some([FormSize { num: (56, 82), den: (9, 81) }, FormSize { num: (8, 4), den: (3, 3) }])
+   PLAIN atoms {"abs": 18, "sqrt": 379}
+      (-4096·abs((5·2^-2·sqrt(1329227995784915928244039281409·2^-116) + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge^2) / (2 + 4·bulge))^2·sqrt(1329227995784915928244039281409·2^-116)^8·sqrt(1)^48·bulge·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^16 + -28672·abs((5·2^-2·sqrt(1329227995784915928244039281409·2^-116) + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge  …[11828 more chars]
+   EARLY atoms {"abs": 6}
+      (44171176619459611917571735596706337801018798399365527325632025·2^-236 + 8834235323891922383514347119341267560203759679873105465126405·2^-233·bulge + -1329227995784915928244039281409·2^-112·bulge·abs((5764607523034235·2^-60 + 1152921504606847·2^-58·bulge + 1152921504606847·2^-58·bulge^2) / (2 + 4·bulge))^2 + 12367929453448691336920085967077774584285263551822347651176967·2^-233·bulge^2 + -13292279957849159282440392814 …[911 more chars]
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #f3e9caa8: num (8, 4) den (3, 3)
+        Sub #da450e2b: num (8, 4) den (3, 2)
+          Add #d8b2b6fd: num (5, 4) den (3, 2)
+            Add #550e31af: num (5, 4) den (3, 2)
+              Powi ^2 #be457f02: num (5, 4) den (3, 2)
+                Sub #dd4f5303: num (3, 2) den (2, 1)
+                  Sub #f3b16171: num (3, 2) den (2, 1)
+                  Mul #2fbd74ad: num (0, 0) den (1, 0)
+              Powi ^2 #d9b53e5f: num (1, 0) den (1, 0)
+                Sub #10f28194: num (1, 0) den (1, 0)
+                  Sub #b0d08f70: num (1, 0) den (1, 0)
+                  Mul #8391c771: num (0, 0) den (1, 0)
+            Powi ^2 #0f28e402: num (0, 0) den (1, 0)
+              Sub #62c2f604: num (0, 0) den (1, 0)
+                Sub #9de92651: num (1, 0) den (1, 0)
+                  Add #10ea57e5: num (1, 0) den (1, 0)
+                  Add #5d901bae: num (0, 0) den (1, 0)
+                Mul #71b1a006: num (1, 0) den (1, 0)
+                  Sub #2f449f55: num (1, 0) den (1, 0)
+                  Add #4852b36c: num (1, 0) den (1, 0)
+          Powi ^2 #eac5e6dd: num (1, 2) den (1, 0)
+            Abs #9890340f: num (1, 1) den (1, 0)
+              Mul #9eb8d769: num (3, 2) den (2, 1)
+                Mul #14369682: num (3, 2) den (1, 0)
+                  Sqrt #35fdfef1: num (1, 0) den (1, 0)
+                  Add #ef62bec9: num (3, 2) den (1, 0)
+                Inv #878dfc4c: num (1, 0) den (2, 1)
+                  Mul #d39185ed: num (2, 1) den (1, 0)
+        Inv #a09fb0a1: num (1, 0) den (1, 1)
+          Mul #1daf4a9a: num (1, 1) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+
+--- at the NOMINAL, rules = off
+   carrier_matches_mapped_source      126/0/4/50  (theorem/gated/registered/numeric)
+   carrier_on_surface_1               63/0/0/81  (theorem/gated/registered/numeric)
+   carrier_on_surface_2               81/0/0/63  (theorem/gated/registered/numeric)
+   line_span                          0/0/0/8  (theorem/gated/registered/numeric)
+   pcurve_map_residual                0/0/0/18  (theorem/gated/registered/numeric)
+   witness_on_surface_1               7/0/0/9  (theorem/gated/registered/numeric)
+   witness_on_surface_2               9/0/0/7  (theorem/gated/registered/numeric)
+   carrier_matches_mapped_source in evaluation order: TTTTTTTTTnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTnnnnnnnnnTTTTTTTTTTTTTTTTTTRnnnnnnnnRnnnnnnnnTTTTTTTTTTTTTTTTTTRnnnnnnnnRnnnnnnnnTTTTTTTTTTTTTTTTTT
+   first blocked carrier_matches_mapped_source [NumericZero] sizes Some([FormSize { num: (1, 1), den: (1, 0) }, FormSize { num: (1, 1), den: (1, 0) }])
+   PLAIN atoms {"abs": 72, "sqrt": 11592}
+      1·sqrt((-75765995759740207909910239040313·2^-103·abs((5·2^-2·sqrt(1329227995784915928244039281409·2^-116) + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge^2) / (2 + 4·bulge))·sqrt(1329227995784915928244039281409·2^-116)^16·sqrt(1)^64·bulge·sqrt((3987683987354747784732117844227·2^-116·sqrt(1329227995784915928244039281409·2^-116)^4·sqrt(1)^16·bulge·sqrt((1·sq …[315272 more chars]
+   EARLY atoms {"sqrt": 1}
+      1·sqrt(1·?#2b9eec74 + 1·?#75595729 + 1·?#5905ab04)
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Sqrt #899a59f0: num (1, 1) den (1, 0)
+        Add #81b0cacd: num (3, 1) den (1, 0)
+          Add #45c0e5bf: num (2, 1) den (1, 0)
+            Powi ^2 #5905ab04: FROZEN
+              Sub #74c01568: num (10, 5) den (4, 4)
+                Add #33d82978: num (2, 1) den (2, 1)
+                  Add #b1e1be15: num (2, 1) den (2, 1)
+                  Sub #9f8d2cc0: num (0, 0) den (1, 0)
+                Add #884ebe3a: num (8, 4) den (3, 3)
+                  Add #1cfe09dd: num (3, 2) den (2, 1)
+                  Mul #f83c8d6e: num (3, 3) den (2, 2)
+            Powi ^2 #2b9eec74: FROZEN
+              Sub #0fe2a11f: num (8, 4) den (4, 4)
+                Add #c7b324d3: num (2, 1) den (2, 1)
+                  Add #027a34c4: num (2, 1) den (2, 1)
+                Add #3a0daf9d: num (3, 3) den (3, 3)
+                  Add #149974a3: num (0, 0) den (2, 1)
+                  Mul #85872271: num (2, 2) den (2, 2)
+          Powi ^2 #75595729: FROZEN
+            Sub #414d64d6: num (0, 0) den (4, 4)
+              Add #f6ba78c7: num (0, 0) den (2, 1)
+                Add #1ccbe5ad: num (0, 0) den (2, 1)
+                  Add #869f5d14: num (0, 0) den (2, 1)
+                  Mul #aa674549: num (0, 0) den (1, 0)
+              Add #38d29852: num (0, 0) den (3, 3)
+                Add #5d901bae: num (0, 0) den (2, 1)
+                  Add #f026aaeb: num (0, 0) den (2, 1)
+                Mul #02ff681e: num (0, 0) den (2, 2)
+                  Add #767ccf90: num (0, 0) den (2, 2)
+                  Abs #9890340f: num (1, 1) den (1, 0)
+   carrier_on_surface_2 in evaluation order: TTTTTTTTTnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTnnnnnnnnnnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn
+   first blocked carrier_on_surface_2 [NumericZero] sizes Some([FormSize { num: (29, 102), den: (9, 101) }, FormSize { num: (9, 4), den: (3, 3) }])
+   PLAIN atoms {"abs": 18, "sqrt": 472}
+      (-4096·abs((5·2^-2·sqrt(1329227995784915928244039281409·2^-116) + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge^2) / (2 + 4·bulge))^2·sqrt(1329227995784915928244039281409·2^-116)^8·sqrt(1)^60·bulge·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^20·sqrt((1329227995784915928244039281409·2^-120·sqrt(1)^4) / (1·sqrt(1)^6·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^2))^4 + -28672 …[12198 more chars]
+   EARLY atoms {"abs": 6}
+      (1766847064778384476702869423868253512040751935974621093025281·2^-234·?#ca7b70ec + 1766847064778384476702869423868253512040751935974621093025281·2^-232·?#ca7b70ec·bulge + 1766847064778384476702869423868253512040751935974621093025281·2^-232·?#ca7b70ec·bulge^2 + 1766847064778384476702869423868253512040751935974621093025281·2^-234·?#35880b32 + 1766847064778384476702869423868253512040751935974621093025281·2^-232·?#35880b …[1224 more chars]
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #2567ea7b: num (9, 4) den (3, 3)
+        Sub #e639589c: num (9, 4) den (3, 2)
+          Add #3e927ed8: num (6, 3) den (3, 2)
+            Add #27171eb9: num (2, 1) den (1, 0)
+              Powi ^2 #35880b32: FROZEN
+                Sub #620828c5: num (3, 2) den (2, 1)
+                  Sub #646da626: num (3, 2) den (2, 1)
+                  Mul #b8ca4169: num (0, 0) den (2, 1)
+              Powi ^2 #ca7b70ec: FROZEN
+                Sub #e1e7a734: num (2, 1) den (2, 1)
+                  Sub #ccbfb74b: num (2, 1) den (2, 1)
+                  Mul #cbcb6105: num (0, 0) den (2, 1)
+            Powi ^2 #6aeb8a7f: num (0, 0) den (3, 2)
+              Sub #ace4d787: num (0, 0) den (2, 1)
+                Sub #b20ce722: num (0, 0) den (2, 1)
+                  Add #d50e25e9: num (0, 0) den (1, 0)
+                  Add #5d901bae: num (0, 0) den (2, 1)
+                Mul #fc3bcbae: num (0, 0) den (2, 1)
+                  Sub #2f449f55: num (1, 0) den (1, 0)
+                  Add #bafcfc22: num (0, 0) den (2, 1)
+          Powi ^2 #eac5e6dd: num (1, 2) den (1, 0)
+            Abs #9890340f: num (1, 1) den (1, 0)
+              Mul #9eb8d769: num (3, 2) den (2, 1)
+                Mul #14369682: num (3, 2) den (1, 0)
+                  Sqrt #35fdfef1: num (1, 0) den (1, 0)
+                  Add #ef62bec9: num (3, 2) den (1, 0)
+                Inv #878dfc4c: num (1, 0) den (2, 1)
+                  Mul #d39185ed: num (2, 1) den (1, 0)
+        Inv #a09fb0a1: num (1, 0) den (1, 1)
+          Mul #1daf4a9a: num (1, 1) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   witness_on_surface_2 in evaluation order: TnTTTTnnTTTTnnnn
+   first blocked witness_on_surface_2 [NumericZero] sizes Some([FormSize { num: (56, 82), den: (9, 81) }, FormSize { num: (8, 4), den: (3, 3) }])
+   PLAIN atoms {"abs": 18, "sqrt": 379}
+      (-4096·abs((5·2^-2·sqrt(1329227995784915928244039281409·2^-116) + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge^2) / (2 + 4·bulge))^2·sqrt(1329227995784915928244039281409·2^-116)^8·sqrt(1)^48·bulge·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^16 + -28672·abs((5·2^-2·sqrt(1329227995784915928244039281409·2^-116) + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge  …[11828 more chars]
+   EARLY atoms {"abs": 6}
+      (44171176619459611917571735596706337801018798399365527325632025·2^-236 + 8834235323891922383514347119341267560203759679873105465126405·2^-233·bulge + -1329227995784915928244039281409·2^-112·bulge·abs((5764607523034235·2^-60 + 1152921504606847·2^-58·bulge + 1152921504606847·2^-58·bulge^2) / (2 + 4·bulge))^2 + 12367929453448691336920085967077774584285263551822347651176967·2^-233·bulge^2 + -13292279957849159282440392814 …[911 more chars]
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #f63057e5: num (8, 4) den (3, 3)
+        Sub #194676dc: num (8, 4) den (3, 2)
+          Add #c5f7eca3: num (5, 4) den (3, 2)
+            Add #8e35d2d1: num (5, 4) den (3, 2)
+              Powi ^2 #8d873c9a: num (5, 4) den (3, 2)
+                Sub #8ca5c6e8: num (3, 2) den (2, 1)
+                  Sub #4d478aa2: num (3, 2) den (2, 1)
+                  Mul #d8ef6a01: num (0, 0) den (2, 1)
+              Powi ^2 #28d22aa5: num (3, 2) den (3, 2)
+                Sub #6f8db6dd: num (2, 1) den (2, 1)
+                  Sub #7493d1a6: num (2, 1) den (2, 1)
+                  Mul #11fdbe8d: num (0, 0) den (2, 1)
+            Powi ^2 #6555d3ec: num (0, 0) den (3, 2)
+              Sub #c6a3cb2a: num (0, 0) den (2, 1)
+                Sub #f041b2a5: num (2, 1) den (2, 1)
+                  Add #94505cd9: num (1, 0) den (1, 0)
+                  Add #5d901bae: num (0, 0) den (2, 1)
+                Mul #d9265506: num (2, 1) den (2, 1)
+                  Sub #2f449f55: num (1, 0) den (1, 0)
+                  Add #e693c1d9: num (2, 1) den (2, 1)
+          Powi ^2 #eac5e6dd: num (1, 2) den (1, 0)
+            Abs #9890340f: num (1, 1) den (1, 0)
+              Mul #9eb8d769: num (3, 2) den (2, 1)
+                Mul #14369682: num (3, 2) den (1, 0)
+                  Sqrt #35fdfef1: num (1, 0) den (1, 0)
+                  Add #ef62bec9: num (3, 2) den (1, 0)
+                Inv #878dfc4c: num (1, 0) den (2, 1)
+                  Mul #d39185ed: num (2, 1) den (1, 0)
+        Inv #a09fb0a1: num (1, 0) den (1, 1)
+          Mul #1daf4a9a: num (1, 1) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   carrier_on_surface_1 in evaluation order: TTTTTTTTTTTTTTTTTTnnnnnnnnnTTTTTTTTTnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+   first blocked carrier_on_surface_1 [NumericZero] sizes Some([FormSize { num: (29, 102), den: (9, 101) }, FormSize { num: (9, 4), den: (3, 3) }])
+   PLAIN atoms {"abs": 18, "sqrt": 472}
+      (-4096·abs((5·2^-2·sqrt(1329227995784915928244039281409·2^-116) + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge^2) / (2 + 4·bulge))^2·sqrt(1329227995784915928244039281409·2^-116)^8·sqrt(1)^60·bulge·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^20·sqrt((1329227995784915928244039281409·2^-120·sqrt(1)^4) / (1·sqrt(1)^6·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^2))^4 + -28672 …[12198 more chars]
+   EARLY atoms {"abs": 6}
+      (1766847064778384476702869423868253512040751935974621093025281·2^-234·?#47c86f5b + 1766847064778384476702869423868253512040751935974621093025281·2^-232·?#47c86f5b·bulge + 1766847064778384476702869423868253512040751935974621093025281·2^-232·?#47c86f5b·bulge^2 + 1766847064778384476702869423868253512040751935974621093025281·2^-234·?#0ccb851e + 1766847064778384476702869423868253512040751935974621093025281·2^-232·?#0ccb85 …[1224 more chars]
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #254af51a: num (9, 4) den (3, 3)
+        Sub #06043bfd: num (9, 4) den (3, 2)
+          Add #8039b486: num (6, 3) den (3, 2)
+            Add #cb5af232: num (2, 1) den (1, 0)
+              Powi ^2 #47c86f5b: FROZEN
+                Sub #009cc085: num (3, 2) den (2, 1)
+                  Sub #8fa0744a: num (3, 2) den (2, 1)
+                  Mul #49aba30c: num (0, 0) den (2, 1)
+              Powi ^2 #0ccb851e: FROZEN
+                Sub #b77ab3c6: num (2, 1) den (2, 1)
+                  Sub #98ce22e3: num (2, 1) den (2, 1)
+                  Mul #3a878760: num (0, 0) den (2, 1)
+            Powi ^2 #b2671314: num (0, 0) den (3, 2)
+              Sub #53c59df9: num (0, 0) den (2, 1)
+                Sub #e85f3a90: num (0, 0) den (2, 1)
+                  Add #14845d45: num (0, 0) den (1, 0)
+                  Add #5d901bae: num (0, 0) den (2, 1)
+                Mul #78892b6f: num (0, 0) den (2, 1)
+                  Sub #2f449f55: num (1, 0) den (1, 0)
+                  Add #e69b4c1f: num (0, 0) den (2, 1)
+          Powi ^2 #eac5e6dd: num (1, 2) den (1, 0)
+            Abs #9890340f: num (1, 1) den (1, 0)
+              Mul #9eb8d769: num (3, 2) den (2, 1)
+                Mul #14369682: num (3, 2) den (1, 0)
+                  Sqrt #35fdfef1: num (1, 0) den (1, 0)
+                  Add #ef62bec9: num (3, 2) den (1, 0)
+                Inv #878dfc4c: num (1, 0) den (2, 1)
+                  Mul #d39185ed: num (2, 1) den (1, 0)
+        Inv #a09fb0a1: num (1, 0) den (1, 1)
+          Mul #1daf4a9a: num (1, 1) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+   witness_on_surface_1 in evaluation order: TTnTnnnnnnnnTTTT
+   first blocked witness_on_surface_1 [NumericZero] sizes Some([FormSize { num: (56, 82), den: (9, 81) }, FormSize { num: (8, 4), den: (3, 3) }])
+   PLAIN atoms {"abs": 18, "sqrt": 379}
+      (-4096·abs((5·2^-2·sqrt(1329227995784915928244039281409·2^-116) + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge^2) / (2 + 4·bulge))^2·sqrt(1329227995784915928244039281409·2^-116)^8·sqrt(1)^48·bulge·sqrt((1·sqrt(1)^4) / (1·sqrt(1)^4))^16 + -28672·abs((5·2^-2·sqrt(1329227995784915928244039281409·2^-116) + 1·sqrt(1329227995784915928244039281409·2^-116)·bulge  …[11828 more chars]
+   EARLY atoms {"abs": 6}
+      (44171176619459611917571735596706337801018798399365527325632025·2^-236 + 8834235323891922383514347119341267560203759679873105465126405·2^-233·bulge + -1329227995784915928244039281409·2^-112·bulge·abs((5764607523034235·2^-60 + 1152921504606847·2^-58·bulge + 1152921504606847·2^-58·bulge^2) / (2 + 4·bulge))^2 + 12367929453448691336920085967077774584285263551822347651176967·2^-233·bulge^2 + -13292279957849159282440392814 …[911 more chars]
+   EXPLAIN (op #id: size; FROZEN where the walk could not build the node)
+      Mul #f3e9caa8: num (8, 4) den (3, 3)
+        Sub #da450e2b: num (8, 4) den (3, 2)
+          Add #d8b2b6fd: num (5, 4) den (3, 2)
+            Add #550e31af: num (5, 4) den (3, 2)
+              Powi ^2 #be457f02: num (5, 4) den (3, 2)
+                Sub #dd4f5303: num (3, 2) den (2, 1)
+                  Sub #f3b16171: num (3, 2) den (2, 1)
+                  Mul #2fbd74ad: num (0, 0) den (2, 1)
+              Powi ^2 #d9b53e5f: num (3, 2) den (3, 2)
+                Sub #10f28194: num (2, 1) den (2, 1)
+                  Sub #b0d08f70: num (2, 1) den (2, 1)
+                  Mul #8391c771: num (0, 0) den (2, 1)
+            Powi ^2 #0f28e402: num (0, 0) den (3, 2)
+              Sub #62c2f604: num (0, 0) den (2, 1)
+                Sub #9de92651: num (2, 1) den (2, 1)
+                  Add #10ea57e5: num (1, 0) den (1, 0)
+                  Add #5d901bae: num (0, 0) den (2, 1)
+                Mul #71b1a006: num (2, 1) den (2, 1)
+                  Sub #2f449f55: num (1, 0) den (1, 0)
+                  Add #4852b36c: num (2, 1) den (2, 1)
+          Powi ^2 #eac5e6dd: num (1, 2) den (1, 0)
+            Abs #9890340f: num (1, 1) den (1, 0)
+              Mul #9eb8d769: num (3, 2) den (2, 1)
+                Mul #14369682: num (3, 2) den (1, 0)
+                  Sqrt #35fdfef1: num (1, 0) den (1, 0)
+                  Add #ef62bec9: num (3, 2) den (1, 0)
+                Inv #878dfc4c: num (1, 0) den (2, 1)
+                  Mul #d39185ed: num (2, 1) den (1, 0)
+        Inv #a09fb0a1: num (1, 0) den (1, 1)
+          Mul #1daf4a9a: num (1, 1) den (1, 0)
+            Lit 2 #ea5cf78f: num (1, 0) den (1, 0)
+
+--- at CEILING + delta, rules = shipped
+   OVER BAND carrier_matches_mapped_source      [   0.0000e0,  1.0000e-9]   1/90  
+   -- carrier_matches_mapped_source [Indeterminate] enclosure Some((0.0, 1.00000343169402e-9)) sizes Some([FormSize { num: (1, 1), den: (1, 0) }, FormSize { num: (1, 1), den: (1, 0) }])
+   EARLY atoms {"sqrt": 1}
+
+==============================================================================
+== The whole-certifying brackets (scale of the real study, in eps; over-band set at ceiling + delta)
+==============================================================================
+--- dyadic-off: 
+      r2_d_tab_literal_dyadic: certifies x7.810884129449102e-7, refuses x7.813903473231458e-7 (0.59s/probe) [= 7.8109e2·eps .. 7.8139e2·eps]
+   OVER BAND carrier_matches_mapped_source      [   0.0000e0,  1.0002e-9]   1/117 
+      r2_d_tab_parameter_dyadic: certifies x4.337480634644357e-7, refuses x4.3391573136179867e-7 (0.87s/probe) [= 4.3375e2·eps .. 4.3392e2·eps]
+   OVER BAND carrier_matches_mapped_source      [   0.0000e0,  1.0000e-9]   1/90  
+--- dyadic-shipped: 
+      r2_d_tab_literal_dyadic: certifies x5.610979684749489e-1, refuses x5.613148642365974e-1 (0.68s/probe) [= 5.6110e8·eps .. 5.6131e8·eps]
+   OVER BAND arc_diameter_clearance             [ -5.1594e-8,  5.6265e-4]   1/3   
+      r2_d_tab_parameter_dyadic: certifies x4.337480634644357e-7, refuses x4.3391573136179867e-7 (7.93s/probe) [= 4.3375e2·eps .. 4.3392e2·eps]
+   OVER BAND carrier_matches_mapped_source      [   0.0000e0,  1.0000e-9]   1/90  
+--- off-1e-12: 
+      r1_segment_boss     : certifies x8.260230901587282e-10, refuses x8.264294986723448e-10 (0.27s/probe) [= 8.2602e2·eps .. 8.2643e2·eps]
+   OVER BAND carrier_matches_mapped_source      [   0.0000e0, 1.0004e-12]   1/125 
+      r2_d_tab_literal    : certifies x7.809786475542268e-10, refuses x7.81362893921066e-10 (0.66s/probe) [= 7.8098e2·eps .. 7.8136e2·eps]
+   OVER BAND carrier_matches_mapped_source      [   0.0000e0, 1.0002e-12]   1/117 
+      r2_d_tab_parameter  : certifies x3.5202201473898716e-10, refuses x3.5219521176637766e-10 (0.54s/probe) [= 3.5202e2·eps .. 3.5220e2·eps]
+   OVER BAND carrier_matches_mapped_source      [   0.0000e0, 1.0001e-12]   1/89  
+--- off-1e-6: 
+      r1_segment_boss     : certifies x8.2602309015873e-4, refuses x8.262552991164675e-4 (0.33s/probe) [= 8.2602e2·eps .. 8.2626e2·eps]
+   OVER BAND carrier_matches_mapped_source      [   0.0000e0,  1.0002e-6]   1/125 
+      r2_d_tab_literal    : certifies x7.8108841294491e-4, refuses x7.813079900105298e-4 (0.67s/probe) [= 7.8109e2·eps .. 7.8131e2·eps]
+   OVER BAND carrier_matches_mapped_source      [   0.0000e0,  1.0003e-6]   1/117 
+      r2_d_tab_parameter  : certifies x3.521704641176862e-4, refuses x3.522694651473099e-4 (0.78s/probe) [= 3.5217e2·eps .. 3.5227e2·eps]
+   OVER BAND carrier_matches_mapped_source      [   0.0000e0,  1.0003e-6]   1/89  
+--- off: 
+      r1_segment_boss     : certifies x8.261101608692994e-7, refuses x8.264294986723475e-7 (0.32s/probe) [= 8.2611e2·eps .. 8.2643e2·eps]
+   OVER BAND carrier_matches_mapped_source      [   0.0000e0,  1.0004e-9]   1/125 
+      r2_d_tab_literal    : certifies x7.810884129449102e-7, refuses x7.813903473231458e-7 (0.66s/probe) [= 7.8109e2·eps .. 7.8139e2·eps]
+   OVER BAND carrier_matches_mapped_source      [   0.0000e0,  1.0002e-9]   1/117 
+      r2_d_tab_parameter  : certifies x3.5218283772465637e-7, refuses x3.52318976098202e-7 (0.61s/probe) [= 3.5218e2·eps .. 3.5232e2·eps]
+   OVER BAND carrier_matches_mapped_source      [   0.0000e0,  1.0004e-9]   1/89  
+--- shipped-1e-12: 
+      r1_segment_boss     : certifies x8.260230901587282e-10, refuses x8.264294986723448e-10 (0.77s/probe) [= 8.2602e2·eps .. 8.2643e2·eps]
+   OVER BAND carrier_matches_mapped_source      [   0.0000e0, 1.0004e-12]   1/125 
+      r2_d_tab_literal    : certifies x5.610782548347875e-1, refuses x5.613543088365306e-1 (0.58s/probe) [= 5.6108e11·eps .. 5.6135e11·eps]
+   OVER BAND arc_diameter_clearance             [ -7.3165e-8,  5.6267e-4]   1/3   
+      r2_d_tab_parameter  : certifies x3.5202201473898716e-10, refuses x3.5219521176637766e-10 (1.37s/probe) [= 3.5202e2·eps .. 3.5220e2·eps]
+   OVER BAND carrier_matches_mapped_source      [   0.0000e0, 1.0001e-12]   1/89  
+--- shipped-1e-6: 
+      r1_segment_boss     : certifies x8.2602309015873e-4, refuses x8.262552991164675e-4 (0.89s/probe) [= 8.2602e2·eps .. 8.2626e2·eps]
+   OVER BAND carrier_matches_mapped_source      [   0.0000e0,  1.0002e-6]   1/125 
+      r2_d_tab_literal    : certifies x4.308016358577459e-1, refuses x4.3092274142978865e-1 (0.75s/probe) [= 4.3080e5·eps .. 4.3092e5·eps]
+   OVER BAND dihedral_wedge                     [  9.9878e-6,  2.4912e-2]   1/98  
+      r2_d_tab_parameter  : certifies x3.521704641176862e-4, refuses x3.522694651473099e-4 (1.82s/probe) [= 3.5217e2·eps .. 3.5227e2·eps]
+   OVER BAND carrier_matches_mapped_source      [   0.0000e0,  1.0003e-6]   1/89  
+--- shipped: 
+      r1_segment_boss     : certifies x8.261101608692994e-7, refuses x8.264294986723475e-7 (0.81s/probe) [= 8.2611e2·eps .. 8.2643e2·eps]
+   OVER BAND carrier_matches_mapped_source      [   0.0000e0,  1.0004e-9]   1/125 
+      r2_d_tab_literal    : certifies x5.610979684749489e-1, refuses x5.613148642365974e-1 (0.64s/probe) [= 5.6110e8·eps .. 5.6131e8·eps]
+   OVER BAND arc_diameter_clearance             [ -5.1594e-8,  5.6265e-4]   1/3   
+      r2_d_tab_parameter  : certifies x3.5218283772465637e-7, refuses x3.52318976098202e-7 (1.45s/probe) [= 3.5218e2·eps .. 3.5232e2·eps]
+   OVER BAND carrier_matches_mapped_source      [   0.0000e0,  1.0004e-9]   1/89  
