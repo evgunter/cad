@@ -1531,3 +1531,12 @@ drawn only after this entry is committed:
   `the-re-basing-gate-refuses-m7-8-where-nothing-moves` — difficulty
   **M**, task class **STRUCTURAL** (a gate's hole and its over-refusal
   answered without a point-identity door).
+
+## Block TOPO-B5 drawn (2026-09-14)
+
+Byte drawn after the pre-draw entry was committed (`41eb35f5c`): 7 ⇒
+7 mod 3 = 1 ⇒ fable at slot 1. Record branch-side on `topo/b5-block`.
+Slot 0 (`set-face-surface-leaves-…`, OPUS) dispatches now on a target
+seeded from the edge lane's warm build; slots 1 (`mef-and-kef-…`,
+FABLE) and 2 (`a-null-edge-…` + `the-re-basing-gate-…`, OPUS) dispatch
+as the edge-door fix pass frees the box.
