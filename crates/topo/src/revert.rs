@@ -24,6 +24,22 @@
 //!   flipping alongside), re-satisfying the convention that a face's
 //!   outward normal is its plane's stored normal. Negation is a
 //!   bitwise involution.
+//! - **Chart images and pcurve rows on a plane**: the flipped `v_ref`
+//!   is the plane's chart reflected, `(u, v) ↦ (u, −v)`, so every
+//!   datum stated in that chart's coordinates is re-stated under the
+//!   reflection with the frame — each [`geom_brep::EdgeDescription::Chart`]
+//!   image on a plane ([`geom_brep::EdgeCurve::with_chart_v_mirrored`])
+//!   and each stored [`geom_brep::PcurveCache`] row on a plane face
+//!   ([`geom_brep::PcurveCache::mirrored_v`]). Certificates travel
+//!   verbatim: the mirrored image on the mirrored chart evaluates to
+//!   the same 3-D points (every coordinate bit-identical up to the
+//!   sign of a zero, which no metred distance can see), so every
+//!   certification the source carried is a certification of the
+//!   result — the doors' own docs carry the arithmetic. A `v` sign
+//!   flip on the stored coefficients is a bitwise
+//!   involution, exact in every image kind. Images on the curved
+//!   charts are untouched: those charts carry the reversal on the
+//!   face's `sense` bit and their frames do not move.
 //! - **Face senses** (M5 S12): every face whose surface is **not** a
 //!   `Plane` has [`crate::entity::Face::sense`] flipped. This is the
 //!   curved arm, and it is the *same* statement as the plane bullet —
@@ -47,11 +63,12 @@
 //!   honest `false` from S11's concave/inward constructors, which is
 //!   the whole point: reverting a body with mixed senses must flip
 //!   each of them, not stamp a constant.
-//! - Loops, faces, shells, solids, points, curves, provenance, and F9
-//!   null records are copied unchanged (`Cycle::first` still names a
-//!   member of its cycle; outer/ring designation is a maintained
-//!   designation and survives; null-entity sides refer to the
-//!   splitting surface, not the body's orientation).
+//! - Loops, faces, shells, solids, points, every curve not described
+//!   in a plane's chart, provenance, and F9 null records are copied
+//!   unchanged (`Cycle::first` still names a member of its cycle;
+//!   outer/ring designation is a maintained designation and survives;
+//!   null-entity sides refer to the splitting surface, not the body's
+//!   orientation).
 //!
 //! **No longer planar-only (M5 S12).** Originally (F5) non-`Plane`
 //! surfaces could not represent their orientation-reversed side at
@@ -93,7 +110,8 @@ use geom_core::Real;
 
 use crate::body::Body;
 use crate::entity::HalfEdgeKey;
-use crate::geometry::SurfaceKey;
+use crate::geometry::{CurveKey, SurfaceKey};
+use crate::null::CurveGeom;
 
 /// A failed [`Body::revert`] precondition (closed enum, D3 style); the
 /// source body is never touched (revert is `&self`).
@@ -141,6 +159,22 @@ pub enum RevertError {
         /// The half-edge whose reversal data is unresolvable.
         he: HalfEdgeKey,
     },
+    /// A plane's chart image could not be re-stated under the frame
+    /// reflection — a NURBS image whose control net would not re-wrap
+    /// with its own knots and weights, which is structurally
+    /// impossible and therefore reported rather than swallowed (D9:
+    /// never a panic, never a silently unmirrored image).
+    ChartImage {
+        /// The curve whose chart image would not mirror.
+        curve: CurveKey,
+    },
+    /// A stored pcurve row on a plane face could not be re-stated
+    /// under the frame reflection — the same impossible case as
+    /// [`RevertError::ChartImage`], on a cache row.
+    PcurveRow {
+        /// The half-edge whose row would not mirror.
+        he: HalfEdgeKey,
+    },
 }
 
 impl fmt::Display for RevertError {
@@ -150,6 +184,16 @@ impl fmt::Display for RevertError {
                 f,
                 "revert: half-edge {he:?}'s end or mate does not resolve \
                  (malformed body)"
+            ),
+            Self::ChartImage { curve } => write!(
+                f,
+                "revert: curve {curve:?}'s plane chart image could not be mirrored with \
+                 its frame (kernel bug)"
+            ),
+            Self::PcurveRow { he } => write!(
+                f,
+                "revert: half-edge {he:?}'s pcurve row on a plane face could not be \
+                 mirrored with its frame (kernel bug)"
             ),
         }
     }
@@ -166,7 +210,10 @@ impl<T: Real> Body<T> {
     /// # Errors
     ///
     /// [`RevertError::Corrupt`] on tier-1-invalid input the reversal map
-    /// cannot follow. All checks precede construction of the result.
+    /// cannot follow; [`RevertError::ChartImage`] /
+    /// [`RevertError::PcurveRow`] on a plane chart datum that would not
+    /// re-state under the frame reflection (structurally impossible).
+    /// All checks precede construction of the result.
     pub fn revert(&self) -> Result<Self, RevertError> {
         // ---- Preconditions (read-only). ----
         // Which surfaces carry their own reversal (`Plane`: the normal
@@ -199,6 +246,54 @@ impl<T: Real> Body<T> {
                 new_anchors.push((vertex_key, mate));
             }
         }
+        // Every datum stated in a plane's chart coordinates, re-stated
+        // under the reflection its frame is about to undergo (module
+        // docs): the chart images described on a plane, walked by
+        // CURVE so a carrier shared by several edges is mirrored once,
+        // and the stored rows on a plane face, walked by half-edge.
+        // Both are pure re-statements computed from the SOURCE, so a
+        // refusal arrives with nothing built.
+        let mut mirrored_curves = Vec::new();
+        for (curve_key, geom) in self.curves.iter() {
+            let CurveGeom::Certified(curve) = geom else {
+                continue;
+            };
+            let on_plane = curve
+                .description()
+                .chart()
+                .is_some_and(|c| plane_surfaces.contains(&c.surface));
+            if on_plane {
+                let mirrored = curve
+                    .with_chart_v_mirrored()
+                    .ok_or(RevertError::ChartImage { curve: curve_key })?;
+                mirrored_curves.push((curve_key, mirrored));
+            }
+        }
+        let mut mirrored_rows = Vec::new();
+        for (he_key, row) in self.pcurves.iter() {
+            // A row whose half-edge no longer resolves outlived its key
+            // (the stale-row consequence `crate::pcurves` states: a
+            // secondary-map row survives surgery on its key until the
+            // slot is reused). It is reachable from no face, so it is
+            // on no plane face; it travels as found, exactly as every
+            // other row the map is not re-stating, and the graft or the
+            // producer's closing mint disposes of it. Not a refusal:
+            // the boolean's `revert` of a split operand carries such
+            // rows routinely.
+            let Some(face) = self
+                .get_half_edge(he_key)
+                .and_then(|he| self.get_loop(he.parent_loop))
+                .and_then(|lp| self.get_face(lp.face))
+            else {
+                continue;
+            };
+            if plane_surfaces.contains(&face.surface) {
+                let mirrored = row
+                    .mirrored_v()
+                    .ok_or(RevertError::PcurveRow { he: he_key })?;
+                mirrored_rows.push((he_key, mirrored));
+            }
+        }
 
         // ---- The map (infallible from here on). ----
         let mut out = self.clone();
@@ -229,6 +324,21 @@ impl<T: Real> Body<T> {
             if let Surface::Plane { normal, .. } = surface {
                 *normal = -*normal;
             }
+        }
+        // The plane charts' images and rows go with their frames
+        // (module docs). Keyed like the two loops above: each key was
+        // iterated out of the arena `out` clones.
+        for (curve_key, mirrored) in mirrored_curves {
+            let Some(slot) = out.curves.get_mut(curve_key) else {
+                unreachable!("revert: `curve_key` was iterated out of the arena `out` clones")
+            };
+            *slot = CurveGeom::Certified(mirrored);
+        }
+        for (he_key, mirrored) in mirrored_rows {
+            let Some(slot) = out.pcurves.get_mut(he_key) else {
+                unreachable!("revert: `he_key` was iterated out of the map `out` clones")
+            };
+            *slot = mirrored;
         }
         // The curved arm (M5 S12): the reversal a non-plane chart
         // cannot express goes on the FACE. Exclusive with the plane

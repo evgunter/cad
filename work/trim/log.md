@@ -236,3 +236,44 @@ same body unsplit. Measured on `sweep::loft_body` prisms; the fixtures
 are committed as `crates/sweep/tests/split_edge_loft_charts.rs`, whose
 rows pin the refusal as the current, filed behaviour.
 Signed (TOPO fix-pass lane, `topo/split-edge-pcurve-rows`).
+
+## Announced seam from TOPO (2026-09-14): two doors beside `shift_branch`, and the posture docs' fourth position
+
+TOPO-B2 slot 2 (`revert-does-not-mirror-plane-chart-images`) closes
+`Body::revert`'s unmirrored plane charts by RE-STATING every datum in
+a plane's chart coordinates under the reflection its frame undergoes
+(`v_ref = normal × u_ref` negates with the normal, so `(u, v) ↦ (u,
+−v)`). Two doors land in this program's `crates/geom-brep/src/pcurve_cache.rs`
+by this seam:
+
+- **`Pcurve::mirror_v`**, beside `shift_branch` and in its shape — the
+  image under `(u, v) ↦ (u, −v)`, exact in every variant (a sign flip on
+  the `v` coefficients; a NURBS image's control net negated in `y`
+  with knots, weights and parameter untouched, rebuilt through
+  `NurbsCurve2::new` exactly as the shift does). Its own `impl<T:
+  Real>` block, because it needs no `SpanLocate`.
+- **`PcurveCache::mirrored_v`** — the same certified cache with its
+  image mirrored and the certificate VERBATIM, the `with_remapped_surfaces`
+  argument: the mirrored image on the mirrored chart evaluates to the
+  same 3-D points (bit-identical up to the sign of a zero, which a
+  distance squares away), so every number the run would produce again
+  is the number it produced.
+
+Two edits in `crates/topo/src/pcurves.rs`, both prose: the posture
+section gains a paragraph for `revert` — a fourth position, outside
+the guard's walk (the door takes `&self`), carrying every row key for
+key with the plane faces' rows mirrored — and `insert_voids`'s
+`DECLARED` note stops saying the reverted rows go stale in content.
+No arithmetic in this file moves; `mint_pcurves`, `mint_face`,
+`walk_loop`, `validate_pcurves` and `split_cache` are untouched.
+
+**One finding filed on TOPO's slate, named here because its middle
+answer is this file's**:
+`revert-leaves-a-periodic-charts-loop-wrap-mid-chain` — with the plane
+images mirrored the drum's reverted cavity reports exactly
+`NegativeVolume`, but the two-arc sphere's still reports the
+`LoopDiscontinuity` SHELL-9 measured, because the forward walk's
+one-period wrap is parked at a closure the reversed loop no longer
+has. Whether the continuity pass should accept a wrap anywhere on a
+closed loop is the question that lands here.
+Signed (TOPO implementer lane, `topo/revert-mirrors-chart-images`).

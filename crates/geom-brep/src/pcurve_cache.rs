@@ -391,6 +391,78 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector) -> T {
         .unwrap_or_else(|| T::from_f64(f64::NAN))
 }
 
+impl<T: Real> Pcurve<T> {
+    /// The same image under the chart reflection `(u, v) ↦ (u, −v)` —
+    /// the map a chart's OWN frame undergoes when its second axis is
+    /// negated (a `Plane` whose stored `normal` is negated with
+    /// `u_ref` fixed has `v_ref = normal × u_ref` negated with it), so
+    /// the mirrored image on the mirrored chart names the same locus,
+    /// point for point.
+    ///
+    /// Exact in every variant, because every variant is linear in its
+    /// chart-space coefficients and the reflection is a sign flip on
+    /// the `v` channel: the four harmonic coefficients, the iso line's
+    /// point and velocity, the iso arc's start and displacement, and a
+    /// NURBS image's control net each negate their `y`, with knots,
+    /// weights and the carrier parameter untouched. An IEEE sign flip
+    /// is a bitwise involution, so `mirror_v ∘ mirror_v` is the
+    /// identity bit for bit, and a rational combination of negated
+    /// points is the negated combination (each product and each sum
+    /// negates exactly), so every variant evaluates to the negation of
+    /// the original at every parameter — up to the sign of a zero,
+    /// which a sum of scaled signed zeros settles by term order and
+    /// which no metred distance can see (a squared zero is `+0`).
+    ///
+    /// `None` only if a NURBS image's control net could not be
+    /// re-wrapped with its own knots and weights — structurally
+    /// impossible, and reported rather than swallowed for the reason
+    /// [`Pcurve::shift_branch`]'s arm gives.
+    pub fn mirror_v(&self) -> Option<Self> {
+        Some(match self {
+            Pcurve::Harmonic { p0, pa, pb, pl } => Pcurve::Harmonic {
+                p0: Point2::new(p0.x, -p0.y),
+                pa: Vec2::new(pa.x, -pa.y),
+                pb: Vec2::new(pb.x, -pb.y),
+                pl: Vec2::new(pl.x, -pl.y),
+            },
+            Pcurve::Fitted(image) | Pcurve::General(image) => {
+                let mirrored: Vec<Point2<T>> = image
+                    .control()
+                    .iter()
+                    .map(|p| Point2::new(p.x, -p.y))
+                    .collect();
+                let rebuilt =
+                    NurbsCurve2::new(image.knots().clone(), mirrored, image.weights().to_vec())
+                        .ok()?;
+                // The original variant, as in `shift_branch`: a
+                // reflection moves the image, never the provenance.
+                if matches!(self, Pcurve::Fitted(_)) {
+                    Pcurve::Fitted(Arc::new(rebuilt))
+                } else {
+                    Pcurve::General(Arc::new(rebuilt))
+                }
+            }
+            Pcurve::IsoLine { p0, pl } => Pcurve::IsoLine {
+                p0: Point2::new(p0.x, -p0.y),
+                pl: Vec2::new(pl.x, -pl.y),
+            },
+            Pcurve::IsoArc {
+                p0,
+                pd,
+                t0,
+                angle,
+                breaks,
+            } => Pcurve::IsoArc {
+                p0: Point2::new(p0.x, -p0.y),
+                pd: Vec2::new(pd.x, -pd.y),
+                t0: *t0,
+                angle: *angle,
+                breaks: breaks.clone(),
+            },
+        })
+    }
+}
+
 impl<T: SpanLocate> Pcurve<T> {
     /// The chart point at the **carrier parameter** `t` (module docs:
     /// the parameter is not re-mapped). Fixed evaluation order (D9);
@@ -1836,6 +1908,36 @@ impl<T: Real> PcurveCache<T> {
     /// The certification record of the run that admitted this cache.
     pub fn certificate(&self) -> &PcurveCertificate<T> {
         &self.certificate
+    }
+
+    /// The same certified cache with its image mirrored in `v`
+    /// ([`Pcurve::mirror_v`]), for a chart whose second frame axis was
+    /// negated — the certificate travels verbatim.
+    ///
+    /// The certificate is a record of metred VALUES: sampled
+    /// residuals `|S(P(tᵢ)) − C(tᵢ)|`, an envelope over the span, the
+    /// window margins. On the mirrored chart the mirrored image
+    /// evaluates to the same 3-D points — `S'(u, −v) = origin +
+    /// u_ref·u + (−v_ref)·(−v)`, and `(−a)·(−b)` is `a·b` exactly in
+    /// IEEE arithmetic, so every coordinate is bit-identical up to
+    /// the sign of a zero, which a distance squares away — and the
+    /// window a face's rows hull mirrors with them (`(−a) − (−b)` is
+    /// `b − a` exactly), so every number the run would produce again
+    /// is the number it produced. This door is therefore the
+    /// same kind of door as [`crate::EdgeCurve::with_remapped_surfaces`]:
+    /// it cannot express a geometry change, only the one re-statement
+    /// under which every metred value is bit-identical, which is why
+    /// it may hand out a certificate without a run.
+    ///
+    /// `None` exactly when [`Pcurve::mirror_v`] is.
+    #[must_use]
+    pub fn mirrored_v(&self) -> Option<Self> {
+        Some(Self {
+            pcurve: self.pcurve.mirror_v()?,
+            param_start: self.param_start,
+            param_end: self.param_end,
+            certificate: self.certificate,
+        })
     }
 }
 

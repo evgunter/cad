@@ -1057,9 +1057,10 @@ impl<T: Real> EdgeCurve<T> {
     /// — is therefore still the certificate of exactly this geometry,
     /// and travels verbatim, like provenance.
     ///
-    /// This is the only door that mints an `EdgeCurve` without a run
-    /// of the schedule, and it is narrow on purpose: nothing but the
-    /// keys may differ, so it cannot express a geometry change. Its
+    /// One of two doors that mint an `EdgeCurve` without a run of the
+    /// schedule (the other is [`EdgeCurve::with_chart_v_mirrored`]),
+    /// and it is narrow on purpose: nothing but the keys may differ,
+    /// so it cannot express a geometry change. Its
     /// existence is what lets a transplant carry descriptions whose
     /// surfaces the certification lanes cannot re-certify at all (a
     /// rational NURBS wall certifies nowhere — see
@@ -1099,6 +1100,53 @@ impl<T: Real> EdgeCurve<T> {
         };
         Some(Self {
             description,
+            authority: self.authority,
+            carrier: self.carrier.clone(),
+            param_start: self.param_start,
+            param_end: self.param_end,
+            certificate: self.certificate,
+        })
+    }
+
+    /// The same certified carrier with its **chart image mirrored in
+    /// `v`** ([`crate::Pcurve::mirror_v`]), for a chart whose second
+    /// frame axis was negated — the certificate travels verbatim, the
+    /// carrier, interval, authority and seam flag untouched.
+    ///
+    /// The second of the two doors that mint an `EdgeCurve` without a
+    /// run of the schedule, and narrow for the same reason as
+    /// [`EdgeCurve::with_remapped_surfaces`]: the certificate is a
+    /// residual over VALUES, and this re-statement leaves every value
+    /// the schedule metres bit-identical. A `Plane` whose stored
+    /// `normal` is negated with `u_ref` fixed has `v_ref = normal ×
+    /// u_ref` negated with it, so its chart undergoes `(u, v) ↦ (u,
+    /// −v)`; the mirrored image on that chart evaluates to the same
+    /// 3-D point at every parameter — `origin + u_ref·u +
+    /// (−v_ref)·(−v)`, and `(−a)·(−b)` is `a·b` exactly in IEEE
+    /// arithmetic, every coordinate bit-identical up to the sign of a
+    /// zero that a distance squares away — so `|C(t) − S(P(t))|` at
+    /// every sample is the number the run produced. Whoever negates
+    /// a chart's frame owes
+    /// this re-statement to every image on it, which is what makes an
+    /// orientation reversal a certification-preserving map rather
+    /// than a geometry change with a stale certificate beside it.
+    ///
+    /// `None` when the description carries no chart image (the two
+    /// intrinsic arms and the scaffolding door state nothing in chart
+    /// coordinates, so there is nothing to mirror — a caller that
+    /// reaches this has selected the wrong edge), or when the image
+    /// could not be rebuilt ([`crate::Pcurve::mirror_v`]).
+    #[must_use]
+    pub fn with_chart_v_mirrored(&self) -> Option<Self> {
+        let EdgeDescription::Chart(ref c) = self.description else {
+            return None;
+        };
+        Some(Self {
+            description: EdgeDescription::Chart(ChartCurve {
+                surface: c.surface,
+                pcurve: c.pcurve.mirror_v()?,
+                seam: c.seam,
+            }),
             authority: self.authority,
             carrier: self.carrier.clone(),
             param_start: self.param_start,

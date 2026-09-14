@@ -142,6 +142,25 @@
 //! carried row is the row the pass would derive is a claim about the
 //! ANALYTIC charts, where the pass runs.
 //!
+//! **[`crate::Body::revert`] re-states the map with the frames** — a
+//! fourth position rather than one of the three, and outside the
+//! guard's walk because the door takes `&self` and returns a new body.
+//! Every row keeps its key, its interval and its certificate: the
+//! curved charts' frames do not move under a reversal (those faces
+//! flip their `sense` bit), so their rows are the rows; a `Plane`'s
+//! frame is reflected (`v_ref` negates with the normal), so the rows
+//! on its faces are re-stated under `(u, v) ↦ (u, −v)` through
+//! [`geom_brep::PcurveCache::mirrored_v`], whose docs carry why the
+//! certificate is still the certificate. What the reversal does NOT
+//! re-state is the loop walk's branch choice: where a forward walk
+//! parked a periodic chart's one-period wrap at a loop's closure, the
+//! wrap sits mid-chain once the loop runs the other way, and tier 3
+//! of the reverted body reports it as a `LoopDiscontinuity` —
+//! `sweep`'s SHELL-9 probe rows measure that on the two-arc sphere's
+//! reverted cavity, and measure the drum's reverted cavity reporting
+//! nothing but `NegativeVolume`. The wrap is the producer's closing
+//! mint's to re-derive, as it does today.
+//!
 //! **Neither clears nor re-mints** — the Euler operators, the kill ops,
 //! ring surgery. These are primitives, and they are what the stale-row
 //! consequence below is about.
@@ -2553,8 +2572,9 @@ pub(crate) mod staleness_posture {
             (
                 "insert_voids",
                 Transfers,
-                "the void-insertion door: reverts the cavity (rows keep their keys, going \
-             stale in CONTENT like any surgery) and grafts through `boolean::combine`, \
+                "the void-insertion door: reverts the cavity (`Body::revert` carries every \
+             row key for key, the plane faces' rows mirrored with their frames — the \
+             module docs' fourth position) and grafts through `boolean::combine`, \
              which remaps the transplanted rows onto fresh keys; every producer's final \
              mint pass — the boolean's, the revolve's and `shell`'s — re-derives every \
              row of the merged body",

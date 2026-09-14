@@ -55,3 +55,29 @@ id` holds. Pin: the reverted drum cavity's tier 3 reports exactly
 `π(r−t)²(h−2t)`. `work/shell/void-insertion-refuses-a-cavity-with-a-same-surface-latitude-seam`
 keeps its drum half open on this item; its sphere half is SHELL-9's
 (the missing closing mint in `shell`). Signed (SHELL orchestrator).
+
+## Built (TOPO lane, 2026-09-14; branch `topo/revert-mirrors-chart-images`)
+
+Phase 1 against the hypotheses above. (1) `Plane::eval` derives
+`v_ref = normal × u_ref` (`crates/geom/src/surfaces.rs`, `eval` and
+`jet`), so negating `normal` alone reflects the chart — confirmed;
+`geom-brep`'s chart certifier (`certify.rs`, check 4's `Chart` arm)
+meters `|C(t) − S(P(t))|` with the stored image against the reverted
+plane and is right to refuse — the certifier is not the bug. (2) The
+five image kinds (`Pcurve::{Harmonic, Fitted, General, IsoLine,
+IsoArc}`) are each linear in their chart coefficients, so the
+reflection is a `v` sign flip on stored coefficients in every kind —
+EXACT, not re-minted, and a bitwise involution; a NURBS image is
+rebuilt with its own knots and weights (`Pcurve::mirror_v`). (3)
+Certificates travel verbatim (`EdgeCurve::with_chart_v_mirrored`,
+`PcurveCache::mirrored_v`): the mirrored image on the mirrored chart
+evaluates to the same 3-D points, bit-identical up to the sign of a
+zero a distance squares away; pinned by re-certifying a mirrored row
+on the reverted body and comparing the certificate byte for byte.
+(4) Plane faces carry NO minted rows (`pcurves.rs`, `chart_mints`:
+planes derive on demand), so the row arm is reachable only through
+`attach_pcurve` — pinned that way. (5) The drum's reverted cavity
+reports exactly `NegativeVolume`; `shell` of the collinear-cap drum
+reaches `π r² h − π(r−t)²(h−2t)` — both pins hold. The one thing the
+contract still misses is the two-arc sphere's loop wrap, filed as
+`revert-leaves-a-periodic-charts-loop-wrap-mid-chain`.

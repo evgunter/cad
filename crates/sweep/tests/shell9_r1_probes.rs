@@ -432,9 +432,13 @@ fn r1_drum_reverted_cavity_alone() {
     let reverted = cavity.revert().expect("revert");
     let v = topo::validate_geometric(&reverted, tol());
     println!("[r1drum] reverted cavity alone: {v:?}");
-    let e = topo::shell(&drum, 0.05, tol()).expect_err("the drum refuses");
-    println!("[r1drum] shell: {e}");
-    assert!(matches!(e, ShellError::Insert { .. }));
+    assert_eq!(
+        v,
+        Err(vec![topo::ValidationError::NegativeVolume]),
+        "the reversal mirrors the cap plane's images: only the complement's volume fails"
+    );
+    let out = topo::shell(&drum, 0.05, tol()).expect("the drum shells");
+    println!("[r1drum] shell: {} shells", out.body.shells().count());
     // The sphere's reverted cavity for contrast.
     let cavity = door_cavity(&two_arc_sphere(), 0.05);
     let reverted = cavity.revert().expect("revert");
