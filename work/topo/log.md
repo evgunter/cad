@@ -1472,3 +1472,44 @@ the frozen head. The correctness lane leans on the fresh-instance
 check (any other edge → carrier walk left outside the one door), the
 ratification claim, the census gap family's honesty, and the
 delegation witness the query seat's own rows cannot give.
+
+## Edge-door dual concluded (ordinal 2711); fix pass dispatched; the stale SEAT fence retired (2026-09-14)
+
+Both reviews MERGEABLE-AFTER-FIXES on `36d4b9e76`, converging; no
+unilateral MAJOR. The code held under every mutant either side
+planted (the shared walk's arms swapped, a live NURBS reported
+`NoCarrier`, the refusals collapsed, `CurveKind::of` one arm at a
+time — each reds exactly the row whose name says why; `edge_pose`
+bit-identical to the merge base). The substance: (1) the PR's
+load-bearing reason for keeping `CurveKind` in `query.rs` — that
+`crates/verbs/README.md` §1 S1 is ratified text — is false by
+CLAUDE.md's own check, run by both: the sentence was agent-authored at
+SEAT-2 and reached the README in the closing sweep; what Ev ratified
+at #1388 says "`CurveKind` moves down beside `Curve3`" (R2 MAJOR, R1
+MINOR); (2) the document twin's row is green under a constant-return
+mutant — the box fixture's edges are all lines (R2 MAJOR, R1 MINOR;
+both wrote the washer probe); (3) the walk's third refusal
+`Dangling { Geometry(Curve) }` is pinned nowhere and IS plantable from
+a crate-internal test (both); (4) the delegation is unwitnessed —
+restoring the merge-base arena walk in the query seat leaves every
+row green (both; R2 names `test_utils::source`'s built-in-one-place
+instrument); (5) the same walk is open-coded on the face side of the
+same file (`face_pose`/`face_carrier_kind`, no `certified_surface`)
+and across the crate with its own vocabularies (`rim_of` flattening
+the very pair the door tells apart, `attach.rs`, `coherence.rs`,
+`props.rs`, `split.rs`, `revert.rs`, `euler_kill.rs`) — the
+fresh-instance shape (R2 MINOR, R1 NOTE); (6) the §5 blind-spot
+sentence is false for four tag-only `matches!` sites (R2); (7) the
+interrogate ladder's fifth copy (both, Q1); (8) `edge_pose`'s rows
+pin only the line success path (both). R2: the PR is dirty against
+main (`work/wire/log.md`). Ruled: `CurveKind` stays in `query.rs` on
+its true reasons (both readers in `topo`; the door imports its answer
+type as it does `SurfaceKind`), the PR body corrected, and the
+divergence between the ratified VERB-SEAT sentence and the code filed
+on this slate for Ev rather than re-decided by a lane. TOPO's own
+`keep_out` clause sending `query.rs` seams to SEAT's closed board
+(R2 MINOR-8; the lane's filed row) is retired here in `program.md`;
+the row closes on the fix pass. Fix pass dispatched as a fresh lane
+on the inherited branch, same arm as the implementer; reports
+archived at `/home/user/topo-orch/edge-r{1,2}-report.md`. Row
+recorded at merge.
