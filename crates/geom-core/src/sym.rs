@@ -1852,9 +1852,7 @@ fn form_in(
     // The drive's memo is the PLAIN walk's alone: the early and door
     // walks consult this leaf's registry and its parameter brackets,
     // which a value-dependent refusal can make differ between leaves.
-    let drive = (!early && !registry)
-        .then(|| sess.memo.clone())
-        .flatten();
+    let drive = (!early && !registry).then(|| sess.memo.clone()).flatten();
     let mut stack = vec![(root, false)];
     while let Some((id, expanded)) = stack.pop() {
         if memo.contains_key(&id) {

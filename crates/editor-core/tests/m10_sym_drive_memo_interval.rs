@@ -42,8 +42,8 @@ use std::time::Instant;
 use editor_core::ProfileDoc;
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::drive::{DriveConfig, ParamBoxVerdict, drive};
-use geom_core::{SymBudget, SymRules, Tol};
 use geom_core::sym::profile::{start_profile, take_profile};
+use geom_core::{SymBudget, SymRules, Tol};
 
 use crate::m10_3_r1_probes_interval::{CHAMBER_LEAVES, bounded_chamber};
 use crate::m10_7_plate::plate;
@@ -247,7 +247,10 @@ fn the_plain_memo_moves_no_decision() {
                 a.verdict_vector_key, b.verdict_vector_key,
                 "{label}: certified leaf {i}'s verdict vector"
             );
-            assert_eq!(a.results, b.results, "{label}: certified leaf {i}'s results");
+            assert_eq!(
+                a.results, b.results,
+                "{label}: certified leaf {i}'s results"
+            );
             assert_eq!(
                 decisions_of(a.decisions),
                 decisions_of(b.decisions),
