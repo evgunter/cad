@@ -24,8 +24,8 @@ edge of that body re-certifies through the graft's meter; only the
 walk's branch choice is stale.
 
 `revert` carries every row key for key (`crates/topo/src/revert.rs`,
-the map phase; `crates/topo/src/pcurves.rs`, the posture docs' fourth
-position) and the stored rows are individually right — a row is a
+the map phase; `crates/topo/src/pcurves.rs`, the posture docs'
+producer position for `revert`) and the stored rows are individually right — a row is a
 function of the carrier parameter and a reversal does not touch it.
 What the reversal does not re-state is the per-loop branch choice
 `walk_loop` made in the forward direction (`crates/topo/src/pcurves.rs`,
@@ -44,3 +44,11 @@ wrap anywhere on a closed loop (it is the walk's convention, not
 geometry), or the contract is narrowed to "every EDGE certification
 survives; the pcurve map is re-derived by the producer". The middle
 answer is TRIM's (`pcurves.rs`), the other two are this program's.
+
+`revert.rs`'s "Validity class" paragraph now says exactly this
+(2026-09-14, the fix pass of PR 2542): every edge certification and
+every plane or curved ROW survives the map, and a periodic chart's
+loop wrap is the one thing it does not re-state, naming this row as
+the frontier. The posture docs in `pcurves.rs` call `revert`'s
+position the producer position — a `&self -> Self` door outside the
+guard's walk, not a fourth posture.

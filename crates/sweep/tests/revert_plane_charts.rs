@@ -9,7 +9,15 @@
 //! vertex, so one plane holds four faces with a latitude ring between
 //! them, and the ring's two half-circles are the plane images with a
 //! non-zero `v` channel (the six radial lines lie on the `u_ref` axis
-//! and were fixed by the mirror all along).
+//! and were fixed by the mirror all along). The other image kinds a
+//! plane can carry — an iso line, a fitted or general NURBS image —
+//! have no producer on a plane, so their body-level rows build the
+//! face by hand through the Euler door with the image given.
+//!
+//! Authored across the unit's lane and its review lanes; a reviewer's
+//! rows are ordinary rows. The fixtures are
+//! `common::latitude_seam`'s, shared with the SHELL-9 suites so every
+//! row here measures the body those rows measure.
 
 #![allow(
     clippy::unwrap_used,
@@ -18,49 +26,23 @@
     clippy::float_cmp
 )]
 
-use geom::Surface;
-use geom_brep::{Pcurve, PcurveCache};
-use sweep::Revolution;
-use topo::{Body, EdgeKey, HalfEdgeKey, ValidationError};
+use std::sync::Arc;
 
+use geom::{Curve3, NurbsCurve2, Surface};
+use geom_brep::{
+    CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, Pcurve, PcurveCache,
+    PcurveCertifyError, PcurveCheck,
+};
+use geom_core::spline::KnotVector;
+use geom_core::{Band, Point2, Point3, Vec2, Vec3};
+use topo::{Body, EdgeKey, FaceSurface, HalfEdgeKey, MevSite, ValidationError};
+
+use super::common::latitude_seam::{
+    collinear_cap_drum, door_cavity, graft_recertify_failures, plane_images, void_evidence,
+};
 use super::shell7_common::*;
 
-const R: f64 = 1.0;
-const H: f64 = 2.0;
 const T: f64 = 0.05;
-
-fn collinear_cap_drum() -> Body<f64> {
-    polyline(
-        &[(0.0, 0.0), (R, 0.0), (R, H), (R / 2.0, H), (0.0, H)],
-        Revolution::Full,
-    )
-}
-
-/// The axial door's cavity of the drum, tier-3 valid.
-fn door_cavity(body: &Body<f64>) -> Body<f64> {
-    let mut cavity = body.clone();
-    let band = geom_core::Band::linear(tol()).expect("band");
-    topo::offset_charts_together(&mut cavity, &hollow_moves(body, T), band, tol())
-        .expect("the door takes the drum");
-    assert_eq!(
-        topo::validate_geometric(&cavity, tol()),
-        Ok(()),
-        "cavity tier 3"
-    );
-    cavity
-}
-
-/// Every edge described as a chart image on a plane, with its image.
-fn plane_images(body: &Body<f64>) -> Vec<(EdgeKey, Pcurve<f64>)> {
-    body.edges()
-        .filter_map(|(k, e)| {
-            let curve = body.get_curve_geom(e.curve)?.certified()?;
-            let c = curve.description().chart()?;
-            matches!(body.get_surface(c.surface), Some(Surface::Plane { .. }))
-                .then(|| (k, c.pcurve.clone()))
-        })
-        .collect()
-}
 
 /// The certification schedule's nine parameters of `edge`.
 fn schedule(body: &Body<f64>, edge: EdgeKey) -> Vec<f64> {
@@ -96,29 +78,6 @@ fn assert_mirrored(label: &str, stored: &Pcurve<f64>, mirrored: &Pcurve<f64>, ts
     }
 }
 
-/// Re-certify every edge exactly as the void door's graft does — the
-/// image verbatim, carrier and interval verbatim, endpoints from
-/// `he_plus`, surfaces from the body — and return the refusals.
-fn graft_recertify_failures(body: &Body<f64>) -> Vec<(EdgeKey, geom_brep::CertifyError)> {
-    let band = geom_core::Band::linear(tol()).expect("band");
-    body.edges()
-        .filter_map(|(ek, e)| {
-            let curve = body.get_curve_geom(e.curve)?.certified()?;
-            let start_v = body.get_half_edge(e.he_plus)?.start;
-            let end_v = body.half_edge_end(e.he_plus)?;
-            geom_brep::EdgeCurve::certify(
-                curve.restated_spec(),
-                point(body, start_v),
-                point(body, end_v),
-                |sk| body.get_surface(sk).cloned(),
-                band,
-            )
-            .err()
-            .map(|err| (ek, err))
-        })
-        .collect()
-}
-
 /// **The red-first row.** Every plane chart image of the reverted
 /// cavity is the cavity's image with `v` negated, bit for bit, at all
 /// nine schedule samples — the ring's two half-circles included, whose
@@ -128,7 +87,7 @@ fn graft_recertify_failures(body: &Body<f64>) -> Vec<(EdgeKey, geom_brep::Certif
 /// sign) and this row fails at the half-circles' first interior sample.
 #[test]
 fn reverted_drum_cavity_mirrors_every_plane_chart_image_with_its_frame() {
-    let cavity = door_cavity(&collinear_cap_drum());
+    let cavity = door_cavity(&collinear_cap_drum(), T);
     let reverted = cavity.revert().expect("revert");
     let stored = plane_images(&cavity);
     let mirrored = plane_images(&reverted);
@@ -160,7 +119,7 @@ fn reverted_drum_cavity_mirrors_every_plane_chart_image_with_its_frame() {
 /// two half-circles refuse `ChartResidual` at sample 1.
 #[test]
 fn reverted_drum_cavity_re_certifies_edge_for_edge_and_tier_3_reports_only_the_complement() {
-    let cavity = door_cavity(&collinear_cap_drum());
+    let cavity = door_cavity(&collinear_cap_drum(), T);
     assert!(graft_recertify_failures(&cavity).is_empty());
     let reverted = cavity.revert().expect("revert");
     let failures = graft_recertify_failures(&reverted);
@@ -180,7 +139,7 @@ fn reverted_drum_cavity_re_certifies_edge_for_edge_and_tier_3_reports_only_the_c
 /// negated twice is the original bit pattern.
 #[test]
 fn revert_is_a_bitwise_involution_on_a_body_with_plane_chart_images() {
-    let cavity = door_cavity(&collinear_cap_drum());
+    let cavity = door_cavity(&collinear_cap_drum(), T);
     let original = format!("{cavity:?}");
     let once = cavity.revert().unwrap();
     assert_ne!(
@@ -204,7 +163,7 @@ fn revert_is_a_bitwise_involution_on_a_body_with_plane_chart_images() {
 /// and the involution restores the bits.
 #[test]
 fn a_stored_pcurve_row_on_a_plane_face_is_mirrored_and_its_certificate_travels_verbatim() {
-    let mut cavity = door_cavity(&collinear_cap_drum());
+    let mut cavity = door_cavity(&collinear_cap_drum(), T);
     let band = geom_core::Band::linear(tol()).expect("band");
     let (ek, image) = plane_images(&cavity)
         .into_iter()
@@ -258,10 +217,17 @@ fn a_stored_pcurve_row_on_a_plane_face_is_mirrored_and_its_certificate_travels_v
         format!("{:?}", row.certificate()),
         "a fresh run on the reverted body metres the same numbers"
     );
+    let stale = row.recertify(&carrier3, reverted_plane, None, window, band);
     assert!(
-        row.recertify(&carrier3, reverted_plane, None, window, band)
-            .is_err(),
-        "the stored image is wrong on the reverted plane: the reflection is load-bearing"
+        matches!(
+            stale,
+            Err(PcurveCertifyError::ResidualExceeded {
+                check: PcurveCheck::MapResidual,
+                sample: 1
+            })
+        ),
+        "the stored image is wrong on the reverted plane at the first interior sample: \
+         the reflection is load-bearing; got {stale:?}"
     );
     let back = reverted.revert().expect("revert");
     assert_eq!(
@@ -279,20 +245,8 @@ fn a_stored_pcurve_row_on_a_plane_face_is_mirrored_and_its_certificate_travels_v
 #[test]
 fn insert_voids_takes_the_reverted_drum_cavity() {
     let body = collinear_cap_drum();
-    let cavity = door_cavity(&body);
-    let evidence = topo::VoidEvidence {
-        shells: cavity
-            .shells()
-            .map(|(k, _)| {
-                (
-                    k,
-                    topo::VoidContainment::Carried {
-                        sign: geom_core::Sign::Positive,
-                    },
-                )
-            })
-            .collect(),
-    };
+    let cavity = door_cavity(&body, T);
+    let evidence = void_evidence(&cavity);
     let images_before = plane_images(&body).len() + plane_images(&cavity).len();
     let mut out = body.clone();
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
@@ -303,5 +257,172 @@ fn insert_voids_takes_the_reverted_drum_cavity() {
         plane_images(&out).len(),
         images_before,
         "every plane image of both bodies was grafted"
+    );
+}
+
+/// A plane face (`z = 0`, `u_ref = +x`) carrying one edge with the
+/// given chart image, built through the Euler door alone.
+fn plane_face_with(image: Pcurve<f64>, carrier: Curve3<f64>, t0: f64, t1: f64) -> Body<f64> {
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let mut body = Body::<f64>::new();
+    let (start, end) = (carrier.eval(t0), carrier.eval(t1));
+    let seed = body.mvfs(start).unwrap();
+    body.set_face_surface(seed.face, FaceSurface::New(plane))
+        .unwrap();
+    let chart = body.get_face(seed.face).unwrap().surface;
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::chart_image(chart, image),
+        carrier,
+        param_start: t0,
+        param_end: t1,
+    };
+    body.mev(
+        MevSite::Lone {
+            r#loop: seed.r#loop,
+        },
+        end,
+        spec,
+        tol(),
+    )
+    .unwrap();
+    body
+}
+
+/// The one edge's certified curve.
+fn only_curve(b: &Body<f64>) -> EdgeCurve<f64> {
+    let (_, e) = b.edges().next().unwrap();
+    b.get_curve_geom(e.curve)
+        .unwrap()
+        .certified()
+        .unwrap()
+        .clone()
+}
+
+fn image_of(c: &EdgeCurve<f64>) -> Pcurve<f64> {
+    c.description().chart().unwrap().pcurve.clone()
+}
+
+/// **The other image kinds a plane can carry, at the body.** An
+/// `IsoLine`, a `Fitted` and a `General` image of one line carrier at
+/// 60° (so `v ≠ 0`) on a plane face: after `revert` the image keeps
+/// its kind and is the stored one with `v` negated at nine samples,
+/// the SOURCE curve re-certified on the reverted plane refuses
+/// `ChartResidual` at sample 1 (the control), the mirrored curve's
+/// fresh certificate is the one it carries, and `revert ∘ revert`
+/// restores the body. `IsoArc` has no plane producer and no plane
+/// carrier — its parameter map is a rational-quadratic Bézier's,
+/// which no `Curve3` matches — so it is pinned at the `geom-brep`
+/// door only (`pcurve_mirror_v`).
+#[test]
+fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
+    let (c, s) = (0.5f64, 3f64.sqrt() / 2.0);
+    let len = 2.0;
+    let carrier = Curve3::Line {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        dir: Vec3::new(c, s, 0.0),
+    };
+    let lin = || {
+        NurbsCurve2::new(
+            KnotVector::clamped(vec![0.0, 0.0, len, len], 1).unwrap(),
+            vec![Point2::new(0.0, 0.0), Point2::new(len * c, len * s)],
+            vec![1.0, 1.0],
+        )
+        .unwrap()
+    };
+    let kinds: Vec<(&str, Pcurve<f64>)> = vec![
+        (
+            "IsoLine",
+            Pcurve::IsoLine {
+                p0: Point2::new(0.0, 0.0),
+                pl: Vec2::new(c, s),
+            },
+        ),
+        ("Fitted", Pcurve::Fitted(Arc::new(lin()))),
+        ("General", Pcurve::General(Arc::new(lin()))),
+    ];
+    let band = Band::linear(tol()).unwrap();
+    let ts: Vec<f64> = (0..9u32).map(|i| len * f64::from(i) / 8.0).collect();
+    for (label, image) in kinds {
+        let body = plane_face_with(image, carrier.clone(), 0.0, len);
+        let source = only_curve(&body);
+        let reverted = body.revert().expect(label);
+        let mirrored = only_curve(&reverted);
+        assert_eq!(
+            std::mem::discriminant(&image_of(&mirrored)),
+            std::mem::discriminant(&image_of(&source)),
+            "{label}: kind kept"
+        );
+        assert_mirrored(label, &image_of(&source), &image_of(&mirrored), &ts);
+        let (start, end) = (carrier.eval(0.0), carrier.eval(len));
+        let surfaces = |k| reverted.get_surface(k).cloned();
+        let control = source.recertify(start, end, surfaces, band);
+        assert!(
+            matches!(
+                control,
+                Err(CertifyError::ResidualExceeded {
+                    check: CertCheck::ChartResidual,
+                    sample: 1
+                })
+            ),
+            "{label}: the source's image on the reverted plane: {control:?}"
+        );
+        let rerun = mirrored.recertify(start, end, surfaces, band).expect(label);
+        assert_eq!(
+            format!("{rerun:?}"),
+            format!("{:?}", mirrored.certificate()),
+            "{label}: the certificate that travelled verbatim is the fresh run's"
+        );
+        assert_eq!(
+            format!("{:?}", reverted.revert().unwrap()),
+            format!("{body:?}"),
+            "{label}: involution"
+        );
+    }
+}
+
+/// **Where the signed zero lands.** A half-circle at rest in the
+/// plane's chart has `+0` coefficients in its image; the reflection
+/// turns them into `−0`, which a `Debug` comparison of the IMAGE sees
+/// (so the reverted body is not `Debug`-equal to its source even where
+/// only zeros moved). The CERTIFICATE never shows one: every stored
+/// field is a norm, and a distance squares a signed zero away — which
+/// is the argument for carrying it verbatim, measured at the one
+/// place the sign could have leaked.
+#[test]
+fn a_signed_zero_lands_in_the_mirrored_image_and_never_in_its_certificate() {
+    let circle = Curve3::Circle {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let image = Pcurve::Harmonic {
+        p0: Point2::new(0.0, 0.0),
+        pa: Vec2::new(1.0, 0.0),
+        pb: Vec2::new(0.0, 1.0),
+        pl: Vec2::new(0.0, 0.0),
+    };
+    let body = plane_face_with(image, circle, 0.0, core::f64::consts::PI);
+    let reverted = body.revert().unwrap();
+    let m = only_curve(&reverted);
+    let img = format!("{:?}", image_of(&m));
+    assert!(
+        img.contains("-0.0"),
+        "the mirrored image carries signed zeros: {img}"
+    );
+    assert!(
+        !format!("{:?}", m.certificate()).contains("-0.0"),
+        "a certificate stores norms: {:?}",
+        m.certificate()
+    );
+    assert_ne!(format!("{reverted:?}"), format!("{body:?}"));
+    assert_eq!(
+        format!("{:?}", reverted.revert().unwrap()),
+        format!("{body:?}"),
+        "involution"
     );
 }

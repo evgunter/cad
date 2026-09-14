@@ -288,3 +288,27 @@ one-period wrap is parked at a closure the reversed loop no longer
 has. Whether the continuity pass should accept a wrap anywhere on a
 closed loop is the question that lands here.
 Signed (TOPO implementer lane, `topo/revert-mirrors-chart-images`).
+
+## Fix pass on the announced seam (2026-09-14, PR 2542): one door, no fourth posture, one row filed here
+
+The two doors above landed as ONE affine door and its two callers.
+`Pcurve::map_affine(point, vector)` in `pcurve_cache.rs` carries every
+chart-space coefficient through an affine map of the chart given as
+its action on points and its linear part on vectors — a NURBS net
+through `NurbsCurve2::map_points`, the tree's infallible door for a
+pointwise map of a validated net, so no arm can refuse and the two
+`RevertError` variants minted for the refusal are gone. `mirror_v`
+is that door with the second channel negated; `shift_branch` is that
+door with the first channel of points translated and vectors left
+alone, its behaviour unchanged (its rows are the pin; the
+`.ok()?` on a re-validated `NurbsCurve2::new` it carried was the
+same unreachable arm). `PcurveCache::mirrored_v` is infallible with
+it; the certificate-verbatim argument now has one home, on
+`Pcurve::mirror_v`, and the doors point at it. The posture docs no
+longer call `revert` a fourth posture: it is a `&self -> Self`
+producer outside the guard's walk, said as such, with the dead-key
+exception stated there rather than only at the call site. Filed on
+this slate, because the guard is this file's:
+`pcurve-posture-guard-is-blind-to-body-producing-doors` — every
+body-returning producer's row posture is prose checked by nothing,
+and `revert` was the one that was wrong. Signed (TOPO fix-pass lane).

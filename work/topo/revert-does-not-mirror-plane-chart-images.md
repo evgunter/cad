@@ -158,3 +158,25 @@ fresh run. The topo-side row the brief asks for is
 (a lone `mev` on a plane face carrying a half-circle at rest in its
 chart; the merge-base refusal kept as the control by re-certifying the
 SOURCE against the reverted plane).
+
+## Fix pass (TOPO, 2026-09-14; the two blinded reviews' items)
+
+The mirror is infallible end to end: `Pcurve::map_affine` (one door
+for an affine map of the chart, a NURBS net through
+`NurbsCurve2::map_points`) is what `mirror_v` AND `shift_branch` are
+now, `PcurveCache::mirrored_v` and `EdgeCurve::with_chart_v_mirrored`
+return `Self`, and `RevertError::{ChartImage, PcurveRow}` are gone
+with the unreachable `.ok()?` they reported. The "Validity class"
+paragraph in `revert.rs` is scoped to what holds (every edge
+certification and every plane or curved row; the periodic chart's
+loop wrap named as the frontier, pointing at
+`revert-leaves-a-periodic-charts-loop-wrap-mid-chain`). The
+certificate-verbatim argument has one home, `Pcurve::mirror_v`.
+Rows: `geom-brep`'s `pcurve_mirror_v` covers all five image kinds at
+the door (four of `mirror_v`'s arms were covered by nothing on the
+tree), `revert_plane_charts` carries the body-level IsoLine / Fitted
+/ General rows and the signed-zero row, the row test pins its
+refusal's kind, and the drum, the sphere, the door's cavity and the
+graft's meter are shared through `sweep`'s `common::latitude_seam`.
+Filed on TRIM's slate:
+`pcurve-posture-guard-is-blind-to-body-producing-doors`.

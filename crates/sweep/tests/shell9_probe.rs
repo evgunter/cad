@@ -17,145 +17,16 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::{FRAC_PI_2, PI};
+use core::f64::consts::PI;
 
 use geom::Surface;
-use profile::{ProfileLoop, ProfileVertex, RawLoop};
-use sweep::Revolution;
-use topo::{Body, EdgeKey, VoidContainment, VoidEvidence};
 
+use super::common::latitude_seam::{
+    collinear_cap_drum, door_cavity, graft_recertify_failures, plane_images, two_arc_sphere,
+    void_evidence,
+};
 use super::shell7_common::*;
 use super::shell9_rows::rows;
-
-fn collinear_cap_drum() -> Body<f64> {
-    let (r, h) = (1.0, 2.0);
-    polyline(
-        &[(0.0, 0.0), (r, 0.0), (r, h), (r / 2.0, h), (0.0, h)],
-        Revolution::Full,
-    )
-}
-
-fn two_arc_sphere() -> Body<f64> {
-    let r = 1.0;
-    let v = PI / 4.0;
-    let (s, c) = v.sin_cos();
-    revolved(
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, -r), ((FRAC_PI_2 + v) / 4.0).tan()),
-            ProfileVertex::new(p2(r * c, r * s), ((FRAC_PI_2 - v) / 4.0).tan()),
-            ProfileVertex::new(p2(0.0, r), 0.0),
-        ]),
-        Revolution::Full,
-    )
-}
-
-/// The door's cavity, tier-3 valid.
-fn door_cavity(body: &Body<f64>, t: f64) -> Body<f64> {
-    let mut cavity = body.clone();
-    let band = geom_core::Band::linear(tol()).expect("band");
-    topo::offset_charts_together(&mut cavity, &hollow_moves(body, t), band, tol())
-        .expect("the door takes it");
-    assert_eq!(
-        topo::validate_geometric(&cavity, tol()),
-        Ok(()),
-        "cavity tier 3"
-    );
-    cavity
-}
-
-/// Re-certifies every edge of `body` as the graft does
-/// (`combine.rs`'s recertify arm: the description with its image
-/// verbatim, carrier and params verbatim, endpoints from `he_plus`,
-/// surfaces from the body itself). Returns the refusals.
-///
-/// A MIRROR of that arm, and it can drift from it: if the graft's
-/// meter changes, this reads a different meter. The drum row's
-/// `insert_voids` assertion (`Recertify`, the door's own verdict) is
-/// what catches a drift there — this helper's count of failing edges
-/// would disagree with a door that no longer refuses, or refuses more.
-fn recertify_like_the_graft(body: &Body<f64>) -> Vec<(EdgeKey, geom_brep::CertifyError)> {
-    let band = geom_core::Band::linear(tol()).expect("band");
-    let mut failures = Vec::new();
-    for (ek, e) in body.edges() {
-        let curve = body
-            .get_curve_geom(e.curve)
-            .and_then(|g| g.certified())
-            .unwrap();
-        let description = match *curve.description() {
-            geom_brep::EdgeDescription::Intersection { s1, s2, witness } => {
-                geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness }
-            }
-            geom_brep::EdgeDescription::TangentIntersection { s1, s2, witness } => {
-                geom_brep::EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
-            }
-            geom_brep::EdgeDescription::Chart(ref c) => geom_brep::EdgeDescriptionSpec::Chart {
-                surface: c.surface,
-                image: Some(c.pcurve.clone()),
-                seam: c.seam,
-                declared: match curve.authority() {
-                    geom_brep::EdgeAuthority::Declared(mc) => Some(mc),
-                    geom_brep::EdgeAuthority::Derived => None,
-                },
-            },
-            geom_brep::EdgeDescription::Scaffold(_) => continue,
-        };
-        let start_v = body.get_half_edge(e.he_plus).unwrap().start;
-        let end_v = body.half_edge_end(e.he_plus).unwrap();
-        let spec = geom_brep::EdgeCurveSpec {
-            description,
-            carrier: curve.carrier().clone(),
-            param_start: curve.params().0,
-            param_end: curve.params().1,
-        };
-        let out = geom_brep::EdgeCurve::certify(
-            spec,
-            point(body, start_v),
-            point(body, end_v),
-            |sk| body.get_surface(sk).cloned(),
-            band,
-        );
-        if let Err(err) = out {
-            failures.push((ek, err));
-        }
-    }
-    failures
-}
-
-/// The evidence `shell` hands the void door — every cavity shell
-/// `Carried { Positive }` (`shell.rs`, "The evidence"). A restatement,
-/// and it can drift: a door that starts demanding a different
-/// certificate refuses these rows at `insert_voids` while `shell`'s
-/// own rows (`shell7_seam_corner`) keep passing, which is the signal.
-fn evidence_for(cavity: &Body<f64>) -> VoidEvidence {
-    VoidEvidence {
-        shells: cavity
-            .shells()
-            .map(|(k, _)| {
-                (
-                    k,
-                    VoidContainment::Carried {
-                        sign: geom_core::Sign::Positive,
-                    },
-                )
-            })
-            .collect(),
-    }
-}
-
-/// The edges described as `Chart` images on a PLANE.
-fn plane_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    body.edges()
-        .filter(|(_, e)| {
-            let c = body
-                .get_curve_geom(e.curve)
-                .and_then(|g| g.certified())
-                .unwrap();
-            matches!(c.description(), geom_brep::EdgeDescription::Chart(c)
-                if matches!(body.get_surface(c.surface), Some(Surface::Plane { .. })))
-        })
-        .map(|(k, _)| k)
-        .collect()
-}
 
 /// **Drum, stage by stage.** The door's cavity re-certifies edge for
 /// edge, and so does its `revert()`: the two half-circles of the
@@ -171,20 +42,20 @@ fn drum_reverted_cavity_re_certifies_and_the_void_door_takes_it() {
     let body = collinear_cap_drum();
     let cavity = door_cavity(&body, t);
     assert!(
-        recertify_like_the_graft(&cavity).is_empty(),
+        graft_recertify_failures(&cavity).is_empty(),
         "the cavity re-certifies edge for edge"
     );
     let reverted = cavity.revert().expect("revert");
-    let failures = recertify_like_the_graft(&reverted);
+    let failures = graft_recertify_failures(&reverted);
     assert!(
         failures.is_empty(),
         "the reverted cavity re-certifies edge for edge: {failures:?}"
     );
-    let on_plane = plane_edges(&reverted);
+    let on_plane = plane_images(&reverted);
     let circles = on_plane
         .iter()
-        .filter(|k| {
-            let e = reverted.get_edge(**k).unwrap();
+        .filter(|(k, _)| {
+            let e = reverted.get_edge(*k).unwrap();
             let c = reverted
                 .get_curve_geom(e.curve)
                 .and_then(|g| g.certified())
@@ -201,7 +72,7 @@ fn drum_reverted_cavity_re_certifies_and_the_void_door_takes_it() {
     // The same insertion `shell` runs, by hand: taken.
     let mut out = body.clone();
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
-    topo::insert_voids(&mut out, &solids, cavity, &evidence_for(&reverted), tol())
+    topo::insert_voids(&mut out, &solids, cavity, &void_evidence(&reverted), tol())
         .expect("insert_voids takes the reverted cavity");
     assert_eq!(out.shells().count(), 2, "outer + cavity");
 }
@@ -226,12 +97,12 @@ fn sphere_reverted_cavity_and_the_grafted_loop() {
         "revert() alone breaks the stored pcurve loop, got {v:?}"
     );
     assert!(
-        recertify_like_the_graft(&reverted).is_empty(),
+        graft_recertify_failures(&reverted).is_empty(),
         "every sphere edge re-certifies on the reverted body"
     );
     let mut out = body.clone();
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
-    topo::insert_voids(&mut out, &solids, cavity, &evidence_for(&reverted), tol())
+    topo::insert_voids(&mut out, &solids, cavity, &void_evidence(&reverted), tol())
         .expect("the sphere's graft is taken");
     let v = topo::validate_geometric(&out, tol());
     assert!(
@@ -327,7 +198,7 @@ fn sphere_grafted_body_is_tier_3_valid_after_the_closing_mint_which_shell_runs()
     let cavity = door_cavity(&body, t);
     let mut out = body.clone();
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
-    let evidence = evidence_for(&cavity);
+    let evidence = void_evidence(&cavity);
     topo::insert_voids(&mut out, &solids, cavity, &evidence, tol()).expect("the graft is taken");
     assert!(
         topo::validate_geometric(&out, tol()).is_err(),

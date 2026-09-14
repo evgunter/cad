@@ -20,9 +20,8 @@ use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ShellError, ShellRole};
 
-use super::shell7_common::{
-    face_of_he, hollow_moves, point, polyline, tol, tube_torus, tube_torus_hollow,
-};
+use super::common::latitude_seam::{collinear_cap_drum, door_cavity};
+use super::shell7_common::{face_of_he, point, polyline, tol, tube_torus, tube_torus_hollow};
 use super::shell8_common::{beside, cap, outer_and_void_of};
 use super::verbs_shell::{boxy, hollow_box, two_void_box, vessel};
 
@@ -408,27 +407,11 @@ fn r1_end_to_end() {
 // Claim 3: the drum's cause by execution; claim 4: hunting the arm
 // ---------------------------------------------------------------------
 
-fn door_cavity(body: &Body<f64>, t: f64) -> Body<f64> {
-    let mut cavity = body.clone();
-    let band = geom_core::Band::linear(tol()).expect("band");
-    topo::offset_charts_together(&mut cavity, &hollow_moves(body, t), band, tol())
-        .expect("the door takes it");
-    cavity
-}
-
 /// **The drum**: the reverted cavity alone, through `validate_geometric`.
 #[test]
 fn r1_drum_reverted_cavity_alone() {
-    let drum = polyline(
-        &[(0.0, 0.0), (1.0, 0.0), (1.0, 2.0), (0.5, 2.0), (0.0, 2.0)],
-        Revolution::Full,
-    );
+    let drum = collinear_cap_drum();
     let cavity = door_cavity(&drum, 0.05);
-    assert_eq!(
-        topo::validate_geometric(&cavity, tol()),
-        Ok(()),
-        "cavity tier 3"
-    );
     let reverted = cavity.revert().expect("revert");
     let v = topo::validate_geometric(&reverted, tol());
     println!("[r1drum] reverted cavity alone: {v:?}");
