@@ -630,3 +630,22 @@ the driver's leaf classes, the viewer and Python doors filed. Unit
 branch `docm/9-certified-range` from main with the spec on it; spec
 PR #2523 to main. Lane running. The exit walk is drafted while it
 runs; Ev asked for it written as ready to merge.
+
+## 2026-09-14 — DOCM-9 dual review dispatched (the program's last)
+
+DOCM-9's lane reported: PR #2534 (`docm/9-certified-range`) non-draft,
+full code-tier CI green at head `691a26e2` with all six interval
+points green; four deviations disclosed (the walk re-read at the
+proof frontier because a certified leaf and a flip-crossing leaf
+cannot be neighbours; renamed types; A1's `NewFailure` row not met
+because the driver bisects a definitely-failing leaf to the budget
+floor rather than naming it; two gate-forced hunks outside the
+fence), three findings outside the fence (the driver's `_ => Bisect`,
+a parametric polygon loop certifying nothing at a 100 ε seed, the
+export guard's cfg asymmetry), no stop clause. Three rows filed for
+CHROME, LIB and PROPS. v6 dual dispatched: ordinal 1808 claimed on
+main at dispatch; parity byte 236 ⇒ R1 = OPUS, R2 = FABLE; briefs
+hashed and diff-identical modulo lane names; private build and
+scratch directories per lane. Both lanes running. Block DOCM-B3's
+last slot: its record reaches main with this unit's sync, and the
+program's exit sweep follows.
