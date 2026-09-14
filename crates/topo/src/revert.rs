@@ -409,4 +409,127 @@ mod tests {
             format!("{:?}", cube.body),
         );
     }
+
+    /// **A plane `Chart` image with a `v` channel survives the map.**
+    /// One plane face (`z = 0`, `u_ref = +x`) carrying a half-circle
+    /// at rest in its chart, built through the Euler door alone: the
+    /// image is `(cos t, sin t)`, and its `v` is what an unmirrored
+    /// reversal used to leave pointing the wrong way. After `revert`
+    /// the image is the stored one with `v` negated coefficient for
+    /// coefficient; the SOURCE's curve re-certified against the
+    /// reverted surfaces refuses `ChartResidual` at sample 1 (the
+    /// merge-base shape of the defect, kept as the control), the
+    /// reverted curve re-certified there yields the certificate it
+    /// carries, byte for byte, and the involution restores the bits.
+    #[test]
+    fn revert_mirrors_a_plane_chart_image_and_its_certificate_survives() {
+        use crate::{FaceSurface, MevSite};
+        use geom::{Curve3, Surface};
+        use geom_brep::certify::{CertCheck, CertifyError};
+        use geom_brep::{EdgeCurveSpec, Pcurve};
+        use geom_core::{Band, Point3, Vec3};
+
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let circle = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let (t0, t1) = (0.0, core::f64::consts::PI);
+        let (start, end) = (circle.eval(t0), circle.eval(t1));
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let mut body = crate::Body::<f64>::new();
+        let seed = body.mvfs(start).unwrap();
+        body.set_face_surface(seed.face, FaceSurface::New(plane))
+            .unwrap();
+        let chart = body.get_face(seed.face).unwrap().surface;
+        let spec = EdgeCurveSpec::arc_of_circle(circle, t0, t1)
+            .unwrap()
+            .at_rest_in_chart(chart, false);
+        body.mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            end,
+            spec,
+            tol,
+        )
+        .unwrap();
+        let curve_of = |b: &crate::Body<f64>| {
+            let (_, e) = b.edges().next().unwrap();
+            b.get_curve_geom(e.curve)
+                .unwrap()
+                .certified()
+                .unwrap()
+                .clone()
+        };
+        let image_of =
+            |c: &geom_brep::EdgeCurve<f64>| c.description().chart().unwrap().pcurve.clone();
+        let source = curve_of(&body);
+        let Pcurve::Harmonic { p0, pa, pb, pl } = image_of(&source) else {
+            panic!("a circle in a plane chart is a harmonic image")
+        };
+        assert!(
+            pb.y.abs() > 0.5,
+            "the image has a v channel (sin t · 1): pb = {pb:?}"
+        );
+
+        let reverted = body.revert().unwrap();
+        let mirrored = curve_of(&reverted);
+        let Pcurve::Harmonic {
+            p0: q0,
+            pa: qa,
+            pb: qb,
+            pl: ql,
+        } = image_of(&mirrored)
+        else {
+            panic!("the mirrored image keeps its kind")
+        };
+        for (before, after) in [(p0.x, q0.x), (pa.x, qa.x), (pb.x, qb.x), (pl.x, ql.x)] {
+            assert_eq!(
+                before.to_bits(),
+                after.to_bits(),
+                "u coefficients are untouched"
+            );
+        }
+        for (before, after) in [(p0.y, q0.y), (pa.y, qa.y), (pb.y, qb.y), (pl.y, ql.y)] {
+            assert_eq!(
+                (-before).to_bits(),
+                after.to_bits(),
+                "v coefficients are negated"
+            );
+        }
+        let surfaces = |k| reverted.get_surface(k).cloned();
+        // The control: the unmirrored image against the reverted plane
+        // is the defect, and the meter says so where it always did.
+        assert!(
+            matches!(
+                source.recertify(start, end, surfaces, band),
+                Err(CertifyError::ResidualExceeded {
+                    check: CertCheck::ChartResidual,
+                    sample: 1
+                })
+            ),
+            "the source's image is wrong on the reverted plane"
+        );
+        let rerun = mirrored
+            .recertify(start, end, surfaces, band)
+            .expect("the mirrored image certifies on the reverted plane");
+        assert_eq!(
+            format!("{rerun:?}"),
+            format!("{:?}", mirrored.certificate()),
+            "the certificate that travelled verbatim is the fresh run's"
+        );
+        assert_eq!(
+            format!("{:?}", reverted.revert().unwrap()),
+            format!("{body:?}"),
+            "bitwise involution"
+        );
+    }
 }

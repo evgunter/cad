@@ -5795,3 +5795,56 @@ written until the dual concludes. Shared-box note applying to BOTH
 arms equally: one 4-core cloud box beside one other lane (the
 split-edge fix pass), `-j2`; R1's target is the implementer's warm one,
 R2's is seeded from an older warm build — wall-clock asymmetry only.
+
+Split-edge row, recorded AT MERGE (2026-09-14, merge `dffd2bf34`, PR
+#2531; `work/topo/split-edge-children-lack-pcurve-rows-on-curved-charts.md`,
+SHELL-7's placement): `Body::split_edge` carries each parent
+half-edge's pcurve row onto both children — a `Pcurve` is a function
+of the carrier parameter with no interval of its own, so the child
+image is the parent's restricted to its sub-interval, re-certified in
+the plan phase through `PcurveCache::certify` (`impl<T: Decide>`, so
+no caller's bound moves); a `Fitted`/`General` row and the spline-chart
+iso rows are the stated frontiers. Difficulty **S/M**, task class
+STRUCTURAL-NUMERIC (logged before the block draw — clean). Implementer
+arm **OPUS** (block TOPO-B2 slot 1, byte 215). **DUAL: ordinal 2703;
+sample #186 (ledger max #185 at this writing; main's merge order rules
+if a concurrent recorder collides); byte 20 parity 0 ⇒ R1 OPUS + R2
+FABLE; CONCURRENT same-head on frozen `880654600`; briefs stored with
+sha256 before dispatch, identical modulo lane paths.** R1
+MERGEABLE-AFTER-FIXES, counts 1/4/2, rubric idiom 3 / tests 3 / docs
+3 — MAJOR: the carry's mint-identity claim is false on spline charts
+(loft prisms: the carry is exact and tier 3 reads `Ok`, but
+`mint_pcurves`, the named recovery step, still refuses — a
+pre-existing refusal now reached silently, unfiled). R2
+MERGEABLE-AFTER-FIXES, counts 0/3/3, rubric 4/4/3 — the same fact
+executed on the bulged loft and filed as MINOR ("cylinder-only").
+CONVERGED on the fact, DIVERGENT on severity: NO unilateral executed
+MAJOR, **no tally candidate**. Converged: the class receipt's
+re-parenting rows wrong (`kfmrh` onto a plane keeps four cylinder rows
+under a planar face with tier 3 silent — R2 executed; `ring_move` the
+same mechanism — R1 read); the mint-identity rows compare intervals,
+not bytes; `split_cache`'s window hull a third spelling of
+`validate_pcurves`' (the style lane's trap check, both); the one-use
+alias; `Posture::Carries` a comment wearing an enum; four statements
+of one bound argument. Unilateral, taken: `IsoArc::chart_box`'s
+premise sentence in geom-brep invalidated (R1); a `Corrupt` swallowed
+into `Ok(None)` (R1); the residue row's caller list short by `mesh`
+(R1); `split_cache` reads the carrier's interval, not the row's (R2).
+Both reproduced the merge-base readings and the plan-phase contract
+under two mutants; both established the direction question (`hm`'s
+sub-interval) by execution. Spec deviations: 5 reported; silent 1
+(both — the spline frontier). Method relaxations: none; shared-box
+note applies to both arms; R2's target seeded colder (wall-clock
+asymmetry only). Fix pass by a fresh lane on the inherited branch
+(the implementer's worktree was gone), seven items, union of both
+reviews: R1's loft rows and byte-level row adopted, the window given
+one home (`stored_rows`), `CarriedRows` named by destination (a bare
+tuple trips `type_complexity`), `split_edge` declared `Transfers`, the
+swallowed corruption a `StaleKey` refusal, three rows filed (TRIM: the
+iso derivation arms' whole-domain premise; TOPO: loop-re-parenting ops
+leave rows certified against the wrong chart; TOPO: the loop walk
+hand-written in 34 places). The fix lane corrected R1's "split at a
+break" claim (the 0.4-bulge fixture is single-span) by moving to a
+three-span fixture. Tokens: impl ≈335k, fix ≈267k, state-sync ≈15k,
+R1 ≈260k, R2 ≈290k. Wall: impl ≈110 min, fix ≈85 min, R1 ≈80 min, R2
+≈35 min; no gaps. Tally after this entry: candidates +2, unchanged.
