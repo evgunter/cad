@@ -105,7 +105,7 @@ use super::rational::Rat;
 /// monomial for the zero polynomial and whenever the terms share no
 /// indeterminate.
 fn content(p: &Poly) -> Mono {
-    let mut it = p.terms.keys();
+    let mut it = p.monos();
     let Some(first) = it.next() else {
         return Mono::new();
     };
@@ -142,12 +142,12 @@ fn shared(a: &Mono, b: &Mono) -> Mono {
 /// every term by construction. Monomials stay sorted by id and carry
 /// no zero exponent, so the key ordering is preserved and no two terms
 /// can collide.
-fn divide(p: &Poly, g: &Mono) -> Poly {
+fn divide(p: &Poly, g: &Mono) -> Option<Poly> {
     if g.is_empty() {
-        return p.clone();
+        return Some(p.clone());
     }
     let mut out = Poly::zero();
-    for (m, c) in &p.terms {
+    for (m, c) in p.terms() {
         let rest: Mono = m
             .iter()
             .filter_map(|&(id, e)| {
@@ -155,16 +155,16 @@ fn divide(p: &Poly, g: &Mono) -> Poly {
                 (e > d).then_some((id, e - d))
             })
             .collect();
-        out.terms.insert(rest, c.clone());
+        out.insert(rest, c.clone())?;
     }
-    out
+    Some(out)
 }
 
 /// `p` with every coefficient multiplied by `k`.
 fn scale(p: &Poly, k: &Rat) -> Option<Poly> {
     let mut out = Poly::zero();
-    for (m, c) in &p.terms {
-        out.terms.insert(m.clone(), c.mul(k)?);
+    for (m, c) in p.terms() {
+        out.insert(m.clone(), c.mul(k)?)?;
     }
     Some(out)
 }
@@ -172,11 +172,11 @@ fn scale(p: &Poly, k: &Rat) -> Option<Poly> {
 /// `r` where `n = r·d` as polynomials, or `None` where no such rational
 /// exists. Both maps are sorted by monomial, so one zip decides it.
 fn constant_ratio(n: &Poly, d: &Poly) -> Option<Rat> {
-    if n.terms.len() != d.terms.len() || d.terms.is_empty() {
+    if n.terms().len() != d.terms().len() || d.is_zero() {
         return None;
     }
     let mut ratio: Option<Rat> = None;
-    for ((mn, cn), (md, cd)) in n.terms.iter().zip(d.terms.iter()) {
+    for ((mn, cn), (md, cd)) in n.terms().iter().zip(d.terms().iter()) {
         if mn != md {
             return None;
         }
@@ -196,14 +196,17 @@ fn constant_ratio(n: &Poly, d: &Poly) -> Option<Rat> {
 /// a shape the rule does not reach comes back unchanged — and never
 /// grows the form.
 pub(super) fn cancel(f: &Form) -> Form {
-    if f.poisoned || f.num.is_zero() || f.den.terms.is_empty() {
+    if f.poisoned || f.num.is_zero() || f.den.is_zero() {
         return f.clone();
     }
     let g = shared(&content(&f.num), &content(&f.den));
     let (num, den) = if g.is_empty() {
         (f.num.clone(), f.den.clone())
     } else {
-        (divide(&f.num, &g), divide(&f.den, &g))
+        match (divide(&f.num, &g), divide(&f.den, &g)) {
+            (Some(n), Some(d)) => (n, d),
+            _ => (f.num.clone(), f.den.clone()),
+        }
     };
     // The SCALE, canonicalised: both halves multiplied by `1/|s|`,
     // where `s` is the denominator's coefficient at its smallest
@@ -215,7 +218,7 @@ pub(super) fn cancel(f: &Form) -> Form {
     // the other. The magnitude, not the signed value: flipping the
     // signs would cost `trig::manifestly_nonneg` the syntactic
     // non-negativity rule D's A1 fold reads.
-    let (num, den) = match den.terms.iter().next() {
+    let (num, den) = match den.terms().first() {
         Some((_, s)) => match s.abs().recip().and_then(|k| {
             let n = scale(&num, &k)?;
             let d = scale(&den, &k)?;
@@ -303,7 +306,7 @@ mod tests {
     fn a_constant_multiple_folds_to_the_constant() {
         let p = poly(&[(&[(3, 2)], 1), (&[(4, 1)], 1)]);
         let mut three_p = Poly::zero();
-        for (m, c) in &p.terms {
+        for (m, c) in p.terms() {
             three_p
                 .insert(m.clone(), c.mul(&Rat::new(3, 1, 0).unwrap()).unwrap())
                 .unwrap();
