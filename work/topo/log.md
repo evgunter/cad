@@ -1231,3 +1231,38 @@ moot. Both items closed on the PR. Non-dual: one style review
 dispatched on the frozen head (brief at
 `/home/user/topo-d107r-scratch/brief.md`, sha256 e4096369…); merge
 after its fixes ride.
+
+## Slot 1 delivered (PR 2573); dual dispatched, ordinal 2709 (2026-09-14)
+
+The relaunched slot 1 lane delivered `revert-leaves-a-periodic-charts-loop-wrap-mid-chain`
+on head `725d3c204`, run green (twelve `test`, five `k-lint`). Phase 1
+measured the finding at the source's `prev(first)` and found the
+brief's mechanism unsound as a rule: a `shift_branch` per row
+round-trips only where the addition is exact, so the lane moved each
+curved loop's `Cycle::first` to its source predecessor instead — no
+row touched, the involution proved by the prev/next swap. The torus
+hypothesis is false (no azimuth-free joint; both tori are controls).
+One golden moved (`voided_rod`'s census verdict hash — same multiset
+claimed, different order), two `shell9_probe` rows re-baselined from
+pinning the defect to pinning the fix, one discard registered. Ordinal
+**2709** claimed on main (PR opened from `topo/claim-2709`); parity
+byte 12 ⇒ R1 OPUS, R2 FABLE; briefs stored with sha256 in
+`/home/user/topo-orch/brief-hashes.txt` (template ebc58bf6…, R1
+27d51383…, R2 a52dd601…; diff 4 lines), both reviewers dispatched
+concurrently on the frozen head. The brief's correctness lane leans
+on the golden re-cut (verdicts diffed as multisets), the receipt of
+`first` as an ORDER (exports, mesh, census, naming) rather than only
+as branch parking, and the fresh-instance check.
+
+## Slot 0 delivered (PR 2576); dual queued behind lane capacity (2026-09-14)
+
+The relaunched slot 0 lane delivered `geom-source-absence-conflates-four-origins`
+on head `52c1868e8`, run green. Shape: `GeomOrigin<'a>` (`Recipe`,
+`Imported`, `KernelDirect`, `Cleared`) in three side maps beside the
+N6 maps, holding only origins a description carries while it holds no
+`GeomSource`; `revert.rs` and `transform.rs` unedited, so N6 decides
+nothing differently. Two disclosed deviations: `Constructed`/`Derived`
+collapse to `KernelDirect` (the arena doors carry no caller identity;
+filed on this slate) and `Cleared` carries no `by` (one caller). The
+dual dispatches (ordinal 2710, byte drawn then) when the D107 style
+review frees its lane; three heavy lanes is the box's ceiling.
