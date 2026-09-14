@@ -63,3 +63,20 @@ register carries one `audited` entry there instead of an `unaudited`
 one per caller. That does not shrink the count above, which is of the
 OUTER `once(outer).chain(rings)` chain; it is the shape the rest of
 this row's sweep would take, demonstrated on two callers.
+
+## A 34th site (2026-09-14, the `set_face_surface` unit)
+
+That unit's face-level drop —
+`Body::drop_face_rows_on_chart_change` in `crates/topo/src/euler_ring.rs`
+— writes the outer chain out again
+(`core::iter::once(face_data.outer).chain(face_data.rings.iter().copied())`)
+before delegating per loop to `pcurves::loop_rows`. So the count above
+is **34 sites in 21 files** on that unit's head, and the inner half
+now has three callers with one home instead of two. The site is named
+here rather than left for the next re-count: it is the same shape as
+`pcurves::stored_rows`'s walk, which is the walk the validator reads
+the same face's rows with, and the two agreeing is load-bearing for
+the drop (the door and `validate_pcurves` must not disagree about
+which rows a face has). A sweep that gives the OUTER chain one home
+would be the thing that makes that agreement structural rather than
+asserted.
