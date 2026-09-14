@@ -56,6 +56,36 @@ query refuses an expression-driven slot typed
 (`RangeRefusal::SlotIsNotALiteral`), which is the admission rule that
 row asks the probe for.
 
+## Three shapes the panel has to render correctly
+
+1. **`within` is not a valid interval.** It is a bracket around a
+   boundary whose interior the driver did not decide, and today it
+   routinely CONTAINS values at which the document does not build (a
+   leaf whose node definitely fails is priced `Budget` rather than
+   named — `work/props/coincidence-zone-priced-budget-at-the-floor`).
+   Shading it as "still fine" is the specific wrong reading.
+2. **Both sides can report ONE span crossing the current value.** The
+   leaf holding the nominal belongs to both walks, so when it is the
+   leaf reported, `lo` and `hi` carry the same straddling span and
+   `certified_to` is zero on both: nothing either side was proven. A
+   panel drawing two half-ranges from that draws a range that is not
+   there.
+3. **`Indeterminate` with `Budget` may be a failure at the floor.**
+   Nothing at the type tells an exhausted budget from a boundary the
+   driver cannot name, so "try a bigger budget" is honest advice only
+   above the floor; at the shipped depth, or on `Budget(Resolution)`,
+   more budget buys nothing.
+
+## What it costs, so the affordance is designed for the real number
+
+Measured at `docm/9-certified-range`: ~3.4 s PER LEAF on the corpus
+plate's `hole_r` and ~17 s per leaf on the die's cube slot, certifying
+nothing at either. So the control is a long-running query with a
+progress and a cancel, not a button that returns; the budget belongs
+in the panel (a wall-clock target the panel converts to `max_leaves`),
+and `DriveConfig::default()` must not be what it sends — its 65,536
+leaves are days.
+
 ## Home
 
 CHROME owns `crates/viewer`.

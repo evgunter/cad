@@ -11,8 +11,18 @@
 //! The sampling probe itself lives above this crate (`viewer::bounds`),
 //! so what is reproduced here is its QUESTION — the failing-node set,
 //! tested for growth against the value the field has now
-//! ([`no_new_failure`]) — which is what "the certified interval is a
-//! subset of the probe's answer" is a claim about.
+//! ([`no_new_failure`]) — which is what "a certified range is a subset
+//! of the LOCALLY-VALID RANGE" is a claim about. It is not a claim
+//! about the probe's reported bracket, and the row that runs the real
+//! probe beside the query is `viewer::docm9_range_vs_probe`.
+//!
+//! # What is NOT here
+//!
+//! The walk and the arm-separating predicate over leaf lists no
+//! document produces are `range::tests`, in the crate: a
+//! `NewFailure` needs a flip whose evidence carries a standing change,
+//! and no fixture reaches one
+//! (`work/props/coincidence-zone-priced-budget-at-the-floor`).
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -265,10 +275,18 @@ fn a_certified_side_stops_at_the_seeds_edge() {
 
 // ------------------------------------------------ the four-arm contract
 
-/// **A2.** A branch change with every node still building is a
-/// [`RangeSide::DecisionFlip`] and never a
+/// **A2.** A branch change whose flipped leaf still builds every node
+/// is a [`RangeSide::DecisionFlip`] and never a
 /// [`RangeSide::NewFailure`]: the evidence names the predicate that
-/// decided otherwise, and no node's standing moved.
+/// decided otherwise, and no node's standing moved IN THE LEAF THE
+/// ARM WAS CHOSEN BY.
+///
+/// It pins the fold in one direction — a document that reaches
+/// `DecisionFlip` cannot be answered `NewFailure`. The PREDICATE
+/// itself, both directions, is pinned at the function in
+/// `range::tests::a_standing_change_is_what_makes_a_flip_a_new_failure`,
+/// because no document reaches `NewFailure` at all
+/// (`work/props/coincidence-zone-priced-budget-at-the-floor`).
 #[test]
 fn a_branch_change_is_a_decision_flip_and_names_the_predicate() {
     let doc = slab(1.0);
@@ -363,14 +381,71 @@ fn a_budget_too_small_is_indeterminate_and_never_a_bound() {
     );
 }
 
+/// **A MEASUREMENT, and a defect's cost.** `within` is a bracket
+/// around a boundary whose interior the driver did not decide, and
+/// today that interior CONTAINS values at which the document does not
+/// build at all: `drive::classify_replay` bisects a leaf whose node
+/// definitely fails to the budget floor and prices it `Budget`
+/// (`work/props/coincidence-zone-priced-budget-at-the-floor`) rather
+/// than naming the failure, so the failure never reaches a leaf class
+/// the walk can report.
+///
+/// The row exists so that the arm's documentation and the behaviour
+/// cannot drift apart: a consumer rendering `within` as valid would
+/// be confidently wrong, and when the PROPS row lands this assertion
+/// is the one that will turn over and say so.
+#[test]
+fn a_decision_flips_within_contains_a_value_that_does_not_build() {
+    let doc = slab(1.0);
+    let r = range_of(
+        &doc,
+        "depth",
+        RangeSeed { lo: -1.05, hi: 0.5 },
+        &budget(24, 2048),
+    );
+    let RangeSide::DecisionFlip { within, .. } = r.lo() else {
+        panic!(
+            "the A2 fixture's lo side is a decision flip, got {:?}",
+            r.lo()
+        );
+    };
+    let broken: Vec<f64> = (0..=10)
+        .map(|k| within.0 + (within.1 - within.0) * f64::from(k) / 10.0)
+        .filter(|&off| !no_new_failure(&doc, "depth", r.absolute(off)))
+        .collect();
+    assert!(
+        !broken.is_empty(),
+        "`within` {within:?} is expected to hold values that do not build, and none of the \
+         eleven sampled offsets did — if the driver now names such a leaf, this arm can say \
+         more than it does and the docs must be re-cut"
+    );
+    // And the crossing itself, the value the extrude refuses, is one
+    // of them: named rather than left to a sweep's luck.
+    assert!(
+        !no_new_failure(&doc, "depth", 0.0),
+        "depth zero is a degenerate extrusion"
+    );
+    assert!(
+        within.0 <= -1.0 && -1.0 <= within.1,
+        "and it is inside the bracket: {within:?}"
+    );
+}
+
 // ----------------------------------------------- against the probe
 
-/// **A1's subset half, and A2's strict half.** The certified interval
-/// is inside the probe's answer everywhere, and strictly inside on the
-/// branch fixture: values the probe calls valid are exactly what the
-/// query declines to certify and says why.
+/// **The certificate is inside the LOCALLY-VALID RANGE**, on a
+/// fixture with a real boundary: every value it covers passes the
+/// probe's own validity test, and the frontier stops orders short of
+/// the crossing rather than at it.
+///
+/// It is NOT a claim about the sampling probe's reported bracket —
+/// those are different questions, and the row that runs the real
+/// probe beside the query is
+/// `viewer::docm9_range_vs_probe::the_certificate_is_inside_the_locally_valid_range_not_the_probes_bracket`.
+/// This one reproduces the probe's QUESTION, which is all a crate
+/// below the viewer can do.
 #[test]
-fn the_certificate_is_strictly_inside_the_probes_answer() {
+fn the_certificate_is_inside_the_locally_valid_range() {
     let doc = slab(1.0);
     let r = range_of(
         &doc,
@@ -380,19 +455,24 @@ fn the_certificate_is_strictly_inside_the_probes_answer() {
     );
     let (lo, hi) = r.certified_interval();
     assert!(lo < hi);
-    // Subset: every value the certificate covers, the probe calls
-    // valid too. Sampled, because that is all the probe can do.
     for i in 0..=32 {
         let v = lo + (hi - lo) * f64::from(i) / 32.0;
         assert!(
             no_new_failure(&doc, "depth", v),
-            "the certificate covers {v}, which the probe calls invalid"
+            "the certificate covers {v}, which the probe's test calls invalid"
         );
     }
-    // Strictly inside: the far branch builds, so the probe reports no
-    // new failure there, and the certificate stops before it.
-    assert!(no_new_failure(&doc, "depth", -0.5));
-    assert!(lo > -0.5, "the certificate reaches {lo}, past the crossing");
+    // The crossing is at depth zero and the proof stops above it, by
+    // orders rather than by a rounding. The MAGNITUDE is the claim:
+    // the frontier is the driver's stopping point, not the boundary.
+    assert!(
+        lo > 0.0,
+        "the certificate must not reach the crossing: {lo}"
+    );
+    assert!(
+        lo < 1e-6,
+        "and it reaches close to it — the proof's frontier is {lo}"
+    );
 }
 
 /// **A4.** Validity is not monotone, and the query says so by
@@ -615,6 +695,151 @@ fn a_slot_the_rewrite_cannot_name_refuses_typed() {
     );
 }
 
+/// **The door's read order**: whether THIS node carries the slot is
+/// asked before what the slot id means in the vocabulary.
+///
+/// `SlotId::Count` is structural everywhere, so a door that tested
+/// that first told a caller "the count slot of node N is structural"
+/// about a node with no count slot at all — the vocabulary's fact
+/// where the caller asked about this document's.
+#[test]
+fn a_structural_slot_on_a_node_that_has_none_is_an_unknown_slot() {
+    let (doc, node) = slab_slot(1.0);
+    assert!(
+        doc.node(node).and_then(|n| n.expr(SlotId::Count)).is_none(),
+        "an extrude carries no Count slot"
+    );
+    assert_eq!(
+        derive(
+            &doc,
+            &RangeField::Slot {
+                node,
+                slot: SlotId::Count
+            },
+            RangeSeed::symmetric(0.25),
+            tol()
+        ),
+        Err(RangeRefusal::UnknownSlot {
+            node,
+            slot: SlotId::Count
+        })
+    );
+    // And a node that DOES carry it still refuses structural — the
+    // reorder narrows the first door, it does not open the second.
+    let (patterned_doc, pattern) = patterned();
+    assert!(
+        patterned_doc
+            .node(pattern)
+            .and_then(|n| n.expr(SlotId::Count))
+            .is_some()
+    );
+    assert_eq!(
+        derive(
+            &patterned_doc,
+            &RangeField::Slot {
+                node: pattern,
+                slot: SlotId::Count
+            },
+            RangeSeed::symmetric(0.25),
+            tol()
+        ),
+        Err(RangeRefusal::StructuralSlot {
+            node: pattern,
+            slot: SlotId::Count
+        })
+    );
+}
+
+/// The synthetic parameter's name is the query's, and a document that
+/// has already taken it is refused rather than quietly widened
+/// through somebody else's parameter.
+#[test]
+fn a_taken_synthetic_name_refuses() {
+    let (doc, node) = slab_slot(1.0);
+    let taken = format!(
+        "query:certified-range:{}:{}",
+        node.0,
+        SlotId::Distance.label()
+    );
+    let doc = editor_core::apply(
+        &doc,
+        &DocEdit::SetDocParam {
+            name: name(&taken),
+            value: DocParam::continuous(Dimension::Length, 3.0),
+        },
+        tol(),
+    )
+    .expect("the parameter declares")
+    .doc;
+    assert_eq!(
+        derive(
+            &doc,
+            &RangeField::Slot {
+                node,
+                slot: SlotId::Distance
+            },
+            RangeSeed::symmetric(0.25),
+            tol()
+        ),
+        Err(RangeRefusal::SyntheticNameTaken {
+            param: name(&taken)
+        })
+    );
+}
+
+/// **The three guard arms**, which the doors cannot reach and which
+/// stay anyway: what a reader would be told if a driver or analysis
+/// change ever fired one.
+///
+/// `SeedIsNotTheAnalyzedAxis` and `MoreThanOneAxisVaries` are
+/// unreachable through [`derive`] (whose `Band` states the seed's own
+/// offsets, and which clears every other spread), and
+/// `LeavesAreNotAPartition` is unreachable through the driver
+/// (`ParamBox::split` refuses a midpoint on an endpoint, so the halves
+/// tile). The walk-side behaviour is pinned at the function in
+/// `range::tests`; what is pinned here is that each refusal RENDERS
+/// both of the facts its payload carries, since a guard that fires
+/// with half a message costs exactly the debugging it exists to save.
+#[test]
+fn the_guard_refusals_render_what_they_carry() {
+    let axis = RangeRefusal::SeedIsNotTheAnalyzedAxis {
+        analyzed: (-0.5, 0.5),
+        asked: (-0.25, 0.75),
+    }
+    .to_string();
+    for fragment in ["-0.5", "0.5", "-0.25", "0.75"] {
+        assert!(axis.contains(fragment), "{axis:?} omits {fragment}");
+    }
+    let axes = RangeRefusal::MoreThanOneAxisVaries { varying: 3 }.to_string();
+    assert!(axes.contains('3'), "{axes:?} omits the count");
+    let gap = RangeRefusal::LeavesAreNotAPartition { at: (1.5, 2.5) }.to_string();
+    for fragment in ["1.5", "2.5"] {
+        assert!(gap.contains(fragment), "{gap:?} omits {fragment}");
+    }
+}
+
+/// **The answer carries its condition.** The derivation holds every
+/// other annotated parameter at its nominal, so the names it pinned
+/// ride on the certificate for a consumer to state.
+#[test]
+fn the_answer_names_the_parameters_it_pinned() {
+    let doc = two_param_slab();
+    let r = range_of(&doc, "depth", RangeSeed::symmetric(0.1), &budget(24, 64));
+    assert_eq!(r.pinned(), [name("side")]);
+    // The axis itself is never pinned: it did not lose a spread, it
+    // was given one.
+    assert!(!r.pinned().contains(&name("depth")));
+    // A document with no other spread to drop pins nothing, which is
+    // not the same claim as "nothing was checked".
+    let plain = range_of(
+        &slab(1.0),
+        "depth",
+        RangeSeed::symmetric(0.1),
+        &budget(24, 64),
+    );
+    assert!(plain.pinned().is_empty());
+}
+
 /// A seed that does not bracket the field's current value refuses: the
 /// witness is taken there, so a range around some other point is a
 /// range of a different document.
@@ -641,6 +866,31 @@ fn a_seed_that_does_not_bracket_the_nominal_refuses() {
         };
         assert_eq!((glo.to_bits(), ghi.to_bits()), (lo.to_bits(), hi.to_bits()));
     }
+}
+
+/// **`RangeSeed::symmetric` is infallible, and the invariant still
+/// holds at one door.** A negative, zero or non-finite half-width
+/// builds a seed the derivation refuses, naming the offsets it was
+/// handed — which is why the constructor does not refuse a second
+/// time under a second spelling.
+#[test]
+fn a_symmetric_seed_of_a_bad_half_width_refuses_at_the_derivation() {
+    let doc = slab(1.0);
+    for w in [-1.0, 0.0, f64::NAN, f64::INFINITY] {
+        let seed = RangeSeed::symmetric(w);
+        let out = derive(&doc, &RangeField::Param(name("depth")), seed, tol());
+        assert!(
+            matches!(out, Err(RangeRefusal::SeedNotABracket { .. })),
+            "symmetric({w}) must refuse at the door, got {out:?}"
+        );
+    }
+    assert_eq!(
+        RangeSeed::symmetric(0.25),
+        RangeSeed {
+            lo: -0.25,
+            hi: 0.25
+        }
+    );
 }
 
 // ------------------------------------------- the seed reaches the axis

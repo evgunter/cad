@@ -11,14 +11,60 @@
 //! which interval around the field's current value is the document
 //! PROVABLY the same build?
 //!
-//! **A certified range is a subset of every locally-valid range.** The
+//! **A certified range is a subset of the LOCALLY-VALID RANGE.** The
 //! probe asks "does anything NEW fail"; a certificate asks "does
-//! anything DECIDE differently", which is strictly more. A value the
-//! query cannot certify may still be perfectly valid — a recorded
-//! predicate flipping with every node still building is the case, and
-//! it has its own arm ([`RangeSide::DecisionFlip`]) precisely so that it is
-//! never read as a failure. The two answer different questions, so a
-//! consumer shows both or names which one it is showing.
+//! anything DECIDE differently", which is strictly more, so every
+//! value this module certifies is locally valid.
+//!
+//! **It is not a subset of the PROBE's reported bracket, and the two
+//! are not the same claim.** The probe reports the furthest value it
+//! SAMPLED and found valid, which on a field with a nearby boundary
+//! can sit well outside the interval a drive can prove: on an 8 mm
+//! extrusion slot the certificate's lower end is `1.6e-8` where the
+//! probe's furthest valid sample is `3.9e-6`. Both are true about
+//! different questions. A consumer shows both or names which one it
+//! is showing.
+//!
+//! # What this costs on a real document, measured
+//!
+//! **On the repo's own corpus documents this query certifies NOTHING
+//! at any budget a caller can afford**, and the reason is the
+//! driver's certification width rather than anything here. Measured
+//! on this tree (dev profile, one machine; re-take them rather than
+//! trusting them):
+//!
+//! | document | field | per leaf | certified |
+//! | --- | --- | --- | --- |
+//! | `corpus::plate_param` (7 nodes) | `hole_r`, seed ±0.01 | 3.4 s | 0 of 64 |
+//! | `corpus::die` (84 nodes) | `pip_depth`, seed ±0.01 | 3.4–4.8 s | 0 of 4 |
+//! | `corpus::die` | the cube's literal `Distance` slot, ±0.01 | 17.3 s | 0 of 2 |
+//!
+//! The tour's own tolerance cell records the same fact from the other
+//! side: `demos/tour/src/plate.rs`'s `CERTIFIABLE_FRACTION` is
+//! **7.81e-7** of its spacing band. A field feeding a PARAMETRIC
+//! POLYGON VERTEX is worse than the corpus average and sharply so —
+//! one loop with one parametric vertex coordinate certifies at ±1e-8
+//! (`10 ε`) and nothing at ±3e-8, which is the ε-bounded width E12's
+//! symbolic tier exists to leave, reached again because the tier
+//! discharges nothing there
+//! (`work/props/parametric-polygon-loop-certifies-nothing`). What
+//! certifies over a macroscopic seed is a slab: straight geometry
+//! whose identities the tier cancels.
+//!
+//! **So [`DriveConfig::default`] is not a sensible budget for this
+//! query.** Its 65,536 leaves are about sixty hours on the corpus
+//! plate and a fortnight on the die's slot. The on-demand posture
+//! this query was ruled into makes a MINUTE usable and hours not, so
+//! size the budget by wall clock:
+//!
+//! ```text
+//! DriveConfig { max_leaves: 16, ..DriveConfig::default() }   // ~1 min at 3.4 s/leaf
+//! ```
+//!
+//! and the honest procedure is to drive ONE leaf first (`max_leaves:
+//! 1`), time it, and divide the time the caller is willing to wait by
+//! that. `max_depth` is not the dial to lower: it bounds how finely
+//! one axis may be cut, and the whole-drive cost is `max_leaves`.
 //!
 //! # The one field, and where its widening lives
 //!
@@ -36,7 +82,11 @@
 //! document, so the drive has exactly one varying axis. That is what
 //! makes the verdict a RANGE rather than a box: this query's contract
 //! is one field, and a document-wide box is [`crate::drive::drive`]'s
-//! own answer, asked for directly.
+//! own answer, asked for directly. The clearing is a CONDITION on the
+//! answer, not a detail — a range taken this way holds with the other
+//! parameters at their nominals and says nothing about their spreads
+//! — so the names it pinned ride on the answer
+//! ([`CertifiedRange::pinned`]) for a consumer to state.
 //!
 //! # The seed is the caller's
 //!
@@ -108,6 +158,16 @@ pub struct RangeSeed {
 
 impl RangeSeed {
     /// A symmetric seed of half-width `w`.
+    ///
+    /// **Infallible on purpose, and the invariant is not weakened by
+    /// it.** A negative `w` builds `lo > 0 > hi`, a zero `w` builds a
+    /// seed with no width, and a non-finite `w` builds a non-finite
+    /// one — each of which [`derive()`] refuses
+    /// [`RangeRefusal::SeedNotABracket`], naming the offsets it was
+    /// handed. A `Result` here would refuse the same three facts one
+    /// call earlier under a second spelling, and a caller that wrote
+    /// the fields directly would still meet the first; one door for
+    /// one invariant is the trade.
     #[must_use]
     pub fn symmetric(w: f64) -> Self {
         Self { lo: -w, hi: w }
@@ -118,6 +178,33 @@ impl RangeSeed {
 ///
 /// A leaf's own refusal class decides its arm; this query invents no
 /// decision of its own and folds no arm into another.
+///
+/// # What `within` is, on the three arms that carry one
+///
+/// `within` is `[certified_to, the near edge of the first leaf the
+/// driver decided DEFINITELY OTHERWISE]`. Its near end is proven the
+/// witness's build and its far end is proven not; **everything
+/// strictly between is ground the driver did not decide**, and it is
+/// not empty — a certified leaf and a flip-crossing leaf can never be
+/// neighbours (see [`certified_range`]'s walk), so every boundary has
+/// undecided leaves around it.
+///
+/// **A consumer must not render `within` as valid.** Today a node
+/// that fails on part of a sub-box is one of those undecided leaves:
+/// `drive::classify_replay` bisects such a leaf to the budget floor
+/// and prices it `Budget` rather than naming the failure, so a
+/// `within` routinely CONTAINS values at which the document does not
+/// build — `docm9_range.rs`'s
+/// `a_decision_flips_within_contains_a_value_that_does_not_build`
+/// measures exactly that on the A2 fixture. The row this waits on is
+/// `work/props/coincidence-zone-priced-budget-at-the-floor`.
+///
+/// # A first leaf that straddles the nominal
+///
+/// The leaf holding offset zero belongs to BOTH walks, so when it is
+/// the leaf reported, the two sides carry one span crossing the
+/// nominal and `certified_to` is zero on both. That is honest rather
+/// than a bug: nothing either side of the nominal was proven.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RangeSide {
     /// Every leaf from the nominal to `to` certified, and `to` is the
@@ -130,54 +217,65 @@ pub enum RangeSide {
         /// The seed's edge on this side, as an offset.
         to: f64,
     },
-    /// The first leaf outward the driver classified DEFINITELY
-    /// otherwise is a [`RefusalReason::FlipCrossing`] whose evidence
-    /// shows a node's STANDING change — a node that was `Ok` at the
-    /// witness is not, or the reverse. The boundary the probe looks
-    /// for is inside `within`, and `[nominal, certified_to]` is
-    /// proven.
+    /// The first leaf outward the driver decided DEFINITELY otherwise
+    /// is a [`RefusalReason::FlipCrossing`] whose evidence shows a
+    /// node's STANDING change — a node that was `Ok` at the witness is
+    /// not, or the reverse.
+    ///
+    /// It asserts that the FIRST DECIDED DIFFERENCE outward is a
+    /// failure, and that `[nominal, certified_to]` is the witness's
+    /// build. It asserts nothing at all about the undecided ground
+    /// inside `within` (the type's own docs).
     NewFailure {
         /// The proven frontier, as an offset (zero when nothing this
         /// side of the nominal certified).
         certified_to: f64,
-        /// The bracket the boundary lies in, as offsets: from
-        /// `certified_to` — proven the witness's build — to the near
-        /// edge of the flipped leaf, proven not. Undecided ground in
-        /// between is exactly what makes this a bracket rather than a
-        /// number.
+        /// The bracket, as offsets ([`RangeSide`]'s docs): proven the
+        /// witness's build at the near end, proven not at the far
+        /// end, undecided in between.
         within: (f64, f64),
         /// The driver's evidence, verbatim.
         evidence: Box<FlipEvidence>,
     },
-    /// The first leaf outward the driver classified DEFINITELY
-    /// otherwise is a [`RefusalReason::FlipCrossing`] with NO standing
-    /// change: a recorded predicate decides differently inside
-    /// `within` while every node still builds.
+    /// The first leaf outward the driver decided DEFINITELY otherwise
+    /// is a [`RefusalReason::FlipCrossing`] with NO standing change:
+    /// at the far end of `within` a recorded predicate decides
+    /// differently and every node still builds.
     ///
-    /// **This is the boundary of the CERTIFICATE, not necessarily of
-    /// validity.** The probe would call such values valid and would
-    /// be right to; the query says only that it cannot prove them to
-    /// be the same build, and names what differs. Never folded into
-    /// [`RangeSide::NewFailure`].
+    /// **This is the boundary of the CERTIFICATE, not of validity, and
+    /// it is not a claim that `within` is valid.** What the arm
+    /// asserts is that the first decided difference outward is a
+    /// decision flip with no standing change — never that every value
+    /// in `within` builds, which today is routinely false (a node
+    /// that fails on a sub-box is priced `Budget` among the undecided
+    /// leaves rather than decided; see [`RangeSide`]'s docs). Never
+    /// folded into [`RangeSide::NewFailure`].
     DecisionFlip {
         /// The proven frontier, as an offset.
         certified_to: f64,
-        /// The bracket the boundary lies in, as offsets
-        /// ([`RangeSide::NewFailure`]'s `within`).
+        /// The bracket, as offsets ([`RangeSide`]'s docs).
         within: (f64, f64),
         /// The driver's evidence, verbatim.
         evidence: Box<FlipEvidence>,
     },
-    /// NO leaf outward was classified definitely otherwise, and the
+    /// NO leaf outward was decided definitely otherwise, and the
     /// first uncertified one is [`RefusalReason::Budget`],
     /// [`RefusalReason::SliverTerminal`],
     /// [`RefusalReason::Bifurcation`], [`RefusalReason::Infeasible`]
     /// or [`RefusalReason::MeasureRefused`]: the driver could not
     /// DECIDE `within`, and found nothing beyond it either.
     ///
-    /// **Not a failure and not a boundary**, and never to be rendered
-    /// as one. The recourse is the reason's own — more budget, a
-    /// coarser seed, a document repair.
+    /// **Not a bound**, and never to be rendered as one. It is also
+    /// not a claim that nothing is wrong out there: a FAILURE
+    /// boundary reaches this arm today as `Budget` AT THE FLOOR, and
+    /// nothing at this type tells that apart from a budget a caller
+    /// could simply raise. So the recourse is the reason's own only
+    /// ABOVE the floor — more leaves, a coarser seed — and a
+    /// `Budget(Depth { max_depth })` at the shipped depth, or a
+    /// `Budget(Resolution)`, means refinement has stopped moving and
+    /// more budget buys nothing. The row that would let the driver
+    /// name such a leaf is
+    /// `work/props/coincidence-zone-priced-budget-at-the-floor`.
     Indeterminate {
         /// The proven frontier, as an offset.
         certified_to: f64,
@@ -214,17 +312,25 @@ impl RangeSide {
 
 /// The query's answer: one [`RangeSide`] per direction, around the field's
 /// own nominal.
+///
+/// **It is a CONDITIONAL answer and carries its condition**
+/// ([`Self::pinned`]): the derivation holds every other annotated
+/// parameter at its nominal, so a consumer states "conditional on
+/// `side` at its nominal" rather than implying a claim over the
+/// document's whole box.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CertifiedRange {
     field: RangeField,
     nominal: f64,
     seed: RangeSeed,
+    pinned: Vec<ParamName>,
     lo: RangeSide,
     hi: RangeSide,
 }
 
 impl CertifiedRange {
     /// The field this range is about.
+    #[must_use]
     pub fn field(&self) -> &RangeField {
         &self.field
     }
@@ -232,21 +338,35 @@ impl CertifiedRange {
     /// The field's value in the input document — the point the
     /// witness build is taken at, and the origin every offset here is
     /// measured from.
+    #[must_use]
     pub fn nominal(&self) -> f64 {
         self.nominal
     }
 
     /// The seed the caller chose.
+    #[must_use]
     pub fn seed(&self) -> RangeSeed {
         self.seed
     }
 
+    /// **The condition this answer holds under**: the parameters whose
+    /// declared distribution the derivation cleared, in name order, so
+    /// the drive had one axis. Every one of them is at its nominal for
+    /// the whole certificate, and empty means the document declared no
+    /// other spread to drop.
+    #[must_use]
+    pub fn pinned(&self) -> &[ParamName] {
+        &self.pinned
+    }
+
     /// The downward side.
+    #[must_use]
     pub fn lo(&self) -> &RangeSide {
         &self.lo
     }
 
     /// The upward side.
+    #[must_use]
     pub fn hi(&self) -> &RangeSide {
         &self.hi
     }
@@ -255,19 +375,26 @@ impl CertifiedRange {
     /// at `f64`. A reader's convenience: the PROOF is over the
     /// offsets, which the driver's axis carries exactly, and this sum
     /// rounds.
+    #[must_use]
     pub fn absolute(&self, offset: f64) -> f64 {
         self.nominal + offset
     }
 
     /// The proven interval as offsets: `(lo.certified_to(),
     /// hi.certified_to())`. Every value in it builds exactly what the
-    /// witness built.
+    /// witness built, with [`Self::pinned`] at their nominals.
+    ///
+    /// A SUBSET of the locally-valid range and not of the sampling
+    /// probe's reported bracket — the two are different claims, and
+    /// the module docs carry the measurement that separates them.
+    #[must_use]
     pub fn certified_offsets(&self) -> (f64, f64) {
         (self.lo.certified_to(), self.hi.certified_to())
     }
 
     /// The proven interval in absolute field values
     /// ([`Self::absolute`] of [`Self::certified_offsets`]).
+    #[must_use]
     pub fn certified_interval(&self) -> (f64, f64) {
         let (lo, hi) = self.certified_offsets();
         (self.absolute(lo), self.absolute(hi))
@@ -281,8 +408,8 @@ impl CertifiedRange {
 /// which is the driver's own door refusing, carried verbatim.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RangeRefusal {
-    /// The seed is not a bracket of the nominal: a field is finite,
-    /// `lo <= 0 <= hi` fails, or the seed has no width.
+    /// The seed is not a bracket of the nominal: an offset is not
+    /// finite, `lo <= 0 <= hi` fails, or the seed has no width.
     SeedNotABracket {
         /// The lower offset asked for.
         lo: f64,
@@ -337,12 +464,30 @@ pub enum RangeRefusal {
     /// The derived document's own edit door refused the derivation.
     Derivation(Box<EditError>),
     /// The seed did not reach the driver as the analyzed axis: the
-    /// axis the analysis derived is not the interval that was asked
-    /// for, or some other axis of the derived document still varies.
-    /// The query refuses rather than certifying a box it did not mean.
+    /// interval the analysis derived for the field is not the one that
+    /// was asked for. The query refuses rather than certifying a box
+    /// it did not mean.
+    ///
+    /// Unreachable through [`derive()`], whose `Band` states the seed's
+    /// own offsets and which `analyzed_box` carries verbatim — it is
+    /// the guard on that identity, not a case the doors produce.
     SeedIsNotTheAnalyzedAxis {
         /// The axis the analysis produced, as offsets.
         analyzed: (f64, f64),
+        /// The seed that was asked for, as offsets.
+        asked: (f64, f64),
+    },
+    /// The derived document's box has some other varying axis, so the
+    /// drive would not be the one-field one this query's contract is
+    /// about.
+    ///
+    /// Its own arm rather than a second meaning for
+    /// [`Self::SeedIsNotTheAnalyzedAxis`]: "the axis is wrong" and
+    /// "there is more than one axis" are two facts with two repairs,
+    /// and one payload could state only whichever the reader guessed.
+    MoreThanOneAxisVaries {
+        /// How many axes of the derived box vary.
+        varying: usize,
     },
     /// The driver's own door refused, verbatim.
     Drive(Box<DriveRefusal>),
@@ -396,11 +541,16 @@ impl core::fmt::Display for RangeRefusal {
                 param.0
             ),
             Self::Derivation(e) => write!(f, "the derived document was refused: {e}"),
-            Self::SeedIsNotTheAnalyzedAxis { analyzed } => write!(
+            Self::SeedIsNotTheAnalyzedAxis { analyzed, asked } => write!(
                 f,
-                "the analysis derived the axis [{}, {}], which is not the seed that was asked \
-                 for — or another axis of the derived document still varies",
-                analyzed.0, analyzed.1
+                "the analysis derived the axis [{}, {}] for this field, which is not the seed \
+                 [{}, {}] that was asked for",
+                analyzed.0, analyzed.1, asked.0, asked.1
+            ),
+            Self::MoreThanOneAxisVaries { varying } => write!(
+                f,
+                "the derived document's box varies on {varying} axes — this query certifies ONE \
+                 field, and a box over several is `drive`'s own answer"
             ),
             Self::Drive(e) => write!(f, "the drive refused: {e}"),
             Self::LeavesAreNotAPartition { at } => write!(
@@ -430,6 +580,10 @@ pub struct DerivedRange {
     pub axis: ParamName,
     /// The field's value in the input document, bit for bit.
     pub nominal: f64,
+    /// The parameters whose declared distribution this derivation
+    /// CLEARED, in name order — the condition the answer holds under
+    /// ([`CertifiedRange::pinned`]).
+    pub pinned: Vec<ParamName>,
 }
 
 /// The synthetic parameter a slot is widened through, named for the
@@ -493,18 +647,24 @@ pub fn derive(
             let Some(n) = doc.node(*node) else {
                 return Err(RangeRefusal::UnknownNode { node: *node });
             };
-            if slot.is_structural() {
-                return Err(RangeRefusal::StructuralSlot {
-                    node: *node,
-                    slot: *slot,
-                });
-            }
+            // WHETHER THE NODE CARRIES THE SLOT IS ASKED FIRST. A slot
+            // id is a vocabulary-wide name, so `Count` is structural
+            // whatever node it is aimed at; answering "the count slot
+            // of node N is structural" for a node with no count slot
+            // states the vocabulary's fact where the caller asked
+            // about this document's.
             let Some(expr) = n.expr(*slot) else {
                 return Err(RangeRefusal::UnknownSlot {
                     node: *node,
                     slot: *slot,
                 });
             };
+            if slot.is_structural() {
+                return Err(RangeRefusal::StructuralSlot {
+                    node: *node,
+                    slot: *slot,
+                });
+            }
             let Some(value) = expr.literal_value() else {
                 return Err(RangeRefusal::SlotIsNotALiteral {
                     node: *node,
@@ -569,6 +729,15 @@ pub fn derive(
             DocParam::Count { .. } => None,
         })
         .collect();
+    // What the clearing PINNED: the parameters that had a declared
+    // spread and lost it, which is the condition the answer holds
+    // under. The axis itself is never in the list — it did not lose a
+    // spread, it was given one.
+    let pinned: Vec<ParamName> = annotated
+        .iter()
+        .filter(|(name, value)| *name != axis && value.distribution().is_none())
+        .map(|(name, _)| name.clone())
+        .collect();
     for (name, value) in annotated {
         derived = edit(&derived, &DocEdit::SetDocParam { name, value }, tol)?;
     }
@@ -576,6 +745,7 @@ pub fn derive(
         doc: derived,
         axis,
         nominal,
+        pinned,
     })
 }
 
@@ -621,10 +791,15 @@ pub fn certified_range(
     let derived_axis = analyzed
         .get(&derived.axis)
         .map_or((0.0, 0.0), |p| (p.offsets.lo, p.offsets.hi));
-    if derived_axis != asked || analyzed.varying().count() != 1 {
+    if derived_axis != asked {
         return Err(RangeRefusal::SeedIsNotTheAnalyzedAxis {
             analyzed: derived_axis,
+            asked,
         });
+    }
+    let varying = analyzed.varying().count();
+    if varying != 1 {
+        return Err(RangeRefusal::MoreThanOneAxisVaries { varying });
     }
     let verdict = drive(&derived.doc, &analyzed, config, tol)
         .map_err(|e| RangeRefusal::Drive(Box::new(e)))?;
@@ -633,6 +808,7 @@ pub fn certified_range(
         field: field.clone(),
         nominal: derived.nominal,
         seed,
+        pinned: derived.pinned,
         lo: walk(&leaves, Direction::Lo, seed),
         hi: walk(&leaves, Direction::Hi, seed),
     })
@@ -653,6 +829,16 @@ struct Leaf<'a> {
 /// varies on the FIELD's axis and on no other, the leaves meet end to
 /// end with no gap and no overlap, and the two ends are the seed's
 /// own. A walk outward from the nominal has no meaning otherwise.
+///
+/// **It cannot fire against today's driver, and it stays.** The
+/// subdivision is a binary tree whose splits are
+/// [`ParamBox::split`]'s, which refuses a midpoint landing on an
+/// endpoint — so the halves tile exactly, every leaf inherits the
+/// root's one varying axis, and the receipt identity already says the
+/// leaves cover the box. This is the fail-loud door on a DRIVER
+/// CHANGE that broke any of those, not a case the current one
+/// reaches; `docm9_range.rs` fires it over a hand-built leaf list
+/// rather than claiming a guard nothing has shown to work.
 fn walkable_leaves<'a>(
     verdict: &'a ParamBoxVerdict,
     axis: &ParamName,
@@ -666,9 +852,11 @@ fn walkable_leaves<'a>(
             }
             found = Some((lo, hi));
         }
-        // A leaf degenerate on the field's own axis is the `f64` grid
-        // showing through, not a partition failure: it reads as the
-        // nominal point of the axis it was split on.
+        // A leaf with NO varying axis has no span to place on the
+        // walk, so it is a partition failure like any other — the
+        // degenerate point box the driver's K-telemetry replay builds
+        // is never a leaf of a verdict, and one arriving here would
+        // mean the frontier grew a shape this walk cannot read.
         found.ok_or(RangeRefusal::LeavesAreNotAPartition { at: (0.0, 0.0) })
     };
     let mut leaves: Vec<Leaf<'a>> =
@@ -717,17 +905,65 @@ enum Direction {
     Hi,
 }
 
+/// How far the walk has PROVEN, and where it stopped proving.
+///
+/// One value rather than a frontier plus a "have I stopped yet" flag:
+/// the two can only move together, and the pair spelled apart is what
+/// lets a later certified leaf advance a frontier the walk had already
+/// abandoned.
+enum Frontier<'a> {
+    /// Still certified out to this offset.
+    Proving(f64),
+    /// Stopped at the first uncertified leaf: what was proven, that
+    /// leaf's span, and its reason.
+    Stopped {
+        certified_to: f64,
+        at: (f64, f64),
+        reason: &'a RefusalReason,
+    },
+}
+
+impl Frontier<'_> {
+    /// The proven offset, whichever state this is in.
+    fn certified_to(&self) -> f64 {
+        match *self {
+            Self::Proving(to)
+            | Self::Stopped {
+                certified_to: to, ..
+            } => to,
+        }
+    }
+}
+
+/// **Whether a flip's evidence shows a node's STANDING change** — the
+/// ONE predicate separating [`RangeSide::NewFailure`] from
+/// [`RangeSide::DecisionFlip`].
+///
+/// Written here because this is the module that decides on it. Two
+/// neighbours answer a related question and neither is this one:
+/// `resolve::vdiff`'s `NodeVerdictDelta::is_empty` folds the standing
+/// difference in with the sign flips and the divergences, so it cannot
+/// tell the two arms apart; and `drive::classify_replay` compares
+/// whole verdict vectors, in which a standing is one row among many.
+/// A consumer wanting this question asks it here.
+fn standing_changed(evidence: &FlipEvidence) -> bool {
+    evidence
+        .verdicts
+        .nodes
+        .values()
+        .any(|d| d.old_status != d.new_status)
+}
+
 /// **The walk**: outward from the nominal, one leaf at a time.
 ///
 /// Two questions are answered on one pass and they are not the same
 /// question. The PROOF stops at the first leaf that is not certified —
 /// that leaf's near edge is `certified_to`, and nothing beyond it is
-/// claimed. The BOUNDARY is the first leaf outward the driver
-/// classified DEFINITELY otherwise, a
-/// [`RefusalReason::FlipCrossing`]; the ground between the two is
-/// ground the driver could not decide, so the boundary is reported as
-/// a bracket `within` whose near end is proven the witness's build and
-/// whose far end is proven not.
+/// claimed. The BOUNDARY is the first leaf outward the driver decided
+/// DEFINITELY otherwise, a [`RefusalReason::FlipCrossing`]; the ground
+/// between the two is ground the driver did not decide, so the
+/// boundary is reported as a bracket `within` whose near end is proven
+/// the witness's build and whose far end is proven not.
 ///
 /// **Why the two are separated.** A certified leaf and a flip-crossing
 /// leaf cannot be neighbours: a decision differs between them, so some
@@ -738,15 +974,19 @@ enum Direction {
 /// answer would report every boundary in this kernel as
 /// [`RangeSide::Indeterminate`].
 ///
+/// **What the bracket does NOT say.** The undecided leaves inside
+/// `within` are undecided, not valid: today a leaf on which a node
+/// definitely fails is among them, bisected to the budget floor and
+/// priced `Budget` rather than named, so `within` regularly contains
+/// values at which the document does not build. The arms' own docs
+/// carry that, because it is what a consumer must not get wrong.
+///
 /// Nothing here classifies geometry. A flip crossing is a boundary of
-/// the CERTIFICATE; whether it is also a boundary of VALIDITY is read
-/// off the evidence's node standings — a node that built at the
-/// witness and does not in the leaf (or the reverse) is
-/// [`RangeSide::NewFailure`], and anything else is
-/// [`RangeSide::DecisionFlip`]. A side with no flip crossing outward
-/// at all is [`RangeSide::Indeterminate`] under the first uncertified
-/// leaf's own reason, which is not a boundary and is never reported as
-/// one.
+/// the CERTIFICATE; whether it is also a boundary of VALIDITY is
+/// [`standing_changed`]'s reading of the driver's own evidence. A side
+/// with no flip crossing outward at all is
+/// [`RangeSide::Indeterminate`] under the first uncertified leaf's own
+/// reason, which is not a boundary and is never reported as one.
 fn walk(leaves: &[Leaf<'_>], direction: Direction, seed: RangeSeed) -> RangeSide {
     let edge = match direction {
         Direction::Lo => seed.lo,
@@ -770,24 +1010,19 @@ fn walk(leaves: &[Leaf<'_>], direction: Direction, seed: RangeSeed) -> RangeSide
     if direction == Direction::Lo {
         outward.reverse();
     }
-    let mut certified_to = 0.0_f64;
-    let mut first: Option<((f64, f64), &RefusalReason)> = None;
+    let mut frontier = Frontier::Proving(0.0);
     for leaf in outward {
         match leaf.refusal {
             None => {
-                if first.is_none() {
-                    certified_to = far(leaf);
+                if let Frontier::Proving(_) = frontier {
+                    frontier = Frontier::Proving(far(leaf));
                 }
             }
             Some(RefusalReason::FlipCrossing { flipped }) => {
-                let standing_changed = flipped
-                    .verdicts
-                    .nodes
-                    .values()
-                    .any(|d| d.old_status != d.new_status);
+                let certified_to = frontier.certified_to();
                 let within = (certified_to.min(near(leaf)), certified_to.max(near(leaf)));
                 let evidence = flipped.clone();
-                return if standing_changed {
+                return if standing_changed(flipped) {
                     RangeSide::NewFailure {
                         certified_to,
                         within,
@@ -802,16 +1037,214 @@ fn walk(leaves: &[Leaf<'_>], direction: Direction, seed: RangeSeed) -> RangeSide
                 };
             }
             Some(reason) => {
-                first.get_or_insert(((leaf.lo, leaf.hi), reason));
+                if let Frontier::Proving(certified_to) = frontier {
+                    frontier = Frontier::Stopped {
+                        certified_to,
+                        at: (leaf.lo, leaf.hi),
+                        reason,
+                    };
+                }
             }
         }
     }
-    match first {
-        None => RangeSide::Certified { to: edge },
-        Some((within, reason)) => RangeSide::Indeterminate {
+    match frontier {
+        Frontier::Proving(_) => RangeSide::Certified { to: edge },
+        Frontier::Stopped {
             certified_to,
-            within,
+            at,
+            reason,
+        } => RangeSide::Indeterminate {
+            certified_to,
+            within: at,
             reason: Box::new(reason.clone()),
         },
+    }
+}
+
+/// **The walk's own contract, over leaf lists the driver cannot
+/// produce.**
+///
+/// These rows are here rather than in `tests/docm9_range.rs` because
+/// what they pin is the classification and the walk as FUNCTIONS, on
+/// shapes no fixture reaches: a flip whose evidence carries a standing
+/// change (unreachable end to end — `work/props/coincidence-zone-priced-
+/// budget-at-the-floor`), a certified leaf beyond an undecided one, a
+/// gap between leaves. Building them through a document would mean
+/// waiting for a driver that cannot make them; building them through a
+/// public seam would mean a door on the API whose only caller is a
+/// test.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use crate::resolve::{FlipSet, NodeVerdictDelta, RunStatus};
+    use std::collections::BTreeMap;
+
+    fn node(n: u64) -> RecipeNodeId {
+        RecipeNodeId(n)
+    }
+
+    /// A flip evidence with the two node standings asked for.
+    fn evidence(old: RunStatus, new: RunStatus) -> FlipEvidence {
+        let mut nodes = BTreeMap::new();
+        nodes.insert(
+            node(7),
+            NodeVerdictDelta {
+                old_status: old,
+                new_status: new,
+                flips: Vec::new(),
+                diverged: Vec::new(),
+            },
+        );
+        FlipEvidence {
+            verdicts: FlipSet { nodes },
+            structure: Vec::new(),
+        }
+    }
+
+    fn flip(old: RunStatus, new: RunStatus) -> RefusalReason {
+        RefusalReason::FlipCrossing {
+            flipped: Box::new(evidence(old, new)),
+        }
+    }
+
+    fn budget() -> RefusalReason {
+        RefusalReason::Budget(crate::drive::BudgetKind::Leaves { max_leaves: 4 })
+    }
+
+    fn leaf<'a>(lo: f64, hi: f64, refusal: Option<&'a RefusalReason>) -> Leaf<'a> {
+        Leaf { lo, hi, refusal }
+    }
+
+    /// **The predicate that separates the two flip arms**, asserted
+    /// directly: the same leaf, the same position, one standing
+    /// change apart.
+    #[test]
+    fn a_standing_change_is_what_makes_a_flip_a_new_failure() {
+        let seed = RangeSeed { lo: -1.0, hi: 1.0 };
+        let moved = flip(RunStatus::Ok, RunStatus::Failed);
+        let held = flip(RunStatus::Ok, RunStatus::Ok);
+        for (reason, expect_failure) in [(&moved, true), (&held, false)] {
+            let leaves = [
+                leaf(0.0, 0.5, None),
+                leaf(0.5, 1.0, Some(reason)),
+                leaf(-1.0, 0.0, None),
+            ];
+            let side = walk(&leaves, Direction::Hi, seed);
+            match (&side, expect_failure) {
+                (
+                    RangeSide::NewFailure {
+                        certified_to,
+                        within,
+                        ..
+                    },
+                    true,
+                )
+                | (
+                    RangeSide::DecisionFlip {
+                        certified_to,
+                        within,
+                        ..
+                    },
+                    false,
+                ) => {
+                    assert!((*certified_to - 0.5).abs() < f64::EPSILON);
+                    assert!((within.0 - 0.5).abs() < f64::EPSILON);
+                    assert!((within.1 - 0.5).abs() < f64::EPSILON);
+                }
+                _ => panic!("standing change {expect_failure} gave {side:?}"),
+            }
+        }
+        // And the two directions of the fold are both dead: a poisoned
+        // node is a standing change too, and a divergence with both
+        // standings equal is not.
+        assert!(standing_changed(&evidence(
+            RunStatus::Ok,
+            RunStatus::Poisoned
+        )));
+        assert!(!standing_changed(&evidence(
+            RunStatus::Failed,
+            RunStatus::Failed
+        )));
+    }
+
+    /// **`within`'s far end is the flipped leaf's NEAR edge**, not its
+    /// far one: the leaf itself is proven different throughout, so
+    /// the bracket stops where it starts.
+    #[test]
+    fn withins_far_end_is_the_flipped_leafs_near_edge() {
+        let seed = RangeSeed { lo: -1.0, hi: 4.0 };
+        let f = flip(RunStatus::Ok, RunStatus::Ok);
+        let b = budget();
+        let leaves = [
+            leaf(-1.0, 0.0, None),
+            leaf(0.0, 1.0, None),
+            leaf(1.0, 2.0, Some(&b)),
+            leaf(2.0, 4.0, Some(&f)),
+        ];
+        let RangeSide::DecisionFlip {
+            certified_to,
+            within,
+            ..
+        } = walk(&leaves, Direction::Hi, seed)
+        else {
+            panic!("a flip beyond an undecided leaf is still the boundary");
+        };
+        assert!((certified_to - 1.0).abs() < f64::EPSILON);
+        assert_eq!(
+            within,
+            (1.0, 2.0),
+            "the bracket ends at the flip's near edge"
+        );
+    }
+
+    /// **A certified leaf beyond an undecided one does not advance the
+    /// frontier.** The proof is contiguous from the nominal or it is
+    /// not a proof.
+    #[test]
+    fn the_frontier_does_not_jump_an_undecided_leaf() {
+        let seed = RangeSeed { lo: -1.0, hi: 3.0 };
+        let b = budget();
+        let leaves = [
+            leaf(-1.0, 0.0, None),
+            leaf(0.0, 1.0, None),
+            leaf(1.0, 2.0, Some(&b)),
+            leaf(2.0, 3.0, None),
+        ];
+        let side = walk(&leaves, Direction::Hi, seed);
+        assert!(
+            (side.certified_to() - 1.0).abs() < f64::EPSILON,
+            "a certified leaf past the gap must not move the frontier: {side:?}"
+        );
+        let RangeSide::Indeterminate { within, .. } = side else {
+            panic!("no flip outward, so the side is indeterminate");
+        };
+        // M9: the reported span is the undecided leaf's own and has
+        // width — never the degenerate point the frontier sits at.
+        assert_eq!(within, (1.0, 2.0));
+        assert!(within.1 > within.0);
+    }
+
+    /// **The partition guard fires** on a gap, which is what makes it
+    /// a guard rather than a comment (its own docs: unreachable
+    /// through today's driver, kept for a change to it).
+    #[test]
+    fn a_gap_between_leaves_refuses() {
+        let seed = RangeSeed { lo: -1.0, hi: 1.0 };
+        let leaves = [leaf(-1.0, -0.5, None), leaf(0.0, 1.0, None)];
+        // The walk itself is total over any list; the partition check
+        // is the door, so it is what this row calls.
+        let gap = leaves
+            .windows(2)
+            .find(|p| p[0].hi != p[1].lo)
+            .map(|p| (p[0].hi, p[1].lo));
+        assert_eq!(gap, Some((-0.5, 0.0)));
+        // And the walk over the real shape still answers, so the
+        // guard is the only thing standing between a gap and a
+        // confidently wrong frontier.
+        assert!(matches!(
+            walk(&leaves, Direction::Hi, seed),
+            RangeSide::Certified { .. }
+        ));
     }
 }

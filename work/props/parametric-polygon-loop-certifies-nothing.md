@@ -41,9 +41,40 @@ M10-8 measured (`docs/DOC-LEDGER.md` sweep 13). If the answer turns
 out to be the profile canonicalization's rather than the tier's, the
 row moves to the program that owns `crates/profile/*`.
 
+## Widened, 2026-09-14: it is not the second loop, and it is not "no leaf at any width"
+
+Both DOCM-9 review lanes reproduced the finding independently and the
+fix pass then bracketed it, which moves the claim in two directions.
+
+**Narrower than filed in one way**: the certification width is not
+zero. A SINGLE loop with ONE parametric vertex coordinate — a unit
+square whose two right-hand x coordinates are `Expr::param("x")`,
+extruded by a literal — certifies over a seed of ±1e-8 and nothing at
+±3e-8 (24 depth, 64 leaves, all-or-nothing at each width):
+
+| seed | certified | refused |
+| --- | --- | --- |
+| ±1e-9 (`1 ε`) | 8 | 0 |
+| ±3e-9 | 16 | 0 |
+| ±1e-8 (`10 ε`) | 64 | 0 |
+| ±3e-8 | 0 | 64 |
+| ±1e-7 (`100 ε`) | 0 | 64 |
+
+**Wider than filed in every other way**: one loop is enough (the
+original evidence had two, which suggested containment), one vertex is
+enough, and the width it collapses to is `~Kε`. That is the PRE-E12
+state — a leaf certifying only below a fraction of the band — reached
+again on a shape the symbolic tier is supposed to cancel, which is
+what makes this the tier's question rather than the profile
+canonicalization's. The comparison holds fixed everything else: the
+same document with a LITERAL vertex certifies ±0.1 whole, and with a
+parametric CIRCLE centre certifies ±0.05.
+
 ## What is not claimed
 
-The measurement is one fixture family and was taken to choose test
-documents, not to characterise the class: no sweep was run for other
-parametric vertex shapes, and the numbers are dev-profile wall clock
-on one machine.
+The measurements are one fixture family, dev-profile wall clock on one
+machine, taken to choose test documents and then to bracket the width
+— not a sweep. No other parametric vertex shape was tried (an arc's
+endpoints, a chain's `Toward` director, a `CircleSplit` phase), and
+nothing here says where between ±1e-8 and ±3e-8 the width actually
+falls.
