@@ -11038,6 +11038,91 @@ forced by `draw_one`'s exhaustive match).
 refreshed: the type name, and the member order it quoted as
 `Plane, Axis, Point, Frame`, which PR 2046 reordered to form order.
 
+## 2026-09-14 — #2561 merged; two types stay two, and a justification I had mis-stated
+
+**#2561 merged** (`c77690782a`), verified from the job list: **39 jobs,
+12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok` success**, four
+render-lane rows green.
+
+**The two `DatumKind`s stay two types, and the name collision goes.**
+The lane's argument is the one the item did not make: they are two
+different functions of the same domain.
+`datums::DatumKind` **partitions the datum VALUES by how they are
+drawn** — four members over `DatumValue`'s five arms because
+`draw_one`'s `AxisInPlane` arm hands it `Axis`. `forms::DatumKind`
+**selects what a plain-numbers form can author** — four of
+`DatumSpec`'s five arms, `AxisInPlane` absent because it needs a frame
+pick. **The memberships match because the same arm is both the value
+that collapses and the spec that is not offered, for two unrelated
+reasons.** That is the whole of the identity.
+
+**Merging would assert something false, and the board already schedules
+the counterexample.** A merged `ALL` is what the radio row walks, so
+*drawable* would imply *offered by the add-datum form* — and
+`work/view/revolve-tool-unreachable-no-axisinplane-form` is **open** and
+asks for `AxisInPlane` to become authorable, which grows the form enum
+to five while the draw tag stays at four. So the hold is the NAME:
+`forms::DatumKind` → `forms::DatumKindChoice`, which is this crate's own
+spelling for a form choice as distinct from the thing chosen among
+(`PatternKindChoice`, `blend::BlendKindChoice`). **No mechanical hold,
+deliberately** — there is no invariant to hold, and a test pinning the
+two identical would have to die the day the revolve row lands.
+
+The string tags stay on the form side (table data, walked by
+`add_datum_ui`); `datums::DatumKind` gains no `ALL` and does **not**
+become a `vocabulary!` declaration, because nothing iterates it for
+words and it classifies drawings rather than offering a vocabulary. The
+item's *"the survivor should be declared through `vocab.rs`"* applied to
+the merge outcome only, and the closed item now says so.
+
+**The neighbour row survives intact**:
+`two-partial-mirrors-in-the-viewer-have-no-growth-alarm` is not closed,
+not subsumed and not made wrong — its spec-to-kind alarm is still
+unwritten, and the rename helps it, because its roster lives in
+`forms.rs` and would otherwise have named a bare word that also resolves
+to a public type.
+
+### The correction that lands on this register
+
+**I wrote "the real commands are the ones CI runs: 1, 2, 3". CI never
+runs all three.** `ci.yml:1802-1809` runs `--selftest` and then an
+**if/else** — bare when `run_viewer_toolkit` is true, else
+`--skip-viewer-toolkit`. Alternatives on every run, never both.
+Verified here against the workflow after the lane said so.
+
+**And the wording undercut the very rule it introduced.** The reason a
+viewer lane owes BOTH passes locally is that CI runs exactly ONE, so the
+other is covered by nothing anywhere. A brief that says CI runs both
+hands the lane a reason to skip the local run. **A mis-stated
+justification for a correct rule is worse than none: it survives review
+because the rule it guards is right.** `plan.md` now carries the
+if/else and that lesson.
+
+**A neighbour I failed to name.** The dispatch pointed at
+`two-partial-mirrors-…` and missed
+`revolve-tool-unreachable-no-axisinplane-form`, which carries the
+**decisive** evidence — it turns the merge-is-false argument from a
+thought experiment into a scheduled item. It also held two stale claims
+(the type name, and the member order quoted as `Plane, Axis, Point,
+Frame` before #2046 reordered it); both refreshed and both disclosed
+rather than silently fixed.
+
+**An observation passed on, not claimed**: `python suite` posted
+`success` on a run where `ci-filter` reports `RUN_PNCAD_PY=false` and
+`SEEDS=viewer` — either the local filter and CI's disagree, or the job
+is green over skipped steps, which is the *green over a skipped row*
+shape the discipline warns about. Related to the already-filed META row
+about §2's deleted gate; not this lane's, and not resolved here.
+
+**The sweep**: every `enum`/`struct`/`trait`/`type` declaration under
+`crates/viewer/src`, deduped by bare name, with `vocabulary!` bodies
+covered. Six repeats, all false positives or test-local. One real
+cross-crate hit — `profile::ArcMode` vs `forms::ArcMode` — dispositioned
+NOT this unit, because the viewer's is `pub(crate)` so the two are never
+both reachable by the bare word from one scope, and the deliberateness
+is already recorded on a DOOR row.
+
+**VIEW stands at 72 open / 90 closed, nothing waiting on Ev.**
 ## `two-partial-mirrors-in-the-viewer-have-no-growth-alarm` — closed, one macro in two shapes (`view/partial-mirror-alarms`)
 
 **The row asked whether one instrument covers both sites. It does, and
@@ -11099,3 +11184,79 @@ fixed, with the two answers stated. What the grep could not match:
 mirrors that are not `const` items or enum declarations (an inline list
 in a test row), mirrors spelled across two crates with no shared token,
 and a list whose partiality is stated nowhere.
+
+## 2026-09-14 — #2585 merged; and the item's own design would have written an assertion that cannot fail
+
+**#2585 merged** (`f8cea967a6`), verified from the job list: **40 jobs,
+12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok` success**, `render drift
+(kernel)` neutral, no non-green row.
+
+**One macro, three arms, and the split is structural.** `partial_mirror!`
+moved from `forms.rs` to `crates/viewer/src/vocab.rs`, sharing the
+exhaustive half through an internal `@exhaustive` rule. `labelled` and
+`bare` are `vocabulary!`'s own two list shapes and keep the seat half;
+`onto <Choice>` is the exhaustive half **alone**.
+
+**The `onto` arm is where the item's own proposal was wrong, and the
+reason is this register's favourite shape.** The item asked for a seat
+half asserting against `DatumKindChoice::ALL`. But `ALL` is *projected*
+by `vocabulary!`, so there is no second copy of the membership for a
+seat assertion to hold — naming `DatumKindChoice::X` as a counterpart
+**already** says the radio row draws it, because `add_datum_ui` walks
+`ALL`. **The proposed assertion could not fail.** A seat roster there
+would also have been the third hand-written enumeration the item itself
+warned against. Each offered entry reads
+`DatumSpec::Plane { .. } => Plane`, so the roster **is** the
+spec-to-kind mapping.
+
+**My own framing was off in both directions**, and the lane's is
+better. I said `partial_mirror!` fits the second site *"only if you
+squint"*, and the item said *the same skeleton, not the same arm* —
+both locating the difference in *list versus enum*. The real difference
+is that **one offering can drift from its roster and the other cannot**,
+because `vocabulary!` already removed the second copy. That is what
+decides the arm, and it is the fact that shows the seat half is inert
+there rather than merely awkward.
+
+**The macro had to MOVE, and that was not polish.** I passed on the
+item's *"transfers with one more macro arm"*. `frame` is ungated
+(`lib.rs:61`) and `forms` is `#[cfg(feature = "app")]` (`:87-88`) —
+**verified here** — so taking the arm without the move would have left
+an ungated module importing a macro from an app-gated one, which does
+not compile at wasm32 or at default features. The macro's own doc had
+named the move as the precondition. A cost stated as *one more arm* was
+a cost of *one arm plus a move the compiler requires*.
+
+**Survival across the scheduled row, demonstrated rather than argued.**
+What the `onto` roster mirrors is **`DatumSpec`**, not
+`datums::DatumKind`, so #2561's ruling is untouched. The lane simulated
+the revolve fix — `DatumKindChoice` grown to five, `AxisInPlane` moved
+absent→offered, `DatumSpec` and the draw tag untouched — and the only
+reds were `pane::create`'s three matches, which that row must edit
+anyway. `absent []` parses; the instrument stays silent.
+
+**Falsification, each on a committed tree and reverted**: a sixth
+`Subject` → `E0004` at the roster; that variant offered without growing
+the list → `E0080` index-out-of-bounds at the seat assertion; a sixth
+`DatumSpec` arm → `E0004` at the `onto` roster **and** at `datum_node`.
+The lane is right that the second red is not redundancy: `datum_node`
+asks what a spec lowers *to*, never whether the form offers it — which
+is exactly how the revolve tool shipped with an unfillable seat.
+
+**`subject_of` confirmed dead.** No such name in
+`crates/viewer/src/frame.rs`; the only one in the tree is an unrelated
+test helper in `geom-core`. The function is `joined_subject`
+(`frame.rs:570`), wildcard arm at `:574`. Name fixed on the item with
+the correction distinguished from a claim change.
+
+**A fourth site, filed not fixed**:
+`session::author::PatternRuleSpec` mirrors two of
+`pncad::document::PatternKind`'s three arms with no alarm. It is the
+**strongest** of the four — the mirrored enum is in another crate, so a
+kernel lane adding an arm reds nothing in the viewer — and it does not
+fit `onto`, whose counterpart is a *value*, because both
+`PatternRuleSpec` arms carry `Expr`s. Filed as
+`patternrulespec-is-a-partial-mirror-with-no-growth-alarm`, with the
+macro doc stating the restriction and naming the site.
+
+**VIEW stands at 72 open / 91 closed, nothing waiting on Ev.**
