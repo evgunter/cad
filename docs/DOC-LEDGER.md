@@ -2630,3 +2630,18 @@ the unit's record — `work/curved/cylindrical-rest-pair-hits-planar-merge.md`'s
 `## Closed` and the MERGED entry in `work/curved/log.md`; its A/B row is
 MODEL-AB-LOG MDOOR. Shape (2) is banked on S-BOOL's
 `cosurface-disjoint-curved-walls-refuse` with its consumer measured.
+
+
+## Per-merge deletion — SYM-4's spec (2026-09-14)
+
+Recoverable at `git show 972d802ff:docs/SYM-4-SPEC.md` (the fix-pass
+head). Two of its sentences did not survive the measurement: its
+"rendered-form digest row" became a per-walk, per-origin ledger of
+form digests (a superset — `DecisionShape` carries no node id and
+renders only blocked residuals), and its inline monomial and cached
+degree were measured and NOT taken (under one percent each, and a new
+shipped dependency for the first). Its "before 57 %" storage share was
+SYM-1's reading; the unit's own before read 53.5 %. Recorded in the PR
+body and the unit's log entry.
+
+- `SYM-4-SPEC.md` — SYM-4, the cost of a form (#2565)

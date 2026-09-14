@@ -60,8 +60,7 @@ struct Square {
 /// would still find its twin.
 fn one_minus_cos_squared(arg: &Form, payload: u64) -> Option<Form> {
     let cos = indet_atom(SymOp::Cos.tag(), payload, &[arg.digest()]);
-    let mut cos2 = Poly::zero();
-    cos2.insert(vec![(cos, 2)], Rat::new(-1, 1, 0)?)?;
+    let cos2 = Poly::term(vec![(cos, 2)], Rat::new(-1, 1, 0)?);
     Some(Form::poly(Poly::one().add(&cos2)?))
 }
 
@@ -70,7 +69,7 @@ fn one_minus_cos_squared(arg: &Form, payload: u64) -> Option<Form> {
 /// `None` when no rule reaches an even-power atom of `f`.
 fn find_square(f: &Form, rules: SymRules, atoms: &IndetMap<AtomInfo>) -> Option<Square> {
     for poly in [&f.num, &f.den] {
-        for mono in poly.terms.keys() {
+        for mono in poly.monos() {
             for &(id, e) in mono {
                 if e < 2 {
                     continue;
@@ -124,19 +123,18 @@ fn poly_subst_square(poly: &Poly, id: u128, repl: &Form, budget: SymBudget) -> O
         return Some(Form::poison());
     }
     let half = |m: &Mono| m.iter().find(|(i, _)| *i == id).map_or(0, |(_, e)| *e / 2);
-    let h = poly.terms.keys().map(half).max().unwrap_or(0);
+    let h = poly.monos().map(half).max().unwrap_or(0);
     let nums = powers(&repl.num, h, budget)?;
     let dens = powers(&repl.den, h, budget)?;
     let mut acc = Poly::zero();
-    for (mono, coeff) in &poly.terms {
+    for (mono, coeff) in poly.terms() {
         let e = mono.iter().find(|(i, _)| *i == id).map_or(0, |(_, e)| *e);
         let rest: Mono = mono
             .iter()
             .filter(|(i, _)| *i != id || e % 2 == 1)
             .map(|&(i, ex)| if i == id { (i, 1) } else { (i, ex) })
             .collect();
-        let mut term = Poly::zero();
-        term.insert(rest, coeff.clone())?;
+        let term = Poly::term(rest, coeff.clone());
         let k = e / 2;
         let factor = nums
             .get(k as usize)?
@@ -238,10 +236,7 @@ mod tests {
                 args: [Some(std::rc::Rc::new(Form::poly(x.clone()))), None],
             },
         );
-        let mut resid = Poly::zero();
-        resid
-            .insert(vec![(atom, 2)], Rat::new(1, 1, 0).unwrap())
-            .unwrap();
+        let resid = Poly::term(vec![(atom, 2)], Rat::new(1, 1, 0).unwrap());
         let f = Form::poly(resid)
             .add(&Form::poly(x).neg().unwrap(), budget())
             .unwrap();

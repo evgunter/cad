@@ -142,7 +142,7 @@ pub(super) fn manifestly_nonneg(n: &Form, sess: &Session) -> bool {
         })
     };
     let nonneg_poly = |p: &Poly| {
-        p.terms
+        p.terms()
             .iter()
             .all(|(m, c)| !c.is_negative() && nonneg_mono(m))
             || signed::poly_sqrt(p, sess.budget).is_some()
@@ -184,10 +184,9 @@ fn read_argument(arg: &Form, sess: &Session) -> Option<(i128, u32, Rc<Form>)> {
     if den.is_zero() {
         return None;
     }
-    if arg.num.terms.len() != 1 {
+    let [(mono, coeff)] = arg.num.terms() else {
         return None;
-    }
-    let (mono, coeff) = arg.num.terms.iter().next()?;
+    };
     let [(atom, 1)] = mono.as_slice() else {
         return None;
     };
@@ -256,10 +255,12 @@ fn fold_at_half_pi(op: SymOp, arg: &Form) -> Option<Form> {
         return None;
     }
     let den = arg.den.as_constant()?;
-    if den.is_zero() || arg.num.terms.len() != 1 {
+    if den.is_zero() {
         return None;
     }
-    let (mono, coeff) = arg.num.terms.iter().next()?;
+    let [(mono, coeff)] = arg.num.terms() else {
+        return None;
+    };
     if mono.as_slice() != [(INDET_PI, 1)] {
         return None;
     }
