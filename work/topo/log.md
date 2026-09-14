@@ -1604,3 +1604,27 @@ target, R2 FABLE on the edge fix pass's retired target) dispatched on
 frozen `71d846be4` the moment the fix pass freed the box. Live: the
 two reviewers. B5 slots 1 and 2 dispatch when disk allows a third
 seed.
+
+## Ev's second reply on the [ev] PR: 2 closed; (c) becomes the default kev; the minting posture's long-term target (2026-09-14)
+
+Ev: 2 "cool" — `attach-postconditions-validate-the-whole-body-and-panic`
+closed on the D9 reading (on the `[ev]` branch, lands with the PR).
+3: Ev asked why the re-describing kill of (c) cannot simply be the
+default `kev`. It can, and it is cleaner: `kev(he, redescriptions)`
+certifies each supplied spec against the endpoint the merge will give
+its edge, else re-certifies the existing carrier, refuses typed before
+mutating — no intermediate stale state, no scope list, no close-time
+sweep. (a)'s deferral was for a caller that does not exist: the
+blend's two sites already compute the carriers they hand to
+`attach_contact`; the generator's roundtrip inverse is already the
+two-op `kev` + `set_edge_curve` with a chord spec. Recommendation
+revised to (c) as the default and only `kev`; the earlier (a) leaned
+on a deferral nobody needs, and the log says so. 4: Ev asked for the
+cleanest long-term shape ignoring churn — the operator completes the
+face it touches: mint the row at the mint site (D9 row 0 on the
+half-minted state), closed-form rows under `Decide` if the derivation
+splits from the fitted lane, a typed refusal at the fitted frontier,
+the full bound ripple only if it cannot split; the closing-mint
+convention's thirteen copies retire; the declared posture is the
+interim only. Both written on the items and the PR body, one comment
+posted. Waiting on Ev's letter for 3 and yes/no for 4.
