@@ -288,11 +288,15 @@ fn r1_opaque_set_sizes_the_premise_pin_compares() {
     use geom_core::sym::profile::{start_profile, take_profile};
     for (label, doc, leaves) in [
         ("r1_tilted", r1_tilted_boss(), 8),
-        ("slab", crate::m10_3_r1_probes_interval::bounded_chamber(
-            60.0 * Tol::witness().eps(),
-            30.0 * Tol::witness().eps(),
-            100.0 * Tol::witness().eps(),
-        ), 8),
+        (
+            "slab",
+            crate::m10_3_r1_probes_interval::bounded_chamber(
+                60.0 * Tol::witness().eps(),
+                30.0 * Tol::witness().eps(),
+                100.0 * Tol::witness().eps(),
+            ),
+            8,
+        ),
         (
             "plate",
             crate::m10_7_plate::plate(5.0e-5, 1.0e-5, Tol::witness()).0,
@@ -302,7 +306,11 @@ fn r1_opaque_set_sizes_the_premise_pin_compares() {
         start_profile();
         let _ = run(&doc, true, false, leaves);
         let p = take_profile();
-        let sizes: Vec<usize> = p.opaque_ids.iter().map(std::collections::BTreeSet::len).collect();
+        let sizes: Vec<usize> = p
+            .opaque_ids
+            .iter()
+            .map(std::collections::BTreeSet::len)
+            .collect();
         println!(
             "{label}: {} leaf sets, sizes {:?}",
             sizes.len(),
