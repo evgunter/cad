@@ -26,9 +26,10 @@
 //! Plus the **operator-built** family — [`ops_cube`], [`ops_holed_box`]
 //! and [`ops_genus2`], the acceptance-test bodies rebuilt in-crate for
 //! the kill-direction, oracle, and teardown tests, and
-//! [`ops_ring_bridge`], the holed box with its hole rim bridged back
-//! into the top face's outer loop (the one shape here whose edge has
-//! both halves in one loop).
+//! [`ops_ring_bridge`] and [`ops_strut_cube`], the two shapes here
+//! whose edge has both halves in one loop — the holed box with its hole
+//! rim bridged back into the top face's outer loop, and the cube with a
+//! pendant strut planted on that loop.
 //!
 //! All geometry is placeholder (structural validation never reads scalar
 //! values). Coordinates are index-derived placeholders, **not** faithful
@@ -1067,4 +1068,63 @@ pub(crate) fn ops_ring_bridge(tol: Tol) -> OpsRingBridge {
         outer,
         bridge,
     }
+}
+
+/// Key bundle for [`ops_strut_cube`].
+#[allow(dead_code)] // key bundles expose every minted key; tests pick what they need
+pub(crate) struct OpsStrutCube {
+    pub body: Body<f64>,
+    /// The loop the strut hangs in — the seed (top) face's outer loop,
+    /// the same loop [`ops_holed_box`] plants its hole anchor in.
+    pub outer: LoopKey,
+    /// The pendant edge. Its two halves lie in
+    /// [`OpsStrutCube::outer`] and are **adjacent** there, which is the
+    /// shape whose [`Body::kemr`] leaves an EMPTY ring side and
+    /// therefore runs one splice rather than two.
+    pub strut: MevCreated,
+}
+
+/// Builds the cube with one pendant strut planted on the top face's
+/// outer loop — [`ops_cube`] plus one `mev_line` at a `Fan` site, which
+/// is the state [`ops_holed_box`] passes through at its hole anchor and
+/// kills with `kemr` in the next line.
+///
+/// **The shape whose `kemr` empties the ring side.** `kemr` splits its
+/// loop's cycle at the two halves it is handed; when they are ADJACENT
+/// the side strictly between them is empty, the ring loop is minted
+/// `Empty` and only the old loop's splice runs. [`ops_ring_bridge`]'s
+/// bridge edge is the other arm — both sides non-empty, both splices —
+/// so the two fixtures together present both shapes of `kemr`'s
+/// mutation phase.
+pub(crate) fn ops_strut_cube(tol: Tol) -> OpsStrutCube {
+    let t = ops_cube(tol);
+    let mut body = t.body;
+    // The same site `ops_holed_box` plants its hole anchor at: a `Fan`
+    // on the front face's plus half, which lies in the top face's loop.
+    let strut = body
+        .mev_line(
+            MevSite::Fan {
+                he1: t.mefs[1].he_plus,
+                he2: t.mefs[1].he_plus,
+            },
+            Point3::new(0.25, 0.25, 1.0),
+            tol,
+        )
+        .unwrap();
+    let outer = body.get_half_edge(strut.he_plus).unwrap().parent_loop;
+    // The property the fixture exists for, asserted here rather than
+    // described: the halves share a loop AND follow one another in it,
+    // so `kemr`'s ring side is the empty one.
+    assert_eq!(
+        body.get_half_edge(strut.he_minus).unwrap().parent_loop,
+        outer,
+        "the strut's halves must both lie in the loop it was planted in"
+    );
+    assert_eq!(
+        body.get_half_edge(strut.he_plus).unwrap().next,
+        strut.he_minus,
+        "the strut's halves must be adjacent, or `kemr` splits off a cycle here"
+    );
+    assert_eq!(crate::validate::validate(&body), Ok(()));
+    OpsStrutCube { body, outer, strut }
 }
