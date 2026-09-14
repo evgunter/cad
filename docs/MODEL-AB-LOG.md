@@ -6404,3 +6404,30 @@ claim followed the slot line branch-side. The next TOPO kernel-answer
 unit draws block TOPO-B4.
 
 SYM-4 RECORDED AT MERGE (2026-09-14, PR #2565 merged; sample #193 — prior highest #192 on main at merge; block SYM-B1 slot 0 concluded; the block record stays on `sym/b1-block` until the block concludes). No unilateral MAJOR; one glimpse disclosed and flagged (a process name, no finding). Tokens per phase: impl ~455k, fix ~73k, reviews 224k (R1) + 270k (R2), delta 268k.
+
+SYM-5 PR-2 review ordinal fixed at dispatch (2026-09-14, PR #2589 open —
+frozen head `480704dbb`, run 34861725623 GREEN on the full matrix,
+twelve `test (…)` and five `k-lint (gate, …)`): **ordinal 4701** (SYM
+band). Pre-draw fields at the spec (`docs/SYM-5-SPEC.md`, Amendment
+A1): difficulty **H**, task-class **NUMERIC** (rule E — the quotient's
+common factor divided out at every early-walk node, behind
+`SymRules::common_factor`, on in the shipped set; the tilted
+derived-frame parity row under both lifts; four bulge pins raised, a
+sixth document's ceiling moved, the five measured ceilings unmoved to
+the digit); implementer arm per block SYM-B1 slot 1 (record
+branch-side on `sym/b1-block`; the unit's PR-1, #2568, was the
+measurement and took one review outside the experiment). Protocol v6
+dual: draw = `/dev/urandom` byte **192**, parity 0 ⇒ **R1 = OPUS,
+R2 = FABLE**. Method, recorded before either review runs: CONCURRENT
+same-head on frozen `480704dbb`, both briefs generated from one
+template with the lane name substituted and STORED with sha256 on
+`sym/b1-block` before either dispatches
+(`work/sym/logs/sym-5-review-brief-{r1,r2}.md`), neither reviewer sees
+the other's report, v6 item 5 isolation in both briefs (with the
+`pgrep -af` hazard named after the SYM-4 glimpse), PRIVATE
+`CARGO_TARGET_DIR` and scratch per reviewer, each seeded by its own
+warm build; the implementer's unit log entry is not written until the
+dual concludes. Method note applying to BOTH arms equally: the pair
+runs alone on one 4-core cloud box, dev profile plus a release build
+for the ceilings rows, `CARGO_INCREMENTAL=0`, one crate at a time.
+Sample number at merge.
