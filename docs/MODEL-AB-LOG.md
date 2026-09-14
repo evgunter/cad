@@ -6232,6 +6232,7 @@ disk read before every seed. Sample number at merge.
 
 | # | date | task | difficulty (pre-flip) | arm | review findings (MAJ/MIN/NOTE) | silent devs | idiom | tests | docs | fix-pass size | battery | tokens | wall-clock |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| SYM-4 | 2026-09-14 | SYM-4 (PR #2565; spec docs/SYM-4-SPEC.md; item `symbolic-tier-costs-95-percent-of-the-m10-3-drive` ask 3): `Poly`'s `BTreeMap` to a sorted vector in the map's order, `Rat::from_parts`'s gcd skipped on the dyadic shape; every decision bit-identical (pins, goldens, a walk-ledger digest row red on a term-order swap); slab −30 % / plate −45 % instructions, chamber drive 368 → 225 s local; inline monomial and degree cache measured and declined; the chamber row's gating filed on tcost. Fix pass: A–D all taken, none refuted (the union of 3 MINOR / 11 NOTE / 13 style); delta by R1 confirmed | M | (slot 0 of SYM-B1; branch-side) | R1 0/2/5, R2 0/1/6 (rubrics 4/5/4, 4/4/5); no unilateral MAJOR | 1 reported-late (the `acos(0)` `rat_ops` line, disclosed in the fix pass) of 6 reported | 4/4 | 5/4 | 4/5 | moderate (two commits: 4 rows adopted + accessor + helper + shrink; disclosures) | MERGED #2565, full matrix green on 34837400778 | impl ~455k / fix ~73k / review 224k + 270k | impl ~2.5 h / fix ~47 min / reviews 1.5 h + 1.1 h (concurrent) |
 
 S93 row, recorded AT MERGE (2026-09-14, merge `21a0de4ce`, PR #2562;
 `work/topo/S93.md` — the unit stays OPEN: the `mev` half landed, the
@@ -6305,3 +6306,5 @@ concluded 2026-09-14 with the unit left open on its `kev` half). No
 arm was exposed on main before its slot's claim named it, and every
 claim followed the slot line branch-side. The next TOPO kernel-answer
 unit draws block TOPO-B4.
+
+SYM-4 RECORDED AT MERGE (2026-09-14, PR #2565 merged; sample #192 — prior highest #191 on main at merge; block SYM-B1 slot 0 concluded; the block record stays on `sym/b1-block` until the block concludes). No unilateral MAJOR; one glimpse disclosed and flagged (a process name, no finding). Tokens per phase: impl ~455k, fix ~73k, reviews 224k (R1) + 270k (R2), delta 268k.

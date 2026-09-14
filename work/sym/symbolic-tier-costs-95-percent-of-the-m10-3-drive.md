@@ -557,8 +557,15 @@ the vector's invariant, the six-document walk-ledger evidence row
 (`the_walk_ledger_on_the_unmeasured_documents`: the plate, both
 brackets, the annulus, the pad, the link — the coverage this record
 did not claim; both reviewers ran that differential identical), and
-the largest-form growth guard on the pinned row (slab 10, plate 90) —
-and made `Poly::terms` private behind an accessor.
+the largest-form growth guard on the pinned row (slab 10, plate 90 —
+a guard that fails LEGIBLY, not fast: it is read after the replay
+returns, so a compounding growth mutant still times out before the
+assertion is reached, as the delta measured; a non-compounding one
+names itself) — and made `Poly::terms` private behind an accessor.
+`mul` shrinks its product to fit (+0.14 % instructions, inside the
+spread); `add` still allocates `|a| + |b|` and keeps what the merge
+drops (~1.8 MB of slack on the plate's nominal, the delta's probe) — a
+half-fix on the slack class, memory and not a decision, left as is.
 
 **What was measured and not taken, with its number.** The monomial
 inline (`smallvec` at width four, the slab's maximum and nine tenths
