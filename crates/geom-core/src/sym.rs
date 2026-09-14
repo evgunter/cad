@@ -652,6 +652,11 @@ mod algebra;
 /// and the pure operations on a form.
 #[path = "sym/form.rs"]
 mod form;
+/// Rule F: the manifest sign — `copysign` and `abs` atoms whose sign
+/// the form already shows, and the non-negativity predicate rule D
+/// shares with it.
+#[path = "sym/manifest.rs"]
+mod manifest;
 #[cfg(feature = "sym-profile-testing")]
 pub mod profile;
 /// Rule E: the quotient's common factor — the shared monomial divided
@@ -1178,6 +1183,27 @@ pub struct SymRules {
     /// the one it was given ([`quotient`]'s docs carry the argument).
     /// Needs `early`.
     pub common_factor: bool,
+    /// **F — the MANIFEST SIGN** ([`manifest`]): in the early walk a
+    /// `copysign(Y, X)` node becomes `abs(Y)` and an `abs(X)` node
+    /// becomes `X` wherever the FORM of `X` is manifestly POSITIVE —
+    /// a positive numerator over a non-negative denominator, with
+    /// `sqrt`/`abs` atoms of manifestly positive arguments the only
+    /// indeterminates a positive term may carry. Both are equalities
+    /// of reals at every point clause 1 admits and neither reads a
+    /// value, so a zero reached through this rule is a THEOREM.
+    ///
+    /// It is rule C's shape without rule C's value read: where C folds
+    /// `abs(R)` on a bracket of `R` the session holds, this folds it on
+    /// a fact about the form, and a discharge through it is counted
+    /// `symbolic_zero` rather than `sign_gated`.
+    ///
+    /// **Strict positivity, not non-negativity**, and the reason is
+    /// `copysign`: it reads a SIGN BIT, so `copysign(1, −0.0) = −1`
+    /// while `copysign(1, +0.0) = +1`, and at a real zero of `X` the
+    /// node denotes no function of the real value of `X` at all. The
+    /// predicate excludes that point. [`manifest`]'s header carries
+    /// the argument and the shapes it must not fold. Needs `early`.
+    pub manifest_sign: bool,
     /// **The REGISTERED-IDENTITY DOOR** (M10-9, ERROR-DESIGN E12's
     /// provenance reserve): the early walk consults the session's
     /// registry ([`Sym::register_equal`]), so a node a constructor
@@ -1207,6 +1233,7 @@ impl SymRules {
             trig_of_atan: true,
             signed_root: true,
             common_factor: true,
+            manifest_sign: true,
             registered: true,
         }
     }
@@ -1245,6 +1272,7 @@ impl SymRules {
             trig_of_atan: true,
             signed_root: false,
             common_factor: true,
+            manifest_sign: false,
             registered: true,
         }
     }
@@ -1262,6 +1290,7 @@ impl SymRules {
             trig_of_atan: false,
             signed_root: false,
             common_factor: false,
+            manifest_sign: false,
             registered: false,
         }
     }
@@ -1659,6 +1688,8 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
     let a0 = sess.rules.const_fold && (early || !sess.rules.early);
     // Rule C applies in the EARLY walk only (`SymRules::signed_root`).
     let c = early && sess.rules.signed_root;
+    // Rule F, the manifest sign, likewise (`SymRules::manifest_sign`).
+    let f_sign = early && sess.rules.manifest_sign;
     // An atom over a gated argument is gated: it stands for the value
     // of a form that is only box-wise equal to the expression.
     let gate = |mut f: Form| {
@@ -1737,10 +1768,14 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
                 Err(_) => powi_form(&a.recip()?, n.unsigned_abs(), budget),
             }
         }
-        // A0: a sqrt/abs of a CONSTANT form folds exactly; then rule C
-        // (early walk): a sqrt of a perfect square, or an abs, of a
-        // form with a certified sign folds to the signed root.
-        SymOp::Sqrt | SymOp::Abs if (a0 || c) && !a.poisoned => {
+        // A0: a sqrt/abs of a CONSTANT form folds exactly; then rule F
+        // (early walk): `abs(X) = X` where the FORM shows `X` positive,
+        // which reads no value; then rule C (early walk): a sqrt of a
+        // perfect square, or an abs, of a form with a CERTIFIED sign
+        // folds to the signed root. The value-free rule is asked
+        // before the one that reads a value, so a discharge that can
+        // be a theorem is never counted `sign_gated`.
+        SymOp::Sqrt | SymOp::Abs if (a0 || c || f_sign) && !a.poisoned => {
             let folded = (|| {
                 if !a0 {
                     return None;
@@ -1753,14 +1788,19 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
                     _ => Some(c.abs()),
                 }
             })();
-            match folded {
-                Some(k) => Some(gate(Form::poly(Poly::constant(k)))),
-                None if c => match signed::fold(node.op, a, &sess.params, budget) {
-                    Some(f) => Some(gate(f)),
-                    None => atom1(node.op, sess),
-                },
-                None => atom1(node.op, sess),
+            if let Some(k) = folded {
+                return Some(gate(Form::poly(Poly::constant(k))));
             }
+            if f_sign
+                && node.op == SymOp::Abs
+                && let Some(f) = manifest::fold_abs(a, sess)
+            {
+                return Some(gate(f));
+            }
+            if c && let Some(f) = signed::fold(node.op, a, &sess.params, budget) {
+                return Some(gate(f));
+            }
+            atom1(node.op, sess)
         }
         // Rule D (early walk only): `sin`/`cos` of `q · atan(X)` in
         // closed form; any other argument shape keeps the atom.
@@ -1788,6 +1828,20 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
             if a.tainted(b) {
                 return Some(Form::poison());
             }
+            // **Rule F** (early walk): `copysign(Y, X) = |Y|` wherever
+            // the FORM of `X` is manifestly POSITIVE — the sign the
+            // node asks for is one the form already shows, so the
+            // opaque `copysign` atom is never minted (`manifest`
+            // carries the predicate, the two identities and the
+            // signed-zero edge that makes the predicate STRICT).
+            if node.op == SymOp::Copysign
+                && f_sign
+                && manifest::positive(b, sess)
+                && let Some(mut m) = manifest::magnitude(a, sess)
+            {
+                m.gated = a.gated || b.gated;
+                return Some(m);
+            }
             // min(0, 0) and max(0, 0) are zero; a one-sided zero says
             // nothing, so only the both-zero fold is taken. copysign
             // carries `a`'s MAGNITUDE, so a zero first argument is zero
@@ -1806,7 +1860,7 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
                     early
                         && sess.rules.trig_of_atan
                         && a.is_zero()
-                        && trig::manifestly_nonneg(b, sess)
+                        && manifest::nonneg(b, sess)
                 }
                 _ => false,
             };
