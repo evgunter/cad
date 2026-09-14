@@ -2,9 +2,11 @@
 id: mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows
 kind: issue
 title: mef and kef move a RUN of half-edges between loops of different faces; the rows on that run keep their keys and change chart, silently where the new face mints nothing
-status: open
+status: review
 opened: 2026-09-14
 refs: [loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart, half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete]
+branch: topo/mef-kef-runs-carry-or-drop-rows
+pr: 2603
 ---
 
 Found and measured by the class sweep of
