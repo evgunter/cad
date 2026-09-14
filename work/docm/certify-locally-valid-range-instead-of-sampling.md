@@ -2,8 +2,9 @@
 id: certify-locally-valid-range-instead-of-sampling
 kind: issue
 title: The locally-valid-range probe samples and bisects; the interval lane could CERTIFY the interval instead
-status: open
+status: closed
 opened: 2026-08-29
+closed: 2026-09-14
 github: 1183
 refs: [1143]
 ---
@@ -45,3 +46,14 @@ since M10 closed (the parameter box, the driver's refusal classes as
 the indeterminate-versus-failure distinction); the slot widening is a
 query-side derived document. Built as `DOCM-9` (`docs/DOCM-9-SPEC.md`);
 this file closes at its merge.
+
+## Closed (2026-09-14)
+
+Answered by `DOCM-9` (PR 2534): `certified_range` in
+`crates/editor-core/src/range.rs` — the slot widened by a query-side
+derived document, the driver's leaves walked into a four-arm verdict,
+the certificate a subset of the locally-valid range. What the query
+answers on the repo's own corpus today is stated in its module doc:
+nothing at affordable budgets, the driver's certification width
+(PROPS's rows). The viewer affordance is CHROME's, the Python door
+LIB's, both filed.

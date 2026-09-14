@@ -630,3 +630,75 @@ the driver's leaf classes, the viewer and Python doors filed. Unit
 branch `docm/9-certified-range` from main with the spec on it; spec
 PR #2523 to main. Lane running. The exit walk is drafted while it
 runs; Ev asked for it written as ready to merge.
+
+## 2026-09-14 — DOCM-9 dual review dispatched (the program's last)
+
+DOCM-9's lane reported: PR #2534 (`docm/9-certified-range`) non-draft,
+full code-tier CI green at head `691a26e2` with all six interval
+points green; four deviations disclosed (the walk re-read at the
+proof frontier because a certified leaf and a flip-crossing leaf
+cannot be neighbours; renamed types; A1's `NewFailure` row not met
+because the driver bisects a definitely-failing leaf to the budget
+floor rather than naming it; two gate-forced hunks outside the
+fence), three findings outside the fence (the driver's `_ => Bisect`,
+a parametric polygon loop certifying nothing at a 100 ε seed, the
+export guard's cfg asymmetry), no stop clause. Three rows filed for
+CHROME, LIB and PROPS. v6 dual dispatched: ordinal 1808 claimed on
+main at dispatch; parity byte 236 ⇒ R1 = OPUS, R2 = FABLE; briefs
+hashed and diff-identical modulo lane names; private build and
+scratch directories per lane. Both lanes running. Block DOCM-B3's
+last slot: its record reaches main with this unit's sync, and the
+program's exit sweep follows.
+
+## 2026-09-14 — DOCM-9 dual adjudicated; fix pass dispatched
+
+Both reports in (R1 OPUS APPROVE-WITH-FIXES, R2 FABLE
+NOT-MERGEABLE-AS-IS — converged on the substance, split on the label).
+One bilateral MAJOR: the `DecisionFlip` arm says every node still
+builds inside `within` and that the probe would be wrong to call
+those values a boundary, and both lanes falsified it on the unit's
+own fixture and on the viewer suite's real 8 mm slot — the undecided
+leaves between the proof frontier and the first decided flip contain
+a build failure, because the driver bisects a failing leaf to the
+budget floor rather than naming it (the disclosed D3, whose
+downstream face the arm's sentence hid). One unilateral MAJOR (R1's):
+the arm-separating predicate has no discriminating row. Both lanes
+verified the walk's re-reading as an improvement over the spec's
+letter (zero certified/flip adjacencies over eleven ledgers) and the
+`NewFailure` arm as a true limit of the driver. R2 measured what the
+PR did not say: on the repo's corpus plate and die the query
+certifies nothing at affordable budgets (the driver's certification
+width), and a parametric polygon vertex certifies nothing at any
+width. Ruled: the walk stays, the arm's prose goes and a measurement
+row pins what `within` may contain; the predicate rowed at the
+function level; the deliverable's behaviour on real documents stated
+in the module doc and the PR with a recommended budget and a record
+on the type of which parameters the derivation pinned; the C4
+sentence corrected (a subset of the locally-valid range, not of the
+probe's bracket endpoints) with the real probe run beside the query;
+the unpinned contract sentences rowed; the export guard's cfg
+asymmetry filed to LIB. One candidate enters the tally.
+
+## DOCM-9 MERGED (2026-09-14, PR 2534, ordinal 1808, sample #187)
+
+Block DOCM-B3 slot 2 (OPUS), concluded — the block is complete (slot 0
+DOCM-7 opus, slot 1 DOCM-8 fable, slot 2 DOCM-9 opus) and its record
+reaches main with this sync. The program's last unit. No stop; the v6
+dual (R1 opus APPROVE-WITH-FIXES 2/4/6, R2 fable NOT-MERGEABLE-AS-IS
+1/3/5 — split labels on converged substance) and its union fix pass.
+Adjudicated: one bilateral MAJOR (the `DecisionFlip` arm's prose
+claimed every value in `within` builds; both lanes found a build
+failure inside it on the unit's own fixture) and one unilateral MAJOR,
+R1's (the arm-separating predicate had no discriminating row). Ruled:
+the walk's re-reading stays (verified an improvement by both), the
+arm's sentence goes and a measurement row pins what `within` may
+contain; the predicate rowed at the function level; the query's
+behaviour on the corpus stated — nothing certifies at affordable
+budgets, the driver's certification width, with a starting budget and
+`pinned()` on the answer; the C4 sentence corrected with the real
+probe run beside the query. One candidate enters the tally. Closed:
+`certify-locally-valid-range-instead-of-sampling`. Filed: the viewer
+affordance (CHROME), the Python door and the export guard's cfg
+asymmetry (LIB), the parametric polygon loop (PROPS, widened). The
+spec is deleted into the ledger. Next: the exit walk (ratified in
+advance by Ev, 2026-09-13) and the sweep.
