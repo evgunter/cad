@@ -1292,6 +1292,50 @@ impl DocSession {
         ))
     }
 
+    /// **What the display budget is handed to price `requested` on**,
+    /// minted here for [`DocSession::index_inputs`]'s reason: the
+    /// generation and the thing it describes leave this type paired,
+    /// so nothing above can price one landing's body under another
+    /// landing's number.
+    ///
+    /// The arm is the LANDING's shape, and it is read here because
+    /// here is where that shape is known.
+    /// [`crate::evalseam::FitSubject::Landed`] hands on the body the
+    /// landing already gathered — an `Arc` clone, per
+    /// [`DocSession::landed_body`]. `Ungathered` is the third `None`
+    /// cause that accessor names: the gather succeeded and the A5 gate
+    /// consumed the body in refusing, so there is a product to be had
+    /// and nobody holding it. That arm names the pair rather than
+    /// gathering from it, and the gather is paid on the fit worker —
+    /// which is why this is a getter again and not a spelled-out
+    /// choice at the call site: neither arm costs this thread
+    /// anything.
+    ///
+    /// `None` before anything lands, and for a landing whose gather
+    /// REFUSED ([`DocSession::product_fault`]) — a document with no
+    /// product has no size to fit a δ to, and the index build below is
+    /// about to refuse it with its own typed answer.
+    pub fn fit_request(
+        &self,
+        requested: crate::scene::DisplayTolerance,
+    ) -> Option<crate::evalseam::FitRequest> {
+        let run = self.derived.landed.as_ref()?;
+        let subject = match run.body.as_ref() {
+            Some(body) => crate::evalseam::FitSubject::Landed(Arc::clone(body)),
+            None if run.fault.is_some() => return None,
+            None => crate::evalseam::FitSubject::Ungathered {
+                doc: run.doc.as_ref().clone(),
+                evaluation: Arc::clone(&run.evaluation),
+            },
+        };
+        Some(crate::evalseam::FitRequest {
+            generation: run.generation,
+            requested,
+            subject,
+            tol: self.tol,
+        })
+    }
+
     /// Insert an instance of the part `id` names, minting its
     /// reference through the store: identity as asked for, version
     /// from the directory's content NOW.
