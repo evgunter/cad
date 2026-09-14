@@ -513,3 +513,45 @@ pub(super) fn powi_form(base: &Form, n: u32, budget: SymBudget) -> Option<Form> 
     }
     Some(acc)
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod r1_review_probe {
+    use super::*;
+
+    /// **R1's SYM-4 review probe — how the product loop scales toward
+    /// the term budget.** `Poly::mul` inserts each product term into a
+    /// sorted vector by binary search, so building a product of `k`
+    /// distinct monomials costs `O(k^2)` element moves where the map
+    /// cost `O(k log k)` node writes. The documents the unit measured
+    /// top out near 100 terms; the shipped budget allows 4,096. This
+    /// prints the wall for `n x n` products at four sizes: a quadratic
+    /// cost quadruples the per-pair time at each doubling of `n`.
+    #[test]
+    #[ignore = "R1 review probe: evidence only"]
+    fn r1_probe_the_product_loop_scales() {
+        let budget = SymBudget {
+            max_terms: 1 << 20,
+            max_degree: 1 << 20,
+        };
+        for n in [16usize, 32, 64, 128] {
+            // n indeterminates on each side, all monomials distinct, so
+            // the product has exactly n*n terms and nothing merges.
+            let mk = |base: u128| Poly {
+                terms: (0..n)
+                    .map(|i| (vec![(base + i as u128, 1)], Rat::one()))
+                    .collect(),
+            };
+            let (a, b) = (mk(0), mk(1_000_000));
+            let t = std::time::Instant::now();
+            let p = a.mul(&b, budget).expect("in budget");
+            let dt = t.elapsed();
+            assert_eq!(p.terms.len(), n * n);
+            println!(
+                "R1SCALE n {n:4}  pairs {:7}  wall {dt:?}  ns/pair {:.1}",
+                n * n,
+                dt.as_nanos() as f64 / (n * n) as f64
+            );
+        }
+    }
+}
