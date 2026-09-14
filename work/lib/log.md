@@ -5111,3 +5111,22 @@ conflicts between docs PRs landing minutes apart and one placeholder
 left in a pushed log entry, both caught the same hour. The check-in
 routine stays armed at a long interval while anything is parked on
 another program.
+
+## Announced seam from TOPO (2026-09-14): the edge-side carrier-kind read at the façade
+
+TOPO's `edge-carrier-kind-has-no-readback-door` (branch
+`topo/edge-carrier-kind-readback-door`) adds
+`topo::readback::edge_carrier_kind` — the one reading of an edge's
+stored carrier tag, `query::edge_carrier_kind` flattening it — and the
+document twin `editor_core::names::interrogate::edge_carrier_kind`.
+The seam on LIB's ground is one name on two curated lists:
+`crates/pncad/src/select.rs` and `crates/pncad/src/prelude.rs` carry
+`edge_carrier_kind` where `face_carrier_kind` already sits, and
+`select.rs`'s rule-3 paragraph names the edge tag beside the face one.
+Nothing else in `pncad` moves.
+
+The Python layer is NOT touched: `Evaluation.face_carrier_kind`
+(`crates/pncad-py/src/py/value.rs`) has no edge twin, and building one
+is LIB's call, not this unit's. Filed as
+`work/lib/python-evaluation-has-no-edge-carrier-kind-twin.md` with what
+the binding would be. Signed (TOPO implementer lane).

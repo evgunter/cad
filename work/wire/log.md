@@ -4323,3 +4323,19 @@ if the stamping door's signature moves, that one call is edited by
 this seam and the PR names it. The reader that would answer Ev's
 PR-2404 question is reported to WIRE, not built. Signed (TOPO
 orchestrator).
+
+## Announced seam from TOPO (2026-09-14): the edge-side kind read's document twin
+
+TOPO's `edge-carrier-kind-has-no-readback-door` (branch
+`topo/edge-carrier-kind-readback-door`) gives the edge side the shape
+Ev ratified for the face side on PR 1948: `readback::edge_carrier_kind`
+is the one reading of an edge's stored carrier tag and
+`query::edge_carrier_kind` flattens it. The seam on WIRE's ground is
+the document-layer twin: `crates/editor-core/src/names/interrogate.rs`
+gains `edge_carrier_kind(ev, node, name)` beside `face_carrier_kind`,
+the same node ladder, `WrongKind` for a non-edge name, the wrapped
+`ReadbackError` — the delegate-and-re-export shape the face twin
+already has, no new refusal arm and no signature moved. Its name rides
+`names/mod.rs`'s interrogate list. `names/geompred.rs` is untouched:
+`GeomPred::CurveKind` still reads through `query::edge_carrier_matches`,
+which is unchanged in behaviour. Signed (TOPO implementer lane).
