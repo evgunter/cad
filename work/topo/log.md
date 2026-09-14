@@ -853,3 +853,25 @@ bitwise involution and SHELL's drum as the red-first rows; seam to
 TRIM announced for the row transform; `chart.rs`/`chart_iso.rs` are
 unowned ground where the PR draws the fence. Beside it, the
 ring-nesting fix pass is the other lane.
+
+## Revert delivered; dual out at ordinal 2705 (2026-09-14)
+
+Slot 2 `topo/revert-mirrors-chart-images` delivered as PR 2542, head
+`f8ced386b`, full matrix green (run 34798088825; a new advisory
+`render drift (gui)` job sits neutral in the matrix). Phase 1
+confirmed the frame derivation and found the transform exact in all
+five image kinds — a sign flip on the `v` components, bitwise
+involution — so nothing is re-minted; the geom-brep chart certifier
+was right to refuse and is not edited; plane faces mint no pcurve
+rows, so the row arm is reachable only through `attach_pcurve`.
+Certificates travel verbatim through three new geom-brep doors. Four
+red-first rows red on the merge base (the drum's reverted cavity now
+tier 3 `[NegativeVolume]` only, `insert_voids` accepts it); three
+SHELL probe rows flipped from pinning the refusal to pinning the fix.
+Four deviations disclosed, two of them the ones to weigh (`revert`
+cannot enter the posture guard's table — it walks `&mut self` doors
+only; dead-key rows travel as found). Two rows filed (the periodic
+chart's loop wrap under `revert`, here; a bug-proof drum row, SHELL).
+Dual dispatched on the frozen head beside the ring-nesting fix pass:
+ordinal 2705, byte 83 ⇒ R1 FABLE, R2 OPUS; briefs stored with sha256
+privately.
