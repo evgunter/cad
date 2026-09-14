@@ -208,7 +208,11 @@ pub enum CacheStep {
     Indexing,
     /// This attempt was already made and refused — nothing was done.
     Held,
-    /// No evaluation has landed, so there is nothing to index.
+    /// There is nothing to index: no evaluation has landed, or the
+    /// one that has has no δ settled for it yet — the window between a
+    /// document's arrival and the display budget's answer for it
+    /// (`crate::evalseam::FitService`). Either way the cache forgets,
+    /// so nothing describes a picture nobody can be shown.
     Nothing,
 }
 
@@ -260,18 +264,34 @@ impl PickCache {
     /// different picture would make the View pane's δ field a control
     /// that does nothing.
     ///
+    /// **`delta` is an `Option` because the budget answers off the
+    /// frame.** `None` is *a run has landed and no δ is settled for
+    /// it*, which is every frame between the fit's submit and its
+    /// answer (`crate::evalseam::FitService`). It takes the same way
+    /// out the nothing-landed arm does, and it is an `Option` rather
+    /// than a caller's `if` so that the one un-budgeted build the
+    /// budget exists to avoid cannot be submitted by forgetting to
+    /// write one.
+    ///
     /// The document is CLONED into the request and the evaluation is
     /// shared, so the worker owns everything it reads and the session
     /// goes on being edited. Both arrive on [`IndexInputs`], already
     /// paired: this cache is HANDED a landing and never reads one.
-    pub fn sync(&mut self, landed: Option<IndexInputs<'_>>, delta: DisplayTolerance) -> CacheStep {
-        // **The one way out on "nothing landed", and it FORGETS.**
-        let Some(IndexInputs {
-            generation,
-            doc,
-            evaluation,
-            tol,
-        }) = landed
+    pub fn sync(
+        &mut self,
+        landed: Option<IndexInputs<'_>>,
+        delta: Option<DisplayTolerance>,
+    ) -> CacheStep {
+        // **The one way out on "nothing to index", and it FORGETS.**
+        let (
+            Some(IndexInputs {
+                generation,
+                doc,
+                evaluation,
+                tol,
+            }),
+            Some(delta),
+        ) = (landed, delta)
         else {
             self.forget();
             return CacheStep::Nothing;
@@ -333,9 +353,11 @@ impl PickCache {
     /// enforced**, and the one place it can be. Every other transition
     /// replaces one picture's key with another's, so a late answer is
     /// compared against a key and discarded. Here there is no next
-    /// key: the session has no landed run at all, because a document
-    /// was opened or a new one authored under a build that is still
-    /// with the seam. Leaving `attempted` set would leave that build a
+    /// key — for either of the two reasons [`CacheStep::Nothing`]
+    /// names: a document was opened or a new one authored under a
+    /// build that is still with the seam, or a document has landed and
+    /// the δ to draw it at is still being fitted, so half the key does
+    /// not exist yet. Leaving `attempted` set would leave that build a
     /// key to match on arrival, and it would install — an index of a
     /// document nobody is looking at, over a scene of a third one,
     /// with nothing running and nothing said. Clearing `attempted` is

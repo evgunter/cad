@@ -128,6 +128,7 @@ use interval_transcendentals::{DInterval, Decoration};
 use crate::dual::KinkJacobian;
 use crate::predicate::{Band, Decide, Indeterminate, MarginDiag, Sign};
 use crate::real::{Bounds, Real};
+use crate::tolerance::Tol;
 
 /// An enclosure of a true real value: the interval scalar over
 /// [`interval_transcendentals::DInterval`] (see the [module docs](self)
@@ -330,10 +331,24 @@ impl Real for Interval {
     /// ([`crate::real::CertifiedEnclosure`], and clause 1 of the
     /// symbolic tier's own theorem).
     ///
+    /// **This witness is EXACT, so its refusal is
+    /// [`crate::sym::SymRegistration::Contradicted`] and never
+    /// [`crate::sym::SymRegistration::Disputed`]**: two certified
+    /// enclosures that do not meet PROVE the two reals differ (or that
+    /// an upstream enclosure does not contain its real), and there is no
+    /// scale at which that answer is the arithmetic giving up.
+    ///
+    /// **`tol` is ignored, and that is the point**: the meet is EXACT.
+    /// Two certified enclosures of one real overlap or they do not, and
+    /// no slack enters the test — the widths already carry every error
+    /// the computation made. The parameter is on the trait because the
+    /// INEXACT witnesses (`f64`, [`crate::Probe`]) compare at the run's
+    /// ε ([`Real::register_equal`]).
+    ///
     /// Nothing is recorded here: an `Interval` carries no expression.
     /// The recording half is [`crate::Sym::register_equal`], which asks
     /// this first.
-    fn register_equal(self, other: Self) -> crate::sym::SymRegistration {
+    fn register_equal(self, other: Self, _tol: Tol) -> crate::sym::SymRegistration {
         use crate::real::CertifiedEnclosure as _;
         use crate::sym::SymRegistration;
         let (Some((a_lo, a_hi)), Some((b_lo, b_hi))) =
