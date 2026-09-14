@@ -2948,7 +2948,7 @@ fn rim_phase<T: Decide + Bounds>(
             } else {
                 hp
             };
-            body.kev(dying).map_err(|e| op("rim closure kev", e))?;
+            body.kev(dying, tol).map_err(|e| op("rim closure kev", e))?;
             // The slit's true carrier: the torus minor circle at this
             // vertex's azimuth (radial read off the foot, which lies
             // on the trim circle).
@@ -2983,7 +2983,7 @@ fn rim_phase<T: Decide + Bounds>(
             } else {
                 shp
             };
-            body.kev(dying).map_err(|e| op("rim kev", e))?;
+            body.kev(dying, tol).map_err(|e| op("rim kev", e))?;
             retire_fragment(rec, mr, msrc);
         }
     }
@@ -3653,7 +3653,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         } else {
             hp
         };
-        body.kev(dying).map_err(|e| op("annulus closure kev", e))?;
+        body.kev(dying, tol).map_err(|e| op("annulus closure kev", e))?;
         if ix == ann.closure {
             continue;
         }

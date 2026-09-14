@@ -536,6 +536,24 @@ pub enum EulerOpError {
         /// The certification failure.
         error: CertifyError,
     },
+    /// A **fan-rebasing** operator ([`Body::mev`]'s fan site,
+    /// [`Body::kev`]'s fan merge) would move this edge onto a vertex
+    /// its carrier does not run to: the stored description,
+    /// re-certified against the endpoints the edge WOULD have after
+    /// the move, fails. Raised in the plan phase, so the body is
+    /// untouched.
+    ///
+    /// The description is authoritative and the carrier is its
+    /// certified cache (D2/D4 ¶2), so an operator that cannot certify
+    /// the moved edge has nothing honest to write: re-describing the
+    /// run is [`Body::set_edge_curve`]'s decision, made by the caller
+    /// with a spec of its own.
+    RebasedCarrier {
+        /// The re-based edge whose carrier no longer describes it.
+        edge: EdgeKey,
+        /// The typed re-certification failure.
+        error: CertifyError,
+    },
     /// [`Body::set_edge_curve`]: an intrinsic (`Intersection`) or
     /// `Seam` description's surface keys do not match the edge's two
     /// adjacent faces' surfaces — the description does not describe
@@ -831,6 +849,10 @@ impl fmt::Display for EulerOpError {
             Self::Certification { error } => {
                 write!(f, "geometry attachment gate: {error}")
             }
+            Self::RebasedCarrier { edge, error } => write!(
+                f,
+                "re-based edge {edge:?} would keep a carrier its endpoint left: {error}"
+            ),
             Self::DescriptionNotAdjacent { edge } => write!(
                 f,
                 "edge {edge:?}'s intrinsic/seam description names surfaces that are not \
@@ -1032,6 +1054,10 @@ pub(crate) fn every_euler_op_error_once()
         EulerOpError::Certification {
             error: CertifyError::Unimplemented,
         },
+        EulerOpError::RebasedCarrier {
+            edge: ek,
+            error: CertifyError::Unimplemented,
+        },
         EulerOpError::DescriptionNotAdjacent { edge: ek },
         EulerOpError::StaleKey {
             key: EntityId::HalfEdge(he),
@@ -1156,6 +1182,7 @@ impl EulerOpError {
             // does not cover. Every one of these is legal to meet on
             // a tier-1-valid body.
             Self::Certification { .. }
+            | Self::RebasedCarrier { .. }
             | Self::DescriptionNotAdjacent { .. }
             | Self::FanStartMismatch { .. }
             | Self::NotSameLoop { .. }
@@ -1360,18 +1387,19 @@ impl<T: Decide> Body<T> {
     /// mutation; failure is [`EulerOpError::Certification`], body
     /// untouched. Chord-line sugar: [`Body::mev_line`].
     ///
-    /// **The moved run's carriers are NOT re-described.** At a fan site
-    /// the run `[he1 .. he2)` is re-based onto the new vertex `w`, and
-    /// each of those edges keeps the curve it was certified with
-    /// against its OLD endpoint. If `point` differs from the old
-    /// vertex's, every re-based edge is left describing a locus that no
-    /// longer ends where the edge does: tier 1 does not constrain it
-    /// and no operator re-checks it, tier 3 reports it at rest, and the
-    /// next `split_edge` or `set_edge_curve` on such an edge refuses
-    /// typed. **Re-describe the moved run** (via
-    /// [`Body::set_edge_curve`]) whenever the two points differ — the
-    /// same posture as [`Body::set_face_surface`]'s note about
-    /// invalidating an adjacent edge's certification.
+    /// **The moved run's carriers are re-certified, never
+    /// re-described.** At a fan site the run `[he1 .. he2)` is
+    /// re-based onto the new vertex `w`, and each of those edges keeps
+    /// the curve it was certified with. So the gate asks whether that
+    /// curve still describes the edge `w` gives it, against the
+    /// endpoints of the re-based edge, and **refuses**
+    /// [`EulerOpError::RebasedCarrier`] naming the edge where it does
+    /// not — body untouched, like every other precondition. Where
+    /// `point` is the old vertex's own point no endpoint moves and
+    /// every certificate is carried as it is. Re-describing a run is
+    /// [`Body::set_edge_curve`]'s decision, with the caller's own
+    /// spec; the gate's own docs carry the argument for why an
+    /// operator re-certifies exactly rather than re-fitting.
     ///
     /// **Minting order** (D9, exact): point, curve (the certified
     /// [`EdgeCurve`]), vertex, edge, `he_plus`, `he_minus`.
@@ -1416,7 +1444,9 @@ impl<T: Decide> Body<T> {
     /// is empty ([`EulerOpError::LoopNotEmpty`]); its vertex and point
     /// resolve (`StaleKey` / `StaleGeometry`). Then, for both sites,
     /// the geometry gate: `curve` certifies
-    /// ([`EulerOpError::Certification`]).
+    /// ([`EulerOpError::Certification`]); and at a `Fan` site the
+    /// moved run's own carriers re-certify against the endpoints the
+    /// move gives them ([`EulerOpError::RebasedCarrier`]).
     ///
     /// # Errors
     ///
@@ -1704,8 +1734,11 @@ impl<T: Decide> Body<T> {
         // ---- Preconditions: no mutation until every check passes. ----
         let plan = self.mev_fan_plan(he1, he2)?;
         // ---- Geometry gate (still no mutation): certify the spec
-        // against old point → new point (D4 ¶2 at attachment).
+        // against old point → new point (D4 ¶2 at attachment), then
+        // the moved run's own carriers against the endpoints the move
+        // gives them.
         let certified = self.certify_edge_spec(curve, plan.p_old, point, tol)?;
+        self.certify_rebased_run(&plan.run, point, tol)?;
         // ---- Mutation (infallible from here on). ----
         Ok(self.mev_fan_execute(
             plan,
@@ -2223,6 +2256,91 @@ impl<T: Decide> Body<T> {
             band,
         )
         .map_err(|error| EulerOpError::Certification { error })
+    }
+
+    /// The **re-basing gate**: every edge of a run of half-edges about
+    /// to start at a vertex whose point is `p_new`, re-certified
+    /// against the endpoints it will have once the run has moved.
+    ///
+    /// A fan-rebasing operator re-parents half-edges, not carriers: an
+    /// edge whose start moves keeps the [`EdgeCurve`] it was certified
+    /// with, which pins `carrier(t₀)` to the point the edge USED to
+    /// run from. So the operator asks, before it mutates, whether that
+    /// certificate is still true of the edge it is about to make —
+    /// through [`EdgeCurve::recertify`], the same door `split_edge`
+    /// certifies its children through, which re-derives rather than
+    /// trusting the stored certificate. Where it holds the certificate
+    /// is carried untouched (the coincident-point case: no endpoint
+    /// moved, so nothing is re-minted and no byte changes); where it
+    /// fails the operator refuses [`EulerOpError::RebasedCarrier`]
+    /// naming the edge.
+    ///
+    /// **Exact re-certification, never a re-fit.** The description is
+    /// authoritative (D2/U2) and the carrier is its certified cache,
+    /// so re-fitting a moved edge would mean minting a description no
+    /// modeler stated: an `Intersection`'s locus is its two surfaces'
+    /// and moving an endpoint off it is a contradiction, a `Chart`
+    /// image's pcurve IS the authority record, a `Scaffold` names a
+    /// mapped source, and even a conventional line or circle would
+    /// have its direction and interval recomputed — the silent
+    /// geometry move [`Body::describe_at_rest`] refuses to make. A
+    /// re-description is [`Body::set_edge_curve`]'s, with the caller's
+    /// own spec.
+    ///
+    /// Null scaffolding is skipped because it carries no certificate
+    /// to invalidate ([`crate::CurveGeom::NullScaffold`], tier 2's to
+    /// refuse at rest). The plane × NURBS class (M7-8) needs an
+    /// injected lane this bound cannot supply, so it refuses
+    /// `Unimplemented` here exactly as `split_edge` does on the same
+    /// class — an operator makes no claim it cannot derive, and a
+    /// claim it cannot derive is not a licence to move the edge.
+    ///
+    /// Pure (no mutation) — one verdict per EDGE in run order (D9),
+    /// since a self-loop at the moved vertex has both halves in the
+    /// run and both endpoints moving.
+    pub(crate) fn certify_rebased_run(
+        &self,
+        run: &[HalfEdgeKey],
+        p_new: Point3<T>,
+        tol: Tol,
+    ) -> Result<(), EulerOpError> {
+        let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
+            error: CertifyError::Band(e),
+        })?;
+        let mut done: Vec<EdgeKey> = Vec::new();
+        for &moved in run {
+            let edge_key = self.resolve_half_edge(moved)?.edge;
+            if done.contains(&edge_key) {
+                continue;
+            }
+            done.push(edge_key);
+            let edge = self.get_edge(edge_key).ok_or(EulerOpError::StaleKey {
+                key: EntityId::Edge(edge_key),
+            })?;
+            let (he_plus, he_minus) = (edge.he_plus, edge.he_minus);
+            let Some(curve) = self
+                .get_curve_geom(edge.curve)
+                .and_then(crate::null::CurveGeom::certified)
+            else {
+                continue;
+            };
+            // `he_plus` forward order: the interval's `t₀` end is
+            // `start(he_plus)`, its `t₁` end is `start(he_minus)`.
+            let endpoint = |he: HalfEdgeKey| -> Result<Point3<T>, EulerOpError> {
+                if run.contains(&he) {
+                    return Ok(p_new);
+                }
+                self.resolve_vertex_point(self.resolve_half_edge(he)?.start)
+            };
+            let (p_start, p_end) = (endpoint(he_plus)?, endpoint(he_minus)?);
+            curve
+                .recertify(p_start, p_end, |k| self.surfaces.get(k).cloned(), band)
+                .map_err(|error| EulerOpError::RebasedCarrier {
+                    edge: edge_key,
+                    error,
+                })?;
+        }
+        Ok(())
     }
 
     /// Precondition half of [`FaceSurface`] resolution: a `Shared` key

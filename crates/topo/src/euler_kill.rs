@@ -269,7 +269,7 @@
 //!
 //! [`Empty`]: crate::LoopBoundary::Empty
 
-use geom_core::Decide;
+use geom_core::{Decide, Tol};
 
 use crate::body::Body;
 use crate::entity::{
@@ -523,18 +523,21 @@ impl<T: Decide> Body<T> {
     /// `None` (segment kill — the loop is [`LoopBoundary::Empty`] at the
     /// survivor again).
     ///
-    /// **The merged fan's carriers are NOT re-described.** The far
-    /// vertex's surviving edges are re-based onto `start(he)` and each
-    /// keeps the curve it was certified with against the dead vertex's
-    /// point. If the two points differ, every merged edge is left
-    /// describing a locus that no longer ends where the edge does:
-    /// tier 1 does not constrain it and no operator re-checks it,
-    /// tier 3 reports it at rest, and the next `split_edge` or
-    /// `set_edge_curve` on such an edge refuses typed. **Re-describe
-    /// the merged fan** (via [`Body::set_edge_curve`]) whenever the two
-    /// points differ. This is the exact inverse of [`Body::mev`]'s fan
-    /// note, and the same posture as
-    /// [`Body::set_face_surface`]'s.
+    /// **The merged fan's carriers are re-certified, never
+    /// re-described.** The far vertex's surviving edges are re-based
+    /// onto `start(he)` and each keeps the curve it was certified
+    /// with, which runs to the DEAD vertex's point. So the plan phase
+    /// re-certifies each of them against the endpoints the merge gives
+    /// it and **refuses** [`EulerOpError::RebasedCarrier`] naming the
+    /// edge where the certificate no longer holds — body untouched,
+    /// like every other precondition. Where the two vertices share a
+    /// point (the zero-length [`Body::mev_null`] pair the boolean
+    /// inserts and removes) no endpoint moves and every certificate is
+    /// carried as it is; a segment or strut kill merges no fan at all
+    /// and reaches no carrier. This is the exact inverse of
+    /// [`Body::mev`]'s fan gate, and `tol` is here for it: `kev` is
+    /// the one kill that moves an endpoint, so it is the one kill that
+    /// owes a band.
     ///
     /// # Precondition check order
     ///
@@ -546,14 +549,15 @@ impl<T: Decide> Body<T> {
     /// (`StaleKey`); both parent loops resolve (`StaleKey`) and are
     /// cycles ([`EulerOpError::LoopNotCycle`]); the far vertex's orbit
     /// closes ([`EulerOpError::OrbitBroken`] — tier-1-invalid input);
-    /// the four splice links (`prev`/`next` of both halves) resolve
-    /// (`StaleKey`).
+    /// the merged fan's carriers re-certify against the survivor's
+    /// point ([`EulerOpError::RebasedCarrier`]); the four splice links
+    /// (`prev`/`next` of both halves) resolve (`StaleKey`).
     ///
     /// # Errors
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
-    pub fn kev(&mut self, he: HalfEdgeKey) -> Result<KevResult, EulerOpError> {
+    pub fn kev(&mut self, he: HalfEdgeKey, tol: Tol) -> Result<KevResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
@@ -600,6 +604,11 @@ impl<T: Decide> Body<T> {
             .vertex_orbit(m)
             .ok_or(EulerOpError::OrbitBroken { he: m })?;
         let fan: Vec<HalfEdgeKey> = orbit_w[1..].to_vec();
+        // The re-basing gate: the fan is about to start at `v`, so
+        // every carrier among it is re-certified against `v`'s point
+        // before anything moves (the gate's own docs: exact, never a
+        // re-fit).
+        self.certify_rebased_run(&fan, self.resolve_vertex_point(v)?, tol)?;
         // The unsplice writes through all four neighbor links; prove
         // them now so the mutation below cannot fail midway (atomicity).
         let (a, b) = (

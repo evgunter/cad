@@ -562,7 +562,7 @@ impl<'a> Builder<'a> {
             )
             .map_err(Self::op_err(edge_id))?;
         self.body
-            .kev(strut.he_plus)
+            .kev(strut.he_plus, tol)
             .map_err(Self::op_err(edge_id))?;
         Ok((c.he_plus, c.he_minus))
     }

@@ -228,7 +228,7 @@ fn rotate_loop_firsts(
         let strut = body
             .mev_line(topo::MevSite::Fan { he1: t, he2: t }, offset, tol)
             .map_err(op_err)?;
-        body.kev(strut.he_plus).map_err(op_err)?;
+        body.kev(strut.he_plus, tol).map_err(op_err)?;
     }
     Ok(())
 }

@@ -522,7 +522,7 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds>(
         } else {
             hp
         };
-        body.kev(dying).map_err(|e| op("corner kev", e))?;
+        body.kev(dying, tol).map_err(|e| op("corner kev", e))?;
         // The corner patch is whatever face the first arc's non-blend
         // half now bounds.
         let Some((ahp, ahm)) = halves_of(body, first_arc) else {

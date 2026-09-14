@@ -1485,8 +1485,8 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
         // afterwards from what stopped resolving.
         // The designated chart reduced to one face — the mouth — and
         // its counterpart chart reduced to one.
-        let mouth = canonicalize_chart(&mut out, &group, band, &mut naming.dead)?;
-        let counterpart = canonicalize_chart(&mut out, &sources, band, &mut naming.dead)?;
+        let mouth = canonicalize_chart(&mut out, &group, band, tol, &mut naming.dead)?;
+        let counterpart = canonicalize_chart(&mut out, &sources, band, tol, &mut naming.dead)?;
 
         // **The glue's roles.** `kfmrh(host, guest)` kills `guest` and
         // makes its outer loop a ring of `host`, so `host` must be the
@@ -1876,6 +1876,7 @@ fn canonicalize_chart<T: Decide>(
     body: &mut Body<T>,
     faces: &[FaceKey],
     band: Band,
+    tol: Tol,
     dead: &mut ShellRetired,
 ) -> Result<FaceKey, ShellError<T>> {
     let anchor = *faces.first().ok_or(ShellError::Corrupt {
@@ -1934,7 +1935,7 @@ fn canonicalize_chart<T: Decide>(
     while let Some((r#loop, he1, he2)) = duplicate_in_loop(body, anchor) {
         let far = |he| body.half_edge_end(he);
         if far(he1).is_some_and(|v| valence(body, v) == 1) {
-            let killed = body.kev(he1).map_err(|error| ShellError::Rim {
+            let killed = body.kev(he1, tol).map_err(|error| ShellError::Rim {
                 face: anchor,
                 error,
             })?;
@@ -1943,7 +1944,7 @@ fn canonicalize_chart<T: Decide>(
             continue;
         }
         if far(he2).is_some_and(|v| valence(body, v) == 1) {
-            let killed = body.kev(he2).map_err(|error| ShellError::Rim {
+            let killed = body.kev(he2, tol).map_err(|error| ShellError::Rim {
                 face: anchor,
                 error,
             })?;
