@@ -1513,3 +1513,21 @@ the row closes on the fix pass. Fix pass dispatched as a fresh lane
 on the inherited branch, same arm as the implementer; reports
 archived at `/home/user/topo-orch/edge-r{1,2}-report.md`. Row
 recorded at merge.
+
+## Block TOPO-B5 cut; pre-draw fields logged BEFORE the byte (2026-09-14)
+
+Cut while B4's last slot is in its fix pass (lane capacity allows one
+implementer now, the rest when the fix pass frees). Three kernel
+answers on this program's files, slot order fixed here, the byte
+drawn only after this entry is committed:
+
+- slot 0 `set-face-surface-leaves-a-complete-face-certified-against-the-chart-it-left`
+  — difficulty **S**, task class **STRUCTURAL** (a setter takes the
+  loop doors' carry-or-drop through `same_chart`).
+- slot 1 `mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows`
+  — difficulty **M**, task class **STRUCTURAL** (a run's rows on two
+  core operators; `kef`'s precondition order is the question).
+- slot 2 `a-null-edge-can-be-re-based-onto-a-distinct-point` with
+  `the-re-basing-gate-refuses-m7-8-where-nothing-moves` — difficulty
+  **M**, task class **STRUCTURAL** (a gate's hole and its over-refusal
+  answered without a point-identity door).
