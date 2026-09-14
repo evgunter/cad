@@ -166,6 +166,25 @@ files, in this slot order (fixed before the block byte is drawn):
   spelled as the copy `mev_null` already is) or says which shape and
   why.
 
+**Ruled on PR 2527 (2026-09-14), cut at the next block** — three
+kernel answers now units on this slate:
+
+- `a-chart-spans-solids-after-move-shells-to-new-solid` — (A): the
+  mover re-mints the moved shell's shared surface keys, the invariant
+  stated at `Body` and checked in tier 1, SHELL-8's arm retired by
+  announced seam.
+- `kevs-fan-merge-needs-a-re-describing-kill-door` — (c) as two doors:
+  `kev(he)` refusing typed where a merged carrier would go stale, and
+  `kev_describing(he, specs, tol)` for the callers that re-describe;
+  `S93` closes with it.
+- `half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete`
+  — the operator mints the row at the mint site; phase 1 is whether
+  the closed-form derivation splits from the fitted lane under
+  `Decide`; the closing-mint convention retires.
+
+`attach-postconditions-validate-the-whole-body-and-panic` closed on
+the D9 reading.
+
 **Not in TOPO-B5**, and why: `check-9-nesting-is-line-bounded-only`'s
 disc third is S-BOOL's `disc_side` to open and its arc third waits on
 #1076; `split-edge-cannot-carry-a-fitted-or-general-pcurve-row` and

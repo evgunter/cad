@@ -1647,3 +1647,12 @@ that re-describe — the `mev`/`mev_line`/`mev_null` variant-family
 pattern. No default anywhere. Recommendation: (c) as two doors; the
 "default" reading was the orchestrator's, not the shape's. Waiting
 on Ev's letter.
+
+## Ev ruled 3 = (c) as two doors; all four questions on PR 2527 answered (2026-09-14)
+
+Ev: "(c) sounds good then!". Recorded on the item; `S93` closes with
+the unit. The four rulings stand: 1 (A), 2 closed, 3 (c) two doors, 4
+the mint-at-site target. The `[ev]` PR merges when its docs tier is
+green on the recorded head; the three ruled units are listed in the
+plan for the next block cut (after B5's slots 1 and 2 dispatch and
+conclude).
