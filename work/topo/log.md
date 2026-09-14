@@ -985,3 +985,33 @@ takes `curved` from the contract and its `OpPlacement` table is eight
 sites. Dual dispatched on the frozen head beside the loop-re-parenting
 lane: ordinal 2706, byte 194 ⇒ R1 OPUS, R2 FABLE; briefs stored with
 sha256 privately.
+
+## D263 adjudicated (2026-09-14)
+
+Both blinded reviews on frozen `a46911a20`, both MERGEABLE-AFTER-FIXES,
+neither with a MAJOR. R1: 0/4/5, rubric 3/3/2. R2: 0/4/2, rubric
+4/3/3. Both executed the red-first row on the merge base, the
+`Curved`-for-placeholder mutant (seven rows red), the mixed case
+through the public door (a source stamp joining a placeholder to a
+cylinder refuses with both kinds named; key-sharing is unspellable by
+type), every `Ok` path's census, the `OpPlacement` table after the
+parameter change, and the no-live-producer claim through revolve and
+the boolean. CONVERGED: the `unreachable!` in the role pass cites a
+gate this diff deleted (R1 traced the real proof to `kemr`'s
+`require_key`; R2 planted a dead survivor and `kef`'s postcondition
+caught it first); the brief's named control row does not exist; the
+placeholder decision is written five times; the poisoned-net arm lets
+the door commit surgery over a description tier 3 refuses (both, as a
+NOTE). Unilateral, taken: `merge_group` believes the contract's
+`curved` bool with nothing re-checking it — the lie mutant leaves the
+whole `topo` suite green and silently merges a curved cube (R1,
+executed; the defence D265 gave every other established fact); the
+`OpPlacement` prose's "remaining twelve variants" is wrong by six and
+`StaleGeometry` is still raised (R1); the render appends the
+placeholder recourse to every kind split (R2); `CURVED-MERGEDOOR-SPEC`
+cites moved symbols and its plan needs `MergeKind` (R2); the module
+header describes a two-kind world and `merged_outline_ring`'s comment
+reaches its answer by accident (R1); two spellings of the placeholder
+question across `topo` (R2, filed). No tally candidate. Seven-item fix
+pass to a fresh lane on the inherited branch; a poisoned face refuses
+typed unless the lane reads `NetState`'s rule otherwise and says so.
