@@ -6114,3 +6114,22 @@ prose home, the CURVED spec's citations re-worded and announced, two
 rows filed/amended. Tokens: impl ≈265k, fix ≈215k, state-sync ≈15k,
 R1 ≈209k, R2 ≈275k. Wall: impl ≈85 min, fix ≈90 min, R1 ≈28 min, R2
 ≈65 min; no gaps. Tally after this entry: candidates +2, unchanged.
+
+## Block SYM-B1 — record (branch-side on `sym/b1-block` until the block concludes; opened 2026-09-14)
+
+Block SYM-B1 pre-draw fields (2026-09-14, logged before the draw):
+slot 0 = SYM-4 (`docs/SYM-4-SPEC.md`, the cost of a form — `Poly`'s
+`BTreeMap` to a sorted vector in the map's own order, the degree
+cached, `Rat::from_parts`'s gcd skipped on the dyadic shape, every
+decision bit-identical) — difficulty **M**, task-class **STRUCTURAL**;
+slot 1 = SYM-5 (`docs/SYM-5-SPEC.md`, a stored unit vector does not
+double the degree — the derived-frame freeze measured, then a
+dial-gated rule of the atom algebra) — **H / NUMERIC**; slot 2 = SYM-6
+(`docs/SYM-6-SPEC.md`, the door's witness moves with the run's ε —
+`Tol` threaded to `register_equal`, the slack relative and floored;
+conditional on `[ev]` #2552's D1, closing short if Ev picks (0)) —
+**M / STRUCTURAL**. All three specs on `main` (#2553, and the SYM-6
+spec's orchestrator PR) before this draw. SYM-6 edits `real.rs`
+(PROPS') and `crates/sweep/src/*` (S-BOOL's/BLEND's) by announced seam
+at its dispatch; SYM-4 and SYM-5 stay inside `sym.rs`/`sym/*` and the
+program's test glob.
