@@ -5971,3 +5971,62 @@ candidate; concluded 2026-09-14); 2 =
 at its merge). No arm was exposed on main before its slot's claim
 named it, and every claim followed the slot line branch-side. The next
 TOPO kernel-answer unit draws block TOPO-B3.
+
+Revert row, recorded AT MERGE (2026-09-14, merge `7aaeb095d`, PR
+#2542; `work/topo/revert-does-not-mirror-plane-chart-images.md`,
+SHELL's placement): `Body::revert` re-states every `Chart` image and
+pcurve row of a reverted plane's faces under the reflected frame
+(`(u, v) ↦ (u, −v)`, exact in all five image kinds, a bitwise
+involution) through one affine door on `Pcurve` that `shift_branch`
+now shares, certificates travelling verbatim (nothing a certificate
+stores is in chart coordinates); the drum's reverted cavity is tier 3
+`[NegativeVolume]` only and `insert_voids` takes it; the periodic
+chart's loop wrap is the stated frontier. Difficulty **M**, task class
+NUMERIC (logged before the block draw — clean). Implementer arm
+**FABLE** (block TOPO-B2 slot 2, byte 215). **DUAL: ordinal 2705;
+sample #188 (ledger max #187 at this writing; main's merge order rules
+if a concurrent recorder collides); byte 83 parity 1 ⇒ R1 FABLE + R2
+OPUS; CONCURRENT same-head on frozen `f8ced386b`; briefs stored with
+sha256 before dispatch, identical modulo lane paths.** R1
+MERGEABLE-AFTER-FIXES, counts 0/4/3, rubric idiom 3 / tests 3 / docs
+3. R2 MERGEABLE-AFTER-FIXES, counts 2/8/3, rubric 3/4/3. CONVERGED on
+every fact, DIVERGENT on severity for R2's two MAJORs — `mirror_v`
+re-implements `NurbsCurve2::map_points` and so mints two `RevertError`
+variants nothing can produce (R2 executed the equivalence on a
+rational net; R1 read `validate_counts` and filed it MINOR), and the
+header contract still says every certification survives where the
+lane's own filed row says the sphere's cavity falsifies it (R1
+MINOR): NO unilateral executed MAJOR, **no tally candidate**.
+Converged also: a `shell.rs` sentence saying reverted rows go stale;
+four of five mirror arms untested (R2's mutant answering `None` on
+every arm but `Harmonic` left every suite green); the posture guard's
+blindness to `&self -> Self` producers owing a TRIM row. Unilateral,
+taken: "three postures exist" falsified in the same doc comment; an
+invented certificate field in the load-bearing paragraph; the
+dead-key exception absent from the posture's home; `MIRROR-DESIGN.md`'s
+recipe for the future mirror unit incomplete; the `Pcurve` type's own
+variant miscount; the receipt's extent short by seven `.dv` consumers,
+all invariant (R2); the drum fixtures and the graft meter re-derived a
+third time, an `is_err()` refusal unpinned (R1). Both corrected the
+brief on three points (the door's file, which doors match per kind,
+the single origin of a plane-face row) and both executed the
+certificate mutant, the merge-base emulation and the flipped rows.
+Spec deviations: 4 reported; silent 0 (both). Method relaxations:
+none; shared-box note applies to both arms; R2's target seeded colder
+(wall-clock asymmetry only). Fix pass by a fresh lane on the inherited
+branch (arm inherited), five items, union of both reviews: the door
+takes the map as point-action plus linear part (the lane's stated
+disagreement — one closure is not bit-exact under translation and
+would have broken `shift_branch`'s pin), both variants deleted with
+three unreachable handlers elsewhere, R2's geom-brep suite and R1's
+body-level rows adopted, the drum fixtures shared through
+`sweep/tests/common`, one TRIM row filed. Tokens: impl ≈310k, fix
+≈300k, state-sync ≈15k, R1 ≈252k, R2 ≈230k. Wall: impl ≈155 min, fix
+≈80 min, R1 ≈26 min, R2 ≈120 min; no gaps. Tally after this entry:
+candidates +2, unchanged.
+
+Block TOPO-B2 slot 2 concluded 2026-09-14 at merge `7aaeb095d`
+(ordinal 2705, sample #188, no tally candidate) — the block's
+CONCLUDED record above is complete: three slots, three duals, zero
+tally candidates, pre-draw fields clean. The next TOPO kernel-answer
+unit draws block TOPO-B3.
