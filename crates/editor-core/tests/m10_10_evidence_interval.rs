@@ -30,13 +30,15 @@ use crate::m10_8_harness::nominal_box;
 /// study, so a ceiling is a multiple of the study a user would ask for.
 type NamedStudy = (&'static str, Box<dyn Fn(f64) -> ProfileDoc>);
 
-/// The five documents M10-9 measured, at the same scales, and the two
-/// that author an arc at a bulge other than the circle kernel's `1`:
-/// R1's circular-segment boss (a literal `bulge = 2`, a major arc) and
-/// R2's D-tab (`bulge = 0.4`, as a literal and as a document
-/// parameter) — the fixtures stay beside the probe rows that own
-/// them, and this list is the one index every env-driven row here
-/// reads by name (`CAD_M10_10_DOC`, `CAD_M10_10_DOCS`).
+/// The five documents M10-9 measured, at the same scales, and the
+/// three that author an arc at a bulge other than the circle kernel's
+/// `1`: R1's circular-segment boss (a literal `bulge = 2`, a major
+/// arc) and R2's D-tab twice (`bulge = 0.4` as a literal, and as a
+/// document parameter). The fixtures stay beside the probe rows that
+/// own them; this list is the index every env-driven row here reads
+/// by name (`CAD_M10_10_DOC`, `CAD_M10_10_DOCS`), and the default set
+/// the over-band rows run. The two dyadic CONTROLS are [`controls`],
+/// reachable by name only.
 fn documents(tol: Tol) -> Vec<NamedStudy> {
     vec![
         (
@@ -72,9 +74,17 @@ fn documents(tol: Tol) -> Vec<NamedStudy> {
             "r2_d_tab_parameter",
             Box::new(move |s: f64| crate::m10_10_r2_probes_interval::d_tab(s, true, tol).0),
         ),
-        // The dyadic-bulge controls (`d_tab_at`'s docs): the same
-        // D-tab at `bulge = 0.5`, whose sagitta coefficients fit the
-        // ring, so what stands there is the sign alone.
+    ]
+}
+
+/// The dyadic-bulge CONTROLS (`d_tab_at`'s docs): the D-tab at `bulge
+/// = 0.5`, literal and parameter, whose sagitta coefficients fit the
+/// ring, so what stands there is the sign alone. Not in [`documents`]:
+/// the parameter control's whole-box replay costs ~8 s a probe in a
+/// dev build, so the over-band rows take them only by name
+/// (`CAD_M10_10_DOCS=r2_d_tab_parameter_dyadic`).
+fn controls(tol: Tol) -> Vec<NamedStudy> {
+    vec![
         (
             "r2_d_tab_literal_dyadic",
             Box::new(move |s: f64| {
@@ -88,11 +98,13 @@ fn documents(tol: Tol) -> Vec<NamedStudy> {
     ]
 }
 
-/// The named study `CAD_M10_10_DOC` selects (default the plate).
+/// The named study `CAD_M10_10_DOC` selects (default the plate), from
+/// [`documents`] or [`controls`].
 fn document_from_env(tol: Tol) -> NamedStudy {
     let name = std::env::var("CAD_M10_10_DOC").unwrap_or_else(|_| "two_hole_plate".into());
     documents(tol)
         .into_iter()
+        .chain(controls(tol))
         .find(|(n, _)| *n == name)
         .unwrap_or_else(|| panic!("no document {name:?}"))
 }
@@ -239,20 +251,10 @@ fn m10_10_the_four_residuals_rendered_at_the_nominal() {
     }
 }
 
-/// The per-predicate outcome split of one replay, printed.
+/// The per-predicate outcome split of one replay
+/// (`m10_8_harness::split`), printed.
 fn print_split(shapes: &[DecisionShape]) {
-    let mut table: BTreeMap<&'static str, [u64; 4]> = BTreeMap::new();
-    for s in shapes {
-        let row = table.entry(s.predicate).or_default();
-        let k = match s.outcome {
-            ShapeOutcome::Theorem => 0,
-            ShapeOutcome::SignGated => 1,
-            ShapeOutcome::Registered => 2,
-            _ => 3,
-        };
-        row[k] += 1;
-    }
-    for (pred, row) in &table {
+    for (pred, row) in &crate::m10_8_harness::split(shapes) {
         println!("   {pred:<34} {row:?} (theorem/gated/registered/numeric)");
     }
 }
@@ -314,8 +316,10 @@ fn rules_named(name: &str) -> SymRules {
 /// under a chosen rule set (`CAD_M10_10_RULES`, default shipped) —
 /// the bracket at both ends of a 16-step log bisection, and every
 /// predicate over the band at the refusing end with its enclosure.
-/// `CAD_M10_10_DOCS` names a comma-separated subset. Run once per ε
-/// row (the tolerance is a `OnceLock`).
+/// `CAD_M10_10_DOCS` names a comma-separated subset of [`documents`]
+/// and [`controls`] (the controls run only when named). Evidence-only;
+/// the default set is eight documents and takes minutes. Run once per
+/// ε row (the tolerance is a `OnceLock`).
 #[test]
 #[ignore = "evidence-only: the ceilings and the over-band set at ceiling + delta"]
 fn m10_10_ceilings_and_the_over_band_set() {
@@ -326,11 +330,13 @@ fn m10_10_ceilings_and_the_over_band_set() {
     let only = std::env::var("CAD_M10_10_DOCS")
         .ok()
         .filter(|s| !s.trim().is_empty());
-    for (name, at) in documents(tol) {
-        if only
-            .as_deref()
-            .is_some_and(|l| !l.split(',').any(|n| n.trim() == name))
-        {
+    let defaults: Vec<&'static str> = documents(tol).iter().map(|(n, _)| *n).collect();
+    for (name, at) in documents(tol).into_iter().chain(controls(tol)) {
+        let wanted = match only.as_deref() {
+            Some(list) => list.split(',').any(|n| n.trim() == name),
+            None => defaults.contains(&name),
+        };
+        if !wanted {
             continue;
         }
         let (lo, hi, per) =
