@@ -1,13 +1,20 @@
-//! **The documented limits.** The normal form is a QUOTIENT of
-//! polynomials over the parameter symbols — a field of fractions, not a
-//! polynomial ring — so a reciprocal is a first-class part of it and
-//! `(x/y)·y − x` DOES decide symbolically: `x/y` is the form `x` over
-//! `y`, multiplying by `y` gives `xy/y`, and the difference's numerator
-//! is the zero polynomial. (The tier's headline row needs exactly that:
-//! an extruded strut's carrier is `origin + (w/‖w‖)·t`, so its endpoint
-//! residual is literally `w·(‖w‖·‖w‖⁻¹ − 1)`.) That is the whole of the
-//! reciprocal's reach, and it is a NORMAL FORM rather than a rewrite
-//! rule: nothing is factored, and no simplification is attempted.
+//! **The documented limits.** The normal form is a QUOTIENT of polynomials
+//! over the parameter symbols — a field of fractions, not a polynomial ring
+//! — so a reciprocal is a first-class part of it and `(x/y)·y − x` DOES
+//! decide symbolically: `x/y` is the form `x` over `y`, multiplying by `y`
+//! gives `xy/y`, and the difference's numerator is the zero polynomial.
+//! (The tier's headline row needs exactly that: an extruded strut's carrier
+//! is `origin + (w/‖w‖)·t`, so its endpoint residual is literally
+//! `w·(‖w‖·‖w‖⁻¹ − 1)`; with the reciprocal held opaque that residual is
+//! not the zero form, the tier discharges the rest of the identity
+//! population and the macroscopic box still refuses — measured on
+//! `m10_3_driver_interval`'s slab at a ±0.05 band: 945 identities
+//! discharged, `carrier_endpoint_end` still indeterminate at `[0, 0.21]`.)
+//! That is the whole of the reciprocal's reach, and it is a NORMAL FORM
+//! rather than a simplification RULE bolted on: the field of fractions
+//! reached by the same construction the polynomial form is (`a/b + c/d =
+//! (ad + cb)/(bd)`, `(a/b)⁻¹ = b/a`), with nothing factored and no
+//! simplification attempted.
 //!
 //! What remains outside the PLAIN form: no factoring, and no functional
 //! identity of any opaque atom — each atom is an indeterminate keyed by its
@@ -205,20 +212,7 @@ pub(super) fn mono_mul(a: &Mono, b: &Mono) -> Option<Mono> {
 ///
 /// # Why a quotient and not a polynomial
 ///
-/// Division is not decoration in this kernel's identities. An extruded
-/// strut's carrier is `origin + (w/‖w‖)·t` metered by `t ∈ [0, ‖w‖]`, so
-/// the endpoint-pinning residual `carrier.eval(t₁) − end` is literally
-/// `w·(‖w‖ · ‖w‖⁻¹ − 1)`: with the reciprocal held opaque the residual is
-/// not the zero form, the tier discharges the rest of the identity
-/// population and the macroscopic box still refuses. Measured on
-/// `m10_3_driver_interval`'s slab at a ±0.05 band: 945 identities
-/// discharged, `carrier_endpoint_end` still indeterminate at `[0, 0.21]`.
-///
-/// A quotient is not a simplification RULE bolted on — it is the normal
-/// form of the field of fractions, reached by the same construction the
-/// polynomial form is: `a/b + c/d = (ad + cb)/(bd)`, `(a/b)⁻¹ = b/a`.
-/// Nothing is factored, `sqrt` and the transcendentals stay opaque
-/// atoms, and no identity is asserted about them.
+/// The module docs carry it, with the row that measured it.
 ///
 /// # Why the zero test stays a theorem
 ///

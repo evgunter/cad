@@ -257,17 +257,14 @@ fn isqrt_u128(n: u128) -> Option<u128> {
 /// field leaves the odd part alone, so the round constants a recipe is
 /// full of (`1`, `½`, `2`, `¼`) never grow the integers at all.
 ///
-/// **The integers are arbitrary-precision** (M10-8). They were `i128`,
-/// and that was measured to be the arc family's freeze: a document's
-/// dimensions are `f64` literals with 53-bit mantissas, so the product
-/// of THREE of them overflows an `i128`, and every polynomial of degree
-/// three or more in a parameter with such a nominal froze — which is
-/// what the plate's rim residual is (`sqrt(…)^12`). The size discipline
-/// the `i128` gave for free is kept explicitly: an integer past
-/// [`COEFF_BITS`] is refused by [`Rat::new`] and the caller freezes, so
-/// a coefficient blow-up is still a bounded cost, not an allocation to
+/// **The integers are arbitrary-precision**, and the size discipline an
+/// `i128` gave for free is kept explicitly: an integer past
+/// [`COEFF_BITS`] is refused — by [`Rat::from_parts`], which every
+/// operation that can grow an integer goes through, and by [`Rat::add`]'s
+/// alignment shift before it builds one — so the caller freezes and a
+/// coefficient blow-up is a bounded cost rather than an allocation to
 /// the ceiling. Every operation is CHECKED and answers `None` on that
-/// bound (module docs).
+/// bound. The module docs carry the readings that set it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct Rat {
     pub(super) num: Int,
