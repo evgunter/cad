@@ -88,6 +88,8 @@ mod display_budget;
 mod doc_io;
 #[path = "docm1_face_frame.rs"]
 mod docm1_face_frame;
+#[path = "docm9_range_vs_probe.rs"]
+mod docm9_range_vs_probe;
 #[path = "edge_pick.rs"]
 mod edge_pick;
 #[path = "error_display.rs"]
