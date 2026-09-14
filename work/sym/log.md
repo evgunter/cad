@@ -201,3 +201,35 @@ Fix passes follow on the implementers' lanes; SYM-2 lands first.
 (incremental caches 5.3 and 4.6); both lanes finished, so the
 incremental caches were deleted and reviewer targets seeded from the
 remaining `deps`. Two heavy lanes at once stays the rule.
+## SYM-2 merged (2026-09-14): the tier's file split
+
+PR #2532, fix-pass head `b73b289a2`, hosted run 34806691533 green on
+the full matrix; one style review outside the experiment (no row), its
+delta round confirming every fix item by execution. `sym.rs` 4,478 →
+3,540 lines (header 491 → 457); `sym/rational.rs` 532 (the coefficient
+tower, its own argument for the bound) and `sym/form.rs` 417 (the
+polynomial and the quotient form, its own limits); six archaeology cuts
+from the header and two twin arguments collapsed to one home each; the
+readings that argued for `COEFF_BITS` read as readings again. The
+review's one MINOR was a cut that changed tense into a present claim
+nothing pins; taken. **Filed, not fixed** (the unit edits no sentence's
+technical content): `sym-header-says-every-freeze-is-counted`,
+`sym-header-dag-paragraph-disagrees-with-the-code`,
+`sym-header-claims-outrun-the-code` (three more header sentences the
+code has outgrown — D9's "every insertion order" against the opaque
+sequence; the two-clause `Zero` against `Registered`/`SignGated`; the
+constructor census against `sweep::extrude`'s arc wall, whose route
+through the wrapper the allowlist gate does not see) and
+`sym-item-docs-carry-unit-archaeology` (the §4 sweep the header pass was
+fenced out of). **Not landed**: the reviewer's cheap fourth cut — the
+test module out, 1,045 lines — trips `register-equal-allowlist.sh`,
+which exempts `sym.rs` whole as a definition home and so hides the
+tier's thirteen test calls of the door; the lane reverted rather than
+edit `guard`'s gate and filed
+`work/guard/register-equal-allowlist-exempts-a-whole-file-and-hides-test-calls`
+(the reviewer's view, recorded for `guard`: a `#[cfg(test)]`-aware read
+rather than a `TEST_HOMES` list, since the same whole-file skip hides
+new calls in the other four definition homes too). `dag.rs` deferred
+with two conditions on the item. The item stays open on both cuts.
+Lane commits carried no trailer; the orchestrator's state-sync rides
+the PR last.

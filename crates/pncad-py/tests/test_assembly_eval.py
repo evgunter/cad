@@ -483,7 +483,7 @@ class TestTheMemoServesWithoutTheSeamsGates(CorpusCase):
       this document's own `DocRef` pins, certified by content key.
       Nothing is retargeted; what is skipped is the RE-CHECK.
 
-    That is correct BY DESIGN (`docs/DOCM-IDENTITY-DESIGN.md` DI2):
+    That is correct BY DESIGN (`crates/editor-core/IDENTITY.md` DI2):
     the memo is a pure function of the document, and for an instantiate
     node the pin IS the content, so the served value is exactly what
     the document pins. Putting store state into memo admission would

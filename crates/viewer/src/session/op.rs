@@ -662,7 +662,7 @@ impl SessionOp {
     /// # Why the two drags may overlap, and until when
     ///
     /// **This section is scoped to the tree as it stands.** DI5
-    /// (`docs/DOCM-IDENTITY-DESIGN.md`, ratified) rules that releasing
+    /// (`crates/editor-core/IDENTITY.md`, ratified) rules that releasing
     /// a free-move gesture emits one `DocEdit::SetPlacement` and that
     /// `DisplayState::moves` empties, because a committed frame
     /// becomes document data. When that lands,

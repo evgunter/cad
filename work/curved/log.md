@@ -181,3 +181,14 @@ main into the block branch conflicted in the A/B log and the
 orchestrator committed the markers before noticing — repaired by a
 resolving commit (union of both appended sections), never rewritten;
 the whole-tree marker grep is now part of every merge here.
+
+## Announced seam from TOPO (2026-09-14): the `loop_shape` change is on your ground too
+
+`crates/topo/src/boolean/*` is claimed by both S-BOOL and this
+program, so the announcement written on `work/bool/log.md` for
+2026-09-14 — `contain::loop_shape` and `LoopShape` going
+`pub(crate)`, and `LoopShape::Parity` splitting into `Polygon` and
+`ArcParity` with `contfp`'s behaviour unchanged — is repeated here
+rather than left visible from one side only. Read it there; nothing
+differs. TOPO PR 2529, branch `topo/tier3-ring-nesting`. No action
+asked. Signed (TOPO, the ring-nesting lane).
