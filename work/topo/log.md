@@ -1074,3 +1074,120 @@ recorded at merge (ordinal 2706, sample #189), no tally candidate;
 slot 1 marked concluded on `topo/b3-block`. `S93` (slot 2, OPUS)
 dispatched on `topo/s93-rebased-carriers` with a brief section in
 its item, beside the loop-re-parenting fix pass.
+
+## Loop re-parenting merged; block TOPO-B3 slot 0 concluded (2026-09-14)
+
+PR 2549 merged at `7f249e2dd` (green run 34815095925 on `59e956b0d`,
+full matrix, verified job by job). The unit closed. The fix pass's
+disagreement was the substantive one: the reviewers' bit-structural
+surface equality needs `Bounds`, and the bound ripples through forty
+signatures in four crates without converging — so the predicate is
+key-or-provenance, with the provenance-free two-keys-one-surface
+case pinned and filed rather than silently regressed. Row recorded at
+merge (ordinal 2707, sample #190), no tally candidate; slot 0
+concluded on `topo/b3-block`. `S93` (slot 2) is the one lane running;
+the box was reclaimed to twelve gigabytes free after the two fix
+passes' targets went.
+
+## S93 delivered; dual out at ordinal 2708 (2026-09-14)
+
+Slot 2 `topo/s93-rebased-carriers` delivered as PR 2562, head
+`cb400cfe1`, full matrix green (run 34821959531). `mev`'s fan site
+re-certifies every re-based edge's carrier exactly in its plan phase
+(one `EdgeCurve::recertify` per edge, no re-fit for any kind, no bound
+moved) and refuses typed with the body untouched; `mev_null` carries
+because its point is bitwise the run's old point, and no kernel code
+reaches the fan-with-run site otherwise. The `kev` half did NOT land:
+the lane wired the same gate and measured 129 of 1,394 `sweep` rows
+red at the blend verb's two closure kills, which kill mid-surgery and
+re-describe at the door's end — a precondition cannot see a promise
+the caller keeps later — so `kev`'s paragraph now states the defect
+and a row (`kevs-fan-merge-needs-a-re-describing-kill-door`) carries
+the measurement and the door shape that would close it. Nine rows
+re-baselined onto `mev_null`; `roundtrip`'s `Kev` arm skips every fan
+merge; a seqgen stream pin re-pinned. Dual dispatched on the frozen
+head with the deviation at its centre: ordinal 2708, byte 160 ⇒ R1
+OPUS, R2 FABLE; briefs stored with sha256 privately. No other lane.
+
+## S93 adjudicated; one tally candidate, doc class (2026-09-14)
+
+Both blinded reviews on frozen `cb400cfe1`, both
+MERGEABLE-AFTER-FIXES. R1: 1/6/5, rubric 4/3/3. R2: 2/4/4, rubric
+4/3/2. Both reproduced the red-first row, the sweep measurement (129
+of 1,394, at the blend's two closure kills, to the row), the last-edge
+mutant, the `Kev` skip census on the pinned streams (136 selections,
+39 executing, 69 newly skipped) and the seqgen filter still biting.
+CONVERGED, severity divergent: the rewritten `kev` paragraph is the
+prose-held obligation in a new coat — the trap the style lane names,
+fired on schedule (R2 MAJOR, R1 NOTE plus its Q1); "a certified `mev`
+cannot reach a run-moving fan site" is false — a self-loop closed
+carrier reaches the splice through the certified door (R1 MAJOR, R2
+MINOR, both executed); the advertised control pins `mev_null`'s
+bypass, not the gate; the coverage trade disclosed but unmeasured;
+the iso route row's name and comment false; the kill∘make taxonomy
+stale. UNILATERAL and executed, R2: **the filed row's central
+measurement is false** — "`cargo test -p topo` was green with the
+gate on `kev`" — R2 wired the gate and got fourteen of the tree's own
+rows red (the generator's walk and teardown among them), and found
+the branch commit that claims the measurement does not compile its
+tests. R1 reproduced the sweep half and did not test the `topo` half.
+A false measurement in a tracker row and the PR body, on which the
+follow-up's design rests: **tally candidate +1, doc class**, coded at
+the blinded adjudication (S330's precedent; the code-class exclusion
+noted in the row). Unilateral, taken: the receipt's blind-spot
+sentence false and its sweep count stale (R1); the enumerator
+narrowed where it could have asserted the refusal under fuzz (R1);
+four `kev` fixtures re-baselined onto tier-2-invalid scaffold bodies
+undisclosed (R1); the gate's coincident-point sentence false for the
+M7-8 class and for pre-stale runs (R2). Both reviewers found a landing
+shape the filed row does not name — the surgery-scope switch (R2, Ev's
+PR-2305 shape) and a tier-3 postcondition at the blend door (R1) —
+recorded in the row for the unit that lands `kev`'s half; `S93` stays
+open with the `mev` half landed. Nine-item fix pass to a fresh lane
+on the inherited branch; a bitwise coincident-point short-circuit
+taken so the gate carries where nothing moved.
+
+## S93 merged; block TOPO-B3 concluded (2026-09-14)
+
+PR 2562 merged at `21a0de4ce` (green run 34831213029 on `8fc3a1e6a`,
+full matrix, verified job by job). `S93` stays OPEN: the `mev` half
+landed, the `kev` half is the filed row with three landing shapes
+and the generator's dependence measured honestly (fourteen `topo`
+rows at four coordinates, not "green"). The fix pass's divergence was
+right: a bitwise coincident-point short-circuit is not buildable at
+`T: Real`, so the gate re-asks against current endpoints instead.
+Row recorded at merge (ordinal 2708, sample #191) with the program's
+third tally candidate (doc class); slot 2 concluded on `topo/b3-block`
+and the block's CONCLUDED record published. Block TOPO-B3 closes with
+three duals and one doc-class candidate. No lane is running.
+
+## Block TOPO-B4 cut; pre-draw fields logged BEFORE the byte (2026-09-14)
+
+Three kernel answers on this program's files, slot order fixed here,
+the byte drawn only after this entry is committed:
+
+- slot 0 `geom-source-absence-conflates-four-origins` — difficulty
+  **M**, task class **STRUCTURAL** (a typed absence on the identity
+  channel; consumers in the recipe layer read it).
+- slot 1 `revert-leaves-a-periodic-charts-loop-wrap-mid-chain` —
+  difficulty **M**, task class **NUMERIC** (a branch re-park under a
+  frame reversal, pinned by the involution).
+- slot 2 `edge-carrier-kind-has-no-readback-door` — difficulty **S**,
+  task class **STRUCTURAL** (a readback twin in the ratified shape).
+
+Non-dual beside it: `D107` (test support; one style review). To Ev on
+the open `[ev]` PR: the `kev` half's landing shape and the
+half-edge-minting operators' pcurve posture.
+
+## Block TOPO-B4 drawn; slots 0 and 1 and D107 dispatched (2026-09-14)
+
+Byte drawn after the pre-draw entry was committed (`4b813113a`): 223
+⇒ 223 mod 3 = 1 ⇒ fable at slot 1. Record branch-side on
+`topo/b4-block`. Slot 0 (`geom-source-absence-…`,
+`topo/geom-source-typed-absence`, OPUS) and slot 1 (`revert-leaves-…`,
+`topo/revert-reparks-the-wrap`, FABLE) dispatched with brief sections;
+`D107` (`topo/d107-kemr-hammer-fixture`, non-dual, OPUS — no row)
+beside them as the third lane, test support only. Seams announced to
+WIRE (the stamping call) and TRIM (a reverse-parking helper). Slot 2
+(`edge-carrier-kind-has-no-readback-door`) dispatches when a lane
+frees.
