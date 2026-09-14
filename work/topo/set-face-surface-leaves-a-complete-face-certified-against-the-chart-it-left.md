@@ -2,9 +2,11 @@
 id: set-face-surface-leaves-a-complete-face-certified-against-the-chart-it-left
 kind: issue
 title: set_face_surface swaps a face onto a chart that mints nothing and leaves its complete row set behind, which validate_pcurves skips entirely
-status: open
+status: review
 opened: 2026-09-14
 refs: [loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart, mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows, attach-postconditions-validate-the-whole-body-and-panic]
+pr: 2594
+branch: topo/set-face-surface-drops-rows-on-chart-change
 ---
 
 Found by PR 2549's R1 reviewer, by execution, and filed by that PR's
