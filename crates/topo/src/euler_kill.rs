@@ -1009,6 +1009,16 @@ impl<T: Decide> Body<T> {
     /// yields an **empty-outer face** — the `mvfs`-face shape, now
     /// operator-reachable inside a larger body.
     ///
+    /// **Pcurve rows** ([`crate::pcurves`]): the promoted ring's stored
+    /// rows are a curve stated in the DEMOTING face's chart.
+    /// [`FaceSurface::Inherit`] — and a [`FaceSurface::Shared`] naming
+    /// that same key, or one the body records as the same description
+    /// ([`Body::same_chart`]) — keeps them, since the chart does not
+    /// move; any other surface DROPS them, for the reasons and with
+    /// the consequences [`Body::drop_rows_on_chart_change`] states. A
+    /// new face's rows are the caller's to mint either way
+    /// ([`crate::pcurves::mint_pcurves`]).
+    ///
     /// Euler vector: `(v 0, e 0, f +1, h −1, r −1, s 0)` — arena delta
     /// +1 face (the "−1 ring" is the surviving loop's promotion, not a
     /// kill; genus is derived, not stored).
@@ -1079,6 +1089,7 @@ impl<T: Decide> Body<T> {
             unreachable!("mfkrh: the ring resolved in the plan phase")
         };
         loop_data.face = face;
+        self.drop_rows_on_chart_change(ring, inherit_surface, surface);
         let Some(shell_data) = self.get_shell_mut(shell) else {
             unreachable!("mfkrh: the shell resolved in the plan phase")
         };
@@ -1102,6 +1113,15 @@ impl<T: Decide> Body<T> {
     /// [`Body::set_face_surface`] before rest). Mirrors the M1
     /// fresh-surface semantics for the migrated suites and for
     /// promotions whose real surface is not yet known.
+    ///
+    /// **Pcurve rows**: the promoted ring arrives rowless whenever it
+    /// brought rows. A placeholder is not a described surface at all,
+    /// so it is not the chart any row was stated in and cannot be —
+    /// the drop here is decided by KIND, not by whether the door
+    /// minted a fresh key, and a `Shared` placeholder would read the
+    /// same way. [`Body::drop_rows_on_chart_change`] carries the rest;
+    /// the promoted face's rows are the caller's to mint once it gives
+    /// the face a real surface.
     ///
     /// # Errors
     ///

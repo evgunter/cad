@@ -6067,3 +6067,102 @@ Shared-box note applying to BOTH arms equally: one 4-core cloud box
 beside one other lane (D263's fix pass), `-j2`; R1's target is the
 implementer's warm one, R2's is seeded from an older warm build —
 wall-clock asymmetry only.
+
+D263 row, recorded AT MERGE (2026-09-14, merge `4628d4e6a`, PR #2548;
+`work/topo/D263.md`): the merge door's regime question is three-way —
+`MergeKind { Plane, Curved, Placeholder }` read through the two-homes
+door and S330's `net_state()`; a placeholder run forms no group and
+the outcome names every placeholder face; a source stamp joining a
+placeholder to a described face refuses typed with both kinds named;
+a poisoned net refuses before any surgery
+(`PoisonedSurfaceDescription`, the fix pass's decision under
+`NetState`'s rule); the surgery re-checks the kind it is handed.
+Difficulty **M**, task class STRUCTURAL-GEOMETRIC (logged before the
+block draw — clean). Implementer arm **FABLE** (block TOPO-B3 slot 1,
+byte 19). **DUAL: ordinal 2706; sample #189 (ledger max #188 at this
+writing; main's merge order rules if a concurrent recorder collides);
+byte 194 parity 0 ⇒ R1 OPUS + R2 FABLE; CONCURRENT same-head on frozen
+`a46911a20`; briefs stored with sha256 before dispatch, identical
+modulo lane paths.** R1 MERGEABLE-AFTER-FIXES, counts 0/4/5, rubric
+idiom 3 / tests 3 / docs 2. R2 MERGEABLE-AFTER-FIXES, counts 0/4/2,
+rubric 4/4/3. ZERO MAJORs both arms; **no tally candidate**. Both
+executed the red-first row on the merge base, the
+`Curved`-for-placeholder mutant, the mixed case through the public
+door, every `Ok` path's census, the `OpPlacement` table after the
+parameter change, and the no-live-producer claim. CONVERGED: the
+`unreachable!` in the role pass cites a gate the diff deleted (R1
+traced the real proof; R2 planted a dead survivor); the brief's named
+control row does not exist (the orchestrator's error, both); the
+placeholder decision written five times; the poisoned-net arm lets
+the door commit surgery over a description tier 3 refuses (both, as
+a NOTE). Unilateral, taken: `merge_group` believes the contract's
+`curved` bool with nothing re-checking it — the lie mutant left every
+`topo` row green and silently merged a curved cube (R1, executed);
+the `OpPlacement` prose's remainder count wrong by six with
+`StaleGeometry` still raised (R1); the render's placeholder recourse
+on every kind split (R2); `CURVED-MERGEDOOR-SPEC` citing moved
+symbols and its plan needing `MergeKind` (R2); the module header's
+two-kind world and `merged_outline_ring`'s accidental comment (R1);
+two spellings of the placeholder question across `topo` (R2, filed).
+Spec deviations: 4 reported; silent 3 (R1) / 1 (R2). Method
+relaxations: none; shared-box note applies to both arms; R2's target
+seeded colder (wall-clock asymmetry only). Fix pass by a fresh lane on
+the inherited branch (arm inherited), seven items, union of both
+reviews: the kind passed and re-checked by `debug_assert!`, R1's lie
+probe as three rows, the poisoned refusal with its red-first row, one
+prose home, the CURVED spec's citations re-worded and announced, two
+rows filed/amended. Tokens: impl ≈265k, fix ≈215k, state-sync ≈15k,
+R1 ≈209k, R2 ≈275k. Wall: impl ≈85 min, fix ≈90 min, R1 ≈28 min, R2
+≈65 min; no gaps. Tally after this entry: candidates +2, unchanged.
+
+Loop-re-parenting row, recorded AT MERGE (2026-09-14, merge
+`7f249e2dd`, PR #2549;
+`work/topo/loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart.md`):
+`kfmrh`, `ring_move` and `mfkrh`/`mfkrh_plug` drop a moved loop's
+pcurve rows when the destination's chart is not the rows' — decided by
+`same_chart` (one key, or two keys the body records as one surface
+through provenance) — and carry them byte for byte otherwise; the
+loop's rows walk has one home (`pcurves::loop_rows`) shared with
+`stored_rows`. Difficulty **S/M**, task class STRUCTURAL (logged
+before the block draw — clean). Implementer arm **OPUS** (block
+TOPO-B3 slot 0, byte 19). **DUAL: ordinal 2707; sample #190 (ledger
+max #189 at this writing; main's merge order rules if a concurrent
+recorder collides); byte 158 parity 0 ⇒ R1 OPUS + R2 FABLE;
+CONCURRENT same-head on frozen `d57e8ba53`; briefs stored with sha256
+before dispatch, identical modulo lane paths.** R1
+MERGEABLE-AFTER-FIXES, counts 1/5/4, rubric idiom 4 / tests 3 / docs
+3. R2 MERGEABLE-AFTER-FIXES, counts 0/3/6, rubric 4/3/4. CONVERGED on
+the central fact at DIVERGENT severity: the helper dropped on a KEY
+change where its name and the item say CHART — a ring promoted onto a
+second key holding the identical cylinder was complete and correct on
+the merge base and silently unminted at the head, and the
+compare-by-surface mutant left every one of the 1,217 `topo` rows
+green (R1 MAJOR; R2 the same measurement inside its class MINOR): NO
+unilateral executed MAJOR, **no tally candidate**. Converged also: the
+loud-to-silent trade is a class (every rowless curved target, all
+three doors) where the PR said "once" — the orchestrator's brief
+premise was wrong too; `Transfers` naming a door that moves no row; a
+fresh copy of the one-loop-cycle walk (the trap check, both); the
+`mfkrh_plug` rule attributed to the placeholder; three header
+sentences the change invalidated. Unilateral, taken: the
+`set_face_surface` blind spot mis-filed to rows that do not cover it
+(R1); the fixture tier-3-invalid by the structural battery while a
+row's name says clean (R1); the merge door also moves runs through
+`kef` (R1); the loop-walk census row's floor 33 not 34 (R1); the
+item's `kfmrh` citation (R2). Both reproduced the four red-first rows
+on the merge base, the byte carry, both mutants, the empty-ring and
+broken-cycle plants and the discard gate. Spec deviations: 7
+reported; silent 2 (R1) / 1 (R2). Method relaxations: none;
+shared-box note applies to both arms; R2's target seeded colder
+(wall-clock asymmetry only). Fix pass by a fresh lane on the inherited
+branch (arm inherited), seven items, union of both reviews; its one
+disagreement executed and filed: bit-structural `Surface` equality
+needs `Bounds`, and applying that bound to the three doors rippled
+through forty signatures across four crates without converging, so
+the predicate is key-or-provenance with the provenance-free
+two-keys-one-surface case pinned as a residue row. Three rows filed
+(TRIM: the pass cannot tell never-minted from emptied; TOPO: the
+provenance-free case; TOPO: `set_face_surface` leaving a complete face
+on the wrong chart). Tokens: impl ≈190k, fix ≈300k, state-sync ≈15k,
+R1 ≈225k, R2 ≈210k. Wall: impl ≈120 min, fix ≈125 min, R1 ≈43 min, R2
+≈22 min; no gaps. Tally after this entry: candidates +2, unchanged.
