@@ -234,7 +234,6 @@ fn bits_witness<T: geom_core::Real>(pairs: &[(T, T)]) -> Option<bool> {
     })
 }
 
-
 /// **Where a geometric description came from** — the total answer to
 /// the question `Option<&GeomSource>` could not answer, and the ONE
 /// row a [`crate::Body`] keeps per geometric description.
