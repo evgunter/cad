@@ -258,6 +258,12 @@ fn constant_ratio(n: &Poly, d: &Poly) -> Option<Rat> {
     ratio
 }
 
+/// The denominator's coefficient at its SMALLEST monomial — the pivot
+/// the scale step divides both halves by.
+fn den_pivot(d: &Poly) -> Option<&Rat> {
+    d.terms().first().map(|(_, c)| c)
+}
+
 /// **Rule E over one form** (module docs): divide out the monomial the
 /// two halves share, then fold what is left to a constant when the
 /// numerator is a rational multiple of the denominator. Never fails —
@@ -268,6 +274,18 @@ pub(super) fn cancel(f: &Form) -> Form {
         return f.clone();
     }
     let g = shared(&content(&f.num), &content(&f.den));
+    // **The no-op path is free.** Most nodes of a walk have nothing to
+    // cancel and a denominator that already leads with ±1 — a plain
+    // polynomial over `1`, most of all — and the rule runs at EVERY
+    // early node, so cloning both halves to hand them straight back is
+    // the whole of what it would cost them. Decide it before any
+    // allocation: measured on the leaf instrument (release, shipped
+    // set) it is 4–5 % — the pad 15.15 → 14.40 s, the plate 0.373 →
+    // 0.358, the link 2.53 → 2.43.
+    let pivot_is_unit = den_pivot(&f.den).is_some_and(|s| s.abs() == Rat::one());
+    if g.is_empty() && pivot_is_unit && constant_ratio(&f.num, &f.den).is_none() {
+        return f.clone();
+    }
     let (num, den) = if g.is_empty() {
         (f.num.clone(), f.den.clone())
     } else {
@@ -286,8 +304,8 @@ pub(super) fn cancel(f: &Form) -> Form {
     // the other. The magnitude, not the signed value: flipping the
     // signs would cost `trig::manifestly_nonneg` the syntactic
     // non-negativity rule D's A1 fold reads.
-    let (num, den) = match den.terms().first() {
-        Some((_, s)) => match s.abs().recip().and_then(|k| {
+    let (num, den) = match den_pivot(&den) {
+        Some(s) => match s.abs().recip().and_then(|k| {
             let n = num.scaled(&k)?;
             let d = den.scaled(&k)?;
             Some((n, d))
