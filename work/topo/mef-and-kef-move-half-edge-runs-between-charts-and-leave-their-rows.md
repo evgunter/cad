@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-14
 refs: [loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart, half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete]
 branch: topo/mef-kef-runs-carry-or-drop-rows
+pr: 2603
 ---
 
 Found and measured by the class sweep of
