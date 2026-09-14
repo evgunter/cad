@@ -966,3 +966,111 @@ Byte drawn after the pre-draw entry was committed (`daa30ee99`): 19
 and slot 1 (`D263`, `topo/d263-placeholder-regime`) dispatched
 together with brief sections in their items; slot 2 (`S93`)
 dispatches when one frees. Seam announced to TRIM (two posture notes).
+
+## D263 delivered; dual out at ordinal 2706 (2026-09-14)
+
+Slot 1 `topo/d263-placeholder-regime` delivered as PR 2548, head
+`a46911a20`, full matrix green (run 34806202964). The regime's
+two-way question is three-way: `MergeKind { Plane, Curved,
+Placeholder }` read through the two-homes door and S330's
+`net_state()`; a placeholder run forms no group and the outcome names
+every placeholder face; a source stamp joining a placeholder to a
+described face refuses typed (`GroupKindSplit` with both kinds
+named), because the boolean reads a `SkippedMerge` as a glue it
+anticipated. Phase 1 corrected the brief: the D265 control row it
+named does not exist; the direct red-first row is the witness (merge
+base: one curved run over six placeholder faces with a
+`PeriodClosure` skip). The rungs stay kind-agnostic; `merge_group`
+takes `curved` from the contract and its `OpPlacement` table is eight
+sites. Dual dispatched on the frozen head beside the loop-re-parenting
+lane: ordinal 2706, byte 194 ⇒ R1 OPUS, R2 FABLE; briefs stored with
+sha256 privately.
+
+## D263 adjudicated (2026-09-14)
+
+Both blinded reviews on frozen `a46911a20`, both MERGEABLE-AFTER-FIXES,
+neither with a MAJOR. R1: 0/4/5, rubric 3/3/2. R2: 0/4/2, rubric
+4/3/3. Both executed the red-first row on the merge base, the
+`Curved`-for-placeholder mutant (seven rows red), the mixed case
+through the public door (a source stamp joining a placeholder to a
+cylinder refuses with both kinds named; key-sharing is unspellable by
+type), every `Ok` path's census, the `OpPlacement` table after the
+parameter change, and the no-live-producer claim through revolve and
+the boolean. CONVERGED: the `unreachable!` in the role pass cites a
+gate this diff deleted (R1 traced the real proof to `kemr`'s
+`require_key`; R2 planted a dead survivor and `kef`'s postcondition
+caught it first); the brief's named control row does not exist; the
+placeholder decision is written five times; the poisoned-net arm lets
+the door commit surgery over a description tier 3 refuses (both, as a
+NOTE). Unilateral, taken: `merge_group` believes the contract's
+`curved` bool with nothing re-checking it — the lie mutant leaves the
+whole `topo` suite green and silently merges a curved cube (R1,
+executed; the defence D265 gave every other established fact); the
+`OpPlacement` prose's "remaining twelve variants" is wrong by six and
+`StaleGeometry` is still raised (R1); the render appends the
+placeholder recourse to every kind split (R2); `CURVED-MERGEDOOR-SPEC`
+cites moved symbols and its plan needs `MergeKind` (R2); the module
+header describes a two-kind world and `merged_outline_ring`'s comment
+reaches its answer by accident (R1); two spellings of the placeholder
+question across `topo` (R2, filed). No tally candidate. Seven-item fix
+pass to a fresh lane on the inherited branch; a poisoned face refuses
+typed unless the lane reads `NetState`'s rule otherwise and says so.
+
+## Loop re-parenting delivered; dual out at ordinal 2707 (2026-09-14)
+
+Slot 0 `topo/loop-reparenting-rows` delivered as PR 2549, head
+`d57e8ba53`, full matrix green (run 34808121136). Phase 1 found a
+third door (`mfkrh`/`mfkrh_plug` promote a ring onto a caller-named
+surface and were silent the same way), a fourth direction the item
+lacked, and the item's `kfmrh` citation wrong (`euler_ring.rs`, not
+`euler_kill.rs`). Shape: carry on one surface key, drop on another —
+re-stating is a derivation and every derivation door carries the
+fitted-lane bound; refusing is ruled out by the producers reaching
+`kfmrh` mid-pipeline. Thirteen rows, four red on the merge base; the
+`mef`/`kef` half-edge-run siblings measured and filed; a second seam
+into GUARD's discard register found by CI. Dual dispatched on the
+frozen head beside D263's fix pass: ordinal 2707, byte 158 ⇒ R1 OPUS,
+R2 FABLE; briefs stored with sha256 privately. `S93` (slot 2) waits
+for the D263 fix pass to free its lane.
+
+## Loop re-parenting adjudicated (2026-09-14)
+
+Both blinded reviews on frozen `d57e8ba53`, both
+MERGEABLE-AFTER-FIXES. R1: 1/5/4, rubric 4/3/3. R2: 0/3/6, rubric
+4/3/4. Both reproduced the four red-first rows on the merge base and
+the byte-for-byte carry, both ran the never-drop and
+compare-by-surface mutants, both executed the empty-ring and
+broken-cycle plants and the discard gate. CONVERGED on the central
+fact at DIVERGENT severity: the helper drops on a KEY change where its
+name and the item say CHART — a ring promoted onto a second key
+holding the identical cylinder was complete and correct on the merge
+base and is silently unminted at the head, and the compare-by-surface
+mutant leaves every one of the 1,217 `topo` rows green (R1 MAJOR, R2
+MINOR with the same measurement inside its class finding). No
+unilateral executed MAJOR: no tally candidate. Converged also: the
+loud-to-silent trade is a class (every rowless curved target, all
+three doors) where the PR says "once" — the brief's own C3 premise
+was wrong; `Transfers` now names a door that moves no row; the helper
+is a fresh copy of the one-loop-cycle walk; the `mfkrh_plug` rule is
+attributed to the placeholder instead of the fresh-key mint; three
+header sentences the change invalidated stand. Unilateral, taken: the
+`set_face_surface` blind spot is this unit's mechanism, mis-filed to
+two rows that do not cover it (R1); the fixture is tier-3-invalid by
+the structural battery while a row's name says clean (R1); the merge
+door also moves runs through `kef` (R1); the loop-walk census row's
+floor is 33 not 34 (R1); the item's `kfmrh` citation (R2). Seven-item
+fix pass to a fresh lane on the inherited branch: the predicate
+becomes surface equality with both mutants pinned, the trade scoped
+truthfully with a TRIM row filed, one home for the loop's rows walk.
+
+## D263 merged; block TOPO-B3 slot 1 concluded; S93 dispatched (2026-09-14)
+
+PR 2548 merged at `4628d4e6a` (green run 34811005145 on `9584efdcc`,
+full matrix, verified job by job). `D263` closed. The fix pass took
+every item and decided the poisoned-net question the reviewers had
+only noted: a poisoned description refuses before any surgery, under
+`NetState`'s "must fail at every consumer's described arm". Row
+recorded at merge (ordinal 2706, sample #189), no tally candidate;
+slot 1 marked concluded on `topo/b3-block`. `S93` (slot 2, OPUS)
+dispatched on `topo/s93-rebased-carriers` with a brief section in
+its item, beside the loop-re-parenting fix pass.

@@ -192,3 +192,22 @@ program, so the announcement written on `work/bool/log.md` for
 rather than left visible from one side only. Read it there; nothing
 differs. TOPO PR 2529, branch `topo/tier3-ring-nesting`. No action
 asked. Signed (TOPO, the ring-nesting lane).
+
+## Announced from TOPO (2026-09-14): `docs/CURVED-MERGEDOOR-SPEC.md`'s citations of `merge_faces.rs` moved; its design did not
+
+TOPO `D263` (PR 2548, `topo/d263-placeholder-regime`) gives the merge
+door a third surface kind, `topo::MergeKind { Plane, Curved,
+Placeholder }`: `group_regime` is now `group_contract` (returning
+`GroupContract::Runs { regime, kind } | SetAside`), `GroupKindSplit`'s
+fields are `face, kind, other, other_kind`, and a `Nurbs` net in
+`NetState::Poisoned` refuses `MergeCoplanarError::PoisonedSurfaceDescription`
+before any group forms. The spec's citations of `group_regime`
+"untouched" and of `GroupKindSplit`'s old lines were re-worded on that
+branch — a description that moved, not a design change; the spec's
+shape and fences are as they were. One note was added beside the
+plan's "one non-planar kind on both sides → a skip record" arm: it
+must read `MergeKind`, not `SurfaceKind` alone, or a declared
+placeholder pair would be skipped where the door refuses it. The
+finding is recorded on `cylindrical-rest-pair-hits-planar-merge`
+(`## Read MergeKind at the classification`). No action asked. Signed
+(TOPO, the D263 fix pass).
