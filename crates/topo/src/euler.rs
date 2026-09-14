@@ -536,9 +536,8 @@ pub enum EulerOpError {
         /// The certification failure.
         error: CertifyError,
     },
-    /// A **fan-rebasing** operator ([`Body::mev`]'s fan site,
-    /// [`Body::kev`]'s fan merge) would move this edge onto a vertex
-    /// its carrier does not run to: the stored description,
+    /// [`Body::mev`]'s fan site would move this edge onto a vertex its
+    /// carrier does not run to: the stored description,
     /// re-certified against the endpoints the edge WOULD have after
     /// the move, fails. Raised in the plan phase, so the body is
     /// untouched.
@@ -2262,7 +2261,7 @@ impl<T: Decide> Body<T> {
     /// to start at a vertex whose point is `p_new`, re-certified
     /// against the endpoints it will have once the run has moved.
     ///
-    /// A fan-rebasing operator re-parents half-edges, not carriers: an
+    /// A fan site re-parents half-edges, not carriers: an
     /// edge whose start moves keeps the [`EdgeCurve`] it was certified
     /// with, which pins `carrier(t₀)` to the point the edge USED to
     /// run from. So the operator asks, before it mutates, whether that
