@@ -649,3 +649,32 @@ hashed and diff-identical modulo lane names; private build and
 scratch directories per lane. Both lanes running. Block DOCM-B3's
 last slot: its record reaches main with this unit's sync, and the
 program's exit sweep follows.
+
+## 2026-09-14 — DOCM-9 dual adjudicated; fix pass dispatched
+
+Both reports in (R1 OPUS APPROVE-WITH-FIXES, R2 FABLE
+NOT-MERGEABLE-AS-IS — converged on the substance, split on the label).
+One bilateral MAJOR: the `DecisionFlip` arm says every node still
+builds inside `within` and that the probe would be wrong to call
+those values a boundary, and both lanes falsified it on the unit's
+own fixture and on the viewer suite's real 8 mm slot — the undecided
+leaves between the proof frontier and the first decided flip contain
+a build failure, because the driver bisects a failing leaf to the
+budget floor rather than naming it (the disclosed D3, whose
+downstream face the arm's sentence hid). One unilateral MAJOR (R1's):
+the arm-separating predicate has no discriminating row. Both lanes
+verified the walk's re-reading as an improvement over the spec's
+letter (zero certified/flip adjacencies over eleven ledgers) and the
+`NewFailure` arm as a true limit of the driver. R2 measured what the
+PR did not say: on the repo's corpus plate and die the query
+certifies nothing at affordable budgets (the driver's certification
+width), and a parametric polygon vertex certifies nothing at any
+width. Ruled: the walk stays, the arm's prose goes and a measurement
+row pins what `within` may contain; the predicate rowed at the
+function level; the deliverable's behaviour on real documents stated
+in the module doc and the PR with a recommended budget and a record
+on the type of which parameters the derivation pinned; the C4
+sentence corrected (a subset of the locally-valid range, not of the
+probe's bracket endpoints) with the real probe run beside the query;
+the unpinned contract sentences rowed; the export guard's cfg
+asymmetry filed to LIB. One candidate enters the tally.
