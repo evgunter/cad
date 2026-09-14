@@ -1,34 +1,62 @@
 //! **The drive-scoped plain memo**: the one piece of the tier's state
 //! that outlives a leaf.
 //!
-//! # Why it is sound
+//! # Why it is sound — THE argument, said once
 //!
 //! A node's id is the content hash of `(op, payload, children ids)`
-//! (D9), and the PLAIN walk reads no value: every atom is opaque, rule
-//! A0 is the only rule, and no bracket, no registry and no enclosure
-//! reaches it. So a node's plain form is a function of its id, the
-//! session's [`SymBudget`] and the two [`SymRules`] dials the plain
-//! walk consults — and of nothing else, the leaf included. Two leaves
-//! that build a node with one id build the same plain form for it.
+//! (D9) — a hash of SYNTAX: a `Lit`'s bits, a `Param`'s symbol, an
+//! `Opaque`'s sequence number, an atom's arguments' digests. And the
+//! PLAIN walk reads no value: every atom is opaque, rule A0 is the only
+//! rule, and no bracket, no registry and no enclosure reaches it. So a
+//! node's plain form is a function of its id, the session's
+//! [`SymBudget`] and the two [`SymRules`] dials the plain walk consults
+//! — and of nothing else, the leaf included. Two leaves that build a
+//! node with one id build the same plain form for it.
 //!
 //! That is the argument the tier already makes for two OCCURRENCES of a
 //! node inside one leaf (which is what `Session::forms` is); this memo
 //! applies it across the leaves of one drive.
 //!
-//! It rests on one premise that is not a content hash. An `Opaque`
-//! node's payload is the SEQUENCE NUMBER the leaf minted it at
-//! (`OPAQUE_SEQ`), so leaf-invariance there is a property of the
-//! evaluation service's fixed per-leaf walk rather than of the hash.
-//! That premise is pinned by execution, not assumed:
-//! `editor-core`'s `m10_sym_drive_memo_interval` drives each document
-//! and asserts every leaf mints the same set of `Opaque` ids. It is the
-//! first row that reds if a lane ever mints an opaque under a
-//! value-dependent branch.
+//! **The opaque sequence governs the HIT RATE, not soundness.** An
+//! `Opaque` node's payload is the sequence number the leaf minted it at
+//! (`OPAQUE_SEQ`), which is the one part of an id that is not a hash of
+//! anything the expression says. What follows if two leaves hand one
+//! sequence number to two different reals is NOT an unsound answer: a
+//! plain form is a syntactic normal form of a syntactic id, so a `Zero`
+//! it reaches is an identity in whatever unknowns the syntax names —
+//! `opaque(3) − opaque(3)` is zero whichever real either leaf bound —
+//! and that holds leaf by leaf. What a leaf-varying sequence costs is
+//! MISSES: the second leaf builds different ids and finds nothing here.
+//! Demonstrated by execution rather than argued —
+//! `geom-core`'s `sym_drive_memo` plants a leaf-varying mint and shows
+//! every decision unmoved (R2), and `editor-core`'s
+//! `m10_sym_drive_memo_interval` reports each leaf's `Opaque` set.
 //!
 //! The drive-wide hash-collision assumption is the per-leaf one widened:
 //! two distinct expressions colliding on a 128-bit content hash would be
 //! a soundness break, and the population the assumption is made over is
 //! now a drive's nodes rather than a leaf's.
+//!
+//! **An unrecorded node is neither read nor written.** `form_in` freezes
+//! a node absent from the leaf's own hash-consing table, and that freeze
+//! stays in the leaf: publishing it under the node's content id would
+//! hand an indeterminate to a leaf that DID record the node and would
+//! have built a real form for it — a decision moved, and an
+//! order-dependent one. The guard is on the TAINT, not on that node
+//! alone (`Session::plain_tainted`): the recorded PARENT of an
+//! unrecorded node has the same id in both leaves and a different form,
+//! so the refusal has to follow the taint up the walk.
+//!
+//! The other direction of that asymmetry is sound but not
+//! order-independent: a leaf that did NOT record some node can still
+//! take a recorded parent's published form and reach a theorem its own
+//! freeze would have cost it — which is a stronger answer, not a wrong
+//! one, and which depends on whether the publishing leaf ran first. **A
+//! receipt is schedule-independent only while no leaf of the drive
+//! reaches that branch at all**, and none does: `editor-core`'s
+//! `no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded`
+//! counts `FreezeCause::Unrecorded` over both documents and pins it at
+//! zero. Both directions are rows in `geom-core`'s `sym_drive_memo`.
 //!
 //! # What it holds, and what it does not
 //!
@@ -43,8 +71,9 @@
 //! A read-mostly map behind one `RwLock`, shared across the drive's
 //! rayon workers so that what the receipt reports is a function of the
 //! drive and not of the schedule. A leaf takes a read lock per node it
-//! misses on and ONE write lock at its end, publishing everything it
-//! computed in one pass. One write per node would put every worker's
+//! misses on, a second on each HIT (`seed_atoms`, for the atoms that
+//! form's indeterminates stand for), and ONE write lock at its end,
+//! publishing everything it computed in one pass. One write per node would put every worker's
 //! every node through a single exclusive lock — the plain walk is half
 //! of a leaf's replay, so that is the whole drive serialized — and buys
 //! nothing, because a form another worker is computing concurrently is a
@@ -60,7 +89,7 @@
 use std::sync::{Arc, RwLock};
 
 use super::form::Form;
-use super::{AtomInfo, IdMap, IndetMap, SymBudget, SymId, SymRules};
+use super::{AtomInfo, IdMap, IdSet, IndetMap, SymBudget, SymId, SymRules};
 
 /// The drive's shared plain-form memo — one per `drive(...)`, dropped
 /// with it, holding nothing of the next one.
@@ -88,7 +117,7 @@ struct Inner {
     atoms: IndetMap<AtomInfo>,
     /// The DISTINCT nodes frozen over the drive — a set, so it is the
     /// same under every schedule, and the drive's `frozen` column.
-    frozen: IdMap<()>,
+    frozen: IdSet,
 }
 
 /// What one drive's memo came to, for the growth guard and the receipt.
@@ -98,13 +127,19 @@ pub struct MemoSize {
     pub forms: usize,
     /// `AtomInfo`s held.
     pub atoms: usize,
-    /// Distinct nodes frozen over the drive.
-    pub frozen: u64,
-    /// The heap the forms and atoms occupy, counted term by term: the
-    /// map slots, each `Form`'s two term vectors, and each term's
-    /// monomial. An estimate of the same shape every run, so it is a
-    /// number a guard can be written against.
-    pub bytes: usize,
+    /// Distinct nodes frozen over the drive — the same kind of quantity
+    /// as the two above and therefore the same width; the receipt's own
+    /// column is [`DriveMemo::frozen`].
+    pub frozen: usize,
+    /// **An ESTIMATE of the heap the forms and atoms occupy**, and the
+    /// name says so because it is not a measurement: the map slots, each
+    /// `Form`'s two term vectors and each term's monomial are counted;
+    /// a map's SPARE CAPACITY is not, and an atom argument that is also
+    /// a memoized form is counted TWICE (the `Arc` is one allocation,
+    /// this walk reaches it by two paths). It is the same shape every
+    /// run, which is all a growth guard needs — and the guard's ceiling
+    /// is stated as a ceiling on this estimate, not on the heap.
+    pub bytes_estimate: usize,
 }
 
 impl DriveMemo {
@@ -132,15 +167,24 @@ impl DriveMemo {
     }
 
     /// Whether a leaf under `budget` and `rules` may consult this memo.
+    ///
+    /// The plain walk reads exactly two of the dials — `const_fold` and
+    /// `early` (`combine`'s `a0`) — so those two and the budget are what
+    /// a plain form's identity actually depends on. The guard compares
+    /// the WHOLE [`SymRules`] anyway, CONSERVATIVELY: refusing a memo
+    /// over a dial the plain walk ignores costs a drive its hits and
+    /// nothing else, while a guard that tracked the two by name would
+    /// have to be re-derived every time a rule moves into or out of the
+    /// plain walk. The rows pin both halves — each of the two refused,
+    /// and a third the walk does not read refused too.
     #[must_use]
     pub fn accepts(&self, budget: SymBudget, rules: SymRules) -> bool {
         self.budget == budget && self.rules == rules
     }
 
     /// **The drive's `frozen` column**: how many DISTINCT nodes froze
-    /// over it. A set, so it is identical under every schedule — which
-    /// a sum of the leaves' own counts is not once a leaf can inherit a
-    /// form another leaf froze.
+    /// over it — a set, so it is identical under every schedule.
+    /// [`super::SymCounts::frozen`] argues the column.
     #[must_use]
     pub fn frozen(&self) -> u64 {
         self.read().frozen.len() as u64
@@ -150,7 +194,7 @@ impl DriveMemo {
     #[must_use]
     pub fn size(&self) -> MemoSize {
         let inner = self.read();
-        let bytes = inner.forms.values().map(|f| form_bytes(f)).sum::<usize>()
+        let bytes_estimate = inner.forms.values().map(|f| form_bytes(f)).sum::<usize>()
             + inner.forms.len() * core::mem::size_of::<(SymId, Arc<Form>)>()
             + inner
                 .atoms
@@ -168,8 +212,8 @@ impl DriveMemo {
         MemoSize {
             forms: inner.forms.len(),
             atoms: inner.atoms.len(),
-            frozen: inner.frozen.len() as u64,
-            bytes,
+            frozen: inner.frozen.len(),
+            bytes_estimate,
         }
     }
 
@@ -229,9 +273,17 @@ impl DriveMemo {
     /// computed, in one pass.
     ///
     /// `or_insert`, never overwrite — a form already here was built for
-    /// the same id under the same budget and rules, so it is this one,
+    /// the same id under the same budget and rules, so it IS this one,
     /// and keeping the first keeps the `Arc` every earlier hit handed
-    /// out.
+    /// out. That premise is checked rather than assumed: `Form` is `Eq`,
+    /// so the occupied arm asserts it at debug cost.
+    ///
+    /// **The write ORDER is frozen, then atoms, then forms**, and it is
+    /// what makes [`Self::read`]'s poison recovery true: a panic partway
+    /// through leaves a memo with fewer entries than the leaf offered,
+    /// never a form whose atoms are missing, because every atom a
+    /// published form can reference is already in by the time any form
+    /// is.
     pub(super) fn publish(
         &self,
         forms: impl Iterator<Item = (SymId, Arc<Form>)>,
@@ -252,7 +304,21 @@ impl DriveMemo {
             inner.atoms.entry(id).or_insert(info);
         }
         for (id, f) in forms {
-            inner.forms.entry(id).or_insert(f);
+            match inner.forms.entry(id) {
+                std::collections::hash_map::Entry::Occupied(e) => {
+                    // Two workers built one id concurrently. The header's
+                    // whole argument is that they built the same form;
+                    // this is that argument, checked.
+                    debug_assert_eq!(
+                        **e.get(),
+                        *f,
+                        "two leaves of one drive built different plain forms for one node id"
+                    );
+                }
+                std::collections::hash_map::Entry::Vacant(e) => {
+                    e.insert(f);
+                }
+            }
         }
     }
 }

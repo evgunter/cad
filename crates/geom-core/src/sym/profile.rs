@@ -244,12 +244,21 @@ pub struct SymProfile {
     /// ratio is the ceiling of a drive-scoped plain memo's win.
     pub plain_ids: BTreeSet<u128>,
     /// **Each session's set of `Opaque` indeterminate ids**, in the
-    /// order the sessions ended. A drive-scoped plain memo is sound
-    /// only if every leaf of one drive mints the SAME set (D9's
-    /// per-leaf opaque sequence, `OPAQUE_SEQ`): an `Opaque` id is a
-    /// sequence number, so two leaves that mint different ones build
-    /// different expressions under one id. Recorded by execution so
-    /// the premise is a measurement, not a reading of the code.
+    /// order the sessions ended.
+    ///
+    /// An `Opaque` id is the SEQUENCE NUMBER the leaf minted it at
+    /// (`OPAQUE_SEQ`) — the one part of a node id that is not a hash of
+    /// what the expression says. Two leaves that mint in different
+    /// orders therefore build different ids for the same subexpression,
+    /// and a drive-scoped plain memo MISSES on them. It does not answer
+    /// them wrongly: `sym::memo`'s header carries that argument once
+    /// (a plain form is a syntactic normal form of a syntactic id), and
+    /// this set is the instrument for the HIT RATE, not for soundness.
+    ///
+    /// On every document in the tree today every set is EMPTY, because
+    /// no drive mints an opaque at all: `Sym::opaque`'s one caller is
+    /// the unnamed `AxisScalar::axis`, and a drive binds its axes
+    /// through `axis_named`.
     pub opaque_ids: Vec<BTreeSet<u128>>,
 }
 

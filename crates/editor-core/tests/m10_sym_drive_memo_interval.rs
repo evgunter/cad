@@ -47,6 +47,7 @@ use geom_core::{SymBudget, SymRules, Tol};
 
 use crate::m10_3_r1_probes_interval::{CHAMBER_LEAVES, bounded_chamber};
 use crate::m10_7_plate::plate;
+use crate::m10_derived_frame_tilted_interval::boss_on_tilted;
 
 fn eps() -> f64 {
     Tol::witness().eps()
@@ -137,40 +138,71 @@ fn opaque_sets(doc: &ProfileDoc, max_leaves: usize) -> Vec<std::collections::BTr
     take_profile().opaque_ids
 }
 
-/// **The premise the drive memo rests on, by execution.**
+/// **The `Opaque` sets every leaf of a drive mints — reported, per
+/// leaf, with their SIZES.**
 ///
-/// A `Param`'s indeterminate is its symbol, a `Lit`'s its bits, an
-/// atom's the digests of its arguments' forms — all leaf-invariant. An
-/// `Opaque`'s is the SEQUENCE NUMBER the leaf minted it at
-/// (`Sym::opaque`, `OPAQUE_SEQ`), and that is leaf-invariant only
-/// because the evaluation service walks each leaf's recipe in the same
-/// fixed order. If a lane ever mints an opaque under a value-dependent
-/// branch, two leaves give one id to two different unknowns, and a
-/// plain form memoized across them is a form for an expression the
-/// second leaf never built — an unsound `Zero`, not a slow one. This
-/// row is the alarm for that, and it is the FIRST thing that should red
-/// if it happens.
+/// An `Opaque` id is the SEQUENCE NUMBER the leaf minted it at
+/// (`Sym::opaque`, `OPAQUE_SEQ`) — the one part of a node id that is
+/// not a hash of what the expression says. Two leaves that mint in
+/// different orders build different ids for the same subexpression and
+/// the drive memo MISSES on them; it does not answer them wrongly
+/// (`geom_core::sym::memo`'s header carries that argument once, and
+/// `geom-core`'s `sym_drive_memo` plants a leaf-varying mint and shows
+/// every decision unmoved). So this row is a HIT-RATE guard, not a
+/// soundness one.
+///
+/// **On every document in this tree the sets are EMPTY, and the row
+/// says so rather than claiming a measurement it did not make.**
+/// `Sym::opaque`'s only caller is the unnamed `AxisScalar::axis`
+/// (`analysis.rs`), and a drive never reaches it: `drive` binds its
+/// axes through `axis_named` → `Sym::param_over`. The comparison below
+/// is therefore vacuous today — empty sets agree — and the row exists
+/// for the day a lane mints an opaque under a drive. Both reviewers
+/// planted a value-dependent mint in `axis_named` and measured what
+/// happens: THIS row reds first (leaf 0's set stops matching), while
+/// the differential and the schedule rows stay green — the memo keeps
+/// answering the same decisions, more slowly.
+///
+/// No `assert!(!empty)` here: it would red today on a tree that is
+/// working exactly as designed.
 #[test]
-fn the_opaque_sequence_is_identical_across_the_leaves_of_a_drive() {
+fn the_opaque_sets_a_drive_mints_are_reported_per_leaf() {
     for (label, doc) in [("slab", slab()), ("plate", the_plate(Tol::witness()))] {
         let sets = opaque_sets(&doc, PIN_LEAVES);
         assert!(
             sets.len() > 1,
-            "{label}: the premise is about AGREEMENT ACROSS leaves, so the drive must produce \
-             more than one: {} leaves",
+            "{label}: the comparison is ACROSS leaves, so the drive must produce more than \
+             one: {} leaves",
             sets.len()
+        );
+        let sizes: Vec<usize> = sets.iter().map(std::collections::BTreeSet::len).collect();
+        let total: usize = sizes.iter().sum();
+        println!(
+            "{label}: {} leaves, Opaque ids per leaf {:?}… total {total}",
+            sets.len(),
+            &sizes[..sizes.len().min(8)]
         );
         let first = &sets[0];
         for (i, s) in sets.iter().enumerate().skip(1) {
             assert_eq!(
-                s,
-                first,
-                "{label}: leaf {i} minted a different set of Opaque ids than leaf 0 \
-                 ({} against {}) — the drive-scoped plain memo is UNSOUND on this document \
-                 until it holds, because an Opaque id is a per-leaf sequence number and two \
-                 leaves would be giving one id to two different unknowns",
+                s.len(),
+                first.len(),
+                "{label}: leaf {i} minted {} Opaque ids and leaf 0 minted {} — the drive \
+                 memo will MISS on this document's later leaves (it cannot answer them \
+                 wrongly: `sym::memo`'s header)",
                 s.len(),
                 first.len()
+            );
+            assert_eq!(
+                s, first,
+                "{label}: leaf {i}'s Opaque ids differ from leaf 0's at equal size — same \
+                 count, different sequence, so the memo misses on every node above them"
+            );
+        }
+        if total == 0 {
+            println!(
+                "{label}: every set is empty — no drive of this document mints an opaque, so \
+                 the comparison above is vacuous and this row is a guard for the day one does"
             );
         }
     }
@@ -294,9 +326,27 @@ fn the_plain_memo_moves_no_decision() {
             own(&off),
             on.decisions().frozen
         );
-        assert!(
-            own(&on) <= own(&off),
-            "{label}: a leaf under the memo cannot do MORE freezing than one without it"
+        // `own(on) <= own(off)` would be satisfied by 0 <= anything, so
+        // the row asserts what was MEASURED: on both documents the
+        // level-0 root publishes the whole DAG, so no later leaf freezes
+        // anything at all, while the off lane re-freezes per leaf.
+        assert_eq!(
+            own(&on),
+            0,
+            "{label}: with the memo on, every freeze is the root leaf's and the root leaf is \
+             not in `certified()`/`refused()` — a leaf here means a later leaf re-froze"
+        );
+        assert_eq!(
+            (
+                own(&off) > 0,
+                on.decisions().frozen == off.decisions().frozen
+            ),
+            (memo.frozen > 0, true),
+            "{label}: the off lane freezes per leaf ({} over its leaves) and both lanes report \
+             the same distinct drive column ({} / {})",
+            own(&off),
+            on.decisions().frozen,
+            off.decisions().frozen
         );
     }
 }
@@ -344,61 +394,367 @@ fn the_memo_keeps_the_receipt_identical_across_schedules() {
     assert_eq!(seq.decisions(), par.decisions());
 }
 
-/// **The memo is valid for one budget and one set of dials**, and says
-/// so rather than serving a form the leaf would not have built: the
-/// plain walk consults `SymRules::const_fold` and `SymRules::early`,
-/// and `within` consults the budget, so both are part of the form's
-/// identity and neither is part of the key it is stored under.
+/// A drive on a rayon pool of `threads` workers — `install` binds the
+/// pool for the closure, so `drive`'s `par_iter` runs on it. Adopted
+/// from R2's probe, whose shape is `sweep/tests/common::on_pool`'s.
+fn on_pool<R: Send>(threads: usize, run: impl Fn() -> R + Send + Sync) -> R {
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(threads)
+        .build()
+        .expect("the pool builds")
+        .install(run)
+}
+
+/// Everything two drives of one document must agree on.
+fn assert_same(label: &str, a: &ParamBoxVerdict, b: &ParamBoxVerdict) {
+    assert_eq!(a.serialize(), b.serialize(), "{label}: serialization");
+    assert_eq!(a.content_key(), b.content_key(), "{label}: content key");
+    assert_eq!(a.receipt(), b.receipt(), "{label}: receipt");
+    assert_eq!(
+        a.decisions(),
+        b.decisions(),
+        "{label}: the drive receipt, `frozen` included"
+    );
+    assert_eq!(
+        a.certified().len(),
+        b.certified().len(),
+        "{label}: certified count"
+    );
+    assert_eq!(
+        a.refused().len(),
+        b.refused().len(),
+        "{label}: refused count"
+    );
+    for (i, (x, y)) in a.certified().iter().zip(b.certified()).enumerate() {
+        assert_eq!(x.box_, y.box_, "{label}: certified {i} box");
+        assert_eq!(
+            x.verdict_vector_key, y.verdict_vector_key,
+            "{label}: certified {i} verdict vector"
+        );
+        assert_eq!(x.results, y.results, "{label}: certified {i} results");
+        assert_eq!(
+            decisions_of(x.decisions),
+            decisions_of(y.decisions),
+            "{label}: certified {i} decisions"
+        );
+    }
+    for (i, (x, y)) in a.refused().iter().zip(b.refused()).enumerate() {
+        assert_eq!(x.box_, y.box_, "{label}: refused {i} box");
+        assert_eq!(x.reason, y.reason, "{label}: refused {i} reason");
+        assert_eq!(
+            decisions_of(x.decisions),
+            decisions_of(y.decisions),
+            "{label}: refused {i} decisions"
+        );
+    }
+}
+
+/// The leaf budget the FREEZING schedule row drives at. The plate
+/// replay is seven times the slab's, and this row pays for three
+/// drives, so it is read at the smallest budget that still bisects —
+/// the root leaf alone freezes the document's whole frozen set (1,044
+/// distinct nodes), so `frozen` is non-zero from the first box and the
+/// row cannot quietly degrade into the slab's all-zero case.
+const FREEZING_LEAVES: usize = 8;
+
+/// **A FREEZING document, across schedules and the dial** — the gap
+/// both reviewers found in the unit's own coverage.
+///
+/// [`the_memo_keeps_the_receipt_identical_across_schedules`] and the
+/// M10-3 receipt-identity row both drive the SLAB, which freezes
+/// nothing at all, so the one receipt column this unit moved was pinned
+/// across schedules only at zero. This row drives the plate, whose
+/// `frozen` is 1,044, and asks that the sequential drive, the parallel
+/// drive and the memo-off drive be byte-identical with that column
+/// non-zero.
+#[test]
+fn a_freezing_drive_is_identical_across_schedules_and_the_dial() {
+    let tol = Tol::witness();
+    let doc = the_plate(tol);
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let run = |parallel, plain_memo| {
+        drive(
+            &doc,
+            &analyzed,
+            &DriveConfig {
+                max_leaves: FREEZING_LEAVES,
+                parallel,
+                plain_memo,
+                ..DriveConfig::default()
+            },
+            tol,
+        )
+        .unwrap()
+    };
+    let seq_on = run(false, true);
+    assert!(
+        seq_on.decisions().frozen > 0,
+        "the row is about the moved column and it must be non-zero here: {:?}",
+        seq_on.decisions()
+    );
+    assert!(seq_on.plain_memo().forms > 0, "the memo held forms");
+    println!(
+        "plate at {FREEZING_LEAVES} leaves: {:?} decisions {:?} memo {:?}",
+        seq_on.receipt(),
+        seq_on.decisions(),
+        seq_on.plain_memo()
+    );
+    assert_same("plate seq on vs par on", &run(true, true), &seq_on);
+    assert_same("plate seq on vs seq off", &run(false, false), &seq_on);
+}
+
+/// **R2's own end-to-end row, kept whole** — two freezing documents
+/// (a boss on a derived frame over a tilted datum, and the plate) at
+/// the unit's pin budget, driven sequentially, on one, two and four
+/// rayon workers, and with the dial off, everything byte-identical.
+///
+/// `#[ignore]`d for its cost, not its value: at 48 leaves the tilted
+/// document alone is ~275 s per drive in the test profile. The numbers
+/// R2 measured, and this lane re-took: `frozen` 632 on the tilted
+/// document and 1,044 on the plate, identical on every lane above.
+#[test]
+#[ignore = "evidence-only: two freezing documents across four thread counts and the dial"]
+fn a_freezing_drive_is_identical_across_thread_counts_too() {
+    let tol = Tol::witness();
+    for (label, doc) in [
+        ("tilted-derived", boss_on_tilted(1.0e-3, true)),
+        ("plate", the_plate(tol)),
+    ] {
+        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        let run = |parallel, plain_memo| {
+            drive(
+                &doc,
+                &analyzed,
+                &DriveConfig {
+                    max_leaves: PIN_LEAVES,
+                    parallel,
+                    plain_memo,
+                    ..DriveConfig::default()
+                },
+                tol,
+            )
+            .unwrap()
+        };
+        let t0 = Instant::now();
+        let seq_on = run(false, true);
+        let on_wall = t0.elapsed();
+        let t0 = Instant::now();
+        let seq_off = run(false, false);
+        println!(
+            "{label} at {PIN_LEAVES} leaves: seq on {on_wall:?} off {:?} | decisions {:?} | \
+             memo {:?}",
+            t0.elapsed(),
+            seq_on.decisions(),
+            seq_on.plain_memo()
+        );
+        assert!(
+            seq_on.decisions().frozen > 0,
+            "{label}: frozen is the column"
+        );
+        assert_same(&format!("{label} seq off"), &seq_off, &seq_on);
+        for threads in [1, 2, 4] {
+            let par = on_pool(threads, || run(true, true));
+            assert_same(&format!("{label} par@{threads}"), &par, &seq_on);
+        }
+        let par_off = on_pool(2, || run(true, false));
+        assert_same(&format!("{label} par@2 off"), &par_off, &seq_on);
+    }
+}
+
+/// **The memo is valid for one budget and one set of dials**, dial by
+/// dial.
+///
+/// The plain walk reads exactly two of the eight — `const_fold` and
+/// `early` (`combine`'s `a0`) — and `within` reads the budget, so those
+/// three are what a plain form's identity actually depends on. The
+/// earlier shape of this row flipped the budget and then ALL eight
+/// dials at once, which cannot tell a guard that tracks the two from
+/// one that tracks the whole struct (R2 MINOR-4, R1 S2). Each is
+/// flipped alone here, including one the plain walk does not read:
+/// `accepts` refuses that one too, because it compares the whole
+/// `SymRules` CONSERVATIVELY — refusing over a dial the walk ignores
+/// costs hits and nothing else, and `DriveMemo::accepts`'s own doc
+/// says so.
 #[test]
 fn a_drive_memo_refuses_a_leaf_it_was_not_made_for() {
     let budget = SymBudget {
         max_terms: 4096,
         max_degree: 128,
     };
-    let other = SymBudget {
-        max_terms: 64,
-        max_degree: 128,
-    };
-    let memo = geom_core::sym::DriveMemo::new(budget, SymRules::shipped());
-    assert!(memo.accepts(budget, SymRules::shipped()));
+    let rules = SymRules::shipped();
+    let memo = geom_core::sym::DriveMemo::new(budget, rules);
+    assert!(memo.accepts(budget, rules));
+
+    for (what, other) in [
+        (
+            "max_terms",
+            SymBudget {
+                max_terms: 64,
+                ..budget
+            },
+        ),
+        (
+            "max_degree",
+            SymBudget {
+                max_degree: 32,
+                ..budget
+            },
+        ),
+    ] {
+        assert!(
+            !memo.accepts(other, rules),
+            "a different {what} freezes different nodes, so the forms are different forms"
+        );
+    }
+
+    // The two the plain walk reads, each alone.
     assert!(
-        !memo.accepts(other, SymRules::shipped()),
-        "a different budget freezes different nodes, so the forms are different forms"
+        !memo.accepts(
+            budget,
+            SymRules {
+                const_fold: !rules.const_fold,
+                ..rules
+            }
+        ),
+        "`const_fold` decides whether rule A0 folds in the plain walk (`combine`'s `a0`)"
     );
     assert!(
-        !memo.accepts(budget, SymRules::none()),
-        "the plain walk reads `const_fold` and `early`, so the dials are part of a form's identity"
+        !memo.accepts(
+            budget,
+            SymRules {
+                early: !rules.early,
+                ..rules
+            }
+        ),
+        "`early` decides whether A0 applies in the plain walk or only alongside it"
+    );
+    // And one it does not read: refused anyway, conservatively.
+    assert!(
+        !memo.accepts(
+            budget,
+            SymRules {
+                sqrt_square: !rules.sqrt_square,
+                ..rules
+            }
+        ),
+        "`sqrt_square` is a rule the PLAIN walk never applies, and the guard still refuses it: \
+         it compares the whole `SymRules`, which costs a drive its hits and never a decision"
     );
 }
 
-/// **The memo is dropped with the drive** and holds nothing of the next
-/// one: two drives of the same document report the same size, which a
-/// memo that survived would not — the second would start full and end
-/// having built nothing.
+/// **What the DOOR does with a mismatch**, which is not what `accepts`
+/// answers: `with_session_memo` `debug_assert!`s, so a mismatch is loud
+/// wherever debug assertions are on — dev, test, and this workspace's
+/// release profile, which is every build the project ships or measures.
+/// `geom-core`'s `sym_drive_memo::a_budget_mismatch_is_refused_at_the_door`
+/// is the row that catches the panic (it needs `should_panic`, so it
+/// lives at the tier's own door).
+///
+/// In a build that turns debug assertions OFF the leaf runs with NO
+/// memo instead. That is sound — it is the pre-memo tier — but its
+/// freezes are never published, so the drive's `frozen` column
+/// UNDER-COUNTS in exactly that build. Recorded here because nothing
+/// else in the tree can say it: no configuration this repo builds
+/// reaches it.
 #[test]
-fn the_memo_holds_nothing_of_the_previous_drive() {
-    let doc = slab();
+fn the_door_refusal_is_a_debug_assertion() {
+    assert!(
+        cfg!(debug_assertions),
+        "this workspace keeps debug assertions on in every profile it builds, which is what \
+         makes the door's refusal loud rather than a silent fall back to no memo"
+    );
+}
+
+/// **The memo is dropped with the drive**, detected rather than
+/// assumed.
+///
+/// The earlier shape of this row drove ONE document twice and compared
+/// the two memo sizes — which a memo that SURVIVED would also pass,
+/// because it would hold the same DAG and report the same size (R2
+/// MINOR-3). So the row drives two DIFFERENT documents back to back and
+/// asks that the second drive's memo be the size that document builds
+/// ALONE: a memo carrying the slab's 18 k forms into the plate's drive
+/// reads larger, and reds here.
+///
+/// Claim 7 also holds by construction — `drive` builds its memo into a
+/// local `Arc` and never hands it anywhere that outlives the call — and
+/// this row is the guard on that construction, not its proof.
+#[test]
+fn a_memo_from_one_drive_never_serves_the_next() {
     let tol = Tol::witness();
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let run = || {
-        drive(&doc, &analyzed, &config(PIN_LEAVES), tol)
+    let plate = the_plate(tol);
+    let plate_box = analyzed_box(&plate, &AnalysisPolicy::default());
+    let run = |doc: &ProfileDoc, analyzed| {
+        drive(doc, analyzed, &config(PIN_LEAVES), tol)
             .unwrap()
             .plain_memo()
     };
-    let first = run();
-    let second = run();
-    assert!(first.forms > 0, "the drive built forms: {first:?}");
+    let alone = run(&plate, &plate_box);
+    assert!(alone.forms > 0, "the plate drive built forms: {alone:?}");
+
+    let slab = slab();
+    let slab_box = analyzed_box(&slab, &AnalysisPolicy::default());
+    let first = run(&slab, &slab_box);
+    assert!(first.forms > 0, "the slab drive built forms: {first:?}");
+    let after = run(&plate, &plate_box);
     assert_eq!(
-        first, second,
-        "a second drive of one document builds its memo again from nothing"
+        after, alone,
+        "the plate's memo after a slab drive must be the plate's own ({alone:?}); a memo that \
+         outlived the slab drive would carry its {} forms into this one",
+        first.forms
     );
 }
+
+/// **No node of a drive reaches the UNRECORDED branch.**
+///
+/// `form_in` freezes a node absent from the leaf's own hash-consing
+/// table and — since the fix this unit's reviews forced — keeps that
+/// freeze to itself rather than publishing it to the drive memo. The
+/// asymmetry the reviewers demonstrated at the tier's own door
+/// (`geom-core`'s `sym_drive_memo`) needs a node unrecorded in one leaf
+/// and recorded in another, so the question this row answers is whether
+/// a DRIVE ever produces one at all. Measured: it does not, on either
+/// document, and the row pins that — a count that moves off zero means
+/// some lane started minting nodes outside the session, and the guard in
+/// `form_in` is then load-bearing rather than belt-and-braces.
+#[test]
+fn no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded() {
+    let tol = Tol::witness();
+    for (label, doc) in [("slab", slab()), ("plate", the_plate(tol))] {
+        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        start_profile();
+        drive(&doc, &analyzed, &config(UNRECORDED_LEAVES), tol).unwrap();
+        let p = take_profile();
+        let unrecorded = p
+            .freezes
+            .iter()
+            .filter(|f| f.cause == geom_core::sym::profile::FreezeCause::Unrecorded)
+            .count();
+        println!(
+            "{label}: {} sessions, {} freezes, {unrecorded} of them unrecorded",
+            p.sessions,
+            p.freezes.len()
+        );
+        assert_eq!(
+            unrecorded, 0,
+            "{label}: a leaf froze a node its session never recorded"
+        );
+    }
+}
+
+/// The leaf budget the unrecorded-freeze census drives at — the profile
+/// records every freeze individually, and the plate freezes ~1,000 per
+/// leaf, so the census is read over a few leaves rather than many.
+const UNRECORDED_LEAVES: usize = 8;
 
 /// **The growth guard**: the memo is a second scope for the tier's
 /// state, so what it comes to over a drive is a number the tree keeps
 /// rather than a number a lane measured once.
 ///
-/// CEILINGS, not equalities, unlike `SLAB_MAX_TERMS`: the population is
+/// CEILINGS on an ESTIMATE, not equalities like `SLAB_MAX_TERMS`:
+/// `MemoSize::bytes_estimate` counts term by term and admits what it
+/// does not count, so the byte ceiling bounds that estimate rather than
+/// the heap. The population is
 /// the drive's distinct nodes, which moves with the ε row the matrix
 /// draws and with any change to how many boxes the drive visits, while
 /// what the guard is for — a memo that starts holding a multiple of the
@@ -421,7 +777,7 @@ fn the_drive_memo_stays_the_size_of_the_dag() {
         let m = v.plain_memo();
         println!(
             "{label} memo at {PIN_LEAVES} leaves: {m:?} (ceilings {max_forms} forms, \
-             {max_atoms} atoms, {max_bytes} bytes)"
+             {max_atoms} atoms, {max_bytes} estimated bytes)"
         );
         assert!(
             m.forms > 0 && m.forms <= max_forms,
@@ -434,9 +790,9 @@ fn the_drive_memo_stays_the_size_of_the_dag() {
             m.atoms
         );
         assert!(
-            m.bytes <= max_bytes,
-            "{label}: the memo holds {} bytes, guarded at {max_bytes}",
-            m.bytes
+            m.bytes_estimate <= max_bytes,
+            "{label}: the memo's heap ESTIMATE is {} bytes, guarded at {max_bytes}",
+            m.bytes_estimate
         );
     }
 }

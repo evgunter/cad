@@ -162,7 +162,8 @@ pub struct DriveConfig {
     /// every decision count is the same either way, and the receipt's
     /// `frozen` column means the same thing either way — the DISTINCT
     /// nodes frozen over the drive, which the memo counts whether or
-    /// not it is serving forms.
+    /// not it is serving forms (`geom_core::SymCounts::frozen` argues
+    /// the column).
     ///
     /// Off is the differential lane the pins compare against, in
     /// `parallel`'s own mould: a dial whose effect on a document is a
@@ -707,9 +708,16 @@ impl ParamBoxVerdict {
     }
 
     /// **What the drive's plain memo came to** at its end
-    /// (`DriveConfig::plain_memo`): the forms and atoms it held and the
-    /// heap they occupied. All zero with the dial off, which serves no
-    /// form — the growth guard is a reading of the lane that has one.
+    /// (`DriveConfig::plain_memo`): the forms and atoms it held and an
+    /// estimate of the heap they occupied.
+    ///
+    /// With the dial OFF the memo serves no form, so `forms` and
+    /// `atoms` are zero — but `frozen` is not, and neither is
+    /// `bytes_estimate`: the off lane still collects the drive's
+    /// distinct freezes, which is what keeps the receipt's `frozen`
+    /// column the same column in both lanes (the plate reads
+    /// `frozen: 1044, bytes_estimate: 16704` there). The growth guard
+    /// is a reading of the lane that holds forms.
     ///
     /// Not part of the receipt: it is the memo's SIZE, a cost, and the
     /// verdict reports it so a guard can be written against it rather
@@ -729,10 +737,8 @@ impl ParamBoxVerdict {
     ///
     /// **`frozen` is the odd one out**: the decision columns are sums
     /// over the leaves, and `frozen` is the DISTINCT nodes frozen over
-    /// the drive (`geom_core::sym::DriveMemo::frozen`). A set, because
-    /// with the drive's plain memo on a node is frozen once and
-    /// inherited afterwards, so which leaf pays for it — and hence any
-    /// sum — depends on the schedule, and this receipt may not.
+    /// the drive (`geom_core::sym::DriveMemo::frozen`). `SymCounts::frozen`
+    /// is where the column's two meanings are argued.
     ///
     /// All zero when the symbolic tier is off ([`SymbolicDials::off`]),
     /// which is not a claim that nothing decided: with no session
@@ -1193,6 +1199,13 @@ pub fn drive(
     // a per-worker memo would make that a function of the schedule.
     // With the dial off it serves no form and only counts the freezes,
     // so the column is the same column in both lanes.
+    //
+    // Built even with the tier OFF or at a zero-term budget, where no
+    // session is installed and nothing ever reaches it: an empty
+    // `RwLock` and two empty maps cost one allocation per drive, and the
+    // alternative is an `Option` that every call site below would have
+    // to open for a case that is already answered by `symbolic.enabled`
+    // three lines down.
     let memo = Arc::new(if config.plain_memo {
         sym::DriveMemo::new(config.symbolic.budget(), config.symbolic.rules)
     } else {
@@ -1331,10 +1344,8 @@ pub fn drive(
         "receipt identity broken: {receipt:?} — a box escaped its bucket"
     );
     // **The drive's `frozen` column**, and the one place it is written:
-    // the DISTINCT nodes frozen over the drive, not the sum of the
-    // leaves' own counts (`SymCounts::absorb` does not sum that column,
-    // and `SymCounts::frozen` says why). A set, so the parallel and the
-    // sequential schedule report the same number.
+    // the DISTINCT nodes frozen over the drive (`SymCounts::frozen`
+    // argues the column; `SymCounts::absorb` is why it is not a sum).
     if config.symbolic.enabled {
         decisions.frozen = memo.frozen();
     }
