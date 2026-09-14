@@ -166,11 +166,11 @@
 //! choice is re-stated too, without touching a row: the forward walk
 //! parks a periodic chart's one-period wrap at the loop's closure,
 //! the joint before `first`, and that joint would sit mid-chain once
-//! the loop runs the other way — so `revert` moves every curved
-//! loop's `first` to its source predecessor, which puts the same
-//! joint at the reversed closure (the anchor bullet in `revert`'s
-//! module docs carries the argument, and why it is an anchor move and
-//! not a `shift_branch` per row). Tier 3 of a reverted body whose
+//! the loop runs the other way — so `revert` moves every loop's
+//! `first` to its source predecessor, which puts the same joint at
+//! the reversed closure (`crate::entity::LoopBoundary::Cycle`'s
+//! `first` states the invariant; the anchor bullet in `revert`'s
+//! module docs carries the argument). Tier 3 of a reverted body whose
 //! faces carry rows reports nothing but `NegativeVolume`; `sweep`'s
 //! `revert_periodic_wrap` rows pin that on the two-arc sphere's
 //! cavity and a cone through its apex.
