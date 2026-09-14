@@ -6645,3 +6645,26 @@ dual concludes. Method note applying to BOTH arms equally: the pair
 runs alone on one 4-core cloud box, dev profile plus a release build
 for the ceilings rows, `CARGO_INCREMENTAL=0`, one crate at a time.
 Sample number at merge.
+
+SYM-6 review ordinal fixed at dispatch (2026-09-14, PR #2604 open —
+frozen head `2621bc0a9`, run 34877316421 GREEN on the full matrix,
+twelve `test (…)` and five `k-lint (gate, …)`): **ordinal 4702** (SYM
+band). Pre-draw fields at the spec (`docs/SYM-6-SPEC.md`, Amendments
+A1 and A2): difficulty **M**, task-class **STRUCTURAL** (`Tol` threaded
+to `Real::register_equal` through the sweep registrants, the `f64`
+slack the run's ε relative and floored, `WITNESS_REL` retired; Phase 3
+the refusal arm split by witness kind — `Disputed` for `f64`/`Probe`,
+`Contradicted` reserved for `Interval` with the registrants' assertion
+restored — and the fixture-scale zero-refusals row; no certification
+decision moves); implementer arm OPUS per block SYM-B1 slot 2 (record
+branch-side on `sym/b1-block`). Protocol v6 dual: draw = `/dev/urandom`
+byte **238**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**. Method, recorded
+before either review runs: CONCURRENT same-head on frozen `2621bc0a9`,
+both briefs generated from one template with the lane name
+substituted and STORED with sha256 on `sym/b1-block` before either
+dispatches, neither reviewer sees the other's report, v6 item 5
+isolation in both briefs (the `pgrep -af` and unfiltered `ps` hazards
+named after the SYM-4 and SYM-5 glimpses), PRIVATE `CARGO_TARGET_DIR`
+and scratch per reviewer, each seeded by its own warm build (in
+sequence, on one 4-core box shared with SYM-5's fix pass). Sample
+number at merge.
