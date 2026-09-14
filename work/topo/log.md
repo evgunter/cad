@@ -1540,3 +1540,24 @@ Slot 0 (`set-face-surface-leaves-…`, OPUS) dispatches now on a target
 seeded from the edge lane's warm build; slots 1 (`mef-and-kef-…`,
 FABLE) and 2 (`a-null-edge-…` + `the-re-basing-gate-…`, OPUS) dispatch
 as the edge-door fix pass frees the box.
+
+## B5 slot 0 delivered (PR 2594); dual prepared, ordinal 2712 claimed (2026-09-14)
+
+The slot 0 lane delivered `set-face-surface-leaves-a-complete-face-certified-against-the-chart-it-left`
+on head `71d846be4`, run 34868100811 green. Shape: a face door
+`drop_face_rows_on_chart_change` in `euler_ring.rs` delegating per
+loop to the loop doors' drop, called after the surface write and
+before the old key's orphan removal (`same_chart` is private to that
+file, so the setter does not spell the walk); `set_edge_curve` measured
+not the same hole (pass 2 re-derives from the current carrier);
+twelve production callers receipted, none reading rows after a swap
+without re-minting; two `mesh` test callers repaired. Parity byte 72 ⇒
+R1 OPUS, R2 FABLE; briefs stored with sha256 (template 14cb3598…, R1
+f54bd8ad…, R2 d31d1c48…; diff 4 lines); ordinal **2712** claimed on
+main (PR from `topo/claim-2712`). Dispatch waits for disk: the edge
+fix pass holds the only other warm target and the box is at 5 GB;
+both arms dispatch together when it frees. The correctness lane leans
+on the order of operations (drop before or after the orphan
+removal), `same_chart`'s rungs at this door, whether the `mesh`
+re-attach papers over a kernel hole, and the fresh-instance sweep of
+every other chart-swapping door.
