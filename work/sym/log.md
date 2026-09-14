@@ -578,3 +578,33 @@ arrives before Phase 2 is at PR, else as a follow-on); seams announced
 to PROPS (`real.rs`) and S-BOOL/BLEND (`crates/sweep/src/*`). The
 witness-slack row's `needs_ev` clears on the `[ev]` branch with the
 answer recorded; the span-identity row keeps its flag.
+
+## D2 settled: the arm split lands as SYM-6's Phase 3 (2026-09-14, A2)
+
+Ev on #2552: "that refinement sounds good!" — D2 = the refusal arm
+split by witness KIND. `docs/SYM-6-SPEC.md` Amendment A2 puts Phase 3
+in scope (the lane was in Phase 1): a `Disputed` arm for `f64`/`Probe`'s
+inexact refusal, `Contradicted` reserved for `Interval`'s exact one
+with the registrants' `debug_assert!` restored there, and the
+fixture-scale `registrations_refused == 0` row at `Sym<Interval>` on
+the five M10-10 documents, on which
+`the-span-identity-is-not-a-theorem-of-the-floats` closes. Both `[ev]`
+rows now carry their answers; #2552 merges. The pre-draw fields (M /
+STRUCTURAL) stand: no certification decision moves; the arm says what
+the lane can know and adds no tolerance.
+
+## D3 settled: the plain memo outlives the leaf — SYM-7 opens block SYM-B2 (2026-09-14)
+
+Ev on #2581: "(1) sounds good!" — the drive-scoped plain-form memo,
+keyed by `SymId`, installed by the drive and dropped with it; the
+early and door walks stay per leaf; the three side effects defined
+(the memo carries its atoms; `frozen` becomes distinct-nodes-over-the-
+drive on the drive's receipt with the per-leaf goldens' column
+re-blessed as the acceptance's own move; the opaque-sequence argument
+pinned across leaves). #2581 merged with the answer on the cost row;
+both `[ev]` PRs are closed and no decision is open with Ev. The unit
+is SYM-7 (H / STRUCTURAL, pre-draw), the first slot of block SYM-B2;
+its spec is cut next, the block's other two slots named from the
+slate when it is drawn, and its dispatch waits for a lane (SYM-5's
+fix pass and SYM-6 hold the two heavy lanes; SYM-5's retire at its
+merge).
