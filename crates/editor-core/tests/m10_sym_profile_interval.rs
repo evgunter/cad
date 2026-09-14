@@ -279,6 +279,13 @@ const SLAB_LEDGER: [&str; 3] = [
      Early/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000",
 ];
 
+/// The largest form (numerator plus denominator terms) any op built
+/// on each document at its nominal — the growth guard: a
+/// representation change that grows forms reds here in seconds,
+/// where the ledger alone would first run for minutes.
+const SLAB_MAX_TERMS: usize = 10;
+const PLATE_MAX_TERMS: usize = 90;
+
 /// The plate's walk ledger at its nominal — one row, because the
 /// plate's nominal reads no ε (its dimensions are literals, not
 /// multiples of ε) and the captures at the three rows agree.
@@ -315,25 +322,105 @@ fn the_forms_the_walks_build_are_pinned_per_eps_row() {
     // Both ledgers are taken before either is read, so a red on the
     // slab still shows the plate's.
     let taken: Vec<_> = [
-        ("slab", &slab_doc, SLAB_LEDGER[row]),
-        ("plate", &plate_doc, PLATE_LEDGER),
+        ("slab", &slab_doc, SLAB_LEDGER[row], SLAB_MAX_TERMS),
+        ("plate", &plate_doc, PLATE_LEDGER, PLATE_MAX_TERMS),
     ]
     .into_iter()
-    .map(|(name, doc, expected)| {
+    .map(|(name, doc, expected, max_terms)| {
         let (_, nominal) = boxes(doc).into_iter().next().unwrap();
         start_profile();
         let (_, _, counts) = replay(doc, &nominal, SymRules::shipped(), tol);
-        let ledger = take_profile().walk_ledger();
-        println!("\nLEDGER {name} eps {:e}\n{ledger}", tol.eps());
-        (name, ledger, expected, counts)
+        let profile = take_profile();
+        let ledger = profile.walk_ledger();
+        let largest = profile
+            .ops
+            .values()
+            .map(|o| o.max_terms_out)
+            .max()
+            .unwrap_or(0);
+        println!(
+            "\nLEDGER {name} eps {:e} largest form {largest}\n{ledger}",
+            tol.eps()
+        );
+        (name, ledger, expected, counts, largest, max_terms)
     })
     .collect();
-    for (name, ledger, expected, counts) in taken {
+    for (name, ledger, expected, counts, largest, max_terms) in taken {
+        assert_eq!(
+            largest,
+            max_terms,
+            "{name} at eps {:e}: the largest form built has {largest} terms, pinned {max_terms}",
+            tol.eps()
+        );
         assert_eq!(
             ledger.trim(),
             expected.trim(),
             "{name} at eps {:e}: the walks built different forms (counts {counts:?})",
             tol.eps()
         );
+    }
+}
+
+/// **The walk ledger on the documents the pinned row does not
+/// measure** — the M10-10 evidence set at scale 1 (the plate, the two
+/// brackets, the annulus, the pad, the link), at the nominal and over
+/// a leaf-sized box — printed, not asserted, so a merge-base build and
+/// a head build of one row can be diffed: every counter and every
+/// digest chain must agree. From SYM-4's reviews (both reviewers ran
+/// this differential: `origin/sym/4-review-r2`'s row, with
+/// `origin/sym/4-review-r1`'s four-document twin), which is the
+/// coverage the unit's own record did not claim.
+#[test]
+#[ignore = "evidence-only: the walk ledger on six documents, for a merge-base differential"]
+fn the_walk_ledger_on_the_unmeasured_documents() {
+    let tol = Tol::witness();
+    let docs: Vec<(&str, ProfileDoc)> = vec![
+        ("two_hole_plate", the_plate(tol)),
+        (
+            "r2_filleted_bracket",
+            crate::m10_7_r2_probes_interval::bracket(1.0, tol).0,
+        ),
+        (
+            "r1_bracket",
+            crate::m10_8_arc_family_interval::documents(tol)
+                .pop()
+                .map(|(_, d)| d)
+                .unwrap(),
+        ),
+        (
+            "r1_annulus",
+            crate::m10_8_r1_probes_interval::annulus(1.0, tol).0,
+        ),
+        (
+            "r2_rounded_pad",
+            crate::m10_8_r2_probes_interval::pad(1.0, tol).0,
+        ),
+        ("r2_link", crate::m10_9_r2_probes_interval::link(1.0, tol).0),
+    ];
+    for (name, doc) in &docs {
+        for (scale, box_) in boxes(doc) {
+            if scale == "root" {
+                continue;
+            }
+            start_profile();
+            let t0 = Instant::now();
+            let (shapes, refusal, counts) = replay(doc, &box_, SymRules::shipped(), tol);
+            let wall = t0.elapsed();
+            let prof = take_profile();
+            println!(
+                "LEDGER {name} {scale} eps {:e} counts {counts:?} refusal {refusal:?} outcomes {:?} nodes {} atoms {} freezes {} rat_ops {} big_ops {} promotions {} widest {} refused {} (wall {wall:?}, local)\n{}",
+                tol.eps(),
+                outcomes(&shapes),
+                prof.nodes,
+                prof.atoms,
+                prof.freezes.len(),
+                prof.rat_ops,
+                prof.big_ops,
+                prof.promotions,
+                prof.widest_bits,
+                prof.widest_refused_bits,
+                prof.walk_ledger()
+            );
+        }
     }
 }

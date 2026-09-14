@@ -436,7 +436,12 @@
 //! because nearly all of its heap arithmetic was gcds against one and
 //! products by one on 256-bit numerators. The chamber drive's test-
 //! profile wall, one sequential take on the measuring box: 368 s →
-//! 240 s → 225 s.
+//! 240 s → 225 s. The shares are a measurement with no guard and no
+//! register: they are re-taken by running the named rows, and nothing
+//! reds when they stop being true, because an instruction share is a
+//! reading of one box on one day and not a contract the tier makes —
+//! what the tier contracts (every count, every form's digest) is what
+//! the walk-ledger row pins.
 //!
 //! On the plate the same storage share sits inside `reduce_steps` —
 //! rules A/B per node, 51 % of the replay — and the freeze population
@@ -1779,7 +1784,7 @@ fn form_in(
             // not fit.
             let combined = if early && sess.rules.early_ab {
                 combined.map(|f| {
-                    if f.num.terms.len() + f.den.terms.len() > EARLY_AB_TERMS {
+                    if f.num.terms().len() + f.den.terms().len() > EARLY_AB_TERMS {
                         return f;
                     }
                     #[cfg(feature = "sym-profile-testing")]

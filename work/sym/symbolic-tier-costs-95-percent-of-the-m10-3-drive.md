@@ -510,14 +510,20 @@ takes; the walls are local and say so.
 **The hosted before/after** (`memories/perf-measurement-lane.md`: a
 hosted runner's numbers, read with the spread in mind; the instruction
 counts above are the numbers of record). Base: run 34812106311, the
-nearest code-tier PR run to the merge base (TRIM-3 PR-2, head
-`8e53655d`). After: SYM-4's PR run 34823472408 on head `3d7f3526b`
-(all twelve `test` jobs and five `k-lint` unifications green). The
-nextest `count:*/2` partition re-cut around the new row and the change
-filter bought a different set of suites (2,406 → 3,810 tests in the
-interval `1/2` shards), so per-shard durations do not compare and
-per-test cpu-s carry contention from whatever shared the runner; the
-rows below are the ones in both runs' top-20 tables:
+nearest code-tier PR run to the merge base — which is TRIM-3 PR-2's
+HEAD (`8e53655d`), not the merge base itself, so its cpu-s carry that
+PR's change beside the runner's contention; no run of the merge base
+alone exists (main pushes carry no test matrix). After: SYM-4's PR
+run 34823472408 on head `3d7f3526b` (all twelve `test` jobs and five
+`k-lint` unifications green). The nextest `count:*/2` partition re-cut
+around the new row and the change filter bought a different set of
+suites (2,406 → 3,810 tests in the interval `1/2` shards), so
+per-shard durations do not compare and per-test cpu-s carry
+contention from whatever shared the runner — the spread between two
+runs of one tree is itself large (the frozen head's second run read a
+shard at 92 s that its first run read at 169 s, ~1.8×), so the
+DIRECTION of the per-test drops below survives it and their
+magnitudes do not. The rows are the ones in both runs' top-20 tables:
 
 | interval lane, cpu-s per test | base (shard) | SYM-4 (shard) |
 |---|--:|--:|
@@ -534,6 +540,25 @@ eps = default, 1/2)` 147 → 169 s, `2/2` 355 → 248 s, `1e-6 1/2` 129 →
 123 s, `1e-6 2/2` 138 → 136 s, `1e-12 1/2` 558 → 118 s, `1e-12 2/2`
 355 → 826 s (the 479-cpu-s tolerance-study probe moved shards and
 read 760 cpu-s beside the two `m10_7_r2` drives).
+
+**Disclosed deviations.** (1) `unary_at_zero`'s `Acos` arm — `acos(0)
+= π/2` — was `Poly::indet(π)` with its coefficient multiplied by ½ and
+is now `Poly::term(π, ½)`: the same polynomial to the bit, one
+`Rat::mul` fewer, so the profile's `rat ops` is one lower per
+`acos(0)` fold (zero on the slab and the plate at their nominals,
+whose rat-ops lines are identical; it would read on a document that
+folds `acos(0)`) — an instrument-only change, no decision. (2) Four
+files outside the spec's list changed only where they read the map's
+API or spelt a one-term polynomial: `sym/algebra.rs`, `sym/signed.rs`,
+`sym/trig.rs`, `sym/report.rs`. (3) The fix pass adopted the reviews'
+rows — the canonical-`Rat` row in `rational.rs` (red under a gcd
+skipped on every shape, green on the tree), three `form.rs` rows on
+the vector's invariant, the six-document walk-ledger evidence row
+(`the_walk_ledger_on_the_unmeasured_documents`: the plate, both
+brackets, the annulus, the pad, the link — the coverage this record
+did not claim; both reviewers ran that differential identical), and
+the largest-form growth guard on the pinned row (slab 10, plate 90) —
+and made `Poly::terms` private behind an accessor.
 
 **What was measured and not taken, with its number.** The monomial
 inline (`smallvec` at width four, the slab's maximum and nine tenths

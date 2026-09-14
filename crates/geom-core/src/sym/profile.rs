@@ -307,7 +307,7 @@ pub(super) fn note_within(budget: SymBudget, f: &Form) {
     if !active() {
         return;
     }
-    let terms = f.num.terms.len() > budget.max_terms || f.den.terms.len() > budget.max_terms;
+    let terms = f.num.terms().len() > budget.max_terms || f.den.terms().len() > budget.max_terms;
     NOTE.set(Some(if terms {
         FreezeCause::Terms
     } else {

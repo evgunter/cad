@@ -598,4 +598,207 @@ mod tests {
         assert!(Rat::of_f64(f64::NAN).is_none());
         assert!(Rat::of_f64(f64::INFINITY).is_none());
     }
+
+    /// **One value, one representation, one digest** — the canonical
+    /// form the atom keys rest on (D9), which the gcd skip on the
+    /// dyadic shape must not loosen. Two halves, from SYM-4's reviews
+    /// (`origin/sym/4-review-r2`'s doors, `origin/sym/4-review-r1`'s
+    /// corpus): equal rationals reached through every door (`new` with
+    /// a common factor, an even numerator, a negative denominator;
+    /// `of_f64`; `add` and `mul` on the dyadic and the non-dyadic
+    /// shape; `recip`; `sqrt_exact`) are structurally equal and feed
+    /// the hasher the same bits; and over a corpus of several hundred
+    /// values closed under the ring's own operations from non-dyadic
+    /// seeds, every `Rat` is canonical — `den > 0`, both integers odd
+    /// and coprime — and any two whose difference is zero are one
+    /// spelling and one digest. A gcd skipped on every shape reds the
+    /// non-dyadic groups here and nothing else in this module.
+    #[test]
+    fn equal_rationals_have_one_representation_and_one_digest() {
+        fn key(r: &Rat) -> u128 {
+            r.feed(Hash128::new()).finish()
+        }
+        fn canonical(r: &Rat) -> bool {
+            if r.num.is_zero() {
+                return r.den.is_one() && r.exp2 == 0;
+            }
+            !r.den.is_negative()
+                && !r.den.is_zero()
+                && r.num.strip_twos().1 == 0
+                && r.den.strip_twos().1 == 0
+                && r.num.abs().gcd(&r.den).is_one()
+        }
+        fn same(label: &str, group: &[Rat]) {
+            let first = &group[0];
+            for r in group {
+                assert_eq!(r, first, "{label}: {r:?} vs {first:?}");
+                assert_eq!(key(r), key(first), "{label}: digest");
+                assert!(canonical(r), "{label}: non-canonical {r:?}");
+            }
+        }
+        let n = |a, b, e| Rat::new(a, b, e).unwrap();
+        // 3/2 through eleven doors.
+        same(
+            "3/2",
+            &[
+                n(3, 2, 0),
+                n(6, 4, 0),
+                n(3, 1, -1),
+                n(12, 1, -3),
+                n(-3, -2, 0),
+                Rat::of_f64(1.5).unwrap(),
+                Rat::of_f64(0.75)
+                    .unwrap()
+                    .add(&Rat::of_f64(0.75).unwrap())
+                    .unwrap(),
+                n(1, 2, 0).add(&Rat::one()).unwrap(),
+                Rat::of_f64(3.0)
+                    .unwrap()
+                    .mul(&Rat::of_f64(0.5).unwrap())
+                    .unwrap(),
+                n(2, 3, 0).recip().unwrap(),
+                n(9, 4, 0).sqrt_exact().unwrap(),
+            ],
+        );
+        // 2/3 — non-dyadic, so the gcd path and the cross-multiplied add.
+        same(
+            "2/3",
+            &[
+                n(2, 3, 0),
+                n(6, 9, 0),
+                n(4, 12, 1),
+                n(1, 3, 0).add(&n(1, 3, 0)).unwrap(),
+                n(1, 3, 0).mul(&Rat::of_f64(2.0).unwrap()).unwrap(),
+                n(1, 6, 0).add(&n(1, 2, 0)).unwrap(),
+                n(3, 2, 0).recip().unwrap(),
+                n(4, 9, 0).sqrt_exact().unwrap(),
+                n(8, 12, 0),
+                n(-2, -3, 0),
+            ],
+        );
+        // A dyadic sum whose numerator carries twos: 3/4 + 5/4 = 2.
+        same(
+            "2",
+            &[
+                n(2, 1, 0),
+                n(1, 1, 1),
+                n(3, 4, 0).add(&n(5, 4, 0)).unwrap(),
+                Rat::of_f64(0.75)
+                    .unwrap()
+                    .add(&Rat::of_f64(1.25).unwrap())
+                    .unwrap(),
+                n(4, 2, 0),
+                n(8, 1, -2),
+                n(1, 2, 0).recip().unwrap(),
+            ],
+        );
+        // A mixed add: dyadic + non-dyadic, 1/2 + 1/3 = 5/6.
+        same(
+            "5/6",
+            &[
+                n(5, 6, 0),
+                n(1, 2, 0).add(&n(1, 3, 0)).unwrap(),
+                n(1, 3, 0).add(&n(1, 2, 0)).unwrap(),
+                n(10, 12, 0),
+                n(5, 3, -1),
+                n(20, 3, -3),
+            ],
+        );
+        // Zero from a cancelling dyadic sum is THE zero.
+        same(
+            "0",
+            &[
+                Rat::zero(),
+                n(3, 1, 4).add(&n(-3, 1, 4)).unwrap(),
+                n(0, 7, 3),
+                Rat::of_f64(0.1)
+                    .unwrap()
+                    .add(&Rat::of_f64(-0.1).unwrap())
+                    .unwrap(),
+            ],
+        );
+        // A product past i128 on the dyadic shape — the promotion path
+        // through `from_parts` with `den` one — against the same value
+        // reached through a `den` that is not one and reduces.
+        let big = Rat::of_f64(0.1).unwrap();
+        let p3 = big.mul(&big).unwrap().mul(&big).unwrap();
+        let q = big.mul(&big.mul(&big).unwrap()).unwrap();
+        same("0.1^3", &[p3.clone(), q]);
+        let third = n(1, 3, 0);
+        let a = p3.mul(&third).unwrap().mul(&n(3, 1, 0)).unwrap();
+        same("0.1^3 · 1/3 · 3", &[p3, a]);
+
+        // The corpus: dyadic literals, deliberately UNREDUCED pairs,
+        // and non-dyadic denominators (3, 5, 6, 9) the gcd branch must
+        // still reduce; two rounds of closure under the operations.
+        let mut corpus: Vec<Rat> = Vec::new();
+        for (a, b, e) in [
+            (1i128, 1i128, 0i32),
+            (2, 1, 0),
+            (-3, 1, 2),
+            (6, 4, 0),
+            (-6, 4, 0),
+            (12, 18, 3),
+            (1, 3, 0),
+            (2, 6, 1),
+            (5, 9, -2),
+            (-5, 9, -2),
+            (7, 5, 0),
+            (1024, 3, -10),
+            (3, -9, 0),
+            (0, 7, 4),
+        ] {
+            corpus.push(n(a, b, e));
+        }
+        for x in [0.1f64, -0.1, 2.5, 1.0 / 3.0, 1e-9, 12345.678] {
+            corpus.push(Rat::of_f64(x).unwrap());
+        }
+        for _ in 0..2 {
+            let seeds = corpus.clone();
+            for a in &seeds {
+                for op in [Rat::neg, Rat::recip, Rat::sqrt_exact] {
+                    if let Some(r) = op(a) {
+                        corpus.push(r);
+                    }
+                }
+                for b in &seeds {
+                    if let Some(r) = a.add(b) {
+                        corpus.push(r);
+                    }
+                    if let Some(r) = a.mul(b) {
+                        corpus.push(r);
+                    }
+                }
+            }
+            let mut seen: Vec<u128> = Vec::new();
+            corpus.retain(|r| {
+                let d = key(r);
+                let fresh = !seen.contains(&d);
+                if fresh {
+                    seen.push(d);
+                }
+                fresh
+            });
+            corpus.truncate(600);
+        }
+        assert!(corpus.len() > 500, "corpus too thin: {}", corpus.len());
+        let non_dyadic = corpus.iter().filter(|r| !r.den.is_one()).count();
+        assert!(
+            non_dyadic > 50,
+            "the non-dyadic branch is barely exercised: {non_dyadic}"
+        );
+        for r in &corpus {
+            assert!(canonical(r), "non-canonical rational: {r:?}");
+        }
+        for (i, a) in corpus.iter().enumerate() {
+            for b in corpus.iter().skip(i + 1) {
+                let Some(neg) = b.neg() else { continue };
+                let Some(diff) = a.add(&neg) else { continue };
+                if diff.is_zero() {
+                    assert_eq!(a, b, "equal values, different representations");
+                    assert_eq!(key(a), key(b), "equal values, different digests");
+                }
+            }
+        }
+    }
 }

@@ -209,9 +209,9 @@ fn explain(sess: &mut Session, root: SymId, levels: usize) -> String {
         };
         let e = early_form(sess, id);
         let frozen = e.den == Poly::one()
-            && e.num.terms.len() == 1
+            && e.num.terms().len() == 1
             && e.num
-                .terms
+                .terms()
                 .first()
                 .is_some_and(|(m, _)| m.as_slice() == [(id.bits(), 1)]);
         let payload = match node.op {
@@ -233,7 +233,7 @@ fn explain(sess: &mut Session, root: SymId, levels: usize) -> String {
         );
         // A small form is worth reading in full: the two sides of a
         // residual that does not cancel are usually a few dozen terms.
-        if !frozen && e.num.terms.len() <= EXPLAIN_RENDER_TERMS {
+        if !frozen && e.num.terms().len() <= EXPLAIN_RENDER_TERMS {
             let text = render_form(sess, &e, 0);
             let cut = text
                 .char_indices()
@@ -259,8 +259,8 @@ fn explain(sess: &mut Session, root: SymId, levels: usize) -> String {
 /// spelling of it.
 pub(super) fn size_of(f: &Form) -> FormSize {
     FormSize {
-        num: (f.num.terms.len(), f.num.degree()),
-        den: (f.den.terms.len(), f.den.degree()),
+        num: (f.num.terms().len(), f.num.degree()),
+        den: (f.den.terms().len(), f.den.degree()),
     }
 }
 
@@ -338,7 +338,7 @@ fn render_poly(sess: &Session, p: &Poly, depth: usize) -> String {
     if p.is_zero() {
         return "0".to_owned();
     }
-    p.terms
+    p.terms()
         .iter()
         .map(|(m, c)| {
             let mut parts = vec![render_rat(c)];
