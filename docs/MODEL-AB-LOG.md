@@ -6261,3 +6261,8 @@ code-class tally candidate — R2's unilateral executed MAJOR on
 `mark_imported` overwriting the `Cleared` arm; the lane relaunched
 once on its recovered WIP after a container restart). Slot 2 open
 (dispatched, PR pending).
+
+Slot 2 CONCLUDED 2026-09-14: `edge-carrier-kind-has-no-readback-door`
+(OPUS; S / STRUCTURAL; PR #2587, ordinal 2711, sample #196, no tally
+candidate). Block TOPO-B4 CONCLUDED; the record is published on main
+with the 2711 row.
