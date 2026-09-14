@@ -563,7 +563,9 @@ mod r2_probes {
         q.insert(x.to_vec(), r(1, 3)).unwrap();
         assert_eq!(p, q);
         assert_eq!(p.digest(), q.digest());
-        let s = Poly::term(x.to_vec(), r(1, 3)).add(&Poly::term(x.to_vec(), r(2, 3))).unwrap();
+        let s = Poly::term(x.to_vec(), r(1, 3))
+            .add(&Poly::term(x.to_vec(), r(2, 3)))
+            .unwrap();
         assert_eq!(s, p);
         // Cancel to zero, three ways: insert, add, add of neg.
         p.insert(x.to_vec(), r(-1, 1)).unwrap();
@@ -581,7 +583,10 @@ mod r2_probes {
         let c = a.add(&b).unwrap();
         assert_eq!(c.terms.len(), 3);
         assert!(canonical(&c));
-        assert_eq!(c, poly(&[(&[], r(1, 1)), (&[(5, 2)], r(4, 1)), (&[(9, 1)], r(1, 1))]));
+        assert_eq!(
+            c,
+            poly(&[(&[], r(1, 1)), (&[(5, 2)], r(4, 1)), (&[(9, 1)], r(1, 1))])
+        );
         assert_eq!(c, b.add(&a).unwrap());
     }
 
@@ -604,7 +609,10 @@ mod r2_probes {
         assert_eq!(p.mul(&Poly::zero(), budget()).unwrap(), Poly::zero());
         assert_eq!(Poly::zero().neg().unwrap(), Poly::zero());
         assert_eq!(p.degree(), 3);
-        assert_eq!(Poly::one().add(&Poly::one()).unwrap().as_constant(), Some(r(2, 1)));
+        assert_eq!(
+            Poly::one().add(&Poly::one()).unwrap().as_constant(),
+            Some(r(2, 1))
+        );
     }
 
     #[test]

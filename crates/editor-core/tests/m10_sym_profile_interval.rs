@@ -360,8 +360,14 @@ fn r2_ledger_on_the_unmeasured_documents() {
                 .map(|(_, d)| d)
                 .unwrap(),
         ),
-        ("r1_annulus", crate::m10_8_r1_probes_interval::annulus(1.0, tol).0),
-        ("r2_rounded_pad", crate::m10_8_r2_probes_interval::pad(1.0, tol).0),
+        (
+            "r1_annulus",
+            crate::m10_8_r1_probes_interval::annulus(1.0, tol).0,
+        ),
+        (
+            "r2_rounded_pad",
+            crate::m10_8_r2_probes_interval::pad(1.0, tol).0,
+        ),
         ("r2_link", crate::m10_9_r2_probes_interval::link(1.0, tol).0),
     ];
     for (name, doc) in &docs {

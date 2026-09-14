@@ -602,10 +602,16 @@ mod tests {
                 assert_eq!(key(r), key(first), "{label}: digest");
                 assert!(r.den.is_one() || !r.den.is_negative(), "{label}: den > 0");
                 // The odd part is odd (or zero), on both integers.
-                assert!(r.num.is_zero() || r.num.strip_twos().1 == 0, "{label}: num odd");
+                assert!(
+                    r.num.is_zero() || r.num.strip_twos().1 == 0,
+                    "{label}: num odd"
+                );
                 assert!(r.den.strip_twos().1 == 0, "{label}: den odd");
                 // Coprime.
-                assert!(r.num.gcd(&r.den).is_one() || r.num.is_zero(), "{label}: coprime");
+                assert!(
+                    r.num.gcd(&r.den).is_one() || r.num.is_zero(),
+                    "{label}: coprime"
+                );
             }
         }
         let n = |a, b, e| Rat::new(a, b, e).unwrap();
@@ -619,9 +625,15 @@ mod tests {
                 n(12, 1, -3),
                 n(-3, -2, 0),
                 Rat::of_f64(1.5).unwrap(),
-                Rat::of_f64(0.75).unwrap().add(&Rat::of_f64(0.75).unwrap()).unwrap(),
+                Rat::of_f64(0.75)
+                    .unwrap()
+                    .add(&Rat::of_f64(0.75).unwrap())
+                    .unwrap(),
                 n(1, 2, 0).add(&Rat::one()).unwrap(),
-                Rat::of_f64(3.0).unwrap().mul(&Rat::of_f64(0.5).unwrap()).unwrap(),
+                Rat::of_f64(3.0)
+                    .unwrap()
+                    .mul(&Rat::of_f64(0.5).unwrap())
+                    .unwrap(),
                 n(2, 3, 0).recip().unwrap(),
                 n(9, 4, 0).sqrt_exact().unwrap(),
             ],
@@ -649,7 +661,10 @@ mod tests {
                 n(2, 1, 0),
                 n(1, 1, 1),
                 n(3, 4, 0).add(&n(5, 4, 0)).unwrap(),
-                Rat::of_f64(0.75).unwrap().add(&Rat::of_f64(1.25).unwrap()).unwrap(),
+                Rat::of_f64(0.75)
+                    .unwrap()
+                    .add(&Rat::of_f64(1.25).unwrap())
+                    .unwrap(),
                 n(4, 2, 0),
                 n(8, 1, -2),
                 n(1, 2, 0).recip().unwrap(),
@@ -674,7 +689,10 @@ mod tests {
                 Rat::zero(),
                 n(3, 1, 4).add(&n(-3, 1, 4)).unwrap(),
                 n(0, 7, 3),
-                Rat::of_f64(0.1).unwrap().add(&Rat::of_f64(-0.1).unwrap()).unwrap(),
+                Rat::of_f64(0.1)
+                    .unwrap()
+                    .add(&Rat::of_f64(-0.1).unwrap())
+                    .unwrap(),
             ],
         );
         // A product past i128 on the dyadic shape: the promotion path
