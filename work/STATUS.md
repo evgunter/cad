@@ -1019,7 +1019,9 @@ area `kernel`; prefix `trim/`; tag `(TRIM orchestrator)`; ab_band `2500-2599`.
 | `dead-work-citations-from-shipped-code-and-docs` | 2026-09-13 | Five shipped files cite work/ items that no longer exist |
 | `dl5-has-no-arm-for-a-selection-whose-result-is-the-payload` | 2026-09-13 | DL5 has no arm for a selection whose result IS the payload (map_refusal's nearest-fit read) |
 | `emit-blend-cannot-observe-a-retirement-naming-a-minted-key` | 2026-09-13 | editor-core: emit_blend's retired-set guard cannot observe a retirement naming a minted key |
+| `joindesync-swallows-the-certification-payload` | 2026-09-13 | boolean::ops describe_minted_edges drops a Certification { ResidualExceeded } payload into a bare JoinDesync - the refusal a user sees for the zip's chord-on-cylinder defect |
 | `the-levered-turn-margin-conflates-a-short-arm-with-a-small-turn` | 2026-09-13 | fillet_corner_turn's levered margin cannot tell a short leg from a degenerate angle, and its definite arm refuses a real corner as already tangent |
+| `trimmed-tessellation-lacks-torus-and-plane-arms` | 2026-09-13 | mesh tessellate_trimmed has no torus or plane arm - a spiric-bounded wall cannot mesh once the spiric carrier lands |
 
 ## Blocked
 
