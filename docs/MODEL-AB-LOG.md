@@ -6208,6 +6208,30 @@ BOTH arms equally: one 4-core cloud box, no other lane live, `-j2`;
 R1's target is the implementer's warm one, R2's is seeded from an
 older warm build — wall-clock asymmetry only.
 
+Revert-wrap review ordinal fixed at dispatch (2026-09-14, PR #2573
+open — frozen head `725d3c204`; unit
+`work/topo/revert-leaves-a-periodic-charts-loop-wrap-mid-chain.md`):
+**ordinal 2709** (TOPO band). Pre-draw fields (logged in
+`work/topo/log.md` at `4b813113a` BEFORE block TOPO-B4 was drawn —
+clean): difficulty **M**, task class **NUMERIC**. Implementer arm per
+block TOPO-B4 slot 1 (record branch-side on `topo/b4-block`; byte 223
+⇒ fable at slot 1). Protocol v6 dual: draw = `/dev/urandom` byte
+**12**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**. Method, recorded before
+either review runs: CONCURRENT same-head on frozen `725d3c204`, both
+briefs authored and STORED with sha256 before either dispatches
+(identical text modulo lane name, target and scratch paths, verified
+by diff: 4 lines), neither reviewer sees the other's report, v6 item
+5 isolation in both briefs; the implementer's unit log entry is not
+written until the dual concludes. Disclosed: the implementer lane was
+killed by a container restart ten minutes in and relaunched on its
+own recovered WIP commit (a phase-1 probe, no fix) — one arm, same
+model, same brief; the restart is noise in the implementer's wall
+figure, not in the review. Shared-box note applying to BOTH arms
+equally: one 4-core cloud box, one other review lane live (a
+non-dual style review), `-j2`; R1's target is the implementer's warm
+one, R2's is seeded from an older warm build — wall-clock asymmetry
+only.
+
 ## SYM program rows (work/sym/; band 4700–4799; blocks named SYM-B<n>)
 
 SYM-4 review ordinal fixed at dispatch (2026-09-14, PR #2565 open —
