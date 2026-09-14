@@ -4318,6 +4318,27 @@ TRIM-1 RECORDED AT MERGE (2026-09-07, PR #2095, sample #153 — prior highest #1
 
 | T1 | 2026-09-07 | TRIM-1 (PR #2095; spec docs/TRIM-1-SPEC.md, #1195, PCURVE P-2's named residue): the de Boor collapse extractor — `interior_iso_u<T: SpanLocate>` in `nurbs_iso.rs` (the homogeneous collapse `Q_j = Σ_i λ_i P_ij`, per span hulled with `enclosure_hull`; the rational class = weight nets separable by structure, cases (a)/(b) by bitwise tests, `WeightsNotSeparable` otherwise), `side_of` an `Option` decider with per-site texts, the seam class's interior route on the same `MapResidualIsoHull` argument with drift-only slack, `nurbs_iso_derive`'s wall–seam arm restoring the measured-foot fall-back with a per-outcome table (the `Intersection` arm untouched, `9v1` still `General`). The two probes the spec could not run: the arc-rim row refuses at check 3 (not `side_of`), and STOP 3 does not fire — the P-2 body's cache set COMPLETES and `validate_pcurves` is EMPTY (the first whole-body mint of a trimmed chart at rest); downstream, `mass_properties` refuses at the filed `props.rs` non-iso site and `tessellate` at `patch_bound::Degree1Crease` — NOT one of TRIM-2's six sites (TRIM-2's opening measurement re-cut). Riders S394 (three sites → `ChartRow { source }`) and `fitted-magnitude-nan-schedule-parameter` (`EndpointFootDistance`) carried and closed. Fix pass from the dual: the seam class meters its fixed channel against the chart's u domain (an out-of-domain `u` had certified via the end span's polynomial extension); the slack guarded by R1's drift row; case (a) fixtured (the symmetric unkillable mutant now killable); `den` hoisted, no division in case (a); the `Dual` no-foot-lane text; doc rot at the A6 rows | L (high end) / NUMERIC (pre-logged at the spec) | FABLE (block TRIM-B1 slot 1) | **DUAL (ordinal 2501; byte 95 parity 1 ⇒ R1 FABLE + R2 OPUS; CONCURRENT same-head on frozen 60476186; briefs stored with sha256 pre-dispatch; R2 disclosed a `pgrep` glimpse of the other lane's process line, benign; v6 instrument).** R1 MERGEABLE-AFTER-FIXES, rubric —/—/—/—/— (report file, agent stopped at report-final with its `[SWEEP]` rows unexecuted), 0 MAJ + 3 MIN + 3 NOTE — finds: the out-of-domain `u` certifying (12/12 executed, MINOR), the unguarded drift slack with an UNSOUND certificate measured without it, the missing case-(a) fixture, doc rot at the A6 rows, S394's undecided `adopt.rs` half. R2 MERGEABLE-AFTER-FIXES, rubric 4/4/3/4/5, 1 MAJ + 3 MIN + 3 NOTE — finds: the SAME out-of-domain `u` at MAJOR (with the `IsoUnsupported` doc invalidated in place), the same slack and case-(a) gaps, the CI sentence's 20 skipped steps, the TRIM-2 re-measurement living only in the PR body, `den` recomputed per `j`, the `no_boundary` text on the `Dual` arm. CONVERGED on every substantive finding at differing severities; both arms' independent fixtures agreed bitwise with `boundary_iso_u` at the domain ends and every Interval enclosure contained the truth. **Tally: no unilateral candidate (all bilateral); R1's agent was stopped by the orchestrator at report-final; neither arm killed by a limit; the implementer arm was paused four times by the usage limit and once by a Fable-side outage, recorded for 3(e)'s reading.** | 0 silent — every deviation reported before review (two pushes `--no-verify` after the hook outlived SSH, said in the body) | 4 | R1 — / R2 3 | R1 — / R2 4 | substantial, ADJUDICATED — all eleven union items taken, none declined; R1's `r1_c1_*`/`r1_c2_*`/`r1_c3_*` rows adopted authorship-preserving, every adopted row asserting; four mutants red | impl CI 34065398720 GREEN (twelve `test` jobs); fix CI 34098126083 GREEN (same matrix); merged #2095 at sample #153 | impl ~351k / fix ~453k / R1 ~? (stopped) / R2 ~290k | impl ~1.5 h agent time over ~3 days wall (usage pauses, the Fable outage, slot starvation) / fix ~1.2 h / R1 ~2.5 h+ / R2 ~3.5 h |
 
+## CURVED-MERGEDOOR review ordinal fixed at dispatch (2026-09-13)
+
+CURVED-MERGEDOOR (`work/curved/cylindrical-rest-pair-hits-planar-merge.md`,
+PR #2105 open — frozen head `3b42b3e1`): **ordinal 2202** (CURVED band).
+Pre-draw fields at the spec (`docs/CURVED-MERGEDOOR-SPEC.md`): difficulty
+**S**, task-class **STRUCTURAL**; implementer arm per block CURVED-B1
+slot 2 (record branch-side on `curved/b1-block`). Protocol v6 dual:
+draw = `/dev/urandom` byte **225**, parity 1 ⇒ **R1 = FABLE, R2 = OPUS**.
+Method, recorded before either review runs: CONCURRENT same-head on
+frozen `3b42b3e1`, both briefs authored and STORED with sha256 before
+either dispatches (bb0a91da98e907b7… r1 / f1b83f9804faacb0… r2 — identical text modulo lane
+names, verified by diff), neither reviewer sees the other's report, v6
+item 5 isolation in both briefs, PRIVATE `CARGO_TARGET_DIR` per
+reviewer (fresh for both); the implementer's unit log entry is not
+written until the dual concludes. Method note applying to BOTH arms
+equally: the implementer lane's STOP 2 fired and was RE-SCOPED by the
+orchestrator (the measured frontier became the acceptance; comment
+5568446264 on the PR); the implementer arm was killed twice (a usage
+pause and a six-day Fable-side outage) and resumed from transcript,
+recorded for 3(e)'s reading at the blinded coding.
+
 ## DOCM program rows (work/docm/; band 1800–1899; blocks named DOCM-B<n>)
 
 Block DOCM-B1 pre-draw fields (2026-09-04, logged before the draw):
@@ -4556,6 +4577,29 @@ was a draft (no CI) per the stop clause; the unit branch carries one
 orchestrator merge commit (the amended spec) with the orchestrator's
 own trailers; the PR body carries a `Generated by Claude Code` footer
 the GitHub write path appends on every write; it names no model.
+
+DOCM-9 review ordinal fixed at dispatch (2026-09-14, PR #2534 open —
+frozen head `691a26e2`): **ordinal 1808** (DOCM band; the program's
+last). Pre-draw fields at the spec (`docs/DOCM-9-SPEC.md`): difficulty
+**M**, task-class **STRUCTURAL**; implementer arm per block DOCM-B3
+slot 2 (record branch-side on `docm/b3-block`; the block's last slot).
+Protocol v6 dual: draw = `/dev/urandom` byte **236**, parity 0 ⇒
+**R1 = OPUS, R2 = FABLE**. Method, recorded before either review runs:
+CONCURRENT same-head on frozen `691a26e2`, both briefs authored and
+STORED with sha256 before either dispatches (4ef10b82ec08c42b… r1 / a8efc4bb041fdb94… r2 —
+identical text modulo lane names and lane paths, verified by diff),
+neither reviewer sees the other's report, v6 item 5 isolation in both
+briefs, PRIVATE `CARGO_TARGET_DIR` AND private scratch directory per
+reviewer; the implementer's unit log entry is not written until the
+dual concludes. No stop clause fired; the spec is unamended and the PR
+body carries four measured deviations — one of them (A1's
+`NewFailure` row not met: the driver bisects a definitely-failing leaf
+to the budget floor) a claimed limit of the driver the reviewers
+judge by execution rather than read as settled — and three findings
+outside the fence. Disclosed: the lane's first head was red on the
+façade export gate (fixed and pushed, not re-run); the PR body carries
+a `Generated by Claude Code` footer the GitHub write path appends on
+every write; it names no model.
 
 
 
@@ -5694,3 +5738,42 @@ f2a086f0661fb15fdd9b83caca3470f373572a00da734b48e743028534ceec1a  blend-8-review
 slot 1 = BLEND-10 MERGED (2026-09-13, PR #2497 at c428ff517; sample #183): delta by R1 on the fixed head confirmed all seven items (and showed the one shape it had left unconstructed is not reachable through the public door); the row is on main in that merge. Slot 1 concluded. Slot 0 (BLEND-8) is the block's last open slot, in its dual.
 slot 0 = BLEND-8 dual concluded (2026-09-13, ~11:50Z): both arms concurrent on the frozen head with private targets, neither interrupted, zero cross-lane reads disclosed. R1 (OPUS) MERGEABLE-AFTER-FIXES 2/6/6, rubric 4/4/3; R2 (FABLE) MERGEABLE-AFTER-FIXES 0/5/5, rubric 4/4/3. R1's two MAJORs (the stale mutant table; the annulus's second spelling of the split half) are R2's MINOR-1 and MINOR-3 — bilateral at differing severity, both by execution ⇒ NO tally candidate. Pair COUNTS (method symmetric, pre-recorded). Fix pass on the implementer's lane; delta by R1; the row lands on main at merge with its sample number; the block's CONCLUDED record folds into main with it.
 slot 0 = BLEND-8 MERGED (2026-09-13, PR #2505 at 24ba7f59c; sample #185 — BLEND-12 took #184 on main first): delta by R1 on the fixed head confirmed all seven items by execution (both mutants exact; the annulus reading re-taken at the refresh call site, 38 moved keys against the lane's 37, the reading holding; the record delta exact, the lane's base-side totals unreconciled) and caught one new MINOR the fix introduced (the boss's orientation stated backwards against the row it cites), corrected in the state-sync; the row is on main in that merge. Slot 0 concluded. **Block BLEND-B2 CONCLUDED**: three slots (OPUS / OPUS / FABLE), three duals, zero counted tally candidates (every headline bilateral by execution — at MAJOR on unit 11, at differing severity on units 10 and 8); v6 tally unchanged.
+
+Split-edge review ordinal fixed at dispatch (2026-09-13, PR #2531 open
+— frozen head `880654600`; unit
+`work/topo/split-edge-children-lack-pcurve-rows-on-curved-charts`,
+SHELL-7's placement): **ordinal 2703** (TOPO band). Pre-draw fields
+(logged in `work/topo/log.md` at `41edc9d2a` BEFORE block TOPO-B2 was
+drawn — clean): difficulty **S/M**, task class **STRUCTURAL-NUMERIC**.
+Implementer arm per block TOPO-B2 slot 1 (record branch-side on
+`topo/b2-block`). Protocol v6 dual: draw = `/dev/urandom` byte **20**,
+parity 0 ⇒ **R1 = OPUS, R2 = FABLE**. Method, recorded before either
+review runs: CONCURRENT same-head on frozen `880654600`, both briefs
+authored and STORED with sha256 before either dispatches (identical
+text modulo lane name, target and scratch paths, verified by diff),
+neither reviewer sees the other's report, v6 item 5 isolation in both
+briefs; the implementer's unit log entry is not written until the
+dual concludes. Shared-box note applying to BOTH arms equally: one
+4-core cloud box beside one other lane (block slot 0's implementer),
+`-j2`; R1's target is the implementer's warm one, R2's is seeded from
+an older warm build — wall-clock asymmetry only.
+
+Ring-nesting review ordinal fixed at dispatch (2026-09-13, PR #2529
+open — frozen head `a8703bdc9`; unit
+`work/topo/tier3-accepts-a-ring-outside-its-outer-loop`, SHELL-5's
+placement): **ordinal 2704** (TOPO band). Pre-draw fields (logged in
+`work/topo/log.md` at `41edc9d2a` BEFORE block TOPO-B2 was drawn —
+clean): difficulty **M**, task class **STRUCTURAL-GEOMETRIC**.
+Implementer arm per block TOPO-B2 slot 0 (record branch-side on
+`topo/b2-block`). Protocol v6 dual: draw = `/dev/urandom` byte **0**,
+parity 0 ⇒ **R1 = OPUS, R2 = FABLE**. Method, recorded before either
+review runs: CONCURRENT same-head on frozen `a8703bdc9`, both briefs
+authored and STORED with sha256 before either dispatches (identical
+text modulo lane name, target and scratch paths, verified by diff;
+stored at the unit's delivery, dispatched after the split-edge pair
+freed the box), neither reviewer sees the other's report, v6 item 5
+isolation in both briefs; the implementer's unit log entry is not
+written until the dual concludes. Shared-box note applying to BOTH
+arms equally: one 4-core cloud box beside one other lane (the
+split-edge fix pass), `-j2`; R1's target is the implementer's warm one,
+R2's is seeded from an older warm build — wall-clock asymmetry only.
