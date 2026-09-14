@@ -4,6 +4,7 @@ kind: issue
 title: Body::revert negates a plane's normal but leaves its Chart images and cache rows unmirrored, so a same-plane Chart edge fails certification on the reverted body
 status: open
 opened: 2026-09-08
+pr: 2542
 ---
 
 
