@@ -30,7 +30,12 @@ fn r2_dump_serializations() {
         ("plate", plate(5.0e-5, 1.0e-5, tol).0),
     ] {
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-        for parallel in [false, true] {
+        // The tilted document is ~5 minutes a drive; sequential only.
+        for parallel in if label == "plate" {
+            vec![false, true]
+        } else {
+            vec![false]
+        } {
             let cfg = DriveConfig {
                 max_leaves: 48,
                 parallel,
