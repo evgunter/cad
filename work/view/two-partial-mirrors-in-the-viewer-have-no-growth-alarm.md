@@ -1,7 +1,7 @@
 ---
 id: two-partial-mirrors-in-the-viewer-have-no-growth-alarm
 kind: issue
-title: SUBJECTS_WITH_AN_EXPIRY_ISSUER and DatumKind are partial mirrors with nothing to tell them the mirrored enum grew
+title: SUBJECTS_WITH_AN_EXPIRY_ISSUER and DatumKindChoice are partial mirrors with nothing to tell them the mirrored enum grew
 status: open
 opened: 2026-09-12
 ---
@@ -35,10 +35,10 @@ Two siblings have none:
   sixth subject WITH an expiry issuer joins the enum, misses the list,
   and no row goes red — its messages are then swept only by
   `StatusUpdate::Clear`, silently.
-- **`forms::DatumKind`** names four of `DatumSpec`'s five arms
+- **`forms::DatumKindChoice`** names four of `DatumSpec`'s five arms
   (`crates/viewer/src/session/author.rs`). The direction that IS held
   is kind-to-spec (`pane::create`'s lowering match is exhaustive over
-  `DatumKind`); the direction that is not is spec-to-kind, so a sixth
+  `DatumKindChoice`); the direction that is not is spec-to-kind, so a sixth
   `DatumSpec` arm the add-datum form SHOULD offer arrives with no form
   edit and nothing says so.
 
@@ -54,14 +54,14 @@ caller exists, and it is the moment to lift the macro out of `forms`
 to somewhere both modules can reach (`vocab` is the crate's home for
 this construction).
 
-**`DatumKind`: the same skeleton, not the same arm.** Its partiality
+**`DatumKindChoice`: the same skeleton, not the same arm.** Its partiality
 is between two ENUMS rather than between an enum and a list, so
 "offered" is not a seat but a counterpart variant, and the roster maps
-`DatumSpec` arm to `DatumKind` variant or to a reason. The exhaustive
+`DatumSpec` arm to `DatumKindChoice` variant or to a reason. The exhaustive
 half is a match over `DatumSpec` (its arms carry `Expr`s and a
 `RecipeNodeId`, so it is a `fn(spec: DatumSpec)` with `{ .. }` arms and
 no const evaluation), and the seat half asserts against
-`DatumKind::ALL`, which `vocabulary!` already projects. Whether that is
+`DatumKindChoice::ALL`, which `vocabulary!` already projects. Whether that is
 a second arm of one macro or a related second macro is the call
 whoever takes this makes; what should not happen is a third
 hand-written enumeration that nothing holds.
@@ -71,3 +71,20 @@ hand-written enumeration that nothing holds.
 That either site is wrong today. Both partialities are argued at their
 own doc and both arguments hold; the defect is that neither survives
 the enum growing.
+
+## The rename this row's subject went through
+
+`two-datumkind-enums-name-the-same-four-datum-kinds` renamed
+`forms::DatumKind` to `forms::DatumKindChoice`, and the citations above
+are spelled for the new name. Nothing else about this row moved: the
+spec-to-kind direction is still unheld and the instrument this row asks
+for is still unwritten. The rename only removes an ambiguity that would
+have bitten whoever writes it — `viewer::DatumKind`, a public type, is
+the tag a datum DRAWING carries, and a roster in `forms.rs` naming the
+bare word would have read as either.
+
+That draw tag is **not** a third site for this instrument. It has no
+`ALL`, it is not a partial mirror of anything (it is a partition of
+`DatumValue`'s five arms onto four drawings, `AxisInPlane` sharing
+`Axis`'s tag), and its growth is already forced by `draw_one`'s
+exhaustive match.
