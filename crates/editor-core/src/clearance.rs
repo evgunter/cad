@@ -141,7 +141,7 @@ use bvh::{Aabb, Bvh};
 use geom::Surface;
 use geom_core::interval::Interval;
 use geom_core::k_stats::decide;
-use geom_core::{Band, Bounds, Margin, MarginDiag, Point3, Real, Sign, Tol, Tolerance, Vec3};
+use geom_core::{Band, Bounds, Margin, MarginDiag, Point3, Real, Sign, Tol, Vec3};
 use topo::entity::{EdgeKey, FaceKey, LoopBoundary, VertexKey};
 use topo::{Body, MetredBound, MetredRect, chart_boundary};
 
@@ -1441,15 +1441,14 @@ impl Default for MinSeparationConfig {
 /// measure may read `lo` and may not read `hi`, and the two arms that
 /// would have read `hi` refuse typed rather than answering.
 ///
-/// The gap is SMALLER than it was — a window whose face carries a
-/// chart-boundary description no longer offers the cells that face
-/// does not occupy, and the L-shaped cap under a block parked over its
-/// notch, which used to bracket `[0.100…, 0.100…]` against a true
-/// `0.269`, now reaches the faces' own separation
-/// (`m10_6_r1_probes_interval::the_notch_bracket_is_tightened_and_is_still_a_window`).
-/// It is not CLOSED: a cell straddling the described boundary, or
-/// within `K · ε` of it, is kept, so `hi` is still a minimum over a
-/// superset of the faces and still bounds `M` in neither direction.
+/// A worked counterexample, in the suite: an L-shaped cap under a
+/// block parked over its notch brackets `[0.100…, 0.100…]` while the
+/// faces are `0.269` apart — the window pair straight across the notch
+/// belongs to neither face
+/// (`m10_6_r1_probes_interval::the_notch_bracket_is_the_windows_not_the_faces`).
+/// The clearance sweep beside this door no longer offers that pair;
+/// THIS door still does, because it runs inside an evaluation and its
+/// windows may not decide (see [`min_separation`]).
 ///
 /// # Budget-honest, and no width rule anywhere
 ///
@@ -1665,18 +1664,23 @@ pub fn min_separation(
     if a.faces.is_empty() || b.faces.is_empty() {
         return Err(ClearanceRefusal::EmptyScope);
     }
-    // **The one band this door does read, and why it is not a
-    // tolerance argument.** Nothing the bracket is made of decides:
-    // enclosures are computed and their endpoints minimised, which is
-    // the paragraph above. The chart-boundary description is the one
-    // question here that DOES decide — a cell is dropped only on a
-    // definite sign at `K · eps` — so it needs the run's own linear
-    // band. It is read through the NON-COMMITTING door: this door
-    // commits no tolerance, and a run that has not committed one gets
-    // `None` and the loose windows M10-5 shipped, which is the
-    // identity.
-    let band = Tolerance::committed_report()
-        .and_then(|r| Band::new(r.tolerance.eps, r.tolerance.eps * r.tolerance.k).ok());
+    // **This door asks for no chart-boundary description, and the
+    // reason is the paragraph above read one level out.** Nothing here
+    // decides — and this door is called from INSIDE an evaluation, by
+    // the `min_clearance` measure primitive, so a decision taken here
+    // lands in the drive's own predicate census. The description's
+    // drops are decisions (a definite sign at `K · eps`), and their
+    // COUNT is a function of how far the subdivision ran, which is a
+    // function of the parameter box — so every leaf of a drive over a
+    // document carrying this measure crosses a divergence and refuses
+    // `flip_crossing`. Measured: six M10-6 drive rows lose their
+    // certified leaf outright.
+    //
+    // So the windows here stay the loose carrier rectangles M10-5
+    // shipped, `MinSeparation`'s two ends keep the meanings its own
+    // docs give them, and the tightening this door could have had is
+    // `work/trim/min-separation-tightening-crosses-the-drive.md`.
+    let band: Option<Band> = None;
     let windows = |s: &MinSepSelection<'_>| -> Result<Vec<Window>, ClearanceRefusal> {
         s.faces
             .iter()
@@ -1806,23 +1810,6 @@ pub fn min_separation(
                 continue;
             };
             let pair = task.pair;
-            // Off the face, before anything is enclosed — the clearance
-            // sweep's own rule, and the bracket keeps its meaning under
-            // it. The dropped pair narrows neither end: it never
-            // reaches `hi`, so no separation between places the faces
-            // do not occupy can pull the upper bound down, and it never
-            // reaches `floor`, which is only ever fed by pairs the
-            // sweep could not finish. `lo` stays a lower bound on the
-            // faces' minimum because every point of both faces is in a
-            // cell that was kept.
-            if let Some(band) = band
-                && (certified_off_the_face(x, pair.a.u, pair.a.v, band)
-                    || certified_off_the_face(y, pair.b.u, pair.b.v, band))
-            {
-                receipt.discharged += 1;
-                receipt.outside += 1;
-                continue;
-            }
             let pa = enclosure(&x.surface, pair.a.u, pair.a.v);
             let pb = enclosure(&y.surface, pair.b.u, pair.b.v);
             let sep = separation(&pa, &pb);

@@ -512,16 +512,17 @@ fn a_partial_revolve_band_reports_its_phantom_turn() {
 /// `orthonormal_basis(axis)`, and for `axis = ẑ` that frame is clean
 /// while for `axis = ŷ` (`n.z = 0`) it is the two-sided hull. The
 /// engine re-charts PLANES only, and `refines` tests one halving, so a
-/// hulled cylinder passes the door and then cannot decide.
+/// hulled cylinder passes the door and then cannot decide. Both
+/// verdicts are printed; the row asserts only the receipt.
 ///
-/// **The control is now an ASSERTION** (TRIM-3 PR-2): with a clean
-/// `u_ref` the band's description certifies, the window `u` is cut to
-/// the quarter turn the revolve actually swept, and the block sitting
-/// where the other three quarters would be is more than 2 away from
-/// every face of it. `Holds` at `c = 1.0`, where a full-turn root
-/// reported the phantom quadrant.
+/// **TRIM-3 PR-2 wanted to turn this into an assertion and could
+/// not**: on this tree NEITHER revolve replays at the interval scalar
+/// over an ε-scaled box, so this fixture and its y-axis sibling both
+/// refuse at the SELECTION door (`node did not build in this leaf's
+/// replay`) and never reach `window_of` at all. The cylinder root cut
+/// is pinned by the bumped block instead, which is an extrude.
 #[test]
-fn a_partial_revolve_about_z_holds_against_the_phantom_quadrant() {
+fn a_partial_revolve_about_z_is_the_control_for_the_hulled_band() {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
     // Profile on the xz-plane (u = x̂, v = ẑ): the rectangle r ∈ [1, 2],
@@ -565,13 +566,6 @@ fn a_partial_revolve_about_z_holds_against_the_phantom_quadrant() {
             v.geometry.b_point
         );
     }
-    assert_eq!(
-        report.verdict(),
-        &ClearanceVerdict::Holds,
-        "the quarter annulus and the block are more than 2 apart; only the phantom three \
-         quarters ever came within 1.0: {}",
-        report.serialize()
-    );
 }
 
 // ------------------------------------------------ claim 4: totality

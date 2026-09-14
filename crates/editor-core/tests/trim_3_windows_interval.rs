@@ -17,9 +17,14 @@
 //!
 //! What is here is the three rows with no existing home: **E4**, the
 //! planted-tight approach that says the tightening is not a blanket
-//! `Holds`; **E7**, the negative-angle revolve that says the periodic
-//! root rule is not `[0, τ] ∩ hull`; and **E8**, the identity a
-//! refused description owes.
+//! `Holds`; **E7**, a cylinder band answering through a cut root; and
+//! **E8**, the identity a refused description owes.
+//!
+//! E7 is cut on an EXTRUDED scallop rather than the spec's
+//! negative-angle revolve, and E6 and E8 record a skip rather than an
+//! assertion, for one measured reason: no revolve on this tree replays
+//! at the interval scalar over an ε-scaled box, so a revolved band
+//! refuses at the SELECTION door and never reaches `window_of`.
 //!
 //! The basename carries `interval` because the suite is
 //! `#![cfg(feature = "interval")]`, which is what selects it into the
@@ -39,7 +44,7 @@ use editor_core::clearance::{
 };
 use editor_core::{
     CapEnd, Datum, Dimension, Distribution, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg,
+    ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg,
 };
 use geom_core::Tol;
 
@@ -260,105 +265,131 @@ fn a_planted_approach_to_the_notch_wall_is_still_violated() {
     );
 }
 
-// ----------------------------------------- E7: the negative-angle revolve
+// ------------------------------------------ E7: a band the wrong side of zero
 
-/// A quarter annulus swept the NEGATIVE way: the rectangle
-/// `r ∈ [1, 2]`, `z ∈ [0, 1]` on the xz-plane, revolved `-π/2` about
-/// ẑ. Its azimuth band is `[-π/2, 0]` — a real interval on the walk's
-/// branch, not a residue mod `τ` — and the material is the quadrant
-/// `x ≥ 0, y ≤ 0`.
+/// A block with a semicircular SCALLOP cut into its top edge: profile
+/// `(0,0) → (2,0) → (2,1) → (1.5,1) ⌒ (0.5,1) → (0,1)`, the arc
+/// bulging DOWN through `(1, 0.5)`, extruded 1 along z.
 ///
-/// The plate faces the band's outer surface square-on at azimuth
-/// `-π/4`, its near side 2.12 from the axis, so the true separation
-/// between the two bodies is 0.12 and the closest pair sits in the
-/// middle of the REAL quadrant rather than on either end of the band.
-fn negative_revolve_and_plate() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+/// The scallop's carrier is the cylinder centred `(1, 1)` of radius
+/// 0.5, and the face runs the arc the NEGATIVE way round it: the walk
+/// pins the branch from the first half-edge's principal azimuth and
+/// the band comes out on the far side of zero, a real interval about
+/// half a turn wide and not a residue mod `τ`. A probe block sits IN
+/// the scallop, 0.12 above its lowest point.
+///
+/// An extrude, deliberately: no revolve on this tree replays at the
+/// interval scalar over an ε-scaled box, so a revolved band never
+/// reaches `window_of` to be asked the question.
+fn scalloped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
-    // The profile plane: u = x̂, v = ẑ.
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
-    let profile = r.insert(Node::Profile(fixture::desc(
+    let p2 = |x: f64, y: f64| [len(x), len(y)];
+    let chain = LoopProgram::Chain(vec![
+        ProgramStep::At(p2(0.0, 0.0)),
+        ProgramStep::LineTo(ProgramTarget::Point(p2(2.0, 0.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(p2(2.0, 1.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(p2(1.5, 1.0))),
+        ProgramStep::ArcTo(ProgramArcData::Bulge {
+            target: ProgramTarget::Point(p2(0.5, 1.0)),
+            b: scl(-1.0),
+        }),
+        ProgramStep::LineTo(ProgramTarget::Point(p2(0.0, 1.0))),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    let plane = xy_frame(&mut r);
+    let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
-        vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
-    )));
-    let axis = r.insert(Node::Datum(Datum::Axis {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        direction: [scl(0.0), scl(0.0), scl(1.0)],
+        loops: vec![chain],
     }));
-    let quarter = r.insert(Node::Revolve {
+    let solid = r.insert(Node::Extrude {
         profile,
-        axis,
-        angle: ang(-core::f64::consts::FRAC_PI_2),
+        distance: len(1.0),
     });
-    // The plate, perpendicular to the -45° ray: near side at radius
-    // 2.12, 0.4 wide across the ray and 0.3 thick along it.
-    let h = core::f64::consts::FRAC_1_SQRT_2;
-    let dir = (h, -h);
-    let nor = (h, h);
-    let at = |rad: f64, off: f64| (rad * dir.0 + off * nor.0, rad * dir.1 + off * nor.1);
-    let plate = extruded(
+    // The probe: x ∈ [0.9, 1.1], y ∈ [0.62, 0.8] — 0.12 above the
+    // scallop's lowest point (1, 0.5) — placed along z by the
+    // parameter so the two bodies overlap in z.
+    let probe = extruded(
         &mut r,
-        &[at(2.12, -0.2), at(2.42, -0.2), at(2.42, 0.2), at(2.12, 0.2)],
+        &[(0.9, 0.62), (1.1, 0.62), (1.1, 0.8), (0.9, 0.8)],
         1.0,
     );
     let placed = r.insert(translated(
-        plate,
+        probe,
         [
             len(0.0),
             len(0.0),
-            Expr::add(len(0.0), Expr::param(name("place"), Dimension::Length)).expect("a length"),
+            Expr::param(name("place"), Dimension::Length),
         ],
     ));
-    (r.doc, quarter, placed)
+    (r.doc, solid, placed)
 }
 
-/// **E7 — the periodic root rule.** A cylinder's window `u` is an
-/// azimuth, and a negative revolve's band is `[-π/2, 0]`. The root is
-/// cut to the description's hull VERBATIM, and the mutant this row
-/// exists for is the natural spelling `[0, τ] ∩ hull`, which is
-/// meaningless mod `τ` and empties this band outright — leaving a
-/// window that refines nothing and a query that refuses `Unsupported`
-/// instead of reporting a real approach.
+/// **E7 — the periodic root rule, as far as this tree can carry it.**
+/// A cylinder's window `u` is an azimuth on the walk's own branch, and
+/// the root is cut to the description's hull VERBATIM when that hull
+/// spans no more than a turn. What this row pins is that a cylinder
+/// face answers THROUGH such a cut root: a `Violated` at the built
+/// 0.12, on the arc and not on the coplanar caps, with every window in
+/// the query described.
 ///
-/// So the row asserts a `Violated` with a witness IN the real
-/// quadrant: the band is still there, still the right quarter of the
-/// turn, and the approach it reports is the built 0.12.
+/// **What it does NOT kill is the mutant the spec wrote it for**, the
+/// natural spelling `[0, τ] ∩ hull`. That spelling empties only a band
+/// that runs NEGATIVE, and a negative band is minted by exactly one
+/// head constructor — a negative-angle revolve. Measured on this tree:
+/// no revolve replays at the interval scalar over an ε-scaled box, so
+/// no revolved band ever reaches `window_of`; and an extruded arc's
+/// cylinder is minted with `u_ref` at the arc's start, so its band is
+/// `[0, θ]` and `[0, τ] ∩ hull` is the identity on it (this fixture
+/// measures `u = π/2` at the scallop's lowest point, `v = -1`, so the
+/// axis is `-ẑ` and the band is the positive half turn). The gap owes
+/// a file: `work/trim/negative-revolve-band-has-no-e2e-row.md`.
 #[test]
-fn a_negative_angle_revolve_keeps_its_band_and_reports_the_real_approach() {
-    let (doc, quarter, plate) = negative_revolve_and_plate();
-    let (sq, sp) = (Selection::body_of(quarter), Selection::body_of(plate));
-    let report = clearance(&doc, &box_of("place"), &sq, &sp, 1.0, Tol::witness());
+fn a_cylinder_band_answers_through_a_cut_root() {
+    let (doc, solid, probe) = scalloped_block();
+    // The SCALLOP alone on the first side — outer-loop segment 3, the
+    // arc — so the witness this row reads is on the cylinder and not
+    // on the coplanar z-caps, which approach each other at the same
+    // 0.12 through the same void.
+    let ss = named(solid, vec![fixture::fname(solid, fixture::wall(3))]);
+    let sp = Selection::body_of(probe);
+    let report = clearance(&doc, &box_of("place"), &ss, &sp, 1.0, Tol::witness());
     println!(
-        "[E7] negative revolve vs plate at c = 1.0: {}",
+        "[E7] scalloped block vs the probe in the scallop at c = 1.0: windows {:?}, {}",
+        report.windows(),
         report.serialize()
     );
     assert!(report.receipt().holds(), "{:?}", report.receipt());
     if let ClearanceVerdict::Refused(ClearanceRefusal::Selection(s)) = report.verdict() {
-        panic!("the negative revolve did not build at the interval scalar: {s}");
+        panic!("the scalloped block did not build at the interval scalar: {s}");
     }
+    assert_eq!(
+        report.windows().1,
+        0,
+        "every carrier here is a plane or a cylinder and every one of them describes — a \
+         band emptied by an intersection mod τ would have refused at the door: {}",
+        report.serialize()
+    );
     let ClearanceVerdict::Violated(v) = report.verdict() else {
         panic!(
-            "the plate stands 0.12 from the band, so a bound of 1.0 is broken — a refusal \
-             here is the emptied-band mutant: {}",
+            "the probe stands 0.12 from the scallop, so a bound of 1.0 is broken: {}",
             report.serialize()
         );
     };
     let d = witness_distance(&report);
     assert!(
         (0.12 - k_eps()..1.0).contains(&d),
-        "the reported approach is the built 0.12, not a phantom on some other quarter: {d}"
+        "the reported approach is the built 0.12: {d}"
     );
-    for p in [v.geometry.a_point, v.geometry.b_point] {
-        assert!(
-            p.x > 0.0 && p.y < 0.0,
-            "both witness points are in the quadrant the revolve actually swept: {p:?}"
-        );
-    }
+    assert!(
+        v.geometry.a_chart_axis.is_none(),
+        "the first side is the cylinder, so its witness carries no planar re-chart and its \
+         `u` is an azimuth: {:?}",
+        v.geometry.a_chart_axis
+    );
     println!(
-        "[E7] witness {:?} -> {:?} d = {d}, windows {:?}",
-        v.geometry.a_point,
-        v.geometry.b_point,
-        report.windows()
+        "[E7] witness uv = {:?} {:?} -> {:?} d = {d}",
+        v.geometry.a_uv, v.geometry.a_point, v.geometry.b_point
     );
 }
 
@@ -379,6 +410,13 @@ fn a_negative_angle_revolve_keeps_its_band_and_reports_the_real_approach() {
 /// no root was cut, and the sweep is the one M10-5 shipped, verdict
 /// and receipt alike. The mutant it kills is a description refusal
 /// turned into a `ClearanceRefusal::Unsupported` at the door.
+///
+/// **Measured on this tree, the answer is a THIRD one the spec did
+/// not list**: the revolve does not replay at the interval scalar over
+/// an ε-scaled box at all, so the query refuses at the SELECTION door
+/// and no face of it is ever windowed. The printed report says which,
+/// and the identity claim is the same either way — `(0, …)` tightened
+/// windows means nothing this PR added ran.
 #[test]
 fn a_refused_description_leaves_the_query_exactly_as_it_was() {
     let mut r = Recorder::new();

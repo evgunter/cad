@@ -70,3 +70,21 @@ PR #1911 landed the `topo` half: `chart_boundary`, `ChartBound`,
 rows, and 18 real-body rows from the dual. The item stays `dispatched`
 for PR-2 (the `clearance.rs` seam, branch `trim/3-window-seam`), which
 opens after the seam is announced to SHELL and M10.
+
+
+## PR-2 open (2026-09-13)
+
+The `clearance.rs` seam, branch `trim/3-window-seam`. `window_of` cuts
+a plane's and a cylinder's root to the metred hull; `Sweep::run`
+discharges a cell pair the description certifies empty of face
+(`CellReceipt::outside`); `verify_witness` admits only stations on the
+face; `ClearanceReport::windows` counts tightened against loose. Both
+shapes this item measured flip: the L cap no longer reports the block
+in its notch, and the U-channel's coplanar caps no longer report the
+slider.
+
+Three residues filed with it:
+`clearance-window-cone-sphere-torus`,
+`exact-region-cells-for-lower-bound-only`,
+`min-separation-tightening-crosses-the-drive` (the half of spec §3(b)
+that did not land), `negative-revolve-band-has-no-e2e-row`.
