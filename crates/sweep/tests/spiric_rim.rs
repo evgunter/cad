@@ -452,7 +452,7 @@ fn the_sectioned_vessel_stops_at_the_props_door() {
 
 #[cfg(feature = "interval")]
 mod interval_rows {
-    use geom_core::{Bounds, Interval};
+    use geom_core::{Bounds, Interval, Real};
 
     use super::*;
 
@@ -477,7 +477,7 @@ mod interval_rows {
         ])
     }
 
-    fn vessel_at<T: geom_core::Decide + geom_core::CertifiedBounds + topo::props::PropsQuadLane>(
+    fn vessel_at<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
         iv: &impl Fn(f64) -> T,
     ) -> Body<T> {
         let tol = Tol::witness();

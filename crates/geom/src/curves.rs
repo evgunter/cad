@@ -378,7 +378,7 @@ impl<T: Real> Curve3<T> {
 /// takes its one `sin_cos` itself.
 fn spiric_radial<T: Real>(major: T, minor: T, offset: T, c: T) -> (T, T) {
     let rho = major + minor * c;
-    (rho, (rho * rho - offset * offset).sqrt())
+    (rho, (rho.powi(2) - offset.powi(2)).sqrt())
 }
 
 impl<T: SpanLocate> Curve3<T> {
@@ -541,8 +541,8 @@ impl<T: SpanLocate> Curve3<T> {
                 let ((s, c), m) = azimuth::basis(*axis, *u_ref, t);
                 let r = *minor_radius;
                 let (rho, f) = spiric_radial(*major_radius, r, *offset, c);
-                let f2 =
-                    -(r * ((rho * c - r * (s * s)) / f + r * (rho * rho) * (s * s) / (f * f * f)));
+                let f2 = -(r
+                    * ((rho * c - r * s.powi(2)) / f + r * rho.powi(2) * s.powi(2) / f.powi(3)));
                 m * f2 - *axis * (r * s)
             }
             Curve3::Nurbs(n) => n.deriv2(t),

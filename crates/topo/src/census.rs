@@ -2621,7 +2621,7 @@ fn edge_reach<T: Decide>(
                 return None;
             };
             let m = axis.cross(*u_ref);
-            let d2 = *offset * *offset;
+            let d2 = offset.powi(2);
             let f_min = ((*major_radius - *minor_radius).powi(2) - d2).sqrt();
             let f_max = ((*major_radius + *minor_radius).powi(2) - d2).sqrt();
             let base = *center + *u_ref * *offset;

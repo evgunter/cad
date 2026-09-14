@@ -359,6 +359,7 @@ pub(crate) enum CurveKind {
     Line,
     Circle,
     Ellipse,
+    Spiric,
     Nurbs,
 }
 
@@ -368,6 +369,7 @@ impl CurveKind {
             Self::Line => s::CurveKind::Line,
             Self::Circle => s::CurveKind::Circle,
             Self::Ellipse => s::CurveKind::Ellipse,
+            Self::Spiric => s::CurveKind::Spiric,
             Self::Nurbs => s::CurveKind::Nurbs,
         }
     }
@@ -942,6 +944,7 @@ mod growth_tripwire {
             s::CurveKind::Line => CurveKind::Line,
             s::CurveKind::Circle => CurveKind::Circle,
             s::CurveKind::Ellipse => CurveKind::Ellipse,
+            s::CurveKind::Spiric => CurveKind::Spiric,
             s::CurveKind::Nurbs => CurveKind::Nurbs,
         }
     }

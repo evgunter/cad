@@ -3523,6 +3523,7 @@ class CurveKind:
     Line: Final[CurveKind]
     Circle: Final[CurveKind]
     Ellipse: Final[CurveKind]
+    Spiric: Final[CurveKind]
     Nurbs: Final[CurveKind]
 
 class SurfaceKind:
