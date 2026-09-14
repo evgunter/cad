@@ -1439,3 +1439,16 @@ today, never mentioned by R1. Tally: candidates +4 (code class D265
 and this; doc class S330 and S93). Unit closed on the row PR from
 `topo/row-2710`; slot 0 concluded on `topo/b4-block`. Slot 2 is the
 block's last open slot. Targets retired; 17 GB free.
+
+## Step 1's closure fired WIRE's park; re-parked, step 3 filed (2026-09-14)
+
+Closing `geom-source-absence-conflates-four-origins` made WIRE's
+`axis-shaped-identity-channel` (parked on it as step 1 of the ratified
+axis-channel cut) fail lint — a fired trigger is not a blocker. The
+cut names steps 2 and 3 as the next movers, so the row is re-parked on
+EXCH's `step-import-discards-the-entity-ids-that-are-its-identity-channel`
+and on step 3, which had no row: filed on this slate as
+`axis-per-component-source-beside-geom-source` (the per-component
+source beside `GeomSource`, TOPO's ground per the cut). Not yet cut
+into a block; the program decides its slot when it takes it. Both
+changes ride the row-2710 PR.
