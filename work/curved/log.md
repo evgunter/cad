@@ -245,3 +245,13 @@ defect the door had hidden). Operations: the fix pass's push produced
 no `synchronize` run and the lane dispatched the workflow by hand (the
 render lanes skip on a dispatch); the state-sync push re-rolls a real
 run before the merge.
+
+## CURVED-MERGEDOOR close-out (2026-09-14)
+
+Block CURVED-B1 concluded at #2105's merge: slot 2 recorded on
+`curved/b1-block` (1c10adfa7) and the block record folded to main in
+#2578 (6781958cb), which also deleted `docs/CURVED-MERGEDOOR-SPEC.md`
+per the ledger. Lane and target reclaimed. CURVED-B2's draw stays
+branch-side. Running: torus-arm fix pass (#2535), TRIM-3 PR-2 dual
+(#2554). Held for the weekly reset: spiric PR-1a (#2566) and TRIM-2
+PR-1 (#2564) duals.
