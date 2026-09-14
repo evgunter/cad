@@ -1418,3 +1418,24 @@ is doc-class) and the unit's closure are on a docs PR from
 `topo/row-2709`; slot 1 concluded on `topo/b4-block`. The
 implementer's target retired (20 GB free). Live: the typed-absence
 fix pass and slot 2.
+
+## Typed-absence merged (PR 2576); row 2710 recorded, sample #195; slot 0 concluded (2026-09-14)
+
+The fix pass took all seven items on head `5fdba8217`, run
+34852906131 green: one `GeomOrigin` map per kind with the `Recipe`
+arm projected (write sites 30 → 23, maps 6 → 3, mirror pairs 16 → 0,
+the `debug_assert!` and the stored/borrowed enum pair gone);
+`KernelDirect` written at the three mint doors so the map is total
+over live keys — R1's graft mutant now reds 21 rows and R2's revert
+mutant 69, where each reddened one or none; `mark_imported` leaves
+`Cleared` and `Recipe` alone, documented; the revert and re-stamp rows
+rebuilt on a mixed fixture; `carve` removes the row in all three
+orphan loops; the stale-key row minted-then-removed in one body; the
+`verbs` README's stale table name re-worded. Merged at `1adddd884`.
+Row (ordinal 2710, sample #195) recorded with one code-class tally
+candidate: R2's unilateral executed MAJOR that `mark_imported`
+overwrote the `Cleared` defect arm — a public door's contract, latent
+today, never mentioned by R1. Tally: candidates +4 (code class D265
+and this; doc class S330 and S93). Unit closed on the row PR from
+`topo/row-2710`; slot 0 concluded on `topo/b4-block`. Slot 2 is the
+block's last open slot. Targets retired; 17 GB free.
