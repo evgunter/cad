@@ -86,6 +86,21 @@ it. Run the constants grep beside the prose sweep.
 Do not accept "swept clean" unless the sweep says what it was blind to; run your
 own, shaped differently, over the same area.
 
+**PROPOSED, NOT RATIFIED (see the note in Q3) — two ways a census lies
+about its own coverage.**
+
+- **Assert the rule, not a proxy for it.** A guard whose *message* states
+  one rule while its *assertion* checks another is one refactor from
+  useless, and the refactor may be in the same diff: a census asserting
+  "this is not a string literal" under a message claiming "the phrase
+  comes from the vocabulary" was walked past by hoisting a const to the
+  call site — the exact move that commit had made three times.
+- **A census that finds its sites by the spelling it is normalising can
+  only ever find the ones that already comply.** Corollary, and the
+  cheaper half: **triage the sweep to the end.** Twice, the eighth and
+  ninth instances were already in the output of the `rg` the unit had
+  run.
+
 If you find one, ask **which direction the dependency runs** and whether the
 shared thing has a home. A core hosted inside one of its two consumers is the
 shape that drifts.
@@ -120,6 +135,23 @@ Specifically:
   on prose about a *user* authoring something by hand, which is not this shape.
 
 ### Q3. Can this test fail?
+
+> **PROPOSED, NOT RATIFIED — awaiting Ev.** The two paragraphs marked
+> *proposed* in this section and in Q1 are a question on
+> `work/wire/reviewer-discipline-owes-the-census-failure-rules.md`, not
+> discipline. Do not treat them as binding until that row closes; do read
+> them, because they name failures that have already shipped twice.
+
+**PROPOSED — a set equality is not automatically safe.** `assert_eq!(a, b)`
+passes when both sides are empty. If both sides derive from one scan, a
+scan that died reads as a pass — and, the expensive shape, **one member
+can silently leave both sides at once** (a census populated its "built"
+set by iterating its "declared" set, so re-spelling one field's type path
+dropped the carrier from both and the equality passed at the lower
+count). Ask of every equality: are the two sides derived **independently**,
+and does each carry a non-emptiness assertion on its **own** set whose
+message names that failure mode?
+
 
 Not "does it pass" — **can it go red**. Two shapes recur:
 
