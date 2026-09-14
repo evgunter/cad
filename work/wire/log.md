@@ -4208,3 +4208,38 @@ into a standalone rig against `test-utils`** and ran its mutations in
 seconds each. That is the right response to a starved mutex, and it is
 worth knowing the technique exists: a source census has no dependency on
 the crate it reads.
+
+## 2026-09-14 — usage wind-down at 90% of the 5h window, and an instrument that is not there
+
+`usage-watch.sh` warned that **this session's own account** is at 90% of
+its 5h limit, resetting ~22 minutes out. The alert names my account
+(resolved at session start from the agent dir), so it is mine to act on
+rather than informational.
+
+**The prescribed instrument does not exist here.**
+`memories/orchestration-model.md` says not to infer from the event but to
+read `<agent-dir>/events/claude/usage/events.jsonl`, whose last line
+carries `rate_limits.five_hour` and `.seven_day` **together** — because a
+reset on one window while the other is still full is how that rule was
+learned. **There is no such file under this agent's directory**, and no
+usage jsonl written in the last two hours. So the two-window check the
+memory exists to make possible could not be made, and I am acting on the
+alert's single number knowingly rather than believing I checked.
+
+Worth a row on `work/meta/` when the box is not rate-limited: the memory
+prescribes an instrument by path, and the path is empty for at least this
+agent layout. A rule that cannot be followed is worse than one that is
+merely unwritten, because it reads as having been followed.
+
+**What I did, and the reasoning.** The one live lane — `entity-door`'s
+final fix pass — **has pushed** (`13253a396`, *"carry `Found` through the
+document facade"*), so its work is durable and a death is recoverable by
+resume. Against that, killing it mid-pass discards the in-context
+reasoning about the key-path decision, which is the substantive question
+of the round. With the reset inside half an hour I let it run and stopped
+spending on my own side instead: **no new dispatches, no further polling
+loops, state committed now.**
+
+The lever that would actually have cut consumption is stopping the
+subagent, and I am choosing not to pull it — stated plainly so the choice
+is visible rather than implied by silence.
