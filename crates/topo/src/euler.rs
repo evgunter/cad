@@ -771,6 +771,21 @@ pub enum EulerOpError {
         /// The in-band/poisoned margin diagnostics.
         diag: geom_core::Indeterminate,
     },
+    /// [`Body::split_edge`] could not carry a parent half-edge's stored
+    /// **pcurve row** across the split: the parent's chart image,
+    /// restricted to a child's sub-interval, failed the certification
+    /// the whole image passed. Raised before any mutation, so the body
+    /// is untouched — a covered chart lane that refuses here is a
+    /// defect, never a licence to leave the face half-minted
+    /// (`crate::pcurves::split_cache`).
+    PcurveSplit {
+        /// The edge being split.
+        edge: EdgeKey,
+        /// The parent half-edge whose row was being restricted.
+        half_edge: HalfEdgeKey,
+        /// The typed certification failure, nested whole.
+        error: geom_brep::PcurveCertifyError,
+    },
     /// [`Body::kfmrh`]'s two faces lie in different **solids**. The
     /// cross-shell form (M3 PR 1) fuses two shells of one solid; fusing
     /// across solids is the boolean pipeline's combine step (M3 PRs
@@ -952,6 +967,15 @@ impl fmt::Display for EulerOpError {
                 "split_edge: interiority test on edge {edge:?} escalated \
                  ({diag})"
             ),
+            Self::PcurveSplit {
+                edge,
+                half_edge,
+                error,
+            } => write!(
+                f,
+                "split_edge: on edge {edge:?}, half-edge {half_edge:?}'s stored pcurve \
+                 row does not re-certify over a child's sub-interval: {error}"
+            ),
             Self::CrossSolid { f1, f2 } => write!(
                 f,
                 "kfmrh: faces {f1:?} and {f2:?} lie in different solids \
@@ -1058,6 +1082,11 @@ pub(crate) fn every_euler_op_error_once()
                 predicate: Some("split_edge_param_interior"),
             },
         },
+        EulerOpError::PcurveSplit {
+            edge: ek,
+            half_edge: he,
+            error: geom_brep::PcurveCertifyError::UnsupportedCarrier,
+        },
         EulerOpError::CrossSolid { f1: fc, f2: fc },
         EulerOpError::NoShellsNamed,
         EulerOpError::ShellRepeated {
@@ -1143,6 +1172,7 @@ impl EulerOpError {
             | Self::NullScaffoldCurve { .. }
             | Self::SplitParamNotInterior { .. }
             | Self::SplitParamEscalated { .. }
+            | Self::PcurveSplit { .. }
             | Self::CrossSolid { .. }
             | Self::NoShellsNamed
             | Self::ShellRepeated { .. }
