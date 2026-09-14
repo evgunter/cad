@@ -1341,3 +1341,80 @@ passes in their reading phase, so R1 (FABLE) and R2 (OPUS) dispatched
 together on the frozen head `52c1868e8` with two fix-pass lanes live
 — the condition the claim entry's shared-box note records, applying
 to both arms equally.
+
+## Typed-absence dual concluded (ordinal 2710); fix pass dispatched (2026-09-14)
+
+Both reviews MERGEABLE-AFTER-FIXES on `52c1868e8`, converging. Every
+PR claim either side could execute held (H1 reproduced at the merge
+base by R1 and at the head by R2; the red-first row reds under the
+merge base's `clear()`; the receipt and sweep re-derived exact; the
+gate green on the SHA). The substance, found by both independently:
+(1) the storage shape is the trap the brief did not name — three
+`OriginMark` maps beside three `GeomSource` maps, exclusion held by
+twelve to sixteen mirror sites and a `debug_assert!`, where one
+enum-valued map per kind (`Recipe(GeomSource) | Imported | Cleared`,
+the `Recipe` arm projected for every existing reader) makes the
+exclusion a type; the PR's H2 argued against a shape nobody proposed;
+(2) `KernelDirect` is "the state no door marked" — an absence read as
+a positive claim, the closed defect one level down: R1's mutant
+dropping every mark in `revert` and R2's deleting two of three graft
+carries left the whole topo suite green. Ruled: one map per kind, and
+`KernelDirect` written positively at the three mint doors so the map
+is total over live keys and a forgotten carry or mark is loud (D9 row
+4). Also: `mark_imported` overwrites the `Cleared` defect arm (R2,
+sure); the "both channels" revert row and the re-stamp row run on
+fully stamped bodies and pin nothing about the origin arms (both);
+point/curve graft carries and the removals unpinned; a recipe stamp
+over `Imported` lossy and undocumented; `carve`'s point/curve orphan
+loops reach no side table (pre-existing); the stale-key row leans on
+foreignness; the `source.rs` header says four origins are separated
+where three are; `body.rs`'s header lists half its fields. R2 noted
+the workspace's release profile keeps debug assertions on, so the
+`debug_assert!` fires in both profiles today — moot once the type
+holds the exclusion. Fix pass dispatched as a fresh lane on the
+inherited branch, same arm as the implementer; reports archived at
+`/home/user/topo-orch/geom-r{1,2}-report.md`. Row recorded at merge.
+
+## D107 merged (PR 2575); slot 2 dispatched (2026-09-14)
+
+The D107 fix pass worked all eleven items on head `0abfd3d91`, run
+34845056772 green. `FIXTURES` is now floored per body with the exact
+call count pinned beside it (a derived floor list cannot see an entry
+deleted from the enumeration it derives from — the exact count can);
+six seeds put every link operator's minimum far above one, so the
+aggregate with slack became `require_each` and the "deliberate slack"
+comment went; every hard-coded count in the file is now held or gone;
+both `kemr` splices witnessed by the neighbours read before the call;
+the one-splice strut arm driven by a new `ops_strut_cube` and counted
+apart; the `NotSameLoop` converse over all three closed fixtures; the
+unreachable guard gone behind one `mate_halves`. Merged; both items
+closed; no A/B row (non-dual). Slot 2
+(`edge-carrier-kind-has-no-readback-door`, OPUS,
+`topo/edge-carrier-kind-readback-door`) dispatched on the freed lane
+with the D107 lane's target retired and the typed-absence R2 target
+re-seeded as its own. Live: the revert-wrap fix pass, the
+typed-absence fix pass, slot 2.
+
+## Revert-wrap merged (PR 2573); row 2709 recorded, sample #194; slot 1 concluded (2026-09-14)
+
+The fix pass took all nine items on head `0b5000154`, run 34844909382
+green: the golden account rewritten to what moved (four verdict
+signs, flux-compensated) with a sorted-multiset row beside the census
+golden; the anchor invariant stated at `LoopBoundary::Cycle` and in
+the reversal tripwire; the uniform rule adopted — every loop's
+`first` moves — and the two STEP fixtures it moved (`die`,
+`kiss_assembly`) regenerated with entity and line counts and
+id-stripped line multisets identical; `RevertError::Corrupt` now
+carries a closed `RevertLink` and refuses a dead `prev` typed; the
+receipt widened to `first` as an order with a `chart_boundary`
+result-kind row across the reversal; two fixtures shared, the `1e-9`
+literal replaced by an exact whole-period test; DESIGN's D1 revert
+clause re-worded by code (its `git log -S` names only an editing
+pass). Two rows filed: TINT's ordered-FNV verdict channel is
+anchor-sensitive; PROPS' `props_rim_side`/`props_rim_dir_group` signs
+are facts about cycle order. Merged at `cbf5d1a49`; the row (ordinal
+2709, sample #194, no tally candidate — the converged golden finding
+is doc-class) and the unit's closure are on a docs PR from
+`topo/row-2709`; slot 1 concluded on `topo/b4-block`. The
+implementer's target retired (20 GB free). Live: the typed-absence
+fix pass and slot 2.
