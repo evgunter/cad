@@ -1418,3 +1418,57 @@ is doc-class) and the unit's closure are on a docs PR from
 `topo/row-2709`; slot 1 concluded on `topo/b4-block`. The
 implementer's target retired (20 GB free). Live: the typed-absence
 fix pass and slot 2.
+
+## Typed-absence merged (PR 2576); row 2710 recorded, sample #195; slot 0 concluded (2026-09-14)
+
+The fix pass took all seven items on head `5fdba8217`, run
+34852906131 green: one `GeomOrigin` map per kind with the `Recipe`
+arm projected (write sites 30 → 23, maps 6 → 3, mirror pairs 16 → 0,
+the `debug_assert!` and the stored/borrowed enum pair gone);
+`KernelDirect` written at the three mint doors so the map is total
+over live keys — R1's graft mutant now reds 21 rows and R2's revert
+mutant 69, where each reddened one or none; `mark_imported` leaves
+`Cleared` and `Recipe` alone, documented; the revert and re-stamp rows
+rebuilt on a mixed fixture; `carve` removes the row in all three
+orphan loops; the stale-key row minted-then-removed in one body; the
+`verbs` README's stale table name re-worded. Merged at `1adddd884`.
+Row (ordinal 2710, sample #195) recorded with one code-class tally
+candidate: R2's unilateral executed MAJOR that `mark_imported`
+overwrote the `Cleared` defect arm — a public door's contract, latent
+today, never mentioned by R1. Tally: candidates +4 (code class D265
+and this; doc class S330 and S93). Unit closed on the row PR from
+`topo/row-2710`; slot 0 concluded on `topo/b4-block`. Slot 2 is the
+block's last open slot. Targets retired; 17 GB free.
+
+## Step 1's closure fired WIRE's park; re-parked, step 3 filed (2026-09-14)
+
+Closing `geom-source-absence-conflates-four-origins` made WIRE's
+`axis-shaped-identity-channel` (parked on it as step 1 of the ratified
+axis-channel cut) fail lint — a fired trigger is not a blocker. The
+cut names steps 2 and 3 as the next movers, so the row is re-parked on
+EXCH's `step-import-discards-the-entity-ids-that-are-its-identity-channel`
+and on step 3, which had no row: filed on this slate as
+`axis-per-component-source-beside-geom-source` (the per-component
+source beside `GeomSource`, TOPO's ground per the cut). Not yet cut
+into a block; the program decides its slot when it takes it. Both
+changes ride the row-2710 PR.
+
+## Slot 2 delivered (PR 2587); dual dispatched, ordinal 2711 (2026-09-14)
+
+The slot 2 lane delivered `edge-carrier-kind-has-no-readback-door` on
+head `36d4b9e76`, run 34853345271 green. Phase 1: one walk
+(`readback::certified_carrier`) shared by `edge_pose` and the new
+`readback::edge_carrier_kind`; `CurveKind` stays in `query.rs` on the
+ground that `crates/verbs/README.md` §1 S1 is ratified text (the
+reviewers are asked to run CLAUDE.md's `git log -S` check on that
+claim); the chain stops before Python, with the twin filed on LIB's
+slate and a `B-EDGE-KIND` gap family added to the binding census.
+Two rows filed (LIB: the Python twin; TOPO: the program's `keep_out`
+names SEAT, which left the tracker). Ordinal **2711** claimed on main
+(PR opened from `topo/claim-2711`); parity byte 127 ⇒ R1 FABLE, R2
+OPUS; briefs stored with sha256 (template c8a19edc…, R1 1b741b52…, R2
+da904e08…; diff 4 lines); both reviewers dispatched concurrently on
+the frozen head. The correctness lane leans on the fresh-instance
+check (any other edge → carrier walk left outside the one door), the
+ratification claim, the census gap family's honesty, and the
+delegation witness the query seat's own rows cannot give.
