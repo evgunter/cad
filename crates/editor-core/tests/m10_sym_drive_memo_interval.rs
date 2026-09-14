@@ -80,9 +80,14 @@ fn config(max_leaves: usize) -> DriveConfig {
 fn ceiling(label: &str, doc: &ProfileDoc, max_leaves: usize) {
     let tol = Tol::witness();
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
-    // Sequentially: the profile is thread-local, so the sequential
-    // schedule is the only one it can see whole.
-    let cfg = config(max_leaves);
+    // Sequentially, with the memo OFF: the ceiling is what the tier
+    // recomputes without one, so the run that measures it must be the
+    // run that does the recomputing. The profile is thread-local, so
+    // the sequential schedule is also the only one it sees whole.
+    let cfg = DriveConfig {
+        plain_memo: false,
+        ..config(max_leaves)
+    };
     start_profile();
     let t0 = Instant::now();
     let v = drive(doc, &analyzed, &cfg, tol).unwrap();
@@ -110,13 +115,16 @@ fn plain_memo_ceiling_slab_drive() {
     ceiling("slab", &slab(), CHAMBER_LEAVES);
 }
 
-/// **The ceiling on the plate** — the two-hole plate at the driver's
-/// default leaf budget.
+/// **The ceiling on the plate** — the two-hole plate at
+/// [`PLATE_WALL_LEAVES`], not at the driver's default: a plate replay
+/// is seven times a slab replay, and with the memo off a drive of this
+/// document at `DEFAULT_MAX_LEAVES` ran past twenty minutes without
+/// finishing on the measuring box.
 #[test]
 #[ignore = "evidence-only: the plain memo's hit-rate ceiling over the plate drive"]
 fn plain_memo_ceiling_plate_drive() {
     let tol = Tol::witness();
-    ceiling("plate", &the_plate(tol), DriveConfig::default().max_leaves);
+    ceiling("plate", &the_plate(tol), PLATE_WALL_LEAVES);
 }
 
 /// Every leaf's set of `Opaque` ids over one drive of `doc`, in leaf
@@ -382,3 +390,95 @@ fn the_memo_holds_nothing_of_the_previous_drive() {
         "a second drive of one document builds its memo again from nothing"
     );
 }
+
+/// **The growth guard**: the memo is a second scope for the tier's
+/// state, so what it comes to over a drive is a number the tree keeps
+/// rather than a number a lane measured once.
+///
+/// CEILINGS, not equalities, unlike `SLAB_MAX_TERMS`: the population is
+/// the drive's distinct nodes, which moves with the ε row the matrix
+/// draws and with any change to how many boxes the drive visits, while
+/// what the guard is for — a memo that starts holding a multiple of the
+/// DAG — is an order of magnitude away from either. The measured
+/// numbers are printed beside them, so a run says how much headroom is
+/// left rather than only that there is some.
+#[test]
+fn the_drive_memo_stays_the_size_of_the_dag() {
+    // The whole slab DAG is ~12 k nodes and the plate's ~17 k; a memo
+    // keyed by the node id can hold one form per node it was asked for
+    // and no more, so a reading near twice the DAG is the shape of the
+    // thing and a reading near ten times it is a leak of leaf state.
+    for (label, doc, max_forms, max_atoms, max_bytes) in [
+        ("slab", slab(), 30_000, 256, 16 << 20),
+        ("plate", the_plate(Tol::witness()), 30_000, 2_048, 24 << 20),
+    ] {
+        let tol = Tol::witness();
+        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        let v = drive(&doc, &analyzed, &config(PIN_LEAVES), tol).unwrap();
+        let m = v.plain_memo();
+        println!(
+            "{label} memo at {PIN_LEAVES} leaves: {m:?} (ceilings {max_forms} forms, \
+             {max_atoms} atoms, {max_bytes} bytes)"
+        );
+        assert!(
+            m.forms > 0 && m.forms <= max_forms,
+            "{label}: the memo holds {} plain forms, guarded at {max_forms}",
+            m.forms
+        );
+        assert!(
+            m.atoms <= max_atoms,
+            "{label}: the memo holds {} atoms, guarded at {max_atoms}",
+            m.atoms
+        );
+        assert!(
+            m.bytes <= max_bytes,
+            "{label}: the memo holds {} bytes, guarded at {max_bytes}",
+            m.bytes
+        );
+    }
+}
+
+/// **The number** — the slab and the plate driven with the memo on and
+/// off, sequentially and in parallel, with the memo's size beside each.
+///
+/// Evidence-only and `#[ignore]`d, in `m10_sym_profile_interval`'s
+/// mould: a wall time is a reading of one box on one day and not a
+/// contract the tier makes, so it is re-taken by re-running the row and
+/// nothing reds when it moves.
+#[test]
+#[ignore = "evidence-only: the drive's wall time with the plain memo on and off"]
+fn plain_memo_wall_times() {
+    let tol = Tol::witness();
+    for (label, doc, max_leaves) in [
+        ("slab", slab(), CHAMBER_LEAVES),
+        ("plate", the_plate(tol), PLATE_WALL_LEAVES),
+    ] {
+        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        for plain_memo in [false, true] {
+            for parallel in [false, true] {
+                let cfg = DriveConfig {
+                    max_leaves,
+                    parallel,
+                    plain_memo,
+                    ..DriveConfig::default()
+                };
+                let t0 = Instant::now();
+                let v = drive(&doc, &analyzed, &cfg, tol).unwrap();
+                println!(
+                    "{label} {max_leaves} leaves memo={plain_memo} parallel={parallel}: \
+                     wall {:?} | receipt {:?} | decisions {:?} | memo {:?}",
+                    t0.elapsed(),
+                    v.receipt(),
+                    v.decisions(),
+                    v.plain_memo(),
+                );
+            }
+        }
+    }
+}
+
+/// The plate's leaf budget for the wall-time row — the plate replay is
+/// seven times the slab's, so the row is read at a budget that costs
+/// minutes rather than the driver's default, which on this document is
+/// a number no lane has ever driven to.
+const PLATE_WALL_LEAVES: usize = 256;
