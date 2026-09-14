@@ -1668,3 +1668,13 @@ is told that PR 2527 ruled the minting posture's long-term shape and
 that this unit leaves the minted halves' posture alone. Live: the
 set-face-surface R1 (finishing) and slot 1. Slot 2 waits for the next
 freed target.
+
+## [ev] PR 2527 merged: four rulings on main (2026-09-14)
+
+Merged at `d439bdfe6` after Ev's word on all four: 1 (A) — the chart
+invariant kept by the mover; 2 closed on the D9 reading; 3 (c) as two
+doors (`kev` refusing typed, `kev_describing` for the callers that
+re-describe); 4 the mint-at-site target with the closed-form split
+tried first. The three ruled kernel answers are units on this slate,
+listed in the plan for the next cut; `attach-postconditions-…` is
+closed. The PR subscription is released.
