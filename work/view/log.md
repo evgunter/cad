@@ -12060,3 +12060,78 @@ quoted phrase. Recorded in `plan.md`: **a rustdoc or module-doc
 sentence that wraps is broken by its own comment markers, not only by
 the newline**, so the standard newline-collapse still produces a false
 negative.
+
+## 2026-09-15 — #2665 merged; the boundary became a mark no notice can contain, and the type holds it
+
+**#2665 merged** (`bf79ece0ea`), verified from the job list: code tier,
+**39 check runs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok`
+success**, all four render-lane rows success, six skipped, nothing
+failed or neutral.
+
+**`NOTICE_SEPARATOR` is now `" • "`** between notices, with the old
+`"; "` surviving as `LIST_SEPARATOR` for the level in (a `Withdrawal`'s
+causes, `startup_notices`). No inner rendering changed and no notice's
+words changed. **This is a visible chrome change** made without an Ev
+ruling, on the provenance rule: the lane ran
+`git log -S'joined into rank'` on the README sentence it edited and
+found one commit, `d01b009171`, a VIEW unit's own maintenance — not a
+ratification — and `GUI-DESIGN.md` mentions neither *status* nor
+*notice* at all. Flagged to Ev as visible rather than buried.
+
+**The type holds it, in two halves, and I checked both.** `Message`'s
+fields are private (`frame.rs:344-347`), so `Message::new` — the only
+public door — is on every notice text and rewrites any boundary mark to
+the within-a-notice one; and `Message::joined` (`:384`) is
+module-private and takes **`&[Message]`, not strings**, so the only way
+to a boundary mark is to have had two notices. `line.split(
+NOTICE_SEPARATOR)` is therefore exactly the notices that went in. That
+is the shape `plan.md` prefers over an assertion, and it is why the
+notice-producer sweep needs no blind-spot caveat: private fields make
+the type the census.
+
+**The second half was found by the tests, not by the lane** — its first
+shape had `frame_status` build the line through `Message::new`, so the
+door stripped the separators it had just inserted, and three rows went
+red including the suite's existing two-notice row. Reported against
+itself, which is the behaviour this program wants.
+
+**Three corrections to the item, one of them a shape I have not seen
+before:**
+
+1. **`render_causes` does not exist — and it was RIGHT when the item was
+   written.** I checked: `git log -S'render_causes'` returns exactly two
+   commits, `6877a40ff1` creating it (2026-09-04) and `4db112ada0`
+   deleting it (**2026-09-05, the day the item was opened**). So this is
+   not the usual stale-by-a-merge; the citation was true and died within
+   hours. `stale-file-citations-after-the-split` had left it *as
+   written* because a successor "is a guess" — it is nameable now, and
+   the lane reported that rather than editing another row.
+2. **The em-dash is not the same shape as the separator**, and the item
+   reads as if it were. No join anywhere writes one; it is in-sentence
+   punctuation and was never a boundary a reader could mistake for the
+   outer one.
+3. **The hazard was never confined to `NonRigidFrame`.**
+   `BlendEvent`, `SeatEvent` and `MateToolEvent` all carry a `"; "` in
+   ordinary prose and all reach the line through `ToolKind::says` →
+   `tool_news`.
+
+**The sweep's decisive pattern was not the obvious one.** `\.join\(`
+missed the site that mattered most — `Display for Withdrawal` joins with
+a `for` loop and `f.write_str` — and it was found only through the
+constant. The literal-`"; "` pass is what then found the real width. A
+verb is no more a pattern than a name is.
+
+**Not a refusing door, and the reason is reachability:** a door that
+refused a notice containing the mark is reachable from the keyboard,
+because `delta_not_a_number` echoes the δ field, so a pasted bullet
+would crash the app. Pinned as a row.
+
+**Filed**: `withdrawal-causes-join-on-a-mark-a-fault-may-contain` — the
+inner level has no hold. Not wrong today, and the lane verified WHY
+rather than trusting the existing comment: `prune` fills every
+`Withdrawn.cause` from `free_move_check`/`display_check`, whose
+`# Errors` name four faults and not `NonRigidFrame`. But `Withdrawn.
+cause` is the whole `DisplayFault`, so a sixth variant re-opens it with
+nothing going red.
+
+Item **closed**. **VIEW stands at 73 open / 99 closed.**

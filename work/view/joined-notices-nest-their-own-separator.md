@@ -2,11 +2,12 @@
 id: joined-notices-nest-their-own-separator
 kind: issue
 title: A frame's joined notices nest NOTICE_SEPARATOR and the em-dash inside themselves, so the line is ambiguous at two notices
-status: review
+status: closed
 opened: 2026-09-05
 refs: [the-news-vocabulary-has-no-expiry, status-line-writers-bypass-the-ranking, 1886]
 branch: view/joined-notices
 pr: 2665
+closed: 2026-09-15
 ---
 
 

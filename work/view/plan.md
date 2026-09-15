@@ -1156,6 +1156,20 @@ than the whole quoted phrase — or stripping the marker first. Caught by
 the orchestrator checking a lane's citation, which was verbatim and real;
 a weaker check would have called a true quote fabricated.
 
+**A citation can be true when written and dead within hours — which is
+not the stale-citation shape and should not be recorded as one.**
+`joined-notices-nest-their-own-separator` cited `render_causes`; that
+function was created by `6877a40ff1` on 2026-09-04 and deleted by
+`4db112ada0` on 2026-09-05, **the day the item was opened**.
+`stale-file-citations-after-the-split` had left the row as written on
+the ground that naming a successor "is a guess" — but when the deleting
+commit is findable, the successor is not a guess, it is in that commit's
+diff. So: when a cited symbol does not exist, run `git log -S` for it
+before classifying the citation. Three outcomes, and they want different
+handling — never existed (the item is wrong), moved (repoint by subject),
+or **existed and was deleted** (name the commit and what replaced it).
+The third reads exactly like the first from a grep of the current tree.
+
 ## Exit shape
 
 The README states the module map and every item above has landed or
