@@ -14,15 +14,14 @@
 
 use crate::fixture;
 
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::{
-    AssemblyError, CancelToken, ContentPin, DocEdit, DocRef, DocumentId, EvalOptions, EvalOutcome,
-    Evaluation, Frame, MateFault, Node, NodeResult, PartResolver, ProductError, ProfileDoc,
-    RecipeNodeId, ResolveFailure, ResolveFault, assemble, content_pin, evaluate, product,
-    product_named, product_recorded, solve_document,
+    AssemblyError, CancelToken, DocEdit, DocRef, DocumentId, EvalOptions, EvalOutcome, Evaluation,
+    Frame, MateFault, Node, NodeResult, ProductError, ProfileDoc, RecipeNodeId, assemble, evaluate,
+    product, product_named, product_recorded, solve_document,
 };
+use fixture::resolver::PartStore;
 use fixture::{insert, len, on_frame, square};
 use geom_core::Tol;
 
@@ -55,32 +54,6 @@ fn part_of(id: DocumentId, side: f64) -> ProfileDoc {
     doc
 }
 
-/// A resolver over an in-memory map, verifying the pin exactly as the
-/// document layer's does.
-#[derive(Debug, Default)]
-struct StubStore {
-    docs: BTreeMap<DocumentId, ProfileDoc>,
-}
-
-impl StubStore {
-    fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
-        let pin: ContentPin = content_pin(&doc, tol).expect("the pin computes");
-        let id = doc.id();
-        self.docs.insert(id, doc);
-        DocRef { id, pin }
-    }
-}
-
-impl PartResolver for StubStore {
-    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        let doc = self.docs.get(&doc_ref.id).ok_or_else(|| ResolveFailure {
-            fault: ResolveFault::Unresolved,
-            message: "no such document".to_string(),
-        })?;
-        Ok(doc.clone())
-    }
-}
-
 /// An assembly-shaped document under `id`: two instances of `part_ref`,
 /// the second translated.
 fn assembly_of(id: DocumentId, part_ref: DocRef) -> (ProfileDoc, Vec<RecipeNodeId>) {
@@ -97,7 +70,7 @@ fn assembly_of(id: DocumentId, part_ref: DocRef) -> (ProfileDoc, Vec<RecipeNodeI
     (doc, vec![a, b])
 }
 
-fn with_resolver(store: StubStore) -> EvalOptions {
+fn with_resolver(store: PartStore) -> EvalOptions {
     EvalOptions {
         resolver: Some(Arc::new(store)),
         ..EvalOptions::default()
@@ -390,7 +363,7 @@ fn err_text(err: &ProductError) -> String {
 /// ever runs on a mispaired argument.
 #[test]
 fn assemble_refuses_an_evaluation_of_another_document() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part_ref = store.insert(part("docm4-a3-asm-part", 1.0), Tol::witness());
     let opts = with_resolver(store);
     let (a, _) = assembly_of(DocumentId::derive("docm4-a3-asm-a"), part_ref);
@@ -412,7 +385,7 @@ fn assemble_refuses_an_evaluation_of_another_document() {
 /// document back refuses another one's, naming both.
 #[test]
 fn solved_poses_placement_refuses_another_document() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part_ref = store.insert(part("docm4-a3-poses-part", 1.0), Tol::witness());
     let (a, ids_a) = assembly_of(DocumentId::derive("docm4-a3-poses-a"), part_ref);
     let (b, _) = assembly_of(DocumentId::derive("docm4-a3-poses-b"), part_ref);
@@ -451,7 +424,7 @@ fn a_matched_pair_gathers_bit_identically() {
         "the die's product is a real body: {faces} faces, {edges} edges, {verts} vertices"
     );
 
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part_ref = store.insert(part("docm4-a3-match-part", 1.0), Tol::witness());
     let opts = with_resolver(store);
     let (asm, _) = assembly_of(DocumentId::derive("docm4-a3-match-asm"), part_ref);
@@ -476,7 +449,7 @@ fn a_matched_pair_gathers_bit_identically() {
 /// change touched.
 #[test]
 fn the_memo_still_serves_a_same_document_re_evaluation() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part_ref = store.insert(part("docm4-a4-part", 1.0), Tol::witness());
     let opts = with_resolver(store);
     let (asm, ids) = assembly_of(DocumentId::derive("docm4-a4-asm"), part_ref);

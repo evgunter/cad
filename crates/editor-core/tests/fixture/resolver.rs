@@ -24,7 +24,7 @@ use editor_core::{
 use geom_core::Tol;
 
 /// An in-memory part store.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct PartStore {
     docs: BTreeMap<DocumentId, ProfileDoc>,
 }
@@ -42,6 +42,24 @@ impl PartStore {
         let id = doc.id();
         self.docs.insert(id, doc);
         DocRef { id, pin }
+    }
+
+    /// The document stored under `id`, as the store holds it.
+    pub fn doc(&self, id: DocumentId) -> ProfileDoc {
+        self.docs
+            .get(&id)
+            .expect("the store holds that document")
+            .clone()
+    }
+
+    /// Writes `doc` over whatever `id` held, WITHOUT minting a new
+    /// [`DocRef`] — so every reference taken from the earlier insert
+    /// now names bytes whose pin has moved, and [`Self::resolve`]
+    /// refuses it. This is how a suite stages a stale reference; the
+    /// name says so, because the refusal is the point of the call and
+    /// a plain map write does not read that way.
+    pub fn replace_without_repinning(&mut self, id: DocumentId, doc: ProfileDoc) {
+        self.docs.insert(id, doc);
     }
 }
 

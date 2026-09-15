@@ -12,53 +12,20 @@
 
 use crate::fixture;
 
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::{
-    Alignment, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocRef, DocumentId,
-    EntityKind, EvalOptions, Evaluation, Expr, Frame, MateFrame, MatePrimitive, MateRole, Node,
-    PartResolver, PatternKind, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg,
-    SitedRef, StableName, clusters, content_pin, evaluate, solve_document,
+    Alignment, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind,
+    EvalOptions, Evaluation, Expr, Frame, MateFrame, MatePrimitive, MateRole, Node, PatternKind,
+    ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, clusters, evaluate, solve_document,
 };
+use fixture::resolver::{PartStore, in_part};
 use fixture::{insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
-// ---- Substrate (mirrors the unit suite's stub resolver) ----
+// ---- Substrate (the shared resolver, `fixture::resolver`) ----
 
-#[derive(Debug, Default)]
-struct StubStore {
-    docs: BTreeMap<DocumentId, ProfileDoc>,
-}
-
-impl StubStore {
-    fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
-        let pin = content_pin(&doc, tol).expect("the pin computes");
-        let id = doc.id();
-        self.docs.insert(id, doc);
-        DocRef { id, pin }
-    }
-}
-
-impl PartResolver for StubStore {
-    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        let fail = |fault, message: &str| ResolveFailure {
-            fault,
-            message: message.to_string(),
-        };
-        let doc = self
-            .docs
-            .get(&doc_ref.id)
-            .ok_or_else(|| fail(ResolveFault::Unresolved, "no such document"))?;
-        let found = content_pin(doc, Tol::witness()).expect("the pin computes");
-        if found != doc_ref.pin {
-            return Err(fail(ResolveFault::PinMismatch, "the pin does not hold"));
-        }
-        Ok(doc.clone())
-    }
-}
-
-fn opts(store: StubStore) -> EvalOptions {
+fn opts(store: PartStore) -> EvalOptions {
     EvalOptions {
         resolver: Some(Arc::new(store)),
         ..EvalOptions::default()
@@ -90,21 +57,6 @@ fn block_part(label: &str, x: (f64, f64), y: (f64, f64), z0: f64, dz: f64) -> Pr
 
 fn leg_part(label: &str) -> ProfileDoc {
     block_part(label, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0)
-}
-
-fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: RecipeNodeId(1),
-                path: vec![RoleSeg::Cap(cap)],
-            }
-            .into(),
-        }],
-    }
 }
 
 fn in_copy(pattern: RecipeNodeId, i: u32, master: StableName) -> StableName {
@@ -184,7 +136,7 @@ fn near(a: Frame, b: Frame, tol: f64) -> bool {
 #[test]
 fn r1_conjugation_through_a_non_identity_cluster_frame() {
     let spacing = 2.0;
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let leg_ref = store.insert(leg_part("r1-conj-leg"), Tol::witness());
     let top_ref = store.insert(leg_part("r1-conj-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("r1-conj"), Tol::witness());
@@ -324,7 +276,7 @@ fn apply(f: Frame, p: [f64; 3]) -> [f64; 3] {
 /// `F ∘ O_i` differ badly for this pair, as the row asserts.
 #[test]
 fn r1_oblique_circular_axis_with_a_non_identity_cluster_frame() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let leg_ref = store.insert(leg_part("r1-obl-leg"), Tol::witness());
     let top_ref = store.insert(leg_part("r1-obl-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("r1-obl"), Tol::witness());
@@ -428,7 +380,7 @@ fn r1_oblique_circular_axis_with_a_non_identity_cluster_frame() {
 /// there is no representation in which one copy could hold a pose.
 #[test]
 fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let leg_ref = store.insert(leg_part("r1-freedom-leg"), Tol::witness());
     let top_ref = store.insert(leg_part("r1-freedom-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("r1-freedom"), Tol::witness());
@@ -524,7 +476,7 @@ fn r1_pattern_free_solves_are_bit_identical() {
             },
         ),
     ] {
-        let mut store = StubStore::default();
+        let mut store = PartStore::default();
         let a_ref = store.insert(leg_part(&format!("r1-bits-{tag}-a")), Tol::witness());
         let b_ref = store.insert(leg_part(&format!("r1-bits-{tag}-b")), Tol::witness());
         let c_ref = store.insert(leg_part(&format!("r1-bits-{tag}-c")), Tol::witness());
@@ -613,7 +565,7 @@ fn r1_pattern_free_solves_are_bit_identical() {
 /// which branch the fixture actually takes, so the claim is checkable.
 #[test]
 fn r1_which_branch_does_the_consistent_loop_row_take() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let leg_ref = store.insert(leg_part("r1-loopbranch-leg"), Tol::witness());
     let top_ref = store.insert(
         block_part("r1-loopbranch-top", (0.0, 2.5), (0.0, 1.0), 0.0, 0.5),
@@ -692,7 +644,7 @@ fn r1_which_branch_does_the_consistent_loop_row_take() {
 #[test]
 fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() {
     // (a) a pattern OF A PATTERN of an instance.
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let leg_ref = store.insert(leg_part("r1-nested-leg"), Tol::witness());
     let top_ref = store.insert(leg_part("r1-nested-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("r1-nested"), Tol::witness());
@@ -751,7 +703,7 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() 
     let _ = store;
 
     // (b) a pattern of a TRANSFORM of an instance.
-    let mut store2 = StubStore::default();
+    let mut store2 = PartStore::default();
     let leg2 = store2.insert(leg_part("r1-xform-leg"), Tol::witness());
     let top2 = store2.insert(leg_part("r1-xform-top"), Tol::witness());
     let doc2 = ProfileDoc::empty(DocumentId::derive("r1-xform"), Tol::witness());
@@ -828,7 +780,7 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() 
 /// two now agree.
 #[test]
 fn r1_an_out_of_range_copy_refuses_on_a_declaring_mate_too() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let leg_ref = store.insert(leg_part("r1-escape-leg"), Tol::witness());
     let top_ref = store.insert(leg_part("r1-escape-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("r1-escape"), Tol::witness());
@@ -914,7 +866,7 @@ fn r1_an_out_of_range_copy_refuses_on_a_declaring_mate_too() {
 /// On this branch it prints no fault at all.
 #[test]
 fn r1_reproduce_the_quoted_red_first_fault() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let leg_ref = store.insert(leg_part("mate1-red-first-leg"), Tol::witness());
     let top_ref = store.insert(leg_part("mate1-red-first-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-red-first"), Tol::witness());

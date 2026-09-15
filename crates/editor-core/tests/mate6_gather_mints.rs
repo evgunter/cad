@@ -18,52 +18,21 @@
 
 use crate::fixture;
 
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::{
     Alignment, AssemblyError, Attribution, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit,
     DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive,
-    MintRefusal, Node, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SitedRef,
-    StableName, assemble, content_pin, evaluate, product_recorded,
+    MintRefusal, Node, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, assemble, evaluate,
+    product_recorded,
 };
+use fixture::resolver::{PartStore, in_part};
 use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
 
-// ---- The stub store (ASM-2A/R2a's shape) ----
+// ---- Evaluation through the shared part store ----
 
-#[derive(Debug, Default, Clone)]
-struct StubStore {
-    docs: BTreeMap<DocumentId, ProfileDoc>,
-}
-
-impl StubStore {
-    fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
-        let pin = content_pin(&doc, tol).expect("the pin computes");
-        let id = doc.id();
-        self.docs.insert(id, doc);
-        DocRef { id, pin }
-    }
-}
-
-impl editor_core::PartResolver for StubStore {
-    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        let fail = |fault, message: &str| ResolveFailure {
-            fault,
-            message: message.to_string(),
-        };
-        let doc = self
-            .docs
-            .get(&doc_ref.id)
-            .ok_or_else(|| fail(ResolveFault::Unresolved, "no such document"))?;
-        if content_pin(doc, Tol::witness()).expect("the pin computes") != doc_ref.pin {
-            return Err(fail(ResolveFault::PinMismatch, "the pin does not hold"));
-        }
-        Ok(doc.clone())
-    }
-}
-
-fn opts(store: StubStore) -> EvalOptions {
+fn opts(store: PartStore) -> EvalOptions {
     EvalOptions {
         resolver: Some(Arc::new(store)),
         ..EvalOptions::default()
@@ -101,12 +70,6 @@ fn block(
     )
 }
 
-/// A one-block part document: `[0,1]³`. Its extrude is node 1.
-/// The extrude in a one-block part document. A block is three nodes
-/// — the sketch frame, the profile drawn on it, then the extrude — so
-/// a part-local name is minted by node 2.
-const PART_BODY: RecipeNodeId = RecipeNodeId(2);
-
 fn cube_part(label: &str) -> ProfileDoc {
     let (doc, _) = block(
         ProfileDoc::empty(DocumentId::derive(label), Tol::witness()),
@@ -116,24 +79,6 @@ fn cube_part(label: &str) -> ProfileDoc {
         1.0,
     );
     doc
-}
-
-/// A face of `instance`'s part product, named through the instance
-/// qualifier (A12's reading-edge head), where the part's own face is
-/// the cap of ITS node 1.
-fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: PART_BODY,
-                path: vec![RoleSeg::Cap(cap)],
-            }
-            .into(),
-        }],
-    }
 }
 
 /// The same reading, one level deeper: `instance`'s part is ITSELF an
@@ -291,7 +236,7 @@ fn findings(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> Vec<S
 /// it — the inner mate — was minted by a door the seam does not call.
 #[test]
 fn three_identical_stands_in_a_row_carry_their_inner_declarations() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("mate6-cube"), Tol::witness());
     let (inner, _, _) = stand("mate6-stand", part, 1.0);
     let inner_ref = store.insert(inner, Tol::witness());
@@ -331,7 +276,7 @@ fn three_identical_stands_in_a_row_carry_their_inner_declarations() {
 /// its level's gather produced.
 #[test]
 fn the_carry_survives_a_second_nesting_level() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("mate6-deep-cube"), Tol::witness());
     let (inner, _, _) = stand("mate6-deep-stand", part, 1.0);
     let inner_ref = store.insert(inner, Tol::witness());
@@ -380,7 +325,7 @@ fn the_carry_survives_a_second_nesting_level() {
 /// it — the verdict above is still the kernel's, taken here, once.
 #[test]
 fn a_carried_declaration_the_outer_geometry_refutes_is_refuted_loudly() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("mate6-gap-cube"), Tol::witness());
     let (inner, _, inner_mate) = stand("mate6-gap-stand", part, 1.5);
     let inner_id = inner.id();
@@ -441,7 +386,7 @@ fn a_carried_declaration_the_outer_geometry_refutes_is_refuted_loudly() {
 /// authored the declaration it refutes.
 #[test]
 fn an_outer_mate_the_geometry_refutes_is_refuted_naming_its_mate() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("mate6-outer-cube"), Tol::witness());
     let (inner, subs, _) = stand("mate6-outer-stand", part, 1.0);
     let inner_ref = store.insert(inner, Tol::witness());
@@ -496,7 +441,7 @@ fn an_outer_mate_the_geometry_refutes_is_refuted_naming_its_mate() {
 /// declaration appears exactly once however many doors read it.
 #[test]
 fn assemble_gates_the_gathers_own_record_set_and_mints_nothing() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("mate6-once-cube"), Tol::witness());
     let (doc, _, mate) = stand("mate6-once-stand", part, 1.0);
 
@@ -527,7 +472,7 @@ fn assemble_gates_the_gathers_own_record_set_and_mints_nothing() {
 /// its minted list is empty.
 #[test]
 fn a_document_with_no_mates_gathers_exactly_what_it_did_before() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("mate6-bare-cube"), Tol::witness());
     let (doc, _) = row_of("mate6-bare-row", part, 3, 4.0);
 
@@ -553,7 +498,7 @@ fn a_document_with_no_mates_gathers_exactly_what_it_did_before() {
 /// build.)
 #[test]
 fn mint_makes_distinct_face_patches_and_no_curve_records() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("mate6-shape-cube"), Tol::witness());
     let (doc, ids) = row_of("mate6-shape-row", part, 3, 4.0);
     let (doc, _) = step(
@@ -604,7 +549,7 @@ fn mint_makes_distinct_face_patches_and_no_curve_records() {
 /// the gate, naming the class.
 #[test]
 fn a_class_with_no_at_rest_record_refuses_at_the_gate_not_at_the_gather() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("mate6-tangent-cube"), Tol::witness());
     let (doc, ids, _) = stand("mate6-tangent-stand", part, 1.0);
     let mut node = rest_mate(
@@ -662,7 +607,7 @@ fn a_class_with_no_at_rest_record_refuses_at_the_gate_not_at_the_gather() {
 /// contact the consuming document then cannot account for.
 #[test]
 fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("mate6-tot-ref-cube"), Tol::witness());
     let (doc, ids) = row_of("mate6-tot-ref-row", part, 3, 4.0);
     let (doc, bad) = step(
@@ -717,7 +662,7 @@ fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
 /// over, and the mate authored after it still mints.
 #[test]
 fn an_unmintable_class_before_a_good_mate_does_not_swallow_it() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("mate6-tot-class-cube"), Tol::witness());
     let (doc, ids) = row_of("mate6-tot-class-row", part, 3, 4.0);
     // Non-touching (seat 1.5) so the Tangent declares without seating
@@ -779,7 +724,7 @@ fn an_unmintable_class_before_a_good_mate_does_not_swallow_it() {
 /// the second.
 #[test]
 fn every_unmintable_mate_gets_its_row_in_document_order() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("mate6-tot-order-cube"), Tol::witness());
     let (doc, ids) = row_of("mate6-tot-order-row", part, 3, 4.0);
     let (doc, first_bad) = step(

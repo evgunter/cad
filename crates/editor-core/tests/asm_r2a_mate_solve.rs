@@ -13,16 +13,15 @@
 
 use crate::fixture;
 
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::{
-    Alignment, AxisSense, CancelToken, ClusterMaintenance, ContactClass, DocEdit, DocRef,
-    DocumentId, EditError, EntityKind, EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive,
-    MateRole, Node, NodeErrorKind, NodeResult, PartResolver, ProfileDoc, RecipeNodeId,
-    ResolveFailure, ResolveFault, RoleSeg, SitedRef, StableName, apply, clusters, content_pin,
-    evaluate, load, product, relative_freedom_components, save, solve_document,
+    Alignment, AxisSense, CancelToken, ClusterMaintenance, ContactClass, DocEdit, DocumentId,
+    EditError, EntityKind, EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive, MateRole,
+    Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName,
+    apply, clusters, evaluate, load, product, relative_freedom_components, save, solve_document,
 };
+use fixture::resolver::{PART_BODY, PartStore};
 use fixture::{insert, len, on_frame, square, step};
 use geom_core::Tol;
 
@@ -34,38 +33,6 @@ fn mint(doc: ProfileDoc, edit: DocEdit<editor_core::ProfileProgram>) -> (Profile
 }
 
 // ---- Substrate ----
-
-#[derive(Debug, Default)]
-struct StubStore {
-    docs: BTreeMap<DocumentId, ProfileDoc>,
-}
-
-impl StubStore {
-    fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
-        let pin = content_pin(&doc, tol).expect("the pin computes");
-        let id = doc.id();
-        self.docs.insert(id, doc);
-        DocRef { id, pin }
-    }
-}
-
-impl PartResolver for StubStore {
-    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        let fail = |fault, message: &str| ResolveFailure {
-            fault,
-            message: message.to_string(),
-        };
-        let doc = self
-            .docs
-            .get(&doc_ref.id)
-            .ok_or_else(|| fail(ResolveFault::Unresolved, "no such document"))?;
-        let found = content_pin(doc, Tol::witness()).expect("the pin computes");
-        if found != doc_ref.pin {
-            return Err(fail(ResolveFault::PinMismatch, "the pin does not hold"));
-        }
-        Ok(doc.clone())
-    }
-}
 
 /// A one-solid part: a unit square extruded 1 tall.
 fn part(label: &str) -> ProfileDoc {
@@ -89,8 +56,8 @@ fn part(label: &str) -> ProfileDoc {
 
 /// An assembly of `n` instances of one part, plus the store that
 /// resolves them.
-fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, StubStore) {
-    let mut store = StubStore::default();
+fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, PartStore) {
+    let mut store = PartStore::default();
     let doc_ref = store.insert(part(&format!("{label}-part")), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
@@ -101,14 +68,6 @@ fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, StubStore)
     }
     (doc, ids, store)
 }
-
-/// An instance-qualified name: a face of `instance`'s part product.
-/// The HEAD is the instantiate node, which is exactly what A12's
-/// reading edge is recomputed from.
-/// The extrude in a one-block part document. A block is three nodes
-/// — the sketch frame, the profile drawn on it, then the extrude — so
-/// a part-local name is minted by node 2.
-const PART_BODY: RecipeNodeId = RecipeNodeId(2);
 
 fn in_part(instance: RecipeNodeId, part_node: RecipeNodeId) -> StableName {
     StableName {
@@ -172,7 +131,7 @@ fn z_up() -> MateFrame {
     frame([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
 }
 
-fn opts(store: StubStore) -> EvalOptions {
+fn opts(store: PartStore) -> EvalOptions {
     EvalOptions {
         resolver: Some(Arc::new(store)),
         ..EvalOptions::default()
@@ -202,7 +161,7 @@ fn mate_fault(ev: &Evaluation<f64>, node: RecipeNodeId) -> editor_core::MateFaul
 /// perpendicular gives prismatic — so the clocking rider is what
 /// closes it, which is exactly the combination A11 rule 1 lists as its
 /// own DETERMINED example.
-fn determined_pair() -> (ProfileDoc, Vec<RecipeNodeId>, StubStore, RecipeNodeId) {
+fn determined_pair() -> (ProfileDoc, Vec<RecipeNodeId>, PartStore, RecipeNodeId) {
     let (doc, ids, store) = assembly("asm-r2a-row1", 2);
     // Coaxial about the shared +z, clocked at zero: prismatic along z.
     let (doc, _) = step(

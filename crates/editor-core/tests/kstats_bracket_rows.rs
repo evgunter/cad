@@ -26,38 +26,14 @@ use std::sync::Arc;
 
 use editor_core::{
     CancelToken, Dimension, DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions,
-    EvalScalar, Evaluation, Expr, Frame, LoopProgram, Node, NodeResult, ParamName, PartResolver,
-    ProfileDoc, ProfileLift, ProfileProgram, RecipeNodeId, ResolveFailure, ResolveFault,
-    content_pin, evaluate,
+    EvalScalar, Evaluation, Expr, Frame, LoopProgram, Node, NodeResult, ParamName, ProfileDoc,
+    ProfileLift, ProfileProgram, RecipeNodeId, evaluate,
 };
+use fixture::resolver::PartStore;
 use fixture::{frame, insert, len, on_frame, square, step};
 use geom_core::Band;
 use geom_core::Tol;
 use geom_core::k_stats::{Bracket, Verdict};
-
-#[derive(Debug, Default)]
-struct Store {
-    docs: BTreeMap<DocumentId, ProfileDoc>,
-}
-
-impl Store {
-    fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
-        let pin = content_pin(&doc, tol).expect("the pin computes");
-        let id = doc.id();
-        self.docs.insert(id, doc);
-        DocRef { id, pin }
-    }
-}
-
-impl PartResolver for Store {
-    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        let doc = self.docs.get(&doc_ref.id).ok_or_else(|| ResolveFailure {
-            fault: ResolveFault::Unresolved,
-            message: "no such document".to_string(),
-        })?;
-        Ok(doc.clone())
-    }
-}
 
 /// A one-solid part: a `side`-wide square extruded 1 tall.
 fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
@@ -168,7 +144,7 @@ fn logs(ev: &Evaluation<f64>, ids: &[RecipeNodeId]) -> Vec<usize> {
 }
 
 fn two_instances(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptions) {
-    let mut store = Store::default();
+    let mut store = PartStore::default();
     let doc_ref = store.insert(part(&format!("{label}-part"), 0.0, 1.0), Tol::witness());
     let (doc, ids) = assembly(&format!("{label}-asm"), &[doc_ref, doc_ref]);
     let doc = placed(doc, &ids);
@@ -206,7 +182,7 @@ fn the_instantiate_log_is_schedule_independent() {
 /// the middle assembly's two solids.
 #[test]
 fn a_part_inside_a_part_keeps_the_outer_log_its_own_under_both_schedules() {
-    let mut store = Store::default();
+    let mut store = PartStore::default();
     let leaf = store.insert(part("kstats-nest-leaf", 0.0, 1.0), Tol::witness());
     let (mid, mid_ids) = assembly("kstats-nest-mid", &[leaf, leaf]);
     let mid = placed(mid, &mid_ids);

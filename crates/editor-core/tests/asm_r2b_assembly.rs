@@ -28,53 +28,21 @@
 
 use crate::fixture;
 
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::{
-    Alignment, AssemblyError, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocRef,
-    DocumentId, EntityKey, EntityKind, EntityRef, Entry, EvalOptions, Evaluation,
-    InterfaceCrossing, MateFrame, MatePrimitive, Node, NodeErrorKind, ProfileDoc, RecipeNodeId,
-    ResolveFailure, ResolveFault, RoleSeg, SitedRef, StableName, assemble, content_pin, evaluate,
-    inline, product_recorded, split,
+    Alignment, AssemblyError, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocumentId,
+    EntityKey, EntityKind, EntityRef, Entry, EvalOptions, Evaluation, InterfaceCrossing, MateFrame,
+    MatePrimitive, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName,
+    assemble, content_pin, evaluate, inline, product_recorded, split,
 };
+use fixture::resolver::{PART_BODY, PartStore, in_part};
 use fixture::{insert, len, on_frame, relations, step};
 use geom_core::Tol;
 
-// ---- The stub store (the ASM-2A/R2a shape, verbatim in spirit) ----
+// ---- Evaluation through the shared part store ----
 
-#[derive(Debug, Default, Clone)]
-struct StubStore {
-    docs: BTreeMap<DocumentId, ProfileDoc>,
-}
-
-impl StubStore {
-    fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
-        let pin = content_pin(&doc, tol).expect("the pin computes");
-        let id = doc.id();
-        self.docs.insert(id, doc);
-        DocRef { id, pin }
-    }
-}
-
-impl editor_core::PartResolver for StubStore {
-    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        let fail = |fault, message: &str| ResolveFailure {
-            fault,
-            message: message.to_string(),
-        };
-        let doc = self
-            .docs
-            .get(&doc_ref.id)
-            .ok_or_else(|| fail(ResolveFault::Unresolved, "no such document"))?;
-        if content_pin(doc, Tol::witness()).expect("the pin computes") != doc_ref.pin {
-            return Err(fail(ResolveFault::PinMismatch, "the pin does not hold"));
-        }
-        Ok(doc.clone())
-    }
-}
-
-fn opts(store: StubStore) -> EvalOptions {
+fn opts(store: PartStore) -> EvalOptions {
     EvalOptions {
         resolver: Some(Arc::new(store)),
         ..EvalOptions::default()
@@ -112,11 +80,6 @@ fn block(
     )
 }
 
-/// The extrude in a one-`block` part document. A block is three
-/// nodes now — the sketch frame, the profile drawn on it, then the
-/// extrude — so the body a part-local name is minted by is node 2.
-const PART_BODY: RecipeNodeId = RecipeNodeId(2);
-
 /// A one-block part document: `[0,1]³`. Its extrude is [`PART_BODY`].
 fn cube_part(label: &str) -> ProfileDoc {
     let (doc, _) = block(
@@ -147,23 +110,6 @@ fn kiss_part(label: &str) -> ProfileDoc {
         },
     );
     doc
-}
-
-/// A face of `instance`'s part product, named through the instance
-/// qualifier (A12's reading-edge head).
-fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: PART_BODY,
-                path: vec![RoleSeg::Cap(cap)],
-            }
-            .into(),
-        }],
-    }
 }
 
 fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
@@ -225,8 +171,8 @@ fn rest_mate_at(
 
 /// Two instances of the unit cube, plus the seating mate at `seat`.
 /// Returns (document, instance ids, mate id, store).
-fn stacked(label: &str, seat: f64) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId, StubStore) {
-    let mut store = StubStore::default();
+fn stacked(label: &str, seat: f64) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId, PartStore) {
+    let mut store = PartStore::default();
     let doc_ref = store.insert(cube_part(&format!("{label}-part")), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
@@ -321,7 +267,7 @@ fn unwrap_in_part(name: &StableName) -> StableName {
 /// same part entities (unwrapping the instance qualifier).
 #[test]
 fn row1_a_parts_declared_contacts_survive_instantiation() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = kiss_part("asm-r2b-row1-part");
     let doc_ref = store.insert(part.clone(), Tol::witness());
 
@@ -442,7 +388,7 @@ fn row2_a_solved_rest_mate_mints_its_declaration() {
 /// third solved nothing, and it still says what touches what.
 #[test]
 fn row2_b_a_declaring_mate_mints_identically() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let doc_ref = store.insert(cube_part("asm-r2b-row2b-part"), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive("asm-r2b-row2b"), Tol::witness());
     let mut ids = Vec::new();
@@ -787,7 +733,7 @@ fn row5_a_a_proper_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
 #[test]
 fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
     let part_id = DocumentId::derive("asm-r2b-row5b-part");
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let doc_ref = store.insert(
         {
             let (d, _) = block(
@@ -839,7 +785,7 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
     );
     let (shifted, _) = block(shifted, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let new_pin = content_pin(&shifted, Tol::witness()).expect("the pin computes");
-    store.docs.insert(part_id, shifted);
+    store.replace_without_repinning(part_id, shifted);
     let moved = editor_core::apply(
         &doc,
         &DocEdit::UpdateReference {
@@ -867,7 +813,7 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
 #[test]
 fn row5_c_inline_dissolves_the_crossing_record() {
     let part_id = DocumentId::derive("asm-r2b-row5c-part");
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let doc_ref = store.insert(
         {
             let (d, _) = block(
@@ -929,7 +875,7 @@ fn row5_c_inline_dissolves_the_crossing_record() {
 /// about the seam.
 #[test]
 fn row5_d_a_dangling_head_mate_contributes_no_crossing() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let doc_ref = store.insert(cube_part("asm-r2b-row5d-part"), Tol::witness());
     let (doc, instance) = insert(
         ProfileDoc::empty(DocumentId::derive("asm-r2b-row5d"), Tol::witness()),
@@ -992,7 +938,7 @@ fn row5_d_a_dangling_head_mate_contributes_no_crossing() {
 #[test]
 fn row5_e_a_pin_move_that_changes_the_contact_geometry_is_caught_at_rest() {
     let part_id = DocumentId::derive("asm-r2b-row5e-part");
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let doc_ref = store.insert(
         {
             let (d, _) = block(
@@ -1041,7 +987,7 @@ fn row5_e_a_pin_move_that_changes_the_contact_geometry_is_caught_at_rest() {
         0.5,
     );
     let new_pin = content_pin(&shorter, Tol::witness()).expect("the pin computes");
-    store.docs.insert(part_id, shorter);
+    store.replace_without_repinning(part_id, shorter);
     let moved = editor_core::apply(
         &doc,
         &DocEdit::UpdateReference {
@@ -1088,7 +1034,7 @@ fn row5_e_a_pin_move_that_changes_the_contact_geometry_is_caught_at_rest() {
 #[test]
 fn row6_a_crossing_record_edit_moves_the_content_key() {
     let part_id = DocumentId::derive("asm-r2b-row6-part");
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let doc_ref = store.insert(
         {
             let (d, _) = block(
@@ -1253,7 +1199,7 @@ fn a_tangent_mate_solves_and_then_refuses_at_the_mint_door() {
 /// FACE — a second, unrelated finding this row is not about.
 #[test]
 fn a_mixed_verdict_is_the_at_rest_arm_not_the_frontier() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let doc_ref = store.insert(cube_part("asm-r2b-mixed-part"), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive("asm-r2b-mixed"), Tol::witness());
     let mut ids = Vec::new();
@@ -1318,7 +1264,7 @@ fn a_mixed_verdict_is_the_at_rest_arm_not_the_frontier() {
 /// unrefuted frontier.
 #[test]
 fn a_coplanar_pair_with_disjoint_trims_is_refuted_as_stale() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let doc_ref = store.insert(cube_part("asm-r2b-stale-part"), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive("asm-r2b-stale"), Tol::witness());
     let mut ids = Vec::new();
@@ -1437,7 +1383,7 @@ fn every_admitted_class_has_a_wire_spelling() {
             editor_core::ClassAdmission::NotAdmitted,
             "the roster is the admitted set: {class:?}"
         );
-        let mut store = StubStore::default();
+        let mut store = PartStore::default();
         let doc_ref = store.insert(cube_part("asm-r2b-wire-part"), Tol::witness());
         let mut doc = ProfileDoc::empty(DocumentId::derive("asm-r2b-wire"), Tol::witness());
         let mut ids = Vec::new();
@@ -1537,8 +1483,8 @@ fn slab_part(label: &str, x: (f64, f64), y: (f64, f64), dz: f64) -> ProfileDoc {
 /// (the bench-stand dimensions in `demos/tour/src/assembly.rs`). The
 /// numbers agree by construction and are deliberately not shared —
 /// each layer's fixture reads as the thing that layer is about.
-fn flush_seat(label: &str) -> (ProfileDoc, RecipeNodeId, StubStore) {
-    let mut store = StubStore::default();
+fn flush_seat(label: &str) -> (ProfileDoc, RecipeNodeId, PartStore) {
+    let mut store = PartStore::default();
     let post = store.insert(
         slab_part(&format!("{label}-post"), (0.0, 0.12), (0.09, 0.21), 0.5),
         Tol::witness(),
@@ -1854,7 +1800,7 @@ fn twinned_part(label: &str) -> ProfileDoc {
 /// declared set is empty, which the row asserts rather than assumes.
 #[test]
 fn two_solids_of_one_subject_are_skipped_by_the_guard_not_by_geometry() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let doc_ref = store.insert(twinned_part("asm-r2b-twinned-part"), Tol::witness());
     let (doc, instance) = insert(
         ProfileDoc::empty(DocumentId::derive("asm-r2b-twinned"), Tol::witness()),

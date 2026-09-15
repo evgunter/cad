@@ -22,50 +22,18 @@
 
 use crate::fixture;
 
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CancelToken, CapEnd, ChecksConfig, ContactClass, DocEdit,
     DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive, Node,
-    ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SitedRef, StableName,
-    assemble, content_pin, evaluate, run_checks,
+    ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, assemble, evaluate, run_checks,
 };
+use fixture::resolver::{PartStore, in_part};
 use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
 
-#[derive(Debug, Default, Clone)]
-struct StubStore {
-    docs: BTreeMap<DocumentId, ProfileDoc>,
-}
-
-impl StubStore {
-    fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
-        let pin = content_pin(&doc, tol).expect("the pin computes");
-        let id = doc.id();
-        self.docs.insert(id, doc);
-        DocRef { id, pin }
-    }
-}
-
-impl editor_core::PartResolver for StubStore {
-    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        let fail = |fault, message: &str| ResolveFailure {
-            fault,
-            message: message.to_string(),
-        };
-        let doc = self
-            .docs
-            .get(&doc_ref.id)
-            .ok_or_else(|| fail(ResolveFault::Unresolved, "no such document"))?;
-        if content_pin(doc, Tol::witness()).expect("the pin computes") != doc_ref.pin {
-            return Err(fail(ResolveFault::PinMismatch, "the pin does not hold"));
-        }
-        Ok(doc.clone())
-    }
-}
-
-fn opts(store: StubStore) -> EvalOptions {
+fn opts(store: PartStore) -> EvalOptions {
     EvalOptions {
         resolver: Some(Arc::new(store)),
         ..EvalOptions::default()
@@ -108,26 +76,6 @@ fn cube_part(label: &str) -> ProfileDoc {
         1.0,
     );
     doc
-}
-
-/// The extrude in a one-block part document. A block is three nodes
-/// — the sketch frame, the profile drawn on it, then the extrude — so
-/// a part-local name is minted by node 2.
-const PART_BODY: RecipeNodeId = RecipeNodeId(2);
-
-fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: PART_BODY,
-                path: vec![RoleSeg::Cap(cap)],
-            }
-            .into(),
-        }],
-    }
 }
 
 /// A reference whose inner name answers to nothing of the part —
@@ -248,7 +196,7 @@ fn headline(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> Strin
 /// first bad mate in document order — on both trees.
 #[test]
 fn p1_first_bad_mate_wins_badref_before_tangent() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("m6r2-p1-cube"), Tol::witness());
     let (doc, ids, _) = stand("m6r2-p1-stand", part, 1.5);
     let (doc, _) = step(
@@ -283,7 +231,7 @@ fn p1_first_bad_mate_wins_badref_before_tangent() {
 /// refusal must be the Tangent's `NoAtRestRecord` on both trees.
 #[test]
 fn p2_first_bad_mate_wins_tangent_before_badref() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("m6r2-p2-cube"), Tol::witness());
     let (doc, ids, _) = stand("m6r2-p2-stand", part, 1.5);
     let (doc, _) = step(
@@ -317,7 +265,7 @@ fn p2_first_bad_mate_wins_tangent_before_badref() {
 /// P3: the checks resident over the seam document (×3 stands).
 #[test]
 fn p3_checks_over_the_seam_document() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("m6r2-p3-cube"), Tol::witness());
     let (inner, _, _) = stand("m6r2-p3-stand", part, 1.0);
     let inner_ref = store.insert(inner, Tol::witness());
@@ -335,7 +283,7 @@ fn p3_checks_over_the_seam_document() {
 /// P4: the checks resident over the single correctly-mated stand.
 #[test]
 fn p4_checks_over_a_correctly_mated_document() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("m6r2-p4-cube"), Tol::witness());
     let (doc, _, _) = stand("m6r2-p4-stand", part, 1.0);
     let ev = run(&doc, &opts(store));
@@ -354,7 +302,7 @@ fn p4_checks_over_a_correctly_mated_document() {
 /// the separation finding; total mint does suppress it.
 #[test]
 fn p5_checks_with_a_bad_mate_before_a_good_one() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("m6r2-p5-cube"), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive("m6r2-p5"), Tol::witness());
     let mut ids = Vec::new();
@@ -411,7 +359,7 @@ fn p5_checks_with_a_bad_mate_before_a_good_one() {
 /// 0.5): whatever arm fires, the outer document must not pass.
 #[test]
 fn p6_carried_penetration_is_loud() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("m6r2-p6-cube"), Tol::witness());
     let (inner, _, _) = stand("m6r2-p6-stand", part, 0.5);
     let inner_ref = store.insert(inner, Tol::witness());
@@ -427,7 +375,7 @@ fn p6_carried_penetration_is_loud() {
 /// on the MATE-6 head it must be green.
 #[test]
 fn p7_seam_gate_by_arm() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("m6r2-p7-cube"), Tol::witness());
     let (inner, _, _) = stand("m6r2-p7-stand", part, 1.0);
     let inner_ref = store.insert(inner, Tol::witness());
@@ -461,7 +409,7 @@ fn p7_seam_gate_by_arm() {
 /// documents' mint health the gate reads.
 #[test]
 fn p8_inner_mint_refusals_reach_the_outer_gate() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("m6r2-p8-cube"), Tol::witness());
     let mut inner = ProfileDoc::empty(DocumentId::derive("m6r2-p8-stand"), Tol::witness());
     let mut ids = Vec::new();

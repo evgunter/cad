@@ -17,57 +17,21 @@
 
 use crate::fixture;
 
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::{
-    Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, DocEdit, DocRef,
-    DocumentId, EditError, EntityKind, EvalOptions, Evaluation, Expr, MateFault, MateFrame,
-    MatePrimitive, MateRole, MateSide, Node, PartResolver, PatternKind, ProfileDoc, RecipeNodeId,
-    ResolveFailure, ResolveFault, RoleSeg, SitedRef, StableName, content_pin, load, product, save,
-    solve_document,
+    Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId,
+    EditError, EntityKind, EvalOptions, Evaluation, Expr, MateFault, MateFrame, MatePrimitive,
+    MateRole, MateSide, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName,
+    load, product, save, solve_document,
 };
+use fixture::resolver::{PartStore, in_part};
 use fixture::seat::{assert_seated, map_gap, product_face_frame, seat_map};
 use fixture::{gate, in_copy, insert, len, on_frame, run, scl, step, xform};
 use geom_core::Tol;
 use geom_core::linalg::Affine3;
 
 // ---- substrate ----
-
-#[derive(Debug, Default)]
-struct StubStore {
-    docs: BTreeMap<DocumentId, ProfileDoc>,
-}
-
-impl StubStore {
-    fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
-        let pin = content_pin(&doc, tol).expect("the pin computes");
-        let id = doc.id();
-        self.docs.insert(id, doc);
-        DocRef { id, pin }
-    }
-}
-
-impl PartResolver for StubStore {
-    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        let fail = |fault, message: &str| ResolveFailure {
-            fault,
-            message: message.to_string(),
-        };
-        let doc = self
-            .docs
-            .get(&doc_ref.id)
-            .ok_or_else(|| fail(ResolveFault::Unresolved, "no such document"))?;
-        let found = content_pin(doc, Tol::witness()).expect("the pin computes");
-        if found != doc_ref.pin {
-            return Err(fail(ResolveFault::PinMismatch, "the pin does not hold"));
-        }
-        Ok(doc.clone())
-    }
-}
-
-/// The extrude in a one-block part document (frame, profile, extrude).
-const PART_BODY: RecipeNodeId = RecipeNodeId(2);
 
 /// A `wxwxh` block, as a whole part document.
 fn slab(label: &str, w: f64, h: f64) -> ProfileDoc {
@@ -107,22 +71,6 @@ fn block(label: &str, h: f64) -> ProfileDoc {
         },
     );
     doc
-}
-
-/// A face of `instance`'s part product — the plain member spelling.
-fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: PART_BODY,
-                path: vec![RoleSeg::Cap(cap)],
-            }
-            .into(),
-        }],
-    }
 }
 
 /// The `a` frame: a point ON the base's top cap, axis along that
@@ -213,7 +161,7 @@ type Step = ([f64; 3], [f64; 3], f64);
 /// Builds that scene. `on_base` / `on_top` are the transform chains,
 /// innermost first.
 fn scene(label: &str, on_base: &[Step], on_top: &[Step]) -> Scene {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let base_ref = store.insert(
         slab(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT),
         Tol::witness(),
@@ -435,7 +383,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
     // (a) PATTERN over TRANSFORM over the instance. The mate is read
     // at the pattern; the offset is M(1) ∘ T.
     {
-        let mut store = StubStore::default();
+        let mut store = PartStore::default();
         let base_ref = store.insert(
             slab("msolve1-a3a-base", BASE_WIDTH, BASE_HEIGHT),
             Tol::witness(),
@@ -500,7 +448,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
     // the base in the product. Copies 0 and 2 are spaced to clear the
     // slab, as in (a).
     {
-        let mut store = StubStore::default();
+        let mut store = PartStore::default();
         let base_ref = store.insert(
             slab("msolve1-a3b-base", BASE_WIDTH, BASE_HEIGHT),
             Tol::witness(),
@@ -714,7 +662,7 @@ fn a4_a_placed_gauge_cluster_seats_through_both_chains() {
 /// DIFFERENT map that asks for the same seat, because the block is
 /// square and the alignment fixes no roll the turn disturbs.
 fn two_operands(label: &str, second: Step) -> (ProfileDoc, EvalOptions, [RecipeNodeId; 2]) {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let base_ref = store.insert(
         slab(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT),
         Tol::witness(),
@@ -836,7 +784,7 @@ fn a5_two_operands_over_one_instance_are_two_members() {
 #[test]
 fn a6_a_residual_tree_edge_refuses_under_with_or_without_the_transform() {
     let residual = |label: &str, lift: bool| -> MateFault {
-        let mut store = StubStore::default();
+        let mut store = PartStore::default();
         let base_ref = store.insert(block(&format!("{label}-base"), 1.0), Tol::witness());
         let top_ref = store.insert(block(&format!("{label}-top"), 3.0), Tol::witness());
         let _ = &store;
@@ -997,7 +945,7 @@ fn a8b_deleting_the_operand_leaves_a_dangling_head() {
 fn a8c_the_content_key_separates_two_operands() {
     // Two documents with the SAME nodes; only the `b` operand moves.
     let key_of = |label: &str, at_transform: bool| -> editor_core::ContentKey {
-        let mut store = StubStore::default();
+        let mut store = PartStore::default();
         let base_ref = store.insert(block("msolve1-a8c-base", 1.0), Tol::witness());
         let top_ref = store.insert(block("msolve1-a8c-top", 3.0), Tol::witness());
         let opts = EvalOptions {
@@ -1080,7 +1028,7 @@ fn a8d_a_transform_operand_round_trips_through_persistence() {
 /// placer-free control, as every row here is.
 #[test]
 fn a10_a_nested_pattern_head_is_a_member() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let base_ref = store.insert(
         slab("msolve1-a10-base", BASE_WIDTH, BASE_HEIGHT),
         Tol::witness(),
@@ -1233,7 +1181,7 @@ fn a8e_a_cut_that_would_sever_the_operand_refuses_at_the_precondition() {
 /// reference still read at its own mint.
 #[test]
 fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let base_ref = store.insert(block("msolve1-a8f-base", 1.0), Tol::witness());
     let top_ref = store.insert(block("msolve1-a8f-top", 3.0), Tol::witness());
     let _ = &store;
@@ -1395,7 +1343,7 @@ fn severed_operand_scene(
     std::collections::BTreeSet<RecipeNodeId>,
     RecipeNodeId,
 ) {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let top_ref = store.insert(block(&format!("{label}-top"), TOP_HEIGHT), Tol::witness());
     let _ = &store;
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
@@ -1448,7 +1396,7 @@ fn severed_operand_scene(
 /// apart.
 #[test]
 fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let base_ref = store.insert(
         slab("msolve1-a11-base", BASE_WIDTH, BASE_HEIGHT),
         Tol::witness(),
@@ -1548,7 +1496,7 @@ enum PartCase {
 /// that part, naming copy `(j, i)`.
 fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCase) {
     let label = format!("msolve1-a12-{k}-{j}-{i}-{via_transform}");
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let base_ref = store.insert(
         slab(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT),
         Tol::witness(),
