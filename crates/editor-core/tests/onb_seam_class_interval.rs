@@ -87,9 +87,7 @@ fn declare(r: &mut Recorder, axis: &str, nominal: f64) {
 
 /// A quad, as the four corners of one face, at whichever scalar.
 fn quad<T: Real>(corners: [(f64, f64, f64); 4]) -> [Point3<T>; 4] {
-    corners.map(|(x, y, z)| {
-        Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
-    })
+    corners.map(|(x, y, z)| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z)))
 }
 
 /// **A 45° chamfer face decides, and its frame is still a direction.**
@@ -218,7 +216,11 @@ fn the_seam_hulls_over_a_minted_normal_and_decides_at_a_point() {
         d.lo(),
         d.hi()
     );
-    for (e, which) in [(u_ref.x, "u_ref.x"), (u_ref.y, "u_ref.y"), (u_ref.z, "u_ref.z")] {
+    for (e, which) in [
+        (u_ref.x, "u_ref.x"),
+        (u_ref.y, "u_ref.y"),
+        (u_ref.z, "u_ref.z"),
+    ] {
         assert!(
             e.lo().is_finite() && e.hi().is_finite(),
             "{which} on the seam is unbounded: [{}, {}] — a hull, not a non-real",
@@ -271,19 +273,12 @@ fn tilted_prism(deg: f64) -> (ProfileDoc, RecipeNodeId) {
     declare(&mut r, "place", 0.0);
     let (c, s) = deg.to_radians().sin_cos();
     let (s, c) = (c, s);
-    let plane = r.insert(fixture::frame(
-        [0.0; 3],
-        [1.0, 0.0, 0.0],
-        [0.0, c, s],
-    ));
+    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, c, s]));
     let p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![
-            LoopProgram::polygon(
-                [(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)]
-                    .into_iter(),
-            )
-            .expect("finite corners"),
+            LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)].into_iter())
+                .expect("finite corners"),
         ],
     }));
     let solid = r.insert(Node::Extrude {
@@ -292,7 +287,11 @@ fn tilted_prism(deg: f64) -> (ProfileDoc, RecipeNodeId) {
     });
     let placed = r.insert(Node::Transform {
         input: solid,
-        translation: [Expr::param(ParamName::new("place"), Dimension::Length), len(0.0), len(0.0)],
+        translation: [
+            Expr::param(ParamName::new("place"), Dimension::Length),
+            len(0.0),
+            len(0.0),
+        ],
         rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
         rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
     });
@@ -328,11 +327,11 @@ fn a_tilted_extrude_certifies_on_its_stored_charts() {
         );
         let r = report.receipt();
         assert_eq!(
-            r.refused, 0,
+            r.refused,
+            0,
             "the {deg}°-tilted extrude refused {} pairs: {}",
             r.refused,
             report.serialize()
         );
     }
 }
-

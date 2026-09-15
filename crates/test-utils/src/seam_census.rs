@@ -99,7 +99,11 @@ mod tests {
             (0.0, 0.0, 1.0),
             (0.6, 0.8, 0.0),
             // 45°, 30° and 60° chamfers, and a corner facet.
-            (0.0, core::f64::consts::FRAC_1_SQRT_2, core::f64::consts::FRAC_1_SQRT_2),
+            (
+                0.0,
+                core::f64::consts::FRAC_1_SQRT_2,
+                core::f64::consts::FRAC_1_SQRT_2,
+            ),
             (0.0, 0.5, 3f64.sqrt() / 2.0),
             (0.0, 3f64.sqrt() / 2.0, 0.5),
             (1.0 / 3f64.sqrt(), 1.0 / 3f64.sqrt(), 1.0 / 3f64.sqrt()),

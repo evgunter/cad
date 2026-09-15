@@ -72,7 +72,8 @@ fn no_corpus_face_sits_on_the_frame_seam() {
             }
         }
         assert_eq!(
-            c.on_seam, 0,
+            c.on_seam,
+            0,
             "{}: {} of its {} planar faces are on the frame seam",
             doc.name,
             c.on_seam,

@@ -1406,15 +1406,14 @@ mod tests {
                 (0.0f64, 1.0f64),
                 (1.0, 0.0),
                 (0.6, 0.8),
-                (core::f64::consts::FRAC_1_SQRT_2, core::f64::consts::FRAC_1_SQRT_2),
+                (
+                    core::f64::consts::FRAC_1_SQRT_2,
+                    core::f64::consts::FRAC_1_SQRT_2,
+                ),
             ] {
                 let r = (1.0 - z.hi() * z.hi()).max(0.0).sqrt();
                 for w in [0.0f64, 1e-9, 0.25] {
-                    let n = Vec3::new(
-                        ivb(x * r - w, x * r + w),
-                        ivb(y * r - w, y * r + w),
-                        z,
-                    );
+                    let n = Vec3::new(ivb(x * r - w, x * r + w), ivb(y * r - w, y * r + w), z);
                     let (b1, b2) = n.orthonormal_basis();
                     let what = format!("n.z = {name}, (x, y) = ({x}, {y}), width {w}");
                     for (e, which) in [
@@ -1488,7 +1487,11 @@ mod tests {
         );
         // The guard: a straddled seam, where the two un-divided
         // candidates' hull contains the zero vector.
-        let n = Vec3::new(iv(2.0 / 5.0f64.sqrt()), iv(0.0), ivb(seam - 1e-9, seam + 1e-9));
+        let n = Vec3::new(
+            iv(2.0 / 5.0f64.sqrt()),
+            iv(0.0),
+            ivb(seam - 1e-9, seam + 1e-9),
+        );
         let d = n.z.abs() - n.x.abs().max(n.y.abs()) * Interval::from_f64(0.5);
         let cz = Vec3::new(-n.y, n.x, Interval::zero());
         let cy = Vec3::new(n.z, Interval::zero(), -n.x);

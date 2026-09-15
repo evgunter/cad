@@ -29,8 +29,8 @@ use crate::common;
 
 use geom::Surface;
 use geom_core::{Tol, Vec3};
-use test_utils::seam_census::SeamClasses;
 use step_export::{StepOptions, step_string};
+use test_utils::seam_census::SeamClasses;
 
 /// **This corpus's half of the measurement that decided the
 /// comparison, asserted**: no fixture body has a planar face on the
@@ -49,7 +49,8 @@ fn no_fixture_face_sits_on_the_frame_seam() {
             }
         }
         assert_eq!(
-            c.on_seam, 0,
+            c.on_seam,
+            0,
             "{name}: {} of its {} planar faces are on the frame seam",
             c.on_seam,
             c.planes()

@@ -178,8 +178,7 @@ fn every_wall_of_the_twelve_gon_prism_stores_a_frame_as_exact_as_its_normal() {
             // three components could not have decided between.
             let straddles = |e: Interval| e.lo() <= 0.0 && 0.0 <= e.hi();
             let noisy = straddles(normal.x) && straddles(normal.z) && width(normal.x) > 0.0;
-            let d = normal.z.abs()
-                - normal.x.abs().max(normal.y.abs()) * Interval::from_f64(0.5);
+            let d = normal.z.abs() - normal.x.abs().max(normal.y.abs()) * Interval::from_f64(0.5);
             let decided = d.hi() <= 0.0 || d.lo() > 0.0;
             assert!(
                 decided,
