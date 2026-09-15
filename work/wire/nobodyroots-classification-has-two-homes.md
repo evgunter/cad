@@ -1,10 +1,12 @@
 ---
 id: nobodyroots-classification-has-two-homes
-kind: issue
-title: "The empty-document-is-not-a-fault rule is argued twice, in two crates, and ProductError carries no predicate for it"
-status: open
+kind: unit
+title: The empty-document-is-not-a-fault rule is argued twice, in two crates, and ProductError carries no predicate for it
+status: review
 opened: 2026-09-04
 refs: [1871]
+pr: 2629
+branch: wire/nobodyroots-predicate
 ---
 
 Found by VIEW-3's style review while moving one of the two copies
@@ -118,3 +120,33 @@ claim (`work/README.md`). Any `## Home` section above is superseded by
 this line and is kept as the record of why the file was where it was.
 
 (At DOCM's exit sweep, `refs` names the PRs `check-registry-gathers-product-twice` stood for: `check-registry-gathers-product-twice` = #1871 — the unit rows left the tracker with `work/docm/`; `docs/DOC-LEDGER.md` sweep 14.)
+
+## Corrected by the sweep on PR #2629 (2026-09-15)
+
+Written by the implementer lane on the branch that answers this row, so
+the file agrees with itself.
+
+**The count is FOUR, not two.** Any `## Read against the tree` section
+above concluding *"So the count stays two"* is superseded by this line.
+Its two inherited candidates were discharged correctly — neither
+`crates/pncad-py/src/py/assembly.rs` nor `crates/pncad/tests/all.rs` is
+an instance, re-checked on this branch — but that reading examined only
+where this row pointed. A sweep of the SHAPE found two more production
+consumers re-deriving the same partition:
+
+- `crates/viewer/src/session.rs` — `DocSession`'s landing, which runs the
+  registry over `Subject::NoBodyRoots` for this arm and argues it in its
+  own words. CHROME's and VIEW's.
+- `crates/pncad-py/src/product_memo.rs` — `checks_report`, the same
+  routing as `run_checks` written again for the memoized gather. LIB's.
+
+All four now cite the predicate.
+
+**The predicate is `ProductErrorKind::means_no_body`,** not the
+`is_empty_document` this file's body proposes. A kind is not a document
+and a document holding sketches and datums is not empty; naming the
+shared fact after one consumer's reading of it is this row's own defect
+one size smaller. The chrome still calls it the empty-document reading,
+which is the chrome's to call it.
+
+Signed: (WIRE implementer lane `wire-n1`)
