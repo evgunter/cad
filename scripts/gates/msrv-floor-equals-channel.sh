@@ -22,6 +22,15 @@
 # every build row there is — at every lane and every eps point — is a
 # build at the floor. No new build row, no nightly.
 #
+# AND THE FLOOR IS NOT INERT. `Cargo.toml` sets `resolver = "3"`, which
+# makes `rust-version` an INPUT TO DEPENDENCY VERSION SELECTION: cargo
+# prefers versions whose own `rust-version` the floor clears. So the
+# declaration is read by the build, not only by a reader — which is why
+# the floor tracking the channel is coherent rather than merely tidy.
+# `Cargo.lock` is committed, so that preference is consulted when the
+# lockfile is REGENERATED, a deliberate act, and not on an ordinary
+# build. Written here because the repository records it nowhere else.
+#
 # WHAT IT COSTS, written here so the deletion is deliberate when it
 # comes. THIS GATE FORBIDS A FLOOR FROM EVER LAGGING THE CHANNEL. The
 # day this repository wants to say *"we build with 1.99 and still

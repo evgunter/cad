@@ -724,3 +724,17 @@ path, this file**, and every entry on both sides is kept. The merged
 entries sit in date order ahead of this unit's, which are the newest
 work. Nothing else collided — the gate, its ci.yml step and the four
 filings touch no path those units reach.
+
+### The floor is not inert (2026-09-15)
+
+Added after Ev cleared the resolver question. `Cargo.toml` sets
+`resolver = "3"`, which makes `rust-version` an **input to dependency
+version selection** — cargo prefers versions whose own `rust-version`
+the floor clears. The item told Ev the floor is documentation nothing
+computes with; that premise was incomplete, and it is a reason the floor
+tracking the channel is coherent rather than merely tidy.
+
+`Cargo.lock` is committed, so the preference is consulted when the
+lockfile is **regenerated** — a deliberate act — and not on an ordinary
+build. Recorded in the gate's header and beside the declaration itself,
+because the repository recorded it nowhere.
