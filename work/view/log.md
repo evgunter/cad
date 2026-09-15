@@ -11884,3 +11884,75 @@ was reached for is the 403. Raised with Ev: **no lane can re-run a
 failed job here**, so the only paths left are an empty commit or a
 force-push, and both are barred. That needs an answer before the next
 infra flake, not after.
+
+## 2026-09-15 — #2661 merged; the identity index buffer goes, and the receipt was a CI job read by its STEPS
+
+**#2661 merged** (`3c43ef8ebe`), verified from the job list: code tier,
+**39 check runs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok`
+success**, all four render-lane rows success, six skipped, nothing
+failed or neutral. `gate ok` posted at 14:03, about 40 minutes after the
+run began — `k-lint (gate, release-default)` runs the demos-tour suite
+and two sweeps before its three gates, so a long tail there is
+structural, not a stall.
+
+**The unit's whole difficulty was that nothing local could test it.**
+There is no GPU adapter on this machine, so the `--lib` suite cannot
+exercise the draw call the change rewrites, and I said so in the
+dispatch rather than letting a lane discover it. The lane's answer is
+the right one and worth keeping as the pattern: **it read the
+`render lanes / viewer gui montage` job by its STEPS, not by its name**
+— release build with `--features app`, the software-Vulkan headless
+stack, `demos/render-gui.sh` for 28 s, artifact upload, then the pixel
+drift and re-baseline steps, each success. A green job over a skipped
+step is a failure shape this repo has been bitten by before, and a job
+name does not distinguish them.
+
+**Two corrections to my brief, both of which I verified in the code:**
+
+1. **I said `gpu.rs` swaps `draw_indexed` for `draw` — singular. There
+   are TWO scene passes**, the shaded pass in `paint` and the id pass in
+   `read_id_at`, each with its own `set_index_buffer` + `draw_indexed`.
+   The item reads singular too. Both changed.
+2. **I told the lane — and told CHROME — that this resolves
+   `gpu-index-counts-substitute-u32-max`. It does not.** That row names
+   two sites, and this change RELOCATES the first rather than resolving
+   it: `corner_count` (`gpu.rs:414`) still spells
+   `u32::try_from(…).unwrap_or(u32::MAX)`, now over
+   `scene.positions().len()`, and the edge overlay's `vertices`
+   (`:965`) was always the second. The typed refusal that row wants is
+   unwritten at both. Correction relayed to CHROME.
+
+**The replacement assertion is the point of the unit.** The old row
+asserted `indices().len() == positions().len()` — a check no bug can
+break. The new pair asserts the draw RANGE is
+`stats().triangles * 3` and equals the length of every per-corner table
+the passes bind (**`flags` was asserted nowhere in the suite before**),
+and that both passes draw that count with no index buffer. Both
+mutation-proved. Their limit is stated rather than glossed: one pins a
+value, the other pins the TEXT of two call sites, and **neither reaches
+a device** — the draw call is covered by the montage and by nothing
+local.
+
+**The lane declined to re-measure and was right to.** It cited the
+139 MB / 8–11 % figures as the diagnosing lane's, **at δ=1e-5**, rather
+than re-taking them against a release build and a corpus harness that
+was never in the tree with ~7 GB free. It did check the one part that is
+arithmetic rather than measurement: 34 817 928 corners × 4 B =
+139 271 712 B, so 139 MB is exact decimal. That is the
+number-with-its-setting rule applied correctly, including to a number it
+inherited.
+
+**It also disclosed four citations that were ALREADY STALE at its merge
+base** rather than repointing them — which is exactly the trap CHROME's
+repoint unit fell into, minting fresh wrong claims while fixing a
+uniform shift. Two in-fence shifts it re-derived by subject at both
+ends; one true out-of-fence shift and the four pre-existing ones it
+reported without editing.
+
+**And it stood down cleanly when asked.** After five addenda reporting
+identical CI state it had re-armed a repeating monitor; told to cancel,
+it did, and **declined to push a one-line correction to its own PR body
+because the push would have re-triggered CI on the head I was watching**.
+That is the right trade and the right instinct about what a push costs.
+
+Item **closed**. **VIEW stands at 74 open / 97 closed.**

@@ -1129,6 +1129,19 @@ call site. This is the borrowed-mechanism rule one step out of the
 crate: there, a doc deferred to a mechanism its own path did not have;
 here, a row reasoned about a field the toolkit had already spent.
 
+**Read a CI job by its STEPS when the job IS the receipt.** A green job
+over a skipped step is indistinguishable from a green job that did the
+work, and the job name says nothing about which. When a change's only
+evidence is a hosted job — as for a draw-call change on a machine with
+no GPU adapter — open the job and confirm the steps that constitute the
+receipt actually ran: for `render lanes / viewer gui montage` that is
+the release build with `--features app`, the software-Vulkan headless
+stack, `demos/render-gui.sh`, and the pixel-drift and re-baseline steps.
+Related: this PR had **no separate `render drift (…)` check run** —
+drift is a STEP inside the render-lane jobs — so a checklist asking for
+a drift ROW is asking for something that does not exist on every tier,
+and a lane that cannot find it will either invent a pass or stall.
+
 ## Exit shape
 
 The README states the module map and every item above has landed or
