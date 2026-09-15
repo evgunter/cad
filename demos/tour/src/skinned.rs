@@ -59,7 +59,7 @@
 
 use pncad::authoring::polygon;
 use pncad::geom_core::linalg::frame::path_start_frame;
-use pncad::geom_core::{Affine3, Point2, Point3, Vec3};
+use pncad::geom_core::{Affine3, Mat3, Point2, Point3, Vec3};
 use pncad::prelude::{Open, Start, Via};
 use pncad::sweep::skin::{Section, loft_geometry, sweep_geometry};
 use pncad::sweep::{SketchSegment, segment_curve};
@@ -192,11 +192,9 @@ pub fn narration(tol: Tol) {
     println!(
         "   the START placement is the kernel's, not this caller's: \
          geom_core::linalg::frame::path_start_frame(start point, start tangent, tol) \
-         returns the plane through the start whose local +Z is the tangent, with the \
-         roll off a reference LADDER — world +Z, then world +X — each rung taken only \
-         on a definite off-axis decision under the tolerance band, and a typed refusal \
-         when no rung decides. There is no second door for a different roll: roll is a \
-         composition, Affine3::rotation_about_axis(start, tangent, angle) * that frame \
+         returns the plane whose local +Z is that tangent, rolled off a reference \
+         ladder of world axes and REFUSING typed when no rung of it decides. A \
+         different roll is a rotation composed about the tangent, not a second door \
          (the twisted_tube scene below is that caller)"
     );
     println!(
@@ -347,7 +345,15 @@ fn tube_place(path: &pncad::geom::NurbsCurve3<f64>, i: usize, roll: f64, tol: To
     let tangent = path.deriv(t);
     let plane = path_start_frame(station, tangent, tol)
         .expect("the spine's tangent fixes a frame at every station");
-    Affine3::rotation_about_axis(station, tangent, roll * u) * plane
+    // The roll turns the AXES about the tangent and leaves the origin
+    // where the door put it: composing the affine rotation instead
+    // would rebuild the station point as `R·q + (I − R)·q` and move it
+    // off the spine by a few ulps, and at roll 0 it would not be the
+    // door's own map.
+    Affine3::from_parts(
+        Mat3::rotation_about(tangent, roll * u) * plane.linear,
+        plane.translation,
+    )
 }
 
 /// The widths of a body's two END CAPS — the largest distance between
@@ -607,6 +613,13 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         .collect();
     let path =
         pncad::geom::NurbsCurve3::interpolate(&s_points, 3).expect("the S path interpolates");
+    // The profile plane is normal to the path's start tangent, and the
+    // kernel hands that plane out: the interpolant's start tangent is
+    // near +z but not on it, so an identity placement would draw the
+    // square in a plane 1.3e-3 rad off the one the sweep carries.
+    let (s_t0, _) = path.domain();
+    let s_place = path_start_frame(path.eval(s_t0), path.deriv(s_t0), tol)
+        .expect("the S path's start tangent fixes a frame");
     let s_duct = pncad::sweep::sweep_body::<f64>(
         &quad(
             [
@@ -617,7 +630,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             ],
             tol,
         ),
-        Affine3::identity(),
+        s_place,
         &path,
         13,
         3,
@@ -1062,31 +1075,25 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 mod start_frame {
     use super::{TUBE_ROLL, TUBE_STATIONS, cubic_spine, tube_place};
     use pncad::geom_core::linalg::frame::path_start_frame;
-    use pncad::geom_core::{Affine3, Tol};
+    use pncad::geom_core::{Point3, Tol};
 
-    /// The twelve stored numbers of a placement, as bits.
-    fn bits(a: &Affine3<f64>) -> [u64; 12] {
-        let (m, t) = (a.linear, a.translation);
-        [
-            m.c0.x, m.c0.y, m.c0.z, m.c1.x, m.c1.y, m.c1.z, m.c2.x, m.c2.y, m.c2.z, t.x, t.y, t.z,
-        ]
-        .map(f64::to_bits)
-    }
-
-    /// **The scene's station planes ARE the kernel's frame, and the
-    /// authored roll is composed onto it** — the tour's answer to
-    /// "does a caller wanting a different roll need a second door".
+    /// **What every station of the `twisted_tube` loft is**, as the
+    /// things that are true of it rather than as the recipe that builds
+    /// it: the local +Z is the unit tangent there, the origin is the
+    /// spine point exactly, the unrolled local +X is the one the kernel
+    /// hands out (`path_start_frame`), and the authored roll turns that
+    /// +X about the tangent by exactly the authored angle.
     ///
-    /// Bits, not a tolerance: a scene that went back to a hand-written
-    /// recipe would not reproduce them even where it picked the same
-    /// helper axis, because the hand recipe spells the third column as
-    /// a cross product and the door stores the unit tangent.
+    /// This is the tour's answer to *"does a caller wanting a different
+    /// roll need a second door"* — no; roll is a composition, and the
+    /// composition is MEASURED here as a turn rather than restated as
+    /// the expression the scene evaluates.
     ///
-    /// ANTI-VACUITY: the roll must actually move the frame, or the two
-    /// claims below collapse into one. The last station's local +X is
-    /// asserted to have turned by the authored angle.
+    /// ANTI-VACUITY: the turn is asserted to BE the authored angle, and
+    /// that angle is nonzero at every station but the first, so a
+    /// placement that dropped the roll reads 0 and fails.
     #[test]
-    fn every_tube_station_is_the_door_with_the_roll_composed_on() {
+    fn every_tube_station_is_the_normal_plane_turned_by_the_authored_roll() {
         let tol = Tol::witness();
         let spine = cubic_spine();
         let (lo, hi) = spine.domain();
@@ -1095,41 +1102,86 @@ mod start_frame {
             let u = i as f64 / (TUBE_STATIONS - 1) as f64;
             let t = (hi - lo).mul_add(u, lo);
             let (p, d) = (spine.eval(t), spine.deriv(t));
+            let tangent = d.normalize();
             let door = path_start_frame(p, d, tol).expect("the spine's tangent fixes a frame");
 
             for roll in [0.0, TUBE_ROLL] {
+                let m = tube_place(&spine, i, roll, tol);
+
+                // The origin is the spine point, to the bit: a station
+                // whose profile plane is a few ulps off the spine is
+                // not the plane AT that station.
+                let o = Point3::origin() + m.translation;
                 assert_eq!(
-                    bits(&tube_place(&spine, i, roll, tol)),
-                    bits(&(Affine3::rotation_about_axis(p, d, roll * u) * door)),
-                    "station {i} at roll {roll} must be the kernel's start frame \
-                     with a rotation about the tangent composed onto it — no \
-                     second door"
+                    [o.x.to_bits(), o.y.to_bits(), o.z.to_bits()],
+                    [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()],
+                    "station {i} at roll {roll} must sit exactly on the spine"
+                );
+
+                // The local +Z is the unit tangent, so the profile is
+                // drawn in the plane normal to the path.
+                let off_z = (m.linear.c2 - tangent).norm();
+                assert!(
+                    off_z < 1e-15,
+                    "station {i} at roll {roll} must carry the unit tangent as its \
+                     local +Z, off by {off_z}"
+                );
+
+                // In-plane axes: unit, normal to the tangent, and
+                // right-handed with it.
+                let x = m.linear.c0;
+                assert!(
+                    (x.norm() - 1.0).abs() < 1e-15 && x.dot(tangent).abs() < 1e-15,
+                    "station {i} at roll {roll} must have a unit local +X in the \
+                     normal plane"
+                );
+                assert!(
+                    (m.linear.c1 - tangent.cross(x)).norm() < 1e-15,
+                    "station {i} at roll {roll} must be right-handed"
+                );
+
+                // The turn from the door's +X to this one, measured
+                // about the tangent, IS the roll the scene authored at
+                // this station — zero where it authored none.
+                let want = roll * u;
+                let turn = x.dot(door.linear.c1).atan2(x.dot(door.linear.c0));
+                assert!(
+                    (turn - want).abs() < 1e-14,
+                    "station {i} must be the kernel's frame turned about the tangent \
+                     by the authored {want}, measured {turn} — roll is a composition, \
+                     not a second door"
                 );
             }
-            let unrolled = tube_place(&spine, i, 0.0, tol).linear;
-            let off = [
-                (unrolled.c0 - door.linear.c0).norm(),
-                (unrolled.c1 - door.linear.c1).norm(),
-                (unrolled.c2 - door.linear.c2).norm(),
-            ]
-            .into_iter()
-            .fold(0.0f64, f64::max);
-            assert!(
-                off < 1e-15,
-                "station {i} without a roll must be the door itself: the identity \
-                 composition moved an axis by {off}"
-            );
-        }
 
-        let last = TUBE_STATIONS - 1;
-        let rolled = tube_place(&spine, last, TUBE_ROLL, tol).linear.c0;
-        let unrolled = tube_place(&spine, last, 0.0, tol).linear.c0;
-        let turned = rolled.dot(unrolled).clamp(-1.0, 1.0).acos();
-        assert!(
-            (turned - TUBE_ROLL).abs() < 1e-12,
-            "the authored roll must turn the last station's local +X by {TUBE_ROLL} \
-             rad, measured {turned} — a roll that did nothing would make both rows \
-             above the same claim"
-        );
+            // At roll 0 the station IS the door's map, entry for entry
+            // and exactly: the zero angle's rotation is the identity
+            // matrix, so the composition is an identity product. Not
+            // bitwise — an identity product carries a stored `-0.0`
+            // out as `+0.0`, which names the same axis — so the claim
+            // is exact equality of the numbers. A scene that went back
+            // to a hand recipe would fail it even where the recipe
+            // picked the same helper axis, because a hand recipe
+            // spells the third column as a cross product and the door
+            // stores the unit tangent.
+            let unrolled = tube_place(&spine, i, 0.0, tol).linear;
+            #[allow(clippy::float_cmp)] // exact by construction, not a tolerance
+            for (got, want) in [
+                (unrolled.c0, door.linear.c0),
+                (unrolled.c1, door.linear.c1),
+                (unrolled.c2, door.linear.c2),
+            ] {
+                assert!(
+                    got.x == want.x && got.y == want.y && got.z == want.z,
+                    "station {i} without a roll must be the door itself: got \
+                     ({}, {}, {}) for the door's ({}, {}, {})",
+                    got.x,
+                    got.y,
+                    got.z,
+                    want.x,
+                    want.y,
+                    want.z
+                );
+            }
+        }
     }
 }

@@ -279,14 +279,12 @@ fn an_inflecting_path_sweep_faces_out_through_the_reversal() {
     // row is about the shape. Summing the negative increments and the
     // positive ones apart asks the question directly and is invariant
     // to where the split index lands.
-    let (turned_one_way, turned_the_other) = spine.windows(2).fold((0.0, 0.0), |(neg, pos), w| {
-        let d = signed_angle_about(plane_normal, w[0], w[1]);
-        if d < 0.0 {
-            (neg + d, pos)
-        } else {
-            (neg, pos + d)
-        }
-    });
+    let turns: Vec<f64> = spine
+        .windows(2)
+        .map(|w| signed_angle_about(plane_normal, w[0], w[1]))
+        .collect();
+    let turned_one_way: f64 = turns.iter().filter(|d| **d < 0.0).sum();
+    let turned_the_other: f64 = turns.iter().filter(|d| **d > 0.0).sum();
     let bar = 0.9 * FRAC_PI_2;
     assert!(
         turned_one_way <= -bar && turned_the_other >= bar,
@@ -295,6 +293,24 @@ fn an_inflecting_path_sweep_faces_out_through_the_reversal() {
          other — a path that turned one way throughout reads ~0 on one of them, \
          is the elbow row retyped, and an end-to-end reading of this one cannot \
          tell it from a straight tube"
+    );
+
+    // ONE reversal, and the two sums cannot say it: a zigzag that
+    // turned back and forth would reach both bars too. The increment's
+    // sign changes exactly once along the spine, which is what "the
+    // path reverses its turn" means, and — like the sums — it does not
+    // care where any split index falls.
+    let flips = turns
+        .windows(2)
+        .filter(|p| (p[0] > 0.0) != (p[1] > 0.0))
+        .count();
+    assert_eq!(
+        flips,
+        1,
+        "the spine's turn must reverse exactly ONCE: its increment changed sign \
+         {flips} times over {} steps — a zigzag reaches both bars above without \
+         being an inflection, and a monotone turn reaches neither",
+        turns.len()
     );
 
     // The fixed-chord index cannot answer here and says so: its level

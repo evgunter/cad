@@ -1,7 +1,7 @@
 ---
 id: geom-curve-test-frames-hand-roll-the-helper-axis-cone
 kind: issue
-title: two geom curve-test frame helpers hand-roll the |z| < 0.9 helper-axis cone instead of calling the kernel's basis door
+title: test-side frame helpers hand-roll a world-axis cone instead of calling the kernel's basis door
 status: open
 opened: 2026-09-12
 ---
@@ -36,9 +36,39 @@ The third site of this shape is `crates/step-import/src/chart_review_fuzz.rs`
 and is EXCH's; it has its own row,
 `chart-review-fuzz-frame-hand-rolls-the-helper-axis-cone`.
 
-**Where**: `crates/geom/tests/curves/boxes.rs` (`unit_frame`),
-`crates/geom/tests/curves/n3r2_probes.rs` (`frame`).
+## The class is wider than the `0.9` literal (2026-09-15, S393's fix pass)
 
-**Confidence**: sure (both helpers read as quoted).
+The sweep that raised this row keyed on `0.9`. The shape does not need
+that constant: **an if/else between two world-axis constants feeding a
+`cross`** is the same hand-rolled basis whatever the threshold, and
+re-run that way the pattern finds more of this suite's neighbours. The
+test-side members, all TINT/TCOST ground, are:
+
+- `crates/geom/tests/curves/boxes.rs` (`unit_frame`) — `|z| < 0.9`;
+- `crates/geom/tests/curves/n3r2_probes.rs` (`frame`) — `|z| < 0.9`,
+  then a further in-plane rotation by `phi`;
+- `crates/topo/tests/review_mate9_r2_probes.rs` (`plane`) —
+  `|normal.x| < 0.5` picking `+X` or `+Y`, then a double cross to land
+  the reference in the plane;
+- `crates/geom-brep/tests/intersect_table.rs` (`circle_samples`) —
+  `|axis × x̂| > 0.5` picking `x̂` or `ŷ`, the same choice written as a
+  magnitude test on the cross product itself.
+
+`Vec3::orthonormal_basis` answers all four. One member of the class was
+**inside S393's fence and is folded**:
+`crates/sweep/tests/review_fillet_h6_r2_probes.rs`'s `cap_plane` now
+takes its `u_ref` from that door. The two `src` members the same
+pattern found are on their owners' slates —
+`crates/topo/src/boolean/join.rs` (BOOL,
+`join-probe-charts-hand-roll-the-across-axis-reference`) and
+`crates/viewer/src/datums.rs` (VIEW,
+`datums-basis-hand-rolls-the-least-aligned-axis-basis`).
+
+**Where**: `crates/geom/tests/curves/boxes.rs` (`unit_frame`),
+`crates/geom/tests/curves/n3r2_probes.rs` (`frame`),
+`crates/topo/tests/review_mate9_r2_probes.rs` (`plane`),
+`crates/geom-brep/tests/intersect_table.rs` (`circle_samples`).
+
+**Confidence**: sure (every helper reads as quoted).
 
 **Verdict:**

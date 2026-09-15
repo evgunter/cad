@@ -42,6 +42,22 @@ justified by a deduplication it had not performed, and duplicates
 `Vec3::orthonormal_basis`'s role with a different policy); S393 gave it
 its first non-Python callers, so that row's premise has moved.
 
+**One more thing a reader of that name does not expect, and it is a
+DISCONTINUITY, not a naming complaint** (added 2026-09-15): crossing
+the ladder's pole band flips the frame's roll by 180°. A tangent
+`(k·ε, 0, 1)` has `|Ẑ × n̂| = k·ε`, so the first rung decides
+definitely for `k ≥ K` (K = 10 by default) and gives
+`x̂ = normalize(Ẑ × n̂) = (0, 1, 0)`; in band — `k ≤ 5`, say — the rung
+is not taken, the ladder advances to world +X, and
+`x̂ = normalize(X̂ × n̂) = (0, −1, 0)`, the exact negation. The module
+documents the ladder and documents that each rung needs a definite
+decision, so nothing here is undocumented; what is nowhere SHOWN is
+that the consequence at the crossover is a half turn of the profile,
+which for an asymmetric section is a visibly different body from a
+tangent that moved by `5·ε`. Worth a sentence in the demo tour's sweep
+narration one day — the same place that now says roll is a
+composition.
+
 **Where**: `crates/geom-core/src/linalg/frame.rs`, `path_start_frame`
 and its module-doc row in the companion table; callers
 `demos/tour/src/skinned.rs` (`tube_place`),
