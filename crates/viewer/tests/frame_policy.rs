@@ -30,7 +30,7 @@ use pncad::select::{ContactClass, Ray};
 use viewer::camera::{Camera, CameraOp};
 use viewer::display::{DisplayFault, DisplayView};
 use viewer::evalseam::{IndexDone, IndexRequest, IndexService, InlineIndexer, MemoReport};
-use viewer::frame::{self, IdQueryLog, IdStep, StatusUpdate};
+use viewer::frame::{self, IdQueryLog, IdStep, IdSubject, StatusUpdate};
 use viewer::generation::Generation;
 use viewer::input::{self, InputMap, ViewportSize};
 use viewer::pickcache::{self, CacheStep, IndexLanding, PickCache};
@@ -901,31 +901,86 @@ fn an_empty_batch_and_a_pure_cursor_stream_move_no_camera() {
 
 // --- the id query's bookkeeping ------------------------------------
 
+/// What the viewport hands the log for a picture built at `revision`
+/// from the index at `generation`.
+fn subject(revision: u64, generation: Generation) -> IdSubject {
+    IdSubject {
+        revision,
+        generation: Some(generation),
+    }
+}
+
 #[test]
 fn the_id_query_is_asked_once_per_cursor_and_re_asked_when_the_picture_moves() {
     let mut log = IdQueryLog::new();
-    let generation = Some(Generation::FIRST);
-    let IdStep::Ask { serial: first } = log.step(Some([10.0, 20.0]), generation) else {
+    let asked_about = subject(1, Generation::FIRST);
+    let IdStep::Ask { serial: first } = log.step(Some([10.0, 20.0]), asked_about) else {
         panic!("the first look at a cursor asks");
     };
     assert_eq!(log.outstanding(), Some(first));
     assert_eq!(
-        log.step(Some([10.0, 20.0]), generation),
+        log.step(Some([10.0, 20.0]), asked_about),
         IdStep::Hold,
         "a still cursor over an unchanged picture asks nothing"
     );
-    let IdStep::Ask { serial: moved } = log.step(Some([11.0, 20.0]), generation) else {
+    let IdStep::Ask { serial: moved } = log.step(Some([11.0, 20.0]), asked_about) else {
         panic!("a moved cursor asks again");
     };
     assert_ne!(moved, first);
     // The picture changing under a STILL cursor is also a new question:
     // the answer is about what is drawn, not only about the pointer.
     let IdStep::Ask { serial: repainted } =
-        log.step(Some([11.0, 20.0]), Some(Generation::FIRST.next()))
+        log.step(Some([11.0, 20.0]), subject(2, Generation::FIRST.next()))
     else {
         panic!("a new generation re-asks");
     };
     assert_ne!(repainted, moved);
+}
+
+/// **Both halves of the subject, one direction each.**
+///
+/// The query's answer is an id the GPU read out of ONE picture and the
+/// viewport resolves through ONE index's id map, and the two move
+/// independently: `ViewerApp::sync_scene` rebuilds on a display or
+/// focus change at a standing generation, and a rebuild it REFUSES
+/// leaves a landed index beside the picture already on screen. So a key
+/// carrying either half alone holds a question that should be re-asked
+/// — silently, because a held query keeps the last answer MATCHED and
+/// the disagreement check then compares two pictures and reports two
+/// picking paths.
+#[test]
+fn a_new_picture_and_a_new_index_each_re_ask_on_their_own() {
+    let cursor = Some([10.0, 20.0]);
+    let mut log = IdQueryLog::new();
+    let IdStep::Ask { serial: opened } = log.step(cursor, subject(1, Generation::FIRST)) else {
+        panic!("the first look at a cursor asks");
+    };
+
+    // Hiding a part: a rebuilt picture at the generation already in
+    // hand. Keyed on the generation alone this is a `Hold`.
+    let IdStep::Ask { serial: repainted } = log.step(cursor, subject(2, Generation::FIRST)) else {
+        panic!("a new picture at one generation re-asks");
+    };
+    assert_ne!(repainted, opened);
+    assert_eq!(
+        log.step(cursor, subject(2, Generation::FIRST)),
+        IdStep::Hold,
+        "and the re-asked question is held once it is asked"
+    );
+
+    // An index landing over a refused rebuild: a new generation at the
+    // picture still on screen. Keyed on the revision alone this is a
+    // `Hold`.
+    let IdStep::Ask { serial: landed } = log.step(cursor, subject(2, Generation::FIRST.next()))
+    else {
+        panic!("a new index at one picture re-asks");
+    };
+    assert_ne!(landed, repainted);
+    assert_eq!(
+        log.step(cursor, subject(2, Generation::FIRST.next())),
+        IdStep::Hold,
+        "and that one is held once it is asked too"
+    );
 }
 
 #[test]
@@ -935,13 +990,13 @@ fn leaving_the_pane_voids_the_outstanding_answer() {
     // against a hover that had been cleared, printing the exact message
     // issue #1097 §4 tells the operator to read as a clear-value fault.
     let mut log = IdQueryLog::new();
-    let generation = Some(Generation::FIRST);
+    let asked_about = subject(1, Generation::FIRST);
     assert!(matches!(
-        log.step(Some([10.0, 20.0]), generation),
+        log.step(Some([10.0, 20.0]), asked_about),
         IdStep::Ask { .. }
     ));
     assert!(log.outstanding().is_some());
-    assert_eq!(log.step(None, generation), IdStep::Void);
+    assert_eq!(log.step(None, asked_about), IdStep::Void);
     assert_eq!(
         log.outstanding(),
         None,
@@ -949,7 +1004,7 @@ fn leaving_the_pane_voids_the_outstanding_answer() {
     );
     // And coming back asks fresh rather than reusing the void answer.
     assert!(matches!(
-        log.step(Some([10.0, 20.0]), generation),
+        log.step(Some([10.0, 20.0]), asked_about),
         IdStep::Ask { .. }
     ));
 }

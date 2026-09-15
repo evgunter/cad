@@ -32,11 +32,14 @@ which is exactly the defect the review found and this unit fixed in
 `ThreadIndexer::poll`, where the comparison had been by position
 instead.
 
-**Note the near-miss**: `frame::IdQueryLog::step` keys on the
-generation **without** δ. That is currently right — it asks "has the
-picture changed under a still cursor", and a δ change reaches it as a
-new index — but it is the site most likely to be wrong if the key ever
-becomes a type and this one is migrated by search-and-replace.
+**Note the near-miss**: `frame::IdQueryLog::step` keys on
+`frame::IdSubject`, which is the scene revision and the generation
+**without** δ. That is currently right — a δ change reaches it as a new
+index, because `PickCache::sync` nulls the held index at the submit and
+only `land` installs one, so an index cannot change δ without the key
+seeing `None` in between — but it is the site most likely to be wrong if
+the key ever becomes a type and this one is migrated by
+search-and-replace.
 
 ## The two fields
 
