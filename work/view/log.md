@@ -11356,3 +11356,35 @@ index buffer is `(0..n).collect()`, 139 MB and 8–11 % of the step on
 `hollow_tube_ring` at 1e-5, with one production reader that only wants
 its length. Left for its own unit because it touches the draw call and
 no headless row here has a device.
+
+## 2026-09-15 — `index-reads-without-the-evaluation-co-guard`
+
+Branch `view/index-co-guard`. **The item's framing moved twice under the
+sweep**, and both moves are recorded on the item.
+
+The population is **eight** uses of a pane's `&PickIndex` at four
+bindings, not the item's six at one file: `pane::create`'s all-edges
+button takes one too (already with the evaluation), and the two the item
+does not enumerate — `marks::highlight` and `marks::edge_overlay` — were
+both ungated and both picture-side.
+
+And the harm site does not want the evaluation. An id is a word of the
+alphabet of the index that minted the drawn corners, so
+`frame::disagreement` wants the scene and the index to be ONE BUILD.
+`ViewerApp::scene_generation` — written twice, read nowhere — became
+`scene_key: Option<(Generation, DisplayTolerance)>`, taken from the
+index rather than re-derived from the session, and
+`pane::viewport::drawn_index` asks `PickIndex::current_for` with it.
+Both halves of the key, because a δ typed while the document stands
+rebuilds the index at the same generation over a different tessellation;
+a generation-only guard would have read as co-identity while checking
+something else. Five picture-side uses route through it, the two
+document-side ones keep the index+evaluation pair, and the identity read
+(`PickIndex::generation` as a cache key) keeps neither.
+
+Two rows filed rather than absorbed:
+`id-query-is-keyed-on-the-generation-not-on-the-picture` — a SECOND
+producer of *the two picking paths disagree*, which no co-guard closes,
+because there the index is the drawn one and the GPU ANSWER is stale —
+and `a-pick-over-a-stale-picture-answers-about-a-picture-nobody-can-see`,
+the product question the rule's document-side half leaves open.
