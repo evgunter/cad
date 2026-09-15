@@ -18,7 +18,7 @@ use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenAngle, WrittenLength};
 
 use crate::blend::BlendKindChoice;
 use crate::combine::PatternOutputChoice;
-use crate::forms::{DatumKind, PatternKindChoice, ShapeKind};
+use crate::forms::{DatumKindChoice, PatternKindChoice, ShapeKind};
 use crate::seats::SeatError;
 use crate::session::ProfileShape;
 use crate::sketch::{self, PathStep, PathTarget};
@@ -84,7 +84,7 @@ pub(crate) struct Drafts {
     /// as a side effect of adding a profile. One submit, one node.
     pub(crate) profile_plane: Option<RecipeNodeId>,
     /// The add-datum form's kind choice.
-    pub(crate) datum_kind: DatumKind,
+    pub(crate) datum_kind: DatumKindChoice,
     /// The add-datum form's origin/position, metres.
     pub(crate) datum_origin: [f64; 3],
     /// Its normal/direction (unitless; ignored by the point form).
@@ -212,7 +212,7 @@ impl Default for Drafts {
             mate_opposed: false,
             new_doc_name: None,
             profile_plane: None,
-            datum_kind: DatumKind::Plane,
+            datum_kind: DatumKindChoice::Plane,
             datum_origin: [0.0; 3],
             datum_direction: [0.0, 0.0, 1.0],
             datum_u: [1.0, 0.0, 0.0],

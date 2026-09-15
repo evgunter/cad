@@ -405,7 +405,15 @@ fn parse_error_display_names_its_content_not_its_struct() {
 #[test]
 fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
     let name = ParamName("width".to_string());
-    let dumps = ["Length", "Angle", "Count", "Scalar"];
+    // The forbidden identifiers ARE the enum's `Debug`, taken off
+    // `Dimension::ALL`: a dimension added to the lattice is forbidden
+    // here without an edit, where a list written here would let its
+    // identifier through.
+    let dump_words: Vec<String> = Dimension::ALL
+        .iter()
+        .map(|dim| format!("{dim:?}"))
+        .collect();
+    let dumps: Vec<&str> = dump_words.iter().map(String::as_str).collect();
 
     // The edit door.
     assert_f6(

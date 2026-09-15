@@ -16,6 +16,7 @@ use geom_core::{Point3, Tol, Vec3};
 use sweep::blend::build::fillet_edges;
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
+use topo::readback::euler_counts;
 use topo::{Body, EdgeKey, validate, validate_closed};
 
 /// The chamfer setback, meters.
@@ -76,18 +77,15 @@ fn the_chamfered_cavity() {
     assert_eq!(out.corner_faces.len(), 8, "one patch per concave corner");
     assert_eq!(out.band_faces.len(), 0, "no chain of this request closes");
 
-    let (v, e, f) = (
-        out_body.vertices().count(),
-        out_body.edges().count(),
-        out_body.faces().count(),
-    );
-    assert_eq!((v, e, f), (36, 66, 34), "census");
+    let counts = euler_counts(&out_body);
+    assert_eq!((counts.v, counts.e, counts.f), (36, 66, 34), "census");
     // Two faces carry an inner ring — the vent's mouth in the cavity's
     // ceiling, and the same vent's mouth in the block's top — and a
     // ringed face is not a disk, so each costs the alternating sum one.
+    assert_eq!(counts.r, 2, "the vent's two mouths");
     assert_eq!(
-        v as i64 - e as i64 + f as i64 - 2,
-        2,
+        (counts.s, counts.genus()),
+        (1, Ok(0)),
         "Euler–Poincaré, ring-corrected"
     );
 

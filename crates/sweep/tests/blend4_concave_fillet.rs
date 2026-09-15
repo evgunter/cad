@@ -27,6 +27,7 @@ use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, Convexity, CornerConfig, FILLET3_CORNER_RECOURSE};
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
+use topo::readback::euler_counts;
 use topo::{Body, EdgeKey, validate, validate_closed};
 
 /// The fillet radius, meters.
@@ -231,19 +232,16 @@ fn the_filleted_cavity() {
         );
     }
 
-    let (nv, ne, nf) = (
-        out_body.vertices().count(),
-        out_body.edges().count(),
-        out_body.faces().count(),
-    );
+    let counts = euler_counts(&out_body);
     assert_eq!(
-        (nv, ne, nf),
+        (counts.v, counts.e, counts.f),
         (36, 66, 34),
         "census — the same carve topology as the chamfered cavity"
     );
+    assert_eq!(counts.r, 2, "the vent mouth's two ringed faces");
     assert_eq!(
-        nv as i64 - ne as i64 + nf as i64 - 2,
-        2,
+        (counts.s, counts.genus()),
+        (1, Ok(0)),
         "Euler–Poincaré, corrected for the vent mouth's two ringed faces"
     );
 

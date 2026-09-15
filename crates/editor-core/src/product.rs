@@ -697,8 +697,8 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     }
 
     // Pass 2: the per-source gate, asked only when the product holds
-    // more than one solid (the import loop's rule, verbatim). The count
-    // is over SOLIDS, not sources: one source may itself carry several
+    // more than one solid (this module's F8/D7 shape). The count is
+    // over SOLIDS, not sources: one source may itself carry several
     // (an instantiated sub-assembly), and it is the product's solid
     // count the rule speaks about.
     let total_solids: usize = sources

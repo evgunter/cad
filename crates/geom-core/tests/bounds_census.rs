@@ -217,7 +217,16 @@ const ROSTER: &[Site] = &[
     Site {
         path: "crates/profile/src/path/arc_fillet.rs",
         subject: "map_refusal",
-        why: HandedOff("Track V's; a refusal-payload door S88's handoff names"),
+        why: Selection(
+            "the refusal-payload door. Its reads are payload fields and a message-site branch, \
+             plus the anchor-fit arm's SELECTION of which overrunning candidate (through \
+             `fillet_select::nearest_candidate`, whose dominance and selection-rule arguments \
+             carry it) and which of its legs the payload is about — off the diagnostic channel, \
+             among constructions already classified on the value channel. What is selected is a \
+             payload that stops rather than a quantity re-entering the computation, so nothing \
+             downstream branches on it; the locally-constant clause is not what carries this \
+             site, the ladder's own argument is, and the site says so",
+        ),
     },
     Site {
         path: "crates/profile/src/path/arc_fillet.rs",

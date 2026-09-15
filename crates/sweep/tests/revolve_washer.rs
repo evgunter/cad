@@ -232,7 +232,7 @@ fn donut_two_arc_profile_shares_one_torus() {
 /// constructor that builds the same circle under the same guarantee.
 /// RIM ONLY: neither builder is handed the far endpoint, so the span
 /// identity has nothing to be stated about
-/// (`work/m10/revolve-carriers-state-only-the-rim`).
+/// (`work/blend/revolve-carriers-state-only-the-rim`).
 ///
 /// **The profile has to be PARAMETRIC for this to be readable.** On a
 /// wholly literal washer every value is a constant, the tier's constant

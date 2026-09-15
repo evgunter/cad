@@ -687,8 +687,9 @@ pub enum Datum {
         /// where a degenerate pair refuses loudly.
         direction: [Expr; 2],
     },
-    /// **A sketch frame DERIVED from a face** (DOCM-REFERENCES-DESIGN
-    /// DM1): a [`Datum::Frame`] whose pose is computed at evaluation
+    /// **A sketch frame DERIVED from a face**
+    /// (`crates/editor-core/REFERENCES.md` DM1): a [`Datum::Frame`] whose
+    /// pose is computed at evaluation
     /// from a named face of an upstream body — origin the carrier's
     /// own distinguished point, normal the face's OUTWARD normal,
     /// sketch +x the carrier's u-reference rotated by `spin`. It
@@ -918,8 +919,8 @@ pub enum PatternKind {
 }
 
 /// **Which body of a multi-body value a [`Node::Part`] selects**
-/// (DOCM-REFERENCES-DESIGN DM3): the named half of a split, or one
-/// instance of a pattern by index.
+/// (`crates/editor-core/REFERENCES.md` DM3): the named half of a
+/// split, or one instance of a pattern by index.
 ///
 /// The two are one enum because the node is one sentence — "this
 /// body, out of those" — and the value it reads decides which arm is
@@ -1577,7 +1578,8 @@ pub enum Node<P> {
         /// Optional coincidence-intent input (a `Declare` node).
         declare: Option<RecipeNodeId>,
     },
-    /// **The n-ary union** (DOCM-REFERENCES-DESIGN DM4): two or more
+    /// **The n-ary union** (`crates/editor-core/REFERENCES.md` DM4):
+    /// two or more
     /// member bodies, ONE body out — the same value shape a pair
     /// union yields, so every consumer of a union is unchanged.
     ///
@@ -1668,8 +1670,9 @@ pub enum Node<P> {
         /// The replication rule.
         kind: PatternKind,
     },
-    /// **One body out of a multi-body value** (DOCM-REFERENCES-DESIGN
-    /// DM3): the named half of a [`Node::Split`] value or the `i`-th
+    /// **One body out of a multi-body value**
+    /// (`crates/editor-core/REFERENCES.md` DM3): the named half of a
+    /// [`Node::Split`] value or the `i`-th
     /// instance of a [`Node::Pattern`] value, as a `Body` value every
     /// body-consuming node takes. The recipe's way of saying "union
     /// the upper half of that split into this block" or "subtract

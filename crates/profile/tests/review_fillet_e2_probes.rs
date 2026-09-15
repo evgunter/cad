@@ -1,23 +1,26 @@
 //! **FILLET-E2 review probes (profile side)** — the PATHS `.fillet(r)`
-//! door and `Profile::validate` disagree about the tangency of the
-//! joint the door itself computed, over a wide range of small line ×
-//! line turns. PR 1753 reported the 1e-6 instance as possibly "a
-//! legitimate sliver refusal"; it is not a sliver.
+//! door and `Profile::validate` agree about the tangency of the joint
+//! the door computes, over every small line × line turn.
 //!
-//! **The turn angles ride the run's own tolerance.** As filed this row
-//! swept fixed decades, 1e-7 to 1e-4 rad, and went red at
-//! `CAD_TOLERANCE_EPS=1e-12`, where 1e-5 rad meets a straightness
-//! escalation instead. The window is not a fixed angle: the joint's
-//! margin is sagitta-like, going as `θ²`, so the band on it puts the
-//! disagreement at `θ ∝ √ε`. Measured at 1e-6, 1e-9 and 1e-12, the
-//! disagreement holds across `θ ∈ [0.1·√ε, 3·√ε]` at every one — and
-//! wider at the default, where it runs from `0.003·√ε`. The row asserts
-//! the intersection, so it measures the same phenomenon whichever ε the
-//! gate draws.
+//! They did not. The door built a four-vertex loop wherever the corner
+//! turned by a few multiples of `√ε` and validation refused it,
+//! `TangencyContradicted`, naming the door as the way to make the joint
+//! exact. What the measurement behind that finding showed is that the
+//! door's carrier is tangent to within a couple of ulps at every one of
+//! those turns, and the loss is in the STORED form: a profile holds an
+//! arc as a chord and a bulge, and a fillet whose sagitta
+//! `r(1 − cos(θ/2))` sits at or below ε is read back as a straight
+//! segment, with no arc carrier for the declaration to be about.
 //!
-//! Pinned as a characterization, so the disagreement is measured
-//! until `work/fillet/path-fillet-door-validator-tangency-disagree.md`
-//! decides which side is right.
+//! So the door now reads its own output the way validation will and
+//! refuses first. This row is the pin on that: at the turns the
+//! disagreement used to span, the door refuses, and nothing reaches
+//! validation to be contradicted.
+//!
+//! **The turn angles ride the run's own tolerance.** The joint's margin
+//! is sagitta-like, going as `θ²`, so the window sits at `θ ∝ √ε` and
+//! moves with the ε row the gate draws; the multiples below are the
+//! ones inside it at 1e-6, 1e-9 and 1e-12 alike.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -48,28 +51,26 @@ fn bend(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
 }
 
 #[test]
-fn small_bends_build_at_the_path_door_and_refuse_at_validate_as_transversal() {
+fn small_bends_refuse_at_the_path_door_rather_than_building_what_validate_contradicts() {
     let scale = tol().eps().sqrt();
-    for c in [0.1, 0.3, 1.0, 3.0] {
+    for c in [0.1, 0.3, 1.0, 2.0] {
         let theta = c * scale;
-        let lp = bend(theta, 0.2).unwrap_or_else(|e| {
-            panic!("c = {c}, theta = {theta:e}: the door builds the bend, got {e}")
+        let err = bend(theta, 0.2).err().unwrap_or_else(|| {
+            panic!("c = {c}, theta = {theta:e}: the door refuses a fillet it cannot store")
         });
-        let err = Profile::new(SketchPlane::xy(), vec![lp])
-            .validate(tol())
-            .err()
-            .unwrap_or_else(|| {
-                panic!(
-                    "c = {c}, theta = {theta:e}: today the validator refuses the door's own joint"
-                )
-            });
+        assert!(
+            matches!(err, PathError::FilletArcFlattenedInStorage { .. }),
+            "c = {c}, theta = {theta:e}: the refusal is about the stored form, got {err}"
+        );
         let shown = err.to_string();
         assert!(
-            shown.contains("declared tangent") && shown.contains("definitely meet transversally"),
-            "c = {c}, theta = {theta:e}: the refusal is about the declared tangency, got {shown}"
+            shown.contains("a chord and a bulge") && shown.contains("turn the corner further"),
+            "c = {c}, theta = {theta:e}: the sentence says what was lost and what to move, got \
+             {shown}"
         );
     }
-    // The two sides agree again once the turn is well clear of the band.
+    // The two sides agree once the turn is well clear of the band, as
+    // they always did — and the loop the door builds there validates.
     let theta = 32.0 * scale;
     let lp = bend(theta, 0.2).expect("the door builds the bend");
     Profile::new(SketchPlane::xy(), vec![lp])

@@ -2,8 +2,10 @@
 id: attach-postconditions-validate-the-whole-body-and-panic
 kind: issue
 title: set_face_surface / set_edge_curve run validate(&self) as a postcondition: a whole-body tier-1 walk per write, and a panic on a malformed body reachable through public doors under the release profile
-status: open
+status: closed
 opened: 2026-09-08
+closed: 2026-09-14
+pr: 2527
 ---
 
 
@@ -44,3 +46,31 @@ met by a setter refuses typed. `work/shell/doors-still-read-the-whole-body-for-t
 keeps the tier-2 half (tier 1's passes cannot be restricted to a
 shell subset) and points here for the setters. Signed (SHELL
 orchestrator).
+
+## Ruled conditionally (2026-09-14, PR 2527) — the D9 reading
+
+Ev: close it "if your answer complies with the panic vs error
+strategy in DESIGN.md". The reading, against D9: the setters' tier-1
+postcondition asserts a state a WRITE cannot create from a tier-1
+body; it can fail only on a body torn BEFORE the write. D9's closure
+property says every public mutation path preserves tier 1 (checked
+against the real surface by
+`review_m1_pr5_internal::every_public_mutation_path_preserves_tier1`),
+so a torn body at a setter is a kernel-bug state — D9 row 5 ("kernel
+bug, detectable only by re-derivation": `debug_assert`), and under
+D9's second half such a state MUST panic; downgrading it to a typed
+refusal would launder a bug into a supported outcome. The one public
+path D9 itself names outside the property is `instance`'s raw graft
+(a spent, partially written destination after a discarded
+`JoinDesync`), and D9 routes that state class to the open ruling S14
+(`work/pipe/S14.md`, Ev's) — this row does not re-decide it. The cost
+half is PERF-4's. That the workspace's release profile keeps debug
+assertions on until the publish step is D9's own note. So the
+postcondition complies as it stands and the row closes on this
+reading; the close lands when Ev confirms on the PR.
+
+## Closed (2026-09-14, PR 2527)
+
+Ev: "cool" to the D9 reading above. Closed on it: the postcondition
+stays an assertion (kernel-bug state, D9 row 5); the spent-graft class
+is S14's; the cost half is PERF-4's. No code moves.

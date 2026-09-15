@@ -113,6 +113,8 @@ mod sf2b_r2_probes;
 mod shellfix1_bitdump;
 #[path = "shellfix1_r1_probes.rs"]
 mod shellfix1_r1_probes;
+#[path = "topo_ring_nesting.rs"]
+mod topo_ring_nesting;
 #[path = "torax_axial.rs"]
 mod torax_axial;
 #[path = "torax_interval.rs"]
@@ -154,6 +156,8 @@ mod blend_tworims;
 mod cert5_offgrid_knot_rational;
 #[path = "cert8_r1_probes.rs"]
 mod cert8_r1_probes;
+#[path = "closed_chain_junctions.rs"]
+mod closed_chain_junctions;
 #[path = "extrude_acceptance.rs"]
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]
@@ -162,6 +166,8 @@ mod extrude_interval;
 mod issue93_az_intersect;
 #[path = "k_report.rs"]
 mod k_report;
+#[path = "ladder_split_key.rs"]
+mod ladder_split_key;
 #[path = "lib_u3_sections.rs"]
 mod lib_u3_sections;
 #[path = "m3_pr5_extrude_booleans.rs"]
@@ -246,6 +252,8 @@ mod m9_d1_r2_probes;
 mod mass_props;
 #[path = "mass_props_interval.rs"]
 mod mass_props_interval;
+#[path = "must_carry_rule.rs"]
+mod must_carry_rule;
 #[path = "r1_probes_issue1362_donut.rs"]
 mod r1_probes_issue1362_donut;
 #[path = "readback_doors.rs"]
@@ -268,6 +276,8 @@ mod review_blend6_r1_probes;
 mod review_blend6_r2_probes;
 #[path = "review_chamfer_r1_probes.rs"]
 mod review_chamfer_r1_probes;
+#[path = "review_closed_chain_junctions_r2_probes.rs"]
+mod review_closed_chain_junctions_r2_probes;
 #[path = "review_d2_adv_probes.rs"]
 mod review_d2_adv_probes;
 #[path = "review_d2_recourse_at_the_site.rs"]
@@ -278,6 +288,10 @@ mod review_d8_consumer_differential;
 mod review_fillet_e1_probes;
 #[path = "review_fillet_e3_probes.rs"]
 mod review_fillet_e3_probes;
+#[path = "review_ladder_split_key_r1_probes.rs"]
+mod review_ladder_split_key_r1_probes;
+#[path = "review_ladder_split_key_r2_probes.rs"]
+mod review_ladder_split_key_r2_probes;
 #[path = "review_m2_pr4.rs"]
 mod review_m2_pr4;
 #[path = "review_m2_pr4_interval.rs"]
@@ -308,6 +322,10 @@ mod review_m6_3_loft_probes;
 mod review_m6_5_pr2_sweep_probes;
 #[path = "review_m6_surgery_probes.rs"]
 mod review_m6_surgery_probes;
+#[path = "review_must_carry_rule_r1_probes.rs"]
+mod review_must_carry_rule_r1_probes;
+#[path = "review_must_carry_rule_r2_probes.rs"]
+mod review_must_carry_rule_r2_probes;
 #[path = "review_pr12_probes.rs"]
 mod review_pr12_probes;
 #[path = "review_s11_adv.rs"]
@@ -342,6 +360,8 @@ mod s16_box_soundness;
 mod s49_census_jurisdiction;
 #[path = "seat6_germ_channel.rs"]
 mod seat6_germ_channel;
+#[path = "split_edge_loft_charts.rs"]
+mod split_edge_loft_charts;
 #[path = "turning_orientation.rs"]
 mod turning_orientation;
 #[path = "verbs_1031b_arcwind.rs"]
@@ -418,8 +438,17 @@ mod m8_3_rational_volume;
 #[path = "reporting_door_bit_digest.rs"]
 mod reporting_door_bit_digest;
 
+#[path = "mass_props_are_thread_count_invariant.rs"]
+mod mass_props_are_thread_count_invariant;
+
 #[path = "sign_certified_plus_v.rs"]
 mod sign_certified_plus_v;
+
+#[path = "shell_census_is_thread_count_invariant.rs"]
+mod shell_census_is_thread_count_invariant;
+
+#[path = "continuation_is_thread_count_invariant.rs"]
+mod continuation_is_thread_count_invariant;
 
 #[path = "m8_4_intersection_iso.rs"]
 mod m8_4_intersection_iso;
@@ -450,9 +479,18 @@ mod mate7a_torus_rest;
 
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
+#[path = "review_ring_clearance_r1_probes.rs"]
+mod review_ring_clearance_r1_probes;
+#[path = "review_ring_clearance_r2_probes.rs"]
+mod review_ring_clearance_r2_probes;
+#[path = "ring_clearance_forms.rs"]
+mod ring_clearance_forms;
 
 #[path = "r1_probes_m9_3.rs"]
 mod r1_probes_m9_3;
+
+#[path = "curved_mergedoor.rs"]
+mod curved_mergedoor;
 
 #[path = "verbs_gate_r1_probes.rs"]
 mod verbs_gate_r1_probes;
@@ -552,6 +590,8 @@ mod fillet_h7_transverse_cap_interval;
 
 #[path = "review_blend1_r1_probes.rs"]
 mod review_blend1_r1_probes;
+#[path = "review_closed_chain_junctions_r1_probes.rs"]
+mod review_closed_chain_junctions_r1_probes;
 #[path = "review_fillet_h7_r1_probes.rs"]
 mod review_fillet_h7_r1_probes;
 #[path = "review_fillet_split_r2_probes.rs"]
@@ -610,6 +650,12 @@ mod shell7_r2_probes;
 
 #[path = "shell9_probe.rs"]
 mod shell9_probe;
+
+#[path = "revert_plane_charts.rs"]
+mod revert_plane_charts;
+
+#[path = "revert_periodic_wrap.rs"]
+mod revert_periodic_wrap;
 
 #[path = "shell9_rows.rs"]
 mod shell9_rows;

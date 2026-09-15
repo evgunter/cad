@@ -20,7 +20,7 @@ sentence names the wrong file:
 
 | File | What is now wrong |
 |---|---|
-| `docs/DOCM-IDENTITY-DESIGN.md:112` | cites `session.rs:3030` and `:2321` past the file's last line; both doors are still in `session.rs`, but the probe the second one is about is now split with `session/probe.rs`, so the subject is in two files and the citation names neither |
+| `crates/editor-core/IDENTITY.md` (was `docs/DOCM-IDENTITY-DESIGN.md:112`) | cited `session.rs:3030` and `:2321` past the file's last line; both doors are still in `session.rs`, but the probe the second one is about is now split with `session/probe.rs`, so the subject is in two files and the citation named neither. Discharged at DOCM's exit: the page names both doors and carries no line numbers |
 | `docs/BOOL-10-SPEC.md:62,159` | names "`app.rs`'s tool palette" as the viewer's arm for the verb; `PathVerb` and its `ALL` table are in `forms.rs`, and what draws them is in `widgets.rs` and `pane/create.rs` |
 | `work/code-quality/viewer-pathverb-all-hand-written-seventeen.md:19` | "`app.rs:514` declares `enum PathVerb`" — it is `forms.rs` now |
 | `work/chrome/viewer-const-all-tables-have-no-exhaustiveness-guard.md:14` | the three `const ALL` tables cited in `app.rs` are in `forms.rs` |
@@ -56,7 +56,7 @@ one from a claim change:
 | File | Was | Now |
 |---|---|---|
 | `opoutcome-superseded-has-no-production-reader.md` | `session.rs:1469`, `app.rs:1745`, `session.rs:2700`, `:3081` | `session/op.rs:633` and `:646`, `app.rs:800`, `session.rs:1056` and `:1418` |
-| `revolve-tool-unreachable-no-axisinplane-form.md` | `session.rs:2867`, `session.rs:425`, `app.rs:742` | `session.rs:1196`/`:1200` and `seats.rs:161`, `session/refuse.rs:61`/`:65`, `forms.rs:52` and `pane/create.rs:354-363` |
+| `revolve-tool-unreachable-no-axisinplane-form.md` | `session.rs:2867`, `session.rs:425`, `app.rs:742` | `session.rs:1196`/`:1200` and `seats.rs:161`, `session/refuse.rs:61`/`:65`, `forms.rs:52` and `pane/create.rs:355-364` |
 | `save-is-not-gesture-guarded.md` | `session.rs:2712`, `:2750` | `session.rs:1070`, `:1105` — **and see below** |
 | `two-gestures-can-be-in-flight-together.md` | `session.rs:1558` | `session.rs:153` |
 | `blamed-mates-lost-its-exhaustive-arm.md` | `app.rs:2880` | nothing: there is no `MateFault` in `app.rs` at all now |
@@ -85,7 +85,7 @@ that found this.
 
 The rest is other programs' (`docs/prompts/implementer-discipline.md`
 §6). Named here so the announce is a list and not a sentence:
-`docs/DOCM-IDENTITY-DESIGN.md:112` (DOCM),
+`crates/editor-core/IDENTITY.md`, discharged at DOCM's exit (DOCM),
 `docs/BOOL-10-SPEC.md:62,159` (S-BOOL),
 `work/code-quality/viewer-pathverb-all-hand-written-seventeen.md:19`,
 `work/chrome/viewer-const-all-tables-have-no-exhaustiveness-guard.md:14`

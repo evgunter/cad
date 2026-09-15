@@ -68,6 +68,28 @@ gate the lanes that overlapped no live PR ran under §Early lanes.
   → `k-stats-escalation-channel-and-redo` (D→H, L; a returned value or
   an RAII bracket carrying both verdicts and escalations; the nesting
   bug).
+- **geom-core doors** (filed by other programs' sweeps, 2026-09-08 →
+  09-12; E riders, style-reviewed, batched two or three to a lane):
+  `geom-core-linalg-has-no-array-doors` +
+  `point3-has-no-order-and-vec3-no-sup-norm-door` (the vec3-doors
+  successor); `affine3-try-map-the-fallible-walk-has-no-kernel-door` +
+  `map-affine-retires-into-affine3-try-map` (one PR: the door and its
+  adopter); `band-has-no-door-for-an-explicit-eps-with-the-runs-k` +
+  `band-linear-errors-doc-is-false-empty-is-reachable-at-subnormal-eps`
+  (the `Band` pair);
+  `nan-sign-is-not-stable-under-code-motion-so-d9s-fixed-order-covers-non-nan-only`
+  (D→E: a D9 scope sentence, an `[ev]` line if it narrows a ratified
+  clause).
+- **Props hygiene, continued** (after sphere-pole-side lands, on the
+  same file): `rim-stores-its-traversal-direction-twice` (E),
+  `rim-level-rule-manufactures-its-error-by-feeding-nan-into-classify`
+  (E→H: the `unreachable_zero` NaN tuple in live flux arithmetic),
+  `quadrature-budget-prints-its-two-lengths-alike` (E).
+- **Certificates sealed**: `certificate-types-have-public-fields-and-are-forgeable`
+  (D→H; after mignitude-floor lands, since `OffsetCertificate` is in
+  the family — private fields and one minting door per certificate
+  type, the same shape across `topo::props`, `pcurve`, `certify`,
+  `ssi`, `offset_fit`).
 - **Singles**: `m6-sense-gate-recorded-residuals` (four H gate
   extensions; residual 2 carries a design choice),
   `span-carries-its-knot-vector` (an `[ev]` ruling, then an L sweep if
