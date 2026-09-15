@@ -7,7 +7,6 @@ opened: 2026-09-15
 branch: census/errors-arrival
 ---
 
-
 Filed by CENSUS-PY-GETTERS' fix pass (2026-09-15). That unit moved six
 discriminant maps into `crates/pncad-py/src/tags.rs`, where a reader
 lexes the file and `TAG_INVENTORY` pins every word — and moved the
@@ -36,6 +35,12 @@ filed under that name; read it as a name, not as a count.
 
 **So no map here is unguarded today.** The row is not about the five.
 
+The five are also not the whole of what this file spells. Its live
+answer is `ERRORS_MINTING_ITEMS` in `crates/pncad-py/src/tests.rs` —
+nine items and 52 literals, each row naming what holds its words —
+and that roster, not this table, is the thing a future arrival has to
+join.
+
 ## The row
 
 **Nothing enumerates the file.** `tags.rs` gets *"NEW tag function
@@ -59,39 +64,90 @@ That is exactly the CENSUS charter's third shape — *"where one DOES
 exist but scans the wrong population, the drift is invisible and
 certified"* — one file over from where the instrument is.
 
-## What a fix would look like, and the trap in it
+## The disposition taken (CENSUS-ERRORS-ARRIVAL, 2026-09-15)
 
-The cheap move is to widen the tag-table reader's scan set to
-`errors.rs`, which is wrong as stated: the reader's exactness comes
-from refusing everything it does not understand, including a
-capitalised value, and `errors.rs` holds an enum, an impl block and
-prose helpers the recogniser rejects by design.
+**An arrival alarm over the file, keyed on its string LITERALS rather
+than on any item form.** `crates/pncad-py/src/tests.rs` holds
+`ERRORS_MINTING_ITEMS`, a roster with one row per item in this file
+that spells a literal — its owner, how many it spells, and the check
+that holds those words — and
+`errors_rs_spells_literals_in_exactly_these_items` compares the roster
+against the file on every run.
 
-The shapes worth weighing instead:
+**Why keyed on literals.** The row's own proposal — a looser reader
+over the file's items — inherits the defect it is built against. Every
+instrument this crate has aimed at its vocabulary was keyed on a FORM,
+and each went blind to the arrival that did not wear it: the tag
+reader's function forms strip `pub fn `, and all five maps here are
+`pub const fn`; a top-level-keyed reader sees three of the five. So
+the population is not this reader's to define. `test_utils::source`
+says which bytes of the file are inside a literal, the reader
+attributes each to the item that spells it, and there is no form a
+word can arrive in that the reader was not taught, because there is no
+form. Attribution can be wrong, and a wrong attribution is loud: it
+invents a name the roster does not carry.
 
-- a SECOND, looser reader over `errors.rs` that only has to answer
-  "how many `-> &'static str` maps are in this file" and compare
-  against a pinned count — an arrival alarm rather than a word
-  inventory, which is all the gap needs. **The instance that arrived
-  is a counter-example to the cheapest version of it**:
-  `ValidationRefusal::attribute` is an inherent method inside an
-  `impl` block, `pub const fn attribute(self) -> &'static str`, not a
-  free `pub fn` at top level. A reader keyed on the file's top-level
-  items — the shape the three `dimension`-family maps have, and the
-  shape `tags.rs`'s reader is built on — would not have seen it, and
-  would have reported agreement over a population that had grown. It
-  is the second map here in that position (`ErrorClass::class_name` is
-  the first), so the looser reader has to walk `impl` bodies, which is
-  most of what made the tag reader hard;
-- or moving the capitalisation out of the map: if
-  `Measurement.dimension` were minted by capitalising
-  `dimension_tag`'s word at the boundary, that map would not exist and
-  `errors.rs` would be back to four. That changes no word's value and
-  is a `pncad-py` call, not a kernel one.
+The population it reports is **nine items and 52 literals**, not five
+maps — `EvalReason::ATTRIBUTE`, `ValidationRefusal::ATTRIBUTES`,
+`QuantityOpMismatch`'s `Display` format string and `reads_as_prose`'s
+fingerprint are all literals in this file and three of the four are
+Python-visible, which the five-map framing did not count.
 
-Either way the instrument is a hand-maintained thing needing a guard
-of its own, which is this program's standing trap and the reason this
-is a row rather than a line in someone's PR.
+**The other two shapes, and why not.** Capitalising at the boundary so
+`measurement_dimension_tag` stops existing takes the file from five
+maps to four and closes arrival not at all — it is a population
+reduction offered against a reach problem. Ruling that a
+Python-visible word comes from `tags.rs` only runs into the same
+`pub const fn` fact from the other side: none of the five is a form
+that reader admits, and two are inherent methods whose call shape
+cannot move without the enum moving too.
+
+### What this does not close
+
+- **A word that is not a literal here.** A map forwarding
+  `crate::tags`', or a word built from a kernel `Display`, adds no
+  literal and no row, and the census passes green.
+  `the_errors_mint_census_cannot_see_a_word_that_is_not_a_literal`
+  executes exactly that and is the record of it.
+- **A word RENAMED in place.** The roster holds each item's literal
+  COUNT, so growth and loss are loud and a swap inside one item is
+  not; that is the `held_by` column's business, which is why every row
+  names a check or says plainly that no Rust check names the word
+  (`EvalReason::ATTRIBUTE` is that row).
+- **Everywhere else.** This is one file's alarm. The same question over
+  the rest of the crate is
+  `payload-attribute-names-are-spelled-twice-and-held-equal-by-nothing`,
+  filed by the same unit.
+- **Misattribution to the row above.** A literal in an attribute
+  (`#[doc = "…"]`, a `#[pyo3(name = "…")]` were one ever written
+  here) lands on the item ABOVE it, because attribution is by the
+  nearest declaration above. The count still moves, so it is loud on
+  the wrong row rather than silent; the reader's own guard pins that
+  behaviour by execution.
+
+### What was executed
+
+A sixth map was added to this file for real — an inherent
+`pub const fn` inside an `impl ValidationRefusal`, the position the
+census is weakest against and where both already-unseen maps live. It
+reds by name, and **nothing else in the 103-test Rust suite moved**:
+that is the row's thesis, measured.
+
+The reader's own guard is
+`the_errors_mint_reader_recognises_what_it_claims` plus four executed
+limits. One claim in its first draft was wrong and execution corrected
+it: an `extern "C"` ABI string IS a literal and IS counted, where the
+draft reasoned that the lexer would blank it.
+
+### What the tag reader does with a `pub const fn`
+
+Measured: it **fails loud**, and before this unit it named the wrong
+thing — `TopForm::Const` matches on `pub const `, a prefix of
+`pub const fn `, so the line was refused as a malformed `&str` const.
+`TopForm::Const` now declines the `fn` case and `top_form`'s
+diagnostic ladder names the form, with
+`the_tag_table_reader_refuses_a_const_fn_map` driving the rung. The
+grammar still admits no `const` map; nothing was widened.
 
 ## Two observations about WHY the file keeps growing
 
