@@ -6838,3 +6838,10 @@ The three independent units the first `[ev]` sitting ratified
   structural in intent, but the sites it retypes are predicates' margins
   and the direction tag is a claim about bounds — a mixed unit takes the
   class of the part that carries the risk).
+
+### Block SCALAR-B2 — the draw (2026-09-15)
+
+Draw: `/dev/urandom` byte **187** (< 252), 187 mod 3 = 1 ⇒ fable position
+1. Slots by dispatch order: **slot 0 sense-sign doors = OPUS, slot 1
+unit-vector witness = FABLE, slot 2 rate pair = OPUS.** Same remote box
+and posture as B1.
