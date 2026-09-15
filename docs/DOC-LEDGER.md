@@ -743,6 +743,44 @@ sentence; four `work/issues/` items whose `refs` named a SEAT unit id
 now name the unit's PR instead. Prose citations of "VERB-SEAT-DESIGN
 §n" resolve against `crates/verbs/README.md` by clause id.
 
+## Per-merge deletion — TINT-4's spec (2026-09-15)
+
+Recoverable at `git show 5494b9927:docs/TINT-4-SPEC.md` (the fix-pass
+head). **The first S-TINT spec written after an executed probe rather
+than before one**, and the probe's value was not the mechanism it
+confirmed — it was discovering that two of the four rows the
+orchestrator had grouped into a "roster class" were mis-classed, one of
+them wrongly filed by the same seat that filed it the same morning. A
+spec written from the grouping would have sent a lane to weld two rows
+that wanted different mechanisms.
+
+What the spec got right and the unit proved: `roster!`'s ident feeding
+three consumers at once, the `--list` re-exec as ground truth, and the
+kill-shot measurement named up front (time the self-`--list` on
+`editor-core --features interval`, the largest binary in the tree) with
+the lane told to stop and report if it came out badly. It came out at
+6.6-7.9 ms over 1630 rows, so the design held.
+
+What the spec did NOT anticipate, and what the unit turned out to be
+about: the prose column it sanctioned. The spec said the weld holds
+names and never prose and required the lane to say so — and then the
+first substantive sentence written into that column was a false
+citation, in the very entry the unit existed to correct. The fix pass's
+class check found three more wrong or misplaced among the remaining six.
+The spec's "state what it does not enforce" was carried out faithfully
+and was not enough, because the column it disclosed as unchecked was
+unchecked in exactly the way it said and was wrong anyway.
+
+The spec also did not foresee the two narrowings the fix pass closed: a
+`#[test]` under a nested `mod` passing a guard named
+`the_header_roster_names_every_row_in_this_file`, and an assertion in
+the macro's own suite that could not fail. Recorded in the PR body and
+in `work/tint/r2-m10-6-header-roster-omits-the-suites-heaviest-row.md`'s
+`## Closed` section.
+
+- `TINT-4-SPEC.md` — TINT-4, a header roster welded to the rows it
+  names (#2687)
+
 ## Per-merge deletion — S415's spec (2026-09-15)
 
 Recoverable at `git show bce676c75:docs/S415-SPEC.md` (the PORT

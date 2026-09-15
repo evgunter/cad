@@ -821,3 +821,113 @@ nothing to remember.
 head plus the state sync). `tint/4-roster-weld` does not contain
 TINT-3, so TINT-4 was never blocked on this and its base was always
 `main`.
+
+## TINT-4 landed: a roster welded to libtest's own listing (2026-09-15)
+
+PR #2687, merged at `2101cb36a` and **verified on main by
+`git merge-base --is-ancestor`** rather than by the merge API's
+`merged: true` — the first use of the correction the entry above
+adopted, on the first unit after the one that needed it. CI green on
+the fix-pass head: 39 jobs, 0 failures, twelve `test (…)` and five
+`k-lint (gate, …)`.
+
+`test_utils::roster!` replaces the hand-kept `//!` enumeration in
+`crates/editor-core/tests/r2_m10_6_probes_interval.rs`. Each entry is
+an ident feeding three consumers — `let _: fn() = $row;` so a retired
+name is a compile error, `stringify!($row)` so the compared string
+cannot be mistyped, and the block a human reads — against libtest's own
+`--list` through a `current_exe()` re-exec. **No Rust is parsed**, so
+it is not a fresh instance of
+`source-scanning-censuses-are-a-tripwire-on-ordinary-rust`.
+
+**The review found no MAJOR and one thing worth more than a MAJOR.**
+Entry 4's sense change was correct — the lane corrected a wrong header
+rather than reversing a kernel claim. But the new prose it wrote
+carried a false citation, in the very entry the unit exists to correct.
+That is the empirical answer to the question the unit left open: the
+prose column is unchecked, and **the first substantive sentence written
+into it was wrong**.
+
+**The fix pass's class check is the finding.** Told to check the other
+six sentences, it found **two more wrong and one duplicated**:
+
+- entry 3 said the row asserts `Violated`; it asserts
+  `!matches!(verdict, Holds)`, and after M10-6's MAJ-1 that arm refuses
+  `Unevaluated { WindowSuperset }` — the row's own doc says it "gets no
+  verdict at all";
+- entry 7's figures were all correct, against an item that says of them
+  *"Nowhere else states them"* — so writing them here made a fifth
+  site of a measurement deliberately kept to one. Numbers removed,
+  pointer added;
+- entry 5 overclaimed, entry 2 understated, entry 1 quoted a PR body
+  it cannot read, entry 6 holds.
+
+So of seven sentences in a column nothing computes with, **four were
+wrong or misplaced on arrival**. The column survives — nothing reads
+it, so it cannot make a row green that should be red — but it is now
+constrained to be a string (`const _: &[&str]`, which turns `row: 42`
+into `E0308`) and labelled as reading nothing.
+
+**T2 took shape (a): the guard's name was made true rather than
+narrowed to fit.** A nested `#[test]` is now a violation naming the row
+and telling the author to hoist it, because
+`the_header_roster_names_every_row_in_this_file` is what reaches the
+PASS list, a `--filter` and every future citation. A third falsifier
+now exists for it, red where it was green before the pass.
+
+**T7 is the one this program cares about most.** `roster.rs` carried an
+assertion that could not fail — a check for `": "` in rows the parse
+had already stripped it from. It is not deleted: the parse is factored
+out as `rows_of_listing`, and a new row feeds it a synthetic listing
+with a `: benchmark` line. Mutating the parse makes the new row fail
+while `the_binary_lists_this_very_row` stays green, which is the
+demonstration the old assertion could not have produced.
+
+**Six more errors the lane caught in its own diff before committing**,
+listed in the PR body as a receipt rather than an assurance — among
+them a claim that `harness = false` is "absent from this tree today"
+when `benches/Cargo.toml:88` sets it, and a citation off by one line.
+That is the first time in this program a lane's own adversarial re-read
+caught what the reviewer otherwise would have.
+
+`docs/TINT-4-SPEC.md` is deleted with this sync and recorded in
+`docs/DOC-LEDGER.md`, which says what the spec got right, what it did
+not anticipate (the prose column it sanctioned), and that it was the
+first spec in this program written after an executed probe rather than
+before one.
+
+## The orchestrator relayed a review finding it had not checked (2026-09-15)
+
+TINT-4's review reported that the new prose cites a **D5** that does
+not exist. **D5 exists.** It is M10-6's own deviation D5 in PR #1685,
+whose table reads *"`report_key` takes that tuple **plus the run
+dials**"*, and whose Corrections section says *"D5 said `report_key`
+'is the cache seam' while it omitted every dial and had no consumer.
+Both halves are closed (MINOR-1, D11)."* The same file's OTHER D5
+citation, at `:501`, is accurate and was correctly left alone.
+
+The review's substantive finding held — the sentence's polarity was
+backwards and **D11** is what put the dials in — but the "there is no
+such D5" half was wrong, and this seat put it into a dispatch as an
+established fact. **The lane checked it and corrected the
+orchestrator.**
+
+**Second time in this program.** The first was repeating a reviewer's
+claim that seven helper-copy classes had no rows, when `fnv`/`digest`
+and `missing_pairs` do. Both times the claim arrived from a lane that
+had done careful work, and its carefulness elsewhere was taken as
+warrant for a sentence nobody had run down. That is observation 2's
+mechanism — asserting what has not been executed — with the review in
+the spec's seat, so it is recorded there rather than as a fourth
+observation.
+
+**The correction**: a finding this seat relays into a dispatch as fact
+gets its primary source read first, and the dispatch cites where it
+was read. One API call would have settled this one.
+
+**Do not delete `tint/2-stand-down-channel`.** It is the only ref from
+which `e4adf05a1` — TINT-3's mis-based merge commit — is reachable.
+The repo is merge-only and git is its archive, but a commit reachable
+from exactly one branch stops being reachable when that branch goes.
+Its CONTENT is on main through #2690; the merge commit itself, which is
+the evidence for the entry above, is not.
