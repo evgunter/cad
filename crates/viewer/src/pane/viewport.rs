@@ -362,19 +362,20 @@ impl ViewerBehavior<'_> {
 
         // **The index the PICTURE was drawn from**, which is the index
         // in hand on every frame but the ones `drawn_index` exists for.
-        // Everything below this line is about what is on screen — marks
-        // composited against the drawn corners' ids, and the id pass's
-        // answer read back through an id map — so all of it asks the
-        // drawn index and none of it asks the current one.
-        let drawn = drawn_index(self.index, self.scene_key);
+        // Everything below this line that reads an index is about what
+        // is on screen — marks composited against the drawn corners'
+        // ids, and the id pass's answer read back through an id map —
+        // so all of it asks this one and none of it asks the current
+        // one.
+        let on_screen = drawn_index(self.index, self.scene_key);
 
         // What to mark, as a pure function of what is drawn and what is
         // selected. Recomputed every frame; nothing retains it.
-        let highlight = drawn
+        let highlight = on_screen
             .map(|index| marks::highlight(index, self.session.selection(), self.session.hover()));
         // The edge half of the same question, and the same discipline:
         // recomputed every frame from state that lives in one place.
-        let mut edges = drawn
+        let mut edges = on_screen
             .map(|index| {
                 marks::edge_overlay(
                     index,
@@ -393,7 +394,7 @@ impl ViewerBehavior<'_> {
         // body) narrowing a single selection gets — one pass over the
         // target's drawn edges, so the cost is the body's edge count
         // and not its square.
-        if let (Some(index), Some(tool)) = (drawn, self.tools.blend()) {
+        if let (Some(index), Some(tool)) = (on_screen, self.tools.blend()) {
             edges
                 .selected
                 .extend(tool.mark_segments(index, self.display));
@@ -548,14 +549,14 @@ impl ViewerBehavior<'_> {
         // question is outstanding at all.
         let outstanding = self.id_log.outstanding();
         let from_ray = outstanding.and_then(|_| {
-            let index = drawn?;
+            let index = on_screen?;
             let eval = self.session.evaluation()?;
             index
                 .face_under_cursor(eval, self.camera, viewport, cursor_px?, self.display)
                 .ok()
                 .flatten()
         });
-        if let Some(report) = drawn.and_then(|index| {
+        if let Some(report) = on_screen.and_then(|index| {
             frame::disagreement(
                 index,
                 self.id_answer.load(Ordering::Relaxed),
