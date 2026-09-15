@@ -11714,3 +11714,59 @@ Filed while sweeping, on FIX's slate:
 reach `Subject::Unavailable`.
 
 Signed (WIRE implementer lane `wire-n1`, PR #2629).
+
+## 2026-09-15, `view/withdrawal-causes` — the INNER join gets a type
+
+Closes `withdrawal-causes-join-on-a-mark-a-fault-may-contain`, filed
+by #2665 when it fixed the outer level. `Display for Withdrawal` joins
+a withdrawal's causes with `LIST_SEPARATOR`, flat, and
+`DisplayFault::NonRigidFrame` writes one inside a single sentence. It
+was unambiguous only because neither admission test happens to raise
+that arm — a property of two functions' error sets, with no type
+carrying it.
+
+**The fix is the item's own first option: `Withdrawn.cause` narrows.**
+`display::AdmissionFault` holds the four faults the admission tests
+answer, MOVED out of `DisplayFault` rather than copied, and
+`DisplayFault` gains `Admission(AdmissionFault)`. The three check
+functions answer the narrow type; every door still answers
+`DisplayFault` through `From` at the `?`; ~30 call sites moved under
+the compiler.
+
+**Why not the other two.** The mark treatment (`Message::new` /
+`Message::joined` one level in) needs a mark that is never legitimate
+in-band, and one level in from the bullet there is none left — every
+candidate is punctuation a sentence is entitled to, and a rewriting
+door would show a reader words its author did not write, which is the
+objection `frame_status`'s own doc already makes to escaping at a
+join. Re-wording `NonRigidFrame` is a claim about one arm, and it has
+a cost nobody had priced: #2665's
+`a_joined_line_splits_back_into_the_notices_it_was_made_from` is built
+on that sentence as the one REAL fault text carrying the mark, and
+guards itself with an assert that reds if it stops carrying one. That
+row would have had to fall back to prose written for the row, which is
+what its doc says it refuses to do.
+
+**Receipts.** Reverting the field to `DisplayFault` and letting the
+census range over the type it then has: the split returns **nine
+pieces for eight causes**, `NonRigidFrame`'s single sentence cut in
+two. Giving `MateConstrained` a semicolon on the fixed tree: both new
+rows red. Widening `free_move_check` to answer `NonRigidFrame`: E0308.
+
+**Two findings filed from the sweep**, both on this slate.
+`startup-notices-join-on-a-mark-a-prefs-notice-contains` is the same
+class at `LIST_SEPARATOR`'s other consumer and is **live, not latent**
+— three `prefs::Notice` arms carry a `"; "` and two startup notices
+need only a prefs file naming an unknown theme and an unknown preset.
+`seat-line-spells-the-list-mark-as-a-literal` is the mark's second
+spelling.
+
+**Also corrected, both stale before this branch:** `display.rs` and
+`frame.rs` each said *"the remaining three"* `DisplayFault` arms name
+no id, written 2026-09-05 when there were seven arms and falsified on
+2026-09-11 by `WrongFreeMove`; the split states it structurally
+instead. `crates/viewer/README.md` said `rank`'s `Display(_)` is a
+catch-all, which #2053's fix pass made false on 2026-09-06 —
+`git log -S` finds an agent commit and no ratification.
+
+Signed (VIEW implementer lane `withdrawal-causes`, PR pending).

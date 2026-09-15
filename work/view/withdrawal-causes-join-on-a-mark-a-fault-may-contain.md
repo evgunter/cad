@@ -2,8 +2,11 @@
 id: withdrawal-causes-join-on-a-mark-a-fault-may-contain
 kind: issue
 title: A Withdrawal joins its causes with LIST_SEPARATOR, which a DisplayFault's own text may contain
-status: open
+status: closed
 opened: 2026-09-15
+closed: 2026-09-15
+branch: view/withdrawal-causes
+refs: [joined-notices-nest-their-own-separator, startup-notices-join-on-a-mark-a-prefs-notice-contains, seat-line-spells-the-list-mark-as-a-literal]
 ---
 
 
@@ -52,3 +55,46 @@ than about the type.
 ## Home
 
 VIEW's: `crates/viewer/src/frame.rs`, `crates/viewer/src/display.rs`.
+
+## Closed (`view/withdrawal-causes`, 2026-09-15)
+
+**`Withdrawn.cause` narrows** — the first of the three, and the one
+this file ranked strongest.
+
+`display::AdmissionFault` is a new enum carrying the four faults the
+admission tests answer; the arms MOVED there rather than being copied,
+so `DisplayFault` gains `Admission(AdmissionFault)` beside its four own
+and no sentence is defined twice. `drawn_targets`, `display_check` and
+`free_move_check` answer `AdmissionFault`; every door still answers
+`DisplayFault`, through `From` at the `?`. `Withdrawn::cause` is
+`AdmissionFault`, so `Display for Withdrawal` joins a type the claim
+can be made about.
+
+**What this item claimed, checked by reading all four:**
+
+- `prune` fills every `Withdrawn.cause` from `free_move_check` or
+  `display_check`: **true**, at all three sites (`superseded`,
+  `dropped_hides`, `killed_gesture`), and `prune` is the only producer
+  of a `Withdrawn` in `src/`.
+- the two checks raise those four and not `NonRigidFrame`: **true of
+  the bodies**, not only of the `# Errors` prose. `free_move_check` is
+  `display_check` plus `MateConstrained`; `display_check` is
+  `drawn_targets().map`; `drawn_targets` returns `NoSuchNode`,
+  `NotAnInstance` and `FusedGeometry` and calls only `doc.node`,
+  `instances_by_root` and `BTreeSet` inserts, none of which can fail.
+- `NonRigidFrame` is raised by `preview_free_move` alone: **true**, one
+  construction site in the workspace (`display.rs`, the `is_rigid`
+  else-arm), returned to the caller.
+- `refusal-rank-wildcards-the-display-fault-payload` is nearby:
+  **closed, at #2053**, and the narrowing touches what it bought.
+  `Refusal::rank`'s `Display` arm now walks the admission family inside
+  `DisplayFault::Admission` rather than folding it into one
+  `Admission(_)`, which would have been that item's own defect one
+  level further down. A fifth admission fault reds there too.
+
+**What the fix does not buy.** The claim "no cause writes the mark" is
+still a claim about four sentences; what the type carries is the
+population it ranges over, so the census that checks it is over a
+closed set and a fifth arm cannot join without one. `LIST_SEPARATOR`'s
+other consumer is untouched and is a live defect:
+`startup-notices-join-on-a-mark-a-prefs-notice-contains`.
