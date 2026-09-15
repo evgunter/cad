@@ -171,3 +171,50 @@ question, and `H12` is sharper than anything `D113` was about: eleven
 `review_m0_pr3.rs` are negative proofs no tier has ever evaluated, which
 start passing silently the day a bound is loosened. Shape 1, not shape 4.
 Plan updated.
+
+## D70 ruled and closed; two kernel defects filed off-slate (2026-09-15)
+
+**Ev, in-chat: *"if the reframed D70 is 'should they be conditional?'
+then the answer is no, we should fix the defect (or, like, you would
+file the issue for fixing the defect and move it off your slate)."***
+Done, and the row is closed with nothing scheduled here.
+
+The thirteen silent stand-downs are **two kernel defects wearing one
+test-suite costume**, which is why the row read as test work for a
+month. Twelve stand down on the plane × NURBS certificate — limb 2's
+bound is a function of a fixed sample schedule (`PXN_FIT_SAMPLES = 33`,
+`CERT_SAMPLES = 9`, `PXN_IMAGE_DEGREE = 1`, all `const`) and does not
+refine with ε, on a carrier that is EXACT by construction: both walls
+come from one `loft_body` call, the seam edge is simultaneously the loft
+of a profile vertex and a boundary iso-curve of the bowed patch, and
+every control point of that corner has `y = −scale` exactly. Filed on
+TRIM, which owns `edge_nurbs.rs`. The thirteenth stands down on
+`SSI_MAX_FIT_SAMPLES`, a `const` cap on a sample count the marcher grows
+as ε shrinks; filed in `work/issues/` because no open program's `paths`
+claim `crates/geom-brep/src/ssi.rs`, with both readings (resource cap vs
+class boundary) and the measurement that distinguishes them.
+
+**The route to the answer is worth recording, because the row's own
+framing hid it.** Ev's question was *"if it's a valid intensional
+description then it should be valid under any decrease in epsilon
+(unless it's ulp-scale)"* — and at metre coordinates ε = 1e-12 is ~4500
+ulps, so it is not. That test is what turned a test-hygiene row into a
+kernel row in one step. Everything this program had proposed before it
+(announce the skips; re-mine the fixture onto `INTERIOR_COLUMN_SCALE`)
+was a way of LIVING WITH the ε-conditionality, and one of them —
+shrinking the model until a fixed bound fits — had already been taken
+once under #1167 and would have propagated a workaround into eleven more
+fixtures. **A row that says "this test stands down" is worth asking the
+kernel about before asking the suite about.**
+
+**What stays here.** `work/tint/loud-stand-down-announcements-are-discarded-by-the-gate`
+— found while gathering D70's context, not about D70, and it survives
+those thirteen disappearing. Nothing else from D70 is carried: its
+"13 is a FLOOR" qualifier, its 116-`continue`-site exclusion and its
+`#[ignore]`d-collection-run standing note were framing for a question
+that is now answered, and they die with the row rather than being
+re-filed as work nobody asked for.
+
+**Board: two of the slate's three decision rows are now closed** and
+neither cost a unit. The remaining one is "any change to a `memories/`
+clause", which is not a row. 40 items live.

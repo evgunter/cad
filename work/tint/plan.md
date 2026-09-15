@@ -118,10 +118,15 @@ A unit that moves kernel logic, or that changes what a guard decides in a
 way worth a second opinion on correctness, gets one extra reviewer named
 in its PR with the reason. That is a per-unit judgement, not a default.
 
-Two rows on this slate are **decisions, not work**, and ride `[ev]` PRs:
-`D70` (whether 13 silent stand-downs should be ε-conditional at all) and
-any change to a `memories/` clause this program finds wrong. `D113` was
-the third and is **closed** — Ev ruled on 2026-09-15 that an intra-doc
+One thing on this slate is a **decision, not work**, and rides an
+`[ev]` PR: any change to a `memories/` clause this program finds wrong.
+`D70` and `D113` were the other two and are both **closed** (Ev,
+in-chat, 2026-09-15). `D70` asked whether 13 silent stand-downs should
+be ε-conditional at all; the answer is no, the ε-conditionality is two
+kernel defects, and both are filed on the ground that owns them —
+`work/trim/plane-nurbs-certificate-bound-does-not-refine-with-eps` and
+`work/issues/ssi-fit-sample-budget-is-a-constant-compared-against-a-varying-eps`.
+`D113` — Ev ruled on 2026-09-15 that an intra-doc
 link in a `tests/` file is prose checked by nothing, and that no format
 change and no mechanism follow, because a different citation spelling
 would not prevent drift. The reasoning and the measurement behind it are
