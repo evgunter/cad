@@ -3072,3 +3072,41 @@ the two rows one unit, and the requirement that the unit state what its
 guard does not enforce — which it did, at its sites and in its PR.
 
 - `TINT-2-SPEC.md` — TINT-2, a stand-down that nobody can hear (#2656)
+
+## Per-merge deletion — CENSUS-PY-RAISE-LITERALS's spec (2026-09-15)
+
+Recoverable at `git show d1d3c1b3c:docs/CENSUS-PY-RAISE-LITERALS-SPEC.md`
+(PR #2682's last head before the merge). CENSUS's fifth unit. Its
+sentences that did not survive:
+
+- **the second-mint claim** — the spec repeated the item's statement that
+  `unclassified`, `wireframe` and `not_utf8` each duplicate a word their
+  own door's inventoried map mints. **Only `unclassified` does**; the
+  other two return nothing from `tags.rs` and are new words on an
+  attribute an inventoried map otherwise fills. The orchestrator had
+  verified `unclassified` and carried the generalisation over the other
+  two — **verified the example, asserted the class**, which is the same
+  shape as CENSUS-PY-GETTERS' lowercase-anchored check by a different
+  mechanism.
+- **the const-in-a-match-arm proposal**, inherited from the item — a
+  `pub const` that `select_refusal_tag`'s wildcard and the `flush.rs`
+  site both read. True of a top-level const, **false of a match ARM
+  reading one**: the tag reader's `ArmShape` admits a literal, a nested
+  match, a block, `None`, `Some(..)` and a delegation, and nothing else.
+  A one-arm map was taken instead, because a delegation is a shape the
+  reader already admits.
+
+The spec's framing that survived and was the unit's spine: **a `pub
+const` pins a word's text and does not close its class**, so each shape
+is asked whether its door's attribute can carry a type — proven by
+CENSUS-TAG-REACH and re-driven here.
+
+The corrections are on the item file, which survives this deletion, and
+the unit's record is `work/census/log.md`'s CENSUS-PY-RAISE-LITERALS
+entry plus the PR body. Residue filed on `work/census/`:
+`prose-counts-of-a-populations-size-in-pncad-py-doc-comments`,
+`both-unclassified-crossings-are-unreachable-and-so-is-the-repair-on-one`
+and `dimension-error-op-carries-twelve-words-minted-at-call-sites`; and
+on `work/lib/`, `validationerror-stub-declares-one-of-the-class-two-shapes`.
+
+- `CENSUS-PY-RAISE-LITERALS-SPEC.md` — CENSUS-PY-RAISE-LITERALS, nine raise-site words get homes (#2682)

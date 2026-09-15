@@ -1,8 +1,10 @@
 //! The binding error taxonomy.
 //!
 //! Failures reach Python as **typed exceptions carrying the
-//! structured error, never strings**. Four items say what that means
-//! here:
+//! structured error, never strings**. The items here say what that
+//! means, and no count of them is kept in this paragraph — nothing
+//! enumerates this file, which is `work/census/`'s row rather than
+//! this header's claim:
 //!
 //! * [`QuantityOpMismatch`] — the boundary refusal a Python user can
 //!   provoke that the Rust surface refuses at COMPILE time
@@ -14,11 +16,20 @@
 //!   layer's ten-arm refusal; the two are unrelated types and this
 //!   one is deliberately not named after it.
 //! * [`ErrorClass`] — which typed Python exception a kernel refusal
-//!   becomes, and for the one class whose discriminant is this
-//!   crate's own decision, WHICH refusal inside it.
-//! * [`EvalReason`] — that discriminant: the complete vocabulary of
-//!   `EvaluationError.reason`, carried by [`ErrorClass::Evaluation`]
-//!   so that naming the class means naming the reason.
+//!   becomes, and for the classes whose discriminant is this crate's
+//!   own decision rather than a kernel refusal's tag, WHICH refusal
+//!   inside it.
+//! * [`EvalReason`] and [`ValidationRefusal`] — those discriminants:
+//!   the complete vocabulary of `EvaluationError.reason`, and of
+//!   `ValidationError`'s two attributes, each carried by its
+//!   [`ErrorClass`] variant so that naming the class means naming the
+//!   refusal.
+//! * [`BoundaryEdit`], [`UnmirroredSelect`] and [`StlRefusal`] — the
+//!   values a raise takes in place of a `&str` where the word is the
+//!   BOUNDARY's own: naming one means naming a variant, and
+//!   `crate::tags` holds the exhaustive map. They are declared here
+//!   rather than beside their maps because that file's recogniser
+//!   admits no `enum`.
 //! * [`reads_as_prose`] — the predicate every raise is checked
 //!   against, so a `Debug` dump never reaches a Python user's screen.
 //!
@@ -156,9 +167,10 @@ pub enum ErrorClass {
     /// A node whose evaluation failed with a typed geometry refusal,
     /// or that was poisoned by an upstream failure.
     ///
-    /// **The one class that carries its own discriminant.** Every
-    /// other variant here answers "which exception", and its payload
-    /// is whatever the raise site hands over; this one answers "which
+    /// **The first of the two classes that carry their own
+    /// discriminant** ([`Self::Validation`] is the other). Most
+    /// variants here answer "which exception", and their payload is
+    /// whatever the raise site hands over; this one answers "which
     /// exception AND which reason", because `EvaluationError.reason`
     /// is not a kernel refusal's tag — it is this crate's own
     /// decision about what "the node produced no value" can mean
@@ -168,8 +180,24 @@ pub enum ErrorClass {
     /// `crate::py::typed_err` mints the word from it rather than
     /// reading one off the field list.
     Evaluation(EvalReason),
-    /// A body that failed a topological or geometric validator.
-    Validation,
+    /// A body that failed a topological or geometric validator, or a
+    /// measurement the same class refuses under.
+    ///
+    /// **The second class that carries its own discriminant**, for
+    /// the same reason [`Self::Evaluation`] does: neither of this
+    /// class's two words is a kernel refusal's tag. `door` names a
+    /// PYTHON METHOD — `Body.validate` and its three siblings — and
+    /// `reason` names the one refusal a measurement door has, and
+    /// both are this crate's own decisions about vocabulary the
+    /// kernel never spells. Carrying [`ValidationRefusal`] here is
+    /// what takes the CHOICE of word away from the raise site: a site
+    /// cannot name this class without naming a refusal, and both
+    /// attributes the class writes are minted from one map. What it
+    /// does not do is make the attribute names unspellable in a
+    /// payload list — `crate::py::typed_err`'s assertion is what
+    /// covers that, over [`ValidationRefusal::ATTRIBUTES`] rather
+    /// than over the one word this refusal writes.
+    Validation(ValidationRefusal),
     /// An operator applied to two quantities whose dimensions do not
     /// admit it ([`QuantityOpMismatch`]). The Python class is
     /// `DimensionError`.
@@ -450,7 +478,7 @@ impl ErrorClass {
         match self {
             Self::Edit => "EditError",
             Self::Evaluation(_) => "EvaluationError",
-            Self::Validation => "ValidationError",
+            Self::Validation(_) => "ValidationError",
             Self::Dimension => "DimensionError",
             Self::FmtQuantity => "FmtQuantityError",
             Self::Literal => "LiteralError",
@@ -548,6 +576,208 @@ pub enum EvalReason {
     /// An ancestor failed, so the node never ran; `through` names the
     /// nearest failed one.
     Poisoned,
+}
+
+impl EvalReason {
+    /// The Python attribute this class's word is written to, spelled
+    /// where the vocabulary is rather than at the mint.
+    ///
+    /// Every variant writes the same one, which is what makes this a
+    /// const rather than [`ValidationRefusal::attribute`]'s map.
+    ///
+    /// It is the same English word as
+    /// [`ValidationRefusal::MassProperties`]'s attribute and nothing
+    /// holds the two equal, deliberately: they are attributes of two
+    /// different Python classes, and a caller reading
+    /// `EvaluationError.reason` learns nothing about
+    /// `ValidationError.reason`. Renaming one is not a reason to
+    /// rename the other.
+    pub const ATTRIBUTE: &'static str = "reason";
+
+    /// Every Python attribute this class mints a word onto — the
+    /// one-element case of [`ValidationRefusal::ATTRIBUTES`], derived
+    /// from [`Self::ATTRIBUTE`] so the word is spelled once.
+    pub const ATTRIBUTES: &'static [&'static str] = &[Self::ATTRIBUTE];
+}
+
+/// **The complete vocabulary of the `ValidationError` class**, carried
+/// by [`ErrorClass::Validation`] so that naming the class means naming
+/// the refusal.
+///
+/// One enum for two attributes, because one exception class has two
+/// shapes. Four variants are validator DOORS and their word is
+/// `ValidationError.door` — the Python method that spoke, which is why
+/// [`Self::Geometric`] is the word even when the caller called
+/// `validate_geometric_measured`: a caller reading `door` learns which
+/// gate refused, not which door it called. The fifth is a measurement
+/// that had no number to answer with, and its word is
+/// `ValidationError.reason`. [`Self::attribute`] is which of the two,
+/// and `crate::tags::validation_refusal_tag` is the word; both are
+/// exhaustive over this enum.
+///
+/// **Neither word has a kernel arm behind it**, which is why the enum
+/// is the binding's own. `topo::validate` and its siblings answer
+/// `Result<(), Vec<topo::ValidationError>>` — the failures are the
+/// kernel's and cross as `findings`, projected per finding — and which
+/// DOOR was called is a fact only this crate knows. The measurement's
+/// `topo::MassPropsError` is a kernel type, but the word is not its
+/// tag: it says the measurement refused, not which arm refused, and the
+/// arm is in the message prose.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ValidationRefusal {
+    /// `Body.validate` — the whole battery.
+    Validate,
+    /// `Body.validate_closed` — closure only.
+    Closed,
+    /// `Body.validate_geometric`, tier 3 — and the gate half of
+    /// `Body.validate_geometric_measured`, which is the same gate.
+    Geometric,
+    /// `Body.validate_pseudomanifold`, tier 3′.
+    Pseudomanifold,
+    /// A measurement door with no number to answer with — this class's
+    /// one refusal that is not a validator's.
+    MassProperties,
+}
+
+impl ValidationRefusal {
+    /// **Every refusal this class can carry**, so that the attributes
+    /// it writes are DERIVED from the enum rather than restated.
+    ///
+    /// Held to the enum by
+    /// `tests::validation_refusals_are_the_roster_the_inventory_reads`:
+    /// the words this roster maps to through
+    /// `crate::tags::validation_refusal_tag` are compared against that
+    /// map's row in `TAG_INVENTORY`, which is derived by READING
+    /// `src/tags.rs`. So a sixth refusal is an arm in that map — a
+    /// compile error until it is written — then a word the reader sees
+    /// — a red row until the inventory names it — and then a member
+    /// here, a red row until it joins.
+    pub const ALL: &'static [Self] = &[
+        Self::Validate,
+        Self::Closed,
+        Self::Geometric,
+        Self::Pseudomanifold,
+        Self::MassProperties,
+    ];
+
+    /// **Every Python attribute this class mints a word onto**, which
+    /// is the image of [`Self::attribute`] over [`Self::ALL`].
+    ///
+    /// It is a SET and not one word because the set is what a raise
+    /// site may not spell: `crate::py::typed_err` asserts over this,
+    /// so a site passing `reason` beside a refusal that writes `door`
+    /// is caught too. Asserting the one attribute the refusal in hand
+    /// writes would leave the class's other vocabulary open, which is
+    /// the gap this const exists to close.
+    ///
+    /// `tests::the_validation_class_mints_exactly_these_attributes`
+    /// holds it equal to that image in both directions, walking
+    /// [`Self::ALL`] rather than a second list.
+    pub const ATTRIBUTES: &'static [&'static str] = &["door", "reason"];
+
+    /// Which Python attribute this refusal's word is written to.
+    ///
+    /// Total over the enum, so a sixth refusal has to say which of the
+    /// class's two vocabularies it joins rather than defaulting into
+    /// one.
+    ///
+    /// **Both words are Python-visible** — `pncad.pyi` declares
+    /// `door: str` and `reason: str` on `ValidationError` — and
+    /// neither is a TAG: `TAG_INVENTORY`'s population is the tag words
+    /// `src/tags.rs`'s maps mint, and an attribute NAME is not one, so
+    /// the inventory cannot read this map however it grows. The two
+    /// tests named above are the pin instead, and the routing — which
+    /// refusal writes which — is
+    /// `tests::every_validation_refusal_writes_the_attribute_it_is_committed_to`,
+    /// because moving a variant between these arms changes a Python
+    /// contract and nothing else here would notice.
+    #[must_use]
+    pub const fn attribute(self) -> &'static str {
+        match self {
+            Self::Validate | Self::Closed | Self::Geometric | Self::Pseudomanifold => "door",
+            Self::MassProperties => "reason",
+        }
+    }
+}
+
+/// The `EditError.variant` of a refusal the BOUNDARY built rather than
+/// the document layer.
+///
+/// Taken by `crate::py::doc`'s boundary raise instead of a
+/// `&'static str`, so the three refusals this crate decides for itself
+/// are a closed set: a fourth is a variant here, an arm in
+/// `crate::tags::boundary_edit_tag`, and a word the tag inventory sees.
+///
+/// Two of the three carry the KERNEL VALUE whose word they publish
+/// rather than a word of their own, and that is the rule
+/// `crate::py::doc`'s boundary raise states: where a kernel enum arm
+/// stands behind the refusal, the word is that enum's to spell, so the
+/// two refusals a caller can reach through either door stay one word.
+/// Only [`Self::NameSerialize`] mints, because a `serde_json` failure
+/// has no arm anywhere.
+#[derive(Debug, Clone, Copy)]
+pub enum BoundaryEdit<'a> {
+    /// A stable name that would not serialize. The one arm with no
+    /// kernel refusal behind it: `StableName` has exactly one
+    /// serialization and the document layer never refuses a name for
+    /// failing to produce it.
+    NameSerialize,
+    /// An insert that minted no node id, worded by the declare
+    /// sugar's own map — the same refusal reaches Python through
+    /// `Doc.declare`, and it is the same word there.
+    Declare(&'a pncad::select::DeclareError),
+    /// A placement rule spelled through the wrong constructor, worded
+    /// by the document layer's own fault map.
+    PlacementRule(&'a pncad::document::PlacementRuleFault),
+}
+
+/// Which `#[non_exhaustive]` kernel enum at the SELECTION boundary has
+/// grown a variant this binding predates.
+///
+/// Both arms answer one word, and that is the point of the type rather
+/// than an accident of it: a caller reads `SelectRefusal.reason ==
+/// "unclassified"` and learns one fact — this binding could not
+/// classify the refusal — whichever kernel enum out-grew it. The word
+/// used to be spelled twice, once at `crate::tags::select_refusal_tag`'s
+/// forced wildcard and once at the contact-class crossing, with nothing
+/// holding the two equal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum UnmirroredSelect {
+    /// A `pncad::select::SelectRefusal` arm this binding does not
+    /// mirror, reached through the query door.
+    Refusal,
+    /// A `pncad::select::ContactClass` this binding does not mirror,
+    /// reached through a flush finding's `class_`.
+    ContactClass,
+}
+
+/// Everything that can refuse a `to_stl_*` call, as ONE value.
+///
+/// Four refusals share the `StlError` exception class because they
+/// refuse the same CALL — the writers' own, the two validated option
+/// newtypes' (which are this call's keyword arguments), and the
+/// boundary's own non-UTF-8 residue. Naming them together is what lets
+/// the projection in `crate::py::mesh` be a single exhaustive match
+/// instead of four, so an arm added to any of the three kernel enums
+/// arrives there as a compile error.
+///
+/// It lives here rather than beside that projection so that
+/// `crate::tags::stl_refusal_tag` — which is what the tag inventory
+/// reads — can match on it: this module compiles on the no-Python
+/// path, and `crate::py` does not.
+#[derive(Debug, Clone, Copy)]
+pub enum StlRefusal<'a> {
+    /// The writers' refusal: the mesh and the sink.
+    Write(&'a pncad::stl::StlError),
+    /// The `solid <name>` name the ASCII writer was handed.
+    Name(&'a pncad::stl::SolidNameError),
+    /// The 80-byte header the binary writer was handed.
+    Header(&'a pncad::stl::BinaryHeaderError),
+    /// The ASCII writer emitted bytes that are not UTF-8. Not a kernel
+    /// arm: the writer emits ASCII by construction, so this is a kernel
+    /// defect surfaced rather than lossily replaced, and it is the one
+    /// arm whose word this crate mints.
+    NotUtf8(&'a std::string::FromUtf8Error),
 }
 
 /// Whether a refusal message reads as prose rather than a `Debug`

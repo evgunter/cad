@@ -33,7 +33,7 @@ use std::sync::Arc;
 use pyo3::prelude::*;
 use pyo3::types::{PyFloat, PyString};
 
-use crate::errors::{ErrorClass, EvalReason, measurement_dimension_tag};
+use crate::errors::{ErrorClass, EvalReason, ValidationRefusal, measurement_dimension_tag};
 use crate::py::quantity::Length;
 use crate::py::{doc::NodeId, typed_err};
 use crate::tags::{
@@ -230,14 +230,12 @@ fn measurement_err(
     err: &topo::MassPropsError,
     extra: Vec<(&'static str, Py<PyAny>)>,
 ) -> PyErr {
-    let mut fields = vec![(
-        "reason",
-        PyString::new(py, "mass_properties_failed")
-            .unbind()
-            .into_any(),
-    )];
-    fields.extend(extra);
-    typed_err(py, ErrorClass::Validation, err.to_string(), &fields)
+    typed_err(
+        py,
+        ErrorClass::Validation(ValidationRefusal::MassProperties),
+        err.to_string(),
+        &extra,
+    )
 }
 
 /// A float payload attribute, `None` where the door has no value for
@@ -334,12 +332,16 @@ impl Body {
 
     /// Full validation. Raises `ValidationError` listing the failures.
     fn validate(&self, py: Python<'_>) -> PyResult<()> {
-        self.run_validator(py, "validate", topo::validate(&self.inner))
+        self.run_validator(py, ValidationRefusal::Validate, topo::validate(&self.inner))
     }
 
     /// Closure validation only.
     fn validate_closed(&self, py: Python<'_>) -> PyResult<()> {
-        self.run_validator(py, "validate_closed", topo::validate_closed(&self.inner))
+        self.run_validator(
+            py,
+            ValidationRefusal::Closed,
+            topo::validate_closed(&self.inner),
+        )
     }
 
     /// Tessellate at a chordal budget — the ladder's step 4.
@@ -364,7 +366,7 @@ impl Body {
         let tol = Tol::witness();
         self.run_validator(
             py,
-            "validate_geometric",
+            ValidationRefusal::Geometric,
             topo::validate_geometric(&self.inner, tol),
         )
     }
@@ -398,8 +400,8 @@ impl Body {
     /// may have no volume number at this ε. Tier 3 admits it — the +V
     /// check reads only the sign — and the measurement refuses, with
     /// the same `ValidationError` and the same `reason`
-    /// (`"mass_properties_failed"`) `mass_properties()` raises on that
-    /// body. On THAT refusal the exception also carries the
+    /// ([`ValidationRefusal::MassProperties`]) `mass_properties()`
+    /// raises on that body. On THAT refusal the exception also carries the
     /// sign-level bracket the gate decided on — `volume_lo`,
     /// `volume_hi`, `surface_area` — which is the whole of what the
     /// certified quadrature is entitled to say about the body, and is
@@ -412,7 +414,11 @@ impl Body {
             // the tag its refusal carries: a caller reading `door`
             // learns which gate refused, not which door it called.
             Err(failures) => {
-                return Err(Self::validator_err(py, "validate_geometric", &failures)?);
+                return Err(Self::validator_err(
+                    py,
+                    ValidationRefusal::Geometric,
+                    &failures,
+                )?);
             }
         };
         // The bracket has to be read BEFORE the continuation consumes
@@ -476,7 +482,7 @@ impl Body {
         let tol = Tol::witness();
         self.run_validator(
             py,
-            "validate_pseudomanifold",
+            ValidationRefusal::Pseudomanifold,
             topo::validate_pseudomanifold(&self.inner, &self.contacts, tol),
         )
     }
@@ -504,7 +510,7 @@ impl Body {
     fn run_validator(
         &self,
         py: Python<'_>,
-        door: &str,
+        door: ValidationRefusal,
         outcome: Result<(), Vec<topo::ValidationError>>,
     ) -> PyResult<()> {
         let Err(failures) = outcome else {
@@ -524,9 +530,12 @@ impl Body {
     /// `Result<(), _>`.
     fn validator_err(
         py: Python<'_>,
-        door: &str,
+        door: ValidationRefusal,
         failures: &[topo::ValidationError],
     ) -> PyResult<PyErr> {
+        // The word for the human sentence is the one the class mints
+        // for `door`, read from the same map rather than restated.
+        let door_word = crate::tags::validation_refusal_tag(door);
         let count = failures.len().into_pyobject(py)?.unbind().into_any();
         let findings: Vec<ValidationFinding> = failures
             .iter()
@@ -535,9 +544,9 @@ impl Body {
         let findings = findings.into_pyobject(py)?.unbind().into_any();
         Ok(typed_err(
             py,
-            ErrorClass::Validation,
+            ErrorClass::Validation(door),
             format!(
-                "{door} reported {} failure(s): {}",
+                "{door_word} reported {} failure(s): {}",
                 failures.len(),
                 failures
                     .iter()
@@ -545,11 +554,7 @@ impl Body {
                     .collect::<Vec<_>>()
                     .join("; ")
             ),
-            &[
-                ("door", PyString::new(py, door).unbind().into_any()),
-                ("failure_count", count),
-                ("findings", findings),
-            ],
+            &[("failure_count", count), ("findings", findings)],
         ))
     }
 }
@@ -2048,8 +2053,10 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<ImportReport> 
         // Not a refusal variant: the import SUCCEEDED and produced
         // the other arm of `StepImport`, which this door does not
         // adopt. Its tag is the arm's name and shares the namespace
-        // with `step_import_error_tag`'s, which contains no
-        // `wireframe`.
+        // with `step_import_error_tag`'s, which does not mint it; the
+        // word is `crate::tags::STEP_IMPORT_WIREFRAME`, where the tag
+        // inventory reads it. A THIRD arm of the kernel's success enum
+        // stops this match compiling, and owes a word in that file.
         Ok(pncad::step_import::StepImport::Wireframe { .. }) => Err(typed_err(
             py,
             ErrorClass::StepImport,
@@ -2057,7 +2064,9 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<ImportReport> 
             &[
                 (
                     "variant",
-                    PyString::new(py, "wireframe").unbind().into_any(),
+                    PyString::new(py, crate::tags::STEP_IMPORT_WIREFRAME)
+                        .unbind()
+                        .into_any(),
                 ),
                 ("promoted_kind", py.None()),
             ],
@@ -2065,7 +2074,7 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<ImportReport> 
         // The tag is the importer's own, through `crate::tags`. Every
         // arm of `StepImportError` is reachable here, and the entity
         // id and line that would tell them apart live in the message
-        // prose — so one literal for all twenty-one would make them
+        // prose — so one literal for every arm would make them
         // indistinguishable to a caller.
         //
         // `promoted_kind` is the one arm's payload discriminant,
