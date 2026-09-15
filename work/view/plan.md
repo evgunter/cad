@@ -1170,6 +1170,21 @@ handling — never existed (the item is wrong), moved (repoint by subject),
 or **existed and was deleted** (name the commit and what replaced it).
 The third reads exactly like the first from a grep of the current tree.
 
+**Read what a census is a census OF before counting it.** Verifying
+that #2666 kept `GUI-DESIGN.md`'s dated wasm-doc-link enumeration true,
+the orchestrator's first instrument — `grep -c '\[\`ThreadEvaluator\`\]'`
+over `evalseam.rs` — returned **4** against a census that says **2**,
+and that looked like a design page made false by a code change. It was
+the instrument that was wrong: the census counts only the links the
+WASM rustdoc pass renders, i.e. those OUTSIDE the
+`cfg(not(target_family = "wasm"))` module, and the page says so
+explicitly. Counting above the module boundary gives 2 / 1 / 0, the
+census verbatim. Generalises past this page: a census in this repo
+usually names its instrument and its population, and a grep that
+matches the same IDENTIFIER is not the same measurement — it is the
+proxy-classifier defect with the orchestrator holding the proxy. Read
+the enumeration's own stated scope first, then count that.
+
 ## Exit shape
 
 The README states the module map and every item above has landed or

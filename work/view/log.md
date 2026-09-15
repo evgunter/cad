@@ -12135,3 +12135,90 @@ cause` is the whole `DisplayFault`, so a sixth variant re-opens it with
 nothing going red.
 
 Item **closed**. **VIEW stands at 73 open / 99 closed.**
+
+## 2026-09-15 — #2666 merged; the coalescing machine is written once, and a dated design census survived a 705-line rewrite
+
+**#2666 merged** (`707388d942`), verified from the job list: code tier,
+**39 check runs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok`
+success**, all four render-lane rows success, six skipped, nothing
+failed or neutral.
+
+**The item was stale in its central number and said so itself** — it
+ended *"catching it one unit earlier is the only reason to file it now
+rather than after the third seam"*, and the third seam landed at #2606.
+Three traits, three `Inline*`, three `Thread*`, three `dispatch`
+bodies, six `busy` bodies: the machine was written **six** times, not
+four, and the header's *"Both implementations do this, by the same
+mechanism"* was wrong about the number AND about there being one
+mechanism. The test half was stale the same way and worse than my
+dispatch said: `tests/eval_seam.rs` carries **six** copies of the
+10 000 × 1 ms harness in three shapes, not two, with four more in three
+other files.
+
+**The fork was decided, and the argument for NOT splitting is the
+better half.** Taken: a generic `Coalescing<J>` plus a private `Job`
+trait carrying the one rule that differs, `supersedes`. Not taken: the
+split — because it removes no copies (the item's own finding), the
+header's disjointness is a *symptom* of three restatements of one
+shape, and `README.md`'s *The seam modules are a chain* makes
+one-file-owns-every-thread the property that won the current module
+shape, which makes a split a design change rather than a tidy-up.
+
+**`supersedes` is where a seam's notion of "the same picture" now
+lives, once**, and each of the three answers carries its reason at the
+impl. I read them. `EvalJob` is **always** true and the argument is
+grounded in the type — `EvalJob` carries a `CancelToken`, so a job only
+waits because a submit put it there, and that same submit canceled the
+run the answer in hand describes. The other two compare keys,
+`(generation, δ)` and `(generation, requested)`.
+
+**#2637's caution was checked and held**: no second record of seam
+state. `app.rs`, `session.rs` and `pickcache.rs` are **not in the
+diff** — I confirmed from the diff stat, not the report — so every
+consumer still asks the seam through `busy()`/`poll()`.
+
+**The dated census in `GUI-DESIGN.md` survived, deliberately.** That
+page carries a COMPLETE wasm-doc-link enumeration read 2026-09-14 —
+`evalseam.rs`: `ThreadEvaluator` ×2, `ThreadIndexer` ×1 — and the lane
+wrote the header rewrite to keep it exactly true. **My first check of
+it was a proxy and nearly produced a false alarm**: a raw grep for
+`` [`ThreadEvaluator`] `` over the file returns 4, not 2. The census
+counts only what the WASM rustdoc pass sees, i.e. links from OUTSIDE
+the `cfg(not(target_family = "wasm"))` module — the page says so in as
+many words, *"its own links sit inside the `cfg(not(wasm))` module,
+which the browser pass does not render at all"*. Counting the real
+population (everything above the `mod threaded` boundary at `:673`)
+gives `ThreadEvaluator` ×2 at lines 19 and 53, `ThreadIndexer` ×1 at
+line 82, `ThreadFitter` ×0 — the census verbatim. **Reading what a
+census is a census OF, before counting, is what stopped me reporting a
+discrepancy that was my instrument's.**
+
+**Three stale counts fixed as record**, all pre-existing: `Worker`'s
+doc said *"this module's two workers"* over a three-variant enum;
+`SpawnError`'s said a reader would be sent to *"the wrong half"* of a
+three-way module; and the header claimed *"Every test in this crate
+drives the inline one"* when six rows in `eval_seam.rs` alone drive the
+threaded one.
+
+**One ordering difference disclosed rather than buried**:
+`ThreadEvaluator::drop` now drops its waiting job before the join
+rather than after, because `close()` is shared.
+
+**Evidence added to an open row rather than a number changed.** The
+multi-field-write sweep row's 23 was left alone — that row owns it —
+and a third reading was added with its instrument stated: **28 on
+`origin/main`, 21 on this head**, all of the −7 in `evalseam`. Three
+instruments disagreeing by up to five is itself the answer to that
+row's open question: the stated rule does not determine a number.
+
+**Two citations re-pointed by subject**, both broken by this diff:
+`the-picture-key-never-became-a-type`'s fifth site →
+`<IndexRequest as Job>::supersedes`, with a note that
+`<FitRequest as Job>::supersedes` now sits one impl away spelled
+identically while being a different key; and
+`a-dead-seam-worker-reads-as-an-ordinary-idle-state`'s
+`ThreadEvaluator::dispatch` → `Coalescing::dispatch`.
+
+**Filed**: `threaded-seam-wait-loops-are-hand-copied-across-four-test-files`.
+
+Item **closed**. **VIEW stands at 73 open / 100 closed.**
