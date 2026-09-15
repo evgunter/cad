@@ -24,8 +24,8 @@
 //!
 //! # The predicate: manifestly POSITIVE
 //!
-//! [`nonneg`] is this module's older half — the non-negativity rule D's
-//! `atan2(0, N)` fold reads (`trig`) — and [`positive`] sharpens it.
+//! `nonneg` is this module's older half — the non-negativity rule D's
+//! `atan2(0, N)` fold reads (`trig`) — and `positive` sharpens it.
 //! The two share the per-term test and differ in what they do with a
 //! zero.
 //!
@@ -34,8 +34,7 @@
 //! indeterminates is raised to an EVEN power or is a `Sqrt`/`Abs` atom
 //! (to any power) — every such term is a product of non-negative reals
 //! wherever it has a value — or when it is a PERFECT SQUARE
-//! ([`signed::poly_sqrt`](super::signed::poly_sqrt), exact arithmetic
-//! that reads no value).
+//! (`signed::poly_sqrt`, exact arithmetic that reads no value).
 //!
 //! An indeterminate is **manifestly positive** when it is a `Sqrt` or
 //! an `Abs` atom whose ARGUMENT form is manifestly positive:
@@ -143,7 +142,7 @@ use std::sync::Arc;
 use super::form::{Form, Mono, Poly};
 use super::{AtomInfo, Session, SymOp, indet_atom, signed};
 
-/// How many atom arguments deep [`positive`] looks before it declines.
+/// How many atom arguments deep `positive` looks before it declines.
 /// A `sqrt` of a `sqrt` of a `sqrt` is three; the normalisation chains
 /// this rule is for are two. The cap is what keeps the predicate a
 /// fixed cost per node rather than a walk of the whole atom tree, and
@@ -180,7 +179,7 @@ fn nonneg_poly(p: &Poly, sess: &Session) -> bool {
 ///
 /// This is the predicate rule D's second fold reads — `atan2(0, N) = 0`
 /// for an `N` non-negative by its syntax (`trig`) — and the half
-/// [`positive`] sharpens. The module header carries the argument.
+/// `positive` sharpens. The module header carries the argument.
 pub(super) fn nonneg(f: &Form, sess: &Session) -> bool {
     if f.poisoned || f.num.is_zero() {
         return false;
