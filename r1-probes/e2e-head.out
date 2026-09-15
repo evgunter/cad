@@ -1,0 +1,17 @@
+E2E build: faces=6 edges=12 surfaces=6
+E2E validate_geometric: OK
+E2E validate_pcurves: 0 findings
+E2E chart_boundary: 6 ok, 0 refused
+E2E PatchRegularity rows: 4
+  surface SurfaceKey(3v1) floor=40098b50fe8daf1d sup=405c3295301c32e4 su=401fc73dec7dd324 sv=4040bde574b0e920 lever=4040bde574b0e920 thin=3fb86993c3f4b39d sine=3f88952debb4279a cells=768 normal_floor=ok
+  surface SurfaceKey(4v1) floor=40083c0e96157f9a sup=405bf165c91d1303 su=4020d91156d0136b sv=403eb801aa743d92 lever=403eb801aa743d92 thin=3fb93ed12564d492 sine=3f87f98e8cd252e3 cells=768 normal_floor=ok
+  surface SurfaceKey(5v1) floor=400594f286004b4e sup=405aa3081d038fca su=401deb9b961a1e47 sv=4040cfb0927c784a lever=4040cfb0927c784a thin=3fb48a524f84294a sine=3f85f7cf111a8791 cells=768 normal_floor=ok
+  surface SurfaceKey(6v1) floor=400d2f5c230d3d58 sup=40601be630cf848c su=402185dc91687904 sv=4040ddf0b803852f lever=4040ddf0b803852f thin=3fbbaf55cd79a128 sine=3f894761d775f4e1 cells=768 normal_floor=ok
+  chart SurfaceKey(2v1) sup=(3ff0000000000000,3ff0000000000000)
+  chart SurfaceKey(3v1) sup=(402a2c3d4cc909b7,4040bde574b0e91a)
+  chart SurfaceKey(4v1) sup=(402bc08aec810d82,403e7a90b676f787)
+  chart SurfaceKey(5v1) sup=(4028a48106f006b4,4040bad5c81b1e61)
+  chart SurfaceKey(6v1) sup=(402cdd2bc85b5dd8,4040bde574b0e91a)
+  chart SurfaceKey(7v1) sup=(3ff0000000000000,3ff0000000000000)
+E2E mass: vol=405390b383cd16d7 volpad=3d913a0000000000 area=4067a94c7c9532fe areapad=405334ace07e810f
+EXIT:0

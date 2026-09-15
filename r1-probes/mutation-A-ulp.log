@@ -1,0 +1,40 @@
+   Compiling geom-core v0.0.0 (/home/user/cad/.claude/worktrees/agent-acabecf4731cd7513/crates/geom-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.71s
+     Running tests/all.rs (/home/user/scalar-rate-r1-target/debug/deps/all-75a348caac66965c)
+
+running 5 tests
+test rate_pair_doors::inf_to_meters_is_the_bare_product ... ok
+test rate_pair_doors::inf_to_param_is_the_bare_quotient ... ok
+test rate_pair_doors::a_poisoned_or_collapsed_rate_passes_straight_through ... ok
+test rate_pair_doors::sup_to_param_is_the_bare_quotient ... ok
+test rate_pair_doors::sup_to_meters_is_the_bare_product ... FAILED
+
+failures:
+
+---- rate_pair_doors::sup_to_meters_is_the_bare_product stdout ----
+
+thread 'rate_pair_doors::sup_to_meters_is_the_bare_product' (14877) panicked at crates/geom-core/tests/rate_pair_doors.rs:68:13:
+SupSpeed::to_meters(1e0, 1e0) = 1.0000000000000002e0, bare = 1e0
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: all::rate_pair_doors::sup_to_meters_is_the_bare_product
+             at ./tests/rate_pair_doors.rs:68:13
+   3: all::rate_pair_doors::sup_to_meters_is_the_bare_product::{closure#0}
+             at ./tests/rate_pair_doors.rs:64:39
+   4: <all::rate_pair_doors::sup_to_meters_is_the_bare_product::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   5: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    rate_pair_doors::sup_to_meters_is_the_bare_product
+
+test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 185 filtered out; finished in 0.10s
+
+error: test failed, to rerun pass `-p geom-core --test all`
+EXIT:101

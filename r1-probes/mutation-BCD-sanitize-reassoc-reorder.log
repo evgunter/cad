@@ -1,0 +1,102 @@
+   Compiling geom-core v0.0.0 (/home/user/cad/.claude/worktrees/agent-acabecf4731cd7513/crates/geom-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.78s
+     Running tests/all.rs (/home/user/scalar-rate-r1-target/debug/deps/all-75a348caac66965c)
+
+running 5 tests
+test rate_pair_doors::sup_to_meters_is_the_bare_product ... ok
+test rate_pair_doors::a_poisoned_or_collapsed_rate_passes_straight_through ... FAILED
+test rate_pair_doors::inf_to_meters_is_the_bare_product ... FAILED
+test rate_pair_doors::inf_to_param_is_the_bare_quotient ... FAILED
+test rate_pair_doors::sup_to_param_is_the_bare_quotient ... FAILED
+
+failures:
+
+---- rate_pair_doors::a_poisoned_or_collapsed_rate_passes_straight_through stdout ----
+
+thread 'rate_pair_doors::a_poisoned_or_collapsed_rate_passes_straight_through' (16857) panicked at crates/geom-core/tests/rate_pair_doors.rs:137:9:
+assertion failed: same_bits(InfSpeed::new(rate).get(), rate)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: core::panicking::panic
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:150:5
+   3: all::rate_pair_doors::a_poisoned_or_collapsed_rate_passes_straight_through
+             at ./tests/rate_pair_doors.rs:137:9
+   4: all::rate_pair_doors::a_poisoned_or_collapsed_rate_passes_straight_through::{closure#0}
+             at ./tests/rate_pair_doors.rs:134:58
+   5: <all::rate_pair_doors::a_poisoned_or_collapsed_rate_passes_straight_through::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   6: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- rate_pair_doors::inf_to_meters_is_the_bare_product stdout ----
+
+thread 'rate_pair_doors::inf_to_meters_is_the_bare_product' (16858) panicked at crates/geom-core/tests/rate_pair_doors.rs:87:13:
+InfSpeed::to_meters(0e0, NaN) = 0e0, bare = NaN
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: all::rate_pair_doors::inf_to_meters_is_the_bare_product
+             at ./tests/rate_pair_doors.rs:87:13
+   3: all::rate_pair_doors::inf_to_meters_is_the_bare_product::{closure#0}
+             at ./tests/rate_pair_doors.rs:83:39
+   4: <all::rate_pair_doors::inf_to_meters_is_the_bare_product::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   5: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- rate_pair_doors::inf_to_param_is_the_bare_quotient stdout ----
+
+thread 'rate_pair_doors::inf_to_param_is_the_bare_quotient' (16859) panicked at crates/geom-core/tests/rate_pair_doors.rs:119:13:
+InfSpeed::to_param(0e0, NaN) = NaN, bare = NaN
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: all::rate_pair_doors::inf_to_param_is_the_bare_quotient
+             at ./tests/rate_pair_doors.rs:119:13
+   3: all::rate_pair_doors::inf_to_param_is_the_bare_quotient::{closure#0}
+             at ./tests/rate_pair_doors.rs:115:39
+   4: <all::rate_pair_doors::inf_to_param_is_the_bare_quotient::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   5: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- rate_pair_doors::sup_to_param_is_the_bare_quotient stdout ----
+
+thread 'rate_pair_doors::sup_to_param_is_the_bare_quotient' (16861) panicked at crates/geom-core/tests/rate_pair_doors.rs:105:13:
+SupSpeed::to_param(3e0, 1e-9) = 2.9999999999999995e9, bare = 3e9
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: all::rate_pair_doors::sup_to_param_is_the_bare_quotient
+             at ./tests/rate_pair_doors.rs:105:13
+   3: all::rate_pair_doors::sup_to_param_is_the_bare_quotient::{closure#0}
+             at ./tests/rate_pair_doors.rs:101:39
+   4: <all::rate_pair_doors::sup_to_param_is_the_bare_quotient::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   5: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    rate_pair_doors::a_poisoned_or_collapsed_rate_passes_straight_through
+    rate_pair_doors::inf_to_meters_is_the_bare_product
+    rate_pair_doors::inf_to_param_is_the_bare_quotient
+    rate_pair_doors::sup_to_param_is_the_bare_quotient
+
+test result: FAILED. 1 passed; 4 failed; 0 ignored; 0 measured; 185 filtered out; finished in 0.08s
+
+error: test failed, to rerun pass `-p geom-core --test all`
+EXIT:101

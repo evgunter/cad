@@ -1,0 +1,64 @@
+=== TWINS ===
+   Compiling geom-core v0.0.0 (/home/user/cad/.claude/worktrees/agent-acabecf4731cd7513/crates/geom-core)
+warning: missing documentation for the crate
+ --> crates/geom-core/examples/r1_probe_b.rs:1:1
+  |
+1 | / use geom_core::{InfSpeed, Margin, SupSpeed};
+2 | | fn main() {
+3 | |     let a = Margin::metered_sup(1.0_f64, SupSpeed::new(2.0_f64));
+4 | |     let b = Margin::metered(1.0_f64, InfSpeed::new(2.0_f64));
+5 | |     let c = SupSpeed::new(1.0_f64).get() == SupSpeed::new(1.0_f64).get();
+6 | |     println!("twins compile: {} {} {}", a.value(), b.value(), c);
+7 | | }
+  | |_^
+  |
+  = note: requested on the command line with `-W missing-docs`
+
+warning: `geom-core` (example "r1_probe_b") generated 1 warning
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.24s
+     Running `/home/user/scalar-rate-r1-target/debug/examples/r1_probe_b`
+twins compile: 2 2 true
+EXIT:0
+=== DOCTESTS ===
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+   Doc-tests geom_core
+
+running 14 tests
+test crates/geom-core/src/predicate.rs - predicate::SupSpeed (line 701) ... ok
+test crates/geom-core/src/linalg/point.rs - linalg::point::Point3<T>::new (line 133) ... ok
+test crates/geom-core/src/k_stats.rs - k_stats::Bracket (line 546) ... ok
+test crates/geom-core/src/dual.rs - dual (line 125) ... ok
+test crates/geom-core/src/predicate.rs - predicate::SupSpeed (line 736) ... ok
+test crates/geom-core/src/predicate.rs - predicate::SupSpeed (line 716) ... ok
+test crates/geom-core/src/spline/hull.rs - spline::hull::SplineCoeffs (line 161) ... ok
+test crates/geom-core/src/spline/hull.rs - spline::hull::RationalCoeffs (line 313) ... ok
+test crates/geom-core/src/spline/hull.rs - spline::hull::SplineCoeffs (line 186) ... ok
+test crates/geom-core/src/spline/hull.rs - spline::hull::SplineCoeffs (line 210) ... ok
+test crates/geom-core/src/spline/knots.rs - spline::knots::Span (line 278) ... ok
+test crates/geom-core/src/spline/hull.rs - spline::hull::SplineCoeffs (line 233) ... ok
+test crates/geom-core/src/spline/knots.rs - spline::knots::Span (line 302) ... ok
+test crates/geom-core/src/spline/knots.rs - spline::knots::Span (line 324) ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 14 tests
+test crates/geom-core/src/k_stats.rs - k_stats::Bracket (line 536) - compile fail ... ok
+test crates/geom-core/src/dual.rs - dual (line 130) - compile fail ... ok
+test crates/geom-core/src/predicate.rs - predicate::SupSpeed (line 709) - compile fail ... ok
+test crates/geom-core/src/predicate.rs - predicate::SupSpeed (line 693) - compile fail ... ok
+test crates/geom-core/src/predicate.rs - predicate::SupSpeed (line 731) - compile fail ... ok
+test crates/geom-core/src/spline/hull.rs - spline::hull::SplineCoeffs (line 174) - compile fail ... ok
+test crates/geom-core/src/spline/hull.rs - spline::hull::RationalCoeffs (line 300) - compile fail ... ok
+test crates/geom-core/src/spline/hull.rs - spline::hull::SplineCoeffs (line 149) - compile fail ... ok
+test crates/geom-core/src/spline/hull.rs - spline::hull::SplineCoeffs (line 199) - compile fail ... ok
+test crates/geom-core/src/spline/knots.rs - spline::knots::KnotVector::unit_segment (line 805) - compile fail ... ok
+test crates/geom-core/src/spline/hull.rs - spline::hull::SplineCoeffs (line 222) - compile fail ... ok
+test crates/geom-core/src/spline/knots.rs - spline::knots::Span (line 290) - compile fail ... ok
+test crates/geom-core/src/spline/knots.rs - spline::knots::Span (line 267) - compile fail ... ok
+test crates/geom-core/src/spline/knots.rs - spline::knots::Span (line 313) - compile fail ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+all doctests ran in 0.42s; merged doctests compilation took 0.27s
+EXIT:0
