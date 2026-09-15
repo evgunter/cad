@@ -13,8 +13,8 @@ given below on purpose**: both programs measured shift maps naming the
 wrong subject about half the time, so this row names SUBJECTS and lets
 the owner locate each one. Do not apply an offset to the old numbers —
 one of the five did not move by the same amount as the other four, and
-a sixth citation that looks like it belongs to this set was already
-stale before the change.
+three further citations that look like they belong to this set were
+already stale before the change (last section).
 
 ## What moved
 
@@ -47,24 +47,22 @@ reasons from DI3 rather than from the fault map. So this one wants a
 re-read, not a repoint: the citation still lands on an instance, and
 the row's census of instances may or may not still be the right size.
 
-## Three that look like they belong here and do not
+## Five is not the whole population
 
-Named so nobody attributes them to this change and so the count above
-is not read as the whole population. **Each is its owner's, not
-VIEW's, and none is caused by this diff** — all three were already
-wrong on `origin/main` before it:
+Three further `tree.rs` citations in the tracker no longer locate their
+subject. **None is caused by this change** — all three were already
+wrong on `origin/main` before it — and none is VIEW's, so they are not
+this row's to carry. Named here only so a reader does not take five for
+the total:
 
-- `work/ciw/ci-draw-can-hide-a-compile-break-on-main.md` cites a line
-  for the `MateFault::Unleverable` arm that was already several lines
-  short of it on `main`. **CIW's.**
-- `work/msolve/mate-memo-key-does-not-carry-the-solve.md` cites a line
-  range for *"take the first blamed mate the fault names"* — that
-  range held the `Band` arm on `main`, not the first-blamed-mate line,
-  which is in `downstream_of_mate`. It names the wrong subject, which
-  is the failure this repo's citation rule exists to prevent. **MSOLVE's.**
+- `work/ciw/ci-draw-rows-tree-rs-citation-does-not-locate-the-unleverable-arm`
+  and
+  `work/msolve/memo-key-rows-tree-rs-citation-now-lands-on-the-opposite-claim`
+  — filed on their owners' slates rather than listed here, because a
+  residue in another program's row dies when that row closes.
 - `work/msolve/mate-fault-subject-spelled-in-three-crates.md` cites a
-  pre-split line range for `blamed_mates`; that row already says so in
-  its own text and needs nothing from here. **MSOLVE's.**
+  pre-split range for `blamed_mates` and **already says so in its own
+  text**, so there is nothing to schedule and it gets no file.
 
 ## Why this is a file and not a sentence in a PR
 
