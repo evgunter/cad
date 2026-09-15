@@ -737,4 +737,3 @@ fn sym5_the_reach_on_documents_the_unit_did_not_build() {
     }
     assert!(lost.is_empty(), "rule E lost a certification: {lost:?}");
 }
-
