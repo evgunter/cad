@@ -23,7 +23,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
+use geom_core::{OrthoFrame, Point2, Point3, Tol, Vec2};
 use mesh::tessellate;
 use mesh::validate::{check_mesh, signed_volume};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
@@ -34,11 +34,7 @@ use sweep::{Revolution, RevolveAxis, revolve};
 /// take their columns from `walk`'s area-vector fold. Built through the
 /// public doors only; a typed refusal is returned, never unwrapped.
 fn placed_ball(r: f64, d: f64) -> Result<topo::Body<f64>, String> {
-    let plane = SketchPlane::from_frame(
-        Point3::new(d, d, d),
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-    );
+    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(d, d, d)));
     let lp = ProfileLoop::new(vec![
         ProfileVertex::new(Point2::new(0.0, -r), 1.0),
         ProfileVertex::new(Point2::new(0.0, r), 0.0),

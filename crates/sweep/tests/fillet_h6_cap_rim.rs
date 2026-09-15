@@ -25,6 +25,7 @@ use crate::common::cap_rims::{chart_counts, description, face_across, face_edges
 use geom_brep::{DihedralClass, EdgeDescription, classify_dihedral, edge_extent};
 use geom_core::{Band, Point2, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
+use sweep::test_support::sketch_from_axes;
 use sweep::{ExtrudeError, Extruded, Extrusion, extrude};
 use topo::{Body, EdgeKey, FaceKey};
 
@@ -211,10 +212,11 @@ fn every_extruded_cap_rim_is_transverse() {
             // between the cap and the walls, not to world z.
             "tilted sketch plane",
             validated(
-                SketchPlane::from_frame(
+                sketch_from_axes(
                     geom_core::Point3::new(0.3, -0.2, 0.7),
-                    Vec3::new(1.0, 1.0, 0.0).normalize(),
-                    Vec3::new(-1.0, 1.0, 2.0).normalize(),
+                    Vec3::new(1.0, 1.0, 0.0),
+                    Vec3::new(-1.0, 1.0, 2.0),
+                    Tol::witness(),
                 ),
                 vec![obround_loop()],
             ),

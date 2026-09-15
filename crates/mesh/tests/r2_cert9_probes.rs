@@ -7,7 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Point3, Tol, Vec3};
+use geom_core::{OrthoFrame, Point2, Point3, Tol};
 use mesh::Mesh;
 use mesh::tessellate;
 use mesh::validate::{check_mesh, signed_volume};
@@ -31,11 +31,7 @@ fn origin_fold(m: &Mesh) -> f64 {
 }
 
 fn plane_at(o: f64) -> SketchPlane<f64> {
-    SketchPlane::from_frame(
-        Point3::new(o, o, o),
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-    )
+    SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(o, o, o)))
 }
 
 fn mesh_of(plane: SketchPlane<f64>, poly: &[(f64, f64)], h: f64, delta: f64) -> Mesh {

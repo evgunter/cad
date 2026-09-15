@@ -29,7 +29,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
-use geom_core::{Decide, Point2, Point3, Vec3};
+use geom_core::{Decide, OrthoFrame, Point2, Point3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
@@ -100,11 +100,11 @@ fn validated<T: Decide>(plane: SketchPlane<T>, loops: Vec<ProfileLoop<T>>) -> Va
 /// The A prism: profile on world xy, extruded z ∈ [-1/16, 2 + 1/16]
 /// (strictly covers Z's z-extent [0, 2]).
 fn a_prism<T: Decide>(loops: Vec<ProfileLoop<T>>) -> Body<T> {
-    let plane = SketchPlane::from_frame(
-        Point3::new(T::from_f64(0.0), T::from_f64(0.0), T::from_f64(-0.0625)),
-        Vec3::new(T::from_f64(1.0), T::from_f64(0.0), T::from_f64(0.0)),
-        Vec3::new(T::from_f64(0.0), T::from_f64(1.0), T::from_f64(0.0)),
-    );
+    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(
+        T::from_f64(0.0),
+        T::from_f64(0.0),
+        T::from_f64(-0.0625),
+    )));
     extrude(
         &validated(plane, loops),
         Extrusion::Distance(T::from_f64(2.125)),
@@ -131,11 +131,11 @@ fn z_prism<T: Decide>() -> Body<T> {
         (1.8125, 1.5625),
         (-0.0625, 0.4375),
     ];
-    let plane = SketchPlane::from_frame(
-        Point3::new(T::from_f64(-0.0625), T::from_f64(0.0), T::from_f64(0.0)),
-        Vec3::new(T::from_f64(0.0), T::from_f64(1.0), T::from_f64(0.0)),
-        Vec3::new(T::from_f64(0.0), T::from_f64(0.0), T::from_f64(1.0)),
-    );
+    let plane = SketchPlane::from_frame(OrthoFrame::axes_yz(Point3::new(
+        T::from_f64(-0.0625),
+        T::from_f64(0.0),
+        T::from_f64(0.0),
+    )));
     extrude(
         &validated(plane, vec![lp(&z_poly)]),
         Extrusion::Distance(T::from_f64(2.125)),
@@ -229,11 +229,7 @@ fn az_coupled_flush_refuses_undeclared_succeeds_declared() {
         (1.8125, 1.5625),
         (0.0, 0.4375),
     ];
-    let plane = SketchPlane::from_frame(
-        Point3::new(0.0_f64, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-        Vec3::new(0.0, 0.0, 1.0),
-    );
+    let plane = SketchPlane::from_frame(OrthoFrame::axes_yz(Point3::new(0.0_f64, 0.0, 0.0)));
     let z_flush = extrude(
         &validated(plane, vec![lp(&z_poly_flush)]),
         Extrusion::Distance(2.125),
