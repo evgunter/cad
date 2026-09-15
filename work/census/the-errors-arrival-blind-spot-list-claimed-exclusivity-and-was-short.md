@@ -1,9 +1,10 @@
 ---
 id: the-errors-arrival-blind-spot-list-claimed-exclusivity-and-was-short
-kind: issue
+kind: unit
 title: a fourth consecutive blind-spot list claimed exclusivity and was short by two shapes, and the survivors are what matter
-status: open
+status: spec
 opened: 2026-09-15
+branch: census/arrival-residue
 ---
 
 
@@ -50,20 +51,43 @@ by two, on a unit whose spec named that hazard in writing.
    census green. That is the roster's stated design — it is an arrival
    alarm, and values are the `held_by` column's business — so the real
    question this leaves is whether every `held_by` entry is true.
-   **One of the nine says it is not**: `EvalReason::ATTRIBUTE` records
+   **One of the TEN says it is not**: `EvalReason::ATTRIBUTE` records
    *"no Rust check names this word"*, held only by `pncad.pyi` and the
    Python suite.
-3. **An `impl` at indentation loses its qualifier.** `impl_spans` keys
-   on column 0. Executed 2026-09-15: an `impl ValidationRefusal` inside
-   a `mod` reports `NEW item \`seventh\`` — loud, but under a bare name
-   rather than the qualified one, so the complaint names an item that
-   does not exist by that name. The site now says so. Teaching the walk
-   to nest is the repair.
+3. **An `impl` at indentation loses its qualifier.** `impl_spans`
+   (in `crates/pncad-py/src/tests.rs`, not in the shared module) keys on
+   column 0 — `line.starts_with("impl")`. Executed 2026-09-15: an
+   `impl ValidationRefusal` inside a `mod` reports `NEW item
+   \`seventh\`` — loud, but under a bare name rather than the qualified
+   one, so the complaint names an item that does not exist by that
+   name. The site now says so.
+
+   **The repair has a worked precedent one file over, and it is this
+   program's own.** `crates/test-utils/tests/hand_written_impl_census.rs`
+   scans freely (`code[from..].find("impl")`) and guards the hits with
+   `test_utils::source::{boundary_before, boundary_after}`, taking the
+   `impl Trait` return position out through `item_body`'s `Declaration`
+   arm and broken text through `Unterminated`. All three helpers are
+   already `pub` in `test_utils::source` and this file already depends
+   on that module. **So this is the SECOND thing unit 2's census had
+   solved that unit 6 re-invented more narrowly** — the first was the
+   `(path, trait, self type)` key — and that pattern, rather than the
+   nesting itself, is what the repair should be read against.
 4. **`held_by` is prose and nothing re-derives it.** The reviewer
-   checked all nine and every named test exists and says what the
-   column claims, so this is a risk and not a defect today; a renamed
-   test leaves the column pointing at nothing, and the census stays
-   green.
+   checked the nine rows that existed then; the orchestrator re-checked
+   at close-out, over TEN rows naming nine distinct tests, and every
+   one exists and says what the column claims. So this is a risk and
+   not a defect today; a renamed test leaves the column pointing at
+   nothing, and the census stays green.
+
+   **This row said "nine" in two places and the roster holds ten.** The
+   tenth, `is_bare_camel_token`, appeared in the same fix pass that
+   filed this row, when closing the char-literal hole made the
+   population every literal. Corrected 2026-09-15 by the orchestrator;
+   it is standing finding 12 (*a correction can be born stale in the
+   sentence that corrects a stale count*) in its fourth instance inside
+   one unit, and the reason the row's counts now say where they were
+   taken.
 
 ## Why this is a row and not a paragraph in a PR body
 
