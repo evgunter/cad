@@ -12,11 +12,11 @@ use crate::app::{ViewerBehavior, chrome, to_f32};
 use crate::camera::{self, Camera, CameraOp};
 use crate::datums::{self, datum_view};
 use crate::frame::{self, IdStep};
+use crate::generation::Generation;
 use crate::gpu::{IdQuery, ViewportCallback};
 use crate::input::{self, PointerButton, ViewportEvent, ViewportSize};
 use crate::marks;
 use crate::pickcache;
-use crate::generation::Generation;
 use crate::pickindex::PickIndex;
 use crate::scene::DisplayTolerance;
 use crate::session::SessionOp;
@@ -92,10 +92,10 @@ pub(crate) fn land(
 /// sight, and answers in the session's own currency; gating it on the
 /// picture would refuse picks over a stale-but-drawn scene, which is a
 /// product decision and not this rule's to make.
-fn drawn_index<'a>(
-    index: Option<&'a PickIndex>,
+fn drawn_index(
+    index: Option<&PickIndex>,
     scene_key: Option<(Generation, DisplayTolerance)>,
-) -> Option<&'a PickIndex> {
+) -> Option<&PickIndex> {
     let (generation, delta) = scene_key?;
     index.filter(|index| index.current_for(Some(generation), delta))
 }
