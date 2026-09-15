@@ -13,6 +13,26 @@ Nothing listed here is normative, and nothing listed here was
 normative when it was deleted. The living contract is `docs/DESIGN.md`
 plus the companion design docs its table lists.
 
+## Naming a sweep
+
+**A sweep is named for what it swept, not numbered** (Ev, 2026-09-15):
+`## SUITE sweep — 2026-09-15`, not `## Sweep 15`. A number has to be
+picked by reading the file for the current maximum, and two programs
+closing in the same window read the same maximum and take it — which is
+why the entries below carry **three** `Sweep 6` and **three** `Sweep 7`,
+and why their sequence ascends to 10 and then descends from 14. A name
+is unique by construction because a program closes once.
+
+**The existing numbered headings keep their numbers.** They are cited
+from outside this file — `work/README.md` cites *"sweep 11"* for
+`work/code-quality/`, and `memories/docs-ledger.md` and several program
+headers cite others — so renumbering them would silently invalidate the
+citations that are the reason this ledger exists. New entries take a
+name; old entries stay as they are, collisions and all.
+`work/meta/doc-ledger-sweep-numbers-collide.md` carries what to do about
+the collisions themselves, which is a separate question from how the
+next sweep is named.
+
 ## Recovering a deleted file
 
 ```
@@ -2052,6 +2072,144 @@ evidence added to `coincidence-zone-priced-budget-at-the-floor`),
 
 The nine unit specs left `docs/` at their merges (the per-merge
 deletion entries above name each unit head).
+
+## SUITE sweep — 2026-09-15: the program leaves the tracker
+
+Sweep SHA: `d5aca20238d57583610b834828c86798c5461190` — `main`'s tip
+immediately before the deletion (the merge of the `[ev]` PR #2685 that
+ratified the walk; the state in which SUITE's directory is complete and
+every row in it is closed), so every path below is recoverable at
+`git show d5aca20238d57583610b834828c86798c5461190:work/suite/<FILE>`
+and
+`git show d5aca20238d57583610b834828c86798c5461190:docs/SUITE-EXIT-WALK.md`.
+
+SUITE — suites, fixtures and the helpers they copy — opened 2026-09-11
+in the tracker cut of that day and closed 2026-09-15 on Ev's
+ratification of `docs/SUITE-EXIT-WALK.md` (PR #2685, merged; the
+S-MATE convention of 2026-09-04). **Six units**, every one merged on
+its own green hosted head: `S391` (#2624), `D403` (#2626), the
+editor-core resolver-stub migration (#2628), `D114` (#2630), `S52` with
+its passenger `topo-arena-census-duplicate-spellings` (#2639), and
+`S392` (#2650). The eighth row, `genus-rings-helper-spelled-nine-times`,
+closed itself in #2131 before this program dispatched. Per the sweep-5
+rule the directory leaves whole — `program.md`, `plan.md`, `log.md` and
+all eight rows — with no open rows to re-home, because every residue
+was filed on its owner's slate as it was disclosed (below).
+
+| program | title | closed | done-state of record |
+| --- | --- | --- | --- |
+| `suite` | SUITE — suites, fixtures and the helpers they copy | 2026-09-15 | this entry; the walk at the sweep SHA; no design doc and no A/B record — the A/B protocol was not run and band 4200–4299 goes unclaimed |
+
+### What survived, and where
+
+The program's output is the tree and other programs' slates, not its
+directory:
+
+- **The shared homes.** `crates/sweep/src/test_support.rs`'s
+  scalar-generic extrusion family (`extruded` and its named views
+  `prism`/`prism_on`/`prism_at`/`brick`/`block`/`cube`/`corners`/
+  `pocket_die`) and the loft family beside it (`loft_prism`,
+  `loft_prism_at`, `loft_prism_sections`, `PRISM_*`, `stacked_at`),
+  reached across crates by an off-by-default `test-support` feature on a
+  **dev** edge. `crates/editor-core/tests/fixture/resolver.rs`'s one
+  `PartStore`, `in_part`, `PART_BODY` and `with_resolver`, read by
+  seventeen suites over two crates. These are BLEND's and S-TINT's
+  ground from this sweep; SUITE claimed no paths and landed them by
+  announced seam.
+- **A guard where a sentence had failed.** `assert_part_body` in that
+  fixture holds the coupling sixteen local builders had held by
+  convention. Measured: a planted `PART_BODY = RecipeNodeId(1)` reddens
+  **224** rows across 21 suites, 222 carrying the guard's own message;
+  before the guard the same mutation reddened 73 and left three
+  consumers at zero.
+- **An instrument.** `m4_pr8_k_probe.rs`'s Probe-vs-f64 differential over
+  the Band 4 corpus at three ε, with counters that assert **feeding**
+  rather than presence — the fix for an instrument that had passed a
+  first review and could still be made to pass vacuously.
+- **Two suites that were measuring their own broken helper.**
+  `mate1_r1_probes` and `mate6r1_shared` named the profile node where
+  every sibling names the extrude; correcting it changes eight of
+  fourteen printed probe lines. Nothing gated, because `mate6r1_shared`
+  has eleven tests and zero assertions.
+
+### The residue, re-homed as it was disclosed
+
+X5 required every disclosed residue to get its own file at the moment
+of disclosure, so the sweep found nothing left to re-home. **Eighteen
+rows on four programs' live slates, one closed on another program's
+slate, two amended:**
+
+- **S-TINT (12 new, 1 re-scoped)** — `orient-module-prose-accumulation`,
+  `mate6r1-shared-has-eleven-tests-and-no-assertions`,
+  `three-part-resolver-stub-residues-resist-the-shared-fixture`,
+  `run-with-a-prior-evaluation-has-seven-private-copies`,
+  `topo-tests-brick-copies`, `tests-common-body-fixtures-triplicated`,
+  `sweep-per-step-differencing-helper-unhomed`,
+  `sweep-test-support-two-wrapper-conventions`,
+  `editor-core-raw-twin-planes-unreconciled`,
+  `mass-properties-bit-comparison-has-thirty-spellings`,
+  `corpus-result-node-loops-skip-silently`,
+  `value-channel-digest-tag-24-collides`; and
+  `sweep-boolean-suite-brick-and-prism-copies` re-scoped.
+- **CURVED (2 new, 1 closed)** —
+  `kernel-verbs-teapot-paragraph-predates-the-canal`,
+  `r2-union-wall-probe-only-prints`; and
+  `teapot-walls-have-no-suite-row` **closed** by `D403`, which was the
+  same defect filed independently on two slates two days apart.
+- **CIW (2 new, 1 amended)** —
+  `k-probe-sweep-says-no-test-compares-probe-against-f64` (extended with
+  the `ci.yml` site rather than opening a second row),
+  `red-run-whose-jobs-never-started-reads-as-a-broken-tree`; and a
+  fourth measured occurrence appended to `dirty-pr-gets-no-actions-run`.
+- **GUARD (1)** —
+  `probe-run-floor-does-not-hold-the-probe-f64-differential`, with its
+  stated cause corrected.
+- **INSTR (1)** — `k-report-bit-identity-claim-has-no-citation`.
+
+### What opens with this sweep: nothing
+
+`paths: []` held start to finish — X6 — so no territory passes to
+anyone and no `keep_out` anywhere was written to accommodate a claim
+this program made. That is the one thing this program's charter was
+built to prove, and the sweep is where it is checked.
+
+### The successor
+
+`work/dup/` — **S-DUP, one thing spelled *n* times** — opened
+2026-09-15 on Ev's approval in #2685, with the twelve rows above on
+S-TINT's slate as its opening slate. They stay S-TINT's files until
+S-DUP claims one by `git mv`, per one-file-one-item. S-DUP claims no
+paths, inheriting SUITE's reason, and carries SUITE's method in its
+plan: re-take every census, grep the construction rather than the name,
+re-derive the **scope** and not only the pattern, a mutation is a sweep
+instrument, and X4 gets a reader who did not write the fix.
+
+### What the program found, kept here because the walk goes with the directory
+
+**Every row named a duplication class, and in every case the row was a
+sample rather than the population — by roughly an order of magnitude.**
+Two rows sat on ~70 copies of the box fixture across seven crates;
+eleven suites were seventeen; eighteen constructions were twenty-four;
+a mass-properties bit comparison has ~110 occurrences across 31 files
+that disagree about whether the pads are in the comparison.
+
+**X4 caught every duplication unit**, and in every case a reader who did
+not write the fix is what caught it — twice inside the paragraph naming
+the trap. `S52` deleted `verbs_shell::brick` and left
+`verbs_shell::boxy` twenty lines above it, in a PR whose sweep section
+explains that name-based greps miss renamed copies. `S392` added a
+seventh spelling of "translate by z" into the shared home, in the
+commit whose X4 section credited it for not minting a second `quad`.
+
+**Sweeps fail by scope as well as by pattern, and a wrong scope looks
+clean.** `S392`'s census ran 11 → 18 → 21 → 23 → 24, defeated in turn by
+the row, the orchestrator, the lane and the reviewer. An amendment to
+`docs/prompts/implementer-discipline.md` §5 was proposed and
+**withdrawn** on test (Ev, #2685): §5 already carries the sentence it
+would have added, and it would have caught none of the six misses. The
+finding survives as a default rather than a disclosure — `git grep` over
+every tracked file with no path argument — and binds S-DUP's lanes
+through that program's X3 rather than the standing discipline.
 
 ## Sweep 13 — 2026-09-13: M10 leaves the tracker
 
