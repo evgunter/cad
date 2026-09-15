@@ -4752,6 +4752,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "rim_share_tag",
+        values: &["shared_rim_not_adjacent", "shared_rim_several"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "ring_contact_tag",
         values: &["edge_along_edge", "vertex_on_edge", "vertex_vertex"],
         delegates: &[],
@@ -4783,11 +4788,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unreadable",
         ],
         delegates: &["band_error_tag", "unmirrored_select_tag"],
-    },
-    TagEntry {
-        function: "rim_share_tag",
-        values: &["shared_rim_not_adjacent", "shared_rim_several"],
-        delegates: &[],
     },
     TagEntry {
         function: "shell_classify_error_tag",
