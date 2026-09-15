@@ -2,11 +2,12 @@
 id: SYM-5
 kind: unit
 title: a stored unit vector does not double the degree: the derived-frame freeze measured and remedied by a rule of the atom algebra
-status: review
+status: closed
 opened: 2026-09-14
 branch: sym/5-unit-vector
 refs: [derived-frame-placement-freezes-on-the-symbolic-lane, interval-self-dot-straddles-before-rule-a, SYM-1]
 pr: 2589
+closed: 2026-09-14
 ---
 
 
@@ -24,7 +25,7 @@ shipped on only if affordable on the five measured documents. No door,
 no `linalg`, no budget moves; if the tier cannot reach it without a
 door change the unit stops after the measurement and says what the
 door would have to hand it. Block SYM-B1 slot 1; the full v6 dual.
-Spec: `docs/SYM-5-SPEC.md`.
+Spec: `docs/SYM-5-SPEC.md` (deleted at merge; recoverable at `git show 68d31a750:docs/SYM-5-SPEC.md`).
 
 ## Outcome — phase 1 (2026-09-14)
 
@@ -90,3 +91,10 @@ link 3.312 → **2.427**, pad 3.850 → **14.404** — the bracket, the pad
 and the link over the 1.6 s line, disclosed. At `5e-2` the tilted document still
 refuses, on the clause-1 `Invalid` PR-1 filed on PROPS — not the
 tier's.
+
+## Closed (2026-09-14)
+
+Merged as #2589 (PR-2; PR-1 was #2568), residue head `d7df4cdf1`, run
+34900092062. The derived-frame row stays open on nothing but PROPS'
+widening residue; the spec is deleted at merge (`docs/DOC-LEDGER.md`,
+per-merge deletion; recoverable at `68d31a750`).

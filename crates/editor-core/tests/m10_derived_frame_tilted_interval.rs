@@ -208,7 +208,7 @@ fn sym5_tilted_width_parameter_ladder() {
 /// reach. `derived`: a cube extruded from that frame, a `FaceFrame` on
 /// its cap, the boss on it (the stored unit vectors re-normalised).
 /// Otherwise the boss sits directly on the tilted authored frame.
-fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
+pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
         name: ParamName::new("t"),

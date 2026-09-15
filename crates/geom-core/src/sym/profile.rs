@@ -25,7 +25,7 @@
 //! on the same thread, and takes it.
 
 use core::cell::{Cell, RefCell};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::time::{Duration, Instant};
 
 use super::form::Form;
@@ -237,6 +237,29 @@ pub struct SymProfile {
     /// Rule D's fold (`trig::fold`), the memoized closed forms
     /// included.
     pub trig: Timed,
+    /// **The DISTINCT node ids the plain walk computed a form for**,
+    /// over every session recorded — against `walk(Walk::Plain).forms`,
+    /// which counts each computation, this is how many of them a memo
+    /// keyed by the id could have answered from another leaf. The
+    /// ratio is the ceiling of a drive-scoped plain memo's win.
+    pub plain_ids: BTreeSet<u128>,
+    /// **Each session's set of `Opaque` indeterminate ids**, in the
+    /// order the sessions ended.
+    ///
+    /// An `Opaque` id is the SEQUENCE NUMBER the leaf minted it at
+    /// (`OPAQUE_SEQ`) — the one part of a node id that is not a hash of
+    /// what the expression says. Two leaves that mint in different
+    /// orders therefore build different ids for the same subexpression,
+    /// and a drive-scoped plain memo MISSES on them. It does not answer
+    /// them wrongly: `sym::memo`'s header carries that argument once
+    /// (a plain form is a syntactic normal form of a syntactic id), and
+    /// this set is the instrument for the HIT RATE, not for soundness.
+    ///
+    /// On every document in the tree today every set is EMPTY, because
+    /// no drive mints an opaque at all: `Sym::opaque`'s one caller is
+    /// the unnamed `AxisScalar::axis`, and a drive binds its axes
+    /// through `axis_named`.
+    pub opaque_ids: Vec<BTreeSet<u128>>,
 }
 
 // The install / take scaffold is `report`'s, spelled again: two
@@ -247,6 +270,10 @@ thread_local! {
     static NOTE: Cell<Option<FreezeCause>> = const { Cell::new(None) };
     static ORIGIN: Cell<Origin> = const { Cell::new(Origin::Decision) };
     static PROFILE: RefCell<SymProfile> = RefCell::new(SymProfile::default());
+
+    /// The `Opaque` ids the session now installed has minted, flushed
+    /// into [`SymProfile::opaque_ids`] when it ends.
+    static OPAQUE_LEAF: RefCell<BTreeSet<u128>> = const { RefCell::new(BTreeSet::new()) };
 }
 
 /// Installs the profile on this thread, dropping anything recorded.
@@ -465,13 +492,40 @@ pub(super) fn trig_done(t0: Option<Instant>) {
     with(|p| timed(&mut p.trig, t0));
 }
 
+/// One session is about to run: the per-session accumulators start
+/// empty, so a mint outside any session cannot land in a leaf's set.
+pub(super) fn session_start() {
+    if active() {
+        OPAQUE_LEAF.with(|s| s.borrow_mut().clear());
+    }
+}
+
 /// One session ended, with this many nodes and atoms in its table.
 pub(super) fn session_done(nodes: usize, atoms: usize) {
+    let opaque = OPAQUE_LEAF.with(|s| core::mem::take(&mut *s.borrow_mut()));
     with(|p| {
         p.sessions += 1;
         p.nodes += nodes as u64;
         p.atoms += atoms as u64;
+        p.opaque_ids.push(opaque);
     });
+}
+
+/// One id the PLAIN walk put a form in its memo for — the distinct
+/// count a drive-scoped memo would key by.
+pub(super) fn record_plain_id(id: u128) {
+    with(|p| {
+        p.plain_ids.insert(id);
+    });
+}
+
+/// One `Opaque` indeterminate this session minted ([`super::Sym::opaque`]).
+pub(super) fn record_opaque(id: u128) {
+    if active() {
+        OPAQUE_LEAF.with(|s| {
+            s.borrow_mut().insert(id);
+        });
+    }
 }
 
 /// The kids' sizes over one `(cause, op)` class of freezes.

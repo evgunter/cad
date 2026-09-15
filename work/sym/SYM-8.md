@@ -14,6 +14,13 @@ refs: [derived-frame-placement-freezes-on-the-symbolic-lane, coefficient-ring-wi
 
 SYM-5 PR-2's review found the next wall on the derived-frame item: a frame tilted about the OTHER axis refuses identically with rule E on and off, the degree wall become a TERM wall behind `copysign(1, 1/sqrt(P(t)))` and `abs(1/sqrt(P(t)))` atoms of a quantity the form already shows positive. Phase 1 measures the wall and re-takes the ring item's recorded loss with a hand-planted fold; Phase 2 is rule F, the manifest sign, shipped only if no split or ceiling moves down anywhere. Block SYM-B2 slot 1 (H / NUMERIC, pre-draw); the full v6 dual. Spec: `docs/SYM-8-SPEC.md`.
 
+## Dispatched (2026-09-14, ~22:05Z)
+
+Block SYM-B2 slot 1, arm OPUS per the block's draw (byte 56 ⇒ fable at
+slot 2); the v6 dual at the PR. Inside the program's paths
+(`sym.rs`/`sym/*` and the announced tests-family overlap); `linalg/vec.rs`
+is not touched.
+
 ## The manifest-POSITIVE predicate, written down before it is coded (Phase 1.2)
 
 A `Form` is a quotient `N/D` of polynomials over the session's

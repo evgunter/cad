@@ -508,11 +508,25 @@
 //! sharing is free, and two builds of the same expression memoize the
 //! same normal form. The hash-consing table is per-leaf-replay
 //! ([`with_session`]), holds nothing across leaves, and is dropped with
-//! the leaf.
+//! the leaf; so are the early and door memos, the registry and the
+//! parameter brackets.
+//!
+//! **The PLAIN memo is the exception, and it is per DRIVE when a drive
+//! installs one** ([`DriveMemo`], [`with_session_memo`]). A node's
+//! plain form is a function of its id, the budget and the two dials the
+//! plain walk consults, and of nothing else: the walk reads no value,
+//! every atom in it is opaque, and rule A0 is the only rule. So a form
+//! one leaf built is the form every other leaf of that drive would
+//! build — the argument this section already makes for two occurrences
+//! of a node inside one leaf, applied across leaves. `DriveMemo`'s own
+//! header carries the argument whole, the one premise that is not a
+//! content hash (an `Opaque` id is a per-leaf SEQUENCE number, pinned
+//! by execution), and the lock discipline.
 //!
 //! Distinct expressions colliding on a 128-bit content hash would be a
 //! soundness break; this is the standard hash-consing assumption and it
-//! is stated rather than hidden.
+//! is stated rather than hidden. Under a drive memo the population it
+//! is made over is a DRIVE's nodes rather than one leaf's.
 //!
 //! # Freezing: the budget, and why it is sound
 //!
@@ -523,7 +537,8 @@
 //! lost; soundness is not, because an unknown function of the parameters
 //! is exactly what an indeterminate denotes. Two structurally identical
 //! frozen nodes still share an id and therefore still cancel. Every
-//! freeze is counted ([`SymCounts::frozen`]).
+//! freeze is counted ([`SymCounts::frozen`], which argues what the
+//! column means on a leaf and on a drive).
 //!
 //! **The coefficients** — the exact rational, the bound it is refused
 //! past and the freeze discipline that bound keeps — are
@@ -585,6 +600,45 @@
 //! leaf-sized box, because over 2 ε an identity's enclosure is still
 //! not definite and the decision path builds the same forms either
 //! way.
+//!
+//! **Across a DRIVE that volume is one DAG's worth of forms, computed
+//! once per leaf** — which is what [`DriveMemo`] removes. Over the
+//! M10-3 chamber drive (2,559 sessions) the plain walk computes
+//! 19,099,919 forms for 18,833 DISTINCT ids: every leaf builds the same
+//! 7,464 of them and a memo keyed by the id can answer 1,014 of every
+//! 1,015. The plate at 256 leaves (511 sessions) is 9,005,864 forms for
+//! 17,624 distinct ids — 17,624 per leaf, the same set every time. What
+//! the memo comes to at the drive's end is that DAG and no more: on the
+//! slab 18,833 forms and 41 atoms in 6.98 MB, on the plate 17,624 forms
+//! and 359 atoms in 9.78 MB, pinned as ceilings by
+//! `editor-core`'s `m10_sym_drive_memo_interval`.
+//!
+//! Measured on the drives at the test profile, one take on the
+//! measuring box: the slab at 1,280 leaves 157.1 s → 78.2 s
+//! sequentially and 40.1 s → 21.0 s over four workers; the plate at 256
+//! leaves 247.5 s → 205.4 s and 65.0 s → 51.4 s. In RELEASE the slab is
+//! 2.7–3.05× (both of SYM-7's reviewers re-took it): the test profile
+//! spreads a quarter of the count over glue release inlines away, and
+//! that glue is in both lanes.
+//!
+//! **The class the memo helps is a PLAIN-WALK-DOMINATED drive**, and
+//! the three documents say so between them. The slab halves because the
+//! plain walk is half of its replay and nearly all of it is
+//! recomputation. The plate moves by a fifth, because half of it is the
+//! per-node rule A/B reduction inside the EARLY walk, which consults
+//! the leaf's registry and stays per leaf. And a boss on a derived
+//! frame over a tilted datum — every leaf refused, the early walk the
+//! whole cost — moves by NOTHING: 275.8 s with the memo on against
+//! 276.1 s with it off at 48 leaves (R2's reading). A drive of that
+//! shape pays the memo's bookkeeping and collects none of its win.
+//!
+//! The memo's own cost on a leaf that gains nothing from it — the
+//! bookkeeping, and the `Arc` the forms are held behind so that a hit
+//! hands back the allocation rather than a copy of it — is measured
+//! rather than assumed: one bare replay at the nominal, in release
+//! under callgrind, 98.78 M → 98.90 M instructions on the slab
+//! (+0.1 %) and 711.14 M → 711.31 M on the plate. `Rc` is kept only
+//! where a form cannot cross a leaf at all (rule D's closed forms).
 //!
 //! Those are the shares AFTER two changes to what a form costs to
 //! hold and to normalise, each measured against the tree before it
@@ -721,6 +775,7 @@ use core::cell::{Cell, RefCell};
 use core::ops::{Add, Div, Mul, Neg, Sub};
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::predicate::{Band, Decide, Indeterminate, MarginDiag, Sign};
 use crate::real::{Bounds, CertifiedEnclosure, Real};
@@ -739,6 +794,10 @@ mod form;
 /// shares with it.
 #[path = "sym/manifest.rs"]
 mod manifest;
+/// The DRIVE-scoped plain memo: the one piece of the tier's state that
+/// outlives a leaf, and the argument that lets it.
+#[path = "sym/memo.rs"]
+pub mod memo;
 #[cfg(feature = "sym-profile-testing")]
 pub mod profile;
 /// Rule E: the quotient's common factor — the shared monomial divided
@@ -764,6 +823,7 @@ mod signed;
 mod trig;
 
 use form::{Form, Poly, powi_form, within};
+pub use memo::{DriveMemo, MemoSize};
 use rational::Rat;
 
 // ---------------------------------------------------------------- ids
@@ -1119,7 +1179,33 @@ pub struct SymCounts {
     pub registrations_contradicted: u64,
     /// Decisions handed to the numeric channel.
     pub numeric: u64,
-    /// Nodes frozen into indeterminates (a budget or an overflow).
+    /// **Nodes this session's plain walk froze** into indeterminates (a
+    /// budget or an overflow) — a count of THIS leaf's work, unlike the
+    /// decision columns beside it, which are claims about this leaf's
+    /// predicates.
+    ///
+    /// **The column has two meanings and they are different numbers.**
+    /// Here it is the freezes one session computed. On a DRIVE's receipt
+    /// it is the DISTINCT nodes frozen over the whole drive
+    /// ([`DriveMemo::frozen`]) — a set, so it is the same under every
+    /// schedule, which a sum of the leaves' counts is not once a leaf
+    /// can inherit a form another leaf froze from the drive's plain
+    /// memo. [`SymCounts::absorb`] therefore does not sum this column;
+    /// the driver writes the drive's own.
+    ///
+    /// Under a drive memo a leaf's count is what that leaf happened to
+    /// compute rather than what its decisions needed, so it is a work
+    /// measure and not a receipt column: which leaf pays for a node
+    /// depends on the schedule. The drive's column is the one that does
+    /// not.
+    ///
+    /// `CertifiedLeaf`/`RefusedLeaf` derive `PartialEq` over their
+    /// `decisions`, so a row that compares whole leaf lists across
+    /// schedules compares this column too. Those rows are green because
+    /// a drive's level-0 root publishes the whole DAG before anything
+    /// splits, so no later leaf freezes at all —
+    /// `work/sym/leaf-frozen-column-is-schedule-dependent-under-the-drive-memo`
+    /// carries that dependence and the options for closing it.
     pub frozen: u64,
 }
 
@@ -1130,7 +1216,11 @@ impl SymCounts {
         self.symbolic_zero + self.sign_gated + self.registered + self.numeric
     }
 
-    /// Adds another session's counts into this one.
+    /// Adds another session's DECISION counts into this one.
+    ///
+    /// **`frozen` is not summed** — [`SymCounts::frozen`] argues the
+    /// column; the driver writes the drive's own once the drive is
+    /// done.
     pub fn absorb(&mut self, other: Self) {
         self.symbolic_zero += other.symbolic_zero;
         self.sign_gated += other.sign_gated;
@@ -1138,7 +1228,6 @@ impl SymCounts {
         self.registrations_refused += other.registrations_refused;
         self.registrations_contradicted += other.registrations_contradicted;
         self.numeric += other.numeric;
-        self.frozen += other.frozen;
     }
 }
 
@@ -1468,21 +1557,36 @@ type IdMap<V> = HashMap<SymId, V, core::hash::BuildHasherDefault<IdHasher>>;
 /// verbatim hasher serves).
 type IndetMap<V> = HashMap<u128, V, core::hash::BuildHasherDefault<IdHasher>>;
 
+/// A SET of node ids, spelled once so that two of them are the same
+/// type ([`DriveMemo`]'s frozen set is the one in the tier today).
+///
+/// `profile`'s own id sets stay `BTreeSet<u128>`: they are PUBLIC
+/// fields of a public struct, and this alias is built on the private
+/// [`IdHasher`], which a public interface may not name.
+type IdSet = IdMap<()>;
+
 /// What one opaque atom is: its op and the forms of its arguments —
 /// what rule A needs (`sqrt`'s argument), what rule B needs (a `sin`'s
 /// argument digest names its `cos` twin), and what the shape report
 /// renders.
+#[derive(Clone)]
 struct AtomInfo {
     op: SymOp,
     /// R2's experiment: the node payload the atom's id was keyed with,
     /// without which a rule that rewrites an atom's ARGUMENT cannot
     /// re-mint the atom's id.
     payload: u64,
-    args: [Option<Rc<Form>>; 2],
+    args: [Option<Arc<Form>>; 2],
 }
 
 /// One leaf replay's DAG: the hash-consing table, the memoized forms and
-/// the counts. Dropped with the leaf; nothing is shared across leaves.
+/// the counts. Dropped with the leaf.
+///
+/// Everything here is this leaf's own, with ONE exception: `memo`, a
+/// handle on the drive's shared plain forms when a driver installed one
+/// ([`with_session_memo`]). The hash-consing table, the early and door
+/// memos, the registry, the parameter brackets and the counts never
+/// leave the leaf.
 struct Session {
     budget: SymBudget,
     rules: SymRules,
@@ -1491,10 +1595,10 @@ struct Session {
     /// constant fold, which cannot cost a cancellation). Rules A/B are
     /// applied afterwards over the top residual ([`algebra::reduce`])
     /// and per node in `forms_early`; nothing ruled is memoized here.
-    forms: IdMap<Rc<Form>>,
+    forms: IdMap<Arc<Form>>,
     /// The EARLY-reduced forms (`SymRules::early`), a second memo
     /// beside the plain one.
-    forms_early: IdMap<Rc<Form>>,
+    forms_early: IdMap<Arc<Form>>,
     /// **The DOOR-reduced forms** ([`SymRules::registered`]): the early
     /// walk again, this time with the session's registry applied — a
     /// THIRD memo, beside the plain one and the early one, and the
@@ -1510,7 +1614,7 @@ struct Session {
     /// Built lazily like the others, and never at all while the
     /// registry is empty — so a document with no registrants (all of
     /// straight geometry) pays nothing and serializes M10-8's bytes.
-    forms_door: IdMap<Rc<Form>>,
+    forms_door: IdMap<Arc<Form>>,
     /// The `f64` bracket of each document parameter this leaf was
     /// evaluated over, by the parameter's indeterminate id — recorded
     /// by [`Sym::param_over`], read only by rule C ([`signed`]).
@@ -1531,9 +1635,60 @@ struct Session {
     /// digest, per session like every other memo here.
     trig_closed: IndetMap<Option<Rc<trig::Closed>>>,
     counts: SymCounts,
+    /// **The drive's shared plain memo** ([`DriveMemo`]), when a drive
+    /// installed one ([`with_session_memo`]). The plain walk consults
+    /// it on a miss in `forms` and the leaf publishes to it once, at its
+    /// end; every other memo here is this leaf's alone.
+    memo: Option<Arc<DriveMemo>>,
+    /// **What this leaf owes the drive memo**, accumulated as the plain
+    /// walk computes and handed over in ONE write lock at the leaf's end
+    /// (`DriveMemo`'s header says why one and not one per node): the
+    /// ids it built a plain form for, the atoms that walk minted, and
+    /// the ids it froze. Empty when no drive installed a memo.
+    plain_built: Vec<SymId>,
+    plain_atoms: Vec<u128>,
+    plain_frozen: Vec<SymId>,
+    /// **The nodes whose plain form this leaf built out of an
+    /// UNRECORDED one**, and which it therefore may not publish.
+    ///
+    /// A node absent from `nodes` is frozen into its own indeterminate,
+    /// and that is this LEAF's answer, not the node's: a leaf that
+    /// recorded it builds a real form. The freeze does not stay put —
+    /// the recorded parent above it combines the indeterminate into its
+    /// own form, under an id that is a content hash of the CHILDREN'S
+    /// IDS and so is the same id the recording leaf uses. So the taint
+    /// propagates up the walk and the publication guard follows it,
+    /// rather than stopping at the unrecorded node itself. Kept only
+    /// while a drive memo is installed; empty otherwise.
+    plain_tainted: IdSet,
 }
 
 impl Session {
+    /// **The one place a session is built** — every field of it, in one
+    /// literal, so a field added here cannot leave a second literal
+    /// somewhere else half-initialised (the `trig` test module kept one,
+    /// and it is this now).
+    fn new(budget: SymBudget, rules: SymRules, memo: Option<Arc<DriveMemo>>) -> Self {
+        Self {
+            budget,
+            rules,
+            nodes: IdMap::default(),
+            forms: IdMap::default(),
+            forms_early: IdMap::default(),
+            forms_door: IdMap::default(),
+            params: IndetMap::default(),
+            atoms: IndetMap::default(),
+            registry: IdMap::default(),
+            trig_closed: IndetMap::default(),
+            counts: SymCounts::default(),
+            memo,
+            plain_built: Vec::new(),
+            plain_atoms: Vec::new(),
+            plain_frozen: Vec::new(),
+            plain_tainted: IdSet::default(),
+        }
+    }
+
     /// The node `id` denotes, following the registry to its end — `id`
     /// itself when nothing was registered for it.
     ///
@@ -1630,6 +1785,11 @@ impl Drop for OpaqueSeqGuard {
 /// reach another leaf, and the counts are that leaf's own. Nesting is
 /// refused rather than silently flattened — an inner session would count
 /// a different leaf's decisions into the outer one's receipt.
+///
+/// This door installs NO drive memo, so the session it makes holds
+/// nothing across leaves at all; [`with_session_memo`] is the spelling
+/// a driver uses to share the plain forms across the leaves of one
+/// drive.
 pub fn with_session<R>(budget: SymBudget, f: impl FnOnce() -> R) -> (R, SymCounts) {
     with_session_rules(budget, SymRules::shipped(), f)
 }
@@ -1640,6 +1800,51 @@ pub fn with_session<R>(budget: SymBudget, f: impl FnOnce() -> R) -> (R, SymCount
 pub fn with_session_rules<R>(
     budget: SymBudget,
     rules: SymRules,
+    f: impl FnOnce() -> R,
+) -> (R, SymCounts) {
+    with_session_in(budget, rules, None, f)
+}
+
+/// [`with_session_rules`] with a DRIVE-scoped plain memo installed
+/// ([`DriveMemo`]): the leaf's plain walk consults `memo` on a miss in
+/// its own table and publishes what it computed to `memo` at its end.
+///
+/// Everything else about the session is unchanged — the hash-consing
+/// table, the early and door memos, the registry and the parameter
+/// brackets are this leaf's and are dropped with it. The counts the
+/// call answers are this leaf's own, so its [`SymCounts::frozen`] is
+/// what THIS leaf refused; the drive's column is [`DriveMemo::frozen`].
+///
+/// **The memo is valid for one `(budget, rules)` pair** and refuses a
+/// leaf that does not match it: a plain form is a function of the node
+/// id and those two, so serving one across a budget change would hand
+/// back a form the leaf would not have built.
+///
+/// The mismatch is a `debug_assert!`, which is loud in every profile
+/// this workspace builds — `[profile.release]` keeps debug assertions
+/// on. A build that turned them OFF would run the leaf with NO memo
+/// instead: sound (it is the pre-memo tier) but quiet, and its freezes
+/// would never be published, so the drive's `frozen` column would
+/// under-count in exactly that build. No configuration in this repo
+/// reaches it.
+pub fn with_session_memo<R>(
+    budget: SymBudget,
+    rules: SymRules,
+    memo: &Arc<DriveMemo>,
+    f: impl FnOnce() -> R,
+) -> (R, SymCounts) {
+    let accepts = memo.accepts(budget, rules);
+    debug_assert!(
+        accepts,
+        "a drive memo is valid for the budget and rules it was made for"
+    );
+    with_session_in(budget, rules, accepts.then(|| Arc::clone(memo)), f)
+}
+
+fn with_session_in<R>(
+    budget: SymBudget,
+    rules: SymRules,
+    memo: Option<Arc<DriveMemo>>,
     f: impl FnOnce() -> R,
 ) -> (R, SymCounts) {
     let nested = SESSION.with(|s| s.borrow().is_some());
@@ -1655,28 +1860,56 @@ pub fn with_session_rules<R>(
         return (f(), SymCounts::default());
     }
     SESSION.with(|s| {
-        *s.borrow_mut() = Some(Session {
-            budget,
-            rules,
-            nodes: IdMap::default(),
-            forms: IdMap::default(),
-            forms_early: IdMap::default(),
-            forms_door: IdMap::default(),
-            params: IndetMap::default(),
-            atoms: IndetMap::default(),
-            registry: IdMap::default(),
-            trig_closed: IndetMap::default(),
-            counts: SymCounts::default(),
-        });
+        *s.borrow_mut() = Some(Session::new(budget, rules, memo));
     });
+    #[cfg(feature = "sym-profile-testing")]
+    profile::session_start();
     let out = f();
     let sess = SESSION.with(|s| s.borrow_mut().take());
     #[cfg(feature = "sym-profile-testing")]
     if let Some(s) = &sess {
         profile::session_done(s.nodes.len(), s.atoms.len());
     }
+    if let Some(s) = &sess {
+        publish_to_memo(s);
+    }
     let counts = sess.map_or_else(SymCounts::default, |s| s.counts);
     (out, counts)
+}
+
+/// Hands the leaf's plain walk to the drive memo under ONE write lock
+/// (`DriveMemo`'s header says why one per leaf and not one per node).
+///
+/// A node the leaf took FROM the memo is not in `plain_built`, so what
+/// is offered here is what this leaf computed; the memo keeps whichever
+/// copy arrived first, and they are the same form.
+fn publish_to_memo(sess: &Session) {
+    let Some(memo) = &sess.memo else { return };
+    // An id on a publication list with no entry in this leaf's own map
+    // is a BUG in whoever put it there, not a case to pass over: every
+    // push sits beside the insert that makes it findable. Loud in
+    // debug; in release the entry simply does not reach the memo, which
+    // costs a hit and cannot cost a decision.
+    let found = |ok: bool, what: &str| {
+        debug_assert!(
+            ok,
+            "the drive memo's publication list names a {what} this leaf never recorded"
+        );
+        ok
+    };
+    memo.publish(
+        sess.plain_built.iter().filter_map(|id| {
+            let f = sess.forms.get(id);
+            found(f.is_some(), "plain form");
+            f.map(|f| (*id, Arc::clone(f)))
+        }),
+        sess.plain_atoms.iter().filter_map(|id| {
+            let a = sess.atoms.get(id);
+            found(a.is_some(), "plain-walk atom");
+            a.map(|a| (*id, a.clone()))
+        }),
+        sess.plain_frozen.iter().copied(),
+    );
 }
 
 /// The counts so far in the installed session (`None` outside one) — the
@@ -1805,10 +2038,10 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
             return Some(gate(f));
         }
         let id = indet_atom(op.tag(), node.payload, &[a.digest()]);
-        sess.atoms.entry(id).or_insert_with(|| AtomInfo {
+        mint_atom(sess, id, early, || AtomInfo {
             op,
             payload: node.payload,
-            args: [Some(Rc::new(a.clone())), None],
+            args: [Some(Arc::new(a.clone())), None],
         });
         Some(gate(Form::poly(Poly::indet(id))))
     };
@@ -1963,10 +2196,10 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
                 return Some(z);
             }
             let id = indet_atom(node.op.tag(), node.payload, &[a.digest(), b.digest()]);
-            sess.atoms.entry(id).or_insert_with(|| AtomInfo {
+            mint_atom(sess, id, early, || AtomInfo {
                 op: node.op,
                 payload: node.payload,
-                args: [Some(Rc::new(a.clone())), Some(Rc::new(b.clone()))],
+                args: [Some(Arc::new(a.clone())), Some(Arc::new(b.clone()))],
             });
             let mut f = Form::poly(Poly::indet(id));
             f.gated = a.gated || b.gated;
@@ -2017,16 +2250,50 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
 /// plain walk, measured per document in `SymRules::shipped`'s docs.
 fn form_in(
     sess: &mut Session,
-    memo: &mut IdMap<Rc<Form>>,
+    memo: &mut IdMap<Arc<Form>>,
     root: SymId,
     early: bool,
     registry: bool,
-) -> Rc<Form> {
-    let frozen = |sess: &mut Session, id: SymId| -> Rc<Form> {
+) -> Arc<Form> {
+    // The freeze this WALK made, counted into the leaf's own
+    // [`SymCounts::frozen`] — which is the leaf's work, not the drive's
+    // column (that doc carries both meanings).
+    let frozen = |sess: &mut Session, id: SymId| -> Arc<Form> {
         if !early {
             sess.counts.frozen += 1;
         }
-        Rc::new(Form::poly(Poly::indet(id.bits())))
+        Arc::new(Form::poly(Poly::indet(id.bits())))
+    };
+    // **One predicate for the plain walk**, and the drive's memo behind
+    // it: the memo is the PLAIN walk's alone, because the early and door
+    // walks consult this leaf's registry and its parameter brackets,
+    // which a value-dependent refusal can make differ between leaves.
+    let plain = !early && !registry;
+    let drive = plain.then(|| sess.memo.clone()).flatten();
+    // **One place that notes what this walk computed** — the profile's
+    // distinct-id counter, and the drive memo's publication list.
+    //
+    // `publish` is the WRITE side of the guard the read side makes
+    // below, and the two must agree: a node absent from this leaf's
+    // table is frozen here by design, and publishing that freeze under
+    // the node's CONTENT id would hand it to a leaf that recorded the
+    // node and would have computed a real form for it — a decision
+    // moved, and an order-dependent one (R1 M6 / R2 MINOR-2, both
+    // demonstrated at the door). The guard is on the TAINT, not on the
+    // unrecorded node alone: its recorded parent's id is a hash of the
+    // children's ids, so the parent carries the same id in both leaves
+    // and a different form (`Session::plain_tainted`).
+    let note = |sess: &mut Session, id: SymId, froze: bool, publish: bool| {
+        #[cfg(feature = "sym-profile-testing")]
+        if plain {
+            profile::record_plain_id(id.bits());
+        }
+        if publish && drive.is_some() {
+            sess.plain_built.push(id);
+            if froze {
+                sess.plain_frozen.push(id);
+            }
+        }
     };
     let mut stack = vec![(root, false)];
     while let Some((id, expanded)) = stack.pop() {
@@ -2059,10 +2326,30 @@ fn form_in(
             #[cfg(feature = "sym-profile-testing")]
             profile::record_unrecorded(profile::Walk::of(early, registry));
             let f = frozen(sess, id);
+            // NOT published, and everything built from it is tainted:
+            // `note`'s own comment says why.
+            if drive.is_some() {
+                sess.plain_tainted.insert(id, ());
+            }
+            note(sess, id, true, false);
             memo.insert(id, f);
             continue;
         };
         let arity = node.op.arity();
+        // **The drive memo, asked only for a node THIS leaf recorded.**
+        // An id absent from the table is one minted before the session
+        // was installed, and the walk freezes it above by design; taking
+        // a drive-built form for it would move a decision the tier makes
+        // about an unrecorded node. Asked before the children are
+        // expanded, so a hit costs the subtree nothing.
+        if !expanded
+            && let Some(d) = &drive
+            && let Some(f) = d.form(id)
+        {
+            d.seed_atoms(&f, &mut sess.atoms);
+            memo.insert(id, f);
+            continue;
+        }
         if !expanded {
             let pending: Vec<SymId> = node.kids[..arity]
                 .iter()
@@ -2087,6 +2374,14 @@ fn form_in(
             None
         };
         let budget = sess.budget;
+        // Built out of an unrecorded node? Then this leaf's form for
+        // `id` is this leaf's alone, and the atoms this node mints are
+        // keyed by its tainted argument digests.
+        let taint = drive.is_some()
+            && node.kids[..arity]
+                .iter()
+                .any(|k| sess.plain_tainted.contains_key(k));
+        let atoms_before = sess.plain_atoms.len();
         let made = {
             let kids = [
                 fa.as_deref().unwrap_or(&empty),
@@ -2166,20 +2461,50 @@ fn form_in(
             made
         };
         drop((fa, fb));
+        if taint {
+            sess.plain_tainted.insert(id, ());
+            // Every atom this node minted is keyed by a tainted
+            // argument's digest, so no untainted form can reference one.
+            sess.plain_atoms.truncate(atoms_before);
+        }
+        let froze = made.is_none();
         let f = match made {
-            Some(p) => Rc::new(p),
+            Some(p) => Arc::new(p),
             None => frozen(sess, id),
         };
+        note(sess, id, froze, !taint);
         memo.insert(id, f);
     }
     memo.get(&root)
         .cloned()
-        .unwrap_or_else(|| Rc::new(Form::poly(Poly::indet(root.bits()))))
+        .unwrap_or_else(|| Arc::new(Form::poly(Poly::indet(root.bits()))))
+}
+
+/// Records the atom `id` in the session, noting it for the drive memo
+/// whenever the PLAIN walk REFERENCES it — the atoms a plain form's
+/// indeterminates stand for, which a leaf that takes that form from the
+/// memo needs and never mints itself.
+///
+/// **Noted on every plain-walk reference, not only on a fresh mint**,
+/// and that is load-bearing rather than slack: the two walks share one
+/// `atoms` map, and an atom's id is a hash of the op, the payload and
+/// the ARGUMENT FORM's digest — so wherever a rule left a kid's early
+/// form equal to its plain one, an earlier EARLY walk has already
+/// minted the atom a later plain walk references. Noting only the mint
+/// would publish a plain form whose indeterminate the memo cannot
+/// explain, and the leaf that took it would lose the rule-A
+/// substitution [`algebra::reduce`] looks the argument up for. The list
+/// is deduplicated at the memo's `or_insert`.
+fn mint_atom(sess: &mut Session, id: u128, early: bool, info: impl FnOnce() -> AtomInfo) {
+    sess.atoms.entry(id).or_insert_with(info);
+    if !early && sess.memo.is_some() {
+        sess.plain_atoms.push(id);
+    }
 }
 
 /// The plain quotient form of `root` — every atom opaque, no rule
 /// applied, no value read. Memoized in the session's persistent table.
-fn plain_form(sess: &mut Session, root: SymId) -> Rc<Form> {
+fn plain_form(sess: &mut Session, root: SymId) -> Arc<Form> {
     let mut memo = core::mem::take(&mut sess.forms);
     #[cfg(feature = "sym-profile-testing")]
     let t0 = profile::clock();
@@ -2212,7 +2537,7 @@ const EARLY_AB_TERMS: usize = 512;
 /// its own table beside the plain one: the same walk as
 /// [`plain_form`], with rules A/B applied per node under
 /// [`EARLY_STEPS`] and rule C's fold at each `sqrt`/`abs`.
-fn early_form(sess: &mut Session, root: SymId) -> Rc<Form> {
+fn early_form(sess: &mut Session, root: SymId) -> Arc<Form> {
     let mut memo = core::mem::take(&mut sess.forms_early);
     #[cfg(feature = "sym-profile-testing")]
     let t0 = profile::clock();
@@ -2228,7 +2553,7 @@ fn early_form(sess: &mut Session, root: SymId) -> Rc<Form> {
 /// third table. Asked only after the plain and the early forms have
 /// both declined, so a zero it finds is one the registration was
 /// needed for.
-fn door_form(sess: &mut Session, root: SymId) -> Rc<Form> {
+fn door_form(sess: &mut Session, root: SymId) -> Arc<Form> {
     let mut memo = core::mem::take(&mut sess.forms_door);
     #[cfg(feature = "sym-profile-testing")]
     let t0 = profile::clock();
@@ -2456,6 +2781,8 @@ impl<T> Sym<T> {
             c.set(n.wrapping_add(1));
             n
         });
+        #[cfg(feature = "sym-profile-testing")]
+        profile::record_opaque(indet_opaque(seq));
         Self::nullary(value, SymOp::Opaque, seq)
     }
 

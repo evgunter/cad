@@ -138,7 +138,7 @@
 //! and `geom-core`'s `sym_rule_f_rows` pins it: with rule C also on,
 //! the same residual still answers `theorem` and not `sign_gated`.
 
-use std::rc::Rc;
+use std::sync::Arc;
 
 use super::form::{Form, Mono, Poly};
 use super::{AtomInfo, Session, SymOp, indet_atom, signed};
@@ -262,7 +262,7 @@ pub(super) fn magnitude(y: &Form, sess: &mut Session) -> Option<Form> {
     sess.atoms.entry(id).or_insert_with(|| AtomInfo {
         op: SymOp::Abs,
         payload: 0,
-        args: [Some(Rc::new(y.clone())), None],
+        args: [Some(Arc::new(y.clone())), None],
     });
     Some(Form::poly(Poly::indet(id)))
 }

@@ -11314,3 +11314,190 @@ count reads 24 under a mechanical re-take of its own words, on
 **VIEW stands at 73 open / 91 closed, nothing waiting on Ev** — 72
 before this lane, plus the sweep-count row above. The item itself stays
 OPEN: one hit of three is done.
+
+## 2026-09-14 — #2606 merged; the fit gets a third worker, and the item's cost ranking was inverted
+
+**#2606 merged** (`3d12be4739`), verified from the job list: **39 check
+runs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok` success**, all four
+render-lane rows success, six skipped, nothing failed or neutral.
+
+**One site of three, deliberately**, and the item stays **open** with
+the other two re-stated from a stopwatch. The dispatch said a wide
+shallow pass across three seams would be worse than one argued change,
+and this is what that looks like: `scene::fit_delta` now runs on a third
+worker (`FitService`, `FitRequest`/`FitSubject`/`FitDone`,
+`InlineFitter`, `ThreadFitter`), with `DocSession::fit_request` minting
+the request the way `index_inputs` mints the index's.
+
+**The ordering I asked about is load-bearing, and the answer shaped the
+design.** The fit's answer IS the δ the index is built at, and
+`pickcache`'s doc ratifies *"δ is built at, verbatim"* — so the index
+must wait, or a fit that merely moved to a worker would let the index
+submit at the δ in force and pay the un-budgeted build the budget exists
+to avoid. `PickCache::sync`'s δ became `Option<DisplayTolerance>`, where
+`None` is *landed, no δ settled yet* and takes the nothing-to-index way
+out. **An `Option` rather than a caller-side `if` is the point**: the
+un-budgeted submit cannot happen by someone forgetting a guard.
+
+**`evalseam` had no reusable harness to offer** — two parallel seam
+traits with their own `Inline`/`Thread` pairs, so a third seam is ~200
+lines mirroring the second. The lane took it anyway and gave the reason:
+the real constraint was on the OTHER side of the seam (pickcache's
+verbatim-δ rule), not inside it. Folding the fit into `IndexRequest` was
+considered and rejected — it collides with that rule and with the
+`(generation, δ)` cache key.
+
+### Measured, and the item's ranking is upside down
+
+Release, the viewer's own corpus, scratch harness.
+
+- **Site 1** (taken): 118 ms `loft_prism`, 116 ms `tube_ring`, 64 ms
+  `hollow_tube_ring` at 1e-5 — ratio **0.10–0.13** of a full
+  tessellation on every dense document, which confirms the item's
+  *"about an eighth"* as a measurement and makes 6b's 6.5 s row ≈0.8 s.
+  After: an `Arc` clone and a channel send.
+- **Site 3** is the smallest: `land` under 6 ms on 27 of 28 gathering
+  documents, one outlier at 197 ms.
+- **Site 2 is the biggest by an order of magnitude**, and the item
+  guessed it *"could be milliseconds"*. `scene_focused` over an
+  ALREADY-BUILT index at 1e-5: `hollow_tube_ring` **5,123 ms**,
+  `tube_ring` 2,322 ms, `loft_prism` 1,682 ms. It runs per hide and per
+  focus change, not once per document, and on `hollow_tube_ring` it is
+  **ten times a full tessellation of the same body** (511 ms). At
+  ~5 µs/triangle a corner-copy-and-normal walk is not doing what it
+  looks like, so the item now says **find out where the time goes before
+  choosing a seam** — the measurement changed the next unit's shape.
+
+### Where my dispatch was wrong
+
+**"Three files drive a headless `egui::Context`" — four do, and the
+distinction that matters is different.** Only `app.rs` drives a
+`ViewerApp`, and `ViewerApp::assemble` is **private**, so that harness
+lives in `app.rs`'s own `mod tests` — the `--lib` suite — not in
+`--test all`. An integration-test receipt about frame work cannot use it
+as it stands. I had offered that instrument as available for exactly
+that purpose.
+
+**And the lane hit the grep trap I had warned it about, caught itself,
+and said so**: `grep -rln "assemble\|toolbar_ui" crates/viewer/tests/`
+returned three files and looked like confirmation — it had matched
+`pncad::…::assemble`, the kernel function. The warning worked as a
+warning rather than as a prohibition, which is the useful outcome.
+
+### The ratified-page question, ruled
+
+`crates/viewer/GUI-DESIGN.md` took three edits and the lane flagged the
+third as possibly-binding rather than assuming. **Ruled: it lands.**
+Every paragraph describes what this change did — a third seam stated in
+the terms the existing two are stated in — and the one generalisation
+(*why the two seams are two workers* → *why each seam is its own
+worker*) is the existing clause's own argument covering three cases
+instead of two. Nothing retires a clause or changes what one decides,
+which is `CLAUDE.md`'s test.
+
+The lane also ran the provenance check before flagging and found the
+surrounding sentences trace to `e9824abf3b` — the move that created the
+file — **not an Ev ratification**. And its `-S` search for
+*"It runs on its own worker now"* returned nothing until joined across
+the line break: the prose-grep trap, live, for the fourth time this
+week.
+
+**Filed out of fence**, and carefully:
+`viewer-readme-multi-field-write-sweep-count-does-not-reproduce` —
+`README.md`'s *"23 hits, and none is a census"* reads **24** under a
+mechanical re-take of its own words, on `main` before anything of this
+lane's. One hit of difference means the instrument is approximate, so
+the row **asks for a re-take with a stated instrument rather than
+asserting 24**. The claim above the number survives either way. The
+phrase in that paragraph the change genuinely falsified — *the two
+`Drop`s in `evalseam`* — was corrected.
+
+**VIEW stands at 73 open / 91 closed, nothing waiting on Ev.**
+
+## 2026-09-15 — `ui-thread-work-after-the-index-seam` hit (2): DIAGNOSED, not fixed
+
+Took the measurement unit the item's (2) section asked for and stopped
+where the brief said stopping was an outcome. **Neither candidate the
+item named is what the time is.**
+
+- **The walk is linear and it runs at copy-loop speed**: 53–67
+  ns/triangle across `hollow_tube_ring`, `tube_ring`, `loft_prism`,
+  `hollow_tube_elbow` and `die_composed_tour`, spanning 6.4× in
+  triangle count and both δ rows. `PickIndex::parts()` is ONE part on
+  all five, and `SceneMesh::stats().triangles` equals the
+  tessellation's own count exactly — so the walk is over the product's
+  triangles once, not several times.
+- **The item's "~5 µs per triangle" and its "ten times a full
+  tessellation" are both the same arithmetic error**: the 5 123 ms is
+  δ=1e-5 and the 511 ms tessellation it is divided by is δ=1e-4 (I
+  measure 518 ms there). At equal δ `hollow_tube_ring` tessellates in
+  **7 349 ms** and `scene_focused` is **0.61× cold, 0.09× steady**.
+- **Where the time goes is first-touch on ~1.25 GB of vertex buffers.**
+  Phase timing inside `build_parts_focused`: every phase that allocates
+  is 6–9× slower on the first build at a given size and flat after;
+  `Aabb::from_points`, which allocates nothing, does not move at all.
+  So a hide or focus change costs **~0.7 s** on the worst corpus
+  document at 1e-5, not 5 s — and the 4–5 s first build is paid by
+  construction, because `ViewerApp::sync_scene` holds the previous
+  `Arc<SceneMesh>` alive across the new build so a refusal leaves the
+  stale picture up.
+
+**Changed nothing, deliberately.** The seam question is now a 0.7 s
+question and the lever is rebuild SCOPE and buffer SIZE rather than
+where the walk runs: a focus change alters 4 of the 108 bytes a
+triangle emits and still rebuilds all of them. That is a change to what
+`SceneMesh` is, and it wants a ruling before a diff. **The item stays
+OPEN**, with the numbers, the phase split and that argument recorded on
+it; (3) also remains untouched.
+
+**Filed:** `scene-mesh-carries-an-identity-index-buffer` — the scene's
+index buffer is `(0..n).collect()`, 139 MB and 8–11 % of the step on
+`hollow_tube_ring` at 1e-5, with one production reader that only wants
+its length. Left for its own unit because it touches the draw call and
+no headless row here has a device.
+
+## 2026-09-15 — #2613 merged; hit (2) is diagnosed and the item's headline number was an artifact
+
+**#2613 merged** (`d5acf3db90`), verified from the job list. Diff is
+`work/`-only, so this is the **docs tier** and the shape that certifies
+it is not the code tier's: **22 check runs, every code row `skipped`**,
+with `gate ok`, `change filter`, `CI half parity + gate wiring (every
+tier)` and `docs-only ok` success and nothing failed or neutral. My
+dispatch template's validation item 8 asks for `test (…)` and `k-lint
+(gate, …)` counts and forbids citing `docs-only ok`; on this tier both
+counts are zero and the forbidden row is the only green one, so the
+lane was left with no receipt it was allowed to give. **The lane said
+so, and it is right** — recorded in `plan.md`, template fixed.
+
+**Neither candidate the item named is where the time goes.** I checked
+both load-bearing claims rather than the summary:
+
+- The walk in `SceneMesh::build_parts_focused` sums triangles over
+  `parts × patches × triangles` and emits from the same iteration
+  (`crates/viewer/src/scene.rs:452-466`), so
+  `stats().triangles == 11 605 976` on both sides is a stronger check
+  than the part count itself — a per-`(node, body)` multiplication
+  could not produce equality.
+- **The δ mismatch is corroborated by the item's own text.** The record
+  divided a δ=1e-5 time (5 123 ms) by a δ=1e-4 tessellation (511 ms)
+  to get *"ten times a full tessellation"*. The item's hit (1) section
+  already cites 6b's **6.5 s** fine-δ tessellation of that same body —
+  511 ms cannot be the fine-δ number, and the lane measures 518 ms at
+  1e-4 and 7 349 ms at 1e-5. The contradiction was inside the file.
+
+The lane's sweep reproduces exactly: `grep -rn "\.indices()"` over
+`crates/viewer/src`, `crates/viewer/tests`, `demos/` returns the three
+hits it dispositioned and no others, and `gpu.rs:1172` does carry the
+non-indexed `draw` the filed row proposes to reuse. `app.rs:904-913`
+confirms *by construction*: `scene_focused` builds the whole new mesh
+while `self.scene` still holds the old one, and the assignment sits in
+the `Ok` arm with a comment giving the reason — a refused build must
+leave the stale picture up. Peak of two pictures' buffers is a
+contract, not an oversight.
+
+**So the seam question shrank from 5 s to ~0.7 s**, and the item stays
+OPEN with the real lever named (rebuild scope and buffer size, not
+where the walk runs). Site (3) untouched. Filed:
+`scene-mesh-carries-an-identity-index-buffer`.
+
+**VIEW stands at 74 open / 91 closed, nothing waiting on Ev.**

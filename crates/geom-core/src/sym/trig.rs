@@ -111,6 +111,7 @@
 //! its real study, and the two folds together are what takes it.
 
 use std::rc::Rc;
+use std::sync::Arc;
 
 use super::form::{Form, Poly, within};
 use super::rational::{Int, Rat};
@@ -154,7 +155,7 @@ pub(super) const MAX_HALVINGS: u32 = 2;
 
 /// The argument form read as `(k / 2ᵐ) · atan(X)`: `(k, m, X)`, or
 /// `None` where the form is not of that shape.
-fn read_argument(arg: &Form, sess: &Session) -> Option<(i128, u32, Rc<Form>)> {
+fn read_argument(arg: &Form, sess: &Session) -> Option<(i128, u32, Arc<Form>)> {
     if arg.poisoned {
         return None;
     }
@@ -311,7 +312,7 @@ fn sqrt_atom(arg: Form, sess: &mut Session) -> u128 {
     sess.atoms.entry(id).or_insert_with(|| AtomInfo {
         op: SymOp::Sqrt,
         payload: 0,
-        args: [Some(Rc::new(arg)), None],
+        args: [Some(Arc::new(arg)), None],
     });
     id
 }
@@ -430,7 +431,7 @@ fn build_closed_forms(arg: &Form, sess: &mut Session) -> Option<Closed> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::sym::{IdMap, IndetMap, SymBudget, SymRules};
+    use crate::sym::{SymBudget, SymRules};
 
     fn budget() -> SymBudget {
         SymBudget {
@@ -442,26 +443,14 @@ mod tests {
     /// A bare session with the atoms `atan(x)` and `atan2(x, x)` in
     /// it, for the reader to look up.
     fn session_with(x: &Form, atan: u128, atan2: u128) -> Session {
-        let mut sess = Session {
-            budget: budget(),
-            rules: SymRules::all(),
-            nodes: IdMap::default(),
-            forms: IdMap::default(),
-            forms_early: IdMap::default(),
-            forms_door: IdMap::default(),
-            params: IndetMap::default(),
-            atoms: IndetMap::default(),
-            registry: IdMap::default(),
-            trig_closed: IndetMap::default(),
-            counts: Default::default(),
-        };
+        let mut sess = Session::new(budget(), SymRules::all(), None);
         for (id, op) in [(atan, SymOp::Atan), (atan2, SymOp::Atan2)] {
             sess.atoms.insert(
                 id,
                 AtomInfo {
                     op,
                     payload: 0,
-                    args: [Some(Rc::new(x.clone())), Some(Rc::new(x.clone()))],
+                    args: [Some(Arc::new(x.clone())), Some(Arc::new(x.clone()))],
                 },
             );
         }
