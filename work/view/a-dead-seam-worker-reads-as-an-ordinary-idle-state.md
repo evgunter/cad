@@ -28,7 +28,7 @@ today the answer on all three seams is *nothing*:
   state is honest about the seam being idle and **wrong about the
   cause**, and the recourse it offers does nothing: `Reevaluate`
   submits into a `Sender` whose receiver died with the worker, so
-  `ThreadEvaluator::dispatch`'s failed-send arm fires and the button
+  `Coalescing::dispatch`'s failed-send arm fires and the button
   answers by changing nothing.
 - **fit** (`crates/viewer/src/app.rs`, the two `FitService::busy`
   reads) — `settled` becomes `Some(self.delta)` and the index builds at

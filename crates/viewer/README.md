@@ -604,8 +604,11 @@ the field list comes from the walk's INPUTS rather than from the
 declaration and a new field has no claim on it: `ViewerApp::sync_scene`
 installs a rebuild's eleven outputs, `BlendTool::load_all_edges` seats
 a computed pick set, `PickCache::sync` and `land` install a landing's
-fate, and the three `Drop`s in `evalseam` close a channel and leave the
-language's own drop glue to be exhaustive.
+fate, and `evalseam`'s one `Coalescing::close` closes a channel and
+leaves the language's own drop glue to be exhaustive. **The count above
+is a reading nothing re-takes**, and it does not reproduce:
+`work/view/viewer-readme-multi-field-write-sweep-count-does-not-reproduce`
+holds later readings of the same rule against it.
 `DocSession::clear_for_new_document` is the case the rule matches and
 the design answers: its two statements are `Derived::none()` and
 `display.clear()`, and its doc says so — the census is collapsed into
