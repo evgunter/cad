@@ -1383,20 +1383,29 @@ FAMILIES: dict[str, str] = {
 #:   determinism cross-check can compare both schedules in one run,
 #:   `boolean_sweep`'s two paths are bit-identical by the BVH
 #:   differential suite's own pin), so no ANSWER is unreachable
-#:   through them. `profile_lift` (M10-P) is unreachable for a
-#:   different argument, because it is not answer-preserving in
-#:   general: it decides whether profile geometry is elaborated at the
-#:   evaluation's own scalar. What makes it unreachable-without-loss
-#:   here is that Python evaluates at `f64` ALONE, and at `f64` the
-#:   lift is a no-op by construction — guided elaboration reproduces
-#:   the pinned one bitwise, which `editor-core`'s `m10_p_lift` suite
-#:   pins over the whole corpus. `param_box` and `seed` are the E6 and
-#:   E4 analysis seams and share that argument's other half: an f64
-#:   evaluation carries neither a bracket nor a tangent. All three
-#:   start changing answers exactly when Python gains a non-f64
-#:   evaluation, and should gain spellings in the unit that brings
-#:   one. A PERFORMANCE door — "evaluate this in parallel" — would be
-#:   a new unit and a new entry, not this one.
+#:   through them. The last three are unreachable for a different
+#:   argument each, and none of the three is "f64 cannot do it":
+#:
+#:   `param_box` (E6) IS reachable at `f64` and from Python — the MC
+#:   lane evaluates under a box and `monte_carlo` is its door — but
+#:   only the DEGENERATE form, the point sample `AxisScalar for f64`
+#:   admits. What `evaluate` cannot ask for is a box with WIDTH, which
+#:   needs a scalar carrying a bracket. `seed` (E4) is its twin with no
+#:   degenerate form at all: a tangent needs a scalar that carries one,
+#:   and `f64` does not. `profile_lift` (M10-P) is not
+#:   answer-preserving in general — it decides whether profile geometry
+#:   is elaborated at THIS evaluation's parameters instead of the
+#:   nominal `f64` pass's — and what makes it unreachable-without-loss
+#:   *here* is that this door's box is always the nominal one, which is
+#:   the entry above rather than a fact about `f64`: `editor-core`'s MC
+#:   lane sets `Guided` at `f64` precisely because its box is not
+#:   nominal.
+#:
+#:   All three gain spellings alongside an evaluation door that can
+#:   carry a box with width; no row schedules one, and
+#:   `surface_census.rs` is where each reason is written and decayed. A
+#:   PERFORMANCE door — "evaluate this in parallel" — would be a new
+#:   unit and a new entry, not this one.
 #: - *Recourse and deferral sentences.* `CONTACT_RECOURSE`,
 #:   `FIT_DEFERRAL`, `SEL_DATUM_DISTANCE` and `REGENERATE_RECOURSE`
 #:   are the prose a Rust refusal cites; Python's refusals carry theirs

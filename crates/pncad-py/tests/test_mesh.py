@@ -368,26 +368,37 @@ class TestStlExport(unittest.TestCase):
         self.assertTrue(data[:80].startswith(b"pncad, exported from Python"))
 
     def test_both_writers_default_to_the_kernels_own_options(self):
-        """An omitted keyword is the RUST default, not an empty
-        spelling of one.
+        """An omitted keyword IS the Rust default — the same file a
+        Rust caller writing no options gets.
 
-        The distinction is the whole of it: an empty name and an empty
-        header are both legal values the doors used to pass, so
-        `solid <name>` read back as a bare `solid ` and the binary
-        header field came out 80 zero bytes — neither of them what
-        `AsciiOptions::default()` or `BinaryOptions::default()` says,
-        and neither of them what a Rust caller writing the same file
-        gets. Asserted as "not the empty value" rather than by
-        re-typing the kernel's two constants, which is the thing the
-        doors stopped doing."""
+        Pinned the way `TestStepExport.test_the_defaults_are_the_rust_defaults`
+        pins `step_string`'s: the no-argument call must equal the call
+        that states the kernel's own value. Naming the two constants is
+        what makes this an assertion about FORWARDING rather than about
+        emptiness — a door that forwarded some other name would pass a
+        "not empty" check and fails this one. They are the kernel's
+        `SolidName::default()` and `BinaryHeader::default()`; if either
+        moves, this test reds and is re-baselined with it.
+
+        The emptiness rows stay underneath because they are the
+        specific regression: both doors defaulted their keyword to
+        `""`, so `solid <name>` came back a bare `solid ` and the
+        header field 80 zero bytes."""
+        self.assertEqual(
+            self.mesh.to_stl_ascii(), self.mesh.to_stl_ascii(solid_name="part")
+        )
+        self.assertEqual(
+            self.mesh.to_stl_binary(),
+            self.mesh.to_stl_binary(
+                header="binary STL; CAD kernel tessellation export"
+            ),
+        )
         first_line = self.mesh.to_stl_ascii().splitlines()[0]
         self.assertTrue(first_line.startswith("solid "))
         self.assertNotEqual(first_line, "solid ")
         self.assertEqual(self.mesh.to_stl_ascii().count("facet normal"),
                          self.mesh.triangle_count)
-        header = self.mesh.to_stl_binary()[:80]
-        self.assertEqual(len(header), 80)
-        self.assertNotEqual(header, b"\x00" * 80)
+        self.assertNotEqual(self.mesh.to_stl_binary()[:80], b"\x00" * 80)
 
     def test_an_unwritable_solid_name_refuses_at_the_call(self):
         """Validated, not sanitized: a newline would make

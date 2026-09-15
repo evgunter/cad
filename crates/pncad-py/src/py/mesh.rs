@@ -405,12 +405,9 @@ impl Mesh {
     /// sanitized into a file no parser can read. Omitted, the name is
     /// the Rust default — the generic part name `AsciiOptions::default`
     /// carries, so the file this door writes with no arguments is the
-    /// file a Rust caller gets with none.
-    ///
-    /// The options struct is built by a literal that names every
-    /// `AsciiOptions` field, so a field the kernel gains does not
-    /// compile until this door decides about it; that decision is
-    /// recorded, either way, in the surface census.
+    /// file a Rust caller gets with none. Its options are a literal
+    /// naming every field, held to `AsciiOptions` by the surface
+    /// census's options roster.
     #[pyo3(signature = (solid_name=None))]
     fn to_stl_ascii(&self, py: Python<'_>, solid_name: Option<&str>) -> PyResult<String> {
         let defaults = stl::AsciiOptions::default();
@@ -439,12 +436,8 @@ impl Mesh {
     /// STL, refuses here as `StlError` rather than being truncated or
     /// written. Omitted, the header is the Rust default — the
     /// producer text `BinaryOptions::default` carries, not 80 zero
-    /// bytes.
-    ///
-    /// The options struct is built by a literal that names every
-    /// `BinaryOptions` field, so a field the kernel gains does not
-    /// compile until this door decides about it; that decision is
-    /// recorded, either way, in the surface census.
+    /// bytes. Its options are a literal naming every field, held to
+    /// `BinaryOptions` by the surface census's options roster.
     #[pyo3(signature = (header=None))]
     fn to_stl_binary<'py>(
         &self,

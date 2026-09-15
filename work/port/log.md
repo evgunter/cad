@@ -503,3 +503,46 @@ what say the anchor is actually there.
 
 Next: `D341`, the `match Node` census this unit's instrument is the mold
 for. `msrv-floor-…` is specced and unclaimed.
+
+## 2026-09-15 — `python-cannot-set-options-structs` fix pass (#2678)
+
+The full review held all eight correctness claims and re-ran the four
+probes itself rather than reading the table, including restoring main's
+two files with the probe still in place to reproduce the **before**
+state for `EvalOptions`. Its own differently-shaped sweep — every
+`#[pyo3(signature = …)]` in `py/` carrying a non-`None` keyword default
+— found exactly the one hit the lane had already filed.
+
+**The posture section is corrected above, and the correction is the
+unit's own finding.** The converse clause — "a compiler-enforced claim
+does not earn the second arm" — was being applied PER UNIT when it only
+ever holds PER CLAIM. This unit's field-presence claim is as guarded as
+a claim gets and its forwarded-value claim was guarded by nothing, and
+**a presence anchor cannot guard a forwarded value**: that is what a
+destructure is. Two STL doors sat under a green census writing `solid `
+and eighty zero bytes for their whole existence. The section now says
+so and cites this unit.
+
+**The `NotBound` reason half is unguarded, and the first two entries to
+use it were wrong.** The decay check falsifies the SPELLING, never the
+REASON, and the review caught `param_box` claiming there is no f64
+evaluation behind a box when `editor-core`'s MC lane runs one and
+`monte_carlo` is its Python door — what Python cannot ask for is a box
+with WIDTH. `profile_lift`'s reason was broader than what holds for the
+same reason, one entry over. Both rewritten, and
+`the_not_bound_roster_decays` now says in its own docs that the reason
+is a reader's job.
+
+Three further instruments landed in the pass: the alphabet is carried
+on the roster instead of chosen at four call sites (the failure this
+unit had just fixed, one level up), `every_options_type_in_py_is_rostered`
+makes the roster LIST derivable from a source scan instead of
+hand-kept, and `test_mesh.py` pins forwarding rather than
+non-emptiness.
+
+Four more rows filed, bringing this unit's total to six: LIB gets the
+stub-signature gap, the `ImportReport.eps_in` quantity asymmetry and
+the absent box-with-width evaluation door the three `EvalOptions`
+reasons defer to; CIW gets the `step import (freecad)` job whose name
+is the export fixtures' row. PORT claims no paths, so all six went to
+the owner.

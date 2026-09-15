@@ -1593,10 +1593,9 @@ impl Evaluation {
     /// Every `StepOptions` field is a keyword here, and each defaults
     /// to `None` meaning the Rust default — so the door narrows
     /// nothing and an omitted keyword is the same file a Rust caller
-    /// gets from `StepOptions::default()`. The options struct is built
-    /// by a literal that names every field, so a field the kernel
-    /// gains does not compile until this door decides about it; that
-    /// decision is recorded, either way, in the surface census.
+    /// gets from `StepOptions::default()`. Its options are a literal
+    /// naming every field, held to `StepOptions` by the surface
+    /// census's options roster, which is where that device is argued.
     ///
     /// `uncertainty` is the exported
     /// `UNCERTAINTY_MEASURE_WITH_UNIT` length; omitted, the writer
@@ -2026,10 +2025,10 @@ impl ImportReport {
 /// positive is the importer's own `invalid_eps_override` refusal, not
 /// a check restated here.
 ///
-/// The options struct is built by a literal that names every
-/// `ImportOptions` field, so a field the kernel gains does not
-/// compile until this door decides about it; that decision is
-/// recorded, either way, in the surface census.
+/// Its options are a literal naming every field, held to
+/// `ImportOptions` by the surface census's options roster — which is
+/// also where `declared_contacts`, the field this door does not take,
+/// carries its reason.
 #[pyfunction]
 #[pyo3(signature = (text, *, eps_in = None))]
 pub(crate) fn import_step(
@@ -2271,12 +2270,13 @@ impl CancelToken {
 /// a recipe out from under a running evaluation. Measured, not
 /// reasoned: `tests/test_cancellation.py` executes it.
 ///
-/// `resolver` is the one `EvalOptions` field that changes an ANSWER,
-/// and it is the one keyword here. The options struct is nevertheless
-/// built by a literal that names every field — not a `..default()`
-/// tail — so a field the kernel gains does not compile until this
-/// door decides about it; that decision is recorded, either way, in
-/// the surface census.
+/// `resolver` is the one `EvalOptions` field this door takes. The
+/// other six are not one kind of thing and the surface census's
+/// options roster says which each is — three are switches the kernel
+/// documents as answer-preserving, three change answers and are
+/// unreachable at this door's scalar rather than harmless. Its
+/// options are a literal naming every field, no `..default()` tail,
+/// which is what holds the door to that roster.
 #[pyfunction]
 #[pyo3(signature = (doc, *, resolver=None, prior=None, cancel=None))]
 pub(crate) fn evaluate(

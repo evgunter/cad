@@ -2,12 +2,21 @@
 //!
 //! The surfaces here are hand-written copies of a vocabulary the
 //! kernel declares once: the PATHS verbs, the arc-spec modes that
-//! travel inside them, and the fields of every kernel OPTIONS STRUCT
-//! that reaches a Python door. Each copy compiles green while short —
-//! a verb the transition table gains, a mode `arc_modes!` gains, a
+//! travel inside them, and the fields of the kernel OPTIONS STRUCTS a
+//! Python door configures. Each copy compiles green while short — a
+//! verb the transition table gains, a mode `arc_modes!` gains, a
 //! field an options struct gains, all reach `pncad-py` through
 //! methods that were never exhaustive over them — so a Python user
 //! simply cannot write the thing, and nothing says so.
+//!
+//! **Which options structs, exactly.** Those named `*Options` and
+//! constructed under `src/py/`, which is a rule a test enforces
+//! ([`every_options_type_in_py_is_rostered`]) rather than a claim
+//! this paragraph makes. It is narrower than "every configuration
+//! struct that reaches Python": `ChecksConfig` and `McConfig` cross
+//! as value classes under a `*Config` name and are outside it, with
+//! their own row on LIB's slate. That test's doc states the blind
+//! spot; this header does not restate it.
 //!
 //! The mechanism is the one `editor-core`'s
 //! `switch_program_vocabulary` suite uses one crate over: **the
@@ -452,25 +461,73 @@ fn mode_class(mode: ArcMode) -> &'static str {
     }
 }
 
-/// One kernel options struct and the Python door it configures.
+/// **Where one roster's spellings are looked for in the stub.**
 ///
-/// **The alphabet for these rosters is the door's KEYWORDS**, not the
-/// stub's declared names: an options field is reachable by becoming a
-/// parameter of one `def`, so both the forward census and the decay
-/// check below read [`Stub::parameters`] for these — where the verb
-/// roster reads [`Stub::declares`].
-struct OptionsDoor {
-    /// The kernel struct, for the failure messages.
-    struct_name: &'static str,
-    /// The stub `def` whose parameter list is the alphabet.
-    door: &'static str,
-    /// One entry per field of the struct, in the struct's own order.
-    fields: Vec<(&'static str, Spelling)>,
+/// A verb is bound by being a DECLARED name; an options field is bound
+/// by being its door's KEYWORD, which is never a declared name. A
+/// check that reaches for the wrong one passes whatever the stub says,
+/// and that is not hypothetical: the decay half of this census read
+/// declared names for every roster, so the first options entry to be
+/// declined would have stayed green forever.
+///
+/// So the alphabet is **stored on the roster, never chosen at the
+/// check**. Every check below asks [`Roster::alphabet`] rather than
+/// deciding again, which is what makes a sixth roster with a third
+/// alphabet a one-line decision instead of four independent ones.
+enum Alphabet {
+    /// Declared names — classes and `Class.member` spellings.
+    Declared,
+    /// The parameter names of one stub `def`.
+    Keywords(&'static str),
 }
 
-/// **The options rosters**: every kernel options struct that reaches
-/// a Python door, one entry per field, naming the keyword that sets
-/// it.
+impl Alphabet {
+    /// What the stub offers in this alphabet.
+    fn of(&self, stub: &Stub) -> BTreeSet<String> {
+        match self {
+            Alphabet::Declared => stub.names.clone(),
+            Alphabet::Keywords(door) => stub.parameters(door),
+        }
+    }
+
+    /// Where a failure message should say it looked.
+    fn site(&self) -> &'static str {
+        match self {
+            Alphabet::Declared => "pncad.pyi",
+            Alphabet::Keywords(door) => door,
+        }
+    }
+}
+
+/// One kernel vocabulary, its alphabet, and one entry per member.
+struct Roster {
+    /// What the members are, for the failure messages — the kernel
+    /// type whose growth this roster is anchored on.
+    subject: &'static str,
+    /// Where a spelling of this roster lives. See [`Alphabet`].
+    alphabet: Alphabet,
+    /// One entry per member, in the kernel type's own order.
+    entries: Vec<(String, Spelling)>,
+}
+
+/// One options struct's roster: its door's keywords are the alphabet.
+fn options_roster(
+    subject: &'static str,
+    door: &'static str,
+    fields: Vec<(&'static str, Spelling)>,
+) -> Roster {
+    Roster {
+        subject,
+        alphabet: Alphabet::Keywords(door),
+        entries: fields
+            .into_iter()
+            .map(|(field, spelling)| (field.to_owned(), spelling))
+            .collect(),
+    }
+}
+
+/// **The options rosters**, one entry per field of each struct, naming
+/// the keyword that sets it.
 ///
 /// Each destructure is the anchor, and none has a `..`: a field the
 /// kernel struct gains does not compile until it is dispositioned
@@ -480,7 +537,13 @@ struct OptionsDoor {
 /// redundant: the literal is what makes the DOOR decide, the roster
 /// is what makes the decision legible and keeps it falsifiable
 /// against the stub.
-fn options_doors() -> Vec<OptionsDoor> {
+///
+/// **What anchors the LIST itself** is
+/// [`every_options_type_in_py_is_rostered`]: a type named `*Options`
+/// constructed anywhere under `src/py/` and absent from here fails
+/// that test. That is the membership rule this census enforces, and
+/// it is narrower than "every configuration struct" — see the test.
+fn options_doors() -> Vec<Roster> {
     use Spelling::Bound;
 
     let step = StepOptions::default();
@@ -517,10 +580,10 @@ fn options_doors() -> Vec<OptionsDoor> {
     } = &eval;
 
     vec![
-        OptionsDoor {
-            struct_name: "StepOptions",
-            door: "Evaluation.step_string",
-            fields: vec![
+        options_roster(
+            "StepOptions",
+            "Evaluation.step_string",
+            vec![
                 ("product_name", Bound(&["product_name"])),
                 ("timestamp", Bound(&["timestamp"])),
                 ("author", Bound(&["author"])),
@@ -532,11 +595,11 @@ fn options_doors() -> Vec<OptionsDoor> {
                 // type already says.
                 ("uncertainty_m", Bound(&["uncertainty"])),
             ],
-        },
-        OptionsDoor {
-            struct_name: "ImportOptions",
-            door: "import_step",
-            fields: vec![
+        ),
+        options_roster(
+            "ImportOptions",
+            "import_step",
+            vec![
                 ("eps_in", Bound(&["eps_in"])),
                 // The import-side declaration channel is a list of
                 // `ImportContact`, and that element type has no Python
@@ -555,21 +618,21 @@ fn options_doors() -> Vec<OptionsDoor> {
                     },
                 ),
             ],
-        },
-        OptionsDoor {
-            struct_name: "AsciiOptions",
-            door: "Mesh.to_stl_ascii",
-            fields: vec![("solid_name", Bound(&["solid_name"]))],
-        },
-        OptionsDoor {
-            struct_name: "BinaryOptions",
-            door: "Mesh.to_stl_binary",
-            fields: vec![("header", Bound(&["header"]))],
-        },
-        OptionsDoor {
-            struct_name: "EvalOptions",
-            door: "evaluate",
-            fields: vec![
+        ),
+        options_roster(
+            "AsciiOptions",
+            "Mesh.to_stl_ascii",
+            vec![("solid_name", Bound(&["solid_name"]))],
+        ),
+        options_roster(
+            "BinaryOptions",
+            "Mesh.to_stl_binary",
+            vec![("header", Bound(&["header"]))],
+        ),
+        options_roster(
+            "EvalOptions",
+            "evaluate",
+            vec![
                 (
                     "epoch",
                     Spelling::NotBound {
@@ -602,29 +665,36 @@ fn options_doors() -> Vec<OptionsDoor> {
                     "profile_lift",
                     Spelling::NotBound {
                         would_be: &["profile_lift"],
-                        reason: "Python evaluates at f64 ALONE, and at f64 the lift is a \
-                                 no-op by construction; it gains a spelling in the unit that \
-                                 brings Python a non-f64 evaluation",
+                        reason: "it decides whether profile geometry is elaborated at THIS \
+                                 evaluation's parameters instead of the nominal f64 pass's, \
+                                 and only a non-nominal `param_box` can show that \
+                                 difference — which this door never has. NOT a no-op at f64 \
+                                 in general: `editor-core`'s MC lane sets `Guided` at f64 \
+                                 precisely because its box is not the nominal one",
                     },
                 ),
                 (
                     "param_box",
                     Spelling::NotBound {
                         would_be: &["param_box"],
-                        reason: "the analysis box has its own Python door (`AnalyzedBox`) and \
-                                 no evaluation behind it at a scalar that could carry one",
+                        reason: "a box IS reachable at f64 and from Python — the MC lane \
+                                 evaluates under one and `monte_carlo` is its door — but only \
+                                 the DEGENERATE form, the point sample `AxisScalar for f64` \
+                                 admits. A box with width needs an evaluation at a scalar \
+                                 that carries a bracket, and this door has only f64",
                     },
                 ),
                 (
                     "seed",
                     Spelling::NotBound {
                         would_be: &["seed"],
-                        reason: "the E4 tangent seed is the box's twin and unreachable for \
-                                 its reason: an f64 evaluation carries no tangent",
+                        reason: "the E4 tangent seed needs a scalar that carries a tangent, \
+                                 and an f64 evaluation carries none — the box's twin, but \
+                                 with no degenerate form that reaches f64 at all",
                     },
                 ),
             ],
-        },
+        ),
     ]
 }
 
@@ -632,39 +702,72 @@ fn options_doors() -> Vec<OptionsDoor> {
 // The censuses
 // ------------------------------------------------------------------
 
-/// What a roster entry is missing from the stub, if anything.
-fn absent(stub: &Stub, spelling: &Spelling) -> Vec<String> {
-    match spelling {
-        Spelling::Bound(names) => names
+impl Roster {
+    /// Spellings this roster claims that its alphabet does not offer.
+    fn missing(&self, stub: &Stub) -> Vec<String> {
+        let offered = self.alphabet.of(stub);
+        let site = self.alphabet.site();
+        self.entries
             .iter()
-            .filter(|n| !stub.declares(n))
-            .map(|n| (*n).to_owned())
-            .collect(),
-        Spelling::NotBound { .. } => Vec::new(),
+            .filter_map(|(member, spelling)| match spelling {
+                Spelling::Bound(names) => Some((member, names)),
+                Spelling::NotBound { .. } => None,
+            })
+            .flat_map(|(member, names)| {
+                names
+                    .iter()
+                    .filter(|n| !offered.contains(**n))
+                    .map(move |n| format!("{}::{member} -> {site} offers no {n}", self.subject))
+                    .collect::<Vec<_>>()
+            })
+            .collect()
+    }
+
+    /// Entries claiming to be unbound whose spelling the alphabet NOW
+    /// offers — someone bound the member and left the reason standing.
+    fn stale(&self, stub: &Stub) -> Vec<String> {
+        let offered = self.alphabet.of(stub);
+        let site = self.alphabet.site();
+        self.entries
+            .iter()
+            .filter_map(|(member, spelling)| match spelling {
+                Spelling::NotBound { would_be, reason } => {
+                    let found: Vec<&str> = would_be
+                        .iter()
+                        .copied()
+                        .filter(|n| offered.contains(*n))
+                        .collect();
+                    (!found.is_empty()).then(|| {
+                        format!(
+                            "{}::{member} is bound at {site} as {found:?}, but says: {reason}",
+                            self.subject
+                        )
+                    })
+                }
+                Spelling::Bound(_) => None,
+            })
+            .collect()
     }
 }
 
-/// A [`Spelling::NotBound`] entry whose spelling is present in the
-/// alphabet `has` answers over, rendered for the failure message.
-///
-/// The alphabet differs by roster — declared names for the verbs,
-/// one door's keywords for an options struct — and passing it in is
-/// what keeps that difference at the call site rather than buried in
-/// a check that reads the wrong one and stays green forever.
-fn stale_entry(
-    member: &str,
-    spelling: &Spelling,
-    has: &dyn Fn(&str) -> bool,
-    at: &str,
-) -> Option<String> {
-    match spelling {
-        Spelling::NotBound { would_be, reason } => {
-            let found: Vec<&str> = would_be.iter().copied().filter(|n| has(n)).collect();
-            (!found.is_empty())
-                .then(|| format!("{member} is bound at {at} as {found:?}, but says: {reason}"))
-        }
-        Spelling::Bound(_) => None,
+/// The verb roster, as a [`Roster`]: its alphabet is declared names.
+fn verb_roster() -> Roster {
+    Roster {
+        subject: "Verb",
+        alphabet: Alphabet::Declared,
+        entries: Verb::ALL
+            .iter()
+            .map(|verb| (format!("{verb:?}"), verb_spelling(*verb)))
+            .collect(),
     }
+}
+
+/// Every roster in the file, each carrying its own alphabet — read
+/// together so a check cannot cover one and quietly skip another.
+fn every_roster() -> Vec<Roster> {
+    std::iter::once(verb_roster())
+        .chain(options_doors())
+        .collect()
 }
 
 /// **The rosters decay.** A member listed as deliberately unbound
@@ -672,34 +775,17 @@ fn stale_entry(
 /// and left a reason standing that says they did not.
 ///
 /// This is the half that makes [`Spelling::NotBound`] an assertion
-/// rather than a comment. Both rosters are read here — the verbs and
-/// every options door — so a decay check cannot cover one and quietly
-/// skip the other.
+/// rather than a comment. **What it does NOT check is the reason** —
+/// only the spelling. A reason that was never true, or stopped being
+/// true without the member being bound, passes here; that is a
+/// reader's job and the reasons are written to be checkable by one.
 #[test]
 fn the_not_bound_roster_decays() {
     let stub = stub();
-    let mut stale: Vec<String> = Verb::ALL
+    let stale: Vec<String> = every_roster()
         .iter()
-        .filter_map(|verb| {
-            stale_entry(
-                &format!("Verb::{verb:?}"),
-                &verb_spelling(*verb),
-                &|name| stub.declares(name),
-                "pncad.pyi",
-            )
-        })
+        .flat_map(|roster| roster.stale(&stub))
         .collect();
-    for door in options_doors() {
-        let parameters = stub.parameters(door.door);
-        stale.extend(door.fields.iter().filter_map(|(field, spelling)| {
-            stale_entry(
-                &format!("{}::{field}", door.struct_name),
-                spelling,
-                &|kw| parameters.contains(kw),
-                door.door,
-            )
-        }));
-    }
     assert!(
         stale.is_empty(),
         "these members are listed as not bound and Python offers them: {stale:?}"
@@ -730,13 +816,25 @@ fn the_census_is_not_vacuous() {
     assert!(!Verb::ALL.is_empty() && !ArcMode::ALL.is_empty());
     let unfound: Vec<&str> = options_doors()
         .iter()
-        .map(|door| door.door)
-        .filter(|door| !stub.defs.contains_key(*door))
+        .filter_map(|roster| match roster.alphabet {
+            Alphabet::Keywords(door) => (!stub.defs.contains_key(door)).then_some(door),
+            Alphabet::Declared => None,
+        })
         .collect();
     assert!(
         unfound.is_empty(),
         "these options doors' signatures were not found in the stub, so their keyword \
          censuses read nothing: {unfound:?}"
+    );
+    let empty: Vec<&str> = every_roster()
+        .iter()
+        .filter(|roster| roster.entries.is_empty())
+        .map(|roster| roster.subject)
+        .collect();
+    assert!(
+        empty.is_empty(),
+        "these rosters have no entries, so every check over them passes reading nothing: \
+         {empty:?}"
     );
 }
 
@@ -746,14 +844,7 @@ fn the_census_is_not_vacuous() {
 #[test]
 fn every_path_verb_has_a_python_spelling() {
     let stub = stub();
-    let missing: Vec<String> = Verb::ALL
-        .iter()
-        .flat_map(|verb| {
-            absent(&stub, &verb_spelling(*verb))
-                .into_iter()
-                .map(move |name| format!("{verb:?} -> {name}"))
-        })
-        .collect();
+    let missing = verb_roster().missing(&stub);
     assert!(
         missing.is_empty(),
         "the roster claims Python spellings pncad.pyi does not declare: {missing:?}"
@@ -787,35 +878,131 @@ fn every_arc_mode_has_a_python_spelling() {
     );
 }
 
-/// **The options census.** Every field of every kernel options struct
-/// that reaches a Python door is a keyword of that door, or recorded
-/// as deliberately withheld.
+/// **The options census.** Every field of every ROSTERED options
+/// struct is a keyword of its door, or recorded as deliberately
+/// withheld. Which structs are rostered is
+/// [`every_options_type_in_py_is_rostered`]'s question, not this one's.
 #[test]
 fn every_option_field_reaches_the_python_door() {
     let stub = stub();
-    let mut missing: Vec<String> = Vec::new();
-    for door in options_doors() {
-        let parameters = stub.parameters(door.door);
-        for (field, spelling) in &door.fields {
-            let Spelling::Bound(names) = spelling else {
-                continue;
-            };
-            missing.extend(
-                names
-                    .iter()
-                    .filter(|kw| !parameters.contains(**kw))
-                    .map(|kw| {
-                        format!(
-                            "{}::{field} -> {} takes no {kw} (it takes {parameters:?})",
-                            door.struct_name, door.door
-                        )
-                    }),
-            );
-        }
-    }
+    let missing: Vec<String> = options_doors()
+        .iter()
+        .flat_map(|roster| roster.missing(&stub))
+        .collect();
     assert!(
         missing.is_empty(),
         "these Python doors are short of the options struct they configure: {missing:?}"
+    );
+}
+
+/// Every `*Options` type CONSTRUCTED in `code` — a struct literal or a
+/// `::default()` — by its bare name.
+///
+/// Name-shaped AND construction-shaped, because either alone
+/// over-reads: an options type is named in `use` lines and in `&T`
+/// argument positions, and neither of those is a door building one.
+fn constructed_options_types(code: &str) -> BTreeSet<String> {
+    let is_ident = |c: char| c.is_alphanumeric() || c == '_';
+    let mut out = BTreeSet::new();
+    let mut from = 0;
+    while let Some(at) = code[from..].find("Options") {
+        let start = from + at;
+        let end = start + "Options".len();
+        from = start + 1;
+        // Only where the occurrence ENDS the identifier, so
+        // `OptionsDoor` is not read as `Options`.
+        if code[end..].starts_with(is_ident) {
+            continue;
+        }
+        let head = code[..start]
+            .char_indices()
+            .rev()
+            .take_while(|(_, c)| is_ident(*c))
+            .last()
+            .map_or(start, |(i, _)| i);
+        let name = &code[head..end];
+        if !name.starts_with(char::is_uppercase) {
+            continue;
+        }
+        let rest = code[end..].trim_start();
+        if rest.starts_with("::default()") || rest.starts_with('{') {
+            out.insert(name.to_owned());
+        }
+    }
+    out
+}
+
+/// **The roster LIST is not hand-kept.** A type named `*Options` that
+/// any door under `src/py/` constructs — as a struct literal or
+/// through `::default()` — must appear in [`options_doors`].
+///
+/// Without this, `options_doors`'s membership would be exactly the
+/// hand-kept list this module exists to abolish: a sixth struct wired
+/// to a new door would red nothing, and every check above would keep
+/// passing over the five it happens to name.
+///
+/// **What it enforces is a NAME rule over construction sites in one
+/// directory**, which is narrower than "every configuration struct
+/// that reaches Python", and the module header says the narrow thing
+/// for that reason. Two configuration structs in this crate are
+/// deliberately outside it: `ChecksConfig` and `McConfig` cross as
+/// value classes with their own constructors and are named `*Config`.
+/// Their anchor is LIB's row
+/// `checks-config-door-respells-four-kernel-defaults`. A third such
+/// struct arriving under a third name is this rule's stated blind
+/// spot rather than a silent one.
+#[test]
+fn every_options_type_in_py_is_rostered() {
+    let dir = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src/py");
+    let files = test_utils::source::rust_sources(&dir);
+    assert!(
+        !files.is_empty(),
+        "no Rust source found under {} — this check was about to pass having read nothing",
+        dir.display()
+    );
+    let mut found: BTreeSet<String> = BTreeSet::new();
+    for path in &files {
+        let text = std::fs::read_to_string(path).expect("a listed source file reads");
+        found.extend(constructed_options_types(&test_utils::source::code_only(
+            &text,
+        )));
+    }
+    assert!(
+        !found.is_empty(),
+        "the scan found no `*Options` construction under src/py, so it read nothing"
+    );
+    let rostered: BTreeSet<&str> = options_doors().iter().map(|r| r.subject).collect();
+    let unrostered: Vec<&String> = found
+        .iter()
+        .filter(|name| !rostered.contains(name.as_str()))
+        .collect();
+    assert!(
+        unrostered.is_empty(),
+        "these `*Options` types are constructed under src/py and are in no roster: \
+         {unrostered:?}; the rosters hold {rostered:?}"
+    );
+}
+
+/// The scan reads construction and not mention. Without this, a scan
+/// that matched every `Options` in sight would report a roster hole
+/// out of a `use` line, and one that matched none would report none.
+#[test]
+fn the_options_scan_reads_construction_only() {
+    let found = constructed_options_types(
+        "use pncad::step_export::StepOptions;\n\
+         fn take(options: &StepOptions) {}\n\
+         fn build() { let a = stl::AsciiOptions { solid_name: n }; \
+         let b = MissingOptions::default(); let c = OptionsDoor { x: 1 }; \
+         let d = lower_options {}; }\n",
+    );
+    assert_eq!(
+        found,
+        ["AsciiOptions", "MissingOptions"]
+            .iter()
+            .map(|s| (*s).to_owned())
+            .collect::<BTreeSet<String>>(),
+        "the scan should read the two CONSTRUCTED names and neither the imported one, \
+         the borrowed one, `OptionsDoor` nor a lowercase binding"
     );
 }
 
