@@ -159,7 +159,8 @@ derivations live in `crates/topo/src/entity.rs`.
 
 **Face orientation sense.** A face carries `Face::sense: bool`: `true`
 iff the face's material side agrees with its surface's chart normal, so
-the outward normal at a point is `sense_sign · n(u, v)`. The analytic
+the outward normal at a point is `n(u, v)` where `sense` is `true` and
+`−n(u, v)` where it is `false`. The analytic
 chart normals admit no reversal by reparameterization (cylinder, cone
 and torus normals are odd in the radius; the sphere's is even and
 outward under the `radius > 0` convention — a negative-radius sphere is

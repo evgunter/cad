@@ -1,8 +1,8 @@
 //! M5 S12 acceptance: curved `revert` is wired, and curved
 //! subtract/intersect are live on the classes that have a seam lane.
 //!
-//! S10 ratified `Face::sense` (a face's outward normal is
-//! `sense_sign · chart_normal`); S11 made the constructors write the
+//! S10 ratified `Face::sense` (a face's outward normal is the chart
+//! normal negated where the bit is `false`); S11 made the constructors write the
 //! bit honestly; S12 — this unit — makes `revert` FLIP it, makes
 //! splitting's `mef`/`mfkrh` re-mints INHERIT the parent's bit, and
 //! narrows the wholesale curved ∖/∩ front door to the classes that

@@ -79,8 +79,9 @@ use crate::query::CurveKind;
 ///   separate fact about the face, and folding it in silently would
 ///   make two different questions share one answer. That second fact
 ///   travels BESIDE the axis as [`Pose::sense`], so a reader that
-///   wants the outward normal forms it as `sense · axis` in the open
-///   rather than receiving it pre-folded.
+///   wants the outward normal mints it through
+///   `geom_brep::OutwardNormal::from_chart(axis, sense)` rather than
+///   receiving it pre-folded.
 /// - `u_ref` is the in-frame reference direction where the carrier's
 ///   convention fixes one (the seam of every closed chart, θ = 0 of a
 ///   circle, an ellipse's semi-major direction). It is `None` where
@@ -100,8 +101,9 @@ pub struct Pose<T: Real> {
     /// ([`crate::entity::Face::sense`]): `true` when the face's outward
     /// normal is `+axis`, `false` when it is `-axis`. This is the
     /// second fact [`Pose::axis`] deliberately does not fold in — the
-    /// axis stays the chart's, and the outward normal is `sense ·
-    /// axis`, formed by the reader.
+    /// axis stays the chart's, and the reader mints the outward normal
+    /// through `geom_brep::OutwardNormal::from_chart(axis, sense)`, the
+    /// one constructor that takes the bit.
     ///
     /// An EDGE has no orientation sense, so [`edge_pose`] carries
     /// `true` here — the sign that leaves `axis` exactly as the chart
@@ -276,7 +278,8 @@ fn carrier_surface<T: Real>(
 ///
 /// The face's orientation sense comes back BESIDE the frame
 /// ([`Pose::sense`]): `axis` stays the chart's direction, and the
-/// outward normal is `sense · axis`, formed by the caller.
+/// caller mints the outward normal through
+/// `geom_brep::OutwardNormal::from_chart(axis, sense)`.
 ///
 /// # Errors
 ///

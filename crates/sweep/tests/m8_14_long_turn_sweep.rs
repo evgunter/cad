@@ -188,7 +188,8 @@ const PROBE_DELTA: f64 = 0.02;
 /// material, at every level of a chart that rolls the whole way.**
 ///
 /// The claim is the one `m5_s11_concave_sense` makes of a loft and of
-/// the quarter-turn elbow: a wall's `sense_sign · (S_u × S_v)` has
+/// the quarter-turn elbow: a wall's `S_u × S_v`, negated where `sense`
+/// is `false`, has
 /// material against it and void along it. Nothing here reads that
 /// datum to decide the question — the oracle
 /// (`common::orient::LevelIndex`) sees only positions off the shipped

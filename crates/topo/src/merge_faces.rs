@@ -49,6 +49,7 @@ use crate::body::Body;
 use crate::boolean::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, oriented_plane_eq};
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, LoopKey, VertexKey};
 use crate::euler::EulerOpError;
+use crate::face_normal::plane_outward_normal;
 use crate::geometry::SurfaceKey;
 use crate::readback::DanglingRef;
 use crate::validate::{ValidationError, validate_closed};
@@ -1692,14 +1693,10 @@ impl<T: Decide> Body<T> {
         edge: EdgeKey,
         declared: Option<&DeclaredCtx>,
     ) -> Result<Option<MergeRung>, MergeCoplanarError> {
-        let (Some((k1, sense1, sign1)), Some((k2, sense2, sign2))) = (
-            self.get_face(f1)
-                .map(|f| (f.surface, f.sense, f.sense_sign::<T>())),
-            self.get_face(f2)
-                .map(|f| (f.surface, f.sense, f.sense_sign::<T>())),
-        ) else {
+        let (Some(face1), Some(face2)) = (self.get_face(f1), self.get_face(f2)) else {
             return Ok(None);
         };
+        let (k1, k2) = (face1.surface, face2.surface);
         let (Some(s1), Some(s2)) = (self.get_surface(k1), self.get_surface(k2)) else {
             return Ok(None);
         };
@@ -1708,7 +1705,7 @@ impl<T: Decide> Body<T> {
         // — both of which certify the SURFACE, not the face — may
         // conclude the faces are one region. Falling through leaves
         // the declared rung to refuse loudly if the pair was declared.
-        let same_sense = sense1 == sense2;
+        let same_sense = face1.sense == face2.sense;
         // The hard rungs are KIND-AGNOSTIC since M5 PR 9 (C12.5, the
         // cosurface generalization): the same-key and same-source
         // tests never touch a numeric coordinate, so nothing about
@@ -1794,11 +1791,11 @@ impl<T: Decide> Body<T> {
             // pair on one plane lands there by construction.
             let p1 = PlaneDesc {
                 origin: o1,
-                normal: n1 * sign1,
+                normal: plane_outward_normal(face1, n1).vec(),
             };
             let p2 = PlaneDesc {
                 origin: o2,
-                normal: n2 * sign2,
+                normal: plane_outward_normal(face2, n2).vec(),
             };
             return match oriented_plane_eq(&p1, &p2, id, arm, band) {
                 Ok(PlaneRelation::SameOriented) => Ok(Some(MergeRung::DeclaredPair)),
@@ -2303,8 +2300,9 @@ impl<T: Decide> Body<T> {
     /// from an area and a perimeter that are both nothing.
     ///
     /// `normal` must be the face's OUTWARD normal (S10): the caller
-    /// multiplies the chart normal by `sense_sign` exactly once, and
-    /// the Newell sum here is left alone. That sum is built from the
+    /// folds the sense into the chart normal exactly once, through
+    /// `face_normal`'s door, and the Newell sum here is left alone.
+    /// That sum is built from the
     /// loop's STORED cycle order, which `revert` reverses in the same
     /// breath as it flips the sense bit, so it already changes sign on
     /// its own — threading the sense onto both factors would cancel
@@ -2475,7 +2473,7 @@ impl<T: Decide> Body<T> {
         // the chart normal names the opposite convention and every
         // role assignment below would come out inverted.
         let normal = match self.get_surface(survivor.surface) {
-            Some(Surface::Plane { normal, .. }) => *normal * survivor.sense_sign::<T>(),
+            Some(Surface::Plane { normal, .. }) => plane_outward_normal(survivor, *normal).vec(),
             // The survivor is a plane at every call: `rings_made` is
             // non-empty only under a planar contract, since the curved
             // arm refuses `PeriodClosure` before any `kemr`. This arm

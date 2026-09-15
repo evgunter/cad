@@ -327,6 +327,7 @@ use crate::body::{Body, Walk};
 use crate::boolean::ContainError;
 use crate::chart_region::ChartRegionError;
 use crate::contact::{ContactRefusal, DeclaredContact};
+use crate::face_normal::plane_outward_normal;
 use crate::geometry::CurveKey;
 use crate::null::CurveGeom;
 
@@ -1000,7 +1001,7 @@ pub enum ValidationError {
     /// class this check closes structurally.
     ///
     /// **Since M5 S10 this is also the sense gate.** The outward normal
-    /// is `Face::sense_sign() · chart_normal`, so the comparison is
+    /// is the chart normal with `Face::sense` folded in, so the comparison is
     /// between the face's two independent encodings of one fact: the
     /// stored `sense` bit and the loops' stored winding (interior-left
     /// ⇒ the outer loop winds CCW about the outward normal). A body
@@ -3807,7 +3808,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // S10 CATEGORY C (orientation-free): the margin `(p − origin)·n` is
     // tested against `Zero`, and `Zero` is invariant under negating
     // `n` — the plane as a POINT SET does not depend on which side the
-    // material is. Threading `sense_sign` here would flip
+    // material is. Folding the sense in here would flip
     // Positive↔Negative in a decision that never distinguishes them.
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
@@ -4280,8 +4281,8 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // unmeasured. Owned, with that measurement as its opening step, by
     // `work/verbs/verbs-1031b-assigner-checker-divergence.md`.
     //
-    // **The S10 sense gate.** Since M5 S10 a face's outward normal is
-    // `sense_sign · chart_normal`, so the winding is compared against
+    // **The S10 sense gate.** A face's outward normal is the chart
+    // normal with `sense` folded in, so the winding is compared against
     // the OUTWARD normal — CATEGORY A: the chart normal alone is not
     // the face's orientation any more, and reading it raw would make
     // this check blind to exactly the corruption it exists to catch.
@@ -4301,10 +4302,10 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
         let Some(&Surface::Plane { normal, .. }) = body.surfaces.get(face.surface) else {
             continue;
         };
-        // The face's outward normal (S10). Exact structure: a `bool`
-        // selects `±1`, no predicate, no band, and `· 1` is bitwise
-        // identity — every sense-true body decides exactly as before.
-        let outward = normal * face.sense_sign::<T>();
+        // The face's outward normal through the one door: the bit is
+        // read here for what it CLAIMS (which side is material), and
+        // the loop's stored winding is falsified against that claim.
+        let outward = plane_outward_normal(face, normal).vec();
         for (l, is_outer) in
             core::iter::once((face.outer, true)).chain(face.rings.iter().map(|&r| (r, false)))
         {
@@ -4611,7 +4612,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // polygonal one. They lie in the face's plane because check 5
     // above certifies that they do (`planar_boundary_residual`),
     // which is the walk's stated precondition; the chart normal is
-    // handed over unmultiplied by `Face::sense_sign` because the
+    // handed over without `Face::sense` folded in because the
     // walk's verdict is invariant under that sign, derived once in
     // `splitting::containment`'s own docs.
     //
@@ -8128,7 +8129,7 @@ mod tests {
 
     /// **The verdict is blind to orientation.** `Body::revert`
     /// reverses every cycle and flips every sense; the chart normal is
-    /// handed to the walk unmultiplied by `Face::sense_sign`. Neither
+    /// handed to the walk without `Face::sense` folded in. Neither
     /// moves the FINDING. The witness may move, and that is stated in
     /// [`ValidationError::RingOutsideOuter`]'s doc rather than
     /// asserted away here, so the comparison is by variant and face.
@@ -8409,8 +8410,8 @@ mod tests {
 
     /// **M5 S10 acceptance row 1: tier 3 is the sense gate (check 6).**
     ///
-    /// A face's outward normal is `Face::sense_sign()` times its
-    /// surface's chart normal, and by the interior-left rule its outer
+    /// A face's outward normal is its surface's chart normal with
+    /// `Face::sense` folded in, and by the interior-left rule its outer
     /// loop winds CCW about that outward normal. `sense` and the
     /// stored winding are therefore two encodings of ONE fact, and
     /// check 6 — the loop's Newell functional against the OUTWARD

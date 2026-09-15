@@ -2,9 +2,10 @@
 id: errors-rs-holds-four-python-visible-maps-and-nothing-enumerates-that-file
 kind: unit
 title: errors.rs holds Python-visible word maps and no instrument enumerates the file
-status: spec
+status: closed
 opened: 2026-09-15
 branch: census/errors-arrival
+closed: 2026-09-15
 ---
 
 Filed by CENSUS-PY-GETTERS' fix pass (2026-09-15). That unit moved six
@@ -37,7 +38,7 @@ filed under that name; read it as a name, not as a count.
 
 The five are also not the whole of what this file spells. Its live
 answer is `ERRORS_MINTING_ITEMS` in `crates/pncad-py/src/tests.rs` —
-nine items and 52 literals, each row naming what holds its words —
+**ten items and 53 literals**, each row naming what holds its words —
 and that roster, not this table, is the thing a future arrival has to
 join.
 
@@ -82,16 +83,27 @@ reader's function forms strip `pub fn `, and all five maps here are
 `pub const fn`; a top-level-keyed reader sees three of the five. So
 the population is not this reader's to define. `test_utils::source`
 says which bytes of the file are inside a literal, the reader
-attributes each to the item that spells it, and there is no form a
-word can arrive in that the reader was not taught, because there is no
-form. Attribution can be wrong, and a wrong attribution is loud: it
-invents a name the roster does not carry.
+attributes each to the item that spells it. **An item that spells a
+literal is loud however it is written** — form, depth, trait and
+literal kind alike, because the population is the shared lexer's answer
+and not a grammar of forms. An item that spells NO literal is the one
+exception.
 
-The population it reports is **nine items and 52 literals**, not five
+That sentence used to read *"there is no form a word can arrive in that
+the reader was not taught, because there is no form"*, and to claim a
+wrong attribution is always loud because it invents a name the roster
+does not carry. **Both were false and were executed as false** — see
+the style-review section below. Both are closed; the wording above is
+what survives.
+
+The population it reports is **ten items and 53 literals**, not five
 maps — `EvalReason::ATTRIBUTE`, `ValidationRefusal::ATTRIBUTES`,
 `QuantityOpMismatch`'s `Display` format string and `reads_as_prose`'s
 fingerprint are all literals in this file and three of the four are
-Python-visible, which the five-map framing did not count.
+Python-visible, which the five-map framing did not count. The tenth is
+`is_bare_camel_token`, which spells exactly one literal — the char
+`'_'` — and was found only when the char-literal hole closed; the count
+was nine and 52 until then.
 
 **The other two shapes, and why not.** Capitalising at the boundary so
 `measurement_dimension_tag` stops existing takes the file from five
@@ -118,12 +130,17 @@ cannot move without the enum moving too.
   the rest of the crate is
   `payload-attribute-names-are-spelled-twice-and-held-equal-by-nothing`,
   filed by the same unit.
-- **Misattribution to the row above.** A literal in an attribute
-  (`#[doc = "…"]`, a `#[pyo3(name = "…")]` were one ever written
-  here) lands on the item ABOVE it, because attribution is by the
-  nearest declaration above. The count still moves, so it is loud on
-  the wrong row rather than silent; the reader's own guard pins that
-  behaviour by execution.
+- **An `impl` at indentation** — one inside a `mod` — reports an
+  arrival loudly, but under a bare, unqualified name. The loudness
+  rests on the key rather than on rustfmt: what used to be quiet was
+  the collision, and putting the trait in the key took that from two
+  `fmt`s to a name Rust itself rejects. On
+  `the-errors-arrival-blind-spot-list-claimed-exclusivity-and-was-short`.
+
+Misattribution to the row above WAS listed here, graded loud-on-the-wrong-row.
+**That grading was wrong** — an attribute literal landing on a rostered
+row is silent and cancels against a deletion — and the case is closed,
+not narrowed.
 
 ### What was executed
 
