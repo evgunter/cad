@@ -1093,6 +1093,23 @@ to the dispatcher's own briefs — mine offered the symmetric fix first,
 and it would have removed the face path's only arbitration without
 moving a pixel or redding a row.
 
+**A UNIFORM delta is what makes a shift map feel trustworthy, and is
+not evidence that any number names the right thing.** This program
+measured 2 wrong subjects out of 4 handed-over citation shifts and
+concluded that a shift map is arithmetic which returns an answer for
+every input without asking what that answer names. CHROME measured the
+same thing independently and sharper (their orchestrator, in-chat,
+2026-09-15): their repoint unit found all six of one table's numbers
+wrong by **exactly +76** — a perfectly consistent shift — and the style
+review of that unit then found it had minted **four fresh wrong claims
+while using the map**, two of them in the precise shape the unit existed
+to close. So consistency is not corroboration: a uniform delta is what a
+whole-file insertion above the citations produces, and it is equally
+what a map that names the wrong subjects produces when they all moved
+together. The only method that has worked is opening the line and
+confirming the subject, one at a time — and a unit whose whole subject
+is stale claims is the MOST likely to mint them, not the least.
+
 ## Exit shape
 
 The README states the module map and every item above has landed or
