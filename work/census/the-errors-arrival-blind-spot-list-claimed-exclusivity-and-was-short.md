@@ -98,3 +98,48 @@ unit that wrote them closes with its spec deleted.
 
 Territory: `crates/pncad-py/*` is LIB's fence and this program's
 `keep_out` announces its pncad-py rows there.
+
+## What CENSUS-ARRIVAL-RESIDUE did with each, and what is left
+
+Landed on `census/arrival-residue`.
+
+1. **Measured first, and the measurement moved the disposition.** Two
+   numbers, both re-derived on this branch: **twelve** words reach
+   Python from `src/errors.rs` without being a literal in it, all
+   through `QuantityOpMismatch::op` — a `&'static str` FIELD, minted at
+   call sites under `src/py/` and read by no instrument, which is
+   `dimension-error-op-carries-twelve-words-minted-at-call-sites`'s row
+   and not this one; and **three of the file's thirteen nameable items
+   spell no literal at all** (`EvalReason::ATTRIBUTES`,
+   `QuantityOpMismatch::new`, `ValidationRefusal::ALL`), the first of
+   them Python-visible vocabulary. The disclosure named neither shape:
+   it offered *a map forwarding `crate::tags`'* and *a word built from
+   a kernel `Display`*, and the file holds no instance of either. So
+   the ARRIVAL half is closed — the census's population is now the
+   file's declarations, with the literals as what each contributes, and
+   a forwarding map reds by name. What stays open is a word channel
+   that is not a declaration, disclosed at the site with its count and
+   its date, and executed.
+2. **Closed at its live instance.** The one `held_by` that said *no
+   Rust check names this word* has one:
+   `the_discriminant_attribute_names_are_declared_in_the_stub` reads
+   `pncad.pyi` and holds each discriminant-carrying class's attribute
+   set against what the stub declares. It also turned up that
+   `ValidationError` raises `reason` and the stub declares only `door`,
+   filed as
+   `validation-error-reason-is-raised-and-the-stub-declares-only-door`
+   and carried by that test's gap column, so closing it is loud.
+3. **Repaired with the sibling census's mechanism.** `impl_spans` is
+   `scope_spans`: a free scan guarded by `boundary_before` /
+   `boundary_after` and `item_body`, over `impl` **and** `mod`, so a
+   module is part of the key and `nested::ValidationRefusal::seventh`
+   is what a nested arrival is called. It needed one thing the
+   precedent did not: a type-position `impl` (`-> impl Display`) whose
+   `item_body` is the enclosing FUNCTION's body, which the sibling
+   census is immune to only because its subject filter drops it.
+4. **Re-derived.** `held_by` is a list of holders rather than prose;
+   every `Holder::Test` is looked up in this file's own source by
+   `the_mint_roster_names_tests_this_file_declares`. What it does not
+   close, and says so: a `Holder::Outside` names no Rust check by
+   design, and nothing re-derives that a named test holds what the row
+   says it holds.
