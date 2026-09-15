@@ -272,6 +272,10 @@ fn rules_named(name: &str) -> SymRules {
         "all" => SymRules::all(),
         "shut" => SymRules::shipped_without_the_door(),
         "off" => SymRules::without_the_algebra(),
+        // SYM-5's differential: the shipped set with rule E (the
+        // quotient's common factor) shut, which is M10-10's tier bit
+        // for bit.
+        "no_e" => SymRules::without_rule_e(),
         // The cost breakdown: rule D alone, and rules A/B per node alone.
         "d_only" => SymRules {
             trig_of_atan: true,

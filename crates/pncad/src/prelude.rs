@@ -680,8 +680,8 @@ pub use crate::select::{
     ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg,
     SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side, SplitHalf, SurfaceKindSet,
     TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, declare, declare_all,
-    declare_node, denotation, edge_frame, edge_name, face_carrier_kind, face_frame, face_name,
-    find_flush_candidates, select, select_where, vertex_position,
+    declare_node, denotation, edge_carrier_kind, edge_frame, edge_name, face_carrier_kind,
+    face_frame, face_name, find_flush_candidates, select, select_where, vertex_position,
 };
 // The KERNEL query seat (`topo::query`): the same selection
 // vocabulary as a pure function of a `Body`, for the caller who holds

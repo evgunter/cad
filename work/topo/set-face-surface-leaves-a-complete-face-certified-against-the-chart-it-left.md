@@ -53,3 +53,52 @@ the door's `DECLARED` note true as written; a caller that wanted the
 rows runs `pcurves::mint_pcurves`. Whoever takes it should take
 `mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows`
 with it: three doors, one answer, and the class is then closed.
+
+## Brief (TOPO, 2026-09-14) — block TOPO-B5 slot 0, dual at review
+
+**The answer to give.** `Body::set_face_surface` takes the answer the
+loop-re-parenting doors took (PR 2549): when the face's new surface is
+not the chart its rows were stated in, the face's rows are DROPPED
+through `Body::same_chart` (key-or-provenance, `pub(crate)` in
+`euler_ring.rs`) and `pcurves::loop_rows`, deriving nothing, so the
+`Decide` bound does not move; when it is the same chart, every row is
+carried untouched. The door's `DECLARED` posture note in
+`pcurves::staleness_posture` becomes true as written; a caller that
+wants rows on the new chart runs `mint_pcurves`. Phase 1 confirms the
+measurement in this row (a swap onto a plane keeps four cylinder rows
+and tier 3 says nothing; onto another cylinder it refuses loud) and
+decides where the drop lives: inside the setter, or one shared
+`drop_rows_on_chart_change`-shaped door the three loop doors already
+call — one home, not a fourth copy. `set_edge_curve` is the sibling
+setter: say whether it has the same hole (an edge's row is stated
+against its face's chart, not its curve — is a curve swap a row
+staleness the tier-3 pass measures, or a silence?) and close it here
+if it is the same two lines, else file.
+
+**Rows.** Red-first: the row's own measurement — a minted cylinder
+face swapped onto `FaceSurface::New(Plane)` reads `(4, 0)` rows and
+`validate_pcurves` reports nothing on the merge base; at the head the
+face is rowless `(0, 4)` and the pass reports the missing rows (or is
+tier-3 complete again after `mint_pcurves`). Control: the same face
+swapped onto `Shared(the same key)` and onto a key sharing its
+`GeomSource` keeps all four rows bit-identical; onto another cylinder
+the rows drop and the loud `Certify` refusals go with them. The
+mutant that carries on every swap reds the red-first row; the mutant
+that drops on every swap reds the control.
+
+**Receipt.** Every caller of `set_face_surface` in the workspace with
+what its rows are after the unit (the fixtures, the graft, `shell`,
+the boolean, `merge_faces`, `replace_face`, the recipe layer's
+re-stamp path) — any caller that swaps a chart and then reads rows
+without re-minting is a defect this unit exposes; say which and file
+on the owner's slate. The `attach-postconditions-validate-the-whole-body-and-panic`
+row is the same door's other half (cost, panic) and is Ev's — leave
+the tier-1 postcondition alone.
+
+**Seams.** `attach.rs` is this program's; `pcurves.rs` is TRIM's
+(the posture table row and `loop_rows` — announce on `work/trim/log.md`);
+`euler_ring.rs`'s `same_chart` is this program's.
+
+Branch `topo/set-face-surface-drops-rows-on-chart-change`. PR title:
+"TOPO: set_face_surface drops the rows a chart swap leaves behind". Do
+not close the item; the dual runs at review.

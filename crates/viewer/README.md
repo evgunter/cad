@@ -219,7 +219,7 @@ are never overridden here.
 | G1 layer 3 values and operations | `src/camera.rs` (`Camera`, `CameraOp`, `camera::apply`), `src/session.rs` (`DocSession`, `DocSession::perform`, the operation doors) and its vocabularies `session::{select, refuse, op, author, delete, probe}` (Module boundaries, below), `src/history.rs` (tree-shaped undo), `src/input.rs` (`ViewportEvent`), `src/tools.rs` and the per-tool modules |
 | G3 free-move and hiding as display state | `src/display.rs` |
 | G3 mate definition | `src/matetool.rs` |
-| Feature tree, property panel, open/save, evaluation seam, scene | `src/tree.rs`, `src/props.rs`, `src/docio.rs`, `src/evalseam.rs` (both seams and both workers) with `src/generation.rs` (`Generation`, the counter both seams key their answers by), `src/scene.rs` |
+| Feature tree, property panel, open/save, evaluation seam, scene | `src/tree.rs`, `src/props.rs`, `src/docio.rs`, `src/evalseam.rs` (all three seams and all three workers) with `src/generation.rs` (`Generation`, the counter every seam keys its answers by), `src/scene.rs` |
 | Colour, themes, preferences | `src/theme.rs`, `src/prefs.rs`, `tests/theme.rs` |
 | GQ7 picking | `src/pickindex.rs` (the index and every query over it, up to what a pick MEANS — `PickIndex`, `IdMap`, `EDGE_PICK_RADIUS_PX`, `PickKinds`, `op_for`, `hovered_for`), `src/marks.rs` (what a frame marks over a built index — `highlight`, `edge_overlay`, `focus`), `src/pickcache.rs` (the index's lifecycle — `IndexInputs`, `PickCache`, `NotIndexed`), `crates/bvh` (`Bvh::ray`) and `camera::cursor_projection` (the id pass's 1×1 target transform, which is projection algebra rather than a mark) |
 | GQ6 toolkit, viewport, docking | `src/app.rs` (the frame loop and `ViewerApp`) with `src/pane/*` (the pane bodies), `src/widgets.rs` and `src/gpu.rs`, all behind the `app` feature; `Cargo.toml`. `src/frame.rs` is a vocabulary and is built unconditionally. The authoring vocabularies the panels offer are `src/forms.rs` and `src/drafts.rs`, which name no toolkit type and are behind the feature only because the panels are |
@@ -587,7 +587,7 @@ the field list comes from the walk's INPUTS rather than from the
 declaration and a new field has no claim on it: `ViewerApp::sync_scene`
 installs a rebuild's eleven outputs, `BlendTool::load_all_edges` seats
 a computed pick set, `PickCache::sync` and `land` install a landing's
-fate, and the two `Drop`s in `evalseam` close a channel and leave the
+fate, and the three `Drop`s in `evalseam` close a channel and leave the
 language's own drop glue to be exhaustive.
 `DocSession::clear_for_new_document` is the case the rule matches and
 the design answers: its two statements are `Derived::none()` and
@@ -885,7 +885,8 @@ So the modules are a chain, each naming only what is below it:
   machinery, and six modules compare one;
 - `pickindex` is the index and every query over it — the structure a
   build produces;
-- `evalseam` keeps BOTH seams and therefore **both sets of threads**,
+- `evalseam` keeps EVERY seam and therefore **every one of its
+  threads**,
   which is the property that made this shape win: *the one place in
   this crate that owns a thread* stays one sentence;
 - `pickcache` is the index's LIFECYCLE over the seam — what a build is
@@ -921,6 +922,54 @@ and its driver trading a minted value**, which is the boundary rule
 working rather than failing. Nothing in this section generalises to the
 second, and `work/view/seam-split-leaves-a-cycle-through-the-session`
 is where the question of whether it should be broken at all is kept.
+
+### A pick id is one index's word
+
+`PickIndex` holds an `IdMap` keyed by `(generation, δ)`, and every id
+in the drawn mesh's per-corner `ids` was minted by the id map of the
+index that built it. So an id is only a name in the alphabet of the
+index that minted it, and reading one through another index resolves it
+to whatever that index happens to keep at the same number.
+
+**The index in hand is not always the index on screen.**
+`ViewerApp::sync_scene` marks the scene's `(generation, δ)` pair current
+only on a successful rebuild — a refused one must not consume the pair,
+or the stale picture stays marked as the current one and is never
+retried — so a landed index over a refused rebuild leaves a newer index
+beside an older picture, and nothing retries it while the display
+revision and the focus set hold still. The startup mesh is the same
+shape from the other end: `scene::scene_of` builds it before any index
+exists and every corner carries `IdMap::NOTHING`.
+
+**So a pane sorts its reads of the index by what they are about**, and
+the sorting is a rule about currency rather than about which fields
+happen to be in hand:
+
+- A read about the **document** — what is under this cursor, what does
+  a click mean — takes the index with the session's evaluation, because
+  that is what resolves a ray into a face — `PickIndex::op_under` in
+  the viewport, `BlendTool::load_all_edges` behind the create pane's
+  all-edges button.
+- A read about the **picture** — an id the id pass produced, or a mark
+  the shader composites against the drawn corners — goes through
+  `drawn_index`, which answers `None` unless the index in hand is the
+  one whose id map minted those corners. Both halves of the key are
+  asked, through `PickIndex::current_for`: a δ typed while the document
+  stands rebuilds the index at the same generation over a different
+  tessellation, so generations alone would read as co-identity while
+  checking something else.
+- A read of the index's **identity alone** — `PickIndex::generation` as
+  a cache key — resolves nothing and needs neither.
+
+**What produced the rule.** The population is *a site that uses the
+`&PickIndex` a pane was handed*, and there are **eight**: five about the
+picture, two about the document, one the identity. It is derived in two
+steps, because neither alone produces it. `ViewerBehavior::index` is a
+field, so `self.index` finds every place a pane takes one — four
+bindings, in `pane::viewport` and `pane::create`, and a pane that grew a
+fifth would appear there. It does **not** find the uses: the five
+picture-side ones read a binding called `drawn`, and a name is not a
+pattern, so each binding's scope is read in order instead.
 
 ### `Refusal`'s delegation discipline
 
@@ -1323,6 +1372,23 @@ rather than an exception:
   two of five `Subject`s, each tool's seat list names its own seats,
   and `MATE_PRIMITIVES` offers three of four mate primitives because
   the fourth exists to be refused. Each says why in its own doc.
+
+**A partial MIRROR is told when the enum it mirrors grows**, which is
+the weaker thing that is true of it and the whole of what a mechanism
+may force here. `src/vocab.rs`'s `partial_mirror!` holds a roster
+classifying every variant of the mirrored enum as offered or as
+deliberately absent WITH ITS REASON, over a match with no wildcard: a
+variant added to that enum is neither until someone writes one of the
+two, and the build says so. Three sites take it — `MATE_PRIMITIVES`
+over `MatePrimitive`, `SUBJECTS_WITH_AN_EXPIRY_ISSUER` over `Subject`,
+and `forms::DatumKindChoice` over `session::DatumSpec` — in two shapes,
+because what a site OFFERS decides whether a seat of it can drift: a
+hand-written list gets a per-seat assertion and a count check, while an
+enum whose `ALL` is projected has no second copy of its membership to
+hold, so its roster names a counterpart instead. A tool's seat list
+takes neither and is not a mirror: it SPECIFIES that tool rather than
+tracking `Seat`'s membership, so a new seat no tool asked for is
+absent from it correctly.
 
 A list that mirrors a vocabulary ANOTHER crate owns is not a third
 kind, and the boolean form is why: **a mirror claiming completeness is

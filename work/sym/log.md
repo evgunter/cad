@@ -476,3 +476,349 @@ the M10-3 chamber row is gated away from `sym/` (SYM-4's filing on
 S-TCOST). The spec's Phase-1-first structure is what caught the wrong
 premise; the fixture, not the lane, was the fault, and it was the
 dispatcher's.
+
+## SYM-4 merged (2026-09-14): the cost of a form — block SYM-B1 slot 0, the program's first dual
+
+PR #2565, fix-pass head `972d802ff`, hosted run 34837400778 green on the
+full matrix; ordinal **4700**, sample #193; the v6 dual on
+frozen head `1c98847fb` — R1 (OPUS) MERGEABLE 0/2/5, rubric 4/5/4;
+R2 (FABLE) MERGEABLE 0/1/6, rubric 4/4/5; no MAJOR either side, no
+tally candidate; one glimpse disclosed (a `pgrep` printing another
+lane's process name, no finding), the pair flagged and counted. The
+row is in `docs/MODEL-AB-LOG.md`'s SYM section.
+
+**What it did.** `Poly`'s `BTreeMap<Mono, Rat>` is a sorted vector in
+the map's own order, so every digest, atom key, freeze and discharge
+is unchanged — held by the M10-8/9/10 pins, the tier-off byte rows,
+the goldens and a new walk-ledger row that chains every memoized
+form's digest per walk and origin (captured on the branch point,
+green at head; red on a term-order swap while every count stays —
+both reviewers' mutants). `Rat::from_parts` skips the gcd on the
+dyadic shape and the ring's products by one. Every count identical
+before → after on the slab, the plate and (both reviews, by their own
+differential) four documents the unit did not measure; the only
+profile line that moves is the heap-path op count, halved.
+
+**What it bought** (release, instructions per nominal replay): slab
+141.5 M → 99.0 M (−30 %), plate 1,300 M → 713 M (−45 %); storage class
+53.5 → 40 % on the slab, the ring's `num-bigint` share on the plate
+13 → 0.7 %; the M10-3 chamber drive 368 → 225 s locally (test
+profile). Hosted, per-test cpu-s on the interval shards fell by a
+third to a half on every tier-heavy row; the chamber row itself did
+not run on the PR — `m10_3_r1_probes_interval` is gated to driver
+paths and not to `sym/`, filed on S-TCOST's slate
+(`m10-3-chamber-probes-gated-away-from-the-symbolic-tier`). The
+reviewers' own re-takes reproduced the instruction counts to 0.1 %.
+
+**What the reviews added**: the ring's canonical form had no unit row
+(both reviewers wrote one; adopted, one home); the growth mutants red
+by timeout rather than assertion (a bounded-time guard added);
+`Poly::terms` held its sortedness by a doc comment (now private behind
+an accessor); the `acos(0)` fold's dropped `Rat::mul` was an
+undisclosed instrument change (disclosed); the hosted "before" was
+another PR's head and the hosted spread ~1.8× between two runs of one
+tree (stated; instruction counts are the numbers of record); the
+`# Cost` claim site carries its #651 sentence.
+
+**What remains, by number** (the item's ask 3, next inputs): storage
+40 % / 51 %, the walk and DAG build 24 % on the slab, the ring 9 % /
+15 %; the drive-scoped plain memo (the slab's volume) goes to Ev as a
+decision document; the assertion discharge is on the item.
+
+**Fix pass** (the union of both reviews, `972d802ff`): A–D all taken
+— the canonical-`Rat` row (red under the gcd-skip-everywhere mutant
+where the module's three pre-existing rows stay green), R2's three
+`form.rs` rows, the six-document ledger evidence row, the growth
+guard (largest form pinned: slab 10, plate 90), `Poly::terms` private
+behind an accessor (20 read sites), one `merge_sorted` for `add` and
+`mono_mul` (callgrind reproduced within 0.5 %), `Poly::term` at every
+one-term spelling, `shrink_to_fit` after `mul` (+0.14 %, the memo
+holds no slack), the disclosures. Declined as adjudicated: the
+`form.rs` split (recorded on the split item) and the degree cache.
+Delta by R1 on the fixed head.
+
+## Block SYM-B1 slot 0 concluded; the memo put to Ev (2026-09-14)
+
+SYM-4 merged (#2565 at `bdfd5aba5`, sample #193 — CURVED-MERGEDOOR
+took #192 on main first; the row and its ledger entry rode the PR).
+The merge had to wait a full run on a resolved head: main moved under
+the state-sync commit (two other programs' appended records and this
+program's own SYM-5 PR-1 entry), and a conflicting PR runs nothing —
+the resolution kept both sides of both appended files, and a
+renumbering sed that reached another program's record line was caught
+and restored before the merge. Lesson for this box: state-sync
+commits on shared append-only files land within minutes of main or
+they conflict.
+
+**`[ev]` PR #2581 opened** (branch `sym/ev-memo`, subscribed): D3 —
+may the tier's plain-form memo outlive the leaf? (1) a drive-scoped
+plain memo, recommended, with the three side effects defined; (2) the
+leaf stays self-contained; (3) a subtree memo. The cost row carries
+`needs_ev`. With #2552 (the door's witness) that is two decisions open
+with Ev; block SYM-B1's slot 2 waits on the first, block SYM-B2's
+first slot on the second.
+
+## SYM-6 dispatched on Ev's D1 answer; D2 refined (2026-09-14)
+
+Ev answered `[ev]` #2552: **D1 = (1)** — `Tol` threaded to the door —
+"definitely"; on D2 they asked what was being suggested and said the
+two cases (the claim is false / the arithmetic could not tell) seem
+important to distinguish. The orchestrator's reply on the PR: the
+door cannot tell them apart by the GAP (at the torus the sides are
+many ULPs apart, so a scale-keyed third arm is a second tolerance that
+would misfile its own case), but it can by the KIND of witness —
+`Interval`'s disjoint certified brackets are a proof, `f64`'s slack
+comparison is not — so the refined proposal splits `Contradicted`
+into the exact arm (assertable) and an inexact-refusal arm (counted,
+never asserted), no tolerance added. Recommended; awaiting Ev's pick.
+
+SYM-6 dispatches now (block SYM-B1 slot 2, OPUS): the spec amended
+(A1: D1 answered, Phase 3 HELD until the D2 pick, landing as A2 if it
+arrives before Phase 2 is at PR, else as a follow-on); seams announced
+to PROPS (`real.rs`) and S-BOOL/BLEND (`crates/sweep/src/*`). The
+witness-slack row's `needs_ev` clears on the `[ev]` branch with the
+answer recorded; the span-identity row keeps its flag.
+
+## D2 settled: the arm split lands as SYM-6's Phase 3 (2026-09-14, A2)
+
+Ev on #2552: "that refinement sounds good!" — D2 = the refusal arm
+split by witness KIND. `docs/SYM-6-SPEC.md` Amendment A2 puts Phase 3
+in scope (the lane was in Phase 1): a `Disputed` arm for `f64`/`Probe`'s
+inexact refusal, `Contradicted` reserved for `Interval`'s exact one
+with the registrants' `debug_assert!` restored there, and the
+fixture-scale `registrations_refused == 0` row at `Sym<Interval>` on
+the five M10-10 documents, on which
+`the-span-identity-is-not-a-theorem-of-the-floats` closes. Both `[ev]`
+rows now carry their answers; #2552 merges. The pre-draw fields (M /
+STRUCTURAL) stand: no certification decision moves; the arm says what
+the lane can know and adds no tolerance.
+
+## D3 settled: the plain memo outlives the leaf — SYM-7 opens block SYM-B2 (2026-09-14)
+
+Ev on #2581: "(1) sounds good!" — the drive-scoped plain-form memo,
+keyed by `SymId`, installed by the drive and dropped with it; the
+early and door walks stay per leaf; the three side effects defined
+(the memo carries its atoms; `frozen` becomes distinct-nodes-over-the-
+drive on the drive's receipt with the per-leaf goldens' column
+re-blessed as the acceptance's own move; the opaque-sequence argument
+pinned across leaves). #2581 merged with the answer on the cost row;
+both `[ev]` PRs are closed and no decision is open with Ev. The unit
+is SYM-7 (H / STRUCTURAL, pre-draw), the first slot of block SYM-B2;
+its spec is cut next, the block's other two slots named from the
+slate when it is drawn, and its dispatch waits for a lane (SYM-5's
+fix pass and SYM-6 hold the two heavy lanes; SYM-5's retire at its
+merge).
+
+## Block SYM-B2 cut: SYM-7, SYM-8, SYM-9 (2026-09-14)
+
+Three specs on the slate for the second block, each measurement-first
+in SYM-5's shape (Phase 1 before any code, a stop condition, the
+remedy the measurement picks). **SYM-7** (H / STRUCTURAL) is D3's
+drive-scoped plain memo, shared across the drive's rayon workers so
+the receipt stays schedule-independent — the map the M10-3 receipt
+identity row forces. **SYM-8** (H / NUMERIC) is the wall SYM-5 PR-2's
+R2 found one axis over: a frame tilted about u refuses with rule E on
+exactly as off, the degree wall become a term wall behind
+`copysign(1, 1/sqrt(P))` and `abs(1/sqrt(P))` atoms of a manifestly
+positive quantity — rule F, the manifest sign, gated on the ring
+item's recorded loss (a split that moves down anywhere means the
+predicate narrows or the rule does not ship). **SYM-9** (H / NUMERIC)
+is the ring item's own ask: the ladder makes one attempt per rung, and
+a refused decision may retry at a wider ring or with the opening rule
+off, on refusals only, counted in the receipt. Pre-draw fields and the
+draw go on `sym/b2-block` once the specs are on `main`; SYM-7
+dispatches first, when SYM-5's lanes retire.
+
+## SYM-7 dispatched: block SYM-B2 opens (2026-09-14)
+
+Block SYM-B2 drawn on `sym/b2-block` (pre-draw fields logged first:
+SYM-7 H / STRUCTURAL, SYM-8 H / NUMERIC, SYM-9 H / NUMERIC; byte 56 ⇒
+fable at slot 2, so SYM-7 and SYM-8 run on Opus and SYM-9 on Fable).
+SYM-7 dispatched first, while SYM-5 PR-2 and SYM-6 are in their delta
+rounds; the `drive.rs` seam announced to PROPS. SYM-8 and SYM-9
+dispatch as lanes free.
+
+## SYM-6 merged (2026-09-14): the door's witness on the run's ε, and the refusal arm split by witness kind — block SYM-B1 slot 2, the block's last dual
+
+PR #2604, fix-pass head `8547c73e9`, residue head `7486223dd`, hosted run 34889009592 green on
+the full matrix; ordinal **4702**, sample #197; the v6 dual on
+frozen head `2621bc0a9` — R1 (OPUS) MERGEABLE-AFTER-FIXES 0/4/4,
+rubric 4/3/4; R2 (FABLE) MERGEABLE-AFTER-FIXES 1/1/2, rubric 4/3/4.
+R2's MAJOR overlapped R1's MINOR-4 on the mechanism (the fixture row's
+own assertion shadowed by the registrant's restored one) and was
+UNILATERAL on its second half — a two-ε lie passed the row with
+`registered` drifting 140 → 16 — confirmed by the fix pass (the pinned
+`registered` reds it) and counted for FABLE. One disclosed glimpse (a
+`git worktree list` printing lane paths and tips, nothing read), the
+pair flagged. The row is in `docs/MODEL-AB-LOG.md`'s SYM section.
+
+**What it did.** `Real::register_equal(self, other, tol: Tol)`: the
+`f64` witness's slack is the run's ε relative to the larger magnitude
+and floored at one, `WITNESS_REL` retired with its argument at the
+impl; `tol` arrives at ~25 sweep sites from holders no more than one
+frame away and is never minted (both gates green, re-run by both
+reviewers); `Interval` ignores it — the meet is exact. Then Ev's D2:
+`SymRegistration::Disputed` for an inexact witness's refusal (`f64`,
+`Probe`; counted, never asserted) and `Contradicted` reserved for
+`Interval`'s exact one — a proof — with the registrants' assertion
+restored there, live in every profile (the workspace ships release
+with debug assertions; disclosed, and the right shape: an exact
+refusal is a soundness defect somewhere). No certification decision
+moves: the M10-8/9/10 pins, and both reviewers' own documents at
+three ε rows, byte-identical to the merge base. The adversarial
+torus's refusals per ε row (10 / 15 / 20, all `Disputed`, zero
+`Contradicted`) reproduced to the digit by both.
+
+**What the reviews added.** The fixture-scale row's reach (both; R2 by
+a 2ε lie that passed): it now pins `registered` per document and its
+doc says which of its three assertions catches which lie and at what
+width. Three sentences the split left false, in the allowlist gate's
+own contract, the rim registrant and the registry comment. E12 now
+records the arms (Ev's ruling), beside the ε sentence the lane had
+already re-taken after checking it was never Ev-ratified. A fourth
+hand-written copy of the fixture table found by the sweep the review
+asked for — one `measured_studies` home now. The two registrants'
+mirrored `match` with a wildcard that swallowed every future arm, in a
+PR about arms slipping past wildcards — one exhaustive helper. The
+dangling citation of a file that never existed, fixed and its row
+closed. The honest cost stated: at ε = 1e-6 the door admits sides
+1000× further apart than before, with no extra registration recorded
+on any fixture.
+
+**Fix pass** (the union, two commits to `8547c73e9`): A–F all taken;
+declined — `band`/`tol` unification (pre-existing shape, on the item).
+Delta by R1 on the fixed head: MERGEABLE, all eight items confirmed, five by execution (the 2ε lie reds on the pinned `registered` with `registrations_refused` still 0; a hypothetical eighth arm fails to compile at the exhaustive helper; the gates and the washer pin re-run); three residue items it named taken in one commit (`7486223dd`, run 34892166425 green): the over-band row selects its three documents by name, the `registered` pin's message names its other causes, and R1's 10⁹ slack-shape row is adopted. The witness-slack row closes
+here; the span-identity row closes on the fixture row.
+
+## SYM-5 PR-2 merged (2026-09-14): rule E, the quotient's common factor — block SYM-B1 slot 1, the program's second dual
+
+PR #2589, fix-pass head `68d31a750`, residue head `d7df4cdf1`, hosted run 34900092062 green on
+the full matrix; ordinal **4701**, sample #198; the v6 dual on
+frozen head `480704dbb` — R1 (OPUS) MERGEABLE-AFTER-FIXES 1/11/4,
+rubric 4/4/2; R2 (FABLE) MERGEABLE-AFTER-FIXES 2/5/3, rubric 4/4/3.
+One UNILATERAL MAJOR, R2's: the scale step can cost a theorem by
+coefficient width — confirmed by the fix pass (the row adopted,
+asserting) and counted for FABLE. Both reviewers were interrupted by
+a container restart mid-review and resumed with state intact; R1
+disclosed a post-delivery `pgrep -af` glimpse of R2's command lines
+(no finding), the pair flagged. The row is in `docs/MODEL-AB-LOG.md`'s
+SYM section.
+
+**What it did.** In the early walk, at every node, the monomial both
+halves of a quotient share is divided out, the denominator scaled to a
+canonical pivot, and `r·D/D` folded to `r` — behind
+`SymRules::common_factor`, on in the shipped set, `without_rule_e` the
+old tier bit for bit (the plain walk's ledger byte-identical). On the
+tilted derived frame the refused residual carried `sqrt(P(t)/P(t))` —
+the number one as an opaque atom — and two frozen products; with the
+rule the derived boss certifies where its authored twin does at ε/8
+and 1e-3 under both lifts (5e-2 is PROPS' clause-1 defect, pinned by
+name). Four bulge pins raised, a sixth document's ceiling moved
+(`8.26e2 → 9.36e2·ε`, the move SYM-3 measured a 512-bit ring making),
+the five measured ceilings unmoved to the digit.
+
+**What it costs**, on the header's own leaf instrument (release, off →
+on): plate 0.13 → 0.36 s, annulus 0.12 → 0.29, bracket 0.44 → 1.70
+(over the 1.6 s line), link 3.31 → 2.43 (cheaper), pad 3.85 → 14.40
+(over). **The dial ships ON by the orchestrator's call**, against the
+spec's affordability clause on two documents the tier carries at no
+dial, for a document class reached and nothing lost anywhere —
+disclosed as a deviation with the numbers, the M10-10 precedent (the
+pad at 10.1 s) named; the implementer stated it has no independent
+argument that 14.4 s is affordable, and that is on the record too.
+
+**What the reviews added.** The soundness argument's premise was false
+for any form rule D built (both reviewers): a denominator has FOUR
+sources, not one, and the argument now covers each with the bound
+that makes it non-vanishing. The rule is not monotone in coefficient
+width (R2, by a row): the header says so and the loss is pinned by
+name on `coefficient-ring-width-is-not-monotone-in-reach` as a second
+mechanism. The ordering comment enshrined a history, not a fact (both,
+by mutant): rewritten to the convention, the walk ledger the pin. The
+cost table was on the wrong instrument (R1): re-taken on the header's.
+Reach is the document's, not a class (R2, by execution): a frame
+tilted about the OTHER axis refuses identically on and off — the
+degree wall become a term wall behind `copysign`/`abs` atoms of a
+manifestly positive quantity, which is SYM-8. The spec's zero-vector
+and straddling-box negatives were missing (R1): adopted. Stale
+sentences at five sites fixed; the tracker's silent status fixed; a
+fifth site on PROPS' widening row (R2's stacked frames at 1e-3) and a
+new row for the revolved cap
+(`a-face-frame-on-a-revolved-cap-refuses-on-pcurve-loop-continuity`).
+
+**Fix pass** (the union, six commits to `68d31a750`): A–H all taken;
+declined as adjudicated — a step cap, the `Form::quotient`
+canonicalisation (the next shape, on the item), shipping the dial
+off. Delta by R1 on the fixed head: MERGEABLE-AFTER-FIXES — the two MAJORs closed (the denominator list swept and found exhaustive; the width row asserts the loss; the ledger pins the order), five items by execution, and nine residue items named, of which the sign row was the gate: it did not red under its own mutant because its pivot at ±1 hit the fix pass's new no-op fast path before the scale step. Residue in one commit (`fdb026205`): the row reaches the step (red under `s.recip()` and only that row, re-verified on the final head), the ordering comment states the four ledger lines the other order reds (the plate's early-decision frozen 8 → 48 — a reach requirement, not a convention), the leaf table is the header's instrument with the pad, bracket AND link over the line disclosed, the stale count at `m10_bulge_interval.rs:107`, `MAX_HALVINGS`'s attribution corrected (the bound follows from one halving and `atan`'s range), `Poly::mul`'s doc restored, the spin un-labelled as reach and R1's third reached shape added, the stacked-2 lift named at both sites. One more commit (`d7df4cdf1`) re-baselined SYM-6's new per-document `registered` pin on the pad (86 → 104: rule E carries 18 more decisions through the door — the pin's own second cause, measured at both dials, no refusal).
+
+## Block SYM-B1 concluded; SYM-8 dispatched (2026-09-14)
+
+With SYM-5 PR-2 merged, block SYM-B1's three slots are concluded and
+its record (`sym/b1-block`) is on main: SYM-4 (FABLE, sample #193),
+SYM-5 (OPUS, #198), SYM-6 (OPUS, #197); two unilateral MAJORs, both
+R2's (FABLE) and both confirmed by their fix passes — the width loss on
+SYM-5 and the 2ε lie passing the fixture row on SYM-6; three glimpses
+disclosed (a process name, command lines after delivery, a worktree
+listing), none carrying a finding. SYM-8 (the manifest sign, block
+SYM-B2 slot 1, OPUS) dispatched on the lane SYM-5 freed while SYM-7's
+dual runs.
+
+## SYM-7 merged (2026-09-15): the plain form outlives the leaf — block SYM-B2 slot 0
+
+PR #2609, fix-pass head `e9f75d5b5`, hosted run 34912125421 green on the
+full matrix; ordinal **4703**, sample #199; the v6 dual on
+frozen head `65408aa3f` — R1 (OPUS) MERGEABLE-AFTER-FIXES 1/5/2,
+rubric 4/3/3; R2 (FABLE) MERGEABLE-AFTER-FIXES 1/4/3, rubric 4/2/3.
+Both found the SAME MAJOR and the same door-level box; no unilateral
+MAJOR, no tally candidate. R2 was interrupted by a container restart
+after R1 had delivered and resumed with state intact; R1 disclosed
+two `pgrep -af` calls against its own path (own processes only). The
+row is in `docs/MODEL-AB-LOG.md`'s SYM section.
+
+**What it did** (D3 = (1) on `[ev]` #2581). One `DriveMemo` per
+drive — the plain forms, their atoms and the frozen set, keyed by
+`SymId` and `(budget, rules)`, behind one `RwLock` shared across the
+drive's rayon workers with one publish per leaf — installed by
+`drive.rs` around the level loop behind `DriveConfig.plain_memo`; the
+early and door walks stay per leaf. `frozen` on the drive's receipt
+is the distinct set over the drive (schedule-independent; the M10-3
+receipt-identity row holds across one sequential and two parallel
+drives), a leaf's own `frozen` the nodes it computed (zero on a hit
+path — the filed residue). No certification decision moves: every
+pin, and both reviewers' own freezing documents at four schedules,
+byte-identical. The slab drive 157 → 78 s in the test profile,
+25.5 → 9.5 s (R1) and 35.0 → 11.5 s (R2) in release — 2.7–3.05×;
+callgrind 2.12× per leaf; the plate 1.18×; a document whose cost is
+the early walk (the tilted derived frame, every leaf refused) gains
+nothing, and `# Cost` names the class. Phase 3 (the hash-consing
+table shared) measured at 7.4 % table work under a ≥ 10 % gate and
+not taken.
+
+**What the reviews added.** The spec's premise pin compared EMPTY
+sets on every document — no drive reaches `Sym::opaque` — and the PR
+cited it as executed evidence (both reviewers, by planting a
+value-dependent mint and showing the row reds first once opaques
+exist); the row now says what it measures, and R2's correction stands:
+the opaque sequence governs hits, not soundness. An unrecorded node's
+frozen indeterminate was published under the content id a recording
+leaf computes a real form for (both, at the door): never published
+now, the reach from a drive pinned at zero. Two rows could not red on
+their subject (the drop-with-the-drive row, the dial-refusal row), the
+moved column was pinned across schedules only at zero (the slab never
+freezes): a freezing document now drives across schedules in the
+suite. `plain_memo`'s doc was false with the dial off; `publish`
+assumed what it can check; seven restatements of `frozen`'s two
+meanings became one home; the memo skipped with the tier off.
+
+**Fix pass** (the union, three commits to `e9f75d5b5`; one push red on
+a stale `Session` literal in `trig.rs`'s tests and a gated-suite
+marker, fixed the same hour): A–F all taken. Delta by R1 on the fixed
+head: MERGEABLE — all seven items confirmed, five by execution: the premise row reds first and alone under a re-planted value-dependent mint while the schedule rows stay green; the taint guard disabled turns the adopted door row red (leaf B `(0,1,0)` against `(1,0,0)`) and restored turns it green; the unrecorded-freeze ledger pin reads 0 of 4,284 on the plate; the gated freezing-document row runs at 8 leaves with `frozen` 1,044 asserted; the M10-3 receipt-identity row green across one sequential and two parallel drives. One stated divergence accepted (the differential asserts `own(on) == 0` tied to `own(off) > 0` rather than the literal 50,112, which moves with the ε row and the leaf count); three stale numbers named and corrected in this state-sync (the file-size item's 4,299 lines / 691-line header; the PR body's row count). The delta was interrupted by a container restart and resumed with state intact. The cost item's volume ask closes here.
+
+## SYM-9 dispatched (2026-09-15)
+
+With SYM-7 merged, its lanes retire and SYM-9 (the retry ladder,
+block SYM-B2 slot 2, FABLE — the block's fable slot) dispatches beside
+SYM-8. Both SYM-8's implementer and SYM-7's delta were interrupted by
+container restarts overnight and resumed with state intact; the
+restarts are on the block record.
