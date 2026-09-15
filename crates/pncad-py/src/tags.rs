@@ -63,8 +63,7 @@ use pncad::analysis::{
 use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, DimensionError,
     Distribution, DistributionFault, DistributionField, EditError, EvalError, InlineError,
-    LeverRefusal, MateFault, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError,
-    MintRefusal,
+    LeverRefusal, MateFault, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError, MintRefusal,
     NodeErrorKind, ParseError, PersistError, PlacementRuleFault, ProgramFault, ProgramRefusal,
     RecordedProgramError, RefusedRef, Relation, RootFault, ShellClassifyError, SlotId,
     SnapshotError, SplitError, UpdateError,

@@ -519,7 +519,11 @@ impl MintRefusal {
     }
 
     fn __repr__(&self) -> String {
-        format!("MintRefusal({:?}, mate={})", self.variant(), self.0.mate().0)
+        format!(
+            "MintRefusal({:?}, mate={})",
+            self.variant(),
+            self.0.mate().0
+        )
     }
 }
 
