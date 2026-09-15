@@ -245,3 +245,21 @@ defect the door had hidden). Operations: the fix pass's push produced
 no `synchronize` run and the lane dispatched the workflow by hand (the
 render lanes skip on a dispatch); the state-sync push re-rolls a real
 run before the merge.
+
+## CURVED-TORUS PR-2 merged (2026-09-15) — block CURVED-B2 slot 0 concludes
+
+PR #2535, ordinal 2203, sample #200. The dual (R1 Fable, R2 Opus) both
+MERGEABLE-AFTER-FIXES; adjudication on the PR (comment 5662086549);
+twelve union items all taken. The substantive change from review: the
+suite had no random dense-oracle row for the torus, so four planted
+defects passed every shipped row — a torus family and a random row now
+red them; the PR's "M2 merely loose" sentence was wrong in the unsafe
+direction and is withdrawn in the body. Headline bilateral — no tally
+candidate; R2 paused once by the usage limit (3(e)). The spec's
+2026-09-14 amendments stand; `docs/CURVED-TORUS-SPEC.md` is now fully
+delivered (PR-1 #1907, PR-2 #2535) and leaves `docs/` per the ledger in
+the post-merge docs PR. Filed by the unit:
+`the-chord-dip-charge-has-two-homes`. Operations: the account behind
+this session changed at Ev's re-login (2026-09-15); the weekly window
+on the new account sits at ~80% with its reset 2026-09-18 17:00Z, so
+the held duals (spiric PR-1a, TRIM-2 PR-1) stay held until that reset.
