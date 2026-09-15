@@ -1,7 +1,7 @@
 ---
 id: cut-off-arc-persists-as-a-corner-arc
-kind: issue
-title: "names: a ruled band's cut-off arc persists under RoleSeg::CornerArc"
+kind: ruling
+title: names: a ruled band's cut-off arc persists under RoleSeg::CornerArc
 status: open
 opened: 2026-09-05
 ---
@@ -52,3 +52,30 @@ Moved from `work/docm/` to `work/wire/` at DOCM's exit sweep (`docs/DOC-LEDGER.m
 sweep 14): the file it names is WIRE's (`names/emit*.rs`, `eval/wire.rs`, `product.rs` are in WIRE's paths). Id, body and header are unchanged; the directory is the
 claim (`work/README.md`). Any `## Home` section above is superseded by
 this line and is kept as the record of why the file was where it was.
+
+## Read against the tree (2026-09-15) — live, premise intact, re-kinded `ruling`
+
+Read by the WIRE orchestrator before dispatch.
+`crates/editor-core/src/names/emit_blend.rs` still keys the ruled
+carve's cut-off arcs as `RoleSeg::CornerArc { .. }` (now ~line 156, filed
+at ~212), and `RoleSeg::CornerArc` is still the planar open band's corner
+role in `role.rs`.
+
+**The row's own reason for not fixing it in H7 still holds, and it was
+checked rather than assumed.** `crates/editor-core/tests` contains no
+ruled-carve fixture and no mention of `TransverseCap` anywhere in
+`editor-core` — every `grep` hit for "ruled" under those tests is the
+English word in a sentence about a ruling. So the persisted name shape
+still has **no consumer to be wrong for**, which is what keeps this a
+vocabulary question rather than a defect with a victim.
+
+**Re-kinded from `issue` to `ruling`**, which is what the row asked for
+in its `Fix shape` section: *"Ev's call, since it is persisted
+vocabulary."* Filed as an issue it sat on the board looking dispatchable.
+
+Goes to Ev with `blend-slit-name-collides-when-two-rims-share-a-meridian`
+as one question in two instances: whether the persisted `RoleSeg`
+vocabulary may grow a role that says what the entity IS, and what the
+format-version and migration story costs. This row is the "the word is
+wrong" instance; that one is the "the word cannot discriminate two legal
+entities" instance.

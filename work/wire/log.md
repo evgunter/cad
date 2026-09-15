@@ -4455,3 +4455,98 @@ for dispatching on a row's prose. That read is the next move, before
 any grouping.
 
 Signed (WIRE orchestrator).
+
+## 2026-09-15 — the seven DOCM rows read against the tree: five are rulings, two are units
+
+`plan.md` said to read them before grouping, and the reason it gave was
+that this program has twice paid for dispatching on a row's prose. It
+paid a third time in the other direction: the prose here **understated**
+what the rows are.
+
+**Every one of the seven is still live.** Nothing was discharged by
+adjacent work — unlike the 2026-09-11 cut, where two rows estimated H
+turned out three-quarters done. Each site was opened and read:
+`emit_topo.rs`'s seam-vertex arm, `emit.rs`'s shared-edge walk,
+`look_through_merges`, `docm7_union_declare.rs`'s asymmetry assertion,
+`product.rs`'s tie-row `finish()`, `role.rs`'s `BandSlit`,
+`emit_blend.rs`'s `CornerArc` keying.
+
+**But five of the seven are not dispatchable at all**, and that is the
+result. They pose a question that decides what a document MEANS, and a
+lane cannot close one by implementing it:
+
+- `member-space-look-through-…` — a membership test cannot answer which
+  fragment a member face's material ended in, and the geometric
+  re-measurement that could is the one DM4's routing step forbids.
+- `the-pair-verbs-declared-merge-is-asymmetric-…` — the symmetric answer
+  moves `Fragment` rows in every existing declared-merge golden.
+- `product-refuses-naming-…-two-roots` — qualify by root, or refuse in
+  the recipe's vocabulary; either changes what a document's names are.
+- `blend-slit-name-collides-…` and `cut-off-arc-persists-as-a-corner-arc`
+  — persisted `RoleSeg` vocabulary, so a format change with a migration.
+
+All five re-kinded `issue` → `ruling`. **Three of them said so in their
+own bodies** — *"a design ruling"*, *"for Ev"*, *"Ev's call, since it is
+persisted vocabulary"* — **and were filed `kind: issue` anyway**, which
+put them on the board as available work. That is worth naming as a
+tracker failure mode rather than a clerical one: a row's kind is what the
+board reads, its prose is not, and DOCM's sweep re-homed the files
+faithfully without re-reading what they were. The two remaining
+conversions (`blend-slit`, `product-…-two-roots`) are my call and each
+row says so at the point it says it.
+
+### The two that ARE units, and the order between them
+
+- **`nobodyroots-classification-has-two-homes` — E.** One predicate on
+  `ProductError`. Cleanest row on the slate.
+- **`two-emitter-refusals-a-legal-declared-union-reaches` — M.** The half
+  that needs no ruling: `Emission` means *a kernel bug by definition* and
+  these are reached from legal documents, so the classification is false
+  today whatever naming rule eventually lands. A typed refusal naming the
+  construction is better under either outcome. **It runs before any
+  look-through work**, because its emitter refusal is what makes the
+  fragmented-merge shape unreachable in the first place.
+
+### Three corrections a taker would otherwise have inherited wrong
+
+1. **`nobodyroots`'s owed sweep is discharged, and the count is two, not
+   four.** Both candidates were read and neither is an instance:
+   `pncad-py`'s `E::NoBodyRoots | … => (none(), none(), none())` groups
+   arms by which payload fields they carry, and `pncad/tests/all.rs`
+   asserts the refusal. Different partitions for different reasons. The
+   row had been carrying *"if either does, the count is four and the
+   predicate is overdue rather than merely tidy"* since 2026-09-04; it is
+   tidy.
+2. **`nobodyroots`'s two copies are no longer copies of one rule.**
+   `frame::product_badge` now declines four arms and declines three of
+   them because the Features pane already badges them at the node — not
+   because they are not faults. The shared classification is the
+   `NoBodyRoots` arm alone, so a predicate written against the filter's
+   current shape would get the partition wrong. Separately,
+   `ProductError` has grown `kind()` → `ProductErrorKind`, exhaustive
+   with no wildcard; that answers half the row's cost argument and is not
+   the predicate, because `kind()` says which arm and not what it means.
+3. **A citation rotted into the thing that makes its row a ruling.**
+   `the-pair-verbs-…` sends a reader to `docs/DOCM-REFERENCES-DESIGN.md`,
+   DM4's bullet. That file is gone (`docs/DOC-LEDGER.md`: replaced by
+   `crates/editor-core/REFERENCES.md`, present tense, DM1–DM6 kept), and
+   DM4's sentence now sits in a page `docs/DESIGN.md`'s companion table
+   lists as **Ratified** — which is exactly the document class CLAUDE.md
+   reserves to Ev. Also confirmed dead as predicted: `docs/DOCM-7-SPEC.md`.
+
+### Two smaller things found while reading, recorded rather than swept
+
+- `emit.rs`'s shared-edge walk carries **four** `bug(...)` refusals, not
+  the two the row measured: `"unmated half-edge"` and `"dangling mate"` /
+  `"dangling loop"` sit beside them and DOCM-8's reviews did not measure
+  whether a legal document reaches them. Noted on the row as the taker's
+  measurement, not assumed either way.
+- `look_through_merges` has a fifth shape the row does not mention — the
+  two-matches arm refusing `MEMBER_FACE_IN_TWO_MERGES` — folded into the
+  same ruling.
+- `blend-slit` cites `BandSlit(Box<StableName>)`; the payload is now
+  `NameRef`. The shape the finding rests on (one field, no
+  discriminator) is unchanged, so the rot is harmless and is noted at the
+  row rather than repaired silently.
+
+Signed (WIRE orchestrator).

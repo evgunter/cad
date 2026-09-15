@@ -1,6 +1,6 @@
 ---
 id: blend-slit-name-collides-when-two-rims-share-a-meridian
-kind: issue
+kind: ruling
 title: the blend name emitter refuses a roll of two rims whose bands slit ONE seam meridian (RoleSeg::BandSlit has no discriminator)
 status: open
 opened: 2026-09-08
@@ -94,3 +94,32 @@ Moved from `work/docm/` to `work/wire/` at DOCM's exit sweep (`docs/DOC-LEDGER.m
 sweep 14): the file it names is WIRE's (`names/emit*.rs`, `eval/wire.rs`, `product.rs` are in WIRE's paths). Id, body and header are unchanged; the directory is the
 claim (`work/README.md`). Any `## Home` section above is superseded by
 this line and is kept as the record of why the file was where it was.
+
+## Read against the tree (2026-09-15) — live, re-kinded `ruling`, one type citation stale
+
+Read by the WIRE orchestrator before dispatch.
+`crates/editor-core/src/names/role.rs` still declares **`BandSlit(NameRef)`
+— a bare one-field variant with no discriminator** — while `BandTrim { .. }`
+beside it is a struct variant carrying its `RimSupport`, which is exactly
+the asymmetry the row's `What the vocabulary is missing` section names.
+`emit_blend.rs` still inserts one row per `(edge, meridian)` pair. The
+collision the row measures is therefore still reachable.
+
+Stale in the row, and harmless: it cites `BandSlit(Box<StableName>)`; the
+payload is now `NameRef`. The shape — one field, no discriminator — is
+what the finding rests on and that is unchanged.
+
+**Re-kinded from `issue` to `ruling`, and this is the orchestrator's
+judgement rather than the row's own words.** The row states its fix shape
+confidently and the precedent (`BandTrim`'s `RimSupport`) is right there,
+so it reads dispatchable. It is not: `RoleSeg` is **persisted** document
+vocabulary, so adding a discriminator is a document-format change with a
+migration story, which `cut-off-arc-persists-as-a-corner-arc` says in as
+many words is Ev's call. The two rows are one decision — *may the
+persisted `RoleSeg` vocabulary grow, and at what migration cost* — with
+two instances, and they go to Ev together rather than as two questions.
+
+Unchanged and worth keeping in view: the recourse works today
+(`demos/tour/src/teapot.rs` splits the roll into two `Node::Fillet`
+requests and builds the same three band tori bit for bit), so nothing is
+blocked on the answer — only the single-request spelling is.

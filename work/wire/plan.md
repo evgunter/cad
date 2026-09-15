@@ -51,24 +51,52 @@ EVAL-1 and FILLET's fillet door did).
 remains arrived after the program opened, from three sources, and the
 sources matter more than the count because they want different handling.
 
-### From DOCM's exit sweep (2026-09-13) — seven rows, unread by this program
+### From DOCM's exit sweep (2026-09-13) — seven rows, READ against the tree 2026-09-15
 
 DOCM closed and re-homed residue here. Each carries a `Re-homed` section
-naming the sweep. **None has been read against the tree by this
-program**, and the 2026-09-11 cut's lesson applies directly: *read a row
-against the tree before dispatching it, not against its own prose* — two
-rows that cut estimated **H** turned out three-quarters discharged by
-adjacent work. Treat every class estimate below as unmade.
+naming the sweep, and now also a `## Read against the tree (2026-09-15)`
+section carrying what was verified and what was corrected. Every one of
+the seven is still live — nothing was discharged by adjacent work, unlike
+the 2026-09-11 cut — **but five of the seven are not units at all.**
 
-| row | where it lands |
-| --- | --- |
-| `two-emitter-refusals-a-legal-declared-union-reaches` | boolean emitter refusals |
-| `member-space-look-through-stops-at-splits-containment-and-fragmented-merges` | member-space declaration resolution |
-| `the-pair-verbs-declared-merge-is-asymmetric-in-its-operands` | declared-merge operands |
-| `product-refuses-naming-when-one-instance-is-placed-under-two-roots` | `product.rs` |
-| `nobodyroots-classification-has-two-homes` | the empty-document rule |
-| `blend-slit-name-collides-when-two-rims-share-a-meridian` | blend name emitter |
-| `cut-off-arc-persists-as-a-corner-arc` | ruled-band names |
+**The result: DOCM's exit handed this program a ruling queue, not a work
+queue.** Five rows pose a design question that decides what a document
+MEANS, and no lane can close one by implementing it. They are re-kinded
+`ruling` so the board stops showing them as dispatchable; three said so
+in their own words and were filed `issue` anyway, and two are the
+orchestrator's call, said so at the row.
+
+| row | verified live at | kind |
+| --- | --- | --- |
+| `two-emitter-refusals-a-legal-declared-union-reaches` | `emit_topo.rs` seam-vertex arm; `emit.rs` shared-edge walk | **unit, M — takeable now** |
+| `nobodyroots-classification-has-two-homes` | `checks.rs` `Subject`; `frame::product_badge`; no predicate on `ProductError` | **unit, E — takeable now** |
+| `member-space-look-through-…-fragmented-merges` | `look_through_merges` still bare-`Merged`-only | ruling |
+| `the-pair-verbs-declared-merge-is-asymmetric-…` | asserted in `docm7_union_declare.rs` | ruling |
+| `product-refuses-naming-…-two-roots` | `product.rs` tie-row `finish()` | ruling |
+| `blend-slit-name-collides-…-meridian` | `BandSlit(NameRef)`, still no discriminator | ruling |
+| `cut-off-arc-persists-as-a-corner-arc` | `emit_blend.rs` keys `CornerArc`; still no ruled fixture | ruling |
+
+**The two rulings that are one question.** `blend-slit` and
+`cut-off-arc` are both *may the persisted `RoleSeg` vocabulary grow, and
+what does the migration cost* — one asking for a discriminator that does
+not exist, one asking whether a role word describes the wrong entity.
+They go out as ONE `[ev]` PR.
+
+**What the read corrected, beyond the classification.** Three findings a
+taker would otherwise have inherited wrong:
+
+- `nobodyroots`'s owed sweep is **discharged, and the answer is two, not
+  four**: neither `pncad-py`'s arm grouping nor `pncad/tests/all.rs`
+  classifies the arm — they partition by payload shape and assert the
+  refusal respectively. The row does not get to claim four.
+- `nobodyroots`'s two copies are **no longer copies of one rule**:
+  `product_badge` now declines four arms and declines three of them for a
+  different reason ("already badged at the node"), so a predicate covers
+  the `NoBodyRoots` arm alone.
+- `the-pair-verbs-…`'s citation of `docs/DOCM-REFERENCES-DESIGN.md` has
+  **rotted into the thing that makes it a ruling**: that file is gone and
+  DM4 now lives in `crates/editor-core/REFERENCES.md`, which
+  `docs/DESIGN.md`'s companion table lists as *Ratified*.
 
 ### Residues this program's own units produced — the receipts of eight merges
 

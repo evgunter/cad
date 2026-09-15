@@ -118,3 +118,58 @@ claim (`work/README.md`). Any `## Home` section above is superseded by
 this line and is kept as the record of why the file was where it was.
 
 (At DOCM's exit sweep, `refs` names the PRs `check-registry-gathers-product-twice` stood for: `check-registry-gathers-product-twice` = #1871 — the unit rows left the tracker with `work/docm/`; `docs/DOC-LEDGER.md` sweep 14.)
+
+## Read against the tree (2026-09-15) — live, and the owed sweep discharges
+
+Read by the WIRE orchestrator before dispatch, per `plan.md`'s order.
+**The finding holds and is the most dispatchable row DOCM sent here**,
+but two of its premises have moved and the row is corrected rather than
+confirmed.
+
+**Still true.** `ProductError` carries no fault/not-a-fault predicate.
+`checks.rs` still singles the arm out by matching it
+(`Err(product::ProductError::NoBodyRoots) => Subject::NoBodyRoots`) and
+still argues the classification in its own words, now in `Subject`'s doc
+comment: *"an empty document, or one holding only sketches and datums.
+Not a failure to run the registry."* `frame::product_badge` still
+filters the arm out and still argues it in its own words. Two homes, no
+predicate.
+
+**Moved: `ProductError` grew `kind()` → `ProductErrorKind`.** That is an
+exhaustive projection with no wildcard arm, so a tenth arm is a compile
+error at `kind()` — which answers half of this row's cost argument (the
+new arm is no longer silently unclassified *everywhere*). It is not the
+predicate: `kind()` says WHICH arm, and both consumers still have to
+decide what that arm MEANS, which is the partition this row is about.
+
+**Corrected: the two copies are no longer copies of one rule.**
+`product_badge` now declines four arms — `NoBodyRoots`, `RootFailed`,
+`RootPoisoned`, `UnknownNode` — and its reason for the last three is
+*not* "not a fault" but "the Features pane already badges these at the
+node with a typed cause". So the shared classification is the
+`NoBodyRoots` arm alone, and a predicate covers that arm and not the
+viewer's other three. The row's *"same classification, same reasoning,
+same worked example"* is true of one arm out of four, not of the whole
+filter. A taker who plans a predicate against the filter's current shape
+will get the partition wrong.
+
+**Discharged: the sweep this row owed, and the answer is two, not four.**
+Both candidate readers were examined and **neither is an instance**:
+
+- `crates/pncad-py/src/py/assembly.rs` (`E::NoBodyRoots | E::ProductInvalid
+  | E::ContactLineage | E::EvaluationOfAnotherDocument => (none(), none(),
+  none())`) groups the arm by **which payload fields it carries** for the
+  Python triple, not by whether it is a fault. A different partition for
+  a different reason.
+- `crates/pncad/tests/all.rs` asserts a profile-only document refuses
+  `NoBodyRoots`. That is a test of the arm, not a classification of it.
+
+So the count stays **two**, the predicate is tidy rather than overdue,
+and this row does not get to claim four.
+
+**Class: E.** One predicate on `ProductError` in `product.rs` (WIRE's),
+with the empty-document argument moving to it as the one home, and the
+two sites reduced to citing it. `crates/viewer` is not WIRE's ground, so
+the viewer's one-line change is an announced seam or is left to VIEW with
+the predicate in place for it — the predicate is what unblocks that, and
+it lands here either way.
