@@ -2682,3 +2682,19 @@ bodies (#2568, #2589) and the unit's two log entries.
 
 - `SYM-5-SPEC.md` — SYM-5, a stored unit vector does not double the
   degree (#2568 PR-1, #2589 PR-2)
+
+## Per-merge deletion — SYM-7's spec (2026-09-15)
+
+Recoverable at `git show e9f75d5b5:docs/SYM-7-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: the memo keyed on the
+budget alone (keyed on `(budget, rules)` — `combine`'s constant fold
+reads two dials); the "opaque-sequence pin" as the premise's ALARM
+(no drive mints an opaque, so the row measures nothing on the
+measured documents and says so; the premise governs hits, not
+soundness — the memo's soundness is that an id is a content hash of
+syntax); the "per-leaf accounting goldens' `frozen` column" (none
+existed; no golden moved); Phase 3's gate (measured 7.4 % table work
+against a ≥ 10 % wall gate, not taken). Recorded in the PR body and
+the unit's log entry.
+
+- `SYM-7-SPEC.md` — SYM-7, the plain form outlives the leaf (#2609)
