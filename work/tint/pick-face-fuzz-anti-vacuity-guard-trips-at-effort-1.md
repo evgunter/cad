@@ -160,11 +160,12 @@ shard of the same eps row. This is WIRE's "reddened a docs-only commit"
 one step further out: the tree under test was not merely unrelated to the
 failure, it was **not Rust at all**.
 
-**What this lane could not do**, said rather than left implicit: re-running
-the failed job on identical code — the decisive instrument WIRE used — was
-not available to it (the API returned 403 for `rerun-failed-jobs`), so the
-seed-not-tree conclusion here rests on the eleven green sibling jobs and on
-the failure message naming the guard, not on a re-run.
+**Re-run by another name.** The instrument WIRE used — re-run the failed
+job on identical code — was not available to this lane (the API returned
+403 for `rerun-failed-jobs`), so it was bought the other way: the next
+commit on the branch added **one markdown file and nothing else**, and its
+run `35001465730` was green in all 39 jobs, `test (eps = 1e-12, 1/2)`
+included. Same Rust tree, new seed, green. The variable is the seed.
 
 **For the sibling row.** `work/tint/random-integer-rays-search-trips-at-eps-1e-6-on-one-run.md`
 asks which of two assertions its 2026-09-09 flake was, and says nothing in

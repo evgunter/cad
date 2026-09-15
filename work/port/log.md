@@ -438,3 +438,24 @@ territory` says `guard`). Both announced in the PR; either may take the row.
 `Cargo.toml` and `rust-toolchain.toml` are unchanged.
 
 Class **E** confirmed. No rows filed — nothing turned up outside the fence.
+
+### CI (2026-09-15)
+
+Run `34997969247` (head `2f33783bb`) was green in 37 of 39 jobs. The two
+that spoke to this change — `CI half parity + gate wiring (every tier)`
+and `discipline (evaluation-code)` — were both green, as were all twelve
+`test (…)` jobs bar one and all five `k-lint (gate, …)` unifications, so
+the run was the full matrix and nothing narrowed it.
+
+The one red was `test (eps = 1e-12, 1/2)`, at
+`crates/editor-core/tests/review_gui1_r1.rs:498` — *"no draw hit the cube
+— generator shape broke"*, the searched anti-vacuity guard S-TINT already
+carries a row for, on a third seed and a third eps row. **Filed as
+evidence on the existing row** rather than as a second one:
+`work/tint/pick-face-fuzz-anti-vacuity-guard-trips-at-effort-1.md`. This
+diff is a shell script and a YAML step; it compiles nothing and cannot
+reach `editor-core`.
+
+Run **`35001465730`** (head `ee7127d48`, which adds only that markdown
+file) is **green in all 39 jobs**, `test (eps = 1e-12, 1/2)` included —
+same Rust tree, new seed. That is the run of record.
