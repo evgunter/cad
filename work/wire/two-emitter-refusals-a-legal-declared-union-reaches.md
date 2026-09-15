@@ -1,10 +1,11 @@
 ---
 id: two-emitter-refusals-a-legal-declared-union-reaches
-kind: issue
+kind: unit
 title: Two boolean-emitter Emission refusals a legal declared union reaches: seam vertex parentage underdetermined, and unique_shared_edge over a fragmented merged face
-status: open
+status: dispatched
 opened: 2026-09-07
 refs: [2073, 2073]
+branch: wire/emitter-refusals-a-legal-union-reaches
 ---
 
 ## What

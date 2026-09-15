@@ -4935,3 +4935,72 @@ Two things learned, worth the next lane's attention:
   recorded so nobody re-walks them.
 
 Signed (WIRE orchestrator).
+
+## 2026-09-15 — Dispatched: `two-emitter-refusals-a-legal-declared-union-reaches` (lane `wire-e2`)
+
+Branch `wire/emitter-refusals-a-legal-union-reaches`. **Raised to FULL
+review at dispatch**, against the M estimate, and `plan.md`'s posture
+table carries the reason.
+
+**Why full.** The deliverable is a MEASUREMENT — which of the emitter's
+`bug(...)` refusals a legal document can actually reach — and a wrong
+measurement fails in the dangerous direction. `NamingError`'s own doc
+says every variant is *"an emission BUG … never a normal modeling
+outcome"*, so re-classifying a refusal that is really body corruption as
+a legal outcome would silently downgrade a genuine kernel bug's signal.
+That is a correctness question a light review is not looking for.
+
+**What reading the sites added to the row, and it is the unit's real
+content.** `unique_shared_edge` carries **four** `bug(...)` refusals,
+not the two the row measured, and they are visibly **two categories
+wearing one word**: `"unmated half-edge"`, `"dangling mate"` and
+`"dangling loop"` read as structural corruption of the body, while
+`"two shared edges where one expected"` and `"no shared edge"` read as a
+legal shape the combinatorial derivation has no answer for. The row
+names only the second pair. The fifth site, `emit_topo.rs`'s seam-vertex
+arm, is a `_ =>` **catch-all** after a case analysis — which is where a
+shape nobody enumerated lands, a different thing from an inconsistent
+fact. The brief says to measure the line rather than assume it, and that
+a site no legal document reaches KEEPS `Emission` and is reported as
+such.
+
+**The precedent is in the same enum, twice, and the brief points at
+both.** `Band(BandError)` was carved out of `Emission` with exactly this
+argument — *"which this is not: nothing about the result body is wrong
+here"* — and `SplitLineage` / `FragmentLineage` were carved out because a
+variant can carry *"the one thing the repair needs that a sentence cannot
+supply: WHICH edge / WHICH face."* `FragmentLineage`'s doc also argues
+why it is a **sibling word rather than one generalised** over
+`EntityKey`, which is the same question this unit faces about how many
+variants it needs. So the shape of the answer is established; only where
+the line falls is open.
+
+**Fenced explicitly.** This unit re-classifies and does **not** invent a
+naming rule: what a member-space declaration MEANS for a face that is no
+longer one face is `member-space-look-through-…`, a `ruling` on this
+slate. The change must be correct under either answer, and the brief says
+to stop if the lane finds itself designing the name.
+
+Three traps named in the brief, all earned: a variant with no caller
+(`frame-linear-generic-door-has-no-consumers` is the open row for that
+shape); a new variant whose payload is a free-text `&'static str`, which
+rebuilds `Emission` one level down; and re-classifying a site the lane
+did not actually reach because its message reads legal-ish.
+
+### Three rows arrived from other programs while this session worked
+
+`declare-door-refuses-a-tie-before-it-asks-the-pairs-kinds`,
+`interrogate-read-answers-a-tie-before-the-door-s-kind`, and
+`select-refusal-coverage-is-not-compiler-enforced-from-the-test-crate`.
+Unread against the tree by this program; the 2026-09-11 lesson applies to
+them as it did to DOCM's seven.
+
+**The first two look like one class and should be read together**: a door
+answering a tie or an `Ambiguous` *before* it has resolved the kind the
+answer depends on. That is the same shape as
+`the-declared-pair-refusal-reads-the-authored-kind`, already on this
+slate — which would make it three instances, not two, and a class rather
+than a pair. Noted rather than acted on; the read comes before the
+grouping, as it did for DOCM's rows.
+
+Signed (WIRE orchestrator).
