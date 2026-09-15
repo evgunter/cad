@@ -813,7 +813,7 @@ describes as "a side channel that survives the serde round trip" is the
 one that exists, because the other two cost either the deserializer's
 line/column payload or a parallel wire tree for the whole document.
 
-- `PORT-DIMS-1-SPEC.md` — PORT-DIMS-1, the load door's structured refusal and the vacated name: `PersistError::Dimension` carries the document layer's `DimensionError` whole, and the Python quantity class takes its Rust type's own name (#PRNUM)
+- `PORT-DIMS-1-SPEC.md` — PORT-DIMS-1, the load door's structured refusal and the vacated name: `PersistError::Dimension` carries the document layer's `DimensionError` whole, and the Python quantity class takes its Rust type's own name (#2702)
 
 ## Per-merge deletion — PORT-DOORS-1's spec (2026-09-15)
 

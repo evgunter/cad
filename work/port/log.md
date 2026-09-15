@@ -850,7 +850,7 @@ population).
 
 ## PORT-DIMS-1 — the load door's structure and the vacated name (2026-09-15)
 
-**Merged as PR PRNUM** on `port/dims-1-load-door-and-name`. Both rows
+**PR #2702** on `port/dims-1-load-door-and-name`. Both rows
 close: `load-path-stringifies-structured-refusals` and
 `python-dimensionerror-names-the-quantity-check-not-the-dimension-check`.
 **`H` was right**, and for the reason the plan gave — the decision, not
