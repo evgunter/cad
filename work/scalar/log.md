@@ -287,3 +287,33 @@ from the tally per the instrument; no tally candidate. What landed:
 the item's §Closed. The spec is deleted per the ledger. The `sin_cos`
 mint waits for a customer; the frame doors taking the witness are the
 next unit's (`frame-witness-and-the-tube-door`).
+
+## RATE-PAIR dual concluded; a tally candidate (2026-09-15)
+
+`rate-pair-in-geom-core` (PR 2657, block SCALAR-B2 slot 2, ordinal
+4105; byte 94 ⇒ R1 OPUS, R2 FABLE on frozen `711236057`). Both arms
+APPROVE WITH FIXES. R1 ranked two findings MAJOR: **M1** —
+`chart_stretch_sup`'s Cone arm mints `SupSpeed::new(1)` for a stretch
+its own comment says no surface-level constant dominates (`|S_u| =
+v·sin α`), a typed certification the code denies on a `pub` door; **M2**
+— the sentence fencing the pair ("an azimuth arm is metres per radian")
+is false for the plane/spline kinds four lines below it, where the u
+channel is the same crossing the v channel was just moved to
+`metered_sup`, and the TRIM row was closed on that sentence. R2 found M2
+from the other side (its MINOR-1/MINOR-2: the u channel on spline
+charts; `certify.rs`'s circle/ellipse arms levered where `param_rate`
+mints the same numbers as `InfSpeed`) and reported "no mis-tag found"
+on the producers — it did not see M1. Under the instrument M1 is a
+**tally candidate**: unilateral (R1, the OPUS arm), contract-API
+class, not a duplicate of a filed row (the cone's unit-arm placeholder
+was a known limitation as a bare `T`; the false CERTIFIED claim is new
+in this PR), fair pair (identical briefs). Its demonstration by
+execution is owed by the fix pass (a cone row red on the frozen head's
+semantics); the candidate is recorded as such branch-side and counts
+when that row exists. Bilateral: the narration digest not
+reproducible from its recipe; the direction rule stated four to six
+times with two copies claiming uniqueness; `thinness()`'s new
+dimensional sentence wrong on its own premise; class members the
+census could not see (`clearance.rs` `chart_arms`, `ScaledFace::build`'s
+arms, `chart_bound`'s `assembled`). Twelve items adjudicated; fix pass
+dispatched on the implementer's arm.
