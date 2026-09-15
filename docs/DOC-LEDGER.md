@@ -2736,3 +2736,38 @@ and `work/curved/circle-residual-harmonics-needs-torus-arm.md` and the
 MERGED entries in `work/curved/log.md`. Still open from the spec's
 residue: `torus-operand-gate-admission` (the lily's remaining pin's
 retirement) and `the-chord-dip-charge-has-two-homes` (S-BOOL's half).
+
+
+## Per-merge deletion — D290's spec (2026-09-15)
+
+Recoverable at `git show f91aea516:docs/D290-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: the interior formula as the
+unit-domain `lo + (hi − lo)·k` (landed as the general `[a, b] → [lo, hi]`
+form, bit-identical on a unit source); "add a `KnotVectorIssue` variant
+if none says it" for the domain refusal (landed as a `SplineError` arm —
+a request-shaped refusal, not a vector defect — so `KnotVectorIssue`
+kept `Eq`); the surface-level door left to the implementer's call (not
+landed: no `src` consumer). Recorded in the PR body and the unit's
+`## Closed` section.
+
+- `D290-SPEC.md` — D290, the knot rescale is a `KnotVector` door (#2461)
+
+## Per-merge deletion — TRIM-3's spec (2026-09-15)
+
+Recoverable at `git show f1e984812:docs/TRIM-3-SPEC.md` (PR #2554's
+merge commit, the last head carrying it). Both PRs delivered: PR-1
+(#1911, the `topo` chart-boundary description and outside test, A/B row
+T3A) and PR-2 (#2554, the clearance seam in `editor-core/clearance.rs`,
+A/B row T3B). The spec's §Rulings and its Amendments (the metred hull;
+the cylinder root rule reading the hull verbatim — now the named
+`cut_root`) are the unit's record together with the closed item
+`work/trim/clearance-window-tightening-needs-chart-boundary.md`, the
+two MERGED entries in `work/trim/log.md` (PR-1 2026-09-07, PR-2
+2026-09-15), and the six residues the unit
+left on the program (`clearance-window-cone-sphere-torus`,
+`exact-region-cells-for-lower-bound-only`,
+`min-separation-tightening-crosses-the-drive`,
+`revolved-bands-reach-no-clearance-row`, `three-tables-of-the-chart-arms`,
+`a-refused-chart-boundary-has-no-reachable-window`). The seam into
+SHELL/M10's file was announced on #1911 (comment 5568210053) and
+merged on a week's silence, recorded in the TRIM log.
