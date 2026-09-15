@@ -162,7 +162,6 @@ impl<'de> Deserialize<'de> for Expr {
 /// A structural travel-sense tag (`profile::ArcSweep`'s wire mirror;
 /// the kernel crate stays serde-free).
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 enum WireWinding {
     /// Counterclockwise.
     Ccw,
@@ -187,7 +186,6 @@ impl WireWinding {
 
 /// A structural side tag (`profile::ArcSide`'s wire mirror).
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 enum WireSide {
     /// Centre on the left of travel.
     Left,
@@ -212,7 +210,6 @@ impl WireSide {
 
 /// A step target on the wire (`Start` is structural).
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 enum WireTarget {
     /// The entry vertex — the closing form.
     Start,
@@ -688,7 +685,6 @@ impl<'de> Deserialize<'de> for ProfileProgram {
 /// in an extrude's distance, and the refusal would have to be invented
 /// at every rebuild site instead of being unrepresentable.
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(crate) enum WireMeasureExpr {
     /// A closed-form measurement leaf.
     Primitive(MeasurePrimitive),
