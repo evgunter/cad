@@ -3839,7 +3839,6 @@ lesson is what the review's dispatch-level findings are: a doc comment
 that states a COUNT goes stale silently; one that states a TEST goes
 stale loudly, because the next reader can apply it.
 
-
 ## #2026 MERGED, and the orchestrator branch had gone 32 commits unmerged again (2026-09-06)
 
 **#2026 merged at `c2d7e78ce`.** Ten units on main this session. CI: 37
@@ -7604,6 +7603,7 @@ README: nothing), alongside HTML blocks and block quotes.
 used to red about a table having no rows when it had two. With the
 strip, a one-to-three-space row IS a row and the case cannot arise; a
 four-space one is reported by `!indent`, which is asked before both.
+
 ## 2026-09-10 — `view/wasm-docs`: the repo had already answered this one axis over
 
 `viewer-docs-do-not-build-at-wasm32` offered two shapes over nine broken
@@ -8798,6 +8798,7 @@ push — which it named as its own worst error of the lane, because it
 had offered a force-push to route around a diagnosis it had not
 checked. It was offered and refused; the merge that was owed on the
 merits was the answer, and it is what fired Actions.
+
 ## 2026-09-11 — `view/gesture-doors`: the two gesture doors, and one fan-out
 
 Two items, both adjacent to what #2348 landed.
@@ -8906,6 +8907,7 @@ before either branch existed.
 nobody was watching: the skip-mode pass exited 0 over three intra-doc
 links to items this diff had just deleted, while the full workspace pass
 exited 1. Both passes are owed by a viewer lane. In `plan.md`.
+
 ## 2026-09-11 — `view/gesture-identity`: the driving operations name their gesture
 
 `preview-and-commit-carry-no-gesture-identity` closed. Shape 1 of the
@@ -10290,6 +10292,7 @@ attached is not evidence about four; it is one claim about a method.
 arithmetic** — including when the arithmetic was mine.
 
 **VIEW stands at 70 open / 85 closed, nothing waiting on Ev.**
+
 ## 2026-09-12, later — `view/drag-field-precision`: every numeric field gets a text that reads back
 
 `a-drag-field-renders-a-length-at-a-precision-its-drag-speed-sets` is
@@ -10481,6 +10484,7 @@ beside a name may go stale, and two closed `work/door/` rows left alone
 because a closed row is a record.
 
 **VIEW stands at 71 open / 86 closed, nothing waiting on Ev.**
+
 ## 2026-09-12 — `probe-identity-stops-at-the-instance`: answered
 
 `view/probe-identity`. The fork was *should the door refuse a second
@@ -10836,6 +10840,7 @@ for the prose**; when one returns nothing, re-run it joined before
 believing the absence.
 
 **VIEW stands at 73 open / 88 closed, nothing waiting on Ev.**
+
 ## 2026-09-14 — `view/toolbar-wrap`: the row was measured, and it misses by 580 points
 
 `the-toolbar-row-does-not-wrap` — **closed.** The row's own framing
@@ -11770,3 +11775,54 @@ catch-all, which #2053's fix pass made false on 2026-09-06 —
 `git log -S` finds an agent commit and no ratification.
 
 Signed (VIEW implementer lane `withdrawal-causes`, PR #2693).
+
+## 2026-09-15 — `view/style-installs`: startup's two context-wide installs are held, and the premise was measured before it was built on
+
+`work/view/nothing-holds-startups-two-context-wide-style-installs.md`.
+The premise was checked the only way it can be — on a committed tree,
+each call line deleted in turn, the whole viewer suite run. Both times
+the suite was **unchanged** (`--lib` 88 passed / 1 failed, the standing
+`gpu::tests::every_pass_builds_on_a_real_device` adapter red;
+`--test all` 562 passed / 0 failed / 1 ignored), so no existing row
+covered either install. **Both installs are on the `assemble` side**,
+so both rows are ordinary `--lib` tests and no gate was needed:
+`egui_ctx` occurs four times in `app.rs` — `new`'s call, `assemble`'s
+parameter, and the two installs — which is also why the population is
+two rather than a claim that it is.
+
+One qualification the item does not make: deleting
+`install_number_formatter`'s call leaves the function with no
+non-test caller, so the lib build warns `never used`. That is not a
+row and says nothing about which context the install reaches or when,
+but a `-D warnings` build would notice the deletion. Deleting
+`apply_polarity`'s call is silent — it has a second caller in the
+palette picker.
+
+Two rows rather than one, because a single row cannot say which
+install went. Both read behaviourally: a `NumberFormatter`'s
+`PartialEq` is `Arc::ptr_eq`, so the formatter is read by spelling
+40 nm through the context's own styles and comparing the text with
+`widgets::number_text`'s, with a third assertion holding the witness
+apart from the toolkit's default so the row reports when it stops
+being able to see the install. The polarity row reads BOTH the
+preference the context states and the `dark_mode` a first frame would
+paint, because `egui`'s `fallback_theme` is `Theme::Dark` and
+`Theme::DEFAULT` is a dark palette: the `dark_mode` read alone is
+green over a context nobody touched, which is the flattering reading
+this item warns about, one level in.
+
+Mutation receipts, on the committed tree with the rows in it: deleting
+`apply_polarity(egui_ctx, theme.polarity)` reds
+`startup_states_the_resolved_polarity_on_the_context` and nothing else
+(`System` where `Dark` was wanted); deleting
+`crate::widgets::install_number_formatter(egui_ctx)` reds
+`startup_installs_the_number_rule_onto_both_of_the_contexts_styles`
+and nothing else (`"0.000"` where `"0.00004"` was wanted). `--test
+all` stayed 562/0/1 under both.
+
+The sweep and its blind spot are in the PR body. Nothing in
+`GUI-DESIGN.md` moved: G5 decides what a theme IS and says nothing
+about when it reaches the chrome, so this unit touches no clause it
+decides.
+
+Signed (VIEW implementer lane `view/style-installs`).

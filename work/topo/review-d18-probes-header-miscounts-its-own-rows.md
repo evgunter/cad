@@ -47,3 +47,38 @@ reasonably choose to sit on it rather than spend an edit. The cheap fix
 meanwhile is one sentence, and it is TOPO's call which.
 
 No fix is proposed and nothing is scheduled on TOPO's behalf.
+
+## The roster mechanism now exists (S-TINT TINT-4, 2026-09-15)
+
+The "if S-TINT ever lands an executable roster check" above is no longer
+hypothetical. `test_utils::roster!` (`crates/test-utils/src/roster.rs`)
+is the weld: a block of the file's own row **idents**, each with a
+sentence beside it, compared against libtest's own
+`--list --format=terse` of the running binary via a `current_exe()`
+re-exec. A retired or misspelt name is `error[E0425]`; a row added
+without an entry reds, naming the row. **Adopting it is TOPO's edit** —
+`crates/topo/src/review_d18_probes.rs` is out of S-TINT's fence and
+nothing is scheduled on TOPO's behalf.
+
+What it would cost here, checked against this file so the estimate is
+not a guess:
+
+- The rows are at the top level of `review_d18_probes.rs`, which
+  `crates/topo/src/lib.rs` mounts as `#[cfg(test)] mod
+  review_d18_probes;`. So the invocation goes at the top of the file,
+  `module_path!()` is `topo::review_d18_probes`, and the derived prefix
+  is `review_d18_probes::` — the same shape the macro was measured on.
+  No `pub` and no visibility change is needed.
+- `topo` already dev-depends on `test-utils`.
+- The header sentence *"Three of the four rows gate; the fourth is
+  marked as evidence for the review"* would move into the block as five
+  entries, one per row, each saying which it is.
+
+**What it would NOT fix, and this is the half that matters here.** The
+macro welds NAMES and never PROSE. The count in that sentence, and the
+claim about which row is the evidence one, are exactly the kind of text
+nothing checks — a roster keeps the five names honest and would say
+nothing about a sentence that miscounts them. The count would stop
+being written down at all, which is why it can no longer be wrong; but
+if TOPO keeps a prose disposition beside the names, that disposition is
+as unchecked after adoption as before.

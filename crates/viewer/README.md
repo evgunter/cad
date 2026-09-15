@@ -880,6 +880,32 @@ not merely whether it is a vocabulary.
 `app.rs`'s header claim — *toolkit adaptation, and nothing else* — is
 true of the file rather than a claim it has outgrown.
 
+**Startup is split by what it needs, and the two context-wide styles
+are on the deviceless side.** `ViewerApp::new` takes an
+`eframe::CreationContext` and does one thing with the device — building
+the viewport renderer into the frame's render state — and
+`ViewerApp::assemble` is everything else: the document, its evaluation
+and tessellation, the camera, the preferences, and the two styles those
+preferences set on the `egui::Context`. The resolved palette's polarity
+is stated before anything is drawn, so a window cannot open on one
+ground and turn over to the other a frame later; the chrome's numeric
+rule goes onto the context's styles, so a field that never reached
+`widgets::number_field` still says what it holds. **Each is held by a
+row of `app`'s own** —
+`startup_states_the_resolved_polarity_on_the_context` and
+`startup_installs_the_number_rule_onto_both_of_the_contexts_styles`
+— reading the context after `assemble` and before any frame, which is
+where the installs claim to be in force. Both reads
+are behavioural: a `NumberFormatter` compares by `Arc::ptr_eq`, and a
+polarity is read as the preference the context states and the
+`dark_mode` a first frame would paint. **The population is two because
+the context reaches nothing else** — `assemble`'s `egui::Context`
+parameter is used at those two calls and at no third — so the sweep
+that would find a third install is a grep for that parameter. What the
+device half installs is held by nothing here and cannot be: a render
+state wants an adapter, which is the same wall
+`gpu`'s `every_pass_builds_on_a_real_device` stands at.
+
 Three items move out of `app` to modules that already own their
 subject rather than to new ones: `datum_view` to `datums`, and
 `tip_mark` with `heading` to `sketch` — all three are geometry over
