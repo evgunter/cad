@@ -31,8 +31,8 @@ use crate::common;
 
 use geom::Curve3;
 use geom::NurbsCurve3;
-use geom_brep::SurfaceKind;
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{OutwardNormal, SurfaceKind};
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Tol, Vec3};
 use topo::readback::{
@@ -85,10 +85,10 @@ fn face_pose_reports_the_stored_sense_beside_an_uncorrected_axis() {
             pose.axis.z, 1.0,
             "{label}: the axis is the chart's, uncorrected"
         );
-        // The outward normal is the reader's to form: sense · axis.
-        let sign = if pose.sense { 1.0 } else { -1.0 };
+        // The outward normal is the reader's to form, through the
+        // type's one constructor.
         assert_eq!(
-            pose.axis.z * sign,
+            OutwardNormal::from_chart(pose.axis, pose.sense).vec().z,
             if stored { 1.0 } else { -1.0 },
             "{label}"
         );
