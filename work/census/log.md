@@ -271,3 +271,59 @@ under a hidden ancestor would have skipped the whole tree and left every
 row passing over nothing — a silent vacuity in the guard itself.
 And `repo_root`'s eight lines had **five** copies, not the three the
 review found; all five are now `test_utils::source`.
+
+## CENSUS-DEBUG merged (2026-09-15)
+
+PR 2655 merged as `265a4e8b`, green on run `34965144463`. The spec is
+deleted per the ledger, recoverable at
+`git show 67e56e2cf:docs/CENSUS-DEBUG-SPEC.md`; the item is closed and
+carries its premise corrections.
+
+## Two units in, and what the program has learned about itself
+
+Both units are closed and the pattern across them is worth stating
+before a third is specced, because it is about THIS program and not
+about either row:
+
+1. **The trap sprang on both units, and naming it did not prevent
+   either.** Unit 1 hand-spelled a shared predicate one line after
+   calling its other half. Unit 2 keyed its suppression list so that a
+   suppression could grow silently, three lines under a doc explaining
+   why it must not. Both were caught by a reader who did not write the
+   fix, and by nothing else. **A spec for a CENSUS unit should stop
+   treating this as a warning and start treating it as a prediction**:
+   name the specific growth direction the unit's own instrument will
+   have, and require the lane to execute a probe against it.
+
+2. **Both blind-spot lists claimed exclusivity and were short** — unit
+   1's by a factor of five, unit 2's by four. A list that says "the one
+   shape" or "what is NOT on this list, because the classifier answers
+   it" has been wrong every time it has been written here. The next
+   spec should require the list to be arrived at by execution rather
+   than by reasoning, and should treat an exclusivity claim as a
+   finding in review.
+
+3. **The orchestrator's spec premises decay too.** Unit 1's spec was
+   wrong in three places, unit 2's in three more, and one of unit 2's
+   was a CRITERION rather than a count — the sharper failure, because a
+   wrong criterion silently re-scopes the whole unit. Measuring before
+   writing caught a great deal; it did not catch everything, and the
+   standing instruction to the lane ("the spec's numbers are a
+   hypothesis; correct me") earned its place both times.
+
+4. **What the instrument should be is a per-unit question, not a
+   house style.** Unit 1's population was not compiler-known and earned
+   a reader with a pinned tally; unit 2's split, and copying unit 1
+   wholesale would have re-asked a question `E0027` already answers.
+   The third unit should make that judgement explicitly rather than
+   inheriting it.
+
+## Next
+
+`pncad-py-eval-err-variants-outside-the-tag-inventory` is third in the
+order: the smallest row on the slate, one crate, and its one call —
+widen the reader to lex the literal-variant `eval_err` sites, or rule a
+call-site literal deliberately out of scope and pin the one uncovered
+word — is the orchestrator's to make in the spec rather than the lane's,
+because it is a question about the gate's REACH and answering it is the
+unit.

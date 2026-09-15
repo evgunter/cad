@@ -2,10 +2,11 @@
 id: hand-listed-debug-censuses-in-geom-core-geom-and-topo
 kind: unit
 title: nine hand-written Debug impls across geom-core, geom and topo list their fields by hand and end in finish(), so a new field is silently unrendered under a completeness claim
-status: review
+status: closed
 opened: 2026-09-06
 refs: [2093]
 branch: census/debug-census
+closed: 2026-09-15
 ---
 
 Found by #2093's sweep, which fixed the same class inside
