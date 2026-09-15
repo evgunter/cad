@@ -73,3 +73,24 @@ answerable without resolving.
   rule already landed, for the shape to copy.
 - `crates/editor-core/tests/wire_entity_door.rs` — the census that
   walks these refusals and will want a tied row.
+
+## An interaction a taker must not be surprised by
+
+`work/wire/the-entity-kind-door-has-six-spellings` already lists
+`names::interrogate`'s `kind_mismatch` as a separate spelling of the
+kind word. PR 2681 changed that function's signature from
+`(EntityKind, EntityKey)` to `(EntityKind, EntityKind)` and calls it
+with `name.kind`, so the `found:` word at that door is now one a
+CALLER could write — which is the opposite of the rule
+`eval::wire`'s `named_entity` states at length (*a road cannot supply
+the word for the kind it found; that word arrives as a token only the
+door can mint*).
+
+That was forced, not chosen: the reorder asks the kind BEFORE
+resolution, and before resolution there is no key to mint a token
+from. The repair this row proposes — making `entity_door::Found`
+mintable from a NAME's kind — is the same move at the other door, so
+the two rows agree in direction; what a taker owes is deciding whether
+`Found`'s guarantee becomes "a door minted this" rather than "a
+resolved key produced this", and saying so where the token is defined.
+Both doors then state one rule instead of two.

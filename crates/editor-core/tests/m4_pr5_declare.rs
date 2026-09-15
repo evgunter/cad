@@ -796,42 +796,11 @@ fn crossing_slots_swapped_order_hits_the_junction_arm() {
 fn an_unsupported_declared_pair_answers_its_kinds_with_a_tied_name_in_it() {
     use editor_core::Entry;
 
-    // The symmetric U cutter's N2 tie, as the Ambiguous row above
-    // builds it.
-    let doc = ProfileDoc::empty_derived("m4_pr5_declare_tie_before_kind", Tol::witness());
-    let (doc, ua) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
-    let (doc, up) = on_frame(
-        doc,
-        [0.0, 0.0, 1.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![
-            (2.0, 1.0),
-            (6.0, 1.0),
-            (6.0, 3.0),
-            (2.0, 3.0),
-            (2.0, 2.5),
-            (5.0, 2.5),
-            (5.0, 1.5),
-            (2.0, 1.5),
-        ]],
-    );
-    let (doc, ub) = insert(
-        doc,
-        Node::Extrude {
-            profile: up,
-            distance: len(2.0),
-        },
-    );
-    let (doc, us) = insert(
-        doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a: ua,
-            b: ub,
-            declare: None,
-        },
-    );
+    // The symmetric U cutter's N2 tie.
+    let (doc, us) = fixture::u_cutter_tie(ProfileDoc::empty_derived(
+        "m4_pr5_declare_tie_before_kind",
+        Tol::witness(),
+    ));
     let ev1 = run(&doc);
     let table = ev1
         .value(us)
@@ -910,4 +879,105 @@ fn an_unsupported_declared_pair_answers_its_kinds_with_a_tied_name_in_it() {
         refusal(all_unique),
         "the tie makes no difference to a pair the vocabulary has no step for"
     );
+}
+
+/// **A tie on the first name waits behind every per-name fault on the
+/// second** — the cross-name half of the declare door's order, and the
+/// part the `ladder` does NOT decide (it ranks within one name's walk).
+///
+/// The rule is that the tie is the one per-name refusal the PAIR's
+/// kind question outranks, and a pair question cannot be asked until
+/// both names have landed; so `NodeGone` and `Vanished` on the SECOND
+/// name are now raised where the first name's tie used to preempt
+/// them. Both are visible in Python — `resolve_error_tag` moves from
+/// `ambiguous` to `node_gone` and to `vanished` — so both are pinned
+/// here rather than left to the PR body.
+#[test]
+fn a_tied_first_name_waits_behind_the_second_names_own_faults() {
+    use editor_core::{DocEdit, Entry};
+
+    let (doc, us) = fixture::u_cutter_tie(ProfileDoc::empty_derived(
+        "m4_pr5_declare_cross_name_order",
+        Tol::witness(),
+    ));
+    let ev1 = run(&doc);
+    let table = ev1
+        .value(us)
+        .expect("the U subtract evaluates")
+        .name_table
+        .clone();
+    let tied: StableName = table
+        .iter()
+        .find_map(|(n, e)| {
+            (n.kind == EntityKind::Face && matches!(e, Entry::Tied(_))).then(|| n.clone())
+        })
+        .expect("the U fixture ties a face");
+    assert!(
+        matches!(table.lookup(&tied), Some(Entry::Tied(c)) if c.len() >= 2),
+        "the first declared name must really be tied for this row to test anything"
+    );
+
+    // A third body, named by the pair and then DELETED: rung 1 on the
+    // second name. Its cap is a FACE, so the pair is a supported
+    // cross-operand face pair and the kind question does not preempt.
+    let (doc, mate) = block(doc, (0.0, 4.0), (0.0, 4.0), 6.0, 1.0);
+    let (doc, ghost) = block(doc, (0.0, 1.0), (0.0, 1.0), 20.0, 1.0);
+    // A face name at a LIVE node that names no row there: rung 3.
+    let absent = fname(us, wall(97));
+    assert!(
+        table.lookup(&absent).is_none(),
+        "the vanished probe must name no row, or it pins nothing"
+    );
+
+    let union_of = |doc: ProfileDoc, pair: (StableName, StableName)| {
+        let (doc, decl) = insert(doc, Node::declare_rest(vec![pair]));
+        insert(
+            doc,
+            Node::Boolean {
+                op: BooleanOp::Union,
+                a: us,
+                b: mate,
+                declare: Some(decl),
+            },
+        )
+    };
+    let mut doc = doc;
+    let with_gone;
+    let with_absent;
+    (doc, with_gone) = union_of(doc, (tied.clone(), fname(ghost, RoleSeg::Cap(CapEnd::End))));
+    (doc, with_absent) = union_of(doc, (tied.clone(), absent));
+    let doc = doc
+        .apply(&DocEdit::DeleteNode { id: ghost }, Tol::witness())
+        .expect("the ghost block is deletable")
+        .doc;
+    let ev = run(&doc);
+
+    let rung = |node: RecipeNodeId| -> String {
+        match ev.nodes.get(&node) {
+            Some(NodeResult::Failed(e)) => match &e.kind {
+                NodeErrorKind::DeclareResolve { error } => format!("{error:?}"),
+                other => panic!(
+                    "the second name's own fault must be raised, not the first name's tie: \
+                     got {other:?}"
+                ),
+            },
+            other => panic!("expected Failed, got {other:?}"),
+        }
+    };
+    let gone = rung(with_gone);
+    assert!(
+        gone.contains("NodeGone"),
+        "a deleted second name outranks the first name's tie; got {gone}"
+    );
+    let vanished = rung(with_absent);
+    assert!(
+        vanished.contains("Vanished"),
+        "a second name that names nothing here outranks the first name's tie; got {vanished}"
+    );
+    for answer in [&gone, &vanished] {
+        assert!(
+            !answer.contains("Ambiguous"),
+            "the first name's tie must not be the answer; got {answer}"
+        );
+    }
 }

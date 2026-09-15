@@ -77,6 +77,16 @@ impl EntityKey {
             _ => None,
         }
     }
+
+    /// **The vertex this key denotes, or `None`** — [`EntityKey::face`]'s
+    /// twin, for the roads that carry vertex contacts (the declare
+    /// door's same-operand pairs).
+    pub(crate) fn vertex(self) -> Option<VertexKey> {
+        match self {
+            Self::Vertex(k) => Some(k),
+            _ => None,
+        }
+    }
 }
 
 /// A forward entry: unique, or the N2 tie (≥ 2 equally-admissible

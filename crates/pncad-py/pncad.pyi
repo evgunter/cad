@@ -4135,9 +4135,13 @@ class Denotation:
     `Evaluation.denotation` answers with.
 
     A TIE is a naming success and a referencing failure: the name is
-    well formed and several entities answer to it equally, so the
-    frame doors refuse (`ReadbackError`, `variant == "ambiguous"`)
-    rather than picking one. `tied` is the fact to branch on;
+    well formed and several entities answer to it equally, so a frame
+    door that reads THAT KIND refuses (`ReadbackError`,
+    `variant == "ambiguous"`) rather than picking one. A door handed a
+    name of a kind it does not read is not a door that has to pick
+    one, and refuses `wrong_kind` first, tied or not — so a tie here
+    predicts `ambiguous` only at the door for the name's own kind.
+    `tied` is the fact to branch on;
     `candidates` is how many answer, which is `1` exactly when `tied`
     is `False`. It carries a COUNT and never the candidates — those
     are arena keys, which do not cross."""
@@ -4481,10 +4485,12 @@ class Evaluation:
     def denotation(self, node: NodeId, name: str) -> Denotation:
         """How this name resolves — uniquely, or as a tie. The
         referencing question, answered without exposing what it
-        resolves to, and the door to ask BEFORE a frame: the three
-        frame doors refuse a tie rather than picking a candidate, and
-        this says whether one is coming. Raises `ReadbackError` for
-        `no_such_name` and the node ladder."""
+        resolves to, and the door to ask BEFORE a frame: a frame door
+        for the name's OWN kind refuses a tie rather than picking a
+        candidate, and this says whether one is coming. A door for
+        another kind refuses `wrong_kind` before it looks at the tie,
+        so this answer does not predict that one. Raises
+        `ReadbackError` for `no_such_name` and the node ladder."""
 
     def resolve(self, name: str) -> Resolution:
         """Does this STORED name still denote, in THIS evaluation? —

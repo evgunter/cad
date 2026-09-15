@@ -59,3 +59,14 @@ the absent name, ask the KIND off the name, and only then split on
   `FaceScope::Named` arm — the defect.
 - `crates/editor-core/src/clearance.rs`, `SelectionRefusal` — where a
   tie has no word.
+
+## A third fault in the same four lines
+
+Found by the style review of PR 2681, which read the quoted arm rather
+than the finding: `EntityKey::Face(k) if ent.body == sel.body` falls
+through to the `_` arm, so a name that IS a face — but a face of a
+DIFFERENT output body of the same value — is refused `NotAFace`. The
+refusal says the name denotes the wrong kind of thing when it denotes
+exactly the right kind in the wrong place. That is a third distinct
+fact (`NotAFace`, `Unresolved`, and "a face, elsewhere in this value")
+answered with two words, and a taker should decide all three together.

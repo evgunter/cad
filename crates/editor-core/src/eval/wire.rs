@@ -15,8 +15,10 @@
 //! resolves an AUTHORED name against the tables THIS run has built so
 //! far — the blend selection, a shell's open faces, a face frame, the
 //! declare door, a measure's references — asks the same three
-//! questions in the same order, and [`ladder::Live`] is the token that
-//! makes the order a type rather than a convention. It maps to no
+//! questions, and [`ladder::Live`] is the token that makes rung 1's
+//! place a type rather than a convention. The one-table doors ask
+//! them 1, 2, 3; the DECLARE door interleaves its own pair question
+//! and asks 1, 3, kind, 2 ([`resolve_declarations`]). It maps to no
 //! kernel op either: the kernel takes entity keys, and everything that
 //! turns an authored name into one, or into an N5 refusal, is this
 //! module's. What a resolved name DENOTES is the question after it,
@@ -2423,7 +2425,8 @@ fn resolve_open_faces(
 ///
 /// Mid-evaluation there is no prior run and no whole-evaluation
 /// index, so [`mod@crate::resolve`]'s full ladder does not apply:
-/// what is left is three rungs, in this order.
+/// what is left is three rungs, numbered here in the order the
+/// ONE-TABLE doors ask them ([`resolve_in`] walks exactly this).
 ///
 /// 1. [`ladder::live`] — the minting node must still be in the
 ///    document. Ids are never reused, so an id below the mint counter
@@ -2439,10 +2442,17 @@ fn resolve_open_faces(
 ///    itself, and the witness carries the multiplicity and the
 ///    minting site.
 /// 3. [`ladder::Landing::Absent`] → `Vanished`, through
-///    [`crate::resolve::ResolveError::vanished_fallback`]: no prior
-///    run is consultable mid-evaluation, so there is no evidence to
-///    weigh and nothing to bank, which is exactly the payload that
-///    constructor names.
+///    [`ladder::vanished`]: no prior run is consultable
+///    mid-evaluation, so there is no evidence to weigh and nothing to
+///    bank, which is exactly the payload that constructor names.
+///
+/// **Rung 2 and rung 3 are ordered by the DOOR, not by this list.**
+/// [`resolve_declarations`] asks 1, 3, its pair's kind question, then
+/// 2: a pair the vocabulary has no step for is unsupported however
+/// many entities answer to either name, so the kind question outranks
+/// the tie there, and the argument is written at that door. Rung 1
+/// outranks both at every door, which is the part the [`ladder::Live`]
+/// token enforces.
 ///
 /// The refusals come out BOXED, which is how both doors' error
 /// variants carry a `ResolveError` anyway.
@@ -3715,9 +3725,10 @@ fn route_declarations(
             // can be dropped without one of them answering a name it
             // has not checked; the cost is a document lookup on a path
             // that already refuses.
-            ladder::live(name, doc).map_err(|error| NodeErrorKind::DeclareResolve { error })?;
+            let live =
+                ladder::live(name, doc).map_err(|error| NodeErrorKind::DeclareResolve { error })?;
             decl_site(id, members, name).ok_or_else(|| NodeErrorKind::DeclareResolve {
-                error: Box::new(crate::resolve::ResolveError::vanished_fallback(name)),
+                error: ladder::vanished(&live),
             })
         };
         let (s1, s2) = (site(n1)?, site(n2)?);
@@ -4052,16 +4063,15 @@ fn face_name(
 /// same for both, which is what makes "resolve a declared name against
 /// two tables" one answer rather than two.
 ///
-/// v1 vocabulary: cross-operand Face–Face pairs (cosurface glue
-/// intents — the resolver is carrier-agnostic and always was: it
-/// pushes a `FacePairDeclaration` whatever the two faces' surface
-/// kinds are, and the kernel's ladder is what verifies it) and
-/// same-operand Vertex–Vertex / Vertex–Face pairs (carried 3′
-/// contacts). Everything else refuses typed. Resolution
-/// scope is deliberately the OPERANDS' tables (spec D4: "resolve
-/// through the operands' name tables") — a name minted elsewhere in
-/// the document is Vanished HERE even if some other node still
-/// carries it.
+/// The v1 pair vocabulary is [`DeclaredStep`] and is not re-listed
+/// here; what this door adds to it is that the resolver is
+/// carrier-agnostic and always was — it pushes a
+/// `FacePairDeclaration` whatever the two faces' surface kinds are,
+/// and the kernel's ladder is what verifies it. Everything outside
+/// that vocabulary refuses typed. Resolution scope is deliberately
+/// the OPERANDS' tables (spec D4: "resolve through the operands' name
+/// tables") — a name minted elsewhere in the document is Vanished
+/// HERE even if some other node still carries it.
 ///
 /// **Twinned with [`resolve_selection`]** (M6-5): the fillet's
 /// selection resolves through the same [`ladder`], which owns rung
@@ -4075,13 +4085,25 @@ fn resolve_declarations(
     a_table: &NameTable,
     b_table: &NameTable,
 ) -> Result<BooleanDeclarations, NodeErrorKind> {
-    use crate::names::EntityKey;
     use topo::Operand;
 
     let mut out = BooleanDeclarations::none();
     for ((n1, n2), class) in pairs {
         let class = *class;
         let refused = |error| NodeErrorKind::DeclareResolve { error };
+        // BOTH names walk their own rungs before EITHER tie is
+        // raised, which is the cross-name half of the order below and
+        // is not something the ladder decides: the ladder ranks
+        // within one name's walk and says nothing about one name's
+        // rungs against the other's. This door's rule is that the
+        // TIE is the one per-name refusal the PAIR question outranks,
+        // and a pair question cannot be asked before both names have
+        // landed. So every per-name fault that is not the tie —
+        // `NodeGone`, `Vanished`, both-operands — is raised for
+        // whichever name carries it, and a tie on the first name
+        // waits behind them: an author with a second name that does
+        // not resolve at all has a repair to make either way, and
+        // narrowing the first would not reach it.
         let (o1, live1, l1) = declare_landing(n1, doc, a_table, b_table)?;
         let (o2, live2, l2) = declare_landing(n2, doc, a_table, b_table)?;
         // KIND BEFORE MULTIPLICITY, the order [`resolve_face`] asks
@@ -4098,87 +4120,120 @@ fn resolve_declarations(
             kinds,
             cross_operand: o1 != o2,
         };
-        if !declared_pair_supported((o1, n1.kind), (o2, n2.kind)) {
+        let Some(step) = declared_step((o1, n1.kind), (o2, n2.kind)) else {
             return Err(unsupported((n1.kind, n2.kind)));
-        }
+        };
         let k1 = ladder::resolve(live1, l1).map_err(refused)?.key;
         let k2 = ladder::resolve(live2, l2).map_err(refused)?.key;
-        // The arms below PROJECT the keys of the shape the question
-        // above already named; the vocabulary itself is written once,
-        // there. Reaching the last arm means a table holds a key of
-        // another kind than its name's — asserted in debug, and in
-        // release answered off the KEYS, the one place the two can
-        // disagree.
-        match ((o1, k1), (o2, k2)) {
-            // Cross-operand face pair: the cosurface glue intent, on
-            // whatever carrier the two faces share.
-            ((Operand::A, EntityKey::Face(fa)), (Operand::B, EntityKey::Face(fb)))
-            | ((Operand::B, EntityKey::Face(fb)), (Operand::A, EntityKey::Face(fa))) => {
+        // The arms below PROJECT the keys of the step named above and
+        // add no shape of their own — the vocabulary is
+        // [`declared_step`]'s list and is not written twice. A
+        // projection that fails means a table holds a key of another
+        // kind than its name's: asserted in debug, and in release
+        // answered off the KEYS, the one place the two can disagree.
+        let broke = || {
+            debug_assert!(
+                false,
+                "the operands' tables hold a key whose kind is not its name's: \
+                 `NameTable::insert_ref` and `insert_tied_ref` admit a row only at \
+                 its name's kind"
+            );
+            unsupported((k1.kind(), k2.kind()))
+        };
+        match step {
+            DeclaredStep::CrossFaces => {
+                let (a, b) = if o1 == Operand::A { (k1, k2) } else { (k2, k1) };
+                let (Some(fa), Some(fb)) = (a.face(), b.face()) else {
+                    return Err(broke());
+                };
                 out.coincident_faces
                     .push(FacePairDeclaration::new(fa, fb, class));
             }
-            // Same-operand carried contacts.
-            ((oa, EntityKey::Vertex(va)), (ob, EntityKey::Vertex(vb))) if oa == ob => {
-                let c: &mut CarriedContacts = match oa {
-                    Operand::A => &mut out.carried_a,
-                    Operand::B => &mut out.carried_b,
+            DeclaredStep::SameVv => {
+                let (Some(va), Some(vb)) = (k1.vertex(), k2.vertex()) else {
+                    return Err(broke());
                 };
                 // The AUTHORED class, carried — not re-defaulted. The
                 // whole point of the payload change is that this door
                 // no longer has to guess.
-                c.vv.push(CarriedVv {
+                carried(&mut out, o1).vv.push(CarriedVv {
                     pair: VvContact { a: va, b: vb },
                     class,
                 });
             }
-            ((oa, EntityKey::Vertex(v)), (ob, EntityKey::Face(f)))
-            | ((ob, EntityKey::Face(f)), (oa, EntityKey::Vertex(v)))
-                if oa == ob =>
-            {
-                let c: &mut CarriedContacts = match oa {
-                    Operand::A => &mut out.carried_a,
-                    Operand::B => &mut out.carried_b,
+            DeclaredStep::SameVf => {
+                // Which of the two is the vertex is the KINDS'
+                // answer, already made by [`declared_step`].
+                let (v, f) = if n1.kind == names::EntityKind::Vertex {
+                    (k1, k2)
+                } else {
+                    (k2, k1)
                 };
-                c.vf.push(CarriedVf {
-                    rest: VfContact { vertex: v, face: f },
+                let (Some(vertex), Some(face)) = (v.vertex(), f.face()) else {
+                    return Err(broke());
+                };
+                carried(&mut out, o1).vf.push(CarriedVf {
+                    rest: VfContact { vertex, face },
                     class,
                 });
-            }
-            _ => {
-                debug_assert!(
-                    false,
-                    "the operands' tables hold a key whose kind is not its name's: \
-                     `NameTable::insert_ref` and `insert_tied_ref` admit a row only at \
-                     its name's kind"
-                );
-                return Err(unsupported((k1.kind(), k2.kind())));
             }
         }
     }
     Ok(out)
 }
 
-/// **Whether the v1 threading vocabulary has a step for this pair**,
-/// asked of the two names' KINDS and the operands they landed in —
-/// which is everything the question depends on, and none of it needs
-/// a name resolved to one entity.
+/// The carried-contact sink a SAME-operand declaration lands in — one
+/// place where the operand decides which side's list a 3′ contact
+/// joins, rather than the same two-arm match at each contact shape.
+fn carried(out: &mut BooleanDeclarations, op: topo::Operand) -> &mut CarriedContacts {
+    match op {
+        topo::Operand::A => &mut out.carried_a,
+        topo::Operand::B => &mut out.carried_b,
+    }
+}
+
+/// **The step a declared pair has in the v1 threading vocabulary** —
+/// the ONE enumeration of that vocabulary in this crate. Every other
+/// mention points here: [`resolve_declarations`] projects the keys of
+/// whichever variant comes back and adds no shape of its own, and
+/// [`NodeErrorKind::DeclareUnsupportedPair`]'s doc names this
+/// function instead of re-listing the pairs. A fourth shape is added
+/// by adding a variant, which makes the projection below fail to
+/// compile rather than diverge quietly.
 ///
-/// The list, once: cross-operand Face–Face (the cosurface glue
-/// intent) and same-operand Vertex–Vertex / Vertex–Face (carried 3′
-/// contacts). [`resolve_declarations`]'s arms project the keys of
-/// whichever of these the pair is; this decides which, and refuses
-/// the rest.
-fn declared_pair_supported(
+/// Asked of the two names' KINDS and the operands they landed in,
+/// which is everything the question depends on — none of it needs a
+/// name resolved to one entity, which is why the question can precede
+/// the tie.
+#[derive(Clone, Copy)]
+enum DeclaredStep {
+    /// Cross-operand Face–Face: the cosurface glue intent, on
+    /// whatever carrier the two faces share.
+    CrossFaces,
+    /// Same-operand Vertex–Vertex: a carried 3′ contact.
+    SameVv,
+    /// Same-operand Vertex–Face, either way round in the authored
+    /// pair: a carried 3′ contact.
+    SameVf,
+}
+
+/// The vocabulary itself; see [`DeclaredStep`]. `None` is
+/// [`NodeErrorKind::DeclareUnsupportedPair`]'s case.
+fn declared_step(
     a: (topo::Operand, names::EntityKind),
     b: (topo::Operand, names::EntityKind),
-) -> bool {
+) -> Option<DeclaredStep> {
     use names::EntityKind::{Face, Vertex};
     use topo::Operand;
     match (a, b) {
-        ((Operand::A, Face), (Operand::B, Face)) | ((Operand::B, Face), (Operand::A, Face)) => true,
-        ((oa, ka), (ob, kb)) => {
-            oa == ob && matches!((ka, kb), (Vertex, Vertex) | (Vertex, Face) | (Face, Vertex))
+        ((Operand::A, Face), (Operand::B, Face)) | ((Operand::B, Face), (Operand::A, Face)) => {
+            Some(DeclaredStep::CrossFaces)
         }
+        ((oa, Vertex), (ob, Vertex)) if oa == ob => Some(DeclaredStep::SameVv),
+        ((oa, Vertex), (ob, Face)) | ((oa, Face), (ob, Vertex)) if oa == ob => {
+            Some(DeclaredStep::SameVf)
+        }
+        _ => None,
     }
 }
 
@@ -4200,10 +4255,9 @@ fn declared_pair_supported(
 ///
 /// Rung 3 is here rather than with rung 2 because a name that names
 /// nothing in the operand it was routed to says THAT: the pair's
-/// vocabulary is not an answer about a name that is not there, and
-/// the kind it would be asked about is one nothing in this document
-/// answers to. Only rung 2 — the tie — is left for the caller, which
-/// is the one refusal the kind question outranks.
+/// vocabulary is not an answer about a name that is not there. Only
+/// rung 2 — the tie — is left for the caller, which is the one
+/// refusal the kind question outranks.
 ///
 /// # Errors
 ///
@@ -4229,6 +4283,18 @@ fn declare_landing<'n>(
         (Landing::Absent, Landing::Absent) => (Operand::B, Landing::Absent),
         (Landing::Absent, b) => (Operand::B, b),
         (a, Landing::Absent) => (Operand::A, a),
+        // BOTH-OPERANDS ABOVE THE PAIR'S KIND QUESTION, and for the
+        // opposite reason to the tie's. `DeclareUnsupportedPair`
+        // carries `cross_operand`, which is a fact about WHICH
+        // operands the two names landed in, so the kind refusal
+        // cannot be BUILT over a name that landed in both: a field of
+        // it has no value. A tie leaves no field empty — every
+        // candidate carries the name's kind and the name landed in
+        // one operand — so the kind refusal is fully answerable over
+        // a tie, and the tie waits. This is the side pick and not a
+        // multiplicity count: `Unique` and `Tied` both read as
+        // PRESENT here, and a name in two operands is refused whether
+        // either landing is a tie or not.
         _ => {
             return Err(NodeErrorKind::DeclareBothOperands {
                 name: Box::new(name.clone()),

@@ -5120,3 +5120,46 @@ site is exactly that shape and was found by reading
 should not reuse the grep alone.
 
 Signed (`wire-t1`).
+
+### Delta after the style review of PR 2681 (`wire-t1`)
+
+No MAJOR, nothing blocked merge; the fix pass is recorded here because
+two of its items correct claims this log itself made.
+
+**The fix minted a fresh instance of its own class, and the review
+caught it.** `DeclareBothOperands` is a multiplicity question raised at
+the door I rewrote, above the kind question, with a 25-line doc comment
+arguing why *rung 3* stays above it and nothing at all about
+both-operands. The argument now written at that site is that
+`DeclareUnsupportedPair` carries `cross_operand`, so the kind refusal
+**cannot be built** over a name that landed in two operands — a field
+of it has no value — where a tie leaves no field empty. That is a
+different shape of reason from "this outranks that", and it is the only
+one available: the kind question there is genuinely unanswerable, not
+merely deferred.
+
+**The disclosure was one quarter of the truth.** I reported one moved
+outcome (`NodeGone` on the second name) and justified it as "the
+ladder's own stated ranking". The ladder ranks within ONE name's walk
+and says nothing about one name's rung 3 against another's rung 2, so
+the justification did not cover the case it was attached to, let alone
+the three it omitted (`Vanished`, both-operands, and `step_diagnosis`'s
+`UnionDeclareStep`). All four change a Python tag. Two are now pinned;
+the rule is restated as this door's own.
+
+**Three "one home" claims that were not.** `declared_pair_supported`
+said "the list, once" beside a `match` that re-enumerated the same
+three shapes; it is now `DeclaredStep`, an enum the door projects from,
+so a fourth shape fails to compile rather than diverging.
+`ladder::vanished`'s "rather than a second spelling" was false while
+`route_declarations` built the same payload inline 1150 lines below;
+that call now goes through it. And two rung-order statements — the
+module header and the ladder's own doc — still described 1, 2, 3 for a
+door that now asks 1, 3, kind, 2.
+
+**For future lanes on this program:** a comment asserting a property the
+code does not have is the shape this program keeps paying for, and a
+one-home unit is exactly where it is least affordable. Writing "once"
+is a claim to check with `rg`, not a summary of intent.
+
+Signed (`wire-t1`).

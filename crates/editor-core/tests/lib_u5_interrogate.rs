@@ -204,55 +204,13 @@ fn every_materialized_name_denotes_uniquely_and_answers() {
 /// tie still refuses at the door that DOES read faces.
 #[test]
 fn a_read_door_refuses_a_tied_name_of_another_kind_by_its_kind() {
-    use editor_core::{BooleanOp, Entry};
+    use editor_core::Entry;
 
-    // The symmetric U cutter's N2 tie (`m4_pr4_resolve`'s fixture).
-    let (doc, p_a) = fixture::on_frame(
-        ProfileDoc::empty_derived("lib_u5_interrogate_tie", Tol::witness()),
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]],
-    );
-    let (doc, a) = fixture::insert(
-        doc,
-        Node::Extrude {
-            profile: p_a,
-            distance: len(4.0),
-        },
-    );
-    let (doc, p_u) = fixture::on_frame(
-        doc,
-        [0.0, 0.0, 1.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![
-            (2.0, 1.0),
-            (6.0, 1.0),
-            (6.0, 3.0),
-            (2.0, 3.0),
-            (2.0, 2.5),
-            (5.0, 2.5),
-            (5.0, 1.5),
-            (2.0, 1.5),
-        ]],
-    );
-    let (doc, b) = fixture::insert(
-        doc,
-        Node::Extrude {
-            profile: p_u,
-            distance: len(2.0),
-        },
-    );
-    let (doc, sub) = fixture::insert(
-        doc,
-        Node::Boolean {
-            op: BooleanOp::Subtract,
-            a,
-            b,
-            declare: None,
-        },
-    );
+    // The symmetric U cutter's N2 tie.
+    let (doc, sub) = fixture::u_cutter_tie(ProfileDoc::empty_derived(
+        "lib_u5_interrogate_tie",
+        Tol::witness(),
+    ));
     let ev = eval(&doc);
     let table = &ev.value(sub).expect("the U subtract evaluates").name_table;
     let tied: StableName = table
