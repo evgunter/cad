@@ -2785,11 +2785,18 @@ NOT_BOUND = {
 MEMBERS_BOUND_AS = {
     # --- an arm that crosses as a TAG WORD -------------------------
     "AssemblyError::Product": "AssemblyError.variant",
-    "AssemblyError::Reference": "AssemblyError.variant",
-    "AssemblyError::NoAtRestRecord": "AssemblyError.variant",
+    "AssemblyError::Mint": "AssemblyError.variant",
     "AssemblyError::CarriedMintRefusal": "AssemblyError.variant",
     "AssemblyError::AtRest": "AssemblyError.variant",
     "AssemblyError::Uncertified": "AssemblyError.variant",
+    # The two mint arms answer with a LIST, so the word a caller
+    # branches on for ONE refused mate rides the row, not the gate.
+    "MintRefusal::Reference": "MintRefusal.variant",
+    "MintRefusal::NoAtRestRecord": "MintRefusal.variant",
+    # A route is three facts and Python reads all three, without
+    # holding the type: the same spelling `Attribution` and
+    # `CarriedDeclaration` use.
+    "CarriedRefusal::route": "CarriedRefusal.of",
     # A VALUE's arms, not a refusal's, and the word is `relation` because
     # what the walk answers is how a declaration stands to the document
     # it was gathered from.
