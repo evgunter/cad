@@ -1,8 +1,9 @@
 # SUITE exit walk — PROPOSED
 
 **Program:** SUITE — suites, fixtures and the helpers they copy.
-Opened 2026-09-11. Five of six units merged 2026-09-15; `S392` (PR 2650)
-is green on its final head and merging. **This walk is PROPOSED and is
+Opened 2026-09-11, all six units merged 2026-09-15. The slate reads
+**eight closed, zero open** (`work.py status --program suite`).
+**This walk is PROPOSED and is
 not ratified until Ev merges the `[ev]` PR carrying it** — the S-MATE
 convention (Ev, 2026-09-04). It must not be read as a done-state record
 before then, and `docs/DOC-LEDGER.md` carries no entry for this program
