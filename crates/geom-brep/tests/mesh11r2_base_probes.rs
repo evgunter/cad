@@ -47,7 +47,7 @@ fn r2_base_the_saturated_span_refuses_at_the_parse() {
         let t0 = PI / 2.0 - delta;
         let t1 = t0 + 2.0 * PI + 2.0 * delta;
         let pair = vec![great(t0, t1, 0, 1), great(t1, t0 + 4.0 * PI, 1, 0)];
-        let r = curved_face(&sphere, &pair, 1.0, bd).map(|f| f.area);
+        let r = curved_face(&sphere, &pair, true, bd).map(|f| f.area);
         if !matches!(
             r,
             Err(PropsError::NotIsoRectangle {

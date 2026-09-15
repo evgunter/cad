@@ -163,7 +163,7 @@ fn r2_the_undecided_arm_is_a_precondition_violation_not_an_epsilon_residue() {
     // (b) And the pairing call's failure is Invalid — the
     //     question-not-posed diagnosis — at every band, not an
     //     in-band ε residue.
-    let err = geom_brep::classify_material_pairing(&s_post, 1.0, &s_shelf, 1.0, q, arm, band())
+    let err = geom_brep::classify_material_pairing(&s_post, true, &s_shelf, true, q, arm, band())
         .expect_err("perpendicular normals decide neither aligned nor opposed");
     assert_eq!(
         err.margin,
@@ -175,8 +175,9 @@ fn r2_the_undecided_arm_is_a_precondition_violation_not_an_epsilon_residue() {
     // Widening the band does not change it: nothing about this is a
     // tolerance question.
     let wide = Band::new(1e-3, 1e-2).unwrap();
-    let err_wide = geom_brep::classify_material_pairing(&s_post, 1.0, &s_shelf, 1.0, q, arm, wide)
-        .expect_err("still no verdict at a 1e-3 band");
+    let err_wide =
+        geom_brep::classify_material_pairing(&s_post, true, &s_shelf, true, q, arm, wide)
+            .expect_err("still no verdict at a 1e-3 band");
     assert_eq!(
         err_wide.margin,
         geom_core::MarginDiag::Invalid,
