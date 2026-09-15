@@ -394,11 +394,24 @@ struct Geometry {
     /// Per-corner display flags (`SceneMesh::FLAG_PROBE`): the G3
     /// distinctness value, painted as the probe tint below.
     flags: wgpu::Buffer,
-    indices: wgpu::Buffer,
-    index_count: u32,
+    /// How many vertices one pass over these buffers draws — the
+    /// scene's corner count, which is [`corner_count`]'s answer for
+    /// the [`SceneMesh`] they were built from.
+    corners: u32,
     /// Which scene these buffers hold. The app bumps it whenever it
     /// rebuilds the mesh; a mismatch here is the upload trigger.
     revision: u64,
+}
+
+/// How many vertices one pass over `scene` draws.
+///
+/// **The scene is non-indexed geometry** — [`SceneMesh`]'s own
+/// contract: every triangle emits its own three corners, so nothing
+/// is shared and the draw range is the corner table's own length.
+/// This is the only place that number is derived, so the two passes
+/// over one scene cannot draw different ranges of it.
+fn corner_count(scene: &SceneMesh) -> u32 {
+    u32::try_from(scene.positions().len()).unwrap_or(u32::MAX)
 }
 
 impl ViewportRenderer {
@@ -547,19 +560,12 @@ impl ViewportRenderer {
             wgpu::BufferUsages::VERTEX,
             bytemuck::cast_slice(scene.flags()),
         );
-        let indices = create_init_buffer(
-            device,
-            "viewer_scene_indices",
-            wgpu::BufferUsages::INDEX,
-            bytemuck::cast_slice(scene.indices()),
-        );
         self.geometry = Some(Geometry {
             positions,
             normals,
             ids,
             flags,
-            indices,
-            index_count: u32::try_from(scene.indices().len()).unwrap_or(u32::MAX),
+            corners: corner_count(scene),
             revision,
         });
     }
@@ -589,7 +595,7 @@ impl ViewportRenderer {
         view_projection: &[[f32; 4]; 4],
     ) -> Option<u32> {
         let geometry = self.geometry.as_ref()?;
-        if geometry.index_count == 0 {
+        if geometry.corners == 0 {
             return None;
         }
         queue.write_buffer(
@@ -651,8 +657,7 @@ impl ViewportRenderer {
             pass.set_bind_group(0, &self.id.bind_group, &[]);
             pass.set_vertex_buffer(0, geometry.positions.slice(..));
             pass.set_vertex_buffer(1, geometry.ids.slice(..));
-            pass.set_index_buffer(geometry.indices.slice(..), wgpu::IndexFormat::Uint32);
-            pass.draw_indexed(0..geometry.index_count, 0, 0..1);
+            pass.draw(0..geometry.corners, 0..1);
         }
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
@@ -1164,8 +1169,7 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
         render_pass.set_vertex_buffer(1, geometry.normals.slice(..));
         render_pass.set_vertex_buffer(2, geometry.ids.slice(..));
         render_pass.set_vertex_buffer(3, geometry.flags.slice(..));
-        render_pass.set_index_buffer(geometry.indices.slice(..), wgpu::IndexFormat::Uint32);
-        render_pass.draw_indexed(0..geometry.index_count, 0, 0..1);
+        render_pass.draw(0..geometry.corners, 0..1);
         // The marks last, over the solid they lie on: depth-tested
         // against it, biased toward the eye, writing no depth.
         if let Some(edges) = renderer.edges.held.as_ref() {
@@ -1464,8 +1468,10 @@ fn fs_id(in: IdOut) -> @location(0) u32 {
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
     use eframe::egui_wgpu;
+    use pncad::geom_core::Tol;
 
     use super::*;
+    use crate::scene::{self, DisplayTolerance};
 
     /// Every `{{TOKEN}}` in [`SHADER`] must be substituted by
     /// [`shader_source`]: an unreplaced token would reach the WGSL
@@ -1547,6 +1553,82 @@ mod tests {
                 SHADER.contains(constant),
                 "the shader's sRGB encode no longer spells {constant}; \
                  `theme::channel_to_srgb8` is the other half of this curve",
+            );
+        }
+    }
+
+    /// **The draw range is every corner, and every buffer the passes
+    /// bind is that long.**
+    ///
+    /// The scene is non-indexed, so [`corner_count`] is the whole
+    /// contract between the buffers and the draw: the shaded pass
+    /// binds positions, normals, ids and flags, the id pass binds
+    /// positions and ids, and both draw `0..corners`. A table shorter
+    /// than that range is a read past the end of a vertex buffer —
+    /// wgpu validation on a device, and nothing at all here — and a
+    /// table longer than it is geometry silently not drawn. `flags` is
+    /// the one this pins that nothing else does: a walk arm that
+    /// pushed a corner without its display word would draw the whole
+    /// picture and mis-tint part of it.
+    #[test]
+    fn the_draw_range_is_the_length_of_every_buffer_the_passes_bind() {
+        let tol = Tol::witness();
+        let (doc, _root) = scene::plate_with_hole(tol).expect("the plate authors");
+        let delta = DisplayTolerance::new(1.0e-4).expect("a positive display tolerance");
+        let mesh = scene::scene_of(&doc, delta, tol).expect("the plate tessellates");
+
+        let corners = corner_count(&mesh);
+        assert_eq!(
+            usize::try_from(corners).expect("the corner count fits a usize"),
+            mesh.stats().triangles * 3,
+            "the draw range is not every triangle's three corners"
+        );
+        for (what, held) in [
+            ("positions", mesh.positions().len()),
+            ("normals", mesh.normals().len()),
+            ("ids", mesh.ids().len()),
+            ("flags", mesh.flags().len()),
+        ] {
+            assert_eq!(
+                held,
+                usize::try_from(corners).expect("the corner count fits a usize"),
+                "the passes draw {corners} vertices and bind {held} of {what}"
+            );
+        }
+
+        // The empty picture draws nothing: `read_id_at` reads this as
+        // "there is no answer" rather than submitting an empty pass.
+        assert_eq!(corner_count(&SceneMesh::empty(mesh.bounds(), delta)), 0);
+    }
+
+    /// **Both scene passes hand [`corner_count`]'s answer to `draw`,
+    /// and neither reaches an index buffer.**
+    ///
+    /// The row above pins the VALUE; nothing headless can pin the
+    /// call, because a draw needs a device and no adapter here has
+    /// one. What is left is the text of the two call sites, read
+    /// through the shared lexer so comments and literals — this row's
+    /// own needles included — are not counted.
+    ///
+    /// It asserts that the two passes are spelled this way, not that
+    /// the GPU executes them: the hosted viewer-render rows are what
+    /// judge the picture.
+    #[test]
+    fn both_scene_passes_draw_the_corner_count_with_no_index_buffer() {
+        let code = test_utils::source::code_only(include_str!("gpu.rs"));
+        assert_eq!(
+            code.matches(".draw(0..geometry.corners, 0..1)").count(),
+            2,
+            "the shaded pass and the id pass are the two draws over the scene's \
+             buffers; a third, or one spelled differently, is outside what this \
+             row and `corner_count` together cover"
+        );
+        for absent in [".draw_indexed(", ".set_index_buffer("] {
+            assert_eq!(
+                code.matches(absent).count(),
+                0,
+                "`{absent}` is back: the scene is non-indexed geometry, so an index \
+                 buffer here is a permutation nothing produces"
             );
         }
     }

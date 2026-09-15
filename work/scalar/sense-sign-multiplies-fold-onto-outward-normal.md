@@ -22,3 +22,27 @@ signed, the bit is spelled as a conditional negation. Then
 `Face::sense_sign<T>()` retires with `face_normal.rs`'s hand-kept
 census. Pin: D9 bit identity over the touched crates' suites. Many
 programs' ground (TOPO, BLEND, WIRE, S-MESH, BOOL); announce each.
+
+## An eleventh site, found by unit 1's reviewers (2026-09-15)
+
+`crates/sweep/src/blend/arms.rs` — `Sheet::trace` and `Ruling::trace`
+both open `let side = if sense { T::one() } else { -T::one() }` from a
+face bit (the `sense` parameter, fed from `battery.rs`'s
+`convexity.ball_side(senses.0)`) and store it as
+`SupportTrace::{Straight, Round}.side: T`, documented "The material
+side, `±1`", consumed a function boundary away in `SupportTrace::contact`
+and in the centre closed forms. It is D6 §4's class — a sense CROSSING a
+boundary as a scalar `T` — and unit 1's three sweep patterns all miss
+it: the bit arrives as a parameter named `sense` (not a `sense_sign`
+read), and it leaves as a struct FIELD rather than a parameter.
+
+**Two readings, and this unit decides between them.** Either the field
+is a sense wearing a `T` and folds like the other ten, or the closed
+forms consume a genuinely signed σ (a curvature/offset direction) that
+happens to be seeded from the bit, in which case what is owed is the
+bit selecting σ once at the mint and the field keeping its own name.
+Read `contact` and the centre forms before choosing. BLEND's ground.
+
+Test-side residue in the same class, to follow its door:
+`crates/topo/tests/readback_sense_kind.rs` mints a `±1` from
+`pose.sense`.

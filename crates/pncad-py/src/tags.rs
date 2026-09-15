@@ -15,6 +15,13 @@
 //! import — `crate::node_kind` is the standing example — and then its
 //! roster is pinned in `src/tests.rs` directly instead.)
 //!
+//! One map keys off neither a kernel refusal nor a kernel value:
+//! [`eval_reason_tag`] keys off [`EvalReason`], this crate's own enum,
+//! because the evaluation door's "the node produced no value" has no
+//! kernel arm behind it. The enum is declared in `crate::errors` —
+//! this file's recogniser, below, admits no `enum` — and its map lives
+//! here with the rest, so the words are inventoried with the rest.
+//!
 //! Typed exceptions carry the structured error, never strings. The
 //! exception's machine payload is a stable **tag** — a discriminant
 //! name a caller can branch on, which no `Display` prose gives it
@@ -48,15 +55,19 @@
 //! literals against an inventory committed there — a rename, an
 //! addition, a deletion or a new tag function reds on the default
 //! no-interpreter row. Its reader ENUMERATES rather than approximates:
-//! every top-level line here must be a comment, a `use` item, a
-//! `pub fn NAME(..) -> &'static str {` closed by a `}` in column 0, or
-//! a `pub const NAME: &str = "..";`, and every match arm's body must
-//! be a literal, a nested `match`, a block around one of those, or a
-//! call to another tag function. Anything else fails that test with
+//! every top-level line here must be a comment or blank, a `use`
+//! item, a `pub fn NAME(..) -> &'static str {` or
+//! `pub fn NAME(..) -> Option<&'static str> {` closed by a `}` in
+//! column 0, or a `pub const NAME: &str = "..";`, and every match
+//! arm's body must be a literal, a nested `match`, a block around one
+//! of those, a call to another tag function, or — in the partial maps
+//! — a bare `None` or a `Some(..)` around one of the rest. Anything
+//! else fails that test with
 //! *I do not understand this* rather than being skipped — so an
 //! attribute, a helper, or a cleverer arm added here is a deliberate
 //! diff that teaches the reader too, never a silent hole.
 
+use crate::errors::EvalReason;
 use pncad::analysis::{
     AnalysisPolicyError, McRefusal, MeasureUnavailable, ParamBoxError, SeedError,
 };
@@ -2007,25 +2018,55 @@ pub fn interrogate_error_tag(err: &InterrogateError) -> &'static str {
     }
 }
 
-/// **The standing ladder's "this run has no result for that node"
-/// word, as a NAME rather than a repeated literal.**
+/// **The stable tag for every `EvaluationError.reason`** — the whole
+/// vocabulary of the evaluation door, in one exhaustive map.
 ///
-/// The read-back and picking doors reach this spelling through a
-/// `match` on a kernel arm ([`interrogate_error_tag`],
-/// [`hit_test_error_tag`]), so a rename there is loud. The EVALUATION
-/// door has no kernel arm to match on — `Evaluation::result` answers
-/// `None` for a node a canceled run never reached, and the reason tag
-/// beside it is this crate's own decision — so it spelled the word by
-/// hand, and a hand-spelled copy of a shared vocabulary is exactly
-/// the divergence `tests::dimension_tags_match_the_kernel_prose`
-/// exists for one file over.
+/// The evaluation door has no kernel enum to match on: every other
+/// map here keys off a refusal the kernel minted, and this one keys
+/// off [`EvalReason`], which is this crate's own decision about what
+/// "the node produced no value" can mean. The enum is declared beside
+/// the error taxonomy in `crate::errors` and its map is here, which
+/// splits one concept across two files — a constraint of the
+/// INSTRUMENT rather than a claim about where the taxonomy belongs.
+/// This file is read as DATA by the tag-table guard, whose recogniser
+/// admits `use` items, `pub fn` tag maps and `pub const` tag words
+/// and refuses everything else, so an `enum` written here stops that
+/// guard dead. A `pub const fn` is refused too, and less legibly: the
+/// reader strips `pub fn ` alone, so such a line is read as a `pub
+/// const` and refused for not being a `&str`. Every map here is a
+/// plain `pub fn` for that reason.
+/// [`crate::errors::EvalReason`] says the rest.
 ///
-/// Naming it here makes the copy a reference, and
-/// `tests::the_evaluation_door_speaks_the_standing_ladder` pins it
-/// against the two doors that DO match, in both directions. (Both
-/// named as text rather than as intra-doc links: `tests` is
-/// `#[cfg(test)]`, so a link to either would not render.)
-pub const NODE_NOT_EVALUATED: &str = "node_not_evaluated";
+/// **This map is the door's only mint.** The reason rides on the
+/// CLASS — `errors::ErrorClass::Evaluation` carries an [`EvalReason`]
+/// — so no raise of that class can be written without naming a
+/// variant of the enum, and `py::typed_err` is what turns it into a
+/// word. That is a property of the DOOR rather than of one function:
+/// the three raise sites in `py/value.rs` and any raise written in a
+/// file that does not exist yet reach this map the same way. What it
+/// does not forbid is a site that ALSO passes a `reason` field of its
+/// own; the minted word is attached last and wins, and a
+/// `debug_assert` in `py::typed_err` names the site. So every word
+/// the door can put on the wire is a literal on this page — where
+/// `tests::the_whole_tag_table_matches_its_committed_inventory` reds
+/// on an addition and on a rename.
+///
+/// [`EvalReason::NodeNotEvaluated`] is the standing ladder's first
+/// rung, spelled identically to the read-back and picking doors'
+/// ([`interrogate_error_tag`], [`hit_test_error_tag`]) and pinned
+/// against both by `tests::the_evaluation_door_speaks_the_standing_ladder`,
+/// in both directions. (Named as text rather than as an intra-doc
+/// link: `tests` is `#[cfg(test)]`, so a link would not render.)
+pub fn eval_reason_tag(reason: EvalReason) -> &'static str {
+    match reason {
+        EvalReason::UnknownNode => "unknown_node",
+        EvalReason::WrongKind => "wrong_kind",
+        EvalReason::EmptyBoolean => "empty_boolean",
+        EvalReason::NodeNotEvaluated => "node_not_evaluated",
+        EvalReason::NodeFailed => "node_failed",
+        EvalReason::Poisoned => "poisoned",
+    }
+}
 
 /// The stable tag for a hit-test refusal — the ray door's own.
 ///

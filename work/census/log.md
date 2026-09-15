@@ -327,3 +327,63 @@ call-site literal deliberately out of scope and pin the one uncovered
 word — is the orchestrator's to make in the spec rather than the lane's,
 because it is a question about the gate's REACH and answering it is the
 unit.
+
+## CENSUS-TAG-REACH merged (2026-09-15)
+
+PR 2660 merged as `6b432a15`, green on run `34976120254`. The spec is
+deleted per the ledger; the item is closed carrying its corrections.
+
+**The probe change worked, and it cost the spec's disposition.** The
+spec ruled each word become a `pub const` and required the lane to test
+by execution what would stop the next one. Against that disposition
+**nothing red**: a fresh site minting a word that had never existed
+passed 85 Rust and 832 Python tests. The word became a type.
+
+**And the trap sprang a THIRD consecutive time.** The type guarded
+`eval_err` — which is not the door; `typed_err` is. Two raise sites
+reached the map by convention, and **the same commit converted them to
+hand-call it**, re-minting the defect while closing another instance of
+it. The false claim shipped in doc comments, not PR prose, and the gap
+was visible inside one sentence: *"`eval_err` takes `EvalReason` … so no
+raise site can spell a word of its own"* — premise about one function,
+conclusion about all of them, argued in eight places.
+
+Closed by moving the wall to the door: `ErrorClass::Evaluation` now
+CARRIES the `EvalReason`, so a raise site cannot name the class without
+naming a variant. Probe executed in a file that did not exist: `E0308`.
+
+**What this unit adds to the program's standing findings** (the four
+points recorded at CENSUS-DEBUG's close still hold; these sharpen them):
+
+5. **Point 1 needs its scope widened.** Naming the trap as a prediction
+   and requiring a probe DID work — the lane caught an instance unaided
+   for the first time, and its probe defeated the orchestrator's own
+   disposition. What it did not catch is the trap one level out: the
+   probe tested the function the spec named, and the defect was that the
+   spec named the wrong unit of guarding. **A probe inherits the spec's
+   fence.** The next spec should require the lane to say what the
+   probe's own blind spot is before running it.
+
+6. **A blind-spot list has now been short three times for three
+   different reasons** — unit 1's by shape, unit 2's by shape, unit 3's
+   because the sweep's PATTERN (a literal beside a key) could not see a
+   getter, a tuple position or an argument. The lesson is not "look
+   harder"; it is that a sweep shaped like the defect you already found
+   finds that defect again.
+
+7. **Filed rows overclaimed on all three units.** They go to other
+   programs' slates and are read by people who did not watch them being
+   written. Unit 3's went out saying "in a door that has no such enum"
+   when two of three ride doors that DO have exhaustive maps, one of
+   which mints the colliding word itself. **A filed row should be
+   re-read against the tree before the PR goes up**, and that is now
+   part of what a fix pass owes.
+
+## Next
+
+The **`pncad-py` block**, five rows, placed in `plan.md` §Order as a
+block rather than by class: their fix shape is proven rather than
+hypothetical after this unit, and two of them record facts with a shelf
+life. `four-censuses-…` stays with the H rows — it asks whether four
+instruments should be fewer, and three of the five change what those
+instruments see.
