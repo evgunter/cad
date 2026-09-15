@@ -41,12 +41,34 @@ use crate::node::RecipeNodeId;
 ///    because telling an author to file a kernel bug over their own
 ///    legal document fails in the expensive direction.
 ///
-/// **Which category a variant is in is decided by the SENTENCE it
-/// opens with**, and the two framings are written once each
-/// ([`EMISSION_FRAMING`], [`UNRULED_FRAMING`]); `every_variant_opens_
-/// with_its_categorys_framing` pins each variant against the one it
-/// must speak, exhaustively, so a new variant cannot join a category
-/// by accident.
+/// **The categories are not uniformly readable off the opening words,
+/// and the exceptions are named.** Two framings are written once each
+/// — [`EMISSION_FRAMING`] and [`UNRULED_FRAMING`] — and they cover
+/// category 4 completely and category 1 only in part: [`Self::Emission`],
+/// [`Self::SplitLineage`] and [`Self::FragmentLineage`] speak the
+/// emission framing, while [`Self::Duplicate`], [`Self::Unnamed`] and
+/// [`Self::MissingUpstream`] are emission bugs too and each has its own
+/// older sentence, as do categories 2 and 3. So a reader can tell a
+/// MISSING RULE from everything else by the first clause — the
+/// distinction this list exists to make — and cannot read category 1
+/// off it. That residue is
+/// `work/wire/three-emission-bugs-do-not-speak-the-framing-written-once-for-them.md`.
+///
+/// What is machine-checked, and what is not, measured rather than
+/// asserted. `display_tests`' `every_variant_names_its_subject` maps
+/// every variant to its framing through an exhaustive match — so a new
+/// variant must CHOOSE a category to compile — and asserts each sample
+/// speaks that framing and not the other's. Its coverage check compares
+/// sampled indices against `0..rows.len()`, which catches a row deleted
+/// from the middle and does NOT catch a variant appended past the end.
+/// `crates/editor-core/tests/display_contract.rs`'s
+/// `naming_error_display_names_its_content_not_its_struct` closes that
+/// by welding a written roster to the rendered cases with a set
+/// difference: a roster entry with no case, a case outside the roster
+/// and a misspelling in either all fail. The residual hole is the one
+/// `assert_f6_every_variant`'s own doc states — a variant given its
+/// exhaustiveness arm and NEITHER a case NOR a roster entry — which
+/// safe Rust cannot close over a type that crate does not own.
 #[derive(Debug)]
 pub enum NamingError {
     /// A would-be duplicate name outside the tie path (the
@@ -154,12 +176,14 @@ pub enum NamingError {
     /// the guess, which a declared union invalidates the moment a later
     /// member splits a merged face.
     ///
-    /// **The walk itself does not classify**, because it cannot: a
-    /// caller that BUILT the body it asks about (`emit_sweep`'s cap
-    /// rims) has the opposite premise, and a wall that does not meet
-    /// its cap along one edge there is a contradicted key bundle.
-    /// The walk (`shared_rim`, in this module) therefore RETURNS a
-    /// [`RimShare`] and each caller says what it means.
+    /// **The walk does not classify**, because it cannot see the
+    /// premise: a caller whose body was minted alongside the bundle it
+    /// names from (`emit_sweep`'s cap rims) draws the opposite
+    /// conclusion from the same answer. The walk (`rim_between`, in this
+    /// module) therefore returns a `Rim` and each caller says what it
+    /// means. That does not make a wrong classification impossible —
+    /// `Emission` takes a `&'static str` and anyone may write one; what
+    /// it removes is inheriting one by saying nothing.
     ///
     /// A sibling word of [`Self::SeamVertexParentage`] rather than one
     /// generalised over [`super::table::EntityKey`], by
@@ -171,12 +195,12 @@ pub enum NamingError {
     ///
     /// The two ways the rim fails to be unique are ONE fact with a
     /// typed discriminant ([`RimShare`]) rather than two words. What
-    /// makes that hold is that the classification now lives at the
-    /// CALLER: this variant has exactly one construction site and so
-    /// exactly one premise, and under one premise the question asked
-    /// ("is the rim unique"), the subject (this face pair of this
-    /// operand) and the author's move are the same whichever way the
-    /// answer went. A `&'static str` here would be [`Self::Emission`]
+    /// makes that hold is that the classification lives at the CALLER:
+    /// this variant is constructed at two sites, both of them arms of
+    /// `emit_topo`'s one chord derivation and so both under ONE premise,
+    /// and under one premise the question asked ("is the rim unique"),
+    /// the subject (this face pair of this operand) and the author's
+    /// move are the same whichever way the answer went. A `&'static str` here would be [`Self::Emission`]
     /// one level down.
     SharedRim {
         /// The node whose body was walked — an OPERAND of the boolean,
@@ -216,10 +240,18 @@ pub enum NamingError {
 }
 
 /// **The one sentence every emission-inconsistency refusal opens
-/// with**, written once. Two variants speak it — [`NamingError::Emission`]
-/// with a fact, [`NamingError::SplitLineage`] with the record it caught
-/// — and a reworded copy would let two refusals of one category read as
-/// two categories.
+/// with**, written once. THREE variants speak it —
+/// [`NamingError::Emission`] with a fact, [`NamingError::SplitLineage`]
+/// with the record it caught, [`NamingError::FragmentLineage`] with the
+/// face — and a reworded copy would let refusals of one category read as
+/// several.
+///
+/// **It is not spoken by every variant of that category.**
+/// [`NamingError::Duplicate`], [`NamingError::Unnamed`] and
+/// [`NamingError::MissingUpstream`] are emission bugs too and each has
+/// its own older sentence, so "which category" cannot be read off the
+/// opening words for those three. That residue is
+/// `work/wire/three-emission-bugs-do-not-speak-the-framing-written-once-for-them.md`.
 const EMISSION_FRAMING: &str = "a mint-time emission fact was inconsistent with the result body";
 
 /// **The one sentence every missing-rule refusal opens with**, written
@@ -660,52 +692,93 @@ impl Incidence {
     }
 }
 
+/// What the rim walk found. A caller MUST write down which of the two
+/// it means, because the two mean different things to different callers.
+pub(crate) enum Rim {
+    /// The one edge the pair shares.
+    One(EdgeKey),
+    /// They do not share exactly one, and which way.
+    NotOne(RimShare),
+}
+
+/// Structural corruption the rim walk can meet, one named sentence per
+/// arm.
+///
+/// Named constants rather than a `let bug = |what| …` closure: a
+/// closure taking arbitrary `&'static str` is a general-purpose
+/// `Emission` factory sitting in scope over the cardinality returns
+/// below, and it would take one line to classify a cardinality as a
+/// kernel bug from inside the walk — which is the defect this function
+/// is shaped to prevent. Constants cannot be applied to a new subject.
+const UNMATED: NamingError = NamingError::Emission {
+    what: "rim walk: unmated half-edge",
+};
+const DANGLING_MATE: NamingError = NamingError::Emission {
+    what: "rim walk: dangling mate",
+};
+const DANGLING_LOOP: NamingError = NamingError::Emission {
+    what: "rim walk: dangling loop",
+};
+
 /// The one edge face `f` and face `g` share, or which way they do not
 /// have one.
 ///
 /// **This walk reports; it does not classify.** Whether "not exactly
 /// one" is a kernel bug depends entirely on the CALLER's premise, and
-/// the walk cannot see it: `emit_sweep` asks about a body it has just
-/// built, where a wall meets each cap along one rim by construction and
-/// any other answer is a contradicted key bundle; `emit_topo` asks an
-/// OPERAND body whether two descended faces carry a seam chord's rim,
-/// which is a guess a later split can legitimately refute. So the
-/// cardinality answer comes back as a [`RimShare`] in the `Err` of the
-/// inner result and each caller says what it means.
+/// the walk cannot see it: `emit_sweep` asks about a body minted
+/// alongside the key bundle it is naming from, where a wall meets each
+/// cap along one rim by construction and any other answer is a
+/// contradicted bundle; `emit_topo` asks an OPERAND body whether two
+/// descended faces carry a seam chord's rim, which is a guess a later
+/// split can legitimately refute.
+///
+/// What this buys is not that a wrong classification is impossible —
+/// `NamingError::Emission` takes a `&'static str` and anyone may write
+/// one. It is that a caller must **write** its classification: the
+/// return is a [`Rim`], so the cardinality arrives as a value that has
+/// to be matched, and no caller inherits a verdict by saying nothing.
+/// The two hazards that made saying nothing easy are gone with it — no
+/// `map_err` on this path at any call site
+/// (`work/wire/names-flush-and-select-discard-a-refusal-with-map-err-underscore.md`,
+/// closed by PR 2378, is what a `|_|` there costs), and no free-form
+/// `Emission` factory in scope here.
 ///
 /// What the walk DOES refuse is structural corruption of `body` — the
-/// three dangling-key arms here and the three in [`face_half_edges`].
-/// Those are about the body rather than about anybody's premise:
-/// `topo`'s derived accessors return `None` exactly for a stale key or
-/// a broken edge/half-edge bijection, so they stay
-/// [`NamingError::Emission`] under every caller.
-pub(crate) fn shared_rim<T: geom_core::Real>(
+/// three arms above and the three in [`face_half_edges`]. Those are
+/// about the body rather than about anybody's premise: `topo`'s derived
+/// accessors return `None` exactly for a stale key or a broken
+/// edge/half-edge bijection, so they stay [`NamingError::Emission`]
+/// under every caller.
+///
+/// Named `rim_between` rather than `shared_rim`: `topo`'s
+/// `boolean::rim_wedge::shared_rim` answers the same question one layer
+/// down, and one name for two functions in two crates costs every
+/// future reader a `grep` they cannot disambiguate.
+pub(crate) fn rim_between<T: geom_core::Real>(
     body: &Body<T>,
     f: FaceKey,
     g: FaceKey,
-) -> Result<Result<EdgeKey, RimShare>, NamingError> {
-    let bug = |what| NamingError::Emission { what };
+) -> Result<Rim, NamingError> {
     let mut found: Option<EdgeKey> = None;
     for he in face_half_edges(body, f)? {
-        let mate = body
-            .mate(he)
-            .ok_or_else(|| bug("shared-edge walk: unmated half-edge"))?;
-        let mate_he = body
-            .get_half_edge(mate)
-            .ok_or_else(|| bug("shared-edge walk: dangling mate"))?;
+        let mate = body.mate(he).ok_or(UNMATED)?;
+        let mate_he = body.get_half_edge(mate).ok_or(DANGLING_MATE)?;
         let other = body
             .get_loop(mate_he.parent_loop)
-            .ok_or_else(|| bug("shared-edge walk: dangling loop"))?
+            .ok_or(DANGLING_LOOP)?
             .face;
         if other == g {
             let edge = mate_he.edge;
             if found.is_some_and(|e| e != edge) {
-                return Ok(Err(RimShare::Several));
+                return Ok(Rim::NotOne(RimShare::Several));
             }
             found = Some(edge);
         }
     }
-    Ok(found.ok_or(RimShare::NotAdjacent))
+    Ok(match found {
+        Some(e) => Rim::One(e),
+        None => Rim::NotOne(RimShare::NotAdjacent),
+    })
 }
 
 /// All half-edges of a face (outer loop + rings), deterministic
@@ -1388,8 +1461,13 @@ mod display_tests {
         // three places — which variant a site constructs, which framing
         // its `Display` interpolates, which word `naming_error_tag`
         // returns — with nothing tying them; this ties the second to
-        // the first. `None` is a variant that speaks its own sentence
-        // instead of a shared framing.
+        // the first, and leaves the third — which is across a crate
+        // boundary — still hand-held.
+        //
+        // `None` is a variant that speaks its OWN sentence, and it is
+        // not a free pass: the loop below asserts such a variant
+        // contains NEITHER framing, so a bespoke sentence that drifted
+        // into one of them reds.
         let expected_framing = |err: &NamingError| -> Option<&'static str> {
             match err {
                 NamingError::Emission { .. }
@@ -1424,7 +1502,10 @@ mod display_tests {
         assert_eq!(
             covered,
             (0..rows.len()).collect::<std::collections::BTreeSet<_>>(),
-            "a variant lost its row, so \"every variant\" is prose again"
+            "a row was deleted from the middle of the table. An appended \
+             VARIANT with no row is invisible here — that is welded in \
+             tests/display_contract.rs by set difference, not by this \
+             contiguity check."
         );
         for (err, wanted) in rows {
             let shown = err.to_string();
@@ -1461,6 +1542,18 @@ mod display_tests {
                     );
                 }
             }
+            // `crate::py::typed_err` (pncad-py) asserts `reads_as_prose`
+            // on every raise, live under release, and its fingerprint is
+            // the field brace. A payload rendered through a derived
+            // `Debug` is how that assertion gets broken, and several of
+            // these refusals carry one. Asserted here for EVERY variant
+            // rather than hand-spelled per row, which is how the rewrite
+            // of one row dropped it.
+            assert!(
+                !shown.contains(" { "),
+                "{err:?} renders a braced payload — that panics the Python \
+                 binding at the arm meant to refuse gracefully: {shown}"
+            );
             // The defect a `contains(CONST)` cannot see: a literal that
             // a line continuation padded. Every sentence here is prose
             // a human reads, and prose has no double space in it.
@@ -1508,7 +1601,7 @@ mod display_tests {
     /// The control is the pair that DOES share one rim: without it this
     /// row would pass if the walk had stopped finding rims at all.
     #[test]
-    fn the_shared_rim_walk_reports_cardinality_and_refuses_only_corruption() {
+    fn the_rim_walk_reports_cardinality_and_refuses_only_corruption() {
         use geom_core::Point2;
         use profile::RawLoop;
         let plane = profile::SketchPlane::from_frame(geom_core::OrthoFrame::axes_xy(
@@ -1531,18 +1624,24 @@ mod display_tests {
         topo::validate_closed(&cube.body).expect("the cube is a sound closed body");
 
         let wall = cube.side_faces[0][0];
-        let rim = shared_rim(&cube.body, cube.top, wall)
+        let Rim::One(rim) = rim_between(&cube.body, cube.top, wall)
             .expect("a sound body raises no emission refusal")
-            .expect("a cap and a wall of a box share exactly one rim");
+        else {
+            panic!("a cap and a wall of a box share exactly one rim");
+        };
         assert!(
             cube.body.get_edge(rim).is_some(),
             "the control must return a LIVE edge, or the row below passes \
              because the walk finds nothing at all"
         );
 
-        match shared_rim(&cube.body, cube.top, cube.bottom) {
-            Ok(Err(RimShare::NotAdjacent)) => {}
-            other => panic!("opposite caps of a box share no rim, got {other:?}"),
+        match rim_between(&cube.body, cube.top, cube.bottom) {
+            // `Ok`, not `Err`: the walk hands back a FACT and raises no
+            // refusal, which is what stops a caller inheriting one.
+            Ok(Rim::NotOne(RimShare::NotAdjacent)) => {}
+            Ok(Rim::One(_)) => panic!("opposite caps of a box share no rim"),
+            Ok(Rim::NotOne(other)) => panic!("wanted NotAdjacent, got {other:?}"),
+            Err(e) => panic!("a sound body must raise no refusal here: {e}"),
         }
     }
 

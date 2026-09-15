@@ -5349,8 +5349,10 @@ operand and GUESSES the pair carries the chord's rim, which a later
 split can legitimately refute. `emit_sweep`'s cap rims did build theirs,
 where a wall meets each cap along one edge by construction and any other
 answer is a contradicted key bundle — `emit_sweep`'s own `UNRESOLVED`
-const argues exactly that for the sibling derivation, in the same file,
-ten lines above the call. Round 1 shipped the missing-rule sentence over
+const argues exactly that for the sibling derivation, in the same file
+(at the module head, ~100 lines above the call sites and for a different
+function's refusal; round 3 corrected "ten lines above the call", which
+was wrong on both counts). Round 1 shipped the missing-rule sentence over
 both, so a corrupt extrude or loft would have rendered *"the result body
 is sound"* and nothing would have gone red.
 
@@ -5393,5 +5395,76 @@ passes.
 
 Verified green on hosted run `35023772205` (39 jobs, 33 success, 6 skipped,
 twelve `test (…)`, five `k-lint (gate, …)`, python suite green).
+
+Signed (`wire-e2`).
+
+
+### 2026-09-15 — `wire-e2`, review round 2 (three MAJORs, all upheld)
+
+**The finding behind the findings**: the code converged and the CLAIMS
+did not. Round 2 shipped five sentences that are false, and a reviewer
+found them by experiment where I had found them by rereading. Round 3's
+deliverable was therefore the claims: every declarative sentence in the
+diff and the PR body re-checked by `rg` or by running something. What
+each false claim cost:
+
+- *"unstatable"* — false. `let bug = |what| …` was in scope over the
+  cardinality returns, and `Emission` takes a `&'static str`. **Made
+  partly true and the rest of the claim withdrawn**: the closure is gone
+  (three named consts, which cannot be applied to a new subject), and
+  the doc now says what the design buys — a caller must WRITE its
+  classification, never inherit one by saying nothing.
+- *"the fold is not symmetric in A and B"* — a symmetry claim standing
+  in for a measurement, and **the measurement refutes it**. Censused
+  17,381 seam vertices: `a=0,b=1` (the mirror I excluded) is the
+  COMMONEST shape at 10,865, against 5,305 for the shape I treated.
+  Replaced with the census, and the mirror stays `Emission` on the only
+  ground that survives — nothing reaches it (the residue arm fired zero
+  times).
+- *"exactly one construction site"* — two (`emit_topo`'s two chord
+  arms). The argument survives, because both are arms of one derivation
+  under one premise; the sentence did not.
+- *"the tag leg is the only remaining gap"* — two legs.
+- an enum doc citing a test that does not exist.
+
+**MAJOR A — two fresh instances of a row this program CLOSED.**
+`map_err(|_| CAP_RIM_CONTRADICTED)` at both `emit_sweep` call sites is
+exactly `names-flush-and-select-discard-a-refusal-with-map-err-underscore`
+(PR 2378), whose repair was structural: *"the closure is gone
+entirely"*. Repaired the same way — the walk returns a `Rim` enum, every
+call site is an explicit `match`, and **there is no `map_err` on this
+path anywhere**; `emit_sweep`'s arm calls a named function that CONSUMES
+the `RimShare` to pick its sentence instead of dropping it.
+
+**MAJOR B** — above.
+
+**MAJOR C** — above. Also acknowledged: the missing-rule half is
+unstatable in the walk only because `SharedRim` requires a
+`RecipeNodeId` the walk has no access to, a field added for an unrelated
+reason (S5), not by design.
+
+**S1 was a half-fix and I proved it by experiment.** Adding a `Probe`
+variant with a category and a `sampled` arm but no row leaves
+`every_variant_names_its_subject` GREEN, because `covered ==
+(0..rows.len())` only proves the rows cover a contiguous prefix. Ran
+`NamingError` through `tests/display_contract.rs`'s
+`assert_f6_every_variant`, the set-difference harness every other enum
+in that file uses, and measured what it does and does not catch: a
+roster entry with no case FAILS; a variant with neither roster entry nor
+case still passes, which is the hole that harness's own doc states.
+Both facts are now written where the claim is.
+
+Also: the dropped `!contains(" { ")` assertion is back and applies to
+EVERY variant rather than being hand-spelled per row; `EMISSION_FRAMING`
+said "two variants speak it" and it is three; `emit_topo`'s chord
+comment said the descent finds "the unique operand edge" ~80 lines above
+the arm that exists because it is a guess.
+
+**Filed**: `work/wire/the-b-side-contact-record-rescue-arm-never-fires.md`
+(the census's own finding — `partner_a` is `Some` at zero of 17,381
+vertices, so one rescue arm is dead in front of the larger population)
+and `work/wire/three-emission-bugs-do-not-speak-the-framing-written-once-for-them.md`
+(`EMISSION_FRAMING` claims "every emission-inconsistency refusal opens
+with" it; three of six do not).
 
 Signed (`wire-e2`).
