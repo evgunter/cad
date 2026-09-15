@@ -4,16 +4,26 @@
 //! structured error, never strings**. The items here say what that
 //! means, and no count of them is kept in this paragraph — what
 //! enumerates this file is an instrument rather than a sentence.
-//! `tests::ERRORS_MINTING_ITEMS` names every item this file declares —
-//! every `fn`, `const` and `static` — and what holds whatever words it
-//! puts on a Python wire. **An item is loud however it is written**:
-//! the reader's population is the file's declarations, keyed by every
-//! scope that holds them, so a further one reds that roster by name
-//! whatever its form, its depth, its trait, its indentation, or
-//! whether it spells a literal at all — and a word added to a rostered
-//! item moves that row's count. A word MINTED here is loud, and one
-//! minted here with nothing holding it is the finding that roster asks
-//! its author for.
+//! `tests::ERRORS_MINTING_ITEMS` names every `fn`, `const` and
+//! `static` this file declares, and what holds whatever words each
+//! puts on a Python wire. **An item is loud where that reader can see
+//! it**: the population is the file's declarations, keyed by every
+//! scope that holds them — an `impl`, a `mod`, a `trait`, a function
+//! body — so a further one reds that roster by name whether it stands
+//! at the top level or at depth, shares a line with its scope or not,
+//! carries a trait or not, and whether or not it spells a literal at
+//! all; and a word added to a rostered item moves that row's count. A
+//! word MINTED here is loud, and one minted here with nothing holding
+//! it is the finding that roster asks its author for.
+//!
+//! **What that reader cannot see, it says itself.**
+//! `tests::SCOPE_WALK_BLIND_SPOTS` is the list, entry by entry, each
+//! naming the test that executes it — a scope a macro expands to, a
+//! `mod` whose body is another file, an `impl` whose generic argument
+//! holds a brace, a block. An exclusivity claim written about this
+//! reader has been short every time one has been written, so what
+//! stands here is a pointer to a list something re-derives and not a
+//! fence.
 //!
 //! **What it does not reach is a word this file carries without
 //! declaring.** [`QuantityOpMismatch::op`] is a `&'static str` FIELD,
@@ -709,7 +719,8 @@ impl ValidationRefusal {
     /// measurement one. `pncad.pyi` declares the first and not the
     /// second, which
     /// `tests::the_discriminant_attribute_names_are_declared_in_the_stub`
-    /// holds as a gap the stub has not closed. Neither word is a TAG: `TAG_INVENTORY`'s population is the tag words
+    /// holds as a gap the stub has not closed. Neither word is a TAG:
+    /// `TAG_INVENTORY`'s population is the tag words
     /// `src/tags.rs`'s maps mint, and an attribute NAME is not one, so
     /// the inventory cannot read this map however it grows. The two
     /// tests named above are the pin instead, and the routing — which

@@ -183,7 +183,14 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // the tag table in src/tags.rs: code view to locate, literal to
                              // read; the kind words in src/node_kind.rs: literal view alone;
                              // the literal census of src/errors.rs: code, literal and comment
-                             // views together, so a literal adjoining a comment is told apart
+                             // views together, so a literal adjoining a comment is told apart;
+                             // the roster's and the blind-spot list's test names, re-derived
+                             // against this file's own source: code view, which is what keeps
+                             // a name written in prose from answering yes; and the instance
+                             // attributes pncad.pyi declares, which is a Python stub and no
+                             // Rust source at all — it is read by line prefix and triple-quote
+                             // parity, with tests/test_stubs.py's `ast` walk the second reader
+                             // of that one convention (work/census/one-stub-convention-…)
     },
     Entry {
         path: "crates/pncad/tests/all.rs",
