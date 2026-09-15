@@ -12,13 +12,11 @@ use crate::app::{ViewerBehavior, chrome, to_f32};
 use crate::camera::{self, Camera, CameraOp};
 use crate::datums::{self, datum_view};
 use crate::frame::{self, IdStep};
-use crate::generation::Generation;
 use crate::gpu::{IdQuery, ViewportCallback};
 use crate::input::{self, PointerButton, ViewportEvent, ViewportSize};
 use crate::marks;
 use crate::pickcache;
-use crate::pickindex::PickIndex;
-use crate::scene::DisplayTolerance;
+use crate::pickindex::{PickIndex, PictureKey};
 use crate::session::SessionOp;
 use crate::sketch::{heading, tip_mark};
 
@@ -80,13 +78,14 @@ pub(crate) fn land(
 ///
 /// The third is the **pick**, and it asks for a different reason.
 ///
-/// **The pair, not the generation.** An index is keyed by
-/// `(generation, δ)` and so is its id map: a δ typed while the picture
+/// **The whole key, not the generation.** An index is keyed by a
+/// [`PictureKey`] and so is its id map: a δ typed while the picture
 /// stands rebuilds the index at the same generation, over a different
 /// tessellation, with a different alphabet. A generation-only check
 /// reads as co-identity and is not it, so the question goes to
 /// [`PickIndex::current_for`], the one door that answers *does this
-/// index describe this picture*.
+/// index describe this picture* — and the key is one value, so that
+/// door cannot be handed half of it.
 ///
 /// **The pick path asks too, and what it does on `None` is
 /// different.** A click asks what is under the cursor in the
@@ -100,12 +99,8 @@ pub(crate) fn land(
 /// nothing to say; the pick path refuses TYPED, because a click is an
 /// act the user made and got nothing for
 /// ([`crate::pickcache::NotIndexed::AnotherPicture`]).
-fn drawn_index(
-    index: Option<&PickIndex>,
-    scene_key: Option<(Generation, DisplayTolerance)>,
-) -> Option<&PickIndex> {
-    let (generation, delta) = scene_key?;
-    index.filter(|index| index.current_for(Some(generation), delta))
+fn drawn_index(index: Option<&PickIndex>, scene_key: Option<PictureKey>) -> Option<&PickIndex> {
+    index.filter(|index| index.current_for(scene_key))
 }
 
 /// Direction the light travels, world space; a unit vector over the
@@ -746,7 +741,7 @@ mod tests {
     use crate::frame::{self, product_badge};
     use crate::input::{self, InputMap, PointerButton, ViewportEvent};
     use crate::pickcache::{self, NotIndexed};
-    use crate::pickindex::{IdMap, PickIndex};
+    use crate::pickindex::{IdMap, PickIndex, PictureKey};
     use crate::props::SlotValue;
     use crate::scene::{self, DisplayTolerance};
     use crate::session::{DocSession, SessionOp};
@@ -1116,7 +1111,8 @@ mod tests {
         let generation = session
             .landed_generation()
             .expect("a landed evaluation has a generation");
-        PickIndex::build(doc, eval, generation, delta, session.tol()).expect("the plate indexes")
+        PickIndex::build(doc, eval, PictureKey::of(generation, delta), session.tol())
+            .expect("the plate indexes")
     }
 
     /// **The picture's alphabet is `(generation, δ)`, and the guard
@@ -1138,13 +1134,17 @@ mod tests {
 
         let coarse = plate_index(&session, a_delta(0.5));
         let fine = plate_index(&session, a_delta(0.05));
-        let key = |index: &PickIndex| (index.generation(), index.delta());
+        let key = PickIndex::key;
         assert_eq!(
             coarse.generation(),
             fine.generation(),
             "both index the same landed evaluation, so only δ separates them"
         );
-        assert_ne!(coarse.delta(), fine.delta(), "and δ does separate them");
+        assert_ne!(
+            coarse.key().delta(),
+            fine.key().delta(),
+            "and δ does separate them"
+        );
 
         assert!(
             drawn_index(Some(&coarse), Some(key(&coarse))).is_some(),
@@ -1250,7 +1250,7 @@ mod tests {
 
         let drawn = plate_index(&session, a_delta(0.5));
         let landed = plate_index(&session, a_delta(0.05));
-        let picture = (drawn.generation(), drawn.delta());
+        let picture = drawn.key();
         assert!(
             drawn_index(Some(&landed), Some(picture)).is_none(),
             "the index in hand describes a rebuild the picture is not"

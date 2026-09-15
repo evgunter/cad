@@ -39,7 +39,7 @@ use viewer::frame::{self, IdQueryLog, IdStep, IdSubject, StatusUpdate};
 use viewer::generation::Generation;
 use viewer::input::{self, InputMap, ViewportSize};
 use viewer::pickcache::{self, CacheStep, IndexLanding, PickCache};
-use viewer::pickindex::{self, IdMap, PickIndex};
+use viewer::pickindex::{self, IdMap, PickIndex, PictureKey};
 use viewer::prefs::{Absent, PrefsStore};
 use viewer::props::SlotValue;
 use viewer::scene::{self, DisplayTolerance, FittedDelta, PLATE_EXTENT};
@@ -70,8 +70,7 @@ fn index_of(session: &DocSession) -> PickIndex {
     PickIndex::build(
         doc,
         eval,
-        session.landed_generation().expect("a generation"),
-        delta(),
+        PictureKey::of(session.landed_generation().expect("a generation"), delta()),
         session.tol(),
     )
     .expect("the plate indexes")
@@ -1514,6 +1513,17 @@ fn a_refused_index_is_attempted_once_per_generation_and_not_once_per_frame() {
         cache.index().is_none(),
         "and the index built for the document before the break is gone"
     );
+    // **A refusal is an ANSWER.** The attempt keeps the picture it was
+    // made for — which is what the two `Held` steps below read — and
+    // stops being outstanding, which is what this reads. The two facts
+    // are one value's key and one value's state, and a chrome that
+    // promised an answer here would spin `indexing…` until the
+    // document moved.
+    assert!(
+        !cache.indexing(),
+        "a refusal answers the attempt; nothing is owed and nothing is \
+         being built"
+    );
     // The frame after, and the frame after that: HELD. This is the
     // whole row — before the fix, both of these were another full
     // rebuild attempt.
@@ -1795,8 +1805,7 @@ fn an_answer_for_a_superseded_generation_is_discarded_not_installed() {
     );
 
     let landing = cache.land(IndexDone {
-        generation: stale.generation(),
-        delta: delta(),
+        key: PictureKey::of(stale.generation(), delta()),
         memo: MemoReport::default(),
         index: Ok(stale),
     });
@@ -1829,8 +1838,7 @@ fn an_answer_built_at_another_delta_is_discarded_too() {
         CacheStep::Submitted
     );
     let landing = cache.land(IndexDone {
-        generation,
-        delta: delta(),
+        key: PictureKey::of(generation, delta()),
         memo: MemoReport::default(),
         index: Ok(coarse),
     });

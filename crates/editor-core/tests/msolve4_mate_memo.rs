@@ -32,7 +32,7 @@ use geom_core::Tol;
 /// The extrude in a one-block part document, and the wrapped name of
 /// one of its cap faces — the shared assembly substrate
 /// (`fixture::resolver`), not a stub authored here.
-use fixture::resolver::{PartStore, in_part};
+use fixture::resolver::{PartStore, in_part, with_resolver};
 
 /// A `wxwxh` block, as a whole part document.
 fn slab(label: &str, w: f64, h: f64) -> ProfileDoc {
@@ -142,10 +142,7 @@ fn scene(label: &str) -> Scene {
         slab(&format!("{label}-block"), BLOCK_WIDTH, BLOCK_HEIGHT),
         Tol::witness(),
     );
-    let opts = EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    };
+    let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top_a) = insert(doc, Node::instantiate_part(block_ref));

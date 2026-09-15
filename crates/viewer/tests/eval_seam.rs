@@ -27,6 +27,7 @@ use viewer::evalseam::{
     IndexRequest, IndexService, InlineEvaluator, InlineFitter, InlineIndexer,
 };
 use viewer::generation::Generation;
+use viewer::pickindex::PictureKey;
 use viewer::props::SlotValue;
 use viewer::scene::DisplayTolerance;
 use viewer::session::{DocSession, Landing, Outstanding, SessionOp};
@@ -551,8 +552,7 @@ fn index_delta() -> DisplayTolerance {
 fn index_request(session: &DocSession, generation: Generation) -> IndexRequest {
     let (doc, _) = session.landed_pair().expect("a landed pair");
     IndexRequest {
-        generation,
-        delta: index_delta(),
+        key: PictureKey::of(generation, index_delta()),
         doc: doc.clone(),
         evaluation: Arc::clone(session.evaluation_arc().expect("a landed run")),
         tol: session.tol(),
@@ -576,15 +576,14 @@ fn the_index_seam_answers_with_the_key_it_was_asked_with() {
     assert!(seam.busy(), "asked, and not yet answered");
     let done = seam.poll().expect("the inline seam answers inside poll");
     assert!(!seam.busy());
-    assert_eq!(done.generation, generation);
-    assert_eq!(done.delta, index_delta());
+    assert_eq!(done.key, PictureKey::of(generation, index_delta()));
     let index = done.index.expect("the plate indexes");
     assert_eq!(
         index.generation(),
         generation,
         "the index is stamped with the generation the answer is filed under",
     );
-    assert!(index.current_for(Some(generation), index_delta()));
+    assert!(index.current_for(Some(PictureKey::of(generation, index_delta()))));
     assert!(seam.poll().is_none(), "and there is nothing else to take");
 }
 
@@ -620,7 +619,7 @@ fn the_threaded_index_seam_answers_only_the_newest_of_two_submits() {
         "the superseded build dies inside the seam rather than travelling \
          up to be discarded by key",
     );
-    assert_eq!(results[0].generation, second);
+    assert_eq!(results[0].key.generation(), second);
     assert!(results[0].index.is_ok());
 }
 
@@ -676,15 +675,17 @@ fn the_threaded_index_seam_keeps_an_answer_a_waiting_request_asks_for() {
     // is only WAITING rather than dispatched — and the third asks for
     // the picture the worker is already building.
     let mut other = index_request(&session, generation);
-    other.delta = index_delta().scaled(2.0).expect("a positive delta");
+    other.key = PictureKey::of(
+        generation,
+        index_delta().scaled(2.0).expect("a positive delta"),
+    );
     seam.submit(other);
     seam.submit(index_request(&broken, generation));
 
     let results = drained(&mut seam, 1);
     assert!(!seam.busy());
     assert_eq!(results.len(), 1, "one answer for one picture");
-    assert_eq!(results[0].generation, generation);
-    assert_eq!(results[0].delta, index_delta());
+    assert_eq!(results[0].key, PictureKey::of(generation, index_delta()));
     assert!(
         results[0].index.is_ok(),
         "the answer in hand was kept, not thrown away and rebuilt",
