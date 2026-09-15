@@ -216,3 +216,13 @@ APPROVE (with fixes), no MAJOR on either — no tally candidate. What
 landed and what moved: `work/scalar/D290.md` §Closed. The spec is
 deleted per the ledger. `S393`'s fix pass and VREV's dual are in
 flight; the block closes when VREV's reviews conclude.
+
+## S393 merged (2026-09-15)
+
+PR 2466, block SCALAR-B1 slot 1, ordinal 4101; dual review, both arms
+APPROVE WITH FIXES, no MAJOR — no tally candidate. Both reviews
+independently measured the quarter-turn identity's sign and the
+merge conflict; one widened the class of hand-rolled frames to nine
+sites, the other found an identity placement in the unit's own file.
+What landed: `work/scalar/S393.md` §Closed. The spec is deleted per the
+ledger. Two door rows down, VREV's dual in flight.

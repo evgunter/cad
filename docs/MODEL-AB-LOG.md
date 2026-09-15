@@ -6823,3 +6823,15 @@ count), ~50 min wall; impl CI **34938321458** GREEN on the head (twelve
 `test` jobs, five `k-lint (gate, …)`). Sample number at merge. Row at
 merge. This is block SCALAR-B1's last slot: the block record merges
 from `scalar/orchestrator` when this dual concludes.
+
+## UNITVEC review ordinal fixed at dispatch (2026-09-15)
+
+`unit-vector-witness-in-geom-core` (UNITVEC; SCALAR; PR #2646 open —
+frozen head `52424f453`): **ordinal 4103** (SCALAR band). Protocol v6
+dual: draw = `/dev/urandom` byte **177**, parity 1 ⇒ **R1 = FABLE, R2 =
+OPUS**, concurrent on the frozen head, read-side isolation (v6 item 5),
+briefs identical and stored before either ran. Pre-draw difficulty
+**M / structural** (recorded branch-side at the block draw). Impl phase:
+~? tokens (harness; the lane did not report a count), ~1 h 10 min wall;
+impl CI **34947092844** GREEN on the head (twelve `test` jobs, five
+`k-lint (gate, …)`). Sample number at merge. Row at merge.

@@ -410,9 +410,11 @@ fn r2_the_u_ref_verdicts_stay_reachable_from_a_document() {
 /// A reviewer cannot compile a stale kernel, so this executes the
 /// thing the stale build would actually SEE: the save's own bytes with
 /// the node variant renamed to one this build does not know. That is
-/// exactly the serde situation — an unknown enum variant under
-/// `deny_unknown_fields` — and it must come back as the one typed door
-/// `persist/mod.rs` promises, not a panic and not a silent drop.
+/// exactly the serde situation — an externally-tagged enum meeting a
+/// variant name it has no arm for, which it refuses unconditionally
+/// and with no attribute involved — and it must come back as the one
+/// typed door `persist/mod.rs` promises, not a panic and not a silent
+/// drop.
 ///
 /// Labelled honestly: this is the byte-level equivalent, not a run of
 /// a genuinely older binary.

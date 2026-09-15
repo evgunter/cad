@@ -149,12 +149,17 @@ pub struct PickCache {
     /// What the last attempt was for. `Some` after any attempt is
     /// SUBMITTED, answered or not — which is what stops the retry loop.
     attempted: Option<(Generation, DisplayTolerance)>,
-    /// The attempt that has been submitted and not yet answered — what
-    /// [`PickCache::indexing`] reports.
+    /// The attempt that has been submitted and not yet answered — one
+    /// half of what [`PickCache::indexing`] reports.
     ///
     /// Distinct from `attempted`, which outlives the answer: together
     /// they separate "asked, still waiting" from "asked, and the answer
     /// was a refusal we are not retrying".
+    ///
+    /// **It is what the cache asked for, not evidence anybody is still
+    /// answering.** It is cleared by an answer, so a seam that can no
+    /// longer produce one leaves it set for the life of the window;
+    /// [`PickCache::indexing`] therefore asks the seam as well.
     outstanding: Option<(Generation, DisplayTolerance)>,
     error: Option<PickIndexError>,
     seam: Box<dyn IndexService>,
@@ -203,8 +208,13 @@ pub enum CacheStep {
     /// The held index is gone from this moment, not from the moment
     /// the answer arrives.
     Submitted,
-    /// A build for exactly this (generation, δ) is already with the
-    /// seam — nothing was done and nothing was resubmitted.
+    /// A build for exactly this (generation, δ) has already been
+    /// submitted and not answered — nothing was done and nothing was
+    /// resubmitted. This is a statement about what the cache asked
+    /// for, not about whether the seam still has it: a submitted
+    /// attempt stops the retry loop whether or not anyone is left to
+    /// answer it, which is why [`PickCache::indexing`] and not this
+    /// step is what the chrome reads.
     Indexing,
     /// This attempt was already made and refused — nothing was done.
     Held,
@@ -433,8 +443,28 @@ impl PickCache {
 
     /// Whether a build is outstanding: the indexing state the chrome
     /// reads, as a value (`crate::frame::progress`).
+    ///
+    /// **Both halves, because each alone is false in one direction.**
+    /// The cache's own record says which picture was asked for and is
+    /// what [`PickCache::forget`] drops, so a build whose answer is
+    /// already destined for [`IndexLanding::Stale`] does not light the
+    /// indicator — the record alone is what that costs. The seam says
+    /// whether anyone is still going to answer, and it is the only
+    /// thing that knows: a worker that has gone clears its own flags
+    /// ([`IndexService::busy`] goes dark) while `outstanding` stays
+    /// set, because only an answer clears it and none is coming.
+    ///
+    /// Reporting the record alone left the toolbar spinning on
+    /// `indexing…` for the life of the window, repainting every frame
+    /// to collect a result nobody would send, and refusing every click
+    /// [`NotIndexed::Building`] — *the picture is still being
+    /// indexed*, of a picture nobody is indexing. The seam already
+    /// states the obligation this satisfies, at both places it notices
+    /// the worker is gone (`crate::evalseam`: *the indicator must not
+    /// stay lit for an answer that is not coming*); it is the consumer
+    /// that was not asking.
     pub fn indexing(&self) -> bool {
-        self.outstanding.is_some()
+        self.outstanding.is_some() && self.seam.busy()
     }
 
     /// Why the last attempt refused, if it did.
@@ -465,9 +495,17 @@ pub enum NotIndexed {
     /// coming, and the toolbar is already saying so.
     Building,
     /// No index, and no build under way — the last attempt refused
-    /// (its reason is [`PickCache::error`]), or nothing has been
-    /// evaluated yet. Waiting will not help; the retry policy holds
-    /// until the generation or δ moves.
+    /// (its reason is [`PickCache::error`]), nothing has been
+    /// evaluated yet, or the seam that would build one has stopped
+    /// answering. Waiting will not help; the retry policy holds until
+    /// the generation or δ moves.
+    ///
+    /// **The observable is the arm and the causes are a list, not a
+    /// definition.** A third cause arrived with
+    /// [`PickCache::indexing`]'s seam read — a build submitted to a
+    /// worker that has gone — and it is this arm rather than
+    /// [`NotIndexed::Building`] precisely because the sentence
+    /// `Building` carries would be a promise nobody can keep.
     Absent,
 }
 
@@ -482,8 +520,8 @@ impl core::fmt::Display for NotIndexed {
             Self::Absent => write!(
                 f,
                 "not picked: the picture on screen has no pick index and none \
-                 is being built — the last index build refused, or nothing has \
-                 been evaluated yet"
+                 is being built — the last index build refused, nothing has \
+                 been evaluated yet, or the index seam has stopped answering"
             ),
         }
     }
