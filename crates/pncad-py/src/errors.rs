@@ -58,12 +58,20 @@ pub const fn dimension_tag(dim: Dimension) -> &'static str {
 /// The **capitalized** spelling of a [`Dimension`], which is what
 /// `Measurement.dimension` answers.
 ///
-/// It lives here rather than in [`crate::tags`] because every tag in
-/// that file is lower snake case and its reader enforces that — this
-/// word list is the one Python-visible alphabet that is not, so the
-/// file it would join is the file that would have to stop making the
-/// claim. Beside [`dimension_tag`] instead, where a reader sees both
-/// spellings at once and
+/// It lives here rather than in [`crate::tags`] for the reader's
+/// sake, not for the alphabet's: that file's tag-table reader refuses
+/// a value that is not lower snake case — *"every tag in this file
+/// is, and a reader that accepted anything would be guessing"* — so
+/// moving this map in means weakening the one claim that makes the
+/// reader exact, for four words. Capitalised Python-visible
+/// vocabulary is not rare and this is not the only list of it:
+/// [`ErrorClass::class_name`] mints 35 exception-class names below,
+/// `py::value::Verdict`'s `status` answers `Holds`/`Violated`/
+/// `Unevaluated`, and every fieldless `#[pyclass]` enum under
+/// `src/py/` carries capitalised member names. What is true of this
+/// list alone is that its four words are a second spelling of
+/// [`dimension_tag`]'s four, which is why it belongs beside them —
+/// where a reader sees both spellings at once and
 /// `the_two_dimension_alphabets_are_one_list_in_two_cases` holds them
 /// to one list: each word here is its lower-case sibling
 /// capitalized, over the kernel's own [`Dimension::ALL`] rather than

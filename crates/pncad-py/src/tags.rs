@@ -49,24 +49,41 @@
 //!
 //! **A tag word is scoped to the map that mints it.** Two maps here
 //! may speak one word for two unrelated things and neither has to
-//! remark on it: `join` is a phase of a split and a phase of a
-//! boolean, `split` is a node kind and an act of cluster maintenance,
-//! `face` is an entity kind and the subject of a shell refusal,
-//! `empty` is a band with no width and the residual subgroup that no
-//! motion satisfies. A caller reads a word off ONE attribute of one
-//! type, never off this file, so a coincidence between two attributes
-//! is not a collision and pinning every such pair would pin
-//! accidents.
+//! remark on it: `band` is minted by sixteen maps and `escalated` by
+//! ten, for refusals with nothing in common but the English word;
+//! `join` is a phase of a boolean, a phase of a split op AND an act
+//! of cluster maintenance; `empty` is a band with no width and the
+//! residual subgroup that no motion satisfies. A caller reads a word
+//! off ONE attribute of one type, never off this file, so a
+//! coincidence between two attributes is not a collision and pinning
+//! every such pair would pin accidents.
+//!
+//! **The scope of that rule, said plainly.** It was decided over the
+//! seven pairs one unit was dispatched at and is asserted over the
+//! rest: a per-function sweep of this file's literals finds **61
+//! words minted by two or more maps**, and nobody has read most of
+//! them. What holds the claim to the tree is not this paragraph but
+//! `src/tests.rs`'s
+//! `every_word_two_tag_maps_share_is_on_the_committed_roster`, which
+//! reds when a word starts or stops colliding. That row does not
+//! decide a new pair — it asks, which is the part prose here could
+//! not do. `work/census/` carries the undispositioned remainder.
 //!
 //! **What does need saying is the opposite case**: two maps a caller
 //! reads ONE fact from, which must therefore agree word for word.
-//! Those are pinned against each other in `src/tests.rs` and each
-//! says which pin holds it — [`entity_kind_tag`] with
-//! [`entity_id_tag`] where both layers speak of one entity, and
-//! [`class_admission_tag`] with [`mint_refusal_tag`], where the first
-//! exists to predict the second. [`ring_contact_tag`] states the same
-//! intent against [`census_contact_tag`] in prose alone, which is
-//! weaker; `work/census/` carries that as a row.
+//! Two are pinned against each other in `src/tests.rs` and each says
+//! which pin holds it — [`entity_kind_tag`] with [`entity_id_tag`]
+//! where both layers speak of one entity, and [`class_admission_tag`]
+//! with [`mint_refusal_tag`], where the first predicts ONE ARM of the
+//! second (see that function for the arm it does not). **That is not
+//! the whole set of pairs that owe a pin**, only the set these maps
+//! have been read for: [`ring_contact_tag`], [`census_contact_tag`]
+//! and [`stale_declaration_tag`] share contact words by prose alone,
+//! and the entity-kind vocabulary has a THIRD Python-visible spelling
+//! outside this file — `py::select::EntityKind`'s member names, held
+//! against `pncad.pyi` by `tests/test_stubs.py` and against these
+//! words by nothing. `work/census/` carries the contact family as a
+//! row.
 //!
 //! **This file is READ as data.** The exhaustive matches guard the
 //! existence of a tag; nothing in the compiler guards its VALUE, and
@@ -1911,14 +1928,22 @@ pub fn mint_refusal_tag(refusal: &MintRefusal) -> &'static str {
 /// class table answers a tool that asks BEFORE it commits an edit.
 ///
 /// `no_at_rest_record` is [`mint_refusal_tag`]'s word on purpose and
-/// must stay it. The table's arm exists to predict exactly that
-/// refusal — `ClassAdmission::NoAtRestRecord` says the mint door will
-/// raise `MintRefusal::NoAtRestRecord` for this class — so a caller
-/// that asks ahead and a caller that reads the refusal afterwards are
-/// told one fact, and a tool can match the answer it got against the
-/// refusal it later sees.
+/// must stay it: `ClassAdmission::NoAtRestRecord` says the mint door
+/// will raise `MintRefusal::NoAtRestRecord` for this class, so a
+/// caller that asks ahead and a caller that reads that refusal
+/// afterwards are told one fact.
 /// `the_class_table_predicts_the_mint_refusal_in_its_own_words` holds
-/// the two spellings equal.
+/// those two spellings equal.
+///
+/// **The prediction is one arm's, not the table's.** The mint door
+/// (`editor_core::assembly`) refuses through a wildcard `other =>`
+/// arm, so `NotAdmitted` ALSO arrives at the caller as
+/// `MintRefusal::NoAtRestRecord` — carrying the deferral reason, but
+/// under the other word. A tool matching the word it was told against
+/// the word it later sees is right on the `no_at_rest_record` arm,
+/// silent on `mints` (which refuses nothing) and WRONG on
+/// `not_admitted`. Widening the prediction to the whole table is a
+/// kernel question about that wildcard, not a binding one.
 pub fn class_admission_tag(admission: &ClassAdmission) -> &'static str {
     match admission {
         ClassAdmission::Mints => "mints",
@@ -2517,6 +2542,15 @@ pub fn entity_id_tag(entity: &EntityId) -> &'static str {
 /// reading a census subject are reading one concept.
 /// `the_entity_kind_and_entity_id_maps_agree_where_both_speak` is
 /// what holds that true.
+///
+/// A THIRD spelling of this vocabulary reaches Python, and it is held
+/// somewhere else: `py::select::EntityKind` is a fieldless
+/// `#[pyclass]` mirror whose member names pyo3 mints from Rust
+/// identifiers, so `pncad.EntityKind.Face` is the capitalised twin of
+/// this map's `face` with no literal anywhere. Nothing ties it to
+/// these words — but `tests/test_stubs.py` compares every stub
+/// class's attributes against the compiled class name for name, so a
+/// rename there reds against `pncad.pyi` rather than passing.
 pub fn entity_kind_tag(kind: EntityKind) -> &'static str {
     match kind {
         EntityKind::Face => "face",

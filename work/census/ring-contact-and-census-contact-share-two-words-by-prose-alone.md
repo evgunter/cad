@@ -50,3 +50,27 @@ two names, which is a kernel question rather than a binding one.
 
 Territory: `crates/pncad-py/*` is LIB's fence and this program's
 `keep_out` announces its pncad-py rows there.
+
+## The family is three, not two (fix pass, 2026-09-15)
+
+`stale_declaration_tag` is the third map in this family and the row
+was written without it. It mints `vertex_vertex` **and**
+`vertex_on_face`, sharing the first with both maps above and the
+second with `census_contact_tag`, and its own doc reasons about them
+as contact-record GRANULARITIES — *"a `vertex_vertex` or
+`vertex_on_face` record names entities, so the repair is at those
+entities"* — which is the same claim `ring_contact_tag`'s doc makes
+and the same one nothing executes.
+
+So the fix this row proposes — build one contact per shared word and
+assert the tags equal — is a half-fix if it pins two maps. The shared
+words across the three, measured from `TAG_INVENTORY`:
+
+- `vertex_vertex`: `census_contact_tag`, `ring_contact_tag`,
+  `stale_declaration_tag`
+- `vertex_on_edge`: `census_contact_tag`, `ring_contact_tag`
+- `vertex_on_face`: `census_contact_tag`, `stale_declaration_tag`
+
+`sixty-one-tag-words-are-minted-by-two-or-more-maps-and-seven-are-read`
+is the general population this pair sits in, and the roster test it
+left behind is what would notice a fourth map joining the family.

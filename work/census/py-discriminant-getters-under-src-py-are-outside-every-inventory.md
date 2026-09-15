@@ -152,13 +152,123 @@ Six maps moved into `src/tags.rs` as `entity_kind_tag`,
 changed value; `pncad.pyi` is untouched and the 832-test Python suite
 is green.
 
-The seven second spellings were dispositioned **five as coincidence,
-two as one fact in two maps**. `src/tags.rs`'s header now states the
-rule the file had been following silently — a tag word is scoped to
-the map that mints it, so `empty`, `join` and `split` colliding with
-`band_error_tag`, `split_op_error_tag`/`boolean_error_tag` and
-`node_error_tag` needs no remark, exactly as `join`'s two existing
-in-file spellings never did. The two that are one fact are pinned by
-construction in `src/tests.rs`:
+The seven second spellings were dispositioned **four words pinned and
+three scoped**, which is two map-pairs pinned and three called
+coincidence. Counted either way it is not "five and two", and the
+count is written out here because the earlier sentence at this spot
+said that and the PR table said otherwise:
+
+| words | pair | verdict |
+| --- | --- | --- |
+| `face`, `edge`, `vertex` | `entity_kind_tag` / `entity_id_tag` | **pinned** |
+| `no_at_rest_record` | `class_admission_tag` / `mint_refusal_tag` | **pinned** |
+| `empty` | `subgroup_tag` / `band_error_tag` | scoped |
+| `join` | `cluster_maintenance_tag` / `boolean_error_tag`, `split_op_error_tag` | scoped |
+| `split` | `cluster_maintenance_tag` / `node_error_tag` | scoped |
+
+`src/tags.rs`'s header states the rule the file had been following
+silently — a tag word is scoped to the map that mints it — and the two
+pins are by construction in `src/tests.rs`:
 `the_entity_kind_and_entity_id_maps_agree_where_both_speak` and
 `the_class_table_predicts_the_mint_refusal_in_its_own_words`.
+
+## What the style review's fix pass corrected (2026-09-15)
+
+### The blind-spot list was reasoned, not executed, and one entry was false
+
+The unit's rename probe was published with five blind spots written
+before it ran, and named two of them the real risks here — a map
+*moved wholesale out of `tags.rs`* (*"the reader stops reading it and
+reports agreement over what is left"*) and a word minted in a file the
+reader does not read. The first is **false, and was falsifiable in one
+run**. `src/tests.rs`'s inventory guard has an explicit GONE branch
+over `TAG_INVENTORY`: for every pinned function the reader no longer
+finds, it complains. Executed here — `interface_crossing_tag` deleted
+from `tags.rs` — it says:
+
+> tag function `interface_crossing_tag` is GONE from src/tags.rs — the
+> words ["mate"] no longer reach Python from it
+
+The real blind spot is narrower: **a map that was never inventoried**,
+which is the pre-state this unit fixed, and a map in a file the reader
+does not read, which is the second risk it named and which stands.
+
+**The lesson is the one the program already recorded and this unit did
+not take.** Standing finding 6 asks for a blind-spot list arrived at
+by EXECUTION rather than by reasoning. This list was reasoned; four
+entries happened to be right and the fifth carried an argument ("this
+PR is that operation, in the safe direction") that a one-line probe
+would have dissolved. A blind spot worth stating is worth running.
+
+### The entity-kind vocabulary has a third Python-visible spelling
+
+`py/select.rs`'s `EntityKind` is a fieldless `#[pyclass]` mirror whose
+four member names reach Python as `pncad.EntityKind.Face` and so on —
+the same vocabulary `entity_kind_tag` and `entity_id_tag` spell, over
+the same kernel enum, doc'd with the same sentence. `tags.rs`'s header
+claimed the pinned set was complete; it now says which set it is.
+
+**That third spelling turned out to be GUARDED, by something neither
+sweep looked at.** `tests/test_stubs.py`'s depth-2 walk compares every
+stub class's attributes against the compiled class name-for-name, in
+both directions, and `pncad.pyi` declares each enum member as a
+`Final` class constant. Executed: renaming `ArcSweep::Ccw` to
+`Anticlockwise` in `py/path.rs` reds
+`test_stubs.TestStubClassDrift.test_class_attributes_agree_name_for_name`
+plus 16 call sites with `AttributeError: type object 'pncad.ArcSweep'
+has no attribute 'Ccw'`. So the crate's **24** `#[pyclass]` enums and
+their 114 member names are held to the stub exactly as `tags.rs`'s
+words are held to `TAG_INVENTORY` — a deliberate two-place diff, not a
+silent rename. No row was filed for them, because there is no gap.
+
+### The class table predicts ONE ARM of the mint refusal
+
+`the_class_table_predicts_the_mint_refusal_in_its_own_words` and its
+doc claimed the class table predicts the mint door's refusal. The mint
+door (`editor_core::assembly::mint`) refuses through a wildcard
+`other =>` arm, so `ClassAdmission::NotAdmitted` also reaches a caller
+as `MintRefusal::NoAtRestRecord`. Executed by narrowing that arm to
+`NoAtRestRecord` alone: `error[E0004]: non-exhaustive patterns:
+ClassAdmission::NotAdmitted not covered`. The pin stands — the two
+`no_at_rest_record` spellings must agree — and the doc above it now
+says the tool-matching claim is right on that arm, silent on `mints`
+and wrong on `not_admitted`.
+
+### The relocation's own risk, said honestly
+
+14 of the 27 moved words had **no pin of any kind at the moment they
+moved** — `face`, `clocking`, `coaxial`, `frame_coincidence`,
+`planar_rest`, `not_admitted`, `cylindrical`, `prismatic`, `revolute`,
+`se3`, `trivial`, `gauge_rewrite`, `Count`, `Scalar`: no occurrence in
+`tests/` or `examples/`, and in the crate nothing that a wrong
+spelling would have failed — the literal being moved, plus a prose
+restatement in the same doc comment for three of them. (`face` does
+occur elsewhere in the crate, minted by `shell_error_tag` and
+`entity_id_tag` and pinned there; neither pin can see a typo in
+`entity_kind_tag`'s copy, which is the point.) And `TAG_INVENTORY`'s new rows were taken
+**from the guard's own output on the post-move source**, so the guard
+was populated FROM the relocated text rather than against it. A typo
+introduced by the move would have been inventoried as correct and
+every row would have been green.
+
+Nothing is wrong — the review diffed old and new bodies and every word
+arrived intact. The point is that **nothing would have said so**. What
+a relocation of this shape owes is an independent re-derivation from
+the PRE-move source: lex the words out of the old file at the merge
+base, and compare that set against the inventory rows the guard
+proposes. That is the check this unit did not run and the next
+relocation should.
+
+### The scoping rule claimed more than was read
+
+`tags.rs`'s header asserted *"a tag word is scoped to the map that
+mints it"* over the whole file, having examined seven words. **61
+words in `tags.rs` are minted by two or more maps** — `band` in 16
+maps, `escalated` in 10 — measured twice, once by a per-function sweep
+of the source and once over `TAG_INVENTORY`'s 98 rows, agreeing. The
+header now scopes its claim, and
+`every_word_two_tag_maps_share_is_on_the_committed_roster` holds the
+population to a roster derived from the inventory so a new cross-map
+collision reds and names itself.
+`sixty-one-tag-words-are-minted-by-two-or-more-maps-and-seven-are-read`
+carries the 54 nobody has read.

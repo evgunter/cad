@@ -66,6 +66,33 @@ fn canonical_units_match_the_gq5_ratification() {
     assert_eq!(canonical_unit(Dimension::Scalar), None);
 }
 
+/// **The two dimension alphabets are one list in two cases.**
+///
+/// `Measurement.dimension` answers the capitalized spelling and every
+/// other door answers the lower-case one, so two Python attributes
+/// with the same name carry two spellings of one four-word list. That
+/// is allowed and is not free: the day one list gains a word or
+/// renames one, the other has to move with it, and nothing but this
+/// says so.
+///
+/// Over the kernel's own [`Dimension::ALL`], so a dimension added to
+/// the lattice is pinned without an edit here.
+#[test]
+fn the_two_dimension_alphabets_are_one_list_in_two_cases() {
+    use crate::errors::measurement_dimension_tag;
+
+    for dim in Dimension::ALL {
+        let mut capitalized = dimension_tag(dim).to_owned();
+        capitalized[..1].make_ascii_uppercase();
+        assert_eq!(
+            measurement_dimension_tag(dim),
+            capitalized,
+            "the measurement spelling of a dimension is no longer the FFI tag \
+             capitalized"
+        );
+    }
+}
+
 #[test]
 fn a_quantity_operator_mismatch_carries_structure_not_prose() {
     let err = QuantityOpMismatch::new("+", Dimension::Length, Dimension::Angle);
@@ -3586,15 +3613,26 @@ fn the_entity_kind_and_entity_id_maps_agree_where_both_speak() {
     );
 }
 
-/// **The class table predicts the mint door's refusal in the mint
-/// door's own word.**
+/// **The class table's `no_at_rest_record` arm predicts the mint
+/// door's refusal in the mint door's own word.**
 ///
 /// `ClassAdmission::NoAtRestRecord` exists to answer, before a tool
 /// commits an edit, the question `MintRefusal::NoAtRestRecord`
 /// answers after one — the kernel says so at the arm itself. So a
-/// caller that asks ahead and then reads the refusal is reading one
-/// fact, and matching what it was told against what it later sees
-/// works only while the two maps agree word for word.
+/// caller that asks ahead and then reads that refusal is reading one
+/// fact, and it stays one fact only while the two maps agree word for
+/// word. That is what this row holds.
+///
+/// **What it does not hold, stated so the row is not read wider than
+/// it is.** The prediction is the arm's, not the table's: the mint
+/// door (`editor_core::assembly::mint`) refuses through
+/// a wildcard `other =>`, so `ClassAdmission::NotAdmitted` ALSO
+/// reaches the caller as `MintRefusal::NoAtRestRecord` — under a word
+/// the table did not answer. A tool matching the answer it got
+/// against the refusal it later sees is right here, silent on `mints`
+/// (which refuses nothing) and wrong on `not_admitted`. Whether that
+/// wildcard should split is a kernel question, not one this crate can
+/// pin.
 #[test]
 fn the_class_table_predicts_the_mint_refusal_in_its_own_words() {
     use crate::tags::{class_admission_tag, mint_refusal_tag};
@@ -3613,33 +3651,6 @@ fn the_class_table_predicts_the_mint_refusal_in_its_own_words() {
         "the class table and the mint door have drifted apart on the refusal one \
          exists to predict"
     );
-}
-
-/// **The two dimension alphabets are one list in two cases.**
-///
-/// `Measurement.dimension` answers the capitalized spelling and every
-/// other door answers the lower-case one, so two Python attributes
-/// with the same name carry two spellings of one four-word list. That
-/// is allowed and is not free: the day one list gains a word or
-/// renames one, the other has to move with it, and nothing but this
-/// says so.
-///
-/// Over the kernel's own [`Dimension::ALL`], so a dimension added to
-/// the lattice is pinned without an edit here.
-#[test]
-fn the_two_dimension_alphabets_are_one_list_in_two_cases() {
-    use crate::errors::measurement_dimension_tag;
-
-    for dim in Dimension::ALL {
-        let mut capitalized = dimension_tag(dim).to_owned();
-        capitalized[..1].make_ascii_uppercase();
-        assert_eq!(
-            measurement_dimension_tag(dim),
-            capitalized,
-            "the measurement spelling of a dimension is no longer the FFI tag \
-             capitalized"
-        );
-    }
 }
 
 /// One row of [`TAG_INVENTORY`]: a tag function in `src/tags.rs`, and
@@ -5006,6 +5017,131 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
 ];
+
+/// **Every word that two tag maps both mint, and how many mint it.**
+///
+/// `src/tags.rs`'s header claims a tag word is scoped to the map that
+/// mints it — a coincidence between two maps is not a collision, and
+/// pinning every such pair would pin accidents. That claim was
+/// decided over seven WORDS and asserted over the file; this is the
+/// file, measured: 61 words that two or more maps mint, `band` in
+/// sixteen of them.
+///
+/// The row does not say which of the other 54 are one concept and
+/// which are coincidence — nobody has read them, and `work/census/`'s
+/// `sixty-one-tag-words-are-minted-by-two-or-more-maps-and-seven-are-read`
+/// is where that question lives. What it does is make the population
+/// OBSERVED: a word that starts colliding, or stops, or picks up a
+/// third map, arrives as a failure naming itself instead of as
+/// silence under a rule nobody re-derived.
+///
+/// Derived from [`TAG_INVENTORY`] rather than from the source, so it
+/// inherits that table's own guard and cannot drift from `tags.rs`
+/// without `the_whole_tag_table_matches_its_committed_inventory`
+/// reding first. Its own hand-written half is the roster below, and
+/// the guard on THAT is this row's two directions: an entry no longer
+/// shared fails exactly as a new sharing does.
+const SHARED_TAG_WORDS: &[(&str, usize)] = &[
+    ("ambiguous", 2),
+    ("approx_lane_unsupported", 2),
+    ("assertion_dimension", 2),
+    ("band", 16),
+    ("cap_plane", 3),
+    ("certify", 2),
+    ("contact_contradicted", 2),
+    ("corrupt", 3),
+    ("cosurface_escalated", 2),
+    ("dangling_geometry", 2),
+    ("dimension", 2),
+    ("edge", 2),
+    ("empty", 2),
+    ("empty_boolean", 2),
+    ("empty_placement_list", 2),
+    ("escalated", 10),
+    ("euler", 2),
+    ("evaluation_of_another_document", 2),
+    ("face", 3),
+    ("improper_placement", 2),
+    ("indeterminate", 2),
+    ("instance", 2),
+    ("io", 2),
+    ("join", 3),
+    ("measure_malformed", 2),
+    ("no_at_rest_record", 2),
+    ("no_such_body", 2),
+    ("node_failed", 4),
+    ("node_not_evaluated", 3),
+    ("node_poisoned", 2),
+    ("non_finite", 4),
+    ("non_finite_direction", 2),
+    ("non_finite_placement", 2),
+    ("not_a_body", 2),
+    ("null_scaffold_edge", 2),
+    ("op", 3),
+    ("pcurve", 5),
+    ("pcurves", 3),
+    ("placement_rule_mismatch", 2),
+    ("poisoned", 2),
+    ("profile", 2),
+    ("revolve", 2),
+    ("shell", 2),
+    ("skin", 2),
+    ("sliver_join", 2),
+    ("sliver_rim", 2),
+    ("split", 2),
+    ("structure", 3),
+    ("tolerance_conflict", 2),
+    ("transition", 2),
+    ("undeclared_contact", 2),
+    ("underflowed_direction", 2),
+    ("unknown_node", 5),
+    ("unknown_param", 4),
+    ("unnamed", 2),
+    ("unreadable", 2),
+    ("vertex", 2),
+    ("vertex_on_edge", 2),
+    ("vertex_on_face", 2),
+    ("vertex_vertex", 3),
+    ("wrong_kind", 2),
+];
+
+#[test]
+fn every_word_two_tag_maps_share_is_on_the_committed_roster() {
+    let mut minters: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+    for entry in TAG_INVENTORY {
+        for value in entry.values {
+            minters.entry(value).or_default().insert(entry.function);
+        }
+    }
+    let shared: Vec<(&str, usize)> = minters
+        .iter()
+        .filter(|(_, functions)| functions.len() > 1)
+        .map(|(word, functions)| (*word, functions.len()))
+        .collect();
+    let pinned: Vec<(&str, usize)> = SHARED_TAG_WORDS.to_vec();
+    if shared != pinned {
+        let detail: Vec<String> = minters
+            .iter()
+            .filter(|(_, functions)| functions.len() > 1)
+            .map(|(word, functions)| {
+                format!(
+                    "{word} ({}): {}",
+                    functions.len(),
+                    functions.iter().copied().collect::<Vec<_>>().join(", ")
+                )
+            })
+            .collect();
+        panic!(
+            "the set of tag words minted by two or more maps has moved.\n\n\
+             A word two maps share is either ONE FACT the two must keep \
+             spelling the same way — which owes a pin in this file — or a \
+             coincidence between two unrelated vocabularies, which owes \
+             nothing but a decision that it is one. Decide which, then \
+             update SHARED_TAG_WORDS from the list below.\n\n  {}",
+            detail.join("\n  ")
+        );
+    }
+}
 
 /// The committed inventory of `src/tags.rs`'s `pub const` tag words —
 /// the tags that are not behind a `match` at all.

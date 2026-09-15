@@ -250,8 +250,12 @@ impl MatePrimitive {
         Self(d::MatePrimitive::Clocking)
     }
 
-    /// The primitive's stable tag — `crate::tags::mate_primitive_tag`'s
-    /// word, inventoried there.
+    /// The primitive's stable tag: `frame_coincidence`, `coaxial`,
+    /// `planar_rest` or `clocking` — one word per constructor on this
+    /// class, spelled the same way, so the vocabulary is the class's
+    /// own staticmethods.
+    // The map is `crate::tags::mate_primitive_tag`, whose words
+    // `TAG_INVENTORY` pins.
     #[getter]
     fn variant(&self) -> &'static str {
         mate_primitive_tag(self.0)
@@ -399,8 +403,10 @@ pub(crate) struct ClassAdmission(d::ClassAdmission);
 
 #[pymethods]
 impl ClassAdmission {
-    /// The stable tag — `crate::tags::class_admission_tag`'s word,
-    /// inventoried there.
+    /// The stable tag: `mints`, `no_at_rest_record` or
+    /// `not_admitted`, the three the stub lists for this attribute.
+    // The map is `crate::tags::class_admission_tag`, whose words
+    // `TAG_INVENTORY` pins.
     #[getter]
     fn variant(&self) -> &'static str {
         class_admission_tag(&self.0)
@@ -495,8 +501,12 @@ pub(crate) struct Subgroup(d::Subgroup);
 
 #[pymethods]
 impl Subgroup {
-    /// The stable tag — `crate::tags::subgroup_tag`'s word,
-    /// inventoried there.
+    /// The stable tag: `se3`, `planar`, `cylindrical`, `prismatic`,
+    /// `revolute`, `trivial` or `empty`, the seven the stub lists for
+    /// this attribute. `empty` is the contradictory answer and
+    /// `trivial` the fully located one.
+    // The map is `crate::tags::subgroup_tag`, whose words
+    // `TAG_INVENTORY` pins.
     #[getter]
     fn variant(&self) -> &'static str {
         subgroup_tag(&self.0)
@@ -1023,8 +1033,11 @@ pub(crate) struct ClusterMaintenance(pub(crate) d::ClusterMaintenance);
 
 #[pymethods]
 impl ClusterMaintenance {
-    /// The stable tag — `crate::tags::cluster_maintenance_tag`'s
-    /// word, inventoried there.
+    /// The stable tag: `join`, `split`, `gauge_rewrite` or `drop`,
+    /// the four the stub lists for this attribute. The word decides
+    /// which of the payload attributes below carry.
+    // The map is `crate::tags::cluster_maintenance_tag`, whose words
+    // `TAG_INVENTORY` pins.
     #[getter]
     fn variant(&self) -> &'static str {
         cluster_maintenance_tag(&self.0)

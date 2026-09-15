@@ -738,10 +738,12 @@ impl Datum {
 pub(crate) struct Measurement {
     /// The dimension measured in: `"Length"`, `"Angle"`, `"Count"`
     /// or `"Scalar"`, capitalized where every other door's dimension
-    /// word is not. Spelled out because this is the only place a
-    /// Python caller can read the four — `pncad.pyi` names the
-    /// attribute and not its words. The map is
-    /// `crate::errors::measurement_dimension_tag`.
+    /// word is not. Spelled out because this docstring is the only
+    /// place a Python caller can read the four — `pncad.pyi` names
+    /// the attribute and not its words.
+    // The map is `crate::errors::measurement_dimension_tag`, held to
+    // `dimension_tag`'s lower-case four by
+    // `the_two_dimension_alphabets_are_one_list_in_two_cases`.
     #[pyo3(get)]
     dimension: &'static str,
     /// The measured value in canonical kernel units.

@@ -84,9 +84,11 @@ pub(crate) struct InterfaceCrossing(d::InterfaceCrossing);
 
 #[pymethods]
 impl InterfaceCrossing {
-    /// The stable tag — `crate::tags::interface_crossing_tag`'s word,
-    /// inventoried there, and one arm today because a mate is the
-    /// only kind of edge that can cross the cut.
+    /// The stable tag: `mate`, the one word today — a crossing is
+    /// whatever KIND of edge crossed the cut, and a mate is the only
+    /// kind that can.
+    // The map is `crate::tags::interface_crossing_tag`, whose words
+    // `TAG_INVENTORY` pins.
     #[getter]
     fn variant(&self) -> &'static str {
         interface_crossing_tag(&self.0)
