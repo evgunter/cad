@@ -44,6 +44,21 @@ half is the vocabulary. One (`ClassAdmission::why`) uses the three
 variant words to say which arm carries which sentence — a statement
 the map does not make, where deleting the words would lose something.
 
+## A third disposition the sweep found
+
+Two of the six restatements CENSUS-PY-GETTERS converted turned out to
+be **a Python caller's only source**, because `pncad.pyi` names the
+attribute and not its words: `RefusedRef.kind` and
+`Measurement.dimension`. A pyo3 doc comment is the property's
+`__doc__`, so deleting the roster there deletes it from `help()`. Both
+kept their roster with the map named beside it, and the stub gap is
+the thing to fix rather than the prose. **A disposition for any of the
+eight above has to check the stub first**, and the stub is not
+uniform: of the six that unit converted, four (`ClassAdmission`,
+`ClusterMaintenance`, `InterfaceCrossing`, `Subgroup`) have their
+words in `pncad.pyi` and two do not. The eight were not checked
+against it.
+
 ## Why it is a row
 
 These doc comments are Python docstrings: pyo3 puts them on the

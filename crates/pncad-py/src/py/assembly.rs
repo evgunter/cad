@@ -256,8 +256,12 @@ impl RefusedRef {
     }
 
     /// What the reference did name, when it resolved to something
-    /// that is not a face — `crate::tags::entity_kind_tag`'s word,
-    /// inventoried there.
+    /// that is not a face: `face`, `edge`, `vertex` or `body`.
+    ///
+    /// The roster is spelled out because this is the only place a
+    /// Python caller can read it — `pncad.pyi` names the attribute
+    /// and not its words. The map is
+    /// `crate::tags::entity_kind_tag`, inventoried there.
     #[getter]
     fn kind(&self) -> Option<&'static str> {
         match self.0 {
