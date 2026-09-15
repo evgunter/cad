@@ -378,7 +378,13 @@ const LEDGER: &[Entry] = &[
 /// `.rs` file and reads nothing, so every `tests/all.rs` in the tree
 /// would otherwise be a hit — but every mount contributes **exactly
 /// one** `.rs"` literal, so a file holding more of those than it holds
-/// mounts is naming a source file for some other reason. Two shapes
+/// mounts is naming a source file for some other reason. An
+/// aggregator's own margin is now zero: the `include_str!("all.rs")`
+/// that used to carry it lives in
+/// `test_utils::every_suite_file_is_aggregated!`'s expansion, and shape
+/// (2) below is what sees those files. Shape (1) still decides every
+/// other named-path site, and still keeps a mount from reading as a
+/// read. Two shapes
 /// were tried and are wrong, each in its own direction:
 ///
 /// - **slicing the `#[path … ]` attributes out first** is an ad-hoc
@@ -540,12 +546,18 @@ fn reads_rust_source(code: &str) -> bool {
     //     in a gated-suite marker.
     let named = code.matches(".rs\"").count();
     let mounted = code.matches("#[path = \"").count() + gated_to_names(code);
-    // (2) Walks a source tree.
+    // (2) Walks a source tree — directly, or by invoking a macro whose
+    //     expansion does. `every_suite_file_is_aggregated!()` walks the
+    //     invoking crate's `tests/` and reads every suite file in it;
+    //     the tokens land in the invoking file, so the walk is that
+    //     file's, and the needle is the invocation because the
+    //     expansion is not in the text this reads.
     let walks_a_source_tree = [
         "rust_sources(",
         "crate_sources(",
         "src_root(",
         "suite_files(",
+        "every_suite_file_is_aggregated!(",
     ]
     .iter()
     .any(|n| code.contains(n))
@@ -624,6 +636,19 @@ fn every_site_that_reads_rust_source_is_in_the_ledger() {
     );
 }
 
+/// The ways a site reaches the shared lexer, as they are SPELLED.
+///
+/// Two, because one of them hides the other: an aggregating
+/// `tests/all.rs` reaches `test_utils::source::aggregation_violations`
+/// through `test_utils::every_suite_file_is_aggregated!()`, and the
+/// module path it reaches is in the macro's expansion rather than in
+/// the file. A door added to the façade that no site can be seen to use
+/// does not belong here; a door that fifteen files use does.
+const SHARED_LEXER_DOORS: [&str; 2] = [
+    "test_utils::source",
+    "test_utils::every_suite_file_is_aggregated!(",
+];
+
 /// **A `Shared` line is a CLAIM, and this is what checks it.**
 ///
 /// Without this row the ledger's own silent direction is the one it
@@ -640,15 +665,16 @@ fn every_shared_entry_actually_reaches_the_shared_lexer() {
             let text = std::fs::read_to_string(root.join(e.path))
                 .unwrap_or_else(|err| panic!("reading {}: {err}", e.path));
             // The code view: a mention in prose is not a call.
-            !test_utils::source::code_only(&text).contains("test_utils::source")
+            let code = test_utils::source::code_only(&text);
+            !SHARED_LEXER_DOORS.iter().any(|door| code.contains(door))
         })
         .map(|e| e.path)
         .collect();
     assert!(
         liars.is_empty(),
         "these entries are dispositioned Shared but no longer call \
-         `test_utils::source` — either they reverted to a hand-rolled reader, or \
-         the line is stale: {liars:#?}"
+         `test_utils::source`, by any of {SHARED_LEXER_DOORS:?} — either they reverted \
+         to a hand-rolled reader, or the line is stale: {liars:#?}"
     );
 }
 
