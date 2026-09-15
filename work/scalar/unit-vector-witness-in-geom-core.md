@@ -5,6 +5,7 @@ title: The unit-vector witness moves to geom-core, minted by the decided-normali
 status: open
 opened: 2026-09-15
 branch: scalar/unit-vector-witness
+pr: 2646
 ---
 
 
