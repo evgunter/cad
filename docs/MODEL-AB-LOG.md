@@ -7073,7 +7073,7 @@ which waits on the sitting; slot 0's row is recorded at its merge.
 
 ### Block SCALAR-B4 rows (recorded at each merge; the section merges to main at block close)
 
-| # | date | task | difficulty (pre-flip) | arm | review findings | silent deviations | idiom | tests | docs | fix pass | CI | tokens | wall |
+| # | date | task | difficulty (pre-flip) | arm | review findings (MAJ/MIN/NOTE) | silent devs | idiom | tests | docs | fix-pass size | battery | tokens | wall-clock |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 
 ### Block SCALAR-B3 rows (recorded at each merge branch-side; landed at block close, 2026-09-15)
