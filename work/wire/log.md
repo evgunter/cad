@@ -5239,4 +5239,7 @@ now ties variant → framing and asserts the other framing is absent, so a
 not-a-bug variant that writes `EMISSION_FRAMING` no longer compiles-and-
 passes.
 
+Verified green on hosted run `35023772205` (39 jobs, 33 success, 6 skipped,
+twelve `test (…)`, five `k-lint (gate, …)`, python suite green).
+
 Signed (`wire-e2`).
