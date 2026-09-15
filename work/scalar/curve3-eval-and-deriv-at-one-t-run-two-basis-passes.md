@@ -4,6 +4,8 @@ kind: issue
 title: Curve3::eval and Curve3::deriv at one t run two span locations and two basis passes, with no order-1 jet door to collapse them into
 status: open
 opened: 2026-09-11
+branch: scalar/curve3-jet
+pr: 2708
 ---
 
 ## What
@@ -100,3 +102,28 @@ What neither pass can match:
 - **Anything outside `crates/*/src`** — `demos/`, `tools/` and
   `benches/` were not swept, and `demos/tour` and `demos/wild` are
   ordinary API consumers where the pair would be just as real.
+
+## Unit CURVE3-JET (2026-09-15)
+
+Dispatched as block SCALAR-B4 slot 0 under `docs/CURVE3-JET-SPEC.md`
+(deleted at merge per the ledger). The survey of 2026-09-15 corrected the
+finding on two points the spec carries: the whole-curve order-2 jet
+`NurbsCurve3::ders` already exists (the order-1 door is its sibling,
+`ders1`), and the `revolve/upgrade.rs` pair now lives in
+`geom-brep/src/dihedral.rs`; it added six `NurbsCurve3<f64>` pair sites in
+the tour and the `pncad` example that feed S393's `path_start_frame`.
+
+## Digest receipt: the D9 pin for "nothing's bits move"
+
+The recipe is `work/scalar/rate-pair-in-geom-core.md` §Digest receipt,
+zero-parameter (the release binary run directly, outdir the literal
+`tour-out`, both streams digested whole). Taken at the merge base
+`88201b83f` (the branch was `origin/main` plus the spec commit, which
+touches no code) before the first code change:
+
+- listing (1766 emitted files, sorted per-file digests):
+  `c678b14381e6c0d9e835e91883a294f8f588507aedf60e8e820a5ec1834b0863`
+- narration (729 lines):
+  `65da9dd7349507058bc4d8dc2b302764009e1c44879b6480dd67731a9e591d50`
+
+The head receipt is on the PR, taken the same way at the head SHA.

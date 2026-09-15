@@ -312,8 +312,7 @@ pub fn tangent_locus_relation<T: Decide>(
     let mut bridged = false;
     for i in 0..CERT_SAMPLES {
         let t = sample_param(t0, t1, i);
-        let p = carrier.eval(t);
-        let tau = carrier.deriv(t);
+        let (p, tau) = carrier.ders1(t);
         // (1) On both surfaces. The sag bound rides the residual so
         // the between-sample interior is covered by the same
         // certificate the edge lane uses.

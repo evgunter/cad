@@ -1819,7 +1819,19 @@ fn run_checks<T: Decide>(
     let mut tangent_kappa_min = T::from_f64(f64::MAX);
     let mut tangent_arm_min = T::from_f64(f64::MAX);
     for i in 0..CERT_SAMPLES {
-        let p = spec.carrier.eval(sample_param(t0, t1, i));
+        let t = sample_param(t0, t1, i);
+        // The point at every sample; the tangent only where it is
+        // consumed — the `Tangent` arm's interior samples — and there
+        // from the same jet pass as the point. Every other arm and
+        // both end samples take the point alone, so no pass computes
+        // a tangent that is then discarded.
+        let (p, tau) =
+            if matches!(&resolved, Resolved::Tangent { .. }) && i > 0 && i < CERT_SAMPLES - 1 {
+                let (p, tau) = spec.carrier.ders1(t);
+                (p, Some(tau))
+            } else {
+                (spec.carrier.eval(t), None)
+            };
         match &resolved {
             Resolved::Intersection { surf1, surf2, .. } => {
                 check_residual(
@@ -1880,8 +1892,7 @@ fn run_checks<T: Decide>(
                     band,
                     &mut max_residual,
                 )?;
-                if i > 0 && i < CERT_SAMPLES - 1 {
-                    let tau = spec.carrier.deriv(sample_param(t0, t1, i));
+                if let Some(tau) = tau {
                     // The must-carry rule's one spelling
                     // (`crate::tangent_second_order`): the constructor
                     // that stores a `TangentIntersection` and this

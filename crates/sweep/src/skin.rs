@@ -1148,8 +1148,7 @@ pub fn sweep_places(
         place.translation.y,
         place.translation.z,
     );
-    let unit_tangent = |station: usize, t: f64| -> Result<Vec3<f64>, SkinError> {
-        let d = path.deriv(t);
+    let unit_tangent = |station: usize, d: Vec3<f64>| -> Result<Vec3<f64>, SkinError> {
         let n = d.norm();
         if !(n > 0.0) || !n.is_finite() {
             return Err(SkinError::PathTangentReversal { station });
@@ -1161,12 +1160,12 @@ pub fn sweep_places(
         let s = i as f64 / last;
         (hi - lo).mul_add(s, lo)
     };
-    let base_tangent = unit_tangent(0, t_of(0))?;
-    let base_point = path.eval(t_of(0));
+    let (base_point, base_d) = path.ders1(t_of(0));
+    let base_tangent = unit_tangent(0, base_d)?;
     let mut places = Vec::with_capacity(stations);
     for i in 0..stations {
-        let t = t_of(i);
-        let tangent = unit_tangent(i, t)?;
+        let (p, d) = path.ders1(t_of(i));
+        let tangent = unit_tangent(i, d)?;
         let axis = base_tangent.cross(tangent);
         let sin = axis.norm();
         let cos = base_tangent.dot(tangent);
@@ -1189,7 +1188,7 @@ pub fn sweep_places(
             // Pinned as executed behaviour, not asserted as intent.
             return Err(SkinError::PathTangentReversal { station: i });
         };
-        places.push(Affine3::translation(path.eval(t) - base_point) * turn * place);
+        places.push(Affine3::translation(p - base_point) * turn * place);
     }
     Ok(places)
 }
