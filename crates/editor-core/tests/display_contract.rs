@@ -22,6 +22,8 @@ use editor_core::{
 };
 use geom_core::BandError;
 
+use std::collections::BTreeSet;
+
 /// Asserts the F6 shape over one rendering: the wanted content is
 /// present, no variant identifier leaks, no Debug punctuation, and the
 /// sentence is not simply the dump.
@@ -44,6 +46,40 @@ fn assert_f6<E: core::fmt::Debug + core::fmt::Display>(err: &E, wants: &[&str], 
         "{err:?} renders as {shown:?} — that is Debug punctuation, not a sentence"
     );
     assert_ne!(shown, format!("{err:?}"));
+}
+
+/// Runs the F6 shape over one error enum's whole case list, with the
+/// enum's own variant identifiers as the ban list, and asserts that the
+/// cases reach every variant.
+///
+/// `variant` is a wildcard-free `match` over the enum, so **rustc is
+/// the census**: a variant added to the enum leaves that `match`
+/// non-exhaustive and this file stops compiling. `all` is the
+/// identifier set those same arms name; passing it as `assert_f6`'s
+/// ban list is what makes the ban list a mirror of the enum rather
+/// than a list beside it, and the set equality below welds the two
+/// halves — an identifier no case constructs, or a case whose
+/// identifier `all` does not hold, fails here. `also_banned` carries
+/// identifiers from OTHER enums a rendering must not leak either.
+fn assert_f6_every_variant<E: core::fmt::Debug + core::fmt::Display>(
+    cases: &[(E, Vec<&str>)],
+    variant: fn(&E) -> &'static str,
+    all: &[&str],
+    also_banned: &[&str],
+) {
+    let dumps: Vec<&str> = all.iter().chain(also_banned).copied().collect();
+    for (err, wants) in cases {
+        assert_f6(err, wants, &dumps);
+    }
+    let covered: BTreeSet<&str> = cases.iter().map(|(err, _)| variant(err)).collect();
+    let declared: BTreeSet<&str> = all.iter().copied().collect();
+    let uncovered: Vec<&&str> = declared.difference(&covered).collect();
+    let stray: Vec<&&str> = covered.difference(&declared).collect();
+    assert!(
+        uncovered.is_empty() && stray.is_empty(),
+        "the cases do not render one rendering per variant: {uncovered:?} have no case at \
+         all, and {stray:?} are rendered by a case the identifier list does not hold"
+    );
 }
 
 /// A face name minted by node 7 — enough for the kind + minting-node
@@ -69,10 +105,26 @@ fn stable_name_display_is_kind_plus_minting_node() {
     );
 }
 
+/// `NodePickError`'s variant identifier. The `match` has no wildcard
+/// arm, so a variant added to the enum leaves it non-exhaustive and
+/// this file stops compiling.
+fn node_pick_error_variant(e: &NodePickError) -> &'static str {
+    match e {
+        NodePickError::Standing(_) => "Standing",
+        NodePickError::NotABody { .. } => "NotABody",
+        NodePickError::NoSuchBody { .. } => "NoSuchBody",
+        NodePickError::Tessellate(_) => "Tessellate",
+        NodePickError::Index(_) => "Index",
+    }
+}
+
+/// Every identifier the arms above name.
+const NODE_PICK_ERROR_VARIANTS: &[&str] =
+    &["Standing", "NotABody", "NoSuchBody", "Tessellate", "Index"];
+
 #[test]
 fn node_pick_error_display_names_its_content_not_its_struct() {
     let node = RecipeNodeId(4);
-    let dumps = ["NotABody", "NoSuchBody", "Standing", "Tessellate", "Index"];
     let cases = [
         (
             NodePickError::NotABody { node },
@@ -83,10 +135,16 @@ fn node_pick_error_display_names_its_content_not_its_struct() {
             vec!["node 4", "index 2"],
         ),
         // The wrapped standing/kernel refusals are forwarded in their
-        // own doors' words, not paraphrased.
+        // own doors' words, not paraphrased — prefix included.
         (
             NodePickError::Standing(HitTestError::NodeFailed { node }),
             vec!["hit test:", "node 4", "failed"],
+        ),
+        (
+            NodePickError::Tessellate(mesh::TessellateError::InvalidChordalTolerance {
+                value: -1.0,
+            }),
+            vec!["tessellate:", "chordal tolerance"],
         ),
         (
             NodePickError::Index(MeshPickError::PositionOutOfRange {
@@ -97,23 +155,30 @@ fn node_pick_error_display_names_its_content_not_its_struct() {
             vec!["triangle 5", "patch 1", "position 99"],
         ),
     ];
-    for (err, wants) in cases {
-        assert_f6(&err, &wants, &dumps);
-    }
-    // The tessellation arm forwards the kernel's own prose, prefix
-    // included.
-    let err =
-        NodePickError::Tessellate(mesh::TessellateError::InvalidChordalTolerance { value: -1.0 });
-    let shown = err.to_string();
-    assert!(
-        shown.contains("tessellate:") && shown.contains("chordal tolerance"),
-        "the kernel refusal was not forwarded: {shown:?}"
+    assert_f6_every_variant(
+        &cases,
+        node_pick_error_variant,
+        NODE_PICK_ERROR_VARIANTS,
+        &[],
     );
 }
 
+/// `ResolveIndeterminate`'s variant identifier; wildcard-free, as
+/// [`node_pick_error_variant`].
+fn resolve_indeterminate_variant(e: &ResolveIndeterminate) -> &'static str {
+    match e {
+        ResolveIndeterminate::TargetFailed { .. } => "TargetFailed",
+        ResolveIndeterminate::TargetPoisoned { .. } => "TargetPoisoned",
+        ResolveIndeterminate::TargetNotEvaluated { .. } => "TargetNotEvaluated",
+    }
+}
+
+/// Every identifier the arms above name.
+const RESOLVE_INDETERMINATE_VARIANTS: &[&str] =
+    &["TargetFailed", "TargetPoisoned", "TargetNotEvaluated"];
+
 #[test]
 fn resolve_indeterminate_display_names_its_content_not_its_struct() {
-    let dumps = ["TargetFailed", "TargetPoisoned", "TargetNotEvaluated"];
     let cases = [
         (
             ResolveIndeterminate::TargetFailed {
@@ -134,42 +199,91 @@ fn resolve_indeterminate_display_names_its_content_not_its_struct() {
             vec!["minting node 6", "no result"],
         ),
     ];
-    for (err, wants) in cases {
-        assert_f6(&err, &wants, &dumps);
+    assert_f6_every_variant(
+        &cases,
+        resolve_indeterminate_variant,
+        RESOLVE_INDETERMINATE_VARIANTS,
+        &[],
+    );
+}
+
+/// `DeclareError`'s variant identifier; wildcard-free, as
+/// [`node_pick_error_variant`].
+fn declare_error_variant(e: &DeclareError) -> &'static str {
+    match e {
+        DeclareError::NoFindings => "NoFindings",
+        DeclareError::Edit(_) => "Edit",
+        DeclareError::NoMintedId => "NoMintedId",
     }
 }
 
+/// Every identifier the arms above name.
+const DECLARE_ERROR_VARIANTS: &[&str] = &["NoFindings", "Edit", "NoMintedId"];
+
 #[test]
 fn declare_error_display_names_its_content_not_its_struct() {
-    let dumps = ["NoFindings", "NoMintedId"];
-    assert_f6(
-        &DeclareError::NoFindings,
-        &["no findings", "records no intent"],
-        &dumps,
-    );
-    assert_f6(
-        &DeclareError::NoMintedId,
-        &["minted no node id", "kernel bug"],
-        &dumps,
-    );
+    let cases = [
+        (
+            DeclareError::NoFindings,
+            vec!["no findings", "records no intent"],
+        ),
+        // The wrapping arm forwards the document edit's own refusal,
+        // which already carries its slot and its recourse.
+        (
+            DeclareError::Edit(EditError::SlotDimensionMismatch {
+                slot: SlotId::Radius,
+                expected: Dimension::Length,
+                found: Dimension::Angle,
+            }),
+            vec![
+                "the document edit refused",
+                "needs a length expression",
+                "got an angle",
+            ],
+        ),
+        (
+            DeclareError::NoMintedId,
+            vec!["minted no node id", "kernel bug"],
+        ),
+    ];
+    assert_f6_every_variant(&cases, declare_error_variant, DECLARE_ERROR_VARIANTS, &[]);
 }
+
+/// `InterrogateError`'s variant identifier; wildcard-free, as
+/// [`node_pick_error_variant`].
+fn interrogate_error_variant(e: &InterrogateError) -> &'static str {
+    match e {
+        InterrogateError::NodeNotEvaluated { .. } => "NodeNotEvaluated",
+        InterrogateError::NodeFailed { .. } => "NodeFailed",
+        InterrogateError::NodePoisoned { .. } => "NodePoisoned",
+        InterrogateError::NoSuchName => "NoSuchName",
+        InterrogateError::Ambiguous { .. } => "Ambiguous",
+        InterrogateError::WrongKind { .. } => "WrongKind",
+        InterrogateError::WholeBody => "WholeBody",
+        InterrogateError::NoBodies { .. } => "NoBodies",
+        InterrogateError::NoSuchBody { .. } => "NoSuchBody",
+        InterrogateError::Readback(_) => "Readback",
+    }
+}
+
+/// Every identifier the arms above name.
+const INTERROGATE_ERROR_VARIANTS: &[&str] = &[
+    "NodeNotEvaluated",
+    "NodeFailed",
+    "NodePoisoned",
+    "NoSuchName",
+    "Ambiguous",
+    "WrongKind",
+    "WholeBody",
+    "NoBodies",
+    "NoSuchBody",
+    "Readback",
+];
 
 #[test]
 fn interrogate_error_display_names_its_content_not_its_struct() {
     let node = RecipeNodeId(7);
     let through = RecipeNodeId(3);
-    let dumps = [
-        "NodeNotEvaluated",
-        "NodeFailed",
-        "NodePoisoned",
-        "NoSuchName",
-        "Ambiguous",
-        "WrongKind",
-        "WholeBody",
-        "NoBodies",
-        "NoSuchBody",
-        "Readback",
-    ];
     let cases = [
         (
             InterrogateError::NodeNotEvaluated { node },
@@ -214,26 +328,87 @@ fn interrogate_error_display_names_its_content_not_its_struct() {
             vec!["interrogate:", "scaffolding"],
         ),
     ];
-    for (err, wants) in cases {
-        assert_f6(&err, &wants, &dumps);
+    assert_f6_every_variant(
+        &cases,
+        interrogate_error_variant,
+        INTERROGATE_ERROR_VARIANTS,
+        &[],
+    );
+}
+
+/// `SelectRefusal`'s variant identifier — **the one census here that
+/// the compiler does NOT keep**. `SelectRefusal` carries
+/// `#[non_exhaustive]`, so a `match` outside `editor-core` is required
+/// to have a wildcard arm and rustc checks nothing about the arms
+/// above it: a variant added to the enum compiles fine here and
+/// reaches the panic only if some case below happens to construct it,
+/// which is the very vacuity this file is closing. The arm is honest
+/// about that rather than pretending to be a guard. Its real home is a
+/// unit test beside the enum, inside the crate where the attribute does
+/// not apply; the other six censuses are not weakened to match this one.
+fn select_refusal_variant(e: &SelectRefusal) -> &'static str {
+    match e {
+        SelectRefusal::InBand { .. } => "InBand",
+        SelectRefusal::TiedDisagrees { .. } => "TiedDisagrees",
+        SelectRefusal::Unreadable { .. } => "Unreadable",
+        SelectRefusal::NotADatum { .. } => "NotADatum",
+        SelectRefusal::NotALength { .. } => "NotALength",
+        SelectRefusal::PairInBand { .. } => "PairInBand",
+        SelectRefusal::BadValue(_) => "BadValue",
+        SelectRefusal::Band(_) => "Band",
+        other => panic!("`SelectRefusal` grew a variant with no arm here: {other:?}"),
+    }
+}
+
+/// Every identifier the arms above name.
+const SELECT_REFUSAL_VARIANTS: &[&str] = &[
+    "InBand",
+    "TiedDisagrees",
+    "Unreadable",
+    "NotADatum",
+    "NotALength",
+    "PairInBand",
+    "BadValue",
+    "Band",
+];
+
+/// An in-band margin with a named predicate — the shape a selection
+/// refusal carries out of the funnel.
+fn in_band(predicate: &'static str) -> geom_core::Indeterminate {
+    geom_core::Indeterminate {
+        margin: geom_core::MarginDiag::Value(3e-11),
+        band: geom_core::Band::new(1e-12, 1e-9).expect("zero < escalate"),
+        predicate: Some(predicate),
     }
 }
 
 #[test]
 fn select_refusal_display_names_its_content_not_its_struct() {
-    let dumps = [
-        "InBand",
-        "TiedDisagrees",
-        "Unreadable",
-        "NotADatum",
-        "NotALength",
-        "PairInBand",
-        "BadValue",
-        // The dimension's variant identifier: `NotALength` states the
-        // dimension it read, and states it as a word.
-        "Angle",
-    ];
+    // A refusal that reads a dimension states it as a word, so the
+    // dimension identifiers are banned here too — taken off
+    // `Dimension::ALL` rather than written down, so a dimension added
+    // to the lattice is forbidden here without an edit.
+    let dimension_words: Vec<String> = Dimension::ALL
+        .iter()
+        .map(|dim| format!("{dim:?}"))
+        .collect();
+    let also_banned: Vec<&str> = dimension_words.iter().map(String::as_str).collect();
+
     let cases = [
+        (
+            SelectRefusal::InBand {
+                name: Box::new(face_name()),
+                predicate: editor_core::SEL_DATUM_DISTANCE,
+                source: in_band(editor_core::SEL_DATUM_DISTANCE),
+            },
+            vec![
+                "face",
+                "node 7",
+                "neither certified in nor out",
+                "ambiguity band",
+                editor_core::SEL_DATUM_DISTANCE,
+            ],
+        ),
         (
             SelectRefusal::TiedDisagrees {
                 name: Box::new(face_name()),
@@ -258,9 +433,34 @@ fn select_refusal_display_names_its_content_not_its_struct() {
         ),
         (
             SelectRefusal::NotALength {
-                dim: editor_core::Dimension::Angle,
+                dim: Dimension::Angle,
             },
             vec!["distance is a distance", "dimension angle"],
+        ),
+        // The detector's pair-shaped sibling of `InBand`: it names the
+        // PAIR, and says that detection reports only definite findings.
+        (
+            SelectRefusal::PairInBand {
+                pair: Box::new((face_name(), face_name())),
+                predicate: "bool_plane_side_of",
+                source: in_band("bool_plane_side_of"),
+            },
+            vec![
+                "the pair (",
+                "face",
+                "node 7",
+                "neither certified in nor out",
+                "only definite findings",
+            ],
+        ),
+        (
+            SelectRefusal::BadValue(EvalError::ContinuousExprInCountEval {
+                found: Dimension::Length,
+            }),
+            vec![
+                "the stated value did not evaluate",
+                "does not evaluate as a count",
+            ],
         ),
         // The F6 shape only; the arm's REACHABILITY and the payload
         // it must forward are pinned through the real doors in
@@ -274,14 +474,29 @@ fn select_refusal_display_names_its_content_not_its_struct() {
             vec!["ambiguity band", "ambient tolerance", "strictly below"],
         ),
     ];
-    for (err, wants) in cases {
-        assert_f6(&err, &wants, &dumps);
+    assert_f6_every_variant(
+        &cases,
+        select_refusal_variant,
+        SELECT_REFUSAL_VARIANTS,
+        &also_banned,
+    );
+}
+
+/// `ResolveFault`'s variant identifier; wildcard-free, as
+/// [`node_pick_error_variant`].
+fn resolve_fault_variant(e: &ResolveFault) -> &'static str {
+    match e {
+        ResolveFault::PinMismatch => "PinMismatch",
+        ResolveFault::EpsilonSeam => "EpsilonSeam",
+        ResolveFault::Unresolved => "Unresolved",
     }
 }
 
+/// Every identifier the arms above name.
+const RESOLVE_FAULT_VARIANTS: &[&str] = &["PinMismatch", "EpsilonSeam", "Unresolved"];
+
 #[test]
 fn resolve_fault_display_names_its_content_not_its_struct() {
-    let dumps = ["PinMismatch", "EpsilonSeam", "Unresolved"];
     let cases = [
         (
             ResolveFault::PinMismatch,
@@ -296,25 +511,44 @@ fn resolve_fault_display_names_its_content_not_its_struct() {
             vec!["did not resolve", "unknown id"],
         ),
     ];
-    for (fault, wants) in cases {
-        assert_f6(&fault, &wants, &dumps);
+    assert_f6_every_variant(&cases, resolve_fault_variant, RESOLVE_FAULT_VARIANTS, &[]);
+}
+
+/// `ParseError`'s variant identifier; wildcard-free, as
+/// [`node_pick_error_variant`].
+fn parse_error_variant(e: &ParseError) -> &'static str {
+    match e {
+        ParseError::UnexpectedChar { .. } => "UnexpectedChar",
+        ParseError::UnexpectedEnd { .. } => "UnexpectedEnd",
+        ParseError::UnexpectedToken { .. } => "UnexpectedToken",
+        ParseError::TrailingInput { .. } => "TrailingInput",
+        ParseError::MalformedNumber { .. } => "MalformedNumber",
+        ParseError::IntegerOverflow { .. } => "IntegerOverflow",
+        ParseError::UnknownUnit { .. } => "UnknownUnit",
+        ParseError::UnknownFunction { .. } => "UnknownFunction",
+        ParseError::WrongArity { .. } => "WrongArity",
+        ParseError::UnknownParam { .. } => "UnknownParam",
+        ParseError::Dimension { .. } => "Dimension",
     }
 }
 
+/// Every identifier the arms above name.
+const PARSE_ERROR_VARIANTS: &[&str] = &[
+    "UnexpectedChar",
+    "UnexpectedEnd",
+    "UnexpectedToken",
+    "TrailingInput",
+    "MalformedNumber",
+    "IntegerOverflow",
+    "UnknownUnit",
+    "UnknownFunction",
+    "WrongArity",
+    "UnknownParam",
+    "Dimension",
+];
+
 #[test]
 fn parse_error_display_names_its_content_not_its_struct() {
-    let dumps = [
-        "UnexpectedChar",
-        "UnexpectedEnd",
-        "UnexpectedToken",
-        "TrailingInput",
-        "MalformedNumber",
-        "IntegerOverflow",
-        "UnknownUnit",
-        "UnknownFunction",
-        "WrongArity",
-        "UnknownParam",
-    ];
     let cases = [
         (
             ParseError::UnexpectedChar { pos: 3, ch: '#' },
@@ -386,10 +620,21 @@ fn parse_error_display_names_its_content_not_its_struct() {
             },
             vec!["byte 0", "not a parameter"],
         ),
+        // The text door forwards the smart constructor's own refusal
+        // and adds only the position, so the dimension checker's words
+        // are what a reader sees.
+        (
+            ParseError::Dimension {
+                pos: 6,
+                error: DimensionError::MulNeedsScalar {
+                    left: Dimension::Length,
+                    right: Dimension::Length,
+                },
+            },
+            vec!["byte 6", "needs a scalar operand", "length x length"],
+        ),
     ];
-    for (err, wants) in cases {
-        assert_f6(&err, &wants, &dumps);
-    }
+    assert_f6_every_variant(&cases, parse_error_variant, PARSE_ERROR_VARIANTS, &[]);
 }
 
 /// Every rendering of a [`Dimension`] a user can reach, in one place.

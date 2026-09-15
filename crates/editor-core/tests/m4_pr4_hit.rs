@@ -305,6 +305,23 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
     );
 }
 
+/// `HitTestError`'s variant identifier. The `match` has no wildcard
+/// arm, so a variant added to the enum leaves it non-exhaustive and
+/// this file stops compiling — which is what keeps the ban list below
+/// a mirror of the enum rather than a list beside it.
+fn hit_test_error_variant(e: &HitTestError) -> &'static str {
+    match e {
+        HitTestError::NodeNotEvaluated { .. } => "NodeNotEvaluated",
+        HitTestError::NodeFailed { .. } => "NodeFailed",
+        HitTestError::NodePoisoned { .. } => "NodePoisoned",
+        HitTestError::Unnamed { .. } => "Unnamed",
+    }
+}
+
+/// Every identifier the arms above name.
+const HIT_TEST_ERROR_VARIANTS: &[&str] =
+    &["NodeNotEvaluated", "NodeFailed", "NodePoisoned", "Unnamed"];
+
 /// The Display contract (#1111): a consumer renders a `HitTestError`
 /// through the payload's own words, so every arm must state what
 /// happened in prose — the node it is about, the kind of entity where
@@ -340,7 +357,7 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
             vec!["node 7", "face", "body 2", "kernel bug"],
         ),
     ];
-    for (err, wants) in cases {
+    for (err, wants) in &cases {
         let shown = err.to_string();
         for want in wants {
             assert!(
@@ -348,7 +365,7 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
                 "{err:?} renders as {shown:?}, missing {want:?}"
             );
         }
-        for dump in ["NodeNotEvaluated", "NodeFailed", "NodePoisoned", "Unnamed"] {
+        for dump in HIT_TEST_ERROR_VARIANTS {
             assert!(
                 !shown.contains(dump),
                 "{err:?} renders as {shown:?} — that is the variant name, i.e. a struct dump"
@@ -360,4 +377,17 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
         );
         assert_ne!(shown, format!("{err:?}"));
     }
+
+    // A variant with no case here renders nowhere, so the ban list
+    // above would be banning an identifier nothing ever produces.
+    let covered: std::collections::BTreeSet<&str> = cases
+        .iter()
+        .map(|(err, _)| hit_test_error_variant(err))
+        .collect();
+    let declared: std::collections::BTreeSet<&str> =
+        HIT_TEST_ERROR_VARIANTS.iter().copied().collect();
+    assert_eq!(
+        covered, declared,
+        "the cases do not render one rendering per variant"
+    );
 }
