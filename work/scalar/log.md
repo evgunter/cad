@@ -372,3 +372,20 @@ two private types named `AxisFrame` in two crates (editor-core's
 origin+u+v pair, sweep's 2-D revolve frame); the tube door deciding
 unit-ness under a LEVERED band the frame mint will not use, so two
 predicate names retire with it.
+
+## B3: EXHAUST-LANE and SENSE-FOLD in review (2026-09-15)
+
+EXHAUST-LANE landed first as PR 2667 (ordinal 4106; byte 14 ⇒ R1 OPUS,
+R2 FABLE on frozen `0414760f5`) — the lane tag with the chart lane's
+`SupSpeed`, metres by one method, the pinned `WALL_CHART_SPEED`
+retired and reproduced by the kernel's own rate; one deviation of
+substance (the receipt is no longer written by `sweep` — a private
+tally, the two accounting doors attach the lane, because a seeding
+path has no honest lane). SENSE-FOLD landed as PR 2668 (ordinal 4107;
+byte 234 ⇒ R1 OPUS, R2 FABLE on frozen `8a3ca626d`) — fifteen sites
+folded, `Face::sense_sign` deleted, the census guard retired to the
+type system, the `arms.rs` `side` field now the bit with a conditional
+negation at every consumer, digests identical. Both duals are
+concurrent on their frozen heads; SENSE-FOLD's waited on disk until
+EXHAUST-LANE's reviewers were done building. FRAME-WITNESS is still
+implementing.
