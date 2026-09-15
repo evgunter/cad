@@ -42,6 +42,50 @@ stayed bare `f64`/`T` for the same scoping reason, and `area_inf` is an
 AREA rate, which the linear pair does not name at all. Whoever types
 `certified_arms` will pass through this struct on the way.
 
+## The rest of the class, found by two reviews
+
+The sweep that filed this row keyed on identifier substrings
+(`speed|rate|stretch|meter|lever`) and on the `Margin::` door
+spellings. Four members carry none of those, so the pattern was blind
+to every one of them; they are the blind spot instantiated, and they
+belong on this row rather than in a PR body.
+
+- `crates/editor-core/src/clearance.rs`, `chart_arms` and
+  `metred_rect`: the same per-kind table again (plane `(1, 1)`,
+  cylinder `(r, 1)`), multiplied by hand into a `MetredRect` that
+  `certifies_outside` decides at the band. Its own doc declares itself
+  a COPY of `certified_arms` and says why (the original is private to
+  `chart_region`), so the drift hazard the copy names is now also a
+  typing hazard: two tables, one of which will be typed first.
+- `crates/topo/src/chart_region.rs`, `ScaledFace::build`'s `arm_u` /
+  `arm_v`: the site that actually performs `p.x * arm_u` — the
+  hand-spelled crossing `certified_arms` feeds. A typed
+  `certified_arms` types this signature with it.
+- `crates/geom-brep/src/offset_meters.rs`,
+  `MeterError::NormalFloor`'s `speed_lever: f64`: a PUBLIC receipt
+  carrying a sup rate untagged, beside a `PatchRegularity` whose own
+  speeds are `SupSpeed<f64>`. RATE-PAIR left it bare deliberately and
+  the reason is a real obstacle, not scope: `MeterError` derives
+  `PartialEq`, which `SupSpeed` does not have and will not (no `==` on
+  a tagged rate), so typing the field means hand-writing `PartialEq`
+  for a public error — a rate comparison outside the classify seam —
+  or dropping the derive from a public type. `Display` is not the
+  blocker: its text survives a `.get()`.
+
+`crates/topo/src/chart_bound.rs`'s `assembled(u_arm)` was the fifth and
+is no longer open: RATE-PAIR's fix pass typed it `ChartArm<T>`, so the
+span check picks its door off the arm's kind.
+
+## Who owns it
+
+Contested, and worth saying so in one place rather than rediscovering
+it. SCALAR's `keep_out` says `chart_region.rs` is code-quality Track
+M's; TOPO's says Track Q's (S-BOOL/CURVED); neither names TRIM. What
+puts the row here is precedent, not territory — TRIM already carries
+`three-tables-of-the-chart-arms` on the same function from the same
+direction, and one file should not have two homes. Whoever takes it
+should reconcile the two `keep_out` lines in the same pass.
+
 ## Shape
 
 `certified_arms` answers `InfSpeed<T>` per axis; the `Margin::of` gate

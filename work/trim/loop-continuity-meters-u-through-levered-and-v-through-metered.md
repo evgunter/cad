@@ -25,30 +25,46 @@ owner of `crates/topo/src/pcurves.rs`.
 
 ## Closed (RATE-PAIR, `rate-pair-in-geom-core`)
 
-**What the u/v asymmetry becomes: two doors, and the reason is now in
-the types rather than in the reader's head.** The two channels do not
-cross the same seam, which is why one door was never going to serve
-both:
+**Both channels are typed, and the u channel's door is now picked by
+the arm's own kind rather than by the reader.** The finding was right
+that one crossing was wearing two doors; what makes it two crossings is
+what the chart's `u` MEANS, and that varies by chart kind:
 
-- the **u** channel's discrepancy is an ANGLE on every chart kind the
-  arm is exact for, and `azimuth_arm` is metres per RADIAN at a `v`
+- on the ANGULAR kinds (cylinder, sphere, torus, cone) the `u`
+  discrepancy is an ANGLE and the arm is metres per RADIAN at a `v`
   (`r`, `r·cos v`, `R + r·cos v`, `v·sin α`). That is the levered
-  door's dimensional argument — a dimensionless quantity times a length
-  lever — and it stays `Margin::levered`.
-- the **v** channel's is a parameter SPAN whose units differ per kind
-  (an angle on the polar charts, a length on a plane or cylinder, a
-  chart parameter on a spline), so it is a metres-per-parameter-unit
-  crossing and takes the metric door.
+  door's dimensional argument — a dimensionless quantity times a
+  length lever — and it stays `Margin::levered`.
+- on the PLANE and SPLINE kinds there is no angle: the discrepancy is a
+  chart-PARAMETER span and the arm is `chart_stretch_sup`'s first
+  component, a `SupSpeed` — the same crossing as the v channel, which
+  is what this row was filed about. Those go through
+  `Margin::metered_sup`.
+- the **v** channel's is a parameter span whose units differ per kind
+  (an angle on the polar charts, a length on a plane, cylinder or cone,
+  a chart parameter on a spline), so it is a metres-per-parameter-unit
+  crossing and takes the metric door. `v_meter` answers a `SupSpeed<T>`
+  and the escape claim's safe direction is checked by the compiler.
 
-What was genuinely wrong was not the asymmetry but the direction: both
-rates are SUP bounds on the spline arm, and `metered`'s doc promised an
-inf (PROPS' row, closed in the same PR). `v_meter` now answers a
-`SupSpeed<T>` and the v-channel goes through `Margin::metered_sup`, so
-the escape claim's safe direction is checked by the compiler.
-`azimuth_arm` keeps its bare `T` and says why at its own header: an
-arm per radian is not a rate per parameter unit, and its spline branch
-takes the tag off `chart_stretch_sup` at the one place where the same
-number is read as a lever.
+The direction was wrong too, and that half is what `metered`'s doc
+promised: both rates are SUP bounds on the spline arm while the door
+promised an inf (PROPS' row, closed in the same PR).
 
-`docs/predicate-dimension-audit.md`'s `pcurves.rs` row records the two
+`azimuth_arm` is now `chart_u_arm`, returning `ChartArm<T>` —
+`Angular(T)` or `Rate(SupSpeed<T>)` — whose `meter` method is the one
+place that says which door a first-channel gap reaches the band
+through. Every consumer of the arm picks its door off that type:
+`walk_loop`, `chart_boundary`'s closure, `validate_pcurves`,
+`loop_closes` and `ChartBound::assembled`'s span check.
+
+**What is left, and it is the class's next member, not a residue of
+this row.** The ANGULAR kinds' arm is still a bare `T`: metres per
+radian is not a rate per parameter unit, so the rate pair has no type
+for it, and the same is true of `azimuth_lever`, `chart_windings` and
+the cone arm `chart_arms_at` supplies. Whether the kernel wants a
+second tagged pair for angular arms is a question this unit did not
+answer and did not pretend to — filed as
+`work/trim/angular-arms-are-an-untagged-lever-beside-a-typed-rate.md`.
+
+`docs/predicate-dimension-audit.md`'s `pcurves.rs` row records the
 doors and the reason for each.
