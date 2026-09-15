@@ -128,12 +128,28 @@ results, a bad path list returns tidy ones and a confident count. In
 both scope misses the list was *inherited*, never re-derived — by the
 row, by the dispatch and by the lane alike.
 
-`implementer-discipline.md` §5 asks a lane to say what its pattern could
-not match. It says nothing about where the lane looked. **Proposed
-amendment, for Ev: §5 should ask for the scope as well as the pattern** —
-and the form that makes no path claim is `git grep` over every tracked
-file with no path argument at all, which is what both of `S392`'s final
-sweeps are.
+**An amendment to §5 was proposed here and is withdrawn** (Ev, on the
+`[ev]` PR; tested rather than defended). §5 already says what this walk
+was about to say: *"what that pattern could not match"*, *"before you
+write the scope sentence, grep for the shape — not the symbol"*, and a
+paragraph headed *"Scope sentences read as completeness even when the
+claim above them does not share their scope."* Tested against the six
+misses, the proposed wording would have caught **none** — the four
+pattern misses are already covered by prose that three lanes violated
+anyway (one while quoting it), and a lane writing *"I searched `crates/
+demos/ tools/ scripts/`"* has written something true that does not
+prompt anyone to check `docs/`.
+
+**The finding survives the amendment's withdrawal, and it is about
+defaults rather than disclosure.** A disclosure rule asks a lane to
+notice its own blind spot, which is what the six misses are evidence it
+cannot do. What worked, twice, was mechanical: sweep with `git grep`
+over every tracked file, **no path argument**, which is the only form of
+the sweep that makes no path claim, and narrow only with a stated reason
+why the excluded paths cannot hold the class. Both of `S392`'s final
+sweeps are that form. Whether it is worth a line in `docs/prompts/` is
+Ev's, as its own conversation — the evidence that more §5 prose does not
+work is this program's own.
 
 ## X4 — no unit minted a fresh instance of the defect it closed
 
@@ -329,10 +345,22 @@ Two rows on CIW, from this program, one mechanism:
    opening slate. **Recommendation: open one**, on the duplication-class
    territory rather than on S-TINT's test-integrity charter — they are
    different questions, which is why SUITE existed. Ev's call.
-2. **`implementer-discipline.md` §5 should ask for the sweep's SCOPE**,
-   not only its pattern — see X3. This is `docs/prompts/`, so it waits
-   for sign-off rather than landing with this walk.
-3. **The `examples/` coupling**, accepted deliberately and stated:
+2. **The §5 amendment is WITHDRAWN** (Ev, on this PR; the test is in X3).
+   §5 already carries the sentence it would have added, and the proposed
+   wording would have caught none of the six misses. What survives is a
+   *default* rather than a disclosure — `git grep` over every tracked
+   file, no path argument — offered as its own `docs/prompts/`
+   conversation if Ev wants it, not carried by this walk.
+3. **The `examples/` coupling** — Ev asked whether it should auto-rebaseline
+   as the renders do; **no**, and the difference is load-bearing.
+   `crates/step-export/tests/fixtures/loft_prism.step` is read by
+   **`step-import`'s** tests, so the corpus is cross-crate input rather
+   than one crate's snapshot: auto-rebaselining would move the yardstick
+   the round-trip is measured against and the round-trip would keep
+   passing. A render is a *view* whose drift is environmental and
+   expected (`memories/freecad-render-lane.md`: re-baselining on a mesa
+   bump "is the lane working"); STEP bytes move only when the kernel or
+   the fixture does. It is accepted deliberately and stated:
    `step-export`'s committed STEP corpus is now regenerated from a kernel
    test fixture. Guarded by `committed_fixtures_are_byte_golden` on every
    PR, so an edit reddens its own branch. Flagged because it is a real
