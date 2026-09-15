@@ -1037,3 +1037,39 @@ derived by the command that produces it, and the dispatch carries the
 command** — not the number alone, so the reader can re-run it. A
 sentence and a number are the same kind of claim, and this program
 exists to say so.
+
+## TINT-6 cut — and the probe refused the obvious shape (2026-09-15)
+
+All five units of the first wave are on main, each verified by
+`git merge-base --is-ancestor` rather than by a merge API's
+`merged: true`. The slate is open at ~55 rows with nothing in flight.
+
+**TINT-6** — `docs/TINT-6-SPEC.md`, branch `tint/6-interrogate-ladder`,
+one row: `interrogate-ladder-header-claims-every-rung-and-pins-five`.
+
+**The probe ran before the spec, and killed the shape this seat reached
+for.** The row was routed to TINT-1's exhaustive-match shape this
+morning, and `f6_variants!` landing in TINT-5 made that look strictly
+better. It is not the shape, because the suite pins a rung by asserting
+a DOOR'S RETURNED ERROR — so a roster of covered rungs has to accumulate
+across rows, and **nextest runs each row in its own process**. That is
+TINT-2's measured wall (pids 12156 and 12157, a shared `static
+AtomicUsize` reading 0 in both), one row over. A spec proposing it would
+have been this seat's third naming a mechanism it had not executed.
+
+**What survives**: one row driving every reachable rung through its own
+door in a single process, welded to the enum by `f6_variants!`, so
+isolation is irrelevant. The spec names the measurement that decides its
+size — are the four unmeasured rungs reachable from a door one test can
+call — and says **both answers are legitimate**, because the honest
+outcome may be that the header narrows rather than that the suite grows.
+`NoBodies` is excluded by name either way; SHELL's row is still open, so
+pinning it would pin a defect.
+
+**Three probes, three corrected groupings.** The roster class was not a
+class; TINT-5's weld turned out to have no home before it could have
+adopters; and this one's obvious mechanism does not exist. The
+discipline observation 2 adopted — a spec names the measurement that
+would show its mechanism cannot work, and the lane takes it first — has
+now been improved on by taking the measurement BEFORE the spec exists,
+three times running.
