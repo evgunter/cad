@@ -36,10 +36,11 @@ use profile::RawLoop;
 
 use geom::NurbsCurve3;
 use geom::curves::fit::interpolate_columns;
-use geom_core::{Affine3, Point2, Point3, Vec3};
+use geom_core::{Affine3, Point2, Point3};
 use sweep::skin::{LoftGeometry, Section, loft_geometry, sweep_geometry};
 use sweep::test_support::{
-    ELBOW_H, ELBOW_R, ELBOW_STATIONS, ELBOW_V_DEGREE, elbow_path, elbow_section,
+    ELBOW_H, ELBOW_R, ELBOW_STATIONS, ELBOW_V_DEGREE, PRISM_Z, elbow_path, elbow_section,
+    loft_prism_sections, stacked_at,
 };
 use sweep::{loft_body, sweep_body};
 
@@ -55,22 +56,6 @@ use geom_core::Tol;
 /// weights, no arc anywhere).
 fn square(h: f64) -> Section {
     quad([(-h, -h), (h, -h), (h, h), (-h, h)])
-}
-
-/// The `loft_prism` corpus sections: squares at the ends, a NON-AFFINE
-/// trapezoid in the middle (so the walls are genuinely curved in v).
-fn prism_sections() -> Vec<Section> {
-    vec![
-        quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-        quad([(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-        quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-    ]
-}
-
-fn at_z(zs: &[f64]) -> Vec<Affine3<f64>> {
-    zs.iter()
-        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
-        .collect()
 }
 
 /// Every weight of every wall, bit-exactly `1.0` — the kernel's own
@@ -136,7 +121,7 @@ fn homogeneous_lane(
 fn the_homogeneous_lane_still_drifts_where_the_shipped_lane_does_not() {
     let g = loft_geometry(
         &[square(1.0), square(1.0), square(1.0)],
-        &at_z(&[0.0, 1.0, 3.0]),
+        &stacked_at(&[0.0, 1.0, 3.0]),
         2,
         Tol::witness(),
     )
@@ -159,8 +144,8 @@ fn the_homogeneous_lane_still_drifts_where_the_shipped_lane_does_not() {
 #[test]
 fn the_uniform_loft_is_bitwise_unchanged() {
     let g = loft_geometry(
-        &prism_sections(),
-        &at_z(&[0.0, 1.0, 2.0]),
+        &loft_prism_sections(),
+        &stacked_at(&PRISM_Z),
         2,
         Tol::witness(),
     )
@@ -194,7 +179,7 @@ fn the_uniform_loft_is_bitwise_unchanged() {
 #[test]
 fn nonuniform_prism_loft_body_matches_the_derived_volume() {
     let sections = [square(1.0), square(1.0), square(1.0)];
-    let places = at_z(&[0.0, 1.0, 3.0]);
+    let places = stacked_at(&[0.0, 1.0, 3.0]);
     let lofted = loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the non-uniform loft builds");
     let body = &lofted.body;
@@ -220,12 +205,13 @@ fn nonuniform_prism_loft_body_matches_the_derived_volume() {
 /// passes the whole ladder, and skins integral.
 #[test]
 fn nonuniform_trapezoid_loft_body_is_tier3_valid() {
-    let places = at_z(&[0.0, 1.0, 3.0]);
+    let places = stacked_at(&[0.0, 1.0, 3.0]);
     walls_are_integral(
-        &loft_geometry(&prism_sections(), &places, 2, Tol::witness()).expect("geometry"),
+        &loft_geometry(&loft_prism_sections(), &places, 2, Tol::witness()).expect("geometry"),
         "non-uniform trapezoid loft",
     );
-    let lofted = loft_body::<f64>(&prism_sections(), &places, 2, Tol::witness()).expect("builds");
+    let lofted =
+        loft_body::<f64>(&loft_prism_sections(), &places, 2, Tol::witness()).expect("builds");
     assert_eq!(topo::validate_closed(&lofted.body), Ok(()), "tier 2");
     assert_eq!(
         topo::validate_geometric(&lofted.body, Tol::witness()),
@@ -343,7 +329,7 @@ fn the_swept_bodys_seam_carriers_meter_positively() {
             panic!("a finished body has no null scaffolding");
         };
         if let geom::Curve3::Nurbs(c) = curve.carrier() {
-            let s = c.speed_lower_bound();
+            let s = c.speed_lower_bound().get();
             assert!(
                 s > 0.0,
                 "a seam carrier's speed lower bound is {s} (poison or non-positive) — \
@@ -417,7 +403,7 @@ fn a_rational_section_on_a_curved_path_meters_at_the_span_meter() {
             panic!("a finished body has no null scaffolding");
         };
         if let geom::Curve3::Nurbs(c) = curve.carrier() {
-            let s = c.speed_lower_bound();
+            let s = c.speed_lower_bound().get();
             assert!(
                 s > 0.0,
                 "a rational wall's carrier meters {s} (poison or non-positive) — the \

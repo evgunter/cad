@@ -39,7 +39,7 @@ use viewer::frame::{self, IdQueryLog, IdStep, IdSubject, StatusUpdate};
 use viewer::generation::Generation;
 use viewer::input::{self, InputMap, ViewportSize};
 use viewer::pickcache::{self, CacheStep, IndexLanding, PickCache};
-use viewer::pickindex::{self, IdMap, PickIndex};
+use viewer::pickindex::{self, IdMap, PickIndex, PictureKey};
 use viewer::prefs::{Absent, PrefsStore};
 use viewer::props::SlotValue;
 use viewer::scene::{self, DisplayTolerance, FittedDelta, PLATE_EXTENT};
@@ -70,8 +70,7 @@ fn index_of(session: &DocSession) -> PickIndex {
     PickIndex::build(
         doc,
         eval,
-        session.landed_generation().expect("a generation"),
-        delta(),
+        PictureKey::of(session.landed_generation().expect("a generation"), delta()),
         session.tol(),
     )
     .expect("the plate indexes")
@@ -200,6 +199,121 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
         frame::Subject::Document,
         "notices that agree on a subject are joined under it, so the \
          joined line still knows what retires it"
+    );
+}
+
+/// **A joined line splits back into the notices it was made from.**
+///
+/// The defect: `frame_status` joined notices with `"; "` and a notice
+/// is free to write `"; "` inside its own sentence, so at two notices
+/// a reader met a separator that might be a boundary and might be the
+/// notice talking. Unfalsifiable at one notice, wrong at two.
+///
+/// Both texts here are real faults' own renderings through a real
+/// door, not prose written for the row: `NonRigidFrame` writes a
+/// `LIST_SEPARATOR` inside one sentence — the hazard
+/// `work/view/joined-notices-nest-their-own-separator.md` records as
+/// mechanical and present — and `FusedGeometry` writes an em-dash.
+/// Under the old spelling the first alone makes this split return
+/// three pieces where two went in.
+///
+/// Asserted as the SPLIT and not as a separator count: a count is the
+/// weaker half of the same claim, and `Withdrawal`'s own row already
+/// says why a count passes over text that reads as one item too many.
+#[test]
+fn a_joined_line_splits_back_into_the_notices_it_was_made_from() {
+    let nests = frame::tool_news(DisplayFault::NonRigidFrame { determinant: 0.5 }.to_string());
+    let dashes = frame::tool_news(
+        DisplayFault::FusedGeometry {
+            instance: RecipeNodeId(3),
+            root: RecipeNodeId(9),
+            others: vec![RecipeNodeId(5)],
+        }
+        .to_string(),
+    );
+    assert!(
+        nests.text().contains(frame::LIST_SEPARATOR),
+        "the row is about a notice that carries the within-a-notice \
+         mark; this one no longer does, so it proves nothing: {nests}"
+    );
+
+    let StatusUpdate::Show(line) = frame::frame_status(
+        &[nests.clone(), dashes.clone()],
+        &[SessionOp::Select(Selection::None)],
+        None,
+    ) else {
+        panic!("two notices are shown");
+    };
+    assert_eq!(
+        line.text()
+            .split(frame::NOTICE_SEPARATOR)
+            .collect::<Vec<_>>(),
+        vec![nests.text(), dashes.text()],
+        "the boundary between two notices is legible as a boundary and \
+         as nothing else, whatever either notice's own sentence says"
+    );
+}
+
+/// **A notice cannot be constructed carrying the boundary mark.**
+///
+/// The rule above is a claim about every string any producer will
+/// ever hand `Message`, which no signature carries — so the only door
+/// enforces it, and this is the row that goes red if it stops.
+///
+/// The door rewrites rather than refuses because it is reachable from
+/// the keyboard: `delta_not_a_number` echoes what was typed into the
+/// δ field, so a pasted bullet must not be able to take the
+/// application down. That path is asserted here too, through its own
+/// door, because it is the one that makes the choice necessary.
+#[test]
+fn a_notice_cannot_carry_the_boundary_mark() {
+    let asked = frame::Message::new(frame::Subject::Document, "one \u{2022} two");
+    assert!(
+        !asked.text().contains(frame::NOTICE_MARK),
+        "the door takes the boundary mark out: {asked}"
+    );
+
+    let pasted = "1 \u{2022} 2".parse::<f64>().expect_err("not a number");
+    let typed = frame::delta_not_a_number("1 \u{2022} 2", &pasted);
+    assert!(
+        !typed.text().contains(frame::NOTICE_MARK),
+        "a bullet pasted into the δ field reaches a notice verbatim: {typed}"
+    );
+
+    let StatusUpdate::Show(line) = frame::frame_status(
+        &[asked.clone(), typed.clone()],
+        &[SessionOp::Select(Selection::None)],
+        None,
+    ) else {
+        panic!("two notices are shown");
+    };
+    assert_eq!(
+        line.text().split(frame::NOTICE_SEPARATOR).count(),
+        2,
+        "a notice that asked for the mark still cannot forge a boundary: {line}"
+    );
+}
+
+/// **The two marks are two marks**, which is the whole of the rule.
+///
+/// `Message::new` derives what it rewrites a boundary mark to from
+/// `LIST_SEPARATOR`, so an all-whitespace list separator would make
+/// `str::replace` insert between every character of every notice.
+/// Nothing else in the crate would notice.
+#[test]
+fn the_boundary_mark_belongs_to_the_boundary_alone() {
+    assert_eq!(
+        frame::NOTICE_SEPARATOR.matches(frame::NOTICE_MARK).count(),
+        1,
+        "the separator carries the mark it is named for, once"
+    );
+    assert!(
+        !frame::LIST_SEPARATOR.contains(frame::NOTICE_MARK),
+        "a notice's own list mark is not a boundary"
+    );
+    assert!(
+        !frame::LIST_SEPARATOR.trim().is_empty(),
+        "what the door rewrites a boundary mark TO has to be a mark"
     );
 }
 
@@ -1399,6 +1513,17 @@ fn a_refused_index_is_attempted_once_per_generation_and_not_once_per_frame() {
         cache.index().is_none(),
         "and the index built for the document before the break is gone"
     );
+    // **A refusal is an ANSWER.** The attempt keeps the picture it was
+    // made for — which is what the two `Held` steps below read — and
+    // stops being outstanding, which is what this reads. The two facts
+    // are one value's key and one value's state, and a chrome that
+    // promised an answer here would spin `indexing…` until the
+    // document moved.
+    assert!(
+        !cache.indexing(),
+        "a refusal answers the attempt; nothing is owed and nothing is \
+         being built"
+    );
     // The frame after, and the frame after that: HELD. This is the
     // whole row — before the fix, both of these were another full
     // rebuild attempt.
@@ -1680,8 +1805,7 @@ fn an_answer_for_a_superseded_generation_is_discarded_not_installed() {
     );
 
     let landing = cache.land(IndexDone {
-        generation: stale.generation(),
-        delta: delta(),
+        key: PictureKey::of(stale.generation(), delta()),
         memo: MemoReport::default(),
         index: Ok(stale),
     });
@@ -1714,8 +1838,7 @@ fn an_answer_built_at_another_delta_is_discarded_too() {
         CacheStep::Submitted
     );
     let landing = cache.land(IndexDone {
-        generation,
-        delta: delta(),
+        key: PictureKey::of(generation, delta()),
         memo: MemoReport::default(),
         index: Ok(coarse),
     });
@@ -1734,11 +1857,11 @@ fn an_answer_built_at_another_delta_is_discarded_too() {
 fn a_click_with_no_index_refuses_typed_and_a_hover_stays_quiet() {
     let click = [input::PickAction::Select([10.0, 10.0])];
     assert_eq!(
-        pickcache::unindexed(&click, true),
+        pickcache::unindexed(&click, None, true),
         Some(pickcache::NotIndexed::Building),
     );
     assert_eq!(
-        pickcache::unindexed(&click, false),
+        pickcache::unindexed(&click, None, false),
         Some(pickcache::NotIndexed::Absent),
         "a refused build is not a build that is still running, and the \
          sentence must not promise an answer that is not coming",
@@ -1750,12 +1873,13 @@ fn a_click_with_no_index_refuses_typed_and_a_hover_stays_quiet() {
                     input::PickAction::Hover([10.0, 10.0]),
                     input::PickAction::ClearHover,
                 ],
+                None,
                 indexing,
             ),
             None,
             "an observation asked every frame is not a refusal to report",
         );
-        assert_eq!(pickcache::unindexed(&[], indexing), None);
+        assert_eq!(pickcache::unindexed(&[], None, indexing), None);
     }
     assert_ne!(
         pickcache::NotIndexed::Building.to_string(),
@@ -1770,6 +1894,60 @@ fn a_click_with_no_index_refuses_typed_and_a_hover_stays_quiet() {
             "and each sentence says which of the two answers it is",
         );
     }
+}
+
+/// **An index in hand for a picture nobody has seen is refused as
+/// itself**, not as an absence — Ev's ruling, 2026-09-15.
+///
+/// `ViewerApp::sync_scene` marks the scene's `(generation, δ)` pair
+/// current only on a successful rebuild, so a landing over a refused
+/// one leaves a newer index beside an older picture. Answering from it
+/// selects geometry the screen is not showing; the ruling is that the
+/// click says so instead.
+///
+/// The sentence is asserted against the other two rather than quoted:
+/// what a reader needs from it is that it does not promise an arriving
+/// answer (`Building`) and does not claim there is nothing to ask
+/// (`Absent`), and a copy of the string here would go stale the first
+/// time anyone improves the wording.
+#[test]
+fn a_click_over_a_picture_the_index_did_not_draw_says_which_of_the_three() {
+    let tol = Tol::witness();
+    let (session, _extrude) = plate_session(tol);
+    let held = index_of(&session);
+    let click = [input::PickAction::Select([10.0, 10.0])];
+
+    assert_eq!(
+        pickcache::unindexed(&click, Some(&held), false),
+        Some(pickcache::NotIndexed::AnotherPicture),
+        "an index is in hand, so the refusal is not about an absence",
+    );
+    assert_eq!(
+        pickcache::unindexed(
+            &[
+                input::PickAction::Hover([10.0, 10.0]),
+                input::PickAction::ClearHover,
+            ],
+            Some(&held),
+            false,
+        ),
+        None,
+        "and the act filter is the same one: a hover is not news here \
+         either",
+    );
+
+    let stale = pickcache::NotIndexed::AnotherPicture.to_string();
+    for other in [
+        pickcache::NotIndexed::Building,
+        pickcache::NotIndexed::Absent,
+    ] {
+        assert_ne!(stale, other.to_string());
+    }
+    assert!(
+        stale.contains("older"),
+        "the sentence names what is wrong with the picture, which is \
+         that it is behind the document the cursor is over",
+    );
 }
 
 /// One indicator for one wait, and the ranking that decides which.
@@ -2374,7 +2552,11 @@ fn a_build_whose_worker_panicked_stops_promising_an_answer() {
         "and the chrome has nothing to spin over",
     );
     assert_eq!(
-        pickcache::unindexed(&[input::PickAction::Select([10.0, 10.0])], cache.indexing()),
+        pickcache::unindexed(
+            &[input::PickAction::Select([10.0, 10.0])],
+            cache.index(),
+            cache.indexing(),
+        ),
         Some(pickcache::NotIndexed::Absent),
         "a click is refused as one nothing will answer, not as one an \
          arriving index is about to",

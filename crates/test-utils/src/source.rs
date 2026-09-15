@@ -771,6 +771,65 @@ pub fn crate_dir(baked: &str) -> std::path::PathBuf {
     cwd
 }
 
+/// The REPOSITORY root, for a guard whose subject is the whole tree:
+/// [`crate_dir`]'s answer two levels up, canonicalized.
+///
+/// **Canonical, so `..` is not a path COMPONENT.** Every caller of
+/// this walks `rust_sources` from the root and skips directories by
+/// component name; a root still spelled `…/crates/test-utils/../..`
+/// carries a `..` component of its own, which a skip list matches
+/// against every file in the tree at once — and that looks exactly
+/// like a clean walk.
+///
+/// **Panics** when the result holds no `Cargo.toml`: a guard that
+/// resolved to the wrong root would read the wrong tree and report
+/// agreement over it. Five guards had written these eight lines
+/// themselves, in four crates.
+#[must_use]
+pub fn repo_root(baked: &str) -> std::path::PathBuf {
+    let root = crate_dir(baked)
+        .join("../..")
+        .canonicalize()
+        .expect("the repository root resolves");
+    assert!(
+        root.join("Cargo.toml").is_file(),
+        "{} is not the repository root",
+        root.display()
+    );
+    root
+}
+
+/// `at` advanced past whitespace.
+///
+/// Here rather than at each reader for [`boundary_after`]'s reason: a
+/// walk that steps a cursor over a blanked view needs it at every
+/// token, and three of them had written the same five lines. A
+/// comment or a literal is whitespace in a blanked view, so a step
+/// over this crosses them too.
+#[must_use]
+pub fn skip_ws(code: &str, mut at: usize) -> usize {
+    while let Some(c) = code[at..].chars().next() {
+        if !c.is_whitespace() {
+            break;
+        }
+        at += c.len_utf8();
+    }
+    at
+}
+
+/// Whether `word` sits at `at` as a WHOLE word — both boundaries, and
+/// neither is optional.
+///
+/// The positional half of the whole-word test: a caller that has
+/// already found a candidate offset asks this, where one searching for
+/// the first occurrence filters `match_indices` through it.
+#[must_use]
+pub fn word_at(code: &str, at: usize, word: &str) -> bool {
+    code[at..].starts_with(word)
+        && boundary_before(code, at)
+        && boundary_after(code, at + word.len())
+}
+
 /// Every SUITE file under a crate's `tests/` directory, relative to it,
 /// `/`-separated and sorted, with `all.rs` itself excluded.
 ///

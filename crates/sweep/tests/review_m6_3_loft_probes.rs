@@ -5,9 +5,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Vec2, Vec3};
+use geom_core::{Affine3, Point2, Vec2};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use sweep::test_support::{loft_prism_sections, stacked_at};
 use sweep::{LoftError, Revolution, RevolveAxis, loft_body, revolve};
 
 use crate::common;
@@ -20,16 +21,10 @@ use geom_core::Tol;
 /// door (the probe is that test).
 #[test]
 fn probe_reversed_stacking_refuses_typed() {
-    let square = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-    let trapezoid = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-    let sections = vec![quad(square), quad(trapezoid), quad(square)];
+    let sections = loft_prism_sections();
     // Stacking DOWN the base normal: the shape (iii) fixture with the
     // z-translations negated.
-    let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.0, 0.0, -1.0)),
-        Affine3::translation(Vec3::new(0.0, 0.0, -2.0)),
-    ];
+    let places = stacked_at(&[0.0, -1.0, -2.0]);
     match loft_body::<f64>(&sections, &places, 2, Tol::witness()) {
         Err(LoftError::ReversedStacking) => {}
         other => panic!("expected ReversedStacking, got {other:?}"),

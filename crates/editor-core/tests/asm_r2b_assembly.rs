@@ -28,62 +28,17 @@
 
 use crate::fixture;
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
-
 use editor_core::{
-    Alignment, AssemblyError, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocRef,
-    DocumentId, EntityKey, EntityKind, EntityRef, Entry, EvalOptions, Evaluation,
-    InterfaceCrossing, MateFrame, MatePrimitive, MintRefusal, Node, NodeErrorKind, ProfileDoc,
-    RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SitedRef, StableName, assemble,
-    content_pin, evaluate, inline, product_recorded, split,
+    Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKey,
+    EntityKind, EntityRef, Entry, EvalOptions, InterfaceCrossing, MateFrame, MatePrimitive,
+    MintRefusal, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName,
+    assemble, content_pin, inline, product_recorded, split,
 };
-use fixture::{insert, len, on_frame, relations, step};
+use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
+use fixture::{insert, len, on_frame, relations, run, step};
 use geom_core::Tol;
 
-// ---- The stub store (the ASM-2A/R2a shape, verbatim in spirit) ----
-
-#[derive(Debug, Default, Clone)]
-struct StubStore {
-    docs: BTreeMap<DocumentId, ProfileDoc>,
-}
-
-impl StubStore {
-    fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
-        let pin = content_pin(&doc, tol).expect("the pin computes");
-        let id = doc.id();
-        self.docs.insert(id, doc);
-        DocRef { id, pin }
-    }
-}
-
-impl editor_core::PartResolver for StubStore {
-    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        let fail = |fault, message: &str| ResolveFailure {
-            fault,
-            message: message.to_string(),
-        };
-        let doc = self
-            .docs
-            .get(&doc_ref.id)
-            .ok_or_else(|| fail(ResolveFault::Unresolved, "no such document"))?;
-        if content_pin(doc, Tol::witness()).expect("the pin computes") != doc_ref.pin {
-            return Err(fail(ResolveFault::PinMismatch, "the pin does not hold"));
-        }
-        Ok(doc.clone())
-    }
-}
-
-fn opts(store: StubStore) -> EvalOptions {
-    EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    }
-}
-
-fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
-}
+// ---- Evaluation through the shared part store ----
 
 // ---- Documents ----
 
@@ -111,11 +66,6 @@ fn block(
         },
     )
 }
-
-/// The extrude in a one-`block` part document. A block is three
-/// nodes now — the sketch frame, the profile drawn on it, then the
-/// extrude — so the body a part-local name is minted by is node 2.
-const PART_BODY: RecipeNodeId = RecipeNodeId(2);
 
 /// A one-block part document: `[0,1]³`. Its extrude is [`PART_BODY`].
 fn cube_part(label: &str) -> ProfileDoc {
@@ -147,23 +97,6 @@ fn kiss_part(label: &str) -> ProfileDoc {
         },
     );
     doc
-}
-
-/// A face of `instance`'s part product, named through the instance
-/// qualifier (A12's reading-edge head).
-fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: PART_BODY,
-                path: vec![RoleSeg::Cap(cap)],
-            }
-            .into(),
-        }],
-    }
 }
 
 fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
@@ -225,8 +158,8 @@ fn rest_mate_at(
 
 /// Two instances of the unit cube, plus the seating mate at `seat`.
 /// Returns (document, instance ids, mate id, store).
-fn stacked(label: &str, seat: f64) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId, StubStore) {
-    let mut store = StubStore::default();
+fn stacked(label: &str, seat: f64) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId, PartStore) {
+    let mut store = PartStore::default();
     let doc_ref = store.insert(cube_part(&format!("{label}-part")), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
@@ -321,7 +254,7 @@ fn unwrap_in_part(name: &StableName) -> StableName {
 /// same part entities (unwrapping the instance qualifier).
 #[test]
 fn row1_a_parts_declared_contacts_survive_instantiation() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = kiss_part("asm-r2b-row1-part");
     let doc_ref = store.insert(part.clone(), Tol::witness());
 
@@ -347,7 +280,7 @@ fn row1_a_parts_declared_contacts_survive_instantiation() {
         ProfileDoc::empty(DocumentId::derive("asm-r2b-row1"), Tol::witness()),
         Node::instantiate_part(doc_ref),
     );
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let product = product_recorded(&doc, &ev, Tol::witness()).expect("the assembly gathers");
 
     assert_eq!(
@@ -382,7 +315,7 @@ fn row1_a_parts_declared_contacts_survive_instantiation() {
 #[test]
 fn row2_a_solved_rest_mate_mints_its_declaration() {
     let (doc, ids, mate, store) = stacked("asm-r2b-row2", 1.0);
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
 
     // The GATHER mints (A3: evaluation carries each mate's declaration
     // into the evaluated body's contact record set), so the record is
@@ -442,7 +375,7 @@ fn row2_a_solved_rest_mate_mints_its_declaration() {
 /// third solved nothing, and it still says what touches what.
 #[test]
 fn row2_b_a_declaring_mate_mints_identically() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let doc_ref = store.insert(cube_part("asm-r2b-row2b-part"), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive("asm-r2b-row2b"), Tol::witness());
     let mut ids = Vec::new();
@@ -491,7 +424,7 @@ fn row2_b_a_declaring_mate_mints_identically() {
     // frontier — one declaration is genuinely contradicted, and the
     // gate refuses either way. What the row reads out of the refusal
     // is who was ATTRIBUTED, which is the set that got minted.
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let err =
         assemble(&doc, &ev, Tol::witness()).expect_err("the column's declarations do not all hold");
     let AssemblyError::AtRest { findings } = &err else {
@@ -537,7 +470,7 @@ fn row3_a_an_undeclared_touching_pair_is_the_hard_error() {
     // the instances still touch and nothing declares it.
     let (doc, ids, mate, store) = stacked("asm-r2b-row3a", 1.0);
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: mate });
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let result = assemble(&doc, &ev, Tol::witness());
     let errs = findings(&result);
     assert!(
@@ -560,7 +493,7 @@ fn row3_a_an_undeclared_touching_pair_is_the_hard_error() {
 #[test]
 fn row3_b_the_declared_touching_pair_is_not_an_undeclared_contact() {
     let (doc, _, mate, store) = stacked("asm-r2b-row3b", 1.0);
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let result = assemble(&doc, &ev, Tol::witness());
     let errs = findings(&result);
     assert!(
@@ -632,7 +565,7 @@ fn row4_b_an_in_band_authored_gap_escalates_typed_and_predicate_named() {
         band.escalate()
     );
     let (doc, _, mate, store) = stacked("asm-r2b-row4b", 1.0 + gap);
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let result = assemble(&doc, &ev, Tol::witness());
     let errs = findings(&result);
     assert!(
@@ -666,7 +599,7 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
     // offset −1 lifts b a full unit clear: the declared faces are a
     // unit apart, definitely.
     let (doc, ids, mate, store) = stacked("asm-r2b-row4", 2.0);
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let err = assemble(&doc, &ev, Tol::witness()).expect_err("a gapped Rest refuses");
     let AssemblyError::AtRest { findings } = &err else {
         panic!("expected the at-rest verdict, got {err}");
@@ -787,7 +720,7 @@ fn row5_a_a_proper_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
 #[test]
 fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
     let part_id = DocumentId::derive("asm-r2b-row5b-part");
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let doc_ref = store.insert(
         {
             let (d, _) = block(
@@ -820,7 +753,7 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
         Node::instantiate_part_with(doc_ref, record),
     );
 
-    let ev = run(&doc, &opts(store.clone()));
+    let ev = run(&doc, &with_resolver(store.clone()));
     assert!(
         ev.node_error(instance).is_none(),
         "the crossing re-verifies against the pinned part: {:?}",
@@ -839,7 +772,7 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
     );
     let (shifted, _) = block(shifted, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let new_pin = content_pin(&shifted, Tol::witness()).expect("the pin computes");
-    store.docs.insert(part_id, shifted);
+    store.replace_without_repinning(part_id, shifted);
     let moved = editor_core::apply(
         &doc,
         &DocEdit::UpdateReference {
@@ -851,7 +784,7 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
     .expect("the pin moves")
     .doc;
 
-    let err = run(&moved, &opts(store))
+    let err = run(&moved, &with_resolver(store))
         .node_error(instance)
         .expect("the moved pin refuses")
         .to_string();
@@ -867,7 +800,7 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
 #[test]
 fn row5_c_inline_dissolves_the_crossing_record() {
     let part_id = DocumentId::derive("asm-r2b-row5c-part");
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let doc_ref = store.insert(
         {
             let (d, _) = block(
@@ -929,7 +862,7 @@ fn row5_c_inline_dissolves_the_crossing_record() {
 /// about the seam.
 #[test]
 fn row5_d_a_dangling_head_mate_contributes_no_crossing() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let doc_ref = store.insert(cube_part("asm-r2b-row5d-part"), Tol::witness());
     let (doc, instance) = insert(
         ProfileDoc::empty(DocumentId::derive("asm-r2b-row5d"), Tol::witness()),
@@ -992,7 +925,7 @@ fn row5_d_a_dangling_head_mate_contributes_no_crossing() {
 #[test]
 fn row5_e_a_pin_move_that_changes_the_contact_geometry_is_caught_at_rest() {
     let part_id = DocumentId::derive("asm-r2b-row5e-part");
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let doc_ref = store.insert(
         {
             let (d, _) = block(
@@ -1023,7 +956,7 @@ fn row5_e_a_pin_move_that_changes_the_contact_geometry_is_caught_at_rest() {
 
     // Pre-move: the declared pair touches, so the ONLY finding is the
     // chart-identity boundary (row3_b's pin) — no contradiction.
-    let ev = run(&doc, &opts(store.clone()));
+    let ev = run(&doc, &with_resolver(store.clone()));
     let before = findings(&assemble(&doc, &ev, Tol::witness()));
     assert!(
         !before.iter().any(|e| e.contains("ContactContradicted")),
@@ -1041,7 +974,7 @@ fn row5_e_a_pin_move_that_changes_the_contact_geometry_is_caught_at_rest() {
         0.5,
     );
     let new_pin = content_pin(&shorter, Tol::witness()).expect("the pin computes");
-    store.docs.insert(part_id, shorter);
+    store.replace_without_repinning(part_id, shorter);
     let moved = editor_core::apply(
         &doc,
         &DocEdit::UpdateReference {
@@ -1063,7 +996,7 @@ fn row5_e_a_pin_move_that_changes_the_contact_geometry_is_caught_at_rest() {
     .expect("the pin moves")
     .doc;
 
-    let ev2 = run(&moved, &opts(store));
+    let ev2 = run(&moved, &with_resolver(store));
     let err =
         assemble(&moved, &ev2, Tol::witness()).expect_err("the moved geometry no longer fits");
     let AssemblyError::AtRest { findings } = &err else {
@@ -1088,7 +1021,7 @@ fn row5_e_a_pin_move_that_changes_the_contact_geometry_is_caught_at_rest() {
 #[test]
 fn row6_a_crossing_record_edit_moves_the_content_key() {
     let part_id = DocumentId::derive("asm-r2b-row6-part");
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let doc_ref = store.insert(
         {
             let (d, _) = block(
@@ -1126,7 +1059,7 @@ fn row6_a_crossing_record_edit_moves_the_content_key() {
     assert_eq!(id_with, id_without, "same id, same reference, same pin");
 
     let key = |d: &ProfileDoc, id| {
-        run(d, &opts(store.clone()))
+        run(d, &with_resolver(store.clone()))
             .value(id)
             .expect("the instance evaluates")
             .content_key
@@ -1146,8 +1079,8 @@ fn row6_a_crossing_record_edit_moves_the_content_key() {
 #[test]
 fn row7_the_minted_record_set_is_deterministic() {
     let (doc, _, _, store) = stacked("asm-r2b-row7", 1.0);
-    let a = run(&doc, &opts(store.clone()));
-    let b = run(&doc, &opts(store));
+    let a = run(&doc, &with_resolver(store.clone()));
+    let b = run(&doc, &with_resolver(store));
     let pa = product_recorded(&doc, &a, Tol::witness()).expect("gathers");
     let pb = product_recorded(&doc, &b, Tol::witness()).expect("gathers");
     assert_eq!(pa.contacts, pb.contacts, "the carried records replay");
@@ -1210,7 +1143,7 @@ fn a_tangent_mate_solves_and_then_refuses_at_the_mint_door() {
     );
 
     // Door two: the mint refuses it, naming the class.
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     match assemble(&doc, &ev, Tol::witness()) {
         Err(AssemblyError::Mint { refusals }) => match refusals.as_slice() {
             [
@@ -1258,7 +1191,7 @@ fn a_tangent_mate_solves_and_then_refuses_at_the_mint_door() {
 /// FACE — a second, unrelated finding this row is not about.
 #[test]
 fn a_mixed_verdict_is_the_at_rest_arm_not_the_frontier() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let doc_ref = store.insert(cube_part("asm-r2b-mixed-part"), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive("asm-r2b-mixed"), Tol::witness());
     let mut ids = Vec::new();
@@ -1287,7 +1220,7 @@ fn a_mixed_verdict_is_the_at_rest_arm_not_the_frontier() {
     let grazing = grazing.expect("the grazing mate mints");
     let gapped = gapped.expect("the gapped mate mints");
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let err =
         assemble(&doc, &ev, Tol::witness()).expect_err("the gapped declaration does not hold");
     let AssemblyError::AtRest { findings } = &err else {
@@ -1323,7 +1256,7 @@ fn a_mixed_verdict_is_the_at_rest_arm_not_the_frontier() {
 /// unrefuted frontier.
 #[test]
 fn a_coplanar_pair_with_disjoint_trims_is_refuted_as_stale() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let doc_ref = store.insert(cube_part("asm-r2b-stale-part"), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive("asm-r2b-stale"), Tol::witness());
     let mut ids = Vec::new();
@@ -1341,7 +1274,7 @@ fn a_coplanar_pair_with_disjoint_trims_is_refuted_as_stale() {
         },
     );
     let stale = stale.expect("the mate mints");
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let err = assemble(&doc, &ev, Tol::witness())
         .expect_err("a declaration whose regions do not meet does not hold");
     let AssemblyError::AtRest { findings } = &err else {
@@ -1394,7 +1327,7 @@ fn the_mint_door_renders_each_class_its_own_reason() {
         }
         let (doc, mate) = step(doc, DocEdit::InsertNode { node });
         let mate = mate.expect("the mate mints");
-        let ev = run(&doc, &opts(store));
+        let ev = run(&doc, &with_resolver(store));
         match assemble(&doc, &ev, Tol::witness()) {
             Err(AssemblyError::Mint { refusals }) => match refusals.as_slice() {
                 [
@@ -1447,7 +1380,7 @@ fn every_admitted_class_has_a_wire_spelling() {
             editor_core::ClassAdmission::NotAdmitted,
             "the roster is the admitted set: {class:?}"
         );
-        let mut store = StubStore::default();
+        let mut store = PartStore::default();
         let doc_ref = store.insert(cube_part("asm-r2b-wire-part"), Tol::witness());
         let mut doc = ProfileDoc::empty(DocumentId::derive("asm-r2b-wire"), Tol::witness());
         let mut ids = Vec::new();
@@ -1489,7 +1422,7 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
         }];
     }
     let (doc, _) = step(doc, DocEdit::InsertNode { node });
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     match assemble(&doc, &ev, Tol::witness()) {
         Err(AssemblyError::Mint { refusals }) => match refusals.as_slice() {
             [MintRefusal::Reference { why, .. }] => {
@@ -1550,8 +1483,8 @@ fn slab_part(label: &str, x: (f64, f64), y: (f64, f64), dz: f64) -> ProfileDoc {
 /// (the bench-stand dimensions in `demos/tour/src/assembly.rs`). The
 /// numbers agree by construction and are deliberately not shared —
 /// each layer's fixture reads as the thing that layer is about.
-fn flush_seat(label: &str) -> (ProfileDoc, RecipeNodeId, StubStore) {
-    let mut store = StubStore::default();
+fn flush_seat(label: &str) -> (ProfileDoc, RecipeNodeId, PartStore) {
+    let mut store = PartStore::default();
     let post = store.insert(
         slab_part(&format!("{label}-post"), (0.0, 0.12), (0.09, 0.21), 0.5),
         Tol::witness(),
@@ -1601,7 +1534,7 @@ fn flush_seat(label: &str) -> (ProfileDoc, RecipeNodeId, StubStore) {
 #[test]
 fn a_flush_seat_certifies_at_the_gate() {
     let (doc, mate, store) = flush_seat("asm-r2b-flush");
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let result = assemble(&doc, &ev, Tol::witness());
     let (contacts, residue) = gate_records(&result);
     assert_eq!(
@@ -1636,7 +1569,7 @@ fn a_flush_seat_certifies_at_the_gate() {
 fn the_same_flush_seat_undeclared_is_the_hard_error() {
     let (doc, mate, store) = flush_seat("asm-r2b-flush-bare");
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: mate });
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let errors = findings(&assemble(&doc, &ev, Tol::witness()));
     assert!(
         errors.iter().any(|e| e.contains("VertexOnEdge")),
@@ -1805,7 +1738,7 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
 #[test]
 fn a_mated_assembly_is_silent_and_the_declaration_is_why() {
     let (doc, _ids, _mate, store) = stacked("asm-r2b-separation", 1.0);
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let product = product_recorded(&doc, &ev, Tol::witness()).expect("gathers");
 
     // The geometry alone does NOT certify: the two instances are
@@ -1867,13 +1800,13 @@ fn twinned_part(label: &str) -> ProfileDoc {
 /// declared set is empty, which the row asserts rather than assumes.
 #[test]
 fn two_solids_of_one_subject_are_skipped_by_the_guard_not_by_geometry() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let doc_ref = store.insert(twinned_part("asm-r2b-twinned-part"), Tol::witness());
     let (doc, instance) = insert(
         ProfileDoc::empty(DocumentId::derive("asm-r2b-twinned"), Tol::witness()),
         Node::instantiate_part(doc_ref),
     );
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let product = product_recorded(&doc, &ev, Tol::witness()).expect("gathers");
 
     // ONE subject, TWO solids — the configuration the guard is for.

@@ -73,11 +73,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use test_utils::source::{
-    ItemBody, angle_end, balanced_end, boundary_after, boundary_before, code_only, item_body,
-    rust_sources, top_level_split,
+    ItemBody, angle_end, balanced_end, code_only, item_body, repo_root, rust_sources, skip_ws,
+    top_level_split, word_at,
 };
 
 /// The repository's own directories, skipped by NAME. Same rule, and
@@ -108,7 +108,7 @@ enum Governed {
 /// The first offset in `code` at which `word` appears as a whole word.
 fn word(code: &str, word: &str) -> Option<usize> {
     code.match_indices(word)
-        .find(|(at, _)| boundary_before(code, *at) && boundary_after(code, at + word.len()))
+        .find(|(at, _)| word_at(code, *at, word))
         .map(|(at, _)| at)
 }
 
@@ -128,17 +128,6 @@ fn ident(code: &str, at: usize) -> &str {
         .find(|c: char| !c.is_alphanumeric() && c != '_')
         .map_or(code.len(), |off| from + off);
     &code[at..end]
-}
-
-/// `at` advanced past whitespace.
-fn skip_ws(code: &str, mut at: usize) -> usize {
-    while let Some(c) = code[at..].chars().next() {
-        if !c.is_whitespace() {
-            break;
-        }
-        at += c.len_utf8();
-    }
-    at
 }
 
 /// Does any variant in an enum body carry a `{ … }` of its own?
@@ -383,7 +372,7 @@ const ATTRIBUTE_SITES_TODAY: [(&str, usize); 16] = [
 /// cost.
 #[test]
 fn every_deny_unknown_fields_attribute_has_a_named_field_to_deny() {
-    let root = repo_root();
+    let root = repo_root(env!("CARGO_MANIFEST_DIR"));
     let offenders: Vec<String> = sites(&root)
         .into_iter()
         .filter_map(|(site, verdict)| offence(&site, &verdict))
@@ -403,7 +392,7 @@ fn every_deny_unknown_fields_attribute_has_a_named_field_to_deny() {
 #[test]
 fn the_walk_still_sees_every_attribute_site() {
     let mut tally: BTreeMap<&str, usize> = BTreeMap::new();
-    let found = sites(&repo_root());
+    let found = sites(&repo_root(env!("CARGO_MANIFEST_DIR")));
     for (site, _) in &found {
         let file = site.rsplit_once(':').expect("a `path:line` site").0;
         *tally.entry(file).or_default() += 1;
@@ -604,22 +593,4 @@ fn the_reader_refuses_rather_than_guessing_and_says_which_way() {
     );
     assert!(offence("x.rs:1", &Governed::NothingToDeny).is_some());
     assert!(offence("x.rs:1", &Governed::NamedField).is_none());
-}
-
-/// The repository root, resolved from this crate's manifest.
-fn repo_root() -> PathBuf {
-    let root = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        // Canonical, so `..` is not a path COMPONENT: the skip in
-        // `sites` reads components, and a relative one matches every
-        // file in the tree at once — which looks exactly like a clean
-        // walk.
-        .canonicalize()
-        .expect("the repository root resolves");
-    assert!(
-        root.join("Cargo.toml").is_file(),
-        "{} is not the repository root",
-        root.display()
-    );
-    root
 }

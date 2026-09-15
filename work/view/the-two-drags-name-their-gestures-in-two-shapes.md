@@ -29,10 +29,12 @@ Six operations now name the gesture they drive, in **three** spellings:
 Each is right for its own door — the first two are the two doors
 `SessionOp::BeginParamGesture` argues for, and the third is a different
 drag on a different state. What has no home is the CONCEPT: the session
-holds `GestureName` privately (`crates/viewer/src/session.rs:171-188`)
+holds `GestureName` privately (`crates/viewer/src/session.rs:172-190`)
 for the value drag's two, and `DisplayState` compares a bare
-`RecipeNodeId` (`crates/viewer/src/display.rs:778-780`, `:806-812`), and nothing
-says these are the same kind of fact.
+`RecipeNodeId` — now as the naming predicate it hands `g1::Slot`
+(`preview_free_move`, `crates/viewer/src/display.rs:781`, and
+`commit_free_move`, `:817`) — and nothing says these are the same kind
+of fact.
 
 `crates/viewer/src/widgets.rs:164-237` is where it shows: `drag_ops` is
 generic over the gesture vocabulary precisely so one mapping serves

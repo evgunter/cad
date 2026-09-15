@@ -133,16 +133,22 @@ pub(crate) fn contact_class(py: Python<'_>, class: s::ContactClass) -> PyResult<
         // refusal becomes a panic at the funnel. Whoever adds one
         // decides then: give the kernel enum a `Display`, or render
         // the name alone here.
+        //
+        // The word is the query door's own, from one map
+        // (`crate::tags::unmirrored_select_tag`): a caller reads the
+        // same `reason` off either crossing because it learns the same
+        // fact from both. The attributes are the whole class's, from
+        // `crate::py::select::refusal_fields`, so this path answers
+        // `None` where the others answer a payload rather than raising
+        // `AttributeError` on the one door that hand-built its list.
         other => Err(crate::py::typed_err(
             py,
             crate::errors::ErrorClass::Select,
             format!("a contact class this binding predates: {other:?}"),
-            &[(
-                "reason",
-                pyo3::types::PyString::new(py, "unclassified")
-                    .unbind()
-                    .into_any(),
-            )],
+            &crate::py::select::refusal_fields(
+                py,
+                crate::tags::unmirrored_select_tag(crate::errors::UnmirroredSelect::ContactClass),
+            ),
         )),
     }
 }

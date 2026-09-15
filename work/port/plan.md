@@ -133,19 +133,37 @@ of which earns it:
    item a unit renames; the second arm is for when that habit is not
    enough.
 
-**The converse matters as much**, and is why the old list over-fired: a
-unit whose central claim is **compiler-enforced** does not earn the
-second arm however public its surface.
-`python-cannot-set-options-structs` changes four binding signatures and
-gets style review alone, because `surface_census.rs`'s destructure
-anchor reds `E0063` at the door and `E0027` at the census when a field
-is added — the correctness arm is already in the compiler, and a human
-one would be reading past a guard that cannot be fooled.
+**The converse matters as much**, and is why the old list over-fired —
+but it holds **per CLAIM, not per unit**, and this section applied it
+per unit until `python-cannot-set-options-structs` disproved it. A
+claim that is compiler-enforced does not earn the second arm however
+public its surface; a unit earns it when **any** load-bearing claim of
+it is unguarded, and a neighbouring claim being compiler-enforced buys
+that one nothing.
+
+`python-cannot-set-options-structs` is the worked example, because it
+is the unit that paid for the distinction. Its field-presence claim is
+as guarded as a claim gets: `surface_census.rs`'s destructure anchor
+reds `E0063` at the door and `E0027` at the census when a struct gains
+a field, and the lane measured it rather than asserting it. Its other
+claim — that an omitted keyword forwards the Rust default — was
+guarded by nothing, and **a presence anchor cannot guard a forwarded
+VALUE**. That is not an oversight in the anchor; it is what a
+destructure is. Which is how two STL doors sat under a green census
+writing `solid ` and eighty zero bytes where the kernel's own defaults
+say a part name and a producer line, for as long as they had existed.
+
+So: **a claim about a forwarded value is never compiler-enforced by a
+presence anchor**, and a unit carrying one earns the second arm even
+when the census beside it cannot be fooled.
 
 On this slate today: `load-path-stringifies-structured-refusals` earns
 it on triggers 2 and 3, and its paired naming row rides that review
 since they spec together. `PORT-DOORS-1` earned it on 1 and 4 and was
-granted it. Everything else is style.
+granted it. `python-cannot-set-options-structs` was dispatched style-only
+on the per-unit reading above and was given the second arm after the
+fact; under the corrected reading it earned it from the start, on its
+forwarded-value claim. Everything else is style.
 
 A lane that finds its row harder than this section assumed says so in
 its PR and asks for the second arm; this section is corrected in the

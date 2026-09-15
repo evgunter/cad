@@ -2,8 +2,11 @@
 id: scene-mesh-carries-an-identity-index-buffer
 kind: issue
 title: SceneMesh's index buffer is the identity permutation and costs 139 MB on one corpus document
-status: open
+status: closed
 opened: 2026-09-15
+closed: 2026-09-15
+branch: view/index-buffer
+pr: 2661
 ---
 
 
@@ -56,3 +59,35 @@ real device).
 place of the old one is about the draw COUNT — that the renderer draws
 `positions().len()` corners — which is a claim a bug could break, where
 `indices().len() == positions().len()` is not.
+
+
+## Closed (2026-09-15, `view/index-buffer`)
+
+`SceneMesh::indices`, the `indices: Vec<u32>` field and its
+`(0..n).collect()` went; so did the `Geometry.indices` buffer, its
+`BufferUsages::INDEX` upload and `index_count`. `gpu.rs` has **two**
+scene passes, not one — the shaded pass and the id pass — and both
+swapped `set_index_buffer` + `draw_indexed` for `draw(0..corners)`.
+`corner_count` is the one place the draw range is derived.
+
+**The replacement assertion.** `scene_build`'s
+`indices().len() == positions().len()` went with the buffer. In its
+place `gpu::tests::the_draw_range_is_the_length_of_every_buffer_the_
+passes_bind` asserts the draw range is `stats().triangles * 3` and is
+the length of each of the four per-corner tables the two passes bind —
+`flags` among them, which nothing else in the suite measured — and
+`both_scene_passes_draw_the_corner_count_with_no_index_buffer` reads
+`gpu.rs` through `test_utils::source::code_only` for the two call
+sites. Neither reaches a device; the hosted viewer-render rows are
+what judge the drawn picture.
+
+**Not re-measured.** The 139 MB / 8-11 % figures above are the
+diagnosing lane's, at δ=1e-5 on `hollow_tube_ring`; this lane did not
+rebuild that harness.
+
+`work/chrome/gpu-index-counts-substitute-u32-max.md` names two sites,
+one of them this file's `index_count`. That site is **relocated, not
+resolved**: `corner_count` still spells
+`u32::try_from(...).unwrap_or(u32::MAX)`, now over
+`scene.positions().len()`. The typed refusal that row wants is CHROME's
+to write.
