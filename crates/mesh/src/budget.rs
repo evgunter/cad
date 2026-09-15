@@ -71,12 +71,25 @@
 //! reads them after an `Ok`, so nothing downstream changes.
 //!
 //! Armed, nothing here runs in a normal tessellation: arming is
-//! thread-local (tessellation runs on the calling thread, so armed
-//! evidence stays attributable under a parallel test runner) and every
-//! recording site is behind an [`armed`] check. The measurement
-//! changes no mesh: the recorded quantities are read off the sizing
-//! the lane already performed, and the deviation pass only samples
-//! what was emitted.
+//! thread-local (one caller's armed evidence stays attributable under
+//! a parallel test runner) and every recording site is behind an
+//! [`armed`] check. The measurement changes no mesh: the recorded
+//! quantities are read off the sizing the lane already performed, and
+//! the deviation pass only samples what was emitted.
+//!
+//! **A face's lane runs on a thread nobody armed.** `tessellate`'s
+//! per-face dispatch is D9 idiom 1 — an indexed parallel map over the
+//! face arena — so a lane runs wherever the map scheduled it.
+//! Thread-local state is still the right home for the accumulator (it
+//! is what keeps two armed callers from reading each other's rows), and
+//! what crosses the threads is a VALUE: `arming` reads the caller's
+//! mode once, `record` installs it around one face's lane and takes
+//! back that face's recording, and `absorb` merges the recordings in
+//! `tessellate`'s arena-order fold. An armed meter therefore sees every
+//! face, in face-arena order, at any thread count. The K-funnel is the
+//! same problem and takes the same shape one door over
+//! (`geom_core::k_stats::detached`), which is why the two are wrapped
+//! together at the one call site.
 
 use topo::FaceKey;
 
@@ -241,6 +254,8 @@ mod live {
     use super::{FaceMeasure, Mode};
 
     use std::cell::RefCell;
+    use std::collections::HashSet;
+    use std::thread::ThreadId;
 
     thread_local! {
         /// This thread's arming and the measurements taken since.
@@ -260,6 +275,15 @@ mod live {
         /// paid for an assembly, which is a property of the pass
         /// structure rather than of any face.
         assemblies: usize,
+        /// The threads a face's lane ran on since arming — the same
+        /// kind of fact as `assemblies` and here for the same reason:
+        /// it is a property of the PASS, not of a face. What reads it
+        /// is the row that holds `tessellate`'s per-face dispatch to
+        /// being D9 idiom 1: the lanes run on rayon workers, never on
+        /// the thread that called in ([`lane_ran_on_caller`]), so a
+        /// serial arm added under some threshold would turn that row
+        /// red instead of passing unnoticed.
+        threads: HashSet<ThreadId>,
     }
 
     /// Arms the meter on THIS thread, discarding anything unread.
@@ -269,6 +293,7 @@ mod live {
                 mode,
                 faces: Vec::new(),
                 assemblies: 0,
+                threads: HashSet::new(),
             });
         });
     }
@@ -312,12 +337,134 @@ mod live {
         STATE.with(|s| s.borrow().as_ref().map_or(0, |st| st.assemblies))
     }
 
+    /// How many distinct threads have run a face's lane since arming
+    /// (does not disarm). Zero before anything was tessellated.
+    pub fn lane_threads() -> usize {
+        STATE.with(|s| s.borrow().as_ref().map_or(0, |st| st.threads.len()))
+    }
+
+    /// Whether any face's lane ran on THIS thread — the thread that
+    /// armed the meter and called `tessellate`.
+    ///
+    /// It answers `false` for a call made from outside a rayon pool,
+    /// and that is a fact about rayon rather than about scheduling
+    /// luck: an indexed `par_iter` collected by a non-worker caller
+    /// injects its job into the pool and parks the caller on a latch,
+    /// so no lane can run here. A serial arm — under a face-count
+    /// threshold, say — would run every lane on this thread and make
+    /// this `true`.
+    pub fn lane_ran_on_caller() -> bool {
+        let here = std::thread::current().id();
+        STATE.with(|s| {
+            s.borrow()
+                .as_ref()
+                .is_some_and(|st| st.threads.contains(&here))
+        })
+    }
+
     /// The lane's one hand-off: this face's measurements, once,
     /// whichever way the face ended.
     pub(crate) fn note_face(m: FaceMeasure) {
         STATE.with(|s| {
             if let Some(st) = s.borrow_mut().as_mut() {
                 st.faces.push(m);
+            }
+        });
+    }
+
+    /// The meter's arming as a VALUE, carried from the thread that
+    /// armed it to the thread a face's lane runs on.
+    #[derive(Clone, Copy)]
+    pub(crate) struct Arming(Option<Mode>);
+
+    /// One face's measurements, taken wherever that face's lane ran —
+    /// and the thread it ran on, which is a fact about the pass and not
+    /// about the face ([`State::threads`]).
+    pub(crate) struct FaceRecording {
+        faces: Vec<FaceMeasure>,
+        assemblies: usize,
+        thread: ThreadId,
+    }
+
+    impl FaceRecording {
+        /// Nothing recorded: a disarmed meter, or a lane that panicked
+        /// out from under [`record`]'s guard. The thread it ran on is
+        /// still a fact, and still this one.
+        fn nothing() -> Self {
+            Self {
+                faces: Vec::new(),
+                assemblies: 0,
+                thread: std::thread::current().id(),
+            }
+        }
+    }
+
+    /// This thread's arming, read once before the per-face map.
+    pub(crate) fn arming() -> Arming {
+        Arming(STATE.with(|s| s.borrow().as_ref().map(|st| st.mode)))
+    }
+
+    /// Restores the thread's meter state when a face's lane ends —
+    /// **including when it ends by panicking**, which a bare swap
+    /// cannot. A worker thread outlives the lane that ran on it, so a
+    /// swap left unwound would leave that worker armed with a dead
+    /// face's accumulator and every later face on it would record into
+    /// a picture nobody reads. `k_stats::Bracket` is the tree's pattern
+    /// for this and this is the same shape: the guard, not the happy
+    /// path, is what puts the state back.
+    struct Restore(Option<State>);
+
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            STATE.replace(self.0.take());
+        }
+    }
+
+    /// Runs one face's lane with `a` installed on WHATEVER THREAD this
+    /// call lands on, and takes back what the lane recorded.
+    ///
+    /// `tessellate`'s per-face dispatch is D9 idiom 1, so a lane runs
+    /// on a rayon worker — a thread nobody armed, whose [`STATE`] is
+    /// `None`. Without this the meter would report an empty picture
+    /// from a run that measured every face, which is the fail-quiet the
+    /// feature exists to avoid. The recording travels back in the
+    /// face's slot and [`absorb`] merges it in the arena-order fold, so
+    /// an armed meter still sees faces in face-arena order at any
+    /// thread count.
+    ///
+    /// The previous state is restored rather than cleared because the
+    /// map may schedule a face onto the CALLING thread, whose state is
+    /// the picture's own accumulator (the chord pass has already
+    /// recorded its assemblies into it).
+    pub(crate) fn record<R>(a: Arming, f: impl FnOnce() -> R) -> (R, FaceRecording) {
+        let _restore = Restore(STATE.replace(a.0.map(|mode| State {
+            mode,
+            faces: Vec::new(),
+            assemblies: 0,
+            threads: HashSet::new(),
+        })));
+        let out = f();
+        // Taken out from under the guard, which then puts the caller's
+        // own state back. A panic between the two takes this face's
+        // rows with it — a half-measured face is not a measurement —
+        // and still leaves the thread as it was found.
+        let mine = STATE.with(|s| s.borrow_mut().take());
+        let recording = mine.map_or_else(FaceRecording::nothing, |st| FaceRecording {
+            faces: st.faces,
+            assemblies: st.assemblies,
+            thread: std::thread::current().id(),
+        });
+        (out, recording)
+    }
+
+    /// Merges one face's recording into this thread's accumulator, in
+    /// the arena-order fold ([`record`]).
+    pub(crate) fn absorb(recording: FaceRecording) {
+        STATE.with(|s| {
+            if let Some(st) = s.borrow_mut().as_mut() {
+                st.faces.extend(recording.faces);
+                st.assemblies += recording.assemblies;
+                st.threads.insert(recording.thread);
             }
         });
     }
@@ -366,6 +513,38 @@ mod inert {
     pub const fn assemblies() -> usize {
         0
     }
+
+    /// Always zero: nothing is recorded in this build, so no thread is.
+    pub const fn lane_threads() -> usize {
+        0
+    }
+
+    /// Always false: nothing is recorded in this build.
+    pub const fn lane_ran_on_caller() -> bool {
+        false
+    }
+
+    /// Nothing to carry: there is no arming in this build.
+    #[derive(Clone, Copy)]
+    pub(crate) struct Arming;
+
+    /// Nothing to record, per [`note_face`].
+    pub(crate) struct FaceRecording;
+
+    /// The absent arming, per [`Arming`].
+    pub(crate) const fn arming() -> Arming {
+        Arming
+    }
+
+    /// Runs the lane and records nothing — the call site is shared with
+    /// the live half, which is what keeps the per-face map's shape one
+    /// spelling in both configurations.
+    pub(crate) fn record<R>(_a: Arming, f: impl FnOnce() -> R) -> (R, FaceRecording) {
+        (f(), FaceRecording)
+    }
+
+    /// No-op, per [`record`].
+    pub(crate) fn absorb(_recording: FaceRecording) {}
 }
 
 #[cfg(not(feature = "budget"))]

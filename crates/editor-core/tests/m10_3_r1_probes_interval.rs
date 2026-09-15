@@ -111,8 +111,10 @@ fn slab_with(dist: Distribution, nominal: f64) -> ProfileDoc {
 /// **A bounded chamber**: two extrudes, distances `q` and `c - q`, so
 /// the witness branch holds only for `q` inside an interval bounded on
 /// BOTH sides — the geometry a containment-firing drive needs, and
-/// different geometry from every fixture the PR ships.
-fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
+/// different geometry from every fixture the PR ships. A door for the
+/// tier's cost rows (`m10_sym_profile_interval`), which profile the
+/// same document this suite drives.
+pub(crate) fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
         name: name("q"),
@@ -351,7 +353,7 @@ fn an_unsplittable_box_refuses_resolution_or_certifies_and_the_receipt_holds() {
 /// are relative, so the receipts and this whole table are identical at
 /// every ε the matrix draws. There is no ε row where the margin is
 /// smaller than it is here.
-const CHAMBER_LEAVES: usize = 1280;
+pub(crate) const CHAMBER_LEAVES: usize = 1280;
 
 /// The leaf budget of the two rows whose claim is the SIZE of the leaf
 /// partition rather than a verdict about it.

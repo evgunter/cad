@@ -349,7 +349,7 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
             r#loop: seed.r#loop,
         },
         qs[1 % n],
-        placed_segment_spec(&outer[0], bplace, n_bottom, qs[0], qs[1 % n]),
+        placed_segment_spec(&outer[0], bplace, n_bottom, qs[0], qs[1 % n], tol),
         tol,
     )?;
     hes.push(first.he_plus);
@@ -361,7 +361,7 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
                 he2: prev.he_minus,
             },
             qs[j],
-            placed_segment_spec(&outer[j - 1], bplace, n_bottom, qs[j - 1], qs[j]),
+            placed_segment_spec(&outer[j - 1], bplace, n_bottom, qs[j - 1], qs[j], tol),
             tol,
         )?;
         hes.push(m.he_plus);
@@ -381,7 +381,7 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
             he1: prev.he_minus,
             he2: first.he_plus,
         },
-        placed_segment_spec(&outer[n - 1], bplace, n_bottom, qs[n - 1], qs[0]),
+        placed_segment_spec(&outer[n - 1], bplace, n_bottom, qs[n - 1], qs[0], tol),
         FaceSurface::New(bottom_plane),
         tol,
     )?;
@@ -416,7 +416,7 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
         let first = body.mev(
             MevSite::Lone { r#loop: ring },
             hq[1 % m],
-            placed_segment_spec(&segs[0], bplace, n_bottom, hq[0], hq[1 % m]),
+            placed_segment_spec(&segs[0], bplace, n_bottom, hq[0], hq[1 % m], tol),
             tol,
         )?;
         hole_hes.push(first.he_plus);
@@ -428,7 +428,7 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
                     he2: prev.he_minus,
                 },
                 hq[j],
-                placed_segment_spec(&segs[j - 1], bplace, n_bottom, hq[j - 1], hq[j]),
+                placed_segment_spec(&segs[j - 1], bplace, n_bottom, hq[j - 1], hq[j], tol),
                 tol,
             )?;
             hole_hes.push(mv.he_plus);
@@ -439,7 +439,7 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
                 he1: prev.he_minus,
                 he2: first.he_plus,
             },
-            placed_segment_spec(&segs[m - 1], bplace, n_bottom, hq[m - 1], hq[0]),
+            placed_segment_spec(&segs[m - 1], bplace, n_bottom, hq[m - 1], hq[0], tol),
             FaceSurface::Shared(bottom_surface),
             tol,
         )?;
@@ -485,7 +485,7 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
                     he1: struts[j].he_minus,
                     he2,
                 },
-                placed_segment_spec(&tsegs[j], tplace, n_top, top_q_from, top_q_to),
+                placed_segment_spec(&tsegs[j], tplace, n_top, top_q_from, top_q_to, tol),
                 FaceSurface::New(Surface::Nurbs(Arc::clone(&walls_t[li][j]))),
                 tol,
             )?;

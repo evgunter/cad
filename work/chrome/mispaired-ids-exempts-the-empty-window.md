@@ -9,7 +9,7 @@ refs: [1768, 1098]
 
 Found by CHROME's style lane on PR 1768, against that PR's own claim.
 
-`crates/viewer/src/scene.rs:413` refuses `SceneError::MispairedIds`
+`crates/viewer/src/scene.rs:445` refuses `SceneError::MispairedIds`
 when a drawn part's id count disagrees with its mesh's patch count —
 but it guards with
 

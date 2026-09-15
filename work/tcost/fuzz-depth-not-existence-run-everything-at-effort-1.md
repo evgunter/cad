@@ -128,7 +128,7 @@ ordinary dispatchable work, not a question.
 **It is not blocked, but it has an ordering.** The gated set's execution
 wall is one suite whose cost is a kernel regression
 (`m10-3-chamber-row-reads-ten-times-its-recorded-cost`, handed to M10 as
-`work/m10/symbolic-tier-costs-95-percent-of-the-m10-3-drive`). Wire this
+`work/sym/symbolic-tier-costs-95-percent-of-the-m10-3-drive`). Wire this
 before that is fixed and step 1 puts a 66-83 s row onto every pull
 request; wire it after and the same step costs about a second of leg
 time. Nothing forbids going first — but a lane that does owes the

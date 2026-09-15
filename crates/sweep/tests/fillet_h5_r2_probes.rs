@@ -2,9 +2,9 @@
 //! does not carry, each written to falsify one claim of PR 1824 by
 //! execution rather than by reading.
 //!
-//! - the HOSTLESS host gate ("one ring-free face whose outer cycle is
-//!   EXACTLY the chain's arcs") is reached and refuses on a host face
-//!   carrying one unrequested edge in its outer cycle;
+//! - the HOSTLESS host gate ("one face whose outer cycle is EXACTLY the
+//!   chain's arcs") is reached and refuses on a host face carrying one
+//!   unrequested edge in its outer cycle;
 //! - a CURVED single face carrying several arcs — the shape the
 //!   `HostSide`-passed-not-derived argument is about — refuses at the
 //!   half-band gate whether or not the plane side has been repaired,
@@ -13,8 +13,8 @@
 //!   of one body on a SHARED mate wall in one call, and two hostless
 //!   rims sharing no wall — both against both sequential orders;
 //! - a hostless rim beside a ring-hosted LADDER rim, and a rim in the
-//!   outer cycle of a plane face that also carries a ring — what each
-//!   refuses with, measured;
+//!   outer cycle of a plane face that also carries a ring — that each
+//!   carves, measured;
 //! - the bowl's fill and the plane×sphere cut against constants derived
 //!   OUTSIDE the tree (an independent Pappus derivation, not
 //!   `test_support::wedge_fill`), so the row cannot agree with the
@@ -28,7 +28,7 @@ use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::{bowl, lantern, revolved_about_y, rim_arcs_at};
+use sweep::test_support::{assert_full_revolve_rim, bowl, lantern, revolved_about_y, rim_arcs_at};
 use topo::{Body, EdgeKey, FaceKey, MevSite, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
@@ -198,7 +198,7 @@ fn curved_supports(body: &Body<f64>, arcs: &[EdgeKey]) -> Vec<FaceKey> {
 fn a_hostless_host_with_an_unrequested_outer_cycle_edge_refuses_at_the_host_gate() {
     let mut body = repaired(lantern(tol()));
     let arcs = rim_arcs_at(&body, 1.0, 0.0);
-    assert_eq!(arcs.len(), 2);
+    assert_full_revolve_rim(&arcs, "the repaired lantern base");
     let (fa, fb) = faces_of(&body, arcs[0]);
     let host = if is_plane(&body, fa) { fa } else { fb };
     let ed = body.get_edge(arcs[0]).unwrap();
@@ -248,7 +248,7 @@ fn a_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate_on_both
     // (a) Unrepaired plane side: `Seams` route.
     let mut body = hemisphere_on_flat_base();
     let arcs = rim_arcs_at(&body, 1.0, 0.0);
-    assert_eq!(arcs.len(), 2);
+    assert_full_revolve_rim(&arcs, "the hemisphere base");
     merge_curved_wall(&mut body, &arcs);
     assert_eq!(
         curved_supports(&body, &arcs).len(),
@@ -350,7 +350,7 @@ fn two_hostless_rims_on_a_shared_mate_wall_compose_in_one_call() {
     let source = repaired(pole_cylinder());
     for (r, y) in [(1.0, 0.0), (1.0, 1.0)] {
         let arcs = rim_arcs_at(&source, r, y);
-        assert_eq!(arcs.len(), 2);
+        assert_full_revolve_rim(&arcs, "the pole cylinder rim");
         assert_eq!(
             planar_supports(&source, &arcs).len(),
             1,
@@ -383,45 +383,30 @@ fn two_hostless_rims_sharing_no_wall_compose_in_one_call() {
 
 /// **A hostless rim beside a ring-hosted LADDER rim, and a rim in the
 /// outer cycle of a face that carries a ring — measured.** On the
-/// stepped body the boss root `(0.5, 1)` is a ring of the annular top
-/// (ladder) and refuses on the pre-existing false ring clearance
-/// (`work/fillet/ring-clearance-refuses-a-nested-trim-circle.md`), so
-/// the composition is not reachable today and the one call refuses
-/// with exactly that; the top's outer rim `(1, 1)` routes to the
-/// hostless annulus and refuses at its ring gate; the two disc rims
-/// carve alone.
+/// stepped body every one of the three shapes carves: the two disc
+/// rims `(1, 0)` and `(0.5, 1.5)` alone, the annular top's OUTER rim
+/// `(1, 1)` on a host that also carries the boss root as a ring, and
+/// the boss root `(0.5, 1)` — a LADDER rim nested inside that host's
+/// circular outer boundary — beside the base disc rim in ONE call,
+/// since the two rims rest on two different plane hosts.
 #[test]
 fn a_hostless_rim_beside_a_ladder_rim_and_a_ringed_host_measured() {
     let body = repaired(stepped());
-    for (r, y) in [(1.0, 0.0), (0.5, 1.5)] {
+    for (r, y) in [(1.0, 0.0), (0.5, 1.5), (1.0, 1.0)] {
         let arcs = rim_arcs_at(&body, r, y);
         assert_eq!(arcs.len(), 2, "({r}, {y}) two arcs");
         let out = fillet_edges(&body, &arcs, 0.05, tol())
-            .unwrap_or_else(|e| panic!("the disc rim ({r}, {y}) carves, got {e:?}"));
+            .unwrap_or_else(|e| panic!("the ({r}, {y}) rim carves, got {e:?}"));
         validate_geometric(&out.body, tol()).expect("tier-3 valid");
     }
-    // The ringed host: outer cycle of a face that also carries a ring.
-    let outer = rim_arcs_at(&body, 1.0, 1.0);
-    assert_eq!(outer.len(), 2);
-    let detail = detail_of(
-        fillet_edges(&body, &outer, 0.05, tol())
-            .expect_err("the ringed host refuses")
-            .error,
-    );
-    assert!(
-        detail.contains("host face carries rings of its own"),
-        "the hostless host gate's ring clause: {detail}"
-    );
     // The ladder ring beside a hostless rim, one call.
     let mut both = rim_arcs_at(&body, 1.0, 0.0);
     both.extend(rim_arcs_at(&body, 0.5, 1.0));
     assert_eq!(both.len(), 4);
-    match fillet_edges(&body, &both, 0.05, tol()).map_err(|e| e.error) {
-        Err(BlendError::RingClearance { margin, .. }) => {
-            assert_eq!(margin.predicate, "fillet3_ring_clearance");
-        }
-        other => panic!("expected the ladder's false ring-clearance refusal, got {other:?}"),
-    }
+    let out = fillet_edges(&body, &both, 0.05, tol())
+        .unwrap_or_else(|e| panic!("the ladder rim composes with the base rim, got {e:?}"));
+    validate_geometric(&out.body, tol()).expect("tier-3 valid");
+    assert_eq!(out.band_faces.len(), 2, "one band per rim");
 }
 
 // ------------------------------------------------------------------

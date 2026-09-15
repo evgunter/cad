@@ -1097,3 +1097,92 @@ one M10 finding filed (a `Violated` witness off the trimmed face).
 Fix pass dispatched to the unit's own lane; two live specs
 (`TRIM-3`, `PCURVE-P2`) carry the Duff premise and get seam notes at
 landing.
+**Seam announced by BLEND (2026-09-13, at unit 9's dispatch):** BLEND
+unit 9 (`docs/BLEND-9-SPEC.md`, item
+`work/blend/smooth-arm-siblings-disagree-on-the-in-band-case.md`) adds
+ONE wrapper beside `geom_brep::tangent_second_order` in
+`crates/geom-brep/src/dihedral.rs` — the must-carry rule over an edge
+(lane gate, the certification schedule's interior stations, a typed
+three-way answer) — and restates `folded_lever_arm`'s doc count of
+issue 1439's remaining siblings. Nothing else in the file changes;
+`classify_dihedral`, `tangent_certificate_lane`'s admitted set and the
+predicate name are untouched. Branch `blend/9-must-carry-one-home`.
+
+## M10's analysis lane and four rows arrive (2026-09-13)
+
+M10 closed at its exit sweep (`docs/DOC-LEDGER.md` sweep 13; the walk
+#1700 ratified by Ev in chat that day). This program's `keep_out` had
+said since 2026-09-06 that M10's analysis lane files are inherited at
+that sweep, and they are: `analysis.rs`, `distribution.rs`, `drive.rs`,
+`measure.rs` and `mc.rs`, the `m10*` and `e4_dual*` suites beside them,
+and `docs/ERROR-DESIGN.md` and `docs/DUAL-DESIGN.md` join `paths` in
+the opening commit. Four rows came with them, by header edit and
+`git mv` only (ids unchanged), all from `work/m10/`:
+
+- `certified-hull-padding-is-the-leaf-width-not-the-lane` — the hull is
+  `stackup.rs`'s, which was this program's already; the tier is the
+  cause and not the site
+- `coincidence-zone-priced-budget-at-the-floor` — a `RefusalReason` arm
+  in `drive::classify_replay`; it already `refs` this program's
+  `k-stats-escalation-channel-and-redo`
+- `min-clearance-refusal-stringly-twin` — the twin is in `measure.rs`;
+  the layering question it waits on is the 1055 valve's seam and
+  `clearance.rs` is SHELL's
+- `mc-lanes-draws-are-not-reproducible-from-outside-the-crate` — the
+  advisory lane's draws; the `pncad` re-export half is LIB's
+
+**Not inherited: the symbolic tier.** Ev's call at the sweep was that
+the fourteen rows standing on `geom_core::sym` are a successor's
+opening slate, so `work/sym/` holds them and claims `sym.rs` and
+`sym/*` inside this program's `crates/geom-core/src/*` glob. The fence
+is written on both sides in the opening commit. `real.rs` — the
+registered-identity door's file — stays here, and SYM reaches it by
+announced seam; three of its rows say so in their bodies.
+`crates/bvh/src/*`, which this program's `keep_out` had parked on M10,
+is now in no program's paths.
+
+**(SYM orchestrator) Seam announced, 2026-09-13 — SYM-1** (`sym/1-profile`,
+`docs/SYM-1-SPEC.md`): a test-only cargo feature `sym-profile-testing` on
+`crates/geom-core/Cargo.toml`, forwarded through `crates/editor-core/Cargo.toml`'s
+dev-dependency edge exactly as `identity-pass-testing` is — the two
+Cargo files are this glob's; the code behind the feature is in
+`sym.rs`/`sym/*` (SYM's). `drive.rs`'s `SymbolicDials` cost note is
+touched only if the profile shows it wrong, and then by this seam.
+
+**(SYM orchestrator) Seam announced, 2026-09-14 — SYM-6** (`sym/6-witness-tol`,
+`docs/SYM-6-SPEC.md`): `Real::register_equal` gains a `tol: Tol`
+parameter in `crates/geom-core/src/real.rs` (PROPS' file) and the
+`f64` witness's slack becomes `tol.eps() · max(|a|, |b|, 1)` with
+`WITNESS_REL` retired; `interval.rs`'s impl ignores the parameter (the
+meet is exact) and says so. Ev's D1 = (1) on `[ev]` #2552. Nothing
+else in `real.rs` moves; D2 (the refusal arms) is held on the same PR.
+
+**(SYM orchestrator) Seam amendment, 2026-09-14 — SYM-6** (PR #2604):
+the lane also re-took one paragraph of `docs/ERROR-DESIGN.md` (E12's
+sentence that the point witness is ε-INDEPENDENT, which cited the
+`WITNESS_REL` this PR deletes) in the present tense, nothing else in
+E12; the sentence was M10-9's fix pass's (`4f8262ad9`, agent-authored,
+no Ev ratification found by `git log -S`), and Ev's D1 = (1) on #2552
+is what reversed it. Disclosed in the PR body; the dual reads it. A
+row on this slate from the same lane:
+`register-equals-witness-limits-citation-names-no-file`.
+
+**(SYM orchestrator) Seam amendment, 2026-09-14 — SYM-6 fix pass** (PR
+#2604): the fix pass also re-points `Real::register_equal`'s dangling
+citation of `m10_9_witness_limits_interval.rs` (a file that never
+existed) at the rows that establish the clause, in the same doc
+paragraph the unit re-takes, and closes the row the lane had filed
+here (`register-equals-witness-limits-citation-names-no-file`) as
+fixed by that PR; and adds one sentence to E12 in
+`docs/ERROR-DESIGN.md` recording the refusal arms by witness kind (Ev's
+D2 on #2552), beside the ε sentence already disclosed.
+
+**(SYM orchestrator) Seam announced, 2026-09-14 — SYM-7** (`sym/7-plain-memo`,
+`docs/SYM-7-SPEC.md`): `crates/editor-core/src/drive.rs` (PROPS') gains
+the creation of one `DriveMemo` per drive around the level loop,
+passed into `classify`'s `with_session_rules` call, a `DriveConfig.plain_memo`
+flag (default on), and `frozen` on the drive's receipt re-defined as
+distinct nodes frozen over the drive (its `serialize`/`render` docs) —
+nothing else in that file. Ev's D3 = (1) on `[ev]` #2581. The M10-3
+receipt-identity row across schedules is the acceptance the memo is
+shared (not per worker) to keep.

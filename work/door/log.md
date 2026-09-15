@@ -508,3 +508,52 @@ justified the hop found `trim/S394`, closed, which had already named
 `adopt.rs:711` and `:877` and said a taker should decide them per-site
 rather than convert by pattern. That is what DOOR's lane did. The two
 rows agree, and neither lane could have seen the other.
+
+## `Dimension::ALL`'s readers, and a row that undercounted twice (2026-09-12)
+
+`dimension-all-has-readers-outside-the-viewer` closed. Eight sites in
+five files now read `Dimension::ALL`; two more were left alone with an
+argument, and two neighbouring classes were filed on their owners'
+slates (`tint/assert-f6-dump-lists-are-hand-written-mirrors-of-error-enums`,
+`lib/python-quantity-classes-map-to-dimension-by-hand-with-no-growth-alarm`).
+
+**The premise held, but not for the reason the row gave.**
+`Dimension::ALL` is itself hand-written — its rustdoc says a list
+cannot be derived from a match in safe Rust — so a converted site does
+not go red on a fifth dimension. It goes red on nothing and simply
+COVERS the fifth, because the one list it reads has grown. The alarm
+that makes a human look is the census's wildcard-free match, and that
+row forces the visit and not the edit. A lane taking one of these
+mirror rows should state the benefit that way: N places to remember
+become zero, not N new tripwires.
+
+**The row undercounted twice, and the second miss is the interesting
+one.** Its first sweep matched bracketed arrays; the orchestrator's
+addendum re-ran it with a fourteen-line window and added three, and
+warned that a longer enumeration could still hide. Span length turned
+out to hide nothing. What hid two more sites was **spelling** — the
+variants written as string literals (`["Length", "Angle", "Count",
+"Scalar"]` as a banned-identifier list, and a
+`!text.contains("Length") && …` chain) rather than as `Dimension::X`
+paths. Both sweeps were keyed on the path form, so no window width
+would have reached them. The instrument that did: smallest balanced
+`{}`/`[]`/`()` span mentioning all four variants, over every tracked
+file. **Widening a window is not the same as widening a pattern**, and
+a blind-spot sentence that names only the first is the more dangerous
+of the two, because it reads as if the shape question had been asked.
+
+**And the addendum's own three were not all what it said.** It claimed
+each *"asserts its own exhaustiveness in prose"*; two of the three
+carry no such claim (one has no doc at all), which is precisely why
+they were left alone — they are word anchors, not enumerations, and
+their converted sibling now fences the fifth dimension's tag for them.
+A lane that had taken the addendum's characterisation on trust would
+have converted four flat assertions into a second exhaustive match for
+nothing.
+
+**Red-first paid.** A `Mass` variant added to the enum, plus two
+one-line mutations, separated converted from unconverted on one tree:
+the `ALL` reader fails, the four-entry array beside it passes, same
+binary otherwise. Worth doing for a change whose whole claim is about
+what stays silent — and it is what proved the two left-alone sites are
+covered rather than skipped.

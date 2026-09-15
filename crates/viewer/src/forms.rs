@@ -17,8 +17,17 @@
 //! exhaustive match. What no compiler holds is the mirror itself:
 //! whether `PathVerb` still names every `PathStep` is forced by
 //! `PathVerb::of`'s exhaustive match, while a DELIBERATELY PARTIAL
-//! list (`MATE_PRIMITIVES`, `DatumKind`) claims no completeness and is
-//! held to nothing — each says so at its own site. (Code spans rather
+//! list claims no completeness and so cannot be held to it.
+//! Both partial mirrors on this page are held to the weaker thing that
+//! IS true of them: `partial_mirror!` (`crates/viewer/src/vocab.rs`)
+//! classifies every variant of the mirrored enum as offered here or as
+//! deliberately absent with its reason, so neither `MatePrimitive` nor
+//! `DatumSpec` can grow past this form in silence. The two take
+//! different shapes of that one macro, because what they offer differs:
+//! `MATE_PRIMITIVES` is a hand-written list and its roster holds a seat
+//! per offered entry, while `DatumKindChoice` is an enum whose `ALL` is
+//! projected, so its roster names a counterpart and has no seat to
+//! hold. Each says so at its own site. (Code spans rather
 //! than links: everything on this page is `pub(crate)`, so an
 //! intra-doc link from a public module page does not resolve.)
 //!
@@ -33,12 +42,13 @@ use pncad::profile::{ArcSide, ArcSweep};
 use pncad::quantity::UnitDef;
 
 use crate::props;
+use crate::session::DatumSpec;
 use crate::sketch::{ArcSpec, PathStep, PathTarget};
-use crate::vocab::vocabulary;
+use crate::vocab::{partial_mirror, vocabulary};
 
 vocabulary! {
     /// The pattern form's rule choice — the two PARAMETRIC rules, an enum
-    /// for the reason [`DatumKind`] is one. `Explicit` is absent by the
+    /// for the reason [`DatumKindChoice`] is one. `Explicit` is absent by the
     /// plan's ruling: a list of absolute frames is not a form's job.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub(crate) enum PatternKindChoice {
@@ -94,13 +104,51 @@ vocabulary! {
     /// ([`crate::pane::create`]'s match is exhaustive over this enum), and not
     /// every spec has a kind here.
     ///
-    /// **Declared in FORM order**, which is the order [`DatumKind::ALL`]
+    /// **`Choice` because `viewer::DatumKind` is a different type** —
+    /// the tag [`crate::datums::DatumDraw`] carries for how a datum is
+    /// DRAWN, which partitions the datum VALUES rather than selecting
+    /// among the specs. This crate already spells a form's choice
+    /// apart from the thing chosen among that way
+    /// ([`PatternKindChoice`], [`crate::blend::BlendKindChoice`]), and
+    /// this was the one form choice that did not. The two carry the
+    /// same four members today only because `AxisInPlane` happens to
+    /// be both the spec this form does not author and the value that
+    /// tag collapses onto `Axis` — nothing holds that identity and
+    /// nothing should, since a datum that drew distinctly but needed a
+    /// PICK to author would be a member there and none here. `ALL` is
+    /// this side's alone in consequence: it is the radio row's
+    /// offering, in form order, and a drawing's tag claims no such
+    /// thing.
+    ///
+    /// **A partial mirror, told when `DatumSpec` grows.** The
+    /// direction the compiler already held is kind-to-spec:
+    /// `pane::create`'s lowering match is exhaustive over
+    /// this enum, so a choice with no spec to lower to does not
+    /// build. Spec-to-kind was held by nothing, so a `DatumSpec` arm
+    /// this form SHOULD offer could arrive with no form edit and
+    /// nothing saying so — not hypothetical, since `AxisInPlane` is
+    /// exactly that, and the revolve tool ships with a seat no form
+    /// can fill in consequence.
+    /// The `partial_mirror!` invocation below is the roster that now
+    /// classifies every `DatumSpec` arm as offered here or as
+    /// deliberately absent with its reason. It takes the `onto` shape
+    /// rather than a seat roster because the offering is an ENUM whose
+    /// `ALL` is projected from its declaration, so naming a
+    /// counterpart there already says the radio row draws it
+    /// (`crates/viewer/src/vocab.rs`).
+    ///
+    /// **That roster holds nothing between this enum and
+    /// [`crate::datums::DatumKind`]**, which stay two types whose four
+    /// members match by coincidence: what it mirrors is `DatumSpec`,
+    /// and the draw tag is not party to it.
+    ///
+    /// **Declared in FORM order**, which is the order [`DatumKindChoice::ALL`]
     /// is projected in and therefore the order the radio row is drawn
     /// in: the frame sits next to the plane because that is the choice
     /// a reader is actually making — the same surface, with or without
     /// a stated direction on it.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub(crate) enum DatumKind {
+    pub(crate) enum DatumKindChoice {
         /// A plane datum.
         Plane = "plane",
         /// A sketch frame — an oriented plane.
@@ -115,11 +163,29 @@ vocabulary! {
     pub(crate) const ALL;
 }
 
+partial_mirror! {
+    DatumSpec, onto DatumKindChoice,
+    offered [
+        Plane { .. } => Plane,
+        Axis { .. } => Axis,
+        Point { .. } => Point,
+        Frame { .. } => Frame,
+    ],
+    absent [
+        AxisInPlane { .. } => "its frame is a PICK and not a field, and \
+                               this form authors plain numbers; making it \
+                               authorable moves this entry to the offered \
+                               section and grows the enum above by one, \
+                               which is what the revolve tool's unfillable \
+                               seat asks for",
+    ],
+}
+
 vocabulary! {
     /// The add-profile form's loop choice: the two templates, or a PATH
     /// authored verb by verb.
     ///
-    /// An enum for the reason [`DatumKind`] is one — and the templates
+    /// An enum for the reason [`DatumKindChoice`] is one — and the templates
     /// stay in it rather than being folded into the path arm because they
     /// are not chains: a circle is a seamless closed carrier no chain of
     /// legs can spell, and a rectangle is four `line_to`s nobody should
@@ -489,13 +555,27 @@ impl FieldWriting {
 /// wrong thing — mapping this form over a published `ALL` the way the
 /// boolean buttons are mapped is precisely the wrong fix here.
 ///
-/// What it still has no answer for is the OTHER half: a primitive the
-/// panel SHOULD offer would not appear here and nothing would say so.
-/// A partial mirror wants to be told its enum grew, not to be
-/// regenerated from it; that is
-/// `work/door/mate-primitives-is-a-partial-mirror-with-no-growth-alarm`.
+/// **A decision per variant, and the compiler holds the decision.**
+/// Nothing here forces the list to be COMPLETE — completeness is what
+/// it does not claim. What the `partial_mirror!` invocation below
+/// forces (`crates/viewer/src/vocab.rs` declares the macro) is that
+/// every [`MatePrimitive`] variant is either offered at a seat of this
+/// list or named below as deliberately absent, with the reason it is
+/// absent. A primitive added to the kernel enum is neither until
+/// someone writes one of the two, and the build says so.
 pub(crate) const MATE_PRIMITIVES: [(MatePrimitive, &str); 3] = [
     (MatePrimitive::FrameCoincidence, "frame coincidence"),
     (MatePrimitive::Coaxial, "coaxial"),
     (MatePrimitive::PlanarRest { offset: 0.0 }, "planar rest"),
 ];
+
+partial_mirror! {
+    MatePrimitive, labelled MATE_PRIMITIVES,
+    offered [FrameCoincidence, Coaxial, PlanarRest { .. }],
+    absent [
+        Clocking => "the kernel represents it so it can REFUSE it \
+                     (`mate::solve` faults `TableLacks` on a standalone \
+                     clocking), and a form offering it would be offering \
+                     a refusal",
+    ],
+}

@@ -54,12 +54,14 @@ derived-shape types move beside `NodeVerdicts` in `resolve/vdiff.rs`,
 `ReplayOutcome` folds into `RunStatus` with `Absent` kept distinct, the
 docs say which shape persists, and the strict-vs-population claim gets
 the executable pin the census (2026-09-05) found it never had. An E
-rider: single style review, outside the A/B experiment. `drive.rs` is
-edited by announced seam (`work/m10/log.md`).
+rider: single style review, outside the A/B experiment. `drive.rs` was
+edited by announced seam while it was M10's; it is this program's own
+territory since M10's exit sweep (`docs/DOC-LEDGER.md` sweep 13), so no
+announcement is owed.
 
 ## Home
 
-`work/props/`, re-homed from `work/m10/` at that program's residue sweep (`work/m10/log.md`, "Seam — residue re-homed for the exit"). `drive.rs` stays an M10 territory glob, so the unit edits it by the announced seam this program's `keep_out` names.
+`work/props/`, re-homed from `work/m10/` at that program's residue sweep. `drive.rs` was an M10 territory glob and is this program's own since M10's exit sweep on 2026-09-13 (`docs/DOC-LEDGER.md` sweep 13), so the announced seam this program's `keep_out` named is discharged.
 
 ## Decided
 

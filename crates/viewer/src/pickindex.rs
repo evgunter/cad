@@ -755,7 +755,7 @@ impl PickIndex {
     /// evicts what it did not reach, and the roots after the refusal
     /// are rebuilt once the document is fixed. That keeps the memo one
     /// picture's size through any sequence of answers — the node
-    /// map, the patch memo and the per-patch tree map alike.
+    /// map, the patch memo and the per-patch pick-table map alike.
     ///
     /// # Errors
     ///

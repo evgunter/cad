@@ -16,6 +16,7 @@ use geom_core::{Bounds, Interval, Point2, Point3, Real, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::{Extrusion, extrude};
+use topo::readback::euler_counts;
 use topo::{validate, validate_closed, validate_geometric};
 
 fn p2(x: f64, y: f64) -> Point2<Interval> {
@@ -98,12 +99,9 @@ fn interval_axis_aligned_bridge_ring_path_genus_one() {
     assert_eq!(validate(&t.body), Ok(()));
     assert_eq!(validate_closed(&t.body), Ok(()));
     assert_eq!(validate_geometric(&t.body, Tol::witness()), Ok(()));
-    let v = t.body.vertices().count() as isize;
-    let e = t.body.edges().count() as isize;
-    let f = t.body.faces().count() as isize;
-    let r: isize = t.body.faces().map(|(_, fc)| fc.rings.len() as isize).sum();
-    assert_eq!((v, e, f, r), (20, 30, 12, 2));
-    assert_eq!(v - e + f - r, 0); // genus 1
+    let counts = euler_counts(&t.body);
+    assert_eq!((counts.v, counts.e, counts.f, counts.r), (20, 30, 12, 2));
+    assert_eq!(counts.genus(), Ok(1));
     // Both caps carry the ring.
     assert_eq!(t.body.get_face(t.top).unwrap().rings.len(), 1);
     assert_eq!(t.body.get_face(t.bottom).unwrap().rings.len(), 1);
@@ -138,12 +136,9 @@ fn fixed_interval_diagonal_bridge_builds_tier_valid() {
     assert_eq!(validate_closed(&t.body), Ok(()));
     assert_eq!(validate_geometric(&t.body, Tol::witness()), Ok(()));
     // Genus 1: the ring path ran end to end at the interval scalar.
-    let v = t.body.vertices().count() as isize;
-    let e = t.body.edges().count() as isize;
-    let f = t.body.faces().count() as isize;
-    let r: isize = t.body.faces().map(|(_, fc)| fc.rings.len() as isize).sum();
-    assert_eq!((v, e, f, r), (16, 24, 10, 2));
-    assert_eq!(v - e + f - r, 0);
+    let counts = euler_counts(&t.body);
+    assert_eq!((counts.v, counts.e, counts.f, counts.r), (16, 24, 10, 2));
+    assert_eq!(counts.genus(), Ok(1));
 }
 
 /// FIXED (was `interval_rotated_placement_refuses_honestly_pre_b1_fix`):
