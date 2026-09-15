@@ -5832,3 +5832,5 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
         other => panic!("a band must refuse to price a leaf, got {other:?}"),
     }
 }
+#[path = "r1_unitvec_e2e.rs"]
+mod r1_unitvec_e2e;
