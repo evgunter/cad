@@ -1,17 +1,19 @@
-//! **The axis-order tie census over the Band 4 model corpus**, and the
+//! **The frame-seam census over the Band 4 model corpus**, and the
 //! `Datum::FaceFrame` half of the frame-movement question.
 //!
-//! `Vec3::orthonormal_basis` crosses the normal with the world axis of
-//! its smallest-magnitude component. The construction's one
-//! discontinuity is the set where the two smallest magnitudes TIE — a
-//! set every axis-aligned normal sits exactly on, with two components
-//! at zero. At `f64` and at a point enclosure that tie DECIDES; only an
-//! enclosure of positive width across it hulls. This counts the faces
-//! on the tie set, and names the frames that read one.
+//! `Vec3::orthonormal_basis` crosses the normal with the world axis its
+//! own components choose — `e_z` when `|n.z| ≤ max(|n.x|, |n.y|)/2` —
+//! and the equality is its one discontinuity. At `f64` and at a point
+//! enclosure the comparison decides there anyway; only an enclosure of
+//! positive width across it hulls. The classification lives in
+//! `test_utils::seam_census`, which the three corpus instruments share;
+//! read its docs for what a count of normals on the seam does and does
+//! not measure (it bounds the exposure: a blend mints its own `u_ref`
+//! and never reads this constructor).
 //!
-//! `#[ignore]`d: asserts nothing, gates nothing, prints. The corpus is
-//! `corpus::documents()` — the registry itself, so a document added
-//! there is censused here without editing this file.
+//! [`no_corpus_face_sits_on_the_frame_seam`] ASSERTS the zero this
+//! corpus measures — the number that decided the comparison — and the
+//! two instruments below it print the full tables and are `#[ignore]`d.
 //!
 //! ```text
 //! cargo test -p editor-core --test all \
@@ -26,61 +28,8 @@ use editor_core::{
     CancelToken, Datum, EvalOptions, Node, NodeResult, ValuePayload, all_faces, evaluate,
 };
 use geom::Surface;
-use geom_core::{Tol, Vec3};
-
-/// The world-axis choice, at `f64`: which axis the normal is crossed
-/// with, and whether it sits exactly ON the comparison's seam.
-///
-/// The seam `|n.z| = max(|n.x|, |n.y|)` is the construction's one
-/// discontinuity — the 45° cone — and it is the only class an enclosure
-/// of positive width can fail to decide. No axis direction and no
-/// axis-aligned face is on it, which is the property the census is here
-/// to measure rather than assert.
-#[derive(Default, Clone, Copy)]
-struct TieClasses {
-    on_seam: usize,
-    off_seam: usize,
-    e_z_arm: usize,
-    e_y_arm: usize,
-    /// The same count for the rule this construction did NOT take: an
-    /// order over all THREE components, whose tie set is where the two
-    /// smallest magnitudes are equal. Every axis-aligned normal is on
-    /// that one, which is why it is not the rule.
-    three_way_tie: usize,
-}
-
-impl TieClasses {
-    fn add(&mut self, n: Vec3<f64>) {
-        let other = n.x.abs().max(n.y.abs());
-        if n.z.abs() <= other {
-            self.e_z_arm += 1;
-        } else {
-            self.e_y_arm += 1;
-        }
-        if n.z.abs() == other {
-            self.on_seam += 1;
-        } else {
-            self.off_seam += 1;
-        }
-        let mut m = [n.x.abs(), n.y.abs(), n.z.abs()];
-        m.sort_by(f64::total_cmp);
-        if m[0] == m[1] {
-            self.three_way_tie += 1;
-        }
-    }
-
-    fn merge(&mut self, o: TieClasses) {
-        self.on_seam += o.on_seam;
-        self.off_seam += o.off_seam;
-        self.e_z_arm += o.e_z_arm;
-        self.e_y_arm += o.e_y_arm;
-        self.three_way_tie += o.three_way_tie;
-    }
-
-    fn planes(&self) -> usize {
-        self.on_seam + self.off_seam
-    }
-}
+use geom_core::Tol;
+use test_utils::seam_census::SeamClasses;
 
 fn eval(doc: &editor_core::ProfileDoc) -> editor_core::Evaluation<f64> {
     evaluate::<f64>(
@@ -92,6 +41,71 @@ fn eval(doc: &editor_core::ProfileDoc) -> editor_core::Evaluation<f64> {
     )
 }
 
+/// **The measurement that decided the comparison, asserted.** Not one
+/// of this corpus's planar faces sits on the seam
+/// `|n.z| = max(|n.x|, |n.y|)/2`, so no stored frame in it can be
+/// hulled by an undecided axis choice — while 578 of the same 600 sit
+/// on the tie set of the three-component order the spec first named,
+/// which is why that rule is not the one.
+///
+/// The row is asserted rather than printed because it is the ground the
+/// construction stands on: a document added to the registry with a face
+/// on the seam is a fact the kernel's designers need to hear, and an
+/// `#[ignore]`d printer would never tell them. The instruments below
+/// print the per-document tables.
+#[test]
+fn no_corpus_face_sits_on_the_frame_seam() {
+    let mut total = SeamClasses::default();
+    let mut docs = 0usize;
+    for doc in corpus::documents() {
+        let ev = eval(&doc.doc);
+        let mut c = SeamClasses::default();
+        for result in ev.nodes.values() {
+            let NodeResult::Ok(v) = result else { continue };
+            let ValuePayload::Body(b) = &v.payload else {
+                continue;
+            };
+            for (_, surface) in b.surfaces() {
+                if let Surface::Plane { normal, .. } = surface {
+                    c.add((normal.x, normal.y, normal.z));
+                }
+            }
+        }
+        assert_eq!(
+            c.on_seam, 0,
+            "{}: {} of its {} planar faces are on the frame seam",
+            doc.name,
+            c.on_seam,
+            c.planes()
+        );
+        total.merge(c);
+        docs += 1;
+    }
+    println!(
+        "Band 4 corpus ({docs} documents): {} planar faces, {} on the seam, \
+         {} on the three-component order's tie set",
+        total.planes(),
+        total.on_seam,
+        total.three_way_tie
+    );
+    // Anti-vacuity: the corpus grew to 600 planar faces over 28
+    // documents, and a registry that stopped evaluating would otherwise
+    // pass this row in silence.
+    assert!(
+        docs >= 28 && total.planes() >= 600,
+        "the corpus shrank: {docs} documents, {} planar faces",
+        total.planes()
+    );
+    // The contrast, measured rather than recited.
+    assert!(
+        total.three_way_tie * 2 > total.planes(),
+        "the three-component order's tie set no longer covers most of the corpus: \
+         {} of {}",
+        total.three_way_tie,
+        total.planes()
+    );
+}
+
 /// Every planar face of every body the corpus evaluates to, by whether
 /// its normal sits on the axis order's tie set and by which axis wins.
 #[test]
@@ -101,11 +115,11 @@ fn axis_tie_census_over_the_band4_corpus() {
         "| document | bodies | planes | on the seam | off it | e_z arm | e_y arm | on a three-way tie |"
     );
     println!("| --- | --- | --- | --- | --- | --- | --- | --- |");
-    let mut total = TieClasses::default();
+    let mut total = SeamClasses::default();
     let (mut docs, mut bodies_total) = (0usize, 0usize);
     for doc in corpus::documents() {
         let ev = eval(&doc.doc);
-        let mut c = TieClasses::default();
+        let mut c = SeamClasses::default();
         let mut bodies = 0usize;
         for result in ev.nodes.values() {
             let NodeResult::Ok(v) = result else { continue };
@@ -115,7 +129,7 @@ fn axis_tie_census_over_the_band4_corpus() {
             bodies += 1;
             for (_, surface) in b.surfaces() {
                 if let Surface::Plane { normal, .. } = surface {
-                    c.add(*normal);
+                    c.add((normal.x, normal.y, normal.z));
                 }
             }
         }
@@ -168,12 +182,12 @@ fn face_frames_and_the_faces_they_could_sit_on() {
                 continue;
             };
             frames += 1;
-            let mut c = TieClasses::default();
+            let mut c = SeamClasses::default();
             let named = ev.value(*at).map_or(0, |_| all_faces(&ev, *at).len());
             if let Some(ValuePayload::Body(b)) = ev.value(*at).map(|v| &v.payload) {
                 for (_, surface) in b.surfaces() {
                     if let Surface::Plane { normal, .. } = surface {
-                        c.add(*normal);
+                        c.add((normal.x, normal.y, normal.z));
                     }
                 }
             }

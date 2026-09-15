@@ -450,9 +450,12 @@ pub trait Real:
     ///   the certified-tier analogue of `abs`'s straddle hull).
     fn floor(self) -> Self;
 
-    /// The value with `self`'s magnitude and `sign`'s sign — the
-    /// branchless sign-transfer primitive (needed by the Pixar
-    /// orthonormal-basis construction, `Vec3::orthonormal_basis`).
+    /// The value with `self`'s magnitude and `sign`'s sign — sign
+    /// transfer where the sign is a genuinely signed quantity. It is
+    /// NOT the way to choose between two candidates: the enclosure arm
+    /// must hull at any zero-containing sign, so a choice keyed on it
+    /// hulls wherever the quantity it reads can be zero
+    /// ([`Real::select_le_zero`] is that door).
     ///
     /// **Poison propagates through BOTH arguments** — deliberately
     /// stricter than IEEE 754 `copySign`, which is a non-arithmetic bit

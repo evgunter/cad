@@ -1,19 +1,20 @@
-//! **The axis-order tie census over the STEP-export fixture corpus**,
-//! and the `DIRECTION` records the frames are written to.
+//! **The frame-seam census over the STEP-export fixture corpus**, and
+//! the `DIRECTION` records the frames are written to.
 //!
-//! `Vec3::orthonormal_basis` crosses the normal with the world axis of
-//! its smallest-magnitude component, and its one discontinuity is the
-//! set where the two smallest magnitudes TIE — which every axis-aligned
-//! normal sits exactly on. A plane's `u_ref` is written verbatim into
-//! the `AXIS2_PLACEMENT_3D` of its `PLANE` record, so the frames these
+//! `Vec3::orthonormal_basis` crosses the normal with the world axis its
+//! own components choose — `e_z` when `|n.z| ≤ max(|n.x|, |n.y|)/2` —
+//! and the equality is its one discontinuity. The classification lives
+//! in `test_utils::seam_census`, shared with the other two corpus
+//! instruments; its docs say what a count of normals on the seam does
+//! and does not measure. A plane's `u_ref` is written verbatim into the
+//! `AXIS2_PLACEMENT_3D` of its `PLANE` record, so the frames these
 //! fixtures store are committed bytes; the second table locates the
 //! record each one is written to, which is the receipt a re-bless of a
 //! byte-golden fixture is owed.
 //!
-//! `#[ignore]`d: asserts nothing, gates nothing, prints. The corpus is
-//! `common::fixture_corpus()` — the same bodies the byte-golden
-//! fixtures are written from, so a body added there is censused here
-//! without editing this file.
+//! [`no_fixture_face_sits_on_the_frame_seam`] ASSERTS this corpus's
+//! zero; the two instruments below it print the tables and are
+//! `#[ignore]`d.
 //!
 //! ```text
 //! cargo test -p step-export --test all \
@@ -28,60 +29,53 @@ use crate::common;
 
 use geom::Surface;
 use geom_core::{Tol, Vec3};
+use test_utils::seam_census::SeamClasses;
 use step_export::{StepOptions, step_string};
 
-/// The world-axis choice, at `f64`: which axis the normal is crossed
-/// with, and whether it sits exactly ON the comparison's seam.
-///
-/// The seam `|n.z| = max(|n.x|, |n.y|)` is the construction's one
-/// discontinuity — the 45° cone — and it is the only class an enclosure
-/// of positive width can fail to decide. No axis direction and no
-/// axis-aligned face is on it, which is the property the census is here
-/// to measure rather than assert.
-#[derive(Default, Clone, Copy)]
-struct TieClasses {
-    on_seam: usize,
-    off_seam: usize,
-    e_z_arm: usize,
-    e_y_arm: usize,
-    /// The same count for the rule this construction did NOT take: an
-    /// order over all THREE components, whose tie set is where the two
-    /// smallest magnitudes are equal. Every axis-aligned normal is on
-    /// that one, which is why it is not the rule.
-    three_way_tie: usize,
-}
-
-impl TieClasses {
-    fn add(&mut self, n: Vec3<f64>) {
-        let other = n.x.abs().max(n.y.abs());
-        if n.z.abs() <= other {
-            self.e_z_arm += 1;
-        } else {
-            self.e_y_arm += 1;
+/// **This corpus's half of the measurement that decided the
+/// comparison, asserted**: no fixture body has a planar face on the
+/// seam `|n.z| = max(|n.x|, |n.y|)/2`, so no `DIRECTION` record these
+/// byte-golden fixtures commit can be a hulled frame's. The instrument
+/// below prints the per-fixture table.
+#[test]
+fn no_fixture_face_sits_on_the_frame_seam() {
+    let mut total = SeamClasses::default();
+    let mut fixtures = 0usize;
+    for (name, body) in common::fixture_corpus() {
+        let mut c = SeamClasses::default();
+        for (_, surface) in body.surfaces() {
+            if let Surface::Plane { normal, .. } = surface {
+                c.add((normal.x, normal.y, normal.z));
+            }
         }
-        if n.z.abs() == other {
-            self.on_seam += 1;
-        } else {
-            self.off_seam += 1;
-        }
-        let mut m = [n.x.abs(), n.y.abs(), n.z.abs()];
-        m.sort_by(f64::total_cmp);
-        if m[0] == m[1] {
-            self.three_way_tie += 1;
-        }
+        assert_eq!(
+            c.on_seam, 0,
+            "{name}: {} of its {} planar faces are on the frame seam",
+            c.on_seam,
+            c.planes()
+        );
+        total.merge(c);
+        fixtures += 1;
     }
-
-    fn merge(&mut self, o: TieClasses) {
-        self.on_seam += o.on_seam;
-        self.off_seam += o.off_seam;
-        self.e_z_arm += o.e_z_arm;
-        self.e_y_arm += o.e_y_arm;
-        self.three_way_tie += o.three_way_tie;
-    }
-
-    fn planes(&self) -> usize {
-        self.on_seam + self.off_seam
-    }
+    println!(
+        "step-export corpus ({fixtures} fixtures): {} planar faces, {} on the seam, \
+         {} on the three-component order's tie set",
+        total.planes(),
+        total.on_seam,
+        total.three_way_tie
+    );
+    assert!(
+        fixtures >= 17 && total.planes() >= 81,
+        "the fixture corpus shrank: {fixtures} fixtures, {} planar faces",
+        total.planes()
+    );
+    assert!(
+        total.three_way_tie * 2 > total.planes(),
+        "the three-component order's tie set no longer covers most of the corpus: \
+         {} of {}",
+        total.three_way_tie,
+        total.planes()
+    );
 }
 
 /// Planar faces per fixture, by whether the normal sits on the axis
@@ -93,12 +87,12 @@ fn axis_tie_census_over_the_fixture_corpus() {
         "| fixture | planes | on the seam | off it | e_z arm | e_y arm | on a three-way tie |"
     );
     println!("| --- | --- | --- | --- | --- | --- | --- | --- |");
-    let mut total = TieClasses::default();
+    let mut total = SeamClasses::default();
     for (name, body) in common::fixture_corpus() {
-        let mut c = TieClasses::default();
+        let mut c = SeamClasses::default();
         for (_, surface) in body.surfaces() {
             if let Surface::Plane { normal, .. } = surface {
-                c.add(*normal);
+                c.add((normal.x, normal.y, normal.z));
             }
         }
         total.merge(c);

@@ -923,7 +923,7 @@ mod tests {
         /// The TANGENT channel of the frame, against its closed form —
         /// the channel the value-channel bit row above cannot reach.
         ///
-        /// Away from the 45° cone the axis choice is locally constant,
+        /// Away from the seam the axis choice is locally constant,
         /// so `b1 = v/‖v‖` for the fixed `v = e_k × n`, which is LINEAR
         /// in `n`; differentiating,
         ///
