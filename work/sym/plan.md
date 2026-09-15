@@ -95,6 +95,17 @@ NOT certify their studies at any affordable dial.
   `rule-d-reaches-the-unit-bulge-only`'s first ask). Measurement.
 - The first DUAL unit is cut from SYM-1's and SYM-3's numbers, and
   opens block SYM-B1.
+- **Block SYM-B1** — SYM-4 (the cost of a form; merged), SYM-5 (the
+  derived-frame freeze, PR-1 measured / PR-2 rule E), SYM-6 (the
+  door's witness on the run's ε, with D2's arm split as Phase 3).
+- **Block SYM-B2** — opens with **SYM-7**, the drive-scoped plain memo
+  (D3 = (1) on `[ev]` #2581; carries
+  `symbolic-tier-costs-95-percent-of-the-m10-3-drive`'s volume ask);
+  H / STRUCTURAL; **SYM-8**, the manifest sign (`docs/SYM-8-SPEC.md`;
+  the tilt-U wall SYM-5's review found, measured first; H / NUMERIC);
+  **SYM-9**, the retry ladder (`docs/SYM-9-SPEC.md`; the ring's
+  non-monotone reach, measured first; H / NUMERIC). Pre-draw fields
+  and the draw on `sym/b2-block` once all three specs are on `main`.
 
 ## Review posture
 

@@ -8312,7 +8312,7 @@ mod tests {
             ("inside", p(2.0, 2.0, 0.0), false),
         ] {
             let mut b = body.clone();
-            let point = b.points.insert(at);
+            let point = b.add_point(at);
             let vertex = b.vertices.insert(Vertex {
                 point,
                 emanating: None,

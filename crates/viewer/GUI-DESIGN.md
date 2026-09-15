@@ -193,8 +193,23 @@ BVHs is the expensive step behind every picture here — seconds on a
 dense document, and the window did not repaint while it ran, because
 `sync_scene` called `PickIndex::build` inline. It runs on its own
 worker now, across the same submit/poll vocabulary the evaluation
-crosses (`src/evalseam.rs`, two seams and two workers), keyed by the
-`(generation, δ)` pair it was built for.
+crosses (`src/evalseam.rs`, three seams and three workers), keyed by
+the `(generation, δ)` pair it was built for.
+
+**And so is the display budget's fit, which is the step BEFORE it.**
+`scene::fit_delta` prices a document by tessellating it at a ladder of
+coarser δ — about an eighth of a full tessellation, measured on this
+tree's own corpus at 0.10–0.13 of one on every document dense enough to
+want a budget — and it ran inside `sync_scene`, before the index was
+submitted, so an `Open` stopped repainting for it. It runs on the third
+worker now, over the same submit/poll vocabulary and keyed by
+generation alone, because the δ is its ANSWER rather than an input to
+it. The index build WAITS for that answer: `PickCache::sync` takes an
+`Option<δ>` and an unsettled one takes the nothing-to-index way out, so
+the un-budgeted build the budget exists to avoid cannot be submitted by
+a caller forgetting to write an `if`. The cache drops the index it
+holds in that window exactly as it does on a submit, which is *current
+or absent, never behind* unchanged.
 
 **What that window looks like, exactly.** `PickCache` drops the index
 it holds at the moment it submits, not when the replacement lands, so
@@ -233,7 +248,10 @@ wording. That is a fact about work in flight, not a second opinion
 about the document, and it is the same shape `DocSession::running`
 already has — including the same failure, recorded rather than
 claimed away: a worker that dies leaves either of them describing
-work nobody is doing.
+work nobody is doing. `ViewerApp::fit` is the third instance and
+stands on the same ground: what it holds is a request, and the δ that
+comes back is checked against the generation and the δ in force before
+anything is taken from it.
 
 **The index seam's promise is weaker than the evaluation seam's, and
 the asymmetry is deliberate.** It has no cancel — not a cancel that
@@ -245,9 +263,13 @@ and giving them one is other crates' territory. So the policy is
 completion and discards its answer, which costs a second full build —
 on a document whose index takes 13 s, about 27 s before the picture is
 right. An edit made during an index build is not delayed by it, which
-is why the two seams are two workers: one queue would have put an
+is why each seam is its own worker: one queue would have put an
 uninterruptible build in front of the next evaluation and quietly
-weakened the cancel-and-restart promise made above it.
+weakened the cancel-and-restart promise made above it. The fit seam is
+the same argument one step further along — it and the index build are
+sequential for ONE document and not across documents, so a fit for a
+document that has just arrived must not sit behind an index build for
+the δ someone typed a moment ago.
 
 **Where the `app` feature gates.** The workspace nextest archive builds
 this crate at DEFAULT features, so nothing behind the feature is in it.
@@ -416,12 +438,15 @@ cargo doc --no-deps --document-private-items \
   -p viewer --features app --target wasm32-unknown-unknown
 ```
 
-Read 2026-09-10 with that lint set: **seven sites over four identifiers
+Read 2026-09-14 with that lint set: **eight sites over four identifiers
 in two files**, and an identifier is a link SPELLING, so
 `ThreadEvaluator` and
 `crate::evalseam::ThreadEvaluator` count apart. `evalseam.rs`:
 `ThreadEvaluator` ×2, `ThreadIndexer` ×1. `app.rs`: `ThreadEvaluator`
-×1, `crate::evalseam::ThreadEvaluator` ×1, `StartupError::Worker` ×2.
+×1, `crate::evalseam::ThreadEvaluator` ×1, `StartupError::Worker` ×3.
+The fit worker adds nothing but that third `StartupError::Worker`: its
+own links sit inside the `cfg(not(wasm))` module, which the browser
+pass does not render at all.
 The enumeration is COMPLETE rather than illustrative, and it is a
 reading of the tree rather than a property of it. **Line numbers are
 deliberately not carried**: doc-gate's header gives the reason and has a

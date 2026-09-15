@@ -1249,6 +1249,26 @@ FAMILIES: dict[str, str] = {
     # exactly where every consumer was before the door existed: able
     # to ask `monte_carlo` for the mean and not for a member of the
     # population it is a mean of.
+    # THE THIRD ARRIVED WITH ITS DOOR TOO, one layer down. The edge
+    # side of the carrier-kind read reached the façade with
+    # TOPO's `edge-carrier-kind-has-no-readback-door`
+    # (`topo::readback::edge_carrier_kind`, the `query` flattening and
+    # the `names::interrogate` twin), and the binding did not move with
+    # it: `crates/pncad-py/*` is LIB's ground, and what a Python caller
+    # can ask an edge for is still its FRAME, while a face answers for
+    # its kind. `work/lib/python-evaluation-has-no-edge-carrier-kind-twin`
+    # carries the finding.
+    "B-EDGE-KIND": (
+        "the edge twin of `Evaluation.face_carrier_kind` — "
+        "`select::edge_carrier_kind`, the named edge's stored "
+        "`CurveKind` tag. Closing it needs the kernel-to-Python "
+        "direction of the `CurveKind` mirror (the twin of "
+        "`surface_kind`; `to_kernel` already exists for the selector's "
+        "comparand), the method beside `face_carrier_kind` with the "
+        "same `wrong_kind` refusal, a `pncad.pyi` entry and one Python "
+        "row asking a box edge for `Line` and a face name for the "
+        "refusal."
+    ),
     "B-MC-DRAWS": (
         "the MC lane's per-sample draws — `mc::sample_offsets`, which "
         "hands out one member of the population `monte_carlo` "
@@ -2605,6 +2625,13 @@ NOT_BOUND = {
     # still refuse it. The positive form is
     # `tests/test_expressions.py`.
     # --- gap: geometry read-back doors (census-owned) -------------
+    # The FACE half of the carrier-kind read is bound
+    # (`Evaluation.face_carrier_kind`); the edge half reached the
+    # façade without it, so the door a Python caller cannot reach is
+    # exactly the one whose face twin it can. Not blocked on anything
+    # kernel-side: the door exists, succeeds, and answers a closed
+    # four-variant tag.
+    "edge_carrier_kind": f"{GAP}: B-EDGE-KIND the named edge's stored carrier tag",
     # --- gap: assorted single doors -------------------------------
     # B-CANCEL IS GONE FROM THIS ROSTER, closed at LIB-B-CANCEL, and
     # the id is gone from `FAMILIES` with it. `CancelToken` is a

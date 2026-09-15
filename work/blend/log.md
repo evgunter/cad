@@ -1139,3 +1139,12 @@ transcripts. The delta is a re-verification, not a review arm: unit
 14's pair concluded before the outage and still counts; unit 15's
 dual has not been drawn. The dead time is the orchestrator's, not a
 lane's.
+
+**(SYM orchestrator) Seam announced, 2026-09-14 — SYM-6** (`sym/6-witness-tol`,
+`docs/SYM-6-SPEC.md`): a `tol: Tol` parameter threaded to
+`swept::register_rim_identity`, `register_span_identity`,
+`placed_segment_spec`, the extrude arc-wall registrant and the revolve
+builders in `crates/sweep/src/*`, passed from the nearest holder and
+never minted (`witness-not-ambient.sh` is the gate). The parameter and
+nothing else; what each registrant states is unchanged. Ev's D1 = (1)
+on `[ev]` #2552.

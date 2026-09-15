@@ -2616,3 +2616,85 @@ not foresee; that finding is filed as
 body and the unit's log entry.
 
 - `SYM-3-SPEC.md` — SYM-3, what stands at a bulge that is not 1 (#2558)
+
+## Per-merge deletion — CURVED-MERGEDOOR's spec (2026-09-14)
+
+Recoverable at `git show 0e1d06b47:docs/CURVED-MERGEDOOR-SPEC.md` (PR
+#2105's merge commit, the last head carrying it). Every clause was met
+as ruled: the spec's STOP 2 fired (scenes A/B reach the REST-zip's chord
+on a cylinder wall once the door records) and the orchestrator re-scoped
+the rows to the measured frontier (comment 5568446264); the rulings
+§Rulings (public-door posture; `faces` carried) and the re-scope ruling
+(no record for a pair with zero live faces; dedup at the door) are in
+the unit's record — `work/curved/cylindrical-rest-pair-hits-planar-merge.md`'s
+`## Closed` and the MERGED entry in `work/curved/log.md`; its A/B row is
+MODEL-AB-LOG MDOOR. Shape (2) is banked on S-BOOL's
+`cosurface-disjoint-curved-walls-refuse` with its consumer measured.
+
+
+## Per-merge deletion — SYM-4's spec (2026-09-14)
+
+Recoverable at `git show 972d802ff:docs/SYM-4-SPEC.md` (the fix-pass
+head). Two of its sentences did not survive the measurement: its
+"rendered-form digest row" became a per-walk, per-origin ledger of
+form digests (a superset — `DecisionShape` carries no node id and
+renders only blocked residuals), and its inline monomial and cached
+degree were measured and NOT taken (under one percent each, and a new
+shipped dependency for the first). Its "before 57 %" storage share was
+SYM-1's reading; the unit's own before read 53.5 %. Recorded in the PR
+body and the unit's log entry.
+
+- `SYM-4-SPEC.md` — SYM-4, the cost of a form (#2565)
+
+## Per-merge deletion — SYM-6's spec (2026-09-14)
+
+Recoverable at `git show 8547c73e9:docs/SYM-6-SPEC.md` (the fix-pass
+head). Written conditional on `[ev]` #2552 and amended twice the same
+day: A1 (Ev picked D1 = (1); Phase 3 held), A2 (Ev took the refined
+D2 — the refusal arm split by witness KIND; Phase 3 in scope). Two of
+its sentences did not survive: "the four implementations" (five —
+`Dual` forwards too) and a re-read of `m10_9_witness_limits_interval`
+(a file that never existed; the citation is fixed in `real.rs`). The
+picked route's own text on the item said the slack becomes
+`max(tol.eps(), WITNESS_REL · scale)`; what shipped and what the spec
+ratifies is `tol.eps() · max(|a|, |b|, 1)`, and the difference is
+recorded on the item. Recorded in the PR body and the unit's log entry.
+
+- `SYM-6-SPEC.md` — SYM-6, the door's witness moves with the run's ε
+  (#2604)
+
+## Per-merge deletion — SYM-5's spec (2026-09-14)
+
+Recoverable at `git show 68d31a750:docs/SYM-5-SPEC.md` (the fix-pass
+head). Its fixture was refuted by PR-1's review and replaced by
+Amendment A1 (the tilted derived frame); its Phase 2 named three
+mechanisms and the measurement took (b) — the quotient's common factor
+at every early-walk node, dial `common_factor`, not the `unit_vector`
+atom of (a) — with the (a)/(c) reading recorded as unmeasured; its
+"bounds stated like `EARLY_STEPS`" became a structural bound (monotone
+in terms and degree, NOT in coefficient width — a row pins the loss);
+its "shipped on only if affordable on the five measured documents" was
+not met on the pad and the bracket on the header's own instrument and
+the dial ships ON anyway by the orchestrator's call, disclosed as a
+deviation with the numbers; its acceptance width is the twin's minus
+5e-2 (PROPS' clause-1 defect, pinned by name). Recorded in the PR
+bodies (#2568, #2589) and the unit's two log entries.
+
+- `SYM-5-SPEC.md` — SYM-5, a stored unit vector does not double the
+  degree (#2568 PR-1, #2589 PR-2)
+
+## Per-merge deletion — SYM-7's spec (2026-09-15)
+
+Recoverable at `git show e9f75d5b5:docs/SYM-7-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: the memo keyed on the
+budget alone (keyed on `(budget, rules)` — `combine`'s constant fold
+reads two dials); the "opaque-sequence pin" as the premise's ALARM
+(no drive mints an opaque, so the row measures nothing on the
+measured documents and says so; the premise governs hits, not
+soundness — the memo's soundness is that an id is a content hash of
+syntax); the "per-leaf accounting goldens' `frozen` column" (none
+existed; no golden moved); Phase 3's gate (measured 7.4 % table work
+against a ≥ 10 % wall gate, not taken). Recorded in the PR body and
+the unit's log entry.
+
+- `SYM-7-SPEC.md` — SYM-7, the plain form outlives the leaf (#2609)
