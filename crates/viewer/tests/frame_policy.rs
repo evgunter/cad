@@ -203,6 +203,121 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
     );
 }
 
+/// **A joined line splits back into the notices it was made from.**
+///
+/// The defect: `frame_status` joined notices with `"; "` and a notice
+/// is free to write `"; "` inside its own sentence, so at two notices
+/// a reader met a separator that might be a boundary and might be the
+/// notice talking. Unfalsifiable at one notice, wrong at two.
+///
+/// Both texts here are real faults' own renderings through a real
+/// door, not prose written for the row: `NonRigidFrame` writes a
+/// `LIST_SEPARATOR` inside one sentence — the hazard
+/// `work/view/joined-notices-nest-their-own-separator.md` records as
+/// mechanical and present — and `FusedGeometry` writes an em-dash.
+/// Under the old spelling the first alone makes this split return
+/// three pieces where two went in.
+///
+/// Asserted as the SPLIT and not as a separator count: a count is the
+/// weaker half of the same claim, and `Withdrawal`'s own row already
+/// says why a count passes over text that reads as one item too many.
+#[test]
+fn a_joined_line_splits_back_into_the_notices_it_was_made_from() {
+    let nests = frame::tool_news(DisplayFault::NonRigidFrame { determinant: 0.5 }.to_string());
+    let dashes = frame::tool_news(
+        DisplayFault::FusedGeometry {
+            instance: RecipeNodeId(3),
+            root: RecipeNodeId(9),
+            others: vec![RecipeNodeId(5)],
+        }
+        .to_string(),
+    );
+    assert!(
+        nests.text().contains(frame::LIST_SEPARATOR),
+        "the row is about a notice that carries the within-a-notice \
+         mark; this one no longer does, so it proves nothing: {nests}"
+    );
+
+    let StatusUpdate::Show(line) = frame::frame_status(
+        &[nests.clone(), dashes.clone()],
+        &[SessionOp::Select(Selection::None)],
+        None,
+    ) else {
+        panic!("two notices are shown");
+    };
+    assert_eq!(
+        line.text()
+            .split(frame::NOTICE_SEPARATOR)
+            .collect::<Vec<_>>(),
+        vec![nests.text(), dashes.text()],
+        "the boundary between two notices is legible as a boundary and \
+         as nothing else, whatever either notice's own sentence says"
+    );
+}
+
+/// **A notice cannot be constructed carrying the boundary mark.**
+///
+/// The rule above is a claim about every string any producer will
+/// ever hand `Message`, which no signature carries — so the only door
+/// enforces it, and this is the row that goes red if it stops.
+///
+/// The door rewrites rather than refuses because it is reachable from
+/// the keyboard: `delta_not_a_number` echoes what was typed into the
+/// δ field, so a pasted bullet must not be able to take the
+/// application down. That path is asserted here too, through its own
+/// door, because it is the one that makes the choice necessary.
+#[test]
+fn a_notice_cannot_carry_the_boundary_mark() {
+    let asked = frame::Message::new(frame::Subject::Document, "one \u{2022} two");
+    assert!(
+        !asked.text().contains(frame::NOTICE_MARK),
+        "the door takes the boundary mark out: {asked}"
+    );
+
+    let pasted = "1 \u{2022} 2".parse::<f64>().expect_err("not a number");
+    let typed = frame::delta_not_a_number("1 \u{2022} 2", &pasted);
+    assert!(
+        !typed.text().contains(frame::NOTICE_MARK),
+        "a bullet pasted into the δ field reaches a notice verbatim: {typed}"
+    );
+
+    let StatusUpdate::Show(line) = frame::frame_status(
+        &[asked.clone(), typed.clone()],
+        &[SessionOp::Select(Selection::None)],
+        None,
+    ) else {
+        panic!("two notices are shown");
+    };
+    assert_eq!(
+        line.text().split(frame::NOTICE_SEPARATOR).count(),
+        2,
+        "a notice that asked for the mark still cannot forge a boundary: {line}"
+    );
+}
+
+/// **The two marks are two marks**, which is the whole of the rule.
+///
+/// `Message::new` derives what it rewrites a boundary mark to from
+/// `LIST_SEPARATOR`, so an all-whitespace list separator would make
+/// `str::replace` insert between every character of every notice.
+/// Nothing else in the crate would notice.
+#[test]
+fn the_boundary_mark_belongs_to_the_boundary_alone() {
+    assert_eq!(
+        frame::NOTICE_SEPARATOR.matches(frame::NOTICE_MARK).count(),
+        1,
+        "the separator carries the mark it is named for, once"
+    );
+    assert!(
+        !frame::LIST_SEPARATOR.contains(frame::NOTICE_MARK),
+        "a notice's own list mark is not a boundary"
+    );
+    assert!(
+        !frame::LIST_SEPARATOR.trim().is_empty(),
+        "what the door rewrites a boundary mark TO has to be a mark"
+    );
+}
+
 /// **Every subject this unit assigned, pinned.**
 ///
 /// The reason this row exists: a subject chosen inside an `app`-gated
