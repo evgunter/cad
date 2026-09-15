@@ -31,6 +31,7 @@ use pncad::geom::Surface;
 use pncad::geom_core::{Point3, Vec3};
 use pncad::sweep::{TubeWindow, tube_along_arc};
 
+use crate::scalar::tube_frame;
 use crate::{SceneBody, Stop, View};
 use pncad::geom_core::Tol;
 

@@ -98,6 +98,7 @@ use crate::{SceneBody, Stop, View};
 // differ in the fixture — a second copy here would demote it to a
 // claim that two constant tables agree. (They are
 // `verbs_tubewall.rs`'s constants too, R for R and window for window.)
+use crate::scalar::tube_frame;
 use crate::tube::{DELTA as DELTA_ELBOW, MINOR as OUTER, R, T0, T1};
 
 /// The wall thickness — the one number the solid door has no seat for

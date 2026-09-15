@@ -40,3 +40,24 @@ the first code change of this unit:
   `e930abf542c371677b2c0d87b02c2bf84eb15fbaf62ded6389f48c899ef14d49`
 
 Both match the values PR 2657 recorded at `origin/main` (`4f71edaea`).
+
+## Digest receipt at the head
+
+Same recipe, same tree shape: **1766 files**, the same paths, and the
+tour's **narration is IDENTICAL** —
+`e930abf542c371677b2c0d87b02c2bf84eb15fbaf62ded6389f48c899ef14d49`, all
+729 lines, so every census, genus, validation tier and exact-vs-meshed
+mass property the tour prints is what it printed at the base.
+
+The listing digest MOVED, to
+`1389dbb20bb6c0a9efca999a587a7b5db2930b82d0ac29ed32c3643b0310d50a`, in
+**20 of the 1766 files, every one of them `lily_*`**
+(`lily_{bud_c,lantern,leaf_a,pedicel,sepal_a,sepal_b,sepal_c}.step`,
+`lily_{lantern,pedicel}.stl` and eleven `uv/lily_*.svg`). The cause is
+the unit's own subject: the lily authors its frames from directions
+that are UNIT BY INTENT but not bit-exactly unit — the turtle's radial
+is `(p − centre) / ring` and the blade axes come out of rotations — and
+the frame mint normalizes what it is given. The moves are last-bit:
+`DIRECTION('', (0.17364817766693041, ...))` becomes
+`(0.17364817766693047, ...)`, ~1e-16 relative, 15 changed lines in the
+largest of the twenty diffs.

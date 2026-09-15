@@ -75,7 +75,7 @@
 //!    aim's and the tangent's directly, the roll offset's inside
 //!    [`OrthoFrame::from_aim`] — so all of them are classified by
 //!    the same three questions in the same order, and the first is
-//!    [`is_finite_length`]: a direction past
+//!    [`is_finite_length`](crate::is_finite_length): a direction past
 //!    [`Vec3::normalize`]'s ~1e154 overflow band has an infinite
 //!    norm, which is maximally DEFINITE to the classifier and
 //!    normalizes to the zero vector, so deciding the sign first
@@ -83,7 +83,7 @@
 //!    [`FrameError::NonFiniteLength`], and it names the
 //!    [`FrameVector`] whose length is not a number.
 //!
-//!    It then asks [`is_underflowed_length`], against that vector's
+//!    It then asks [`is_underflowed_length`](crate::is_underflowed_length), against that vector's
 //!    largest `|component|` as the witness ([`Vec3::norm_witness`]).
 //!    A direction below [`Vec3::normalize`]'s ~1e-162 underflow band
 //!    squares to zero, so its norm is EXACTLY zero and the sign
@@ -104,7 +104,7 @@
 //!    So clause 5 bites at `f64` and `Probe` and waves an enclosure
 //!    through to the sign decision below. No live caller instantiates
 //!    this module at `Interval` today; the honest scope is stated at
-//!    [`is_finite_length`] itself.
+//!    [`is_finite_length`](crate::is_finite_length) itself.
 //!
 //! The ladder is a *convention*, and conventions are discontinuous:
 //! the frame flips as the tangent crosses the ladder's switch-over.

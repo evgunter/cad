@@ -232,7 +232,7 @@ use pncad::sweep::blend::{BlendError, fillet_edges};
 use pncad::sweep::{LoftError, Revolution, RevolveAxis, revolve};
 use pncad::topo::{Body, BooleanError, BooleanOp, EdgeKey, Operand};
 
-use crate::scalar::Scalar;
+use crate::scalar::{Scalar, sketch_frame};
 use crate::{SceneBody, Stop, View};
 
 // ---------------------------------------------------------------

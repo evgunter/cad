@@ -28,6 +28,31 @@ use pncad::geom::{Curve3, Surface};
 use pncad::geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ProfileLoop, SketchPlane};
+
+/// The spine frame the tube doors take: ring centre, spine axis, and
+/// the reference radial the window's angles start from. The axis is
+/// decided and KEPT; the reference yields its component along it.
+///
+/// Spelled here because these probes are an integration test of the
+/// tour BINARY and cannot reach the tour's own `scalar::tube_frame`.
+///
+/// # Panics
+///
+/// If the band cannot be formed, the axis has no direction, or the
+/// reference lies along it.
+fn tube_frame(
+    center: Point3<f64>,
+    axis: Vec3<f64>,
+    u_ref: Vec3<f64>,
+    tol: Tol,
+) -> pncad::geom_core::OrthoFrame<f64> {
+    const SITE: &str = "tour_probe_frame_axis";
+    let band = pncad::geom_core::Band::linear(tol).expect("the witness band");
+    let axis = pncad::geom_core::UnitVec3::new(axis, SITE, band).expect("the spine axis");
+    pncad::geom_core::OrthoFrame::from_aim_and_reference(center, axis, u_ref, SITE, band)
+        .expect("the reference radial is off the spine axis")
+}
+
 use pncad::sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, tube_along_arc,
 };
@@ -662,11 +687,16 @@ fn r2_the_two_union_walls_on_my_operands() {
         tol,
     );
     let handle = tube_along_arc::<f64>(
-        tube_frame(Point3 {
-            x: 0.5,
-            y: 0.5,
-            z: 0.0,
-        }, Vec3::unit_z(), Vec3::unit_x(), tol),
+        tube_frame(
+            Point3 {
+                x: 0.5,
+                y: 0.5,
+                z: 0.0,
+            },
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+            tol,
+        ),
         0.3,
         TubeWindow::Arc { t0: -2.0, t1: 2.0 },
         0.08,
@@ -911,11 +941,16 @@ fn r2_the_scene_numbers() {
     }
     // The handle and the spout, on the scene's own parameters.
     let handle = tube_along_arc::<f64>(
-        tube_frame(Point3 {
-            x: rb,
-            y: (yf + ys) / 2.0,
-            z: 0.0,
-        }, Vec3::unit_z(), Vec3::unit_x(), tol),
+        tube_frame(
+            Point3 {
+                x: rb,
+                y: (yf + ys) / 2.0,
+                z: 0.0,
+            },
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+            tol,
+        ),
         6.0 / 256.0,
         TubeWindow::Arc {
             t0: -(core::f64::consts::FRAC_PI_2 + 0.5),

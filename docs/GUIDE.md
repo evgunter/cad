@@ -546,9 +546,7 @@ fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
         .line_to(p2(x.1, y.1), tol)?
         .line_to(p2(x.0, y.1), tol)?
         .line_to(Start, tol)?;
-    let plane = SketchPlane::from_frame(
-        p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0),
-    );
+    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
     let profile = validated(plane, vec![rect.into()], tol)?;
     Ok(extrude(&profile, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 }
@@ -592,7 +590,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -647,7 +645,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -676,7 +674,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -749,7 +747,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -789,7 +787,7 @@ use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -834,7 +832,7 @@ use pncad::step_import::StepImport;
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();

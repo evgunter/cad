@@ -14,6 +14,31 @@ use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use pncad::prelude::{Open, Start, SurfaceKindSet, fillet_edges, query};
 use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
+
+/// The spine frame the tube doors take: ring centre, spine axis, and
+/// the reference radial the window's angles start from. The axis is
+/// decided and KEPT; the reference yields its component along it.
+///
+/// Spelled here because these probes are an integration test of the
+/// tour BINARY and cannot reach the tour's own `scalar::tube_frame`.
+///
+/// # Panics
+///
+/// If the band cannot be formed, the axis has no direction, or the
+/// reference lies along it.
+fn tube_frame(
+    center: Point3<f64>,
+    axis: Vec3<f64>,
+    u_ref: Vec3<f64>,
+    tol: Tol,
+) -> pncad::geom_core::OrthoFrame<f64> {
+    const SITE: &str = "tour_probe_frame_axis";
+    let band = pncad::geom_core::Band::linear(tol).expect("the witness band");
+    let axis = pncad::geom_core::UnitVec3::new(axis, SITE, band).expect("the spine axis");
+    pncad::geom_core::OrthoFrame::from_aim_and_reference(center, axis, u_ref, SITE, band)
+        .expect("the reference radial is off the spine axis")
+}
+
 use pncad::sweep::{
     Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow,
 };
@@ -30,7 +55,12 @@ use pncad::topo::{Body, EdgeKey};
 fn p1_mesh_pin_reds_on_a_one_sided_sizing_change() {
     let tol = Tol::witness();
     let hollow = tube_along_arc_hollow::<f64>(
-        tube_frame(Point3::new(0.0, 0.0, 0.0), Vec3::unit_y(), Vec3::unit_x(), tol),
+        tube_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+            tol,
+        ),
         2.0,
         TubeWindow::Arc { t0: 0.25, t1: 1.75 },
         0.5,
@@ -39,7 +69,12 @@ fn p1_mesh_pin_reds_on_a_one_sided_sizing_change() {
     )
     .expect("hollow elbow");
     let solid = tube_along_arc::<f64>(
-        tube_frame(Point3::new(0.0, 0.0, 0.0), Vec3::unit_y(), Vec3::unit_x(), tol),
+        tube_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+            tol,
+        ),
         2.0,
         TubeWindow::Arc { t0: 0.25, t1: 1.75 },
         0.5,
@@ -91,7 +126,12 @@ fn p2_storage_contract_holds_at_unaligned_constants() {
     let tol = Tol::witness();
     let (outer, wall) = (0.61, 0.17);
     let hollow = tube_along_arc_hollow::<f64>(
-        tube_frame(Point3::new(0.0, 0.0, 0.0), Vec3::unit_y(), Vec3::unit_x(), tol),
+        tube_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+            tol,
+        ),
         1.7,
         TubeWindow::Arc { t0: 0.4, t1: 2.1 },
         outer,

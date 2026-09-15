@@ -96,14 +96,8 @@ pub fn tube_frame<S: Scalar>(
     let band = pncad::geom_core::Band::linear(tol).expect("the run's tolerance forms a band");
     let axis = pncad::geom_core::UnitVec3::new(axis, TOUR_FRAME_AXIS, band)
         .expect("the scene's spine axis has a direction");
-    pncad::geom_core::OrthoFrame::from_aim_and_reference(
-        center,
-        axis,
-        u_ref,
-        TOUR_FRAME_AXIS,
-        band,
-    )
-    .expect("the scene's reference radial is off the spine axis")
+    pncad::geom_core::OrthoFrame::from_aim_and_reference(center, axis, u_ref, TOUR_FRAME_AXIS, band)
+        .expect("the scene's reference radial is off the spine axis")
 }
 
 /// A scalar the tour can build scenes at: kernel-decidable, document-

@@ -159,7 +159,7 @@ use pncad::sweep::{
 };
 use pncad::topo::{Body, BooleanError, Operand, TransformError};
 
-use crate::scalar::Scalar;
+use crate::scalar::{Scalar, authored_frame, sketch_frame, tube_frame};
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::{p2, p3, polygon, v2, v3, validated};
 use pncad::geom_core::Tol;
@@ -2074,8 +2074,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    extrusion is deferred past M2. The probe pins that door, not
     //    the out-of-plane blade, which the scene above builds live.
     let leafp = {
-        let plane =
-            SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, 0.0)));
+        let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, 0.0)));
         // Algebra-authored (LIB-G1): via-point arcs (see `leaf`).
         let lp = Open
             .at(p2(0.0, 0.0))

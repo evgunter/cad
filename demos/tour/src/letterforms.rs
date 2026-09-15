@@ -36,7 +36,7 @@ use pncad::topo::{Body, BooleanBody, BooleanResult, validate_pseudomanifold};
 use crate::booleans::{check, expect_seamed, try_intersect};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-use pncad::authoring::{p3, polygon, v3, validated};
+use pncad::authoring::{p3, polygon, validated};
 use pncad::geom_core::{OrthoFrame, Tol};
 
 /// "H" sketch: xy plane at z = -0.25, extruded 3.5 (z ∈ [-0.25, 3.25] —

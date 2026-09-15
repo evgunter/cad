@@ -19,7 +19,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::authoring::{p3, polygon, v3};
+use pncad::authoring::{p3, polygon};
 use pncad::profile::{Profile, SketchPlane};
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::{Body, BooleanResultKind};
