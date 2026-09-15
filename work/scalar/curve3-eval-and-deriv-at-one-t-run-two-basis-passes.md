@@ -5,6 +5,7 @@ title: Curve3::eval and Curve3::deriv at one t run two span locations and two ba
 status: open
 opened: 2026-09-11
 branch: scalar/curve3-jet
+pr: 2708
 ---
 
 ## What
