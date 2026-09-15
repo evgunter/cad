@@ -30,9 +30,21 @@ TINT-1 found three of in editor-core:
   `mesh::TessellateError` (`crates/mesh/src/types.rs`, `pub enum
   TessellateError`) has **15** variants: `Band` is missing. The
   suite's own case list constructs a `TessellateError::Band { .. }`
-  case, so a rendering of that arm IS exercised — and the one
-  identifier that would catch it going back to `Debug` is the one the
-  ban list does not hold.
+  case, so a rendering of that arm IS exercised with its identifier
+  unbanned.
+
+  **What that actually leaves uncaught, corrected.** As filed this row
+  said *"the one identifier that would catch it going back to `Debug`
+  is the one the ban list does not hold"*. That is false, and TINT-5's
+  fix pass corrected it. The same inline check carried
+  `!shown.contains('{')` **and** `assert_ne!(shown, format!("{err:?}"))`,
+  and `TessellateError::Band` is a STRUCT variant — so an arm that went
+  back to its full `Debug` dump reddened on the brace whatever the
+  roster held. What the missing entry left uncaught is a **brace-free
+  leak of the word `Band`** (`write!(f, "Band: …")`), which is real and
+  strictly smaller. The red-on-arrival evidence in TINT-5's PR stands:
+  the weld does red on a live defect and names `["Band"]`; only the
+  claim about what would otherwise have passed was wrong.
 - `crates/topo/tests/display_contract.rs`:
   `["Contradicted", "Escalated", "Undeclared", "NotCertifiable"]` against
   `topo::ContactRefusal` (4 variants) and
