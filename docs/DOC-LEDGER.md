@@ -2820,3 +2820,26 @@ Residue, both filed rather than left in prose:
 (its one confirmed instance).
 
 - `CENSUS-INERT-DENY-SPEC.md` — CENSUS-INERT-DENY, an attribute with nothing to deny (#2634)
+## Per-merge deletion — TINT-1's spec (2026-09-15)
+
+Recoverable at `git show d61ee4256:docs/TINT-1-SPEC.md` (the state-sync
+head). Its sentences that did not survive, and the reason matters more
+than usual because the spec was **wrong** rather than merely superseded:
+*"Use the compiler"*, *"a variant added tomorrow makes this file fail to
+COMPILE"*, and the instruction to derive the ban list from an exhaustive
+`match` from a value **to its variant identifier**. rustc checks a
+match's PATTERNS and never its strings, so arms returning hand-typed
+identifiers left a RENAME silent — the style review demonstrated it on
+the first implementation, which was green while banning a dead
+identifier and leaving the live one unbanned. What landed reads the
+identifier off each value's own derived `Debug`
+(`test_utils::f6::variant_identifier`) and keeps the match as a bare
+exhaustiveness token that forces the author to open the file and
+nothing more. Also not landed: the spec's guess that `SelectRefusal::Band`
+lacked a case (only its ban entry was missing), and its framing of the
+`fields` roster as derivable (tried, false-positives on a door's own
+prose prefix). Recorded in the PR body and the unit's `## Closed`
+section.
+
+- `TINT-1-SPEC.md` — TINT-1, the `assert_f6` ban lists stop being
+  hand-written mirrors (#2648)
