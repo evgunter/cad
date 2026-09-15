@@ -716,6 +716,33 @@ than the other five and should not be read against them. They pool with nothing:
 population, which is exactly why the shared parity walk takes its row
 names from the caller.
 
+**Roster addition (TRIM-2 PR-1): the trim piece's monotonicity.** ONE
+name, carried by a bare literal at its `decide` site (blind spot #1 of
+the crate scan — the same carrier shape `chart_bound_gap` has):
+
+| name | carrier |
+|---|---|
+| `props_trim_piece_monotone` | a bare literal at `geom_brep::props::quad::piece_monotone`'s `classify_len` call |
+
+Its dimension and disposition are `docs/predicate-dimension-audit.md`'s
+`props/quad.rs (piece_monotone)` row: a chart-parameter span levered by
+the chart's own metric rate along the chord, hence metres like the rest
+of the `props_quad_*` family. It is asked **once per trim piece per
+round**, so on a face that takes several rounds its population is the
+largest in the family by an order — and it pools with nothing: a chord's
+monotonicity margin is set by the image's control polygon, not by the
+chart's extent, so reading it against `props_quad_converged`'s ladder
+would be reading two different quantities.
+
+**It emits nothing on today's corpus.** The trimmed lane is reached only
+by a face whose loop carries a `Pcurve::General` image, and on this head
+that is minted at exactly one site (`nurbs_iso_derive`'s `Intersection`
+arm on an interior column) which no corpus body exercises — TRIM-2's own
+fixture is a test-built body. So a `k_probe_sweep.sh` CSV taken at this
+merge carries no `props_trim_piece_monotone` row, exactly as the
+`chart_bound_*` names do below: the roster's code half reaches it and
+its behavioural half does not.
+
 **They emit nothing on today's corpus, and that is a fact to read, not
 a hole.** `chart_boundary` has no shipped caller until the clearance
 seam lands, so a `k_probe_sweep.sh` CSV taken at this merge carries no
