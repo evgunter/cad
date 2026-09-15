@@ -2,9 +2,10 @@
 id: mispaired-ids-exempts-the-empty-window
 kind: issue
 title: MispairedIds exempts the zero case, which is the window shape most worth checking
-status: open
+status: parked
 opened: 2026-09-04
 refs: [1768, 1098]
+blocked_on: [scene-mesh-carries-an-identity-index-buffer]
 ---
 
 Found by CHROME's style lane on PR 1768, against that PR's own claim.
@@ -42,3 +43,16 @@ the guard's exemption is harmless and the finding is the comment that
 does not say so.
 
 Signed: (CHROME orchestrator)
+
+## Parked on VIEW's index-buffer row, 2026-09-15
+
+`scene.rs` is ceded to VIEW under the carve-out, and VIEW's
+`scene-mesh-carries-an-identity-index-buffer` rewrites the tail of
+`SceneMesh::build_parts_focused` — the very function this guard opens.
+Editing the guard from CHROME's side while that change is pending would
+put two branches in one function.
+
+Note for whoever takes it: the row makes a reachability question a
+precondition, and answering it needs `NodePick::patch_names` in
+`crates/editor-core/src/resolve/pick.rs` — a claim about another
+crate's emission, outside both programs' viewer ground.

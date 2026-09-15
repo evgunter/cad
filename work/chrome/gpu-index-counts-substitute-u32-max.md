@@ -2,8 +2,9 @@
 id: gpu-index-counts-substitute-u32-max
 kind: issue
 title: gpu.rs substitutes u32::MAX for a draw count it could not convert
-status: open
+status: parked
 opened: 2026-09-12
+blocked_on: [scene-mesh-carries-an-identity-index-buffer]
 ---
 
 ## Finding
@@ -33,3 +34,18 @@ in that PR.
 
 `crates/viewer/src/gpu.rs` — CHROME's and VIEW's by the territories
 table.
+
+## Parked on VIEW's index-buffer row, 2026-09-15
+
+`gpu.rs` is ceded to VIEW under the carve-out, and this row's two sites
+are not equally affected. VIEW's `scene-mesh-carries-an-identity-index-
+buffer` proposes deleting `SceneMesh::indices` and swapping
+`draw_indexed` for the `draw` the edge overlay already uses — **which
+deletes the `index_count` site this row is about**. The `vertices` site
+survives, and VIEW's replacement draw count needs the same conversion,
+so that change MOVES this row rather than closing it.
+
+Parked rather than left open because a row nobody intends to work
+should not read as available on the board. The trigger is a real item
+lint can see close. Whoever takes either should take both — neither
+program can see that from its own slate alone.

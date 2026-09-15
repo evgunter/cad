@@ -49,9 +49,8 @@ ground: `scene.rs` and `gpu.rs`
 rewrites `SceneMesh::build_parts_focused` and swaps `draw_indexed` for
 `draw`); `theme.rs` and `pane/features.rs`
 (`tone-is-a-value-in-frame-and-a-comment-in-two-panes`); `marks.rs` and
-`blend.rs` (`renamed-module-leaves-citations-in-two-other-programs`,
-which claims CHROME's `edge-cost-claims-name-a-search-that-is-gone` by
-id and line). And the spine CHROME never had a claim on in practice:
+`blend.rs` (VIEW works these files; `edge-cost-claims-name-a-search-
+that-is-gone` is re-homed to VIEW for that reason and no other). And the spine CHROME never had a claim on in practice:
 `app.rs`, `session.rs`, `session/*`, `pane/*`, `frame.rs`,
 `pickindex.rs`, `display.rs`, `props.rs`, `forms.rs`, `sketch.rs`.
 
@@ -80,6 +79,20 @@ rot. Two findings are worth carrying forward:
   census (*"`ui.weak` is spelled 49 times in `app.rs`"*) is off by an
   order of magnitude after the split — `app.rs` has three. A number a
   row asserts is evidence only as of its filing.
+
+**A shift map is not evidence, and its consistency is not corroboration**
+(VIEW, 2026-09-15, measured at 2 wrong subjects in 4 handed-over maps;
+CHROME's repoint unit measured the other half independently). A shift
+map is arithmetic that returns an answer for every input without asking
+what that answer names. CHROME's closed report had all six of its
+numbers wrong by *exactly* +76 — and a uniform delta is what a
+whole-file insertion above the citations produces, which is equally
+what a map naming the wrong subjects produces when they all moved
+together. The unit using that map then minted four fresh wrong claims,
+two in the shape it existed to close. **A unit whose subject is stale
+claims is the most likely to mint them, not the least.** Re-derive a
+shifted citation BY SUBJECT — open the file and confirm the symbol —
+or flag the row and let the owning program repoint it.
 
 ## Unit order
 
