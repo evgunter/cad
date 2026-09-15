@@ -1032,6 +1032,36 @@ different and much stronger argument. Generalises: when weighing fix
 shapes, read the doc comment on the **type** as well as the one on the
 function — a contract stated there converts a preference into a defect.
 
+**A validation item written for the code tier leaves a docs-tier lane
+with no receipt at all.** My dispatch template's item 8 asks a lane to
+report `test (…)` and `k-lint (gate, …)` counts and warns that
+`docs-only ok` is never a tier marker. On a `work/`-only change every
+code row is *skipped*, so both counts are **zero** and the one row that
+is green is the one the warning forbids citing — the lane is left with
+a receipt it is told not to give. The fix is to state the docs-tier
+shape as its own receipt: **every code row skipped**, plus `gate ok`,
+`change filter` and `CI half parity + gate wiring (every tier)`
+success, and the `TIER=` / `RUN_VIEWER_TOOLKIT=` that
+`scripts/ci-filter.py --base origin/main` reads. Generalises past this
+template: a checklist written from one branch of a conditional reads as
+complete from inside that branch, which is the proxy defect wearing a
+different hat.
+
+**The `~5 µs per triangle` that made hit (2) look pathological was a
+ratio across two different δ.** `ui-thread-work-after-the-index-seam`
+recorded `scene_focused` as *"ten times a full tessellation of the same
+body"* by dividing a **δ=1e-5** time (5 123 ms) by a **δ=1e-4**
+tessellation (511 ms) — and derived the per-triangle figure by
+dividing the 1e-5 time by the 1e-4 triangle count. At equal δ the
+measured figures are **60 ns/triangle** and **0.09× steady**: a copy
+loop running at copy-loop speed. The item's own text carried the
+contradiction already — its hit (1) section cites 6b's **6.5 s**
+fine-δ tessellation of the same body — so the check that would have
+caught it was reading the file's other sections, not re-measuring.
+Generalises: a ratio between two measurements is only a ratio if both
+were taken at the same setting, and a number quoted without its
+setting is not yet a measurement.
+
 ## Exit shape
 
 The README states the module map and every item above has landed or

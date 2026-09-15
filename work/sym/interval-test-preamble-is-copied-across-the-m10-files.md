@@ -67,3 +67,16 @@ which is the 37.
 SYM — `crates/editor-core/tests/m10*` are the tier's own suites and
 SYM is the program working in them. Filed by SYM at SYM-5's fix pass
 (2026-09-14).
+
+## One more copy (SYM-7, 2026-09-15)
+
+`crates/editor-core/tests/m10_sym_drive_memo_interval.rs`, the unit's
+own suite, carries the preamble again: `eps()`, `slab()` (the M10-3
+bounded chamber at the profile suite's three half-widths) and
+`the_plate()` (the two-hole plate at `5.0e-5` / `1.0e-5`) are copied
+from `m10_sym_profile_interval`, verbatim, so that the two suites'
+numbers are about one document. That is the eleventh spelling of the
+budget/fixture preamble this row counts, and it was written knowing so:
+the alternative — importing them from the sibling suite — makes the
+importing file's gated-suite marker name the exporting one, and couples
+the unit's rows to a file it does not otherwise depend on.

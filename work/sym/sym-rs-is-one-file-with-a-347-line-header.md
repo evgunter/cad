@@ -115,3 +115,16 @@ walk's memo discipline (plain first, early alongside, door last) is
 what the counts mean. Splitting it wants a decision about where the
 three-memo argument lives, which is a design question rather than a
 move.
+
+## Re-measured at SYM-7's merge (2026-09-15)
+
+`crates/geom-core/src/sym.rs` is **4,281 lines** behind a **680-line**
+`//!` header. The title and the body above carry the numbers this row
+was filed at (3,898 / 347); both have grown by roughly a tenth and a
+double since, and the file is not splitting on its own.
+
+SYM-7 added `sym/memo.rs` (the drive-scoped plain memo, ~300 lines) as a
+sibling module rather than inside `sym.rs`, which is the split's own
+shape — so the growth here is the `# Cost` section's new numbers, the
+D9 section's correction, and the memo's door and publication plumbing,
+not a new mechanism that could have gone in a file of its own.

@@ -173,3 +173,89 @@ corpus documents that gather**, with one outlier at **197 ms**
 (`loft_prism`). It does not depend on δ. So the class is real and the
 instance is small: a row worth keeping for the outlier, not a frozen
 window.
+
+## (2) is DIAGNOSED (2026-09-15) — and the number above is an instrument artifact — still OPEN
+
+Method: release, `viewer`'s own corpus through `DocSession::inline`
+then `PickIndex::build`, scratch harness not in the diff, one machine
+(4 vCPU, 15 GB, no swap). Every figure below is δ=1e-5 unless it says
+otherwise.
+
+### Neither candidate. The walk is linear and it runs at copy-loop speed
+
+| document | triangles | tessellate alone | `PickIndex::build` | `scene_focused` FIRST at that size | steady | ns/triangle steady |
+| --- | --- | --- | --- | --- | --- | --- |
+| `hollow_tube_ring` | 11 605 976 | 7 349 ms | 21 694 ms | 4 449 ms | 664–971 ms | 62 |
+| `tube_ring` | 6 393 816 | 7 112 ms | 15 206 ms | 2 445 ms | 385–426 ms | 64 |
+| `loft_prism` | 5 043 838 | 5 286 ms | 9 290 ms | 2 177 ms | 325–346 ms | 67 |
+| `hollow_tube_elbow` | 2 776 556 | 1 063 ms | 2 877 ms | 159 ms | 159–176 ms | 61 |
+| `die_composed_tour` | 1 801 262 | 491 ms | 1 360 ms | 114 ms | 98–110 ms | 57 |
+
+`hollow_tube_ring` at 1e-4: 1 161 216 triangles, tessellate 518 ms,
+`scene_focused` first 78 ms, steady 59–63 ms — **53 ns/triangle**.
+
+**Candidate one is false.** `PickIndex::parts()` holds ONE part on all
+five documents, and `SceneMesh::stats().triangles` equals the
+tessellation's own triangle count exactly (11 605 976 on both sides for
+`hollow_tube_ring`). The walk is over the product's triangles once.
+
+**Candidate two is false.** 53–67 ns per triangle, across five
+documents spanning 6.4× in triangle count and across both δ. The loop
+writes 3 corners × (12 B position + 12 B normal + 4 B id + 4 B flags)
+plus 12 B of index per triangle = 108 B, so 62 ns/triangle is about
+1.7 GB/s of stores. There is nothing hiding in the per-triangle work.
+
+**The "~5 µs per triangle" above is arithmetic against the wrong
+triangle count**, and so is the ratio: the record says `scene_focused`
+is *"ten times a full tessellation of the same body
+(`hollow_tube_ring` tessellates in 511 ms)"*. **The 511 ms is a δ=1e-4
+tessellation** — I measure 518 ms there — while the 5 123 ms is δ=1e-5.
+At EQUAL δ the ratio is **0.61× cold and 0.09× steady**, and at 1e-4 it
+is 0.12× steady. `plan.md`'s *"a measurement can be an artifact of the
+instrument, and the first number out is the one to distrust"* held
+twice over on this row.
+
+### Where the time actually goes: first-touch on ~1.25 GB of buffers
+
+Phase split inside `SceneMesh::build_parts_focused`, `hollow_tube_ring`
+at 1e-5, first call at that size vs. a later one:
+
+| phase | first | later |
+| --- | --- | --- |
+| triangle count | < 1 µs | < 1 µs |
+| the four `Vec::with_capacity` | 25–156 µs | 25–41 µs |
+| the corner/normal loop | 3 591–4 263 ms | 586–645 ms |
+| `indices` = `(0..n).collect()` | 462–474 ms | 52–61 ms |
+| `Aabb::from_points` | 67–72 ms | 67–72 ms |
+
+`Aabb::from_points` is the control: it walks `mesh.positions`, which
+already exists, and allocates nothing — and it does not move. **Every
+phase that allocates is 6–9× slower on its first run at that size and
+flat thereafter.** 34 817 928 corners is 418 MB of positions, 418 MB of
+normals, 139 MB of ids, 139 MB of flags and 139 MB of indices: ~1.25 GB
+of freshly mapped pages, paid at fault rate once and at store rate
+after.
+
+**So `scene_focused` costs ~0.7 s per hide or focus change on the worst
+corpus document at 1e-5, not 5 s** — but the FIRST build at a given
+size costs the 4–5 s, and the viewer pays that by construction rather
+than by accident: `ViewerApp::sync_scene` holds the previous
+`Arc<SceneMesh>` alive for the whole of the new build, because
+`self.scene = Arc::new(mesh)` assigns in the `Ok` arm and a refused
+build must leave the stale picture on screen. Freeing first is not
+available; the peak is two pictures' buffers, by contract.
+
+### What follows — and why this lane changed nothing
+
+The seam question is now a 0.7 s question, not a 5 s one, and the
+answer is no longer obviously "a worker". The lever that would actually
+move it is **rebuild SCOPE and buffer SIZE, not where the walk runs**:
+a focus change alters only `flags` (4 B of the 108 B a triangle emits)
+and a hide alters only which parts are emitted, yet either rebuilds
+positions, normals and ids for the whole picture. That is a change to
+what `SceneMesh` is — an incremental update rather than a rebuild — and
+it wants a decision before it wants a diff, which is why the item is
+left open with this recorded rather than closed behind a seam.
+
+One contained redundancy found on the way is filed on its own:
+`work/view/scene-mesh-carries-an-identity-index-buffer.md`.
