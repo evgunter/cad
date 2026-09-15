@@ -6,6 +6,7 @@ status: closed
 opened: 2026-09-14
 closed: 2026-09-15
 branch: view/style-installs
+pr: 2692
 ---
 
 
