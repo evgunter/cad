@@ -1,9 +1,10 @@
 ---
 id: assert-f6-dump-lists-are-hand-written-mirrors-of-error-enums
-kind: issue
+kind: unit
 title: assert_f6's dumps lists mirror whole error enums by hand, with nothing to say the enum grew
-status: open
+status: spec
 opened: 2026-09-12
+branch: tint/1-assert-f6-dumps
 ---
 
 

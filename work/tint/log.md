@@ -414,3 +414,51 @@ suite can floor closes both.
 executable check rather than four prose edits, and whether that check is
 worth building is a real question this program should answer before
 spending an edit on any of them.
+
+## TINT-1 cut: the `assert_f6` ban lists (2026-09-15)
+
+First unit of the program. `docs/TINT-1-SPEC.md`, branch
+`tint/1-assert-f6-dumps`, row promoted `issue` → `unit`, status `spec`.
+Chosen because the pass turned it from a forecast into three verified
+live holes, the population is seven lists in one crate, and it needs
+nobody else's territory.
+
+**The spec settles the fix shape rather than leaving it to the lane, and
+the reason is a row on this same slate.** The item weighed three
+mechanisms — an `ALL` const per enum, a census row per enum, or reading
+the variant identifiers out of the source through `test_utils::source`.
+All three are refused in favour of **the compiler**: an exhaustive
+`match` from a value to its variant identifier, no wildcard arm, with the
+ban list derived from it. A variant added tomorrow then makes the file
+fail to COMPILE.
+
+The source-read census is the one to refuse loudest, because it is the
+obvious choice and it is a trap:
+`work/tint/source-scanning-censuses-are-a-tripwire-on-ordinary-rust` is
+live on this slate and says the existing source scanners hand-parse Rust
+and fail loud on ordinary-but-unusual signatures. An eighth scanner would
+**mint a fresh instance of a defect this program is holding a row on** —
+the exact shape `docs/prompts/reviewer-style-lane.md` §1 warns of, where
+a lane closing a hand-written list adds a hand-written census. Naming the
+trap in a PR body has never prevented it; refusing the mechanism in the
+spec might.
+
+**The unit's real deliverable is the second half.** Completing the ban
+lists changes nothing: `assert_f6` inspects only the renderings the
+`cases` supply, and the three missing variants have no case either. So
+the unit owes case COVERAGE — every variant constructed and rendered,
+enforced against the same `match` — and that assertion is the one that
+goes red. Writing the three missing cases may also surface a rendering
+that really does dump, which is a found bug and not an obstacle.
+
+**One enum resists and the spec says so out loud.** `SelectRefusal` is
+`#[non_exhaustive]`, so a `match` in `editor-core/tests/` needs a
+wildcard and rustc enforces nothing; a panicking wildcard fires only if a
+case constructs the variant, which is the same vacuity. It gets the
+shape the other six get, plus a comment naming the attribute as the
+reason its coverage is not compiler-enforced. The real home for it is a
+unit test beside the enum, where the match IS exhaustive — but
+`crates/editor-core/src/names/geompred.rs` is **WIRE's** territory, so the
+lane files that residue as its own row and this seat announces it. Six of
+seven compiler-enforced with the seventh stated is the honest outcome;
+weakening the six to match the seventh is not.
