@@ -2,8 +2,10 @@
 id: inclusive-rule-range-draws-a-line-on-a-nan-count
 kind: issue
 title: A NaN line count rules one line anyway, at infinity
-status: open
+status: closed
 opened: 2026-09-12
+closed: 2026-09-15
+branch: chrome/datums-substitution-sweep
 ---
 
 ## Finding
@@ -70,3 +72,32 @@ it. The two zeros have to be told apart, not merged.
 
 `crates/viewer/src/datums.rs` — CHROME's and VIEW's by the territories
 table.
+
+## Closed
+
+Fixed in `rule_patch`'s `rule` closure, on branch
+`chrome/datums-substitution-sweep`. The range is exclusive and the
+bounds are asked whether they are bounds before the cast: `first`,
+`last` and the cross-direction `lo`/`hi` must all be finite, and the
+`last < first` case rules none. The three zeros the old cast merged
+now read apart — a NaN difference refuses, a negative difference
+rules nothing, and `last == first` rules the one line it always
+meant.
+
+**The trap the row named is the `last == first` arm** and it is
+asserted in both directions:
+`datum_draw::a_datum_at_the_end_of_the_number_line_rules_no_line_at_infinity`
+(red on the old code with the row's own measured
+`[-inf, NaN, NaN]`, two per plane-like kind) and the pre-existing
+ruling rows, which still rule the counts they always did.
+
+**A third zero the row did not name** rode the same cast: a patch
+narrower than the pitch and lying between two lattice lines gives
+`last < first`, which saturated to the integer zero and ruled one
+line at `first` — OUTSIDE the patch, up to a pitch away. Measured at
+a four-pixel viewport: a line at `0.02 m`, `0.005 m` outside a patch
+`9.1e-4 m` wide. Asserted by
+`datum_draw::a_patch_between_two_lattice_lines_rules_neither`.
+
+The `MAX_GRID_LINES` cap is unchanged and still a cap; it is applied
+after the count is known to be a count.

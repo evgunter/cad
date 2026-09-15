@@ -20,7 +20,9 @@ use pncad::document::{
     CancelToken, Datum, Doc, DocumentId, EvalOptions, Node, ProfileProgram, evaluate,
 };
 use pncad::geom_core::{Point3, Tol};
-use viewer::datums::{self, DatumKind, View, grid_pitch};
+use viewer::camera::Camera;
+use viewer::datums::{self, DatumKind, View, datum_view, grid_pitch};
+use viewer::input::ViewportSize;
 
 /// A document holding just the datums given.
 fn evaluated(nodes: Vec<Node<ProfileProgram>>) -> (Doc<ProfileProgram>, Tol) {
@@ -731,4 +733,322 @@ fn a_failed_datum_draws_nothing() {
         "a datum that did not evaluate drew {} wireframes",
         drawn.len(),
     );
+}
+
+/// Every drawing this document makes under `view`.
+fn drawn_under(doc: &Doc<ProfileProgram>, tol: Tol, view: View) -> Vec<datums::DatumDraw> {
+    let evaluation = evaluate(
+        doc,
+        None,
+        &CancelToken::default(),
+        &EvalOptions::default(),
+        tol,
+    );
+    datums::draws(doc, &evaluation, view)
+}
+
+/// One of each kind at the same origin, for the rows that ask what a
+/// whole picture does under a view that has gone wrong.
+fn one_of_each(origin: [f64; 3]) -> Vec<Node<ProfileProgram>> {
+    vec![
+        plane(origin, [0.0, 0.0, 1.0]),
+        frame(origin, [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        axis(origin, [0.0, 1.0, 0.0]),
+        point(origin),
+    ]
+}
+
+/// Every position of every drawing, with the kind that made it.
+fn every_position(drawn: &[datums::DatumDraw]) -> Vec<(DatumKind, [f64; 3])> {
+    drawn
+        .iter()
+        .flat_map(|d| d.segments.iter().map(move |p| (d.kind, *p)))
+        .collect()
+}
+
+/// **A datum out at the end of the number line rules nothing rather
+/// than ruling one line at infinity.**
+///
+/// The patch's centre is an ordinary point — the looked-at origin —
+/// so every door this module has says yes: the scale is a hundredth
+/// of a metre, the pitch has a rung and the patch has a half-width.
+/// What overflows is the datum's own coordinate in the plane's
+/// basis, `f64::MAX` away, so one direction's index bounds come out
+/// `inf` and `inf`.
+///
+/// **The value that makes this false** is `[-inf, NaN, NaN]`: with an
+/// INCLUSIVE range over a count cast from `inf - inf`, a NaN
+/// difference saturates to the integer zero and `0..=0` rules exactly
+/// one line, at `inf * pitch`. A legitimate count of zero means one
+/// line too, which is why the cast alone cannot tell the two apart
+/// and why the bounds are asked whether they are bounds.
+#[test]
+fn a_datum_at_the_end_of_the_number_line_rules_no_line_at_infinity() {
+    let far = [f64::MAX, 0.0, 0.0];
+    let (doc, tol) = evaluated(one_of_each(far));
+    let view = view_at([0.0, -0.15, 0.1], [0.0, 0.0, 0.0]);
+    let drawn = drawn_under(&doc, tol, view);
+    assert_eq!(drawn.len(), 4, "this row needs all four kinds drawn");
+    let stray: Vec<_> = every_position(&drawn)
+        .into_iter()
+        .filter(|(_, p)| !p.iter().all(|c| c.is_finite()))
+        .collect();
+    assert!(
+        stray.is_empty(),
+        "the drawing left {} positions that are not positions: {:?}",
+        stray.len(),
+        &stray[..stray.len().min(4)],
+    );
+}
+
+/// **A camera aimed at something that is not a place draws nothing
+/// that reads it, and everything that does not.**
+///
+/// `look_at` reaches the patch's centre, the axis's centre and
+/// nothing else, so the refusal has to land on exactly three of the
+/// four kinds: a point's mark is scaled at the point's own position
+/// and is still a mark.
+///
+/// **The value that makes this false** is a drawn `[NaN, NaN, NaN]`.
+/// It arrives through the scale rather than through the geometry:
+/// `f64::max` returns the other operand against a NaN, so a floor at
+/// `f64::MIN_POSITIVE` turns a depth that is not a number into a
+/// legitimate positive length and every door downstream says yes over
+/// a centre that is still NaN.
+#[test]
+fn a_look_at_that_is_not_a_place_draws_only_the_marks_that_ignore_it() {
+    let (doc, tol) = evaluated(one_of_each([0.0, 0.0, 0.0]));
+    let view = view_at([0.0, -0.15, 0.1], [f64::NAN, 0.0, 0.0]);
+    let drawn = drawn_under(&doc, tol, view);
+    let stray: Vec<_> = every_position(&drawn)
+        .into_iter()
+        .filter(|(_, p)| !p.iter().all(|c| c.is_finite()))
+        .collect();
+    assert!(
+        stray.is_empty(),
+        "the drawing left {} positions that are not positions: {:?}",
+        stray.len(),
+        &stray[..stray.len().min(4)],
+    );
+    // What each kind is left with, against the same four datums under
+    // an aim that is a place. A plane's tick, a frame's arms and a
+    // point's cross are all scaled at the datum's OWN origin and are
+    // not in doubt; a plane's ruling and an axis's whole segment are
+    // scaled at the centre and are.
+    let aimed = drawn_under(&doc, tol, view_at([0.0, -0.15, 0.1], [0.0, 0.0, 0.0]));
+    for (bad, good) in drawn.iter().zip(&aimed) {
+        assert_eq!(bad.kind, good.kind, "the two drawings disagree on order");
+        let (blind, seeing) = (
+            reach(&bad.segments, [0.0, 0.0, 0.0]),
+            reach(&good.segments, [0.0, 0.0, 0.0]),
+        );
+        match bad.kind {
+            // The segment IS the drawing, and it is centred on the
+            // looked-at point: there is no second mark to keep.
+            DatumKind::Axis => assert!(
+                bad.segments.is_empty(),
+                "the axis drew {:?} around a centre that is NaN",
+                bad.segments.first(),
+            ),
+            // Untouched: a point's mark never reads `look_at`, so
+            // dropping it would be over-refusal.
+            DatumKind::Point => assert!(
+                (blind - seeing).abs() < 1.0e-15,
+                "the point's mark moved with the aim: {blind:e} m against {seeing:e} m",
+            ),
+            // Left with the origin-scaled marks alone. Stated as a
+            // reach rather than a position count, which would be a
+            // second copy of the arrowhead's shape: the patch spans
+            // upwards of half the window and these marks are around a
+            // hundred pixels, so a quarter separates them by a
+            // decade.
+            kind => {
+                assert!(
+                    !bad.segments.is_empty(),
+                    "the {} lost its origin-scaled marks too",
+                    kind.label()
+                );
+                assert!(
+                    blind < seeing * 0.25,
+                    "the {} reached {blind:e} m against an aimed {seeing:e} m — that is patch-sized",
+                    kind.label(),
+                );
+            }
+        }
+    }
+}
+
+/// **The eye exactly on a datum draws nothing, rather than a mark
+/// `1e-307 m` across.**
+///
+/// Reachable by flying the camera into a plane. A floor at a hair
+/// above zero keeps the scale total and is argued by the division it
+/// would guard against — but no consumer divides: every one of them
+/// takes the scale as an `Option` and draws nothing.
+///
+/// **The value that makes this false** is an arm of
+/// `f64::MIN_POSITIVE * POINT_ARM_PX * 0.5` — six positions of a
+/// cross whose size came from the floor rather than from the view.
+#[test]
+fn a_datum_at_the_eye_draws_no_mark() {
+    let eye = [0.03, -0.15, 0.1];
+    let (doc, tol) = evaluated(one_of_each(eye));
+    let view = view_at(eye, eye);
+    for d in drawn_under(&doc, tol, view) {
+        assert!(
+            d.segments.is_empty(),
+            "the {} drew {:?} at zero depth",
+            d.kind.label(),
+            d.segments.first(),
+        );
+    }
+}
+
+/// **A window whose larger side is not a number of pixels rules no
+/// patch**, while the marks that do not measure in windows stay.
+///
+/// [`View::viewport_px`] is the caller's number, and the patch is the
+/// one mark sized from it — so this is the door where a viewport that
+/// is not one has to be refused, and the normal tick, which is sized
+/// in pixels at the origin, is the mark that proves the refusal was
+/// the patch's alone.
+///
+/// **The value that makes this false** is a ruled line: a floor at
+/// one pixel turns a viewport that is not a number into a one-pixel
+/// window and rules the patch such a window would have.
+#[test]
+fn a_viewport_that_is_not_a_number_of_pixels_rules_nothing() {
+    let (doc, tol) = evaluated(vec![plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0])]);
+    let mut view = view_at([0.0, -0.15, 0.1], [0.0, 0.0, 0.0]);
+    view.viewport_px = f64::NAN;
+    let segments = &drawn_under(&doc, tol, view)[0].segments;
+    // The plane is z = 0, so a ruled line is the pair that stays on
+    // it and the normal tick is the pair that leaves it — the shape
+    // the ruling rows already read this drawing by.
+    let ruled = segments
+        .chunks_exact(2)
+        .filter(|pair| pair[0][2].abs() < 1.0e-12 && pair[1][2].abs() < 1.0e-12)
+        .count();
+    assert_eq!(
+        ruled, 0,
+        "a viewport that is not a number ruled {ruled} lines"
+    );
+    assert!(
+        !segments.is_empty(),
+        "the normal tick went with the patch — it is sized at the origin, not in windows",
+    );
+}
+
+/// **A patch that contains no multiple of the pitch rules NO line**,
+/// where a patch that contains exactly one rules that one.
+///
+/// The two are the same integer zero out of `last - first`, and a
+/// float→int cast cannot separate them: it saturates, so a negative
+/// difference reads as the count that means "one line fits".
+///
+/// **The value that makes this false** is a line at `2 * pitch`,
+/// `0.005 m` from a patch about `9e-4 m` wide — a ruling of a patch
+/// that lies entirely between two lattice lines.
+#[test]
+fn a_patch_between_two_lattice_lines_rules_neither() {
+    let (doc, tol) = evaluated(vec![plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0])]);
+    // The eye a fixed tenth of a metre above the looked-at point, so
+    // the pitch does not move as the aim does and can be solved for
+    // once.
+    let per_pixel = view_at([0.0, 0.0, 0.1], [0.0, 0.0, 0.0]).metres_per_pixel_at_one_metre * 0.1;
+    let pitch = grid_pitch(per_pixel).expect("a positive finite scale has a rung");
+    // Aim at the middle of a cell in both directions: the nearest
+    // lattice line each way is half a pitch off, and the patch is far
+    // narrower than that.
+    let aim = 1.5 * pitch;
+    let look_at = [-aim, aim, 0.0];
+    let mut view = view_at([look_at[0], look_at[1], 0.1], look_at);
+    view.viewport_px = 4.0;
+    // The premise, asserted rather than assumed. The patch's
+    // half-width is `viewport_px * cover * 0.5 * per_pixel` and
+    // `cover` is private, so this bounds it generously at a cover of
+    // four and still clears half a pitch by three decades.
+    let half_bound = view.viewport_px * 2.0 * per_pixel;
+    assert!(
+        half_bound < pitch * 0.5,
+        "this row needs a patch narrower than a cell: {half_bound:e} m against {pitch:e} m",
+    );
+    let segments = &drawn_under(&doc, tol, view)[0].segments;
+    let ruled: Vec<_> = segments
+        .chunks_exact(2)
+        .filter(|pair| pair[0][2].abs() < 1.0e-12 && pair[1][2].abs() < 1.0e-12)
+        .collect();
+    assert!(
+        ruled.is_empty(),
+        "a patch between two lattice lines ruled {} of them: {:?}",
+        ruled.len(),
+        ruled.first(),
+    );
+}
+
+/// **`datum_view` carries a window that is not a number of pixels
+/// through as one**, rather than repairing it into a one-pixel
+/// window.
+///
+/// The camera's own doors already refuse this shape by name
+/// (`camera::finite("viewport height", …)`), and the app's caller
+/// returns before this function when a pane has no area — but this is
+/// a public door and the scale it hands back is what every mark in
+/// the module is a multiple of.
+///
+/// **The values that make this false** are `2 * tan(fov/2) / 1.0` for
+/// the height and the HEIGHT for the width: `f64::max` returns the
+/// other operand against a NaN, so `width.max(height)` answers with
+/// whichever of the two is a number.
+#[test]
+fn datum_view_does_not_repair_a_viewport_that_is_not_pixels() {
+    let camera = Camera::new(
+        Point3::new(0.0, 0.0, 0.0),
+        0.15,
+        0.0,
+        0.0,
+        core::f64::consts::FRAC_PI_4,
+        0.05,
+    )
+    .expect("a finite camera");
+    for (width_px, height_px) in [(1280.0, f64::NAN), (f64::NAN, 800.0)] {
+        let view = datum_view(
+            &camera,
+            ViewportSize {
+                width_px,
+                height_px,
+            },
+        );
+        assert!(
+            view.viewport_px.is_nan(),
+            "a window {width_px} x {height_px} px reported a larger side of {}",
+            view.viewport_px,
+        );
+        // The refusal is not a fact about the struct, it is the
+        // reason no mark is invented under it. The height divides the
+        // field of view, so a height that is not a number leaves no
+        // scale anywhere and NOTHING draws; a width that is not one
+        // costs only the marks measured in windows, which is the
+        // axis's whole drawing and the plane's ruling.
+        let (doc, tol) = evaluated(one_of_each([0.0, 0.0, 0.0]));
+        let drawn = drawn_under(&doc, tol, view);
+        assert_eq!(drawn.len(), 4, "this row needs all four kinds drawn");
+        for d in &drawn {
+            let patch_sized = height_px.is_nan() || d.kind == DatumKind::Axis;
+            assert_eq!(
+                d.segments.is_empty(),
+                patch_sized,
+                "the {} drew {:?} for a {width_px} x {height_px} px window",
+                d.kind.label(),
+                d.segments.first(),
+            );
+        }
+        if height_px.is_nan() {
+            assert!(
+                !view.metres_per_pixel_at_one_metre.is_finite(),
+                "a height that is not a number lent a scale of {}",
+                view.metres_per_pixel_at_one_metre,
+            );
+        }
+    }
 }

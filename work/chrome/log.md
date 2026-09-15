@@ -602,3 +602,38 @@ Filed on the way: `add-profile-ui-doc-comment-states-a-premise-the-tree-falsifie
 comment, which the fence of this unit put out of reach), and a sixth
 instance plus a correction added to
 `work/issues/dead-work-citations-from-shipped-code-and-docs.md`.
+
+## `datums.rs`, the substitution sweep (branch `chrome/datums-substitution-sweep`)
+
+The whole file rather than one row. `datums.rs` held **five** members
+of the class *a value the function did not compute, returned in the
+shape of one it did*, two of them filed:
+
+- `View::metres_per_pixel_at`'s `.max(f64::MIN_POSITIVE)` — now
+  `Option<f64>`. The ripple stayed inside the file: all three scale
+  doors are private and `grid_pitch` and `datum_view` keep their
+  signatures.
+- `rule_patch`'s `((last - first) as usize)` under an INCLUSIVE range
+  — now an exclusive range over bounds checked finite, with
+  `last < first` ruling none. Three distinct zeros the cast merged,
+  not the two the row named.
+- `half_patch_at`'s `viewport_px.max(1.0)` — floor dropped; a viewport
+  that is not a positive number of pixels reaches the product check
+  and is refused there.
+- `datum_view`'s `height_px.max(1.0)` — floor dropped.
+- `datum_view`'s `width_px.max(height)` — unfiled and unnamed by the
+  dispatch: `f64::max` answers with the other operand against a NaN,
+  so a width that is not a number was reported as the HEIGHT.
+
+Swept and closed by argument, not changed: `unit`'s zero-length
+fallback and `basis`'s seed choice (a `UnitVec3` cannot hold a
+non-finite direction — `topo::query::UnitVec3Error::NonFiniteLength`
+is refused at construction), and `grid_pitch`'s `best = decade` seed
+(`decade` is itself a rung of the ladder, so the seed is a member of
+the answer set rather than a substitute for one; brute-forced over the
+subnormal band and the top of the normal range with no non-positive or
+non-finite rung).
+
+Filed on the way: `datum-view-propagates-rather-than-refusing-by-name`
+and `a-datum-the-view-cannot-scale-vanishes-without-a-word`, both
+needing an edit in `pane/viewport.rs`, which is VIEW's.

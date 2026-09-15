@@ -131,17 +131,31 @@ pub struct View {
 }
 
 impl View {
-    /// World metres one pixel spans at `point`.
+    /// **World metres one pixel spans at `point`**, or `None` when
+    /// this view lends `point` no scale at all.
     ///
-    /// Floored at a hair above zero so a datum lying exactly at the
-    /// eye — reachable by flying the camera into a plane — produces a
-    /// degenerate drawing rather than a division by zero.
-    fn metres_per_pixel_at(&self, point: Point3<f64>) -> f64 {
+    /// **This is the module's refusal at its source**: every length
+    /// drawn below is this number times a pixel count, so a scale
+    /// that is not a positive finite length is a scale there is no
+    /// drawing for. Two depths reach that, and the same answer is
+    /// right for both because the same drawing comes out of both.
+    ///
+    /// - **A depth that is not a number** — an eye or a point with a
+    ///   `NaN` coordinate. Nothing downstream can tell a length
+    ///   derived from one from a length that means something.
+    /// - **A depth of exactly zero** — the eye on the point,
+    ///   reachable by flying the camera into a plane. A floor at a
+    ///   hair above zero would keep this total and buy a patch about
+    ///   `1e-305 m` across; no consumer needs it, because every one
+    ///   of them takes this `Option` and draws nothing, so the
+    ///   division a floor guards against is not the alternative.
+    fn metres_per_pixel_at(&self, point: Point3<f64>) -> Option<f64> {
         let depth = ((point.x - self.eye.x).powi(2)
             + (point.y - self.eye.y).powi(2)
             + (point.z - self.eye.z).powi(2))
         .sqrt();
-        (depth * self.metres_per_pixel_at_one_metre).max(f64::MIN_POSITIVE)
+        let scale = depth * self.metres_per_pixel_at_one_metre;
+        (scale.is_finite() && scale > 0.0).then_some(scale)
     }
 
     /// **What a span of `px` PIXELS measures at `point`**, in world
@@ -159,24 +173,25 @@ impl View {
     ///
     /// The check is on the PRODUCT and not on the metres-per-pixel,
     /// because a scale that is a length does not make every multiple
-    /// of it one.
-    ///
-    /// **Only `is_finite` fires today**, and the other half is kept
-    /// deliberately rather than by oversight: every `px` here is a
-    /// positive constant and [`View::metres_per_pixel_at`] floors its
-    /// answer at `f64::MIN_POSITIVE`, so a non-positive product is
-    /// unreachable — which is exactly the arrangement
-    /// `work/chrome/metres-per-pixel-swallows-a-nan-depth.md` asks to
-    /// be reconsidered. This door states the condition it means; it
-    /// does not encode the floor's current behaviour.
+    /// of it one — and BOTH halves of it are live. `px` is a positive
+    /// constant at every mark, but [`View::half_patch_at`] passes a
+    /// span read off [`View::viewport_px`], which is the caller's
+    /// number and need not be one.
     fn screen_metres_at(&self, point: Point3<f64>, px: f64) -> Option<f64> {
-        let span = self.metres_per_pixel_at(point) * px;
+        let span = self.metres_per_pixel_at(point)? * px;
         (span.is_finite() && span > 0.0).then_some(span)
     }
 
     /// What HALF a patch of `cover` windows measures at `point`.
+    ///
+    /// [`View::viewport_px`] reaches [`View::screen_metres_at`]'s
+    /// product as it stands, so a window whose larger side is zero or
+    /// is not a number is refused there and has no patch. A floor at
+    /// one pixel would instead answer with the patch a one-pixel
+    /// window has — a length this view did not lend, through a door
+    /// whose whole job is to refuse exactly those.
     fn half_patch_at(&self, point: Point3<f64>, cover: f64) -> Option<f64> {
-        self.screen_metres_at(point, self.viewport_px.max(1.0) * cover * 0.5)
+        self.screen_metres_at(point, self.viewport_px * cover * 0.5)
     }
 }
 
@@ -203,11 +218,13 @@ impl View {
 /// the caller the one fact it can act on — this view has no scale at
 /// that point — and it rules nothing.
 ///
-/// **What this door does NOT see** is a scale already substituted
-/// upstream: [`View::metres_per_pixel_at`] floors its answer at
-/// `f64::MIN_POSITIVE`, which is a legitimate reading here, so a NaN
-/// or zero depth arrives as a rung request this refusal cannot
-/// distinguish from a very close plane.
+/// **The scale reaching here from this module is already one**,
+/// which is what makes this refusal readable:
+/// [`View::metres_per_pixel_at`] answers `None` for a depth that is
+/// not a positive finite number, so a rung request refused here is a
+/// scale whose LADDER has no rung rather than a non-scale wearing a
+/// legitimate value. This function is public and takes a bare `f64`,
+/// though, so it owes the check on its own account.
 pub fn grid_pitch(metres_per_pixel: f64) -> Option<f64> {
     let wanted = metres_per_pixel * TARGET_PITCH_PX;
     if !wanted.is_finite() || wanted <= 0.0 {
@@ -544,21 +561,21 @@ fn grid(
         origin.y + u.y * cu + v.y * cv,
         origin.z + u.z * cu + v.z * cv,
     );
+    let mut out = Vec::new();
     // **The scale is taken at the CENTRE of the patch** — the point
     // of the plane the camera is pointed at, so the realized pitch is
     // the target pitch exactly where a reader is looking. Parts of the
     // plane nearer the eye than that are drawn coarser and parts
     // further are drawn finer, which is the compromise one pitch over
     // a perspective view cannot avoid.
-    let per_pixel = view.metres_per_pixel_at(centre);
-    let mut out = Vec::new();
+    //
     // Both halves of the ruling are that one scale, and BOTH are
     // asked for: an extent that is a length does not make the pitch
     // one, and neither implies the other at the exponent range where
     // either fails.
     if let (Some(half), Some(pitch)) = (
         view.half_patch_at(centre, PATCH_COVER),
-        grid_pitch(per_pixel),
+        view.metres_per_pixel_at(centre).and_then(grid_pitch),
     ) {
         rule_patch(&mut out, origin, u, v, (cu, cv), (half, pitch));
     }
@@ -612,8 +629,31 @@ fn rule_patch(
     let mut rule = |along_u: bool, from: f64, to: f64, lo: f64, hi: f64| {
         let first = (from / pitch).ceil();
         let last = (to / pitch).floor();
-        let count = ((last - first) as usize).min(MAX_GRID_LINES);
-        for i in 0..=count {
+        // **The bounds are asked whether they are bounds**, because
+        // the cast below cannot ask: a float→int cast saturates, so
+        // `NaN`, a negative difference and a span holding one line
+        // all arrive as the integer zero and only the third of them
+        // means a line. `from` and `to` carry the patch's centre in
+        // the plane's own coordinates, which is where a `NaN`
+        // `look_at` or an overflowed one lands; `lo` and `hi` carry
+        // the OTHER direction's, so a coordinate that is not a number
+        // stops both rulings rather than drawing one of them between
+        // `NaN` endpoints.
+        if ![first, last, lo, hi].iter().all(|b| b.is_finite()) {
+            return;
+        }
+        // The three answers, spelled apart. `last < first` is a span
+        // too narrow to hold a lattice line and rules NONE;
+        // `last == first` holds exactly one and rules it; wider rules
+        // the lines between, capped. The cast is a cast only here,
+        // where the difference is known finite and non-negative.
+        if last < first {
+            return;
+        }
+        let count = ((last - first) as usize)
+            .saturating_add(1)
+            .min(MAX_GRID_LINES);
+        for i in 0..count {
             let t = (first + i as f64) * pitch;
             if along_u {
                 out.extend([at(t, lo), at(t, hi)]);
@@ -756,14 +796,35 @@ fn unit(v: Vec3<f64>) -> Vec3<f64> {
 /// rather than a borrow of the renderer. The scale is the vertical
 /// field of view over the vertical pixel count — one pixel's angular
 /// share — which at one metre from the eye is that many metres.
+///
+/// **A window that is not a number of pixels is carried as one.**
+/// Neither side is floored at a pixel: the height divides the field
+/// of view, so a zero height lends an infinite metres-per-pixel and a
+/// `NaN` height a `NaN` one, and every door below refuses both. A
+/// floor would hand back the scale of a one-pixel window instead,
+/// which is a number this camera and this pane did not produce. The
+/// larger side is picked with `f64::max` spelled out for the same
+/// reason: `max` answers with the OTHER operand against a `NaN`, so
+/// `width.max(height)` would report a width that is not a number as
+/// the HEIGHT.
+///
+/// The app's own caller never asks — `pane::viewport` returns before
+/// this when [`ViewportSize::aspect`] refuses a pane with no area,
+/// which is the frame a pane is first laid out and every frame a
+/// splitter is dragged shut. This is a public door and owes the
+/// answer on its own account anyway.
 pub fn datum_view(camera: &Camera, viewport: ViewportSize) -> View {
-    let height = viewport.height_px.max(1.0);
+    let (width, height) = (viewport.width_px, viewport.height_px);
     View {
         eye: camera.eye(),
         look_at: camera.target(),
         metres_per_pixel_at_one_metre: 2.0 * (camera.fov_y() * 0.5).tan() / height,
         // The LARGER side: a patch that covered the height of a wide
         // window would still be pannable off sideways.
-        viewport_px: viewport.width_px.max(height),
+        viewport_px: if width.is_nan() || height.is_nan() {
+            f64::NAN
+        } else {
+            width.max(height)
+        },
     }
 }
