@@ -2,8 +2,9 @@
 id: parameter-row-field-cites-a-pre-split-app-rs
 kind: issue
 title: parameter-row-field-has-no-text-door cites four app.rs bands past the end of the file, all four for code the split moved to pane/properties.rs
-status: open
+status: closed
 opened: 2026-09-12
+closed: 2026-09-15
 ---
 
 
@@ -70,3 +71,37 @@ for a click nobody meant as one. The guard this row asks for is
 therefore still owed, with a smaller stake.
 VIEW's `a-fields-text-commits-within-the-renders-own-tolerance` is the
 same residue read from the other side.
+
+## Closed — all four re-pointed by subject (2026-09-15, `chrome/citation-repoint`)
+
+`work/chrome/parameter-row-field-has-no-text-door.md` now names all
+four subjects by NAME in `crates/viewer/src/pane/properties.rs`, with
+no line number written — `ViewerBehavior::slot_value_ui`, its
+`.custom_parser(…)` arm, its `match typed.into_inner()` guard arm, and
+the `Selection::Param(name)` arm of `ViewerBehavior::properties_ui`.
+Its `## Home` section, which this report flagged as the same fact in
+prose, is re-pointed too.
+
+Every table row of this report checked out against the tree at
+`385c01b3`, including the two it read and left alone: `props.rs`'s
+*"One field for numbers and expressions"* section does carry the
+slot-only disclaimer (and cites the row by path), and `DocParam` is
+still in `crates/editor-core/src/doc.rs`. Those two citations are now
+by name rather than by band, for the same §7 reason.
+
+The row stays **parked**: its blocker
+`doc-param-unit-edit-has-no-door` is open — it moved from
+`work/issues/` to `work/edit/` when EDIT claimed it, which is a third
+rotted citation this pass fixed in the prose of the parked row and of
+its sibling `add-parameter-form-authors-canonical-only`.
+
+**No residue.** The narrowing this report disclosed — that VIEW's
+`a-drag-field-renders-a-length-at-a-precision-its-drag-speed-sets`
+made the click-in/click-away round trip non-destructive while leaving
+it an edit within `readout::REL_TOLERANCE` — is carried INTO
+`parameter-row-field-has-no-text-door` by this pass rather than left in
+a closing section, and VIEW's own
+`a-fields-text-commits-within-the-renders-own-tolerance` is open and
+refs this row's subject. So nothing needs a new file
+(`work/README.md`: a residue disclosed in a `## Closed` section is
+invisible to the re-homing sweep).
