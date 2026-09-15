@@ -7045,6 +7045,37 @@ and posture as B1/B2 (about three concurrent lanes, private target
 dirs, disk the limiting factor — the third lane waits for disk when the
 first two are building).
 
+### Block SCALAR-B4 — pre-draw fields (2026-09-15, before the byte)
+
+The Curve3 jet door and the first two `H5` sub-units, slots by dispatch
+order. Slots 1 and 2 are cut by the second `[ev]` sitting; their class is
+the plan's estimate for `H5` (`work/scalar/plan.md` §The slate, **H**,
+recorded 2026-09-11), fixed here before the byte so the draw does not
+read it:
+
+- slot 0 — `curve3-eval-and-deriv-at-one-t-run-two-basis-passes`
+  (CURVE3-JET; `docs/CURVE3-JET-SPEC.md`) — **M / structural, low side**
+  (two doors, one in a macro, an exhaustive arm set, thirteen two-line
+  site folds, two prose corrections; bit identity inherited by
+  construction — no decision is added).
+- slot 1 — the first `H5` sub-unit the sitting cuts — **H** (the plan's
+  class for `H5`; the sub-unit's own pre-draw sentence is written when
+  it is cut, and says that the arm was already known).
+- slot 2 — the second `H5` sub-unit — **H**, likewise.
+
+### Block SCALAR-B4 — the draw (2026-09-15)
+
+Draw: `/dev/urandom` byte **75** (< 252), 75 mod 3 = 0 ⇒ fable position
+0. Slots by dispatch order: **slot 0 CURVE3-JET = FABLE, slot 1 = OPUS,
+slot 2 = OPUS.** Same box and posture as B1–B3. The block stays
+branch-side on `scalar/orchestrator` until slot 2's reviews conclude,
+which waits on the sitting; slot 0's row is recorded at its merge.
+
+### Block SCALAR-B4 rows (recorded at each merge; the section merges to main at block close)
+
+| # | date | task | difficulty (pre-flip) | arm | review findings | silent deviations | idiom | tests | docs | fix pass | CI | tokens | wall |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+
 ### Block SCALAR-B3 rows (recorded at each merge branch-side; landed at block close, 2026-09-15)
 
 | # | date | task | difficulty (pre-flip) | arm | review findings (MAJ/MIN/NOTE) | silent devs | idiom | tests | docs | fix-pass size | battery | tokens | wall-clock |

@@ -509,3 +509,19 @@ block SCALAR-B4 as slot 0) and `H5`, gated on the second sitting. This
 entry lands with the seven branch-side entries above it, which were the
 program's record while the blocks were open.
 
+## Block SCALAR-B4 drawn; CURVE3-JET dispatched (2026-09-15)
+
+The Curve3 jet door opens block SCALAR-B4 as slot 0 (byte 75 ⇒ slot 0
+FABLE; slots 1–2, the first `H5` sub-units, OPUS — their pre-draw class
+is the plan's H, fixed before the byte). Spec `docs/CURVE3-JET-SPEC.md`
+on `scalar/curve3-jet`. The survey corrected the row: the whole-curve
+order-2 jet `NurbsCurve3::ders` exists, so the door is `ders1`, its
+sibling; the `upgrade.rs` pair moved to `geom-brep/src/dihedral.rs`; six
+`NurbsCurve3<f64>` pair sites in the tour and the `pncad` example feed
+S393's `path_start_frame` and are in the unit. Fence announced here:
+PROPS (`crates/geom/src/curves*`), TOPO (`validate.rs`), BOOL and CURVED
+(`boolean/{ops,contact_verify}.rs`), BLEND (`blend/battery.rs`,
+`skin.rs`), LIB (`pncad/examples`), TINT/TCOST (`geom/tests`), the
+unowned `certify.rs`/`dihedral.rs` (fence drawn in the PR, PROPS told)
+and `demos/tour/src/skinned.rs`. Full v6 dual at review.
+
