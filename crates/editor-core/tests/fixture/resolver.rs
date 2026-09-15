@@ -107,6 +107,23 @@ pub const PART_BODY: RecipeNodeId = RecipeNodeId(2);
 /// instantiates, whose nodes are `InstantiatePart` and mates — are
 /// exempt, because `in_part` is not how their faces are named.
 ///
+/// **Two edges the exemption leaves open.** Neither is reachable on
+/// this tree, and both are here so a reader does not take this check
+/// for more coverage than it has:
+///
+/// - It keys on "has an `Extrude`" as the proxy for "is a part
+///   document". A part whose body is a `Revolve`, `Loft` or `Sweep`
+///   takes the exempt branch, and `in_part` naming [`PART_BODY`] in it
+///   is unchecked. `seat6_param_source`'s `filleted_lantern` already
+///   builds a revolved body; it is not handed to a [`PartStore`], so
+///   the hole is one suite away rather than open.
+/// - It lives at [`PartStore::insert`], so it cannot see a suite that
+///   uses [`in_part`] with NO store. That is
+///   `rev_fix_xsplit_unreachable`, whose six call sites go zero rows
+///   red under a planted [`PART_BODY`] —
+///   `work/tint/mate6r1-shared-has-eleven-tests-and-no-assertions.md`
+///   owns it.
+///
 /// # Panics
 ///
 /// If `doc` has an extrude and `PART_BODY` is not one.
@@ -126,6 +143,18 @@ fn assert_part_body(doc: &ProfileDoc) {
 
 /// **Evaluation options that reach parts through `store`** — the one
 /// thing a suite changes about `EvalOptions` to instantiate at all.
+///
+/// **This function is now how the population is reached, and a sweep
+/// keyed on `resolver: Some(` no longer finds it.** That grep does not
+/// come back short, it comes back CONFIDENTLY WRONG: every hit left in
+/// the tree is a deliberate non-member — `asm2a_instantiate`'s
+/// seam-refusing store and its `CyclicStore`, `asm_upd_pin_update`'s
+/// version shelf, `msolve3_placer_refused`'s shared-`Arc` harness, and
+/// `pncad`'s real `Workspace` — so a lane sweeping that shape reads a
+/// list of exceptions as the population. Grep for this name instead,
+/// beside `impl .*PartResolver for`, and across `crates/*/tests` and
+/// not one crate: the copy this unit closed had a seventeenth instance
+/// in `viewer`, found only when the sweep was widened.
 pub fn with_resolver(store: PartStore) -> EvalOptions {
     EvalOptions {
         resolver: Some(std::sync::Arc::new(store)),
