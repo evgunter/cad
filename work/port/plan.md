@@ -75,7 +75,8 @@ The two assembly rows go together and after a decision, not before: both
 change what a door says, both are EDIT's file, and answering one without
 the other leaves the two doors disagreeing in a new way. **The decision
 is made** (orchestrator, 2026-09-15 — widen the list, order kind-first;
-each row carries the reasoning), so they dispatch as one unit.
+each row carries the reasoning), and they dispatch as one unit,
+**`PORT-DOORS-1`**, which both rows now parent to.
 
 `msrv-floor-…` is now the smallest row on the slate and can go whenever a
 lane is free — Ev answered it on 2026-09-15 and only the gate is left.

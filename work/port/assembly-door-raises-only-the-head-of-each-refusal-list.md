@@ -4,6 +4,7 @@ kind: issue
 title: assemble_gathered raises only the head of unminted and of carried_unminted; the widening it names as a follow-up is not filed
 status: open
 opened: 2026-09-06
+parent: PORT-DOORS-1
 ---
 
 

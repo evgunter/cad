@@ -4,6 +4,7 @@ kind: issue
 title: The gate answers Ambiguous for a tied non-face in the product's own rows but NotAFace for the same tie at the operand
 status: open
 opened: 2026-09-06
+parent: PORT-DOORS-1
 ---
 
 
