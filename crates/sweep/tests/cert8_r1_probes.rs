@@ -74,7 +74,13 @@ fn sample(surface: &Surface<f64>, arm_u: f64, arm_v: f64) -> (f64, f64, f64, f64
 
 fn probe(name: &str, surface: &Surface<f64>) {
     let inf = geom_brep::chart_stretch_inf(surface);
+    // A cone has no surface-level sup pair; this probe's fixtures are
+    // spline charts, and a refusal prints as the refusal.
     let sup = geom_brep::chart_stretch_sup(surface);
+    let (sup_u, sup_v) = match sup {
+        Ok(pair) => (pair.0.get(), pair.1.get()),
+        Err(_) => (f64::NAN, geom_brep::chart_stretch_sup_v(surface).get()),
+    };
     let (arm_u, arm_v, rho) = assemble(&inf);
     let mw = 2.0 * (arm_u * arm_v) / (2.0 * (arm_u + arm_v));
     println!(
@@ -82,8 +88,8 @@ fn probe(name: &str, surface: &Surface<f64>) {
          arms=({:.6},{:.6}) unit-square mean width={:.6}",
         inf.inf_u,
         inf.inf_v,
-        sup.0.get(),
-        sup.1.get(),
+        sup_u,
+        sup_v,
         inf.area_inf,
         rho,
         arm_u,

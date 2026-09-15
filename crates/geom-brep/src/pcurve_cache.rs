@@ -2858,25 +2858,36 @@ pub(crate) fn chart_name<T: Real>(surface: &Surface<T>) -> &'static str {
     }
 }
 
+/// Why a chart kind has no surface-level sup pair — the refusal
+/// [`chart_stretch_sup`] answers instead of minting a [`SupSpeed`] it
+/// cannot honour.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NoChartSup {
+    /// A cone's azimuth stretch is `|v·sin α|`, which grows without
+    /// bound down the ruling: no surface-level constant dominates it,
+    /// so no `u` component exists to mint. The arm is a function of
+    /// the caller's own `v` reach, which is what [`chart_arms_at`]
+    /// supplies (`v_sup·sin α`). The `v` channel still has an exact
+    /// answer and [`chart_stretch_sup_v`] is the door for it.
+    ConeAzimuthGrowsWithV,
+}
+
 /// **`(sup |S_u|, sup |S_v|)`** — the chart's UPPER stretch bounds:
 /// the lever arms that turn a chart-space overshoot into metres, one
 /// per chart parameter, valid over the WHOLE chart.
 ///
 /// # What this bounds, and what it must not be used for
 ///
-/// On every chart kind **except the cone**, each component
-/// **dominates** the true local stretch everywhere on the chart:
-/// `|S_u(u, v)| ≤ arm_u` and `|S_v(u, v)| ≤ arm_v` at every `(u, v)`
-/// of the chart's domain.
-///
-/// **The CONE is the carve-out and it is stated here, not buried in
-/// an arm.** A cone's true azimuth stretch is `|v·sin α|`, which no
-/// surface-level constant dominates — it grows without bound down the
-/// ruling — so this function answers unit arms for it, and those are
-/// **not** an upper bound on anything. A cone caller must go through
-/// [`chart_arms_at`], which supplies `v_sup·sin α` from the check's
-/// own boxes. Reading this function's cone arms as a sup is the one
-/// way to misuse it, which is why it is the second paragraph.
+/// Each component **dominates** the true local stretch everywhere on
+/// the chart: `|S_u(u, v)| ≤ arm_u` and `|S_v(u, v)| ≤ arm_v` at
+/// every `(u, v)` of the chart's domain. That is what a [`SupSpeed`]
+/// asserts, so the kind that cannot honour it **refuses**: a cone has
+/// no surface-level azimuth arm and this door answers
+/// [`NoChartSup::ConeAzimuthGrowsWithV`] rather than a number. A cone
+/// caller goes through [`chart_arms_at`], which supplies
+/// `v_sup·sin α` from the check's own boxes, or through
+/// [`chart_stretch_sup_v`] for the `v` channel alone, which is exact
+/// on every kind.
 ///
 /// Subject to that, the pair is **sup-side by construction and is NOT
 /// a lower bound**. Quoting it where an `inf` is wanted is unsound,
@@ -2901,23 +2912,25 @@ pub(crate) fn chart_name<T: Real>(surface: &Surface<T>) -> &'static str {
 /// the safe direction, and the same posture the cylinder arm takes
 /// exactly. A plane chart's parameters are already metres, so its
 /// arms are exactly `(1, 1)` by construction rather than by default.
-pub fn chart_stretch_sup<T: Real>(surface: &Surface<T>) -> (SupSpeed<T>, SupSpeed<T>) {
+pub fn chart_stretch_sup<T: Real>(
+    surface: &Surface<T>,
+) -> Result<(SupSpeed<T>, SupSpeed<T>), NoChartSup> {
     match *surface {
-        Surface::Cylinder { radius, .. } => (SupSpeed::new(radius), SupSpeed::new(T::one())),
+        // The cone's azimuth arm is the caller's to supply; its `v`
+        // channel is answered by [`chart_stretch_sup_v`].
+        Surface::Cone { .. } => Err(NoChartSup::ConeAzimuthGrowsWithV),
+        Surface::Cylinder { radius, .. } => Ok((SupSpeed::new(radius), SupSpeed::new(T::one()))),
         // The sphere/torus second parameter IS an angle (M6-3): its
-        // arm is the polar / meridional radius. The cone keeps unit
-        // arms HERE — its true azimuth arm needs a `v` reach no
-        // surface-level constant dominates; the containment check
-        // supplies it through [`chart_arms_at`].
-        Surface::Sphere { radius, .. } => (SupSpeed::new(radius), SupSpeed::new(radius)),
+        // arm is the polar / meridional radius.
+        Surface::Sphere { radius, .. } => Ok((SupSpeed::new(radius), SupSpeed::new(radius))),
         Surface::Torus {
             major_radius,
             minor_radius,
             ..
-        } => (
+        } => Ok((
             SupSpeed::new(major_radius + minor_radius),
             SupSpeed::new(minor_radius),
-        ),
+        )),
         // A described NURBS chart's honest arms are its derivative-net
         // stretch bounds (`sup |S_u|`, `sup |S_v|`) — over-statements
         // of the local stretch, the safe direction exactly as the
@@ -2931,40 +2944,64 @@ pub fn chart_stretch_sup<T: Real>(surface: &Surface<T>) -> (SupSpeed<T>, SupSpee
         // refused before any rational chart reached this function.
         // That gate is gone, so the arm has to be real —
         // `nurbs_stretch_bounds` carries the Floater weight-ratio
-        // factor for exactly this. The placeholder keeps unit arms: it
-        // has no net to bound.
+        // factor for exactly this.
+        //
+        // **The PLACEHOLDER's unit arms bound nothing.** Its control
+        // net is all-poison, so every evaluation of it is poison and
+        // there is no locus for an arm to be an arm of;
+        // `chart_stretch_inf` answers all-zero — "certifies nothing" —
+        // for that reason and this door does not, which is the
+        // asymmetry scheduled as
+        // `work/trim/placeholder-chart-sup-arms-are-not-a-bound.md`.
+        //
         // The catch-all is SPLIT: an approximating surface's arms are
         // its FIT's derivative-net bounds — the same statement about
         // the same chart. Unit arms would under-state in the unsafe
         // direction here (see the rational note above).
-        Surface::Nurbs(ref payload) => {
-            if payload.is_placeholder() {
-                (SupSpeed::new(T::one()), SupSpeed::new(T::one()))
-            } else {
-                nurbs_stretch_bounds(payload)
-            }
-        }
-        Surface::Approx(ref a) => nurbs_stretch_bounds(a.fit()),
-        // A plane chart's parameters are already metres; the cone's
-        // arms are the caller's to supply (see the sphere note above).
-        Surface::Plane { .. } | Surface::Cone { .. } => {
+        Surface::Nurbs(ref payload) => Ok(if payload.is_placeholder() {
             (SupSpeed::new(T::one()), SupSpeed::new(T::one()))
-        }
+        } else {
+            nurbs_stretch_bounds(payload)
+        }),
+        Surface::Approx(ref a) => Ok(nurbs_stretch_bounds(a.fit())),
+        // A plane chart's parameters are already metres.
+        Surface::Plane { .. } => Ok((SupSpeed::new(T::one()), SupSpeed::new(T::one()))),
+    }
+}
+
+/// The SECOND component of [`chart_stretch_sup`] alone — `sup |S_v|`,
+/// which **every** chart kind has, the cone included.
+///
+/// [`chart_stretch_sup`] refuses the cone, and it refuses over the `u`
+/// channel only: a cone's `v` is a SLANT LENGTH along the ruling, so
+/// `|S_v| = 1` exactly, everywhere. The tag is minted here because
+/// here it is true. Every other kind answers the pair's second
+/// component, which is where that answer lives.
+///
+/// The direction argument is [`chart_stretch_sup`]'s in every
+/// respect: this is the escape side, unsafe for a positive-extent
+/// claim.
+pub fn chart_stretch_sup_v<T: Real>(surface: &Surface<T>) -> SupSpeed<T> {
+    match chart_stretch_sup(surface) {
+        Ok((_, v)) => v,
+        Err(NoChartSup::ConeAzimuthGrowsWithV) => SupSpeed::new(T::one()),
     }
 }
 
 /// [`chart_stretch_sup`] with the containment check's own boxes in
-/// hand: the cone's azimuth arm becomes `v_sup·sin α`, with `v_sup`
-/// the larger `|v|` reach of the pcurve's box and the window (dominating the
-/// local arm everywhere either object lives — the safe direction);
-/// every other kind answers as [`chart_stretch_sup`].
+/// hand — the caller that can answer the refusal the surface-level
+/// door cannot: the cone's azimuth arm becomes `v_sup·sin α`, with
+/// `v_sup` the larger `|v|` reach of the pcurve's box and the window
+/// (dominating the local arm everywhere either object lives — the
+/// safe direction); every other kind answers as [`chart_stretch_sup`].
 fn chart_arms_at<T: Real>(
     surface: &Surface<T>,
     boxed: &ChartWindow<T>,
     window: &ChartWindow<T>,
 ) -> (SupSpeed<T>, SupSpeed<T>) {
-    match *surface {
-        Surface::Cone { .. } => {
+    match chart_stretch_sup(surface) {
+        Ok(pair) => pair,
+        Err(NoChartSup::ConeAzimuthGrowsWithV) => {
             let v_sup = boxed
                 .v_min
                 .abs()
@@ -2973,10 +3010,9 @@ fn chart_arms_at<T: Real>(
                 .max(window.v_max.abs());
             (
                 SupSpeed::new(azimuth_lever(surface, v_sup)),
-                SupSpeed::new(T::one()),
+                chart_stretch_sup_v(surface),
             )
         }
-        _ => chart_stretch_sup(surface),
     }
 }
 
@@ -5567,10 +5603,84 @@ mod stretch_door_agreement {
                 )
                 .unwrap(),
             ));
-            let (sup_u, sup_v) = super::chart_stretch_sup(&s);
+            let (sup_u, sup_v) = super::chart_stretch_sup(&s).unwrap();
             let inf = super::chart_stretch_inf(&s);
             assert_eq!(sup_u.get(), inf.sup_u, "the u sup must be ONE number");
             assert_eq!(sup_v.get(), inf.sup_v, "the v sup must be ONE number");
         }
+    }
+}
+
+/// **A cone has no surface-level azimuth sup, and the door says so.**
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::float_cmp)]
+mod cone_azimuth_sup {
+    use super::{NoChartSup, SupSpeed, chart_stretch_sup, chart_stretch_sup_v};
+    use geom::Surface;
+    use geom_core::{Point3, Vec3};
+
+    /// A cone whose azimuth stretch beats any unit arm well inside the
+    /// geometry a model would carry: `α = π/6`, so `|S_u| = v/2`, and
+    /// at `v = 4` m down the ruling that is `2` m per radian.
+    fn cone() -> (Surface<f64>, f64) {
+        let half_angle = core::f64::consts::FRAC_PI_6;
+        (
+            Surface::Cone {
+                apex: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                half_angle,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            half_angle,
+        )
+    }
+
+    /// The refusal, and the witness that makes it the only honest
+    /// answer: two chart points `Δu = 0.5` apart at `v = 4` are
+    /// `0.989…` m apart in the model, which a rate of `1` meters as
+    /// `0.5` m — an UNDER-statement, the direction a
+    /// [`SupSpeed`](geom_core::SupSpeed) exists to forbid, and the
+    /// direction that admits an escape the model can see.
+    ///
+    /// Before this door refused, it answered `SupSpeed(1)` for exactly
+    /// this surface: `chart_stretch_sup(cone)` = `(1, 1)`, against a
+    /// true `|S_u|` of `2` at that `v`. That is the number this row
+    /// exists to make unreachable.
+    #[test]
+    fn the_door_refuses_a_cone_rather_than_minting_a_false_sup() {
+        let (cone, alpha) = cone();
+        assert!(
+            matches!(
+                chart_stretch_sup(&cone),
+                Err(NoChartSup::ConeAzimuthGrowsWithV)
+            ),
+            "the door must refuse rather than answer a number"
+        );
+        let (v, du) = (4.0_f64, 0.5_f64);
+        let chord = cone.eval(0.0, v).distance(cone.eval(du, v));
+        assert!(
+            chord > SupSpeed::new(1.0).to_meters(du),
+            "the unit arm meters {du} rad at v={v} as {} m, against a true \
+             chord of {chord} m and a true |S_u| of {}",
+            SupSpeed::new(1.0).to_meters(du),
+            v * alpha.sin()
+        );
+    }
+
+    /// The `v` channel is the half that IS true, and it stays minted:
+    /// a cone's `v` is a slant length, so `|S_v| = 1` exactly and a
+    /// `Δv` step moves the point `Δv` metres.
+    #[test]
+    fn a_cones_second_channel_is_exactly_unit_and_stays_minted() {
+        let (cone, _) = cone();
+        let rate = chart_stretch_sup_v(&cone);
+        assert_eq!(rate.get(), 1.0);
+        let (v, dv) = (4.0_f64, 0.25_f64);
+        let chord = cone.eval(0.0, v).distance(cone.eval(0.0, v + dv));
+        assert!(
+            (chord - rate.to_meters(dv)).abs() <= 4.0 * f64::EPSILON * dv,
+            "a slant step of {dv} moves {chord} m, metred as {} m",
+            rate.to_meters(dv)
+        );
     }
 }
