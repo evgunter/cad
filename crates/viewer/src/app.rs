@@ -63,13 +63,12 @@ use crate::evalseam::FitService;
 #[cfg(not(target_family = "wasm"))]
 use crate::evalseam::ThreadEvaluator;
 use crate::frame::{self, IdQueryLog, StatusUpdate};
-use crate::generation::Generation;
 use crate::gpu::{DEPTH_BITS, ViewportRenderer};
 use crate::input::InputMap;
 use crate::marks;
 use crate::parts::PartChooser;
 use crate::pickcache::{self, PickCache};
-use crate::pickindex::PickIndex;
+use crate::pickindex::{PickIndex, PictureKey};
 use crate::prefs::{self, Prefs, PrefsStore};
 use crate::scene::{self, DisplayTolerance, SceneError, SceneMesh};
 use crate::session::{DocSession, Refusal, Selection, SessionOp};
@@ -301,9 +300,10 @@ pub struct ViewerApp {
     id_log: IdQueryLog,
     /// Bumped on every rebuild; the GPU uploads when it disagrees.
     revision: u64,
-    /// **The index identity `scene` carries**: the `(generation, δ)`
-    /// pair of the [`PickIndex`] whose id map minted the per-corner ids
-    /// in the mesh on screen, as [`PickIndex::current_for`] takes them.
+    /// **The index identity `scene` carries**: the
+    /// [`crate::pickindex::PictureKey`] of the [`PickIndex`] whose id
+    /// map minted the per-corner ids in the mesh on screen, as
+    /// [`PickIndex::current_for`] takes it.
     ///
     /// A pick id is a word of ONE index's alphabet. Anything that
     /// resolves an id the picture produced, or mints one for the
@@ -314,7 +314,7 @@ pub struct ViewerApp {
     /// `None` is a picture no index minted ids for: the startup mesh
     /// comes from [`scene::scene_of`], whose corners all carry
     /// [`crate::pickindex::IdMap::NOTHING`].
-    scene_key: Option<(Generation, DisplayTolerance)>,
+    scene_key: Option<PictureKey>,
     /// The display-state revision `scene` was built under — hide and
     /// free-move are scene inputs too, so a display change owes a
     /// rebuild exactly as a new evaluation does.
@@ -922,7 +922,7 @@ impl ViewerApp {
                 // mesh, and reading the session's generation here would
                 // be a second derivation of it that nothing holds to
                 // the first.
-                self.scene_key = Some((index.generation(), index.delta()));
+                self.scene_key = Some(index.key());
                 self.scene_display = Some(display_revision);
                 self.scene_focus = focus;
                 self.scene = Arc::new(mesh);
@@ -1723,7 +1723,7 @@ pub(crate) struct ViewerBehavior<'a> {
     /// The index identity the `scene` above carries (`ViewerApp::
     /// scene_key`), for the reads of `index` that are about the
     /// PICTURE rather than about the document.
-    pub(crate) scene_key: Option<(Generation, DisplayTolerance)>,
+    pub(crate) scene_key: Option<PictureKey>,
     /// Whether a build for the picture this frame WANTS is under way —
     /// the other half of what `index: None` means, and the half that
     /// decides which sentence a refused pick gets
