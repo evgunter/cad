@@ -2844,7 +2844,6 @@ section.
 - `TINT-1-SPEC.md` — TINT-1, the `assert_f6` ban lists stop being
   hand-written mirrors (#2648)
 
-
 ## Per-merge deletion — VREV's spec (2026-09-15)
 
 Recoverable at `git show 4122ddacd:docs/VREV-SPEC.md` (the fix-pass
@@ -2862,3 +2861,23 @@ conformed to it); "keep the `.expect` text" on `set_face_surface` (its
 Recorded in the PR body and the unit's `## Closed` section.
 
 - `VREV-SPEC.md` — VREV, a v-reversal door on `NurbsSurface`, exact or refused (#2627)
+
+## Per-merge deletion — UNITVEC's spec (2026-09-15)
+
+Recoverable at `git show a0281d87e:docs/UNITVEC-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: the `sin_cos` mint
+("`UnitVec3::from_angle`-style mints … as the crate needs") — no
+customer in the tree, `path_start_frame`'s in-plane axes are cross
+products, so it lands with its first customer; "`Vec3::orthonormal_basis`
+takes the witness (its precondition sentence goes away)" — its two
+production callers (`newell.rs`, `recognize.rs`) normalize with no
+length decision, which the same paragraph forbids adding, so the bare
+door stays with its precondition pointing at the witness door
+`UnitVec3::orthonormal_basis` and both sites are filed; "hand it on" for
+`mirror_across_plane` (it mints and reads the witness straight back —
+the Householder entries are components); the fence's `viewer/src/sketch.rs`
+(the take landed in `viewer/src/datums.rs`, and WIRE's `wire.rs` took
+the door, not just imports). Recorded in the PR body and the unit's
+`## Closed` section.
+
+- `UNITVEC-SPEC.md` — UNITVEC, the unit-vector witness moves to geom-core, minted by the decided ladder (#2646)

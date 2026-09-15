@@ -633,7 +633,7 @@ pub trait Real:
 /// **Every decide-then-normalize direction door in the workspace asks
 /// this first**, and the claim is the enumeration, not a generality:
 ///
-/// - `topo::query::decide_unit_direction` — the one
+/// - [`decide_unit_direction`](crate::decide_unit_direction) — the one
 ///   [`Margin::norm3`](crate::Margin::norm3) spelling, behind the
 ///   datum door and the evaluation layer's `unit()`;
 /// - this crate's own [`linalg::frame`](crate::linalg::frame)
@@ -721,8 +721,8 @@ pub fn is_finite_length<T: Real>(x: T) -> bool {
 /// than a generality — hand-kept, like its sibling's roster, and
 /// exactly as current as the last person to edit it:
 ///
-/// - `topo::query::decide_unit_direction`, behind the datum door and
-///   the evaluation layer's `unit()`;
+/// - [`decide_unit_direction`](crate::decide_unit_direction), behind
+///   the datum door and the evaluation layer's `unit()`;
 /// - this crate's own [`linalg::frame`](crate::linalg::frame)
 ///   `definitely_positive`, the one funnel its four normalizing sites
 ///   share;

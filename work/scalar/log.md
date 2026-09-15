@@ -274,3 +274,16 @@ and the three rows D290 (#201), S393 (#203), VREV (#204) — merges to
 main with this entry, the META row for the sample-number collision
 beside it. Block SCALAR-B2's pre-draw and draw stay on
 `scalar/orchestrator` until its last slot's reviews conclude.
+
+## UNITVEC merged (2026-09-15)
+
+PR 2646, block SCALAR-B2 slot 1, ordinal 4103; dual review, both arms
+APPROVE WITH FIXES. R2 ranked three findings MAJOR — the sweep's
+freshness claim, the mirror ladder's "hands it on", the bare
+`orthonormal_basis` still standing — all three about what the PR body
+and docs CLAIMED rather than what the code computes (no verdict, bit
+or refusal moved), so they are recorded as claim-class and excluded
+from the tally per the instrument; no tally candidate. What landed:
+the item's §Closed. The spec is deleted per the ledger. The `sin_cos`
+mint waits for a customer; the frame doors taking the witness are the
+next unit's (`frame-witness-and-the-tube-door`).
