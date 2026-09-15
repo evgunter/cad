@@ -372,11 +372,7 @@ fn r5_crossing_vertex_on_is_declared_not_measured() {
     assert_eq!(red.on_vertices.len(), 4); // 2 crossing segments × 2 rims
     // (a)+(b): extended-precision residual (two_prod/two_sum) of each
     // stored crossing point.
-    let two_sum = |a: f64, b: f64| {
-        let s = a + b;
-        let bp = s - a;
-        (s, (a - (s - bp)) + (b - bp))
-    };
+    let two_sum = geom_core::exact::two_sum;
     let two_prod = |a: f64, b: f64| {
         let p = a * b;
         (p, a.mul_add(b, -p))

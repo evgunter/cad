@@ -479,8 +479,10 @@ mod mate7a_torus_rest;
 
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
-#[path = "vrev_r2_e2e.rs"]
-mod vrev_r2_e2e;
+#[path = "vrev_acceptance_set.rs"]
+mod vrev_acceptance_set;
+#[path = "vrev_reversed_chart_hazard.rs"]
+mod vrev_reversed_chart_hazard;
 #[path = "review_ring_clearance_r1_probes.rs"]
 mod review_ring_clearance_r1_probes;
 #[path = "review_ring_clearance_r2_probes.rs"]

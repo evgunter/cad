@@ -967,8 +967,9 @@ impl<T: Real> NurbsSurface<T> {
     /// which is narrower than it reads: an interior pair a user types
     /// as mirrored — thirds, `0.1/0.9`, `0.2/0.8`, `0.3/0.7`,
     /// `0.45/0.55` — has a real sum that misses `lo + hi` by one 2Sum
-    /// residual of ±5.55e−17 and REFUSES, while `0.4/0.6` and every
-    /// dyadic pair accept. On the kernel's own loft producer the same
+    /// residual (±5.55e−17, or half that for `0.1/0.9`) and REFUSES,
+    /// while `0.4/0.6` and every dyadic pair accept. On the kernel's
+    /// own loft producer the same
     /// cut falls by section count: equally spaced sections give a
     /// mirror-symmetric `knots_v` for `k ≤ 6` sections and a refusing
     /// one at `k = 7` and `k = 8`.

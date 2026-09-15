@@ -106,8 +106,10 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
         // and all.
         let flipped = match body.get_surface(bowed) {
             Some(Surface::Nurbs(n)) => Surface::Nurbs(Arc::new(
-                n.reversed_v()
-                    .expect("the bowed wall's v knots are mirror-symmetric"),
+                n.reversed_v().expect(
+                    "the bowed wall's v knots are mirror-symmetric, so the \
+                     reversal is the same point set",
+                ),
             )),
             other => panic!("the bowed wall is a described chart: {other:?}"),
         };
@@ -116,7 +118,7 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
             .find(|(_, f)| f.surface == bowed)
             .expect("the bowed wall has a face");
         body.set_face_surface(fk, FaceSurface::New(flipped))
-            .expect("the v-reversed chart is the same point set")
+            .expect("the bowed wall's face key resolves")
     } else {
         bowed
     };
