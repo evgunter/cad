@@ -59,6 +59,7 @@ pub mod display;
 pub mod docio;
 pub mod evalseam;
 pub mod frame;
+pub mod g1;
 pub mod generation;
 pub mod history;
 pub mod input;

@@ -66,6 +66,33 @@ fn canonical_units_match_the_gq5_ratification() {
     assert_eq!(canonical_unit(Dimension::Scalar), None);
 }
 
+/// **The two dimension alphabets are one list in two cases.**
+///
+/// `Measurement.dimension` answers the capitalized spelling and every
+/// other door answers the lower-case one, so two Python attributes
+/// with the same name carry two spellings of one four-word list. That
+/// is allowed and is not free: the day one list gains a word or
+/// renames one, the other has to move with it, and nothing but this
+/// says so.
+///
+/// Over the kernel's own [`Dimension::ALL`], so a dimension added to
+/// the lattice is pinned without an edit here.
+#[test]
+fn the_two_dimension_alphabets_are_one_list_in_two_cases() {
+    use crate::errors::measurement_dimension_tag;
+
+    for dim in Dimension::ALL {
+        let mut capitalized = dimension_tag(dim).to_owned();
+        capitalized[..1].make_ascii_uppercase();
+        assert_eq!(
+            measurement_dimension_tag(dim),
+            capitalized,
+            "the measurement spelling of a dimension is no longer the FFI tag \
+             capitalized"
+        );
+    }
+}
+
 #[test]
 fn a_quantity_operator_mismatch_carries_structure_not_prose() {
     let err = QuantityOpMismatch::new("+", Dimension::Length, Dimension::Angle);
@@ -87,7 +114,7 @@ fn error_classes_name_the_python_hierarchy() {
         match class {
             ErrorClass::Edit => "EditError",
             ErrorClass::Evaluation(_) => "EvaluationError",
-            ErrorClass::Validation => "ValidationError",
+            ErrorClass::Validation(_) => "ValidationError",
             ErrorClass::Dimension => "DimensionError",
             ErrorClass::FmtQuantity => "FmtQuantityError",
             ErrorClass::Literal => "LiteralError",
@@ -124,11 +151,11 @@ fn error_classes_name_the_python_hierarchy() {
     }
     for class in [
         ErrorClass::Edit,
-        // The one class with a payload: its word is the same for
-        // every reason, and `eval_reason_tag` is what pins the
-        // reasons themselves.
+        // The two classes with a payload: the word is the same for
+        // every reason, and `eval_reason_tag` and
+        // `validation_refusal_tag` are what pin the reasons themselves.
         ErrorClass::Evaluation(crate::errors::EvalReason::NodeFailed),
-        ErrorClass::Validation,
+        ErrorClass::Validation(crate::errors::ValidationRefusal::Validate),
         ErrorClass::Dimension,
         ErrorClass::FmtQuantity,
         ErrorClass::Literal,
@@ -3528,6 +3555,240 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
     }
 }
 
+/// **`ValidationRefusal::ALL` is the enum, and the inventory is what
+/// says so.**
+///
+/// The roster exists so the class's attribute set can be derived from
+/// the enum rather than restated, which is worth nothing if the roster
+/// can fall behind the enum. Nothing in Rust enumerates a plain enum's
+/// variants, so this borrows the instrument that already reads the
+/// tree: [`TAG_INVENTORY`]'s `validation_refusal_tag` row is compared
+/// against `src/tags.rs` by
+/// [`the_whole_tag_table_matches_its_committed_inventory`], so a sixth
+/// refusal is an arm in that map (a compile error until it is
+/// written), then a word in the inventory (a red row until it is
+/// named), and then a member of the roster — a red row HERE until it
+/// joins.
+///
+/// What it cannot see: a refusal added to the enum and to the map with
+/// the inventory row updated in the same change and the roster left
+/// alone would red here and nowhere else, which is the point; a
+/// refusal added to the enum alone does not compile.
+#[test]
+fn validation_refusals_are_the_roster_the_inventory_reads() {
+    let entry = TAG_INVENTORY
+        .iter()
+        .find(|entry| entry.function == "validation_refusal_tag")
+        .expect("the inventory carries the validation class's vocabulary");
+    let mut from_roster: Vec<&str> = crate::errors::ValidationRefusal::ALL
+        .iter()
+        .map(|refusal| crate::tags::validation_refusal_tag(*refusal))
+        .collect();
+    from_roster.sort_unstable();
+    assert_eq!(
+        from_roster, entry.values,
+        "`ValidationRefusal::ALL` and the map's inventoried words have drifted \
+         apart — the roster is missing a refusal the enum has, or names one it \
+         does not"
+    );
+}
+
+/// **The `ValidationError` class mints onto exactly two attributes.**
+///
+/// [`crate::errors::ValidationRefusal::ATTRIBUTES`] is what
+/// `crate::py::typed_err` asserts a raise site did not spell, so it has
+/// to be the whole image of `attribute()` — a third attribute missing
+/// from it would be a Python-visible word a raise site could still pass
+/// unnoticed, which is the gap the set replaced a single word to close.
+/// Both directions, so a stale member cannot sit there either.
+#[test]
+fn the_validation_class_mints_exactly_these_attributes() {
+    use crate::errors::ValidationRefusal;
+    let written: BTreeSet<&str> = ValidationRefusal::ALL
+        .iter()
+        .map(|refusal| refusal.attribute())
+        .collect();
+    assert_eq!(
+        written.into_iter().collect::<Vec<_>>(),
+        ValidationRefusal::ATTRIBUTES,
+        "the attributes the refusals actually write are not the set the raise \
+         door is asserted against"
+    );
+}
+
+/// **Which attribute each validation refusal's word lands on**,
+/// committed.
+///
+/// `attribute()` is the one thing deciding whether a refusal's word
+/// reaches Python as `ValidationError.door` or as
+/// `ValidationError.reason`, and moving a variant between its arms
+/// changes a published contract while every other guard on this page
+/// stays green: the word is still minted from the map, still
+/// inventoried, still spelled once. Two of the five are held from the
+/// Python side (`tests/test_validate.py` reads `door` on
+/// `validate_pseudomanifold` and `reason` on `mass_properties_failed`)
+/// and three are reachable from no Python test, because a body the
+/// kernel produces passes the first three rungs. So the routing is
+/// pinned here instead, for all five.
+///
+/// **This pins; it does not close.** A sixth refusal routed to the
+/// wrong attribute is caught by the row it has to add here, not by the
+/// compiler.
+const VALIDATION_ROUTING: &[(crate::errors::ValidationRefusal, &str, &str)] = &[
+    (
+        crate::errors::ValidationRefusal::Validate,
+        "door",
+        "validate",
+    ),
+    (
+        crate::errors::ValidationRefusal::Closed,
+        "door",
+        "validate_closed",
+    ),
+    (
+        crate::errors::ValidationRefusal::Geometric,
+        "door",
+        "validate_geometric",
+    ),
+    (
+        crate::errors::ValidationRefusal::Pseudomanifold,
+        "door",
+        "validate_pseudomanifold",
+    ),
+    (
+        crate::errors::ValidationRefusal::MassProperties,
+        "reason",
+        "mass_properties_failed",
+    ),
+];
+
+/// Every refusal writes the attribute and the word [`VALIDATION_ROUTING`]
+/// commits it to, and the table names no refusal the enum does not.
+#[test]
+fn every_validation_refusal_writes_the_attribute_it_is_committed_to() {
+    use crate::errors::ValidationRefusal;
+    for refusal in ValidationRefusal::ALL {
+        let (_, attribute, word) = VALIDATION_ROUTING
+            .iter()
+            .find(|(committed, _, _)| committed == refusal)
+            .unwrap_or_else(|| panic!("{refusal:?} has no committed routing"));
+        assert_eq!(
+            refusal.attribute(),
+            *attribute,
+            "{refusal:?} writes a different Python attribute than the one \
+             committed for it"
+        );
+        assert_eq!(
+            crate::tags::validation_refusal_tag(*refusal),
+            *word,
+            "{refusal:?}'s word is not the one committed for it"
+        );
+    }
+    assert_eq!(
+        VALIDATION_ROUTING.len(),
+        ValidationRefusal::ALL.len(),
+        "the committed routing names a refusal the enum does not have"
+    );
+}
+
+/// **Two layers spell one entity the same way.**
+///
+/// [`crate::tags::entity_kind_tag`] is total over what a document
+/// NAME can denote; [`crate::tags::entity_id_tag`] is total over what
+/// the arena can hold. They are two vocabularies and neither
+/// contains the other — but where both speak of one entity, a caller
+/// resolving a name and a caller reading a census subject are reading
+/// one concept, and learning two spellings for it would be a fact
+/// about this crate rather than about the model.
+///
+/// The three shared words are pinned by CONSTRUCTION, which pins the
+/// mapping and not just the vocabulary; the fourth is pinned as a
+/// divergence, because `body` is a document node and `solid` is an
+/// arena lump, and the day a kind is added to either side this row
+/// asks whether the other gained one too.
+#[test]
+fn the_entity_kind_and_entity_id_maps_agree_where_both_speak() {
+    use crate::tags::{entity_id_tag, entity_kind_tag};
+    use pncad::select::EntityKind;
+    use pncad::topo::{EdgeKey, EntityId};
+
+    for (kind, entity) in [
+        (EntityKind::Face, EntityId::Face(FaceKey::default())),
+        (EntityKind::Edge, EntityId::Edge(EdgeKey::default())),
+        (EntityKind::Vertex, EntityId::Vertex(VertexKey::default())),
+    ] {
+        assert_eq!(
+            entity_kind_tag(kind),
+            entity_id_tag(&entity),
+            "the name layer and the arena layer have drifted apart on one entity"
+        );
+    }
+
+    // Derived from the committed rows rather than from a roster
+    // written here: whatever the two maps mint, `body` is the only
+    // word the kind side speaks that the arena side does not.
+    let kinds = TAG_INVENTORY
+        .iter()
+        .find(|entry| entry.function == "entity_kind_tag")
+        .expect("the inventory carries the entity-kind alphabet");
+    let ids = TAG_INVENTORY
+        .iter()
+        .find(|entry| entry.function == "entity_id_tag")
+        .expect("the inventory carries the entity-id alphabet");
+    let unshared: Vec<&str> = kinds
+        .values
+        .iter()
+        .copied()
+        .filter(|word| !ids.values.contains(word))
+        .collect();
+    assert_eq!(
+        unshared,
+        ["body"],
+        "the two entity alphabets diverge somewhere new — a document `body` is not \
+         an arena `solid`, and any other difference is a spelling to settle"
+    );
+}
+
+/// **The class table's `no_at_rest_record` arm predicts the mint
+/// door's refusal in the mint door's own word.**
+///
+/// `ClassAdmission::NoAtRestRecord` exists to answer, before a tool
+/// commits an edit, the question `MintRefusal::NoAtRestRecord`
+/// answers after one — the kernel says so at the arm itself. So a
+/// caller that asks ahead and then reads that refusal is reading one
+/// fact, and it stays one fact only while the two maps agree word for
+/// word. That is what this row holds.
+///
+/// **What it does not hold, stated so the row is not read wider than
+/// it is.** The prediction is the arm's, not the table's: the mint
+/// door (`editor_core::assembly::mint`) refuses through
+/// a wildcard `other =>`, so `ClassAdmission::NotAdmitted` ALSO
+/// reaches the caller as `MintRefusal::NoAtRestRecord` — under a word
+/// the table did not answer. A tool matching the answer it got
+/// against the refusal it later sees is right here, silent on `mints`
+/// (which refuses nothing) and wrong on `not_admitted`. Whether that
+/// wildcard should split is a kernel question, not one this crate can
+/// pin.
+#[test]
+fn the_class_table_predicts_the_mint_refusal_in_its_own_words() {
+    use crate::tags::{class_admission_tag, mint_refusal_tag};
+    use pncad::document::{ClassAdmission, MintRefusal, RecipeNodeId};
+    use pncad::topo::ContactClass;
+
+    assert_eq!(
+        class_admission_tag(&ClassAdmission::NoAtRestRecord {
+            why: "the table's own reason"
+        }),
+        mint_refusal_tag(&MintRefusal::NoAtRestRecord {
+            mate: RecipeNodeId(0),
+            class: ContactClass::Tangent,
+            why: "the table's own reason",
+        }),
+        "the class table and the mint door have drifted apart on the refusal one \
+         exists to predict"
+    );
+}
+
 /// One row of [`TAG_INVENTORY`]: a tag function in `src/tags.rs`, and
 /// the exact vocabulary it can put on the wire.
 struct TagEntry {
@@ -3683,6 +3944,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "boundary_edit_tag",
+        values: &["name_serialize"],
+        delegates: &["declare_error_tag", "placement_rule_fault_tag"],
+    },
+    TagEntry {
         function: "census_contact_tag",
         values: &[
             "conformal_patch",
@@ -3727,11 +3993,33 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "class_admission_tag",
+        values: &["mints", "no_at_rest_record", "not_admitted"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "cluster_maintenance_tag",
+        values: &["drop", "gauge_rewrite", "join", "split"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "coherence_condition_tag",
         values: &[
             "meridian_closure",
             "meridian_continuation",
             "rim_continuation",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "corner_reason_tag",
+        values: &[
+            "anchor_outside_trimmed_extent",
+            "behind_arrival_anchor",
+            "behind_incoming_ray",
+            "encloses_leg_carrier",
+            "no_corner_side_candidate",
+            "offset_carriers_disjoint",
         ],
         delegates: &[],
     },
@@ -3845,6 +4133,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "solid",
             "vertex",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "entity_kind_tag",
+        values: &["body", "edge", "face", "vertex"],
         delegates: &[],
     },
     TagEntry {
@@ -3969,6 +4262,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &["resolve_fault_tag"],
     },
     TagEntry {
+        function: "interface_crossing_tag",
+        values: &["mate"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "interrogate_error_tag",
         values: &[
             "ambiguous",
@@ -4021,6 +4319,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_table_lacks",
             "mate_under",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "mate_primitive_tag",
+        values: &["clocking", "coaxial", "frame_coincidence", "planar_rest"],
         delegates: &[],
     },
     TagEntry {
@@ -4282,18 +4585,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "corner_reason_tag",
-        values: &[
-            "anchor_outside_trimmed_extent",
-            "behind_arrival_anchor",
-            "behind_incoming_ray",
-            "encloses_leg_carrier",
-            "no_corner_side_candidate",
-            "offset_carriers_disjoint",
-        ],
-        delegates: &[],
-    },
-    TagEntry {
         function: "persist_error_tag",
         values: &[
             "display_unit",
@@ -4488,10 +4779,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_a_length",
             "pair_in_band",
             "tied_disagrees",
-            "unclassified",
             "unreadable",
         ],
-        delegates: &["band_error_tag"],
+        delegates: &["band_error_tag", "unmirrored_select_tag"],
     },
     TagEntry {
         function: "shell_classify_error_tag",
@@ -4688,8 +4978,30 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "stl_refusal_tag",
+        values: &["not_utf8"],
+        delegates: &[
+            "binary_header_error_tag",
+            "solid_name_error_tag",
+            "stl_error_tag",
+        ],
+    },
+    TagEntry {
         function: "structure_refusal_tag",
         values: &["flipped", "indeterminate"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "subgroup_tag",
+        values: &[
+            "cylindrical",
+            "empty",
+            "planar",
+            "prismatic",
+            "revolute",
+            "se3",
+            "trivial",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -4749,6 +5061,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "unexaminable_tag",
         values: &["corrupt", "non_iso_carrier", "null_scaffold_edge"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "unmirrored_select_tag",
+        // Twice on purpose: one word for two arms, and the multiset is
+        // what says the two are held equal here rather than by prose.
+        values: &["unclassified", "unclassified"],
         delegates: &[],
     },
     TagEntry {
@@ -4836,6 +5155,17 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "validation_refusal_tag",
+        values: &[
+            "mass_properties_failed",
+            "validate",
+            "validate_closed",
+            "validate_geometric",
+            "validate_pseudomanifold",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "workspace_error_tag",
         values: &[
             "duplicate_id",
@@ -4855,23 +5185,158 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
 ];
 
+/// **Every word that two tag maps both mint, and how many mint it.**
+///
+/// `src/tags.rs`'s header claims a tag word is scoped to the map that
+/// mints it — a coincidence between two maps is not a collision, and
+/// pinning every such pair would pin accidents. That claim was
+/// decided over seven WORDS and asserted over the file; this is the
+/// file, measured — the roster below IS the count, which is why no
+/// number is written into this sentence: the population grows
+/// whenever a map does, and a prose count of it has gone stale twice.
+///
+/// The row does not say which of the entries below are one concept and
+/// which are coincidence — all but eight are unread, and `work/census/`'s
+/// `sixty-one-tag-words-are-minted-by-two-or-more-maps-and-seven-are-read`
+/// is where that question lives. What it does is make the population
+/// OBSERVED: a word that starts colliding, or stops, or picks up a
+/// third map, arrives as a failure naming itself instead of as
+/// silence under a rule nobody re-derived.
+///
+/// Derived from [`TAG_INVENTORY`] rather than from the source, so it
+/// inherits that table's own guard and cannot drift from `tags.rs`
+/// without `the_whole_tag_table_matches_its_committed_inventory`
+/// reding first. Its own hand-written half is the roster below, and
+/// the guard on THAT is this row's two directions: an entry no longer
+/// shared fails exactly as a new sharing does.
+const SHARED_TAG_WORDS: &[(&str, usize)] = &[
+    ("ambiguous", 2),
+    ("approx_lane_unsupported", 2),
+    ("assertion_dimension", 2),
+    ("band", 16),
+    ("cap_plane", 3),
+    ("certify", 2),
+    ("contact_contradicted", 2),
+    ("corrupt", 3),
+    ("cosurface_escalated", 2),
+    ("dangling_geometry", 2),
+    ("dimension", 2),
+    ("edge", 2),
+    ("empty", 2),
+    ("empty_boolean", 2),
+    ("empty_placement_list", 2),
+    ("escalated", 10),
+    ("euler", 2),
+    ("evaluation_of_another_document", 2),
+    ("face", 3),
+    ("improper_placement", 2),
+    ("indeterminate", 2),
+    ("instance", 2),
+    ("io", 2),
+    ("join", 3),
+    ("measure_malformed", 2),
+    ("no_at_rest_record", 2),
+    ("no_such_body", 2),
+    ("node_failed", 4),
+    ("node_not_evaluated", 3),
+    ("node_poisoned", 2),
+    ("non_finite", 4),
+    ("non_finite_direction", 2),
+    ("non_finite_placement", 2),
+    ("not_a_body", 2),
+    ("null_scaffold_edge", 2),
+    ("op", 3),
+    ("pcurve", 5),
+    ("pcurves", 3),
+    ("placement_rule_mismatch", 2),
+    ("poisoned", 2),
+    ("profile", 2),
+    ("revolve", 2),
+    ("shell", 2),
+    ("skin", 2),
+    ("sliver_join", 2),
+    ("sliver_rim", 2),
+    ("split", 2),
+    ("structure", 3),
+    ("tolerance_conflict", 2),
+    ("transition", 2),
+    ("undeclared_contact", 2),
+    ("underflowed_direction", 2),
+    ("unknown_node", 5),
+    ("unknown_param", 4),
+    ("unnamed", 2),
+    ("unreadable", 2),
+    // `program_refusal_tag`'s profile-program validator and
+    // `validation_refusal_tag`'s `Body.validate`: two vocabularies that
+    // share an English word and nothing else — different attributes on
+    // different classes. Coincidence, decided here.
+    ("validate", 2),
+    ("vertex", 2),
+    ("vertex_on_edge", 2),
+    ("vertex_on_face", 2),
+    ("vertex_vertex", 3),
+    ("wrong_kind", 2),
+];
+
+#[test]
+fn every_word_two_tag_maps_share_is_on_the_committed_roster() {
+    let mut minters: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+    for entry in TAG_INVENTORY {
+        for value in entry.values {
+            minters.entry(value).or_default().insert(entry.function);
+        }
+    }
+    let shared: Vec<(&str, usize)> = minters
+        .iter()
+        .filter(|(_, functions)| functions.len() > 1)
+        .map(|(word, functions)| (*word, functions.len()))
+        .collect();
+    let pinned: Vec<(&str, usize)> = SHARED_TAG_WORDS.to_vec();
+    if shared != pinned {
+        let detail: Vec<String> = minters
+            .iter()
+            .filter(|(_, functions)| functions.len() > 1)
+            .map(|(word, functions)| {
+                format!(
+                    "{word} ({}): {}",
+                    functions.len(),
+                    functions.iter().copied().collect::<Vec<_>>().join(", ")
+                )
+            })
+            .collect();
+        panic!(
+            "the set of tag words minted by two or more maps has moved.\n\n\
+             A word two maps share is either ONE FACT the two must keep \
+             spelling the same way — which owes a pin in this file — or a \
+             coincidence between two unrelated vocabularies, which owes \
+             nothing but a decision that it is one. Decide which, then \
+             update SHARED_TAG_WORDS from the list below.\n\n  {}",
+            detail.join("\n  ")
+        );
+    }
+}
+
 /// The committed inventory of `src/tags.rs`'s `pub const` tag words —
 /// the tags that are not behind a `match` at all.
 ///
-/// **Empty, and that is a fact about the file rather than a gap in the
-/// pin.** Every tag in `src/tags.rs` is behind an exhaustive `match`
-/// today, which is the arrangement that makes a new one stop the
-/// build. The row that used to sit here was the evaluation door's
-/// standing-ladder rung, spelled by hand because that door had no enum
-/// to match on; it has one now ([`crate::errors::EvalReason`]) and the
-/// word comes from [`crate::tags::eval_reason_tag`] with the rest of
-/// that door's vocabulary.
+/// **One row, and what a row here means is weaker than a map's.** A
+/// word behind an exhaustive `match` is reached by naming a variant,
+/// so a raise site cannot spell a new one and a kernel arm that
+/// arrives without a word stops the build. A `pub const` gives neither:
+/// it pins the TEXT where this guard reads it, and the next raise site
+/// can still write a literal.
 ///
-/// The half of the guard that reads the `pub const` form still runs —
-/// against a fixture, in
-/// [`the_tag_table_reader_recognises_every_form_it_claims`] — so a
-/// `pub const` added to `src/tags.rs` still reds here as a NEW word.
-const TAG_CONSTS: &[(&str, &str)] = &[];
+/// So the form is the fallback for a word that has no enum to hang
+/// off. [`crate::tags::STEP_IMPORT_WIREFRAME`] is one: it names an arm
+/// of the STEP importer's SUCCESS enum that the import door does not
+/// adopt, while every other word on that attribute is the kernel
+/// refusal's — `step_import_error_tag` is the sole other source of
+/// `StepImportError.variant` — so there is no type the class could
+/// carry that would not be a second spelling of the kernel's arm
+/// list. That
+/// door's growth is walled by the compiler instead — the enum is not
+/// `#[non_exhaustive]` and the door matches it exhaustively.
+const TAG_CONSTS: &[(&str, &str)] = &[("STEP_IMPORT_WIREFRAME", "wireframe")];
 
 /// Everything [`read_tag_table`] recognised in the source it read.
 struct TagTable {
@@ -5248,7 +5713,8 @@ impl<'a> Cursor<'a> {
 /// recognising a form does not fail — it reports agreement over the
 /// set it can still see. Every other check on this page exercises it
 /// against `src/tags.rs`, which covers only the forms that file
-/// happens to hold: it declares no `pub const` tag word at all, and no
+/// happens to hold, and holds a single instance of some: one
+/// `pub const` tag word ([`TAG_CONSTS`]), and no
 /// `Option<&'static str>` map with a bare `None` arm sits where an
 /// eye would notice it going unread.
 ///
@@ -5347,7 +5813,9 @@ pub const SAMPLE_WORD: &str = "sample_word";
     assert_eq!(values, &["maybe"]);
     assert!(delegates.is_empty());
 
-    // The form `src/tags.rs` no longer supplies an instance of.
+    // The `pub const` form, over the fixture's own instance: the
+    // subject here is the reader, and `src/tags.rs`'s single const
+    // would make this branch's coverage a fact about that file.
     assert_eq!(
         table.constants,
         BTreeMap::from([("SAMPLE_WORD".to_owned(), "sample_word".to_owned())])
@@ -5723,47 +6191,47 @@ fn read_tag_table(source: &str) -> TagTable {
 /// `select_refusal_tags_are_stable`), so nothing on this page pins
 /// them. `work/lib/` carries that as its own row.
 ///
-/// **The `reason` words are a second family, and the EVALUATION
-/// door's half is now inside.** A `reason` attribute is as
-/// Python-visible as a `variant`, and `py/value.rs` used to mint its
-/// words at ten sites — nine of them bare literals — where an
-/// inventory that reads `src/tags.rs` alone could not see them. The
-/// evaluation door's six (`wrong_kind`, `empty_boolean`,
-/// `unknown_node`, `node_not_evaluated`, `node_failed`, `poisoned`)
-/// now come from [`crate::tags::eval_reason_tag`] over
-/// [`crate::errors::EvalReason`], so they are pinned above and a
-/// seventh cannot be minted at a raise site: the reason rides on the
-/// CLASS (`errors::ErrorClass::Evaluation` carries the enum), so no
-/// raise of that class — in this file or in one that does not exist
-/// yet — can be written without naming a variant of it.
+/// **The `reason` and `door` words are a second family, and no raise
+/// site under `src/py/` MINTS one any more.** Such an attribute is as
+/// Python-visible as a `variant`, and the words used to be spelled at
+/// construction sites where an inventory reading `src/tags.rs` alone
+/// could not see them. Minting is the claim and it is narrower than
+/// "no such word is written there": `crate::py::measure` writes
+/// `door`, `verb` and `scalar` from a kernel value's own `&str`
+/// fields, which this crate does not choose and no inventory reads —
+/// `work/census/`'s `DimensionError.op` row carries that population,
+/// the `door` literal in `editor-core` included. Two classes now CARRY their discriminant, which
+/// is the strongest of the arrangements below because it makes the
+/// word unspellable rather than merely spelled elsewhere: no raise of
+/// [`crate::errors::ErrorClass::Evaluation`] or
+/// [`crate::errors::ErrorClass::Validation`] — in this crate or in a
+/// file that does not exist yet — can be written without naming a
+/// variant, and `crate::py::raise_typed` mints the word from the map.
 ///
-/// **What is still outside**, each a literal `reason` or `variant` at
-/// a construction site under `src/py/` — and only one of the three is
-/// a door with no vocabulary of its own:
+/// **The other doors are closed one rung lower, and the difference is
+/// worth reading.** `crate::py::doc`'s boundary raise takes a
+/// [`crate::errors::BoundaryEdit`] and `crate::py::mesh`'s export raise
+/// a [`crate::errors::StlRefusal`], so no CALL SITE of either can spell
+/// a word — but `EditError.variant` and `StlError.variant` also carry
+/// the kernel refusals' own words, so the class cannot carry a type
+/// without the binding restating a kernel enum's arm list, and a fresh
+/// raise of either class could still pass a `variant` of its own.
+/// [`crate::tags::unmirrored_select_tag`] is lower again: it makes the
+/// query door's wildcard and the contact-class crossing one word in one
+/// place, and stops there.
 ///
-/// * `"mass_properties_failed"` (`py/value.rs`'s `measurement_err`) —
-///   a `ValidationError`, not this door, and a door whose `reason` has
-///   no enum anywhere.
-/// * `"unclassified"` (`py/flush.rs`'s unknown-`ContactClass`
-///   refusal) — a `SelectRefusal`, whose `reason` everywhere else
-///   comes from [`crate::tags::select_refusal_tag`], **which mints
-///   this same word at its own wildcard arm**. A second spelling of
-///   one word on one attribute of one class, not an unenumerated
-///   door.
-/// * `"wireframe"` (`py/value.rs`'s STEP-import success arm this door
-///   does not adopt) — a `StepImportError`, whose `variant` otherwise
-///   comes from the inventoried `step_import_error_tag`; the site's
-///   own comment says the word shares that namespace.
+/// **And one word is pinned by text alone**, which is the weakest
+/// arrangement and is marked as such where it lives:
+/// [`crate::tags::STEP_IMPORT_WIREFRAME`], in [`TAG_CONSTS`].
 ///
-/// Each is covered only by accident — `pncad.pyi` or a Python test
-/// names it — and nothing reds if one is renamed or a fourth is
-/// added. **Three is what a sweep for a literal beside a
-/// `reason`/`variant` key finds, not the population**: the same
-/// words minted in tuple position (`py/mesh.rs`'s `not_utf8`), passed
-/// as a `&'static str` argument (`py/doc.rs`'s `name_serialize`, the
-/// four `ValidationError.door` words) or returned from a getter under
-/// `src/py/` are the same class and are invisible to it.
-/// `work/census/` carries the measured population as two rows.
+/// **What a sweep shape can and cannot see** is the standing lesson
+/// here rather than any of those words. A sweep for a literal beside a
+/// `reason`/`variant` key found three of the nine; the same words
+/// minted in tuple position, passed as a `&'static str` argument, or
+/// returned from a getter are the same class and were invisible to it.
+/// `work/census/` carries what is measured and unfixed — including
+/// `DimensionError.op`, whose twelve words still reach Python from
+/// literals at call sites of two `&'static str` parameters.
 #[test]
 fn the_whole_tag_table_matches_its_committed_inventory() {
     // `crate_dir`, not the baked path alone: a nextest ARCHIVE replayed
@@ -5795,12 +6263,25 @@ fn the_whole_tag_table_matches_its_committed_inventory() {
          it is matching almost nothing, so this guard was about to pass \
          vacuously"
     );
-    // No floor on `constants`: `src/tags.rs` declares no `pub const`
-    // tag word today, so a floor here would assert a shape the file
-    // does not have. The branch that reads that form is exercised by
-    // `the_tag_table_reader_recognises_every_form_it_claims` instead,
-    // which is where an unexercised reader branch belongs once the
-    // file stops supplying an instance of it.
+    // No floor on `constants`, and it is not wanted: a floor exists to
+    // catch a reader that matched almost nothing over a population too
+    // big to enumerate, and `TAG_CONSTS` IS the enumeration — every
+    // const is named there, so the loop below reports a missing one by
+    // name rather than as a count that drifted.
+
+    // The order [`TAG_INVENTORY`]'s own doc states, CHECKED rather
+    // than restated. It is not a Python-visible fact and nothing below
+    // depends on it — the comparison is keyed by name — but a table
+    // this long is read by scrolling, and three entries had drifted out
+    // of place before this ran. A stated invariant with no check is the
+    // shape this whole page exists to close.
+    let ordered: Vec<&str> = TAG_INVENTORY.iter().map(|entry| entry.function).collect();
+    let mut by_name = ordered.clone();
+    by_name.sort_unstable();
+    assert_eq!(
+        ordered, by_name,
+        "TAG_INVENTORY is not in the order its doc claims — by function name"
+    );
 
     let mut pinned: BTreeMap<&str, &TagEntry> = BTreeMap::new();
     for entry in TAG_INVENTORY {

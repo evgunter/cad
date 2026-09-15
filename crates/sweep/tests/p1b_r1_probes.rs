@@ -27,7 +27,7 @@ use geom_brep::{EdgeDescription, EdgeDescriptionSpec, MappedCurve};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::fillet_edges;
-use sweep::test_support::arcs_at;
+use sweep::test_support::{PRISM_V_DEGREE, PRISM_Z, arcs_at, loft_prism_sections, stacked_at};
 use sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, loft_body, revolve, tube_along_arc,
     tube_along_arc_hollow,
@@ -278,17 +278,10 @@ fn tube_products_carry_no_scaffold_at_rest() {
 
 #[test]
 fn loft_products_carry_no_scaffold_at_rest() {
-    let quad = |pts: [(f64, f64); 4]| vec![ProfileLoop::polygon(pts.map(|(x, y)| p2(x, y)))];
-    let square = quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]);
-    let trapezoid = quad([(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]);
-    let places: Vec<Affine3<f64>> = [0.0, 1.0, 2.0]
-        .iter()
-        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
-        .collect();
     let lofted = loft_body::<f64>(
-        &[square.clone(), trapezoid, square],
-        &places,
-        2,
+        &loft_prism_sections(),
+        &stacked_at(&PRISM_Z),
+        PRISM_V_DEGREE,
         Tol::witness(),
     )
     .expect("the loft prism builds");

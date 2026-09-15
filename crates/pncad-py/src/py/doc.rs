@@ -8,7 +8,7 @@
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyString};
 
-use crate::errors::ErrorClass;
+use crate::errors::{BoundaryEdit, ErrorClass};
 use crate::py::expr::literal;
 use crate::py::typed_err;
 use crate::tags::{edit_error_tag, edit_inner_variant_tag, persist_error_tag, workspace_error_tag};
@@ -164,20 +164,33 @@ pub(crate) fn edit_err(py: Python<'_>, err: &d::EditError) -> PyErr {
 ///
 /// **Where the `variant` comes from**, and it is not "always
 /// `crate::tags`": the test is whether a kernel enum arm stands
-/// behind the refusal. Where one does, the word is that enum's to
-/// state and comes from its tag function even though the raise site
-/// is here — `Doc.insert`'s `no_minted_id` and `Node.placed_union`'s
-/// count-spelling refusal are the two live cases, and deriving them
-/// is what keeps each ONE word with the kernel door that publishes
-/// the same one. Where none does — a `serde_json` failure has no
-/// arm anywhere — the word is minted here because there is nothing
-/// to consult, and the site says so.
-fn boundary_edit_err(py: Python<'_>, variant: &'static str, message: String) -> PyErr {
+/// behind the refusal. Where one does, the refusal carries the kernel
+/// VALUE and the word is that enum's own map's, even though the raise
+/// site is here — `Doc.insert`'s `no_minted_id` and
+/// `Node.placed_union`'s count-spelling refusal are the two live
+/// cases, and forwarding the value is what keeps each ONE word with
+/// the kernel door that publishes the same one. Where none does — a
+/// `serde_json` failure has no arm anywhere — the word is minted in
+/// `crate::tags`, where the tag inventory reads it.
+///
+/// **This door's set of refusals is closed** because it takes a
+/// [`BoundaryEdit`] rather than a word: a fourth boundary refusal is a
+/// variant of that enum and an arm of
+/// [`crate::tags::boundary_edit_tag`] before it can be raised. It is
+/// the door that is closed, not the class — `EditError.variant`'s
+/// other words are the document layer's, so nothing type-level stops a
+/// site raising [`ErrorClass::Edit`] with a `variant` of its own.
+fn boundary_edit_err(py: Python<'_>, refusal: BoundaryEdit<'_>, message: String) -> PyErr {
     typed_err(
         py,
         ErrorClass::Edit,
         message,
-        &edit_fields(py, variant, None, &crate::edit_payload::EditPayload::NONE),
+        &edit_fields(
+            py,
+            crate::tags::boundary_edit_tag(refusal),
+            None,
+            &crate::edit_payload::EditPayload::NONE,
+        ),
     )
 }
 
@@ -621,7 +634,7 @@ pub(crate) fn name_text(py: Python<'_>, name: &pncad::prelude::StableName) -> Py
         // one exists" rather than "always through `crate::tags`".
         boundary_edit_err(
             py,
-            "name_serialize",
+            BoundaryEdit::NameSerialize,
             format!("a stable name failed to serialize: {err}"),
         )
     })
@@ -1042,7 +1055,7 @@ impl Doc {
                 // a kernel change a reader meets at the enum.
                 boundary_edit_err(
                     py,
-                    crate::tags::declare_error_tag(&pncad::select::DeclareError::NoMintedId),
+                    BoundaryEdit::Declare(&pncad::select::DeclareError::NoMintedId),
                     "an insert minted no node id".to_owned(),
                 )
             })
@@ -2454,7 +2467,7 @@ impl Node {
         let node = d::Node::placed_union(input.0, count, kind.0.clone()).ok_or_else(|| {
             boundary_edit_err(
                 py,
-                crate::tags::placement_rule_fault_tag(&d::PlacementRuleFault::CountSpelling),
+                BoundaryEdit::PlacementRule(&d::PlacementRuleFault::CountSpelling),
                 "an explicit placement rule carries its own placements, so it has no \
                      count slot: use Node.placed_union_at"
                     .to_owned(),

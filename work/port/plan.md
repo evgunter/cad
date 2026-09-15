@@ -106,25 +106,68 @@ reviewer on any row that changes what a door says should read the message
 from outside the repository, where the reader has no access to the
 kernel's types.
 
-**The full review goes to `load-path-stringifies-structured-refusals`**,
-and to `PORT-DOORS-1`, which asked for the second arm under the escape
-hatch below and was granted it (PR 2635). Three things earn the first,
-and no other row has all three: the defect was found by *execution* rather than by
-reading, so the tree does not show it; the fix carries an explicit
-two-sweep class obligation over `format!("{err:?}")` sites and the
-`tags.rs` reachability question; and a wrong fix there is **invisible
-from Rust** — the types still compile, and only a Python caller catching
-the wrong class ever learns. Its paired row,
-`python-dimensionerror-names-the-quantity-check-not-the-dimension-check`,
-rides that review since they spec together.
+**Which units get the second arm is the orchestrator's call** (Ev,
+in-chat, 2026-09-15, delegating it after the first two units). Not a
+fixed list of rows — the list this section carried before named
+`load-path-…` alone and was wrong within a day, when `PORT-DOORS-1`
+turned out to retire two public enum variants. Four triggers, any one
+of which earns it:
 
-Nothing above is a floor. A lane that finds a row harder than this
-section assumed says so in its PR and asks for the second arm, and this
-section is corrected in the same PR — the same rule the class column
-runs on. `PORT-DOORS-1` is the first row to use it: a public
-error-channel change across two programs' territory, and the full
-review is what found the ratified-page citation the style lane's
-sweep would not have asked for.
+1. **The unit retires or renames something published** — a public enum
+   arm, a binding signature, a stable tag value — so code outside this
+   repository changes meaning.
+2. **The unit's central claim has no mechanical guard**: nothing reds
+   when the guarantee *degrades* rather than when it is violated
+   outright.
+3. **The defect was found by execution rather than by reading**, so the
+   tree does not show it and a reviewer reading the tree will not
+   either.
+4. **The unit changes the subject matter of a ratified design page.**
+   This one was paid for: `PORT-DOORS-1`'s single falsified claim was a
+   stale citation on `crates/editor-core/ASSEMBLY.md`, and neither of
+   that lane's two sweeps was shaped to look there — **a lane's
+   instruments are shaped by its own diff**, so a ratified page citing
+   a symbol the diff renames is outside every instrument the lane
+   naturally builds. The cheap habit that needs no review at all is a
+   `git grep` over `crates/**/*.md` and `docs/**/*.md` for every public
+   item a unit renames; the second arm is for when that habit is not
+   enough.
+
+**The converse matters as much**, and is why the old list over-fired —
+but it holds **per CLAIM, not per unit**, and this section applied it
+per unit until `python-cannot-set-options-structs` disproved it. A
+claim that is compiler-enforced does not earn the second arm however
+public its surface; a unit earns it when **any** load-bearing claim of
+it is unguarded, and a neighbouring claim being compiler-enforced buys
+that one nothing.
+
+`python-cannot-set-options-structs` is the worked example, because it
+is the unit that paid for the distinction. Its field-presence claim is
+as guarded as a claim gets: `surface_census.rs`'s destructure anchor
+reds `E0063` at the door and `E0027` at the census when a struct gains
+a field, and the lane measured it rather than asserting it. Its other
+claim — that an omitted keyword forwards the Rust default — was
+guarded by nothing, and **a presence anchor cannot guard a forwarded
+VALUE**. That is not an oversight in the anchor; it is what a
+destructure is. Which is how two STL doors sat under a green census
+writing `solid ` and eighty zero bytes where the kernel's own defaults
+say a part name and a producer line, for as long as they had existed.
+
+So: **a claim about a forwarded value is never compiler-enforced by a
+presence anchor**, and a unit carrying one earns the second arm even
+when the census beside it cannot be fooled.
+
+On this slate today: `load-path-stringifies-structured-refusals` earns
+it on triggers 2 and 3, and its paired naming row rides that review
+since they spec together. `PORT-DOORS-1` earned it on 1 and 4 and was
+granted it. `python-cannot-set-options-structs` was dispatched style-only
+on the per-unit reading above and was given the second arm after the
+fact; under the corrected reading it earned it from the start, on its
+forwarded-value claim. Everything else is style.
+
+A lane that finds its row harder than this section assumed says so in
+its PR and asks for the second arm; this section is corrected in the
+same PR, and so is the class column.
 
 ## How the class column is read
 

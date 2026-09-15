@@ -38,6 +38,35 @@ state rather than the five words: every Python-visible `&'static str`
 field on a `#[pyclass]` is a vocabulary of this shape, and this row
 records one instance and no claim that it is the only one.
 
+## The shape, enumerated (CENSUS-PY-GETTERS, 2026-09-15)
+
+That unit's sweep was keyed on the WORD rather than on any syntax, so
+it saw the struct-field shape this row records. **Four
+Python-visible `&'static str` fields on a `#[pyclass]` in this crate,
+which is the whole population** — this row's "no claim that it is the
+only one" now has a number behind it:
+
+* `Datum.kind` — five literals, no roster. This row.
+* `Measurement.dimension` — four words (`Length`, `Angle`, `Count`,
+  `Scalar`), which were `py/value.rs`'s `dimension_name`. **Closed by
+  CENSUS-PY-GETTERS**: the map is now
+  `crate::errors::measurement_dimension_tag` and
+  `the_two_dimension_alphabets_are_one_list_in_two_cases` derives its
+  words from `crate::errors::dimension_tag` over `Dimension::ALL`.
+* `Verdict.status` — three words (`Holds`, `Violated`,
+  `Unevaluated`), minted KERNEL-side by `editor-core`'s
+  `AssertionVerdict::label`, so no instrument in this crate reaches
+  them. Their only pins are nine assertions on the attribute in
+  `crates/pncad-py/tests/test_measures.py` and `test_north_star.py`,
+  which do red on a rename — the same "covered only by accident"
+  standing that
+  `src/tests.rs`'s tag-table header records for three other words.
+* `Resolution.status` — clean: `py/resolve.rs` fills it from
+  `crate::tags::resolution_status_tag`, which the inventory lexes.
+
+So the shape has one uncovered instance (this row's) and one that is
+kernel-minted and outside this crate's reach.
+
 ## Shape of the fix, if it is taken
 
 `crate::node_kind` plus `NODE_KIND_ROSTER` is the pattern already in

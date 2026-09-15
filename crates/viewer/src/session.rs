@@ -72,6 +72,7 @@ use crate::combine::{self, PatternOutputChoice};
 use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver};
 use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator};
+use crate::g1;
 use crate::generation::Generation;
 use crate::history::History;
 use crate::parts;
@@ -187,7 +188,10 @@ enum GestureName {
     Param(ParamName),
 }
 
-/// A gesture in flight: layer-3 state only.
+/// What a value gesture holds for its life: layer-3 state only.
+///
+/// The value in flight is not here — it is [`g1::Slot`]'s, along with
+/// the three rules that move it.
 #[derive(Debug)]
 struct Gesture {
     target: GestureTarget,
@@ -195,15 +199,28 @@ struct Gesture {
     /// current value, held so each preview replaces the last rather
     /// than stacking.
     base: Doc<ProfileProgram>,
-    /// The last previewed value, and the one the commit records.
-    value: Option<SlotValue>,
+}
+
+/// **The value drag's words for the three G1 states**, declared once
+/// and handed to [`g1::Slot`] at every door.
+///
+/// The machine is shared with the free-move probe and the
+/// vocabularies are not: these three sentences are about a field's
+/// drag, and the probe's three are about an instance's placement
+/// ([`crate::display::DisplayFault`]).
+fn gesture_words() -> g1::Refusals<Refusal> {
+    g1::Refusals {
+        none: Refusal::NoGesture,
+        in_flight: Refusal::GestureInFlight,
+        wrong: Refusal::WrongGesture,
+    }
 }
 
 /// The whole of what the document panels operate on.
 pub struct DocSession {
     history: History,
     tol: Tol,
-    gesture: Option<Gesture>,
+    gesture: g1::Slot<Gesture, SlotValue>,
     eval: Box<dyn EvalService>,
     generation: Generation,
     /// The document handed to the seam under [`DocSession::generation`]
@@ -573,7 +590,7 @@ impl DocSession {
             requested_doc: Arc::new(Doc::empty_derived("unsubmitted", tol)),
             history: History::new(doc),
             tol,
-            gesture: None,
+            gesture: g1::Slot::closed(),
             eval,
             generation: Generation::FIRST,
             derived: Derived::none(),
@@ -652,7 +669,7 @@ impl DocSession {
             CancelDoor::of(
                 "Cancel drag",
                 SessionOp::CancelGesture,
-                self.gesture.is_some(),
+                self.gesture.held().is_some(),
                 Refusal::NoGesture,
             ),
             CancelDoor::of(
@@ -1029,11 +1046,14 @@ impl DocSession {
                 // it, and a viewport that draws the parts without ever
                 // asking would render a body nothing says is wrong.
                 //
-                // A document with no body-denoting root has no product
-                // and no failure either: the registry still runs, over
-                // the subject that says so. Every other refusal leaves
-                // the report absent, which is "not checked".
-                let checks = matches!(fault, ProductError::NoBodyRoots)
+                // A refusal that `ProductErrorKind::means_no_body`
+                // reads as an absence is the one the registry still
+                // runs over, on the subject that says so. Every other
+                // refusal leaves the report absent, which is "not
+                // checked".
+                let checks = fault
+                    .kind()
+                    .means_no_body()
                     .then(|| {
                         run_checks_on(doc, &done.evaluation, Subject::NoBodyRoots, &cfg, self.tol)
                             .ok()
@@ -1083,7 +1103,7 @@ impl DocSession {
     /// refusal the second table raises, one layer down, and the table
     /// leaves the row to it rather than spelling one answer twice.
     pub fn perform(&mut self, op: SessionOp) -> OpOutcome {
-        if self.gesture.is_some() && !op.permitted_during_value_gesture() {
+        if self.gesture.held().is_some() && !op.permitted_during_value_gesture() {
             return OpOutcome::refused(Refusal::GestureInFlight);
         }
         if self.display.probing().is_some() && !op.permitted_during_free_move() {
@@ -1121,21 +1141,27 @@ impl DocSession {
             SessionOp::CommitParamGesture { name } => {
                 self.commit_gesture(&GestureName::Param(name))
             }
-            SessionOp::CancelGesture => {
-                let had = self.gesture.take().is_some();
-                // Same rule as a no-move commit: only a gesture that
-                // actually put a scratch document on screen owes a
-                // re-submit to take it away again.
-                let previewed = self.derived.scratch.take().is_some();
-                if had {
+            SessionOp::CancelGesture => match self.gesture.cancel(gesture_words()) {
+                // Only a drag that actually put a scratch document on
+                // screen owes a re-submit to take it away again, and
+                // whether it did is what the cancel answers — the
+                // scratch and the gesture's value are written by one
+                // preview.
+                Ok(previewed) => {
+                    let scratch = self.derived.scratch.take();
+                    debug_assert_eq!(
+                        previewed,
+                        scratch.is_some(),
+                        "a cancelled drag's scratch document and its previewed value \
+                         are written by one preview and must end together"
+                    );
                     if previewed {
                         self.request_eval();
                     }
                     OpOutcome::default()
-                } else {
-                    OpOutcome::refused(Refusal::NoGesture)
                 }
-            }
+                Err(refusal) => OpOutcome::refused(refusal),
+            },
             SessionOp::Undo => self.step(true),
             SessionOp::Redo => self.step(false),
             SessionOp::CancelEvaluation => {
@@ -1538,16 +1564,32 @@ impl DocSession {
     }
 
     /// Open a gesture on an already-validated target.
+    ///
+    /// The in-flight refusal is [`g1::Slot::begin`]'s and is the same
+    /// rule the probe's door obeys. For this drag it is a floor rather
+    /// than the door a user meets: `BeginGesture` and
+    /// `BeginParamGesture` are `false` in
+    /// [`SessionOp::permitted_during_value_gesture`], so
+    /// [`DocSession::perform`] has already refused
+    /// [`Refusal::GestureInFlight`] before this runs.
+    /// `work/view/the-value-drags-in-flight-refusal-has-two-spellings.md`
+    /// holds the question of which of the two should keep it.
     fn start(&mut self, target: GestureTarget) -> OpOutcome {
-        self.gesture = Some(Gesture {
-            target,
-            base: self.history.doc().clone(),
-            value: None,
-        });
-        OpOutcome::default()
+        let base = self.history.doc().clone();
+        match self
+            .gesture
+            .begin(gesture_words(), || Ok(Gesture { target, base }))
+        {
+            Ok(()) => OpOutcome::default(),
+            Err(refusal) => OpOutcome::refused(refusal),
+        }
     }
 
     /// Move the gesture `named` names.
+    ///
+    /// The replacement and the two refusals are [`g1::Slot::preview`]'s
+    /// — held there for both gestures — and what is this door's own is
+    /// the edit, the scratch document and the eval request.
     ///
     /// **The name is checked before the value is used**, so a drag on
     /// a field that could not open its own gesture previews nothing
@@ -1558,22 +1600,21 @@ impl DocSession {
     /// driving operation has to be), and what it is not is about this
     /// drag.
     fn preview_gesture(&mut self, named: &GestureName, value: f64) -> OpOutcome {
-        let Some(gesture) = self.gesture.as_mut() else {
-            return OpOutcome::refused(Refusal::NoGesture);
-        };
-        if gesture.target.name() != *named {
-            return OpOutcome::refused(Refusal::WrongGesture);
-        }
-        let slot_value = gesture.target.value_of(value);
-        let edit = match gesture.target.edit(slot_value) {
-            Ok(edit) => edit,
-            Err(error) => return OpOutcome::refused(Refusal::Dimension(error)),
-        };
-        // Applied to the gesture's BASE, so previews replace one
-        // another instead of composing, and the history never sees any
-        // of them.
-        match apply(&gesture.base, &edit, self.tol) {
-            Ok(applied) => {
+        let tol = self.tol;
+        let previewed = self.gesture.preview(
+            gesture_words(),
+            |gesture| gesture.target.name() == *named,
+            |gesture| {
+                let slot_value = gesture.target.value_of(value);
+                let edit = gesture
+                    .target
+                    .edit(slot_value)
+                    .map_err(Refusal::Dimension)?;
+                // Applied to the gesture's BASE, so previews replace
+                // one another instead of composing, and the history
+                // never sees any of them.
+                let applied = apply(&gesture.base, &edit, tol)
+                    .map_err(|error| Refusal::Edit(Box::new(error)))?;
                 // **The display layer's identity, held rather than
                 // argued.** Every display predicate is a function of
                 // the node graph, and the free-move probe is admitted
@@ -1591,33 +1632,46 @@ impl DocSession {
                     "a value gesture's preview minted a node, which the display \
                      layer's admission tests are not re-run against"
                 );
-                gesture.value = Some(slot_value);
-                self.derived.scratch = Some(applied.doc);
+                Ok((slot_value, (edit, applied.doc)))
+            },
+        );
+        match previewed {
+            Ok((edit, doc)) => {
+                self.derived.scratch = Some(doc);
                 self.request_eval();
                 OpOutcome {
                     previewed: vec![edit],
                     ..OpOutcome::default()
                 }
             }
-            Err(error) => OpOutcome::refused(Refusal::Edit(Box::new(error))),
+            Err(refusal) => OpOutcome::refused(refusal),
         }
     }
 
     /// Land the gesture `named` names.
     ///
-    /// **The name is checked before the gesture is taken**, so a
-    /// refused commit leaves the drag it does not name open — the
-    /// release event of one field is not a release of another, and a
-    /// gesture that ends here would end with nobody having let go of
-    /// it.
+    /// The no-move rule and the name check are [`g1::Slot::commit`]'s,
+    /// held there for both gestures: **the name is checked before the
+    /// gesture is taken**, so a refused commit leaves the drag it does
+    /// not name open — the release event of one field is not a release
+    /// of another, and a gesture that ends here would end with nobody
+    /// having let go of it. What is this door's own is what a landed
+    /// value becomes: one `DocEdit` on the history, and one undo step.
     fn commit_gesture(&mut self, named: &GestureName) -> OpOutcome {
-        let Some(gesture) = self.gesture.take_if(|open| open.target.name() == *named) else {
-            return OpOutcome::refused(match self.gesture {
-                Some(_) => Refusal::WrongGesture,
-                None => Refusal::NoGesture,
-            });
+        let landed = match self
+            .gesture
+            .commit(gesture_words(), |gesture| gesture.target.name() == *named)
+        {
+            Ok(landed) => landed,
+            Err(refusal) => return OpOutcome::refused(refusal),
         };
         let previewed = self.derived.scratch.take().is_some();
+        debug_assert_eq!(
+            previewed,
+            landed.is_some(),
+            "the scratch document and the gesture's value are written by one preview \
+             and must end together"
+        );
         // A gesture that never moved commits nothing: one undo step
         // per gesture that CHANGED something, none for a click that
         // happened to land on a slider. It also asks for NOTHING —
@@ -1625,7 +1679,7 @@ impl DocSession {
         // document exactly as it was, and a request for a picture we
         // already have spends a generation and flickers the indicator
         // to say so.
-        let Some(value) = gesture.value else {
+        let Some((gesture, value)) = landed else {
             if previewed {
                 self.request_eval();
             }
@@ -2159,7 +2213,7 @@ impl core::fmt::Debug for DocSession {
             .field("states", &history.len())
             .field(
                 "gesture",
-                &gesture.as_ref().map(|_| format_args!("<Gesture>")),
+                &gesture.held().map(|_| format_args!("<Gesture>")),
             )
             .field("path", path)
             .field(

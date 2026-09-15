@@ -318,6 +318,13 @@ contract-API class, demonstrated by execution in the fix pass); the
 other five arms found no MAJOR. Block SCALAR-B3's pre-draw and draw
 stay on `scalar/orchestrator` until its last slot's reviews conclude.
 
+## EXHAUST-LANE merged (2026-09-15)
+
+PR 2667, block SCALAR-B3 slot 2, ordinal 4106. What landed: the item's
+§Closed. The spec is deleted per the ledger. The fix pass corrected a
+causal story nobody had run — the lesson is on the TRIM row's
+provenance note — and gave the two chart doors one crossing shape.
+
 ## RATE-PAIR dual concluded; a tally candidate (2026-09-15)
 
 `rate-pair-in-geom-core` (PR 2657, block SCALAR-B2 slot 2, ordinal
