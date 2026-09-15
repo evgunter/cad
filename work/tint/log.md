@@ -252,3 +252,51 @@ rustdoc reads as links. Across the whole sweep 30 of 111 are that shape
 (`[0,1]` alone is 12), which is a property of the instrument and not of
 the tree — worth knowing before anyone re-runs that sweep and reads its
 count as a defect count.
+
+## The re-derivation pass dispatched; one row closed ahead of it (2026-09-15)
+
+**Four read-only lanes, 39 rows, disjoint sets**, each appending a
+`## Re-derived (2026-09-15, lane X)` section with one of four verdicts —
+REPRODUCES / STALE-FIXED / PARTIAL / UNVERIFIABLE-WITHOUT-A-RUN — to its
+own item files and nothing else. Lanes were told to run no cargo command
+(four concurrent builds would contend, and re-derivation is a reading
+job), to write no git, to close nothing, and to file nothing: a lane that
+finds a new defect reports it and the orchestrator files it. Disjoint
+file sets are what makes four concurrent writers safe — one writer per
+file, and the orchestrator commits.
+
+- **A** — the doctest/`compile_fail` cluster and the remaining Track W
+  units: `C18`, `H12`, `S216`, `D72`, `D380`, `D381`, `D382`, `D385`, `D386`.
+- **B** — guards that cannot go red: `D383`, `S230`, the anti-vacuity
+  floor, the fuzz-trial floor, the two probabilistic-guard flakes, the
+  structurally-zero sign asserts, the torus K-scaling floor, the
+  malformed-ambient-ε red, the unexplained literal seeds.
+- **C** — censuses and hand-kept guards: the reader census, `source`'s
+  item-body carve, the body-hash census, the loud-skip marker, `assert_f6`'s
+  dumps lists, the interrogate ladder, the M10-6 roster, the
+  source-scanning tripwire, the shell census golden, the landing gather.
+- **D** — one claim in N copies, and citations to a tree that has moved:
+  `D384`, the chamfered-cube/Steiner oracles, the geom-brep inline
+  surfaces, the origin-anchored fans, the brick/prism copies, the
+  two-vertex bulge, the M10 P-lift plane, the decoration seam header, the
+  sixteen `tests/`→`tests/` citations, the R1 dual digest ladder.
+
+Each lane carries the two known staleness shapes as its calibration —
+the bore-pin row's silent repair and `D113`'s 2.5× census drift — so
+neither outcome reads as the default.
+
+**`m10-4-bore-pin-row-red-at-interval-1e-6` closed, ahead of the pass and
+by this seat** (it was assigned to no lane). STALE-FIXED: the `1e-9`
+absolute slack is gone, the row now pins the hull at both ends, and the
+comment above the assertion repairs this defect by name and cites issue
+1646 — this row's own number. It also could not have survived: filed
+2026-09-03 under configuration sampling, and since 2026-09-04 every
+code-tier run draws interval / 1e-6, so a row red there would red `main`
+on every PR. It sat open for eleven days after it became impossible.
+
+**Ev is away from this point** (in-chat, 2026-09-15) and has authorised
+merging the state sync at this seat's discretion. Nothing is queued for
+Ev: both decision rows closed today, and no row in this directory sets
+`needs_ev`. The standing order is therefore to keep working rather than
+to wait — adjudicate the pass, close what is stale, re-cut the slate from
+what survives, and land it.
