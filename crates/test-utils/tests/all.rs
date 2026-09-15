@@ -21,6 +21,8 @@
 
 #[path = "deny_unknown_fields_census.rs"]
 mod deny_unknown_fields_census;
+#[path = "hand_written_impl_census.rs"]
+mod hand_written_impl_census;
 #[path = "reader_census.rs"]
 mod reader_census;
 

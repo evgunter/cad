@@ -7,6 +7,7 @@ opened: 2026-09-04
 refs: [1776]
 closed: 2026-09-15
 pr: 2656
+parent: loud-stand-down-announcements-are-discarded-by-the-gate
 ---
 
 

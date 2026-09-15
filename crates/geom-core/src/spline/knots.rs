@@ -354,23 +354,49 @@ pub struct Span<'a> {
 /// `Debug` would dump the whole knot vector through the reference at
 /// every `{:?}`, which is the one cost a borrow-carrying token can
 /// impose by accident. The address is also what equality reads.
+///
+/// **Both walks destructure `Self` exhaustively**, so a field added to
+/// the declaration is an E0027 unbound-pattern error rather than a
+/// value silently outside the dump and outside equality — an `Eq` that
+/// misses a field answers wrong, where a `Debug` that misses one only
+/// misleads. `finish` stands because every field IS shown; the borrow
+/// is shown as its address, which is a summary of a field and not the
+/// absence of one.
 impl core::fmt::Debug for Span<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            kv,
+            index,
+            first_control,
+            degree,
+        } = self;
         f.debug_struct("Span")
-            .field("kv", &core::ptr::from_ref(self.kv))
-            .field("index", &self.index)
-            .field("first_control", &self.first_control)
-            .field("degree", &self.degree)
+            .field("kv", &core::ptr::from_ref(*kv))
+            .field("index", index)
+            .field("first_control", first_control)
+            .field("degree", degree)
             .finish()
     }
 }
 
 impl PartialEq for Span<'_> {
     fn eq(&self, other: &Self) -> bool {
-        core::ptr::eq(self.kv, other.kv)
-            && self.index == other.index
-            && self.first_control == other.first_control
-            && self.degree == other.degree
+        let Self {
+            kv,
+            index,
+            first_control,
+            degree,
+        } = self;
+        let Self {
+            kv: other_kv,
+            index: other_index,
+            first_control: other_first_control,
+            degree: other_degree,
+        } = other;
+        core::ptr::eq(*kv, *other_kv)
+            && index == other_index
+            && first_control == other_first_control
+            && degree == other_degree
     }
 }
 

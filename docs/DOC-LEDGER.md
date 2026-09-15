@@ -2844,6 +2844,7 @@ section.
 - `TINT-1-SPEC.md` — TINT-1, the `assert_f6` ban lists stop being
   hand-written mirrors (#2648)
 
+<<<<<<< HEAD
 ## Per-merge deletion — TINT-2's spec (2026-09-15)
 
 Recoverable at `git show befcfe4ae:docs/TINT-2-SPEC.md` (the fix-pass
@@ -2871,3 +2872,84 @@ the two rows one unit, and the requirement that the unit state what its
 guard does not enforce — which it did, at its sites and in its PR.
 
 - `TINT-2-SPEC.md` — TINT-2, a stand-down that nobody can hear (#2656)
+=======
+## Per-merge deletion — VREV's spec (2026-09-15)
+
+Recoverable at `git show 4122ddacd:docs/VREV-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: the mirror test as the
+rounded compare `fl(k_i + k_{m−i}) == fl(lo + hi)` (landed as an exact
+2Sum compare: the rounded form admits a half-ulp asymmetry that
+ties-to-even); "the same point set … bit for bit where `lo + hi − v` is
+exact" (a magnitude-relative bound on a dense grid: the mirrored basis
+values are not bit-identical at some knot values); the error as a
+`KnotAlgebraError` variant (landed beside the door as
+`KnotMirrorError`); `reversed_v` native with `reversed_u` derived (the
+module's conjugation direction is the other way, and the fix pass
+conformed to it); "keep the `.expect` text" on `set_face_surface` (its
+`Result` cannot check the claim; the message now says what it can).
+Recorded in the PR body and the unit's `## Closed` section.
+
+- `VREV-SPEC.md` — VREV, a v-reversal door on `NurbsSurface`, exact or refused (#2627)
+
+## Per-merge deletion — UNITVEC's spec (2026-09-15)
+
+Recoverable at `git show a0281d87e:docs/UNITVEC-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: the `sin_cos` mint
+("`UnitVec3::from_angle`-style mints … as the crate needs") — no
+customer in the tree, `path_start_frame`'s in-plane axes are cross
+products, so it lands with its first customer; "`Vec3::orthonormal_basis`
+takes the witness (its precondition sentence goes away)" — its two
+production callers (`newell.rs`, `recognize.rs`) normalize with no
+length decision, which the same paragraph forbids adding, so the bare
+door stays with its precondition pointing at the witness door
+`UnitVec3::orthonormal_basis` and both sites are filed; "hand it on" for
+`mirror_across_plane` (it mints and reads the witness straight back —
+the Householder entries are components); the fence's `viewer/src/sketch.rs`
+(the take landed in `viewer/src/datums.rs`, and WIRE's `wire.rs` took
+the door, not just imports). Recorded in the PR body and the unit's
+`## Closed` section.
+
+- `UNITVEC-SPEC.md` — UNITVEC, the unit-vector witness moves to geom-core, minted by the decided ladder (#2646)
+
+## Per-merge deletion — CENSUS-DEBUG's spec (2026-09-15)
+
+Recoverable at `git show 67e56e2cf:docs/CENSUS-DEBUG-SPEC.md` (PR
+#2655's last head before the merge). CENSUS's second unit. Its sentences
+that did not survive:
+
+- **the criterion excluding `topo/src/props.rs`'s `SignCertificate`** —
+  the spec ruled it out because it uses `write!` rather than
+  `debug_struct(…).finish()`, which is a claim about the TERMINATOR.
+  The class is the tie to the declaration, and by that question it is
+  squarely in: it renders in braced struct shape and reads `self.runs`
+  by name. The instruction not to fix it was followed; the criterion is
+  corrected on
+  `work/census/hand-listed-partialeq-siblings-outside-the-census-debug-fence.md`,
+  which names the spec as the source of the wrong criterion.
+- **"the per-field question is compiler-known, so a census must not
+  re-ask it"** — true of the twelve impls Half A touched, false of the
+  population the resulting census then declares clean. Four body shapes
+  answered green, one of them (`self.0.name`, a newtype reading a NAMED
+  field of its inner type) de-listed at the site as something the
+  classifier answers. Three are now closed in the classifier and the
+  fourth is on the blind-spot list.
+- **Half B's population** — stated as the item's six sites / seven
+  impls; `knots.rs`'s `impl PartialEq for Span<'_>`, sitting directly
+  under a `Debug` the hit list does carry, makes it seven and eight.
+
+Also not landed as written: the spec's hit list of four new in-class
+`Debug` impls was correct, but its reading of the item's own decay
+understated it — the item's enumeration rule gave 14 impls on
+2026-09-15 against the eight rows it recorded on 2026-09-06.
+
+The premise corrections are recorded on the item file, which survives
+this deletion, and the unit's record is `work/census/log.md`'s
+CENSUS-DEBUG entry plus the PR body. Residue, all filed:
+`work/census/hand-listed-partialeq-siblings-outside-the-census-debug-fence.md`
+(six out-of-fence walks, two of them invisible to the census),
+`work/shell/geometrywitness-eq-ignores-the-two-chart-axes-its-uv-fields-are-stated-in.md`,
+`work/topo/censussubject-eq-answers-false-for-a-new-variant-against-itself.md`
+and `work/mesh/memo-dumps-hide-the-closed-bit-the-counters-depend-on.md`.
+
+- `CENSUS-DEBUG-SPEC.md` — CENSUS-DEBUG, a hand-listed `Debug` under a completeness claim (#2655)
+>>>>>>> origin/main

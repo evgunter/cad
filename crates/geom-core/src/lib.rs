@@ -17,6 +17,7 @@
 
 pub mod bit_identity;
 pub mod dual;
+pub mod exact;
 #[cfg(feature = "interval")]
 pub mod interval;
 pub mod k_stats;
@@ -35,7 +36,10 @@ pub use dual::{Dual, Dual64};
 pub use interval::Interval;
 #[cfg(feature = "probe")]
 pub use k_stats::{MarginSample, Probe, SampleOutcome};
-pub use linalg::{Affine3, FrameError, FrameInput, FrameVector, Mat3, Point2, Point3, Vec2, Vec3};
+pub use linalg::{
+    Affine3, FrameError, FrameInput, FrameVector, Mat3, Point2, Point3, UnitVec3, UnitVec3Error,
+    Vec2, Vec3, decide_unit_direction,
+};
 pub use predicate::{
     Band, BandError, BandField, COINCIDENCE_RECOURSE, DEFAULT_K, Decide, Indeterminate,
     IndeterminatePayload, Margin, MarginDiag, Sign,

@@ -526,6 +526,76 @@ A derivation needing a per-site exemption is a hand list in a
 derivation's clothes, so that half stays the caller's and says so at the
 module doc. Not every hand-written list has a derivation waiting for it.
 
+## TINT-1 merged; TINT-2 cut (2026-09-15)
+
+`1305231ad` on main. The unit's own record is its item file; what
+belongs here is what the program learned.
+
+**The first implementation was green, complete against its spec, and
+shipped the defect it was closing.** Its match arms returned hand-typed
+identifier strings beside a hand-written roster; rustc checks a match's
+PATTERNS and never its strings, so an arm reading
+`ParseError::UnknownUnitSymbol { .. } => "UnknownUnit"` — what a RENAME
+produces — left the suite green while banning a dead identifier and
+leaving the live one unbanned. Demonstrated on the pre-fix file by the
+style review, not argued.
+
+**The spec was wrong, not merely imprecise, and the wrongness was mine.**
+*"Use the compiler"* and *"a variant added tomorrow makes this file fail
+to COMPILE"* overstated what that design could deliver, and the phrase
+*"rustc is the census"* was copied out of the spec into a committed doc
+comment. Both are withdrawn; `docs/DOC-LEDGER.md`'s deletion entry
+records the spec as wrong rather than superseded, which is the honest
+shape for a spec that misled its lane.
+
+**The rule that survives**: *naming a trap does not prevent it.* The spec
+devoted a paragraph to refusing the source-scanning census precisely
+because it would mint a fresh instance of a row on this slate — the lane
+obeyed that and then minted a different fresh instance two lines away.
+Only a reader who did not write the fix caught it, which is the standing
+claim of `docs/prompts/reviewer-style-lane.md` §1 and it paid for itself
+on this program's first unit. **So TINT-2's spec states what its guard
+does NOT enforce, in the spec, before the lane writes a line.**
+
+**A process cost worth not repeating.** Three CI runs on #2648 were
+cancelled by supersession because this seat pushed four times in
+succession — a filed finding, the state sync, the spec deletion with its
+ledger entry, and the base merge. Three of those four were one logical
+act. The close-out of a unit (item file, log, spec deletion, ledger,
+base merge) assembles into ONE commit and ONE push; on a repository with
+a program devoted to CI minutes, a push to a branch with a run in flight
+is not free.
+
+## TINT-2 cut — `docs/TINT-2-SPEC.md`, branch `tint/2-stand-down-channel`
+
+Both announcement rows take one lane; `loud-stand-down-…` is the unit and
+`loud-skip-marker-…` is parented to it.
+
+**The framing that makes it one unit rather than two.** The marker rows
+have a working half and a broken half: the `fn` NAME reaches nextest's
+PASS list and IS read, while the `println!` BODY — which is the
+hand-kept enumeration — is discarded on every gating run. So those eight
+hand-kept lists do not merely go stale, they have **zero readers** where
+it counts. `stood_down` has no working half at all: called inside a
+passing test, nothing reaches the PASS list and the entire payload is
+discarded, 22 sites in 10 files.
+
+That splits the fix where the two rows did not. An enumeration nobody
+can read cannot be justified by the cost of keeping it in step, so for
+the markers **deleting the payload beats rewriting it** and the name
+survives; `stood_down` has nothing that works and so needs a mechanism
+or nothing. The spec states both shapes, leans to tally-for-`stood_down`
+and strip-for-the-markers, and leaves the lane to argue it.
+
+**A second marker has already drifted**, which the 2026-09-11 filing did
+not know: `crates/sweep/tests/blend_margin_payload_interval.rs` names
+*"the enclosure arm"*, singular, where three rows are gated —
+`error_display.rs` (one named, two gated) is no longer the only fired
+instance.
+
+**Fence note carried into the spec**: `crates/viewer/src/lib.rs` holds
+one of the ten markers and is `src/`, so it is filed rather than edited;
+and any repair spelled as a workflow flag is CIW's, read-only here.
 ## TINT-2 landed (2026-09-15)
 
 PR #2656, CI green on run 34966198536 — 12 `test (…)`, 5

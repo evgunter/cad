@@ -4,7 +4,7 @@
 
 use crate::common;
 
-use common::{census, fixture};
+use common::{arena_census, fixture};
 use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
@@ -221,7 +221,7 @@ fn d4_reversed_data_lines_still_assemble() {
     let permuted = format!("{head}DATA;\n{}\nENDSEC;\nEND-ISO{tail}", lines.join("\n"));
     let body = solid(&permuted, "reversed die");
     let reference = solid(&text, "die");
-    assert_eq!(census(&body), census(&reference));
+    assert_eq!(arena_census(&body), arena_census(&reference));
     let v1 = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     let v2 = topo::mass_properties(&reference, Tol::witness())
         .unwrap()
@@ -258,7 +258,7 @@ fn d4_renumbered_kiss_assembly_still_assembles() {
     renumbered = renumbered.replace('@', "#");
     let body = solid(&renumbered, "renumbered kiss");
     let reference = solid(&text, "kiss");
-    assert_eq!(census(&body), census(&reference));
+    assert_eq!(arena_census(&body), arena_census(&reference));
     let v1 = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     let v2 = topo::mass_properties(&reference, Tol::witness())
         .unwrap()
