@@ -159,10 +159,13 @@ pub fn assert_f6_every_variant<E: Debug + Display>(
     if let Some(report) = crate::census::set_difference(
         all,
         &covered,
-        &format!(
-            "`{}`'s identifier roster and its rendered cases disagree",
-            core::any::type_name::<E>()
-        ),
+        // The enum is named by its own roster rather than by
+        // `type_name`: the punning tripwire
+        // (`scripts/gates/bit-identity-punning.sh`) forbids reaching
+        // `core::any` outside `geom-core/src/bit_identity.rs`, and the
+        // roster is the caller's data, so it cannot fall behind a
+        // rename the way a hand-typed subject would.
+        &format!("the identifier roster {all:?} and its rendered cases disagree"),
         "rendered by a case and absent from the roster — add it, spelled as `Debug` renders it",
         "in the roster and rendered by no case — give it a case, or fix its spelling",
     ) {
@@ -174,6 +177,7 @@ pub fn assert_f6_every_variant<E: Debug + Display>(
 #[allow(clippy::expect_used)]
 mod tests {
     use super::{assert_f6, assert_f6_every_variant, variant_identifier};
+    use crate::panic_capture::caught;
 
     #[derive(Debug)]
     enum Shape {
@@ -274,7 +278,7 @@ mod tests {
         let fields = ["node:", "name:"];
         assert_f6_every_variant(&shape_cases(), shape_is_exhaustive, &all, &[], &fields);
 
-        let short = std::panic::catch_unwind(|| {
+        let said = caught(|| {
             assert_f6_every_variant(
                 &shape_cases(),
                 shape_is_exhaustive,
@@ -283,13 +287,10 @@ mod tests {
                 &fields,
             );
         })
-        .expect_err("a case rendered by no roster entry is a drifted roster");
-        let said = short
-            .downcast_ref::<String>()
-            .expect("the report is a String");
+        .expect("a case rendered by no roster entry is a drifted roster");
         assert!(said.contains("\"Struct\""), "the report names it: {said}");
 
-        let misspelt = std::panic::catch_unwind(|| {
+        let said = caught(|| {
             assert_f6_every_variant(
                 &shape_cases(),
                 shape_is_exhaustive,
@@ -298,10 +299,7 @@ mod tests {
                 &fields,
             );
         })
-        .expect_err("a misspelt roster entry is witnessed by no case");
-        let said = misspelt
-            .downcast_ref::<String>()
-            .expect("the report is a String");
+        .expect("a misspelt roster entry is witnessed by no case");
         assert!(
             said.contains("\"Strukt\"") && said.contains("\"Struct\""),
             "both directions are named: {said}"
