@@ -66,10 +66,11 @@
 //! # Which history holds a committed free-move: none
 //!
 //! The G1 preview/commit shape applies — a gesture streams preview
-//! frames and lands exactly one committed value — but the commit
-//! replaces this state's entry and enters NO history: the plan's undo
-//! note governs document state only, and no layer-3 history exists in
-//! v1. Undo/redo therefore never change what is hidden or probed;
+//! frames and lands exactly one committed value, and its three
+//! transition rules are [`crate::g1::Slot`]'s, shared with the value
+//! drag — but the commit replaces this state's entry and enters NO
+//! history: the plan's undo note governs document state only, and no
+//! layer-3 history exists in v1. Undo/redo therefore never change what is hidden or probed;
 //! they can only DISCARD a probe by making its instance constrained.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
@@ -78,6 +79,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use pncad::document::{Doc, Frame, Node, ProfileProgram, RecipeNodeId};
+
+use crate::g1;
 
 /// How far off exactly orthonormal a free-move frame's linear part may
 /// be and still count as rigid.
@@ -456,17 +459,19 @@ fn is_rigid(frame: &Frame) -> bool {
         && (frame.determinant() - 1.0).abs() <= RIGID_SLACK
 }
 
-/// A free-move gesture in flight: layer-3 state only, exactly the G1
-/// preview/commit shape one level up from the document — previews
-/// replace one another, and the commit lands one value.
-#[derive(Debug, Clone, PartialEq)]
-struct FreeMoveGesture {
-    /// The instance being probed.
-    instance: RecipeNodeId,
-    /// The last previewed frame — what a commit would land. `None`
-    /// until the first preview, so an untouched gesture commits
-    /// nothing.
-    preview: Option<Frame>,
+/// **The probe's words for the three G1 states**, declared once and
+/// handed to [`g1::Slot`] at every door.
+///
+/// The machine is shared with the value drag and the vocabularies are
+/// not: these three sentences are about an instance's probe, and the
+/// value drag's three are about a field's drag
+/// ([`crate::session::refuse::Refusal`]).
+fn free_move_words() -> g1::Refusals<DisplayFault> {
+    g1::Refusals {
+        none: DisplayFault::NoFreeMove,
+        in_flight: DisplayFault::FreeMoveInFlight,
+        wrong: DisplayFault::WrongFreeMove,
+    }
 }
 
 /// What the scene and pick paths read: the display state snapshotted
@@ -625,7 +630,7 @@ pub struct DisplayState {
     /// that overlap is sound, the identity it rests on and the
     /// ratified change (DI5) that ends the argument are stated at
     /// [`crate::session::SessionOp::permitted_during_value_gesture`].
-    free_move: Option<FreeMoveGesture>,
+    free_move: g1::Slot<RecipeNodeId, Frame>,
     /// Bumped on every visible change — the chrome's cheap "does the
     /// drawn scene need rebuilding" key, beside the evaluation
     /// generation and δ.
@@ -663,7 +668,7 @@ impl DisplayState {
     /// The instance a free-move gesture is currently probing, if one
     /// is in flight.
     pub fn probing(&self) -> Option<RecipeNodeId> {
-        self.free_move.as_ref().map(|g| g.instance)
+        self.free_move.held().copied()
     }
 
     /// The snapshot the scene and pick paths consume, resolved onto
@@ -676,10 +681,8 @@ impl DisplayState {
     /// in the one-frame window between an edit and its prune.
     pub fn view(&self, doc: &Doc<ProfileProgram>) -> DisplayView {
         let mut moved = self.moves.clone();
-        if let Some(gesture) = &self.free_move
-            && let Some(frame) = gesture.preview
-        {
-            moved.insert(gesture.instance, frame);
+        if let Some((&instance, &frame)) = self.free_move.previewing() {
+            moved.insert(instance, frame);
         }
         let mut hidden_roots = BTreeSet::new();
         for &instance in &self.hidden {
@@ -734,6 +737,10 @@ impl DisplayState {
     /// Open a free-move gesture on a completely-unconstrained
     /// instance.
     ///
+    /// The in-flight refusal and the order — admission checked only
+    /// once the probe slot is known free — are [`g1::Slot::begin`]'s,
+    /// held there for both gestures.
+    ///
     /// # Errors
     ///
     /// [`DisplayFault::FreeMoveInFlight`], and [`free_move_check`]'s
@@ -743,20 +750,17 @@ impl DisplayState {
         doc: &Doc<ProfileProgram>,
         instance: RecipeNodeId,
     ) -> Result<(), DisplayFault> {
-        if self.free_move.is_some() {
-            return Err(DisplayFault::FreeMoveInFlight);
-        }
-        free_move_check(doc, instance)?;
-        self.free_move = Some(FreeMoveGesture {
-            instance,
-            preview: None,
-        });
-        Ok(())
+        self.free_move.begin(free_move_words(), || {
+            free_move_check(doc, instance)?;
+            Ok(instance)
+        })
     }
 
-    /// Stream one preview frame into the in-flight gesture. Each
-    /// preview REPLACES the last — the composed display value is
-    /// `frame`, never an accumulation of deltas.
+    /// Stream one preview frame into the in-flight gesture, replacing
+    /// the last: the composed display value is `frame`, never an
+    /// accumulation of deltas. The replacement and the two refusals are
+    /// [`g1::Slot::preview`]'s; what is this door's own is the
+    /// rigid-motion check.
     ///
     /// **It names the instance it is probing**, and the name is
     /// checked before the frame is: a drag on a second instance's
@@ -772,66 +776,66 @@ impl DisplayState {
         instance: RecipeNodeId,
         frame: Frame,
     ) -> Result<(), DisplayFault> {
-        let Some(gesture) = self.free_move.as_mut() else {
-            return Err(DisplayFault::NoFreeMove);
-        };
-        if gesture.instance != instance {
-            return Err(DisplayFault::WrongFreeMove);
-        }
-        if !is_rigid(&frame) {
-            return Err(DisplayFault::NonRigidFrame {
-                determinant: frame.determinant(),
-            });
-        }
-        gesture.preview = Some(frame);
+        self.free_move.preview(
+            free_move_words(),
+            |probed| *probed == instance,
+            |_| {
+                if is_rigid(&frame) {
+                    Ok((frame, ()))
+                } else {
+                    Err(DisplayFault::NonRigidFrame {
+                        determinant: frame.determinant(),
+                    })
+                }
+            },
+        )?;
         self.revision += 1;
         Ok(())
     }
 
     /// Land the gesture: its last previewed frame becomes the
-    /// instance's committed probe value. A gesture that never
-    /// previewed commits nothing (the no-move rule the document
-    /// gestures follow). A bit-exact identity commit REMOVES the
-    /// entry: "probed to exactly where the document draws it" is the
-    /// same picture as "not probed", and the distinctness treatment
-    /// must not mark a part that is not displaced.
+    /// instance's committed probe value. The no-move rule — a gesture
+    /// that never previewed lands nothing — and the name check that
+    /// leaves a probe this commit does not name in flight are
+    /// [`g1::Slot::commit`]'s, which is where they are held for both
+    /// gestures; this door lands what it hands back.
+    ///
+    /// A bit-exact identity commit REMOVES the entry: "probed to
+    /// exactly where the document draws it" is the same picture as
+    /// "not probed", and the distinctness treatment must not mark a
+    /// part that is not displaced.
     ///
     /// Names its instance for [`DisplayState::preview_free_move`]'s
-    /// reason, and the name is checked before the probe is taken: a
-    /// refused commit leaves the probe it does not name in flight.
+    /// reason.
     ///
     /// # Errors
     ///
     /// [`DisplayFault::NoFreeMove`], [`DisplayFault::WrongFreeMove`].
     pub fn commit_free_move(&mut self, instance: RecipeNodeId) -> Result<(), DisplayFault> {
-        let Some(gesture) = self.free_move.take_if(|open| open.instance == instance) else {
-            return Err(match self.free_move {
-                Some(_) => DisplayFault::WrongFreeMove,
-                None => DisplayFault::NoFreeMove,
-            });
-        };
-        if let Some(frame) = gesture.preview {
+        let landed = self
+            .free_move
+            .commit(free_move_words(), |probed| *probed == instance)?;
+        if let Some((probed, frame)) = landed {
             if frame.is_identity_bits() {
-                self.moves.remove(&gesture.instance);
+                self.moves.remove(&probed);
             } else {
-                self.moves.insert(gesture.instance, frame);
+                self.moves.insert(probed, frame);
             }
             self.revision += 1;
         }
         Ok(())
     }
 
-    /// Abandon the gesture, restoring the committed picture.
+    /// Abandon the gesture, restoring the committed picture. The
+    /// revision moves only for a probe that had previewed, which is
+    /// what [`g1::Slot::cancel`] answers: one that never moved put
+    /// nothing on screen to take off it.
     ///
     /// # Errors
     ///
     /// [`DisplayFault::NoFreeMove`].
     pub fn cancel_free_move(&mut self) -> Result<(), DisplayFault> {
-        let had_preview = match self.free_move.take() {
-            None => return Err(DisplayFault::NoFreeMove),
-            Some(gesture) => gesture.preview.is_some(),
-        };
-        if had_preview {
+        if self.free_move.cancel(free_move_words())? {
             self.revision += 1;
         }
         Ok(())
@@ -879,16 +883,13 @@ impl DisplayState {
         // The fault is CARRIED, not tested: `is_err()` here would
         // throw away the one value that says why the drag under the
         // user's hand stopped, at the instant it is computed.
-        let killed_gesture = self.free_move.as_ref().and_then(|gesture| {
-            free_move_check(doc, gesture.instance)
+        let killed_gesture = self.free_move.held().and_then(|&instance| {
+            free_move_check(doc, instance)
                 .err()
-                .map(|cause| Withdrawn {
-                    instance: gesture.instance,
-                    cause,
-                })
+                .map(|cause| Withdrawn { instance, cause })
         });
         if killed_gesture.is_some() {
-            self.free_move = None;
+            self.free_move.discard();
         }
         let report = PruneReport {
             superseded,
@@ -966,11 +967,11 @@ impl DisplayState {
             free_move,
             revision,
         } = self;
-        if !hidden.is_empty() || !moves.is_empty() || free_move.is_some() {
+        if !hidden.is_empty() || !moves.is_empty() || free_move.held().is_some() {
             *revision += 1;
         }
         hidden.clear();
         moves.clear();
-        *free_move = None;
+        free_move.discard();
     }
 }

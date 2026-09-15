@@ -6924,6 +6924,37 @@ GREEN on the head (twelve `test` jobs, five `k-lint (gate, …)`, no
 predicate-count change, no render re-baseline). Sample number at
 merge. Row at merge.
 
+## SENSE-FOLD review ordinal fixed at dispatch (2026-09-15)
+
+`sense-sign-multiplies-fold-onto-outward-normal` (SENSE-FOLD; SCALAR;
+PR #2668 open — frozen head `8a3ca626d`): **ordinal 4107** (SCALAR
+band). Protocol v6 dual: draw = `/dev/urandom` byte **234**, parity 0 ⇒
+**R1 = OPUS, R2 = FABLE**, concurrent on the frozen head, read-side
+isolation (v6 item 5), briefs identical and stored before either ran.
+Pre-draw difficulty **M / structural** (recorded branch-side at the
+block draw; block SCALAR-B3 slot 0). Impl phase: ~415k tokens (harness),
+~1 h 53 min wall; impl CI **34992120996** GREEN on the head (twelve
+`test` jobs, five `k-lint (gate, …)`, no predicate-count change, no
+render re-baseline). Sample number at merge. Row at merge.
+
+## FRAME-WITNESS review ordinal fixed at dispatch (2026-09-15)
+
+`frame-witness-and-the-tube-door` (FRAME-WITNESS; SCALAR; PR #2675
+open — frozen head `c1d8a7ffe`): **ordinal 4108** (SCALAR band).
+Protocol v6 dual: draw = `/dev/urandom` byte **247**, parity 1 ⇒ **R1 =
+FABLE, R2 = OPUS**, concurrent on the frozen head, read-side isolation
+(v6 item 5), briefs identical and stored before either ran. Pre-draw
+difficulty **M / structural** (recorded branch-side at the block draw;
+block SCALAR-B3 slot 1, the block's last to reach review). Impl phase:
+~687k tokens (harness), ~3 h 24 min wall (one disk-full event on the
+shared box, recovered); impl CI **35000416256** GREEN on the head
+(twelve `test` jobs, five `k-lint (gate, …)`, the python suite; two
+predicate names retired and one joined the swept roster — recorded in
+`docs/K-REPORT.md`; the tour listing digest moved on 20 lily files,
+named). Sample number at merge. Row at merge. This is block
+SCALAR-B3's last slot to reach review: the block record merges from
+`scalar/orchestrator` when all three duals conclude.
+
 ## SCALAR program rows (`work/scalar/`; band 4100–4199; blocks named SCALAR-B<n>)
 
 Protocol v6, implementer ratio 1:2, full dual on every kernel unit;

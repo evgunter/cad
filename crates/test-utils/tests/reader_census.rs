@@ -200,6 +200,13 @@ const LEDGER: &[Entry] = &[
                              // structure, literal view for the format string
     },
     Entry {
+        path: "crates/pncad-py/src/surface_census.rs",
+        disposition: Shared, // every `*Options` type CONSTRUCTED under src/py/, so the
+                             // options rosters' membership is derived rather than hand-kept:
+                             // code view, which is what keeps a doc comment naming a struct
+                             // from reading as a door building one
+    },
+    Entry {
         path: "crates/pncad-py/src/tests.rs",
         disposition: Shared, // the tag table in src/tags.rs: code view to locate, literal to
                              // read; the kind words in src/node_kind.rs: literal view alone
