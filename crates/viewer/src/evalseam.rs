@@ -973,10 +973,11 @@ mod threaded {
         /// second full build of an answer in hand — the one wasted
         /// build this seam accepts, paid twice for nothing.
         ///
-        /// The key is a [`PictureKey`] and the comparison is over the
-        /// whole of it, so this impl and [`FitRequest`]'s below cannot
-        /// be read as two spellings of one rule: they compare different
-        /// values, and only one of them is a picture.
+        /// The key is a [`crate::pickindex::PictureKey`] and the
+        /// comparison is over the whole of it, so this impl and
+        /// [`FitRequest`]'s below cannot be read as two spellings of
+        /// one rule: they compare different values, and only one of
+        /// them is a picture.
         fn supersedes(&self, done: &IndexDone) -> bool {
             self.key != done.key
         }
@@ -989,12 +990,13 @@ mod threaded {
         /// the answer already in hand would cost a second ladder for a
         /// number nobody's view of the world has moved off.
         ///
-        /// **The pair is not a [`PictureKey`] and must not become
-        /// one.** It is spelled identically and sits one impl from one
-        /// that is, but `requested` is the δ somebody ASKED for — this
-        /// seam's question, not its answer — where a picture's δ is
-        /// what an index was built at. A fit for a δ the ladder will
-        /// coarsen and a picture at that δ are different things.
+        /// **The pair is not a [`crate::pickindex::PictureKey`] and
+        /// must not become one.** It is spelled identically and sits
+        /// one impl from one that is, but `requested` is the δ somebody
+        /// ASKED for — this seam's question, not its answer — where a
+        /// picture's δ is what an index was built at. A fit for a δ the
+        /// ladder will coarsen and a picture at that δ are different
+        /// things.
         fn supersedes(&self, done: &FitDone) -> bool {
             (self.generation, self.requested) != (done.generation, done.requested)
         }

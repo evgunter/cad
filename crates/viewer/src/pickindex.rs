@@ -734,6 +734,7 @@ impl PartWindows<Patches> {
 ///   index's generation, with no δ. That is not half of this key; it
 ///   is a different key over a different pair, and its own doc holds
 ///   the argument for both of its halves.
+///
 /// `PartialEq` and not `Eq`: [`DisplayTolerance`] is a float, so the
 /// pair inherits its equivalence and nothing here strengthens it.
 #[derive(Clone, Copy, Debug, PartialEq)]
