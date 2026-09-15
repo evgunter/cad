@@ -628,3 +628,137 @@ a refused decision may retry at a wider ring or with the opening rule
 off, on refusals only, counted in the receipt. Pre-draw fields and the
 draw go on `sym/b2-block` once the specs are on `main`; SYM-7
 dispatches first, when SYM-5's lanes retire.
+
+## SYM-7 dispatched: block SYM-B2 opens (2026-09-14)
+
+Block SYM-B2 drawn on `sym/b2-block` (pre-draw fields logged first:
+SYM-7 H / STRUCTURAL, SYM-8 H / NUMERIC, SYM-9 H / NUMERIC; byte 56 ⇒
+fable at slot 2, so SYM-7 and SYM-8 run on Opus and SYM-9 on Fable).
+SYM-7 dispatched first, while SYM-5 PR-2 and SYM-6 are in their delta
+rounds; the `drive.rs` seam announced to PROPS. SYM-8 and SYM-9
+dispatch as lanes free.
+
+## SYM-6 merged (2026-09-14): the door's witness on the run's ε, and the refusal arm split by witness kind — block SYM-B1 slot 2, the block's last dual
+
+PR #2604, fix-pass head `8547c73e9`, residue head `7486223dd`, hosted run 34889009592 green on
+the full matrix; ordinal **4702**, sample #197; the v6 dual on
+frozen head `2621bc0a9` — R1 (OPUS) MERGEABLE-AFTER-FIXES 0/4/4,
+rubric 4/3/4; R2 (FABLE) MERGEABLE-AFTER-FIXES 1/1/2, rubric 4/3/4.
+R2's MAJOR overlapped R1's MINOR-4 on the mechanism (the fixture row's
+own assertion shadowed by the registrant's restored one) and was
+UNILATERAL on its second half — a two-ε lie passed the row with
+`registered` drifting 140 → 16 — confirmed by the fix pass (the pinned
+`registered` reds it) and counted for FABLE. One disclosed glimpse (a
+`git worktree list` printing lane paths and tips, nothing read), the
+pair flagged. The row is in `docs/MODEL-AB-LOG.md`'s SYM section.
+
+**What it did.** `Real::register_equal(self, other, tol: Tol)`: the
+`f64` witness's slack is the run's ε relative to the larger magnitude
+and floored at one, `WITNESS_REL` retired with its argument at the
+impl; `tol` arrives at ~25 sweep sites from holders no more than one
+frame away and is never minted (both gates green, re-run by both
+reviewers); `Interval` ignores it — the meet is exact. Then Ev's D2:
+`SymRegistration::Disputed` for an inexact witness's refusal (`f64`,
+`Probe`; counted, never asserted) and `Contradicted` reserved for
+`Interval`'s exact one — a proof — with the registrants' assertion
+restored there, live in every profile (the workspace ships release
+with debug assertions; disclosed, and the right shape: an exact
+refusal is a soundness defect somewhere). No certification decision
+moves: the M10-8/9/10 pins, and both reviewers' own documents at
+three ε rows, byte-identical to the merge base. The adversarial
+torus's refusals per ε row (10 / 15 / 20, all `Disputed`, zero
+`Contradicted`) reproduced to the digit by both.
+
+**What the reviews added.** The fixture-scale row's reach (both; R2 by
+a 2ε lie that passed): it now pins `registered` per document and its
+doc says which of its three assertions catches which lie and at what
+width. Three sentences the split left false, in the allowlist gate's
+own contract, the rim registrant and the registry comment. E12 now
+records the arms (Ev's ruling), beside the ε sentence the lane had
+already re-taken after checking it was never Ev-ratified. A fourth
+hand-written copy of the fixture table found by the sweep the review
+asked for — one `measured_studies` home now. The two registrants'
+mirrored `match` with a wildcard that swallowed every future arm, in a
+PR about arms slipping past wildcards — one exhaustive helper. The
+dangling citation of a file that never existed, fixed and its row
+closed. The honest cost stated: at ε = 1e-6 the door admits sides
+1000× further apart than before, with no extra registration recorded
+on any fixture.
+
+**Fix pass** (the union, two commits to `8547c73e9`): A–F all taken;
+declined — `band`/`tol` unification (pre-existing shape, on the item).
+Delta by R1 on the fixed head: MERGEABLE, all eight items confirmed, five by execution (the 2ε lie reds on the pinned `registered` with `registrations_refused` still 0; a hypothetical eighth arm fails to compile at the exhaustive helper; the gates and the washer pin re-run); three residue items it named taken in one commit (`7486223dd`, run 34892166425 green): the over-band row selects its three documents by name, the `registered` pin's message names its other causes, and R1's 10⁹ slack-shape row is adopted. The witness-slack row closes
+here; the span-identity row closes on the fixture row.
+
+## SYM-5 PR-2 merged (2026-09-14): rule E, the quotient's common factor — block SYM-B1 slot 1, the program's second dual
+
+PR #2589, fix-pass head `68d31a750`, residue head `d7df4cdf1`, hosted run 34900092062 green on
+the full matrix; ordinal **4701**, sample #198; the v6 dual on
+frozen head `480704dbb` — R1 (OPUS) MERGEABLE-AFTER-FIXES 1/11/4,
+rubric 4/4/2; R2 (FABLE) MERGEABLE-AFTER-FIXES 2/5/3, rubric 4/4/3.
+One UNILATERAL MAJOR, R2's: the scale step can cost a theorem by
+coefficient width — confirmed by the fix pass (the row adopted,
+asserting) and counted for FABLE. Both reviewers were interrupted by
+a container restart mid-review and resumed with state intact; R1
+disclosed a post-delivery `pgrep -af` glimpse of R2's command lines
+(no finding), the pair flagged. The row is in `docs/MODEL-AB-LOG.md`'s
+SYM section.
+
+**What it did.** In the early walk, at every node, the monomial both
+halves of a quotient share is divided out, the denominator scaled to a
+canonical pivot, and `r·D/D` folded to `r` — behind
+`SymRules::common_factor`, on in the shipped set, `without_rule_e` the
+old tier bit for bit (the plain walk's ledger byte-identical). On the
+tilted derived frame the refused residual carried `sqrt(P(t)/P(t))` —
+the number one as an opaque atom — and two frozen products; with the
+rule the derived boss certifies where its authored twin does at ε/8
+and 1e-3 under both lifts (5e-2 is PROPS' clause-1 defect, pinned by
+name). Four bulge pins raised, a sixth document's ceiling moved
+(`8.26e2 → 9.36e2·ε`, the move SYM-3 measured a 512-bit ring making),
+the five measured ceilings unmoved to the digit.
+
+**What it costs**, on the header's own leaf instrument (release, off →
+on): plate 0.13 → 0.36 s, annulus 0.12 → 0.29, bracket 0.44 → 1.70
+(over the 1.6 s line), link 3.31 → 2.43 (cheaper), pad 3.85 → 14.40
+(over). **The dial ships ON by the orchestrator's call**, against the
+spec's affordability clause on two documents the tier carries at no
+dial, for a document class reached and nothing lost anywhere —
+disclosed as a deviation with the numbers, the M10-10 precedent (the
+pad at 10.1 s) named; the implementer stated it has no independent
+argument that 14.4 s is affordable, and that is on the record too.
+
+**What the reviews added.** The soundness argument's premise was false
+for any form rule D built (both reviewers): a denominator has FOUR
+sources, not one, and the argument now covers each with the bound
+that makes it non-vanishing. The rule is not monotone in coefficient
+width (R2, by a row): the header says so and the loss is pinned by
+name on `coefficient-ring-width-is-not-monotone-in-reach` as a second
+mechanism. The ordering comment enshrined a history, not a fact (both,
+by mutant): rewritten to the convention, the walk ledger the pin. The
+cost table was on the wrong instrument (R1): re-taken on the header's.
+Reach is the document's, not a class (R2, by execution): a frame
+tilted about the OTHER axis refuses identically on and off — the
+degree wall become a term wall behind `copysign`/`abs` atoms of a
+manifestly positive quantity, which is SYM-8. The spec's zero-vector
+and straddling-box negatives were missing (R1): adopted. Stale
+sentences at five sites fixed; the tracker's silent status fixed; a
+fifth site on PROPS' widening row (R2's stacked frames at 1e-3) and a
+new row for the revolved cap
+(`a-face-frame-on-a-revolved-cap-refuses-on-pcurve-loop-continuity`).
+
+**Fix pass** (the union, six commits to `68d31a750`): A–H all taken;
+declined as adjudicated — a step cap, the `Form::quotient`
+canonicalisation (the next shape, on the item), shipping the dial
+off. Delta by R1 on the fixed head: MERGEABLE-AFTER-FIXES — the two MAJORs closed (the denominator list swept and found exhaustive; the width row asserts the loss; the ledger pins the order), five items by execution, and nine residue items named, of which the sign row was the gate: it did not red under its own mutant because its pivot at ±1 hit the fix pass's new no-op fast path before the scale step. Residue in one commit (`fdb026205`): the row reaches the step (red under `s.recip()` and only that row, re-verified on the final head), the ordering comment states the four ledger lines the other order reds (the plate's early-decision frozen 8 → 48 — a reach requirement, not a convention), the leaf table is the header's instrument with the pad, bracket AND link over the line disclosed, the stale count at `m10_bulge_interval.rs:107`, `MAX_HALVINGS`'s attribution corrected (the bound follows from one halving and `atan`'s range), `Poly::mul`'s doc restored, the spin un-labelled as reach and R1's third reached shape added, the stacked-2 lift named at both sites. One more commit (`d7df4cdf1`) re-baselined SYM-6's new per-document `registered` pin on the pad (86 → 104: rule E carries 18 more decisions through the door — the pin's own second cause, measured at both dials, no refusal).
+
+## Block SYM-B1 concluded; SYM-8 dispatched (2026-09-14)
+
+With SYM-5 PR-2 merged, block SYM-B1's three slots are concluded and
+its record (`sym/b1-block`) is on main: SYM-4 (FABLE, sample #193),
+SYM-5 (OPUS, #198), SYM-6 (OPUS, #197); two unilateral MAJORs, both
+R2's (FABLE) and both confirmed by their fix passes — the width loss on
+SYM-5 and the 2ε lie passing the fixture row on SYM-6; three glimpses
+disclosed (a process name, command lines after delivery, a worktree
+listing), none carrying a finding. SYM-8 (the manifest sign, block
+SYM-B2 slot 1, OPUS) dispatched on the lane SYM-5 freed while SYM-7's
+dual runs.

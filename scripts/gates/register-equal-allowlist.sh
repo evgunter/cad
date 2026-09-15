@@ -24,12 +24,26 @@
 #     contract says so in full), so the proof is the whole soundness
 #     argument;
 #   * a planted lie pinned typed, so the refusal path is exercised;
-#   * the typed answer HANDLED — the method is `#[must_use]`, and a
-#     refusal is counted in the session's receipt. HANDLED, and not
-#     ASSERTED on: a registrant's proof is a theorem of the reals, and
-#     a configuration at the edge of `f64` representability can
-#     contradict it without anything being wrong
-#     (`work/sym/the-span-identity-is-not-a-theorem-of-the-floats`).
+#   * the typed answer HANDLED BY ARM — the method is `#[must_use]`,
+#     and a refusal is counted in the session's receipt. WHICH refusal
+#     decides whether the site may also ASSERT, and the split is by the
+#     KIND of witness (SYM-6, Ev's D2 ruling on #2552):
+#       - `Disputed` is handled and NEVER asserted on. It is an INEXACT
+#         witness (`f64`, `Probe`) reporting two sides further apart
+#         than the run's eps; a registrant's proof is a theorem of the
+#         reals, and a configuration at the edge of `f64`
+#         representability can contradict it without anything being
+#         wrong
+#         (`work/sym/the-span-identity-is-not-a-theorem-of-the-floats`).
+#       - `Contradicted` is a PROOF and the site asserts on it. It is
+#         the EXACT witness (`Interval`: two certified enclosures
+#         disjoint over the box), so either the site's theorem is false
+#         for the configuration it was handed or an upstream enclosure
+#         does not contain its real. The assertion is live in release
+#         (this workspace ships `debug-assertions = true` there).
+#     Both of this file's ratified sites reach that arm table through
+#     one helper, `sweep::swept::handle_registration`, whose match is
+#     exhaustive by hand;
 #
 # THE RATIFIED SITES (M10-9, the swept arc carrier's builder — spec §2
 # and its amendment A1: the unit of scope is the CONSTRUCTOR, so one

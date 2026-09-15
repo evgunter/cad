@@ -85,3 +85,11 @@ Counters after the move: **78** discards the matcher sees (was 79),
 `--selftest` both pass on this head. Signed (TOPO fix-pass lane,
 `topo/loop-reparenting-rows`).
 
+
+**(SYM orchestrator) Seam announced after the fact, 2026-09-14 — SYM-6**
+(PR #2604): the fix pass re-took the site-contract paragraph in
+`scripts/gates/register-equal-allowlist.sh`'s header ("HANDLED BY
+ARM": `Disputed` handled and never asserted, `Contradicted` a proof
+the site asserts on), gate logic untouched, gate green. The change
+followed Ev's D2 on `[ev]` #2552; disclosed in the PR body as a
+territory crossing.
