@@ -1,6 +1,7 @@
 //! M5 S11 acceptance: constructors mint the honest orientation bit.
 //!
-//! S10 made a face's outward normal `sense_sign · chart_normal` and
+//! S10 made a face's outward normal the chart normal negated where
+//! `sense` is `false`, and
 //! proved the consumers read the bit; S11 makes the CONSTRUCTORS write
 //! it honestly. A swept wall whose material lies against its surface's
 //! chart normal — extrude's concave arc walls and their hole-loop kin,

@@ -180,9 +180,10 @@ fn rims() -> [Rim; 3] {
 
 /// One support pair, as the sense-bit row reads it: its name, the rim
 /// point its sheet is taken at, the two traces as functions of their
-/// stored sense bit, the two signed distances in the supports' own
-/// closed forms, and whether a ball rests there at all.
-type TraceOf<'a> = Box<dyn Fn(f64) -> SupportTrace<f64> + 'a>;
+/// ball-side bit, the two signed distances in the supports' own
+/// closed forms, and whether a ball rests there at all (as a function
+/// of the two sides' `σ`).
+type TraceOf<'a> = Box<dyn Fn(bool) -> SupportTrace<f64> + 'a>;
 type DistOf<'a> = Box<dyn Fn(Point3<f64>) -> f64 + 'a>;
 type ArmRow<'a> = (
     &'static str,
@@ -193,6 +194,13 @@ type ArmRow<'a> = (
     DistOf<'a>,
     Box<dyn Fn(f64, f64) -> bool + 'a>,
 );
+
+/// The oracle's `σ` for a ball-side bit: `+1` where the ball rests
+/// behind the chart normal, `−1` in front — the sign the closed forms
+/// below are written in.
+fn sigma(side: bool) -> f64 {
+    if side { 1.0 } else { -1.0 }
+}
 
 // ------------------------------------------------------------------
 // Reading the fixture.
@@ -448,12 +456,12 @@ fn the_lanterns_arms_fold_both_sense_bits() {
         axis: Vec3::new(0.0, 1.0, 0.0),
         rim: p,
     };
-    let sphere = |side: f64| SupportTrace::Round {
+    let sphere = |side: bool| SupportTrace::Round {
         center: origin,
         radius: SPHERE_R,
         side,
     };
-    let flat = |normal: Vec3<f64>| move |side: f64| SupportTrace::Straight { normal, side };
+    let flat = |normal: Vec3<f64>| move |side: bool| SupportTrace::Straight { normal, side };
     // Each support's own signed distance, positive on its chart
     // normal's side — written here, not read from the kernel.
     let plane_dist = move |p: Point3<f64>, n: Vec3<f64>, o: Point3<f64>| (p - o).dot(n);
@@ -499,8 +507,9 @@ fn the_lanterns_arms_fold_both_sense_bits() {
     for (name, rim, ta, tb, da, db, feasible) in rows {
         let sheet = sheet_at(rim);
         let mut folded = 0;
-        for (sa, sb) in [(1.0, 1.0), (-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0)] {
-            let c = sheet_center(sheet.rim, sheet.sheet_normal(), ta(sa), tb(sb), r);
+        for (side_a, side_b) in [(true, true), (false, false), (true, false), (false, true)] {
+            let (sa, sb) = (sigma(side_a), sigma(side_b));
+            let c = sheet_center(sheet.rim, sheet.sheet_normal(), ta(side_a), tb(side_b), r);
             if !feasible(sa, sb) {
                 assert!(
                     !(c.x.is_finite() && c.y.is_finite() && c.z.is_finite()),

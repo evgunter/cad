@@ -527,12 +527,15 @@ pub fn plane_sphere_blend<T: Real>(
 /// meridian, and the same two are all a cylinder or a plane cuts in a
 /// cross-section normal to a ruling.
 ///
-/// **`side` is the material side, and it is the only place one enters
-/// an arm.** It is `+1` when the face's stored sense bit says its
-/// outward normal IS its surface's chart normal and `−1` when it is the
-/// negation, and it enters as a factor on the radius — the `R ∓ r`
-/// fold, spelled once here instead of once per pair. Read from stored
-/// structure, never from a sampled normal (S10/S11).
+/// **`side` is the ball's side of the support as the support's chart
+/// sees it, and it is the only place one enters an arm.** It is `true`
+/// when the ball's centre lies on the side the support's chart normal
+/// points AWAY from — the support's material side on a `sense: true`
+/// face — and `false` when it lies on the side the chart normal points
+/// into; [`Convexity::ball_side`] is where it is read, from stored
+/// structure and never from a sampled normal (S10/S11). It selects the
+/// `R ∓ r` fold: every consumer spells it as [`sided`], a conditional
+/// negation of the radius, so it is a bit here and never a `±1`.
 #[derive(Clone, Copy, Debug)]
 pub enum SupportTrace<T: Real> {
     /// A STRAIGHT trace: the line through the rim point whose unit
@@ -550,8 +553,8 @@ pub enum SupportTrace<T: Real> {
         /// The support's unit chart normal at the rim, which lies in the
         /// sheet.
         normal: Vec3<T>,
-        /// The material side, `±1` (type docs).
-        side: T,
+        /// The ball's side of the support (type docs).
+        side: bool,
     },
     /// A ROUND trace: the circle the support cuts in the sheet — a
     /// sphere centred on the axis in its meridian, a cylinder about the
@@ -561,9 +564,16 @@ pub enum SupportTrace<T: Real> {
         center: Point3<T>,
         /// Its radius (positive by convention).
         radius: T,
-        /// The material side, `±1` (type docs).
-        side: T,
+        /// The ball's side of the support (type docs).
+        side: bool,
     },
+}
+
+/// The `R ∓ r` selector: `x` where the ball rests behind the chart
+/// normal ([`SupportTrace`]'s `side` is `true`), `−x` where it rests
+/// in front. A conditional negation, exact in every backend.
+fn sided<T: Real>(side: bool, x: T) -> T {
+    if side { x } else { -x }
 }
 
 impl<T: Real> SupportTrace<T> {
@@ -571,12 +581,12 @@ impl<T: Real> SupportTrace<T> {
     /// centre by `radius` along the trace's own outward direction.
     fn contact(self, center: Point3<T>, radius: T) -> Point3<T> {
         match self {
-            Self::Straight { normal, side } => center + normal * (radius * side),
+            Self::Straight { normal, side } => center + normal * sided(side, radius),
             Self::Round {
                 center: c,
                 radius: rr,
                 side,
-            } => c + (center - c) * (rr / (rr - radius * side)),
+            } => c + (center - c) * (rr / (rr - sided(side, radius))),
         }
     }
 }
@@ -590,6 +600,9 @@ impl<T: Real> SupportTrace<T> {
 /// which is the structural answer to "which of the two circles the
 /// offsets meet in is MY edge" — the same question the plane–sphere
 /// arm answers by the meridian's `ρ ≥ 0` and never has to ask.
+///
+/// The material sides enter as `σ = +1` where a trace's `side` is
+/// `true` and `−1` where it is `false`, spelled below as [`sided`].
 ///
 /// - **line × line**: `δ = −r[(σ_a − σ_b d)n̂_a + (σ_b − σ_a d)n̂_b]/(1 − d²)`
 ///   for `d = n̂_a·n̂_b` — [`plane_plane_blend`]'s own centre formula with
@@ -640,7 +653,9 @@ pub fn sheet_center<T: Real>(
             },
         ) => {
             let d = n_a.dot(n_b);
-            rim - (n_a * (s_a - s_b * d) + n_b * (s_b - s_a * d)) * (radius / (one - d.powi(2)))
+            rim - (n_a * (sided(s_a, one) - sided(s_b, d))
+                + n_b * (sided(s_b, one) - sided(s_a, d)))
+                * (radius / (one - d.powi(2)))
         }
         (
             Straight { normal, side },
@@ -664,9 +679,9 @@ pub fn sheet_center<T: Real>(
             let u = (rim - center) / rr;
             let t = sheet_normal.cross(normal);
             let b_coef = rr * t.dot(u);
-            let d_coef = (rr + rr) * radius * (sr - side * normal.dot(u));
+            let d_coef = (rr + rr) * radius * (sided(sr, one) - sided(side, normal.dot(u)));
             let lambda = b_coef * ((one - d_coef / b_coef.powi(2)).sqrt() - one);
-            rim + t * lambda - normal * (radius * side)
+            rim + t * lambda - normal * sided(side, radius)
         }
         (
             Round {
@@ -684,8 +699,8 @@ pub fn sheet_center<T: Real>(
             let dist = span.norm();
             let along = span / dist;
             let across = sheet_normal.cross(along);
-            let off_a = r_a - radius * s_a;
-            let off_b = r_b - radius * s_b;
+            let off_a = r_a - sided(s_a, radius);
+            let off_b = r_b - sided(s_b, radius);
             let x = (dist.powi(2) + off_a.powi(2) - off_b.powi(2)) / (dist + dist);
             let mu = (rim - c_a).dot(across);
             let y = mu * (((off_a.powi(2) - x.powi(2)) / mu.powi(2)).sqrt());
@@ -746,8 +761,7 @@ impl<T: Real> Meridian<T> {
     /// pair is not a coaxial one, so its spine is neither line nor
     /// circle — the canal family, refused.
     #[must_use]
-    pub fn trace(&self, s: &Surface<T>, sense: bool) -> Option<(SupportTrace<T>, T)> {
-        let side = if sense { T::one() } else { -T::one() };
+    pub fn trace(&self, s: &Surface<T>, side: bool) -> Option<(SupportTrace<T>, T)> {
         let radial = self.radial();
         let lever = self.lever();
         match *s {
@@ -878,8 +892,7 @@ impl<T: Real> Ruling<T> {
     ///
     /// `None` for a surface kind this family does not cover.
     #[must_use]
-    pub fn trace(&self, s: &Surface<T>, sense: bool) -> Option<(SupportTrace<T>, T)> {
-        let side = if sense { T::one() } else { -T::one() };
+    pub fn trace(&self, s: &Surface<T>, side: bool) -> Option<(SupportTrace<T>, T)> {
         match *s {
             // A plane containing the ruling: its chart normal is already
             // ⊥ the ruling, so it is the cross-section line's normal.

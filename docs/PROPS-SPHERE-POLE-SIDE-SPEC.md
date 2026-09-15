@@ -51,7 +51,7 @@ and the boundary traversed with the interior on the left, a rim
 traversed in the `+u` direction has its interior toward `+v`, so
 `σ = d_u_sign × (the face's sense as the module already applies it)`.
 **Derive the convention from the existing sign machinery
-(`rim_dir`, `linear_rim_side`, `boundary_material_sign`, `sense_sign`)
+(`rim_dir`, `linear_rim_side`, `boundary_material_sign`, `Face::sense`)
 and pin it against the existing exact rows before using it** — CERT-1's
 pole rows, the die's caps, `iso_rectangle_door.rs`, `mesh11_arc_branch.rs`:
 on every face that measures exactly today, `σ` must agree with the
@@ -94,7 +94,7 @@ on where a loop's anchor sits. The RESULTS are compensated downstream
 and do not move; the recorded verdicts do, and k-lint's population and
 every golden over recorded verdicts move with them.
 
-`σ = d_u_sign × sense_sign` is per rim and reads no other rim, so the
+`σ = d_u_sign`, negated where `Face::sense` is `false`, is per rim and reads no other rim, so the
 construction above is already a face fact — **and that is the thing to
 keep.** Do not implement `props_rim_interior_side` by comparing a rim
 against the first one, and do not let its margin borrow

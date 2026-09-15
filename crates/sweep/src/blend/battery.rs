@@ -432,13 +432,14 @@ fn esc(site: BlendSite, source: Indeterminate) -> BlendError {
 }
 
 /// A face's outward normal at `p`: the chart normal folded through
-/// the STORED sense bit (`Face::sense_sign`) — never a sampled or
-/// re-derived orientation (S10 category A).
+/// the STORED sense bit (`Face::sense`) — never a sampled or
+/// re-derived orientation (S10 category A). Unwrapped here because
+/// both consumers read it as geometry (a dot, a mean).
 fn outward<T: Decide>(body: &Body<T>, face: FaceKey, p: Point3<T>) -> Option<Vec3<T>> {
     let f = body.get_face(face)?;
     let s = body.get_surface(f.surface)?;
     let g = geom_brep::implicit_gradient(s, p);
-    Some(g.normalize() * f.sense_sign::<T>())
+    Some(geom_brep::OutwardNormal::from_chart(g.normalize(), f.sense).vec())
 }
 
 /// The face on a half-edge's side.

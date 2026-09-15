@@ -92,7 +92,7 @@
 //!
 //!   That derivation is stated in the outward frame while `u_ref` /
 //!   `v_ref` live in the surface's CHART frame, so since M5 S10 the
-//!   area vector is multiplied by the face's `sense_sign` before the
+//!   area vector is negated on a `sense: false` face before the
 //!   `atan2` — the one orientation-sense read in this crate. The old
 //!   "assumes outward-oriented shells (true of every M2 body)" caveat
 //!   is thereby discharged rather than restated: a reversed face
@@ -788,13 +788,13 @@ pub(crate) fn loop_polygon(
     }
     let closing_side = closing_side(&starts);
     let no_rim = !has_rim;
-    // The face's S10 orientation sense as a `±1` (module docs, the
-    // pole-to-pole band). Read once here; consumed at exactly one site
-    // below.
-    let sense_sign: f64 = body
+    // The face's S10 orientation sense (module docs, the pole-to-pole
+    // band). Read once here; consumed at exactly one site below, as a
+    // conditional negation of the loop's area vector.
+    let sense = body
         .get_face(face)
         .ok_or(TessellateError::MissingEntity { what: "face" })?
-        .sense_sign();
+        .sense;
     // JUNCTIONS ONLY: `t.ids[0]` is a topology vertex's mesh id
     // (`chords::compute_chords` takes it from `vids`), so it is a
     // DECLARED vertex; `ids[1..len - 1]` are chord subdivision points,
@@ -951,17 +951,18 @@ pub(crate) fn loop_polygon(
         // points along the face's OUTWARD normal side — but it is read
         // here as a direction in the CHART frame (`u_ref`/`v_ref`), to
         // pick which azimuth half the band occupies. Those two frames
-        // differ by exactly `sense_sign`: a reversed face stores its
+        // differ by exactly the sense: a reversed face stores its
         // loop the other way round, `area` flips, and the raw `atan2`
         // would land π off — selecting the complementary meridian
-        // branch and meshing the wrong half of the sphere. Multiplying
-        // recovers the chart-frame azimuth for either sense. This is
+        // branch and meshing the wrong half of the sphere. Negating on
+        // a reversed face recovers the chart-frame azimuth for either
+        // sense. This is
         // NOT the double-count hazard that forbids a multiply in
         // `planar`/`curved`: nothing downstream re-derives this sign
         // from the winding — `mid_az` only chooses a `2πk` branch, and
         // the polygon's own winding (which does flip with the sense) is
         // consumed separately by `curved`'s `flip`.
-        let chart_area = area * sense_sign;
+        let chart_area = if sense { area } else { -area };
         let mid_az = chart_area
             .dot(chart.v_ref)
             .atan2(chart_area.dot(chart.u_ref));
@@ -1560,8 +1561,8 @@ mod tests {
     }
 
     /// The band's chart-frame azimuth, spelled as `loop_polygon`'s
-    /// pole-to-pole arm spells it. `sense_sign` is omitted because it
-    /// is a bitwise `±1` scale on `area`: it cannot change how well
+    /// pole-to-pole arm spells it. The sense fold is omitted because
+    /// it is a bitwise negation of `area`: it cannot change how well
     /// conditioned the fold that produced `area` was.
     fn band_mid_az(chart: &Chart, pts: &[Point3<f64>]) -> f64 {
         let area = loop_area(pts);
