@@ -547,3 +547,120 @@ remains coherent and its fix shapes are proven; the two rows carrying
 facts with a shelf life (`prose-counts-…`'s ten unverified counts,
 `sixty-one-tag-words-…`'s 54 unread pairs) are the ones that decay while
 nobody touches them.
+
+## CENSUS-ERRORS-ARRIVAL merged (2026-09-15)
+
+PR 2691 merged as `17a68a0fa`, green on run `35023408135` at
+`fa49e26b0` (35 success, 4 skipped, full matrix). The spec is deleted
+per the ledger and the item closed.
+
+**The disposition is one no bullet on the spec named, and its argument
+is the unit.** Every instrument this crate had aimed at its vocabulary
+was keyed on a FORM, and each went blind to the arrival that did not
+wear it — the tag reader strips `pub fn `, and all five maps in
+`errors.rs` are `pub const fn`. So the alarm is keyed on the file's
+LITERALS: `test_utils::source` says which bytes are inside one, and the
+reader attributes each to the enclosing item. The spec declined to
+pre-decide among three shapes, having had two of its last four
+pre-decisions overturned by a lane's probe; declining is what let a
+fourth shape be found, and that is the spec practice this unit
+vindicates.
+
+**And its central claim was false, and was executed as false twice.**
+The PR was first written on *"there is no form a word can arrive in
+that the reader was not taught, because there is no form"*, and on *"a
+wrong attribution is loud: it invents a name the roster does not
+carry"*. The style reviewer falsified both against the real tree: a
+CHAR literal was read and dropped along with the item spelling nothing
+else, and an attribute literal was charged to the ROSTERED item above
+it, where a deletion in the same item cancelled it to nothing. Both
+silent. **Both are better than form-keying and both were wrong**, which
+is the honest reading — the argument for literals stands, the
+absolutism did not.
+
+That is this program's **fourth consecutive short exclusivity list**
+(finding 2, finding 6). Four for four, on four different lanes, each
+time discovered by a reviewer executing the claim rather than reading
+it.
+
+**The unit sprang its own trap in the tracker, not in the code.** The
+diff grew `crates/pncad-py/src/tests.rs` from 6798 to 7795 lines — +997,
+14.7% — and left `pncad-py-tests-rs-is-six-thousand-lines-…` saying
+6317, untouched. That row is on this program's own slate and says that
+file is too big. It is the same failure the unit was dispatched to
+punish, one level up: **nothing reads a row at the moment a lane writes
+code**, including the row about the file the lane is writing in.
+
+**The duplicate-name key was this program's own, dropped.** Two trait
+`fmt` impls on one type collided and the census hard-stopped with
+*"Qualify them apart in the same diff"* — which Rust gives no way to do.
+`crates/test-utils/tests/hand_written_impl_census.rs`, **this program's
+unit 2**, keys on `(path, trait, self type)` and says at the site why
+the trait is in the key. The fix took that key back, and went one wider
+than the review: the trait's GENERIC ARGUMENTS have to stay in it, or
+`PartialEq<Other>` and `PartialEq` collide on exactly the case the trait
+was added for.
+
+12. **A correction can be born stale in the sentence that corrects a
+    stale count.** Finding 11 said a stale count can be born stale. The
+    fix pass, repairing the 6317, wrote 7779/+981 — measured before its
+    last two edits to that file and committed after them, so the
+    corrected number was wrong in its own commit. Caught by the
+    orchestrator against `git show <sha>:… | wc -l`, and **caught a
+    third time** at close-out: the item file still said "nine items and
+    52 literals" after the fix pass had taken the population to ten and
+    53. Three instances of one shape inside one unit. The general form
+    is that a number written by hand is stale the moment anything else
+    in the same diff moves, so **a count belongs with the command that
+    re-derives it and the SHA it was taken at**, which is what the size
+    row carries now.
+
+    The lane's answer to "why not pin it with a check" is the right one
+    and is worth keeping: a committed line count held to `wc -l` reds on
+    every commit to a file expected to change, and its repair is a
+    hand-edited number — the row's own complaint at per-commit
+    frequency. The two vacuity FLOORS are the opposite case: they are
+    assertions, they already run, and deriving them from the committed
+    inventory costs nothing. That distinction is the row's remaining
+    ask.
+
+### What went right
+
+The fix pass closed both MAJORs **wider than the charge** rather than to
+fit it. Closing the char hole made the population every literal, which
+surfaced an item the census had never seen (`is_bare_camel_token`, one
+char literal) and took the file from nine items/52 literals to ten and
+53 — so the reviewer's counterexample was also a measurement. Closing
+the attribute hole turned up that the same walk mis-attributes
+attributes on a `struct`, `enum`, variant or field, which the review had
+not named, and added a **stray-attribute refusal** for the case where
+absorbing into the item below is not available.
+
+The shared-reader sweep was wider than its charge too: the review named
+two duplications, and going to fix it found a third — one `rfind('\n')`
+line-start fold at three sites. Four operations now live in
+`crates/test-utils/src/source.rs`. One fix nobody asked for: `identifier`
+had only the plain-alphanumeric half and read `r#fn` as `r`.
+
+And a filed row corrected the reviewer rather than copying it: the
+field-brace sweep's count was re-taken and came back 13 raw hits, of
+which 7 are executable checks in 5 crates.
+
+### A process note
+
+`scripts/doc-gate.sh` was red on the fix pass's first push and fixed on
+the next before the gate reported. Worth the lane's own note that the
+doc gate belongs before a push, not after. Separately, one CI run was
+cancelled by the lane's own subsequent push — a concurrency supersede
+that surfaces as a `gate ok` failure event, which is the shape to read
+in the run list rather than in the job logs.
+
+## Next
+
+The `pncad-py` block, and the four rows this unit filed, ordered in
+`plan.md` — `the-errors-arrival-blind-spot-list-…` first of them and
+soon, because its whole value is four probes already run; then
+`payload-attribute-names-…` with the block;
+`the-field-brace-fingerprint-…`, which is routing and ties to the
+prose-census pair; and `dimension-mismatch-sentence-…`, E by size but a
+design question about two crates, on a file no open program claims.

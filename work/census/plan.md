@@ -115,12 +115,51 @@ counts**, several of them over kernel enums, which means they go stale
 on someone else's change rather than on this program's — a row that
 decays while nobody touches it.
 
-`sixty-one-tag-words-…` and `errors-rs-holds-four-…` join the block and
-run with it — both are `tags.rs`/`errors.rs` and both were opened by the
-unit that just landed there, so the same warm context applies. The
-61-word row carries the sharper obligation of the two: its instrument
-ships, and what is missing is the READING of 54 pairs, which is exactly
-the kind of debt that stops looking urgent once the instrument is green.
+`sixty-one-tag-words-…` and `errors-rs-holds-four-…` joined the block
+and ran with it — both are `tags.rs`/`errors.rs` and both were opened by
+the unit that landed there, so the same warm context applied.
+`errors-rs-holds-four-…` **is closed** (CENSUS-ERRORS-ARRIVAL, #2691).
+The 61-word row carries the sharper obligation of the two and is still
+open: its instrument ships, and what is missing is the READING of 54
+pairs, which is exactly the kind of debt that stops looking urgent once
+the instrument is green.
+
+**The four rows CENSUS-ERRORS-ARRIVAL filed, ordered.** They do not run
+as a block — they came out of one unit but they answer to four
+different owners.
+
+`the-errors-arrival-blind-spot-list-…` goes **first of the four and
+soon**, and its argument is warmth rather than class. It is the residue
+of the instrument that just landed, entirely inside the two files that
+unit touched, and each of its four items is already EXECUTED — an item
+spelling no literal, a within-item word swap, a nested `impl` losing its
+qualifier, and a `held_by` column nothing re-derives. Almost all of its
+value is that those probes exist and are described; a lane arriving cold
+re-runs four experiments to get back to where the row starts.
+
+`payload-attribute-names-…` joins the `pncad-py` block. It is the same
+shape one file over — a word spelled twice and held equal by nothing —
+and it is the literal "everywhere else" the arrival alarm names as out
+of scope. Its 31 second spellings are a fact with a shelf life: each is
+a raise site that can move.
+
+`the-field-brace-fingerprint-…` is routing, and decays the way
+`hand-listed-partialeq-siblings-…` does: its seven executable sites are
+in five crates that are other programs', so owners move as programs
+close. It carries a tie the others do not — **its own sweep's blind spot
+is `prose_census.rs`'s needle set**, which is the instrument
+`prose-census-cannot-see-a-bypassed-prose-renderer` exists to fix. If
+that row lands first this one should be re-swept before it is specced;
+if this one runs first, it owes the re-sweep to itself.
+
+`dimension-mismatch-sentence-…` is **E by size and not by difficulty**,
+and goes last of the four. Two `Display` impls in two crates render one
+sentence word for word while the doc two lines above the first argues
+the types are deliberately unrelated — so the row is a question about
+which of the two readings is true, not an edit, and the answer belongs
+to whoever owns `crates/editor-core/src/expr.rs`. This plan already
+records that `expr.rs` is claimed by NO open program, which is the same
+routing hazard the `PartialEq` row carries.
 
 `four-censuses-of-python-visible-vocabulary-in-one-crate` does **not**
 ride with them and stays with the H rows: it asks whether four
