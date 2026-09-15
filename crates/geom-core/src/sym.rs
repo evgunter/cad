@@ -2069,13 +2069,32 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
             Some(f)
         }
         // The decision door: an indeterminate of its three arguments'
-        // forms. No fold — which arm it reads is a question about the
-        // decision's VALUE, which the form does not hold, and a
+        // forms, EXCEPT where rule A0 can read the decision exactly.
+        // Which arm the door reads is a question about the decision's
+        // VALUE, and the form holds that value whenever it is a
+        // CONSTANT: the comparison is `d <= 0` on an exact rational, so
+        // the arm is determined and the atom is not needed. Without
+        // this fold every frame minted through
+        // [`Vec3::orthonormal_basis`](crate::Vec3::orthonormal_basis)
+        // is opaque to the tier even where its normal is an axis
+        // direction, and every identity over a face built on that frame
+        // freezes. A non-constant decision keeps the atom; a
         // both-candidates-equal fold would still have to prove the
-        // decision describable.
+        // decision describable, and does not happen here.
         SymOp::Select => {
             if a.tainted(b) || a.tainted(third) || b.tainted(third) {
                 return Some(Form::poison());
+            }
+            if a0
+                && let Some(n) = a.num.as_constant()
+                && let Some(d) = a.den.as_constant()
+                && let Some(inv) = d.recip()
+                && let Some(c) = n.mul(&inv)
+            {
+                let arm = if c.is_zero() || c.is_negative() { b } else { third };
+                let mut f = arm.clone();
+                f.gated = a.gated || arm.gated;
+                return Some(f);
             }
             let id = indet_atom(
                 node.op.tag(),
@@ -3413,6 +3432,44 @@ mod tests {
         assert!(out.1, "and it is numerically y here");
         assert_eq!(counts.symbolic_zero, 1);
         assert_eq!(counts.numeric, 1, "no arm is claimed symbolically");
+    }
+
+    /// **Rule A0 reads the decision door when its form is a CONSTANT.**
+    /// A select whose decision is a literal — every axis-aligned normal
+    /// puts one there, because the frame constructor's comparison is
+    /// exact arithmetic on the normal's own components — is decided,
+    /// and the arm it reads is a theorem rather than an unknown. The
+    /// tie goes to the `when_le` arm, the same way the value door's
+    /// does.
+    ///
+    /// Without this the frame of every axis-aligned face is an opaque
+    /// atom and every identity over a face built on that frame freezes.
+    #[test]
+    fn a_constant_decision_folds_to_the_arm_it_reads() {
+        let (out, counts) = with_session(budget(), || {
+            let x = p("w", 3.0);
+            let y = p("h", 0.25);
+            // −1 ≤ 0 reads `when_le`; +1 reads `when_gt`; the point tie
+            // reads `when_le`.
+            let neg = Sym::from_f64(-1.0).select_le_zero(x, y);
+            let pos = Sym::from_f64(1.0).select_le_zero(x, y);
+            let tie = Sym::from_f64(0.0).select_le_zero(x, y);
+            (
+                (neg.value, pos.value, tie.value),
+                (
+                    decides_zero(neg - x),
+                    decides_zero(pos - y),
+                    decides_zero(tie - x),
+                ),
+            )
+        });
+        assert_eq!(out.0, (3.0, 0.25, 3.0), "the value channel is f64's door");
+        assert!(out.1.0 && out.1.1 && out.1.2, "each arm is a theorem: {:?}", out.1);
+        assert_eq!(
+            counts.numeric, 0,
+            "a constant decision needs no numeric fallback"
+        );
+        assert_eq!(counts.symbolic_zero, 3);
     }
 
     /// **Rule B**: the Pythagorean pair of ONE argument form is the zero
