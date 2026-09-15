@@ -4550,3 +4550,104 @@ row says so at the point it says it.
   row rather than repaired silently.
 
 Signed (WIRE orchestrator).
+
+## 2026-09-15 — the persisted-vocabulary pair: a ruling from Ev, and two rows that were never WIRE's
+
+The `[ev]` PR I was about to open never went out, and that is the result
+rather than a shortcut. CLAUDE.md's rule — *check that Ev ever agreed,
+before you wait for Ev* — applied to the premise both rows share, and the
+premise did not survive it.
+
+### The premise that dissolved
+
+Both rows treat a `RoleSeg` change as *a document-format change with a
+migration story*, and I passed that on as the reason it was Ev's. Three
+ratified texts say otherwise:
+
+- **`crates/editor-core/src/persist/mod.rs`**, ratified at M4 PR 6:
+  *"No schema version, on purpose… Schema breaks are not at all a
+  problem, because this is not released yet: no document exists outside
+  this repository, and every checked-in document is a regenerable
+  artifact."* Versioning returns as Band-4 work the day a document ships.
+- **N1** (`names/README.md`, Ratified #74) ratifies the STRUCTURE —
+  closed enum grouped by op, role arguments are themselves names, no
+  floats, no arena keys — and lists variants illustratively with
+  ellipses, never enumerating the blend group at all.
+- **V3** (`sweep/README.md`, Ratified #992) keeps this vocabulary
+  *fillet-named on purpose*: the fence is against renaming it
+  BLEND-ward, not against growing it.
+
+No serialized document in the tree carries `BandSlit` either — every hit
+is Rust source. So there was no migration to cost and no clause to amend.
+
+### And then the ownership, which neither row's own prose mentions
+
+`work.py territory --files -` on the three files a fix touches:
+`crates/sweep/src/blend/naming.rs` is **BLEND's**,
+`crates/editor-core/src/names/role.rs` is **EDIT's**, and
+`crates/editor-core/src/names/emit_blend.rs` is claimed by **no program**.
+WIRE owns none of them.
+
+**DOCM's exit sweep sent both here on a glob.** Its re-home boilerplate
+reads *"the file it names is WIRE's (`names/emit*.rs`, `eval/wire.rs`,
+`product.rs` are in WIRE's paths)"* — but this program's `paths` is an
+explicit file list naming `emit.rs` and `emit_topo.rs`, and
+`emit_blend.rs` was never in it. A pattern was matched against a list
+that does not contain the thing the pattern matched. Worth naming as a
+sweep failure mode: a re-home is a claim about ownership, and this one
+was written once and applied to seven rows.
+
+`blend-slit` → BLEND (the kernel half is theirs, and V3 — the fence over
+this very vocabulary — lives in their ratified README).
+`cut-off-arc` → EDIT (the persisted recipe and the edit vocabulary is its
+charter). Both announced on the receiving programs' logs with the whole
+read attached, including, for `blend-slit`, the one design question left
+deliberately undetermined: whether the band's identity must come from
+`rec.slits` or can be derived from the `BandFace` row the emitter already
+mints. That decides one crate or two, and guessing it would have been
+worse than leaving it named.
+
+### The ruling, taken in chat because Ev was here
+
+`cut-off-arc` asked for a new `CutOffArc` variant or a ruling that the
+corner family is right. Ev ratified a third shape, **(b′)**: keep one
+role, repair what it CLAIMS.
+
+The argument that decided it is the vocabulary's own, at `RimSupport`:
+*"A pair of structural ROLES, not a geometric classification."*
+`TransverseCap` against `ThreeConvexEdges` is a geometric classification,
+so a separate variant would bake a classifier's verdict into a persisted
+identity and re-spell the name of an entity that is structurally
+unchanged — the arc where this band closes at this source vertex, either
+way.
+
+**A discriminator field was considered and rejected**, and the reason is
+worth keeping because it looked like the obvious move: it mirrors
+`BandTrim { edge, support: RimSupport }` and the `BandSlit` fix exactly.
+It is not the same shape. On `BandSlit` the discriminator is needed for
+UNIQUENESS — two bands genuinely collide. Here a source vertex is either
+a corner or a transverse cap and never both, so `(vertex, edge)` is
+already unique and the field would be derived data inside an identity,
+carrying the instability and buying nothing. **Two rows that look like
+one class are two classes**, and the tell was asking what the field does
+for uniqueness rather than what it says.
+
+I also had to weaken my own first answer mid-conversation: I leaned to a
+new variant until reading V3's `OpGroup::Fillet` precedent — a name kept
+*"whose name under-describes what it groups… the minting node tells the
+two apart"* — which is the same move one level up and argues the other
+way.
+
+### One thing split off rather than ridden along
+
+The rod-with-a-flat editor fixture. `editor-core/tests` has no ruled
+fixture and no `TransverseCap` anywhere, so those three roles have never
+been minted through the document layer — and that gap is what FILLET-H7's
+original decision to leave the vocabulary alone rested on. It is filed as
+its own EDIT row rather than as the price of the correction: the (b′)
+work is a rename and three comments and does not need it, and had the
+ruling gone the other way the test would have been dead on arrival. It is
+the only row that would have caught the mis-description, and the only one
+that would notice if the rename breaks an emitting arm.
+
+Signed (WIRE orchestrator).

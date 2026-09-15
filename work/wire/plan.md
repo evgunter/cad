@@ -73,14 +73,34 @@ orchestrator's call, said so at the row.
 | `member-space-look-through-…-fragmented-merges` | `look_through_merges` still bare-`Merged`-only | ruling |
 | `the-pair-verbs-declared-merge-is-asymmetric-…` | asserted in `docm7_union_declare.rs` | ruling |
 | `product-refuses-naming-…-two-roots` | `product.rs` tie-row `finish()` | ruling |
-| `blend-slit-name-collides-…-meridian` | `BandSlit(NameRef)`, still no discriminator | ruling |
-| `cut-off-arc-persists-as-a-corner-arc` | `emit_blend.rs` keys `CornerArc`; still no ruled fixture | ruling |
+| ~~`blend-slit-name-collides-…-meridian`~~ | `BandSlit(NameRef)`, still no discriminator | **left the slate — BLEND** |
+| ~~`cut-off-arc-persists-as-a-corner-arc`~~ | `emit_blend.rs` keys `CornerArc` | **ruled, then left the slate — EDIT** |
 
-**The two rulings that are one question.** `blend-slit` and
-`cut-off-arc` are both *may the persisted `RoleSeg` vocabulary grow, and
-what does the migration cost* — one asking for a discriminator that does
-not exist, one asking whether a role word describes the wrong entity.
-They go out as ONE `[ev]` PR.
+**The two `emit_blend` rows were never WIRE's, and both are gone.** They
+reached this program at DOCM's exit on the boilerplate *"the file it
+names is WIRE's (`names/emit*.rs` … are in WIRE's paths)"* — a **glob**,
+where this program's `paths` names `emit.rs` and `emit_topo.rs`
+explicitly and no `emit_blend.rs`. Measured with
+`work.py territory --files -`: `sweep/blend/naming.rs` is BLEND's,
+`role.rs` is EDIT's, `emit_blend.rs` is claimed by nobody. WIRE owned
+none of the three.
+
+Both were re-kinded back to `issue` first, because the shared premise
+that made them look like rulings — *a `RoleSeg` change is a
+document-format change with a migration story* — **is false**, and three
+ratified texts say so: `persist/mod.rs` (*"No schema version, on
+purpose… Schema breaks are not at all a problem, because this is not
+released yet"*), N1 in `names/README.md` (ratifies the structure, lists
+variants illustratively, never enumerates the blend group), and V3 in
+`sweep/README.md` (fences the vocabulary against being renamed
+BLEND-ward, not against growing).
+
+`cut-off-arc` was **ruled by Ev in chat (2026-09-15) before it moved**,
+as option (b′) — keep one role, repair what its doc claims, rename
+`CornerArc` to a structural word — so EDIT inherits an answered question
+rather than an open one. The rod-with-a-flat fixture was split off as
+its own EDIT row rather than being made the price of the correction.
+Narrative and the full argument: `log.md`, 2026-09-15.
 
 **What the read corrected, beyond the classification.** Three findings a
 taker would otherwise have inherited wrong:
