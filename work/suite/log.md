@@ -125,3 +125,137 @@ reviewer's premise.
 Residue filed on S-TINT: `orient-module-prose-accumulation.md` (824
 lines, six spellings of one argument across three files, a module
 header that routes items and nothing that routes prose).
+
+## D403 closed (2026-09-15, PR 2626)
+
+The two teapot walls lift into `teapot::wall_probes`, the suite drives
+them, and the CI row's promise is earned. Three things worth the log.
+
+**The class had two members and the unit closed both.** The lane's sweep
+found `torusvessel`'s wall 1 in the same shape and filed a row for it;
+that was the correct §6 reflex and the wrong call here, because a
+two-member class where one is fixed and one is filed is a half-fix, and
+because a row filed onto a slate that is being deleted this session is
+residue rather than schedule. It was folded back into the same PR. The
+general rule this program is working under: **file what you cannot close,
+close what you can, and check which one you are doing.**
+
+**The row's framing was wrong and the correction is the useful part.**
+D403 read as though the walls never executed. They did — `render.yml`
+and the k-lint gate's tour step both ran them. What was missing was a
+driver under the *command the CI row names*, which is what a reader of
+that row believes covers them. A coverage claim is about the command a
+reader will check, not about whether the code ever runs.
+
+**One defect, two programs, ten days.** `work/curved/teapot-walls-have-
+no-suite-row.md` is this row, found independently by CURVED's C5ARMS
+PR-2 dual on 2026-09-05 and filed two days after D403 was filed here.
+Neither lane grepped for an existing row before filing, which is exactly
+what `work/README.md` tells a lane to do. CURVED could have dispatched a
+lane to build what this unit built. Closed against this PR with its
+receipts, so CURVED sees who closed it without opening a PR.
+
+Two residues went to CURVED as their own files rather than dying with
+this directory: the `KERNEL-VERBS.md` teapot paragraph (three false
+claims, one of them a wrong mental model — the paragraph *reasons* from
+"a spout the way a LATHE would make one" to what the teapot still waits
+on, so substituting nouns would leave an argument standing on a premise
+the scene deleted) and `r2-union-wall-probe-only-prints`.
+
+**A ruling this program now carries, from `demos/tour`'s seat.**
+`demos/tour` and `demos/wild` are evidence about the public API from an
+outside consumer's seat, so they never reach into a crate's
+`test_support`. That is why the tour's copies in `S392`'s population are
+deliberately separate spellings and not unconverted duplication. Raised
+by the S52 lane, ratified here for the rest of the program.
+
+## D114 closed (2026-09-15, PR 2630)
+
+The Probe-vs-f64 differential exists, runs at three ε, and compares
+nine of ten `NodeValue` fields plus the certificate and the boolean
+payload's contacts. Three things this unit taught the program.
+
+**A finding's sentence is not evidence, even when the finding is
+right.** `S168` claimed no test in this tree compares `Probe` against
+f64; `crates/profile/tests/review_m2_pr2_probe.rs` already did, with
+the same anti-vacuity idiom, rostered and running under the default
+selection. The real gap was narrower — profile's canonical-form lane
+was checked, editor-core's evaluation lane was not — and the unit is
+worth exactly that much, which is still worth it. A row filed on
+GUARD's slate had already inherited the false sentence as its stated
+cause; it was corrected in the same PR. This is
+`memories/refusal-text-is-not-cause.md` one level up: the text of a
+finding is not the cause of the gap it names.
+
+The lane's own account of why its sweep missed it is the useful part:
+*"it was not a sweep"* — it grepped `bit-identical` in four files it had
+already chosen as claim sites, so the pattern never reached
+`crates/*/tests/`. And it had read `RUN_FLOOR` in full to site its own
+test, where `plain:profile:review_m2_pr2_probe:2` is a line — *"I read
+the roster as a list of slots, not of suites."*
+
+**An instrument's guards must count feeding, not presence.** The first
+version had three anti-vacuity guards and the review still made it pass
+vacuously: the mass-properties arm, the one arm ε reaches and whose
+subject is stored nowhere, had no counter, so disabling it for all 25
+documents left the row green. The fix — counters that increment only
+after the assertion runs and only for a non-empty record — is the shape
+any future instrument here should copy.
+
+**Vacuous coverage is disclosed, not tallied.** Two of the four fields
+added to the comparison (`contacts`, `carried`) are filled on the
+instantiate path alone, and the registry has no instantiate op, so those
+comparisons hold vacuously today. The unit says so at the claim site
+rather than reporting four-of-five fields now covered.
+
+Six rows filed outward: three to S-TINT, one each extending CIW's,
+GUARD's and INSTR's. The Track K fence held — nothing under
+`scripts/gates/` (GUARD's, not "GATES'" as this orchestrator's brief
+wrongly said), `tools/` or `docs/K-REPORT.md` was edited.
+
+## S52 and its passenger closed (2026-09-15, PR 2639)
+
+The shared home exists: a scalar-generic fixture family in
+`crates/sweep/src/test_support.rs`, reached across crates by an
+off-by-default feature on a dev edge. The passenger closed with it. Four
+things worth the log.
+
+**The two rows were M; the class behind them is H.** S52's open
+remainder was "a generic `cube` plus three crates' body builders". What
+the home actually had to serve is ~60 live copies of the box fixture
+across seven crates — `topo`'s 24 `fn brick` alone are the largest
+remaining population — and a reviewer's type-shaped sweep (753
+body-returning declarations) suggests that is still low. Five rows on
+S-TINT carry it. **A row's stated remainder is a sample, not a census**,
+and this program has now hit that on four rows of eight.
+
+**The unit committed the defect it was closing, in the sweep section
+that names it.** The first pass wrote that name-based greps miss copies
+that renamed — citing how a `Probe` cube stayed invisible to #668's
+count — and then deleted `verbs_shell::brick` while leaving
+`verbs_shell::boxy` twenty lines above it, shipping a `use` block that
+named both spellings. Nine `boxy` sites. The second pass greps the
+**construction** (`Extrusion::Distance`) in every touched file and reads
+every hit, which is what found `boxy` ×8, `die` ×2 and five raw
+`extrude` calls inside the home itself. Grep the construction, not the
+name.
+
+**A third cross-program collision, and the sharpest one.** `main` landed
+another lane's full re-derivation of the same `cavity.rs` row while this
+unit was in flight — the branch went dirty on it. That lane nominated
+`verbs_shell`'s six-scalar `brick` as "the obvious candidate home",
+which is the wrong home (the same box is spelled in six other crates)
+and is now deleted; and **its own declared blind spot — "a builder doing
+the same job under a third name" — is exactly `boxy`.** Two independent
+censuses of one class, on one day, both declaring the same blind spot
+and both defeated by it. Merged rather than overwritten, with the two
+sections reconciled and the row re-scoped.
+
+**A coupling accepted rather than reverted, and stated.** The
+`examples/` programs that regenerate the committed STEP corpus now build
+their bodies from the shared fixture. Reverting would restore the copy
+the unit removes; the coupling is not silent, because a per-PR byte-golden
+row runs over the same builders. What was missing was anyone saying so,
+so the home now carries an "Editing a fixture here re-authors committed
+bytes" section and the manifest comment stopped claiming an independence
+it did not have.

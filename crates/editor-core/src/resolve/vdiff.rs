@@ -92,7 +92,6 @@ use super::derivation_nodes;
 /// audit's persist-grade seam. Its key tag bytes are chosen at
 /// [`VerdictVector::key`], not derived from this enum's shape.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
 pub enum RunStatus {
     /// Evaluated to a value (has a verdict log).
     Ok,

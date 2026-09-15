@@ -848,7 +848,11 @@ struct CorpusVocabulary {
 /// the comparator kept in step by hand — in a file whose subject is a
 /// second list kept in step by hand — so it is written once, and the
 /// two call sites differ only in the sentence each direction earns.
-fn set_difference(
+///
+/// `pub(crate)` because the binary's other censuses owe the same two
+/// answers: `display_contract`'s F6 roster check is a third call site,
+/// not a third copy.
+pub(crate) fn set_difference(
     declared: &[&str],
     witnessed: &[&str],
     subject: &str,
