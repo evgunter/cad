@@ -8,6 +8,7 @@ use crate::common;
 use common::*;
 use geom_core::Tol;
 use mesh::{TessellateError, tessellate};
+use test_utils::f6::assert_f6_every_variant;
 
 #[test]
 fn zero_delta_is_refused() {
@@ -81,6 +82,73 @@ fn absurdly_fine_delta_overflows_typed() {
         other => panic!("expected ResolutionOverflow, got {:?}", other.map(|_| ())),
     }
 }
+
+/// `TessellateError`'s exhaustiveness token: the `match` has no
+/// wildcard arm, so a variant added to the enum — or renamed — leaves
+/// it non-exhaustive and this file stops compiling. It returns nothing
+/// on purpose; the identifiers come off each value's own `Debug`,
+/// never off a string typed beside a pattern.
+fn tessellate_error_is_exhaustive(e: &TessellateError) {
+    match e {
+        TessellateError::InvalidChordalTolerance { .. }
+        | TessellateError::UnsupportedSurface { .. }
+        | TessellateError::UnsupportedNurbsFace { .. }
+        | TessellateError::UnsupportedCurve { .. }
+        | TessellateError::NullScaffoldEdge { .. }
+        | TessellateError::RingOnCurvedFace { .. }
+        | TessellateError::EmptyLoop { .. }
+        | TessellateError::MissingEntity { .. }
+        | TessellateError::ResolutionOverflow { .. }
+        | TessellateError::CertificateExceeded { .. }
+        | TessellateError::Triangulation { .. }
+        | TessellateError::SelfTouchingTrimLoop { .. }
+        | TessellateError::UnsupportedCurvedDomain { .. }
+        | TessellateError::UnsupportedCurvedShape { .. }
+        | TessellateError::Band { .. } => (),
+    }
+}
+
+/// The identifier roster: a rendering that leaks one is a struct dump
+/// wearing a sentence's clothes. Welded to the cases by the set
+/// difference in [`assert_f6_every_variant`], whose one remaining hole
+/// is stated there.
+const TESSELLATE_ERROR_VARIANTS: &[&str] = &[
+    "InvalidChordalTolerance",
+    "UnsupportedSurface",
+    "UnsupportedNurbsFace",
+    "UnsupportedCurve",
+    "NullScaffoldEdge",
+    "RingOnCurvedFace",
+    "EmptyLoop",
+    "MissingEntity",
+    "ResolutionOverflow",
+    "CertificateExceeded",
+    "Triangulation",
+    "SelfTouchingTrimLoop",
+    "UnsupportedCurvedDomain",
+    "UnsupportedCurvedShape",
+    "Band",
+];
+
+/// Every `Debug` field name `TessellateError`'s payloads carry, as the
+/// punctuation a dump would print — the whole payload vocabulary, not
+/// the subset one row happens to construct, so an arm that starts
+/// printing `{self:?}` fails here whichever field it leaks.
+const TESSELLATE_ERROR_FIELDS: &[&str] = &[
+    "value:",
+    "face:",
+    "note:",
+    "edge:",
+    "what:",
+    "count:",
+    "bound:",
+    "requested:",
+    "off_bbox:",
+    "first_uv:",
+    "max_distance:",
+    "source:",
+    "error:",
+];
 
 /// The Display contract (#1111): a façade consumer renders a
 /// `TessellateError` through the tessellator's own words, so every arm
@@ -183,44 +251,13 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
             vec!["band", "tolerance"],
         ),
     ];
-    // The variant identifiers, spelled out: a rendering that leaks one
-    // is a struct dump wearing a sentence's clothes.
-    let dumps = [
-        "InvalidChordalTolerance",
-        "UnsupportedSurface",
-        "UnsupportedNurbsFace",
-        "UnsupportedCurve",
-        "NullScaffoldEdge",
-        "RingOnCurvedFace",
-        "EmptyLoop",
-        "MissingEntity",
-        "ResolutionOverflow",
-        "CertificateExceeded",
-        "Triangulation",
-        "SelfTouchingTrimLoop",
-        "UnsupportedCurvedDomain",
-        "UnsupportedCurvedShape",
-    ];
-    for (err, wants) in cases {
-        let shown = err.to_string();
-        for want in wants {
-            assert!(
-                shown.contains(want),
-                "{err:?} renders as {shown:?}, missing {want:?}"
-            );
-        }
-        for dump in dumps {
-            assert!(
-                !shown.contains(dump),
-                "{err:?} renders as {shown:?} — that is the variant name, i.e. a struct dump"
-            );
-        }
-        assert!(
-            !shown.contains('{') && !shown.contains("face:") && !shown.contains("note:"),
-            "{err:?} renders as {shown:?} — that is Debug punctuation, not a sentence"
-        );
-        assert_ne!(shown, format!("{err:?}"));
-    }
+    assert_f6_every_variant(
+        &cases,
+        tessellate_error_is_exhaustive,
+        TESSELLATE_ERROR_VARIANTS,
+        &[],
+        TESSELLATE_ERROR_FIELDS,
+    );
 }
 
 /// **The failure path's order is ARENA order, not the map's.**

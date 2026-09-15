@@ -23,8 +23,6 @@ use editor_core::{
 };
 use geom_core::BandError;
 
-use test_utils::f6::variant_identifier;
-
 /// The gate's refusal over ONE of this document's own mates: the arm
 /// carries every row the gather recorded, and a row read here is read
 /// through the door that raises it.
@@ -34,80 +32,35 @@ fn mint(refusal: MintRefusal) -> AssemblyError {
     }
 }
 
-/// [`test_utils::f6::assert_f6`] with this binary's field-punctuation
-/// roster: the `Debug` field names editor-core's refusal payloads
-/// carry. Written ONCE for the binary rather than once per suite —
-/// `m4_pr4_hit`'s hit-test row calls this one, and the divergence
-/// between its old roster and this one is what a second spelling cost
+/// The `Debug` field names editor-core's refusal payloads carry — the
+/// punctuation a rendering must not leak. Written ONCE for the binary
+/// rather than once per suite: `m4_pr4_hit`'s hit-test row goes
+/// through the same roster, and the divergence between its old one and
+/// this one is what a second spelling cost
 /// (`work/view/f6-display-predicate-is-spelled-three-times-with-no-home`).
+const FIELDS: &[&str] = &["node:", "name:"];
+
+/// [`test_utils::f6::assert_f6`] with this binary's field roster.
 pub(crate) fn assert_f6<E: core::fmt::Debug + core::fmt::Display>(
     err: &E,
     wants: &[&str],
     dumps: &[&str],
 ) {
-    test_utils::f6::assert_f6(err, wants, dumps, &["node:", "name:"]);
+    test_utils::f6::assert_f6(err, wants, dumps, FIELDS);
 }
 
-/// Runs the F6 shape over one error enum's whole case list, with the
-/// enum's own variant identifiers as the ban list, and reports any
-/// variant the cases do not reach.
-///
-/// **What each half actually guarantees.** `exhaustive` is a
-/// wildcard-free `match` over the enum and NOTHING else: it names no
-/// identifiers, so the only thing it can do is stop compiling. That is
-/// its whole job — a variant added to the enum, or renamed, leaves the
-/// `match` non-exhaustive and forces the author to open this file. It
-/// is not itself a census, because the compiler cannot tell whether the
-/// author then did the right thing. `all` is the identifier roster,
-/// written out; the set difference below is what welds it. Every
-/// identifier in `all` must be produced by some case's own `Debug`
-/// (`test_utils::f6::variant_identifier`) and every case's must be in
-/// `all`, so the roster cannot drift in either direction and a
-/// MISSPELLING in it fails — nothing here trusts a string typed beside
-/// a pattern, which rustc never checks.
-///
-/// **The one hole, stated.** An author who adds a variant, adds its arm
-/// to `exhaustive` — which the compiler makes them do — and then adds
-/// NEITHER a case NOR an `all` entry is not caught: nothing renders the
-/// variant, so nothing contradicts a roster that never grew. The
-/// compile error is what stands between that and an accident; closing
-/// it would need the variant list itself to be derivable, which safe
-/// Rust does not offer without a macro or a derive over a type this
-/// crate does not own.
-///
-/// `also_banned` carries identifiers from OTHER enums that a rendering
-/// must not leak either.
+/// [`test_utils::f6::assert_f6_every_variant`] with this binary's
+/// field roster. The weld itself — the exhaustiveness token's
+/// contract, the roster's, and the ONE HOLE both leave open — is
+/// documented there, where the mechanism is, rather than restated per
+/// adopting suite.
 pub(crate) fn assert_f6_every_variant<E: core::fmt::Debug + core::fmt::Display>(
     cases: &[(E, Vec<&str>)],
     exhaustive: fn(&E),
     all: &[&str],
     also_banned: &[&str],
 ) {
-    let dumps: Vec<&str> = all.iter().chain(also_banned).copied().collect();
-    for (err, wants) in cases {
-        exhaustive(err);
-        assert_f6(err, wants, &dumps);
-    }
-    let covered_words: Vec<String> = cases
-        .iter()
-        .map(|(err, _)| variant_identifier(err))
-        .collect();
-    let covered: Vec<&str> = covered_words.iter().map(String::as_str).collect();
-    // The one set comparison in this binary, borrowed rather than
-    // re-spelled: a second copy of the comparator kept in step by hand
-    // is the defect this file's subject IS.
-    if let Some(report) = crate::switch_program_vocabulary::set_difference(
-        all,
-        &covered,
-        &format!(
-            "`{}`'s identifier roster and its rendered cases disagree",
-            core::any::type_name::<E>()
-        ),
-        "rendered by a case and absent from the roster — add it, spelled as `Debug` renders it",
-        "in the roster and rendered by no case — give it a case, or fix its spelling",
-    ) {
-        panic!("{report}");
-    }
+    test_utils::f6::assert_f6_every_variant(cases, exhaustive, all, also_banned, FIELDS);
 }
 
 /// Every [`Dimension`]'s `Debug`, which is what a refusal that names a

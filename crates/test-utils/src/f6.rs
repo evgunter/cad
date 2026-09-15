@@ -23,6 +23,13 @@
 //! wearing a derivation's clothes, so the roster stays the caller's and
 //! stays small.
 
+// The weld REPORTS a drifted roster by panicking, deliberately: this is
+// an assertion helper, and a set difference that returned an error for a
+// caller to ignore would be the failure it exists to prevent. The
+// workspace's no-panic rule is about production code, and no production
+// manifest names this crate (see the crate docs).
+#![allow(clippy::panic)]
+
 use core::fmt::{Debug, Display};
 
 /// The variant identifier of a value, read off its own derived
@@ -90,9 +97,83 @@ pub fn assert_f6<E: Debug + Display>(err: &E, wants: &[&str], dumps: &[&str], fi
     assert_ne!(shown, format!("{err:?}"));
 }
 
+/// Runs the F6 shape over one error enum's whole case list, with the
+/// enum's own variant identifiers as the ban list, and reports any
+/// variant the cases do not reach.
+///
+/// **This is the weld's one home.** A suite that spells the pair out
+/// again — an exhaustiveness `match` beside a roster beside a set
+/// comparison — is a second copy of the mechanism kept in step by
+/// hand, which is the defect the mechanism exists to catch.
+///
+/// **What each half actually guarantees.** `exhaustive` is a
+/// wildcard-free `match` over the enum and NOTHING else: it names no
+/// identifiers, so the only thing it can do is stop compiling. That is
+/// its whole job — a variant added to the enum, or renamed, leaves the
+/// `match` non-exhaustive and forces the author to open the suite. It
+/// is not itself a census, because the compiler cannot tell whether the
+/// author then did the right thing. `all` is the identifier roster,
+/// written out; the set difference below is what welds it. Every
+/// identifier in `all` must be produced by some case's own `Debug`
+/// ([`variant_identifier`]) and every case's must be in `all`, so the
+/// roster cannot drift in either direction and a MISSPELLING in it
+/// fails — nothing here trusts a string typed beside a pattern, which
+/// rustc never checks.
+///
+/// **The one hole, stated.** An author who adds a variant, adds its arm
+/// to `exhaustive` — which the compiler makes them do — and then adds
+/// NEITHER a case NOR an `all` entry is not caught: nothing renders the
+/// variant, so nothing contradicts a roster that never grew. The
+/// compile error is what stands between that and an accident; closing
+/// it would need the variant list itself to be derivable, which safe
+/// Rust does not offer without a macro or a derive over a type the
+/// asserting crate does not own. **A site that adopts this points
+/// here rather than restating it**, so the hole has one description
+/// that cannot drift from the mechanism.
+///
+/// `also_banned` carries identifiers from OTHER enums that a rendering
+/// must not leak either; `fields` is this enum's field punctuation, as
+/// for [`assert_f6`].
+///
+/// # Panics
+///
+/// On any F6 violation in any case, and on a roster that disagrees with
+/// the cases in either direction.
+pub fn assert_f6_every_variant<E: Debug + Display>(
+    cases: &[(E, Vec<&str>)],
+    exhaustive: fn(&E),
+    all: &[&str],
+    also_banned: &[&str],
+    fields: &[&str],
+) {
+    let dumps: Vec<&str> = all.iter().chain(also_banned).copied().collect();
+    for (err, wants) in cases {
+        exhaustive(err);
+        assert_f6(err, wants, &dumps, fields);
+    }
+    let covered_words: Vec<String> = cases
+        .iter()
+        .map(|(err, _)| variant_identifier(err))
+        .collect();
+    let covered: Vec<&str> = covered_words.iter().map(String::as_str).collect();
+    if let Some(report) = crate::census::set_difference(
+        all,
+        &covered,
+        &format!(
+            "`{}`'s identifier roster and its rendered cases disagree",
+            core::any::type_name::<E>()
+        ),
+        "rendered by a case and absent from the roster — add it, spelled as `Debug` renders it",
+        "in the roster and rendered by no case — give it a case, or fix its spelling",
+    ) {
+        panic!("{report}");
+    }
+}
+
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
-    use super::{assert_f6, variant_identifier};
+    use super::{assert_f6, assert_f6_every_variant, variant_identifier};
 
     #[derive(Debug)]
     enum Shape {
@@ -160,5 +241,70 @@ mod tests {
             );
         });
         assert!(leaks_a_field.is_err(), "field punctuation is a dump");
+    }
+
+    /// `Shape`'s exhaustiveness token: no wildcard arm, no strings.
+    fn shape_is_exhaustive(s: &Shape) {
+        match s {
+            Shape::Unit | Shape::Tuple(..) | Shape::Struct { .. } => (),
+        }
+    }
+
+    fn shape_cases() -> Vec<(Shape, Vec<&'static str>)> {
+        vec![
+            (Shape::Unit, vec!["nothing was passed"]),
+            (Shape::Tuple(4), vec!["node 4"]),
+            (
+                Shape::Struct {
+                    node: 4,
+                    name: "face",
+                },
+                vec!["no face"],
+            ),
+        ]
+    }
+
+    /// The weld reds in BOTH directions and green only when the roster
+    /// and the rendered cases are the same set — which is the half the
+    /// exhaustiveness token cannot check, because rustc never reads a
+    /// string typed beside a pattern.
+    #[test]
+    fn the_roster_is_welded_to_the_cases_in_both_directions() {
+        let all = ["Unit", "Tuple", "Struct"];
+        let fields = ["node:", "name:"];
+        assert_f6_every_variant(&shape_cases(), shape_is_exhaustive, &all, &[], &fields);
+
+        let short = std::panic::catch_unwind(|| {
+            assert_f6_every_variant(
+                &shape_cases(),
+                shape_is_exhaustive,
+                &["Unit", "Tuple"],
+                &[],
+                &fields,
+            );
+        })
+        .expect_err("a case rendered by no roster entry is a drifted roster");
+        let said = short
+            .downcast_ref::<String>()
+            .expect("the report is a String");
+        assert!(said.contains("\"Struct\""), "the report names it: {said}");
+
+        let misspelt = std::panic::catch_unwind(|| {
+            assert_f6_every_variant(
+                &shape_cases(),
+                shape_is_exhaustive,
+                &["Unit", "Tuple", "Strukt"],
+                &[],
+                &fields,
+            );
+        })
+        .expect_err("a misspelt roster entry is witnessed by no case");
+        let said = misspelt
+            .downcast_ref::<String>()
+            .expect("the report is a String");
+        assert!(
+            said.contains("\"Strukt\"") && said.contains("\"Struct\""),
+            "both directions are named: {said}"
+        );
     }
 }
