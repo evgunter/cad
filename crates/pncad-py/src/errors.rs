@@ -437,6 +437,49 @@ impl ErrorClass {
     }
 }
 
+/// **The complete vocabulary of `EvaluationError.reason`** — the word
+/// a Python caller branches on when a node produced no value.
+///
+/// A discriminant, not prose: the word itself is
+/// [`crate::tags::eval_reason_tag`]'s to mint, and that map is
+/// exhaustive over this enum, so a reason added here has no tag until
+/// someone writes one into `src/tags.rs` — where
+/// `tests::the_whole_tag_table_matches_its_committed_inventory` reads
+/// it and reds against the committed inventory. **That chain is what
+/// keeps the evaluation door's vocabulary censusable.** The door used
+/// to take its reason as a `&str` and every site spelled a literal, so
+/// a new Python-visible word could arrive at a call site under
+/// `src/py/`, which no inventory reads; a typed reason makes the
+/// literal not compile.
+///
+/// It lives here rather than in `crate::tags` because that module is
+/// READ as data by the guard above, whose recogniser admits `use`
+/// items, tag functions and `pub const` tag words and refuses
+/// everything else — the standing arrangement for a discriminant whose
+/// enum is not the kernel's (`crate::node_kind` is the other).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EvalReason {
+    /// The document holds no node under that id.
+    UnknownNode,
+    /// The node evaluated to a value of a kind this door cannot read.
+    WrongKind,
+    /// A Boolean that succeeded and produced nothing to hand back.
+    EmptyBoolean,
+    /// The run was canceled before it reached the node, so this
+    /// evaluation holds the completed prefix only. The same rung the
+    /// read-back and picking doors speak
+    /// ([`crate::tags::hit_test_error_tag`],
+    /// [`crate::tags::interrogate_error_tag`]), spelled identically on
+    /// purpose and pinned against both by
+    /// `tests::the_evaluation_door_speaks_the_standing_ladder`.
+    NodeNotEvaluated,
+    /// The node ITSELF failed; `kind` carries the refusal's own tag.
+    NodeFailed,
+    /// An ancestor failed, so the node never ran; `through` names the
+    /// nearest failed one.
+    Poisoned,
+}
+
 /// Whether a refusal message reads as prose rather than a `Debug`
 /// rendering of a kernel value.
 ///

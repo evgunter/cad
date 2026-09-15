@@ -1031,25 +1031,21 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
 /// pick, one door further out.
 #[test]
 fn the_evaluation_door_speaks_the_standing_ladder() {
-    use crate::tags::{NODE_NOT_EVALUATED, hit_test_error_tag, interrogate_error_tag};
+    use crate::errors::EvalReason;
+    use crate::tags::{eval_reason_tag, hit_test_error_tag, interrogate_error_tag};
     use pncad::document::RecipeNodeId;
     use pncad::select::{HitTestError as H, InterrogateError as I};
 
     let node = RecipeNodeId(0);
-    assert_eq!(
-        NODE_NOT_EVALUATED,
-        hit_test_error_tag(&H::NodeNotEvaluated { node })
-    );
-    assert_eq!(
-        NODE_NOT_EVALUATED,
-        interrogate_error_tag(&I::NodeNotEvaluated { node })
-    );
+    let rung = eval_reason_tag(EvalReason::NodeNotEvaluated);
+    assert_eq!(rung, hit_test_error_tag(&H::NodeNotEvaluated { node }));
+    assert_eq!(rung, interrogate_error_tag(&I::NodeNotEvaluated { node }));
 
     // And it is NOT the other no-entry fact. "The document has no such
     // node" and "this run never reached it" are two states the door
     // kept collapsed while only one of them could arise, and the whole
     // of what B-CANCEL changed at this door is that both now can.
-    assert_ne!(NODE_NOT_EVALUATED, "unknown_node");
+    assert_ne!(rung, eval_reason_tag(EvalReason::UnknownNode));
 }
 
 /// LIB-B-RESOLVE: the three resolution states, pinned word by word —
@@ -3860,6 +3856,18 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "eval_reason_tag",
+        values: &[
+            "empty_boolean",
+            "node_failed",
+            "node_not_evaluated",
+            "poisoned",
+            "unknown_node",
+            "wrong_kind",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "export_error_tag",
         values: &[
             "empty_boolean",
@@ -4845,12 +4853,20 @@ const TAG_INVENTORY: &[TagEntry] = &[
 /// The committed inventory of `src/tags.rs`'s `pub const` tag words —
 /// the tags that are not behind a `match` at all.
 ///
-/// One entry today. It exists because the evaluation door has no
-/// kernel arm to match on and spelled the standing ladder's first rung
-/// by hand; `the_evaluation_door_speaks_the_standing_ladder` pins the
-/// COPY against the two doors that do match, and this row pins the
-/// word itself, so the three cannot drift together in silence.
-const TAG_CONSTS: &[(&str, &str)] = &[("NODE_NOT_EVALUATED", "node_not_evaluated")];
+/// **Empty, and that is a fact about the file rather than a gap in the
+/// pin.** Every tag in `src/tags.rs` is behind an exhaustive `match`
+/// today, which is the arrangement that makes a new one stop the
+/// build. The row that used to sit here was the evaluation door's
+/// standing-ladder rung, spelled by hand because that door had no enum
+/// to match on; it has one now ([`crate::errors::EvalReason`]) and the
+/// word comes from [`crate::tags::eval_reason_tag`] with the rest of
+/// that door's vocabulary.
+///
+/// The half of the guard that reads the `pub const` form still runs —
+/// against a fixture, in
+/// [`the_tag_table_reader_recognises_every_form_it_claims`] — so a
+/// `pub const` added to `src/tags.rs` still reds here as a NEW word.
+const TAG_CONSTS: &[(&str, &str)] = &[];
 
 /// Everything [`read_tag_table`] recognised in `src/tags.rs`.
 struct TagTable {
@@ -5132,6 +5148,85 @@ impl<'a> Cursor<'a> {
     }
 }
 
+/// **The tag-table reader's own guard.**
+///
+/// [`read_tag_table`] is a source-text reader, and a reader that stops
+/// recognising a form does not fail — it reports agreement over the
+/// set it can still see. Every other check on this page exercises it
+/// against `src/tags.rs`, which covers only the forms that file
+/// happens to hold: it declares no `pub const` tag word at all, and no
+/// `Option<&'static str>` map with a bare `None` arm sits where an
+/// eye would notice it going unread.
+///
+/// So this drives the reader over a source written to hold ONE of
+/// every top-level form and arm shape its header claims, and pins what
+/// each contributes. A branch that stops matching reds here by name
+/// rather than going quiet.
+#[test]
+fn the_tag_table_reader_recognises_every_form_it_claims() {
+    // Not `src/tags.rs`: the subject is the reader, and a fixture it
+    // cannot drift away from is the only way to assert a form the real
+    // file does not currently spell.
+    let source = r#"//! A module header.
+
+// A line comment, and a blank line above it.
+use crate::errors::EvalReason;
+use pncad::document::{
+    EvalError,
+};
+
+/// A doc comment carrying a "quoted" word the reader must not read.
+pub fn first_tag(reason: EvalReason) -> &'static str {
+    match reason {
+        EvalReason::UnknownNode => "unknown_node",
+        EvalReason::WrongKind => { second_tag(reason) }
+        EvalReason::EmptyBoolean => match reason {
+            EvalReason::Poisoned => "poisoned",
+            _ => "empty_boolean",
+        },
+    }
+}
+
+pub fn second_tag(reason: EvalReason) -> &'static str {
+    match reason {
+        _ => "second",
+    }
+}
+
+pub fn maybe_tag(reason: EvalReason) -> Option<&'static str> {
+    match reason {
+        EvalReason::Poisoned => None,
+        _ => Some("maybe"),
+    }
+}
+
+pub const SAMPLE_WORD: &str = "sample_word";
+"#;
+    let table = read_tag_table(source);
+
+    let names: Vec<&str> = table.functions.keys().map(String::as_str).collect();
+    assert_eq!(names, ["first_tag", "maybe_tag", "second_tag"]);
+
+    let (values, delegates) = &table.functions["first_tag"];
+    // Sorted, so the literal, the nested `match`'s two words and the
+    // blocked delegation all land where the inventory compares them —
+    // and the doc comment's quoted word does NOT.
+    assert_eq!(values, &["empty_boolean", "poisoned", "unknown_node"]);
+    assert_eq!(delegates, &["second_tag"]);
+
+    // `None` contributes nothing; `Some` is the wrapper, not a
+    // delegation, so what it wraps is what reaches the inventory.
+    let (values, delegates) = &table.functions["maybe_tag"];
+    assert_eq!(values, &["maybe"]);
+    assert!(delegates.is_empty());
+
+    // The form `src/tags.rs` no longer supplies an instance of.
+    assert_eq!(
+        table.constants,
+        BTreeMap::from([("SAMPLE_WORD".to_owned(), "sample_word".to_owned())])
+    );
+}
+
 /// One tag function's body, read into (values, delegates).
 fn parse_tag_body(
     name: &str,
@@ -5394,15 +5489,27 @@ fn read_tag_table(source: &str) -> TagTable {
 /// `select_refusal_tags_are_stable`), so nothing on this page pins
 /// them. `work/lib/` carries that as its own row.
 ///
-/// **A second family is outside it too**: the `reason` words minted as
-/// bare literals in `py/value.rs` rather than as a tag function here —
-/// `"wrong_kind"` (five sites), `"empty_boolean"`, `"unknown_node"`,
-/// `"poisoned"`, `"node_failed"` and `"mass_properties_failed"` — which
-/// cross as an exception's `reason` attribute and so are as
-/// Python-visible as anything in `tags.rs`. `pncad.pyi` documents the
-/// first three and `node_failed`/`poisoned`; `"mass_properties_failed"`
-/// is pinned nowhere in the tree. This inventory reads `src/tags.rs`
-/// and nothing else, so none of them is covered by it.
+/// **The `reason` words are a second family, and the EVALUATION
+/// door's half is now inside.** A `reason` attribute is as
+/// Python-visible as a `variant`, and `py/value.rs` used to mint its
+/// words as bare literals — ten sites — where an inventory that reads
+/// `src/tags.rs` alone could not see them. The evaluation door's six
+/// (`wrong_kind`, `empty_boolean`, `unknown_node`,
+/// `node_not_evaluated`, `node_failed`, `poisoned`) now come from
+/// [`crate::tags::eval_reason_tag`] over
+/// [`crate::errors::EvalReason`], so they are pinned above and a
+/// seventh cannot be minted at a call site: the door takes the enum,
+/// not a `&str`.
+///
+/// **What is still outside**, each a literal `reason` or `variant` at
+/// a construction site under `src/py/`, in a door that has no such
+/// enum: `"mass_properties_failed"` (`py/value.rs`'s `measurement_err`
+/// — a `ValidationError`, not this door), `"unclassified"`
+/// (`py/flush.rs`'s unknown-`ContactClass` refusal) and `"wireframe"`
+/// (`py/value.rs`'s STEP-import success arm that this door does not
+/// adopt). Each is covered only by accident — `pncad.pyi` or a Python
+/// test names it — and nothing reds if one is renamed or a fourth is
+/// added. `work/census/` carries that as its own row.
 #[test]
 fn the_whole_tag_table_matches_its_committed_inventory() {
     // `crate_dir`, not the baked path alone: a nextest ARCHIVE replayed
@@ -5434,11 +5541,12 @@ fn the_whole_tag_table_matches_its_committed_inventory() {
          it is matching almost nothing, so this guard was about to pass \
          vacuously"
     );
-    assert!(
-        !table.constants.is_empty(),
-        "the reader found no `pub const` tag word, and there is at least \
-         one (`NODE_NOT_EVALUATED`)"
-    );
+    // No floor on `constants`: `src/tags.rs` declares no `pub const`
+    // tag word today, so a floor here would assert a shape the file
+    // does not have. The branch that reads that form is exercised by
+    // `the_tag_table_reader_recognises_every_form_it_claims` instead,
+    // which is where an unexercised reader branch belongs once the
+    // file stops supplying an instance of it.
 
     let mut pinned: BTreeMap<&str, &TagEntry> = BTreeMap::new();
     for entry in TAG_INVENTORY {

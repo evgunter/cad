@@ -33,12 +33,12 @@ use std::sync::Arc;
 use pyo3::prelude::*;
 use pyo3::types::{PyFloat, PyString};
 
-use crate::errors::ErrorClass;
+use crate::errors::{ErrorClass, EvalReason};
 use crate::py::quantity::Length;
 use crate::py::{doc::NodeId, typed_err};
 use crate::tags::{
-    NODE_NOT_EVALUATED, export_error_tag, node_error_tag, node_inner_kind_tag,
-    normalization_kind_tag, promoted_curve_kind_tag, promoted_kind_tag, step_import_error_tag,
+    eval_reason_tag, export_error_tag, node_error_tag, node_inner_kind_tag, normalization_kind_tag,
+    promoted_curve_kind_tag, promoted_kind_tag, step_import_error_tag,
 };
 use crate::validation;
 use pncad::document as d;
@@ -63,7 +63,7 @@ fn inner_kind(py: Python<'_>, kind: &d::NodeErrorKind) -> Py<PyAny> {
 /// payload — so stub-guided code can read them without an
 /// `AttributeError` trap — a stub that over-promises is worse than one
 /// that says `None`.
-fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: NodeId) -> PyErr {
+fn eval_err(py: Python<'_>, message: impl Into<String>, reason: EvalReason, node: NodeId) -> PyErr {
     let node = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
         // A `#[pyclass]` conversion fails as a `PyErr` already —
@@ -75,7 +75,12 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: Node
         ErrorClass::Evaluation,
         message,
         &[
-            ("reason", PyString::new(py, reason).unbind().into_any()),
+            (
+                "reason",
+                PyString::new(py, eval_reason_tag(reason))
+                    .unbind()
+                    .into_any(),
+            ),
             ("node", node),
             ("kind", py.None().into_any()),
             ("inner_kind", py.None().into_any()),
@@ -119,7 +124,9 @@ fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
         &[
             (
                 "reason",
-                PyString::new(py, "node_failed").unbind().into_any(),
+                PyString::new(py, eval_reason_tag(EvalReason::NodeFailed))
+                    .unbind()
+                    .into_any(),
             ),
             ("node", node_obj),
             (
@@ -146,7 +153,12 @@ fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::Nod
         (Err(failed), _) | (_, Err(failed)) => return failed,
     };
     let mut fields: Vec<(&str, Py<PyAny>)> = vec![
-        ("reason", PyString::new(py, "poisoned").unbind().into_any()),
+        (
+            "reason",
+            PyString::new(py, eval_reason_tag(EvalReason::Poisoned))
+                .unbind()
+                .into_any(),
+        ),
         ("node", node_obj),
         ("through", through_obj),
         ("finding", py.None().into_any()),
@@ -878,13 +890,13 @@ impl Value {
             d::ValuePayload::Boolean(d::BooleanValue::Empty) => Err(eval_err(
                 py,
                 "the Boolean produced an empty result",
-                "empty_boolean",
+                EvalReason::EmptyBoolean,
                 self.node,
             )),
             other => Err(eval_err(
                 py,
                 format!("a `{}` value is not a body", other.kind_name()),
-                "wrong_kind",
+                EvalReason::WrongKind,
                 self.node,
             )),
         }
@@ -920,7 +932,7 @@ impl Value {
             other => Err(eval_err(
                 py,
                 format!("a `{}` value is not a split", other.kind_name()),
-                "wrong_kind",
+                EvalReason::WrongKind,
                 self.node,
             )),
         }
@@ -995,7 +1007,7 @@ impl Value {
             other => Err(eval_err(
                 py,
                 format!("a `{}` value is not a datum", other.kind_name()),
-                "wrong_kind",
+                EvalReason::WrongKind,
                 self.node,
             )),
         }
@@ -1034,7 +1046,7 @@ impl Value {
             other => Err(eval_err(
                 py,
                 format!("a `{}` value is not a measure", other.kind_name()),
-                "wrong_kind",
+                EvalReason::WrongKind,
                 self.node,
             )),
         }
@@ -1047,7 +1059,7 @@ impl Value {
             return Err(eval_err(
                 py,
                 format!("a `{}` value is not an assertion", self.payload.kind_name()),
-                "wrong_kind",
+                EvalReason::WrongKind,
                 self.node,
             ));
         };
@@ -1165,13 +1177,13 @@ impl Evaluation {
                 py,
                 "this evaluation never reached the node: it was canceled first, \
                  and holds the completed prefix only",
-                NODE_NOT_EVALUATED,
+                EvalReason::NodeNotEvaluated,
                 *node,
             )),
             None => Err(eval_err(
                 py,
                 "no such node in the evaluated document",
-                "unknown_node",
+                EvalReason::UnknownNode,
                 *node,
             )),
         }

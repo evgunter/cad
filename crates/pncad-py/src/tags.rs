@@ -57,6 +57,7 @@
 //! attribute, a helper, or a cleverer arm added here is a deliberate
 //! diff that teaches the reader too, never a silent hole.
 
+use crate::errors::EvalReason;
 use pncad::analysis::{
     AnalysisPolicyError, McRefusal, MeasureUnavailable, ParamBoxError, SeedError,
 };
@@ -2007,25 +2008,41 @@ pub fn interrogate_error_tag(err: &InterrogateError) -> &'static str {
     }
 }
 
-/// **The standing ladder's "this run has no result for that node"
-/// word, as a NAME rather than a repeated literal.**
+/// **The stable tag for every `EvaluationError.reason`** — the whole
+/// vocabulary of the evaluation door, in one exhaustive map.
 ///
-/// The read-back and picking doors reach this spelling through a
-/// `match` on a kernel arm ([`interrogate_error_tag`],
-/// [`hit_test_error_tag`]), so a rename there is loud. The EVALUATION
-/// door has no kernel arm to match on — `Evaluation::result` answers
-/// `None` for a node a canceled run never reached, and the reason tag
-/// beside it is this crate's own decision — so it spelled the word by
-/// hand, and a hand-spelled copy of a shared vocabulary is exactly
-/// the divergence `tests::dimension_tags_match_the_kernel_prose`
-/// exists for one file over.
+/// The evaluation door has no kernel enum to match on: every other
+/// map here keys off a refusal the kernel minted, and this one keys
+/// off [`EvalReason`], which is this crate's own decision about what
+/// "the node produced no value" can mean. The enum is therefore
+/// declared beside the error taxonomy in `crate::errors` — the guard
+/// that reads this file as data admits `use` items and tag functions
+/// and nothing else — and this map is what turns it into a word.
 ///
-/// Naming it here makes the copy a reference, and
-/// `tests::the_evaluation_door_speaks_the_standing_ladder` pins it
-/// against the two doors that DO match, in both directions. (Both
-/// named as text rather than as intra-doc links: `tests` is
-/// `#[cfg(test)]`, so a link to either would not render.)
-pub const NODE_NOT_EVALUATED: &str = "node_not_evaluated";
+/// **Keying the door off a type is what makes its vocabulary
+/// censusable.** `py::value::eval_err` used to take the reason as a
+/// `&str`, so each site spelled a literal and a new Python-visible
+/// word could be minted under `src/py/`, which no inventory reads.
+/// Now the word can only come from here, where
+/// `tests::the_whole_tag_table_matches_its_committed_inventory` reds
+/// on a new one and on a rename.
+///
+/// [`EvalReason::NodeNotEvaluated`] is the standing ladder's first
+/// rung, spelled identically to the read-back and picking doors'
+/// ([`interrogate_error_tag`], [`hit_test_error_tag`]) and pinned
+/// against both by `tests::the_evaluation_door_speaks_the_standing_ladder`,
+/// in both directions. (Named as text rather than as an intra-doc
+/// link: `tests` is `#[cfg(test)]`, so a link would not render.)
+pub fn eval_reason_tag(reason: EvalReason) -> &'static str {
+    match reason {
+        EvalReason::UnknownNode => "unknown_node",
+        EvalReason::WrongKind => "wrong_kind",
+        EvalReason::EmptyBoolean => "empty_boolean",
+        EvalReason::NodeNotEvaluated => "node_not_evaluated",
+        EvalReason::NodeFailed => "node_failed",
+        EvalReason::Poisoned => "poisoned",
+    }
+}
 
 /// The stable tag for a hit-test refusal — the ray door's own.
 ///
