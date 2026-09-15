@@ -295,6 +295,19 @@ APPROVE WITH FIXES, no MAJOR — no tally candidate. What landed: the
 item's §Closed. The spec is deleted per the ledger. Handed on: the
 `blend/arms.rs` `±1` field (second unit), the frame doors (third).
 
+## RATE-PAIR merged; block SCALAR-B2 closes (2026-09-15)
+
+PR 2657, block SCALAR-B2 slot 2, ordinal 4105. The fix pass took all
+twelve items and demonstrated M1 by execution (the frozen head's
+`chart_stretch_sup` answered `SupSpeed(1)` for a cone whose true sup at
+`v = 4` is `2`; the door now refuses and a `v`-arm door mints the exact
+1), so R1's finding **counts** for the OPUS arm under the instrument.
+What landed: the item's §Closed. The spec is deleted per the ledger.
+With its reviews concluded the block's last slot is done: the
+branch-side block record (pre-draw fields, draw, three rows) merges to
+main. Handed on: the angular arms (TRIM), the second D283 unit
+(`exhaustiveness-receipt-carries-its-lane`).
+
 ## RATE-PAIR dual concluded; a tally candidate (2026-09-15)
 
 `rate-pair-in-geom-core` (PR 2657, block SCALAR-B2 slot 2, ordinal

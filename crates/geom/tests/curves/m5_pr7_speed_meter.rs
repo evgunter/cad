@@ -52,7 +52,7 @@ fn the_meter_lower_bounds_the_real_speed() {
         })
         .collect();
     let c = NurbsCurve3::<f64>::interpolate(&pts, 3).unwrap();
-    let m = c.speed_lower_bound();
+    let m = c.speed_lower_bound().get();
     assert!(
         m > 0.0,
         "a monotone carrier must have a positive meter: {m}"
@@ -145,7 +145,7 @@ fn a_carrier_that_doubles_back_now_meters_its_speed() {
         })
         .collect();
     let c = NurbsCurve3::<f64>::interpolate(&pts, 3).unwrap();
-    let m = c.speed_lower_bound();
+    let m = c.speed_lower_bound().get();
     assert!(
         m > 0.0,
         "a closed loop's speed never drops, so the per-span meter must be \
@@ -166,7 +166,7 @@ fn a_carrier_that_doubles_back_now_meters_its_speed() {
 /// speed). Returns `bound / true_min` — how much the conservative
 /// assembly gives away.
 fn assert_real_and_sound(name: &str, c: &NurbsCurve3<f64>) -> f64 {
-    let m = c.speed_lower_bound();
+    let m = c.speed_lower_bound().get();
     assert!(m > 0.0, "{name}: the rational meter must be real, got {m}");
     let mut lo = f64::INFINITY;
     for i in 0..=4000 {
@@ -368,7 +368,7 @@ fn a_rational_carrier_whose_speed_collapses_still_refuses() {
              minimum speed is {lo} — re-derive the fixture or move it to the \
              conservatism row"
         );
-        let m = c.speed_lower_bound();
+        let m = c.speed_lower_bound().get();
         assert!(
             !(m > 0.0),
             "{name}: a carrier that stops has no positive speed bound, got {m}"
@@ -415,7 +415,7 @@ fn the_conservative_frontier_is_stated_not_hidden() {
             1e-3,
         ),
     ] {
-        let m = c.speed_lower_bound();
+        let m = c.speed_lower_bound().get();
         assert!(
             !(m > 0.0),
             "the stated frontier moved — {name} now meters at {m}. Good news, but \
@@ -470,7 +470,7 @@ fn the_interval_meter_brackets_the_f64_meter() {
         weights.clone(),
     )
     .unwrap();
-    let mf = cf.speed_lower_bound();
+    let mf = cf.speed_lower_bound().get();
     assert!(mf > 0.0, "the spot carrier meters positively: {mf}");
 
     let pt = |x: f64, y: f64, z: f64| {
@@ -486,7 +486,7 @@ fn the_interval_meter_brackets_the_f64_meter() {
         weights,
     )
     .unwrap();
-    let mi = ci.speed_lower_bound();
+    let mi = ci.speed_lower_bound().get();
     assert!(
         mi.lo() <= mf && mf <= mi.hi(),
         "the interval meter [{}, {}] does not bracket the f64 meter {mf}",
