@@ -104,6 +104,7 @@ fn n2r2_class3_interval() {
     ];
     for (name, s) in &cases {
         let (su, sv) = geom_brep::chart_stretch_sup(s);
+        let (su, sv) = (su.get(), sv.get());
         let inf = geom_brep::chart_stretch_inf(s);
         eprintln!(
             "[class 3 Interval {name}] sup_u={} sup_v={} | inf_u={} inf_v={} area_inf={}",

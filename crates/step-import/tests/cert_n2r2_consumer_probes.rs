@@ -154,8 +154,8 @@ fn n2r2_class3_chart_stretch_sup_inf_interval() {
     };
     eprintln!(
         "[class 3 Interval x-poison] sup_u={} sup_v={}",
-        show(sup.0),
-        show(sup.1)
+        show(sup.0.get()),
+        show(sup.1.get())
     );
     eprintln!(
         "[class 3 Interval x-poison] inf_u={} inf_v={} sup_u={} sup_v={} area_inf={}",
@@ -170,8 +170,8 @@ fn n2r2_class3_chart_stretch_sup_inf_interval() {
     let sp = geom_brep::chart_stretch_sup(&ph);
     eprintln!(
         "[class 3 Interval placeholder] sup_u={} sup_v={}",
-        show(sp.0),
-        show(sp.1)
+        show(sp.0.get()),
+        show(sp.1.get())
     );
 }
 
