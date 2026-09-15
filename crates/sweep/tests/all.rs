@@ -336,6 +336,8 @@ mod review_s11_adv;
 mod review_s12_adv;
 #[path = "review_s6_probe.rs"]
 mod review_s6_probe;
+#[path = "review_sense_fold_r1_probes.rs"]
+mod review_sense_fold_r1_probes;
 #[path = "review_verbs_rim_lever_probes.rs"]
 mod review_verbs_rim_lever_probes;
 #[path = "revolve_ball.rs"]
