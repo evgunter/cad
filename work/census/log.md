@@ -162,3 +162,42 @@ the census is one-directional: nothing reds when a named field arrives
 with NO attribute. `work/msolve/mate-primitive-accepts-a-stray-field-the-module-docs-say-refuses.md`
 is the one confirmed instance, filed by the lane and left unfixed because
 closing it changes what a document accepts.
+
+## CENSUS-INERT-DENY merged (2026-09-15)
+
+PR 2634 merged as `d345325b`, green on run `34952933839`. The spec is
+deleted per `docs/DOC-LEDGER.md`'s per-merge convention, recoverable at
+`git show 6cf25b356:docs/CENSUS-INERT-DENY-SPEC.md`; the item is closed
+and carries the three premise corrections that outlive it.
+
+**One thing the merge cost, recorded because it was not this unit's.**
+The first attempt red'd on `gate ok` — the single required check — over
+a run whose other 38 jobs were green. `k-lint (gate, release-default)`
+concluded two seconds before the gate started, and the jobs API served a
+snapshot eleven seconds stale. That is the documented false-red half of
+`work/ciw/gate-ok-has-no-expected-job-roster.md`, second instance in
+three days on the same matrix row; this run's timings are appended there,
+with the observation that **the gate's own failure text misnames the
+cause** — it says to add the job to `needs:`, and `k-lint` is already in
+`needs:`. Not fixed from here: `ci.yml` and `scripts/check-run-jobs.py`
+are CIW's, and the fix is the design call their row is holding open.
+`rerun-failed-jobs` returned 403, so the lane could not clear it; the
+evidence commit re-triggered CI, which passed.
+
+## Next
+
+`hand-listed-debug-censuses-in-geom-core-geom-and-topo` is second in the
+order and is not yet specced. The pattern is proven by PR 2093 and the
+row carries a nine-impl hit list; what needs deciding at spec time is the
+`PartialEq` half, which the row names and leaves unswept — an `Eq` that
+misses a field answers wrong, where a `Debug` that misses one only
+misleads.
+
+**What this unit teaches the next one**, beyond the pattern: the guard's
+population here was not compiler-known, which is what earned its tally a
+place. `Debug` and `PartialEq` impls ARE compiler-known — an exhaustive
+destructure makes a new field an E0027 — so the instrument that unit
+leaves should be the compiler wherever it can be, and a census only where
+it cannot. Reaching for this unit's shape there would be the charter's
+trap in its other direction: a hand-maintained reader standing in for a
+check the language already performs.

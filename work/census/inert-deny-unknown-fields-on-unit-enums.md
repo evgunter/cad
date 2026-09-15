@@ -2,12 +2,13 @@
 id: inert-deny-unknown-fields-on-unit-enums
 kind: unit
 title: Inert #[serde(deny_unknown_fields)] on unit-only enums — nine sites in role.rs, and a ledger entry that believed it load-bearing
-status: review
+status: closed
 opened: 2026-08-30
 github: 1308
 refs: [1301]
 branch: census/inert-deny
 pr: 2634
+closed: 2026-09-15
 ---
 
 ## From GitHub issue 1308
