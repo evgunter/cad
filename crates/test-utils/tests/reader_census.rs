@@ -263,6 +263,11 @@ const LEDGER: &[Entry] = &[
                              // each heads, code view
     },
     Entry {
+        path: "crates/test-utils/tests/hand_written_impl_census.rs",
+        disposition: Shared, // hand-written `Debug`/`PartialEq` impls and the bodies
+                             // they walk, code view
+    },
+    Entry {
         path: "crates/test-utils/tests/reader_census.rs",
         disposition: Shared, // this census, literal view
     },
