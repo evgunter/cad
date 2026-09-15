@@ -43,32 +43,48 @@
 //! of confident wrong answer this codebase's fail-loud posture exists
 //! to keep out.
 //!
-//! # The certified answer this method is standing in for (issue 1183)
+//! # The certified answer this method stands in for
 //!
-//! Sampling is a guess, and this kernel can in principle do better than
-//! guess. Evaluation is generic over its scalar and `evaluate::<Interval>`
-//! runs a whole `Doc` today; `Interval::from_bounds` is documented as the
-//! SUBDIVISION DRIVER's constructor. Replaying the document with the
-//! field widened to `[a, b]` and reading the verdict would say something
-//! categorically stronger than any number of samples — not "these values
-//! worked" but "no value in this box fails" — and branch-and-bound over
-//! the box would give the largest CERTIFIED locally-valid interval, with
-//! this search demoted to a seed for it.
+//! Sampling is a guess, and this kernel can do better than guess when
+//! it is given time: `editor_core::range::certified_range` replays the
+//! document with ONE field widened to an interval and reports, per
+//! side, whether every value in it decides what the current value
+//! decides — not "these values worked" but "nothing in this box builds
+//! anything else". Its three kernel-side doors are built, and each is
+//! a door this module cannot open for itself:
 //!
-//! Three doors are missing before that is clean, and they are the
-//! kernel's rather than this module's: `evaluate` derives its own
-//! `ParamEnv` through `T::from_f64`, so every binding enters degenerate;
-//! a node SLOT has no name to widen at all (its value is a bit-pinned
-//! `f64` literal, and the widening is a property of the QUERY, not of
-//! the document, so what is wanted is a driver-side override rather than
-//! an interval-valued literal in the recipe); and the verdict contract
-//! has to say what an INDETERMINATE interval decision means — subdivide,
-//! not fail — which is adjacent to the enclosure-lane contract open as
-//! issue 1143.
+//! * **A widened binding reaches evaluation as one.**
+//!   `editor_core::analysis::param_env_over` binds an axis as
+//!   `nominal + [lo, hi]` in the scalar's own arithmetic, where
+//!   `Doc::param_env` binds `T::from_f64` of the nominal alone and
+//!   every binding is therefore degenerate.
+//! * **A node SLOT has a name to widen.**
+//!   `editor_core::range::RangeField::Slot` names one, and the
+//!   widening stays a property of the QUERY rather than of the
+//!   document: the name is minted in a clone the query derives for
+//!   itself, never as an interval-valued literal in the caller's
+//!   recipe.
+//! * **An INDETERMINATE interval decision means subdivide.**
+//!   `editor_core::drive`'s leaf classifier answers
+//!   `LeafVerdict::Bisect` for every escalation but the ratified
+//!   terminal sliver, which it refuses by name.
 //!
-//! What this module is built to survive that change: [`BoundsProbe`]
-//! evaluates nothing itself, so the oracle is replaceable without the
-//! panel noticing.
+//! **What keeps THIS module the interactive answer is cost, not a
+//! missing door.** A drive is seconds per leaf and on the repo's own
+//! corpus documents certifies nothing at any budget a caller can
+//! afford, so the certified range is an ON-DEMAND query whose answer
+//! arrives later and REPLACES this reading, never merges with it: a
+//! certified range is a subset of the locally-valid range this module
+//! reports, so a panel shows both or names which one it is showing.
+//! Nothing in `crates/viewer` asks for one on a user's behalf yet —
+//! the affordance is
+//! `work/chrome/certify-affordance-on-the-bounds-panel`, and
+//! `crates/viewer/tests/docm9_range_vs_probe.rs` (the `interval`
+//! feature) is where the two answers are measured against each other.
+//!
+//! What lets that arrive without disturbing anything here:
+//! [`BoundsProbe`] evaluates nothing itself, so the oracle is
+//! replaceable without the panel noticing.
 //!
 //! # Why it is a resumable state machine
 //!

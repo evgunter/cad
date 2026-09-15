@@ -392,17 +392,36 @@ fn probing_an_expression_driven_slot_refuses_with_the_affordance() {
     assert!(session.bounds().is_some(), "the parameter door answers");
 }
 
+/// The furthest offset a reach can place, stepping by `seed`:
+/// [`BoundsProbe::MAX_REACHES`] doublings, the last landing at
+/// `seed · 2^(MAX_REACHES − 1)`.
+///
+/// Derived from the constant rather than restated as a literal, so a
+/// row asserting against it is about the SEED — the number it names —
+/// and does not go red when the reach is allowed to look further.
+fn reach_of(seed: f64) -> f64 {
+    seed * f64::from(1u32 << (BoundsProbe::MAX_REACHES - 1))
+}
+
+/// The widest bracket a refinement can be left holding around a
+/// failure that lies `distance` from the origin: the reach doubles, so
+/// the stride that catches the failure is at most `2 · distance` wide,
+/// and [`BoundsProbe::MAX_REFINES`] halvings divide it.
+fn finest_bracket(distance: f64) -> f64 {
+    2.0 * distance / f64::from(1u32 << BoundsProbe::MAX_REFINES)
+}
+
 /// **A parameter is searched at the scale it was written in.** A
 /// millimetre-authored length seeds at one millimetre, not at one
 /// canonical metre, so the search spends its budget on the decades the
 /// part lives in.
 ///
 /// Both assertions are ones a metre seed CANNOT satisfy rather than
-/// ones it merely satisfies less well: the upward reach is twelve
-/// doublings of the seed, so a metre seed answers thousands of metres
-/// where a millimetre seed answers a couple; and the downward bracket
-/// closes to about a thousandth of the seed, so a metre seed cannot
-/// narrow past a millimetre.
+/// ones it merely satisfies less well, and both state their threshold
+/// through [`reach_of`] and [`finest_bracket`] — so the seed is what
+/// they are about: a metre seed answers kilometres where a millimetre
+/// seed answers metres, and brackets its floor to a millimetre where a
+/// millimetre seed brackets to micrometres.
 #[test]
 fn a_millimetre_parameter_is_probed_at_millimetre_scale() {
     let tol = Tol::witness();
@@ -436,23 +455,28 @@ fn a_millimetre_parameter_is_probed_at_millimetre_scale() {
     assert_eq!(result.origin, 0.008);
 
     // Upward: a thicker plate never fails, so the search reaches its
-    // ceiling. Twelve doublings of one millimetre is about two metres;
-    // twelve doublings of one METRE would be about two kilometres.
+    // ceiling, which is `reach_of` the seed it stepped by. The
+    // threshold is that ceiling AT ONE WRITTEN MILLIMETRE — the seed
+    // `probe_seed` derives for a field written in millimetres — so a
+    // canonical-metre seed overshoots it by the ratio of the two
+    // units.
     assert!(
-        result.high.limit() < 10.0,
+        result.high.limit() <= result.origin + reach_of(props::from_written(1.0, MM.def())),
         "a millimetre-seeded reach stops metres out, not kilometres: {:?}",
         result.high
     );
     // Downward: a zero-height extrude is refused, so there is a floor,
-    // and the bracket around it closes to about a thousandth of the
-    // seed. A metre seed brackets [0, 1 m] and cannot refine below
-    // about a millimetre.
+    // and it lies one origin below the current value — at a millimetre
+    // seed the reach straddles it within a few seeds and the halvings
+    // take that to micrometres. A metre seed's first sample straddles
+    // it by a whole metre, which the same halvings cannot take below a
+    // millimetre.
     let Bound::Edge { valid, invalid } = result.low else {
         panic!("a vanishing plate fails, so there is a floor: {result:?}");
     };
     assert!(invalid < valid, "a bracket straddles: {invalid}..{valid}");
     assert!(
-        valid - invalid < 1.0e-4,
+        valid - invalid < finest_bracket(result.origin),
         "a millimetre-seeded bracket closes far finer than a metre seed could: \
          {invalid}..{valid}"
     );
