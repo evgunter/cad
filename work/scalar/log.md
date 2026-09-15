@@ -255,3 +255,22 @@ precedent): D290 #201, TRIM-3 #202, S393 #203, VREV #204. S393's row
 is corrected here; TRIM's is TRIM's, announced on their PR; the
 protocol gap is filed on META's slate as
 `work/meta/ab-log-sample-numbers-collide-under-branch-side-block-records.md`.
+
+## VREV merged; block SCALAR-B1 closes (2026-09-15)
+
+PR 2627, block SCALAR-B1 slot 2, ordinal 4102; dual review, both arms
+APPROVE WITH FIXES, no MAJOR — no tally candidate. One arm found the
+door's exactness cost (decimal-symmetric knots refuse; the upstream
+fix is BLEND's), the other that a reversed chart re-attached leaves its
+pcurves stale and that `two_sum` was the tree's third copy. What
+landed: the item's §Closed. The spec is deleted per the ledger. With
+its reviews concluded the block's last slot is done: the branch-side
+block record (pre-draw fields, draw, three rows) merges to main.
+
+## Block SCALAR-B1 landed (2026-09-15)
+
+The branch-side block record — pre-draw fields, the draw (byte 69),
+and the three rows D290 (#201), S393 (#203), VREV (#204) — merges to
+main with this entry, the META row for the sample-number collision
+beside it. Block SCALAR-B2's pre-draw and draw stay on
+`scalar/orchestrator` until its last slot's reviews conclude.

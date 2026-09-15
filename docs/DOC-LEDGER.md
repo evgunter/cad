@@ -2820,3 +2820,45 @@ Residue, both filed rather than left in prose:
 (its one confirmed instance).
 
 - `CENSUS-INERT-DENY-SPEC.md` — CENSUS-INERT-DENY, an attribute with nothing to deny (#2634)
+## Per-merge deletion — TINT-1's spec (2026-09-15)
+
+Recoverable at `git show d61ee4256:docs/TINT-1-SPEC.md` (the state-sync
+head). Its sentences that did not survive, and the reason matters more
+than usual because the spec was **wrong** rather than merely superseded:
+*"Use the compiler"*, *"a variant added tomorrow makes this file fail to
+COMPILE"*, and the instruction to derive the ban list from an exhaustive
+`match` from a value **to its variant identifier**. rustc checks a
+match's PATTERNS and never its strings, so arms returning hand-typed
+identifiers left a RENAME silent — the style review demonstrated it on
+the first implementation, which was green while banning a dead
+identifier and leaving the live one unbanned. What landed reads the
+identifier off each value's own derived `Debug`
+(`test_utils::f6::variant_identifier`) and keeps the match as a bare
+exhaustiveness token that forces the author to open the file and
+nothing more. Also not landed: the spec's guess that `SelectRefusal::Band`
+lacked a case (only its ban entry was missing), and its framing of the
+`fields` roster as derivable (tried, false-positives on a door's own
+prose prefix). Recorded in the PR body and the unit's `## Closed`
+section.
+
+- `TINT-1-SPEC.md` — TINT-1, the `assert_f6` ban lists stop being
+  hand-written mirrors (#2648)
+
+
+## Per-merge deletion — VREV's spec (2026-09-15)
+
+Recoverable at `git show 4122ddacd:docs/VREV-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: the mirror test as the
+rounded compare `fl(k_i + k_{m−i}) == fl(lo + hi)` (landed as an exact
+2Sum compare: the rounded form admits a half-ulp asymmetry that
+ties-to-even); "the same point set … bit for bit where `lo + hi − v` is
+exact" (a magnitude-relative bound on a dense grid: the mirrored basis
+values are not bit-identical at some knot values); the error as a
+`KnotAlgebraError` variant (landed beside the door as
+`KnotMirrorError`); `reversed_v` native with `reversed_u` derived (the
+module's conjugation direction is the other way, and the fix pass
+conformed to it); "keep the `.expect` text" on `set_face_surface` (its
+`Result` cannot check the claim; the message now says what it can).
+Recorded in the PR body and the unit's `## Closed` section.
+
+- `VREV-SPEC.md` — VREV, a v-reversal door on `NurbsSurface`, exact or refused (#2627)

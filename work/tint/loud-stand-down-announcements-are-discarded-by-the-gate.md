@@ -1,10 +1,11 @@
 ---
 id: loud-stand-down-announcements-are-discarded-by-the-gate
-kind: issue
+kind: unit
 title: test_utils::vacuity::stood_down prints to a stdout the twelve gating nextest jobs discard: 22 announcements nobody can hear
-status: open
+status: spec
 opened: 2026-09-15
 refs: [D70]
+branch: tint/2-stand-down-channel
 ---
 
 

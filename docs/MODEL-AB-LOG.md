@@ -6907,7 +6907,7 @@ Draw: `/dev/urandom` byte **187** (< 252), 187 mod 3 = 1 ⇒ fable position
 unit-vector witness = FABLE, slot 2 rate pair = OPUS.** Same remote box
 and posture as B1.
 
-### Block SCALAR-B1 rows (recorded at each merge; the section merges to main at block close)
+### Block SCALAR-B1 rows (recorded at each merge branch-side; landed at block close, 2026-09-15)
 
 | # | date | task | difficulty (pre-flip) | arm | review findings (MAJ/MIN/NOTE) | silent devs | idiom | tests | docs | fix-pass size | battery | tokens | wall-clock |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
