@@ -1182,6 +1182,17 @@ struct LinearBoundary<T: Real> {
 /// from the wrong ±1 and, check 7 being gated on `errors.is_empty()`,
 /// SUPPRESSES the honest `NotIsoRectangle` the flux lane raises on the
 /// same face.
+///
+/// **The answer is a DEFINITE side; `Zero` refuses here rather than
+/// being returned** — and this is the one home of that claim, for
+/// every consumer. The inner `side` answers `rim.d_u_sign` or its flip
+/// on a definite `props_rim_side` outcome and `DegenerateFace` on
+/// `Zero`, and [`Sign::flip`] fixes only `Zero`, so the outcome is
+/// definite wherever the rim's own stored traversal direction is. The
+/// `debug_assert` below is that claim's single guard: consumers
+/// scalarize the answer with no zero arm of their own, and a future
+/// arm that could answer `Zero` announces itself here rather than at
+/// whichever consumer happened to keep a copy of the argument.
 fn linear_rim_side<T: Decide>(
     b: &LinearBoundary<T>,
     (lo, hi): (T, T),
@@ -1219,7 +1230,12 @@ fn linear_rim_side<T: Decide>(
     let rim = b.rims.first().ok_or(PropsError::NotIsoRectangle {
         what: "curved face without a rim (non-sphere)",
     })?;
-    side(rim, lo, hi, b.arms, band)
+    let s = side(rim, lo, hi, b.arms, band)?;
+    debug_assert!(
+        s != Sign::Zero,
+        "linear_rim_side answers a definite rim traversal direction"
+    );
+    Ok(s)
 }
 
 // ---------------------------------------------------------------------
@@ -1612,7 +1628,14 @@ fn sphere<T: Decide>(
 /// Which way a sphere face's material faces, for the radial term of
 /// its flux — the one quantity [`sphere`]'s two branches establish
 /// from different evidence, kept apart so neither reads as the other.
-#[derive(Clone, Copy)]
+///
+/// **Not [`MaterialSign`], which forks on the same question one step
+/// earlier.** That enum is what the BOUNDARY alone encodes, derived
+/// without the face's bit precisely so tier 3 can compare the two
+/// encodings against each other; this one is what the flux term
+/// actually integrates, so where the boundary encodes nothing it
+/// carries the bit rather than declining to answer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SphereFluxSide {
     /// The rimless two-band face: no rim encodes the side, so the
     /// face's `Face::sense` BIT is it ([`sphere`]'s docs). A bit, not
@@ -1627,28 +1650,16 @@ enum SphereFluxSide {
 impl SphereFluxSide {
     /// The radial term `R·Area` signed by this side.
     ///
-    /// **`Sign::Zero` is unreachable on the [`Self::Rim`] arm**, and
-    /// the `debug_assert` says so rather than the arm quietly metering
-    /// a rimmed face's radial term as nothing.
-    /// [`linear_rim_side`] answers either `rim.d_u_sign` or its flip,
-    /// and a sphere rim's `d_u_sign` is `rim_dir` of a
-    /// `props_circle_axis_class` outcome already matched definite —
-    /// `flip` fixes only `Zero`, so the answer is definite by
-    /// construction. (Before the split this arm ran through
-    /// [`t_sign`], whose `Zero => T::zero()` case is live for the
-    /// torus's [`sign_mul`] and was inherited here; the sphere never
-    /// reached it.)
+    /// [`Self::Rim`] carries a DEFINITE `Sign` — [`linear_rim_side`]
+    /// states that and guards it — so [`t_sign`]'s `Zero => T::zero()`
+    /// case, which is live for the torus's [`sign_mul`], is not a side
+    /// this arm can hold and no rimmed face's radial term is metered
+    /// as nothing.
     fn signed<T: Real>(self, radial: T) -> T {
         match self {
             Self::Sense(true) => radial,
             Self::Sense(false) => -radial,
-            Self::Rim(s) => {
-                debug_assert!(
-                    s != Sign::Zero,
-                    "linear_rim_side answers a definite rim traversal direction"
-                );
-                t_sign::<T>(s) * radial
-            }
+            Self::Rim(s) => t_sign::<T>(s) * radial,
         }
     }
 }

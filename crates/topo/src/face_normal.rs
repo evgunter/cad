@@ -1,5 +1,10 @@
 //! The **one door** for a face's outward normal — planar or curved:
-//! the single place the `sense` bit is folded into a chart normal.
+//! the single place in this crate that folds the `sense` bit INTO a
+//! chart normal. Handing the bit onward is the other legitimate answer
+//! and is not a second fold — a `geom_brep` door that mints the
+//! outward normal from gradients of its own takes the bit and leaves
+//! nothing here to fold — and the inventory below dispositions that
+//! shape where it occurs.
 //!
 //! Two doors, one flip: [`face_outward_normal`] answers for a PLANE,
 //! where the normal does not depend on where you stand, and
@@ -374,25 +379,25 @@ mod tests {
     ///   whose sense bit is read as a claim to be FALSIFIED rather
     ///   than honored, so the `±1` sits beside the winding it is
     ///   compared against.
-    /// - `boolean/mod.rs`, `census.rs`, `props.rs` and check 4's
-    ///   material arm in `validate.rs` — **zero**, and this is the
-    ///   general shape rather than four coincidences. Each of them
-    ///   hands a face's orientation to a door that mints the outward
-    ///   normal ITSELF: `geom_brep::classify_material_pairing` and
-    ///   `material_kappa_rel` from the gradients the wedge classifier
-    ///   already computes, `geom_brep::props::curved_face` from the
-    ///   rimless sphere band's closed form. A door like that takes the
-    ///   `Face::sense` BIT, so there is no `±1` to hand it and no
-    ///   multiply to inventory. They cannot take
-    ///   [`face_outward_normal_at`] either — the question is a PAIR of
-    ///   material sides at a point on a shared carrier, over kinds it
-    ///   answers `None` for, and in `boolean/mod.rs` across two
-    ///   different bodies — which is why the bit goes to the door that
-    ///   can.
-    /// - `face_normal.rs` — **zero**: the door takes the sense BIT
-    ///   through [`OutwardNormal::from_chart`], never the `±1`. That
-    ///   is why the walk below reads the method name out of `concat!`
-    ///   — spelled whole, this file would be its own first hit.
+    ///
+    /// **Absences are not pinned.** Several files hand a face's
+    /// orientation ONWARD rather than multiplying it:
+    /// `boolean/mod.rs`, `census.rs`, `props.rs` and check 4's
+    /// material arm in `validate.rs` pass the [`Face::sense`](crate::entity::Face::sense)
+    /// BIT to a door that mints the outward normal ITSELF —
+    /// `geom_brep::classify_material_pairing` and `material_kappa_rel`
+    /// from the gradients the wedge classifier already computes,
+    /// `geom_brep::props::curved_face` from the rimless sphere band's
+    /// closed form — so there is no `±1` to hand it and no multiply to
+    /// inventory. They cannot take [`face_outward_normal_at`] either:
+    /// the question is a PAIR of material sides at a point on a shared
+    /// carrier, over kinds it answers `None` for, and in
+    /// `boolean/mod.rs` across two different bodies, which is why the
+    /// bit goes to the door that can. This module is a third such
+    /// case — its door takes the bit through
+    /// [`OutwardNormal::from_chart`], never the `±1`, which is why the
+    /// walk below reads the method name out of `concat!`: spelled
+    /// whole, this file would be its own first hit.
     ///
     /// **The pin is per FILE, and that is wider than the invariant.**
     /// Moving a read from one file to another changes nothing about
@@ -402,7 +407,12 @@ mod tests {
     /// reasons, and the per-file shape is chosen because *which* file
     /// carries a read is the only thing that makes the disposition
     /// list above checkable. The cost is a tripwire over all of
-    /// `topo/src` in a tree several lanes are editing at once.
+    /// `topo/src` in a tree several lanes are editing at once, and
+    /// that cost is why the table carries no zero rows: a file that
+    /// GROWS a read reds below whether or not it is listed, so a
+    /// pinned absence is a row nothing can break, and every file in
+    /// the tree — `boolean/rim_wedge.rs` included — is covered without
+    /// one.
     ///
     /// **What this cannot match**, and it is a work order rather than
     /// a discharge:
@@ -423,16 +433,12 @@ mod tests {
     ///    recites them.
     #[test]
     fn every_hand_multiply_of_the_face_sign_is_inventoried() {
-        const PINNED: [(&str, usize); 10] = [
+        const PINNED: [(&str, usize); 6] = [
             ("boolean/join.rs", 1),
-            ("boolean/mod.rs", 0),
             ("boolean/rest.rs", 1),
             ("boolean/solid_contain.rs", 2),
-            ("census.rs", 0),
             ("entity.rs", 1),
-            ("face_normal.rs", 0),
             ("merge_faces.rs", 3),
-            ("props.rs", 0),
             ("validate.rs", 1),
         ];
         let needle = concat!("sense", "_sign");

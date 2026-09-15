@@ -27,7 +27,8 @@
 //! [`DihedralClass`] compares tangent PLANES, so it is unsigned: the
 //! cusp (wedge 0), the seam (π) and the knife slit (2π) all read
 //! `Smooth`. Signing it takes the faces' material sides — each face's
-//! outward normal, `Face::sense_sign · ∇F` — and that is
+//! outward normal, its own `∇F` selected by the face's `Face::sense`
+//! bit — and that is
 //! [`classify_material_pairing`]: aligned normals mean one material
 //! side and the legal π seam; opposed normals mean the wedge is one of
 //! the two ends. Which end is a SECOND-order fact, and
@@ -88,6 +89,7 @@
 use geom::Surface;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign};
 
+use crate::enters::OutwardNormal;
 use crate::implicit::{curvature_lever_arm, implicit_gradient};
 
 /// A definite dihedral classification (the indeterminate outcome is the
@@ -404,7 +406,8 @@ pub enum MustCarryVerdict {
 /// The first-order classifier ([`DihedralClass`]) compares tangent
 /// *planes* and is therefore unsigned: wedge 0, π and 2π all read
 /// `Smooth`. The material verdict is that classification signed by the
-/// two faces' outward normals (`Face::sense_sign · chart normal`), so
+/// two faces' outward normals (each face's chart normal selected by
+/// its `Face::sense` bit), so
 /// it distinguishes the three:
 ///
 /// | verdict | wedge | legality |
@@ -481,11 +484,13 @@ pub enum MaterialPairing {
 /// `sense_plus`/`sense_minus` are the faces' `Face::sense` BITS, not
 /// signs to multiply by: each selects whether the face's own implicit
 /// gradient already points out of the material or must be negated, so
-/// the door mints each outward normal itself and `n̂₊ · n̂₋` is the
-/// sign the wedge turns on — aligned ⇒ π, opposed ⇒ 0 or 2π. The bit
-/// rather than a `T` ±1 for the reason
-/// [`crate::enters::OutwardNormal::from_chart`]'s doc gives; this door
-/// cannot take that type because it computes the gradients it signs.
+/// the door mints each outward normal ITSELF — through
+/// [`OutwardNormal::from_chart`], the crate's one spelling of that
+/// flip — and `n̂₊ · n̂₋` is the sign the wedge turns on: aligned ⇒ π,
+/// opposed ⇒ 0 or 2π. The parameter is the bit rather than an
+/// [`OutwardNormal`] because the normals are this door's own to
+/// compute, and rather than a `T` ±1 for the reason
+/// [`OutwardNormal::from_chart`]'s doc gives.
 /// This is the C1 lemma the declared-contact
 /// verifier already decides between bodies (`contact_tangent_opposed`),
 /// read edge-locally between two faces of ONE body — same construction,
@@ -511,8 +516,7 @@ pub fn classify_material_pairing<T: Decide>(
     band: Band,
 ) -> Result<MaterialPairing, Indeterminate> {
     let outward = |s: &Surface<T>, sense: bool| {
-        let n = implicit_gradient(s, p).normalize();
-        if sense { n } else { -n }
+        OutwardNormal::from_chart(implicit_gradient(s, p).normalize(), sense).vec()
     };
     let n_plus = outward(s_plus, sense_plus);
     let n_minus = outward(s_minus, sense_minus);
@@ -548,9 +552,12 @@ pub fn classify_material_pairing<T: Decide>(
 ///    where the face's `Face::sense` bit is set and `−n̂` where it is
 ///    not, so measuring the heights along it flips them again on a
 ///    reversed face. `sense_plus` is that BIT, not a sign to multiply
-///    by — [`crate::enters::OutwardNormal::from_chart`]'s doc for why;
-///    a conditional negation is exact, so the magnitude, and with it
-///    the jet-determinacy verdict, is untouched either way.
+///    by — [`OutwardNormal::from_chart`]'s doc for why. Selecting the
+///    negation is EXACT where multiplying by a `±1` is not: `-x` flips
+///    the sign of every value including a signed zero and a `NaN`, and
+///    at `Interval` it is the exact reflection where a `[-1, -1]`
+///    product pads by an ulp at tiny magnitudes. The magnitude, and
+///    with it the jet-determinacy verdict, is untouched either way.
 ///
 /// The result is `h₊ − h₋`, the two surfaces' height coefficients over
 /// their shared tangent plane along the plus face's OUTWARD normal.
@@ -755,6 +762,23 @@ mod tests {
         );
         let jet = crate::tangent_jet(&s1, &s2, p, Vec3::unit_y());
         assert_eq!(material_kappa_rel(jet.kappa_rel, true), 0.0);
+        // **The bit SELECTS a negation; it does not scale by a `±1`**,
+        // and a zero is where the two spellings part: `-(κ · ±1.0)`
+        // answers `-0.0` on the clear bit and `+0.0` on the set one,
+        // the opposite of both rows below. No verdict reads a zero's
+        // sign — this collapse is `Zero` either way — so what these
+        // pin is the exactness the door's contract claims, on the one
+        // input where an inexact spelling is visible.
+        assert_eq!(
+            material_kappa_rel(0.0_f64, false).to_bits(),
+            0.0_f64.to_bits(),
+            "the clear bit returns its argument unchanged, sign bit included"
+        );
+        assert_eq!(
+            material_kappa_rel(0.0_f64, true).to_bits(),
+            (-0.0_f64).to_bits(),
+            "the set bit negates, and negating +0.0 gives -0.0"
+        );
     }
 
     /// The pairing escalates on a poisoned gradient exactly as the

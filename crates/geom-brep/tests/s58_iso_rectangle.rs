@@ -617,14 +617,14 @@ fn the_rimless_band_measures_the_hemisphere_it_is_written_for() {
         )
     };
     let half = core::f64::consts::FRAC_PI_2;
-    let band = vec![
+    let hemisphere = vec![
         great(0.0, -half, half, 0, 1),
         great(0.0, half, 3.0 * half, 1, 0),
     ];
     accepts_exactly(
         "rimless hemisphere",
         &s,
-        &band,
+        &hemisphere,
         2.0 * core::f64::consts::PI * rs * rs,
     );
 
@@ -636,10 +636,9 @@ fn the_rimless_band_measures_the_hemisphere_it_is_written_for() {
     // ignored its sense argument would pass the row above and red
     // here. Asserted as an EXACT negation because a conditional
     // negation is exact — the bit selects, it does not scale.
-    let out = curved_face(&s, &band, true, crate::shared::tol::band())
-        .expect("the outward hemisphere measures");
-    let inward = curved_face(&s, &band, false, crate::shared::tol::band())
-        .expect("the inward hemisphere measures");
+    let out = curved_face(&s, &hemisphere, true, band()).expect("the outward hemisphere measures");
+    let inward =
+        curved_face(&s, &hemisphere, false, band()).expect("the inward hemisphere measures");
     assert_eq!(
         inward.area.to_bits(),
         out.area.to_bits(),

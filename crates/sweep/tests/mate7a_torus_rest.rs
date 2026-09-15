@@ -715,3 +715,46 @@ fn the_chain_fixture_is_g1_with_one_shared_rim() {
         Err(_) => {}
     }
 }
+
+/// **The routing reads the SECOND face's sense, not the first's
+/// twice.** `verify_tangent_declaration` resolves each declared face
+/// once and hands `classify_shared_rim` one bit per face. The two
+/// arguments are adjacent `bool`s of the same type, so a call site
+/// passing the plus face's bit in both positions compiles — and every
+/// row above still passes, because both fixtures there carry
+/// `sense: true` on every wall and the two arguments are equal by
+/// accident.
+///
+/// This row removes the accident. It is the kissing pair — whose
+/// unflipped verdict is the slit, the row above — with the SECOND
+/// body's walls reversed through the public `Body::set_face_sense`.
+/// The outward normals then agree across the rim, so the routing must
+/// answer the seam; a door reading the first bit twice would still
+/// answer the slit.
+#[test]
+fn the_rim_routing_reads_the_second_faces_sense_and_not_the_firsts() {
+    let (a, mut b) = kissing_pair();
+    for fb in torus_faces(&b, TUBE) {
+        let s = b.get_face(fb).expect("the wall face resolves").sense;
+        b.set_face_sense(fb, !s).expect("the key is live");
+    }
+    // The premise, stated rather than assumed: the two operands' walls
+    // now carry DIFFERENT bits, so the second argument is load-bearing.
+    let sense_of = |body: &Body<f64>| {
+        let f = torus_faces(body, TUBE)[0];
+        body.get_face(f).expect("the wall face resolves").sense
+    };
+    assert_ne!(
+        sense_of(&a),
+        sense_of(&b),
+        "the fixture must put different sense bits on the two sides of the rim"
+    );
+
+    let decls = wall_declarations(&a, &b, TUBE, ContactClass::Tangent);
+    let err = topo::union_with(&a, &b, &decls, Tol::witness())
+        .expect_err("a seam takes no declaration, and the join wiring is not built");
+    assert!(
+        matches!(err, BooleanError::RimSeamNotDeclarable { .. }),
+        "with one side reversed the kissing rim's normals AGREE: wedge π, not the slit: {err:?}"
+    );
+}

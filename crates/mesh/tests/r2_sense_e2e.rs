@@ -62,11 +62,11 @@ fn a_reversed_band_measures_zero_and_is_caught_only_by_tier_three() {
         "reversing every face negates the enclosed volume: {}",
         mp.volume
     );
-    let errs =
-        validate_geometric(&inside_out, Tol::witness()).expect_err("an inside-out solid is not valid");
+    let errs = validate_geometric(&inside_out, Tol::witness())
+        .expect_err("an inside-out solid is not valid");
     assert!(
         errs.iter()
-            .any(|e| matches!(e, ValidationError::NegativeVolume { .. })),
+            .any(|e| matches!(e, ValidationError::NegativeVolume)),
         "the +V invariant names a whole-body flip: {errs:?}"
     );
 
@@ -79,7 +79,8 @@ fn a_reversed_band_measures_zero_and_is_caught_only_by_tier_three() {
         mp.volume, 0.0,
         "one reversed band cancels the other's radial term exactly"
     );
-    let errs = validate_geometric(&one_band, Tol::witness()).expect_err("tier 3 is what catches it");
+    let errs =
+        validate_geometric(&one_band, Tol::witness()).expect_err("tier 3 is what catches it");
     assert!(
         errs.iter()
             .any(|e| matches!(e, ValidationError::LaminaWedge { .. })),

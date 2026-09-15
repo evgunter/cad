@@ -3883,9 +3883,9 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     //   SURFACES (never the faces) and classifies the UNSIGNED
     //   tangent-plane wedge from implicit-form gradients: transverse
     //   or smooth, never which side the material is on. No
-    //   `sense_sign`, and its verdict is invariant under `revert`.
-    // - **Check 4, MATERIAL arm: CATEGORY A.** It reads both faces'
-    //   `Face::sense_sign`, and must — the material side IS the face
+    //   sense, and its verdict is invariant under `revert`.
+    // - **Check 4, MATERIAL arm: CATEGORY A.** It hands the door both
+    //   faces' `Face::sense` bits, and must — the material side IS the face
     //   orientation, and the whole content of "unsigned" above is that
     //   the first-order pass cannot see it (D1's ratified wedge table,
     //   the #131 second-order ruling; the arm's own note sits at its
@@ -4006,8 +4006,9 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
         // is therefore unsigned — wedge 0, π and 2π all read Smooth —
         // so a definitely-smooth edge asks two more questions:
         //
-        // - **which arm**: the two faces' outward normals
-        //   (`sense_sign · ∇F`) aligned ⇒ one material side ⇒ the
+        // - **which arm**: the two faces' outward normals (each `∇F`
+        //   selected by that face's `Face::sense` bit, minted inside
+        //   the door) aligned ⇒ one material side ⇒ the
         //   legal π seam; opposed ⇒ the wedge is 0 or 2π
         //   (`material_wedge_side`);
         // - **which end**, on the opposed arm: the jet's κ_rel signed
@@ -4495,7 +4496,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // `if`, because these callers run the whole battery in one pass.
     //
     // S10: the sense handling is INHERITED, not repeated here.
-    // `crate::props` owns it and applies `Face::sense_sign` at exactly
+    // `crate::props` owns it and applies `Face::sense` at exactly
     // one site (the rimless sphere band, the sole flux sign no
     // boundary traversal encodes); every other term of the flux is
     // derived from the stored loop windings and is therefore
