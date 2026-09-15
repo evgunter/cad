@@ -1185,6 +1185,16 @@ matches the same IDENTIFIER is not the same measurement — it is the
 proxy-classifier defect with the orchestrator holding the proxy. Read
 the enumeration's own stated scope first, then count that.
 
+**A 5xx from a GitHub API call is a statement about the RESPONSE, not
+about the action.** Merging #2672 returned a Cloudflare 502; the merge
+had in fact completed (`merged: true`, with a timestamp two seconds
+before the error). Retrying would have been harmless there, but the
+habit that matters is the general one: after any write call that fails
+at the transport layer — merge, comment, review — **read the resource
+back before deciding what happened**, and never record an outcome from
+an error message alone. The same applies in reverse: a 200 on a merge
+call is not a merge until the PR says `merged`.
+
 ## Exit shape
 
 The README states the module map and every item above has landed or

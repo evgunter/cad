@@ -12299,3 +12299,94 @@ Filed while sweeping, on FIX's slate:
 reach `Subject::Unavailable`.
 
 Signed (WIRE implementer lane `wire-n1`, PR #2629).
+
+## 2026-09-15 — #2670 and #2672 merged; a key became a type and G1's three rules are held once
+
+**#2670 merged** (`8088012a11`) and **#2672 merged** (`7ea4ae319c`'s
+parent), each verified from the job list on the head that actually
+landed: code tier, **39 check runs, 12 `test (…)`, 5
+`k-lint (gate, …)`, `gate ok` success**, six skipped, nothing failed.
+Both needed main merged in first; #2670's conflict was `log.md` only
+(another program had appended an announced-seam entry) and #2672's
+merged clean, including the `README.md` collision I had expected.
+
+### #2670 — the picture key
+
+**The item's population was five sites; there are six.** The sixth is
+`ViewerApp::scene_key` (`app.rs:317`), written from
+`(index.generation(), index.delta())` — the same key, in `app.rs` and
+`pane/viewport.rs`, which the item does not list. I could confirm this
+one independently, having read that field myself when verifying #2615.
+
+**The two-field invariant is TRUE**, verified write by write rather than
+taken on report: `outstanding` is only ever set beside `attempted`
+(`sync`), cleared beside it (`forget`), or cleared alone (`land`). It
+really was a boolean wearing the key's clothes. It is now
+`attempt: Option<Attempt>` with `Asked`/`Answered`, so the diverged
+state is **unrepresentable rather than merely absent**.
+
+**The compiler census is the receipt**: changing the type gave 54 errors
+across 15 files, where the tuple-type grep finds 5 and the positional
+grep finds 3 and neither sees the other's. And the lane stated what
+remains writable — `a.key().generation() == b.key().generation()`, via
+the two accessors the build and the id query genuinely need — instead of
+claiming an impossibility it had not achieved.
+
+**Both landmines avoided**: `FitRequest::supersedes` still compares its
+own pair, `frame.rs` is not in the diff.
+
+**The three-form doc-gate earned itself again**: the BARE pass caught a
+real red first — two `[PictureKey]` links inside `mod threaded` were
+unresolved for want of an import there, and **clippy is blind to that
+lint**.
+
+### #2672 — G1's three rules
+
+**The sequencing caveat was answered, not inherited.** The item said
+sequencing after `no-persistent-setplacement-session-op` was *"probably
+right"* because DI5 moves the free-move commit onto the document. The
+lane checked both documents and the tree: DI5 changes what the commit
+LANDS, and none of the three rules is stated in terms of the landing.
+What DI5 brings closer is the two machines' value kinds and side
+effects — **the sharing the item itself rules out**. So the caveat lands
+on the shape already refused, not on this one. Holding the rules first
+is also the cheaper order: `g1::Slot::commit` hands the caller back the
+value it took, which is the shape DI5's session-side edit needs.
+
+**The item's live evidence was historical, and the lane said so.**
+*"`CancelGesture` and `CancelFreeMove` both have zero emitters"* was
+true when written; `gesture-drags-have-no-cancel-door` closed
+2026-09-11 (branch `view/cancel-doors`) and I confirmed both have doors.
+Re-derived: the two copies **agree on all three rules today**. So this
+closes a hazard, not a present divergence — which is why **no test can
+red on the base tree**, stated plainly rather than worked around.
+
+**The receipts measure the property instead**, which is the right move
+when the defect is structural: M1 and M2 red BOTH integration rows, and
+**M3 is the measured LIMIT** — a caller-side `names` closure mutated to
+`|_| true` reds the value drag and leaves the probe green, because the
+closures stay the caller's. The lane wrote that limit into the module
+and the README rather than letting the claim read wider than it is.
+
+**Both reconciling prose sentences were checked against their own path
+before rewriting**, and they differed: `display.rs`'s was an
+attribution true of its own path; `session.rs`'s `CancelGesture` comment
+was the borrowed-mechanism shape — it analogised a *commit* rule to
+justify a *re-submit* decision — and now reads the answer off
+`g1::Slot::cancel` with a `debug_assert_eq!` against the scratch.
+
+**One asymmetry filed rather than absorbed**:
+`the-value-drags-in-flight-refusal-has-two-spellings` — rule 1 is now
+answered for the value drag by both `perform`'s table and the slot, and
+moving it down touches the mid-gesture policy, its hand-written
+`expected` table, and an ordering consequence against `guard_driven`.
+Both answers written out.
+
+### A harness fact
+
+The `merge_pull_request` call for #2672 returned a **Cloudflare 502 on
+the response**. The merge had gone through — the PR reads `merged: true`
+at 18:38:12. **Read the PR before retrying a failed merge call**: a 502
+is a statement about the response, not about the action.
+
+**VIEW stands at 75 open / 102 closed.**
