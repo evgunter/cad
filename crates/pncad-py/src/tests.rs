@@ -1985,8 +1985,8 @@ fn inner_arm_tags_are_stable() {
         ("revolve", Some("degenerate_axis"))
     );
     assert_eq!(
-        pair(&NodeErrorKind::Tube(Box::new(TubeError::NonUnitAxis))),
-        ("tube", Some("non_unit_axis"))
+        pair(&NodeErrorKind::Tube(Box::new(TubeError::DegenerateWindow))),
+        ("tube", Some("degenerate_window"))
     );
     assert_eq!(
         pair(&NodeErrorKind::Extrude(ExtrudeError::ObliqueExtrusion)),
@@ -4507,6 +4507,19 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "ortho_frame_error_tag",
+        values: &[
+            "degenerate_u_axis",
+            "degenerate_v_axis",
+            "escalated",
+            "non_finite_u_axis",
+            "non_finite_v_axis",
+            "underflowed_u_axis",
+            "underflowed_v_axis",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "param_attach_error_tag",
         values: &["field_not_on_kind", "stale_key"],
         delegates: &[],
@@ -5047,10 +5060,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "band",
             "degenerate_window",
             "escalated",
-            "frame_not_orthogonal",
             "full_range_window",
-            "non_unit_axis",
-            "non_unit_u_ref",
             "nonpositive_wall",
             "revolve",
             "wall_exceeds_radius",
@@ -5225,7 +5235,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("empty", 2),
     ("empty_boolean", 2),
     ("empty_placement_list", 2),
-    ("escalated", 10),
+    ("escalated", 11),
     ("euler", 2),
     ("evaluation_of_another_document", 2),
     ("face", 3),

@@ -7,7 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Point3, Tol, Vec3};
+use geom_core::{OrthoFrame, Point2, Point3, Tol};
 use mesh::validate::{check_mesh, signed_volume};
 use mesh::{FacePatch, Mesh, tessellate};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
@@ -15,11 +15,7 @@ use sweep::test_support::{corners, prism_on};
 use sweep::{Extrusion, extrude};
 
 fn plane_at(offset: f64) -> SketchPlane<f64> {
-    SketchPlane::from_frame(
-        Point3::new(offset, offset, offset),
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-    )
+    SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(offset, offset, offset)))
 }
 
 /// The OLD spelling: world-origin-anchored fold (pre-fix behavior).

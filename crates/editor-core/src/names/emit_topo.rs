@@ -1526,11 +1526,9 @@ mod tests {
     /// laterals. Written once — the rows below differ in the synthetic
     /// `BooleanNaming` they hand the emitter, never in the body.
     fn unit_cube() -> sweep::Extruded<f64> {
-        let plane = profile::SketchPlane::from_frame(
+        let plane = profile::SketchPlane::from_frame(geom_core::OrthoFrame::axes_xy(
             geom_core::Point3::new(0.0, 0.0, 0.0),
-            geom_core::Vec3::new(1.0, 0.0, 0.0),
-            geom_core::Vec3::new(0.0, 1.0, 0.0),
-        );
+        ));
         let square = profile::ProfileLoop::polygon(
             [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
                 .into_iter()

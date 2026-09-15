@@ -27,7 +27,7 @@
 mod certified {
     use core::f64::consts::PI;
 
-    use geom_core::{Bounds, Interval, Point2, Real, Tol, Vec2, Vec3};
+    use geom_core::{Bounds, Interval, OrthoFrame, Point2, Real, Tol, Vec2, Vec3};
     use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
     use topo::{Body, mass_properties};
@@ -71,11 +71,11 @@ mod certified {
             p2(1.0, 1.0),
             p2(-1.0, 1.0),
         ]);
-        let plane = SketchPlane::from_frame(
-            geom_core::Point3::new(iv(0.0), iv(0.0), iv(z0)),
-            Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
-            Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
-        );
+        let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(geom_core::Point3::new(
+            iv(0.0),
+            iv(0.0),
+            iv(z0),
+        )));
         let vp = Profile::new(plane, vec![lp])
             .validate(Tol::witness())
             .unwrap();

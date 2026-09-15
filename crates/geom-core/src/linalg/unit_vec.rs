@@ -25,6 +25,11 @@
 //!   under the caller's band and funnel-site name, then divide. The one
 //!   place a USER's vector becomes a direction, with typed refusals.
 //! - `-u` — negation is exact at every scalar.
+//! - The exact basis axes and the cross product of an orthonormal
+//!   pair, both private to [`linalg`](super) and both exact by
+//!   construction rather than by decision — they exist so
+//!   [`OrthoFrame`](super::OrthoFrame) can build the world frames and
+//!   its own third axis, and they are documented on their own doors.
 //!
 //! The deciding ladders in [`frame`](super::frame) mint through the
 //! constructor under their own funnel names and map its refusals onto
@@ -274,6 +279,42 @@ impl<T: Real> UnitVec3<T> {
     #[must_use]
     pub fn orthonormal_basis(self) -> (Vec3<T>, Vec3<T>) {
         self.0.orthonormal_basis()
+    }
+
+    /// **The cross product of an orthonormal pair, which is a witness
+    /// by construction**: `a ⊥ b` both unit gives `|a × b| = 1`, so
+    /// the third axis of a frame needs no decision and no divide.
+    ///
+    /// This is NOT a "check that it is already unit" constructor and
+    /// cannot be used as one: the premise is carried by the ARGUMENT
+    /// types plus the orthogonality the one caller
+    /// ([`OrthoFrame`](super::OrthoFrame)) establishes at its own
+    /// mints, and the result is a product rather than a vector handed
+    /// in. A caller holding two witnesses it merely believes are
+    /// perpendicular has a decision to make, not a door to call, which
+    /// is why this is private to [`linalg`](super).
+    pub(in crate::linalg) fn cross_of_orthonormal(a: Self, b: Self) -> Self {
+        Self(a.0.cross(b.0))
+    }
+
+    /// The exact `x̂`, unit as its literal bits at every scalar that
+    /// represents 0 and 1 — no decision, nothing to decide. Private to
+    /// [`linalg`](super), where [`OrthoFrame`](super::OrthoFrame)'s
+    /// world frames are its only readers: a public exact-axis mint
+    /// would be a door with no caller, and a caller wanting a
+    /// direction it computed wants [`UnitVec3::new`].
+    pub(in crate::linalg) fn exact_x() -> Self {
+        Self(Vec3::unit_x())
+    }
+
+    /// The exact `ŷ`; see [`UnitVec3::exact_x`].
+    pub(in crate::linalg) fn exact_y() -> Self {
+        Self(Vec3::unit_y())
+    }
+
+    /// The exact `ẑ`; see [`UnitVec3::exact_x`].
+    pub(in crate::linalg) fn exact_z() -> Self {
+        Self(Vec3::unit_z())
     }
 }
 

@@ -35,3 +35,34 @@ pass `Meridian::axis` — a stored support axis — so no caller holds the
 witness. `Meridian::radial` and `sheet_normal` (`:718`, `:724`) are
 postconditions ("the sheet's radial unit", "the unit normal of the
 sheet") and not in the class, though the same grep matched them.
+
+## A second site in the same crate (FRAME-WITNESS review, 2026-09-15)
+
+`crates/sweep/src/blend/build.rs`, the corner candidate closure (`:322`):
+
+```rust
+let (u_ref, axis) = if convex {
+    (n_a, n_a.cross(n_b).normalize())
+} else {
+    (-n_b, n_b.cross(n_a).normalize())
+};
+```
+
+The PAIR is orthonormal by construction — `axis` is a cross product
+with `n_a`, so `u_ref ⊥ axis` holds without anyone asserting it — and
+what is undecided is the cross product's LENGTH: two parallel supports
+give a zero-length `axis`, and `Vec3::normalize` divides by that zero
+silently. So this is the same class as `perp_unit` one step on: a
+frame's two legs assembled with no length decided, where the pair's
+perpendicularity is free and the magnitude is not.
+
+It is reachable: the two supports of a corner link are distinct faces
+but nothing here refuses them being coplanar-parallel. Taking it wants
+`UnitVec3::new` under a name BLEND owns, or
+`OrthoFrame::from_axis_and_reference` if the triple is what the caller
+actually wants — the second is now one call
+(`crates/geom-core/src/linalg/ortho_frame.rs`).
+
+Found by FRAME-WITNESS's review sweep, whose pattern (a doc-word match
+plus a `Vec3` parameter) could not see it: the premise is in the
+arithmetic, not in prose.

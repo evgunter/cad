@@ -15,7 +15,7 @@
 
 use crate::common;
 
-use common::{profile, rounded_rect, tol};
+use common::{frame_of, profile, rounded_rect, tol};
 use geom::Curve3;
 use geom_core::{Point2, Point3, Vec3};
 use profile::{LoopRole, Profile, SegmentKind, SketchPlane};
@@ -48,7 +48,7 @@ fn pr4_dry_run_rounded_rect_arc_frames_on_a_tilted_plane() {
     let u = Vec3::new(inv_sqrt2, inv_sqrt2, 0.0);
     let v = Vec3::new(-inv_sqrt2 / 3.0, inv_sqrt2 / 3.0, (8.0f64 / 9.0).sqrt());
     let origin = Point3::new(10.0, -5.0, 2.0);
-    let plane = SketchPlane::from_frame(origin, u, v);
+    let plane = SketchPlane::from_frame(frame_of(origin, u, v));
 
     let base = rounded_rect(4.0, 3.0, 0.5);
     let p = Profile::new(plane, vec![base]);

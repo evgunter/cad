@@ -71,3 +71,25 @@ not the sweep.
 - `crates/step-import/src/normalize.rs`, `half_turn_curve` (`:121`):
   every point goes through `half_turn(p − origin, axis)`, so it
   carries `half_turn`'s premise on the same `axis`, one call up.
+
+## Added by FRAME-WITNESS's §4 sweep (2026-09-15)
+
+The two hand-rolled FRAME dodges this crate pair carries — the ladder
+the unit's own `OrthoFrame::gram_schmidt` now writes once, with both
+lengths decided and a typed refusal naming which axis:
+
+- `crates/step-import/src/adopt.rs`, `line_frame` (`:1031-1058`): a
+  magic-constant least-axis pick, then `perpendicular = candidate −
+  dir*along`, then a raw `norm.is_finite() && norm > 0.0` — a bare
+  comparison with no band — then `y = perp/norm` and
+  `z = dir.cross(y)`. The residual and the cross are `gram_schmidt`'s
+  two steps; the `> 0.0` is what the kernel's `decide` exists to
+  replace, and this file is the last place in the tree spelling it by
+  hand for a direction length.
+- `crates/step-import/src/entities.rs` (`:2387-2401`): a second copy of
+  the same shape — `along = z.dot(f.2)`, `x = f.2 − z*along`, the same
+  `n.is_finite() && n > 0.0`, then `Mat3::from_cols(x, z.cross(x), z)`.
+
+Both are named as "not this unit" in `docs/FRAME-WITNESS-SPEC.md` §1,
+and both are one call to the mint once EXCH decides who owns the band
+at the ε_in direction reader — the same unlock this row already names.
