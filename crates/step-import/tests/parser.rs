@@ -309,7 +309,9 @@ fn eps_in_declared_and_overridable() {
 /// (`string_body`'s docs say why the two are stated separately); the
 /// mirror row is `export::part21_basic_alphabet_bounds` in
 /// `step-export`. The identical band in `stl`'s `SolidName` is an
-/// independent rule and has its own row.
+/// INDEPENDENT rule that must not move with these two, and its own
+/// row is `crates/stl/tests/export.rs`'s
+/// `the_acceptance_exports_agree_are_honest_and_are_byte_identical`.
 #[test]
 fn part21_basic_alphabet_bounds_on_the_read_path() {
     // The exported cube, with the one character under test spliced

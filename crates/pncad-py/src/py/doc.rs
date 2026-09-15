@@ -1029,10 +1029,17 @@ impl Doc {
                 // an insert applied and minted nothing — reached
                 // through a second door, so it is the same word to a
                 // caller and takes it from the same place rather
-                // than restating it. Both raise `EditError` with
-                // this tag, no inner variant and no payload, so the
-                // two are interchangeable on the wire as well as in
-                // meaning.
+                // than restating it.
+                //
+                // The two are also interchangeable on the wire, and
+                // that holds by the arm's shape rather than by
+                // coincidence: `DeclareError::NoMintedId` is
+                // FIELDLESS, so there is nothing for an inner
+                // variant or a payload to project, and `declare_err`
+                // passes the same `EditPayload::NONE` this door
+                // does. Giving the two refusals different payloads
+                // therefore means giving that arm a field, which is
+                // a kernel change a reader meets at the enum.
                 boundary_edit_err(
                     py,
                     crate::tags::declare_error_tag(&pncad::select::DeclareError::NoMintedId),

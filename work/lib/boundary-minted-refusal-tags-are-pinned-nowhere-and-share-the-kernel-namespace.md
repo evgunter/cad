@@ -54,17 +54,50 @@ the Python surface would expect the tag census to carry:
    `ErrorClass::StepImport` with the maps that DO have inventories, so
    an accidental collision is a live shape, not a theoretical one.
 
-## What a fix would look like
+## What is owed, with the remedy left open
 
-The existing guard reads one file and compares against a committed
-table. The natural extension is a second committed roster — the words
-minted outside `src/tags.rs`, with their raise site and the reason no
-enum stands behind each — plus a cross-check that the union of the
-inventory's values and that roster has no word published on one
-`ErrorClass` by two unrelated doors. That second half is the part
-`python-refusal-tag-values-pinned-nowhere`'s closing note did not
-reach: it recorded that an inventory pins the VOCABULARY and not the
-MAPPING, and this is a third thing again — the vocabulary's edges.
+Two properties, stated as what must hold rather than as a mechanism:
+
+1. **Every word this surface can publish is derived from something,
+   and pinned.** Today the guard derives its set by reading one file,
+   so words outside that file are neither derived nor pinned.
+2. **No word is published on one `ErrorClass` by two unrelated
+   doors**, or if one is, both doors say so.
+
+**A hand-maintained roster of the words outside `src/tags.rs` is not
+the answer**, and is named here so the next unit does not reach for
+it: a committed list of a set nothing derives has exactly the defect
+this row reports, one file further along. What the closing note on
+`python-refusal-tag-values-pinned-nowhere` says about its own guard
+applies doubly — that guard at least re-derives its set from source
+at test time. Whether the fix is to derive the raise-site words too
+(they are reachable from the same kind of source read), to give each
+a kernel arm so no word is minted at a boundary at all, or something
+else, is the unit's to decide.
+
+That second property is also a third thing from what the closed row
+reached: it recorded that an inventory pins the VOCABULARY and not
+the MAPPING. This is the vocabulary's EDGES.
+
+## Second evidence: the same fence, on the other side of the wire
+
+Found in the S415 style review (2026-09-15). `TAG_INVENTORY` is blind
+to words MINTED outside `src/tags.rs`, above — it is equally blind to
+words RESTATED outside it, and the restatements are not rare.
+
+`crates/pncad-py/src/py/doc.rs`'s doc comments name **76 distinct tag
+words in backticked prose** that `src/tags.rs` actually returns
+(counted by matching backticked `snake_case` tokens in `///` and
+`//!` lines against the literals in `tags.rs`) — `unknown_node`,
+`placement_rule_mismatch`, `placements_uncertified` and so on, each
+telling a Python caller which word a door raises. None is derived and
+none is pinned: rename the tag and every one of these doc comments
+goes on confidently telling the caller the old word, with the guard
+green because `tags.rs` and its inventory moved together.
+
+That is one file. The reviewer's next places to look are
+`py/value.rs`, `py/analysis.rs`, `py/mate.rs` and `pncad.pyi` — the
+last of which is the file a Python caller actually reads.
 
 ## Where to look
 

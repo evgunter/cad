@@ -743,6 +743,28 @@ sentence; four `work/issues/` items whose `refs` named a SEAT unit id
 now name the unit's PR instead. Prose citations of "VERB-SEAT-DESIGN
 §n" resolve against `crates/verbs/README.md` by clause id.
 
+## Per-merge deletion — S415's spec (2026-09-15)
+
+Recoverable at `git show bce676c75:docs/S415-SPEC.md` (the PORT
+orchestrator's commit that wrote it, which is the last revision where
+it stands alone; the unit branch merged that commit and deleted the
+file in its own first commit). The rule above; the unit's record is
+`work/port/S415.md`, which carries the corrections to the spec's
+premises, and the 2026-09-15 entry in `work/port/log.md`.
+
+**Three of its statements are corrected by the unit** and the item
+file is the statement of record for each: the printable-ASCII band is
+two formats and not three (the spec has this right); `no_minted_id`
+does have a kernel enum behind it (right); and the spec's claim that
+`declare_err` "carries the arm's fields" where `boundary_edit_err`
+does not is **wrong for that arm** — both pass `EditPayload::NONE`
+with no inner variant. The spec's `|p.x| >= 2^53` threshold for the
+vanishing strut offset is also wrong on the negative side and is not
+a threshold on either; `strut_endpoint`'s own docs carry the checked
+statement.
+
+- `S415-SPEC.md` — S415, the three boundary residues: one scaffold rule, the Part 21 band disclosed as one rule in two crates, one hand-minted tag derived (#2633)
+
 ## Per-merge deletion — M10's merged-unit specs (2026-09-03)
 
 Recoverable at `git show 08931277cf23c29d35daa41a15a4cecc6495022e:docs/<NAME>`

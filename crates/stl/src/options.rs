@@ -141,7 +141,7 @@ impl SolidName {
     /// # Errors
     ///
     /// [`SolidNameError::Unrepresentable`] for any character outside
-    /// `0x20..=0x7E`.
+    /// the printable-ASCII band [`SolidName`] states.
     pub fn new(name: impl Into<String>) -> Result<Self, SolidNameError> {
         let name = name.into();
         // The bound is BOTH-SIDED on purpose: below 0x20 are the
