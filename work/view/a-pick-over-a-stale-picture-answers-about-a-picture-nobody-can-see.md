@@ -5,6 +5,7 @@ title: A click over a stale picture resolves against the current index, so it se
 status: review
 branch: view/stale-pick
 opened: 2026-09-15
+pr: 2662
 ---
 
 
