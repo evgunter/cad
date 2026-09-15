@@ -1,7 +1,8 @@
 //! The binding error taxonomy.
 //!
 //! Failures reach Python as **typed exceptions carrying the
-//! structured error, never strings**. That splits in two:
+//! structured error, never strings**. Four items say what that means
+//! here:
 //!
 //! * [`QuantityOpMismatch`] — the boundary refusal a Python user can
 //!   provoke that the Rust surface refuses at COMPILE time
@@ -13,7 +14,13 @@
 //!   layer's ten-arm refusal; the two are unrelated types and this
 //!   one is deliberately not named after it.
 //! * [`ErrorClass`] — which typed Python exception a kernel refusal
-//!   becomes.
+//!   becomes, and for the one class whose discriminant is this
+//!   crate's own decision, WHICH refusal inside it.
+//! * [`EvalReason`] — that discriminant: the complete vocabulary of
+//!   `EvaluationError.reason`, carried by [`ErrorClass::Evaluation`]
+//!   so that naming the class means naming the reason.
+//! * [`reads_as_prose`] — the predicate every raise is checked
+//!   against, so a `Debug` dump never reaches a Python user's screen.
 //!
 //! The dimension tag is the curated surface's own
 //! [`pncad::document::Dimension`], not a private copy, so the Python
@@ -117,7 +124,19 @@ pub enum ErrorClass {
     Edit,
     /// A node whose evaluation failed with a typed geometry refusal,
     /// or that was poisoned by an upstream failure.
-    Evaluation,
+    ///
+    /// **The one class that carries its own discriminant.** Every
+    /// other variant here answers "which exception", and its payload
+    /// is whatever the raise site hands over; this one answers "which
+    /// exception AND which reason", because `EvaluationError.reason`
+    /// is not a kernel refusal's tag — it is this crate's own
+    /// decision about what "the node produced no value" can mean
+    /// ([`EvalReason`]). Carrying it here is what makes the word
+    /// unspellable at a raise site: a site cannot name this class
+    /// without naming a variant of that enum, and
+    /// `crate::py::typed_err` mints the word from it rather than
+    /// reading one off the field list.
+    Evaluation(EvalReason),
     /// A body that failed a topological or geometric validator.
     Validation,
     /// An operator applied to two quantities whose dimensions do not
@@ -399,7 +418,7 @@ impl ErrorClass {
     pub const fn class_name(self) -> &'static str {
         match self {
             Self::Edit => "EditError",
-            Self::Evaluation => "EvaluationError",
+            Self::Evaluation(_) => "EvaluationError",
             Self::Validation => "ValidationError",
             Self::Dimension => "DimensionError",
             Self::FmtQuantity => "FmtQuantityError",
@@ -440,22 +459,43 @@ impl ErrorClass {
 /// **The complete vocabulary of `EvaluationError.reason`** — the word
 /// a Python caller branches on when a node produced no value.
 ///
-/// **A reason is a TYPE here so that its word cannot be minted
-/// anywhere else.** `crate::py::value::eval_err` takes this enum, not
-/// a `&str`, so a string literal at a raise site does not compile; the
-/// word comes from [`crate::tags::eval_reason_tag`], whose `match` is
-/// exhaustive over this enum, so an arm added here stops the build
-/// until a word is written into `src/tags.rs`; and that file is what
-/// `tests::the_whole_tag_table_matches_its_committed_inventory` reads,
-/// so the word reds against the committed inventory when it lands.
-/// The alternative — a word spelled at a construction site under
-/// `src/py/` — is public Python vocabulary no inventory reads.
+/// **A reason is a TYPE so that its word cannot be minted anywhere
+/// else, and the type is on the CLASS so that the wall guards the
+/// door rather than one function.** [`ErrorClass::Evaluation`]
+/// carries this enum, so no raise of that class can be written
+/// without naming a variant of it — not `crate::py::value::eval_err`,
+/// not the two direct `crate::py::typed_err` raises beside it, and
+/// not a raise in a file that does not exist yet. The word itself is
+/// minted in `typed_err` from [`crate::tags::eval_reason_tag`], whose
+/// `match` is exhaustive over this enum, so an arm added here stops
+/// the build until a word is written into `src/tags.rs`; and that
+/// file is what
+/// `tests::the_whole_tag_table_matches_its_committed_inventory`
+/// reads, so the word reds against the committed inventory when it
+/// lands. The alternative — a word spelled at a construction site
+/// under `src/py/` — is public Python vocabulary no inventory reads.
 ///
-/// It lives here rather than in `crate::tags` because that module is
-/// READ as data by that guard, whose recogniser admits `use` items,
-/// tag functions and `pub const` tag words and refuses everything
-/// else — the standing arrangement for a discriminant whose enum is
-/// not the kernel's (`crate::node_kind` is the other).
+/// **What the wall does not cover, measured rather than assumed.**
+/// A raise site may still pass a field of its own named `reason`.
+/// Nothing type-level forbids it, because `typed_err`'s payload is a
+/// list of `(&str, Py<PyAny>)` pairs; what happens instead is that
+/// the minted word is attached LAST and wins, and a `debug_assert`
+/// (live in release in this workspace) names the site. The word a
+/// caller reads is therefore always this enum's, and the hand-spelled
+/// one is loud rather than silent.
+///
+/// **Why the type is here and its map is in `crate::tags`.** Not
+/// because the taxonomy belongs on this side of the line: a reason
+/// and its word are one concept and would sit together in an empty
+/// tree. The constraint is the INSTRUMENT. `src/tags.rs` is read as
+/// data by the tag-table guard, whose recogniser admits `use` items,
+/// `pub fn` tag maps and `pub const` tag words and refuses everything
+/// else, so an `enum` declared there stops the guard dead. Teaching
+/// the recogniser a form in order to move a declaration is a cost
+/// paid against a reader that already needs a guard of its own, and
+/// `E0004` over an exhaustive `match` is a real wall between the two
+/// halves whichever files they sit in. `crate::node_kind` is the same
+/// arrangement for the same reason.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EvalReason {
     /// The document holds no node under that id.

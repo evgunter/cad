@@ -1,0 +1,64 @@
+---
+id: four-censuses-of-python-visible-vocabulary-in-one-crate
+kind: issue
+title: four censuses of Python-visible vocabulary live in one crate in four homes, almost but not quite parallel
+status: open
+opened: 2026-09-15
+---
+
+
+Found by the style review of CENSUS-TAG-REACH (2026-09-15) and filed
+by that unit's fix pass. It is not a defect in any one of the four; it
+is a question about whether four is the right number.
+
+## The four, and what each one's population and instrument are
+
+| census | population | instrument |
+| --- | --- | --- |
+| `TAG_INVENTORY` (`src/tests.rs`) | every literal in `src/tags.rs` | reads that file as TEXT, with a recogniser that refuses a form it does not know |
+| `NODE_KIND_ROSTER` (`src/tests.rs`) | `crate::node_kind`'s words | re-derives from that module and compares against a committed roster |
+| `src/surface_census.rs` | three kernel vocabularies Python re-spells (PATHS verbs, arc modes, `StepOptions` fields) | an exhaustive MATCH on the kernel tag, against `pncad.pyi` read as text |
+| `src/prose_census.rs` | every `{x:?}` inside every `impl Display` in the workspace | a source walk over the tree |
+
+All four ask one question in four dialects: **can a Python caller
+reach every member of this vocabulary, and does the word it reaches
+under still say what it said?** They are almost-but-not-quite
+parallel — different populations, different instruments, different
+failure modes — and nothing relates them.
+
+## Why it is worth a row
+
+CENSUS-TAG-REACH added a fifth population to the FIRST of them (the
+evaluation door's `reason` words, via `crate::tags::eval_reason_tag`)
+without asking whether the third's device was the better home.
+`surface_census`'s *"the witness is a MATCH on the kernel tag, not a
+list"* is the strongest of the four — it fails to COMPILE rather than
+failing an assertion — and it is the one this crate reaches for least.
+The tag-table reader, by contrast, is a source-text reader, which is
+this program's standing trap: it needs a guard of its own, and now has
+one (`the_tag_table_reader_recognises_every_form_it_claims`), which is
+a second instrument bought to hold up the first.
+
+The two rows this couples to, from the other end:
+
+* `work/census/py-discriminant-getters-under-src-py-are-outside-every-inventory.md`
+  — 23 Python-visible words that none of the four can see, which is
+  the population argument for merging them.
+* `work/census/evaluationerror-stub-lists-five-reasons-and-the-door-raises-six.md`
+  — a stub docstring restating a vocabulary the Rust side now
+  enumerates, and its shape-of-the-fix already points at
+  `surface_census.rs` as somewhere such a check could live. That row
+  asks about one restatement; this one asks whether the four
+  instruments should be fewer.
+
+## What this row is NOT
+
+Not a proposal to delete any of them. Three of the four have a
+correctness argument written at the site for the device they chose,
+and `prose_census` in particular is answering a different question
+(a rendering, not a word). What is owed is the judgement, once, in one
+place: which populations belong to which instrument, and what the
+fifth one should have joined.
+
+Territory: `crates/pncad-py/*` is LIB's fence and this program's
+`keep_out` announces its pncad-py rows there.

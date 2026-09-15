@@ -39,7 +39,11 @@ What the row is worth is the general question: **which stub
 docstrings restate a vocabulary the Rust side now enumerates, and can
 the restatement be derived or checked rather than typed?**
 `crates/pncad-py/src/surface_census.rs` is the instrument that already
-reads the stub, so there is somewhere for such a check to live.
+reads the stub, so there is somewhere for such a check to live —
+which is one end of
+`work/census/four-censuses-of-python-visible-vocabulary-in-one-crate.md`,
+the question of whether this crate's four vocabulary censuses should
+be four.
 
 CENSUS-TAG-REACH's spec forbade it from touching `pncad.pyi`'s
 surface, which is why the sentence is still five words long.

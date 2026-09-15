@@ -55,11 +55,14 @@
 //! literals against an inventory committed there — a rename, an
 //! addition, a deletion or a new tag function reds on the default
 //! no-interpreter row. Its reader ENUMERATES rather than approximates:
-//! every top-level line here must be a comment, a `use` item, a
-//! `pub fn NAME(..) -> &'static str {` closed by a `}` in column 0, or
-//! a `pub const NAME: &str = "..";`, and every match arm's body must
-//! be a literal, a nested `match`, a block around one of those, or a
-//! call to another tag function. Anything else fails that test with
+//! every top-level line here must be a comment or blank, a `use`
+//! item, a `pub fn NAME(..) -> &'static str {` or
+//! `pub fn NAME(..) -> Option<&'static str> {` closed by a `}` in
+//! column 0, or a `pub const NAME: &str = "..";`, and every match
+//! arm's body must be a literal, a nested `match`, a block around one
+//! of those, a call to another tag function, or — in the partial maps
+//! — a bare `None` or a `Some(..)` around one of the rest. Anything
+//! else fails that test with
 //! *I do not understand this* rather than being skipped — so an
 //! attribute, a helper, or a cleverer arm added here is a deliberate
 //! diff that teaches the reader too, never a silent hole.
@@ -2021,15 +2024,30 @@ pub fn interrogate_error_tag(err: &InterrogateError) -> &'static str {
 /// The evaluation door has no kernel enum to match on: every other
 /// map here keys off a refusal the kernel minted, and this one keys
 /// off [`EvalReason`], which is this crate's own decision about what
-/// "the node produced no value" can mean. The enum is therefore
-/// declared beside the error taxonomy in `crate::errors` — the guard
-/// that reads this file as data admits `use` items and tag functions
-/// and nothing else — and this map is what turns it into a word.
+/// "the node produced no value" can mean. The enum is declared beside
+/// the error taxonomy in `crate::errors` and its map is here, which
+/// splits one concept across two files — a constraint of the
+/// INSTRUMENT rather than a claim about where the taxonomy belongs.
+/// This file is read as DATA by the tag-table guard, whose recogniser
+/// admits `use` items, `pub fn` tag maps and `pub const` tag words
+/// and refuses everything else, so an `enum` written here stops that
+/// guard dead. A `pub const fn` is refused too, and less legibly: the
+/// reader strips `pub fn ` alone, so such a line is read as a `pub
+/// const` and refused for not being a `&str`. Every map here is a
+/// plain `pub fn` for that reason.
+/// [`crate::errors::EvalReason`] says the rest.
 ///
-/// **This map is the door's only mint.** `py::value::eval_err` takes
-/// [`EvalReason`] rather than a `&str`, so no raise site can spell a
-/// word of its own, and every word the door can put on the wire is a
-/// literal on this page — where
+/// **This map is the door's only mint.** The reason rides on the
+/// CLASS — `errors::ErrorClass::Evaluation` carries an [`EvalReason`]
+/// — so no raise of that class can be written without naming a
+/// variant of the enum, and `py::typed_err` is what turns it into a
+/// word. That is a property of the DOOR rather than of one function:
+/// the three raise sites in `py/value.rs` and any raise written in a
+/// file that does not exist yet reach this map the same way. What it
+/// does not forbid is a site that ALSO passes a `reason` field of its
+/// own; the minted word is attached last and wins, and a
+/// `debug_assert` in `py::typed_err` names the site. So every word
+/// the door can put on the wire is a literal on this page — where
 /// `tests::the_whole_tag_table_matches_its_committed_inventory` reds
 /// on an addition and on a rename.
 ///

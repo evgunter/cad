@@ -37,7 +37,7 @@ use crate::errors::{ErrorClass, EvalReason};
 use crate::py::quantity::Length;
 use crate::py::{doc::NodeId, typed_err};
 use crate::tags::{
-    eval_reason_tag, export_error_tag, node_error_tag, node_inner_kind_tag, normalization_kind_tag,
+    export_error_tag, node_error_tag, node_inner_kind_tag, normalization_kind_tag,
     promoted_curve_kind_tag, promoted_kind_tag, step_import_error_tag,
 };
 use crate::validation;
@@ -57,11 +57,13 @@ fn inner_kind(py: Python<'_>, kind: &d::NodeErrorKind) -> Py<PyAny> {
 
 /// Raise `EvaluationError` with a stable `reason` tag.
 ///
-/// The reason is a [`EvalReason`], not a `&str`: the word a Python
-/// caller branches on is minted once, by
+/// The reason is an [`EvalReason`], not a `&str`, and it rides on the
+/// CLASS ([`ErrorClass::Evaluation`]) rather than in the payload: the
+/// word a Python caller branches on is minted once, by
 /// [`crate::tags::eval_reason_tag`], on a page the tag-table guard
-/// reads. A literal here would be public Python vocabulary no
-/// inventory can see, so it is not a thing this signature accepts.
+/// reads. That holds for this door's other two raises below and for
+/// any future one, because no raise of this class can be written
+/// without naming a variant of the enum.
 ///
 /// `kind`, `inner_kind`, `through` and `finding` are ALWAYS present on
 /// the exception — `None` where the reason has no failing kind, no
@@ -78,15 +80,9 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: EvalReason, node
     };
     typed_err(
         py,
-        ErrorClass::Evaluation,
+        ErrorClass::Evaluation(reason),
         message,
         &[
-            (
-                "reason",
-                PyString::new(py, eval_reason_tag(reason))
-                    .unbind()
-                    .into_any(),
-            ),
             ("node", node),
             ("kind", py.None().into_any()),
             ("inner_kind", py.None().into_any()),
@@ -125,15 +121,9 @@ fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
     };
     typed_err(
         py,
-        ErrorClass::Evaluation,
+        ErrorClass::Evaluation(EvalReason::NodeFailed),
         error.to_string(),
         &[
-            (
-                "reason",
-                PyString::new(py, eval_reason_tag(EvalReason::NodeFailed))
-                    .unbind()
-                    .into_any(),
-            ),
             ("node", node_obj),
             (
                 "kind",
@@ -159,12 +149,6 @@ fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::Nod
         (Err(failed), _) | (_, Err(failed)) => return failed,
     };
     let mut fields: Vec<(&str, Py<PyAny>)> = vec![
-        (
-            "reason",
-            PyString::new(py, eval_reason_tag(EvalReason::Poisoned))
-                .unbind()
-                .into_any(),
-        ),
         ("node", node_obj),
         ("through", through_obj),
         ("finding", py.None().into_any()),
@@ -188,7 +172,12 @@ fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::Nod
             format!("never ran — poisoned through node {}", through.0.0)
         }
     };
-    typed_err(py, ErrorClass::Evaluation, message, &fields)
+    typed_err(
+        py,
+        ErrorClass::Evaluation(EvalReason::Poisoned),
+        message,
+        &fields,
+    )
 }
 
 /// Bulk mass properties of a body, in canonical units.

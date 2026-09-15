@@ -131,11 +131,22 @@ none of these seven and would have reported a clean negative.
 
 **The seven sites and the three words are correct**, re-measured. What
 the criterion "an `eval_err` call site" hid is that the same file mints
-three MORE Python-visible `reason` words at direct `typed_err` sites —
-`node_failed` and `poisoned` (the same `EvaluationError` door, so the
-same vocabulary) and `mass_properties_failed` (a `ValidationError`) —
+two MORE `EvaluationError.reason` words at direct `typed_err` sites —
+`node_failed` and `poisoned`, the same door and the same vocabulary —
 and `crates/pncad-py/src/tests.rs`'s own inventory doc already listed
-all six as one family. Ten literal sites, not seven.
+all six as one family.
+
+**The count, stated once and correctly** (the first version of this
+paragraph reached ten two different ways): `py/value.rs` held **ten
+sites minting `EvaluationError.reason`** — eight `eval_err` calls, of
+which **seven passed a string literal** (`wrong_kind` ×5,
+`empty_boolean`, `unknown_node`) and one passed the `NODE_NOT_EVALUATED`
+`pub const` from `crate::tags`, plus the two direct `typed_err` raises
+in `node_failure` and `poisoning`, which spelled `node_failed` and
+`poisoned` as literals. **Nine literals, one const, ten sites, one
+door, six words.** `mass_properties_failed` is an eleventh literal
+`reason` in the same file and is NOT this door — it is a
+`ValidationError` — so it is outside this count and filed.
 
 **The disposition held, one type deeper.** Moving the words to
 `pub const`s would have left the answer to "what stops the next word"
@@ -149,10 +160,50 @@ guard already reads. `NODE_NOT_EVALUATED` folded into it and
 `the_tag_table_reader_recognises_every_form_it_claims`, a fixture-driven
 self-test the lane added because the file stopped supplying an instance.
 
-Three residues are filed rather than swept:
+**And the wall moved from the function to the door (fix pass).** As
+landed, the type guarded `eval_err` alone: `node_failure` and
+`poisoning` called `typed_err(py, ErrorClass::Evaluation, …)`
+directly and passed `("reason", eval_reason_tag(…))` by hand, so a
+fourth such site — in this file or a new one — could still spell a
+word of its own, and the review executed exactly that and got 86
+passing tests. `ErrorClass::Evaluation` now CARRIES the `EvalReason`,
+so the class cannot be named without naming the reason; `typed_err`
+mints the word and attaches it last, and asserts against a raise site
+that passes one too. Probed: a new file under `src/py/` minting
+`probe_bypass_word` at a direct `typed_err` site does not compile
+(`E0308`, *expected `ErrorClass`, found enum constructor*).
+
+Six residues are filed rather than swept:
 `work/census/py-reason-and-variant-literals-outside-any-enum.md`,
 `work/census/datum-kind-vocabulary-is-hand-spelled-and-uncensused.md`,
-`work/census/evaluationerror-stub-lists-five-reasons-and-the-door-raises-six.md`.
+`work/census/evaluationerror-stub-lists-five-reasons-and-the-door-raises-six.md`,
+and — from the style review and this unit's fix pass —
+`work/census/py-discriminant-getters-under-src-py-are-outside-every-inventory.md`,
+`work/census/four-censuses-of-python-visible-vocabulary-in-one-crate.md`,
+`work/census/pncad-py-tests-rs-is-six-thousand-lines-and-carries-two-unremeasured-floors.md`.
+
+## The blind-spot list was short again, and by how much (fix pass, 2026-09-15)
+
+The disclosed sweep was **a literal beside a `"reason"` or
+`"variant"` key**, and its blind-spot statement claimed the shapes it
+could not match. Measured against the tree, it could not see four more
+shapes, and three of them hold words:
+
+* **a `fn … -> &'static str` getter**, which is neither a literal
+  beside a key nor a struct field: **30** such functions under
+  `src/py/`, six of them minting **23 distinct Python-visible words**,
+  two of the six named `*_tag` and living outside `src/tags.rs`;
+* **a word in tuple position** feeding a `variant` field
+  (`py/mesh.rs`'s `not_utf8`);
+* **a word passed as a `&'static str` ARGUMENT** to a raise helper
+  (`py/doc.rs`'s `name_serialize` through `boundary_edit_err`, and the
+  four `ValidationError.door` words through `run_validator`);
+* **an `Option<&'static str>` getter** — 17 of them, and this one is a
+  clean negative: every one delegates to `crate::tags`.
+
+This is the third unit running whose blind-spot list was short, which
+is `work/census/log.md`'s point 2. The two rows above carry the
+population.
 
 **Class E was right**, and only because the disposition was made in the
 spec. The design call — which of the three closes — is the whole
