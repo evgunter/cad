@@ -923,6 +923,54 @@ working rather than failing. Nothing in this section generalises to the
 second, and `work/view/seam-split-leaves-a-cycle-through-the-session`
 is where the question of whether it should be broken at all is kept.
 
+### A pick id is one index's word
+
+`PickIndex` holds an `IdMap` keyed by `(generation, δ)`, and every id
+in the drawn mesh's per-corner `ids` was minted by the id map of the
+index that built it. So an id is only a name in the alphabet of the
+index that minted it, and reading one through another index resolves it
+to whatever that index happens to keep at the same number.
+
+**The index in hand is not always the index on screen.**
+`ViewerApp::sync_scene` marks the scene's `(generation, δ)` pair current
+only on a successful rebuild — a refused one must not consume the pair,
+or the stale picture stays marked as the current one and is never
+retried — so a landed index over a refused rebuild leaves a newer index
+beside an older picture, and nothing retries it while the display
+revision and the focus set hold still. The startup mesh is the same
+shape from the other end: `scene::scene_of` builds it before any index
+exists and every corner carries `IdMap::NOTHING`.
+
+**So a pane sorts its reads of the index by what they are about**, and
+the sorting is a rule about currency rather than about which fields
+happen to be in hand:
+
+- A read about the **document** — what is under this cursor, what does
+  a click mean — takes the index with the session's evaluation, because
+  that is what resolves a ray into a face — `PickIndex::op_under` in
+  the viewport, `BlendTool::load_all_edges` behind the create pane's
+  all-edges button.
+- A read about the **picture** — an id the id pass produced, or a mark
+  the shader composites against the drawn corners — goes through
+  `drawn_index`, which answers `None` unless the index in hand is the
+  one whose id map minted those corners. Both halves of the key are
+  asked, through `PickIndex::current_for`: a δ typed while the document
+  stands rebuilds the index at the same generation over a different
+  tessellation, so generations alone would read as co-identity while
+  checking something else.
+- A read of the index's **identity alone** — `PickIndex::generation` as
+  a cache key — resolves nothing and needs neither.
+
+**What produced the rule.** The population is *a site that uses the
+`&PickIndex` a pane was handed*, and there are **eight**: five about the
+picture, two about the document, one the identity. It is derived in two
+steps, because neither alone produces it. `ViewerBehavior::index` is a
+field, so `self.index` finds every place a pane takes one — four
+bindings, in `pane::viewport` and `pane::create`, and a pane that grew a
+fifth would appear there. It does **not** find the uses: the five
+picture-side ones read a binding called `drawn`, and a name is not a
+pattern, so each binding's scope is read in order instead.
+
 ### `Refusal`'s delegation discipline
 
 `Refusal` has two kinds of arm and the rule is where the failure's

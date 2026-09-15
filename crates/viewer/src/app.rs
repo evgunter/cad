@@ -301,10 +301,20 @@ pub struct ViewerApp {
     id_log: IdQueryLog,
     /// Bumped on every rebuild; the GPU uploads when it disagrees.
     revision: u64,
-    /// The evaluation generation `scene` was built from. When it
-    /// disagrees with the session's landed generation, the picture is
-    /// out of date and exactly one rebuild is owed.
-    scene_generation: Option<Generation>,
+    /// **The index identity `scene` carries**: the `(generation, δ)`
+    /// pair of the [`PickIndex`] whose id map minted the per-corner ids
+    /// in the mesh on screen, as [`PickIndex::current_for`] takes them.
+    ///
+    /// A pick id is a word of ONE index's alphabet. Anything that
+    /// resolves an id the picture produced, or mints one for the
+    /// picture to compare against, is reading that alphabet, so it owes
+    /// a check that the index in hand is the index this pair names —
+    /// `pane::viewport::drawn_index` is where that check lives.
+    ///
+    /// `None` is a picture no index minted ids for: the startup mesh
+    /// comes from [`scene::scene_of`], whose corners all carry
+    /// [`crate::pickindex::IdMap::NOTHING`].
+    scene_key: Option<(Generation, DisplayTolerance)>,
     /// The display-state revision `scene` was built under — hide and
     /// free-move are scene inputs too, so a display change owes a
     /// rebuild exactly as a new evaluation does.
@@ -726,7 +736,7 @@ impl ViewerApp {
             id_answer: Arc::new(AtomicU64::new(0)),
             id_log: IdQueryLog::new(),
             revision: 1,
-            scene_generation: None,
+            scene_key: None,
             scene_display: None,
             scene_focus: BTreeSet::new(),
             scene_fault: None,
@@ -907,7 +917,12 @@ impl ViewerApp {
                 // not consume this (generation, display) pair, or the
                 // stale picture stays on screen marked as the current
                 // one and is never retried.
-                self.scene_generation = self.session.landed_generation();
+                // Taken from the INDEX, not from the session: the
+                // pair that matters is the one whose id map is in this
+                // mesh, and reading the session's generation here would
+                // be a second derivation of it that nothing holds to
+                // the first.
+                self.scene_key = Some((index.generation(), index.delta()));
                 self.scene_display = Some(display_revision);
                 self.scene_focus = focus;
                 self.scene = Arc::new(mesh);
@@ -1611,6 +1626,7 @@ impl eframe::App for ViewerApp {
                     budget_delta: self.budget_delta,
                     scene: &self.scene,
                     index: self.picks.index(),
+                    scene_key: self.scene_key,
                     indexing: self.picks.indexing(),
                     revision: self.revision,
                     camera: &mut self.camera,
@@ -1704,6 +1720,10 @@ pub(crate) struct ViewerBehavior<'a> {
     pub(crate) budget_delta: Option<crate::scene::FittedDelta>,
     pub(crate) scene: &'a Arc<SceneMesh>,
     pub(crate) index: Option<&'a PickIndex>,
+    /// The index identity the `scene` above carries (`ViewerApp::
+    /// scene_key`), for the reads of `index` that are about the
+    /// PICTURE rather than about the document.
+    pub(crate) scene_key: Option<(Generation, DisplayTolerance)>,
     /// Whether a build for the picture this frame WANTS is under way —
     /// the other half of what `index: None` means, and the half that
     /// decides which sentence a refused pick gets
