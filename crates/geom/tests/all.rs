@@ -166,6 +166,8 @@ mod surfaces_review_m5_pr3_attack_interval;
 mod surfaces_s32_jet_projection;
 #[path = "surfaces/span_window_pairing.rs"]
 mod surfaces_span_window_pairing;
+#[path = "surfaces/vrev_r2_probes.rs"]
+mod surfaces_vrev_r2_probes;
 
 /// The aggregation and ONE HOME checks, whose one home — the walk, the
 /// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
