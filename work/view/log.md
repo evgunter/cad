@@ -11733,3 +11733,66 @@ word** — it cannot see a `committed`/`transient` or
 
 Item **closed**. **VIEW stands at 73 open / 94 closed, nothing waiting
 on Ev.**
+
+## 2026-09-15 — #2638 merged; my ctrl+scroll claim was false, and the toolkit's own source says so
+
+**#2638 merged** (`1024e37ca6`), verified from the job list: code tier,
+**39 check runs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok`
+success**, all four render-lane rows success, six skipped, nothing
+failed or neutral.
+
+**I passed on the item's false claim and added my own weight to it.**
+The row said an unread `ctrl` means *"a ctrl+scroll and a plain scroll
+are the same event"*, and my dispatch called it *"the one place where
+the dropped input has a conventional meaning the viewer already
+implements by accident"*. Both false. I checked egui 0.36.1 myself
+rather than take the correction on report:
+
+- `input_state/mod.rs:455` starts `smooth_scroll_delta` at `Vec2::ZERO`;
+- `:461` `is_zoom = wheel.modifiers.matches_any(options.zoom_modifier)`,
+  and `zoom_modifier` is `Modifiers::COMMAND` (`:118`);
+- `:463-468` is an if/**else**: on zoom the delta goes to
+  `zoom_factor_delta` and `smooth_scroll_delta` **stays zero**.
+
+So a **ctrl+wheel produces no `ViewportEvent` at all** — it does not
+zoom, and it is not the same event as a plain scroll. Reading `ctrl` in
+the adapter would have recovered nothing. It is a live product gap in
+the gesture every browser and every mainstream CAD package zooms with.
+Filed as `ctrl-wheel-reaches-no-zoom`, not disclosed in prose.
+
+**The same mechanism answers two gestures the item never reached**, and
+I verified these too (`input_state/wheel_state.rs:120-133`):
+`horizontal_scroll_modifier` is SHIFT, so a **shift+wheel is folded onto
+`x`** and dropped — `x` is not merely a trackpad swipe, it is where
+shift+wheel lands on any mouse; `vertical_scroll_modifier` is ALT, so an
+**alt+wheel folds onto `y`** and zooms like a plain wheel. That makes
+the `x` decision specific rather than plausible: zoom is a scroll's only
+binding, so a passed-on `x` would have to zoom, and a sideways swipe
+that zooms is worse than one that does nothing.
+
+**Generalises, and it is the borrowed-mechanism rule one step out.**
+The item reasoned about `egui::Modifiers` as a bag of bools the adapter
+reads, and asked which the viewer binds. The toolkit had already
+consumed three of them upstream of the field the adapter reads, so the
+question *"which modifiers do we bind"* was the wrong question — the
+answer lived in `begin_pass`, not at our call site. **When a row says a
+field is unread, check what the producer does with it before deciding
+the fix is to read it.**
+
+**The citations were stale by arithmetic and right about their
+subject** — #2450 inserted above them, so the reads are at `:247` and
+`:261`, not `:195`/`:209`. The lane read the lines rather than shifting
+the numbers, which is the method that keeps working.
+
+**The compiler lever was available and taken, with its limit stated.**
+`egui::Modifiers` and `Vec2` are plain structs, not `#[non_exhaustive]`,
+so a destructuring pattern naming every field is the struct form of
+#2450's exhaustive match — demonstrated with a sixth field:
+`error[E0027]`. The lane then followed the compiler's own printed
+repairs and found the third suggestion is `..`, so the doc says **stop,
+not wall**, instead of claiming the compiler forces a decision. The
+PAIRING is still unheld — `(shift, alt)` swaps type-check — so a row
+holds it over six modifier combinations.
+
+Item **closed**. **VIEW stands at 73 open / 95 closed, nothing waiting
+on Ev.**

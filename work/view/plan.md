@@ -1110,6 +1110,25 @@ together. The only method that has worked is opening the line and
 confirming the subject, one at a time — and a unit whose whole subject
 is stale claims is the MOST likely to mint them, not the least.
 
+**When a row says a toolkit field is unread, check what the PRODUCER
+does with it before deciding the fix is to read it.**
+`viewport-adapter-drops-part-of-two-toolkit-values` said an unread
+`egui::Modifiers::ctrl` made a ctrl+scroll and a plain scroll the same
+event, and the dispatcher agreed in writing. Both were wrong:
+`InputState::begin_pass` routes a wheel whose modifiers match
+`zoom_modifier` into `zoom_factor_delta` and leaves `smooth_scroll_delta`
+at `Vec2::ZERO` (egui 0.36.1, `input_state/mod.rs:455-468`), so a
+ctrl+wheel produces no event at all and reading `ctrl` would have
+recovered nothing. Two further gestures the row never reached have the
+same cause — SHIFT folds a wheel onto `x`, ALT onto `y`
+(`wheel_state.rs:120-133`). The question *"which parts of this value do
+we bind"* presumes the value still carries what it is named for; a
+toolkit that consumes an input upstream of the field we read makes that
+presumption false, and the answer is in the producer rather than at our
+call site. This is the borrowed-mechanism rule one step out of the
+crate: there, a doc deferred to a mechanism its own path did not have;
+here, a row reasoned about a field the toolkit had already spent.
+
 ## Exit shape
 
 The README states the module map and every item above has landed or
