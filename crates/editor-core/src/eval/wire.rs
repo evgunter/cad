@@ -884,7 +884,7 @@ fn band(tol: Tol) -> Result<Band, NodeErrorKind> {
 /// the mate solve's re-derivation of both from the recipe.
 ///
 /// It reaches the funnel as an argument to
-/// [`decide_unit_direction`] rather than as a literal at the
+/// [`geom_core::decide_unit_direction`] rather than as a literal at the
 /// `decide` call, so it is a roster carrier (`docs/K-REPORT.md`, "The
 /// inventory method, restated"), and it is a constant so that the
 /// name the telemetry records and the name an escalation reports
@@ -896,7 +896,7 @@ pub(crate) const EVAL_DIRECTION_NORM: &str = "eval_direction_norm";
 /// indeterminacy escalates.
 ///
 /// **The decision is the kernel's one body**
-/// ([`decide_unit_direction`]): finiteness asked first through
+/// ([`geom_core::decide_unit_direction`]): finiteness asked first through
 /// the value channel every scalar has, then whether the length
 /// underflowed out of the format through the same channel, then which
 /// side of zero the length lies on, then normalize or refuse. This function is that
