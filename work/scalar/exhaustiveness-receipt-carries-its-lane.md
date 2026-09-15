@@ -4,6 +4,7 @@ kind: unit
 title: Exhaustiveness and ExhaustivenessInconclusive carry a lane tag with the chart lane's SupSpeed; meters by one method
 status: open
 opened: 2026-09-15
+branch: scalar/exhaust-lane
 ---
 
 
