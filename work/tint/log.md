@@ -77,3 +77,44 @@ measurement stays the result of record; nothing here re-takes it.
 ported and, once answered, un-ignored as the unit's pins at the
 nominal and one width), registered in `tests/all.rs`; the evidence
 rows stay `#[ignore]`; the pins' cost is stated in the PR body.
+
+## First orchestration session opens (2026-09-15)
+
+S-TINT has run no lane since it opened: no `tint/` branch exists, no PR
+carries the prefix, every one of the 42 rows is `open`, and no row in
+this directory sets `needs_ev`. So nothing was waiting on Ev at the
+start of this session, and the slate's order is still unset.
+
+**Review posture ratified (Ev, in-chat, 2026-09-15).** The plan's
+§*Review posture* recorded the S-TCOST inheritance as *"open for Ev to
+reset"*; Ev's answer resets nothing and confirms both halves: **no A/B
+row and no A/B protocol**, and **one style review per unit** against
+`docs/prompts/reviewer-style-lane.md` by path, with a full
+(claims-falsification) review reserved for **the hardest units only** —
+a per-unit judgement named in the unit's PR with its reason, not a
+default. The band 3500–3599 stays bookkeeping.
+
+**A row's body is not evidence about today's tree, and the first
+spot-check proved it.** `m10-4-bore-pin-row-red-at-interval-1e-6` (filed
+2026-09-03, GitHub 1646) describes an absolute `1e-9` slack that is
+vacuous at ε = 1e-12 and red at ε = 1e-6. That assertion is **gone from
+the tree**: `crates/editor-core/tests/m10_4_r2_probes_interval.rs`'s
+`the_bore_pin_fit_as_a_consumer_reads_it` now pins the hull at both ends
+against `0.2 ± half`, states the padding per half-width, and carries a
+comment repairing exactly this defect and citing issue 1646 by number —
+*"No absolute slack: an ε-independent term says nothing at the tight rows
+and the wrong thing at the loose ones"*. The M10 lane closed it and the
+row on this slate never learned. A second spot-check
+(`torus-tangency-shell-floor-does-not-scale-with-k`) still reproduces:
+`away()` is still a fixed floor and `bool3_torus_doors.rs`'s clearance
+assertion still tells its reader to raise it.
+
+One stale row in two reads is not a rate, and neither reading closes
+anything. What it settles is the ORDER: the plan's instruction to
+re-derive a frozen citation *at dispatch* is too late when the question
+is whether a row is a row at all, so **the first act of this program is a
+re-derivation pass over all 42 rows against the current tree** — does the
+defect still reproduce, and is the row's floor still its floor — before
+any unit is cut. The pass is bookkeeping about the slate, not work on the
+suite, and it lands as item-file edits (closures with their evidence, or
+re-derived citations) rather than as a unit.
