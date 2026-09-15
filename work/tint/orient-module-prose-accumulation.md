@@ -53,3 +53,40 @@ second is the larger change and touches `tests/all.rs`'s aggregation.
 named above.
 
 **Verdict:**
+
+## The same shape, one file over: `sweep/src/test_support.rs` (2026-09-15, SUITE/S392)
+
+Added by the reviewer of `S392`'s PR #2650, which grew the file it
+measures.
+
+`crates/sweep/src/test_support.rs` is **1825 lines, about 42% of them
+doc comment**, opening with a five-section module header near 100 lines
+long: the feature gate's argument, the routing rule, the extrusion
+family, the loft family, and "editing a fixture here re-authors
+committed bytes". Every section was added by a unit that had a real
+reason, and no single one was unreasonable — which is this row's
+finding, one file over from the one it was filed about.
+
+It is the same mechanism and the same cost: `orient.rs`'s routing rule
+governs where ITEMS live and nothing governs where PROSE lives, and
+`test_support.rs` is governed by that same rule and has the same gap.
+Two receipts from #2650 specifically:
+
+- The module header **acquired a paragraph arguing that no
+  hand-written census is kept here**, and thirty lines below it a later
+  section of the same header carried a hand-written numeric census
+  ("thirteen constructions want the solid, six want the sections"), one
+  of whose two numbers was already wrong when the reviewer read it.
+  Both were written in the same diff. The header is now long enough
+  that its own rule was invisible from inside it.
+- The **`_at` suffix** carries two meanings across eleven doors with
+  nothing in the header saying so; that half is filed on
+  `sweep-test-support-two-wrapper-conventions`, which is the row that
+  asks for a header rule.
+
+What this adds to the fix above: whatever governor is written for
+`orient.rs` should be written for a **module**, not for that file, and
+`test_support.rs` is the second subject to apply it to. It is also the
+harder one, because it is `src/` and its header is the one document
+that tells a crate outside `sweep` how to join the fixture home — so
+"split the module" costs more here than it does in `tests/common`.
