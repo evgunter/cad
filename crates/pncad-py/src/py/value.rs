@@ -400,8 +400,8 @@ impl Body {
     /// may have no volume number at this ε. Tier 3 admits it — the +V
     /// check reads only the sign — and the measurement refuses, with
     /// the same `ValidationError` and the same `reason`
-    /// (`"mass_properties_failed"`) `mass_properties()` raises on that
-    /// body. On THAT refusal the exception also carries the
+    /// ([`ValidationRefusal::MassProperties`]) `mass_properties()`
+    /// raises on that body. On THAT refusal the exception also carries the
     /// sign-level bracket the gate decided on — `volume_lo`,
     /// `volume_hi`, `surface_area` — which is the whole of what the
     /// certified quadrature is entitled to say about the body, and is
