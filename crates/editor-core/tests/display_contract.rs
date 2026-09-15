@@ -32,12 +32,31 @@ fn mint(refusal: MintRefusal) -> AssemblyError {
     }
 }
 
-/// The `Debug` field names editor-core's refusal payloads carry — the
-/// punctuation a rendering must not leak. Written ONCE for the binary
-/// rather than once per suite: `m4_pr4_hit`'s hit-test row goes
-/// through the same roster, and the divergence between its old one and
-/// this one is what a second spelling cost
+/// The `Debug` field-name punctuation **this binary can ban**, which is
+/// far short of what its refusal payloads carry.
+///
+/// Written ONCE for the binary rather than once per suite:
+/// `m4_pr4_hit`'s hit-test row goes through the same roster, and the
+/// divergence between its old one and this one is what a second
+/// spelling cost
 /// (`work/view/f6-display-predicate-is-spelled-three-times-with-no-home`).
+///
+/// **That scope is why the roster is two tokens and not twenty-odd.**
+/// It is binary-wide, so a token may be banned only if NO rendering
+/// anywhere in the binary opens on it as prose. `index:` is the live
+/// counter-example — `MeshPickError::PositionOutOfRange` renders "pick
+/// index: triangle … of patch …", which is a sentence — so `index:`
+/// is unbannable here although it is a genuine payload field name.
+/// Every other field these payloads carry is in the same position
+/// until someone checks it against all eight enums' renderings.
+///
+/// **Which scope is right.** Per-enum, as `mesh` and `topo` spell it:
+/// the ban is only as wide as the renderings it must hold against, so a
+/// per-enum roster can carry that enum's whole payload vocabulary,
+/// while a binary-wide one is bounded by the most prose-like door in
+/// the binary. This one stays binary-wide because its eight enums share
+/// one wrapper and one suite pair; splitting it is a change to make
+/// when a site needs a token this roster cannot hold, not before.
 const FIELDS: &[&str] = &["node:", "name:"];
 
 /// [`test_utils::f6::assert_f6`] with this binary's field roster.
@@ -50,17 +69,15 @@ pub(crate) fn assert_f6<E: core::fmt::Debug + core::fmt::Display>(
 }
 
 /// [`test_utils::f6::assert_f6_every_variant`] with this binary's
-/// field roster. The weld itself — the exhaustiveness token's
-/// contract, the roster's, and the ONE HOLE both leave open — is
-/// documented there, where the mechanism is, rather than restated per
-/// adopting suite.
+/// field roster. The weld itself — what the census guarantees, and
+/// what it still does not weld — is documented there, where the
+/// mechanism is, rather than restated per adopting suite.
 pub(crate) fn assert_f6_every_variant<E: core::fmt::Debug + core::fmt::Display>(
     cases: &[(E, Vec<&str>)],
-    exhaustive: fn(&E),
-    all: &[&str],
+    census: &test_utils::f6::VariantCensus<E>,
     also_banned: &[&str],
 ) {
-    test_utils::f6::assert_f6_every_variant(cases, exhaustive, all, also_banned, FIELDS);
+    test_utils::f6::assert_f6_every_variant(cases, census, also_banned, FIELDS);
 }
 
 /// Every [`Dimension`]'s `Debug`, which is what a refusal that names a
@@ -121,25 +138,17 @@ fn stable_name_display_is_kind_plus_minting_node() {
     );
 }
 
-/// `NodePickError`'s exhaustiveness token: the `match` has no wildcard
-/// arm, so a variant added to the enum — or renamed — leaves it
-/// non-exhaustive and this file stops compiling. It returns nothing on
-/// purpose; the identifiers come off each value's own `Debug`, never
-/// off a string typed beside a pattern.
-fn node_pick_error_is_exhaustive(e: &NodePickError) {
-    match e {
-        NodePickError::Standing(_)
-        | NodePickError::NotABody { .. }
-        | NodePickError::NoSuchBody { .. }
-        | NodePickError::Tessellate(_)
-        | NodePickError::Index(_) => (),
-    }
+test_utils::f6_variants! {
+    /// `NodePickError`'s census: one ident per variant, feeding both
+    /// the wildcard-free `match` rustc checks and the identifier
+    /// roster the weld compares against the rendered cases. A variant
+    /// added to the enum stops this file compiling, and writing it here
+    /// is writing it into the roster, so it then reds until it has a
+    /// case. What the weld does NOT hold is documented on
+    /// [`test_utils::f6::assert_f6_every_variant`].
+    const NODE_PICK_ERROR: NodePickError =
+        [Standing, NotABody, NoSuchBody, Tessellate, Index];
 }
-
-/// The identifier roster, welded to the cases by the set difference in
-/// `assert_f6_every_variant`.
-const NODE_PICK_ERROR_VARIANTS: &[&str] =
-    &["Standing", "NotABody", "NoSuchBody", "Tessellate", "Index"];
 
 #[test]
 fn node_pick_error_display_names_its_content_not_its_struct() {
@@ -174,27 +183,14 @@ fn node_pick_error_display_names_its_content_not_its_struct() {
             vec!["triangle 5", "patch 1", "position 99"],
         ),
     ];
-    assert_f6_every_variant(
-        &cases,
-        node_pick_error_is_exhaustive,
-        NODE_PICK_ERROR_VARIANTS,
-        &[],
-    );
+    assert_f6_every_variant(&cases, &NODE_PICK_ERROR, &[]);
 }
 
-/// `ResolveIndeterminate`'s exhaustiveness token; wildcard-free, as
-/// [`node_pick_error_is_exhaustive`].
-fn resolve_indeterminate_is_exhaustive(e: &ResolveIndeterminate) {
-    match e {
-        ResolveIndeterminate::TargetFailed { .. }
-        | ResolveIndeterminate::TargetPoisoned { .. }
-        | ResolveIndeterminate::TargetNotEvaluated { .. } => (),
-    }
+test_utils::f6_variants! {
+    /// `ResolveIndeterminate`'s census — see [`NODE_PICK_ERROR`].
+    const RESOLVE_INDETERMINATE: ResolveIndeterminate =
+        [TargetFailed, TargetPoisoned, TargetNotEvaluated];
 }
-
-/// The identifier roster; welded by the set difference.
-const RESOLVE_INDETERMINATE_VARIANTS: &[&str] =
-    &["TargetFailed", "TargetPoisoned", "TargetNotEvaluated"];
 
 #[test]
 fn resolve_indeterminate_display_names_its_content_not_its_struct() {
@@ -218,24 +214,13 @@ fn resolve_indeterminate_display_names_its_content_not_its_struct() {
             vec!["minting node 6", "no result"],
         ),
     ];
-    assert_f6_every_variant(
-        &cases,
-        resolve_indeterminate_is_exhaustive,
-        RESOLVE_INDETERMINATE_VARIANTS,
-        &[],
-    );
+    assert_f6_every_variant(&cases, &RESOLVE_INDETERMINATE, &[]);
 }
 
-/// `DeclareError`'s exhaustiveness token; wildcard-free, as
-/// [`node_pick_error_is_exhaustive`].
-fn declare_error_is_exhaustive(e: &DeclareError) {
-    match e {
-        DeclareError::NoFindings | DeclareError::Edit(_) | DeclareError::NoMintedId => (),
-    }
+test_utils::f6_variants! {
+    /// `DeclareError`'s census — see [`NODE_PICK_ERROR`].
+    const DECLARE_ERROR: DeclareError = [NoFindings, Edit, NoMintedId];
 }
-
-/// The identifier roster; welded by the set difference.
-const DECLARE_ERROR_VARIANTS: &[&str] = &["NoFindings", "Edit", "NoMintedId"];
 
 #[test]
 fn declare_error_display_names_its_content_not_its_struct() {
@@ -263,44 +248,24 @@ fn declare_error_display_names_its_content_not_its_struct() {
             vec!["minted no node id", "kernel bug"],
         ),
     ];
-    assert_f6_every_variant(
-        &cases,
-        declare_error_is_exhaustive,
-        DECLARE_ERROR_VARIANTS,
-        &[],
-    );
+    assert_f6_every_variant(&cases, &DECLARE_ERROR, &[]);
 }
 
-/// `InterrogateError`'s exhaustiveness token; wildcard-free, as
-/// [`node_pick_error_is_exhaustive`].
-fn interrogate_error_is_exhaustive(e: &InterrogateError) {
-    match e {
-        InterrogateError::NodeNotEvaluated { .. }
-        | InterrogateError::NodeFailed { .. }
-        | InterrogateError::NodePoisoned { .. }
-        | InterrogateError::NoSuchName
-        | InterrogateError::Ambiguous { .. }
-        | InterrogateError::WrongKind { .. }
-        | InterrogateError::WholeBody
-        | InterrogateError::NoBodies { .. }
-        | InterrogateError::NoSuchBody { .. }
-        | InterrogateError::Readback(_) => (),
-    }
+test_utils::f6_variants! {
+    /// `InterrogateError`'s census — see [`NODE_PICK_ERROR`].
+    const INTERROGATE_ERROR: InterrogateError = [
+        NodeNotEvaluated,
+        NodeFailed,
+        NodePoisoned,
+        NoSuchName,
+        Ambiguous,
+        WrongKind,
+        WholeBody,
+        NoBodies,
+        NoSuchBody,
+        Readback,
+    ];
 }
-
-/// The identifier roster; welded by the set difference.
-const INTERROGATE_ERROR_VARIANTS: &[&str] = &[
-    "NodeNotEvaluated",
-    "NodeFailed",
-    "NodePoisoned",
-    "NoSuchName",
-    "Ambiguous",
-    "WrongKind",
-    "WholeBody",
-    "NoBodies",
-    "NoSuchBody",
-    "Readback",
-];
 
 #[test]
 fn interrogate_error_display_names_its_content_not_its_struct() {
@@ -350,12 +315,7 @@ fn interrogate_error_display_names_its_content_not_its_struct() {
             vec!["interrogate:", "scaffolding"],
         ),
     ];
-    assert_f6_every_variant(
-        &cases,
-        interrogate_error_is_exhaustive,
-        INTERROGATE_ERROR_VARIANTS,
-        &[],
-    );
+    assert_f6_every_variant(&cases, &INTERROGATE_ERROR, &[]);
 }
 
 /// `SelectRefusal`'s exhaustiveness token — **the one here that the
@@ -386,17 +346,28 @@ fn select_refusal_is_exhaustive(e: &SelectRefusal) {
     }
 }
 
-/// The identifier roster; welded by the set difference.
-const SELECT_REFUSAL_VARIANTS: &[&str] = &[
-    "InBand",
-    "TiedDisagrees",
-    "Unreadable",
-    "NotADatum",
-    "NotALength",
-    "PairInBand",
-    "BadValue",
-    "Band",
-];
+/// `SelectRefusal`'s census, built by hand rather than by
+/// [`test_utils::f6_variants!`] — the ONE site in this tree that
+/// cannot use the macro, for the reason stated on
+/// [`select_refusal_is_exhaustive`]: the macro writes a wildcard-free
+/// `match`, which a `#[non_exhaustive]` enum from another crate does
+/// not permit. So the token and the roster are two spellings here, as
+/// they were everywhere before, and only a rename or a removal is
+/// rustc's.
+const SELECT_REFUSAL: test_utils::f6::VariantCensus<SelectRefusal> =
+    test_utils::f6::VariantCensus::hand_written(
+        select_refusal_is_exhaustive,
+        &[
+            "InBand",
+            "TiedDisagrees",
+            "Unreadable",
+            "NotADatum",
+            "NotALength",
+            "PairInBand",
+            "BadValue",
+            "Band",
+        ],
+    );
 
 /// An in-band margin with a named predicate — the shape a selection
 /// refusal carries out of the funnel.
@@ -495,24 +466,13 @@ fn select_refusal_display_names_its_content_not_its_struct() {
             vec!["ambiguity band", "ambient tolerance", "strictly below"],
         ),
     ];
-    assert_f6_every_variant(
-        &cases,
-        select_refusal_is_exhaustive,
-        SELECT_REFUSAL_VARIANTS,
-        &also_banned,
-    );
+    assert_f6_every_variant(&cases, &SELECT_REFUSAL, &also_banned);
 }
 
-/// `ResolveFault`'s exhaustiveness token; wildcard-free, as
-/// [`node_pick_error_is_exhaustive`].
-fn resolve_fault_is_exhaustive(e: &ResolveFault) {
-    match e {
-        ResolveFault::PinMismatch | ResolveFault::EpsilonSeam | ResolveFault::Unresolved => (),
-    }
+test_utils::f6_variants! {
+    /// `ResolveFault`'s census — see [`NODE_PICK_ERROR`].
+    const RESOLVE_FAULT: ResolveFault = [PinMismatch, EpsilonSeam, Unresolved];
 }
-
-/// The identifier roster; welded by the set difference.
-const RESOLVE_FAULT_VARIANTS: &[&str] = &["PinMismatch", "EpsilonSeam", "Unresolved"];
 
 #[test]
 fn resolve_fault_display_names_its_content_not_its_struct() {
@@ -530,46 +490,25 @@ fn resolve_fault_display_names_its_content_not_its_struct() {
             vec!["did not resolve", "unknown id"],
         ),
     ];
-    assert_f6_every_variant(
-        &cases,
-        resolve_fault_is_exhaustive,
-        RESOLVE_FAULT_VARIANTS,
-        &[],
-    );
+    assert_f6_every_variant(&cases, &RESOLVE_FAULT, &[]);
 }
 
-/// `ParseError`'s exhaustiveness token; wildcard-free, as
-/// [`node_pick_error_is_exhaustive`].
-fn parse_error_is_exhaustive(e: &ParseError) {
-    match e {
-        ParseError::UnexpectedChar { .. }
-        | ParseError::UnexpectedEnd { .. }
-        | ParseError::UnexpectedToken { .. }
-        | ParseError::TrailingInput { .. }
-        | ParseError::MalformedNumber { .. }
-        | ParseError::IntegerOverflow { .. }
-        | ParseError::UnknownUnit { .. }
-        | ParseError::UnknownFunction { .. }
-        | ParseError::WrongArity { .. }
-        | ParseError::UnknownParam { .. }
-        | ParseError::Dimension { .. } => (),
-    }
+test_utils::f6_variants! {
+    /// `ParseError`'s census — see [`NODE_PICK_ERROR`].
+    const PARSE_ERROR: ParseError = [
+        UnexpectedChar,
+        UnexpectedEnd,
+        UnexpectedToken,
+        TrailingInput,
+        MalformedNumber,
+        IntegerOverflow,
+        UnknownUnit,
+        UnknownFunction,
+        WrongArity,
+        UnknownParam,
+        Dimension,
+    ];
 }
-
-/// The identifier roster; welded by the set difference.
-const PARSE_ERROR_VARIANTS: &[&str] = &[
-    "UnexpectedChar",
-    "UnexpectedEnd",
-    "UnexpectedToken",
-    "TrailingInput",
-    "MalformedNumber",
-    "IntegerOverflow",
-    "UnknownUnit",
-    "UnknownFunction",
-    "WrongArity",
-    "UnknownParam",
-    "Dimension",
-];
 
 #[test]
 fn parse_error_display_names_its_content_not_its_struct() {
@@ -658,7 +597,7 @@ fn parse_error_display_names_its_content_not_its_struct() {
             vec!["byte 6", "needs a scalar operand", "length x length"],
         ),
     ];
-    assert_f6_every_variant(&cases, parse_error_is_exhaustive, PARSE_ERROR_VARIANTS, &[]);
+    assert_f6_every_variant(&cases, &PARSE_ERROR, &[]);
 }
 
 /// Every rendering of a [`Dimension`] a user can reach, in one place.

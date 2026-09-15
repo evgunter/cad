@@ -26,46 +26,39 @@ fn in_band() -> Indeterminate {
     }
 }
 
-/// `ContactRefusal`'s exhaustiveness token: the `match` has no
-/// wildcard arm, so a variant added to the enum — or renamed — leaves
-/// it non-exhaustive and this file stops compiling. It returns nothing
-/// on purpose; the identifiers come off each value's own `Debug`,
-/// never off a string typed beside a pattern.
-fn contact_refusal_is_exhaustive(e: &ContactRefusal) {
-    match e {
-        ContactRefusal::Contradicted { .. }
-        | ContactRefusal::Escalated { .. }
-        | ContactRefusal::Undeclared { .. }
-        | ContactRefusal::NotCertifiable { .. } => (),
-    }
+test_utils::f6_variants! {
+    /// `ContactRefusal`'s census: one ident per variant, feeding both
+    /// the wildcard-free `match` rustc checks and the identifier roster
+    /// the weld compares against the rendered cases. The mechanism and
+    /// what it does NOT weld are documented on
+    /// [`test_utils::f6::assert_f6_every_variant`].
+    const CONTACT_REFUSAL: ContactRefusal =
+        [Contradicted, Escalated, Undeclared, NotCertifiable];
 }
-
-/// The identifier roster, welded to the cases by the set difference in
-/// [`assert_f6_every_variant`], whose one remaining hole is stated
-/// there.
-const CONTACT_REFUSAL_VARIANTS: &[&str] =
-    &["Contradicted", "Escalated", "Undeclared", "NotCertifiable"];
 
 /// Every `Debug` field name `ContactRefusal`'s payloads carry, as the
 /// punctuation a dump would print — the whole payload vocabulary, not
 /// the subset one row happens to construct.
+///
+/// **What this roster is worth, stated honestly.** It is not what
+/// catches an arm that starts printing `{self:?}`: these are struct
+/// variants, so a full dump carries `{`, which
+/// [`test_utils::f6::assert_f6`] bans unconditionally, and it equals
+/// the value's own `Debug`, which the same helper refuses. What these
+/// entries buy over that is a BRACE-FREE field token in an otherwise
+/// prose sentence, and they are unwelded to the enum, so a payload
+/// field added to an existing variant leaves them short in silence.
 const CONTACT_REFUSAL_FIELDS: &[&str] = &["diag:", "steer:", "what:"];
 
-/// [`ReadbackError`]'s exhaustiveness token — see
-/// [`contact_refusal_is_exhaustive`].
-fn readback_error_is_exhaustive(e: &ReadbackError) {
-    match e {
-        ReadbackError::Dangling { .. }
-        | ReadbackError::NoCanonicalFrame { .. }
-        | ReadbackError::NoCarrier => (),
-    }
+test_utils::f6_variants! {
+    /// [`ReadbackError`]'s census — see [`CONTACT_REFUSAL`].
+    const READBACK_ERROR: ReadbackError = [Dangling, NoCanonicalFrame, NoCarrier];
 }
 
-/// The identifier roster — see [`CONTACT_REFUSAL_VARIANTS`].
-const READBACK_ERROR_VARIANTS: &[&str] = &["Dangling", "NoCanonicalFrame", "NoCarrier"];
-
-/// Every `Debug` field name [`ReadbackError`]'s payloads carry — see
-/// [`CONTACT_REFUSAL_FIELDS`].
+/// Every `Debug` field name [`ReadbackError`]'s payloads carry, and
+/// what that is worth — see [`CONTACT_REFUSAL_FIELDS`]. `NoCarrier` is
+/// a UNIT variant, so its dump carries no brace and its whole
+/// fingerprint is the identifier the roster above holds.
 const READBACK_ERROR_FIELDS: &[&str] = &["what:", "carrier:"];
 
 /// Every arm names the contact situation and carries the TWO-arm
@@ -97,19 +90,15 @@ fn contact_refusal_display_names_its_content_not_its_struct() {
             vec!["certifiable set", "the supports meet at no definite angle"],
         ),
     ];
-    assert_f6_every_variant(
-        &cases,
-        contact_refusal_is_exhaustive,
-        CONTACT_REFUSAL_VARIANTS,
-        &[],
-        CONTACT_REFUSAL_FIELDS,
-    );
+    assert_f6_every_variant(&cases, &CONTACT_REFUSAL, &[], CONTACT_REFUSAL_FIELDS);
     // A `Fit` steer rides the contradiction rather than replacing the
     // menu: the deferral is extra steering, not the recourse. Its own
     // sentence names the `Fit { gap }` variant, so this arm is checked
     // for content and dumps but not for the brace fingerprint — the
     // brace is prose here, and the check that matters is that the
-    // rendering is still not the `Debug` dump.
+    // rendering is still not the `Debug` dump. That is why it does not
+    // go through `assert_f6`: the shared door bans `{` unconditionally,
+    // and an arm whose own prose carries one cannot ask it not to.
     let steered = ContactRefusal::Contradicted {
         diag: in_band(),
         steer: Some(topo::FIT_DEFERRAL),
@@ -118,7 +107,7 @@ fn contact_refusal_display_names_its_content_not_its_struct() {
     for want in [topo::CONTACT_RECOURSE, topo::FIT_DEFERRAL] {
         assert!(shown.contains(want), "{shown:?} is missing {want:?}");
     }
-    for dump in CONTACT_REFUSAL_VARIANTS {
+    for dump in CONTACT_REFUSAL.identifiers() {
         assert!(!shown.contains(dump), "{shown:?} leaks the variant name");
     }
     assert_ne!(shown, format!("{steered:?}"));
@@ -160,13 +149,7 @@ fn readback_error_display_names_its_content_not_its_struct() {
             vec!["scaffolding", "at rest", "reach rest"],
         ),
     ];
-    assert_f6_every_variant(
-        &cases,
-        readback_error_is_exhaustive,
-        READBACK_ERROR_VARIANTS,
-        &[],
-        READBACK_ERROR_FIELDS,
-    );
+    assert_f6_every_variant(&cases, &READBACK_ERROR, &[], READBACK_ERROR_FIELDS);
 }
 
 /// **`TogetherEdgeDisagreement`'s sentence is true at every meter that

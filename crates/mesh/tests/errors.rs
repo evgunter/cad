@@ -83,57 +83,46 @@ fn absurdly_fine_delta_overflows_typed() {
     }
 }
 
-/// `TessellateError`'s exhaustiveness token: the `match` has no
-/// wildcard arm, so a variant added to the enum — or renamed — leaves
-/// it non-exhaustive and this file stops compiling. It returns nothing
-/// on purpose; the identifiers come off each value's own `Debug`,
-/// never off a string typed beside a pattern.
-fn tessellate_error_is_exhaustive(e: &TessellateError) {
-    match e {
-        TessellateError::InvalidChordalTolerance { .. }
-        | TessellateError::UnsupportedSurface { .. }
-        | TessellateError::UnsupportedNurbsFace { .. }
-        | TessellateError::UnsupportedCurve { .. }
-        | TessellateError::NullScaffoldEdge { .. }
-        | TessellateError::RingOnCurvedFace { .. }
-        | TessellateError::EmptyLoop { .. }
-        | TessellateError::MissingEntity { .. }
-        | TessellateError::ResolutionOverflow { .. }
-        | TessellateError::CertificateExceeded { .. }
-        | TessellateError::Triangulation { .. }
-        | TessellateError::SelfTouchingTrimLoop { .. }
-        | TessellateError::UnsupportedCurvedDomain { .. }
-        | TessellateError::UnsupportedCurvedShape { .. }
-        | TessellateError::Band { .. } => (),
-    }
+test_utils::f6_variants! {
+    /// `TessellateError`'s census: one ident per variant, feeding both
+    /// the wildcard-free `match` rustc checks and the identifier
+    /// roster the weld compares against the rendered cases. A variant
+    /// added to the enum stops this file compiling; adding it here is
+    /// also adding it to the roster, so it then reds until it has a
+    /// case. The mechanism and what it does NOT weld are documented on
+    /// [`test_utils::f6::assert_f6_every_variant`].
+    const TESSELLATE_ERROR: TessellateError = [
+        InvalidChordalTolerance,
+        UnsupportedSurface,
+        UnsupportedNurbsFace,
+        UnsupportedCurve,
+        NullScaffoldEdge,
+        RingOnCurvedFace,
+        EmptyLoop,
+        MissingEntity,
+        ResolutionOverflow,
+        CertificateExceeded,
+        Triangulation,
+        SelfTouchingTrimLoop,
+        UnsupportedCurvedDomain,
+        UnsupportedCurvedShape,
+        Band,
+    ];
 }
-
-/// The identifier roster: a rendering that leaks one is a struct dump
-/// wearing a sentence's clothes. Welded to the cases by the set
-/// difference in [`assert_f6_every_variant`], whose one remaining hole
-/// is stated there.
-const TESSELLATE_ERROR_VARIANTS: &[&str] = &[
-    "InvalidChordalTolerance",
-    "UnsupportedSurface",
-    "UnsupportedNurbsFace",
-    "UnsupportedCurve",
-    "NullScaffoldEdge",
-    "RingOnCurvedFace",
-    "EmptyLoop",
-    "MissingEntity",
-    "ResolutionOverflow",
-    "CertificateExceeded",
-    "Triangulation",
-    "SelfTouchingTrimLoop",
-    "UnsupportedCurvedDomain",
-    "UnsupportedCurvedShape",
-    "Band",
-];
 
 /// Every `Debug` field name `TessellateError`'s payloads carry, as the
 /// punctuation a dump would print — the whole payload vocabulary, not
-/// the subset one row happens to construct, so an arm that starts
-/// printing `{self:?}` fails here whichever field it leaks.
+/// the subset one row happens to construct.
+///
+/// **What this roster is worth, stated honestly.** It is NOT what
+/// catches an arm that starts printing `{self:?}`: every variant of
+/// this enum is a struct variant, so a full dump carries `{`, which
+/// [`test_utils::f6::assert_f6`] bans unconditionally, and it equals
+/// the value's own `Debug`, which the same helper refuses. What these
+/// entries buy over that is exactly one thing — a BRACE-FREE field
+/// token in an otherwise prose sentence, `write!(f, "face: {face}")` —
+/// and they are unwelded to the enum, so a payload field added to an
+/// existing variant leaves them short in silence.
 const TESSELLATE_ERROR_FIELDS: &[&str] = &[
     "value:",
     "face:",
@@ -251,13 +240,7 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
             vec!["band", "tolerance"],
         ),
     ];
-    assert_f6_every_variant(
-        &cases,
-        tessellate_error_is_exhaustive,
-        TESSELLATE_ERROR_VARIANTS,
-        &[],
-        TESSELLATE_ERROR_FIELDS,
-    );
+    assert_f6_every_variant(&cases, &TESSELLATE_ERROR, &[], TESSELLATE_ERROR_FIELDS);
 }
 
 /// **The failure path's order is ARENA order, not the map's.**
