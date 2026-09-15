@@ -5,6 +5,7 @@ title: A frame witness (origin plus a right-handed orthonormal pair) minted by t
 status: open
 opened: 2026-09-15
 branch: scalar/frame-witness
+pr: 2675
 ---
 
 
