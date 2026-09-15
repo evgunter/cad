@@ -383,7 +383,12 @@ it proves `E·n` carries `d`'s sign, and it floors `‖E‖` at
 `|D|/(w̃·‖M̃‖)` — the reading of the three components TOGETHER, which
 is what keeps a small-`|d|` bound near `|d|`'s own scale where the
 componentwise mignitude of `Ẽ` collapses on a rotating normal. A
-rational base refuses typed.
+rational base is ordinary here: its weights decide only which terms
+`M̃ = w³·m` carries, and the rational quarter cylinder certifies
+through this door — `offset_surface` is where a NURBS base refuses
+typed, `NotClosedUnderOffset` on every one of them, rational or not,
+because normalizing the chart normal is what breaks rationality. This
+fit is the approximating-surface route that refusal names.
 
 **O4 — What shell is.** `shell(B, t) := B − offset_inward(B, t)` by
 definition, boolean-family; its execution never runs the crossing

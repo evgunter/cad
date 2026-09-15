@@ -43,9 +43,35 @@ is a reasoning aid — "the bound only goes down" is not available as an
 argument to a future lane, and a re-baseline table cannot be read as a
 per-row monotonicity proof.
 
-## What would settle it
+## The remedies a reader would reach for are not available
 
-Either a marking rule that is stable under a uniform tightening (mark
-on an absolute rung, or on rank), or a ratified note at `measure` that
-the door's bound is not monotone in the cell bound and why that is
-acceptable. This item is the disclosure, not the choice.
+The 1.8% is not the bound moving on a grid. On the 810-cell grid the
+request now lands on, the witness reading differs from the
+componentwise one by at most a factor `1.0000304` on ANY cell
+(`no_cell_rises_on_the_bumpy_grids_whose_door_bound_grew`), which is
+four orders below the 1.8%. The review lane measured the other side
+of the same fact and it is the decisive one: the OLD 780-cell grid
+reads `8.189454e-10` under the witness bound too — the identical
+digits it read under the componentwise one — so the whole difference
+is the two runs walking different grids, parting at round 1 (196
+cells against 224).
+
+That rules out the two fixes the shape invites:
+
+- **A marking rule stable under a uniform tightening.** The current
+  `cut = hull_sup * 0.5` is already invariant under one — the scale
+  cancels, so a uniform factor reorders nothing. An ABSOLUTE rung is
+  strictly worse here: it is not invariant, and it would move the
+  schedule on every re-baseline of any cell bound.
+- **A marking rule that makes the door bound monotone.** No marking
+  rule can: the schedule chooses which parameters the fit interpolates
+  at, so a different schedule is a different fitted surface, and the
+  bound on a different surface is not comparable with the bound on
+  this one in either direction. Monotonicity at the door would need
+  the fit to be fixed, and it is exactly what refinement moves.
+
+What is left is the disclosure — that "the bound only goes down" is
+not available as an argument about the DOOR, only about a cell on a
+fixed grid — and, if a future lane wants it written where a reader
+of `measure` will meet it, a ratified note there. This item is that
+disclosure, not the choice.

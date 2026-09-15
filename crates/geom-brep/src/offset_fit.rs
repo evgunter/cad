@@ -162,7 +162,7 @@
 //! does. What that bought is translation invariance, which the
 //! residual always had and the bound did not: a micron offset on a
 //! metre patch a kilometre from the origin certified as `inf` and now
-//! certifies at the same `3.2e-4` the patch gives at the origin.
+//! certifies at the same `1.7e-5` the patch gives at the origin.
 //!
 //! What it does not reach is the floor on `‖E‖`: that one is not a
 //! rounding problem at any origin, and it is answered above by the
@@ -222,7 +222,9 @@ use geom_core::spline::compose::patch::PatchSpans;
 use geom_core::spline::{KnotVector, SplineError};
 use geom_core::{Band, Point3, Tol, ring_interval::RingInterval};
 
-use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig, sqrt_down, sqrt_up};
+use crate::offset_meters::{
+    MeterError, MeterResult, meter_patch, mig, norm_sup, sqrt_down,
+};
 use crate::patch_bound::{Net, PatchBoundError, derived_knots, is_rational};
 
 /// The fitted surface's degree in both directions. A CONSTANT (D9:
@@ -1761,11 +1763,12 @@ struct Composite {
     /// small-`|d|` denominator") instead of by `2|d|`.
     e: [PatchSpans; 3],
     /// `M̃ = w³·m`, the base's own homogeneous normal, channel by
-    /// channel. `Y` and `D` are formed from it and it is kept past
-    /// them, because the lower bound on `‖E‖` reads `D` against a
-    /// certified upper bound on `‖M̃‖` (module docs, "the
+    /// channel — NOT `m = S_u × S_v` itself, which is why the field
+    /// wears the tilde. `Y` and `D` are formed from it and it is kept
+    /// past them, because the lower bound on `‖E‖` reads `D` against
+    /// a certified upper bound on `‖M̃‖` (module docs, "the
     /// small-`|d|` denominator").
-    m: [PatchSpans; 3],
+    m_tilde: [PatchSpans; 3],
     breaks_u: Vec<f64>,
     breaks_v: Vec<f64>,
 }
@@ -2049,7 +2052,6 @@ impl Composite {
         let x = dot_spans(&e, &e).sub(&wt.mul(&wt).scale(RingInterval::point(d).sqr()));
         let y = cross_spans(&e, &m_tilde);
         let dd = dot_spans(&e, &m_tilde);
-        let m = m_tilde;
         let (bu, bv) = x.breaks();
         let (breaks_u, breaks_v) = (bu.to_vec(), bv.to_vec());
         Ok(Self {
@@ -2059,7 +2061,7 @@ impl Composite {
             w,
             wt,
             e,
-            m,
+            m_tilde,
             breaks_u,
             breaks_v,
         })
@@ -2071,6 +2073,71 @@ impl Composite {
             (self.breaks_u[su], self.breaks_u[su + 1]),
             (self.breaks_v[sv], self.breaks_v[sv + 1]),
         )
+    }
+
+    /// A certified UPPER bound on `‖M̃‖` over one cell.
+    ///
+    /// It is the DIVISOR of a lower bound on `‖E‖`
+    /// ([`Composite::e_floors`]), so an upper bound short by one ulp
+    /// makes that quotient unsound. [`norm_sup`] rounds every step
+    /// outward — the per-channel square and both sums in the ring,
+    /// then `sqrt_up`; an `f64` fold of the same three endpoints
+    /// rounds to nearest at each multiply and add and lands below
+    /// this reading on most cells of a real grid.
+    fn m_tilde_sup(&self, su: usize, sv: usize) -> f64 {
+        norm_sup(&[
+            self.m_tilde[0].cell_hull(su, sv),
+            self.m_tilde[1].cell_hull(su, sv),
+            self.m_tilde[2].cell_hull(su, sv),
+        ])
+    }
+
+    /// The two lower bounds on `‖E‖` one cell carries: the
+    /// componentwise mignitude assembly on `Ẽ`'s own hulls, and the
+    /// same norm read through the sign witness (module docs, "the
+    /// small-`|d|` denominator"). Both are sound on their own.
+    ///
+    /// The first is what keeps the normal component's denominator
+    /// honest when `|d|` is small: `‖E‖ + |d|` is the true divisor of
+    /// `|‖E‖² − d²|`, and falling back on `2|d|` for it both loses
+    /// accuracy and, once `dist` reaches `|d|`, collapses the cell to
+    /// `+∞` for no geometric reason. It reads the components ONE AT A
+    /// TIME, so it collapses wherever every component of `E`
+    /// straddles zero — which is what a rotating normal does to
+    /// `E ≈ d·n` across a cell.
+    ///
+    /// The second sees the three together: `|E·n| ≤ ‖E‖` for any `E`,
+    /// and with `n = m/‖m‖`, `M̃ = w³·m` and `D = w̃·w³·(E·m)`,
+    ///
+    /// ```text
+    /// ‖E‖ ≥ |E·n| = |E·m|/‖m‖ = |D| / (w̃·‖M̃‖).
+    /// ```
+    ///
+    /// `mig(D)` is positive on exactly the cells whose `D` hull is
+    /// sign definite, which is the condition [`Composite::cell_bound`]
+    /// proves before it reads anything here; where the hull straddles
+    /// this reads zero, which is a lower bound on any norm. Where
+    /// `E ∥ n` it reads `‖E‖ ≈ |d|` and the componentwise assembly
+    /// reads nothing.
+    ///
+    /// One home for both, because the row that measures the pair
+    /// selects between these two intervals rather than re-spelling
+    /// either: the reading under test is the only thing that differs
+    /// between the row and production.
+    fn e_floors(&self, su: usize, sv: usize) -> (RingInterval, RingInterval) {
+        let wt = self.wt.cell_hull(su, sv);
+        let e_mig_sq = RingInterval::point(mig(self.e[0].cell_hull(su, sv))).sqr()
+            + RingInterval::point(mig(self.e[1].cell_hull(su, sv))).sqr()
+            + RingInterval::point(mig(self.e[2].cell_hull(su, sv))).sqr();
+        let e_mig_iv = RingInterval::point(sqrt_down(e_mig_sq.lo())) / wt;
+        let m_sup = self.m_tilde_sup(su, sv);
+        let e_proj_iv = if m_sup > 0.0 && m_sup.is_finite() {
+            RingInterval::point(mig(self.dd.cell_hull(su, sv)))
+                / (RingInterval::point(m_sup) * wt)
+        } else {
+            RingInterval::zero()
+        };
+        (e_mig_iv, e_proj_iv)
     }
 
     /// One cell's certified sup bound on `‖S_fit − (S + d·n)‖`
@@ -2110,66 +2177,33 @@ impl Composite {
             return f64::INFINITY;
         }
         let abs_d = RingInterval::point(d.abs());
-        // A DIRECT lower bound on `‖E‖`, from `E = Ẽ/w̃` and the
-        // mignitude assembly on `Ẽ`'s own cell hulls — the same
-        // inf-side shape meter 1 uses on the cross product. This is
-        // what keeps the normal component's denominator honest when
-        // `|d|` is small: `‖E‖ + |d|` is the true divisor of
-        // `|‖E‖² − d²|`, and falling back on `2|d|` for it both
-        // loses accuracy and, once `dist` reaches `|d|`, collapses
-        // the cell to `+∞` for no geometric reason.
-        //
-        // It reads the components ONE AT A TIME, so it collapses
-        // wherever every component of `E` straddles zero — which is
-        // what a rotating normal does to `E ≈ d·n` across a cell.
-        let e_mig_sq = RingInterval::point(mig(self.e[0].cell_hull(su, sv))).sqr()
-            + RingInterval::point(mig(self.e[1].cell_hull(su, sv))).sqr()
-            + RingInterval::point(mig(self.e[2].cell_hull(su, sv))).sqr();
-        let e_mig_iv = RingInterval::point(sqrt_down(e_mig_sq.lo())) / wt;
-        // The same quantity read through the SIGN WITNESS, which sees
-        // the three components together: `|E·n| ≤ ‖E‖` for any `E`,
-        // and with `n = m/‖m‖`, `M̃ = w³·m` and `D = w̃·w³·(E·m)`,
-        //
-        // ```text
-        // ‖E‖ ≥ |E·n| = |E·m|/‖m‖ = |D| / (w̃·‖M̃‖).
-        // ```
-        //
-        // `mig(D)` is positive on every cell that reaches here — the
-        // witness above is what proves it — and `‖M̃‖` is bounded
-        // above by the sup of its three cell hulls, the shape `y_mag`
-        // uses. Where `E ∥ n` this reads `‖E‖ ≈ |d|` and the
-        // componentwise assembly reads nothing.
-        let m_sq = self.m[0].cell_hull(su, sv).mag().powi(2)
-            + self.m[1].cell_hull(su, sv).mag().powi(2)
-            + self.m[2].cell_hull(su, sv).mag().powi(2);
-        let m_sup = sqrt_up(m_sq);
-        let e_proj_iv = if m_sup > 0.0 && m_sup.is_finite() {
-            RingInterval::point(mig(dh)) / (RingInterval::point(m_sup) * wt)
-        } else {
-            RingInterval::zero()
-        };
-        // The max of two sound lower bounds is a sound lower bound;
-        // only the low end of the winner is ever read.
-        let e_lo_iv = if e_proj_iv.lo() > e_mig_iv.lo() {
-            e_proj_iv
-        } else {
-            e_mig_iv
-        };
+        let (e_mig_iv, e_proj_iv) = self.e_floors(su, sv);
+        // The larger of two sound lower bounds on the same norm is a
+        // sound lower bound, and the only thing either is read for is
+        // its low end — so the selection hands back that number
+        // rather than the interval it came out of.
+        let e_hull_lo = e_mig_iv.lo().max(e_proj_iv.lo());
         // | ‖E‖ − |d| | = |X| / (w̃²·(‖E‖ + |d|)).
         let x_mag = RingInterval::from_bounds(0.0, self.x.cell_hull(su, sv).mag());
-        let dist_iv = x_mag / (wt.sqr() * (e_lo_iv + abs_d));
+        let dist_iv = x_mag / (wt.sqr() * (RingInterval::point(e_hull_lo) + abs_d));
         // τ = ‖Y‖ / (w̃·‖M̃‖) ≤ sup‖Y‖ / (floor·w̃·w³), using
-        // ‖M̃‖ = w³·‖m‖ ≥ w³·floor.
-        let y_sq = self.y[0].cell_hull(su, sv).mag().powi(2)
-            + self.y[1].cell_hull(su, sv).mag().powi(2)
-            + self.y[2].cell_hull(su, sv).mag().powi(2);
-        let y_mag = RingInterval::from_bounds(0.0, sqrt_up(y_sq));
+        // ‖M̃‖ = w³·‖m‖ ≥ w³·floor. `‖Y‖` from above is the ring's
+        // own fold, for the reason [`norm_sup`] gives.
+        let y_mag = RingInterval::from_bounds(
+            0.0,
+            norm_sup(&[
+                self.y[0].cell_hull(su, sv),
+                self.y[1].cell_hull(su, sv),
+                self.y[2].cell_hull(su, sv),
+            ]),
+        );
         let tau_iv = y_mag / (RingInterval::point(floor) * wt * w.powi(3));
         // `‖E‖` from below once more, for the `τ²/‖E‖` term: the
-        // better of the two hull bounds above, or `|d| − dist` when
+        // better of the two hull readings above, or `|d| − dist` when
         // that is larger. The three are lower bounds on the same
-        // norm, so their max is one too.
-        let e_floor = e_lo_iv.lo().max(d.abs() - dist_iv.hi());
+        // norm, so their max is one too — the same `max`, spelled the
+        // same way.
+        let e_floor = e_hull_lo.max(d.abs() - dist_iv.hi());
         if !(e_floor > 0.0) {
             return f64::INFINITY;
         }
@@ -2183,16 +2217,20 @@ impl Composite {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::{Composite, Refine, directional_mark, stall_verdict};
-    use crate::offset_meters::{mig, sqrt_down, sqrt_up};
+    use crate::offset_meters::{norm_sup, sqrt_up};
     use geom_core::spline::KnotVector;
     use geom_core::{Band, Point3, Tol, ring_interval::RingInterval};
 
     /// One cell's certificate, split into the terms the module doc
     /// names, with the lower bound on `‖E‖` selectable: `Witness`
     /// takes the max the shipped [`Composite::cell_bound`] takes,
-    /// `Componentwise` takes the mignitude assembly alone. The two
-    /// differ in exactly one expression, which is what makes the
-    /// pair a measurement of that expression.
+    /// `Componentwise` takes the mignitude assembly alone.
+    ///
+    /// Both readings come out of [`Composite::e_floors`], the same
+    /// call production makes, so the mode switches ONE expression and
+    /// re-spells none of the guards or terms around it — which is
+    /// what makes the pair a measurement of that expression rather
+    /// than of a second copy of the bound.
     #[derive(Clone, Copy, PartialEq, Eq)]
     enum ELow {
         Componentwise,
@@ -2230,28 +2268,26 @@ mod tests {
             return unproved;
         }
         let abs_d = RingInterval::point(d.abs());
-        let e_mig_sq = RingInterval::point(mig(comp.e[0].cell_hull(su, sv))).sqr()
-            + RingInterval::point(mig(comp.e[1].cell_hull(su, sv))).sqr()
-            + RingInterval::point(mig(comp.e[2].cell_hull(su, sv))).sqr();
-        let e_mig_iv = RingInterval::point(sqrt_down(e_mig_sq.lo())) / wt;
-        let m_sq = comp.m[0].cell_hull(su, sv).mag().powi(2)
-            + comp.m[1].cell_hull(su, sv).mag().powi(2)
-            + comp.m[2].cell_hull(su, sv).mag().powi(2);
-        let m_sup = sqrt_up(m_sq);
-        let e_proj_iv = RingInterval::point(mig(dh)) / (RingInterval::point(m_sup) * wt);
-        let e_lo_iv = if mode == ELow::Witness && e_proj_iv.lo() > e_mig_iv.lo() {
-            e_proj_iv
-        } else {
-            e_mig_iv
+        // THE one expression the two modes differ in: both readings
+        // come out of the shipped `e_floors`, and the mode chooses
+        // which of them the rest of this decomposition runs on.
+        let (e_mig_iv, e_proj_iv) = comp.e_floors(su, sv);
+        let e_hull_lo = match mode {
+            ELow::Componentwise => e_mig_iv.lo(),
+            ELow::Witness => e_mig_iv.lo().max(e_proj_iv.lo()),
         };
         let x_mag = RingInterval::from_bounds(0.0, comp.x.cell_hull(su, sv).mag());
-        let dist_iv = x_mag / (wt.sqr() * (e_lo_iv + abs_d));
-        let y_sq = comp.y[0].cell_hull(su, sv).mag().powi(2)
-            + comp.y[1].cell_hull(su, sv).mag().powi(2)
-            + comp.y[2].cell_hull(su, sv).mag().powi(2);
-        let y_mag = RingInterval::from_bounds(0.0, sqrt_up(y_sq));
+        let dist_iv = x_mag / (wt.sqr() * (RingInterval::point(e_hull_lo) + abs_d));
+        let y_mag = RingInterval::from_bounds(
+            0.0,
+            norm_sup(&[
+                comp.y[0].cell_hull(su, sv),
+                comp.y[1].cell_hull(su, sv),
+                comp.y[2].cell_hull(su, sv),
+            ]),
+        );
         let tau_iv = y_mag / (RingInterval::point(floor) * wt * w.powi(3));
-        let e_floor = e_lo_iv.lo().max(d.abs() - dist_iv.hi());
+        let e_floor = e_hull_lo.max(d.abs() - dist_iv.hi());
         if !(e_floor > 0.0) {
             return unproved;
         }
@@ -2260,7 +2296,7 @@ mod tests {
             dist_iv.hi(),
             tau_iv.hi(),
             t3,
-            e_lo_iv.lo(),
+            e_hull_lo,
             (dist_iv + tau_iv + tau_iv.sqr() / RingInterval::point(e_floor)).hi(),
         )
     }
@@ -2423,6 +2459,206 @@ mod tests {
         assert!(near(sup5_c, 3.7912e-7) && near(sup5_c / sup5, 1.0098));
         let worst5 = no_cell_loosens(&comp5, reg.floor, d);
         assert!(worst5 >= 1.0, "the cap grid's widest cell gain is {worst5}");
+    }
+
+    /// The bumpy patch `tests/offset_fit.rs` and `budget_faces.rs`
+    /// fit, rebuilt here because `Composite` is private: the no-rise
+    /// claim is about cells, and a consumer suite cannot see one.
+    /// The net is the same interpolation of the same height field, so
+    /// the two fixtures are the same surface.
+    fn bumpy_patch() -> geom::NurbsSurface<f64> {
+        use geom::curves::fit::interpolate_columns;
+        let n = 7;
+        let params: Vec<f64> = (0..n).map(|i| f64::from(i) / f64::from(n - 1)).collect();
+        let height = |u: f64, v: f64| 0.35 * (2.4 * u).sin() * (1.9 * v + 0.4).cos() + 0.2 * u * v;
+        let rows: Vec<Vec<f64>> = params
+            .iter()
+            .map(|u| {
+                let mut row = Vec::with_capacity((n as usize) * 3);
+                for v in &params {
+                    row.extend_from_slice(&[*u, *v, height(*u, *v)]);
+                }
+                row
+            })
+            .collect();
+        let (ku, r) = interpolate_columns(&params, 3, &rows).unwrap();
+        let mut rows_v: Vec<Vec<f64>> = Vec::with_capacity(n as usize);
+        for l in 0..(n as usize) {
+            let mut row = Vec::with_capacity(ku.control_count() * 3);
+            for rr in &r {
+                row.extend_from_slice(&rr[l * 3..l * 3 + 3]);
+            }
+            rows_v.push(row);
+        }
+        let (kv, pts) = interpolate_columns(&params, 3, &rows_v).unwrap();
+        let (cu, cv) = (ku.control_count(), kv.control_count());
+        let mut control = Vec::with_capacity(cu * cv);
+        for i in 0..cu {
+            for row in pts.iter().take(cv) {
+                control.push(Point3::new(row[i * 3], row[i * 3 + 1], row[i * 3 + 2]));
+            }
+        }
+        geom::NurbsSurface::new(ku, kv, control, vec![1.0; cu * cv]).unwrap()
+    }
+
+    /// **The divisor of the `‖E‖` floor is certified from above.**
+    ///
+    /// [`Composite::e_floors`] divides `mig(D)` by `sup‖M̃‖·w̃` to get
+    /// a LOWER bound on `‖E‖`, so a divisor that is even slightly too
+    /// small makes the quotient too large and the certificate
+    /// unsound. The row reads the shipped [`Composite::m_tilde_sup`]
+    /// against the ring reading assembled independently here, on
+    /// every cell of three grids, and reds if the shipped one is ever
+    /// below it.
+    ///
+    /// **What the row is guarding against is a specific regression**,
+    /// which is why it also counts the other spelling: an `f64` fold
+    /// of the same three endpoints — three round-to-nearest multiplies
+    /// and two adds, then one `next_up` — lands BELOW the ring
+    /// reading on almost every cell here (measured 306 of 308 on the
+    /// quarter cylinder's `d = 1e-6` grid, worst deficit 4.7e-16
+    /// relative). The counter is printed rather than asserted: what
+    /// it measures is the size of the hazard, and what must hold is
+    /// the assertion above it.
+    #[test]
+    fn the_normal_divisor_is_the_rings_reading_not_an_f64_fold() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let bumpy = bumpy_patch();
+        for (name, base, d, tol) in [
+            ("qc", quarter_cylinder(), 1e-6, 1e-3),
+            ("qc", quarter_cylinder(), 1e-5, 1e-6),
+            ("bumpy", bumpy, 1e-5, 1e-6),
+        ] {
+            let (fit, _) = super::fit_offset_at(&base, d, tol, band).unwrap();
+            let comp = Composite::build(&base, &fit, d).unwrap();
+            let (nu, nv) = comp.x.cell_counts();
+            let (mut fold_below, mut cells) = (0usize, 0usize);
+            for su in 0..nu {
+                for sv in 0..nv {
+                    let h = [
+                        comp.m_tilde[0].cell_hull(su, sv),
+                        comp.m_tilde[1].cell_hull(su, sv),
+                        comp.m_tilde[2].cell_hull(su, sv),
+                    ];
+                    let ring = norm_sup(&h);
+                    if !ring.is_finite() || ring <= 0.0 {
+                        continue;
+                    }
+                    cells += 1;
+                    let shipped = comp.m_tilde_sup(su, sv);
+                    assert!(
+                        shipped >= ring,
+                        "{name} d={d:e} cell ({su},{sv}): the divisor {shipped:e} is below \
+                         the ring reading {ring:e} — it is not certified from above"
+                    );
+                    let fold =
+                        sqrt_up(h[0].mag().powi(2) + h[1].mag().powi(2) + h[2].mag().powi(2));
+                    if fold < ring {
+                        fold_below += 1;
+                    }
+                }
+            }
+            eprintln!(
+                "{name} d={d:e}: {cells} cells, an f64 fold would sit below the ring \
+                 reading on {fold_below} of them"
+            );
+        }
+    }
+
+    /// **No cell rises on the grids of the request whose DOOR bound
+    /// grew.** The quarter cylinder's two grids are measured by the
+    /// row above; the request that came back 1.8% worse at the door
+    /// is the bumpy patch's `d = 1e-5`, and the per-cell claim is
+    /// what separates a schedule that diverged from a bound that
+    /// loosened. It holds on every grid that request walks.
+    #[test]
+    fn no_cell_rises_on_the_bumpy_grids_whose_door_bound_grew() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let base = bumpy_patch();
+        for (d, tol) in [(1e-5, 1e-6), (1e-5, 1e-3), (1e-6, 1e-6)] {
+            let (fit, cert) = super::fit_offset_at(&base, d, tol, band).unwrap();
+            let (reg, _) = crate::offset_meters::meter_patch(&base, d, band).unwrap();
+            let comp = Composite::build(&base, &fit, d).unwrap();
+            // `no_cell_loosens` asserts the per-cell claim; the gain
+            // it returns is reported, since it is a property of the
+            // grid rather than of the bound.
+            let worst = no_cell_loosens(&comp, reg.floor, d);
+            assert!(worst >= 1.0, "d={d:e} tol={tol:e}: widest gain {worst}");
+            eprintln!(
+                "bumpy d={d:e} tol={tol:e}: cells={} hull_sup={:.7e} widest cell gain {worst}",
+                cert.cells, cert.hull_sup
+            );
+        }
+    }
+
+    /// **The soundness claim, attacked by sampling.** `e_floors`
+    /// claims `‖E(u,v)‖ ≥ e_lo` everywhere in the cell, with
+    /// `E = S_fit − S`. Nothing else in the suite tests that claim
+    /// against the surfaces themselves: the no-rise rows compare two
+    /// readings with each other, and the decomposition rows pin
+    /// digits. This one samples `E` on a grid inside every cell and
+    /// reds if the floor ever exceeds the sampled minimum.
+    ///
+    /// A sampled minimum is an UPPER bound on the cell's true
+    /// infimum, so the test is one-sided by construction: it can
+    /// catch an unsound floor and can never certify a sound one.
+    /// Measured worst ratio 0.943 over the cells of these three
+    /// requests — the floor is below every sample it was checked
+    /// against, with headroom.
+    #[test]
+    fn the_floor_on_norm_e_never_exceeds_a_sampled_norm_e() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let bumpy = bumpy_patch();
+        const N: usize = 11;
+        for (name, base, d, tol) in [
+            ("qc", quarter_cylinder(), 1e-6, 1e-3),
+            ("qc", quarter_cylinder(), 0.01, 1e-6),
+            ("bumpy", bumpy, 1e-5, 1e-6),
+        ] {
+            let (fit, _) = super::fit_offset_at(&base, d, tol, band).unwrap();
+            let comp = Composite::build(&base, &fit, d).unwrap();
+            let (nu, nv) = comp.x.cell_counts();
+            let (mut worst, mut worst_at, mut checked) = (0.0f64, (0usize, 0usize), 0usize);
+            for su in 0..nu {
+                for sv in 0..nv {
+                    let (mig_iv, proj_iv) = comp.e_floors(su, sv);
+                    let dh = comp.dd.cell_hull(su, sv);
+                    let definite = if d > 0.0 { dh.lo() > 0.0 } else { dh.hi() < 0.0 };
+                    if !definite {
+                        continue;
+                    }
+                    let e_lo = mig_iv.lo().max(proj_iv.lo());
+                    if !(e_lo > 0.0) {
+                        continue;
+                    }
+                    let (ub, vb) = comp.cell_box(su, sv);
+                    let mut min_norm = f64::INFINITY;
+                    for a in 0..N {
+                        #[allow(clippy::cast_precision_loss)]
+                        let u = ub.0 + (ub.1 - ub.0) * (a as f64) / ((N - 1) as f64);
+                        for b in 0..N {
+                            #[allow(clippy::cast_precision_loss)]
+                            let v = vb.0 + (vb.1 - vb.0) * (b as f64) / ((N - 1) as f64);
+                            min_norm = min_norm.min((fit.eval(u, v) - base.eval(u, v)).norm());
+                        }
+                    }
+                    checked += 1;
+                    let ratio = e_lo / min_norm;
+                    if ratio > worst {
+                        worst = ratio;
+                        worst_at = (su, sv);
+                    }
+                }
+            }
+            assert!(checked > 0, "{name} d={d:e}: no cell carried a floor");
+            assert!(
+                worst <= 1.0,
+                "{name} d={d:e}: the floor exceeds a sampled ‖E‖ by {worst} at {worst_at:?}"
+            );
+            eprintln!(
+                "{name} d={d:e}: {checked} cells, worst e_lo/min‖E‖ = {worst:.4} at {worst_at:?}"
+            );
+        }
     }
 
     /// The guard is silent while the bound is still `+∞`: an
