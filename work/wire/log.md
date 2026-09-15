@@ -4387,3 +4387,679 @@ The reader that would answer Ev's PR-2404 question is still WIRE's to
 place; `GeomOrigin` is the door it would use.
 
 Signed (TOPO fix-pass lane, `geom-source-absence-conflates-four-origins`).
+
+## 2026-09-15 — orchestrator handoff, and a residue the last session disclosed but did not file
+
+A new orchestrator takes WIRE. There was no handoff entry to read: the
+previous session wound down at 90% of its 5h usage window on 2026-09-14
+and the log ends with three TOPO announcements that arrived after it, so
+the resting state had to be re-derived from the tree rather than
+inherited. It is clean, and that is worth saying plainly.
+
+**The resting state, measured rather than assumed.** 22 open rows, 1
+parked (`axis-shaped-identity-channel`, on TOPO's and EXCH's step-1
+rows, and `work.py lint` confirms neither trigger has fired), 2
+deferred, 28 closed. **Nothing dispatched, nothing in review, no open
+`wire/` PR, no `needs_ev: true` anywhere on the slate, lint green (0
+problems).** No local `wire/` branches on this box.
+
+**The `[ev]` channel is clear, and the clearing is the interesting
+part.** PR 2555 asked whether five of this program's working rules
+should be promoted into `docs/prompts/reviewer-style-lane.md`. It was
+**declined** and merged with its doc edits reverted — the doc on main
+carries neither insertion, which is the state the PR body promised for
+a no. Ev's reading pointed past the rule it was aimed at: a scan that
+returns an honest zero over a file that *must* contain its markers has
+a broken premise and should refuse **at the scan**, which is a code
+change rather than a paragraph. That became
+`a-source-census-scan-that-matches-nothing-should-refuse-at-the-scan`
+and is the better result the exchange produced. `plan.md`'s "What
+eight units taught" section still said the promotion "goes out as an
+`[ev]` PR"; corrected here to say it went, and what came back.
+
+Also corrected: the slate header said twenty-seven rows closed, and the
+twenty-eighth (`reviewer-discipline-owes-the-census-failure-rules`)
+closed with 2555 on 2026-09-14.
+
+### The residue that was disclosed and not scheduled — filed now
+
+The 2026-09-14 wind-down entry names a finding and says it is *"worth a
+row on `work/meta/` when the box is not rate-limited"*: the usage-alert
+bullet in `memories/orchestration-model.md` prescribes the two-window
+check by a path (`<agent-dir>/events/claude/usage/events.jsonl`) that
+was not there for that agent. **The row was never filed**, which is
+exactly the failure `work/README.md` describes — a residue disclosed
+inside prose is invisible to the re-homing sweep and dies with the
+directory. Filed as
+`work/meta/orchestration-model-prescribes-a-usage-instrument-with-no-file.md`.
+
+It carries a second data point taken here: on this hosted box there is
+no agent-directory layout at all — no `~/.local/share/cad-work`, and a
+bounded `find` for a usage `events.jsonl` returns nothing. So the rule
+is unfollowable on two layouts, not one, and the fix is `memories/`,
+which makes it Ev's call and the row the right vehicle.
+
+### Posture
+
+Ev re-affirmed it in-chat today in the same two terms the opening set:
+**no A/B protocol** (band 3700–3799 stays bookkeeping, no ordinal
+drawn), and **style reviews generally, a full review kept for the
+hardest units**. Recorded in `plan.md`'s posture section beside the
+2026-09-11 direction it repeats.
+
+### What this orchestrator inherits as the first real decision
+
+The seven DOCM rows are still **unread against the tree by this
+program**, and `plan.md` is emphatic that this program has twice paid
+for dispatching on a row's prose. That read is the next move, before
+any grouping.
+
+Signed (WIRE orchestrator).
+
+## 2026-09-15 — the seven DOCM rows read against the tree: five are rulings, two are units
+
+`plan.md` said to read them before grouping, and the reason it gave was
+that this program has twice paid for dispatching on a row's prose. It
+paid a third time in the other direction: the prose here **understated**
+what the rows are.
+
+**Every one of the seven is still live.** Nothing was discharged by
+adjacent work — unlike the 2026-09-11 cut, where two rows estimated H
+turned out three-quarters done. Each site was opened and read:
+`emit_topo.rs`'s seam-vertex arm, `emit.rs`'s shared-edge walk,
+`look_through_merges`, `docm7_union_declare.rs`'s asymmetry assertion,
+`product.rs`'s tie-row `finish()`, `role.rs`'s `BandSlit`,
+`emit_blend.rs`'s `CornerArc` keying.
+
+**But five of the seven are not dispatchable at all**, and that is the
+result. They pose a question that decides what a document MEANS, and a
+lane cannot close one by implementing it:
+
+- `member-space-look-through-…` — a membership test cannot answer which
+  fragment a member face's material ended in, and the geometric
+  re-measurement that could is the one DM4's routing step forbids.
+- `the-pair-verbs-declared-merge-is-asymmetric-…` — the symmetric answer
+  moves `Fragment` rows in every existing declared-merge golden.
+- `product-refuses-naming-…-two-roots` — qualify by root, or refuse in
+  the recipe's vocabulary; either changes what a document's names are.
+- `blend-slit-name-collides-…` and `cut-off-arc-persists-as-a-corner-arc`
+  — persisted `RoleSeg` vocabulary, so a format change with a migration.
+
+All five re-kinded `issue` → `ruling`. **Three of them said so in their
+own bodies** — *"a design ruling"*, *"for Ev"*, *"Ev's call, since it is
+persisted vocabulary"* — **and were filed `kind: issue` anyway**, which
+put them on the board as available work. That is worth naming as a
+tracker failure mode rather than a clerical one: a row's kind is what the
+board reads, its prose is not, and DOCM's sweep re-homed the files
+faithfully without re-reading what they were. The two remaining
+conversions (`blend-slit`, `product-…-two-roots`) are my call and each
+row says so at the point it says it.
+
+### The two that ARE units, and the order between them
+
+- **`nobodyroots-classification-has-two-homes` — E.** One predicate on
+  `ProductError`. Cleanest row on the slate.
+- **`two-emitter-refusals-a-legal-declared-union-reaches` — M.** The half
+  that needs no ruling: `Emission` means *a kernel bug by definition* and
+  these are reached from legal documents, so the classification is false
+  today whatever naming rule eventually lands. A typed refusal naming the
+  construction is better under either outcome. **It runs before any
+  look-through work**, because its emitter refusal is what makes the
+  fragmented-merge shape unreachable in the first place.
+
+### Three corrections a taker would otherwise have inherited wrong
+
+1. **`nobodyroots`'s owed sweep is discharged, and the count is two, not
+   four.** Both candidates were read and neither is an instance:
+   `pncad-py`'s `E::NoBodyRoots | … => (none(), none(), none())` groups
+   arms by which payload fields they carry, and `pncad/tests/all.rs`
+   asserts the refusal. Different partitions for different reasons. The
+   row had been carrying *"if either does, the count is four and the
+   predicate is overdue rather than merely tidy"* since 2026-09-04; it is
+   tidy.
+2. **`nobodyroots`'s two copies are no longer copies of one rule.**
+   `frame::product_badge` now declines four arms and declines three of
+   them because the Features pane already badges them at the node — not
+   because they are not faults. The shared classification is the
+   `NoBodyRoots` arm alone, so a predicate written against the filter's
+   current shape would get the partition wrong. Separately,
+   `ProductError` has grown `kind()` → `ProductErrorKind`, exhaustive
+   with no wildcard; that answers half the row's cost argument and is not
+   the predicate, because `kind()` says which arm and not what it means.
+3. **A citation rotted into the thing that makes its row a ruling.**
+   `the-pair-verbs-…` sends a reader to `docs/DOCM-REFERENCES-DESIGN.md`,
+   DM4's bullet. That file is gone (`docs/DOC-LEDGER.md`: replaced by
+   `crates/editor-core/REFERENCES.md`, present tense, DM1–DM6 kept), and
+   DM4's sentence now sits in a page `docs/DESIGN.md`'s companion table
+   lists as **Ratified** — which is exactly the document class CLAUDE.md
+   reserves to Ev. Also confirmed dead as predicted: `docs/DOCM-7-SPEC.md`.
+
+### Two smaller things found while reading, recorded rather than swept
+
+- `emit.rs`'s shared-edge walk carries **four** `bug(...)` refusals, not
+  the two the row measured: `"unmated half-edge"` and `"dangling mate"` /
+  `"dangling loop"` sit beside them and DOCM-8's reviews did not measure
+  whether a legal document reaches them. Noted on the row as the taker's
+  measurement, not assumed either way.
+- `look_through_merges` has a fifth shape the row does not mention — the
+  two-matches arm refusing `MEMBER_FACE_IN_TWO_MERGES` — folded into the
+  same ruling.
+- `blend-slit` cites `BandSlit(Box<StableName>)`; the payload is now
+  `NameRef`. The shape the finding rests on (one field, no
+  discriminator) is unchanged, so the rot is harmless and is noted at the
+  row rather than repaired silently.
+
+Signed (WIRE orchestrator).
+
+## 2026-09-15 — the persisted-vocabulary pair: a ruling from Ev, and two rows that were never WIRE's
+
+The `[ev]` PR I was about to open never went out, and that is the result
+rather than a shortcut. CLAUDE.md's rule — *check that Ev ever agreed,
+before you wait for Ev* — applied to the premise both rows share, and the
+premise did not survive it.
+
+### The premise that dissolved
+
+Both rows treat a `RoleSeg` change as *a document-format change with a
+migration story*, and I passed that on as the reason it was Ev's. Three
+ratified texts say otherwise:
+
+- **`crates/editor-core/src/persist/mod.rs`**, ratified at M4 PR 6:
+  *"No schema version, on purpose… Schema breaks are not at all a
+  problem, because this is not released yet: no document exists outside
+  this repository, and every checked-in document is a regenerable
+  artifact."* Versioning returns as Band-4 work the day a document ships.
+- **N1** (`names/README.md`, Ratified #74) ratifies the STRUCTURE —
+  closed enum grouped by op, role arguments are themselves names, no
+  floats, no arena keys — and lists variants illustratively with
+  ellipses, never enumerating the blend group at all.
+- **V3** (`sweep/README.md`, Ratified #992) keeps this vocabulary
+  *fillet-named on purpose*: the fence is against renaming it
+  BLEND-ward, not against growing it.
+
+No serialized document in the tree carries `BandSlit` either — every hit
+is Rust source. So there was no migration to cost and no clause to amend.
+
+### And then the ownership, which neither row's own prose mentions
+
+`work.py territory --files -` on the three files a fix touches:
+`crates/sweep/src/blend/naming.rs` is **BLEND's**,
+`crates/editor-core/src/names/role.rs` is **EDIT's**, and
+`crates/editor-core/src/names/emit_blend.rs` is claimed by **no program**.
+WIRE owns none of them.
+
+**DOCM's exit sweep sent both here on a glob.** Its re-home boilerplate
+reads *"the file it names is WIRE's (`names/emit*.rs`, `eval/wire.rs`,
+`product.rs` are in WIRE's paths)"* — but this program's `paths` is an
+explicit file list naming `emit.rs` and `emit_topo.rs`, and
+`emit_blend.rs` was never in it. A pattern was matched against a list
+that does not contain the thing the pattern matched. Worth naming as a
+sweep failure mode: a re-home is a claim about ownership, and this one
+was written once and applied to seven rows.
+
+`blend-slit` → BLEND (the kernel half is theirs, and V3 — the fence over
+this very vocabulary — lives in their ratified README).
+`cut-off-arc` → EDIT (the persisted recipe and the edit vocabulary is its
+charter). Both announced on the receiving programs' logs with the whole
+read attached, including, for `blend-slit`, the one design question left
+deliberately undetermined: whether the band's identity must come from
+`rec.slits` or can be derived from the `BandFace` row the emitter already
+mints. That decides one crate or two, and guessing it would have been
+worse than leaving it named.
+
+### The ruling, taken in chat because Ev was here
+
+`cut-off-arc` asked for a new `CutOffArc` variant or a ruling that the
+corner family is right. Ev ratified a third shape, **(b′)**: keep one
+role, repair what it CLAIMS.
+
+The argument that decided it is the vocabulary's own, at `RimSupport`:
+*"A pair of structural ROLES, not a geometric classification."*
+`TransverseCap` against `ThreeConvexEdges` is a geometric classification,
+so a separate variant would bake a classifier's verdict into a persisted
+identity and re-spell the name of an entity that is structurally
+unchanged — the arc where this band closes at this source vertex, either
+way.
+
+**A discriminator field was considered and rejected**, and the reason is
+worth keeping because it looked like the obvious move: it mirrors
+`BandTrim { edge, support: RimSupport }` and the `BandSlit` fix exactly.
+It is not the same shape. On `BandSlit` the discriminator is needed for
+UNIQUENESS — two bands genuinely collide. Here a source vertex is either
+a corner or a transverse cap and never both, so `(vertex, edge)` is
+already unique and the field would be derived data inside an identity,
+carrying the instability and buying nothing. **Two rows that look like
+one class are two classes**, and the tell was asking what the field does
+for uniqueness rather than what it says.
+
+I also had to weaken my own first answer mid-conversation: I leaned to a
+new variant until reading V3's `OpGroup::Fillet` precedent — a name kept
+*"whose name under-describes what it groups… the minting node tells the
+two apart"* — which is the same move one level up and argues the other
+way.
+
+### One thing split off rather than ridden along
+
+The rod-with-a-flat editor fixture. `editor-core/tests` has no ruled
+fixture and no `TransverseCap` anywhere, so those three roles have never
+been minted through the document layer — and that gap is what FILLET-H7's
+original decision to leave the vocabulary alone rested on. It is filed as
+its own EDIT row rather than as the price of the correction: the (b′)
+work is a rename and three comments and does not need it, and had the
+ruling gone the other way the test would have been dead on arrival. It is
+the only row that would have caught the mis-description, and the only one
+that would notice if the rename breaks an emitting arm.
+
+Signed (WIRE orchestrator).
+
+## 2026-09-15 — PR 2629 open, CI verified first-hand, style review dispatched
+
+Lane `wire-n1` returned the `ProductError` predicate as **PR 2629**
+(`wire/nobodyroots-predicate`, head `dae85987`, 389+/24−, 12 files). Not
+merged; a light style review is running per `plan.md`'s posture.
+
+**CI checked against the API rather than on report**, which is this
+program's own standing lesson about background waiters. Run
+`34938629986`: **39 check runs, every one `success` except six expected
+`skipped`** (two cache primes, `interval backend crate`, `interval
+oracle`, `step import (freecad)`, `corrupt input (release profile)`).
+Counted by name: **twelve `test (…)`** — `{default, interval}` ×
+`{default, 1e-6, 1e-12}` × `{1/2, 2/2}` — and **five
+`k-lint (gate, …)`**: `dev-default`, `release-default`, `release-budget`,
+`dev-budget`, `dev-probe`. `python suite (wheel + guide + north-star)`
+ran green. Nothing narrowed the matrix.
+
+**The PR is `mergeable_state: dirty`** — main moved under a branch cut at
+`e4dcc5c7`. Lane sent back to merge `origin/main` (merge commit, never a
+rebase), with the header-conflict resolution spelled out.
+
+### What the lane did beyond its brief, and it was right to
+
+The brief named **two** consumers. The sweep found **four**:
+`viewer/src/session.rs` and `pncad-py/src/product_memo.rs` also
+re-derive the partition, and neither was in the row or in my read of it.
+A predicate cited by three of four leaves the fourth re-deriving the rule,
+which is the defect — so the fourth seam (`work/lib/log.md`) was
+announced too. **My read section was incomplete and the sweep corrected
+it**, which is the outcome §5's *assume it is a class* exists to produce.
+
+It also sited the predicate on `ProductErrorKind` rather than
+`ProductError`, and the deciding argument is the one the brief warned
+about: a `ProductError::is_empty_document` delegating to
+`self.kind().is_empty_document()` would be a public door whose only
+production caller is its own delegate — a fresh instance of
+`frame-linear-generic-door-has-no-consumers`, open on this same slate.
+The lane found the trap the brief named, in the shape the brief did not
+predict. Whether the fix mints a fresh instance anyway is the first thing
+the reviewer was pointed at.
+
+### One correction to the lane's report
+
+It recorded working around *"an uncommitted edit to my own item file"* in
+`/home/user/cad`. The edit was committed and pushed before the lane
+started; what it saw was the working tree between the `work.py set` call
+and its commit. The decision to use a separate worktree was still right,
+for the reason that actually matters — never share a checkout or a
+`CARGO_TARGET_DIR` with another lane.
+
+### A tooling trap the lane caught, now filed
+
+`work.py territory --base main` returned a ~200-path answer. Not a
+territory crossing: **the local `main` ref is stale.** Confirmed
+first-hand here — local `main` at `0312083a` (2026-09-12), `origin/main`
+at `385c01b3` (2026-09-15), `rev-list --count main..origin/main` =
+**12068**, and `origin/main..main` = 0, so it is a strict ancestor and
+simply old. Agents work in ephemeral worktrees and never check out
+`main`, so this is the normal state, not an accident of this box.
+
+`work/README.md` documents the invocation with the bare ref, twice
+(`:190`, `:257`). The failure is the expensive kind: a three-day-old base
+makes a branch look like it contains everything that landed in between,
+so the output reads as *"your branch crosses everyone's territory"*
+rather than *"your base is wrong"*. Filed as
+`work/meta/territory-base-main-reads-a-stale-local-ref-and-answers-confidently-wrong.md`
+with the three fix shapes and a note that the guard belongs in
+`work.py`'s `--selftest`, which the per-PR gate runs.
+
+Signed (WIRE orchestrator).
+
+## Dispatched: `nobodyroots-classification-has-two-homes` (2026-09-15, PR #2629)
+
+Lane `wire-n1`, branch `wire/nobodyroots-predicate`. **Open for review;
+not merged.**
+
+**What landed.** `ProductErrorKind::means_no_body`
+(`crates/editor-core/src/product.rs`) — the empty-document reading of a
+gather refusal, argued once, in the crate that owns the enum.
+
+**On the kind and not the error, deliberately.** `NoBodyRoots` carries no
+payload, so nothing beyond the class informs the answer; `kind()` is
+already the one exhaustive projection, so a predicate on the kind adds no
+second exhaustive match over `ProductError` and makes a tenth arm a
+compile error TWICE by name — once to give it a class, once to classify
+it. A delegating `ProductError::means_no_body` was considered and
+refused: its only production caller would be its own delegate, which is
+`frame-linear-generic-door-has-no-consumers` with a new instance. Every
+consumer spells `fault.kind().means_no_body()`.
+
+**The row's count was two. It is four.** The read section of 2026-09-15
+discharged the two candidates it inherited (`py/assembly.rs`,
+`pncad/tests/all.rs`) and both judgements survive re-checking — neither is
+an instance. But its sweep looked only where the row pointed. A sweep of
+the SHAPE found two more production consumers re-deriving the same
+partition, both unexamined by the row:
+
+- `crates/viewer/src/session.rs` — `DocSession`'s landing, which runs the
+  registry over `Subject::NoBodyRoots` for this arm and argues *"has no
+  product and no failure either"* in its own words. **CHROME's and VIEW's.**
+- `crates/pncad-py/src/product_memo.rs` — `checks_report`, the same
+  routing as `run_checks` written again for the memoized gather. **LIB's.**
+
+All four now cite the predicate. Seams announced in `work/fix/log.md`,
+`work/chrome/log.md`, `work/view/log.md` and `work/lib/log.md`;
+`work.py territory --base origin/main` names exactly those four paths.
+No signature moved and no routing decision changed.
+
+**Filed outside the fence**, on FIX's slate:
+`work/fix/subject-refused-accepts-the-one-refusal-that-must-not-go-through-it.md`
+— `checks::Subject::refused` is public and accepts `NoBodyRoots`, turning
+an empty document into a `ChecksError::Product`. Three in-tree callers
+route around it by hand; nothing states the precondition. The predicate is
+what makes the guard a one-liner, so the row is newly cheap rather than
+newly true.
+
+Signed (WIRE implementer lane `wire-n1`).
+
+## Review pass on #2629 (2026-09-15)
+
+Three stated claims were false and are repaired; the code's behaviour
+did not change.
+
+- **The new census test promised a red it cannot deliver.** Its doc said
+  a tenth arm read as no-body *"reds here, naming the arm"*. It does
+  not: `means_no_body` is exhaustive over the KIND, so an arm added
+  under an EXISTING kind and left out of `every_arm` reads no-body with
+  nothing red anywhere. No bijection is available to assert — stable
+  Rust cannot enumerate an enum's variants, which is why the roster is
+  hand-written at all — so the claim is narrowed to the floor it is and
+  the residue is written at the site, citing the census's own caveat
+  rather than restating it. The predicate's own closing paragraph
+  carried the same overclaim (*"a compile error twice over"*) and is
+  narrowed with it.
+- **The predicate's doc overclaimed in the `true` direction.** It read
+  the class absolutely — *"nothing is wrong … asking it for one is not a
+  failure"* — while `eval/parts.rs`'s `product_fault` falls the arm
+  through to `PartFault::PartProduct`, because instantiating a body-less
+  part document IS a fault of the instantiate node. The
+  consumer-freedom paragraph now covers both directions and names that
+  case. This lane's own sweep called `parts.rs` "a payload extraction",
+  which is right about what the function does and misses what its
+  fall-through decides.
+- **The row filed on FIX's slate named three callers of
+  `Subject::refused` from memory and got all three wrong.** Re-derived
+  with `git grep`: two production callers (`run_checks`,
+  `checks_report`) and two test callers; `viewer::session` is not one —
+  its test decides whether to run the checks, not which subject to
+  build. The row's option (a) said "all three callers" and now says
+  both production ones. The `pncad-py` literal it cited as evidence of
+  reachability is filler in a tag-stability test, and is dropped.
+
+**Renamed `is_empty_document` → `means_no_body`.** A kind is not a
+document, and a document holding sketches and datums is not empty; the
+doc's first line was doing repair the name should not need. Naming the
+shared fact after one consumer's reading is this row's own defect one
+size smaller, so the code says what the class means and the chrome goes
+on calling it the empty-document reading.
+
+**Asked and answered: is `session.rs`'s `at_rest` refusal over
+`NoBodyRoots` constructible?** **Yes**, derived from the tree rather
+than built: `roots::is_sink` makes the root set exactly the sink set;
+`Node::Measure`'s `inputs()` are the nodes its references are read AT;
+`product::sources_of` returns `None` for a measure. So a document of an
+`InstantiatePart` plus a `Measure` whose refs are read at it has the
+instantiate de-sunk, the measure as its only root, and gathers
+`NoBodyRoots` — while `session::assembly_shaped` is true, because it
+scans `order()` for any `InstantiatePart` and does not care about roots.
+That reaches `AtRestBadge::Refused` carrying the no-body refusal: the
+"deleting the last feature looks like a failure" outcome, three lines
+below the line that avoids it. Not fixed here — pre-existing, and
+CHROME's and VIEW's. Two routes were closed on the way and are worth
+recording so nobody re-walks them: a `BooleanValue::Empty` root still
+sets `any_body_denoting` (it returns `Some(vec![])`), and
+`Node::Mate`'s `inputs()` is empty, so a mate never de-sinks an
+instance. What was NOT checked is whether the GUI will author a measure
+over the only body-producing node.
+
+Signed (WIRE implementer lane `wire-n1`).
+
+## 2026-09-15 — PR 2629 MERGED (`5d34c629`): the first unit of this orchestrator's tenure
+
+`nobodyroots-classification-has-two-homes` closed. One light style
+review, one fix pass, no second review round — the diff that came back
+contained a rename, three narrowed prose claims and a corrected tracker
+row, and **none of those is a mechanism a previous round had not seen**,
+which is this program's own test for whether a further round is worth
+running.
+
+### What the review bought, and it was the sharpest finding of the unit
+
+The reviewer caught that the new test's doc **promised a red the census
+cannot deliver**: a tenth `ProductError` arm projected onto the existing
+`NoBodyRoots` kind and left out of `every_arm()` compiles, reads as
+no-body, and reds nothing — because the predicate is exhaustive over the
+KIND, not the error. Two things make it the good kind of finding. The
+sibling test forty lines above **already states that hole in as many
+words**, and the new test rode its census without carrying the caveat
+forward. And it is **working rule 1 landing on the unit that quotes it**:
+*a floor over a hand-written roster is the defect one level up.*
+
+The fix pass then followed rule 1's actual procedure rather than skipping
+to the floor: it tried for the bijection, established it is not available
+(stable Rust cannot enumerate an enum's variants, which is *why*
+`every_arm` is hand-written), and wrote the residue **at the site**,
+citing the sibling caveat instead of restating it. It also found an
+overclaim in the predicate's own closing paragraph that neither the
+reviewer nor I had named.
+
+### Two things the lane got right that were not asked of it
+
+**The sweep found four consumers where the row and my read of it found
+two** — `viewer/src/session.rs` and `pncad-py/src/product_memo.rs` also
+re-derive the partition. A predicate cited by three of four leaves the
+fourth re-deriving the rule, which is the defect. **My read section was
+incomplete and the sweep corrected it**; the row now carries that
+correction from the lane's side, so the file agrees with itself from both
+directions.
+
+**And it renamed `is_empty_document` → `means_no_body`** on an argument
+better than the objection that prompted it: *"empty document" is one
+consumer's READING of the fact*, so naming the shared fact after one
+consumer's vocabulary is this unit's own defect one size smaller. The
+chrome goes on calling it the empty-document reading, which is the
+chrome's to call it.
+
+### A claim-level error caught before it cost another program
+
+The row the lane filed on FIX's slate said three callers route around
+`Subject::refused` correctly and named `viewer::session` among them.
+`git grep` says otherwise: two production callers
+(`checks.rs` `run_checks`, `product_memo.rs` `checks_report`), two test
+callers, and `session.rs` **does not call the door at all**. That changed
+the row's own option (a) from "deletes it from three callers" to two.
+Wrong evidence on another program's slate is worse than no row, so it was
+a must-fix rather than a nit.
+
+### The merge treadmill, named because it is structural
+
+The PR conflicted **three times** before landing, and never once in code:
+every conflict was a program log — `chrome`, then `view`, then `chrome`
+and `wire` again — where both sides append to an append-only narrative.
+That is not bad luck. **A unit that announces four seams races four
+programs**, each of which appends at end-of-file, and this tree moves
+about 12,000 commits in three days. Each resolution is mechanical (the
+union, main's entry first) but each costs a full CI round (~35 min), and
+the conflict window is shorter than the round.
+
+Two things learned, worth the next lane's attention:
+
+- **Check whether the base merge is prose or substance before spending a
+  round.** The second merge brought 248 changed files including a
+  **+420-line change to `crates/viewer/tests/frame_policy.rs`** — the
+  suite testing `product_badge`, one of the four functions this PR edits.
+  That is a real interaction, so it was compiled and run locally first
+  (45 `frame_policy` rows green) rather than discovered by CI.
+- **Close the green→merge gap mechanically.** A real until-loop on the
+  check-runs API, waking on conclusion, is what let the last round merge
+  before main moved again. GitHub auto-merge would be better and is **not
+  enabled for this repository**; not changed, because a repo setting is
+  Ev's.
+
+### Filed out of this unit, all on other programs' ground
+
+- `work/fix/subject-refused-accepts-the-one-refusal-that-must-not-go-through-it.md`
+  (by the lane, corrected in the fix pass).
+- `work/chrome/viewer-states-the-empty-document-rule-in-four-places-and-the-one-that-gates-cannot-red.md`
+  — the structural half: three restatements the citation did not reach,
+  and `product_badge`'s remaining `matches!`, which is the one construct
+  in the arrangement that cannot red when an arm is added. The
+  `editor-core` side now reds twice by name; the viewer side, where a
+  user sees the consequence, reds not at all.
+- `work/chrome/at-rest-badge-reports-an-empty-document-as-a-refusal.md`
+  — the behavioural half, and the answer to the one question I put to the
+  lane: **yes, constructible.** An `InstantiatePart` plus a `Measure`
+  whose refs are read at it de-sinks the instantiate, leaves the measure
+  as the only root, gathers `NoBodyRoots` — while `assembly_shaped` stays
+  true because it scans `order()` and never looks at roots. `at_rest`
+  then badges "Refused" for exactly the empty document the line three
+  above classifies as an absence. Two dead routes closed on the way and
+  recorded so nobody re-walks them.
+
+Signed (WIRE orchestrator).
+
+## 2026-09-15 — Dispatched: `two-emitter-refusals-a-legal-declared-union-reaches` (lane `wire-e2`)
+
+Branch `wire/emitter-refusals-a-legal-union-reaches`. **Raised to FULL
+review at dispatch**, against the M estimate, and `plan.md`'s posture
+table carries the reason.
+
+**Why full.** The deliverable is a MEASUREMENT — which of the emitter's
+`bug(...)` refusals a legal document can actually reach — and a wrong
+measurement fails in the dangerous direction. `NamingError`'s own doc
+says every variant is *"an emission BUG … never a normal modeling
+outcome"*, so re-classifying a refusal that is really body corruption as
+a legal outcome would silently downgrade a genuine kernel bug's signal.
+That is a correctness question a light review is not looking for.
+
+**What reading the sites added to the row, and it is the unit's real
+content.** `unique_shared_edge` carries **four** `bug(...)` refusals,
+not the two the row measured, and they are visibly **two categories
+wearing one word**: `"unmated half-edge"`, `"dangling mate"` and
+`"dangling loop"` read as structural corruption of the body, while
+`"two shared edges where one expected"` and `"no shared edge"` read as a
+legal shape the combinatorial derivation has no answer for. The row
+names only the second pair. The fifth site, `emit_topo.rs`'s seam-vertex
+arm, is a `_ =>` **catch-all** after a case analysis — which is where a
+shape nobody enumerated lands, a different thing from an inconsistent
+fact. The brief says to measure the line rather than assume it, and that
+a site no legal document reaches KEEPS `Emission` and is reported as
+such.
+
+**The precedent is in the same enum, twice, and the brief points at
+both.** `Band(BandError)` was carved out of `Emission` with exactly this
+argument — *"which this is not: nothing about the result body is wrong
+here"* — and `SplitLineage` / `FragmentLineage` were carved out because a
+variant can carry *"the one thing the repair needs that a sentence cannot
+supply: WHICH edge / WHICH face."* `FragmentLineage`'s doc also argues
+why it is a **sibling word rather than one generalised** over
+`EntityKey`, which is the same question this unit faces about how many
+variants it needs. So the shape of the answer is established; only where
+the line falls is open.
+
+**Fenced explicitly.** This unit re-classifies and does **not** invent a
+naming rule: what a member-space declaration MEANS for a face that is no
+longer one face is `member-space-look-through-…`, a `ruling` on this
+slate. The change must be correct under either answer, and the brief says
+to stop if the lane finds itself designing the name.
+
+Three traps named in the brief, all earned: a variant with no caller
+(`frame-linear-generic-door-has-no-consumers` is the open row for that
+shape); a new variant whose payload is a free-text `&'static str`, which
+rebuilds `Emission` one level down; and re-classifying a site the lane
+did not actually reach because its message reads legal-ish.
+
+### Three rows arrived from other programs while this session worked
+
+`declare-door-refuses-a-tie-before-it-asks-the-pairs-kinds`,
+`interrogate-read-answers-a-tie-before-the-door-s-kind`, and
+`select-refusal-coverage-is-not-compiler-enforced-from-the-test-crate`.
+Unread against the tree by this program; the 2026-09-11 lesson applies to
+them as it did to DOCM's seven.
+
+**The first two look like one class and should be read together**: a door
+answering a tie or an `Ambiguous` *before* it has resolved the kind the
+answer depends on. That is the same shape as
+`the-declared-pair-refusal-reads-the-authored-kind`, already on this
+slate — which would make it three instances, not two, and a class rather
+than a pair. Noted rather than acted on; the read comes before the
+grouping, as it did for DOCM's rows.
+
+Signed (WIRE orchestrator).
+
+## 2026-09-15 — Dispatched in parallel: `wire/tie-before-kind` (lane `wire-t1`), three rows as one class
+
+Three rows, one unit, **no file overlap with `wire-e2`** — that lane holds
+`names/emit.rs` and `names/emit_topo.rs`; this one holds
+`eval/wire.rs` and `names/interrogate.rs`. The brief fences each lane off
+the other's files by name.
+
+**The class, in PORT's words:** *a site that asks how many entities
+answer to a name before it asks what the name denotes.* A caller whose
+reference happens to be TIED is told to narrow it, when narrowing could
+not have helped, because what they actually did wrong is answerable
+without resolving at all.
+
+- `declare-door-refuses-a-tie-before-it-asks-the-pairs-kinds` — ordering
+  in `resolve_declarations`.
+- `the-declared-pair-refusal-reads-the-authored-kind` — **the same two
+  lines**; authored kind or resolved key.
+- `interrogate-read-answers-a-tie-before-the-door-s-kind` — the one body
+  five public read doors delegate to.
+
+**Taken together because PORT says they must be, and it checked the
+interaction rather than leaving it.** If the "found" word must come off
+the resolved key, a tied name has no single key, so the kind-first answer
+has to come off the NAME — which is what `resolve_face` took. The brief
+says to land that consistently and not re-litigate it.
+
+**The precedent is merged, so the shape is copied rather than invented:**
+PORT-DOORS-1, PR #2635 (`0f2667888`), closed this defect in
+`assembly.rs`'s `resolve_face`. `eval/wire.rs`'s own `face_name` is a
+second counter-example in the file being edited.
+
+**Posture: light style review with one named correctness claim to
+falsify** — the premise that every candidate of an `Entry::Tied` carries
+the name's kind. Not raised to full: the premise is already verified by
+another program against the same table, the fix shape is landed one door
+over, and no variant changes shape — only which variant a document gets.
+That is a narrower blast radius than
+`names-flush-and-select-discard-a-refusal-with-map-err-underscore`, which
+was raised to full because two public enum variants **gained a field**.
+The brief still requires the lane to re-verify the premise itself and to
+stop if it holds only by an invariant a module away.
+
+Named in the brief: PORT's **first** instrument missed two of these three
+(the `Entry::Tied`-adjacent grep could not see them), so the lane owes a
+sweep shaped for the caller-side pairing and a stated blind spot. A
+fourth instance is likely.
+
+### Not dispatched, deliberately
+
+`select-refusal-coverage-is-not-compiler-enforced-from-the-test-crate`
+(S-TINT's TINT-1 residue, `names/geompred.rs`, WIRE's ground) is real and
+takeable and does not collide with either live lane. Held anyway: three
+concurrent PRs on a tree moving ~12,000 commits in three days means the
+session spends itself on merge conflicts rather than on work — the last
+unit took three conflict rounds to land, none of them in code. Two lanes
+is the level this tree supports. It is next in the queue, not deferred.
+
+Signed (WIRE orchestrator).

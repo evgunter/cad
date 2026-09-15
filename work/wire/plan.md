@@ -45,30 +45,78 @@ announce rather than land) and **`crates/profile/*`** (S-BOOL's glob —
 the lift door is minted there by announced seam, exactly as EVAL's
 EVAL-1 and FILLET's fillet door did).
 
-## The slate — present state, 2026-09-14
+## The slate — present state, 2026-09-15
 
-**The opening slate is discharged.** Twenty-seven rows are closed; what
+**The opening slate is discharged.** Twenty-eight rows are closed; what
 remains arrived after the program opened, from three sources, and the
 sources matter more than the count because they want different handling.
 
-### From DOCM's exit sweep (2026-09-13) — seven rows, unread by this program
+### From DOCM's exit sweep (2026-09-13) — seven rows, READ against the tree 2026-09-15
 
 DOCM closed and re-homed residue here. Each carries a `Re-homed` section
-naming the sweep. **None has been read against the tree by this
-program**, and the 2026-09-11 cut's lesson applies directly: *read a row
-against the tree before dispatching it, not against its own prose* — two
-rows that cut estimated **H** turned out three-quarters discharged by
-adjacent work. Treat every class estimate below as unmade.
+naming the sweep, and now also a `## Read against the tree (2026-09-15)`
+section carrying what was verified and what was corrected. Every one of
+the seven is still live — nothing was discharged by adjacent work, unlike
+the 2026-09-11 cut — **but five of the seven are not units at all.**
 
-| row | where it lands |
-| --- | --- |
-| `two-emitter-refusals-a-legal-declared-union-reaches` | boolean emitter refusals |
-| `member-space-look-through-stops-at-splits-containment-and-fragmented-merges` | member-space declaration resolution |
-| `the-pair-verbs-declared-merge-is-asymmetric-in-its-operands` | declared-merge operands |
-| `product-refuses-naming-when-one-instance-is-placed-under-two-roots` | `product.rs` |
-| `nobodyroots-classification-has-two-homes` | the empty-document rule |
-| `blend-slit-name-collides-when-two-rims-share-a-meridian` | blend name emitter |
-| `cut-off-arc-persists-as-a-corner-arc` | ruled-band names |
+**The result: DOCM's exit handed this program a ruling queue, not a work
+queue.** Five rows pose a design question that decides what a document
+MEANS, and no lane can close one by implementing it. They are re-kinded
+`ruling` so the board stops showing them as dispatchable; three said so
+in their own words and were filed `issue` anyway, and two are the
+orchestrator's call, said so at the row.
+
+| row | verified live at | kind |
+| --- | --- | --- |
+| `two-emitter-refusals-a-legal-declared-union-reaches` | `emit_topo.rs` seam-vertex arm; `emit.rs` shared-edge walk | **unit, M — takeable now** |
+| `nobodyroots-classification-has-two-homes` | `checks.rs` `Subject`; `frame::product_badge`; no predicate on `ProductError` | **unit, E — takeable now** |
+| `member-space-look-through-…-fragmented-merges` | `look_through_merges` still bare-`Merged`-only | ruling |
+| `the-pair-verbs-declared-merge-is-asymmetric-…` | asserted in `docm7_union_declare.rs` | ruling |
+| `product-refuses-naming-…-two-roots` | `product.rs` tie-row `finish()` | ruling |
+| ~~`blend-slit-name-collides-…-meridian`~~ | `BandSlit(NameRef)`, still no discriminator | **left the slate — BLEND** |
+| ~~`cut-off-arc-persists-as-a-corner-arc`~~ | `emit_blend.rs` keys `CornerArc` | **ruled, then left the slate — EDIT** |
+
+**The two `emit_blend` rows were never WIRE's, and both are gone.** They
+reached this program at DOCM's exit on the boilerplate *"the file it
+names is WIRE's (`names/emit*.rs` … are in WIRE's paths)"* — a **glob**,
+where this program's `paths` names `emit.rs` and `emit_topo.rs`
+explicitly and no `emit_blend.rs`. Measured with
+`work.py territory --files -`: `sweep/blend/naming.rs` is BLEND's,
+`role.rs` is EDIT's, `emit_blend.rs` is claimed by nobody. WIRE owned
+none of the three.
+
+Both were re-kinded back to `issue` first, because the shared premise
+that made them look like rulings — *a `RoleSeg` change is a
+document-format change with a migration story* — **is false**, and three
+ratified texts say so: `persist/mod.rs` (*"No schema version, on
+purpose… Schema breaks are not at all a problem, because this is not
+released yet"*), N1 in `names/README.md` (ratifies the structure, lists
+variants illustratively, never enumerates the blend group), and V3 in
+`sweep/README.md` (fences the vocabulary against being renamed
+BLEND-ward, not against growing).
+
+`cut-off-arc` was **ruled by Ev in chat (2026-09-15) before it moved**,
+as option (b′) — keep one role, repair what its doc claims, rename
+`CornerArc` to a structural word — so EDIT inherits an answered question
+rather than an open one. The rod-with-a-flat fixture was split off as
+its own EDIT row rather than being made the price of the correction.
+Narrative and the full argument: `log.md`, 2026-09-15.
+
+**What the read corrected, beyond the classification.** Three findings a
+taker would otherwise have inherited wrong:
+
+- `nobodyroots`'s owed sweep is **discharged, and the answer is two, not
+  four**: neither `pncad-py`'s arm grouping nor `pncad/tests/all.rs`
+  classifies the arm — they partition by payload shape and assert the
+  refusal respectively. The row does not get to claim four.
+- `nobodyroots`'s two copies are **no longer copies of one rule**:
+  `product_badge` now declines four arms and declines three of them for a
+  different reason ("already badged at the node"), so a predicate covers
+  the `NoBodyRoots` arm alone.
+- `the-pair-verbs-…`'s citation of `docs/DOCM-REFERENCES-DESIGN.md` has
+  **rotted into the thing that makes it a ruling**: that file is gone and
+  DM4 now lives in `crates/editor-core/REFERENCES.md`, which
+  `docs/DESIGN.md`'s companion table lists as *Ratified*.
 
 ### Residues this program's own units produced — the receipts of eight merges
 
@@ -101,9 +149,16 @@ not-now, and no lane resolves a deferred row by implementing it.
 ## What eight units taught, and what it costs to ignore
 
 These are **this program's working rules**, earned by rounds that broke
-things rather than by argument. They are not ratified discipline: the
-case for promoting them to `docs/prompts/reviewer-style-lane.md` is Ev's
-and goes out as an `[ev]` PR.
+things rather than by argument. They are not ratified discipline, and
+they are not going to become it: the promotion case went to Ev as
+`[ev]` PR 2555 and was **declined**. `reviewer-style-lane.md` opens by
+insisting its questions are not a checklist, and more imperatives make
+it more checklist-shaped; the reading Ev gave instead pointed past rule
+2 to a code change — a scan over a file that must contain its markers
+and finds none should refuse **at the scan** — which is now
+`a-source-census-scan-that-matches-nothing-should-refuse-at-the-scan`
+on this slate. The PR merged with its doc edits reverted, so these
+rules stay here, read by WIRE and by whoever reads WIRE.
 
 1. **Prefer a bijection.** A floor over a hand-written roster is the
    defect one level up. A floor is what you write when you have *proved*
@@ -163,6 +218,12 @@ what `docs/MODEL-AB-LOG.md` already records for the eleven programs of
 the 2026-09-11 cut: WIRE's band **3700–3799** was claimed at the opening
 for bookkeeping, and no ordinal is drawn from it.
 
+**Re-affirmed by Ev in-chat on 2026-09-15**, at this orchestrator's
+opening, in the same two terms: no A/B protocol, and style reviews
+generally, with a full review kept for the hardest units. Nothing in
+the posture moves; the table below is what "hardest" has meant so far
+and is still correctable by any lane that finds a call wrong.
+
 Which units are which, decided at the opening and correctable by any
 lane that finds the call wrong:
 
@@ -175,6 +236,7 @@ lane that finds the call wrong:
 | `product-gather-refuses-a-split-root-whose-tie-spans-both-halves` | a stated rule about the product's aggregate name table, and the rule decides whether a name survives |
 | `D364` | a census is a claim about a vocabulary's completeness; a census with a hole reports green |
 | **the operand-door unit** — `the-is-this-a-frame-door-was-deleted-…` + `frame-plane-lane-and-axis-frame-are-one-door` + `composed-expected-phrases-are-hand-copied-across-sites` + `wire-refusals-answer-found-with-a-negation-of-expected`, **raised to full at dispatch** against three **E** class estimates | four rows are the same ten lines of `eval/wire.rs` seen from four angles, and the unit gives "is this a frame" a home to replace the one PR 2435 deleted. It moves user-visible refusal text, it sweeps a shape that recurs over seven other kinds, and it is the sixth-instance ground of the standing trap where a unit closing a duplication mints a fresh instance of it |
+| `two-emitter-refusals-a-legal-declared-union-reaches` **raised to full at dispatch**, against the M estimate | the deliverable is a MEASUREMENT — which of the emitter's `bug(...)` refusals a legal document can actually reach — and a wrong one fails in the dangerous direction. `NamingError`'s own doc says every variant is *"an emission BUG … never a normal modeling outcome"*, so re-classifying a refusal as a legal outcome that is really kernel corruption would silently downgrade a real bug's signal. `unique_shared_edge`'s four refusals are visibly two categories in one word (three read body corruption, two read a legal shape the derivation has no answer for), and only a correctness arm asks whether the line was drawn in the right place |
 | ~~`S195`~~ **lowered to light at review time** | the row turned out to be three-quarters discharged by work that landed after it was filed, so the unit was dispatched as a MEASUREMENT and its diff is 58 lines of test on a failure path with the assertion untouched. The census it was going to build already exists; nothing here can report green over a hole. The measurement itself is the deliverable and the reviewer re-takes it, which a light review does |
 
 Everything else is a light style review: the E units and any

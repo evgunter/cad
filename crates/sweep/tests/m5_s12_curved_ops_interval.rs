@@ -18,21 +18,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-/// **Loud skip.** Without `--features interval` this binary is empty,
-/// and an empty binary reports "0 passed" — which reads like coverage
-/// in a battery summary. Announce the skip instead, so a lane that
-/// silently lost its certified rows is visible in the log.
-#[cfg(not(feature = "interval"))]
-#[test]
-fn interval_lane_skipped_no_certified_coverage_here() {
-    println!(
-        "SKIPPED (no --features interval): m5_s12_curved_ops_interval.rs \
-         contributes NO certified coverage in this run — the S12 rows \
-         (bitwise curved revert, definite curved subtract/intersect, the \
-         mixed-sense split's inherited bit, the S13 sphere re-cut row) \
-         run only in the interval lane."
-    );
-}
+test_utils::loud_skip_marker!(
+    feature = "interval",
+    row = interval_lane_skipped_no_certified_coverage_here,
+    absent = "certified coverage of S12's curved ops",
+);
 
 #[cfg(feature = "interval")]
 mod certified {
