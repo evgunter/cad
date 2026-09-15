@@ -201,3 +201,73 @@ leaves should be the compiler wherever it can be, and a census only where
 it cannot. Reaching for this unit's shape there would be the charter's
 trap in its other direction: a hand-maintained reader standing in for a
 check the language already performs.
+
+## CENSUS-DEBUG (2026-09-15) — the trap sprang inside the fix, again
+
+`hand-listed-debug-censuses-in-geom-core-geom-and-topo` on PR 2655.
+12 `Debug` impls destructured (4 with `_`-bound fields and the
+terminator corrected to `finish_non_exhaustive()`), 8 `PartialEq`
+siblings likewise, and an arrival census in `crates/test-utils/`.
+
+**The row's own hit list had decayed.** Written 2026-09-06 saying eight
+rows and nine impls; its own enumeration rule gave 14 on 2026-09-15,
+four of them new members of the class. Nothing observed four arrivals in
+nine days — the row's thesis arriving as evidence about the row, and the
+argument for the instrument half.
+
+**The trap sprang for the second unit running, and the code argued
+against itself.** The census's suppression list was keyed `(path, trait)`,
+and the doc three lines above it explained why: *"a suppression that
+grows silently is the shape this census exists to refuse."* The key did
+not implement that — it narrowed the growth from per-file to
+per-(file, trait) and left the direction open. The style lane executed it:
+a fresh hand-listed impl appended to an already-suppressed file left all
+five rows green. **That is the one event the census exists to detect.**
+The fix pass re-ran the probe against the OLD key to confirm the finding
+independently before changing anything, then keyed on the self type.
+
+Two units, two springs, both caught only by a reader who did not write
+the fix. This is now a pattern of the program rather than one lane's
+slip, and the next spec should say so.
+
+**The design claim was half wrong, which is the more useful correction.**
+The unit was dispatched on "the per-field question is compiler-known
+after Half A, so the census must not re-ask it". True for the twelve
+impls Half A touched; **false for the population the census then declares
+clean.** Four body shapes answered green, and one was de-listed at the
+site as something the classifier answers: `self.0.name`, a newtype
+reading a NAMED field of its inner type. Live instance `NameRef::eq`,
+which drops `Held::stamp`. Three of the four are now closed in the
+classifier, that one is on the blind-spot list where it belongs, and the
+header no longer asserts E0027 holds an enum struct-variant arm
+unconditionally — `..` defeats it there exactly as in `Self { a, .. }`.
+
+**Second blind-spot list in two units to claim exclusivity and be
+short.** Unit 1's was wrong by a factor of five; this one by four.
+
+### Decisions taken here
+
+- **The self-type key**, with its cost stated at the site: the type is
+  read as written, so a rename makes an entry stale and reds the sight
+  row. Loud direction, and it buys that a homogeneous trait has at most
+  one impl per type, so a key names exactly one impl and cannot cover a
+  second.
+- **`GeometryWitness` downgraded from a live wrong answer to a missing
+  tie.** The style lane found the row contradicting itself in the
+  paragraph carrying its severity; `eq` compares `a_point`/`b_point`
+  coordinate by coordinate, so the stated scenario already compares
+  unequal. The surviving scenario is narrower and arguably correct
+  today; what is wrong is that nothing holds it. The row went to
+  another program's slate and had to be accurate first.
+- **The new out-of-fence row placed fifth, early for its class**, because
+  most of it is routing and routing decays — it records two sites
+  claimed by no open program, and every program that closes moves an
+  owner.
+
+### Two things the fix pass found that nobody asked for
+
+`SKIPPED_DIRS`' component test was on the ABSOLUTE path, so a checkout
+under a hidden ancestor would have skipped the whole tree and left every
+row passing over nothing — a silent vacuity in the guard itself.
+And `repo_root`'s eight lines had **five** copies, not the three the
+review found; all five are now `test_utils::source`.

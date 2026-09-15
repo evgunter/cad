@@ -193,28 +193,7 @@ impl DriveMemo {
     /// What the memo came to at the drive's end.
     #[must_use]
     pub fn size(&self) -> MemoSize {
-        let inner = self.read();
-        let bytes_estimate = inner.forms.values().map(|f| form_bytes(f)).sum::<usize>()
-            + inner.forms.len() * core::mem::size_of::<(SymId, Arc<Form>)>()
-            + inner
-                .atoms
-                .values()
-                .map(|a| {
-                    a.args
-                        .iter()
-                        .flatten()
-                        .map(|f| form_bytes(f))
-                        .sum::<usize>()
-                })
-                .sum::<usize>()
-            + inner.atoms.len() * core::mem::size_of::<(u128, AtomInfo)>()
-            + inner.frozen.len() * core::mem::size_of::<SymId>();
-        MemoSize {
-            forms: inner.forms.len(),
-            atoms: inner.atoms.len(),
-            frozen: inner.frozen.len(),
-            bytes_estimate,
-        }
+        inner_size(&self.read())
     }
 
     /// A poisoned lock is RECOVERED rather than re-panicked, the same
@@ -225,9 +204,7 @@ impl DriveMemo {
     /// own and propagates there; re-panicking here would turn it into
     /// every other worker's too.
     fn read(&self) -> std::sync::RwLockReadGuard<'_, Inner> {
-        self.inner
-            .read()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+        read_inner(&self.inner)
     }
 
     /// The plain form of `id`, if another leaf of this drive has already
@@ -323,12 +300,72 @@ impl DriveMemo {
     }
 }
 
+/// [`DriveMemo::read`]'s recovery, over the lock rather than over the
+/// memo, so the `Debug` below can take the guard from the `inner` its
+/// own destructure binds. The argument for recovering rather than
+/// re-panicking is [`DriveMemo::read`]'s and is not repeated.
+fn read_inner(lock: &RwLock<Inner>) -> std::sync::RwLockReadGuard<'_, Inner> {
+    lock.read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+/// What an [`Inner`] holds, as the [`MemoSize`] a receipt reports.
+///
+/// Named apart from `core::mem::size_of`, which the prelude carries.
+///
+/// A free function over the guard rather than a method on
+/// [`DriveMemo`], so the dump can compute it from the `inner` its own
+/// destructure binds instead of reaching back through `self` — a
+/// binding read is what holds the dump to the declaration.
+fn inner_size(inner: &Inner) -> MemoSize {
+    let bytes_estimate = inner.forms.values().map(|f| form_bytes(f)).sum::<usize>()
+        + inner.forms.len() * core::mem::size_of::<(SymId, Arc<Form>)>()
+        + inner
+            .atoms
+            .values()
+            .map(|a| {
+                a.args
+                    .iter()
+                    .flatten()
+                    .map(|f| form_bytes(f))
+                    .sum::<usize>()
+            })
+            .sum::<usize>()
+        + inner.atoms.len() * core::mem::size_of::<(u128, AtomInfo)>()
+        + inner.frozen.len() * core::mem::size_of::<SymId>();
+    MemoSize {
+        forms: inner.forms.len(),
+        atoms: inner.atoms.len(),
+        frozen: inner.frozen.len(),
+        bytes_estimate,
+    }
+}
+
+/// **The dump is held to the declaration**: `Self` is destructured
+/// exhaustively, so a field added to [`DriveMemo`] is an E0027
+/// unbound-pattern error rather than a value silently absent from every
+/// dump. `inner` is carried as its [`MemoSize`] — what the memo HOLDS
+/// is what its dump is asked for, where the tables themselves are every
+/// form and every atom of the drive — and it is the BINDING that is
+/// summarised, not `self` reached through again: a field shown as a
+/// summary is a field shown, and it must not wear the `_` spelling that
+/// stands for one left out.
+///
+/// `budget` and `rules` are the two left out — they are the drive's
+/// configuration, not its contents — so this still ends in
+/// `finish_non_exhaustive` rather than claiming every field is shown.
 impl core::fmt::Debug for DriveMemo {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            budget: _,
+            rules: _,
+            serves_forms,
+            inner,
+        } = self;
         f.debug_struct("DriveMemo")
-            .field("serves_forms", &self.serves_forms)
-            .field("size", &self.size())
-            .finish()
+            .field("serves_forms", serves_forms)
+            .field("size", &inner_size(&read_inner(inner)))
+            .finish_non_exhaustive()
     }
 }
 
