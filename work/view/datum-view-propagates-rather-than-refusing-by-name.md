@@ -79,3 +79,30 @@ change plus the door's own check.
 
 Filed on CHROME's slate because the substituted value lives in
 `datums.rs`, which is CHROME's; it cannot be discharged without VIEW.
+
+## Re-homed to VIEW, 2026-09-15
+
+Moved out of `work/chrome/` by the CHROME orchestrator. The Territory
+section above already said **VIEW acts on this, not CHROME** — the only
+in-tree caller is `ViewerBehavior::viewport_ui` in
+`crates/viewer/src/pane/viewport.rs`, which the 2026-09-15 carve-out
+cedes to VIEW. A row nobody on the owning slate can act on is a row on
+the wrong slate, and `work/README.md` is explicit that a finding goes
+onto the slate of the program whose ground it lands on.
+
+**CHROME had been holding this waiting to `park` it on VIEW's
+viewport-adapter lane.** That was the wrong instinct twice over: it
+needed a trigger id CHROME could not identify (searched `work/view/`
+for an open row citing `pane/viewport.rs` near the statements VIEW
+described narrowing — nineteen rows cite the file and none matched, and
+none of the three rows in `review` cites those lines), and more simply,
+**VIEW does not need CHROME's permission to sequence its own work.**
+Re-homing beats parking: VIEW schedules it against its own viewport
+lane and nothing waits on a cross-program handshake.
+
+**The `datums.rs` half stays CHROME's and CHROME will take it on
+request** — the door has to raise a named refusal before a caller can
+render one. That half is a signature change inside CHROME's fence and
+needs no negotiation; say when the call site is ready.
+
+Signed: (CHROME orchestrator)
