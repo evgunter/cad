@@ -49,6 +49,24 @@ been drawn**, and the PR that reaches the path draws it.
 | `unit-vector-invariants-carried-as-prose` | **H** | Stated design question; a validating newtype is new policy surface needing Ev, plus generic-scalar fallout. | `crates/geom-core/src/linalg/frame.rs:238`, `crates/geom-core/src/linalg/vec.rs`, `crates/profile/src/lib.rs:353` (new `UnitVec3<T>`) |
 | `H5` | **H** | 535 refs, 15 files; open representation questions; Q1 revision; certificates re-pinned | `crates/geom-core/src/{real,ring_interval,interval,dual}.rs`, `interval-transcendentals/`, `crates/topo/src/{props.rs,chart_region.rs}`, `crates/geom-brep/src/{pcurve_cache.rs,ssi/enclose.rs,props/quad.rs}`, `crates/mesh/src/nurbs_cert.rs`, `crates/geom-core/src/spline/compose*`, `docs/DESIGN.md` (Q1), ~6600 lines of ring tests, `docs/tess-budget-data/` |
 
+## The ratified units (2026-09-15)
+
+The first `[ev]` sitting (PR 2457) answered `D6`, `D283` and the
+unit-vector question; the three rows are closed and their work is six
+units, in this order:
+
+| unit | from | order |
+| --- | --- | --- |
+| `sense-sign-doors-take-the-bit` | `D6` | 1 |
+| `sense-sign-multiplies-fold-onto-outward-normal` | `D6` | 2, after 1 |
+| `unit-vector-witness-in-geom-core` | the unit-vector row | 1 |
+| `frame-witness-and-the-tube-door` | the unit-vector row | 2, after the witness |
+| `rate-pair-in-geom-core` | `D283` | 1 |
+| `exhaustiveness-receipt-carries-its-lane` | `D283` | 2, after the pair |
+
+The three "1"s are independent of each other and of the door rows;
+each is a full v6 dual on other programs' ground, announced.
+
 ## Order
 
 **The rulings open the program, not the units.** `D6`, `D283` and the
