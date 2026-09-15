@@ -396,7 +396,7 @@ fn dyadic_knots_were_free_and_stay_free() {
 #[test]
 fn the_lily_crescent_blade_certifies() {
     use geom::NurbsCurve3;
-    use geom_core::{Mat3, Point3};
+    use geom_core::Point3;
 
     let (len, curl) = (1.25f64, -0.40f64);
     let r = len / curl;
@@ -408,19 +408,7 @@ fn the_lily_crescent_blade_certifies() {
         })
         .collect();
     let path = NurbsCurve3::<f64>::interpolate(&pts, 3).expect("the leaf spine interpolates");
-    let (lo, _) = path.domain();
-    let d = path.deriv(lo);
-    let n = d / d.norm();
-    let helper = if n.z.abs() < 0.9 {
-        Vec3::new(0.0, 0.0, 1.0)
-    } else {
-        Vec3::new(1.0, 0.0, 0.0)
-    };
-    let u = helper.cross(n);
-    let u = u / u.norm();
-    let w = n.cross(u);
-    let p = path.eval(lo);
-    let place = Affine3::from_parts(Mat3::from_cols(u, w, n), Vec3::new(p.x, p.y, p.z));
+    let place = crate::common::normal_start_place(&path);
 
     // The crescent: chord 0.170, ridge sagitta 0.015, keel 0.007. For a
     // circular arc, bulge = tan(θ/4) = 2·sagitta/chord.

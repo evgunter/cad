@@ -10,9 +10,10 @@
 //!   point-at affordance anywhere).
 //! - [`path_start_frame`] — the profile frame at the start of a swept
 //!   path: local **+Z** is the path tangent, so the local XY plane is
-//!   the profile plane (P1: the Gram–Schmidt recipe hand-rolled at
-//!   every sweep call site, each copy carrying its own
-//!   degenerate-axis dodge).
+//!   the profile plane. It is where the sweep corpus and the demo tour
+//!   get that frame; the pain row it answers (P1) was the Gram–Schmidt
+//!   recipe written out at each sweep call site, every copy carrying
+//!   its own degenerate-axis dodge.
 //! - [`mirror_across_plane`] — reflection across a plane (P6: no
 //!   mirror anywhere, so symmetric arrangements are placed by hand,
 //!   one leaf at a time).
