@@ -570,20 +570,17 @@ macro_rules! nurbs_curve {
 
             /// Construction from parts whose invariants are ALREADY
             /// established — the door a structural map takes instead
-            /// of [`Self::new`], and the one place that says why
-            /// `new`'s check is redundant for it.
+            /// of [`Self::new`].
             ///
             /// The invariants are load-bearing for indexing (module
-            /// docs), so skipping the check needs an argument, and it
-            /// is this: `knots` and `weights` are a validated curve's
-            /// own, carried verbatim, and `control` is that curve's net
-            /// mapped POINTWISE — a map over a `Vec` cannot change its
-            /// length — so `control.len()` still equals
-            /// `knots.control_count()`, `weights.len()` still equals
-            /// `control.len()`, and every weight is still the positive
-            /// finite value `new` admitted. The `debug_assert` re-derives
-            /// the count agreement that argument rests on (D2 addendum
-            /// row 5: a bug detectable only by re-derivation).
+            /// docs), so skipping the check needs an argument. That
+            /// argument has ONE home for the whole crate,
+            /// `crate::scalar_lift`'s module docs: what a structural
+            /// map is, why no shape of it changes a count or a weight
+            /// value, and which part of it the `debug_assert` below
+            /// cannot check. `knots` and `weights` here are a
+            /// validated curve's own and `control` is that curve's net
+            /// under such a map.
             fn from_validated_parts(
                 knots: KnotVector,
                 control: Vec<$Point<T>>,
@@ -591,7 +588,7 @@ macro_rules! nurbs_curve {
             ) -> Self {
                 debug_assert!(
                     control.len() == knots.control_count() && weights.len() == control.len(),
-                    "from_validated_parts: a pointwise map changed a count \
+                    "from_validated_parts: a structural map changed a count \
                      (control {}, knots want {}, weights {})",
                     control.len(),
                     knots.control_count(),

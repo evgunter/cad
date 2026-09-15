@@ -17,8 +17,8 @@
 //! in `curves/nurbs.rs`, [`NurbsSurface::map_scalar`] in
 //! `surfaces/nurbs.rs`, [`SurfaceDescription::map_scalar`] and
 //! [`ApproxSurface::map_scalar`] in `surfaces/approx.rs` — each through
-//! a door that states why the payload's count invariants survive a
-//! pointwise map. The leaf maps are `geom_core`'s `Point2/3::map`,
+//! a `from_validated_parts` door that takes the count argument below
+//! rather than re-validating. The leaf maps are `geom_core`'s `Point2/3::map`,
 //! `Vec2/3::map`, `Mat3::map` and `Affine3::map`. One name, `map_scalar`
 //! on every geometry type and `map` on every leaf; a reader looking for
 //! "where does this crate lift X" finds it on X.
@@ -34,6 +34,47 @@
 //! value channel, as a bracket of the source's `f64` evaluation at the
 //! interval scalar. The rows named `described_nurbs_lifts_as_its_payload`
 //! in the enum modules' tests pin exactly that.
+//!
+//! # Why a structural map's counts survive it (the one home of this argument)
+//!
+//! Every `from_validated_parts` door in this crate — the curves', the
+//! surface's — skips `new`'s validation, and this is the argument it
+//! skips it on. It is stated here, once, because it is the same
+//! argument in every direction and at every arity; each door's doc
+//! points at this section rather than carrying a copy.
+//!
+//! A door takes parts that are an ALREADY-VALIDATED curve's or
+//! surface's own: the knot vectors carried verbatim, and the net and
+//! weight vector under **one structural map**. Three shapes qualify,
+//! and the argument covers all three:
+//!
+//! - **Pointwise** — every control point through a function, the
+//!   weights untouched. A map over a `Vec` cannot change its length.
+//! - **A grid permutation** — the same points and the same weights,
+//!   re-indexed (a transpose, a reversal in one direction). A
+//!   permutation is a bijection of the index set onto itself, so it
+//!   changes neither the length nor the multiset of values.
+//! - **Both at once** — a pointwise map composed with a permutation,
+//!   which changes neither of the two things the checks read.
+//!
+//! So `control.len()` still equals the knots' `control_count()` (the
+//! product of the two per-direction counts, for a surface),
+//! `weights.len()` still equals `control.len()`, and no weight VALUE
+//! moved — every weight is still the positive finite number `new`
+//! admitted, and every knot vector is still the one `KnotVector`'s own
+//! constructor accepted. The `debug_assert` in each door re-derives
+//! the count agreement (D2 addendum row 5: a bug detectable only by
+//! re-derivation).
+//!
+//! **What the door cannot check, and therefore requires of its
+//! caller.** The `debug_assert` reads two LENGTHS. It cannot see
+//! whether the weights rode the SAME permutation as the points, and a
+//! caller that permutes the net one way and the weights another hands
+//! back a net whose every count is right and whose every control point
+//! has the wrong weight. That pairing is the caller's obligation, owed
+//! at the call site; the door states it and trusts it, and the doors'
+//! own rows (the reversal's "the weight rides the same permutation")
+//! are where it is pinned.
 //!
 //! # The NURBS and approximating variants lift their PAYLOAD
 //!
