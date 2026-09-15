@@ -81,6 +81,57 @@ Then, in `fn sphere`'s rim-bearing arm:
 say whether it needs the predicate too (it should: the same L-shaped
 face must not be handed a definite sign), and pin it.
 
+### The recorded sign is a face fact — the trap this unit must not fall into
+
+**Amendment (orchestrator, 2026-09-14), on a row filed after this spec
+was written:** `rim-side-and-rim-dir-group-signs-are-facts-about-cycle-order`
+(filed by TOPO's revert-wrap fix pass, PR 2573) measures that
+`props_rim_side` and `props_rim_dir_group` classify against **whichever
+rim the loop walk hands over first** — `linear_rim_side`'s inner `side`
+reads `b.rims.first()`, `du_of_rims` seeds its groups from it — so on
+`voided_rod` both record `Negative ×2` or `Positive ×2` depending only
+on where a loop's anchor sits. The RESULTS are compensated downstream
+and do not move; the recorded verdicts do, and k-lint's population and
+every golden over recorded verdicts move with them.
+
+`σ = d_u_sign × sense_sign` is per rim and reads no other rim, so the
+construction above is already a face fact — **and that is the thing to
+keep.** Do not implement `props_rim_interior_side` by comparing a rim
+against the first one, and do not let its margin borrow
+`linear_rim_side`'s reference rim: a new predicate whose recorded sign
+is relative to cycle order would mint a fresh instance of the defect
+this file is being edited to fix (CLAUDE.md's standing warning that a
+structural fix reproduces its own defect, which only a reader who did
+not write the fix has ever caught). Pin it: the same body under two
+loop anchorings records the same `props_rim_interior_side` verdicts —
+`voided_rods_verdicts_as_a_sorted_multiset` in
+`crates/sweep/tests/shell_census_is_thread_count_invariant.rs` is the
+row that already pins the multiset, and this unit's addition must not
+move under a re-anchoring.
+
+Whether to take that item's own closing shape for the two EXISTING
+predicates — pick the reference rim by a property of the face (the rim
+at the lower level, so `props_rim_side`'s margin is always
+`hi − lo`-signed), or rename them to say they are relative reads — is
+this unit's to decide **only if it falls out of the work above**;
+measure it, and if it does not, say so and leave the row open with what
+you measured. It is a change to the recorded-verdict population either
+way, so it re-baselines k-lint with its reason (discipline §3).
+
+### `Rim`'s duplicated direction retires here
+
+`rim-stores-its-traversal-direction-twice` is the same function's row:
+`Rim` stores the traversal direction twice (`d_u: T` beside
+`d_u_sign: Sign`) and `du_of_rims` compares the EXACT one through the
+tolerance funnel (`props_rim_dir_group`, a `Margin::levered(rim.d_u −
+g.1, arms.azimuth)` on two values that are `±1` by construction). This
+unit reads `d_u_sign` for `σ`, so it is the unit that can retire the
+duplicate: keep the discrete sign, compare it as a sign, and let the
+scalar `d_u` be minted where the closed form needs it. That removes
+one of the two predicates the amendment above is about, which is why it
+belongs here rather than in a later hygiene lane. Close the item at
+this merge.
+
 ## Deliverables
 
 - The interior-side sign, the predicate, and the two arms above; docs
