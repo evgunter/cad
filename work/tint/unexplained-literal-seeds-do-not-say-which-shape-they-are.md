@@ -112,3 +112,77 @@ read nor judged here). It was run over `crates/` only — the four
 `--workspace`-excluded roots (`demos/`, `tools/`, `benches/`,
 `interval-transcendentals/`) are unswept for this shape. And it is
 accurate as of PR 2433's base, not as of whenever this row is taken up.
+
+## Re-derived (2026-09-15, lane B)
+
+**VERDICT: REPRODUCES** — the census is bit-for-bit unchanged and no site
+has gained the in-file sentence the row asks for. No test was run.
+
+### The census, re-run today
+
+Exactly the row's own pattern and exclusion:
+
+```
+grep -rEn "(Lcg|Rng|Xorshift|SplitMix|Prng)(::new)?\(\s*0x[0-9A-Fa-f_]+" crates/ --include=*.rs \
+  | grep -v "test-utils/src/fuzz.rs"
+```
+
+**14 sites, 7 files — the identical distribution:**
+
+| file | sites |
+|---|---|
+| `crates/geom-core/tests/props1_review_rows.rs` | 5 |
+| `crates/geom/tests/curves/n1r2_fixtures/mod.rs` | 3 |
+| `crates/mesh/src/planar.rs` | 2 |
+| `crates/geom-core/src/linalg/affine.rs` | 1 |
+| `crates/geom-core/tests/r1_p2_onb_probes.rs` | 1 |
+| `crates/geom-brep/tests/offb_r2_probes.rs` | 1 |
+| `crates/geom-brep/tests/cert10r2_probes.rs` | 1 |
+
+Nothing has been converted, added or removed since PR 2433's base.
+
+### The ask — no site has been answered
+
+Read all fourteen with four lines of preceding context. **Not one carries a
+sentence naming which of the three shapes licenses its literal.** What the
+comments above them do say is what the ROW is (the geometry, the claim,
+the sweep's population) — e.g. `props1_review_rows.rs`'s
+`Rng::new(0x5eed_0001_0000_0007)` is preceded by *"for the true reflection,
+which the sound enclosure contains, so each expression's enclosure must
+contain 0"*, and `r1_p2_onb_probes.rs`'s `Rng(0x9E37_79B9_7F4A_7C15)` by
+*"// LCG sweep: unit and deliberately non-unit draws."* Three of the
+fourteen (`n1r2_fixtures/mod.rs`'s `Lcg(0x5eed_1234)`, `Lcg(0xabcd_ef01)`,
+`Lcg(0x0fed_cba9)`) have no comment at all in the four lines above them.
+Describing the sweep is not saying why the seed is a constant, which is the
+distinction the row is built on.
+
+**The two excluded sites still comply**, verified by name:
+`editor-core/tests/m10_6_reports_interval.rs` uses
+`(editor_core::DEFAULT_SEED, 41)` and
+`r2_m10_6_probes_interval.rs` uses
+`MyRng::for_sample(editor_core::mc::DEFAULT_SEED, i)` — the constant is
+still named rather than written out, so the model the row points at is
+intact.
+
+**The two hazards are unchanged**: three of the fourteen are under
+`crates/*/src` (`mesh/src/planar.rs` ×2, `geom-core/src/linalg/affine.rs`
+×1), so S-TINT's `keep_out` still binds on those; and a shape-1 conversion
+still becomes a randomized row needing S-TCOST's gate mechanism.
+
+### Blind spot
+
+The same one the row declares, unchanged and not narrowed by this lane: one
+spelling, a generator constructed with a hex literal at the call site. A
+decimal seed, a seed built from a `const` or a `let` one line earlier, a
+seed passed in as an argument, and third-party generators are all invisible
+to it. Run over `crates/` only — `demos/`, `tools/`, `benches/` and
+`interval-transcendentals/` remain unswept for this shape. Additionally,
+this re-derivation read four lines of context per site; a licensing
+sentence written in the enclosing `#[test]`'s doc comment further up, or in
+the module doc, would not have been seen — I spot-checked the module docs
+of `props1_review_rows.rs` and `n1r2_fixtures/mod.rs` and found none, but
+did not read all seven in full.
+
+**Recommendation:** do not close, and do not re-sweep before taking it —
+the census is current as of today and the row is ready to be worked site by
+site.

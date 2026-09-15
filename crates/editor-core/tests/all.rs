@@ -435,6 +435,8 @@ mod switch_program_key;
 mod switch_program_vocabulary;
 #[path = "switch_slots.rs"]
 mod switch_slots;
+#[path = "trim_3_windows_interval.rs"]
+mod trim_3_windows_interval;
 #[path = "u8a_parse.rs"]
 mod u8a_parse;
 #[path = "unreadable_by_this_build.rs"]

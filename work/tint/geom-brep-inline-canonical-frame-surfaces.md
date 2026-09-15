@@ -84,3 +84,69 @@ tracker-wide re-home of 2026-09-04, which routed rows by PATH GLOB
 (`crates/*/tests/*`, `crates/test-utils/*`) rather than by question.
 This program is the question it was always about: whether the suite
 asserts what it claims to assert.
+
+## Re-derived (2026-09-15, lane D)
+
+**VERDICT: REPRODUCES**, with the floor RAISED: the residue is **40**
+inline use sites, not 32.
+
+**Command.** A parser rather than a grep, because the fields wrap across
+lines: for every `Surface::{Sphere,Cylinder,Torus} {` in
+`crates/geom-brep/tests/**`, brace-match the literal, then require the
+`center`/`origin` to match `p3(0,0,0)` / `p(0,0,0)` /
+`Point3::new(0,0,0)` / `Point3::origin()`, the `axis` to match
+`v3(0,0,1)` / `v(0,0,1)` / `Vec3::new(0,0,1)` / `Vec3::unit_z()`, and
+`u_ref` the `+x` equivalents (a wrapper such as `ip(…)`/`iv(…)` around
+any of them still matches). Script kept at
+`/tmp/.../scratchpad/census.py`; it is ten lines of `re` over
+`os.walk`.
+
+**Result: 43 canonical-frame constructions, 3 of which ARE
+`shared/surf.rs`'s own `sphere`/`cylinder`/`torus`. Residue = 40.**
+
+Per file: `intersect_table.rs` x8 (`307`, `652`, `1180`, `1278`,
+`1284`, `1436`, `1442`, `1465`), `s58_iso_rectangle.rs` x6 (`51`, `236`,
+`283`, `596`, `635`, `692`), `offa_r1_probes.rs` x4 (`112`, `122`,
+`150`, `239`), `review_m2_pr3_certify.rs` x3 (`225`, `275`, `356`),
+`m5_pr7_ssi.rs` x3 (`851`, `882`, `2078`), `m5_pr9_tangent.rs` x2
+(`293`, `342`), `mesh11_arc_branch.rs` x2 (`336`, `386`),
+`r2_mesh7_door_probes.rs` x2 (`50`, `126`), `r2_probes.rs` x2 (`132`,
+`215`), and one each in `m5_pr12_circle_certificate.rs:66`,
+`mesh11r2_base_probes.rs:32`, `pcurve_p1a_meter.rs:215`,
+`review_m5_pr7_enclosure.rs:105`, `review_pr12_meridian_probe.rs:22`,
+`rim_dim_review_probes.rs:43`, `rim_dim_scale_twins.rs:262`,
+`s81_one_rim_level_rule.rs:49`.
+
+**All 9 Torus and all 11 Sphere sites the row lists survive** (line
+drift only). Of the 14 Cylinder sites:
+
+- `offa_r1_probes.rs`'s and `pcurve_parameter_finding.rs`'s were
+  absorbed, as the row already recorded — confirmed in the tree:
+  `use crate::shared::surf::cylinder as zcyl;` and
+  `fn cylinder() -> Surface<f64> { surf::cylinder(R) }`;
+- `review_m5_pr7_adversarial.rs:47` **left the class by changing frame,
+  not by absorption**: it is now
+  `Surface::Cylinder { origin: Point3::new(0.01, 0.0, 0.0), … }`, an
+  off-axis fixture. (That file does use `surf::sphere(1.0)` at `:33`.)
+
+**What grew.** `intersect_table.rs` alone now carries 8 canonical-frame
+literals where the row named 2, and three files not on the list at all
+carry one each (`m5_pr12_circle_certificate.rs`,
+`rim_dim_review_probes.rs`, `rim_dim_scale_twins.rs`) — the last two in
+the `p(…)`/`v(…)` spelling the row's enumeration did not list.
+
+**Blind spots.** (a) Field-shorthand constructions
+(`Surface::Cylinder { origin, axis, radius, u_ref }` over bound
+variables) are not matched — 46 `Surface::*{` sites in this corpus have
+no `field:` form at all, most being `let … else` destructures, but a
+shorthand construction of a canonical-frame value would be missed.
+(b) A frame built from named constants rather than literals is missed.
+(c) `shared/surf.rs`'s own "deliberately not absorbed" list
+(`review_m6_3_chart_probes.rs`, `pcurve_conic.rs`, `offset_mint.rs`) was
+confirmed non-canonical by the same parser, so none of those is in the
+40.
+
+**Recommend: keep open, correct the count to 40**, and note that the
+per-site judgement the row asks for now has a worked precedent on both
+sides (absorbed in `offa_r1_probes`/`pcurve_parameter_finding`, kept-and-
+re-framed in `review_m5_pr7_adversarial`).
