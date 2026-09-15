@@ -302,3 +302,48 @@ CONSTRUCTION, dial-gated, would remove the two-site convention rule E
 now keeps — `form_in` cancels what the walk memoizes and
 `trig::sqrt_atom` cancels what rule D builds by hand, and the two have
 to agree by hand. Declined for PR-2; recorded here.
+
+## What SYM-8 took: the tilt-`u` wall (2026-09-15)
+
+**Rule F — the manifest sign** (`geom_core::sym::manifest`,
+`SymRules::manifest_sign`) folds the two atoms the tilt-`u` wall sat
+behind. `Vec3::orthonormal_basis` mints `s = 1.copysign(n.z)` and
+`r = 1/(1 + |n.z|)`, and on this document `n.z` is `1/sqrt(P(t))` — an
+`Inv` of a `sqrt` atom, which the FORM shows positive. In the early
+walk `copysign(Y, X) → abs(Y)` and `abs(X) → X` wherever `X` is
+manifestly POSITIVE; both are equalities of reals at every point
+clause 1 admits and neither reads a value, so a zero reached through
+them is a theorem. Strict positivity rather than the non-negativity
+rule D's `atan2` fold reads: `copysign` reads a SIGN BIT, so
+`copysign(1, −0.0) ≠ copysign(1, +0.0)` and at a real zero the node
+denotes no function of the real value of its argument.
+
+Measured on the tilt-`u` derived document (`u = (1,0,t)`, a cube
+extruded from it, a `FaceFrame` on its cap, the boss on that —
+`m10_derived_frame_tilted_interval`'s `sym8_phase1_*` rows), rule F
+off → on:
+
+| rung (`half = 1e-3`) | rule F off | rule F on |
+| --- | --- | --- |
+| derived, `Guided` | refuses `carrier_endpoint_end` `[0, 5.521e-2]`; the residual is `sqrt(?#…)` over a FROZEN `Powi ^2` whose kid is 440 terms at degree 27 over 298 at degree 28 (`440² > MAX_TERMS`) | that node is BUILT; `carrier_endpoint_end` 24/0/0/1 → **33/0/0/0**, every decision a theorem, and the refusal moves on to `newell_plane_residual` `[−5.744e-2, 5.744e-2]`, 662 terms and three frozen nodes on its path |
+| derived, `Pinned` | certifies; `symbolic_zero` 754, `numeric` 568, 2.6 s | certifies; **876 / 446** — 122 decisions out of `numeric` — in **0.4 s** |
+| derived, `Guided`, `half = 5e-2` | refuses `interval_span_forward` | identical, the same refusal |
+| the authored twin, every rung and width | certifies | certifies, byte-identical counts |
+
+So the wall this row named IS the two atoms, and it falls. The document
+still does not certify under `Guided`: what stands there now is a
+`newell_plane_residual` straddle the tier does not prove, filed as
+`work/sym/the-tilt-u-newell-residual-is-the-next-wall`.
+
+**What it moves elsewhere: nothing, with one disclosed exception.**
+Every per-predicate split at the nominal is bit-identical with the rule
+on and off on seven of the eight measured documents (the pad's nominal
+split with the shape report installed exhausts the measuring box's
+memory at BOTH dials and was not takeable there), and every
+whole-certifying ceiling is identical to the digit on all eight, with
+the over-band set at ceiling + δ identical too. The exception is the
+pad at the scale it certifies whole at: `symbolic_zero` 858 → 854,
+`registered` 104 → 128, `numeric` 991 → 971, `frozen` 2750 either way.
+The four that left `symbolic_zero` are the ring row's class and are
+recorded there. Cost on the leaf instrument: free to the measurement's
+noise, and cheaper on most documents.
