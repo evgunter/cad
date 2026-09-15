@@ -2,7 +2,7 @@
 id: SYM-8
 kind: unit
 title: the manifest sign: abs and copysign atoms whose sign the form already shows, measured first on the tilt-U wall
-status: spec
+status: review
 opened: 2026-09-14
 branch: sym/8-manifest-sign
 refs: [derived-frame-placement-freezes-on-the-symbolic-lane, coefficient-ring-width-is-not-monotone-in-reach]

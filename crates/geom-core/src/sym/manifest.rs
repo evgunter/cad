@@ -131,10 +131,12 @@
 //! so a discharge that could be a theorem is never counted
 //! `sign_gated`. Rules A/B per node and rule E run AFTER `combine`
 //! returns, on the form this rule left, and the argument this rule
-//! tests is the kid's form as those rules already left it. The order
-//! is pinned by the walk ledger
-//! (`editor-core/tests/m10_sym_profile_interval`), not by this
-//! paragraph.
+//! tests is the kid's form as those rules already left it — so against
+//! THEM the order is structural and not a choice: an atom this rule
+//! keeps from being minted is not one a later rule could have folded.
+//! What is a choice is the order against A0 and rule C at this node,
+//! and `geom-core`'s `sym_rule_f_rows` pins it: with rule C also on,
+//! the same residual still answers `theorem` and not `sign_gated`.
 
 use std::rc::Rc;
 

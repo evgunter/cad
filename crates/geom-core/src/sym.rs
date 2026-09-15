@@ -443,9 +443,15 @@
 //! early walk only: A0's exact constant fold first, then this rule,
 //! then rule C — the value-free rule before the one that reads a
 //! value, so a discharge that can be a theorem is never counted
-//! `sign_gated`. Rules A/B per node and rule E run after `combine`
-//! returns, on the form this rule left. The order is pinned by the
-//! walk ledger (`editor-core/tests/m10_sym_profile_interval`).
+//! `sign_gated` — pinned by `geom-core`'s `sym_rule_f_rows`, whose
+//! rule-C-on row still answers `theorem`. Against rules A/B and E the
+//! order is STRUCTURAL rather than chosen: they run after `combine`
+//! returns, on the form this rule left, and an atom this rule prevents
+//! from being minted is not one they could have folded later. The walk
+//! ledger (`editor-core/tests/m10_sym_profile_interval`) is unmoved by
+//! the rule on the slab and the plate — every form either walk builds
+//! is digest-identical — which is the same statement as "it fires
+//! nowhere on them", and is what would red if the site moved.
 //!
 //! **What it reaches, measured** (the tilt-`u` derived frame,
 //! `editor-core/tests/m10_derived_frame_tilted_interval`'s
