@@ -438,3 +438,23 @@ digest on twenty lily files at ~1e-16, because the demo authored
 frames from directions unit by intent and the mint normalizes them —
 the reviewers are asked to judge that. The EXHAUST-LANE fix pass is
 running; SENSE-FOLD's waits for disk.
+
+## FRAME-WITNESS dual concluded (2026-09-15)
+
+PR 2675 (ordinal 4108): both arms APPROVE WITH FIXES. Both ranked the
+same finding MAJOR — `OrthoFrame::from_aim` is a public mint that
+trusts its caller for perpendicularity, and both built a frame with
+`det = 0.5` through it — so it is bilateral, no tally candidate; its
+fix is a visibility change (the two callers are in `frame.rs`). R2's
+second MAJOR — the retired "rigidity is an unchecked convention"
+paragraph surviving in five places, two of them user docs now
+describing the opposite of the Python door's shipped behaviour — R1
+found in part (its MINOR-1/MINOR-2, the same class); bilateral too.
+Unique R2: `to_affine`'s "`w = u × v`" false for aim-minted frames (the
+aim is stored verbatim; the pin's corpus never built one), a row made
+vacuous by the retired tube refusals, a new production funnel name
+invisible to every K sweep. Unique R1: a misleading refusal text for a
+reference on the axis, the lily's own hand Gram–Schmidt left in front
+of the mint, the tube-frame helper in four copies. Thirteen items
+adjudicated; the fix pass (OPUS, the implementer's arm) waits for disk
+behind the two fix passes already building.
