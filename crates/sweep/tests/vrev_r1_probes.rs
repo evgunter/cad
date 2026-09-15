@@ -13,6 +13,7 @@ use geom::{KnotMirrorError, NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use std::sync::Arc;
+use profile::RawLoop;
 use topo::FaceSurface;
 
 /// A private copy of the door's 2Sum, to talk about its values.
