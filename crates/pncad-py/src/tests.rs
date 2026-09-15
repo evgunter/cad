@@ -3528,6 +3528,120 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
     }
 }
 
+/// **Two layers spell one entity the same way.**
+///
+/// [`crate::tags::entity_kind_tag`] is total over what a document
+/// NAME can denote; [`crate::tags::entity_id_tag`] is total over what
+/// the arena can hold. They are two vocabularies and neither
+/// contains the other — but where both speak of one entity, a caller
+/// resolving a name and a caller reading a census subject are reading
+/// one concept, and learning two spellings for it would be a fact
+/// about this crate rather than about the model.
+///
+/// The three shared words are pinned by CONSTRUCTION, which pins the
+/// mapping and not just the vocabulary; the fourth is pinned as a
+/// divergence, because `body` is a document node and `solid` is an
+/// arena lump, and the day a kind is added to either side this row
+/// asks whether the other gained one too.
+#[test]
+fn the_entity_kind_and_entity_id_maps_agree_where_both_speak() {
+    use crate::tags::{entity_id_tag, entity_kind_tag};
+    use pncad::select::EntityKind;
+    use pncad::topo::{EdgeKey, EntityId};
+
+    for (kind, entity) in [
+        (EntityKind::Face, EntityId::Face(FaceKey::default())),
+        (EntityKind::Edge, EntityId::Edge(EdgeKey::default())),
+        (EntityKind::Vertex, EntityId::Vertex(VertexKey::default())),
+    ] {
+        assert_eq!(
+            entity_kind_tag(kind),
+            entity_id_tag(&entity),
+            "the name layer and the arena layer have drifted apart on one entity"
+        );
+    }
+
+    // Derived from the committed rows rather than from a roster
+    // written here: whatever the two maps mint, `body` is the only
+    // word the kind side speaks that the arena side does not.
+    let kinds = TAG_INVENTORY
+        .iter()
+        .find(|entry| entry.function == "entity_kind_tag")
+        .expect("the inventory carries the entity-kind alphabet");
+    let ids = TAG_INVENTORY
+        .iter()
+        .find(|entry| entry.function == "entity_id_tag")
+        .expect("the inventory carries the entity-id alphabet");
+    let unshared: Vec<&str> = kinds
+        .values
+        .iter()
+        .copied()
+        .filter(|word| !ids.values.contains(word))
+        .collect();
+    assert_eq!(
+        unshared,
+        ["body"],
+        "the two entity alphabets diverge somewhere new — a document `body` is not \
+         an arena `solid`, and any other difference is a spelling to settle"
+    );
+}
+
+/// **The class table predicts the mint door's refusal in the mint
+/// door's own word.**
+///
+/// `ClassAdmission::NoAtRestRecord` exists to answer, before a tool
+/// commits an edit, the question `MintRefusal::NoAtRestRecord`
+/// answers after one — the kernel says so at the arm itself. So a
+/// caller that asks ahead and then reads the refusal is reading one
+/// fact, and matching what it was told against what it later sees
+/// works only while the two maps agree word for word.
+#[test]
+fn the_class_table_predicts_the_mint_refusal_in_its_own_words() {
+    use crate::tags::{class_admission_tag, mint_refusal_tag};
+    use pncad::document::{ClassAdmission, MintRefusal, RecipeNodeId};
+    use pncad::topo::ContactClass;
+
+    assert_eq!(
+        class_admission_tag(&ClassAdmission::NoAtRestRecord {
+            why: "the table's own reason"
+        }),
+        mint_refusal_tag(&MintRefusal::NoAtRestRecord {
+            mate: RecipeNodeId(0),
+            class: ContactClass::Tangent,
+            why: "the table's own reason",
+        }),
+        "the class table and the mint door have drifted apart on the refusal one \
+         exists to predict"
+    );
+}
+
+/// **The two dimension alphabets are one list in two cases.**
+///
+/// `Measurement.dimension` answers the capitalized spelling and every
+/// other door answers the lower-case one, so two Python attributes
+/// with the same name carry two spellings of one four-word list. That
+/// is allowed and is not free: the day one list gains a word or
+/// renames one, the other has to move with it, and nothing but this
+/// says so.
+///
+/// Over the kernel's own [`Dimension::ALL`], so a dimension added to
+/// the lattice is pinned without an edit here.
+#[test]
+fn the_two_dimension_alphabets_are_one_list_in_two_cases() {
+    use crate::errors::measurement_dimension_tag;
+
+    for dim in Dimension::ALL {
+        let mut capitalized = dimension_tag(dim).to_owned();
+        capitalized[..1].make_ascii_uppercase();
+        assert_eq!(
+            measurement_dimension_tag(dim),
+            capitalized,
+            "the measurement spelling of a dimension is no longer the FFI tag \
+             capitalized"
+        );
+    }
+}
+
 /// One row of [`TAG_INVENTORY`]: a tag function in `src/tags.rs`, and
 /// the exact vocabulary it can put on the wire.
 struct TagEntry {

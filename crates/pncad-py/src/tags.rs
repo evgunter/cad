@@ -47,6 +47,27 @@
 //! with nothing that fires in its place — see that function for what
 //! the crossing does instead.
 //!
+//! **A tag word is scoped to the map that mints it.** Two maps here
+//! may speak one word for two unrelated things and neither has to
+//! remark on it: `join` is a phase of a split and a phase of a
+//! boolean, `split` is a node kind and an act of cluster maintenance,
+//! `face` is an entity kind and the subject of a shell refusal,
+//! `empty` is a band with no width and the residual subgroup that no
+//! motion satisfies. A caller reads a word off ONE attribute of one
+//! type, never off this file, so a coincidence between two attributes
+//! is not a collision and pinning every such pair would pin
+//! accidents.
+//!
+//! **What does need saying is the opposite case**: two maps a caller
+//! reads ONE fact from, which must therefore agree word for word.
+//! Those are pinned against each other in `src/tests.rs` and each
+//! says which pin holds it — [`entity_kind_tag`] with
+//! [`entity_id_tag`] where both layers speak of one entity, and
+//! [`class_admission_tag`] with [`mint_refusal_tag`], where the first
+//! exists to predict the second. [`ring_contact_tag`] states the same
+//! intent against [`census_contact_tag`] in prose alone, which is
+//! weaker; `work/census/` carries that as a row.
+//!
 //! **This file is READ as data.** The exhaustive matches guard the
 //! existence of a tag; nothing in the compiler guards its VALUE, and
 //! the values are the Python-facing contract. So
