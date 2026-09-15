@@ -16,7 +16,8 @@
 //!   run it answers;
 //! - [`PickCache`] — the rebuild-on-stale loop over the
 //!   [`crate::evalseam::IndexService`] seam, at most one attempt per
-//!   (generation, δ), reporting [`CacheStep`] for what a sync did and
+//!   picture ([`crate::pickindex::PictureKey`]), reporting
+//!   [`CacheStep`] for what a sync did and
 //!   [`IndexLanding`] for what an answer did;
 //! - [`NotIndexed`] and [`unindexed`] — the typed refusal a pick
 //!   stream earns while no index describes the picture on screen,
@@ -60,7 +61,7 @@ use pncad::geom_core::Tol;
 use crate::evalseam::{IndexDone, IndexRequest, IndexService, InlineIndexer};
 use crate::generation::Generation;
 use crate::input::PickAction;
-use crate::pickindex::{PickIndex, PickIndexError};
+use crate::pickindex::{PickIndex, PickIndexError, PictureKey};
 use crate::scene::DisplayTolerance;
 
 /// **What a pick index is built from**: a landed run, its generation
@@ -125,12 +126,12 @@ impl<'a> IndexInputs<'a> {
 /// reaching the failing one, behind a picture that was already stale.
 ///
 /// So the retry policy is stated once, here: **at most one attempt per
-/// (landed generation, δ)**, success or failure. A failure is kept and
-/// readable ([`PickCache::error`]) rather than retried into a stall.
-/// [`PickCache::attempted`] is written when the attempt is SUBMITTED
+/// picture** ([`crate::pickindex::PictureKey`]), success or failure. A
+/// failure is kept and readable ([`PickCache::error`]) rather than
+/// retried into a stall. The attempt is recorded when it is SUBMITTED
 /// rather than when it is answered, so the policy costs the same one
 /// comparison whether the answer is in this frame or several seconds
-/// away. It is cleared in exactly one place, and never as part of the
+/// away. It is dropped in exactly one place, and never as part of the
 /// retry rule: [`PickCache::forget`] drops it when the picture it
 /// names stops existing at all.
 ///
@@ -148,23 +149,48 @@ impl<'a> IndexInputs<'a> {
 /// typed ([`NotIndexed`]) rather than answered from something older.
 pub struct PickCache {
     index: Option<PickIndex>,
-    /// What the last attempt was for. `Some` after any attempt is
-    /// SUBMITTED, answered or not — which is what stops the retry loop.
-    attempted: Option<(Generation, DisplayTolerance)>,
-    /// The attempt that has been submitted and not yet answered — one
-    /// half of what [`PickCache::indexing`] reports.
-    ///
-    /// Distinct from `attempted`, which outlives the answer: together
-    /// they separate "asked, still waiting" from "asked, and the answer
-    /// was a refusal we are not retrying".
-    ///
-    /// **It is what the cache asked for, not evidence anybody is still
-    /// answering.** It is cleared by an answer, so a seam that can no
-    /// longer produce one leaves it set for the life of the window;
-    /// [`PickCache::indexing`] therefore asks the seam as well.
-    outstanding: Option<(Generation, DisplayTolerance)>,
+    /// The one attempt this cache is holding, and how far it has got.
+    /// `Some` after any attempt is SUBMITTED, answered or not — which
+    /// is what stops the retry loop — and dropped only by
+    /// [`PickCache::forget`].
+    attempt: Option<Attempt>,
     error: Option<PickIndexError>,
     seam: Box<dyn IndexService>,
+}
+
+/// **One attempt, at one picture, in one of its two states.**
+///
+/// The two facts a retry policy needs are *which picture was asked
+/// about* and *has the answer arrived*, and they are one value because
+/// the second is only a question about the first. Held as two
+/// `Option`s they were a key and a boolean wearing the key's clothes:
+/// the second was always either `None` or a copy of the first, `land`
+/// read one and cleared the other, and nothing said they moved
+/// together. A state on the key says it, and makes the diverged pair —
+/// waiting on a picture other than the one attempted — unrepresentable
+/// rather than merely absent.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Attempt {
+    /// Submitted, and no answer yet.
+    ///
+    /// **It is what the cache asked for, not evidence anybody is still
+    /// answering.** Only an answer moves it on, so a seam that can no
+    /// longer produce one leaves it `Asked` for the life of the window;
+    /// [`PickCache::indexing`] therefore asks the seam as well.
+    Asked(PictureKey),
+    /// Submitted and answered — installed as the held index, or refused
+    /// into [`PickCache::error`]. Either way this picture is not
+    /// attempted again: the retry policy is one attempt per picture.
+    Answered(PictureKey),
+}
+
+impl Attempt {
+    /// The picture attempted, in either state.
+    fn key(self) -> PictureKey {
+        match self {
+            Self::Asked(key) | Self::Answered(key) => key,
+        }
+    }
 }
 
 /// Exhaustive by destructuring; the shared rule is
@@ -181,8 +207,7 @@ impl core::fmt::Debug for PickCache {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self {
             index,
-            attempted,
-            outstanding,
+            attempt,
             error,
             seam: _,
         } = self;
@@ -194,8 +219,7 @@ impl core::fmt::Debug for PickCache {
             ),
             None => out.field("index", &Option::<()>::None),
         };
-        out.field("attempted", attempted)
-            .field("outstanding", outstanding)
+        out.field("attempt", attempt)
             .field("error", error)
             .finish_non_exhaustive()
     }
@@ -210,7 +234,7 @@ pub enum CacheStep {
     /// The held index is gone from this moment, not from the moment
     /// the answer arrives.
     Submitted,
-    /// A build for exactly this (generation, δ) has already been
+    /// A build for exactly this picture has already been
     /// submitted and not answered — nothing was done and nothing was
     /// resubmitted. This is a statement about what the cache asked
     /// for, not about whether the seam still has it: a submitted
@@ -241,7 +265,7 @@ pub enum IndexLanding {
     /// The build refused; the error is on the cache and will NOT be
     /// retried until the generation or δ moves.
     Refused,
-    /// The answer was for a (generation, δ) the cache has moved past,
+    /// The answer was for a picture the cache has moved past,
     /// so it was dropped. Restart-without-cancel produces exactly
     /// this: the superseded build was allowed to finish.
     Stale,
@@ -252,8 +276,7 @@ impl PickCache {
     pub fn new(seam: Box<dyn IndexService>) -> Self {
         Self {
             index: None,
-            attempted: None,
-            outstanding: None,
+            attempt: None,
             error: None,
             seam,
         }
@@ -266,7 +289,7 @@ impl PickCache {
     }
 
     /// Ask the seam for an index of a landed evaluation at `delta`, at
-    /// most one attempt per (generation, δ).
+    /// most one attempt per picture.
     ///
     /// **δ is built at, verbatim.** [`crate::scene::TRIANGLE_BUDGET`] chooses
     /// the δ a document OPENS at
@@ -308,27 +331,25 @@ impl PickCache {
             self.forget();
             return CacheStep::Nothing;
         };
+        let wanted = PictureKey::of(generation, delta);
         if self
             .index
             .as_ref()
-            .is_some_and(|index| index.current_for(Some(generation), delta))
+            .is_some_and(|index| index.current_for(Some(wanted)))
         {
             return CacheStep::Current;
         }
-        let wanted = (generation, delta);
-        if self.outstanding == Some(wanted) {
+        match self.attempt {
             // Asked, and the answer is not here yet. Asking again
             // would be the per-frame rebuild loop with a thread in it.
-            return CacheStep::Indexing;
-        }
-        if self.attempted == Some(wanted) {
+            Some(Attempt::Asked(key)) if key == wanted => return CacheStep::Indexing,
             // Attempted and refused for this exact picture. Retrying
             // is the per-frame rebuild loop; the error is already
             // recorded and the caller has already seen it.
-            return CacheStep::Held;
+            Some(Attempt::Answered(key)) if key == wanted => return CacheStep::Held,
+            _ => {}
         }
-        self.attempted = Some(wanted);
-        self.outstanding = Some(wanted);
+        self.attempt = Some(Attempt::Asked(wanted));
         // **Dropped before the answer, not after it.** What is held
         // from here describes a run nobody is looking at any more, and
         // the one thing this cache must never do is answer a pick from
@@ -349,8 +370,7 @@ impl PickCache {
         // caller can tell.
         self.error = None;
         self.seam.submit(IndexRequest {
-            generation,
-            delta,
+            key: wanted,
             doc: doc.clone(),
             evaluation: Arc::clone(evaluation),
             tol,
@@ -369,31 +389,29 @@ impl PickCache {
     /// names: a document was opened or a new one authored under a
     /// build that is still with the seam, or a document has landed and
     /// the δ to draw it at is still being fitted, so half the key does
-    /// not exist yet. Leaving `attempted` set would leave that build a
+    /// not exist yet. Leaving the attempt set would leave that build a
     /// key to match on arrival, and it would install — an index of a
     /// document nobody is looking at, over a scene of a third one,
-    /// with nothing running and nothing said. Clearing `attempted` is
+    /// with nothing running and nothing said. Dropping the attempt is
     /// what turns that answer into [`IndexLanding::Stale`]; the other
-    /// three fields go with it because all four describe the same
+    /// two fields go with it because all three describe the same
     /// vanished picture.
     ///
     /// **Exhaustive by destructuring, like the walk above.** A field
     /// added to [`PickCache`] is an unbound-pattern error here, so a
-    /// fifth thing describing the picture cannot outlive the picture
+    /// fourth thing describing the picture cannot outlive the picture
     /// by being forgotten at the declaration and not here. `seam` is
     /// the one `_` arm and must be: it is the service, not the
     /// picture.
     fn forget(&mut self) {
         let Self {
             index,
-            attempted,
-            outstanding,
+            attempt,
             error,
             seam: _,
         } = self;
         *index = None;
-        *attempted = None;
-        *outstanding = None;
+        *attempt = None;
         *error = None;
     }
 
@@ -420,10 +438,10 @@ impl PickCache {
     /// a wrong generation is, because the document is right and only
     /// the tessellation is not.
     pub fn land(&mut self, done: IndexDone) -> IndexLanding {
-        if self.attempted != Some((done.generation, done.delta)) {
+        if self.attempt.map(Attempt::key) != Some(done.key) {
             return IndexLanding::Stale;
         }
-        self.outstanding = None;
+        self.attempt = Some(Attempt::Answered(done.key));
         match done.index {
             Ok(index) => {
                 self.index = Some(index);
@@ -453,8 +471,9 @@ impl PickCache {
     /// indicator — the record alone is what that costs. The seam says
     /// whether anyone is still going to answer, and it is the only
     /// thing that knows: a worker that has gone clears its own flags
-    /// ([`IndexService::busy`] goes dark) while `outstanding` stays
-    /// set, because only an answer clears it and none is coming.
+    /// ([`IndexService::busy`] goes dark) while the attempt stays
+    /// `Attempt::Asked` — named rather than linked, as a private item
+    /// — because only an answer moves it on and none is coming.
     ///
     /// Reporting the record alone left the toolbar spinning on
     /// `indexing…` for the life of the window, repainting every frame
@@ -466,7 +485,7 @@ impl PickCache {
     /// stay lit for an answer that is not coming*); it is the consumer
     /// that was not asking.
     pub fn indexing(&self) -> bool {
-        self.outstanding.is_some() && self.seam.busy()
+        matches!(self.attempt, Some(Attempt::Asked(_))) && self.seam.busy()
     }
 
     /// Why the last attempt refused, if it did.

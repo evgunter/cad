@@ -63,13 +63,18 @@
 //! The mode pins are the only genuinely shared work, and the two
 //! cell-budget rows now share one helper rather than one call.
 //!
-//! Every ε stand-down in this file is LOUD **and PROVED**: the run
-//! prints, by name ([`test_utils::vacuity::stood_down`]), the coverage it
-//! did not deliver, and it first asserts that the excuse is the one it
-//! claims — D9's `SSI_MAX_FIT_SAMPLES`, genuinely overrun, at an ε finer
-//! than the compiled default. A stand-down that is only announced is
-//! still a row that greens without entering its own mode the day the
-//! budget starts firing everywhere. The retired `fixture_or_return!` /
+//! Every ε stand-down in this file is **PROVED**, and that is the half
+//! that carries weight. Before it announces, the row asserts that the
+//! excuse is the one it claims — D9's `SSI_MAX_FIT_SAMPLES`, genuinely
+//! overrun, measured at an ε finer than the compiled default — so a
+//! budget that started firing everywhere reds HERE rather than being
+//! waved through. **That assertion is the only part a gating run can
+//! see.** The announcement itself is a `println!` from a row that
+//! passes, which every gating job discards
+//! (`test_utils::vacuity`'s module docs), so it is read locally and
+//! nowhere else. A stand-down that were only announced would be a row
+//! that greens without entering its own mode, and nothing would say
+//! so. The retired `fixture_or_return!` /
 //! `carrier_or_return!` macros returned green in silence, which is the
 //! honesty gap this suite closes.
 //!

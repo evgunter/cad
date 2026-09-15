@@ -22,7 +22,6 @@
 use crate::fixture;
 
 use std::collections::BTreeMap;
-use std::sync::Arc;
 
 use editor_core::{
     Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, Datum, Dimension,
@@ -31,7 +30,7 @@ use editor_core::{
     ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, SitedRef, SplitHalf, StableName,
     clusters, member_of, product, solve_document,
 };
-use fixture::resolver::{PartStore, in_part};
+use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::seat::{assert_seated, seat_map};
 use fixture::{ang, gate, in_copy, insert, len, on_frame, run, scl, step, xform};
 use geom_core::Tol;
@@ -120,10 +119,7 @@ fn scene(label: &str) -> Scene {
         part_doc(&format!("{label}-top"), 1.0, TOP_HEIGHT),
         Tol::witness(),
     );
-    let opts = EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    };
+    let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));

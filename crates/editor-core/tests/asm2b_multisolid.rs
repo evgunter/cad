@@ -6,70 +6,23 @@
 //! that product holds, and the instantiate path takes all N through
 //! `transform_rigid` + the keyed graft as ONE unit.
 //!
-//! The kernel half (stub resolver, as ASM-2A's D-3 promises); the
+//! The kernel half (`fixture::resolver`'s store, the substrate
+//! ASM-2A's D-3 promises); the
 //! workspace/two-process half lives in `pncad`'s own suite.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
-
 use editor_core::{
-    CancelToken, DocEdit, DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, Node,
-    PartResolver, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, StableName,
-    content_pin, evaluate, load, product, save,
+    DocEdit, DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, Node, ProfileDoc,
+    RecipeNodeId, RoleSeg, StableName, content_pin, load, product, save,
 };
-use fixture::{insert, len, on_frame, square, step};
+use fixture::resolver::{PartStore, with_resolver};
+use fixture::{insert, len, on_frame, run, square, step};
 use geom_core::Tol;
 
-// ---- The stub store (ASM-2A's, verbatim in behaviour) ----
-
-/// A resolver over an in-memory map that verifies the pin exactly as
-/// the document layer's does — the stub has no FILES, not no gate.
-#[derive(Debug, Default)]
-struct StubStore {
-    docs: BTreeMap<DocumentId, ProfileDoc>,
-}
-
-impl StubStore {
-    fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
-        let pin = content_pin(&doc, tol).expect("the pin computes");
-        let id = doc.id();
-        self.docs.insert(id, doc);
-        DocRef { id, pin }
-    }
-}
-
-impl PartResolver for StubStore {
-    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        let fail = |fault, message: &str| ResolveFailure {
-            fault,
-            message: message.to_string(),
-        };
-        let doc = self
-            .docs
-            .get(&doc_ref.id)
-            .ok_or_else(|| fail(ResolveFault::Unresolved, "no such document"))?;
-        let found = content_pin(doc, Tol::witness()).expect("the pin computes");
-        if found != doc_ref.pin {
-            return Err(fail(ResolveFault::PinMismatch, "the pin does not hold"));
-        }
-        Ok(doc.clone())
-    }
-}
-
-fn with_resolver(store: StubStore) -> EvalOptions {
-    EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    }
-}
-
-fn run(doc: &ProfileDoc, opts: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), opts, Tol::witness())
-}
+// ---- Evaluation through the shared part store ----
 
 /// A one-solid part: a unit square extruded 1 tall, centered at `cx`.
 fn part(label: &str, cx: f64) -> ProfileDoc {
@@ -150,8 +103,8 @@ fn names_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<StableName> {
 /// The 2B fixture family: part P (one solid), sub-assembly B (two
 /// instances of P), assembly A (two instances of B). A's product holds
 /// FOUR solids, and every name in it is doubly `InPart`-wrapped.
-fn nested_fixture() -> (StubStore, ProfileDoc, ProfileDoc, DocRef, Vec<RecipeNodeId>) {
-    let mut store = StubStore::default();
+fn nested_fixture() -> (PartStore, ProfileDoc, ProfileDoc, DocRef, Vec<RecipeNodeId>) {
+    let mut store = PartStore::default();
     let p = store.insert(part("asm2b-p", 0.0), Tol::witness());
     let (b_doc, _) = assembly("asm2b-b", &[p, p], 3.0);
     let b = store.insert(b_doc.clone(), Tol::witness());
@@ -335,7 +288,7 @@ fn row3_doubly_wrapped_names_round_trip_persistence() {
 /// the edit.
 #[test]
 fn row4_a_placement_moves_every_solid_of_a_multi_solid_instance() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let p = store.insert(part("asm2b-r4-p", 0.0), Tol::witness());
     let (b_doc, _) = assembly("asm2b-r4-b", &[p, p], 3.0);
     let b = store.insert(b_doc, Tol::witness());
@@ -422,7 +375,7 @@ const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_904; // 2.0
 
 #[test]
 fn row5_the_single_solid_path_is_bit_identical_across_the_lift() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let p = store.insert(part("asm2b-r5-p", 0.0), Tol::witness());
     let (doc, _) = assembly("asm2b-r5-a", &[p, p], 5.0);
     let opts = with_resolver(store);
@@ -456,7 +409,7 @@ fn row5_the_single_solid_path_is_bit_identical_across_the_lift() {
 /// interference, both assertions flip together, here.
 #[test]
 fn the_at_rest_gate_does_not_see_instance_interference_single_or_multi() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let p = store.insert(part("asm2b-ov-p", 0.0), Tol::witness());
     // ASM-2A's shape: two copies of a one-solid part, 0.25 apart.
     let (single, _) = assembly("asm2b-ov-single", &[p, p], 0.25);

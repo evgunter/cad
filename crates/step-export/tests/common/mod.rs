@@ -740,37 +740,7 @@ pub fn composed_die() -> Body<f64> {
 /// as `sweep/tests/m6_loft_body.rs` (where V = 9 m³ is derived) and
 /// the editor-core corpus document `loft_prism`.
 pub fn loft_prism() -> Body<f64> {
-    let sections = vec![
-        quad(PRISM_SQUARE),
-        quad(PRISM_TRAPEZOID),
-        quad(PRISM_SQUARE),
-    ];
-    sweep::loft_body::<f64>(&sections, &lofted_at_z(&[0.0, 1.0, 2.0]), 2, Tol::witness())
-        .expect("shape (iii) loft builds")
-        .body
-}
-
-/// A closed four-line quad section (one loop) in the LIB-U3 profile
-/// vocabulary — the plainest INTEGRAL profile: unit weights, no arc
-/// anywhere.
-fn quad(pts: [(f64, f64); 4]) -> sweep::Section {
-    vec![ProfileLoop::polygon(
-        pts.iter().map(|&(x, y)| Point2::new(x, y)),
-    )]
-}
-
-/// The prism loft's end section: the square `[-1, 1]²`.
-const PRISM_SQUARE: [(f64, f64); 4] = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-/// Its middle section: the NON-AFFINE trapezoid whose two bottom
-/// corners flare by ±d, d = 0.375 — what makes the walls genuinely
-/// curved in v rather than ruled.
-const PRISM_TRAPEZOID: [(f64, f64); 4] = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-
-/// Section placements: pure translations up the world z-axis.
-fn lofted_at_z(zs: &[f64]) -> Vec<geom_core::Affine3<f64>> {
-    zs.iter()
-        .map(|z| geom_core::Affine3::translation(Vec3::new(0.0, 0.0, *z)))
-        .collect()
+    sweep::test_support::loft_prism(Tol::witness())
 }
 
 /// **The non-uniform loft (#210 / #207).** [`loft_prism`]'s own three
@@ -810,12 +780,8 @@ fn lofted_at_z(zs: &[f64]) -> Vec<geom_core::Affine3<f64>> {
 /// which is the derived volume. The `.expect` sidecar carries the
 /// integration step by step and pins it against the kernel.
 pub fn nonuniform_loft() -> Body<f64> {
-    let sections = vec![
-        quad(PRISM_SQUARE),
-        quad(PRISM_TRAPEZOID),
-        quad(PRISM_SQUARE),
-    ];
-    let places = lofted_at_z(&[0.0, 1.0, 3.0]);
+    let sections = sweep::test_support::loft_prism_sections();
+    let places = sweep::test_support::stacked_at(&[0.0, 1.0, 3.0]);
     // The `t` the doc comment derives above, ASKED rather than
     // re-derived (LIB-U5 deliverable 1).
     assert_eq!(

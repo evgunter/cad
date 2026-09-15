@@ -1,9 +1,10 @@
 ---
 id: interrogate-read-answers-a-tie-before-the-door-s-kind
-kind: issue
+kind: unit
 title: interrogate::read refuses Ambiguous for a tied name of the wrong kind, where a unique one of that kind answers WrongKind
-status: open
+status: dispatched
 opened: 2026-09-15
+branch: wire/tie-before-kind
 ---
 
 

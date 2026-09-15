@@ -4935,3 +4935,131 @@ Two things learned, worth the next lane's attention:
   recorded so nobody re-walks them.
 
 Signed (WIRE orchestrator).
+
+## 2026-09-15 — Dispatched: `two-emitter-refusals-a-legal-declared-union-reaches` (lane `wire-e2`)
+
+Branch `wire/emitter-refusals-a-legal-union-reaches`. **Raised to FULL
+review at dispatch**, against the M estimate, and `plan.md`'s posture
+table carries the reason.
+
+**Why full.** The deliverable is a MEASUREMENT — which of the emitter's
+`bug(...)` refusals a legal document can actually reach — and a wrong
+measurement fails in the dangerous direction. `NamingError`'s own doc
+says every variant is *"an emission BUG … never a normal modeling
+outcome"*, so re-classifying a refusal that is really body corruption as
+a legal outcome would silently downgrade a genuine kernel bug's signal.
+That is a correctness question a light review is not looking for.
+
+**What reading the sites added to the row, and it is the unit's real
+content.** `unique_shared_edge` carries **four** `bug(...)` refusals,
+not the two the row measured, and they are visibly **two categories
+wearing one word**: `"unmated half-edge"`, `"dangling mate"` and
+`"dangling loop"` read as structural corruption of the body, while
+`"two shared edges where one expected"` and `"no shared edge"` read as a
+legal shape the combinatorial derivation has no answer for. The row
+names only the second pair. The fifth site, `emit_topo.rs`'s seam-vertex
+arm, is a `_ =>` **catch-all** after a case analysis — which is where a
+shape nobody enumerated lands, a different thing from an inconsistent
+fact. The brief says to measure the line rather than assume it, and that
+a site no legal document reaches KEEPS `Emission` and is reported as
+such.
+
+**The precedent is in the same enum, twice, and the brief points at
+both.** `Band(BandError)` was carved out of `Emission` with exactly this
+argument — *"which this is not: nothing about the result body is wrong
+here"* — and `SplitLineage` / `FragmentLineage` were carved out because a
+variant can carry *"the one thing the repair needs that a sentence cannot
+supply: WHICH edge / WHICH face."* `FragmentLineage`'s doc also argues
+why it is a **sibling word rather than one generalised** over
+`EntityKey`, which is the same question this unit faces about how many
+variants it needs. So the shape of the answer is established; only where
+the line falls is open.
+
+**Fenced explicitly.** This unit re-classifies and does **not** invent a
+naming rule: what a member-space declaration MEANS for a face that is no
+longer one face is `member-space-look-through-…`, a `ruling` on this
+slate. The change must be correct under either answer, and the brief says
+to stop if the lane finds itself designing the name.
+
+Three traps named in the brief, all earned: a variant with no caller
+(`frame-linear-generic-door-has-no-consumers` is the open row for that
+shape); a new variant whose payload is a free-text `&'static str`, which
+rebuilds `Emission` one level down; and re-classifying a site the lane
+did not actually reach because its message reads legal-ish.
+
+### Three rows arrived from other programs while this session worked
+
+`declare-door-refuses-a-tie-before-it-asks-the-pairs-kinds`,
+`interrogate-read-answers-a-tie-before-the-door-s-kind`, and
+`select-refusal-coverage-is-not-compiler-enforced-from-the-test-crate`.
+Unread against the tree by this program; the 2026-09-11 lesson applies to
+them as it did to DOCM's seven.
+
+**The first two look like one class and should be read together**: a door
+answering a tie or an `Ambiguous` *before* it has resolved the kind the
+answer depends on. That is the same shape as
+`the-declared-pair-refusal-reads-the-authored-kind`, already on this
+slate — which would make it three instances, not two, and a class rather
+than a pair. Noted rather than acted on; the read comes before the
+grouping, as it did for DOCM's rows.
+
+Signed (WIRE orchestrator).
+
+## 2026-09-15 — Dispatched in parallel: `wire/tie-before-kind` (lane `wire-t1`), three rows as one class
+
+Three rows, one unit, **no file overlap with `wire-e2`** — that lane holds
+`names/emit.rs` and `names/emit_topo.rs`; this one holds
+`eval/wire.rs` and `names/interrogate.rs`. The brief fences each lane off
+the other's files by name.
+
+**The class, in PORT's words:** *a site that asks how many entities
+answer to a name before it asks what the name denotes.* A caller whose
+reference happens to be TIED is told to narrow it, when narrowing could
+not have helped, because what they actually did wrong is answerable
+without resolving at all.
+
+- `declare-door-refuses-a-tie-before-it-asks-the-pairs-kinds` — ordering
+  in `resolve_declarations`.
+- `the-declared-pair-refusal-reads-the-authored-kind` — **the same two
+  lines**; authored kind or resolved key.
+- `interrogate-read-answers-a-tie-before-the-door-s-kind` — the one body
+  five public read doors delegate to.
+
+**Taken together because PORT says they must be, and it checked the
+interaction rather than leaving it.** If the "found" word must come off
+the resolved key, a tied name has no single key, so the kind-first answer
+has to come off the NAME — which is what `resolve_face` took. The brief
+says to land that consistently and not re-litigate it.
+
+**The precedent is merged, so the shape is copied rather than invented:**
+PORT-DOORS-1, PR #2635 (`0f2667888`), closed this defect in
+`assembly.rs`'s `resolve_face`. `eval/wire.rs`'s own `face_name` is a
+second counter-example in the file being edited.
+
+**Posture: light style review with one named correctness claim to
+falsify** — the premise that every candidate of an `Entry::Tied` carries
+the name's kind. Not raised to full: the premise is already verified by
+another program against the same table, the fix shape is landed one door
+over, and no variant changes shape — only which variant a document gets.
+That is a narrower blast radius than
+`names-flush-and-select-discard-a-refusal-with-map-err-underscore`, which
+was raised to full because two public enum variants **gained a field**.
+The brief still requires the lane to re-verify the premise itself and to
+stop if it holds only by an invariant a module away.
+
+Named in the brief: PORT's **first** instrument missed two of these three
+(the `Entry::Tied`-adjacent grep could not see them), so the lane owes a
+sweep shaped for the caller-side pairing and a stated blind spot. A
+fourth instance is likely.
+
+### Not dispatched, deliberately
+
+`select-refusal-coverage-is-not-compiler-enforced-from-the-test-crate`
+(S-TINT's TINT-1 residue, `names/geompred.rs`, WIRE's ground) is real and
+takeable and does not collide with either live lane. Held anyway: three
+concurrent PRs on a tree moving ~12,000 commits in three days means the
+session spends itself on merge conflicts rather than on work — the last
+unit took three conflict rounds to land, none of them in code. Two lanes
+is the level this tree supports. It is next in the queue, not deferred.
+
+Signed (WIRE orchestrator).

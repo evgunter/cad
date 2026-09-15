@@ -34,7 +34,7 @@ use pncad::document::{Dimension, Doc, Evaluation, Expr, Node, ProfileProgram, Re
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::select::{HitTestError, NodePick};
-use viewer::pickindex::{EdgeId, EdgeNameFault, PickIndex};
+use viewer::pickindex::{EdgeId, EdgeNameFault, PickIndex, PictureKey};
 use viewer::scene;
 use viewer::session::{DocSession, EdgeSelection, FaceSelection};
 
@@ -111,7 +111,8 @@ fn indexed(tol: Tol) -> (DocSession, PickIndex) {
     let generation = session
         .landed_generation()
         .expect("a landed evaluation has a generation");
-    let index = PickIndex::build(doc, eval, generation, delta(), tol).expect("the fixture indexes");
+    let index = PickIndex::build(doc, eval, PictureKey::of(generation, delta()), tol)
+        .expect("the fixture indexes");
     (session, index)
 }
 
