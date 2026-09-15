@@ -515,12 +515,7 @@ fn the_span_decide_holds_at_the_interval_scalar() {
     use geom_core::Interval;
     let bd = band();
     let three_pi = pair::<Interval>(0.0, 3.0 * PI);
-    let fc = curved_face(
-        &sphere::<Interval>(),
-        &three_pi,
-        true,
-        bd,
-    );
+    let fc = curved_face(&sphere::<Interval>(), &three_pi, true, bd);
     assert!(is_winding_refusal(&fc), "{fc:?}");
     let ms = boundary_material_sign(&sphere::<Interval>(), &three_pi, bd);
     assert!(is_winding_refusal(&ms), "{ms:?}");
