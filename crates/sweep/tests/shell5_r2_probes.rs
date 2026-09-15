@@ -14,8 +14,8 @@ use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, LoopBoundary, ShellError, ShellKey, ShellRole};
 
-use crate::verbs_shell::{boxy, cut, two_void_box};
-use sweep::test_support::brick;
+use crate::verbs_shell::{cut, two_void_box};
+use sweep::test_support::{block, brick};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -67,7 +67,7 @@ fn shell_box(body: &Body<f64>, shell: ShellKey) -> [(f64, f64); 3] {
 #[test]
 fn r2_diagonal_voids_refuse_at_the_grown_footprint_gate() {
     let tol = Tol::witness();
-    let outer = boxy(6.0, 4.0, 4.0);
+    let outer = block(6.0, 4.0, 4.0, Tol::witness());
     // A: x 1.0..2.5, y 0.8..1.8   B: x 2.9..4.4, y 2.3..3.3, both z 1..3.
     let one = cut(
         &outer,
@@ -113,7 +113,7 @@ fn r2_diagonal_voids_refuse_at_the_grown_footprint_gate() {
 #[test]
 fn r2_the_same_gate_hole_is_closed_on_a_single_shell_notched_operand() {
     let tol = Tol::witness();
-    let outer = boxy(6.0, 4.0, 4.0);
+    let outer = block(6.0, 4.0, 4.0, Tol::witness());
     let one = cut(
         &outer,
         &brick((1.0, 2.5), (-1.0, 1.8), (1.0, 3.0), Tol::witness()),
@@ -373,7 +373,7 @@ fn r2_each_thin_solid_pairs_its_own_voids_twin() {
 #[test]
 fn r2_the_new_door_mints_a_solid_with_no_outer_shell() {
     let tol = Tol::witness();
-    let mut body = topo::shell(&boxy(2.0, 3.0, 4.0), 0.25, tol)
+    let mut body = topo::shell(&block(2.0, 3.0, 4.0, Tol::witness()), 0.25, tol)
         .expect("the box hollows")
         .body;
     let voids = void_shells(&body);

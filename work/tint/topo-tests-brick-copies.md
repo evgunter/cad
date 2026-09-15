@@ -51,3 +51,7 @@ The alternatives, so whoever takes this does not have to re-derive them:
    whatever happens to (1).
 
 `S52`'s own sweep and its blind spots are in that PR's body.
+
+Related, on this slate: `work/tint/sweep-boolean-suite-brick-and-prism-copies.md`,
+whose `brick` half `S52` closed and whose `prism(pts, h)` half is still
+open against the same home.

@@ -31,3 +31,22 @@ What is actually wrong here is therefore the **doc in `orient.rs`**, which
 sends a reader to a helper that will not answer their question. That is a
 one-sentence fix on `BLEND`'s or `S391`'s ground, and it is the thing to do
 first; homing `spine_chords` is what to do the day a second suite wants it.
+
+## The admission rule this row runs into, which is itself unsettled
+
+`crates/sweep/src/test_support.rs`'s header says a fixture earns a place
+there **once a consumer outside the crate needs it or a second suite
+inside it does**. A `tests/` file is a separate crate, so *any single
+integration suite* satisfies the first clause on a literal reading —
+which is why that module already carries around a dozen `pub` items with
+one call site each. The routing rule quoted beside it says the opposite:
+an item lives at the **narrowest** home all of its consumers can reach,
+which for one consumer is that consumer's own file.
+
+Two rules, one question, neither stated at the other's site. This row's
+conclusion does not depend on which wins — `spine_chords` has one
+consumer under either — but whoever settles it should settle it in the
+module header rather than per-fixture, because the module's current
+population is evidence that the looser reading is the one in force.
+
+Related, on this slate: `work/tint/sweep-boolean-suite-brick-and-prism-copies.md`.
