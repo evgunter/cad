@@ -56,11 +56,12 @@ fn r2_solid_door_bits_dump() {
             t.body
         );
     }
-    // The five refusal doors, with their rendered messages: the solid
-    // door's verdict sequence is part of what must not have moved.
+    // The refusal doors the SOLID door still has, with their rendered
+    // messages: the verdict sequence is part of what must not have
+    // moved. The two frame doors are not among them — the spine frame
+    // arrives as a witness, so a non-unit axis is normalized at its
+    // mint and a reference on the axis line refuses there.
     let bad = [
-        (Vec3::unit_y() * 1.5, Vec3::unit_x(), 2.0, 0.5, None),
-        (Vec3::unit_y(), Vec3::unit_y(), 2.0, 0.5, None),
         (
             Vec3::unit_y(),
             Vec3::unit_x(),

@@ -363,16 +363,35 @@ fn r2_a_non_unit_axis_refuses_upstream_and_never_reaches_the_tube_door() {
     println!("r2: non-unit axis -> datum_failed={datum_failed} tube_built={tube_built}");
 }
 
-/// **PROBE 3b — the `u_ref` verdicts STAY reachable**, which is the
-/// half of the disclosure that would make it a real loss if it were
-/// false. A bare direction passes through no datum, so both its
-/// verdicts are still the door's.
+/// **PROBE 3b — what a `u_ref` does from a document now that the door
+/// takes a frame.** A bare direction passes through no datum, so the
+/// recipe layer is where it is decided: a long one is normalized into
+/// the frame and builds, and one on the spine axis line refuses under
+/// the direction vocabulary with the tube's own role word. Neither is
+/// a tube verdict any more.
 #[test]
 fn r2_the_u_ref_verdicts_stay_reachable_from_a_document() {
-    for (what, u) in [
-        ("non-unit u_ref", [2.0, 0.0, 0.0]),
-        ("u_ref parallel to the axis", [0.0, 0.0, 1.0]),
-    ] {
+    let (mut long_doc, long_spine) = axis_doc("r2_uref_long", [0.0, 0.0, 1.0]);
+    long_doc = push(
+        &long_doc,
+        &DocEdit::InsertNode {
+            node: Node::Tube {
+                spine: long_spine,
+                u_ref: [2.0, 0.0, 0.0].map(scalar),
+                major_radius: len(2.0),
+                window: TubeWindow::Full,
+                minor_radius: len(0.5),
+            },
+        },
+    );
+    let long_tube = *long_doc.order().last().expect("the tube");
+    let long_ev = eval::<f64>(&long_doc);
+    assert!(
+        matches!(long_ev.nodes.get(&long_tube), Some(NodeResult::Ok(_))),
+        "a long u_ref names the same radial and must build"
+    );
+
+    for (what, u) in [("u_ref parallel to the axis", [0.0, 0.0, 1.0])] {
         let (mut doc, spine) = axis_doc("r2_uref", [0.0, 0.0, 1.0]);
         doc = push(
             &doc,
@@ -390,10 +409,12 @@ fn r2_the_u_ref_verdicts_stay_reachable_from_a_document() {
         let ev = eval::<f64>(&doc);
         match ev.nodes.get(&tube) {
             Some(NodeResult::Failed(e)) => match &e.kind {
-                NodeErrorKind::Tube(t) => {
-                    println!("r2: {what} -> {t}");
+                NodeErrorKind::DegenerateDirection { role } => {
+                    assert_eq!(*role, "tube reference direction", "{what}");
                 }
-                other => panic!("{what} must refuse as the TUBE door's verdict, got {other:?}"),
+                other => panic!(
+                    "{what} must refuse as the frame mint's direction verdict, got {other:?}"
+                ),
             },
             other => panic!("{what} must refuse, got {other:?}"),
         }

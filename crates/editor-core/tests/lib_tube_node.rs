@@ -561,23 +561,18 @@ fn tube_refusal(node: Node<ProfileProgram>, axis: [f64; 3]) -> Option<String> {
     }
 }
 
-/// **The frame, window and convention refusals, reachable through BOTH
+/// **The window and convention refusals, reachable through BOTH
 /// kinds** — every arm on the shared half of the kernel's enum.
+///
+/// The frame is not among them any more. The door takes a witness, so
+/// a non-unit `u_ref` is normalized at the mint and a `u_ref` on the
+/// axis line refuses one layer up, as the direction refusal it is —
+/// both pinned in `the_frame_is_minted_rather_than_refused` below.
 #[test]
 fn the_shared_refusals_are_reachable_from_both_kinds() {
     let z = [0.0, 0.0, 1.0];
     let u = [1.0, 0.0, 0.0];
     for (what, s, h) in [
-        (
-            "non-unit u_ref",
-            solid_node([2.0, 0.0, 0.0], 2.0, TubeWindow::Full, 0.5),
-            hollow_node([2.0, 0.0, 0.0], 2.0, TubeWindow::Full, 0.5, 0.125),
-        ),
-        (
-            "u_ref not perpendicular to the axis",
-            solid_node([0.0, 0.0, 1.0], 2.0, TubeWindow::Full, 0.5),
-            hollow_node([0.0, 0.0, 1.0], 2.0, TubeWindow::Full, 0.5, 0.125),
-        ),
         (
             "a reversed window",
             solid_node(u, 2.0, arc(1.5, 0.5), 0.5),
@@ -607,6 +602,72 @@ fn the_shared_refusals_are_reachable_from_both_kinds() {
             "{what} is reachable through both doors, so its message must not claim \
              the hollow one: {hm}"
         );
+    }
+}
+
+/// **The frame is MINTED, not refused.** A `u_ref` that is merely long
+/// names the same radial once the mint has normalized it, so the body
+/// builds; a `u_ref` ON the spine axis names no radial at all and
+/// refuses one layer up, under the evaluation layer's direction
+/// vocabulary and its own role word, never as a tube verdict.
+#[test]
+fn the_frame_is_minted_rather_than_refused() {
+    let z = [0.0, 0.0, 1.0];
+    for node in [
+        solid_node([2.0, 0.0, 0.0], 2.0, TubeWindow::Full, 0.5),
+        hollow_node([2.0, 0.0, 0.0], 2.0, TubeWindow::Full, 0.5, 0.125),
+    ] {
+        assert_eq!(
+            tube_refusal(node, z),
+            None,
+            "a long u_ref names the same radial and must build"
+        );
+    }
+    for node in [
+        solid_node([0.0, 0.0, 1.0], 2.0, TubeWindow::Full, 0.5),
+        hollow_node([0.0, 0.0, 1.0], 2.0, TubeWindow::Full, 0.5, 0.125),
+    ] {
+        let (doc, tube) = spine_doc(z, |spine| match node.clone() {
+            Node::Tube {
+                u_ref,
+                major_radius,
+                window,
+                minor_radius,
+                ..
+            } => Node::Tube {
+                spine,
+                u_ref,
+                major_radius,
+                window,
+                minor_radius,
+            },
+            Node::HollowTube {
+                u_ref,
+                major_radius,
+                window,
+                minor_radius,
+                wall,
+                ..
+            } => Node::HollowTube {
+                spine,
+                u_ref,
+                major_radius,
+                window,
+                minor_radius,
+                wall,
+            },
+            other => other,
+        });
+        let ev = eval::<f64>(&doc);
+        match ev.nodes.get(&tube) {
+            Some(NodeResult::Failed(e)) => match &e.kind {
+                NodeErrorKind::DegenerateDirection { role } => {
+                    assert_eq!(*role, "tube reference direction");
+                }
+                other => panic!("a u_ref on the axis line refuses as a direction, got {other:?}"),
+            },
+            other => panic!("a u_ref on the axis line must refuse, got {other:?}"),
+        }
     }
 }
 

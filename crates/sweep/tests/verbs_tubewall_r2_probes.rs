@@ -281,22 +281,15 @@ fn r2_escalation_from_a_wall_predicate_reports_the_hollow_doors_name() {
         msg.starts_with("tube_along_arc_hollow escalated:"),
         "a hollow-only predicate must name the hollow door: {msg}"
     );
-    // And the shared arms do NOT claim either door: a non-unit axis
-    // is raised identically by both.
-    let shared = build(2.0, TubeWindow::Full, 0.5, 0.125);
-    let _ = shared;
-    let frame = tube_along_arc_hollow::<f64>(
-        tube_frame(c(), Vec3::unit_y() * 1.5, Vec3::unit_x(), Tol::witness()),
-        2.0,
-        TubeWindow::Full,
-        0.5,
-        0.125,
-        Tol::witness(),
-    )
-    .expect_err("a non-unit axis refuses");
+    // And a SHARED arm does not claim either door: a reversed window
+    // is raised identically by both. (The frame arms are gone — the
+    // door takes a witness, so a non-unit axis is normalized at the
+    // mint rather than refused here.)
+    let shared = build(2.0, TubeWindow::Arc { t0: 1.5, t1: 0.5 }, 0.5, 0.125)
+        .expect_err("a reversed window refuses");
     assert!(
-        frame.to_string().starts_with("tube door: "),
-        "a shared arm names neither door: {frame}"
+        shared.to_string().starts_with("tube door: "),
+        "a shared arm names neither door: {shared}"
     );
 }
 
