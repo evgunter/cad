@@ -1398,7 +1398,10 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String)> {
 /// own: each union is a NODE of the document and refuses at
 /// `evaluate`, with the kernel's payload carried unaltered into the
 /// panel's note — so the payload the caption quotes and the payload
-/// the probe pins cannot be two different measurements.
+/// the probe pins cannot be two different measurements. That is why
+/// this one takes an evaluation where `torusvessel::wall_probes` takes
+/// only a tolerance and builds its own operands: nothing outside that
+/// scene's probe reads what it makes.
 fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // WALL 2 — the handle joined to the pot. A curved x curved pair at
     // the operand gate; the germ roster has no arm for it.
