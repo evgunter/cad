@@ -349,12 +349,17 @@ fn an_l_shaped_face_holds_where_it_has_no_material() {
     );
     assert_eq!(
         (r.candidates, r.discharged, r.splits, r.outside),
-        (1, 610, 609, 224),
+        (1, 580, 579, 228),
         "the measured receipt, pinned — and load-bearing beyond this row's own subject: \
          a drop rule that lets an in-band or poison margin separate, or a description \
          tightened at the 0.05 scale, changes these counts while leaving every verdict \
          in the suite alone (measured, TRIM-3 PR-2's fix pass). Stable across the three \
-         eps rows: {}",
+         eps rows. RE-BASELINED from (1, 610, 609, 224) by PROPS's sign-hull unit: the \
+         engine reads the carrier's STORED chart now that a planar frame decides, and \
+         that chart is the old re-chart turned a quarter turn about the normal — the \
+         same window as a point set, halved along the other axis first, so the sweep \
+         reaches the same verdict in 579 splits instead of 609 and proves four more \
+         cells outside. Nothing about the drop rule moved: {}",
         tight.serialize()
     );
 }
@@ -922,10 +927,13 @@ fn e2e_channel_slider_over_an_epsilon_box() {
     );
     assert_eq!(
         (r.candidates, r.discharged, r.splits, r.outside),
-        (10, 930, 920, 292),
+        (10, 972, 962, 296),
         "the measured receipt, pinned; like the L-plate row's it is what catches a drop \
          rule that changes without changing a verdict. Stable across the three eps \
-         rows: {}",
+         rows. RE-BASELINED from (10, 930, 920, 292) by PROPS's sign-hull unit, for the \
+         reason that row states: the stored chart is the retired re-chart turned a \
+         quarter turn, so the subdivision halves the other axis first. The verdict and \
+         both claims above it are unchanged: {}",
         whole.serialize()
     );
     let inner = Selection {
