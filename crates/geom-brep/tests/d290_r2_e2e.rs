@@ -26,17 +26,18 @@ use crate::shared::tol::band;
 /// ulp above `0.9`, so a computed end misses it.
 const CARRIER: (f64, f64) = (0.3, 0.9);
 
-/// A degree-2 NURBS curve on `[lo, hi]` through three points — the
-/// `u = 0` ruling of [`quarter_cylinder_wall`], which [`transverse_plane`]
-/// contains.
+/// The `u = 0` ruling of [`quarter_cylinder_wall`], which
+/// [`transverse_plane`] contains, as a degree-1 segment on `[lo, hi]` —
+/// the carrier the plane × NURBS suite certifies at every ε row, on a
+/// domain that is not `[0, 1]`. (A quadratic through the same three
+/// collinear points runs the ruling at non-uniform speed, and the
+/// chart image fitted through the schedule then misses the ruling by a
+/// few `1e-12`, which the tightest ε row refuses as a limb rather than
+/// answering.)
 fn carrier_on(lo: f64, hi: f64) -> NurbsCurve3<f64> {
-    let knots = KnotVector::clamped(vec![lo, lo, lo, hi, hi, hi], 2).unwrap();
-    let control = vec![
-        Point3::new(1.0, 0.0, 0.0),
-        Point3::new(1.0, 0.0, 0.5),
-        Point3::new(1.0, 0.0, 1.0),
-    ];
-    NurbsCurve3::new(knots, control, vec![1.0, 1.0, 1.0]).unwrap()
+    let knots = KnotVector::clamped(vec![lo, lo, hi, hi], 1).unwrap();
+    let control = vec![Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0)];
+    NurbsCurve3::new(knots, control, vec![1.0, 1.0]).unwrap()
 }
 
 /// **Program 1.** A caller with a curve fitted on `[0, 1]` wants it on
