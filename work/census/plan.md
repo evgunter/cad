@@ -80,6 +80,18 @@ own guard before the reader, or the reasoned decision to ship the third
 door (accept and say so at the site) — which is what ships today and may
 well be the right answer.
 
+`hand-listed-partialeq-siblings-outside-the-census-debug-fence` fifth,
+and **early for its class rather than late**, which is a deliberate
+departure from the order's axis. Most of its six sites are other
+programs' — `expr.rs` and `role.rs` are EDIT's, `coset.rs` MSOLVE's,
+`profile/src/lib.rs` S-BOOL's — so the bulk of the row is routing, and
+routing decays: the row already records that `expr.rs` and
+`topo/src/props.rs` are claimed by NO open program, which is a fact with
+a shelf life, and every program that closes between now and then moves
+an owner. The two sites the census cannot see (`SketchPlane` behind a
+delegation, `NameRef` through a tuple index) are the harder half and
+are what keeps it **M** rather than E.
+
 Then `S113` and `S133`, which are prose and duplication counts that
 several staffed lanes already ride.
 
