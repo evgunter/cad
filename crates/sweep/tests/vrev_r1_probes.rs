@@ -231,7 +231,14 @@ fn reverse_a_lofted_wall(k: usize, spacing: f64) -> (Vec<f64>, Result<(), String
     };
     let knots_v = n.knots_v().knots().to_vec();
     let out = match n.reversed_v() {
-        Err(e) => Err(format!("{e}")),
+        Err(e) => {
+            // Would the spec's ROUNDED test have admitted this vector?
+            let k = n.knots_v().knots();
+            let (lo, hi) = n.knots_v().domain();
+            let m = k.len() - 1;
+            let rounded_ok = (0..=m / 2).all(|i| k[i] + k[m - i] == lo + hi);
+            Err(format!("{e} [rounded test would accept: {rounded_ok}]"))
+        }
         Ok(r) => {
             // Same point set, sampled.
             let mut worst = 0.0f64;
@@ -278,4 +285,90 @@ fn e2e_reverse_a_lofted_wall_for_each_section_count() {
         let (knots, out) = reverse_a_lofted_wall(k, 0.7);
         println!("E2E spacing 0.7 k={k}: knots_v = {knots:?} -> {:?}", out);
     }
+}
+
+/// The unit's own fixture, verbatim (`reversal_tests::symmetric`).
+fn unit_fixture() -> NurbsSurface<f64> {
+    const NET: [(f64, f64, f64); 15] = [
+        (0.0, 0.0, 0.0),
+        (1.0, 2.0, -1.0),
+        (2.0, -1.0, 3.0),
+        (3.0, 1.0, -2.0),
+        (4.0, 0.5, 1.0),
+        (0.5, 3.0, 1.0),
+        (1.5, -2.0, 2.0),
+        (2.5, 2.0, 0.0),
+        (3.5, 0.0, 3.0),
+        (4.5, 1.0, -1.0),
+        (1.0, -1.5, 2.5),
+        (2.0, 0.0, -3.0),
+        (3.0, 2.5, 1.5),
+        (4.0, -1.0, 0.0),
+        (5.0, 1.5, 2.0),
+    ];
+    const WEIGHTS: [f64; 15] = [
+        1.0, 2.0, 0.5, 4.0, 1.5, 0.25, 3.0, 1.0, 2.5, 0.75, 1.25, 0.5, 2.0, 1.0, 3.5,
+    ];
+    NurbsSurface::new(
+        KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.25, 0.75, 1.0, 1.0, 1.0], 2).unwrap(),
+        NET.iter().map(|(x, y, z)| Point3::new(*x, *y, *z)).collect(),
+        WEIGHTS.to_vec(),
+    )
+    .unwrap()
+}
+
+/// **P6.** The unit's pin is "≤ 4 ulps, worst 2" over 35 points. On the
+/// SAME fixture over a dense dyadic grid: the worst ulps, the worst
+/// absolute gap, the worst ulps where the coordinate is not near zero —
+/// and whether the v-basis rows are mirror images bit for bit (if they
+/// are, summation order is the whole story; if not, it is not).
+#[test]
+fn p6_ulp_band_on_the_units_fixture_and_the_basis_mirror() {
+    let s = unit_fixture();
+    let r = s.reversed_v().unwrap();
+    let n = 128;
+    let (mut worst_ulps, mut worst_abs, mut worst_floored) = ((0i64, 0.0, 0.0, 0.0), (0.0f64, 0.0, 0.0), (0i64, 0.0, 0.0));
+    for i in 0..=n {
+        for j in 0..=n {
+            let (u, v) = (i as f64 / n as f64, j as f64 / n as f64);
+            let got = r.eval(u, v);
+            let want = s.eval(u, 1.0 - v);
+            for (g, w) in [(got.x, want.x), (got.y, want.y), (got.z, want.z)] {
+                let ul = ulps(g, w);
+                if ul > worst_ulps.0 {
+                    worst_ulps = (ul, u, v, w);
+                }
+                let ab = (g - w).abs();
+                if ab > worst_abs.0 {
+                    worst_abs = (ab, u, v);
+                }
+                if w.abs() >= 0.5 && ul > worst_floored.0 {
+                    worst_floored = (ul, u, v);
+                }
+            }
+        }
+    }
+    println!(
+        "P6 unit fixture, {n}×{n} dyadic grid: worst {} ulps at ({}, {}) where the coordinate is {:e}; worst |gap| {:e} at ({}, {}); worst ulps with |coord| ≥ 0.5: {} at ({}, {})",
+        worst_ulps.0, worst_ulps.1, worst_ulps.2, worst_ulps.3, worst_abs.0, worst_abs.1, worst_abs.2, worst_floored.0, worst_floored.1, worst_floored.2
+    );
+    // Are the v-basis rows mirror images, bit for bit?
+    let kv = s.knots_v();
+    let (mut mismatched, mut checked) = (0usize, 0usize);
+    let mut first = None;
+    for j in 0..=n {
+        let v = j as f64 / n as f64;
+        let a = geom_core::spline::basis::basis_funs(kv.span_at(v), v);
+        let b = geom_core::spline::basis::basis_funs(kv.span_at(1.0 - v), 1.0 - v);
+        let mirrored: Vec<f64> = b.iter().rev().copied().collect();
+        checked += 1;
+        if a.iter().zip(&mirrored).any(|(x, y)| x.to_bits() != y.to_bits()) {
+            mismatched += 1;
+            if first.is_none() {
+                first = Some((v, a.clone(), mirrored.clone()));
+            }
+        }
+    }
+    println!("P6 basis mirror: {mismatched} of {checked} v samples have a row that is NOT the bitwise mirror; first: {first:?}");
 }
