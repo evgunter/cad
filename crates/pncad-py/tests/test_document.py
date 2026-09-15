@@ -820,6 +820,32 @@ class TestStepExport(unittest.TestCase):
             import_step(header)
         self.assertNotEqual(caught.exception.variant, "syntax")
 
+    def test_the_import_tolerance_is_the_callers_to_override(self):
+        """`eps_in` is the reading end of the ε `step_string` writes.
+
+        Both halves are asserted, because the door used to pass
+        `ImportOptions::default()` and could only ever report the
+        file's own number: omitted, the report carries what the file
+        declares; given, it carries what the caller asked for — and
+        the two are different numbers here, so a door that ignored the
+        keyword would fail the second assertion rather than pass both.
+        """
+        doc = Doc()
+        box = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        step = evaluate(doc).step_string(box, uncertainty=1e-9 * m)
+        self.assertEqual(import_step(step).eps_in, 1e-9)
+        self.assertEqual(import_step(step, eps_in=1e-6 * m).eps_in, 1e-6)
+
+    def test_a_non_positive_import_tolerance_is_the_importers_refusal(self):
+        """Python pre-checks nothing here either: the rule is the
+        importer's, and its refusal arrives under its own tag."""
+        doc = Doc()
+        box = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        step = evaluate(doc).step_string(box)
+        with self.assertRaises(pncad.StepImportError) as caught:
+            import_step(step, eps_in=0 * m)
+        self.assertEqual(caught.exception.variant, "invalid_eps_override")
+
 
 class TestNoArenaKeysCross(unittest.TestCase):
     """§L3's boundary rule, asserted rather than assumed."""

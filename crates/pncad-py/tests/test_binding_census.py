@@ -1338,11 +1338,17 @@ FAMILIES: dict[str, str] = {
 #:   `BOUND_AS` at that spelling) and whose `message` is the
 #:   exception's message — the resolver's own diagnosis, prose because
 #:   that is what it is.
-#: - *An option struct that became keyword arguments.* `StepOptions` is
-#:   `Evaluation.step_string`'s six keywords, one per field and each
-#:   defaulting to the Rust default — a correspondence the crate's own
-#:   `surface_census` holds to the struct, so this entry cannot go
-#:   back to naming a subset while the record grows; `AsciiOptions` and
+#: - *An option struct that became keyword arguments.* **Every kernel
+#:   options struct that reaches a Python door is held to its door
+#:   field by field by the crate's own `surface_census`** — one
+#:   destructure with no `..` per struct, plus a roster that
+#:   dispositions every field as a keyword or as a written refusal to
+#:   bind one — so no entry here can go back to naming a subset while
+#:   the record grows, and the reasons below are summaries of that
+#:   roster rather than a second copy of it.
+#:
+#:   `StepOptions` is `Evaluation.step_string`'s six keywords, one per
+#:   field and each defaulting to the Rust default; `AsciiOptions` and
 #:   `BinaryOptions` are `Mesh.to_stl_ascii`'s `solid_name=` and
 #:   `Mesh.to_stl_binary`'s `header=`, and their two VALIDATED
 #:   newtypes cross as the `str` those arguments take — `SolidName`
@@ -1352,31 +1358,54 @@ FAMILIES: dict[str, str] = {
 #:   ride `StlError` under `solid_name_*` / `binary_header_*` tags,
 #:   with their arms' payloads projected beside the tag, which is why
 #:   `SolidNameError` and `BinaryHeaderError` are in `BOUND_AS` and
-#:   not in the flattened-payload bullet above; `ImportOptions` is
-#:   `import_step`'s absent second argument; `EvalOptions` is
-#:   `evaluate`'s `resolver=`, the one field of it that changes an
-#:   ANSWER, bound at LIB-G18a — which is also when its memo residue
-#:   left the `gap` roster, and note the memo was never a field of it
-#:   (`prior` is `evaluate`'s own second argument, bound as `prior=`).
-#:   The three fields with no Python spelling are stated rather than
-#:   waved: `epoch` is minted per run and is not a caller's choice;
-#:   `parallel` and `boolean_sweep` are runtime switches the kernel
-#:   documents as ANSWER-PRESERVING and test-facing (`parallel` exists
-#:   so D9's determinism cross-check can compare both schedules in one
-#:   run, `boolean_sweep`'s two paths are bit-identical by the BVH
+#:   not in the flattened-payload bullet above. All three of those
+#:   arguments are OPTIONAL in the `None`-means-the-Rust-default
+#:   sense, not the empty-string sense: the door forwards
+#:   `AsciiOptions::default()`'s name and `BinaryOptions::default()`'s
+#:   producer text rather than re-spelling either.
+#:
+#:   `ImportOptions` is `import_step`'s `eps_in=` — the reading end of
+#:   the ε `step_string` writes as `uncertainty=`. Its second field,
+#:   `declared_contacts`, is the roster's one written refusal here:
+#:   binding it means minting a Python spelling for `ImportContact`,
+#:   which is its own surface work, and the census's decay half is
+#:   what stops that reason outliving the fact.
+#:
+#:   `EvalOptions` is `evaluate`'s `resolver=`, the one field of it
+#:   that changes an ANSWER, bound at LIB-G18a — which is also when
+#:   its memo residue left the `gap` roster, and note the memo was
+#:   never a field of it (`prior` is `evaluate`'s own second argument,
+#:   bound as `prior=`). Its other six fields are stated rather than
+#:   waved, each with its reason in the Rust roster: `epoch` is minted
+#:   per run and is not a caller's choice; `parallel` and
+#:   `boolean_sweep` are runtime switches the kernel documents as
+#:   ANSWER-PRESERVING and test-facing (`parallel` exists so D9's
+#:   determinism cross-check can compare both schedules in one run,
+#:   `boolean_sweep`'s two paths are bit-identical by the BVH
 #:   differential suite's own pin), so no ANSWER is unreachable
-#:   through them. `profile_lift` (M10-P) is a FOURTH such field and
-#:   its argument is a different one, because it is not
-#:   answer-preserving in general: it decides whether profile geometry
-#:   is elaborated at the evaluation's own scalar. What makes it
-#:   unreachable-without-loss here is that Python evaluates at `f64`
-#:   ALONE, and at `f64` the lift is a no-op by construction — guided
-#:   elaboration reproduces the pinned one bitwise, which
-#:   `editor-core`'s `m10_p_lift` suite pins over the whole corpus. The
-#:   field starts changing answers exactly when Python gains a non-f64
-#:   evaluation, and it should gain a spelling in the same unit that
-#:   brings one. A PERFORMANCE door — "evaluate this in parallel" —
-#:   would be a new unit and a new entry, not this one.
+#:   through them. The last three are unreachable for a different
+#:   argument each, and none of the three is "f64 cannot do it":
+#:
+#:   `param_box` (E6) IS reachable at `f64` and from Python — the MC
+#:   lane evaluates under a box and `monte_carlo` is its door — but
+#:   only the DEGENERATE form, the point sample `AxisScalar for f64`
+#:   admits. What `evaluate` cannot ask for is a box with WIDTH, which
+#:   needs a scalar carrying a bracket. `seed` (E4) is its twin with no
+#:   degenerate form at all: a tangent needs a scalar that carries one,
+#:   and `f64` does not. `profile_lift` (M10-P) is not
+#:   answer-preserving in general — it decides whether profile geometry
+#:   is elaborated at THIS evaluation's parameters instead of the
+#:   nominal `f64` pass's — and what makes it unreachable-without-loss
+#:   *here* is that this door's box is always the nominal one, which is
+#:   the entry above rather than a fact about `f64`: `editor-core`'s MC
+#:   lane sets `Guided` at `f64` precisely because its box is not
+#:   nominal.
+#:
+#:   All three gain spellings alongside an evaluation door that can
+#:   carry a box with width; no row schedules one, and
+#:   `surface_census.rs` is where each reason is written and decayed. A
+#:   PERFORMANCE door — "evaluate this in parallel" — would be a new
+#:   unit and a new entry, not this one.
 #: - *Recourse and deferral sentences.* `CONTACT_RECOURSE`,
 #:   `FIT_DEFERRAL`, `SEL_DATUM_DISTANCE` and `REGENERATE_RECOURSE`
 #:   are the prose a Rust refusal cites; Python's refusals carry theirs
@@ -1955,16 +1984,18 @@ NOT_BOUND = {
     # element type and a Rust caller could not: the import-side
     # declaration channel was callable and not FILLABLE. That defect
     # is a Rust one and it does not reproduce here, which is why this
-    # entry is `different-shape` rather than a gap. It follows its
-    # carrier one bullet above — `ImportOptions` is `import_step`'s
-    # absent second argument — and an element type of an absent
-    # argument has strictly less to cross than the argument does.
+    # entry is `different-shape` rather than a gap.
     #
-    # Read this entry beside `import_step` if that second argument is
-    # ever bound: at that moment `ImportContact` needs a Python
-    # spelling of its own (a constructor for the position anchor), and
-    # this row stops being honest in exactly the shape the
-    # `EvalOutcome` entry above records.
+    # Its carrier IS bound now — `ImportOptions` crosses as
+    # `import_step`'s `eps_in=` — and this row is the one field that
+    # did not come with it: a list keyword whose elements a caller
+    # cannot build would be a door onto nothing, so the surface census
+    # records the refusal to bind it, with the reason, and decays that
+    # reason against the door's own keywords. Binding it is what makes
+    # this entry stop being honest, in exactly the shape the
+    # `EvalOutcome` entry above records: at that moment
+    # `ImportContact` needs a Python spelling of its own, a
+    # constructor for the position anchor.
     "ImportContact": SHAPE,
     "InterrogateError": SHAPE,
     "LineTarget": SHAPE,

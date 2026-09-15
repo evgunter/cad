@@ -3941,20 +3941,24 @@ class Mesh:
         polyline's POSITION here is the handle
         `NodePick.boundary_names` inverts, entry for entry."""
 
-    def to_stl_ascii(self, solid_name: str = "") -> str:
+    def to_stl_ascii(self, solid_name: Optional[str] = None) -> str:
         """The ASCII STL text, `solid <name>` first line.
 
         The name is validated, not sanitized: a character outside the
         printable ASCII the single-line grammar admits raises
-        `StlError`."""
+        `StlError`. Omitted, it is the Rust default — the generic part
+        name `AsciiOptions` carries, so the file this door writes with
+        no arguments is the file a Rust caller gets with none."""
 
-    def to_stl_binary(self, header: str = "") -> bytes:
+    def to_stl_binary(self, header: Optional[str] = None) -> bytes:
         """The binary STL bytes.
 
         `header` is the 80-byte header field's free text —
         conventionally the producer. A header that does not fit, or
         that would make the file sniff as ASCII STL, raises
-        `StlError` rather than being truncated or written."""
+        `StlError` rather than being truncated or written. Omitted, it
+        is the Rust default — the producer text `BinaryOptions`
+        carries, not 80 zero bytes."""
 
 class Datum:
     @property
@@ -5750,12 +5754,19 @@ def subject_body(
     through its value, and a declared boolean's own certified seam is
     not reported here as an undeclared contact."""
 
-def import_step(text: str) -> ImportReport:
+def import_step(text: str, *, eps_in: Optional[Length] = None) -> ImportReport:
     """Parse a STEP text with the kernel's importer and adopt its
     solid, answering the whole report: `.body`, the gate's own
     `.enclosure` of it, and what the adoption changed.
 
     Reading `.enclosure` measures the import once — the gate already
-    ran that quadrature. Raises StepImportError, typed."""
+    ran that quadrature. Raises StepImportError, typed.
+
+    `eps_in` overrides the file's declared
+    `UNCERTAINTY_MEASURE_WITH_UNIT` as the import's input tolerance —
+    the reading end of the ε `Evaluation.step_string` writes as
+    `uncertainty`. Omitted, the file's own declaration is read; an
+    explicit one that is not finite and strictly positive is a
+    `StepImportError` with `variant == "invalid_eps_override"`."""
 
 __build_info__: Final[dict[str, Any]]
