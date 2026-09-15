@@ -6116,12 +6116,11 @@ fn the_whole_tag_table_matches_its_committed_inventory() {
          it is matching almost nothing, so this guard was about to pass \
          vacuously"
     );
-    // No floor on `constants`: `src/tags.rs` declares no `pub const`
-    // tag word today, so a floor here would assert a shape the file
-    // does not have. The branch that reads that form is exercised by
-    // `the_tag_table_reader_recognises_every_form_it_claims` instead,
-    // which is where an unexercised reader branch belongs once the
-    // file stops supplying an instance of it.
+    // No floor on `constants`, and it is not wanted: a floor exists to
+    // catch a reader that matched almost nothing over a population too
+    // big to enumerate, and `TAG_CONSTS` IS the enumeration — every
+    // const is named there, so the loop below reports a missing one by
+    // name rather than as a count that drifted.
 
     let mut pinned: BTreeMap<&str, &TagEntry> = BTreeMap::new();
     for entry in TAG_INVENTORY {
