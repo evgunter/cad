@@ -2,9 +2,10 @@
 id: pncad-py-eval-err-variants-outside-the-tag-inventory
 kind: unit
 title: TAG_INVENTORY cannot see a refusal variant minted at an eval_err call site, and measure_unavailable is pinned nowhere
-status: review
+status: closed
 opened: 2026-09-04
 branch: census/tag-reach
+closed: 2026-09-15
 ---
 
 
