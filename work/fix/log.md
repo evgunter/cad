@@ -2688,3 +2688,44 @@ also carries the question this one was obscuring — whether two guards
 that have never fired earn their ~230 lines — stated without
 prejudging it, because a cheap guard against a SILENT class is often
 worth keeping unfired.
+
+## Announced seam from WIRE (2026-09-15)
+
+WIRE's `nobodyroots-classification-has-two-homes` gave the
+empty-document reading of a gather refusal ONE home:
+`ProductErrorKind::means_no_body` in
+`crates/editor-core/src/product.rs` (WIRE's), with the argument moved
+onto it. A predicate with no caller would be the very defect this
+program has an open row for
+(`work/wire/frame-linear-generic-door-has-no-consumers.md`), so the
+consumers that re-derived the partition now cite it. Four did; the two lines below are yours.
+
+**`crates/editor-core/src/checks.rs` (FIX's), two lines.**
+
+- `run_checks`'s gather match: `Err(product::ProductError::NoBodyRoots)
+  => Subject::NoBodyRoots` becomes a guard,
+  `Err(ref source) if source.kind().means_no_body() =>
+  Subject::NoBodyRoots`. Same routing, same arm.
+- `Subject`'s doc comment, the `Subject::NoBodyRoots` bullet: *"an
+  empty document, or one holding only sketches and datums. Not a
+  failure to run the registry"* becomes a citation of
+  `product::ProductErrorKind::means_no_body`. The rest of the
+  bullet — what a resident that needs a body does, and what
+  connectedness does — is the REGISTRY's own consequence and is
+  untouched.
+
+**No signature moved.** `product_badge`, `run_checks`,
+`DocSession`'s landing and `checks_report` keep their signatures,
+their arms and their behaviour — `means_no_body` is true of exactly
+`NoBodyRoots` and of nothing else, which this lane pins as a census
+test over `product::tests::every_arm`. The doc/comment edits replace a
+re-argument of the shared classification with a citation of it and
+leave every site-specific sentence standing (the viewer's three
+per-node arms stay the viewer's chrome policy, argued where they are).
+
+Filed while sweeping, on FIX's slate:
+`work/fix/subject-refused-accepts-the-one-refusal-that-must-not-go-through-it.md`
+— `Subject::refused` is public and takes the one arm that must not
+reach `Subject::Unavailable`.
+
+Signed (WIRE implementer lane `wire-n1`, PR #2629).

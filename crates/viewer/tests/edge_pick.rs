@@ -31,7 +31,7 @@ use viewer::camera::Camera;
 use viewer::display::DisplayView;
 use viewer::input::{PickAction, ViewportSize};
 use viewer::marks;
-use viewer::pickindex::{EDGE_PICK_RADIUS_PX, EdgeId, PickIndex, PickKinds};
+use viewer::pickindex::{EDGE_PICK_RADIUS_PX, EdgeId, PickIndex, PickKinds, PictureKey};
 use viewer::scene::{self, PLATE_EXTENT, PLATE_HOLE_RADIUS};
 use viewer::session::{DocSession, EdgeSelection, Hovered, Selection, SessionOp};
 
@@ -66,7 +66,13 @@ fn index_of(session: &DocSession) -> PickIndex {
     let generation = session
         .landed_generation()
         .expect("a landed evaluation has a generation");
-    PickIndex::build(doc, eval, generation, delta(), session.tol()).expect("the plate indexes")
+    PickIndex::build(
+        doc,
+        eval,
+        PictureKey::of(generation, delta()),
+        session.tol(),
+    )
+    .expect("the plate indexes")
 }
 
 /// The landed evaluation, for the doors that take one.

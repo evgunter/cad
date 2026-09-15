@@ -1,6 +1,6 @@
 ---
 id: member-space-look-through-stops-at-splits-containment-and-fragmented-merges
-kind: issue
+kind: ruling
 title: A member-space declaration resolves through merges only: a face consumed by a split, by containment, or inside a fragmented merged row is still order-shaped
 status: open
 opened: 2026-09-07
@@ -70,3 +70,36 @@ claim (`work/README.md`). Any `## Home` section above is superseded by
 this line and is kept as the record of why the file was where it was.
 
 (At DOCM's exit sweep, `refs` names the PRs `DOCM-8` stood for: `DOCM-8` = #2073 — the unit rows left the tracker with `work/docm/`; `docs/DOC-LEDGER.md` sweep 14.)
+
+## Read against the tree (2026-09-15) — verbatim still true, and re-kinded `ruling`
+
+Read by the WIRE orchestrator before dispatch. `look_through_merges`
+(`crates/editor-core/src/eval/wire.rs`) is unchanged in the respect this
+row is about: its search is
+
+```rust
+[RoleSeg::Merged(set)] if names::merged::covers(set, name) => Some(row)
+```
+
+over the accumulation table — **bare `Merged` rows only**, with an
+explicit guard above it rejecting anything whose path is not exactly
+`[FromMember { .. }]`. A `[Merged(set), Fragment(q)]` row matches
+neither, exactly as the row says. The two-matches arm refuses
+`MEMBER_FACE_IN_TWO_MERGES`, which is a fourth shape the row does not
+mention and which a taker should fold into the same question.
+
+**Re-kinded from `issue` to `ruling`.** The row already contains the
+argument for it and states the conclusion in its own last sentence:
+*"Any of the three is a design ruling on what a member-space declaration
+means for a face that is no longer one face."* It also proves no lane
+can close it — a membership test cannot answer which fragment a member
+face's material ended in, and the geometric re-measurement that could is
+the one DM4's routing step forbids. A row a lane cannot close is not a
+unit, and leaving it `kind: issue` on the slate made it look dispatchable
+to anyone reading the board.
+
+**Not blocked on it:** the emitter's misclassification of these shapes as
+`Emission` (a kernel bug by definition) is separable and takeable now —
+see `two-emitter-refusals-a-legal-declared-union-reaches`. That unit runs
+first regardless of how this ruling lands, and the fragmented-merge case
+is unreachable until it does.

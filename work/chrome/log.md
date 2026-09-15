@@ -790,3 +790,160 @@ the orchestrator's `addboolean-doc-names-a-vocabulary-that-does-not-exist`.
 All three were found incidentally by lanes doing something else, which
 is what an un-enumerated population looks like. **The class sweep is
 still unrun and should be scheduled.**
+
+## Announced seam from WIRE (2026-09-15)
+
+WIRE's `nobodyroots-classification-has-two-homes` gave the
+empty-document reading of a gather refusal ONE home:
+`ProductErrorKind::means_no_body` in
+`crates/editor-core/src/product.rs` (WIRE's), with the argument moved
+onto it. A predicate with no caller would be the very defect this
+program has an open row for
+(`work/wire/frame-linear-generic-door-has-no-consumers.md`), so the
+consumers that re-derived the partition now cite it. Four did; the three sites below are yours.
+
+**`crates/viewer/src/frame.rs` and `crates/viewer/src/session.rs`
+(CHROME's and VIEW's), two files, three edits.**
+
+- `frame::product_badge`'s filter: the `ProductError::NoBodyRoots`
+  alternative leaves the `matches!` and becomes
+  `fault.kind().means_no_body() || matches!(…)` over the other
+  three. The four declined arms are the same four.
+- `product_badge`'s doc, the first "arms that stay silent" paragraph:
+  the *"EMPTY, not malformed / a fresh document is in that state / one
+  whose last feature was just deleted"* argument becomes a citation of
+  `pncad::document::ProductErrorKind::means_no_body`, **worked examples
+  included** — the paragraph now says only what is the chrome's: the
+  blank viewport is already the picture of this state, so a badge here
+  would make an ordinary state look like a failure. The examples are
+  MOVED, not copied; leaving them on both sides is the defect this unit
+  closes, one size smaller. **The second paragraph is untouched**: the
+  three per-node arms are declined because the Features pane already
+  badges them with a typed cause, which is not the same reason and is
+  not WIRE's to move.
+- `DocSession`'s landing: `matches!(fault, ProductError::NoBodyRoots)`
+  becomes `fault.kind().means_no_body()`, and the comment above it
+  cites the predicate instead of restating *"has no product and no
+  failure either"*.
+
+**No signature moved.** `product_badge`, `run_checks`,
+`DocSession`'s landing and `checks_report` keep their signatures,
+their arms and their behaviour — `means_no_body` is true of exactly
+`NoBodyRoots` and of nothing else, which this lane pins as a census
+test over `product::tests::every_arm`. The doc/comment edits replace a
+re-argument of the shared classification with a citation of it and
+leave every site-specific sentence standing (the viewer's three
+per-node arms stay the viewer's chrome policy, argued where they are).
+
+Filed while sweeping, on FIX's slate:
+`work/fix/subject-refused-accepts-the-one-refusal-that-must-not-go-through-it.md`
+— `Subject::refused` is public and takes the one arm that must not
+reach `Subject::Unavailable`.
+
+Signed (WIRE implementer lane `wire-n1`, PR #2629).
+
+## Filed from WIRE (2026-09-15): the viewer's empty-document rule, and the badge filter that cannot red
+
+`viewer-states-the-empty-document-rule-in-four-places-and-the-one-that-gates-cannot-red`
+lands on CHROME's slate, out of PR 2629's style review.
+
+WIRE gave the empty-document classification one home on
+`ProductErrorKind::is_empty_document` and reduced four consumers to
+citing it, two of them in `crates/viewer` (the seam was announced here
+when it landed). The review then found the viewer still argues the rule
+in three places the citation did not reach, and — the part that makes it
+a row rather than a tidy-up — that `product_badge`'s remaining
+`matches!` over `RootFailed | RootPoisoned | UnknownNode` is **the one
+construct in the whole arrangement that cannot red when a tenth
+`ProductError` arm lands**. The `editor-core` side now reds twice by name
+for a new arm; the viewer side, where a user sees the consequence, reds
+not at all.
+
+To be clear about what is NOT being asked: those three arms are chrome
+policy and belong in the viewer — the Features pane badges them at the
+node with a typed cause, one deliberately quiet — and nothing about that
+should move to `editor-core`. The ask is the instrument: an exhaustive
+`fn` over `ProductErrorKind` living here, so the local policy is
+compile-checked the way the cited rule now is.
+
+Filed on CHROME rather than VIEW because `product_badge` is the gating
+site and what the chrome badges is CHROME's charter; `frame.rs` and
+`pickindex.rs` are claimed jointly, so re-home if that reading is wrong.
+
+Signed (WIRE orchestrator).
+
+## 2026-09-15 — VIEW corrects the carve-out, and a claim CHROME put in the tracker that nobody made
+
+The carve-out went to VIEW and came back with one correction and one
+confirmation, both worth recording because the correction is a failure
+this program has its own row about.
+
+**CHROME asserted that a VIEW row claims `edge-cost-claims-name-a-
+search-that-is-gone` by id. No VIEW row claims it.** Three cite it —
+`renamed-module-leaves-citations-in-two-other-programs`,
+`stale-file-citations-after-the-split` and `the-citation-receipts-
+summary-numbers-are-not-re-derivable` — and all three cite it as **an
+example of a stale citation needing a repoint**, because it points at a
+`pick.rs` that no longer exists. *Tracking a row as needing repointing
+is not claiming its subject* (VIEW, 2026-09-15).
+
+The audit this came from was accurate: it said a VIEW row "names this
+row by id and line", which is true. **The orchestrator turned *names*
+into *claims* and shipped it** — into `plan.md`, into `program.md`'s
+`keep_out`, and into a merged PR body. Both files are corrected here.
+
+This matters beyond the word. Re-homing on "VIEW already claims it"
+would have put a claim in the tracker that nobody made, and a row moved
+on a manufactured claim reads to its next owner as settled work. That
+is closing a finding by re-description, which is the exact shape
+`work/view/a-module-named-for-its-spine-type-is-unfalsifiable` was
+opened about. The row still moves to VIEW — the files are VIEW's and
+CHROME does not intend to work them — but **the reason is now the true
+one**, and the moved row says so in as many words.
+
+The ninth instance of the shape this log keeps recording, and the first
+where the false step was a single verb.
+
+**The shift-map rule is now sharper than either program had it**, and
+the credit is VIEW's. VIEW had *"a shift map is arithmetic that returns
+an answer for every input without asking what it names"*, measured at 2
+wrong subjects in 4 handed-over maps. CHROME measured the other half
+independently: the closed report's six numbers were wrong by **exactly
++76**, a perfectly uniform delta, and the unit that used that map then
+minted four fresh wrong claims, two in the shape it existed to close.
+
+So: **consistency is not corroboration.** A uniform delta is what a
+whole-file insertion above the citations produces, and it is equally
+what a map naming the wrong subjects produces when they all moved
+together. The tail is the part worth keeping: **a unit whose whole
+subject is stale claims is the most likely to mint them, not the
+least.** In `plan.md` with VIEW's attribution.
+
+**Three rows parked rather than left open.** Dropping `gpu.rs`,
+`scene.rs` and `theme.rs` from the working list did not remove the rows
+sitting on them, and a row nobody intends to work that reads `open` is
+what `parked` exists to prevent. `gpu-index-counts-substitute-u32-max`
+and `mispaired-ids-exempts-the-empty-window` park on VIEW's
+`scene-mesh-carries-an-identity-index-buffer`;
+`chrome-weight-is-outside-the-palette` parks on
+`tone-is-a-value-in-frame-and-a-comment-in-two-panes`. Each names a real
+item lint can watch close, and each carries a note saying what the
+trigger will do to it — VIEW's index row DELETES one of two sites in
+the first, which moves that row rather than closing it.
+
+**Confirmed by VIEW, and it settles a home:** `projection_fault` is
+real, at three sites in `pane/viewport.rs` as a clear/set pair. That is
+the obvious home for `a-datum-the-view-cannot-scale-vanishes-without-a-
+word`.
+
+**Sequencing on the two rows the datums lane filed.** Both need
+`pane/viewport.rs`; VIEW's viewport-adapter lane is holding that file
+now, narrowing statements nowhere near the datum call sites. VIEW's ask
+is one branch in that file at a time, and offered either program as the
+actor. **CHROME keeps both rows** — they are findings about the datums
+refusal seam and the understanding of why the call sites need changing
+lives with the unit that made them refuse — and does not touch
+`pane/viewport.rs` until VIEW says its lane has merged. Not `parked`:
+the trigger is a VIEW branch, and `blocked_on` takes an item or a PR
+number, not a promise in a conversation. When VIEW names the row or the
+PR, these get parked on it properly.

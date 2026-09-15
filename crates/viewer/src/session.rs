@@ -1046,11 +1046,14 @@ impl DocSession {
                 // it, and a viewport that draws the parts without ever
                 // asking would render a body nothing says is wrong.
                 //
-                // A document with no body-denoting root has no product
-                // and no failure either: the registry still runs, over
-                // the subject that says so. Every other refusal leaves
-                // the report absent, which is "not checked".
-                let checks = matches!(fault, ProductError::NoBodyRoots)
+                // A refusal that `ProductErrorKind::means_no_body`
+                // reads as an absence is the one the registry still
+                // runs over, on the subject that says so. Every other
+                // refusal leaves the report absent, which is "not
+                // checked".
+                let checks = fault
+                    .kind()
+                    .means_no_body()
                     .then(|| {
                         run_checks_on(doc, &done.evaluation, Subject::NoBodyRoots, &cfg, self.tol)
                             .ok()
