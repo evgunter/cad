@@ -16,9 +16,7 @@ use topo::{Body, EdgeKey, FaceKey, Provenance, VertexKey};
 
 use super::defer::{TieRows, Upstream, put, upstream_name};
 use super::discriminate::{Extent, band, order_along, side_of_face};
-use super::emit::{
-    Incidence, NamingError, edge_ends, ent, face_half_edges, name1, unique_shared_edge,
-};
+use super::emit::{Incidence, NamingError, edge_ends, ent, face_half_edges, name1, shared_rim};
 use super::merged::{self, NESTED_MERGED};
 use super::role::{EntityKind, NameRef, Qualifier, RoleSeg, SplitHalf, StableName};
 use super::table::{EntityKey, Entry, NameTable};
@@ -875,11 +873,31 @@ fn name_boolean_edges<T: Decide>(
             (Descent::B(_), Descent::A(_)) => {
                 ChordKind::Cross(operand_face_name(d1)?, operand_face_name(d0)?)
             }
+            // The premise this caller is asking under: it did not
+            // build these bodies, it DESCENDED two result faces into
+            // one of them and guesses the pair carries this chord's
+            // rim. A pair that turns out not to have one rim refutes
+            // the guess, not the body — so the answer is classified
+            // here rather than at the walk.
             (Descent::A(fa0), Descent::A(fa1)) => {
-                ChordKind::SameA(unique_shared_edge(a.body, fa0, fa1)?)
+                ChordKind::SameA(shared_rim(a.body, fa0, fa1)?.map_err(|found| {
+                    NamingError::SharedRim {
+                        node: a.node,
+                        face: fa0,
+                        other: fa1,
+                        found,
+                    }
+                })?)
             }
             (Descent::B(fb0), Descent::B(fb1)) => {
-                ChordKind::SameB(unique_shared_edge(b.body, fb0, fb1)?)
+                ChordKind::SameB(shared_rim(b.body, fb0, fb1)?.map_err(|found| {
+                    NamingError::SharedRim {
+                        node: b.node,
+                        face: fb0,
+                        other: fb1,
+                        found,
+                    }
+                })?)
             }
         })
     };
@@ -1266,6 +1284,24 @@ fn name_boolean_vertices<T: Decide>(
                 put(t, tie, from_tie, name, ent(0, EntityKey::Vertex(v)))?;
                 continue;
             }
+            // WITNESSED, and the arm is written to the witness. An
+            // ordinary declared union reaches exactly this shape: one
+            // operand-descended edge on the A side, none on the B side,
+            // and — everything above having already run — no single B
+            // face and no contact-record partner to supply the other
+            // parent. The vertex is half-decided, the body is sound and
+            // the recipe is legal, so what is missing is a rule.
+            //
+            // Its mirror (`([], [_], None, _)`) is NOT here. The fold is
+            // not symmetric in A and B — A is the accumulated body, B
+            // the incoming member — so the mirror is a separate claim
+            // and nobody has reached it.
+            ([_], [], _, _) => return Err(NamingError::SeamVertexParentage { vertex: v }),
+            // The unenumerated residue, which stays an emission bug. A
+            // catch-all is the preimage of every case nobody has named
+            // — `a_edges.len() >= 2 && b_edges.len() >= 2` among them —
+            // and a shape nobody has reached is not a shape known to be
+            // legal.
             _ => {
                 return Err(bug(
                     "seam vertex parentage underdetermined from incident edges",

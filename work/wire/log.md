@@ -5294,3 +5294,104 @@ its numbers are on the row now. **Report what you measured, or report
 that you did not measure.**
 
 Signed (`wire-t1`).
+---
+
+## 2026-09-15 — `wire-e2`: two emitter refusals a legal declared union reaches
+
+`work/wire/two-emitter-refusals-a-legal-declared-union-reaches.md` →
+`review`.
+
+**The measurement is the unit.** `NamingError::Emission` says a
+mint-time fact disagreed with the result body — a kernel bug by
+definition. I took the row's five candidate sites (the four `bug(...)`
+arms of `unique_shared_edge` plus `emit_topo`'s seam-vertex catch-all),
+re-took the row's reproducers on `origin/main`, and swept the whole
+workspace test suite with each arm temporarily instrumented. Two sites
+are reached from ordinary declared unions; one is refuted on a body that
+`topo::validate_closed` accepts; three are dangling-key arms nothing in
+the tree reaches.
+
+**Landed vocabulary: two sibling variants**, on
+`FragmentLineage`'s own test (a sibling word when the two name different
+structures to go and read). `SeamVertexParentage { vertex }` and
+`SharedRim { node, face, other, found: RimShare }` — the second's two
+failure modes are ONE fact with a typed discriminant rather than two
+words, which holds because the classification lives at the CALLER, so
+the variant has one construction site and one premise. Both open with a framing sentence written once,
+`UNRULED_FRAMING`, which is deliberately not a reworded `EMISSION_FRAMING`:
+they say opposite things about whose fault the failure is.
+
+**What I did not do**: no naming rule. What a member-space declaration
+means for a face that is no longer one face stays with
+`member-space-look-through-stops-at-splits-containment-and-fragmented-merges`,
+and the re-classification is correct under either answer. The
+fragmented-merge shape still refuses at step 2 of the same fold — it now
+refuses as `SharedRim`, not as `Emission`, which is the fact that row is
+waiting on.
+
+**Filed elsewhere**:
+`work/wire/seam-junction-vertex-name-cannot-be-collapsed-by-the-union-fold.md`
+— a third reachable refusal the sweep turned up, and the one that is
+NOT a misclassification: `emit_topo` mints a seam-junction vertex name
+whose path is k ≥ 2 `Seam` segments, and `emit_union::collapse` refuses
+any tail segment that is not a `Fragment`. Two halves of one emitter
+disagreeing about a shape one of them mints. Left `Emission`, correctly.
+
+Signed (`wire-e2`).
+
+### 2026-09-15 — `wire-e2`, review round 1 (two MAJORs, both upheld)
+
+**MAJOR 1 — the classification belonged to the predicate, not to the
+caller.** `shared_rim` (was `unique_shared_edge`) has three production
+call sites under TWO premises. `emit_topo`'s chord derivation did not
+build the body it asks about: it descends two result faces into an
+operand and GUESSES the pair carries the chord's rim, which a later
+split can legitimately refute. `emit_sweep`'s cap rims did build theirs,
+where a wall meets each cap along one edge by construction and any other
+answer is a contradicted key bundle — `emit_sweep`'s own `UNRESOLVED`
+const argues exactly that for the sibling derivation, in the same file,
+ten lines above the call. Round 1 shipped the missing-rule sentence over
+both, so a corrupt extrude or loft would have rendered *"the result body
+is sound"* and nothing would have gone red.
+
+**The repair, which is a mechanism no round has seen**: the walk now
+RETURNS the cardinality (`Result<Result<EdgeKey, RimShare>, NamingError>`)
+and each caller classifies under its own premise —
+`CAP_RIM_CONTRADICTED` (an `Emission`, `UNRESOLVED`'s twin) in
+`emit_sweep`, `SharedRim` in `emit_topo`. Structural corruption still
+refuses inside the walk, because that IS about the body and not about
+anybody's premise. Chosen over a premise parameter or two predicates
+because it is the only one of the three where the walk cannot express a
+classification at all.
+
+Same defect, same cause, at the seam-vertex `_ =>`: a nine-arm match's
+catch-all is the preimage of every unenumerated shape, and round 1 gave
+the whole preimage a sentence witnessed on one member. The witnessed
+shape is now its own arm (`([_], [], _, _)` — one A-descended edge, none
+on B, nothing else naming the missing parent) and the residue keeps
+`Emission`. The mirror is deliberately NOT included: the fold is not
+symmetric in A and B, so it is a separate claim nobody has reached.
+
+**MAJOR 2 — `UNRULED_FRAMING` shipped with two runs of 32 spaces in it**,
+in the one sentence this unit exists to write, and all three assertions
+were `contains(UNRULED_FRAMING)` — the constant against itself, which
+passes for any content. The literal is a `concat!` now, one test pins
+both framings as WORDS, and every rendered sentence is asserted free of
+a padded run.
+
+**S8 — the census had a hole where it was looking.** `shared_rim` opens
+with `face_half_edges`, so its refusal set is eight arms, not five, and
+the missing one — `"face walk: dangling face"` — is the arm a stale face
+key from a caller would hit, the exact hypothesis under test. Re-measured
+all eight.
+
+**S1** — category membership was held by hand at three places with
+nothing tying them. An exhaustive `expected_framing` match in the test
+now ties variant → framing and asserts the other framing is absent, so a
+not-a-bug variant that writes `EMISSION_FRAMING` no longer compiles-and-
+passes.
+
+Verified green on hosted run `35023772205` (39 jobs, 33 success, 6 skipped,
+twelve `test (…)`, five `k-lint (gate, …)`, python suite green).
+
+Signed (`wire-e2`).
