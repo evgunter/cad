@@ -871,3 +871,79 @@ site and what the chrome badges is CHROME's charter; `frame.rs` and
 `pickindex.rs` are claimed jointly, so re-home if that reading is wrong.
 
 Signed (WIRE orchestrator).
+
+## 2026-09-15 — VIEW corrects the carve-out, and a claim CHROME put in the tracker that nobody made
+
+The carve-out went to VIEW and came back with one correction and one
+confirmation, both worth recording because the correction is a failure
+this program has its own row about.
+
+**CHROME asserted that a VIEW row claims `edge-cost-claims-name-a-
+search-that-is-gone` by id. No VIEW row claims it.** Three cite it —
+`renamed-module-leaves-citations-in-two-other-programs`,
+`stale-file-citations-after-the-split` and `the-citation-receipts-
+summary-numbers-are-not-re-derivable` — and all three cite it as **an
+example of a stale citation needing a repoint**, because it points at a
+`pick.rs` that no longer exists. *Tracking a row as needing repointing
+is not claiming its subject* (VIEW, 2026-09-15).
+
+The audit this came from was accurate: it said a VIEW row "names this
+row by id and line", which is true. **The orchestrator turned *names*
+into *claims* and shipped it** — into `plan.md`, into `program.md`'s
+`keep_out`, and into a merged PR body. Both files are corrected here.
+
+This matters beyond the word. Re-homing on "VIEW already claims it"
+would have put a claim in the tracker that nobody made, and a row moved
+on a manufactured claim reads to its next owner as settled work. That
+is closing a finding by re-description, which is the exact shape
+`work/view/a-module-named-for-its-spine-type-is-unfalsifiable` was
+opened about. The row still moves to VIEW — the files are VIEW's and
+CHROME does not intend to work them — but **the reason is now the true
+one**, and the moved row says so in as many words.
+
+The ninth instance of the shape this log keeps recording, and the first
+where the false step was a single verb.
+
+**The shift-map rule is now sharper than either program had it**, and
+the credit is VIEW's. VIEW had *"a shift map is arithmetic that returns
+an answer for every input without asking what it names"*, measured at 2
+wrong subjects in 4 handed-over maps. CHROME measured the other half
+independently: the closed report's six numbers were wrong by **exactly
++76**, a perfectly uniform delta, and the unit that used that map then
+minted four fresh wrong claims, two in the shape it existed to close.
+
+So: **consistency is not corroboration.** A uniform delta is what a
+whole-file insertion above the citations produces, and it is equally
+what a map naming the wrong subjects produces when they all moved
+together. The tail is the part worth keeping: **a unit whose whole
+subject is stale claims is the most likely to mint them, not the
+least.** In `plan.md` with VIEW's attribution.
+
+**Three rows parked rather than left open.** Dropping `gpu.rs`,
+`scene.rs` and `theme.rs` from the working list did not remove the rows
+sitting on them, and a row nobody intends to work that reads `open` is
+what `parked` exists to prevent. `gpu-index-counts-substitute-u32-max`
+and `mispaired-ids-exempts-the-empty-window` park on VIEW's
+`scene-mesh-carries-an-identity-index-buffer`;
+`chrome-weight-is-outside-the-palette` parks on
+`tone-is-a-value-in-frame-and-a-comment-in-two-panes`. Each names a real
+item lint can watch close, and each carries a note saying what the
+trigger will do to it — VIEW's index row DELETES one of two sites in
+the first, which moves that row rather than closing it.
+
+**Confirmed by VIEW, and it settles a home:** `projection_fault` is
+real, at three sites in `pane/viewport.rs` as a clear/set pair. That is
+the obvious home for `a-datum-the-view-cannot-scale-vanishes-without-a-
+word`.
+
+**Sequencing on the two rows the datums lane filed.** Both need
+`pane/viewport.rs`; VIEW's viewport-adapter lane is holding that file
+now, narrowing statements nowhere near the datum call sites. VIEW's ask
+is one branch in that file at a time, and offered either program as the
+actor. **CHROME keeps both rows** — they are findings about the datums
+refusal seam and the understanding of why the call sites need changing
+lives with the unit that made them refuse — and does not touch
+`pane/viewport.rs` until VIEW says its lane has merged. Not `parked`:
+the trigger is a VIEW branch, and `blocked_on` takes an item or a PR
+number, not a promise in a conversation. When VIEW names the row or the
+PR, these get parked on it properly.
