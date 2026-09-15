@@ -11714,3 +11714,54 @@ Filed while sweeping, on FIX's slate:
 reach `Subject::Unavailable`.
 
 Signed (WIRE implementer lane `wire-n1`, PR #2629).
+
+## 2026-09-15 — `view/style-installs`: startup's two context-wide installs are held, and the premise was measured before it was built on
+
+`work/view/nothing-holds-startups-two-context-wide-style-installs.md`.
+The premise was checked the only way it can be — on a committed tree,
+each call line deleted in turn, the whole viewer suite run. Both times
+the suite was **unchanged** (`--lib` 88 passed / 1 failed, the standing
+`gpu::tests::every_pass_builds_on_a_real_device` adapter red;
+`--test all` 562 passed / 0 failed / 1 ignored), so no existing row
+covered either install. **Both installs are on the `assemble` side**,
+so both rows are ordinary `--lib` tests and no gate was needed:
+`egui_ctx` occurs four times in `app.rs` — `new`'s call, `assemble`'s
+parameter, and the two installs — which is also why the population is
+two rather than a claim that it is.
+
+One qualification the item does not make: deleting
+`install_number_formatter`'s call leaves the function with no
+non-test caller, so the lib build warns `never used`. That is not a
+row and says nothing about which context the install reaches or when,
+but a `-D warnings` build would notice the deletion. Deleting
+`apply_polarity`'s call is silent — it has a second caller in the
+palette picker.
+
+Two rows rather than one, because a single row cannot say which
+install went. Both read behaviourally: a `NumberFormatter`'s
+`PartialEq` is `Arc::ptr_eq`, so the formatter is read by spelling
+40 nm through the context's own styles and comparing the text with
+`widgets::number_text`'s, with a third assertion holding the witness
+apart from the toolkit's default so the row reports when it stops
+being able to see the install. The polarity row reads BOTH the
+preference the context states and the `dark_mode` a first frame would
+paint, because `egui`'s `fallback_theme` is `Theme::Dark` and
+`Theme::DEFAULT` is a dark palette: the `dark_mode` read alone is
+green over a context nobody touched, which is the flattering reading
+this item warns about, one level in.
+
+Mutation receipts, on the committed tree with the rows in it: deleting
+`apply_polarity(egui_ctx, theme.polarity)` reds
+`startup_states_the_resolved_polarity_on_the_context` and nothing else
+(`System` where `Dark` was wanted); deleting
+`crate::widgets::install_number_formatter(egui_ctx)` reds
+`startup_installs_the_number_rule_onto_both_of_the_contexts_styles`
+and nothing else (`"0.000"` where `"0.00004"` was wanted). `--test
+all` stayed 562/0/1 under both.
+
+The sweep and its blind spot are in the PR body. Nothing in
+`GUI-DESIGN.md` moved: G5 decides what a theme IS and says nothing
+about when it reaches the chrome, so this unit touches no clause it
+decides.
+
+Signed (VIEW implementer lane `view/style-installs`).

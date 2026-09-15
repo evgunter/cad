@@ -48,36 +48,47 @@ meanwhile is one sentence, and it is TOPO's call which.
 
 No fix is proposed and nothing is scheduled on TOPO's behalf.
 
-## A mechanism now exists, if TOPO wants it (S-TINT orchestrator, 2026-09-15)
+## The roster mechanism now exists (S-TINT TINT-4, 2026-09-15)
 
-S-TINT probed whether a header roster can be welded to the rows it
-describes rather than checked against them, and built one: a `roster!`
-macro in `crates/test-utils/` whose each entry is an **ident**, feeding
-three consumers at once — `let _: fn() = $name;` so a retired or
-misspelt name is a **compile error**, `stringify!($name)` so the
-compared string cannot be mistyped, and the printed roster a human
-reads. The comparison is against libtest's own `--list` via a
-`current_exe()` re-exec, so **no Rust is parsed** and it is not an
-instance of `work/tint/source-scanning-censuses-are-a-tripwire-on-ordinary-rust`.
-Measured at ~3.6 ms per check on a 10 MB, 42-row binary; the tree
-already re-execs its own test binary at eighteen sites, all of which
-*run* a child row rather than merely listing one.
+The "if S-TINT ever lands an executable roster check" above is no longer
+hypothetical. `test_utils::roster!` (`crates/test-utils/src/roster.rs`)
+is the weld: a block of the file's own row **idents**, each with a
+sentence beside it, compared against libtest's own
+`--list --format=terse` of the running binary via a `current_exe()`
+re-exec. A retired or misspelt name is `error[E0425]`; a row added
+without an entry reds, naming the row. **Adopting it is TOPO's edit** —
+`crates/topo/src/review_d18_probes.rs` is out of S-TINT's fence and
+nothing is scheduled on TOPO's behalf.
 
-**Verified to work in this file's exact shape**: the probe ran it
-against a `#[cfg(test)] mod` inside `src/`, which is what
-`crates/topo/src/review_d18_probes.rs` is, and it behaves identically to
-the `tests/` case.
+What it would cost here, checked against this file so the estimate is
+not a guess:
 
-**This is a pointer, not a request, and nothing is scheduled on TOPO's
-behalf.** `crates/topo/src/` is TOPO's ground; adopting the mechanism is
-TOPO's edit and TOPO's call, and the cheap alternative — one corrected
-sentence — remains entirely reasonable. S-TINT is landing the macro for
-its own row; if it lands, this row can close behind a guard instead of a
-hand edit, at the cost of the header's enumeration moving from the `//!`
-block into a `roster!{}` block near the top of the file.
+- The rows are at the top level of `review_d18_probes.rs`, which
+  `crates/topo/src/lib.rs` mounts as `#[cfg(test)] mod
+  review_d18_probes;`. So the invocation goes at the top of the file,
+  `module_path!()` is `topo::review_d18_probes`, and the derived prefix
+  is `review_d18_probes::` — the same shape the macro was measured on.
+  No `pub` and no visibility change is needed.
+- `topo` already dev-depends on `test-utils`.
+- The header sentence *"Three of the four rows gate; the fourth is
+  marked as evidence for the review"* would move into the block as five
+  entries, one per row, each saying which it is.
 
-**What it would NOT fix**, so the trade is visible: the mechanism welds
-NAMES and never PROSE. A header sentence that miscounts in words
-(*"three of the four rows gate"*) is caught only insofar as the roster
-replaces the sentence; a wrong adjective about a row that IS in the
-roster is caught by nothing.
+**What it would NOT fix, and this is the half that matters here.** The
+macro welds NAMES and never PROSE. The count in that sentence, and the
+claim about which row is the evidence one, are exactly the kind of text
+nothing checks — a roster keeps the five names honest and would say
+nothing about a sentence that miscounts them. The count would stop
+being written down at all, which is why it can no longer be wrong; but
+if TOPO keeps a prose disposition beside the names, that disposition is
+as unchecked after adoption as before.
+
+**Two things the superseded draft of this note carried and this one
+should keep.** The cheap alternative — one corrected sentence, no
+mechanism — remains entirely reasonable, and nothing here argues
+otherwise; and TINT-4's fix pass made a `#[test]` under a **nested
+`mod`** a violation rather than a silent exemption, so a file adopting
+`roster!` must have its rows at module level. Checked against this
+file: its five rows are all top-level (`review_d18_probes.rs:69, 97,
+156, 189, 271`) and there is no nested `mod`, so the constraint does
+not bite here — but it is a hard rule now rather than a caveat.
