@@ -25,25 +25,53 @@ text above, measured against the tree on 2026-09-15 and recorded here
 because they change the population:
 
 - **"73 sites" counts grep hits.** 73 lines under `crates/` match
-  `deny_unknown_fields`; **59 are the attribute, 13 are prose** —
-  module docs, doc-comments and test comments reasoning about it. The
-  prose is the half this row is really about, and it was not separated
-  out when the row was written.
+  `deny_unknown_fields` in a `.rs` file; **59 are the attribute, 14 are
+  prose** — module docs, doc-comments and test comments reasoning about
+  it. The prose is the half this row is really about, and it was not
+  separated out when the row was written. Two further prose sites are
+  in MARKDOWN under `crates/` (`profile/README.md`,
+  `verbs/README.md`), which a `.rs`-only sweep does not see.
 - **"unit-vs-struct" is the wrong rule.** The attribute needs a NAMED
   field to deny, so it is inert on a unit enum, a **tuple-variant-only
   enum**, a **tuple struct** and a unit struct alike. The coarse rule
-  finds 16 inert sites; the named-field rule finds **22**. The six it
-  misses (`Attr`, `WireTarget`, `WireMeasureExpr`, `DocParamValue`,
-  `PartSelect`, `MetaValue`, and the tuple structs `ParamName` and
-  `RecipeNodeId`) are inert for a reason the row does not state.
+  finds 14 inert sites; the named-field rule finds **22**. The eight it
+  misses are `Attr`, `WireTarget`, `WireMeasureExpr`, `DocParamValue`,
+  `PartSelect`, `MetaValue` and the tuple structs `ParamName` and
+  `RecipeNodeId` — inert for a reason the row does not state. The tree
+  holds no unit-struct site; the fourth shape is covered by the rule
+  and has no member.
 - **"every tag enum in `role.rs` is unit-only" is false.** `role.rs`
   carries 11 attribute sites — 8 enums, 3 structs — and two of the eight
   enums carry data (`Qualifier`, `RoleSeg`). Six are unit-only, not
   nine. The row's `role.rs:41, 93, …` citations are all rotted; the
-  sites are at `:255`–`:566` today.
+  sites are at `:255`–`:566` today. `Qualifier` and `RoleSeg` are NOT
+  inert: each has struct variants (`Qualifier::OrderAlong { rank, of }`
+  and fourteen of `RoleSeg`'s), so the attribute governs at both and
+  they are untouched.
 
 The title still says "nine sites in role.rs"; ids and titles are stable
 and it is left as the row was cited, with the correction here.
+
+The class estimate **M** is right and stands: multi-file, no design
+call in the sweep, and an instrument to build first.
+
+## What landed
+
+All 22 inert sites removed, none kept: a keep needs an exemption in the
+instrument, and an exemption list is a hand-written list of
+declarations — this program's own class. Five prose sites named the
+attribute as machinery it is not and were rewritten to name what
+refuses; eleven were true and are untouched.
+
+The instrument is `crates/test-utils/tests/deny_unknown_fields_census.rs`
+— a repo-wide walk through `test_utils::source`, with its line in
+`crates/test-utils/tests/reader_census.rs`. Its blind spots are stated
+in its own header, not only in the PR.
+
+`work/msolve/mate-primitive-accepts-a-stray-field-the-module-docs-say-refuses.md`
+is the complement the sweep turned up: a field-bearing wire type with
+no attribute, filed rather than fixed because the fix changes what a
+document accepts.
 
 ## Home
 
