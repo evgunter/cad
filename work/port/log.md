@@ -547,63 +547,6 @@ reasons defer to; CIW gets the `step import (freecad)` job whose name
 is the export fixtures' row. PORT claims no paths, so all six went to
 the owner.
 
-<<<<<<< HEAD
-## The options doors land; the posture is corrected per-claim (2026-09-15)
-
-`python-cannot-set-options-structs` merged (#2678) and closes. Six rows
-filed outside the fence — five on LIB, one on CIW.
-
-**The unit disproved the posture clause written the same morning.** It
-was dispatched style-only under the converse rule *"a compiler-enforced
-claim does not earn the second arm however public its surface"*, on the
-reading that `surface_census.rs`'s destructure anchor is the correctness
-arm. The lane's four probe measurements — required by the spec precisely
-because that reasoning is only worth as much as the anchor — showed
-`ImportOptions` and `EvalOptions` silent at **both** sites before the
-change, and the `NotBound` decay half reading declared *names* where an
-options field is bound by becoming a *keyword*, so the first declined
-options entry would have stayed green forever. The spec asserted that
-machinery was sound and told the lane to reuse it.
-
-The reviewer then gave the mechanism the correction needed: **a presence
-anchor cannot guard a forwarded value; that is what a destructure is.**
-The converse clause was applied per-unit when it only ever holds per
-claim. `plan.md`'s Review posture now says so, with this unit as the
-worked example and the cost named — two STL doors sat under a green
-census writing `solid ` and eighty zero bytes where the kernel's own
-defaults say a part name and a producer line, for as long as they had
-existed. The spec had waved those two doors through as "the visible work
-is small".
-
-**What the review bought, beyond the finding.** It ran the four probes
-itself rather than reading the table, reproduced every line number,
-built the wheel and observed the bytes, restored main's two files with a
-probe still in place to confirm the *before* state, and ran five
-mutations against the census. It also swept a different shape — every
-`#[pyo3(signature = …)]` for a non-`None` keyword default — and found
-exactly one hit, the row the lane had already filed. Two MINORs, both
-sentences rather than behaviour.
-
-**One written reason was false on the first entries to use the device.**
-`param_box`'s `NotBound` reason claimed no f64 evaluation could carry a
-box; `mc.rs` builds one and `monte_carlo` is its Python door. The decay
-check falsifies a **spelling**, never a **reason**, and that gap is now
-stated at the check itself.
-
-**The fix pass made the roster derivable** rather than hand-listed —
-`every_options_type_in_py_is_rostered` scans `src/py/` for a constructed
-`*Options` type and fails if it is unrostered, measured with a probe,
-with its scanner checked by a second test — and the module header stopped
-claiming "every" in favour of the narrow rule it actually enforces, with
-`ChecksConfig`/`McConfig` named as the blind spot and their row cited.
-
-**A lane habit worth carrying.** The fix pass's first push went red on
-`test-utils`'s `reader_census`: the new source scan put `surface_census.rs`
-into the class of files that read Rust source, which owes a ledger line.
-Every local check the lane ran was package-scoped (`-p pncad-py`), and a
-tree-wide census living in another crate is invisible to those. CI found
-what no local check could.
-=======
 ## 2026-09-15 — `msrv-floor-is-declared-and-never-compiled` → review (PR 2676)
 
 Ev's answer of 2026-09-15 landed as `scripts/gates/msrv-floor-equals-channel.sh`:
@@ -795,7 +738,63 @@ tracking the channel is coherent rather than merely tidy.
 lockfile is **regenerated** — a deliberate act — and not on an ordinary
 build. Recorded in the gate's header and beside the declaration itself,
 because the repository recorded it nowhere.
->>>>>>> origin/main
+
+## The options doors land; the posture is corrected per-claim (2026-09-15)
+
+`python-cannot-set-options-structs` merged (#2678) and closes. Six rows
+filed outside the fence — five on LIB, one on CIW.
+
+**The unit disproved the posture clause written the same morning.** It
+was dispatched style-only under the converse rule *"a compiler-enforced
+claim does not earn the second arm however public its surface"*, on the
+reading that `surface_census.rs`'s destructure anchor is the correctness
+arm. The lane's four probe measurements — required by the spec precisely
+because that reasoning is only worth as much as the anchor — showed
+`ImportOptions` and `EvalOptions` silent at **both** sites before the
+change, and the `NotBound` decay half reading declared *names* where an
+options field is bound by becoming a *keyword*, so the first declined
+options entry would have stayed green forever. The spec asserted that
+machinery was sound and told the lane to reuse it.
+
+The reviewer then gave the mechanism the correction needed: **a presence
+anchor cannot guard a forwarded value; that is what a destructure is.**
+The converse clause was applied per-unit when it only ever holds per
+claim. `plan.md`'s Review posture now says so, with this unit as the
+worked example and the cost named — two STL doors sat under a green
+census writing `solid ` and eighty zero bytes where the kernel's own
+defaults say a part name and a producer line, for as long as they had
+existed. The spec had waved those two doors through as "the visible work
+is small".
+
+**What the review bought, beyond the finding.** It ran the four probes
+itself rather than reading the table, reproduced every line number,
+built the wheel and observed the bytes, restored main's two files with a
+probe still in place to confirm the *before* state, and ran five
+mutations against the census. It also swept a different shape — every
+`#[pyo3(signature = …)]` for a non-`None` keyword default — and found
+exactly one hit, the row the lane had already filed. Two MINORs, both
+sentences rather than behaviour.
+
+**One written reason was false on the first entries to use the device.**
+`param_box`'s `NotBound` reason claimed no f64 evaluation could carry a
+box; `mc.rs` builds one and `monte_carlo` is its Python door. The decay
+check falsifies a **spelling**, never a **reason**, and that gap is now
+stated at the check itself.
+
+**The fix pass made the roster derivable** rather than hand-listed —
+`every_options_type_in_py_is_rostered` scans `src/py/` for a constructed
+`*Options` type and fails if it is unrostered, measured with a probe,
+with its scanner checked by a second test — and the module header stopped
+claiming "every" in favour of the narrow rule it actually enforces, with
+`ChecksConfig`/`McConfig` named as the blind spot and their row cited.
+
+**A lane habit worth carrying.** The fix pass's first push went red on
+`test-utils`'s `reader_census`: the new source scan put `surface_census.rs`
+into the class of files that read Rust source, which owes a ledger line.
+Every local check the lane ran was package-scoped (`-p pncad-py`), and a
+tree-wide census living in another crate is invisible to those. CI found
+what no local check could.
+
 
 ## The MSRV floor is held, at every manifest that declares one (2026-09-15)
 
