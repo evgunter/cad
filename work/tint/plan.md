@@ -148,12 +148,20 @@ recorded here:
 - `D383` and `S230` are the same class under two names (a certified
   bound with no ceiling) and both want the `test_utils::tightness` home;
   they want one lane.
-- `H12`, `S216` and `C18` are one question from three sides (what a
-  doctest in `tests/` is, and whether a `compile_fail` row verifies the
-  reason it names). `D113` was recorded as a fourth side and is not one:
-  its subject was dead LINKS and these are dead PROOFS, and its closure
-  leaves all three untouched. `S216` is explicitly *not takeable as a
-  doc edit* — it needs machinery — and is the one row here whose fix
+- `H12` and `S216` are one question from TWO sides (what a doctest in
+  `tests/` is, and whether a `compile_fail` row verifies the reason it
+  names). The slate recorded four sides and had two of them wrong.
+  `D113` was a third: its subject was dead LINKS where these are dead
+  PROOFS, and its closure leaves both untouched. **`C18` was a fourth
+  and is not related at all** — a cross-wire, settled 2026-09-15 by
+  reading PR #734, which is *"Track C lane C-d, finding H12: the SSI
+  sweeps' other never-silence doors have no acceptance row"* and says
+  in its own Recording section *"§D gains row C18"*. That `H12` is a
+  Track **C** finding id; `work/tint/H12.md` is the Track **H** unit
+  about never-collected doctests. Two unrelated findings, one id.
+  `C18` is an SSI door-coverage row on `crates/geom-brep/tests/` and
+  belongs beside nothing else on this slate. `S216` is explicitly *not
+  takeable as a doc edit* — it needs machinery — and is the one row here whose fix
   ADDS compute, which the public repo makes cheaper to justify rather
   than harder.
 

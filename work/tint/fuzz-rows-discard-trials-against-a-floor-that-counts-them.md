@@ -176,3 +176,20 @@ Do not close; narrow it. The row is now six named floors rather than twelve
 unmeasured files, and `r2_lt_probes.rs` / `review_m5_pr4_adversarial.rs`
 show the fix costs three lines in this tree's own idiom. Whether that
 wants `fuzz::Sweep` in `test-utils` is still this program's call.
+
+## A half-instrumented member the sweep classified as fixed (S-TINT orchestrator, 2026-09-15)
+
+Lane B classified `crates/geom/tests/curves/r2_lt_probes.rs` as already
+carrying the fix (`built * 4 >= cases * 3` floors the counted discard),
+and that is right about the FIRST discard and wrong about the row. In
+`the_meter_is_sound_on_random_integral_nets` a **second** `continue` —
+the `m.is_nan()` poison abstention — is uncounted, and the soundness
+assertion runs only past it. So the row counts one of its two discards
+and floors against the counted one.
+
+**This is the class's most dangerous shape, not an exception to it**: a
+row that has been instrumented once reads as done, and the second
+discard is invisible precisely because the first was fixed. Any sweep
+keyed on "does this row count its discards" answers yes here. The
+instrument has to be "does it count ALL of them", which is a read and
+not a grep — and that is this row's blind spot, now stated.

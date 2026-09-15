@@ -115,3 +115,23 @@ since it was filed.
 **Recommendation:** do not close. The choice the row frames — derive the
 floor from the shell, or narrow the claim and say so at the site — is
 unchanged, and the ε observation above suggests the second.
+
+## `away()` is ε-invariant as well as K-invariant (S-TINT orchestrator, 2026-09-15)
+
+Lane B, extending the reproduction: `away()`'s own doc says the clamp
+*"saturates at every shipped ε row"*, so the floor is constant across
+the whole drawn ε matrix while the shell it guards moves two decades
+across it. The K axis is where the row was filed and the ε axis is the
+same defect in a dimension CI **does** draw — masked only because the
+clamp happens to land on the safe side at each of the three drawn
+points.
+
+**This argues for the disposition rather than against it.** Raising the
+constant fixes neither axis; it buys headroom until the next K or the
+next ε. What the row should take is the narrower claim — state the
+clearance as a function of the shell it is clearing, so the assertion
+moves with what it guards — which is the same repair the two kernel
+rows `D70` closed onto are asking for one level down
+(`work/trim/plane-nurbs-certificate-bound-does-not-refine-with-eps`).
+A fixed number compared against a varying one is one defect with three
+carriers on this slate, and this row is the test-side instance.

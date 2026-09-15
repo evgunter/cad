@@ -131,3 +131,14 @@ on a count that a second env error increments.
 **Recommendation:** do not close. It is a two-line fix with three
 in-tree models, and the row's "low priority — no slate claim" note is now
 out of date: it has a slate.
+
+## Sibling candidate, same re-exec pattern (S-TINT orchestrator, 2026-09-15)
+
+Lane B, while re-deriving this row: `crates/geom-core/tests/ambiguity_k_env.rs`
+re-execs through the same `current_exe` pattern as `review_m2_pr7_k.rs`
+and likewise never `env_remove`s, so an ambient value reaches the child
+the same way. **Not verified as a second instance** — the lane did not
+check whether any of its assertions is count-shaped, which is what turns
+the leak into a red. A taker on this row checks that file in the same
+pass; if it is count-shaped, this row is a class of two and its title
+should say so.

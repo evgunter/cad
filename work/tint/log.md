@@ -300,3 +300,117 @@ Ev: both decision rows closed today, and no row in this directory sets
 `needs_ev`. The standing order is therefore to keep working rather than
 to wait — adjudicate the pass, close what is stale, re-cut the slate from
 what survives, and land it.
+
+## The re-derivation pass adjudicated: nothing retired, and the slate was under-counting (2026-09-15)
+
+**39 rows, four lanes, and the result is the opposite of what this seat
+predicted.** The order was set on the strength of two stale rows, and I
+told Ev the pass "will retire more than it keeps". It retired **nothing**:
+
+| verdict | rows |
+|---|---|
+| REPRODUCES | 24 |
+| PARTIAL (some members closed, some live) | 14 |
+| UNVERIFIABLE-WITHOUT-A-RUN | 1 |
+| STALE-FIXED | **0** |
+
+The single fully-stale row on this slate was `m10-4-bore-pin-row-red-at-interval-1e-6`,
+and this seat had already found it before the lanes went out. **The
+inference from one instance was wrong**, and the reason is worth keeping:
+that row went stale because someone else FIXED its subject. Most of these
+rows describe things nobody is working on, and an unattended defect does
+not decay.
+
+**What moved instead was the counts, and almost all of them upward.**
+`D380` 3 → ≥7. `D382` 13 → 14 (and all fourteen bodies hash identical —
+a smaller unit than filed). `S216` 39 → 61, with its "8 uncoded rows"
+category gone and four error codes never sorted into its split.
+`H12`'s surrounding doc-fence census 28 → 72. `geom-brep-inline` 32 → 40.
+`loud-skip-marker` 8 → 10. `chamfered-cube` 5 → 7. `the-two-vertex-bulge`
+8 → 9. `brick`/`prism` → 9. **A stale enumeration in this tree
+under-counts**, because the class keeps recruiting while the row sits
+still. Every "this is a FLOOR" qualifier on this slate was doing real
+work and none of them was pessimistic enough.
+
+**Three predicted drifts have stopped being predictions.** These are the
+pass's real product:
+
+1. **`assert-f6-dump-lists` — fired, three times.** Verified at this seat,
+   not taken on report: `ParseError` has **11** variants and its `dumps`
+   list in `crates/editor-core/tests/display_contract.rs` bans **10** —
+   `Dimension` is unbanned. `SelectRefusal` (8 variants) leaves
+   `Band(BandError)` unbanned; `DeclareError` (3) leaves `Edit(EditError)`
+   unbanned. Two of the three holes are payload-carrying wrappers, so
+   neither the wrapper name nor the inner error's rendering is covered.
+   The row filed a forecast; the tree has since supplied the instances.
+2. **`loud-skip-marker` — fired.** `crates/viewer/tests/error_display.rs`'s
+   marker doc says in its own words that a second `app`-gated row would
+   leave it quietly incomplete. The file now has two and the marker names
+   one.
+3. **`C18`'s grid block — fired.** `m5_pr7_ssi.rs` says five cells have no
+   row; the fifth got one about 850 lines below and the census never
+   learned. Five is four.
+
+**And one tracker statement was simply false.** `C18` is not related to
+`H12` at all. Settled by reading PR #734, which is *"Track C lane C-d,
+finding H12: the SSI sweeps' other never-silence doors have no acceptance
+row"* and whose Recording section says *"§D gains row C18"*. That `H12`
+is a Track **C** finding id; `work/tint/H12.md` is the Track **H** unit
+about never-collected doctests — two unrelated findings sharing an id,
+cross-wired when the rows were re-homed by path glob. Three places said
+so and all three are corrected (`C18`'s `refs`, `H12`'s Notes and `refs`,
+the plan's pairing). **This seat repeated the error to Ev** before the
+pass caught it; the plan now records two sides where it recorded four.
+
+**Rows whose HALVES closed**, which is where the real movement was:
+`D384`'s `S89`/`ring` half is gone entirely (no `fn ring` in
+`enclose.rs`; all 36 crossings call `RingInterval::from_certified`);
+`sweep-test-suites-cite-eight-deleted-suite-files` has **zero** dangling
+citations today, all 14 resolve, though the resolver-corpus half it asks
+for is untouched; `origin-anchored-fan`'s documentation member and its
+twin divergence are both fixed; `landing-gathers`' basis is largely gone,
+two of its three "only the test does this" claims now false.
+
+## Three rows filed out of the pass
+
+- `work/tint/cavity-module-doc-restates-a-census-that-is-now-wrong` — a
+  hand-kept census in prose, inside the file that declares the rule,
+  asserting two byte-identical pairs that are both false today. Carries
+  the two stale `work/tcost/` tracker paths in the same directory.
+- `work/tint/test-headers-name-fns-that-exist-nowhere` — four names, two
+  files, zero resolving. **Filed to be merged into the roster class, not
+  taken alone**: `D113` already ruled that hand-fixing unresolving names
+  with no guard is not worth scheduling, and these differ only in sitting
+  inside rosters, where two live rows on this slate already are.
+- `work/topo/review-d18-probes-header-miscounts-its-own-rows` — TOPO's
+  ground, TOPO's call, no fix proposed on their behalf.
+
+Lane findings that belonged to existing rows were added as evidence
+rather than filed: the `ambiguity_k_env.rs` re-exec sibling, the
+half-instrumented `r2_lt_probes.rs` discard, and `away()`'s ε-invariance
+(which makes the torus floor the test-side instance of the same
+fixed-vs-varying defect the two kernel rows `D70` closed onto).
+
+## The slate, re-cut
+
+Nothing was retired, so the order is set by what the pass proved rather
+than by what it cleared. **Recommended first unit: `assert-f6-dump-lists`**
+— the drift has fired, the holes are named and verified, the population
+is seven lists in one crate, and the fix is this program's own standing
+rule (one executable home, every other site points at it) applied to a
+guard that is currently not guarding three error variants. It needs
+nobody's territory but this one's.
+
+**Second: the announcement pair.** `loud-stand-down-announcements-are-discarded-by-the-gate`
+and `loud-skip-marker-is-a-hand-kept-idiom` are one mechanism seen twice,
+and the pass showed they compound — the eight markers' `println!` bodies
+ARE the hand-kept enumerations, and every gating archived run discards
+them, so those lists are not merely stale-prone but unreadable on every
+run that matters. The repair that makes a stand-down a tallied fact the
+suite can floor closes both.
+
+**Not yet cut and why**: the roster class (`r2-m10-6`,
+`interrogate-ladder`, `test-headers-name-fns…`, and TOPO's row) wants one
+executable check rather than four prose edits, and whether that check is
+worth building is a real question this program should answer before
+spending an edit on any of them.
