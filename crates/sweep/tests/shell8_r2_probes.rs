@@ -14,11 +14,12 @@ use core::f64::consts::PI;
 
 use geom_core::k_stats::Bracket;
 use geom_core::{Affine3, Point3, Sign, Tol, Vec3};
+use sweep::test_support::{block, brick};
 use topo::ShellNaming;
 use topo::{Body, FaceKey, ShellError, ShellRole, SolidKey, VoidContainment, VoidEvidence};
 
 use crate::common::approx::band;
-use crate::verbs_shell::{boxy, hollow_box, v, vessel};
+use crate::verbs_shell::{hollow_box, v, vessel};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -162,7 +163,11 @@ fn bitwise_solid(before: &Body<f64>, after: &Body<f64>, solid: SolidKey) -> (usi
 #[test]
 fn r2_axial_door_scoped_to_the_vessel_leaves_the_box_bitwise() {
     let t = 0.05;
-    let pair = beside(&boxy(2.0, 3.0, 4.0), &vessel(1.0, 2.0), 10.0);
+    let pair = beside(
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        &vessel(1.0, 2.0),
+        10.0,
+    );
     let solids: Vec<SolidKey> = pair.solids().map(|(k, _)| k).collect();
     let (bx, vs) = (solids[0], solids[1]);
 
@@ -195,8 +200,12 @@ fn r2_axial_door_scoped_to_the_vessel_leaves_the_box_bitwise() {
 #[test]
 fn r2_scope_naming_two_of_three_solids_leaves_the_third_bitwise() {
     let t = 0.05;
-    let two = beside(&boxy(2.0, 3.0, 4.0), &boxy(2.0, 3.0, 4.0), 10.0);
-    let three = beside(&two, &boxy(2.0, 3.0, 4.0), 20.0);
+    let two = beside(
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        10.0,
+    );
+    let three = beside(&two, &block(2.0, 3.0, 4.0, Tol::witness()), 20.0);
     let solids: Vec<SolidKey> = three.solids().map(|(k, _)| k).collect();
     assert_eq!(solids.len(), 3);
     let mut moves = inward_moves(&three, solids[0], t);
@@ -233,7 +242,7 @@ fn r2_a_solid_inside_anothers_void_shells_and_never_gates() {
     let t = 0.05;
     let hollow = hollow_box(); // void [0.25,1.75]×[0.25,2.75]×[0.25,3.75]
     // A 0.5-cube whose top sits 0.02 (< 2t) below the void's ceiling.
-    let inner = boxy(0.5, 0.5, 0.5);
+    let inner = block(0.5, 0.5, 0.5, Tol::witness());
     let (body, inner_solid) = beside_raw(&hollow, &inner, Vec3::new(0.75, 1.25, 3.75 - 0.02 - 0.5));
     assert_eq!(
         topo::validate_geometric(&body, tol()),
@@ -268,8 +277,8 @@ fn r2_a_solid_inside_anothers_void_shells_and_never_gates() {
     // hollow box 0.02 from its outer wall never gates either (cross
     // solid) — but a 0.02 wall INSIDE one solid does.
     let (thin, _) = beside_raw(
-        &boxy(2.0, 3.0, 4.0),
-        &boxy(0.5, 0.5, 0.5),
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        &block(0.5, 0.5, 0.5, Tol::witness()),
         Vec3::new(2.02, 0.0, 0.0),
     );
     topo::shell(&thin, t, tol()).expect("cross-solid 0.02 gap builds");
@@ -282,7 +291,7 @@ fn r2_a_solid_inside_anothers_void_shells_and_never_gates() {
 
 #[test]
 fn r2_roles_are_read_per_hollow_solid_and_never_for_a_plain_one() {
-    let pair = beside(&hollow_box(), &boxy(2.0, 3.0, 4.0), 10.0);
+    let pair = beside(&hollow_box(), &block(2.0, 3.0, 4.0, Tol::witness()), 10.0);
     let bracket = Bracket::open();
     topo::shell(&pair, 0.05, tol()).expect("shells");
     let verdicts = bracket.finish().verdicts;
@@ -297,7 +306,11 @@ fn r2_roles_are_read_per_hollow_solid_and_never_for_a_plain_one() {
          neighbour's is its boundary by arity and is never read"
     );
 
-    let plain = beside(&boxy(2.0, 3.0, 4.0), &boxy(2.0, 3.0, 4.0), 10.0);
+    let plain = beside(
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        10.0,
+    );
     let bracket = Bracket::open();
     topo::shell(&plain, 0.05, tol()).expect("shells");
     let verdicts = bracket.finish().verdicts;
@@ -317,10 +330,10 @@ fn r2_operand_outer_shells_names_the_offending_solids_own_count() {
     // A solid with TWO outer shells: a positively oriented cube inserted
     // through the void door (which trusts carried evidence and reverts
     // the cavity — so a pre-reverted cavity lands positive).
-    let mut host = boxy(2.0, 3.0, 4.0);
+    let mut host = block(2.0, 3.0, 4.0, Tol::witness());
     let host_solid = host.solids().next().unwrap().0;
     let cube = topo::transform_rigid(
-        &boxy(0.5, 0.5, 0.5),
+        &block(0.5, 0.5, 0.5, Tol::witness()),
         &Affine3::translation(Vec3::new(0.75, 1.25, 1.75)),
         tol(),
     )
@@ -341,7 +354,11 @@ fn r2_operand_outer_shells_names_the_offending_solids_own_count() {
     };
     topo::insert_void(&mut host, host_solid, pre_reverted, &evidence, tol()).expect("inserts");
     println!("[r2] two-outer host roles: {:?}", roles(&host));
-    let (body, _) = beside_raw(&host, &boxy(2.0, 3.0, 4.0), Vec3::new(10.0, 0.0, 0.0));
+    let (body, _) = beside_raw(
+        &host,
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        Vec3::new(10.0, 0.0, 0.0),
+    );
     let e = topo::shell(&body, 0.05, tol()).expect_err("two outer shells in one solid refuse");
     println!("[r2] two-outer beside plain: {e}");
     // **The count is that SOLID's own, and the refusal names it.** The
@@ -367,8 +384,8 @@ fn r2_operand_outer_shells_names_the_offending_solids_own_count() {
 
 #[test]
 fn r2_chart_spans_solids_reachability_through_a_disconnecting_subtract() {
-    let slab = crate::verbs_shell::brick(0.0, 6.0, 0.0, 1.0, 0.0, 1.0);
-    let wall = crate::verbs_shell::brick(2.5, 3.5, -1.0, 2.0, -1.0, 2.0);
+    let slab = brick((0.0, 6.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let wall = brick((2.5, 3.5), (-1.0, 2.0), (-1.0, 2.0), Tol::witness());
     let r = topo::subtract(&slab, &wall, tol());
     let body = match r {
         Ok(topo::BooleanResult::Body(b)) => {
@@ -446,7 +463,7 @@ fn r2_lift_on_the_vessels_void_ceiling_alone_and_beside_a_box() {
 
     // Beside a box: the lift's door must be the vessel's, and the box
     // must be bitwise the sealed result's box.
-    let pair = beside(&boxy(2.0, 3.0, 4.0), &hv, 10.0);
+    let pair = beside(&block(2.0, 3.0, 4.0, Tol::witness()), &hv, 10.0);
     let box_solid = pair.solids().next().unwrap().0;
     let (_, void) = {
         // The vessel's void in the pair: the shell with a Void role.
@@ -510,8 +527,12 @@ fn r2_no_solid_is_only_the_empty_operand() {
     assert!(matches!(e, ShellError::NoSolid));
     println!("[r2] NoSolid display: {e}");
     // Three solids build.
-    let two = beside(&boxy(2.0, 3.0, 4.0), &boxy(2.0, 3.0, 4.0), 10.0);
-    let three = beside(&two, &boxy(2.0, 3.0, 4.0), 20.0);
+    let two = beside(
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        10.0,
+    );
+    let three = beside(&two, &block(2.0, 3.0, 4.0, Tol::witness()), 20.0);
     let s = topo::shell(&three, 0.05, tol()).expect("three build");
     assert_eq!(s.body.solids().count(), 3);
 }
@@ -523,11 +544,15 @@ fn r2_no_solid_is_only_the_empty_operand() {
 
 #[test]
 fn r2_solid_order_assertion_on_a_body_with_a_freed_solid_slot() {
-    let mut body = boxy(2.0, 3.0, 4.0);
+    let mut body = block(2.0, 3.0, 4.0, Tol::witness());
     let lone = body
         .mvfs(Point3::new(50.0, 50.0, 50.0))
         .expect("a lone-vertex solid");
-    let (mut body, third) = beside_raw(&body, &boxy(2.0, 3.0, 4.0), Vec3::new(10.0, 0.0, 0.0));
+    let (mut body, third) = beside_raw(
+        &body,
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        Vec3::new(10.0, 0.0, 0.0),
+    );
     let killed = body.kvfs(lone.solid).expect("the lone solid dies");
     assert_eq!(killed.killed_solid, lone.solid);
     let order: Vec<SolidKey> = body.solids().map(|(k, _)| k).collect();
@@ -541,7 +566,11 @@ fn r2_solid_order_assertion_on_a_body_with_a_freed_solid_slot() {
 
     // A graft that REUSES the freed slot (a key with version 2 in the
     // middle of the arena): still one order, still builds.
-    let (body, reused) = beside_raw(&body, &boxy(2.0, 3.0, 4.0), Vec3::new(20.0, 0.0, 0.0));
+    let (body, reused) = beside_raw(
+        &body,
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        Vec3::new(20.0, 0.0, 0.0),
+    );
     let order: Vec<SolidKey> = body.solids().map(|(k, _)| k).collect();
     println!("[r2] reused slot: solid order {order:?} (reused = {reused:?})");
     let s = topo::shell(&body, 0.05, tol()).expect("builds");
@@ -599,7 +628,7 @@ fn r2_e2e_consumer_seat() {
     let one_wall = |t: f64| v(2.0, 3.0, 4.0) - v(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t);
 
     // ---- 1. Two parts in one body, hollowed in one call. ----
-    let part_a = boxy(2.0, 3.0, 4.0);
+    let part_a = block(2.0, 3.0, 4.0, Tol::witness());
     let part_b = vessel(1.0, 2.0);
     let mut assembly = part_a.clone();
     let placed = topo::transform_rigid(
@@ -735,8 +764,8 @@ fn r2_e2e_consumer_seat() {
 /// (public) yields a two-solid body whose chart spans both.
 #[test]
 fn r2_chart_spans_solids_through_subtract_then_move_shells() {
-    let slab = crate::verbs_shell::brick(0.0, 6.0, 0.0, 1.0, 0.0, 1.0);
-    let wall = crate::verbs_shell::brick(2.5, 3.5, -1.0, 2.0, -1.0, 2.0);
+    let slab = brick((0.0, 6.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let wall = brick((2.5, 3.5), (-1.0, 2.0), (-1.0, 2.0), Tol::witness());
     let Ok(topo::BooleanResult::Body(b)) = topo::subtract(&slab, &wall, tol()) else {
         panic!("no body")
     };

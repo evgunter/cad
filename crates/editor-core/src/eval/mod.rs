@@ -716,11 +716,11 @@ pub enum SplitSide<T: Decide> {
 // where a degenerate, decided-zero-length vector becomes a typed
 // refusal; this layer maps that refusal onto its own node error and
 // invents nothing. `DatumValue` is re-exported at its historical home,
-// so no consumer's path to it moved — but the surface GREW: the two
-// `UnitVec3` names are new here, and they are not optional decoration.
-// A consumer cannot build a datum, or read a normal back out of one,
-// without naming the type that carries the invariant.
-pub use topo::query::{DatumValue, UnitVec3, UnitVec3Error};
+// so no consumer's path to it moved. The type that carries its
+// directions, `geom_core::UnitVec3`, is NOT re-exported here: a
+// consumer that builds a datum, or reads a normal back out of one,
+// names the witness at the crate that mints it.
+pub use topo::query::DatumValue;
 
 // `NodeErrorKind::VerbArity` carries the kernel's verb name and
 // declared-arity types in a pub payload, so both cross with it — the

@@ -195,12 +195,18 @@ fn row_of(
 fn verdict(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> String {
     match result {
         Ok(a) => format!("Ok(minted={})", a.minted.len()),
-        Err(AssemblyError::NoAtRestRecord { mate, class, .. }) => {
-            format!("NoAtRestRecord(mate={}, class={class:?})", mate.0)
-        }
-        Err(AssemblyError::Reference { mate, side, .. }) => {
-            format!("Reference(mate={}, side={side:?})", mate.0)
-        }
+        Err(AssemblyError::Mint { refusals }) => refusals
+            .iter()
+            .map(|r| match r {
+                editor_core::MintRefusal::NoAtRestRecord { mate, class, .. } => {
+                    format!("NoAtRestRecord(mate={}, class={class:?})", mate.0)
+                }
+                editor_core::MintRefusal::Reference { mate, side, .. } => {
+                    format!("Reference(mate={}, side={side:?})", mate.0)
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("+"),
         Err(AssemblyError::AtRest { findings }) => format!(
             "AtRest({} findings: {})",
             findings.len(),

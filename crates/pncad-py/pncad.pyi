@@ -600,10 +600,9 @@ class MateError(PncadError):
 class AssemblyError(PncadError):
     """The at-rest assembly gate refused.
 
-    `variant` is the refusing arm's stable tag; `mate`, `side`,
-    `name`, `why`, `class_`, `findings`, `node`, `through` are the
-    arms' payloads, present on every arm and `None` where that arm
-    does not carry one.
+    `variant` is the refusing arm's stable tag; `refusals`,
+    `findings`, `node`, `through`, `name` are the arms' payloads,
+    present on every arm and `None` where that arm does not carry one.
 
     The two verdict arms are NOT interchangeable. `at_rest` is a
     finding AGAINST the document — a refuted declaration or an
@@ -613,21 +612,23 @@ class AssemblyError(PncadError):
     either way. A gather refusal arrives under the GATHER's own tag
     (`no_body_roots`, `root_failed`, ...), not a wrapper tag.
 
-    `carried_mint_refusal` is an inner part's own mate that could not
-    be minted at all: an outer assembly is not at rest over a part
-    whose contact nothing verified. It carries a FOREIGN mate, so it
-    carries the route with it — `of` is the document to open, `via`
-    the instances this document reached it through (nearest first,
-    starting at `through`), and `mate` is a node of `of`, not of the
+    The two MINT arms each answer with a LIST, because a document with
+    two broken mates is two repairs and learning about the second only
+    after fixing the first makes the gate's answer a function of how
+    many times you ran it. `unminted_mates` is this document's own
+    mates, `refusals` a `MintRefusal` per mate in document order, each
+    carrying its own `variant` (`mate_reference_refused`,
+    `no_at_rest_record`). `carried_mint_refusal` is the same fact for
+    mates of documents BELOW this one — an outer assembly is not at
+    rest over a part whose contact nothing verified — and `refusals`
+    is then a `CarriedRefusal` per mate, each carrying the route it
+    arrived by, because its `mate` is a node of `of` and not of the
     document that was gathered."""
 
     variant: str
-    mate: Optional[NodeId]
-    side: Optional[MateSide]
-    name: Optional[str]
-    why: Optional[RefusedRef]
-    class_: Optional[ContactClass]
+    refusals: Optional[list[MintRefusal] | list[CarriedRefusal]]
     findings: Optional[list[AtRestFinding]]
+    name: Optional[str]
     node: Optional[NodeId]
     of: Optional[str]
     via: Optional[list[NodeId]]
@@ -5242,6 +5243,58 @@ class AtRestFinding:
     @property
     def attribution(self) -> Attribution: ...
 
+class MintRefusal:
+    """One mate whose declaration the gather could not mint — a row of
+    `AssemblyError.refusals` under `unminted_mates`.
+
+    `str(refusal)` is the refusal in the library's own words, its
+    recourse included."""
+
+    @property
+    def variant(self) -> str:
+        """`mate_reference_refused` or `no_at_rest_record`."""
+
+    @property
+    def mate(self) -> NodeId:
+        """The mate that did not mint. Both arms carry one."""
+
+    @property
+    def side(self) -> Optional[MateSide]:
+        """Which side the refused reference is on."""
+
+    @property
+    def name(self) -> Optional[str]:
+        """The reference that named no product face."""
+
+    @property
+    def why(self) -> Optional[RefusedRef]:
+        """Why that reference did not resolve.
+
+        `None` for `no_at_rest_record`, whose reason is of a different
+        kind: the class's own entry in the admission table. Ask
+        `class_admission(refusal.class_).why` for it — the same string
+        `str(refusal)` carries, from the one place it lives."""
+
+    @property
+    def class_(self) -> Optional[ContactClass]:
+        """The class that carries no kernel record at rest."""
+
+class CarriedRefusal:
+    """One mate a document BELOW this one could not mint — a row of
+    `AssemblyError.refusals` under `carried_mint_refusal`.
+
+    `refusal.mate` is a node of `of`, not of the document that was
+    gathered, so the route travels with it."""
+
+    @property
+    def refusal(self) -> MintRefusal: ...
+    @property
+    def through(self) -> NodeId: ...
+    @property
+    def of(self) -> str: ...
+    @property
+    def via(self) -> list[NodeId]: ...
+
 class Assembly:
     """A validated assembly: the gathered body, its product names, one
     minted declaration per solved mate of THIS document, and one
@@ -5279,9 +5332,10 @@ def assemble(doc: Doc, evaluation: Evaluation) -> Assembly:
     Raises AssemblyError, typed. Read `variant` first: `at_rest` is a
     verdict AGAINST the document, `uncertified` is the declared
     direction's FRONTIER where nothing was decided either way, and the
-    remaining arms (`mate_reference_refused`, `no_at_rest_record`,
-    `carried_mint_refusal`, the gather's own tags) refuse before any
-    verdict."""
+    remaining arms (`unminted_mates`, `carried_mint_refusal`, the
+    gather's own tags) refuse before any verdict. The two mint arms
+    answer with `refusals`, every mate that did not mint rather than
+    the first."""
 
 # --- the recorded refactorings ----------------------------------------
 # Both are PURE: they hand back the new document VALUES plus the

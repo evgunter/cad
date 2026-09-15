@@ -669,14 +669,19 @@ fn the_master_name_spelling_refuses_read_below_a_root() {
 
     let ev = run(&doc, &opts(store));
     let result = assemble(&doc, &ev, Tol::witness());
-    let Err(AssemblyError::Reference {
-        mate: named,
-        side,
-        why,
-        ..
-    }) = &result
-    else {
+    let Err(AssemblyError::Mint { refusals }) = &result else {
         panic!("the master-name seat refuses at the gate, got {result:?}");
+    };
+    let [
+        editor_core::MintRefusal::Reference {
+            mate: named,
+            side,
+            why,
+            ..
+        },
+    ] = refusals.as_slice()
+    else {
+        panic!("one mate refused, so one row: {refusals:?}");
     };
     assert_eq!(*named, mate);
     assert_eq!(*side, editor_core::MateSide::A);

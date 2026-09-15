@@ -6849,6 +6849,23 @@ shared box); impl CI **34948471752** GREEN on the head (twelve `test`
 jobs, five `k-lint (gate, …)`, no predicate-count change). Sample
 number at merge. Row at merge.
 
+## RATE-PAIR review ordinal fixed at dispatch (2026-09-15)
+
+`rate-pair-in-geom-core` (RATE-PAIR; SCALAR; PR #2657 open — frozen
+head `711236057`): **ordinal 4105** (SCALAR band). Protocol v6 dual:
+draw = `/dev/urandom` byte **94**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**,
+concurrent on the frozen head, read-side isolation (v6 item 5), briefs
+identical and stored before either ran. Pre-draw difficulty
+**M / numeric** (recorded branch-side at the block draw). Impl phase:
+~371k tokens (harness; the count covers the segment after a usage-limit
+429 interrupted and the lane was resumed in place — the first segment's
+count was lost with the interruption), ~1 h 50 min wall including that
+gap; impl CI **34962229095** GREEN on the head (twelve `test` jobs, five
+`k-lint (gate, …)`, no predicate-count change; the render lane pushed
+no re-baseline). Sample number at merge. Row at merge. This is block
+SCALAR-B2's last slot: the block record merges from `scalar/orchestrator`
+when this dual concludes.
+
 ## SCALAR program rows (`work/scalar/`; band 4100–4199; blocks named SCALAR-B<n>)
 
 Protocol v6, implementer ratio 1:2, full dual on every kernel unit;

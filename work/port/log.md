@@ -217,3 +217,186 @@ offered a hand-maintained roster of words nothing derives as the
 answer to "nothing derives this set", which is the trap, pre-committed
 into the next unit's brief. It now states the two properties owed and
 leaves the mechanism open.
+
+## 2026-09-15 — PORT-DOORS-1 in review (PR 2635)
+
+Both assembly-door findings landed as one unit, on
+`port/doors-1-refusal-order`.
+
+**Part A, widen.** `AssemblyError`'s two mint channels each carry every
+refusal the gather recorded: `Mint { refusals: Vec<MintRefusal> }`
+replaces the flattened `Reference` / `NoAtRestRecord` arms, and
+`CarriedMintRefusal` takes `Vec<CarriedRefusal>`. Two arms, not one, so
+the carried-before-own precedence the doc-comment calls load-bearing
+stays visible in the type. The shape is `AtRest { findings }`'s, which
+is the argument the row made: one enum answering one question one way.
+The two follow-up comments are deleted.
+
+**Part A's façade.** `MintRefusal` and `CarriedRefusal` left
+`crates/pncad/tests/all.rs`'s `NOT_CARRIED` — they were held out on the
+ground that the gate's answer named no row type, which the widening
+ends — and cross to Python as two frozen classes under
+`AssemblyError.refusals`. The two words a caller branched on
+(`mate_reference_refused`, `no_at_rest_record`) moved one level in, onto
+the rows, under a new `mint_refusal_tag`; the gate's own tag for its own
+mates is `unminted_mates`. Nothing stringified.
+
+**Part B, kind before tie.** `resolve_face` asks the NAME's kind before
+multiplicity, so a tied non-face answers `NotAFace { kind }` exactly as
+`operand_answer` already does, and only a tie AMONG FACES is
+`Ambiguous`. The premise the whole part rests on holds against the
+tree: `NameTable::insert_tied_ref` refuses any candidate whose
+`key.kind()` differs from `name.kind`, and every path to `Entry::Tied`
+(including `project` via `defer::narrow_into`) goes through it.
+
+**What moved.** One of the two msolve5 control assertions, as the
+orchestrator read it: the tied-EDGE row's second assertion, now
+`NotAFace { kind: Edge }` at the pattern as well as below it, with the
+row renamed and its divergence-as-a-rule doc-comment deleted. The
+tied-FACE row is unchanged and its `Ambiguous` still stands.
+`display_contract`'s `Ambiguous` row is a hand-built `RefusedRef`, not a
+`resolve_face` answer, so Part B does not reach it; Part A re-homed
+every `AssemblyError` row in that file onto the arm that now carries it,
+and added one pinning the list rendering of both channels.
+
+**Filed outside the fence:**
+`work/wire/interrogate-read-answers-a-tie-before-the-door-s-kind` — the
+sweep's one hit, `interrogate::read` asking `entity_of` (which refuses
+`Ambiguous` for any tie) before the door's kind question, so a tied edge
+name at `face_frame` answers `Ambiguous` where a unique one answers
+`WrongKind`. WIRE's ground, and a public error-channel change of its
+own.
+
+**Territory announced:** `crates/editor-core/src/assembly.rs` is EDIT's
+and the pncad-py façade is LIB's; PORT claims no paths.
+
+## 2026-09-15 — PORT-DOORS-1 fix pass (PR 2635, full review)
+
+Full review returned no MAJOR, one MINOR, nineteen style findings. The
+MINOR was a **falsified claim**: `crates/editor-core/ASSEMBLY.md`'s A3
+still cited `AssemblyError::NoAtRestRecord`, a path the change retired.
+Repaired to `MintRefusal::NoAtRestRecord`, and a SECOND stale sentence
+the review did not name was found beside it — the same page said the
+carried refusal is raised *"on the head row in gather order"*, which
+the widening makes false. Both are repointings of a ratified page that
+an approved code change moved, not decisions (CLAUDE.md's git-workflow
+test), so they land with the change that caused them; what the clauses
+DECIDE is untouched.
+
+**The class letters were wrong twice.** The lane reported `L`, which is
+not in this program's vocabulary — `plan.md` defines `E`/`M`/`H` and
+no plan in `work/` carries an `L`. Both cells are now **H**, on the
+scale's own "spanning several programs' territory" clause: the widening
+retires two public `AssemblyError` variants and reaches EDIT's
+`assembly.rs` and LIB's whole façade. `plan.md`'s review-posture
+sentence is corrected in the same PR too: the full review is no longer
+"that row alone", because this unit asked for the second arm under the
+escape hatch the same section defines — and the escape hatch earned
+its keep, since the style lane's sweep would not have asked after a
+ratified page's citations.
+
+**The list-renderer class, all three sites disposed.** The review was
+right that a point fix was a half-fix: `finding::render_list`,
+`product.rs`'s disclosed-but-unrouted closure and the lane's own
+`render_refusals` were three copies of one loop. The unification is in
+`finding.rs`: `render_lines` is the loop, over anything that renders as
+ONE line, and `render_list` is `render_lines` over a `Composed`
+adapter. Both mint arms and `ProductError` now call it. The reason the
+lane gave for not routing — a `MintRefusal` is already a composed
+sentence — was a reason not to COMPOSE it, never a reason to copy the
+loop, and that distinction is now what the sink's doc says.
+
+**A second sweep, shaped for the shape the first one missed.** The
+review observed that two of the three known instances are CALLER-SIDE
+kind/tie pairings, which the `Entry::Tied`-adjacent grep can only find
+by luck, and asked whether the instrument was structurally wrong. It
+was. The second instrument walks every fn body in `crates/*/src`, finds
+those that both reach a tie-refusal producer and test an entity kind,
+and reports which comes FIRST. 23 functions do both; 8 reach the tie
+first; 5 are projection or tag matches where arm order is not
+semantics, 1 is a test fixture, 1 is `resolve_face` matching its own
+signature line — and 1 is new:
+`work/wire/declare-door-refuses-a-tie-before-it-asks-the-pairs-kinds`,
+the declare door refusing `Ambiguous` before `DeclareUnsupportedPair`
+can name the pair's kinds. Third instance of the class, filed on WIRE's
+slate beside the second, and it sits on the same two lines as WIRE's
+existing `the-declared-pair-refusal-reads-the-authored-kind`.
+
+**Also filed:**
+`work/lib/route-fields-builds-both-python-objects-to-return-one` —
+the lane added the third and fourth caller that indexes a helper
+returning a pair, deliberately (a consistent wart over an inconsistent
+fix in LIB's file), and disclosing it without a row would have been the
+thing `work/README.md:117` forbids.
+
+Everything else the review raised was taken: the Python row that
+computed its expectation from the answer's own length (both mates and
+both words are written out now), the two probe names that asserted
+"first bad mate wins" over a diff that made both win, the sweep-receipt
+line that gave an untrue reason for a true conclusion (`select.rs`
+DOES refuse over a tie — it is kind-first because `NamePat::matches`
+tests `name.kind` and `continue`s before a candidate is read), the two
+`TiedDisagrees` sites absent from the table, the non-empty "guarantee"
+that was prose on a `pub Vec` (now stated as what the door does, with
+the demo's vacuous `all` fixed), the `display_contract` sentence
+claiming a guard that could not exist, `MintRefusal`'s type doc naming
+one of its two destinations, the carried arm repeating its recourse
+once per row (now once, in the header), and `debug_assert!(false, ...)`
+restated as a positive predicate.
+
+### Render drift on this branch is main's, not this unit's
+
+Run 34953058313 posted `render drift (kernel)` and `render drift
+(freecad)` neutral checks naming `s_duct.png`, `twisted_tube.png` and
+both montages. §§3 says a frame that changed is telling you the kernel
+changed, so it was chased rather than waved through.
+
+It is not this unit's. The evidence: the branch's PREVIOUS head
+(`ef4d485e2`) posted NO drift check at all, and drift appeared only
+after merging `origin/main` at `bad35258d`; that range carries
+`crates/sweep/src/loft.rs` and `skin.rs` from PR #2466, the s393
+start-frame door, and `s_duct`/`twisted_tube` are sweep-and-loft
+scenes; and this branch's own diff against main touches no geometry
+crate, no render scene and no cell. Main's own re-baseline for the
+kernel lane, `cba1c4e8b`, landed AFTER the commit this branch had
+merged — merging the newer main cleared the kernel drift exactly as
+that explains.
+
+The freecad lane's re-baseline has not landed on main yet, so
+`render drift (freecad)` still reports `twisted_tube.png`. It is the
+same scene and the same cause, and the check says a PR run does not
+re-baseline: main's own run commits the cells after the merge. Nothing
+to commit by hand here, and nothing about this unit.
+
+### Merge-forward before landing (2026-09-15)
+
+One conflicted path, `crates/editor-core/tests/display_contract.rs`,
+resolved by keeping BOTH sides. TINT-1 (#2648) re-homed `assert_f6`
+into `test_utils::f6` and added `assert_f6_every_variant`; this lane
+added the `mint()` helper that every assembly row in that file now
+builds its subject with. The local `assert_f6` this lane was calling is
+SUPERSEDED, not dropped: main's replacement has the same name and the
+same signature and passes exactly the field-punctuation roster the
+local copy hard-coded (`node:`, `name:`), so every rewritten row keeps
+its meaning while the predicate moves to its one home. Taking this
+lane's copy instead would have re-minted the third spelling that
+TINT-1 exists to delete. No other path collided; every assembly row
+this lane rewrote survived the auto-merge and was re-read to confirm
+it.
+
+**S415 (#2633) was already an ancestor** of this branch before the
+conflict arose, so its `py/doc.rs` and `tags.rs` work had already been
+merged silently. Re-verified against it rather than assumed: the
+pncad-py tag-inventory test, the binding census and the full python
+suite are green.
+
+**The render drift is closed, re-read rather than re-asserted.** Main
+now carries BOTH re-baselines and both are ancestors of this branch:
+`cba1c4e8b` for the kernel lane and `29fdea8d6` for the freecad lane,
+the latter touching exactly the two cells the drift check named
+(`montage-freecad.png`, `twisted_tube.png`). Checked independently
+that this lane could not have caused either: `s_duct` and
+`twisted_tube` are built in `demos/tour/src/skinned.rs`, and this
+branch's only change under `demos/` is an import line and one
+assertion in `demos/tour/src/assembly.rs`, which renders no cell. The
+run on the merge-forward posts NO drift check on either lane.

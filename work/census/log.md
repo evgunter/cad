@@ -201,3 +201,129 @@ leaves should be the compiler wherever it can be, and a census only where
 it cannot. Reaching for this unit's shape there would be the charter's
 trap in its other direction: a hand-maintained reader standing in for a
 check the language already performs.
+
+## CENSUS-DEBUG (2026-09-15) — the trap sprang inside the fix, again
+
+`hand-listed-debug-censuses-in-geom-core-geom-and-topo` on PR 2655.
+12 `Debug` impls destructured (4 with `_`-bound fields and the
+terminator corrected to `finish_non_exhaustive()`), 8 `PartialEq`
+siblings likewise, and an arrival census in `crates/test-utils/`.
+
+**The row's own hit list had decayed.** Written 2026-09-06 saying eight
+rows and nine impls; its own enumeration rule gave 14 on 2026-09-15,
+four of them new members of the class. Nothing observed four arrivals in
+nine days — the row's thesis arriving as evidence about the row, and the
+argument for the instrument half.
+
+**The trap sprang for the second unit running, and the code argued
+against itself.** The census's suppression list was keyed `(path, trait)`,
+and the doc three lines above it explained why: *"a suppression that
+grows silently is the shape this census exists to refuse."* The key did
+not implement that — it narrowed the growth from per-file to
+per-(file, trait) and left the direction open. The style lane executed it:
+a fresh hand-listed impl appended to an already-suppressed file left all
+five rows green. **That is the one event the census exists to detect.**
+The fix pass re-ran the probe against the OLD key to confirm the finding
+independently before changing anything, then keyed on the self type.
+
+Two units, two springs, both caught only by a reader who did not write
+the fix. This is now a pattern of the program rather than one lane's
+slip, and the next spec should say so.
+
+**The design claim was half wrong, which is the more useful correction.**
+The unit was dispatched on "the per-field question is compiler-known
+after Half A, so the census must not re-ask it". True for the twelve
+impls Half A touched; **false for the population the census then declares
+clean.** Four body shapes answered green, and one was de-listed at the
+site as something the classifier answers: `self.0.name`, a newtype
+reading a NAMED field of its inner type. Live instance `NameRef::eq`,
+which drops `Held::stamp`. Three of the four are now closed in the
+classifier, that one is on the blind-spot list where it belongs, and the
+header no longer asserts E0027 holds an enum struct-variant arm
+unconditionally — `..` defeats it there exactly as in `Self { a, .. }`.
+
+**Second blind-spot list in two units to claim exclusivity and be
+short.** Unit 1's was wrong by a factor of five; this one by four.
+
+### Decisions taken here
+
+- **The self-type key**, with its cost stated at the site: the type is
+  read as written, so a rename makes an entry stale and reds the sight
+  row. Loud direction, and it buys that a homogeneous trait has at most
+  one impl per type, so a key names exactly one impl and cannot cover a
+  second.
+- **`GeometryWitness` downgraded from a live wrong answer to a missing
+  tie.** The style lane found the row contradicting itself in the
+  paragraph carrying its severity; `eq` compares `a_point`/`b_point`
+  coordinate by coordinate, so the stated scenario already compares
+  unequal. The surviving scenario is narrower and arguably correct
+  today; what is wrong is that nothing holds it. The row went to
+  another program's slate and had to be accurate first.
+- **The new out-of-fence row placed fifth, early for its class**, because
+  most of it is routing and routing decays — it records two sites
+  claimed by no open program, and every program that closes moves an
+  owner.
+
+### Two things the fix pass found that nobody asked for
+
+`SKIPPED_DIRS`' component test was on the ABSOLUTE path, so a checkout
+under a hidden ancestor would have skipped the whole tree and left every
+row passing over nothing — a silent vacuity in the guard itself.
+And `repo_root`'s eight lines had **five** copies, not the three the
+review found; all five are now `test_utils::source`.
+
+## CENSUS-DEBUG merged (2026-09-15)
+
+PR 2655 merged as `265a4e8b`, green on run `34965144463`. The spec is
+deleted per the ledger, recoverable at
+`git show 67e56e2cf:docs/CENSUS-DEBUG-SPEC.md`; the item is closed and
+carries its premise corrections.
+
+## Two units in, and what the program has learned about itself
+
+Both units are closed and the pattern across them is worth stating
+before a third is specced, because it is about THIS program and not
+about either row:
+
+1. **The trap sprang on both units, and naming it did not prevent
+   either.** Unit 1 hand-spelled a shared predicate one line after
+   calling its other half. Unit 2 keyed its suppression list so that a
+   suppression could grow silently, three lines under a doc explaining
+   why it must not. Both were caught by a reader who did not write the
+   fix, and by nothing else. **A spec for a CENSUS unit should stop
+   treating this as a warning and start treating it as a prediction**:
+   name the specific growth direction the unit's own instrument will
+   have, and require the lane to execute a probe against it.
+
+2. **Both blind-spot lists claimed exclusivity and were short** — unit
+   1's by a factor of five, unit 2's by four. A list that says "the one
+   shape" or "what is NOT on this list, because the classifier answers
+   it" has been wrong every time it has been written here. The next
+   spec should require the list to be arrived at by execution rather
+   than by reasoning, and should treat an exclusivity claim as a
+   finding in review.
+
+3. **The orchestrator's spec premises decay too.** Unit 1's spec was
+   wrong in three places, unit 2's in three more, and one of unit 2's
+   was a CRITERION rather than a count — the sharper failure, because a
+   wrong criterion silently re-scopes the whole unit. Measuring before
+   writing caught a great deal; it did not catch everything, and the
+   standing instruction to the lane ("the spec's numbers are a
+   hypothesis; correct me") earned its place both times.
+
+4. **What the instrument should be is a per-unit question, not a
+   house style.** Unit 1's population was not compiler-known and earned
+   a reader with a pinned tally; unit 2's split, and copying unit 1
+   wholesale would have re-asked a question `E0027` already answers.
+   The third unit should make that judgement explicitly rather than
+   inheriting it.
+
+## Next
+
+`pncad-py-eval-err-variants-outside-the-tag-inventory` is third in the
+order: the smallest row on the slate, one crate, and its one call —
+widen the reader to lex the literal-variant `eval_err` sites, or rule a
+call-site literal deliberately out of scope and pin the one uncovered
+word — is the orchestrator's to make in the spec rather than the lane's,
+because it is a question about the gate's REACH and answering it is the
+unit.
