@@ -58,3 +58,65 @@ Note the ceiling on any answer: the `cases` fixtures beside each
 `dumps` are hand-written too, so a ban list that covered every variant
 would still only bite on a rendering the fixture list reaches. The two
 halves want deciding together.
+
+## Re-derived (2026-09-15, lane C)
+
+**VERDICT: REPRODUCES**, and the drift the row predicted has already
+happened in **three of the seven** lists. Nothing was fixed; the row now
+has live instances rather than a forecast.
+
+**The mechanism is unchanged.** `crates/editor-core/tests/display_contract.rs`'s
+`fn assert_f6<E: Debug + Display>(err, wants, dumps)` still takes a
+`dumps: &[&str]`, and all seven callers still write it by hand. None of
+the three shapes the row weighs (an `ALL` per error enum, a census row
+per enum, reading the identifiers out of the source through
+`test_utils::source`) is in the tree.
+
+**Each list against its enum, re-derived by name.** Variants taken from
+the `pub enum` declaration in each source file; `dumps` entries counted
+in `display_contract.rs`:
+
+| row | enum (and where it is declared) | variants | in `dumps` | missing |
+| --- | --- | --- | --- | --- |
+| `interrogate_error_display_names_its_content_not_its_struct` | `InterrogateError`, `crates/editor-core/src/names/interrogate.rs` | 10 | 10 | — |
+| `parse_error_display_names_its_content_not_its_struct` | `ParseError`, `crates/editor-core/src/parse.rs` | **11** | 10 | **`Dimension`** |
+| `select_refusal_display_names_its_content_not_its_struct` | `SelectRefusal`, `crates/editor-core/src/names/geompred.rs` | **8** | 8 entries, but one is `"Angle"` (a `Dimension` identifier, deliberately) | **`Band`** |
+| `node_pick_error_display_names_its_content_not_its_struct` | `NodePickError`, `crates/editor-core/src/resolve/pick.rs` | 5 | 5 | — |
+| `resolve_indeterminate_display_names_its_content_not_its_struct` | `ResolveIndeterminate`, `crates/editor-core/src/resolve/mod.rs` | 3 | 3 | — |
+| `resolve_fault_display_names_its_content_not_its_struct` | `ResolveFault`, `crates/editor-core/src/part.rs` | 3 | 3 | — |
+| `declare_error_display_names_its_content_not_its_struct` | `DeclareError`, `crates/editor-core/src/names/flush.rs` | **3** | 2 | **`Edit`** |
+
+**Three live holes**: `ParseError::Dimension { .. }`,
+`SelectRefusal::Band(BandError)` and `DeclareError::Edit(EditError)` are
+each a variant whose identifier no `dumps` list bans, so an arm that
+rendered one through `Debug` passes this suite green while the file's F6
+claim says the opposite. Each is a newer variant than its list — exactly
+the sentence *"A variant added tomorrow is not in its list"*, three times
+over, with nobody noticing.
+
+Note the second and third are payload-carrying wrappers
+(`Band(BandError)`, `Edit(EditError)`), so the F6 exposure is doubled:
+neither the wrapper identifier nor anything about the inner error's own
+rendering is banned.
+
+**The stated ceiling still holds and is now measurable.** The `cases`
+fixtures beside each `dumps` are still hand-written, so even a complete
+ban list bites only on the renderings those fixtures reach — and for the
+three missing variants there is no fixture either, so completing the ban
+lists alone would change nothing until a case is added for each.
+
+**How this was derived, and its blind spot.** Variant names extracted
+from each `pub enum` body at depth 1 and eyeballed against the declaration
+(`sed`/`grep '^    [A-Z]'` over the enum body); `dumps` arrays read in
+full. **What that could not match**: a variant declared behind a `#[cfg]`
+(none of these enums has one today), a variant whose identifier is a
+substring of another so that `assert_f6`'s `contains` check accidentally
+covers it, and any eighth `assert_f6` caller outside
+`display_contract.rs` — `grep -rn "assert_f6"` finds the helper and its
+callers only in that file.
+
+**Recommendation (orchestrator's call).** Keep open and raise its
+priority: the row is no longer a forecast. The three holes are evidence
+for whichever of the three shapes is chosen, and a unit that publishes an
+`ALL` (or a source-read census) would have to name them as its
+regression test.
