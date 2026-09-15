@@ -41,6 +41,16 @@ name, not by shifting a number:
 | `COUNT_DRAG_SPEED` | `app.rs:1079` | `forms.rs:377` |
 | `FieldWriting::of` | `app.rs:1121-1166` | `forms.rs:437`, in the `impl` at `:432` |
 
+*(2026-09-15: the `forms.rs` numbers in the right-hand column are as of
+`104f1445b`, this report's own read, and have since rotted — `forms.rs`
+has grown above them and all six are now wrong by exactly +76, the
+`impl` line included — `drag_tick` is at `:467`, the four constants at
+`:430`/`:439`/`:449`/`:453`, `FieldWriting::of` at `:513`. They
+are left as written because this report is closed and a closed row's
+body is a record of what was read when. The live citations are in
+`work/chrome/drag-tick-has-three-homes.md`, which carries no line
+numbers at all. Noted so the next reader does not re-discover it.)*
+
 **`crates/viewer/src/app.rs` holds none of them.** The module split
 moved the whole subject to `forms.rs` and the row was not re-pointed.
 

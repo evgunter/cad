@@ -76,15 +76,52 @@ axis frame, so the chrome's gate is
 itself refuses a non-planar face at evaluation (DM1b), so the chrome
 gate is an affordance, not the safety.
 
+## Two nodes in one gesture is NOT a constraint — the door ships
+
+Stated here because both this row and its sibling have argued the
+opposite, and because a RATIFIED design page settles it and names both
+rows by id. `crates/editor-core/REFERENCES.md`, DM1's
+chrome-consequence bullet:
+
+> The chrome consequences are CHROME's builds
+> (`add-profile-mints-no-frame`,
+> `add-profile-placement-on-picked-face-frame`): "on a new XY frame"
+> is two inserts in one committed action (`commit_action`); "on this
+> face" mints one `FaceFrame` and one profile the same way.
+
+And the door is shipped: `DocSession::commit_action`
+(`crates/viewer/src/session.rs`) takes a `Vec<DocEdit>`, applies each
+to the value the last produced, records the whole run as one history
+state — *"one user action is one undo"* — and is **all-or-nothing**, a
+refusal anywhere leaving the session on the document it started from.
+`delete_node`'s cascade already goes through it.
+
+So "one submit, one committed edit" is not the invariant; **one submit,
+one undo** is, and `commit_action` is how a multi-node gesture keeps
+it. Nothing about the face-frame arm is blocked on a commit-door
+decision. What is left is the missing seat above, and nothing else.
+
 ## Relation to the sibling row
 
-`work/chrome/add-profile-mints-no-frame.md` is the same shape one door
-over: that one is the empty document that cannot mint a world-XY frame,
-and the picker that names frames by node number. Both are "the form
-names a frame it cannot create"; they differ in WHICH frame. Whoever
-takes either should read the other — the one-submit-one-edit property
-is the shared constraint, and a face-frame arm that commits two nodes
-breaks it the same way an XY-frame arm would.
+`work/chrome/add-profile-mints-no-frame.md` is the nearer of the two
+halves and the further of the other. Its half 1 — an empty document
+cannot draw a sketch, because minting a world-XY frame means leaving
+the form — wants a node kind the chrome **can already mint**
+(`add_datum_ui` offers `Frame`); it is an affordance-routing problem,
+and with `commit_action` above it is close to mechanical. This row
+wants a node kind **no chrome can mint at all**, which needs a new
+`DatumSpec` seat, a two-pick form shape and a planarity gate. Removing
+the false one-submit constraint pushes the two apart rather than
+together: it was the only thing making them look like one problem.
+
+Where they DO converge is that row's half 2, the picker and tree
+labels. `tree.rs` distinguishes the two frame KINDS (`"Datum frame"`
+against `"Datum frame (on face)"`) but neither label says WHICH frame,
+and `add_profile_ui`'s ComboBox reads `format!("feature {}", id.0)`
+for every frame regardless of kind. A face frame's honest label is the
+face it sits on, so this row's form would need exactly the label work
+that row asks for. Whoever takes either should read the other for that
+reason, not for the commit door.
 
 ## Home
 
