@@ -37,6 +37,7 @@
 //! directions, because the grazing configurations those obliques
 //! answer are the same ones here.
 
+use crate::pcurves::ChartArm;
 use geom_brep::ChartWindow;
 use geom_core::{Band, Decide, Margin, Point2, Real, Sign, Vec2};
 
@@ -264,18 +265,20 @@ impl<T: Decide> ChartBound<T> {
     /// face's region is then not periodic within its own outer, the
     /// lifts are not lifts of anything, and there is no honest
     /// description to return.
-    /// `u_arm` is the chart's FIRST-channel lever arm — metres per
-    /// chart `u` unit — which is what turns the span excess into a
-    /// length. It is a chart constant on the two charts a consumer
-    /// meters exactly (plane `1`, cylinder `r`); on a torus it is the
-    /// local lever, and an over- or under-stated arm can only move
-    /// where the refusal fires, never what a surviving description
-    /// certifies.
+    /// `u_arm` is the chart's FIRST-channel arm — what turns the span
+    /// excess into a length, and which of the two crossings that is
+    /// ([`ChartArm`]): metres per radian on an azimuth chart, metres
+    /// per chart-`u` unit on a plane or spline chart, where the excess
+    /// it meters is a parameter span and the arm is a certified rate.
+    /// It is a chart constant on the two charts a consumer meters
+    /// exactly (plane `1`, cylinder `r`); on a torus it is the local
+    /// lever, and an over- or under-stated arm can only move where the
+    /// refusal fires, never what a surviving description certifies.
     pub fn assembled(
         outer: ChartLoop<T>,
         rings: Vec<ChartLoop<T>>,
         period: Option<T>,
-        u_arm: T,
+        u_arm: ChartArm<T>,
         band: Band,
     ) -> Result<Self, PcurveMintError> {
         let hull = outer.window().unwrap_or(ChartWindow {
@@ -297,11 +300,7 @@ impl<T: Decide> ChartBound<T> {
             // measured violation, and refusing it would turn a
             // rounding into a lost description.
             if matches!(
-                decide(
-                    SPAN,
-                    Margin::levered(hull.u_max - hull.u_min - p, u_arm),
-                    band
-                ),
+                decide(SPAN, u_arm.meter(hull.u_max - hull.u_min - p), band),
                 Ok(Sign::Positive)
             ) {
                 return Err(PcurveMintError::OuterSpansPeriod);
