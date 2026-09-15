@@ -72,12 +72,13 @@ use pncad::analysis::{
     AnalysisPolicyError, McRefusal, MeasureUnavailable, ParamBoxError, SeedError,
 };
 use pncad::document::{
-    AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, DimensionError,
-    Distribution, DistributionFault, DistributionField, EditError, EvalError, InlineError,
-    LeverRefusal, MateFault, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError, MintRefusal,
-    NodeErrorKind, ParseError, PersistError, PlacementRuleFault, ProgramFault, ProgramRefusal,
+    AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission,
+    ClusterMaintenance, DimensionError, Distribution, DistributionFault, DistributionField,
+    EditError, EvalError, InlineError, InterfaceCrossing, LeverRefusal, MateFault, MatePrimitive,
+    MeasureNodeFault, MeasureUnavailableAt, MetaVersionError, MintRefusal, NodeErrorKind,
+    ParseError, PersistError, PlacementRuleFault, ProgramFault, ProgramRefusal,
     RecordedProgramError, RefusedRef, Relation, RootFault, ShellClassifyError, SlotId,
-    SnapshotError, SplitError, UpdateError,
+    SnapshotError, SplitError, Subgroup, UpdateError,
 };
 use pncad::geom_core::{BandError, BandField, FrameError, FrameInput, FrameVector};
 use pncad::mesh::TessellateError;
@@ -88,8 +89,8 @@ use pncad::profile::{
 };
 use pncad::quantity::FmtQuantityError;
 use pncad::select::{
-    DanglingRef, HitTestError, InterrogateError, MeshPickError, NamingError, NodePickError,
-    ReadbackError, Resolution, ResolveError, ResolveIndeterminate,
+    DanglingRef, EntityKind, HitTestError, InterrogateError, MeshPickError, NamingError,
+    NodePickError, ReadbackError, Resolution, ResolveError, ResolveIndeterminate,
 };
 use pncad::step_import::{NormalizationKind, PromotedCurveKind, PromotedKind, StepImportError};
 use pncad::sweep::blend::BlendError;
@@ -1885,6 +1886,26 @@ pub fn mint_refusal_tag(refusal: &MintRefusal) -> &'static str {
     }
 }
 
+/// The stable tag for **how far a contact class gets**: what the
+/// class table answers a tool that asks BEFORE it commits an edit.
+///
+/// `no_at_rest_record` is [`mint_refusal_tag`]'s word on purpose and
+/// must stay it. The table's arm exists to predict exactly that
+/// refusal — `ClassAdmission::NoAtRestRecord` says the mint door will
+/// raise `MintRefusal::NoAtRestRecord` for this class — so a caller
+/// that asks ahead and a caller that reads the refusal afterwards are
+/// told one fact, and a tool can match the answer it got against the
+/// refusal it later sees.
+/// `the_class_table_predicts_the_mint_refusal_in_its_own_words` holds
+/// the two spellings equal.
+pub fn class_admission_tag(admission: &ClassAdmission) -> &'static str {
+    match admission {
+        ClassAdmission::Mints => "mints",
+        ClassAdmission::NoAtRestRecord { .. } => "no_at_rest_record",
+        ClassAdmission::NotAdmitted => "not_admitted",
+    }
+}
+
 /// **The stable tag for one at-rest attribution** — what a finding
 /// says about a declaration it names, and whose declaration it is.
 ///
@@ -2462,6 +2483,28 @@ pub fn entity_id_tag(entity: &EntityId) -> &'static str {
     }
 }
 
+/// The stable tag for an entity KIND — what a document-layer name
+/// denotes, one rung above the arena reference [`entity_id_tag`]
+/// spells.
+///
+/// The two maps are two layers' vocabularies, not one map written
+/// twice: this one is total over what a NAME can denote, and the
+/// other over what the arena can hold, so `solid`, `shell`, `loop`
+/// and `half_edge` exist only there and `body` only here. Where both
+/// layers speak of one entity — a face, an edge, a vertex — the word
+/// is the same word, because a caller resolving a name and a caller
+/// reading a census subject are reading one concept.
+/// `the_entity_kind_and_entity_id_maps_agree_where_both_speak` is
+/// what holds that true.
+pub fn entity_kind_tag(kind: EntityKind) -> &'static str {
+    match kind {
+        EntityKind::Face => "face",
+        EntityKind::Edge => "edge",
+        EntityKind::Vertex => "vertex",
+        EntityKind::Body => "body",
+    }
+}
+
 /// The stable tag for WHICH coincidence the tier-3′ census found.
 ///
 /// The arms are not one fact and the word is the difference between
@@ -2524,5 +2567,65 @@ pub fn ring_contact_tag(contact: &RingContact) -> &'static str {
         RingContact::Vertex { .. } => "vertex_vertex",
         RingContact::VertexOnEdge { .. } => "vertex_on_edge",
         RingContact::Edge { .. } => "edge_along_edge",
+    }
+}
+
+/// The stable tag for a mate PRIMITIVE — which alignment the authored
+/// mate asks for, before any solve.
+pub fn mate_primitive_tag(primitive: MatePrimitive) -> &'static str {
+    match primitive {
+        MatePrimitive::FrameCoincidence => "frame_coincidence",
+        MatePrimitive::Coaxial => "coaxial",
+        MatePrimitive::PlanarRest { .. } => "planar_rest",
+        MatePrimitive::Clocking => "clocking",
+    }
+}
+
+/// The stable tag for a residual SUBGROUP — which rigid motions a
+/// solved mate leaves free.
+///
+/// `empty` is the contradictory answer, not the free one: no motion
+/// satisfies the constraints at all, where `trivial` is the single
+/// motion that does. A caller branching the two apart is separating
+/// "over-constrained" from "fully located", which is why the
+/// discriminant is worth a word.
+pub fn subgroup_tag(subgroup: &Subgroup) -> &'static str {
+    match subgroup {
+        Subgroup::Se3 => "se3",
+        Subgroup::Planar { .. } => "planar",
+        Subgroup::Cylindrical { .. } => "cylindrical",
+        Subgroup::Prismatic { .. } => "prismatic",
+        Subgroup::Revolute { .. } => "revolute",
+        Subgroup::Trivial => "trivial",
+        Subgroup::Empty => "empty",
+    }
+}
+
+/// The stable tag for one recorded act of cluster-record maintenance
+/// — what an ordinary edit's motion of the mate graph forced on the
+/// placement registry.
+///
+/// The word decides which payload attributes carry: a `join` names
+/// the gauge that survived and the one absorbed, a `split` the two
+/// gauges it left behind, a `gauge_rewrite` the cluster whose gauge
+/// moved, and a `drop` the registry row that went away.
+pub fn cluster_maintenance_tag(maintenance: &ClusterMaintenance) -> &'static str {
+    match maintenance {
+        ClusterMaintenance::Join { .. } => "join",
+        ClusterMaintenance::Split { .. } => "split",
+        ClusterMaintenance::GaugeRewrite { .. } => "gauge_rewrite",
+        ClusterMaintenance::Drop { .. } => "drop",
+    }
+}
+
+/// The stable tag for WHAT crossed a split's cut — which kind of edge
+/// had its two ends land on opposite sides.
+///
+/// One arm today, and the map is what says so: a crossing is whatever
+/// kind of edge can span the cut, and a mate is the only kind there
+/// is. A second kind arriving kernel-side stops this build.
+pub fn interface_crossing_tag(crossing: &InterfaceCrossing) -> &'static str {
+    match crossing {
+        InterfaceCrossing::Mate { .. } => "mate",
     }
 }

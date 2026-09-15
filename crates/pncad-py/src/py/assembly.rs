@@ -39,7 +39,8 @@ use pyo3::types::PyString;
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
 use crate::tags::{
-    assembly_error_tag, attribution_tag, mint_refusal_tag, product_error_tag, refused_ref_tag,
+    assembly_error_tag, attribution_tag, entity_kind_tag, mint_refusal_tag, product_error_tag,
+    refused_ref_tag,
 };
 use pncad::document as d;
 use pncad::tolerance::Tol;
@@ -255,7 +256,8 @@ impl RefusedRef {
     }
 
     /// What the reference did name, when it resolved to something
-    /// that is not a face: `"face"`, `"edge"`, `"vertex"`, `"body"`.
+    /// that is not a face — `crate::tags::entity_kind_tag`'s word,
+    /// inventoried there.
     #[getter]
     fn kind(&self) -> Option<&'static str> {
         match self.0 {
@@ -272,18 +274,6 @@ impl RefusedRef {
 
     fn __repr__(&self) -> String {
         format!("RefusedRef({:?})", self.variant())
-    }
-}
-
-/// The stable tag for an entity kind. Exhaustive over the kernel
-/// enum, so a kind added there stops this build.
-fn entity_kind_tag(kind: pncad::prelude::EntityKind) -> &'static str {
-    use pncad::prelude::EntityKind as K;
-    match kind {
-        K::Face => "face",
-        K::Edge => "edge",
-        K::Vertex => "vertex",
-        K::Body => "body",
     }
 }
 

@@ -3727,6 +3727,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "class_admission_tag",
+        values: &["mints", "no_at_rest_record", "not_admitted"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "cluster_maintenance_tag",
+        values: &["drop", "gauge_rewrite", "join", "split"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "coherence_condition_tag",
         values: &[
             "meridian_closure",
@@ -3845,6 +3855,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "solid",
             "vertex",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "entity_kind_tag",
+        values: &["body", "edge", "face", "vertex"],
         delegates: &[],
     },
     TagEntry {
@@ -3969,6 +3984,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &["resolve_fault_tag"],
     },
     TagEntry {
+        function: "interface_crossing_tag",
+        values: &["mate"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "interrogate_error_tag",
         values: &[
             "ambiguous",
@@ -4021,6 +4041,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_table_lacks",
             "mate_under",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "mate_primitive_tag",
+        values: &["clocking", "coaxial", "frame_coincidence", "planar_rest"],
         delegates: &[],
     },
     TagEntry {
@@ -4690,6 +4715,19 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "structure_refusal_tag",
         values: &["flipped", "indeterminate"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "subgroup_tag",
+        values: &[
+            "cylindrical",
+            "empty",
+            "planar",
+            "prismatic",
+            "revolute",
+            "se3",
+            "trivial",
+        ],
         delegates: &[],
     },
     TagEntry {

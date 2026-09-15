@@ -43,14 +43,37 @@ use pncad::document::Dimension;
 /// prose rendering (`Dimension`'s `Display`) and
 /// `dimension_tags_match_the_kernel_prose` pins the two equal, so a
 /// drift is a test failure rather than a quiet divergence. The third
-/// is `py::value::dimension_name`, capitalized for the Python
-/// `Measurement` repr.
+/// is [`measurement_dimension_tag`], capitalized for the Python
+/// `Measurement` repr and pinned to this one by
+/// `the_two_dimension_alphabets_are_one_list_in_two_cases`.
 pub const fn dimension_tag(dim: Dimension) -> &'static str {
     match dim {
         Dimension::Length => "length",
         Dimension::Angle => "angle",
         Dimension::Count => "count",
         Dimension::Scalar => "scalar",
+    }
+}
+
+/// The **capitalized** spelling of a [`Dimension`], which is what
+/// `Measurement.dimension` answers.
+///
+/// It lives here rather than in [`crate::tags`] because every tag in
+/// that file is lower snake case and its reader enforces that — this
+/// word list is the one Python-visible alphabet that is not, so the
+/// file it would join is the file that would have to stop making the
+/// claim. Beside [`dimension_tag`] instead, where a reader sees both
+/// spellings at once and
+/// `the_two_dimension_alphabets_are_one_list_in_two_cases` holds them
+/// to one list: each word here is its lower-case sibling
+/// capitalized, over the kernel's own [`Dimension::ALL`] rather than
+/// a roster written down twice.
+pub const fn measurement_dimension_tag(dim: Dimension) -> &'static str {
+    match dim {
+        Dimension::Length => "Length",
+        Dimension::Angle => "Angle",
+        Dimension::Count => "Count",
+        Dimension::Scalar => "Scalar",
     }
 }
 
