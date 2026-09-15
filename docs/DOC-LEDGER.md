@@ -765,6 +765,50 @@ statement.
 
 - `S415-SPEC.md` — S415, the three boundary residues: one scaffold rule, the Part 21 band disclosed as one rule in two crates, one hand-minted tag derived (#2633)
 
+## Per-merge deletion — PORT-PYOPTS's spec (2026-09-15)
+
+Recoverable at `git show e3649a523:docs/PORT-PYOPTS-SPEC.md` (the PORT
+orchestrator's commit that wrote it; the unit branch merged that commit
+and carried the file to its own merge). The rule above; the unit's
+record is `work/port/python-cannot-set-options-structs.md` and the two
+rows it filed on LIB, plus the 2026-09-15 entry in `work/port/log.md`.
+
+**Two of its statements are corrected by the unit**, and the item file
+is the statement of record for each. The spec said the STL doors
+"already expose `solid_name`/`header` as kwargs" and that "the visible
+work is small" there; in fact both doors defaulted their keyword to the
+EMPTY string, which is not either struct's `Default` — so a Python
+caller writing no arguments got `solid ` and 80 zero bytes where a Rust
+caller got the kernel's part name and producer text. And the spec said
+a `NotBound` roster entry's decay was already checked; the decay half
+read the stub's DECLARED NAMES, which an options keyword never is, so
+an options entry would have stayed green forever. The alphabet is now
+per-roster.
+
+- `PORT-PYOPTS-SPEC.md` — PORT `python-cannot-set-options-structs`, the four options doors bound field by field with a destructure anchor per struct (#2678)
+
+## Per-merge deletion — PORT-DOORS-1's spec (2026-09-15)
+
+Recoverable at `git show 58e485ca4:docs/PORT-DOORS-1-SPEC.md` (the PORT
+orchestrator's commit that wrote it, the last revision where it stands
+alone; the unit branch merged that commit and carried the file to its
+own merge). The rule above; the unit's record is
+`work/port/PORT-DOORS-1.md` and the two findings it carries, plus the
+2026-09-15 entries in `work/port/log.md`.
+
+**Two of its statements are corrected by the unit**, and the item files
+are the statement of record for each. The spec read the widening as a
+shape change on two existing arms; it is a **vocabulary** change — the
+flattened `AssemblyError::Reference` and `NoAtRestRecord` cannot hold a
+mixed list and retire into one `Mint` arm, which is why the unit's class
+is `H` and not the `M` the spec's own plan row estimated. And the spec
+said "the two control assertions" in
+`crates/editor-core/tests/msolve5_read_below_a_root.rs` move under
+kind-first; **only one does** — a tie among faces is still `Ambiguous`,
+so the tied-face row is untouched.
+
+- `PORT-DOORS-1-SPEC.md` — PORT-DOORS-1, one order and one list at the assembly doors: the mint refusals widened to carry every row, kind asked before tie in `resolve_face` (#2635)
+
 ## Per-merge deletion — M10's merged-unit specs (2026-09-03)
 
 Recoverable at `git show 08931277cf23c29d35daa41a15a4cecc6495022e:docs/<NAME>`
@@ -3110,3 +3154,24 @@ and `dimension-error-op-carries-twelve-words-minted-at-call-sites`; and
 on `work/lib/`, `validationerror-stub-declares-one-of-the-class-two-shapes`.
 
 - `CENSUS-PY-RAISE-LITERALS-SPEC.md` — CENSUS-PY-RAISE-LITERALS, nine raise-site words get homes (#2682)
+
+## Per-merge deletion — EXHAUST-LANE's spec (2026-09-15)
+
+Recoverable at `git show 44a44b8de:docs/EXHAUST-LANE-SPEC.md` (the
+fix-pass head). Its sentences that did not survive: "the one writer
+(`sweep`) builds the receipt from the lane it was handed" — `sweep`
+now counts into a private tally and the two accounting doors attach
+the lane (a seeding path hands back no receipt to state a lane on);
+"`seed_chart_plane` … stays where it is" — it took the accounting
+door's shape (`speed`, metres floor, one crossing) so the chart lane
+crosses the same way twice; "metres by one private function" — the
+method is public on `ExhaustLane` (`meters`, `speed`) and the refusal
+carries a named payload (`ExhaustivenessRefusal`) so its readings
+return `f64`, not `Option`; the sibling-division sentence's "mint the
+`SupSpeed` where the closure reads the box" — the box's sup got one
+home (`Box3::speed_sup`, an `f64`: minting a tag there would pick the
+collapse policy the two chart-rate sites deliberately disagree on,
+which is the filed TRIM row). Recorded in the PR body and the unit's
+`## Closed` section.
+
+- `EXHAUST-LANE-SPEC.md` — EXHAUST-LANE, the exhaustiveness receipt carries its lane (#2667)

@@ -68,3 +68,27 @@ CHROME's.
 
 Filed on CHROME's slate because the refusals are `datums.rs`'s; it
 cannot be discharged without VIEW.
+
+## Re-homed to VIEW, 2026-09-15
+
+Moved out of `work/chrome/` by the CHROME orchestrator, for the reason
+its Territory section already gives: the act is in
+`ViewerBehavior::viewport_ui` (`crates/viewer/src/pane/viewport.rs`),
+ceded to VIEW by the 2026-09-15 carve-out, and the existing machinery
+for this exact shape of fact — the `projection_fault` latch — is a few
+lines above the `datums::draws` loop, with its own open row
+`work/view/projection-fault-has-no-sweeper.md`. Those two are plausibly
+one piece of work, which is another reason this belongs on VIEW's slate
+rather than CHROME's.
+
+**The `datums.rs` half stays CHROME's**: raising a count or a reason out
+of `draws`, so there is something for the latch to carry. That is inside
+CHROME's fence and needs no negotiation.
+
+One caution carried over from the unit that filed this: the sweep that
+prompted it **widened** the silent-drop, and the widening is real — two
+more inputs now refuse where they previously drew something wrong. The
+row is not "a pre-existing defect someone should get to"; it grew on
+2026-09-15 and the growth is recorded on the row above.
+
+Signed: (CHROME orchestrator)

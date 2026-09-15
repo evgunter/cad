@@ -1195,6 +1195,22 @@ back before deciding what happened**, and never record an outcome from
 an error message alone. The same applies in reverse: a 200 on a merge
 call is not a merge until the PR says `merged`.
 
+**An item's suggested assertion is a claim, and the cheapest way it
+fails is by being GREEN on the broken tree.**
+`nothing-holds-startups-two-context-wide-style-installs` proposed
+*"read the polarity back off the applied visuals"*. Taken literally
+that row passes with the install deleted: egui's `fallback_theme` is
+`Theme::Dark`, `ThemePreference::System` resolves through it, and
+`System` is the default — so an untouched context already reads dark.
+The landed row reads the PREFERENCE the context states as well, which
+is what actually differs. Generalises to every unit whose deliverable
+is a guard: **run the mutation against the assertion the item
+suggested, not only against the one you wrote**, because an item that
+names a read has already done the tempting half of the work and a
+reviewer inherits its framing. This is the program's own
+row-covers-the-rule-not-the-install finding, turned on the row being
+written to close it.
+
 ## Exit shape
 
 The README states the module map and every item above has landed or

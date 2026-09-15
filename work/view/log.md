@@ -7603,6 +7603,7 @@ README: nothing), alongside HTML blocks and block quotes.
 used to red about a table having no rows when it had two. With the
 strip, a one-to-three-space row IS a row and the case cannot arise; a
 four-space one is reported by `!indent`, which is asked before both.
+
 ## 2026-09-10 — `view/wasm-docs`: the repo had already answered this one axis over
 
 `viewer-docs-do-not-build-at-wasm32` offered two shapes over nine broken
@@ -8797,6 +8798,7 @@ push — which it named as its own worst error of the lane, because it
 had offered a force-push to route around a diagnosis it had not
 checked. It was offered and refused; the merge that was owed on the
 merits was the answer, and it is what fired Actions.
+
 ## 2026-09-11 — `view/gesture-doors`: the two gesture doors, and one fan-out
 
 Two items, both adjacent to what #2348 landed.
@@ -8905,6 +8907,7 @@ before either branch existed.
 nobody was watching: the skip-mode pass exited 0 over three intra-doc
 links to items this diff had just deleted, while the full workspace pass
 exited 1. Both passes are owed by a viewer lane. In `plan.md`.
+
 ## 2026-09-11 — `view/gesture-identity`: the driving operations name their gesture
 
 `preview-and-commit-carry-no-gesture-identity` closed. Shape 1 of the
@@ -10289,6 +10292,7 @@ attached is not evidence about four; it is one claim about a method.
 arithmetic** — including when the arithmetic was mine.
 
 **VIEW stands at 70 open / 85 closed, nothing waiting on Ev.**
+
 ## 2026-09-12, later — `view/drag-field-precision`: every numeric field gets a text that reads back
 
 `a-drag-field-renders-a-length-at-a-precision-its-drag-speed-sets` is
@@ -10480,6 +10484,7 @@ beside a name may go stale, and two closed `work/door/` rows left alone
 because a closed row is a record.
 
 **VIEW stands at 71 open / 86 closed, nothing waiting on Ev.**
+
 ## 2026-09-12 — `probe-identity-stops-at-the-instance`: answered
 
 `view/probe-identity`. The fork was *should the door refuse a second
@@ -10835,6 +10840,7 @@ for the prose**; when one returns nothing, re-run it joined before
 believing the absence.
 
 **VIEW stands at 73 open / 88 closed, nothing waiting on Ev.**
+
 ## 2026-09-14 — `view/toolbar-wrap`: the row was measured, and it misses by 580 points
 
 `the-toolbar-row-does-not-wrap` — **closed.** The row's own framing
@@ -12390,3 +12396,123 @@ at 18:38:12. **Read the PR before retrying a failed merge call**: a 502
 is a statement about the response, not about the action.
 
 **VIEW stands at 75 open / 102 closed.**
+
+## 2026-09-15 — `view/style-installs`: startup's two context-wide installs are held, and the premise was measured before it was built on
+
+`work/view/nothing-holds-startups-two-context-wide-style-installs.md`.
+The premise was checked the only way it can be — on a committed tree,
+each call line deleted in turn, the whole viewer suite run. Both times
+the suite was **unchanged** (`--lib` 88 passed / 1 failed, the standing
+`gpu::tests::every_pass_builds_on_a_real_device` adapter red;
+`--test all` 562 passed / 0 failed / 1 ignored), so no existing row
+covered either install. **Both installs are on the `assemble` side**,
+so both rows are ordinary `--lib` tests and no gate was needed:
+`egui_ctx` occurs four times in `app.rs` — `new`'s call, `assemble`'s
+parameter, and the two installs — which is also why the population is
+two rather than a claim that it is.
+
+One qualification the item does not make: deleting
+`install_number_formatter`'s call leaves the function with no
+non-test caller, so the lib build warns `never used`. That is not a
+row and says nothing about which context the install reaches or when,
+but a `-D warnings` build would notice the deletion. Deleting
+`apply_polarity`'s call is silent — it has a second caller in the
+palette picker.
+
+Two rows rather than one, because a single row cannot say which
+install went. Both read behaviourally: a `NumberFormatter`'s
+`PartialEq` is `Arc::ptr_eq`, so the formatter is read by spelling
+40 nm through the context's own styles and comparing the text with
+`widgets::number_text`'s, with a third assertion holding the witness
+apart from the toolkit's default so the row reports when it stops
+being able to see the install. The polarity row reads BOTH the
+preference the context states and the `dark_mode` a first frame would
+paint, because `egui`'s `fallback_theme` is `Theme::Dark` and
+`Theme::DEFAULT` is a dark palette: the `dark_mode` read alone is
+green over a context nobody touched, which is the flattering reading
+this item warns about, one level in.
+
+Mutation receipts, on the committed tree with the rows in it: deleting
+`apply_polarity(egui_ctx, theme.polarity)` reds
+`startup_states_the_resolved_polarity_on_the_context` and nothing else
+(`System` where `Dark` was wanted); deleting
+`crate::widgets::install_number_formatter(egui_ctx)` reds
+`startup_installs_the_number_rule_onto_both_of_the_contexts_styles`
+and nothing else (`"0.000"` where `"0.00004"` was wanted). `--test
+all` stayed 562/0/1 under both.
+
+The sweep and its blind spot are in the PR body. Nothing in
+`GUI-DESIGN.md` moved: G5 decides what a theme IS and says nothing
+about when it reaches the chrome, so this unit touches no clause it
+decides.
+
+Signed (VIEW implementer lane `view/style-installs`).
+
+## 2026-09-15 — #2692 merged; the item's own suggested assertion would have been a false green
+
+**#2692 merged** (`af6d7c76a2`), verified from the job list: code tier,
+**39 check runs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok`
+success**, all four render-lane rows success, **six** skipped, nothing
+failed. (The lane's report says seven skipped; the job list says six —
+`step import (freecad)`, `corrupt input (release profile)`, the two
+interval rows and the two cache primers. 33 + 6 = 39. Immaterial to the
+verdict, recorded because a count in a report is a claim like any
+other.)
+
+**The premise was measured, not assumed.** Each install's call line
+deleted in turn on a committed tree left the whole viewer suite
+identical — `--lib` 88/1, `--test all` 562/0/1 in all three states. So
+no existing row covered either install, exactly as the item said.
+
+**One qualification the item does not make**, and the lane volunteered
+it: deleting the formatter's call leaves `install_number_formatter`
+with no non-test caller, so the lib build warns *never used* — silent
+about which context or when, but a `-D warnings` build would notice
+that one mutation. Deleting `apply_polarity`'s call is completely
+silent, because the palette picker is a second caller. The two gaps
+were not equally invisible.
+
+**The best finding is that the item's own suggested read would have
+passed under mutation.** The item proposes *"read the polarity back off
+the applied visuals"*. I checked egui 0.36.1 myself: `fallback_theme`
+is `Theme::Dark` (`memory/mod.rs:331`), `ThemePreference::System`
+resolves to `system_theme.unwrap_or(fallback_theme)` (`:367`), and
+`System` is the default (`:205`). So an untouched context already reads
+dark, and a naive visuals row would have been **green with the install
+deleted** — a row that looks like it covers the install while covering
+nothing. The landed row reads the **preference** the context states as
+well as the visuals, and it is the preference read that fails when
+nobody applies anything.
+
+That is this item's own finding — *a row covers the RULE an install
+carries, not that the install happened* — turned on the row the unit
+was writing. Worth saying plainly: the brief warned about it in the
+abstract, and the lane found the concrete instance in the item's own
+suggestion.
+
+**The number row is behavioural because it has to be**: `NumberFormatter`'s
+`PartialEq` is `Arc::ptr_eq`, so comparing function values is not the
+reading anyone wants. It spells 40 nm in mm through **both** of the
+context's styles — not the active one — so it reads nothing the
+polarity install decides, and a third assertion holds the witness apart
+from `emath::format_with_decimals_in_range` so the row reports when it
+stops being able to see the install.
+
+**Both installs are on the `assemble` side** and I confirmed it:
+`egui_ctx` occurs exactly four times in `app.rs` — the call at `:657`,
+the parameter at `:685`, and the two installs at `:723` and `:729`.
+Neither is in the device half, so no gate was needed and the old
+blocker really is gone.
+
+**The sweep's argument is compiler-grade rather than a grep**: the
+context reaches startup as one parameter and every use of it is one of
+the two calls. Blind spots stated: effects inside callees that do not
+receive the context are named as calls rather than as effects (partly
+closed by grepping four spellings), and anything `eframe` does to the
+context before `new` is outside the crate.
+
+**G5 reported, not edited** — the lane ran `git log -S` on its sentence
+and found `e9824abf3b`, so it is genuinely ratified; it decides what a
+theme IS and says nothing about when it reaches the chrome.
+
+Item **closed**. **VIEW stands at 77 open / 103 closed.**

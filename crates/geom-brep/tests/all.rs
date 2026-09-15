@@ -75,6 +75,8 @@ mod curved_torus_arc_residual;
 mod d290_r2_e2e;
 #[path = "decoration_plane_mint.rs"]
 mod decoration_plane_mint;
+#[path = "exhaust_lane_meters.rs"]
+mod exhaust_lane_meters;
 #[path = "imported_chart_arc_rim.rs"]
 mod imported_chart_arc_rim;
 #[path = "interior_iso_column.rs"]

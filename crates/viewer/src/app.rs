@@ -2166,7 +2166,7 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use super::{Theme, ViewerApp};
+    use super::{Polarity, Theme, ViewerApp};
     use crate::session::SessionOp;
     use eframe::egui;
 
@@ -2268,6 +2268,115 @@ mod tests {
             row.occupied,
             row.available,
             row.occupied - row.available
+        );
+    }
+    /// The context startup installed onto, and the app it assembled.
+    ///
+    /// [`ViewerApp::assemble`] is the half of startup that needs no
+    /// graphics device, and both of the context-wide installs are in
+    /// it — the `egui::Context` it is handed reaches nothing else —
+    /// so a bare context is the whole subject. **No frame is run**:
+    /// each install exists to be in force before anything is drawn,
+    /// so the read a row owes is the one taken straight afterwards.
+    fn started() -> (egui::Context, ViewerApp) {
+        let ctx = egui::Context::default();
+        let app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
+            .expect("startup that needs no graphics device");
+        (ctx, app)
+    }
+
+    /// **Startup states the resolved palette's polarity on the
+    /// context.**
+    ///
+    /// Two reads, because neither alone is a statement about the
+    /// install. The visuals are what the first frame paints, and they
+    /// are the reason the install is where it is — but `egui`'s
+    /// `fallback_theme` is `Theme::Dark` and this chrome's default
+    /// palette is a dark one, so a context startup never touched
+    /// already answers `dark_mode` here and that read is green over
+    /// no install at all. The preference is what `apply_polarity`
+    /// states — `set_theme` rather than `set_visuals`, for the reason
+    /// its own doc gives — and an untouched context holds
+    /// `ThemePreference::System` whichever palette resolves, so it is
+    /// the read that fails when nobody applies anything.
+    #[test]
+    fn startup_states_the_resolved_polarity_on_the_context() {
+        let (ctx, app) = started();
+        let stated = ctx.options(|options| options.theme_preference);
+        let wanted = match app.theme.polarity {
+            Polarity::Light => egui::ThemePreference::Light,
+            Polarity::Dark => egui::ThemePreference::Dark,
+        };
+        assert_eq!(
+            stated, wanted,
+            "startup resolved {:?} and left the context stating {stated:?}",
+            app.theme.polarity
+        );
+        let dark_mode = ctx.global_style().visuals.dark_mode;
+        assert_eq!(
+            dark_mode,
+            matches!(app.theme.polarity, Polarity::Dark),
+            "startup resolved {:?} and the visuals a first frame would paint report dark_mode = {dark_mode}",
+            app.theme.polarity
+        );
+    }
+
+    /// **Startup installs the chrome's numeric rule onto both of the
+    /// context's styles.**
+    ///
+    /// Behavioural, because a `NumberFormatter` is a function value
+    /// and its `PartialEq` is `Arc::ptr_eq`: a comparison against a
+    /// freshly built `NumberFormatter::new(number_text)` is false
+    /// however right the install is, and one that passed would be a
+    /// statement about an allocation rather than about what a field
+    /// will say. So the read is the text — a value spelled through
+    /// the context's own formatter, against the text the door spells.
+    ///
+    /// **Both styles rather than whichever the polarity in force
+    /// selects**, so this row reads nothing that the other install
+    /// decides. That the install writes both is
+    /// `widgets::field_tests::a_bare_field_survives_a_theme_switch`'s
+    /// claim, and stays its claim; what is read here is that startup
+    /// performs the install at all.
+    ///
+    /// The witness is what makes the reading a statement, and the
+    /// first assertion is what says so: 40 nm in millimetres over the
+    /// decimal range a length field is really handed is a value
+    /// `{:.3}` cannot read back, so the door's text and the toolkit's
+    /// untouched default differ there. When that assertion goes red
+    /// this row can no longer see the install, whatever the other two
+    /// say.
+    #[test]
+    fn startup_installs_the_number_rule_onto_both_of_the_contexts_styles() {
+        /// 40 nm, in the millimetres a length field holds.
+        const WITNESS: f64 = 4.0e-5;
+        /// The decimal range a length field shown in millimetres is
+        /// handed, derived at `widgets::field_tests::MM`.
+        const DECIMALS: core::ops::RangeInclusive<usize> = 1..=3;
+
+        let door = crate::widgets::number_text(WITNESS, DECIMALS);
+        let toolkit = egui::emath::format_with_decimals_in_range(WITNESS, DECIMALS);
+        assert_ne!(
+            door, toolkit,
+            "the witness spells the same either way, so nothing below distinguishes the install from the toolkit's default"
+        );
+
+        let (ctx, _app) = started();
+        let (dark, light) = ctx.options(|options| {
+            (
+                options.dark_style.number_formatter.clone(),
+                options.light_style.number_formatter.clone(),
+            )
+        });
+        assert_eq!(
+            dark.format(WITNESS, DECIMALS),
+            door,
+            "the context's dark style spells {WITNESS} its own way"
+        );
+        assert_eq!(
+            light.format(WITNESS, DECIMALS),
+            door,
+            "the context's light style spells {WITNESS} its own way"
         );
     }
 }
