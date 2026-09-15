@@ -765,6 +765,44 @@ statement.
 
 - `S415-SPEC.md` — S415, the three boundary residues: one scaffold rule, the Part 21 band disclosed as one rule in two crates, one hand-minted tag derived (#2633)
 
+## Per-merge deletion — TINT-5's spec (2026-09-15)
+
+Recoverable at `git show 8e7bcc02b:docs/TINT-5-SPEC.md` (the fix-pass
+head). The second S-TINT spec written after an executed probe, and the
+probe is why the unit had a shape at all: it found that the weld this
+unit was to spread was `pub(crate)` inside ONE test binary, depending on
+a `set_difference` that was also binary-local. A spec written without it
+would have told a lane to "apply TINT-1's shape to mesh and topo",
+which means copying the weld into two more crates — the defect, minted
+by the fix for an instance of it.
+
+**Three things the spec got wrong, all corrected by the lane**, which
+is the point of recording it rather than a failing:
+
+- it said editor-core had **four** `*_is_exhaustive`/`*_VARIANTS` pairs;
+  there are **eight**, seven in `display_contract.rs` plus
+  `m4_pr4_hit.rs`;
+- it said mesh's and topo's local predicates *"check nothing of the
+  kind"* about field punctuation. **Both did** — `face:`/`note:` in
+  mesh, `diag:`/`what:` in topo. That inverts the risk the spec named:
+  `&[]` would have been a REGRESSION at two of three sites, not merely
+  a weak default. The measurement the spec demanded was still the right
+  one to demand; its premise was backwards;
+- it did not name the gate boundary a promotion crosses, which is what
+  turned the unit's first CI run red and is the finding that
+  generalizes past it.
+
+What the spec did not reach at all, and the review did: the weld's
+exhaustiveness token was `fn(&E)`, a type that cannot carry the
+wildcard-free invariant nine doc comments asserted of it, and a no-op
+token passed green. The fix pass closed that with `f6_variants!`.
+Recorded in the PR body, in `work/tint/log.md`, and in the row's
+`## Closed` section.
+
+- `TINT-5-SPEC.md` — TINT-5, the F6 enum weld's home and three adopters
+  (#2694)
+
+
 ## Per-merge deletion — TINT-4's spec (2026-09-15)
 
 Recoverable at `git show 5494b9927:docs/TINT-4-SPEC.md` (the fix-pass
