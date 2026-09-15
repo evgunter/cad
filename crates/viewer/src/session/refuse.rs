@@ -18,7 +18,7 @@ use pncad::document::{
 use pncad::workspace::WorkspaceError;
 
 use crate::combine;
-use crate::display::DisplayFault;
+use crate::display::{AdmissionFault, DisplayFault};
 use crate::docio::DocIoError;
 use crate::props::{self, SlotValue};
 
@@ -299,7 +299,7 @@ impl Refusal {
             // twins,
             // and the substantive ones rank with the real failures,
             // because "this instance is mate-constrained" is a
-            // decision about what the user tried. A ninth
+            // decision about what the user tried. A fifth
             // `DisplayFault` reds here until its rank is chosen —
             // which is the obligation every other arm on this table
             // gets from `Refusal`'s own variants. `Edit` and
@@ -307,15 +307,23 @@ impl Refusal {
             // and that IS a default: every condition either raises is
             // a real failure, so no payload of theirs ranks
             // differently.
+            //
+            // The admission family is walked arm by arm for the same
+            // reason and not folded into one `Admission(_)`: that
+            // spelling would be the default this arm exists to
+            // refuse, one level further down, and a fifth admission
+            // fault would take rank 1 unchosen.
             Self::Display(fault) => match fault {
                 DisplayFault::NoFreeMove
                 | DisplayFault::FreeMoveInFlight
                 | DisplayFault::WrongFreeMove => 2,
-                DisplayFault::NoSuchNode { .. }
-                | DisplayFault::NotAnInstance { .. }
-                | DisplayFault::MateConstrained { .. }
-                | DisplayFault::NonRigidFrame { .. }
-                | DisplayFault::FusedGeometry { .. } => 1,
+                DisplayFault::NonRigidFrame { .. } => 1,
+                DisplayFault::Admission(fault) => match fault {
+                    AdmissionFault::NoSuchNode { .. }
+                    | AdmissionFault::NotAnInstance { .. }
+                    | AdmissionFault::MateConstrained { .. }
+                    | AdmissionFault::FusedGeometry { .. } => 1,
+                },
             },
             Self::NoGesture | Self::GestureInFlight | Self::WrongGesture | Self::NothingToDo => 2,
         }
