@@ -345,6 +345,53 @@ pub enum ProductErrorKind {
     ContactLineage,
 }
 
+impl ProductErrorKind {
+    /// Whether this class means the document holds NO BODY — an empty
+    /// document rather than a malformed one.
+    ///
+    /// **The one home of that reading.** Every consumer of a gather
+    /// refusal draws this line before it can act on one, and it is the
+    /// one line all of them draw the same way, so it is drawn here and
+    /// cited rather than re-argued at each site.
+    ///
+    /// [`ProductErrorKind::NoBodyRoots`] is the only class where
+    /// nothing is wrong and there is simply nothing to gather: a
+    /// document with no body-denoting root — a fresh one, one holding
+    /// only sketches and datums, one whose last feature was just
+    /// deleted — has no product to be had, and asking it for one is
+    /// not a failure. Every other class is a refusal, with a cause the
+    /// error carries.
+    ///
+    /// **What a consumer does on either answer stays the consumer's.**
+    /// `true` says there is no subject, not what to do about it:
+    /// [`crate::checks::Subject`] has an arm for it and the registry
+    /// still runs over it, while a chrome that badges faults draws
+    /// nothing because the blank viewport says it more plainly. `false`
+    /// says the class IS a refusal, not that this consumer is the one
+    /// to report it — a consumer whose other channels already carry
+    /// some of those classes still decides that for itself.
+    ///
+    /// Exhaustive over [`ProductErrorKind`], and [`ProductError::kind`]
+    /// is exhaustive over the error, so a tenth arm is a compile error
+    /// twice over: once to give it a class, and once here to classify
+    /// it. Neither default is taken for it.
+    #[must_use]
+    pub fn is_empty_document(self) -> bool {
+        match self {
+            Self::NoBodyRoots => true,
+            Self::EvaluationOfAnotherDocument
+            | Self::UnknownNode
+            | Self::Naming
+            | Self::RootFailed
+            | Self::RootPoisoned
+            | Self::Graft
+            | Self::SolidInvalid
+            | Self::ProductInvalid
+            | Self::ContactLineage => false,
+        }
+    }
+}
+
 impl ProductError {
     /// Which arm refused, without the payload.
     ///
@@ -1038,6 +1085,33 @@ mod tests {
             );
             seen.push(err.kind());
         }
+    }
+
+    /// **The empty-document reading partitions the census, and the
+    /// partition is what a bug moves.**
+    ///
+    /// [`ProductErrorKind::is_empty_document`] is exhaustive, so its
+    /// answer for any ONE class is fixed the moment it compiles and
+    /// asserting it names nothing. What is not fixed is the SET: the
+    /// value read here is which of the arms [`every_arm`] builds answer
+    /// `true`, and that set moves whenever an arm is added and
+    /// classified, whenever an existing arm is re-classified, and
+    /// whenever `kind` re-projects an arm onto a class carrying the
+    /// other answer. A tenth arm added and read as an empty document —
+    /// the decision this predicate exists to make deliberate — reds
+    /// here, naming the arm, in the crate that owns the partition.
+    #[test]
+    fn exactly_one_arm_reads_as_an_empty_document() {
+        let reads_empty: Vec<String> = every_arm()
+            .iter()
+            .filter(|err| err.kind().is_empty_document())
+            .map(|err| format!("{err:?}"))
+            .collect();
+        assert_eq!(
+            reads_empty,
+            vec![format!("{:?}", ProductError::NoBodyRoots)],
+            "no root denoting a body is the only gather refusal that is not a fault"
+        );
     }
 
     /// **The refusal calls a node a ROOT only when it is one.**

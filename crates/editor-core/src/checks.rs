@@ -868,9 +868,9 @@ impl core::error::Error for CheckRefusal {}
 /// - [`Subject::Product`] — the gather succeeded and this is it. It
 ///   must be a product OF THE PAIR the door is handed
 ///   ([`run_checks_on`] refuses otherwise).
-/// - [`Subject::NoBodyRoots`] — no root denotes a body at all: an
-///   empty document, or one holding only sketches and datums. Not a
-///   failure to run the registry. A resident that needs a body has no
+/// - [`Subject::NoBodyRoots`] — no root denotes a body at all, which
+///   is the reading [`product::ProductErrorKind::is_empty_document`]
+///   states and this arm carries. A resident that needs a body has no
 ///   subject here and contributes no finding; a resident that does not
 ///   (connectedness reads the evaluation) runs exactly as it would
 ///   otherwise.
@@ -977,7 +977,7 @@ pub fn run_checks<P, T: Decide + AtRestPolicy + CertifiedBounds + ChartCoherence
     }
     let subject = match product::product_recorded(doc, ev, tol) {
         Ok(ref gathered) => return run_checks_on(doc, ev, Subject::Product(gathered), cfg, tol),
-        Err(product::ProductError::NoBodyRoots) => Subject::NoBodyRoots,
+        Err(ref source) if source.kind().is_empty_document() => Subject::NoBodyRoots,
         Err(ref source) => Subject::refused(source),
     };
     run_checks_on(doc, ev, subject, cfg, tol)

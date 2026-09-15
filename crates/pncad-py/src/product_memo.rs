@@ -156,7 +156,7 @@ pub fn checks_report(
         d::run_checks_on(doc, evaluation, d::Subject::Product(product), cfg, tol)
     }) {
         Ok(report) => report,
-        Err(d::ProductError::NoBodyRoots) => {
+        Err(ref source) if source.kind().is_empty_document() => {
             d::run_checks_on(doc, evaluation, d::Subject::NoBodyRoots, cfg, tol)
         }
         Err(ref source) => d::run_checks_on(doc, evaluation, d::Subject::refused(source), cfg, tol),
