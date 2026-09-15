@@ -168,7 +168,9 @@ fn chord<T: Decide>(
         geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => {
             Ok((final_vertex, p_final - p_base, None))
         }
-        geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
+        geom::Curve3::Circle { .. }
+        | geom::Curve3::Ellipse { .. }
+        | geom::Curve3::Spiric { .. } => {
             let (t0, t1) = curve.params();
             // The base-endpoint jet: outgoing tangent, plus the raw
             // second derivative and squared speed for the C12.2

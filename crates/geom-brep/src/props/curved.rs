@@ -1326,7 +1326,9 @@ fn cylinder_boundary<T: Decide>(
                            the stored pcurves this key-free pass cannot see",
                 });
             }
-            Curve3::Nurbs(_) => return Err(PropsError::Unimplemented),
+            // A spiric lies on no cylinder or cone: refused beside the
+            // spline, typed.
+            Curve3::Nurbs(_) | Curve3::Spiric { .. } => return Err(PropsError::Unimplemented),
         }
     }
     // The cylinder's level and azimuth turn about the same radius, and
@@ -1472,7 +1474,9 @@ fn cone_boundary<T: Decide>(
                            quadrature lane has nothing to consume",
                 });
             }
-            Curve3::Nurbs(_) => return Err(PropsError::Unimplemented),
+            // A spiric lies on no cylinder or cone: refused beside the
+            // spline, typed.
+            Curve3::Nurbs(_) | Curve3::Spiric { .. } => return Err(PropsError::Unimplemented),
         }
     }
     // Cone levels are the signed SLANT arc length — `Length`, bare —
@@ -1826,7 +1830,9 @@ fn sphere_boundary<T: Decide>(
         } = e.carrier
         else {
             return Err(match e.carrier {
-                Curve3::Nurbs(_) => PropsError::Unimplemented,
+                // A spiric lies on no sphere: refused beside the
+                // spline, typed.
+                Curve3::Nurbs(_) | Curve3::Spiric { .. } => PropsError::Unimplemented,
                 _ => PropsError::NotIsoRectangle {
                     what: "sphere boundary edge is not a circle",
                 },
@@ -2069,6 +2075,17 @@ fn torus_boundary<T: Decide>(
         else {
             return Err(match e.carrier {
                 Curve3::Nurbs(_) => PropsError::Unimplemented,
+                // The spiric rim of a partial revolve's hollowed torus
+                // wall — a boundary edge that IS on the torus but is
+                // neither rim nor meridian. Its flux has no closed form
+                // in this parse (the cap's oval area is an elliptic
+                // integral); the props quadrature lane is the spiric
+                // unit's next PR, and until then the wall stops here,
+                // named: this is the door `topo::shell`'s klein elbow
+                // stands at.
+                Curve3::Spiric { .. } => PropsError::NotIsoRectangle {
+                    what: "torus boundary edge is not a circle",
+                },
                 _ => PropsError::NotIsoRectangle {
                     what: "torus boundary edge is not a circle",
                 },

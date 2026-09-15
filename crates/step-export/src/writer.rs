@@ -58,6 +58,7 @@ pub(crate) fn carrier_kind(carrier: &Curve3<f64>) -> &'static str {
         Curve3::Line { .. } => "line",
         Curve3::Circle { .. } => "circle",
         Curve3::Ellipse { .. } => "ellipse",
+        Curve3::Spiric { .. } => "spiric",
         Curve3::Nurbs(_) => "nurbs curve",
     }
 }
@@ -318,6 +319,16 @@ impl<'a> Writer<'a> {
                 let a = fmt_real(major, "ellipse semi-major axis")?;
                 let b = fmt_real(minor, "ellipse semi-minor axis")?;
                 self.emit(&format!("ELLIPSE('', #{placement}, {a}, {b})"))
+            }
+            // A spiric has no STEP entity (a quartic; no rational form),
+            // so its export is an APPROXIMATING spline at the file's
+            // stated tolerance — the spiric unit's second PR. Until
+            // then a body carrying one refuses here, typed.
+            Curve3::Spiric { .. } => {
+                return Err(StepExportError::UnsupportedCurve {
+                    edge: edge_key,
+                    kind: "spiric: the export-only approximating spline is not yet written",
+                });
             }
             Curve3::Nurbs(ref payload) => {
                 if payload.is_placeholder() {

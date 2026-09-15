@@ -131,13 +131,21 @@ pub enum CurveKind {
     Circle,
     /// [`Curve3::Ellipse`].
     Ellipse,
+    /// [`Curve3::Spiric`].
+    Spiric,
     /// [`Curve3::Nurbs`].
     Nurbs,
 }
 
 impl CurveKind {
     /// Every kind, in declaration order.
-    pub const ALL: [Self; 4] = [Self::Line, Self::Circle, Self::Ellipse, Self::Nurbs];
+    pub const ALL: [Self; 5] = [
+        Self::Line,
+        Self::Circle,
+        Self::Ellipse,
+        Self::Spiric,
+        Self::Nurbs,
+    ];
 
     /// The kind of a carrier (exhaustive by construction — type docs).
     #[must_use]
@@ -146,6 +154,7 @@ impl CurveKind {
             Curve3::Line { .. } => Self::Line,
             Curve3::Circle { .. } => Self::Circle,
             Curve3::Ellipse { .. } => Self::Ellipse,
+            Curve3::Spiric { .. } => Self::Spiric,
             Curve3::Nurbs(_) => Self::Nurbs,
         }
     }
@@ -156,7 +165,8 @@ impl CurveKind {
             Self::Line => 0,
             Self::Circle => 1,
             Self::Ellipse => 2,
-            Self::Nurbs => 3,
+            Self::Spiric => 3,
+            Self::Nurbs => 4,
         }
     }
 }
@@ -868,6 +878,7 @@ impl core::fmt::Display for RimError {
                     Some(CurveKind::Line) => "a line",
                     Some(CurveKind::Circle) => "a circle",
                     Some(CurveKind::Ellipse) => "an ellipse",
+                    Some(CurveKind::Spiric) => "a spiric",
                     Some(CurveKind::Nurbs) => "a NURBS curve",
                 };
                 write!(
@@ -1728,7 +1739,11 @@ mod tests {
         [Plane, Cylinder, Cone, Sphere, Torus, Nurbs, Approx]
     );
 
-    census!(CurveKind, CurveKind::ALL, [Line, Circle, Ellipse, Nurbs]);
+    census!(
+        CurveKind,
+        CurveKind::ALL,
+        [Line, Circle, Ellipse, Spiric, Nurbs]
+    );
 
     /// **No two kinds share a bit position**, on either mirror: a
     /// duplicated `surface_bit` / `CurveKind::bit` arm would make two
