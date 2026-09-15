@@ -1,0 +1,20 @@
+[workspace]
+
+[package]
+name = "r2probe"
+version = "0.0.0"
+edition = "2024"
+
+[[bin]]
+name = "r2probe"
+path = "src/main.rs"
+
+[[bin]]
+name = "r2base"
+path = "src/base.rs"
+
+[dependencies]
+pncad = { path = "../../crates/pncad" }
+
+[profile.release]
+debug = 0

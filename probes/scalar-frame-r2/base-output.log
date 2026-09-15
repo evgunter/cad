@@ -1,0 +1,7 @@
+TUBE volume bits 0x402d9bdb2e9d68cd faces 2
+HOLLOW volume bits 0x4015517f17529d5f faces 4
+OLD skew tube -> Some("tube door: axis and reference direction are not perpendicular at tolerance — no honest chart frame stores both exactly")
+OLD non-unit u_ref -> Some("tube door: the reference direction is not unit length at tolerance — inputs are stored exactly, so the door refuses rather than normalizing")
+XY plane bits [4607182418800017408, 0, 0, 0, 4607182418800017408, 0, 0, 0, 4607182418800017408, 0, 0, 0]
+POINT_AT bits [13828753015803845018, 4603579539098121011, 0, 0, 9223372036854775808, 4607182418800017408, 4603579539098121011, 4605380978949069210, 0, 4607182418800017408, 4611686018427387904, 4613937818241073152]
+done

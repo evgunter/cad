@@ -1,0 +1,16 @@
+TUBE volume bits 0x402d9bdb2e9d68cd faces 2
+HOLLOW volume bits 0x4015517f17529d5f faces 4
+SKEW |u|=0.9999999999999999 |v|=0.7071067811865475 |w|=1 u.w=0.7071067811865475 det=0.4999999999999999
+SKEW TUBE refused: tube door: revolve operator step failed: geometry attachment gate: certification: the mapped-source residual at sample 1 definitely exceeds the tolerance band (the cache does not represent the description, D4 ¶2)
+SKEW PLANE placement Mat3 { c0: Vec3 { x: 0.7071067811865475, y: 0.0, z: 0.7071067811865475 }, c1: Vec3 { x: 0.0, y: 0.7071067811865475, z: 0.0 }, c2: Vec3 { x: 0.0, y: 0.0, z: 1.0 } }
+XY plane bits [4607182418800017408, 0, 0, 0, 4607182418800017408, 0, 0, 0, 4607182418800017408, 0, 0, 0]
+SKEWED HAND PAIR ACCEPTED (orthonormalized): u [4607182418800017408, 0, 0] v [0, 4607182418800017408, 0]
+PARALLEL PAIR -> Some("a frame's second axis, as its residual perpendicular to the first: a direction vector decided to zero length, so it names no direction to normalize")
+POINT_AT bits [13828753015803845018, 4603579539098121011, 0, 0, 9223372036854775808, 4607182418800017408, 4603579539098121011, 4605380978949069210, 0, 4607182418800017408, 4611686018427387904, 4613937818241073152]
+MILD SKEW off=1e-1 refused: tube door: revolve operator step failed: geometry attachment gate: cer
+MILD SKEW off=1e-2 refused: tube door: revolve operator step failed: geometry attachment gate: cer
+MILD SKEW off=1e-3 refused: tube door: revolve operator step failed: geometry attachment gate: cer
+MILD SKEW off=1e-4 refused: tube door: revolve operator step failed: geometry attachment gate: cer
+MILD SKEW off=1e-6 refused: tube door: revolve operator step failed: geometry attachment gate: cer
+DATUM FRAME -> Frame(OrthoFrame { origin: Point3 { x: 0.0, y: 0.0, z: 0.0 }, u: UnitVec3(Vec3 { x: 1.0, y: 0.0, z: 0.0 }), v: UnitVec3(Vec3 { x: 0.0, y: 1.0, z: 0.0 }), w: UnitVec3(Vec3 { x: 0.0, y: 0.0, z: 1.0 }) })
+done
