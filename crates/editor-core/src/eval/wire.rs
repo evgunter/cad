@@ -2426,7 +2426,8 @@ fn resolve_open_faces(
 /// Mid-evaluation there is no prior run and no whole-evaluation
 /// index, so [`mod@crate::resolve`]'s full ladder does not apply:
 /// what is left is three rungs, numbered here in the order the
-/// ONE-TABLE doors ask them ([`resolve_in`] walks exactly this).
+/// ONE-TABLE doors ask them ([`ladder::resolve_in`] walks exactly
+/// this).
 ///
 /// 1. [`ladder::live`] — the minting node must still be in the
 ///    document. Ids are never reused, so an id below the mint counter
