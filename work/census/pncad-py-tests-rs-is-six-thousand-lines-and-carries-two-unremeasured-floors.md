@@ -13,7 +13,7 @@ it.
 
 ## What is in one file
 
-`crates/pncad-py/src/tests.rs` is **6312 lines** (measured
+`crates/pncad-py/src/tests.rs` is **6317 lines** (measured
 2026-09-15 at `census/tag-reach`, 6064 before this unit's fix pass
 added the reader's shape rosters). It holds the error-class
 taxonomy pin, two of this crate's four vocabulary censuses
