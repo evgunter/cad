@@ -1,7 +1,7 @@
 ---
 id: the-field-brace-fingerprint-is-spelled-at-eight-sites-in-six-crates
 kind: issue
-title: the Display-vs-Debug field-brace fingerprint is spelled at eight sites in six crates and the roster names one of them as what holds the rule
+title: the Display-vs-Debug field-brace fingerprint is spelled at seven executable sites in five crates outside the file that states the rule (the id says eight/six; read it as a name)
 status: open
 opened: 2026-09-15
 ---
@@ -10,7 +10,7 @@ opened: 2026-09-15
 Found by the style review of CENSUS-ERRORS-ARRIVAL (2026-09-15) and
 filed by that unit's fix pass. **It is a class, not an instance**: the
 roster that provoked it names one site as what holds the rule, and
-there are eight.
+seven more spell half of it by hand.
 
 ## The rule, and where it is said to live
 
@@ -23,21 +23,27 @@ CamelCase token. `ERRORS_MINTING_ITEMS` in
 `the_prose_rule_separates_a_display_from_a_debug_dump` named as what
 holds its words.
 
-## The eight spellings of the needle
+## The spellings of the needle
 
-    crates/topo/src/validate.rs            (x2, assertions)
-    crates/viewer/tests/error_display.rs   (x1, a predicate)
-    crates/sweep/src/blend/mod.rs          (x3, one doc + two assertions)
-    crates/editor-core/src/names/emit.rs   (x2, assertions)
-    crates/pncad-py/src/tests.rs           (x1, an assertion)
-    crates/pncad-py/src/errors.rs          (the rule itself)
+Measured 2026-09-15 by `grep -rn '" { "' crates/ --include=*.rs`,
+thirteen lines, separated into checks and prose:
 
-Measured 2026-09-15 by `grep -rn '" { "' crates/ --include=*.rs`.
-Six crates outside the one that states the rule each re-spell the
-needle rather than call `reads_as_prose`, and each carries its own
-half of the rule: none of the seven outside `errors.rs` carries the
-bare-CamelCase fingerprint at all, so each is a weaker test than the
-rule it is quoting, silently.
+    crates/topo/src/validate.rs            2 assertions
+    crates/viewer/tests/error_display.rs   1 predicate
+    crates/sweep/src/blend/mod.rs          1 assertion + 2 doc mentions
+    crates/editor-core/src/names/emit.rs   2 assertions
+    crates/pncad-py/src/tests.rs           1 assertion
+    ----------------------------------------------------------------
+    crates/pncad-py/src/errors.rs          the rule + its doc
+    crates/pncad-py/src/prose_census.rs    2 doc mentions
+
+**Seven executable checks in five crates outside the file that states
+the rule**, each re-spelling the needle rather than calling
+`reads_as_prose`. **None of the seven carries the OTHER fingerprint** —
+the bare-CamelCase token — so each is a silently weaker test than the
+rule it is quoting. Two of them (`editor-core/src/names/emit.rs`) even
+cite `reads_as_prose` in a comment three lines above while spelling
+half of it by hand.
 
 ## Where else to look, because the grep above is one spelling
 
