@@ -5,6 +5,7 @@ title: Two viewport reads of the pick index lack the evaluation co-guard the pic
 status: review
 opened: 2026-09-05
 branch: view/index-co-guard
+pr: 2615
 ---
 
 
