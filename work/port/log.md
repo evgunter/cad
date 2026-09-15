@@ -343,3 +343,27 @@ claiming a guard that could not exist, `MintRefusal`'s type doc naming
 one of its two destinations, the carried arm repeating its recourse
 once per row (now once, in the header), and `debug_assert!(false, ...)`
 restated as a positive predicate.
+
+### Render drift on this branch is main's, not this unit's
+
+Run 34953058313 posted `render drift (kernel)` and `render drift
+(freecad)` neutral checks naming `s_duct.png`, `twisted_tube.png` and
+both montages. §§3 says a frame that changed is telling you the kernel
+changed, so it was chased rather than waved through.
+
+It is not this unit's. The evidence: the branch's PREVIOUS head
+(`ef4d485e2`) posted NO drift check at all, and drift appeared only
+after merging `origin/main` at `bad35258d`; that range carries
+`crates/sweep/src/loft.rs` and `skin.rs` from PR #2466, the s393
+start-frame door, and `s_duct`/`twisted_tube` are sweep-and-loft
+scenes; and this branch's own diff against main touches no geometry
+crate, no render scene and no cell. Main's own re-baseline for the
+kernel lane, `cba1c4e8b`, landed AFTER the commit this branch had
+merged — merging the newer main cleared the kernel drift exactly as
+that explains.
+
+The freecad lane's re-baseline has not landed on main yet, so
+`render drift (freecad)` still reports `twisted_tube.png`. It is the
+same scene and the same cause, and the check says a PR run does not
+re-baseline: main's own run commits the cells after the merge. Nothing
+to commit by hand here, and nothing about this unit.
