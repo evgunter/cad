@@ -2699,6 +2699,23 @@ the unit's log entry.
 
 - `SYM-7-SPEC.md` — SYM-7, the plain form outlives the leaf (#2609)
 
+## Per-merge deletion — CURVED-TORUS's spec (2026-09-15)
+
+Recoverable at `git show 4617fcc5b:docs/CURVED-TORUS-SPEC.md` (PR
+#2535's merge commit, the last head carrying it). Both PRs delivered:
+PR-1 (#1907, the boundary-tight torus operand box, A/B row TBOX) and
+PR-2 (#2535, the circle-residual torus arm, A/B row TARM). The spec's
+§Rulings and its Amendments of 2026-09-14 (the monotonicity theorem
+`margin_K ≥ margin_1 − f2·(Δθ/K)²/8` replacing the refuted sentence;
+the charge table at the arc-scoped `f2`; the full-carrier `f2`
+corrected to the code's 8.36e3) are the unit's record together with
+the two closed items `work/curved/torus-operand-boxes-span-whole-ring.md`
+and `work/curved/circle-residual-harmonics-needs-torus-arm.md` and the
+MERGED entries in `work/curved/log.md`. Still open from the spec's
+residue: `torus-operand-gate-admission` (the lily's remaining pin's
+retirement) and `the-chord-dip-charge-has-two-homes` (S-BOOL's half).
+
+
 ## Per-merge deletion — D290's spec (2026-09-15)
 
 Recoverable at `git show f91aea516:docs/D290-SPEC.md` (the fix-pass
