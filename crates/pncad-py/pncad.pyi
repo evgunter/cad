@@ -707,7 +707,10 @@ class ReadbackError(PncadError):
     `ambiguous` is the one to read twice: a tie is a naming success
     and a referencing failure, and the door refuses rather than
     picking a candidate. `Evaluation.denotation` is how a caller asks
-    before reading a frame.
+    before reading a frame. It is asked AFTER `wrong_kind`: a door
+    handed a name of a kind it does not read is not a door that has
+    to pick a candidate, so such a name refuses `wrong_kind` whether
+    or not it is tied, and narrowing it is never the recourse.
 
     Every field is present on every arm, `None` where that arm does
     not carry it."""
@@ -4440,10 +4443,11 @@ class Evaluation:
         half.
 
         Raises `ReadbackError`, typed: `no_such_name` for a stale
-        selection, `ambiguous` for a tie (ask `denotation` first),
-        `wrong_kind` for an edge or vertex name,
-        `no_canonical_frame` for a NURBS carrier, and the node ladder
-        for a node this evaluation did not produce."""
+        selection, `wrong_kind` for an edge or vertex name (tied or
+        not — the kind is asked before the tie), `ambiguous` for a tie
+        among FACES (ask `denotation` first), `no_canonical_frame` for
+        a NURBS carrier, and the node ladder for a node this
+        evaluation did not produce."""
 
     def edge_frame(self, node: NodeId, name: str) -> Pose:
         """Where the named edge sits — `face_frame`'s sibling, same

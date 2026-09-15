@@ -2559,8 +2559,18 @@ mod ladder {
                 name.node,
                 width,
             ))),
-            Landing::Absent => Err(Box::new(ResolveError::vanished_fallback(name))),
+            Landing::Absent => Err(vanished(&live)),
         }
+    }
+
+    /// Rung 3's payload, from the one home that mints it.
+    ///
+    /// Split out of [`resolve`] for the declare door, which asks its
+    /// PAIR's kind question between rung 3 and rung 2 and so reaches
+    /// this rung on its own — through this function rather than
+    /// through a second spelling of the same refusal.
+    pub(super) fn vanished(live: &Live<'_>) -> Box<ResolveError> {
+        Box::new(ResolveError::vanished_fallback(live.0))
     }
 }
 
@@ -4066,48 +4076,39 @@ fn resolve_declarations(
     b_table: &NameTable,
 ) -> Result<BooleanDeclarations, NodeErrorKind> {
     use crate::names::EntityKey;
-    use ladder::Landing;
     use topo::Operand;
-
-    let resolve_one = |name: &names::StableName| -> Result<(Operand, EntityKey), NodeErrorKind> {
-        let refused = |error| NodeErrorKind::DeclareResolve { error };
-        // Rung 1 first, and not by convention: reading either table
-        // needs the token `live` returns, so a dead minting node
-        // refuses NodeGone before the side-picking below can run.
-        // `route_declarations` has already paid this for a union's
-        // names, one bucket earlier; it stays here because this door
-        // is also the pair boolean's, where nothing routed first.
-        let live = ladder::live(name, doc).map_err(refused)?;
-        // Side-picking is this door's own. A name PRESENT in both
-        // operands (unique or tied, either counts as present) is not
-        // an N5 failure — it is this door declining to guess a side.
-        let (op, landing) = match (
-            ladder::landing(&live, a_table),
-            ladder::landing(&live, b_table),
-        ) {
-            // In neither table: the side is arbitrary, and rung 3
-            // refuses Vanished on the `Absent` carried through.
-            (Landing::Absent, Landing::Absent) => (Operand::B, Landing::Absent),
-            (Landing::Absent, b) => (Operand::B, b),
-            (a, Landing::Absent) => (Operand::A, a),
-            _ => {
-                return Err(NodeErrorKind::DeclareBothOperands {
-                    name: Box::new(name.clone()),
-                });
-            }
-        };
-        Ok((op, ladder::resolve(live, landing).map_err(refused)?.key))
-    };
 
     let mut out = BooleanDeclarations::none();
     for ((n1, n2), class) in pairs {
         let class = *class;
-        let (o1, k1) = resolve_one(n1)?;
-        let (o2, k2) = resolve_one(n2)?;
-        let unsupported = || NodeErrorKind::DeclareUnsupportedPair {
-            kinds: (n1.kind, n2.kind),
+        let refused = |error| NodeErrorKind::DeclareResolve { error };
+        let (o1, live1, l1) = declare_landing(n1, doc, a_table, b_table)?;
+        let (o2, live2, l2) = declare_landing(n2, doc, a_table, b_table)?;
+        // KIND BEFORE MULTIPLICITY, the order [`resolve_face`] asks
+        // in: a pair the vocabulary has no step for is unsupported
+        // however many entities answer to either name, so WHAT the
+        // two names denote precedes how many do. Asked of the NAMES'
+        // kinds, which the table makes every candidate's kind
+        // (`NameTable::insert_ref`, `insert_tied_ref` admit a row
+        // only at its name's kind, and they are the only two writers
+        // of a row), so a tie answers this as readily as a unique row
+        // does — and an unsupported pair reads the same whether or
+        // not one of its names happens to be tied.
+        let unsupported = |kinds| NodeErrorKind::DeclareUnsupportedPair {
+            kinds,
             cross_operand: o1 != o2,
         };
+        if !declared_pair_supported((o1, n1.kind), (o2, n2.kind)) {
+            return Err(unsupported((n1.kind, n2.kind)));
+        }
+        let k1 = ladder::resolve(live1, l1).map_err(refused)?.key;
+        let k2 = ladder::resolve(live2, l2).map_err(refused)?.key;
+        // The arms below PROJECT the keys of the shape the question
+        // above already named; the vocabulary itself is written once,
+        // there. Reaching the last arm means a table holds a key of
+        // another kind than its name's — asserted in debug, and in
+        // release answered off the KEYS, the one place the two can
+        // disagree.
         match ((o1, k1), (o2, k2)) {
             // Cross-operand face pair: the cosurface glue intent, on
             // whatever carrier the two faces share.
@@ -4143,10 +4144,101 @@ fn resolve_declarations(
                     class,
                 });
             }
-            _ => return Err(unsupported()),
+            _ => {
+                debug_assert!(
+                    false,
+                    "the operands' tables hold a key whose kind is not its name's: \
+                     `NameTable::insert_ref` and `insert_tied_ref` admit a row only at \
+                     its name's kind"
+                );
+                return Err(unsupported((k1.kind(), k2.kind())));
+            }
         }
     }
     Ok(out)
+}
+
+/// **Whether the v1 threading vocabulary has a step for this pair**,
+/// asked of the two names' KINDS and the operands they landed in —
+/// which is everything the question depends on, and none of it needs
+/// a name resolved to one entity.
+///
+/// The list, once: cross-operand Face–Face (the cosurface glue
+/// intent) and same-operand Vertex–Vertex / Vertex–Face (carried 3′
+/// contacts). [`resolve_declarations`]'s arms project the keys of
+/// whichever of these the pair is; this decides which, and refuses
+/// the rest.
+fn declared_pair_supported(
+    a: (topo::Operand, names::EntityKind),
+    b: (topo::Operand, names::EntityKind),
+) -> bool {
+    use names::EntityKind::{Face, Vertex};
+    use topo::Operand;
+    match (a, b) {
+        ((Operand::A, Face), (Operand::B, Face)) | ((Operand::B, Face), (Operand::A, Face)) => true,
+        ((oa, ka), (ob, kb)) => {
+            oa == ob && matches!((ka, kb), (Vertex, Vertex) | (Vertex, Face) | (Face, Vertex))
+        }
+    }
+}
+
+/// **Which operand a declared name lands in, and where in that
+/// operand's table** — rungs 1 and 3 of the declare door's walk,
+/// stopped short of rung 2 so [`resolve_declarations`] can ask the
+/// PAIR's kind question in between.
+///
+/// Rung 1 first, and not by convention: reading either table needs
+/// the token [`ladder::live`] returns, so a dead minting node refuses
+/// `NodeGone` before the side-picking below can run.
+/// [`route_declarations`] has already paid this for a union's names,
+/// one bucket earlier; it stays here because this door is also the
+/// pair boolean's, where nothing routed first.
+///
+/// Side-picking is this door's own. A name PRESENT in both operands
+/// (unique or tied, either counts as present) is not an N5 failure —
+/// it is this door declining to guess a side.
+///
+/// Rung 3 is here rather than with rung 2 because a name that names
+/// nothing in the operand it was routed to says THAT: the pair's
+/// vocabulary is not an answer about a name that is not there, and
+/// the kind it would be asked about is one nothing in this document
+/// answers to. Only rung 2 — the tie — is left for the caller, which
+/// is the one refusal the kind question outranks.
+///
+/// # Errors
+///
+/// Rung 1's `NodeGone` and rung 3's `Vanished`, both through
+/// [`NodeErrorKind::DeclareResolve`], and
+/// [`NodeErrorKind::DeclareBothOperands`].
+fn declare_landing<'n>(
+    name: &'n names::StableName,
+    doc: &crate::doc::Doc<ProfileProgram>,
+    a_table: &NameTable,
+    b_table: &NameTable,
+) -> Result<(topo::Operand, ladder::Live<'n>, ladder::Landing), NodeErrorKind> {
+    use ladder::Landing;
+    use topo::Operand;
+    let refused = |error| NodeErrorKind::DeclareResolve { error };
+    let live = ladder::live(name, doc).map_err(refused)?;
+    let (op, landing) = match (
+        ladder::landing(&live, a_table),
+        ladder::landing(&live, b_table),
+    ) {
+        // In neither table: the side is arbitrary, and rung 3 refuses
+        // Vanished on the `Absent` carried through.
+        (Landing::Absent, Landing::Absent) => (Operand::B, Landing::Absent),
+        (Landing::Absent, b) => (Operand::B, b),
+        (a, Landing::Absent) => (Operand::A, a),
+        _ => {
+            return Err(NodeErrorKind::DeclareBothOperands {
+                name: Box::new(name.clone()),
+            });
+        }
+    };
+    if matches!(landing, Landing::Absent) {
+        return Err(refused(ladder::vanished(&live)));
+    }
+    Ok((op, live, landing))
 }
 
 /// The role word a transform's rotation axis is normalized under —

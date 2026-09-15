@@ -778,3 +778,137 @@ fn crossing_slots_swapped_order_hits_the_junction_arm() {
         .count();
     assert!(junctions >= 1, "expected junction-named vertices");
 }
+
+/// **The declare door asks WHAT the pair denotes before it asks how
+/// many entities answer to either name** — PORT-DOORS-1's rule
+/// (`assembly::resolve_face`) at a second door.
+///
+/// A pair the v1 vocabulary has no step for is unsupported however
+/// many entities answer to either name, so the refusal that names
+/// both kinds must not be preempted by the tie. Two same-operand
+/// faces are such a pair (v1 threads face pairs across operands
+/// only); the rows below declare one with a TIED name in it and one
+/// with two unique names, and pin that the two documents get the same
+/// refusal. Before the order changed, the tied one was told to narrow
+/// a reference that would still have had no step however narrow it
+/// was made.
+#[test]
+fn an_unsupported_declared_pair_answers_its_kinds_with_a_tied_name_in_it() {
+    use editor_core::Entry;
+
+    // The symmetric U cutter's N2 tie, as the Ambiguous row above
+    // builds it.
+    let doc = ProfileDoc::empty_derived("m4_pr5_declare_tie_before_kind", Tol::witness());
+    let (doc, ua) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
+    let (doc, up) = on_frame(
+        doc,
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (2.0, 1.0),
+            (6.0, 1.0),
+            (6.0, 3.0),
+            (2.0, 3.0),
+            (2.0, 2.5),
+            (5.0, 2.5),
+            (5.0, 1.5),
+            (2.0, 1.5),
+        ]],
+    );
+    let (doc, ub) = insert(
+        doc,
+        Node::Extrude {
+            profile: up,
+            distance: len(2.0),
+        },
+    );
+    let (doc, us) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Subtract,
+            a: ua,
+            b: ub,
+            declare: None,
+        },
+    );
+    let ev1 = run(&doc);
+    let table = ev1
+        .value(us)
+        .expect("the U subtract evaluates")
+        .name_table
+        .clone();
+    let tied: StableName = table
+        .iter()
+        .find_map(|(n, e)| {
+            (n.kind == EntityKind::Face && matches!(e, Entry::Tied(_))).then(|| n.clone())
+        })
+        .expect("the U fixture ties a face");
+    let uniques: Vec<StableName> = table
+        .iter()
+        .filter_map(|(n, e)| {
+            (n.kind == EntityKind::Face && matches!(e, Entry::Unique(_))).then(|| n.clone())
+        })
+        .take(2)
+        .collect();
+    let [u1, u2] = <[StableName; 2]>::try_from(uniques).expect("two unique face names");
+    // Without this the rows below would pass for the wrong reason:
+    // the point is that a name SEVERAL entities answer to reaches the
+    // pair's own refusal.
+    assert!(
+        matches!(table.lookup(&tied), Some(Entry::Tied(c)) if c.len() >= 2),
+        "the declared name must really be tied for this row to test anything"
+    );
+
+    let (doc, mate) = block(doc, (0.0, 4.0), (0.0, 4.0), 6.0, 1.0);
+    let mut doc = doc;
+    let union_of = |doc: ProfileDoc, pair: (StableName, StableName)| {
+        let (doc, decl) = insert(doc, Node::declare_rest(vec![pair]));
+        insert(
+            doc,
+            Node::Boolean {
+                op: BooleanOp::Union,
+                a: us,
+                b: mate,
+                declare: Some(decl),
+            },
+        )
+    };
+    let with_tie;
+    let all_unique;
+    (doc, with_tie) = union_of(doc, (tied.clone(), u1.clone()));
+    (doc, all_unique) = union_of(doc, (u1.clone(), u2.clone()));
+    let ev = run(&doc);
+
+    let refusal = |node: RecipeNodeId| -> String {
+        match ev.nodes.get(&node) {
+            Some(NodeResult::Failed(e)) => match &e.kind {
+                NodeErrorKind::DeclareUnsupportedPair {
+                    kinds,
+                    cross_operand,
+                } => {
+                    assert_eq!(
+                        *kinds,
+                        (EntityKind::Face, EntityKind::Face),
+                        "the refusal names the pair's two kinds"
+                    );
+                    assert!(
+                        !*cross_operand,
+                        "both names resolve in the SAME operand — that is what makes the \
+                         face pair unsupported"
+                    );
+                    e.kind.to_string()
+                }
+                other => panic!(
+                    "an unsupported pair must refuse DeclareUnsupportedPair, got {other:?}"
+                ),
+            },
+            other => panic!("expected Failed, got {other:?}"),
+        }
+    };
+    assert_eq!(
+        refusal(with_tie),
+        refusal(all_unique),
+        "the tie makes no difference to a pair the vocabulary has no step for"
+    );
+}
