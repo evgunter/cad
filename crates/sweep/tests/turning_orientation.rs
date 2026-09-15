@@ -54,11 +54,11 @@
 //!
 //! `common::orient` carries two. The authored roll and the torsion
 //! duct are answered by the FIXED-CHORD index: their level planes stay
-//! orientable against the stacking chord and their level height falls
-//! monotonically, both asserted by the index on every query.
+//! orientable against its fixed reference chord and their level height
+//! falls monotonically, both asserted by the index on every query.
 //!
 //! The INFLECTING duct is not, and the way it fails is worth the row
-//! on its own: its planes stay comfortably orientable — the stacking
+//! on its own: its planes stay comfortably orientable — the reference
 //! chord bisects the S — while the monotone height, the index's other
 //! and stronger condition, breaks in the second arc. The index refuses
 //! there rather than answering from whichever root the bisection lands
