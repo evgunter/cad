@@ -2714,3 +2714,18 @@ and `work/curved/circle-residual-harmonics-needs-torus-arm.md` and the
 MERGED entries in `work/curved/log.md`. Still open from the spec's
 residue: `torus-operand-gate-admission` (the lily's remaining pin's
 retirement) and `the-chord-dip-charge-has-two-homes` (S-BOOL's half).
+
+## Per-merge deletion — S393's spec (2026-09-15)
+
+Recoverable at `git show 2f786af43:docs/S393-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "the two hand copies" (five
+were folded: the sweep suite's, the tour's two sweep cells, its loft
+cell and its S-duct, and the cert5 fixture); "eight call sites" (three
+plus the definition); the tour pin on the sweep cells (sited on the
+loft cell as invariants instead — the cells' placements are three inline
+lines); the `0.95` pin in `geom-core` (sited in the sweep suite,
+PROPS' file being outside the fence); the fence itself (the k-lint gate
+fired and the runbook's re-cut reached INSTR's baseline and its census
+pins). Recorded in the PR body and the unit's `## Closed` section.
+
+- `S393-SPEC.md` — S393, the path sweep's start frame has a door (#2466)
