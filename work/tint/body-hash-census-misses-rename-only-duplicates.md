@@ -68,3 +68,59 @@ tracker-wide re-home of 2026-09-04, which routed rows by PATH GLOB
 (`crates/*/tests/*`, `crates/test-utils/*`) rather than by question.
 This program is the question it was always about: whether the suite
 asserts what it claims to assert.
+
+## Re-derived (2026-09-15, lane C)
+
+**VERDICT: REPRODUCES** — every named instance is live, the normalized
+census has not been written, and one copy the row did not name has been
+added since.
+
+**The `width` triple, by name.** All three are `fn width(_: Interval) ->
+f64` returning the same subtraction, still in three files:
+
+- `crates/geom-brep/tests/arc_eval_anchor.rs` `fn width` — `x.hi() - x.lo()`
+- `crates/geom-brep/tests/review_arceval_r1_probes.rs` `fn width` — `x.hi() - x.lo()` (hashes with the first)
+- `crates/geom-brep/tests/revolved_point_anchor.rs` `fn width` — `e.hi() - e.lo()` (the rename-only twin a text hash misses)
+
+**Not named in the row and also live: `point_width` is now a THIRD
+copy.** `fn point_width` exists in all three of those files —
+`arc_eval_anchor.rs` and `review_arceval_r1_probes.rs` over
+`Point2<Interval>`, `revolved_point_anchor.rs` over `Point3<Interval>`.
+The row named `arc_eval_anchor.rs`'s `point_width` only as one shape of
+the max-of-widths variant; as a duplicate pair it is a second instance of
+the same defect on the same slate.
+
+**The max-of-three-widths variant, by name.** Still three shapes, none
+hashing together:
+
+- `crates/geom-brep/tests/cert3r1_e2e.rs` — the closure `let w = |e: Interval| e.hi() - e.lo();` folded with `.max`
+- `crates/geom-brep/tests/r2_cert3_e2e.rs` — the same fold written inline over `p.x`/`p.y`/`p.z`, and written TWICE in that file (once in a helper, once inside a row)
+- `crates/geom-brep/tests/arc_eval_anchor.rs` `point_width` — the two-coordinate form
+
+**The shared tree did not absorb any of it.** `crates/geom-brep/tests/shared/`
+exists (`fixture.rs`, `interval.rs`, `patch.rs`, `point.rs`, `ring.rs`,
+`sample.rs`, `surf.rs`, `tol.rs`, `topo.rs`, `mod.rs`) and carries no
+`width`, `point_width` or any `hi() - lo()` helper;
+`shared/interval.rs`'s header states what it deliberately leaves out and
+it is a different function (`revolved_point_anchor.rs`'s `w(c)` widener).
+
+**The obligation is still open.** `grep -rln "alpha-rename\|normalized
+hash\|rename-only"` over `*.rs` and `*.py` returns nothing: no
+normalized-hash or token-stream census exists anywhere in the tree, so
+the class claim *no rename-only duplicate exists* is as unverified today
+as it was on 2026-09-03, across `crates/geom-brep/tests/` and across the
+eight other crates that carry a `tests/common/` or `tests/shared/`
+(`mesh`, `profile`, `step-export`, `step-import`, `stl`, `sweep`, `topo`,
+`viewer`).
+
+**How this was re-derived, and its blind spot.** By name, not by line:
+`grep -rn "fn width\|fn point_width\|hi() - "` over the five named files.
+Every line number in the original body still resolves (`:38`, `:37`,
+`:69`, `:67`), which is luck rather than evidence — the names are what
+was checked. **What this could not match**: a rename-only twin whose
+body also differs in whitespace-invisible ways (a `let` binding
+introduced, arguments reordered), and any duplicate outside the five
+files the row names, since running the normalized census IS the unit.
+
+**Recommendation (orchestrator's call).** Keep open, unchanged in shape;
+add `point_width` to the instance list when a unit is cut.

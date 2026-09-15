@@ -18,6 +18,8 @@ use crate::common;
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
+use std::thread::JoinHandle;
 
 use common::asm;
 use pncad::document::{
@@ -29,7 +31,10 @@ use pncad::prelude::{EntityKind, StableName};
 use pncad::select::{ContactClass, Ray};
 use viewer::camera::{Camera, CameraOp};
 use viewer::display::{DisplayFault, DisplayView};
-use viewer::evalseam::{IndexDone, IndexRequest, IndexService, InlineIndexer, MemoReport};
+use viewer::evalseam::{
+    EvalDone, EvalRequest, EvalService, IndexDone, IndexRequest, IndexService, InlineIndexer,
+    MemoReport,
+};
 use viewer::frame::{self, IdQueryLog, IdStep, IdSubject, StatusUpdate};
 use viewer::generation::Generation;
 use viewer::input::{self, InputMap, ViewportSize};
@@ -2187,5 +2192,238 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     assert_eq!(
         frame::frame_status(&[], core::slice::from_ref(&mate), outcome.refusal.as_ref()),
         StatusUpdate::Clear,
+    );
+}
+
+// --- a worker that dies under a submitted request -------------------
+
+/// A worker that takes one request and panics inside it, over the two
+/// channel ends a seam handle keeps.
+///
+/// **A real panic on a real thread, which is the only way this state is
+/// reachable.** `ThreadIndexer` and `ThreadEvaluator` own their
+/// worker's entry point — the loop is a private function with no door
+/// to inject a failure through — so nothing above the seam can make a
+/// shipped worker die, and the state is reachable only by a panic
+/// inside a build. What a test can stand up instead is the same pair of
+/// channels behind a worker that really panicked: the request sender
+/// whose receiver went down with the thread, and the result receiver
+/// that will only ever report `Disconnected`. Both handles' arms for
+/// that are mirrored below.
+///
+/// The worker prints one `thread '…' panicked` line to stderr when a
+/// row lets it die. That line is what the rows are about, not a
+/// failure.
+fn dying_worker<Req, Done>(name: &str) -> (Sender<Req>, Receiver<Done>, JoinHandle<()>)
+where
+    Req: Send + 'static,
+    Done: Send + 'static,
+{
+    let (to_worker, requests) = mpsc::channel::<Req>();
+    let (results, from_worker) = mpsc::channel::<Done>();
+    let worker = std::thread::Builder::new()
+        .name(name.to_owned())
+        .spawn(move || {
+            // The worker owns both ends, as the shipped ones do: the
+            // unwind is what drops them and disconnects the seam.
+            let results = results;
+            let _request = requests.recv().expect("the work reaches the worker");
+            drop(results);
+            panic!("the worker died under the request it was handed");
+        })
+        .expect("the worker spawns");
+    (to_worker, from_worker, worker)
+}
+
+/// The index seam over [`dying_worker`], with `ThreadIndexer`'s own two
+/// arms for a worker that has gone: a failed `send` and a `Disconnected`
+/// `try_recv` each clear the running flag, so `busy` goes dark.
+struct DyingIndexer {
+    to_worker: Sender<IndexRequest>,
+    from_worker: Receiver<IndexDone>,
+    running: bool,
+}
+
+impl DyingIndexer {
+    fn new() -> (Box<Self>, JoinHandle<()>) {
+        let (to_worker, from_worker, worker) = dying_worker("index-worker-that-dies");
+        (
+            Box::new(Self {
+                to_worker,
+                from_worker,
+                running: false,
+            }),
+            worker,
+        )
+    }
+}
+
+impl IndexService for DyingIndexer {
+    fn submit(&mut self, request: IndexRequest) {
+        self.running = self.to_worker.send(request).is_ok();
+    }
+
+    fn poll(&mut self) -> Option<IndexDone> {
+        match self.from_worker.try_recv() {
+            Ok(done) => Some(done),
+            Err(TryRecvError::Empty) => None,
+            Err(TryRecvError::Disconnected) => {
+                self.running = false;
+                None
+            }
+        }
+    }
+
+    fn busy(&self) -> bool {
+        self.running
+    }
+}
+
+/// The evaluation seam over the same worker, with `ThreadEvaluator`'s
+/// arms. `cancel` has nothing to stop.
+struct DyingEvaluator {
+    to_worker: Sender<EvalRequest>,
+    from_worker: Receiver<EvalDone>,
+    running: bool,
+}
+
+impl DyingEvaluator {
+    fn new() -> (Box<Self>, JoinHandle<()>) {
+        let (to_worker, from_worker, worker) = dying_worker("eval-worker-that-dies");
+        (
+            Box::new(Self {
+                to_worker,
+                from_worker,
+                running: false,
+            }),
+            worker,
+        )
+    }
+}
+
+impl EvalService for DyingEvaluator {
+    fn submit(&mut self, request: EvalRequest) {
+        self.running = self.to_worker.send(request).is_ok();
+    }
+
+    fn cancel(&mut self) {}
+
+    fn poll(&mut self) -> Option<EvalDone> {
+        match self.from_worker.try_recv() {
+            Ok(done) => Some(done),
+            Err(TryRecvError::Empty) => None,
+            Err(TryRecvError::Disconnected) => {
+                self.running = false;
+                None
+            }
+        }
+    }
+
+    fn busy(&self) -> bool {
+        self.running
+    }
+}
+
+/// **A promise nobody is left to keep, withdrawn.**
+///
+/// The seam notices a worker that has gone; what this holds is that the
+/// CONSUMER asks. `PickCache::outstanding` is cleared by an answer, so
+/// a build whose worker panicked leaves it set for the life of the
+/// window — and reporting it alone spun `indexing…` forever, repainted
+/// every frame to collect a result nobody would send, and refused every
+/// click with *the picture is still being indexed*, of a picture nobody
+/// is indexing.
+///
+/// The three reads the chrome actually makes are all here: the toolbar's
+/// progress state, the pick refusal's sentence, and the indicator itself.
+#[test]
+fn a_build_whose_worker_panicked_stops_promising_an_answer() {
+    let tol = Tol::witness();
+    let (session, _extrude) = plate_session(tol);
+    let (seam, worker) = DyingIndexer::new();
+    let mut cache = PickCache::new(seam);
+
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(delta())),
+        CacheStep::Submitted
+    );
+    assert!(
+        cache.indexing(),
+        "the build is with the worker and the answer is genuinely owed"
+    );
+
+    // The build panics. Joining is how the row waits for a death a
+    // frame loop would only ever discover by polling.
+    assert!(
+        worker.join().is_err(),
+        "the row needs the worker to have actually panicked"
+    );
+
+    assert_eq!(
+        cache.pump(),
+        Vec::new(),
+        "there is no answer to take, and there never will be"
+    );
+    assert!(
+        !cache.indexing(),
+        "so the toolbar stops saying one is coming",
+    );
+    assert_eq!(
+        frame::progress(session.outstanding(), cache.indexing()),
+        None,
+        "and the chrome has nothing to spin over",
+    );
+    assert_eq!(
+        pickcache::unindexed(&[input::PickAction::Select([10.0, 10.0])], cache.indexing()),
+        Some(pickcache::NotIndexed::Absent),
+        "a click is refused as one nothing will answer, not as one an \
+         arriving index is about to",
+    );
+
+    // And the retry policy still holds: the attempt was made, and a
+    // dead seam is not a reason to make it sixty times a second. The
+    // step is still `Indexing`, because `sync` answers from the
+    // submitted attempt — which is why that is a statement about what
+    // was asked for and `indexing` is what the chrome reads.
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(delta())),
+        CacheStep::Indexing
+    );
+    assert!(!cache.indexing());
+}
+
+/// The same worker under the EVALUATION seam, which already asks.
+///
+/// `DocSession::busy` is about the picture — is it older than the
+/// document — and stays true, correctly, because it is. What answers
+/// *is anyone doing something about it* is `DocSession::running`, which
+/// is the seam's own `busy`, and the two are folded into `Outstanding`
+/// before any chrome sees them. So a panicked evaluator lands on
+/// `Canceled` and its recourse rather than on a permanent `evaluating…`.
+#[test]
+fn a_panicked_evaluator_reaches_the_chrome_as_canceled_not_as_evaluating() {
+    let tol = Tol::witness();
+    let (doc, _extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+    let (seam, worker) = DyingEvaluator::new();
+    // `new` submits the first run, so the worker has it already.
+    let mut session = DocSession::new(doc, tol, seam);
+    assert_eq!(session.outstanding(), Outstanding::Evaluating);
+
+    assert!(
+        worker.join().is_err(),
+        "the row needs the worker to have actually panicked"
+    );
+
+    assert_eq!(session.pump(), Vec::new(), "no result is coming");
+    assert!(
+        session.busy(),
+        "the picture IS older than the document, and that is what busy says"
+    );
+    assert!(!session.running(), "but nothing is working on it");
+    assert_eq!(session.outstanding(), Outstanding::Canceled);
+    assert_eq!(
+        frame::progress(session.outstanding(), false),
+        Some(frame::Progress::Canceled { indexing: false }),
+        "the state the chrome draws with a Re-evaluate button beside it",
     );
 }
