@@ -1958,6 +1958,42 @@ pub enum IdStep {
     Void,
 }
 
+/// **What an id query is asked ABOUT**, beside the cursor: the picture
+/// on screen and the index whose alphabet its ids are words of.
+///
+/// **Both halves, because neither is a subset of the other.** The
+/// query's answer is an id the GPU read out of the picture identified
+/// by `revision`, and it is resolved through the id map of the index
+/// identified by `generation` — so a change to either makes the
+/// outstanding answer describe something nobody is asking about:
+///
+/// - **A new picture at the same generation.** Hiding a part rebuilds
+///   the scene from the index already in hand
+///   ([`crate::app::ViewerApp::sync_scene`] rebuilds on a display
+///   revision or a focus-set change too), so the drawn ids lose the
+///   hidden part's patches while the generation holds still. Keyed on
+///   the generation alone the query holds, the GPU's answer for the
+///   picture that still had the part stays matched, and the ray path's
+///   fresh *nothing* is reported as *the two picking paths disagree* —
+///   the sentence issue #1097 §4 tells an operator to read as an
+///   `R32Uint` clear fault.
+/// - **A new generation at the same picture.** A rebuild that REFUSES
+///   does not bump the revision (`sync_scene` marks the pair current
+///   only on success), so an index that landed over a refused rebuild
+///   is a new generation beside the picture already on screen. Keyed on
+///   the revision alone the query holds, and the hover the pick path
+///   skips on a [`IdStep::Hold`] is a question about the DOCUMENT,
+///   which has moved.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct IdSubject {
+    /// [`crate::app::ViewerApp`]'s scene revision: the identity of the
+    /// mesh the id pass renders, bumped on every successful rebuild.
+    pub revision: u64,
+    /// The generation of the index in hand, `None` while one is being
+    /// built.
+    pub generation: Option<Generation>,
+}
+
 /// The id pass's query bookkeeping: which query is outstanding, and
 /// what it was asked about.
 ///
@@ -1973,9 +2009,9 @@ pub enum IdStep {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct IdQueryLog {
     serial: u32,
-    /// The cursor and the picture the outstanding query was asked
+    /// The cursor and the subject the outstanding query was asked
     /// about. `None` when nothing is outstanding.
-    asked: Option<([f64; 2], Option<Generation>)>,
+    asked: Option<([f64; 2], IdSubject)>,
 }
 
 impl IdQueryLog {
@@ -1993,25 +2029,26 @@ impl IdQueryLog {
         self.asked.map(|_| self.serial)
     }
 
-    /// Advance the log for this frame's cursor and picture.
+    /// Advance the log for this frame's cursor and subject.
     ///
     /// `cursor` is `None` when the pointer is outside the pane.
-    /// `generation` is the evaluation the index describes: a query is
-    /// re-asked when the picture changes under a still cursor, because
-    /// the answer is about the picture and not only about the pointer.
-    pub fn step(&mut self, cursor: Option<[f64; 2]>, generation: Option<Generation>) -> IdStep {
+    /// `subject` is what the query is about beside the pointer — the
+    /// picture and the index ([`IdSubject`], which carries the argument
+    /// for asking both) — so a query is re-asked when either changes
+    /// under a still cursor.
+    pub fn step(&mut self, cursor: Option<[f64; 2]>, subject: IdSubject) -> IdStep {
         let Some(cursor) = cursor else {
             self.asked = None;
             return IdStep::Void;
         };
-        if self.asked == Some((cursor, generation)) {
+        if self.asked == Some((cursor, subject)) {
             return IdStep::Hold;
         }
         // Saturating past zero: zero is the "nothing was ever asked"
         // serial the answer channel is initialised to, so a wrap must
         // not land on it.
         self.serial = self.serial.wrapping_add(1).max(1);
-        self.asked = Some((cursor, generation));
+        self.asked = Some((cursor, subject));
         IdStep::Ask {
             serial: self.serial,
         }

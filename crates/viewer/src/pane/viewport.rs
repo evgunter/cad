@@ -310,8 +310,18 @@ impl ViewerBehavior<'_> {
         // drag ran a full ray cast AND a blocking GPU readback on every
         // frame, because the app pushes a `Hover` whenever the pointer
         // is inside the pane — true of every frame of a drag.
-        let generation = self.index.map(PickIndex::generation);
-        let step = self.id_log.step(cursor_px, generation);
+        //
+        // **The subject is the pair.** What is under this cursor
+        // depends on the picture the id pass reads — which a hidden
+        // part changes without moving the generation — and on the
+        // index that resolves its ids, which a landing over a refused
+        // rebuild changes without moving the picture. `frame::IdSubject`
+        // carries the argument for both.
+        let subject = frame::IdSubject {
+            revision: self.revision,
+            generation: self.index.map(PickIndex::generation),
+        };
+        let step = self.id_log.step(cursor_px, subject);
         // **A cursor event retires what the cursor last said.** The id
         // log has just judged whether the outstanding pick question
         // still describes this cursor and this picture; a message
