@@ -12,7 +12,8 @@ use std::fmt::Write as _;
 
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use sweep::test_support::block;
+use sweep::{Revolution, RevolveAxis, revolve};
 use topo::readback::euler_counts;
 use topo::{Body, FaceKey, LoopBoundary};
 
@@ -22,21 +23,6 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 
 fn dump_dir() -> Option<std::path::PathBuf> {
     std::env::var_os("SHELLFIX_BITDUMP_DIR").map(Into::into)
-}
-
-fn boxy(w: f64, d: f64, h: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(w, 0.0), 0.0),
-        ProfileVertex::new(p2(w, d), 0.0),
-        ProfileVertex::new(p2(0.0, d), 0.0),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .unwrap()
-        .body
 }
 
 fn vessel(r: f64, h: f64) -> Body<f64> {
@@ -184,7 +170,7 @@ fn shellfix1_bitdump_corpus() {
         return;
     }
     let (w, d, h, t) = (2.0, 3.0, 4.0, 0.25);
-    let body = boxy(w, d, h);
+    let body = block(w, d, h, Tol::witness());
     write_dump(
         "sealed_box",
         &topo::shell(&body, t, Tol::witness()).unwrap().body,
