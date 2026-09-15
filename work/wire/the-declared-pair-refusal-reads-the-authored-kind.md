@@ -1,9 +1,10 @@
 ---
 id: the-declared-pair-refusal-reads-the-authored-kind
-kind: issue
+kind: unit
 title: route_declarations answers DeclareUnsupportedPair from the authored StableName's kind, not the resolved key
-status: open
+status: dispatched
 opened: 2026-09-13
+branch: wire/tie-before-kind
 ---
 
 

@@ -48,13 +48,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::{
-    arc_section, bulged_extrusion, channels, on_pool, quad, quintic_prism, stacked, strip_section,
+    arc_section, bulged_extrusion, channels, on_pool, quintic_prism, stacked, strip_section,
     tilted_cut_upper,
 };
 use geom_core::k_stats::Bracket;
 use geom_core::sym::{SymBudget, SymCounts, with_session};
 use geom_core::{Sym, Tol};
 use sweep::loft_body;
+use sweep::test_support::loft_prism;
 use topo::Body;
 
 /// A three-station arc loft at scale `s` — rational walls, so every
@@ -88,27 +89,6 @@ fn strip_loft(s: f64, delta: f64) -> Body<f64> {
     .body
 }
 
-/// `loft_prism`, rebuilt from the corpus document's own sections
-/// (`editor-core/tests/corpus/loft_prism.rs`: squares at z = 0 and
-/// z = 2, a trapezoid at z = 1, v-degree 2). Polyline sections, so the
-/// walls are described splines on the quadrature lane — and it is the
-/// body the finding measured (`work/perf/mass-properties-are-serial-per-face.md`:
-/// 157 ms). A corpus DOCUMENT cannot come here: `editor-core` sits
-/// above this crate.
-fn loft_prism() -> Body<f64> {
-    let sq = quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]);
-    let d = 0.375;
-    let tr = quad([(-1.0 - d, -1.0), (1.0 + d, -1.0), (1.0, 1.0), (-1.0, 1.0)]);
-    loft_body::<f64>(
-        &[sq.clone(), tr, sq],
-        &stacked(&[0.0, 1.0, 2.0], 1.0),
-        2,
-        Tol::witness(),
-    )
-    .expect("the prism lofts")
-    .body
-}
-
 /// The roster: the reporting-door digest's three lanes that this walk
 /// can reach from here (`quintic_prism` — composite rounds;
 /// `tilted_cut_upper` — the cylinder chart's Green form, which no loft
@@ -123,7 +103,15 @@ fn roster() -> Vec<(String, Body<f64>)> {
         ("quintic_prism".to_string(), quintic_prism()),
         ("tilted_cut_upper".to_string(), tilted_cut_upper()),
         ("bulged_extrusion".to_string(), bulged_extrusion()),
-        ("loft_prism".to_string(), loft_prism()),
+        // `loft_prism` is in this roster because it is the body the
+        // finding measured
+        // (`work/perf/mass-properties-are-serial-per-face.md`: 157 ms)
+        // — polyline sections, so its walls are described splines on
+        // the quadrature lane, which is the lane the per-face serialism
+        // is about. A corpus DOCUMENT cannot stand in for it here:
+        // `editor-core` sits above this crate, so the kernel-side
+        // fixture is the only reachable spelling.
+        ("loft_prism".to_string(), loft_prism(Tol::witness())),
     ];
     out.extend(
         [1.0e11, 1.0e9]
@@ -318,7 +306,7 @@ fn the_roster_records_the_props_lanes_own_verdicts() {
         "the committed digest records no verdict on any body — it is a table of empty channels"
     );
     let bracket = Bracket::open();
-    let _ = topo::mass_properties(&loft_prism(), Tol::witness());
+    let _ = topo::mass_properties(&loft_prism(Tol::witness()), Tol::witness());
     let log = bracket.finish();
     let quad = log
         .verdicts

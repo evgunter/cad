@@ -31,7 +31,7 @@ use pncad::select::{Ray, Resolution, RunCtx, resolve};
 use test_utils::fuzz;
 use viewer::camera::Camera;
 use viewer::input::{InputMap, PointerButton, ViewportEvent, ViewportSize};
-use viewer::pickindex::{IdMap, PickIndex};
+use viewer::pickindex::{IdMap, PickIndex, PictureKey};
 use viewer::props::SlotValue;
 use viewer::scene::DisplayTolerance;
 use viewer::session::{DocSession, Hovered, Selection, SessionOp};
@@ -145,8 +145,10 @@ fn index_at(session: &DocSession, delta: DisplayTolerance) -> PickIndex {
     PickIndex::build(
         doc,
         eval,
-        session.landed_generation().expect("a landed generation"),
-        delta,
+        PictureKey::of(
+            session.landed_generation().expect("a landed generation"),
+            delta,
+        ),
         session.tol(),
     )
     .expect("the fixture indexes")
@@ -522,7 +524,11 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
     assert!(!session.standing().live(), "its birth was undone");
     assert!(session.standing().unresolved().is_some());
     assert!(
-        !index.current_for(session.landed_generation(), delta()),
+        !index.current_for(
+            session
+                .landed_generation()
+                .map(|g| PictureKey::of(g, delta()))
+        ),
         "and the index that answered the pick is stale, to be discarded"
     );
 
@@ -672,7 +678,11 @@ fn e2e_a_gallery_ring_is_picked_edited_killed_and_revived() {
     assert!(session.standing().unresolved().is_some());
     assert!(session.slot_rows().is_empty());
     assert!(
-        !index.current_for(session.landed_generation(), ring_delta),
+        !index.current_for(
+            session
+                .landed_generation()
+                .map(|g| PictureKey::of(g, ring_delta))
+        ),
         "the pick index is stale after the re-evaluation and is discarded whole"
     );
 

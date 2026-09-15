@@ -52,15 +52,16 @@
 //! else: whether the FAÇADE hands a consumer the raw-assembly lane is
 //! a separate question, answered in `pncad::select`'s own docs.
 //!
-//! # Staleness is by generation, and it is a discard
+//! # Staleness is by picture, and it is a discard
 //!
-//! The key is [`crate::generation::Generation`] — the session's
-//! evaluation generation. A [`PickIndex`] built under one generation
-//! is never repaired against another: [`PickIndex::current_for`]
-//! answers whether the index still describes the run on screen, and a
-//! stale one is dropped and rebuilt whole. Re-pairing by hand is the
-//! failure #1098 exists to name. WHEN a rebuild is asked for, and what
-//! is done with the answer, is not this module's: that is
+//! The key is [`PictureKey`] — the session's evaluation generation and
+//! the δ the roots were tessellated at, as one value because it is one
+//! question. A [`PickIndex`] built for one picture is never repaired
+//! against another: [`PickIndex::current_for`] answers whether the
+//! index still describes the picture on screen, and a stale one is
+//! dropped and rebuilt whole. Re-pairing by hand is the failure #1098
+//! exists to name. WHEN a rebuild is asked for, and what is done with
+//! the answer, is not this module's: that is
 //! [`crate::pickcache::PickCache`] over the index seam.
 //!
 //! Module kind: **vocabulary** (`crates/viewer/README.md`, Module
@@ -695,6 +696,73 @@ impl PartWindows<Patches> {
     }
 }
 
+/// **What a picture IS**: the landed generation an index describes and
+/// the δ its roots were tessellated at.
+///
+/// **One value because it is one question.** *Is this the same
+/// picture?* is asked at every step of an index's life — by the cache
+/// deciding whether to rebuild ([`crate::pickcache::PickCache::sync`]),
+/// by the seam deciding whether a waiting request supersedes the answer
+/// in hand, by the pane deciding whether the index it holds minted the
+/// ids on screen ([`PickIndex::current_for`]) — and each half alone
+/// answers a different question. A δ typed while the document stands
+/// rebuilds the index at the SAME generation over a different
+/// tessellation, so a generation-only comparison reads as co-identity
+/// while checking something else; and a δ is a tessellation OF a
+/// generation, so a δ-only comparison has no subject at all.
+///
+/// **The halves are compared together because there is no way to
+/// compare them apart.** [`PictureKey::of`] is the only door and takes
+/// both, `PartialEq` is over the pair, and every site that asks the
+/// question holds one of these rather than two fields — so the
+/// comparison a site means is the comparison it can write. Reading a
+/// half ([`PictureKey::generation`], [`PictureKey::delta`]) is for
+/// USING it: tessellating at the δ, naming the run. Neither read
+/// answers *the same picture?*, and the two sites in this crate that
+/// legitimately key on less than a picture do not go through this type
+/// at all.
+///
+/// **Two neighbours are NOT this key**, and both are worth naming here
+/// because a reader meeting them will see this shape:
+///
+/// - [`crate::evalseam::FitRequest`] carries `(generation, requested)`
+///   and is spelled identically. A fit's δ is the δ somebody ASKED for
+///   — the question the budget is being paid to answer — not the δ a
+///   picture was built at, so the two values mean different things and
+///   an answer for one is no answer for the other.
+/// - [`crate::frame::IdSubject`] carries the scene revision and the
+///   index's generation, with no δ. That is not half of this key; it
+///   is a different key over a different pair, and its own doc holds
+///   the argument for both of its halves.
+///
+/// `PartialEq` and not `Eq`: [`DisplayTolerance`] is a float, so the
+/// pair inherits its equivalence and nothing here strengthens it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PictureKey {
+    generation: Generation,
+    delta: DisplayTolerance,
+}
+
+impl PictureKey {
+    /// The picture a run at `generation`, tessellated at `delta`, is.
+    #[must_use]
+    pub fn of(generation: Generation, delta: DisplayTolerance) -> Self {
+        Self { generation, delta }
+    }
+
+    /// The run half — what the index was built from.
+    #[must_use]
+    pub fn generation(self) -> Generation {
+        self.generation
+    }
+
+    /// The tessellation half — what the roots were built at.
+    #[must_use]
+    pub fn delta(self) -> DisplayTolerance {
+        self.delta
+    }
+}
+
 /// The pick index for one evaluation generation.
 ///
 /// Built from the document's roots, one [`NodePick`] per output body,
@@ -702,8 +770,7 @@ impl PartWindows<Patches> {
 /// parts both follow, so a reader of either can predict the other.
 #[derive(Debug)]
 pub struct PickIndex {
-    generation: Generation,
-    delta: DisplayTolerance,
+    key: PictureKey,
     parts: Vec<NodePick>,
     ids: IdMap,
     /// The drawn face patches, part by part — the ids, their names,
@@ -735,12 +802,11 @@ impl PickIndex {
     pub fn build(
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
-        generation: Generation,
-        delta: DisplayTolerance,
+        key: PictureKey,
         tol: Tol,
     ) -> Result<Self, PickIndexError> {
-        Self::assemble(doc, eval, generation, delta, |node| {
-            NodePick::build_all(eval, node, delta.get(), tol)
+        Self::assemble(doc, eval, key, |node| {
+            NodePick::build_all(eval, node, key.delta().get(), tol)
         })
     }
 
@@ -763,13 +829,12 @@ impl PickIndex {
     pub fn build_with(
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
-        generation: Generation,
-        delta: DisplayTolerance,
+        key: PictureKey,
         tol: Tol,
         memo: &mut PickMemo,
     ) -> Result<Self, PickIndexError> {
-        let index = Self::assemble(doc, eval, generation, delta, |node| {
-            NodePick::build_all_with(eval, node, delta.get(), tol, memo)
+        let index = Self::assemble(doc, eval, key, |node| {
+            NodePick::build_all_with(eval, node, key.delta().get(), tol, memo)
         });
         memo.end_picture();
         index
@@ -780,8 +845,7 @@ impl PickIndex {
     fn assemble(
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
-        generation: Generation,
-        delta: DisplayTolerance,
+        key: PictureKey,
         mut build_parts: impl FnMut(RecipeNodeId) -> Result<Vec<NodePick>, NodePickError>,
     ) -> Result<Self, PickIndexError> {
         let mut parts: Vec<NodePick> = Vec::new();
@@ -804,8 +868,7 @@ impl PickIndex {
         }
         let ids = IdMap::build(patches.patch_keys()).map_err(PickIndexError::Ids)?;
         Ok(Self {
-            generation,
-            delta,
+            key,
             parts,
             ids,
             patches,
@@ -817,18 +880,25 @@ impl PickIndex {
     ///
     /// A `false` here means DISCARD: rebuild the index whole from the
     /// current evaluation. It never means repair.
-    pub fn current_for(&self, generation: Option<Generation>, delta: DisplayTolerance) -> bool {
-        Some(self.generation) == generation && self.delta == delta
+    pub fn current_for(&self, key: Option<PictureKey>) -> bool {
+        Some(self.key) == key
+    }
+
+    /// The picture this index describes — the whole key, and the value
+    /// anything asking whether two pictures are the same compares.
+    pub fn key(&self) -> PictureKey {
+        self.key
     }
 
     /// The generation this index was built under.
+    ///
+    /// **Half a key, and legitimately so**: the id query's subject
+    /// ([`crate::frame::IdSubject`]) names the alphabet a GPU answer
+    /// was read through, which is the index's identity and not the
+    /// picture's. Anything asking whether two PICTURES are the same
+    /// wants [`PickIndex::key`].
     pub fn generation(&self) -> Generation {
-        self.generation
-    }
-
-    /// The δ this index was tessellated at.
-    pub fn delta(&self) -> DisplayTolerance {
-        self.delta
+        self.key.generation()
     }
 
     /// The drawn parts, in id order.
@@ -975,7 +1045,7 @@ impl PickIndex {
             // has. An empty document is a state, not a fault, and
             // [`SceneMesh::nothing`] is the picture of it.
             if self.parts.is_empty() {
-                return Ok(SceneMesh::nothing(self.delta));
+                return Ok(SceneMesh::nothing(self.key.delta()));
             }
             // Parts that exist but offer no point to bound is still a
             // refusal, and deliberately still this one: that is a
@@ -987,9 +1057,9 @@ impl PickIndex {
                     .flat_map(|part| part.mesh().positions.iter().copied()),
             )
             .ok_or(SceneError::EmptyMesh)?;
-            return Ok(SceneMesh::empty(bounds, self.delta));
+            return Ok(SceneMesh::empty(bounds, self.key.delta()));
         }
-        SceneMesh::build_parts_focused(&parts, self.delta, focus)
+        SceneMesh::build_parts_focused(&parts, self.key.delta(), focus)
     }
 
     /// The nearest face a ray meets, as a stable name.

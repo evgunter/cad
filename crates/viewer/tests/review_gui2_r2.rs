@@ -35,7 +35,7 @@ use pncad::select::{Ray, Resolution};
 use viewer::camera::Camera;
 use viewer::evalseam::{EvalDone, EvalRequest, EvalService, InlineEvaluator};
 use viewer::input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
-use viewer::pickindex::{IdMap, PatchId, PickIndex};
+use viewer::pickindex::{IdMap, PatchId, PickIndex, PictureKey};
 use viewer::scene::DisplayTolerance;
 use viewer::session::{DocSession, FaceSelection, Hovered, Selection, SessionOp};
 use viewer::{cursor_projection, marks};
@@ -158,7 +158,8 @@ fn index_at(session: &DocSession, d: DisplayTolerance) -> PickIndex {
     let generation = session
         .landed_generation()
         .expect("a landed evaluation has a generation");
-    PickIndex::build(doc, eval, generation, d, session.tol()).expect("the fixture indexes")
+    PickIndex::build(doc, eval, PictureKey::of(generation, d), session.tol())
+        .expect("the fixture indexes")
 }
 
 fn landed_index(session: &DocSession) -> PickIndex {
@@ -1529,11 +1530,11 @@ fn a_gallery_document_selects_survives_and_recovers_end_to_end() {
     //    and a rebuilt one describes the new generation.
     let generation = session.landed_generation().expect("a generation");
     assert!(
-        !index.current_for(Some(generation), coarse()),
+        !index.current_for(Some(PictureKey::of(generation, coarse()))),
         "the pre-edit index is stale after two evaluations"
     );
     let rebuilt = index_at(&session, coarse());
-    assert!(rebuilt.current_for(Some(generation), coarse()));
+    assert!(rebuilt.current_for(Some(PictureKey::of(generation, coarse()))));
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -1550,18 +1551,33 @@ fn an_index_is_current_for_exactly_one_generation_and_delta() {
     session.pump();
     let index = landed_index(&session);
     let generation = session.landed_generation().expect("a generation");
-    assert!(index.current_for(Some(generation), delta()));
-    assert!(!index.current_for(None, delta()), "no run is not current");
+    let key = PictureKey::of(generation, delta());
+    assert!(index.current_for(Some(key)));
+    assert_eq!(index.key(), key, "and it says so itself");
+    assert!(!index.current_for(None), "no picture is not this picture");
     assert!(
-        !index.current_for(
-            Some(generation),
+        !index.current_for(Some(PictureKey::of(
+            generation,
             DisplayTolerance::new(1.0e-3).expect("positive")
-        ),
+        ))),
         "a different δ is a different tessellation"
     );
     assert!(
-        !index.current_for(Some(generation.next()), delta()),
+        !index.current_for(Some(PictureKey::of(generation.next(), delta()))),
         "a later generation is not current"
+    );
+    // **The key is the pair, and each half separates on its own.** A
+    // `PartialEq` that dropped either half would make one of these two
+    // equalities true, and both comparisons above read through it.
+    assert_ne!(
+        key,
+        PictureKey::of(generation.next(), delta()),
+        "the generation half separates two keys"
+    );
+    assert_ne!(
+        key,
+        PictureKey::of(generation, DisplayTolerance::new(1.0e-3).expect("positive")),
+        "and so does the δ half"
     );
 
     session.perform(SessionOp::SetSlot {
@@ -1573,12 +1589,12 @@ fn an_index_is_current_for_exactly_one_generation_and_delta() {
     let moved = session.landed_generation().expect("a new generation");
     assert_ne!(moved, generation);
     assert!(
-        !index.current_for(Some(moved), delta()),
+        !index.current_for(Some(PictureKey::of(moved, delta()))),
         "the stale index is not current for the new run"
     );
     // And the rebuilt one describes the new run.
     let rebuilt = landed_index(&session);
-    assert!(rebuilt.current_for(Some(moved), delta()));
+    assert!(rebuilt.current_for(Some(PictureKey::of(moved, delta()))));
     assert!(
         rebuilt.ids().len() > index.ids().len(),
         "a third instance draws more patches"
