@@ -384,6 +384,59 @@ fn assert_offset_sense(hollow: &Body<f64>, centre_rho: f64, what: &str) {
     );
 }
 
+/// **The scene's wall** — the SECTIONED vessel's rim, attempted for
+/// real on every pass and pinned by its own typed refusal, in the
+/// shape `lily::wall_probes` and `klein::wall_probes` carry theirs.
+///
+/// It builds its own quarter revolve rather than taking one: the
+/// probe's operands are made immediately above it and read by nothing
+/// after it, so there is no body here that `stops` and this function
+/// have to agree about. (The teapot's pair cannot be written this way
+/// — its walls are attempted on document NODES whose refusal payload
+/// the panel's note quotes, so probe and caption must read ONE
+/// evaluation and `teapot::wall_probes` takes it as an argument.)
+fn wall_probes(tol: Tol) {
+    // ---- WALL 1: the SECTIONED vessel's rim ----
+    //
+    // A quarter turn of the same meridian — the cutaway a catalogue
+    // wants. The moved meridian cap stands a wall off the axis and
+    // parallel to it, and a plane in that posture cuts a torus in a
+    // SPIRIC quartic, which `Curve3` cannot carry.
+    let quarter = revolved(
+        meridian(R_BELLIED, ArcSweep::Ccw, tol),
+        Revolution::Partial(core::f64::consts::FRAC_PI_2),
+        tol,
+    );
+    assert_eq!(
+        pncad::topo::validate_geometric(&quarter, tol),
+        Ok(()),
+        "the sectioned vessel is a valid body — it is the HOLLOW that has no carrier"
+    );
+    let sectioned = pncad::topo::shell(&quarter, WALL, tol);
+    crate::walls::wall(
+        "torus-walled vessel",
+        1,
+        "hollow the vessel SECTIONED — a quarter turn of the same meridian, whose \
+         moved meridian cap cuts the torus band in a spiric quartic",
+        sectioned,
+        |e| {
+            matches!(
+                e,
+                ShellError::Face { error, .. }
+                    if matches!(
+                        &**error,
+                        pncad::topo::ReplaceFaceError::TogetherAxialEdge { what, .. }
+                            if *what == "a circular edge between two charts whose centre is off the axis"
+                    )
+            )
+        },
+        "VERBS-RIMCAP's PR-2 has funded the torus half of the rim carrier. Retire this \
+         probe, retire `torax_the_klein_elbow_rim_refuses_at_the_carrier_mint` with it \
+         — they are one gate — and ship the sectioned vessel as this scene's third \
+         panel, which is the picture it was always for",
+    );
+}
+
 pub fn stops(tol: Tol) -> Vec<Stop> {
     let body = bellied(tol);
     assert_eq!(census(&body), (14, 26, 14), "the vessel's operand census");
@@ -670,45 +723,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         props_m.volume
     );
 
-    // ---- WALL 1: the SECTIONED vessel's rim ----
-    //
-    // A quarter turn of the same meridian — the cutaway a catalogue
-    // wants. The moved meridian cap stands a wall off the axis and
-    // parallel to it, and a plane in that posture cuts a torus in a
-    // SPIRIC quartic, which `Curve3` cannot carry.
-    let quarter = revolved(
-        meridian(R_BELLIED, ArcSweep::Ccw, tol),
-        Revolution::Partial(core::f64::consts::FRAC_PI_2),
-        tol,
-    );
-    assert_eq!(
-        pncad::topo::validate_geometric(&quarter, tol),
-        Ok(()),
-        "the sectioned vessel is a valid body — it is the HOLLOW that has no carrier"
-    );
-    let sectioned = pncad::topo::shell(&quarter, WALL, tol);
-    crate::walls::wall(
-        "torus-walled vessel",
-        1,
-        "hollow the vessel SECTIONED — a quarter turn of the same meridian, whose \
-         moved meridian cap cuts the torus band in a spiric quartic",
-        sectioned,
-        |e| {
-            matches!(
-                e,
-                ShellError::Face { error, .. }
-                    if matches!(
-                        &**error,
-                        pncad::topo::ReplaceFaceError::TogetherAxialEdge { what, .. }
-                            if *what == "a circular edge between two charts whose centre is off the axis"
-                    )
-            )
-        },
-        "VERBS-RIMCAP's PR-2 has funded the torus half of the rim carrier. Retire this \
-         probe, retire `torax_the_klein_elbow_rim_refuses_at_the_carrier_mint` with it \
-         — they are one gate — and ship the sectioned vessel as this scene's third \
-         panel, which is the picture it was always for",
-    );
+    // The scene's one wall, attempted for real.
+    wall_probes(tol);
 
     let (sv, se, sf) = census(&sealed);
     let (cv, ce, cf) = cup_after;
@@ -892,4 +908,35 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             bodies: vec![SceneBody::plain("torusvesselcup", [0.76, 0.48, 0.36], cup)],
         },
     ]
+}
+
+#[cfg(test)]
+mod wall_probes_run_here {
+    //! The scene's wall, driven by the TEST SUITE.
+    //!
+    //! [`wall_probes`] is where the sectioned vessel's hollow is
+    //! attempted; until this test existed its only caller was
+    //! [`stops`], whose only caller is `main.rs`'s render walk. So the
+    //! frontier this scene pins was exercised when somebody RENDERED
+    //! the tour and never under `cd demos/tour && cargo test --release`
+    //! — the command CI's "demos tour suite" row runs. The rim carrier
+    //! could grow the torus arm, or the refusal could move to a
+    //! different variant, with the suite green either way.
+    //!
+    //! It has to be an in-bin test: `demo-tour` is bin-only (no
+    //! `[lib]`, modules hang off `main.rs`), so nothing under `tests/`
+    //! can name `torusvessel::wall_probes` at all. `lily`, `klein` and
+    //! `teapot` carry theirs for the same reason.
+    //!
+    //! There is nothing here to assert that the probe does not already
+    //! assert: `crate::walls::wall` panics on BOTH off-nominal
+    //! outcomes — a different refusal, and no refusal at all. Running
+    //! it IS the check.
+
+    use super::*;
+
+    #[test]
+    fn the_sectioned_vessels_wall_is_attempted_by_the_suite() {
+        wall_probes(Tol::witness());
+    }
 }
