@@ -814,3 +814,11 @@ meanings became one home; the memo skipped with the tier off.
 a stale `Session` literal in `trig.rs`'s tests and a gated-suite
 marker, fixed the same hour): A–F all taken. Delta by R1 on the fixed
 head: MERGEABLE — all seven items confirmed, five by execution: the premise row reds first and alone under a re-planted value-dependent mint while the schedule rows stay green; the taint guard disabled turns the adopted door row red (leaf B `(0,1,0)` against `(1,0,0)`) and restored turns it green; the unrecorded-freeze ledger pin reads 0 of 4,284 on the plate; the gated freezing-document row runs at 8 leaves with `frozen` 1,044 asserted; the M10-3 receipt-identity row green across one sequential and two parallel drives. One stated divergence accepted (the differential asserts `own(on) == 0` tied to `own(off) > 0` rather than the literal 50,112, which moves with the ε row and the leaf count); three stale numbers named and corrected in this state-sync (the file-size item's 4,299 lines / 691-line header; the PR body's row count). The delta was interrupted by a container restart and resumed with state intact. The cost item's volume ask closes here.
+
+## SYM-9 dispatched (2026-09-15)
+
+With SYM-7 merged, its lanes retire and SYM-9 (the retry ladder,
+block SYM-B2 slot 2, FABLE — the block's fable slot) dispatches beside
+SYM-8. Both SYM-8's implementer and SYM-7's delta were interrupted by
+container restarts overnight and resumed with state intact; the
+restarts are on the block record.
