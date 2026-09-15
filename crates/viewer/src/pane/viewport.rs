@@ -64,8 +64,8 @@ pub(crate) fn land(
 /// beside an older picture, and nothing retries while the display and
 /// the focus hold still.
 ///
-/// Two reads care, and they are the reads whose currency is a pick
-/// **id** rather than a document fact:
+/// Three reads care. Two of them have a pick **id** for their
+/// currency:
 ///
 /// - resolving an id the id pass produced, which is a word of the id
 ///   map of whichever index minted the picture's corners; and
@@ -78,6 +78,8 @@ pub(crate) fn land(
 /// disagree* — a sentence issue #1097 §4 tells an operator to read as
 /// an `R32Uint` clear fault, so a wrong subsystem gets named.
 ///
+/// The third is the **pick**, and it asks for a different reason.
+///
 /// **The pair, not the generation.** An index is keyed by
 /// `(generation, δ)` and so is its id map: a δ typed while the picture
 /// stands rebuilds the index at the same generation, over a different
@@ -86,12 +88,18 @@ pub(crate) fn land(
 /// [`PickIndex::current_for`], the one door that answers *does this
 /// index describe this picture*.
 ///
-/// **What it deliberately does not guard** is the pick path itself.
-/// A click asks what is under the cursor in the DOCUMENT, resolves it
-/// through the index and the evaluation with no id and no mesh in
-/// sight, and answers in the session's own currency; gating it on the
-/// picture would refuse picks over a stale-but-drawn scene, which is a
-/// product decision and not this rule's to make.
+/// **The pick path asks too, and what it does on `None` is
+/// different.** A click asks what is under the cursor in the
+/// DOCUMENT, and resolves it through the index and the evaluation
+/// with no id and no mesh in sight — so nothing about it is false by
+/// construction, and the reason it is gated is a product ruling
+/// rather than a correctness one: an answer about geometry the screen
+/// is not showing selects something the user cannot see, and Ev ruled
+/// on 2026-09-15 that the click is refused instead. The picture-side
+/// reads skip silently on `None`, because a mark nobody can draw is
+/// nothing to say; the pick path refuses TYPED, because a click is an
+/// act the user made and got nothing for
+/// ([`crate::pickcache::NotIndexed::AnotherPicture`]).
 fn drawn_index(
     index: Option<&PickIndex>,
     scene_key: Option<(Generation, DisplayTolerance)>,
@@ -436,7 +444,15 @@ impl ViewerBehavior<'_> {
         // the one door that answers what a cursor means, so a tool
         // cannot end up on a different rule.
         let kinds = self.tools.pick_kinds();
-        if let (Some(index), Some(eval)) = (self.index, self.session.evaluation()) {
+        // **The index the PICTURE was drawn from**, which is the index
+        // in hand on every frame but the ones `drawn_index` exists for.
+        // Every read of an index below this line asks this one:
+        // the marks composited against the drawn corners' ids, the id
+        // pass's answer read back through an id map, and — since Ev's
+        // 2026-09-15 ruling — the pick itself, which would otherwise
+        // answer about geometry the screen is not showing.
+        let on_screen = drawn_index(self.index, self.scene_key);
+        if let (Some(index), Some(eval)) = (on_screen, self.session.evaluation()) {
             for action in actions {
                 // A hover over an unchanged picture at an unmoved
                 // cursor asks a question whose answer the session
@@ -454,23 +470,21 @@ impl ViewerBehavior<'_> {
                     Err(error) => self.notices.push(frame::pick_refusal(&error)),
                 }
             }
-        } else if let Some(refusal) = pickcache::unindexed(&actions, self.indexing) {
-            // **Not indexed yet is not a miss.** There is no index to
-            // ask, because one is being built on its own seam, and a
-            // click that quietly did nothing here is the fail-quiet
-            // this window's indexing indicator would otherwise be
-            // painted over.
+        } else if let Some(refusal) = pickcache::unindexed(&actions, self.index, self.indexing) {
+            // **Not indexed yet is not a miss.** There is nobody to
+            // ask about the picture on screen — no index at all while
+            // one is built on its own seam, or an index in hand that
+            // describes a rebuild nobody has seen — and a click that
+            // quietly did nothing here is the fail-quiet this window's
+            // indexing indicator would otherwise be painted over.
+            //
+            // `self.index` rather than `on_screen`: this arm is the
+            // `else` of the currency read above, so an index reaching
+            // the door is by construction one for another picture,
+            // which is the fact `pickcache::unindexed` reads the
+            // sentence from.
             self.notices.push(frame::unindexed_refusal(&refusal));
         }
-
-        // **The index the PICTURE was drawn from**, which is the index
-        // in hand on every frame but the ones `drawn_index` exists for.
-        // Everything below this line that reads an index is about what
-        // is on screen — marks composited against the drawn corners'
-        // ids, and the id pass's answer read back through an id map —
-        // so all of it asks this one and none of it asks the current
-        // one.
-        let on_screen = drawn_index(self.index, self.scene_key);
 
         // What to mark, as a pure function of what is drawn and what is
         // selected. Recomputed every frame; nothing retains it.
@@ -731,6 +745,7 @@ mod tests {
     use crate::camera::{Camera, CameraOp, fold_recorded};
     use crate::frame::{self, product_badge};
     use crate::input::{self, InputMap, PointerButton, ViewportEvent};
+    use crate::pickcache::{self, NotIndexed};
     use crate::pickindex::{IdMap, PickIndex};
     use crate::props::SlotValue;
     use crate::scene::{self, DisplayTolerance};
@@ -1201,6 +1216,71 @@ mod tests {
         assert!(
             drawn_index(Some(&index), None).is_none(),
             "a picture with no index behind it is compared against no index"
+        );
+    }
+
+    /// **A click over a picture the index in hand did not draw is
+    /// refused, typed** — Ev's ruling, 2026-09-15.
+    ///
+    /// This row is the PAIR of predicates the pick path composes, over
+    /// a real session: `drawn_index` answers `None` for an index that
+    /// did not mint the picture's corners, and the index it declined
+    /// is what `pickcache::unindexed` reads
+    /// [`NotIndexed::AnotherPicture`] from. Each assertion can fail for
+    /// the reason the rule exists: a generation-only guard passes the
+    /// cross pairing, and a door that ignored the held index says *the
+    /// picture has no pick index* over one that plainly has.
+    ///
+    /// **What it does not assert is the wiring**, and no row in this
+    /// crate can. `ViewerBehavior::viewport_ui` is a private method
+    /// over an `egui::Ui` that paints through a wgpu callback and
+    /// borrows twenty-odd fields of the application, so it is driven by
+    /// nothing headless — the probe below reaches only the event
+    /// translation, for the same reason. That the pick path asks
+    /// `drawn_index` rather than the index in hand is held by its one
+    /// call site being one line, the way
+    /// `crates/viewer/tests/panel_display.rs` records for the
+    /// parameter field's widget.
+    #[test]
+    fn a_click_over_a_picture_the_index_did_not_draw_is_refused_typed() {
+        let tol = Tol::witness();
+        let (doc, _extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+
+        let drawn = plate_index(&session, a_delta(0.5));
+        let landed = plate_index(&session, a_delta(0.05));
+        let picture = (drawn.generation(), drawn.delta());
+        assert!(
+            drawn_index(Some(&landed), Some(picture)).is_none(),
+            "the index in hand describes a rebuild the picture is not"
+        );
+
+        let click = [input::PickAction::Select([10.0, 10.0])];
+        assert_eq!(
+            pickcache::unindexed(&click, Some(&landed), false),
+            Some(NotIndexed::AnotherPicture),
+            "so the click gets the picture's answer, which is a refusal",
+        );
+        assert_eq!(
+            pickcache::unindexed(
+                &[
+                    input::PickAction::Hover([10.0, 10.0]),
+                    input::PickAction::ClearHover,
+                ],
+                Some(&landed),
+                false,
+            ),
+            None,
+            "and a hover, pushed every frame the pointer is inside the \
+             pane, is not news",
+        );
+
+        // The other side of the same door: the index that DID draw the
+        // picture answers, so nothing is refused over it.
+        assert!(
+            drawn_index(Some(&drawn), Some(picture)).is_some(),
+            "the index that minted the picture's corners still answers",
         );
     }
 

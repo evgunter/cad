@@ -2944,3 +2944,38 @@ fence (the fix pass reached `props/mod.rs`, `boolean/reduce.rs`, the
 PR body). Recorded in the PR body and the unit's `## Closed` section.
 
 - `SENSE-DOORS-SPEC.md` — SENSE-DOORS, the five bare-T sense-sign doors take the bit (#2649)
+
+## Per-merge deletion — CENSUS-TAG-REACH's spec (2026-09-15)
+
+Recoverable at `git show 246ae018c:docs/CENSUS-TAG-REACH-SPEC.md` (PR
+#2660's last head before the merge). CENSUS's third unit. Its sentences
+that did not survive:
+
+- **the criterion** — the spec said these words reach Python as
+  `.variant`. They reach it as **`reason`**: `eval_err` writes that
+  field and `pncad.pyi` declares `EvaluationError.reason`. A sweep on
+  `variant` finds none of the sites and reports the class clean. The
+  second criterion error in three specs, and the more dangerous kind,
+  because a wrong criterion silently re-scopes the whole unit.
+- **the fence** — "an `eval_err` call site" missed `node_failed` and
+  `poisoned` at direct `typed_err` raises, the same door's vocabulary
+  ten lines away. Ten sites, not seven.
+- **the disposition** — the spec ruled that each word become a
+  `pub const` in `tags.rs`, and required the lane to test by execution
+  what would stop the next word. **Against the spec's own disposition,
+  nothing red**: a fresh site minting a word that had never existed
+  passed 85 Rust and 832 Python tests. The word became a TYPE, and then
+  — after the style review found the wall guarded `eval_err` rather than
+  the door — a type carried by `ErrorClass::Evaluation` itself.
+
+The premise corrections are on the item file, which survives this
+deletion, and the unit's record is `work/census/log.md`'s
+CENSUS-TAG-REACH entry plus the PR body. Residue, all filed on
+`work/census/`: `py-discriminant-getters-under-src-py-are-outside-every-inventory`,
+`py-reason-and-variant-literals-outside-any-enum`,
+`four-censuses-of-python-visible-vocabulary-in-one-crate`,
+`pncad-py-tests-rs-is-six-thousand-lines-and-carries-two-unremeasured-floors`,
+`datum-kind-vocabulary-is-hand-spelled-and-uncensused` and
+`evaluationerror-stub-lists-five-reasons-and-the-door-raises-six`.
+
+- `CENSUS-TAG-REACH-SPEC.md` — CENSUS-TAG-REACH, the refusal word rides the class (#2660)

@@ -29,7 +29,7 @@ is 6b's to fix: each is its own decision about a different seam, and
    for it.
 2. **The drawable scene's vertex assembly**, `PickIndex::scene_focused`
    (`crates/viewer/src/pickindex.rs:894`) → `SceneMesh::build_parts_focused`
-   (`crates/viewer/src/scene.rs:439`), from `app.rs:~672`. It walks
+   (`crates/viewer/src/scene.rs:444`), from `app.rs:~672`. It walks
    every drawn triangle to build the GPU
    buffers, and it runs not only when an index lands but on every HIDE
    and every FOCUS change over an index that is already current — the
@@ -136,7 +136,7 @@ double gather itself; what is settled here is only where it runs.
 
 `PickIndex::scene_focused` is at `crates/viewer/src/pickindex.rs:941`,
 not the `:894` recorded above; `SceneMesh::build_parts_focused` is at
-`scene.rs:439` as recorded.
+`scene.rs:444` (`:439` as recorded, shifted by #2661).
 
 The guess above — "(2) and (3) in particular could be milliseconds" —
 is **false for (2)**. Timed over an index already built, at 1e-5:

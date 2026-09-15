@@ -1734,11 +1734,11 @@ fn an_answer_built_at_another_delta_is_discarded_too() {
 fn a_click_with_no_index_refuses_typed_and_a_hover_stays_quiet() {
     let click = [input::PickAction::Select([10.0, 10.0])];
     assert_eq!(
-        pickcache::unindexed(&click, true),
+        pickcache::unindexed(&click, None, true),
         Some(pickcache::NotIndexed::Building),
     );
     assert_eq!(
-        pickcache::unindexed(&click, false),
+        pickcache::unindexed(&click, None, false),
         Some(pickcache::NotIndexed::Absent),
         "a refused build is not a build that is still running, and the \
          sentence must not promise an answer that is not coming",
@@ -1750,12 +1750,13 @@ fn a_click_with_no_index_refuses_typed_and_a_hover_stays_quiet() {
                     input::PickAction::Hover([10.0, 10.0]),
                     input::PickAction::ClearHover,
                 ],
+                None,
                 indexing,
             ),
             None,
             "an observation asked every frame is not a refusal to report",
         );
-        assert_eq!(pickcache::unindexed(&[], indexing), None);
+        assert_eq!(pickcache::unindexed(&[], None, indexing), None);
     }
     assert_ne!(
         pickcache::NotIndexed::Building.to_string(),
@@ -1770,6 +1771,60 @@ fn a_click_with_no_index_refuses_typed_and_a_hover_stays_quiet() {
             "and each sentence says which of the two answers it is",
         );
     }
+}
+
+/// **An index in hand for a picture nobody has seen is refused as
+/// itself**, not as an absence — Ev's ruling, 2026-09-15.
+///
+/// `ViewerApp::sync_scene` marks the scene's `(generation, δ)` pair
+/// current only on a successful rebuild, so a landing over a refused
+/// one leaves a newer index beside an older picture. Answering from it
+/// selects geometry the screen is not showing; the ruling is that the
+/// click says so instead.
+///
+/// The sentence is asserted against the other two rather than quoted:
+/// what a reader needs from it is that it does not promise an arriving
+/// answer (`Building`) and does not claim there is nothing to ask
+/// (`Absent`), and a copy of the string here would go stale the first
+/// time anyone improves the wording.
+#[test]
+fn a_click_over_a_picture_the_index_did_not_draw_says_which_of_the_three() {
+    let tol = Tol::witness();
+    let (session, _extrude) = plate_session(tol);
+    let held = index_of(&session);
+    let click = [input::PickAction::Select([10.0, 10.0])];
+
+    assert_eq!(
+        pickcache::unindexed(&click, Some(&held), false),
+        Some(pickcache::NotIndexed::AnotherPicture),
+        "an index is in hand, so the refusal is not about an absence",
+    );
+    assert_eq!(
+        pickcache::unindexed(
+            &[
+                input::PickAction::Hover([10.0, 10.0]),
+                input::PickAction::ClearHover,
+            ],
+            Some(&held),
+            false,
+        ),
+        None,
+        "and the act filter is the same one: a hover is not news here \
+         either",
+    );
+
+    let stale = pickcache::NotIndexed::AnotherPicture.to_string();
+    for other in [
+        pickcache::NotIndexed::Building,
+        pickcache::NotIndexed::Absent,
+    ] {
+        assert_ne!(stale, other.to_string());
+    }
+    assert!(
+        stale.contains("older"),
+        "the sentence names what is wrong with the picture, which is \
+         that it is behind the document the cursor is over",
+    );
 }
 
 /// One indicator for one wait, and the ranking that decides which.
@@ -2374,7 +2429,11 @@ fn a_build_whose_worker_panicked_stops_promising_an_answer() {
         "and the chrome has nothing to spin over",
     );
     assert_eq!(
-        pickcache::unindexed(&[input::PickAction::Select([10.0, 10.0])], cache.indexing()),
+        pickcache::unindexed(
+            &[input::PickAction::Select([10.0, 10.0])],
+            cache.index(),
+            cache.indexing(),
+        ),
         Some(pickcache::NotIndexed::Absent),
         "a click is refused as one nothing will answer, not as one an \
          arriving index is about to",
