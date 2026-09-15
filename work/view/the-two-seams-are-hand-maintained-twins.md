@@ -5,6 +5,7 @@ title: evalseam is two modules with one coalescing machine copied four times, an
 status: review
 opened: 2026-09-05
 branch: view/seam-twins
+pr: 2666
 ---
 
 
