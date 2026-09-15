@@ -205,7 +205,7 @@ pub(crate) fn tessellate_curved(
         .collect();
     require_swept_rectangle(fk, &polygon, &levers, (u0, u1, v0, v1), tol.eps)?;
 
-    // S10 CATEGORY B — do NOT multiply by the face's `sense_sign`.
+    // S10 CATEGORY B — do NOT fold the face's `sense` in.
     // `area2` is the UV shoelace of the boundary walk, so its sign is
     // derived entirely from the loop's STORED TRAVERSAL order, which
     // interior-left already ties to the face's outward normal: the

@@ -255,6 +255,20 @@ pub struct Face {
     /// surface's chart normal (i.e. the face's outward normal is `+n`);
     /// `false` iff it is reversed (outward normal `-n`).
     ///
+    /// **The bit is the whole representation of reversal, and it
+    /// never leaves as a scalar.** A consumer that wants the outward
+    /// normal obtains it typed, as a [`geom_brep::OutwardNormal`]:
+    /// through [`crate::face_normal`]'s doors, which resolve the face
+    /// and fold the bit in, or by naming
+    /// [`geom_brep::OutwardNormal::from_chart`] — the type's only
+    /// constructor — on a chart normal it holds, in this crate or
+    /// out of it. A consumer that wants a signed SCALAR (a winding, an
+    /// area) spells the bit as a conditional negation at the point of
+    /// use. There is no `±1` accessor, so a sign crossing a function
+    /// boundary as a `T` cannot be minted from this field by name; a
+    /// vector negated under the bit by hand can be, and
+    /// `face_normal`'s tree-wide row is what stands against that.
+    ///
     /// **Writers (M5 S11).** An Euler operator mints `sense: true` on a
     /// face it puts on a NEW surface (the material side is not op-level
     /// knowledge — `mef` sees two chords, not the profile); a face that
@@ -285,23 +299,6 @@ pub struct Face {
     /// Back-pointer to the owning shell (validated against
     /// [`Shell::faces`]).
     pub shell: ShellKey,
-}
-
-impl Face {
-    /// The face's **outward-normal sign**: `+1` when [`Face::sense`] is
-    /// `true` (material side agrees with the surface's chart normal),
-    /// `-1` when it is `false`. The face's outward normal at a point is
-    /// `sense_sign() * chart_normal(u, v)`.
-    ///
-    /// Exact structure, not a numeric decision: the sign is *selected*
-    /// by a `bool`, so no comparison, no tolerance, and nothing for the
-    /// k-lint to flag. `Interval` instantiations get an exact `±1`
-    /// (`Real::one()` is exact in every backend), so a sense flip is a
-    /// bitwise sign change, never a widening.
-    #[must_use]
-    pub fn sense_sign<T: geom_core::Real>(&self) -> T {
-        if self.sense { T::one() } else { -T::one() }
-    }
 }
 
 /// The boundary state of a loop: a genuine cycle of half-edges, or the

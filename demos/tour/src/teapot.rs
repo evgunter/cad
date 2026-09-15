@@ -1573,7 +1573,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         .faces()
         .filter_map(|(_, f)| match bellied.get_surface(f.surface) {
             Some(Surface::Plane { origin, normal, .. }) => {
-                Some((origin.y, if f.sense { normal.y } else { -normal.y }))
+                let outward = pncad::geom_brep::OutwardNormal::from_chart(*normal, f.sense);
+                Some((origin.y, outward.vec().y))
             }
             _ => None,
         })

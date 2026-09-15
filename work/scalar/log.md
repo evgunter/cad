@@ -333,3 +333,12 @@ made — `from_aim` trusting a perpendicular — is what the spec asked
 for by name; the fix pass sealed it inside the module and gave the
 five hand-rolled axis-and-reference ladders one door. The lily digest
 moved last-bit under the mint and is re-baselined with its cause named.
+
+## SENSE-FOLD merged (2026-09-15)
+
+PR 2668, block SCALAR-B3 slot 0, ordinal 4107. What landed: the item's
+§Closed. The spec is deleted per the ledger. The `arms.rs` question the
+item posed resolved to the first reading — a sense wearing a `T` — with
+the selection given one home rather than a negation at every consumer;
+the tree-wide guard pins the three sanctioned scalar negations by name
+instead of asserting zero, which is what D6 §0 prescribes.

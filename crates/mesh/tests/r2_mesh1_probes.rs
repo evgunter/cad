@@ -72,7 +72,7 @@ fn placed_band(d: f64) -> Vec<Point3<f64>> {
 }
 
 /// Chart-frame azimuth of an area vector, u_ref = +x, v_ref = +y
-/// (the z_chart the PR's rows use; sense_sign omitted as there).
+/// (the z_chart the PR's rows use; the sense fold omitted as there).
 fn az(area: Vec3<f64>) -> f64 {
     area.dot(Vec3::new(0.0, 1.0, 0.0))
         .atan2(area.dot(Vec3::new(1.0, 0.0, 0.0)))
