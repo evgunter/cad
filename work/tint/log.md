@@ -931,3 +931,109 @@ The repo is merge-only and git is its archive, but a commit reachable
 from exactly one branch stops being reachable when that branch goes.
 Its CONTENT is on main through #2690; the merge commit itself, which is
 the evidence for the entry above, is not.
+
+## TINT-5 landed: the F6 weld got a home, and the token stopped being a promise (2026-09-15)
+
+PR #2694, merged at `645e4d6d1` and **verified on main by
+`git merge-base --is-ancestor`**. CI green on the fix-pass head: 39
+jobs, 0 failures, twelve `test (…)` and five `k-lint (gate, …)`.
+
+`assert_f6_every_variant` and `set_difference` are out of editor-core's
+test binary and in `test-utils` (`f6`, `census`); mesh's inlined
+predicate and topo's local `assert_f6` copy are retired; the live
+defect is closed — `crates/mesh/tests/errors.rs` banned 14 identifiers
+against a 15-variant enum, and the weld **reddened on arrival** naming
+`["Band"]` before the entry was added. That is the first guard in this
+program to red on a live defect rather than a plant.
+
+**The unit's real subject turned out to be the weld's own token.** The
+spec and the first implementation passed the exhaustiveness `match` as
+`fn(&E)` beside a separately-written roster — two loose parameters, and
+the review proved a **no-op token passes green**. So the doc's claim
+that *"the compile error is what stands between that and an accident"*
+was resting on an invariant the type could not carry, in the mechanism
+this unit existed to give a home. The fix pass closed it with the shape
+this program has now proven five times: `test_utils::f6_variants!`
+writes the match arm and the roster entry from **the same
+`$variant:ident`**, so they cannot disagree; `_` is not an `ident`, so
+a wildcard is a macro grammar error; and a no-op is not expressible
+because there is no body to empty. It also closed the "one hole,
+stated" — an author can no longer add the arm and stop, because the arm
+and the roster entry are one token. Eleven of twelve censuses are
+macro-built; `SelectRefusal` is `#[non_exhaustive]` so rustc forces a
+catch-all, and it goes through a named `hand_written` door that says
+what it costs.
+
+**`test-utils` held two set-difference comparators for one day.**
+TINT-4's `roster::violations_against` spelled a both-direction set
+comparison inline; TINT-5 promoted `set_difference` beside it. Two units
+of the program whose subject is *one claim in N copies*, four days
+apart, in the crate whose job is to hold one of each thing. The lane
+**filed** it on three stated blockers; the review **executed** the
+substitution and all three were false — the vacuity floor and the
+nested-module direction are not set directions at all, they are pushed
+before any comparison. `roster.rs` now calls the shared comparator and
+the item is deleted. One definition, four call sites.
+
+**The gate-boundary finding, which generalizes past this unit.**
+`scripts/gates/lib.sh`'s `gate_require_crate_sources` is
+`find crates/*/src -type f -name '*.rs'` — no `tests/`. **Twelve of the
+tree's 22 gates take that file set**, so promoting a helper out of a
+test binary into `src/` does not cross one gate boundary, it crosses
+twelve. Worse, `gate_production_sources` excludes only `#[cfg(test)]`
+mounts, so every file this unit promoted is **production source** to
+every narrowing gate — in a crate whose own header reads *"DEV-ONLY, by
+convention"*. Filed as
+`work/tint/test-utils-is-production-source-to-every-narrowing-gate`.
+"Give the shared thing a home" is also "move it under a different set of
+gates", and nothing in the tree says so anywhere else.
+
+## Two filed rows misstated their own defects, and one was this unit's charter (2026-09-15)
+
+Both found by TINT-5's review, both corrected in its fix pass.
+
+- **`dump-ban-lists-spelled-guts-…`** claimed three identifiers were
+  banned that no rendering could produce. **All three are live**:
+  `EvalError::UnknownParam` is case 1 of the row's list,
+  `Diagnosis::PredicateFlip` is the `ResolveError::Vanished` payload,
+  and `BifurcationKind::AmbiguousBasin` is the `WitnessBifurcation`
+  kind. The filing read "either enum" over a list that renders **five**
+  types and reported the residue as dead. What survives: the list is
+  badly incomplete and unwelded, and `MarginDiag` is genuinely dead.
+- **`sibling-display-contract-suites-hand-mirror-their-enums-too`** —
+  the row this whole unit was cut from — said the missing `Band` entry
+  was *"the one identifier that would catch it going back to `Debug`"*.
+  The pre-merge check banned `{` unconditionally and `Band` is a struct
+  variant, so a full `Debug` regression reddened on the brace whatever
+  the roster held. The real gap is a **brace-free** leak of the word
+  `Band`: smaller, and still real.
+
+A row that misstates its own defect is this program's charter shape
+committed in this program's own paperwork, and it is now the fourth
+distinct way that has happened (see `process-observations.md`).
+
+## The orchestrator shipped three wrong counts into a dispatch (2026-09-15)
+
+The D5 entry above adopted a correction: a finding relayed as fact gets
+its primary source read first. **It did not cover numbers, and numbers
+are where it failed next.**
+
+TINT-5's review reported *"thirteen of the 23 gates"* take
+`gate_require_crate_sources` — and listed **fourteen** names under that
+claim, inconsistent on its own line. This seat relayed it into the fix
+pass dispatch without counting, and added a *"all 23 gates"* of its own.
+Both wrong: **twelve** gates call it (`gate-roster.sh` mentions it only
+in a comment about a vacuous green; `kernel-serde-free.sh` says outright
+it does not use it, its subject being manifests), and there are **22**
+gates (`README.md`, `lib.sh` and `viewer-readme-fence.awk` are not
+gates). The dispatch also said ten `roster::tests` rows where libtest
+lists nine. The lane re-derived every number from `grep` and `--list`
+and corrected all three.
+
+**Fourth time today a number passed downstream came back corrected**,
+and the second where this seat introduced the error rather than
+forwarding it. The correction, widened: **a count in a dispatch is
+derived by the command that produces it, and the dispatch carries the
+command** — not the number alone, so the reader can re-run it. A
+sentence and a number are the same kind of claim, and this program
+exists to say so.
