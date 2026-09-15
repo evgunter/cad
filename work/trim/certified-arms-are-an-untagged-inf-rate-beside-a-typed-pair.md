@@ -42,6 +42,16 @@ stayed bare `f64`/`T` for the same scoping reason, and `area_inf` is an
 AREA rate, which the linear pair does not name at all. Whoever types
 `certified_arms` will pass through this struct on the way.
 
+**And the naming, which is the same finding from the reader's side.**
+`chart_stretch_sup`, `ChartStretchInf::sup_u` and `certified_arms` are
+three spellings of ONE concept — a chart's per-axis arm — of which the
+rate pair typed one and a half (`chart_stretch_sup` answers a
+`SupSpeed` pair and now refuses the cone; `chart_stretch_sup_v` answers
+the `v` channel alone). A reader meeting the three has no name that
+tells them apart, which is why the drift hazard above is a naming
+hazard first. Whoever types these should settle the vocabulary in the
+same pass rather than adding a fourth.
+
 ## The rest of the class, found by two reviews
 
 The sweep that filed this row keyed on identifier substrings
