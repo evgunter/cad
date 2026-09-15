@@ -1758,3 +1758,207 @@ fn the_field_dragged_after_a_strand_does_not_land_in_the_stranded_slot() {
         "and the parameter's declaration is the only edit in the history"
     );
 }
+
+/// Which of a gesture's two subjects a step names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Subject {
+    /// The subject the script opens its gesture on.
+    Open,
+    /// A second subject of the same kind, which never opens one.
+    Other,
+}
+
+/// One move in the shared script.
+#[derive(Debug, Clone, Copy)]
+enum Step {
+    Begin(Subject),
+    /// Preview `µm` into the gesture `Subject` names.
+    Preview(Subject, i64),
+    Commit(Subject),
+    Cancel,
+}
+
+/// What a machine says back: the step's refusal read in neither
+/// gesture's words, and what stands committed for [`Subject::Open`].
+#[derive(Debug, PartialEq, Eq)]
+enum Answer {
+    /// Nothing refused; the payload is what is committed, in
+    /// micrometres, or `None` when the machine holds nothing for that
+    /// subject.
+    Ok(Option<i64>),
+    /// `Refusal::NoGesture` / `DisplayFault::NoFreeMove`.
+    Nothing,
+    /// `Refusal::GestureInFlight` / `DisplayFault::FreeMoveInFlight`.
+    InFlight,
+    /// `Refusal::WrongGesture` / `DisplayFault::WrongFreeMove`.
+    Wrong,
+}
+
+/// **One script, two vocabularies**: the three rules
+/// `viewer::g1::Slot` holds, asserted against both gestures.
+///
+/// The value drag and the free-move probe were two hand-written copies
+/// of one state machine; they are now one machine with the words
+/// handed in, so the rules are asserted ONCE and driven twice rather
+/// than written out per gesture. [`Step`] is the script and [`Answer`]
+/// is what a machine says back — the three shared refusals as one
+/// vocabulary-free reading, plus what the machine has committed for
+/// the subject, in micrometres.
+///
+/// **What each half of this row is evidence for is not the same**, and
+/// reading it as one statement overstates the drag's. Rule 2 and rule
+/// 3 are `g1::Slot`'s for both, so a mutation there reds both halves
+/// together, which is the property the shared machine buys. Rule 1 is
+/// answered for the PROBE by `g1::Slot::begin` and for the DRAG by
+/// `SessionOp::permitted_during_value_gesture`, one layer up, which
+/// refuses `BeginGesture` before the door runs: the two answer the
+/// same refusal and only one of them is the slot's. The row asserts
+/// the answer, which is what a user meets;
+/// `work/view/the-value-drags-in-flight-refusal-has-two-spellings.md`
+/// holds the question of which spelling should keep it.
+///
+/// Where it goes red: drop the name check in `g1::Slot::preview` or in
+/// `commit` and the `Wrong` steps stop refusing, in both halves; drop
+/// the `value.map` from `commit` and a gesture that never previewed
+/// lands something, in both halves; make `preview` compose instead of
+/// replacing and the last step lands the wrong number.
+///
+/// The script, run once per gesture. `base` is what the machine holds
+/// for [`Subject::Open`] before anything is dragged.
+fn the_three_shared_rules(gesture: &str, base: Option<i64>, drive: &mut dyn FnMut(Step) -> Answer) {
+    use Step::{Begin, Cancel, Commit, Preview};
+    use Subject::{Open, Other};
+
+    // Rules 2 and 3 refuse with nothing in flight.
+    assert_eq!(drive(Preview(Open, 1000)), Answer::Nothing, "{gesture}");
+    assert_eq!(drive(Commit(Open)), Answer::Nothing, "{gesture}");
+    assert_eq!(drive(Cancel), Answer::Nothing, "{gesture}");
+
+    // Rule 1: one gesture at a time.
+    assert_eq!(drive(Begin(Open)), Answer::Ok(base), "{gesture}");
+    assert_eq!(drive(Begin(Other)), Answer::InFlight, "{gesture}");
+
+    // Rules 2 and 3 answer for the gesture in flight and no other, and
+    // a refused one leaves it open.
+    assert_eq!(drive(Preview(Other, 9000)), Answer::Wrong, "{gesture}");
+    assert_eq!(drive(Commit(Other)), Answer::Wrong, "{gesture}");
+
+    // Rule 3's no-move half: a gesture that never previewed lands
+    // nothing, and ends.
+    assert_eq!(drive(Commit(Open)), Answer::Ok(base), "{gesture}");
+    assert_eq!(drive(Commit(Open)), Answer::Nothing, "{gesture}");
+
+    // Rule 2's replacement half: the commit lands the LAST preview,
+    // never a composition of them.
+    assert_eq!(drive(Begin(Open)), Answer::Ok(base), "{gesture}");
+    assert_eq!(drive(Preview(Open, 1000)), Answer::Ok(base), "{gesture}");
+    assert_eq!(drive(Preview(Open, 2000)), Answer::Ok(base), "{gesture}");
+    assert_eq!(drive(Commit(Open)), Answer::Ok(Some(2000)), "{gesture}");
+
+    // And an abandoned gesture lands nothing at all.
+    assert_eq!(drive(Begin(Open)), Answer::Ok(Some(2000)), "{gesture}");
+    assert_eq!(
+        drive(Preview(Open, 3000)),
+        Answer::Ok(Some(2000)),
+        "{gesture}"
+    );
+    assert_eq!(drive(Cancel), Answer::Ok(Some(2000)), "{gesture}");
+}
+
+/// Micrometres from a canonical (metre) length.
+fn micrometres(metres: f64) -> i64 {
+    (metres * 1.0e6).round() as i64
+}
+
+/// The three shared refusals, read out of whichever vocabulary
+/// answered. Any other refusal fails the row rather than being folded
+/// into one of the three.
+fn shared_word(refusal: Option<Refusal>, gesture: &str) -> Option<Answer> {
+    match refusal {
+        None => None,
+        Some(Refusal::NoGesture | Refusal::Display(DisplayFault::NoFreeMove)) => {
+            Some(Answer::Nothing)
+        }
+        Some(Refusal::GestureInFlight | Refusal::Display(DisplayFault::FreeMoveInFlight)) => {
+            Some(Answer::InFlight)
+        }
+        Some(Refusal::WrongGesture | Refusal::Display(DisplayFault::WrongFreeMove)) => {
+            Some(Answer::Wrong)
+        }
+        Some(other) => panic!("{gesture}: {other:?} is not one of the three shared refusals"),
+    }
+}
+
+#[test]
+fn the_value_drag_answers_the_three_shared_rules() {
+    let tol = Tol::witness();
+    let (mut session, open, other, _param) = two_fields(tol);
+    let base = micrometres(0.005);
+    let slot_of = |subject: Subject| match subject {
+        Subject::Open => open,
+        Subject::Other => other,
+    };
+    the_three_shared_rules("the value drag", Some(base), &mut |step| {
+        let op = match step {
+            Step::Begin(subject) => SessionOp::BeginGesture {
+                node: slot_of(subject),
+                slot: SlotId::Distance,
+            },
+            Step::Preview(subject, um) => SessionOp::PreviewGesture {
+                node: slot_of(subject),
+                slot: SlotId::Distance,
+                value: um as f64 * 1.0e-6,
+            },
+            Step::Commit(subject) => SessionOp::CommitGesture {
+                node: slot_of(subject),
+                slot: SlotId::Distance,
+            },
+            Step::Cancel => SessionOp::CancelGesture,
+        };
+        let refusal = session.perform(op).refusal;
+        shared_word(refusal, "the value drag").unwrap_or_else(|| {
+            let SlotValue::Continuous(metres) =
+                committed_distance(&session, open).expect("the open field's slot reads back")
+            else {
+                panic!("a distance is continuous");
+            };
+            Answer::Ok(Some(micrometres(metres)))
+        })
+    });
+}
+
+#[test]
+fn the_free_move_probe_answers_the_three_shared_rules() {
+    let tol = Tol::witness();
+    let bench = common::asm::bench("view-g1-shared-rules", tol);
+    let mut session = common::asm::open_bench(&bench, tol);
+    let (open, other) = (bench.post_a, bench.post_b);
+    let instance_of = |subject: Subject| match subject {
+        Subject::Open => open,
+        Subject::Other => other,
+    };
+    the_three_shared_rules("the free-move probe", None, &mut |step| {
+        let op = match step {
+            Step::Begin(subject) => SessionOp::BeginFreeMove {
+                instance: instance_of(subject),
+            },
+            Step::Preview(subject, um) => SessionOp::PreviewFreeMove {
+                instance: instance_of(subject),
+                frame: Frame::translation([0.0, 0.0, um as f64 * 1.0e-6]),
+            },
+            Step::Commit(subject) => SessionOp::CommitFreeMove {
+                instance: instance_of(subject),
+            },
+            Step::Cancel => SessionOp::CancelFreeMove,
+        };
+        let refusal = session.perform(op).refusal;
+        shared_word(refusal, "the free-move probe").unwrap_or_else(|| {
+            Answer::Ok(
+                session
+                    .display()
+                    .free_move_of(open)
+                    .map(|frame| micrometres(frame.translation[2])),
+            )
+        })
+    });
+}

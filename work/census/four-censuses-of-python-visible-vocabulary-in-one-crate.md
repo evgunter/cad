@@ -17,7 +17,7 @@ is a question about whether four is the right number.
 | --- | --- | --- |
 | `TAG_INVENTORY` (`src/tests.rs`) | every literal in `src/tags.rs` | reads that file as TEXT, with a recogniser that refuses a form it does not know |
 | `NODE_KIND_ROSTER` (`src/tests.rs`) | `crate::node_kind`'s words | re-derives from that module and compares against a committed roster |
-| `src/surface_census.rs` | three kernel vocabularies Python re-spells (PATHS verbs, arc modes, `StepOptions` fields) | an exhaustive MATCH on the kernel tag, against `pncad.pyi` read as text |
+| `src/surface_census.rs` | the kernel vocabularies Python re-spells (PATHS verbs, arc modes, and the fields of every kernel options struct that reaches a Python door — `StepOptions`, `ImportOptions`, `AsciiOptions`, `BinaryOptions`, `EvalOptions`) | an exhaustive MATCH on the kernel tag, against `pncad.pyi` read as text |
 | `src/prose_census.rs` | every `{x:?}` inside every `impl Display` in the workspace | a source walk over the tree |
 
 All four ask one question in four dialects: **can a Python caller
