@@ -6924,6 +6924,37 @@ Draw: `/dev/urandom` byte **187** (< 252), 187 mod 3 = 1 ⇒ fable position
 unit-vector witness = FABLE, slot 2 rate pair = OPUS.** Same remote box
 and posture as B1.
 
+### Block SCALAR-B3 — pre-draw fields (2026-09-15, before the byte)
+
+The three second units the first `[ev]` sitting cut (`work/scalar/plan.md`
+§The ratified units, order 2), slots by dispatch order:
+
+- slot 0 — `sense-sign-multiplies-fold-onto-outward-normal` (SENSE-FOLD;
+  `docs/SENSE-FOLD-SPEC.md`) — **M / structural** (twelve production
+  sites plus two bit-to-±1 mints fold onto `OutwardNormal::from_chart`
+  / the planar door or a conditional negation; `Face::sense_sign`
+  retires with the hand-kept census; the `blend/arms.rs` `side` field
+  becomes the bit; a conditional negation is exact, so a D9
+  differential is the pin — no numeric decision is added).
+- slot 1 — `frame-witness-and-the-tube-door` (FRAME-WITNESS;
+  `docs/FRAME-WITNESS-SPEC.md`) — **M / structural** (a type moves a
+  ladder down a crate and gains mints; `from_frame`, the sketch plane
+  and the tube door take it; the tube door's two decides retire into
+  the frame's mint — the decisions move, none is added).
+- slot 2 — `exhaustiveness-receipt-carries-its-lane` (EXHAUST-LANE;
+  `docs/EXHAUST-LANE-SPEC.md`) — **S / structural** (a lane tag with
+  the chart lane's `SupSpeed`, metres by one method, a pinned test
+  literal retires; the decision `cell.width() <= floor` is untouched).
+
+### Block SCALAR-B3 — the draw (2026-09-15)
+
+Draw: `/dev/urandom` byte **207** (< 252), 207 mod 3 = 0 ⇒ fable position
+0. Slots by dispatch order: **slot 0 SENSE-FOLD = FABLE, slot 1
+FRAME-WITNESS = OPUS, slot 2 EXHAUST-LANE = OPUS.** Same remote box
+and posture as B1/B2 (about three concurrent lanes, private target
+dirs, disk the limiting factor — the third lane waits for disk when the
+first two are building).
+
 ### Block SCALAR-B2 rows (recorded at each merge; the section merges to main at block close)
 
 | # | date | task | difficulty (pre-flip) | arm | review findings (MAJ/MIN/NOTE) | silent devs | idiom | tests | docs | fix-pass size | battery | tokens | wall-clock |
