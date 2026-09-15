@@ -112,3 +112,17 @@ finding on two points the spec carries: the whole-curve order-2 jet
 `geom-brep/src/dihedral.rs`; it added six `NurbsCurve3<f64>` pair sites in
 the tour and the `pncad` example that feed S393's `path_start_frame`.
 
+## Digest receipt: the D9 pin for "nothing's bits move"
+
+The recipe is `work/scalar/rate-pair-in-geom-core.md` §Digest receipt,
+zero-parameter (the release binary run directly, outdir the literal
+`tour-out`, both streams digested whole). Taken at the merge base
+`88201b83f` (the branch was `origin/main` plus the spec commit, which
+touches no code) before the first code change:
+
+- listing (1766 emitted files, sorted per-file digests):
+  `c678b14381e6c0d9e835e91883a294f8f588507aedf60e8e820a5ec1834b0863`
+- narration (729 lines):
+  `65da9dd7349507058bc4d8dc2b302764009e1c44879b6480dd67731a9e591d50`
+
+The head receipt is on the PR, taken the same way at the head SHA.
