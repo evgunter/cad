@@ -254,6 +254,11 @@ const LEDGER: &[Entry] = &[
         disposition: Home,
     },
     Entry {
+        path: "crates/test-utils/tests/deny_unknown_fields_census.rs",
+        disposition: Shared, // `deny_unknown_fields` sites and the declaration
+                             // each heads, code view
+    },
+    Entry {
         path: "crates/test-utils/tests/reader_census.rs",
         disposition: Shared, // this census, literal view
     },
