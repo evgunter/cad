@@ -5,6 +5,7 @@ title: SupSpeed and InfSpeed beside Margin: metered takes the inf, a sup door fo
 status: open
 opened: 2026-09-15
 branch: scalar/rate-pair
+pr: 2657
 ---
 
 
