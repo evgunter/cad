@@ -99,9 +99,14 @@ fn no_wild_face_sits_on_the_frame_seam() {
         total.three_way_tie
     );
     // Anti-vacuity: a checkout without the fixtures would otherwise
-    // pass this row having read nothing.
+    // pass this row having read nothing. The COUNTS are ε-dependent —
+    // which files import and which faces the recogniser calls planar
+    // both move with the run's tolerance (136 faces over 9 files at the
+    // default ε, 75 over 8 at 1e-12) — so the floor is well below the
+    // smallest row. The zero above is not ε-dependent: it is a
+    // statement about directions.
     assert!(
-        read >= 8 && total.planes() >= 136,
+        read >= 8 && total.planes() >= 60,
         "the wild corpus shrank: {read} files read, {} planar faces",
         total.planes()
     );

@@ -89,11 +89,13 @@ fn no_corpus_face_sits_on_the_frame_seam() {
         total.on_seam,
         total.three_way_tie
     );
-    // Anti-vacuity: the corpus grew to 600 planar faces over 28
-    // documents, and a registry that stopped evaluating would otherwise
-    // pass this row in silence.
+    // Anti-vacuity: the corpus is 600 planar faces over 28 documents
+    // at the default ε, and a registry that stopped evaluating would
+    // otherwise pass this row in silence. The floor sits well below
+    // that because which documents build is ε-dependent; the zero
+    // above is not.
     assert!(
-        docs >= 28 && total.planes() >= 600,
+        docs >= 28 && total.planes() >= 400,
         "the corpus shrank: {docs} documents, {} planar faces",
         total.planes()
     );
