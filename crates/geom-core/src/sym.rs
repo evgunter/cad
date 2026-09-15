@@ -301,8 +301,12 @@
 //! 60-term, degree-16 products (`work/sym/symbolic-tier-census`).
 //! And the reach is the UNIT bulge: a parameter bulge is outside the
 //! mechanism (R2's D-tab: `3.52e2 · ε` on and off alike) and a literal
-//! bulge other than 1 leaves residue (R1's boss at bulge 2: 6 of 54
-//! and 27 of 90 still numeric, ceiling unmoved) —
+//! bulge other than 1 leaves residue — at M10-10 R1's boss at bulge 2
+//! stood at `carrier_matches_mapped_source` 6 of 54 and
+//! `carrier_on_surface_2` 27 of 90 numeric with its ceiling unmoved;
+//! SYM-5's rule E has since taken the first six and eighteen of the
+//! twenty-seven and moved that ceiling `8.2611e2 → 9.3559e2 · ε`, so
+//! what stands there now is 0 of 54 and 9 of 90 —
 //! `work/sym/rule-d-reaches-the-unit-bulge-only`.
 //!
 //! **What it costs** (release, one whole-box leaf, algebra off → on):
@@ -332,6 +336,88 @@
 //! channel exactly as before. What the PLAIN form alone reaches is
 //! [`form`]'s own docs.
 //!
+//! # Rule E — the quotient's common factor (SYM-5)
+//!
+//! **What a normalisation costs the plain form, and what it buys
+//! back.** [`form`]'s quotient cancels no common factor, so a unit
+//! vector — `v / sqrt(v·v)`, three quotients over one atom `A` —
+//! leaves `A` in both halves of everything built from it, each further
+//! normalisation multiplies the shared power and each square doubles
+//! it. [`SymRules::common_factor`] divides that factor out in the
+//! EARLY walk, at every node: the monomial both halves share, and then
+//! the whole quotient when the numerator is a rational multiple of the
+//! denominator. Both are equalities of rational functions wherever the
+//! denominator is non-zero, which clause 1 guarantees; `quotient`
+//! carries the argument and the shapes it must not fold.
+//!
+//! **What it reaches, measured** (the tilted derived frame:
+//! `Datum::Frame { u: (1,0,0), v: (0,1,t) }`, a cube extruded from it,
+//! a `FaceFrame` on its cap, a boss on that —
+//! `editor-core/tests/m10_derived_frame_tilted_interval`). With the
+//! rule off the derived boss refuses under `Guided` at every rung
+//! (`carrier_endpoint_start` at `[0, 1.8e-2]` under the plain form and
+//! A0, `newell_plane_residual` straddling under the shipped set, 632
+//! frozen on DEGREE with kids at total degree 69–128) while its
+//! authored twin certifies; with it on the derived boss certifies
+//! where the twin does at `ε/8` and `1e-3` — NOT at `5e-2`, where the
+//! refusal left is the value channel's (a clause-1 `Invalid` margin,
+//! `work/props/a-widened-derived-placement-normalises-a-straddling-newell-sum`)
+//! and the tier has already proved the residual zero. Raising
+//! the budget to 4,096 / 65,536 does NOT do it — 483 frozen and the
+//! same refusal — so this is reach and not a cost wall. The frozen
+//! forms carry `sqrt(P/P)` for a degree-8 `P`: the number one, held as
+//! an opaque atom because neither half of `P/P` is a constant for A0
+//! to read.
+//!
+//! **What it moves on the measured documents** (`m10_bulge_interval`,
+//! `m10_10_pins_interval`): R1's boss at `bulge = 2`
+//! `carrier_on_surface_2` 63/0/0/27 → 81/0/0/9 in THEOREMS — 18
+//! numeric decisions became theorems — `witness_on_surface_2`
+//! 7/0/0/3 → 9/0/0/1, and `carrier_matches_mapped_source` 72/0/48/6 →
+//! 72/0/54/0 through the door; its whole-certifying CEILING moves
+//! `8.2611e2 · ε → 9.3559e2 · ε` (1.13×), which is the move
+//! `work/sym/rule-d-reaches-the-unit-bulge-only` measured a 512-bit
+//! ring making and the rule makes at [`rational::COEFF_BITS`]. The
+//! D-tab's `carrier_endpoint_start` 24/0/8/4 → 24/0/12/0 on both
+//! spellings, and its `carrier_matches_mapped_source` 126/0/36/18 →
+//! 126/0/42/12 on the literal against 126/0/38/16 on the parameter —
+//! the one row where the two spellings part. **No count falls
+//! anywhere, and no ceiling on the five measured documents moves by a
+//! digit** (plate, annulus, link, bracket, pad: the bracket at both
+//! ends and the counts at ceiling + δ are identical with the rule on
+//! and off).
+//!
+//! **What it costs** — on the affordability line's OWN instrument, one
+//! whole-box leaf (`m10_10_leaf_cost_with_and_without_the_algebra`),
+//! release, rule E off → on: plate at `1e2 · ε` 0.132 → 0.358 s, plate
+//! at its REAL study 0.141 → 0.340, annulus 0.120 → 0.287, bracket
+//! 0.438 → **1.699**, link 3.312 → **2.427**, pad 3.850 → **14.404**.
+//! The line is 1.6 s, so the bracket, the pad AND the link are over it
+//! — the link at BOTH dials, and cheaper with the rule than without,
+//! because the forms the rule shrinks are the ones the walk then
+//! multiplies. That is a disclosed deviation and not a silence.
+//!
+//! On the OTHER instrument — one probe of the ceiling bisection, which
+//! is not what the line is defined for — the same five read
+//! 0.23 → 0.47, 0.17 → 0.34, 0.53 → 1.23, 3.42 → 2.28 and
+//! 3.73 → 10.90. It SHIPS on the balance: a document class the tier
+//! could not reach at all, a ceiling moved on a sixth, four pinned
+//! splits raised, nothing lost, and the pad and the bracket are
+//! documents the tier already carries at no dial.
+//! [`SymRules::without_rule_e`] is M10-10's tier bit for bit.
+//!
+//! **The reach is the DOCUMENT's, not a class.** Reached: the tilt
+//! about `v` above, non-unit authored axes, and derived frames stacked
+//! two deep — under `Pinned` that document certifies at both dials and
+//! the rule is what makes it affordable (219.4 s off against 1.1 s on),
+//! and under `Guided` the rule takes its refusals 4 → 1, the one left
+//! being the value channel's clause-1 `Invalid` on the boss. NOT
+//! reached: a tilt about `u`, where the rule turns the degree wall
+//! into a TERM wall, and a `FaceFrame` on a REVOLVED body's cap, which
+//! neither dial certifies. [`quotient`]'s header carries the mechanism
+//! and `editor-core/tests/m10_derived_frame_tilted_interval`'s
+//! `sym5_the_reach_on_documents_the_unit_did_not_build` the numbers.
+//!
 //! # Node ids are CONTENT HASHES (D9)
 //!
 //! A node's id is a 128-bit structural hash of `(op, children ids,
@@ -340,11 +426,25 @@
 //! sharing is free, and two builds of the same expression memoize the
 //! same normal form. The hash-consing table is per-leaf-replay
 //! ([`with_session`]), holds nothing across leaves, and is dropped with
-//! the leaf.
+//! the leaf; so are the early and door memos, the registry and the
+//! parameter brackets.
+//!
+//! **The PLAIN memo is the exception, and it is per DRIVE when a drive
+//! installs one** ([`DriveMemo`], [`with_session_memo`]). A node's
+//! plain form is a function of its id, the budget and the two dials the
+//! plain walk consults, and of nothing else: the walk reads no value,
+//! every atom in it is opaque, and rule A0 is the only rule. So a form
+//! one leaf built is the form every other leaf of that drive would
+//! build — the argument this section already makes for two occurrences
+//! of a node inside one leaf, applied across leaves. `DriveMemo`'s own
+//! header carries the argument whole, the one premise that is not a
+//! content hash (an `Opaque` id is a per-leaf SEQUENCE number, pinned
+//! by execution), and the lock discipline.
 //!
 //! Distinct expressions colliding on a 128-bit content hash would be a
 //! soundness break; this is the standard hash-consing assumption and it
-//! is stated rather than hidden.
+//! is stated rather than hidden. Under a drive memo the population it
+//! is made over is a DRIVE's nodes rather than one leaf's.
 //!
 //! # Freezing: the budget, and why it is sound
 //!
@@ -355,7 +455,8 @@
 //! lost; soundness is not, because an unknown function of the parameters
 //! is exactly what an indeterminate denotes. Two structurally identical
 //! frozen nodes still share an id and therefore still cancel. Every
-//! freeze is counted ([`SymCounts::frozen`]).
+//! freeze is counted ([`SymCounts::frozen`], which argues what the
+//! column means on a leaf and on a drive).
 //!
 //! **The coefficients** — the exact rational, the bound it is refused
 //! past and the freeze discipline that bound keeps — are
@@ -391,29 +492,99 @@
 //! 1,312 (360 of the plain walk's 1,044 `frozen`), the decision path
 //! 824. `SymCounts::frozen` counts the plain walk whoever asked it.
 //!
-//! **The tier's instructions are TERM STORAGE, not arithmetic and not
-//! degree.** In release, 56 % of a replay's instructions on both
-//! documents are the allocator, the `BTreeMap` of terms and the heap
-//! `Vec` each monomial is, against 10 % in the coefficient ring on the
-//! slab (27 % on the plate, `num-bigint` 1.3 % and 12.8 % of those),
-//! 0.3–1 % in the atom algebra's own code, and a session's teardown —
-//! dropping the memos and the table, which no walk clock sees — 10 %
-//! on the slab and 4 % on the plate. The slab's forms are tiny — 1.5
-//! terms on average, 10 at most, total degree up to 68, and NOT ONE
-//! freezes at any leaf of the chamber drive (19.1 M plain forms,
-//! `frozen = 0`) — so what the slab pays is volume times a fixed cost
-//! per form: at the nominal 10,604 plain forms per leaf (9,686 the
-//! decision's) for 1,490 decisions, at ~7.5 k instructions each, over
-//! a DAG of 12,208 nodes interned afresh per leaf (`intern` is 13 % of
-//! a release replay); a leaf of the drive averages 8,488 nodes and
-//! 7,463 plain forms. The plain walk is 57 % of a slab replay
-//! inclusive, the early walk 15 %, the per-node rule A/B reduction
-//! 4 %; the answer is the same at the nominal and over a leaf-sized
-//! box, because over 2 ε an identity's enclosure is still not definite
-//! and the decision path builds the same forms either way.
+//! **The tier's instructions are TERM STORAGE, then the walk itself;
+//! arithmetic is second on the plate and degree is nowhere on the
+//! slab.** In release, one bare replay at the nominal is 99.0 M
+//! instructions on the slab and 713 M on the plate (`callgrind`, self
+//! cost by function, partitioned by class): the allocator, the term
+//! vector and the heap `Vec` each monomial is are 40 % on the slab
+//! and 51 % on the plate; the coefficient ring 9 % and 15 %
+//! (`num-bigint` 0.1 % and 0.7 % of those); the walk and the DAG
+//! build — `form_in`, `intern` — 24 % and 6 %; the merge loops of
+//! `Poly` 12 % and 18 %; the atom algebra's own code 0.3 % and 2 %;
+//! and a session's teardown — dropping the memos and the table, which
+//! no walk clock sees — 12 % on the slab and 6 % on the plate. The
+//! slab's forms are tiny — 1.5 terms on average, 10 at most, total
+//! degree up to 68, and NOT ONE freezes at any leaf of the chamber
+//! drive (19.1 M plain forms, `frozen = 0`) — so what the slab pays
+//! is volume times a fixed cost per form: at the nominal 10,604 plain
+//! forms per leaf (9,686 the decision's) for 1,490 decisions, at
+//! ~4.7 k instructions each (`plain_form` inclusive over the forms it
+//! builds), over a DAG of 12,208 nodes interned afresh per leaf
+//! (`intern` is 18 % of a release replay); a leaf of the drive
+//! averages 8,488 nodes and 7,463 plain forms. The plain walk is 50 %
+//! of a slab replay inclusive, the early walk 12 %, the per-node rule
+//! A/B reduction 3 %; the answer is the same at the nominal and over a
+//! leaf-sized box, because over 2 ε an identity's enclosure is still
+//! not definite and the decision path builds the same forms either
+//! way.
+//!
+//! **Across a DRIVE that volume is one DAG's worth of forms, computed
+//! once per leaf** — which is what [`DriveMemo`] removes. Over the
+//! M10-3 chamber drive (2,559 sessions) the plain walk computes
+//! 19,099,919 forms for 18,833 DISTINCT ids: every leaf builds the same
+//! 7,464 of them and a memo keyed by the id can answer 1,014 of every
+//! 1,015. The plate at 256 leaves (511 sessions) is 9,005,864 forms for
+//! 17,624 distinct ids — 17,624 per leaf, the same set every time. What
+//! the memo comes to at the drive's end is that DAG and no more: on the
+//! slab 18,833 forms and 41 atoms in 6.98 MB, on the plate 17,624 forms
+//! and 359 atoms in 9.78 MB, pinned as ceilings by
+//! `editor-core`'s `m10_sym_drive_memo_interval`.
+//!
+//! Measured on the drives at the test profile, one take on the
+//! measuring box: the slab at 1,280 leaves 157.1 s → 78.2 s
+//! sequentially and 40.1 s → 21.0 s over four workers; the plate at 256
+//! leaves 247.5 s → 205.4 s and 65.0 s → 51.4 s. In RELEASE the slab is
+//! 2.7–3.05× (both of SYM-7's reviewers re-took it): the test profile
+//! spreads a quarter of the count over glue release inlines away, and
+//! that glue is in both lanes.
+//!
+//! **The class the memo helps is a PLAIN-WALK-DOMINATED drive**, and
+//! the three documents say so between them. The slab halves because the
+//! plain walk is half of its replay and nearly all of it is
+//! recomputation. The plate moves by a fifth, because half of it is the
+//! per-node rule A/B reduction inside the EARLY walk, which consults
+//! the leaf's registry and stays per leaf. And a boss on a derived
+//! frame over a tilted datum — every leaf refused, the early walk the
+//! whole cost — moves by NOTHING: 275.8 s with the memo on against
+//! 276.1 s with it off at 48 leaves (R2's reading). A drive of that
+//! shape pays the memo's bookkeeping and collects none of its win.
+//!
+//! The memo's own cost on a leaf that gains nothing from it — the
+//! bookkeeping, and the `Arc` the forms are held behind so that a hit
+//! hands back the allocation rather than a copy of it — is measured
+//! rather than assumed: one bare replay at the nominal, in release
+//! under callgrind, 98.78 M → 98.90 M instructions on the slab
+//! (+0.1 %) and 711.14 M → 711.31 M on the plate. `Rc` is kept only
+//! where a form cannot cross a leaf at all (rule D's closed forms).
+//!
+//! Those are the shares AFTER two changes to what a form costs to
+//! hold and to normalise, each measured against the tree before it
+//! with every count — forms, atoms, frozen, decisions by outcome, and
+//! the digest chain of every form the walks build
+//! (`m10_sym_profile_interval`'s walk ledger) — identical. A `Poly`'s
+//! terms as one sorted vector in the map's order instead of a
+//! `BTreeMap` ([`form`]'s header): a slab replay 141.5 M → 104.3 M
+//! instructions, a plate replay 1,300 M → 976 M, the storage class
+//! from 54 % to 38 % of the slab and 56 % to 38 % of the plate — the
+//! tree nodes, their allocation and their teardown gone, the heap
+//! monomial (measured inline at width four: under one percent more,
+//! not taken) and the `Rc<Form>` per memo entry still there. The ring
+//! skipping the gcd and the products by one on the dyadic shape
+//! ([`rational`]'s `from_parts`): the slab 104.3 M → 99.0 M, the plate
+//! 976 M → 713 M — the plate's `num-bigint` share from 13 % to 0.7 %,
+//! because nearly all of its heap arithmetic was gcds against one and
+//! products by one on 256-bit numerators. The chamber drive's test-
+//! profile wall, one sequential take on the measuring box: 368 s →
+//! 240 s → 225 s. The shares are a measurement with no guard and no
+//! register: they are re-taken by running the named rows, and nothing
+//! reds when they stop being true, because an instruction share is a
+//! reading of one box on one day and not a contract the tier makes —
+//! what the tier contracts (every count, every form's digest) is what
+//! the walk-ledger row pins.
 //!
 //! On the plate the same storage share sits inside `reduce_steps` —
-//! rules A/B per node, 53 % of the replay — and the freeze population
+//! rules A/B per node, 51 % of the replay — and the freeze population
 //! is what the budget note in `editor-core`'s `SymbolicDials` says it
 //! is: 1,312 freezes over the three walks (1,044 in the plain walk),
 //! **1,032 on DEGREE** with the kids already at total degree 40–117 in
@@ -421,8 +592,7 @@
 //! 401 bits against [`rational::COEFF_BITS`]), and none on the term budget —
 //! no form on either document comes within 40× of it. Rule D's fold is
 //! 0.4 % of the plate's replay; the ring's heap path is 9 % of its
-//! operations and 12.8 % of its instructions, 1.5 % and 1.3 % on the
-//! slab, so the `i128` inline path holds on both.
+//! operations, so the `i128` inline path holds on both documents.
 //!
 //! # The census: which identity-shaped predicates this tier reaches
 //!
@@ -523,10 +693,12 @@ use core::cell::{Cell, RefCell};
 use core::ops::{Add, Div, Mul, Neg, Sub};
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::predicate::{Band, Decide, Indeterminate, MarginDiag, Sign};
 use crate::real::{Bounds, CertifiedEnclosure, Real};
 use crate::spline::{KnotVector, SpanLocate, SpanSet};
+use crate::tolerance::Tol;
 
 /// The atom algebra: the rule A/B reductions over a residual.
 #[path = "sym/algebra.rs"]
@@ -535,8 +707,16 @@ mod algebra;
 /// and the pure operations on a form.
 #[path = "sym/form.rs"]
 mod form;
+/// The DRIVE-scoped plain memo: the one piece of the tier's state that
+/// outlives a leaf, and the argument that lets it.
+#[path = "sym/memo.rs"]
+pub mod memo;
 #[cfg(feature = "sym-profile-testing")]
 pub mod profile;
+/// Rule E: the quotient's common factor — the shared monomial divided
+/// out, and a constant ratio folded to its constant.
+#[path = "sym/quotient.rs"]
+mod quotient;
 /// The coefficient tower: the exact rational the normal form's
 /// coefficients are, the integer under it, and the bound they are
 /// frozen at.
@@ -556,6 +736,7 @@ mod signed;
 mod trig;
 
 use form::{Form, Poly, powi_form, within};
+pub use memo::{DriveMemo, MemoSize};
 use rational::Rat;
 
 // ---------------------------------------------------------------- ids
@@ -857,11 +1038,36 @@ pub struct SymCounts {
     /// decisions out of `numeric` — never out of `symbolic_zero` or
     /// `sign_gated`, whose counts are M10-8's on every document.
     pub registered: u64,
-    /// **Registrations the door REFUSED** — `Contradicted` (the lane
-    /// scalar's witness separated the two values) or `Cyclic`. Counted
+    /// **Registrations the door REFUSED** — `Contradicted` or
+    /// `Disputed` (the lane scalar's witness separated the two values,
+    /// by a proof and by a slack respectively) or `Cyclic`. Counted
     /// because a refusal that leaves no trace is a defect nobody sees:
     /// a constructor registering a lie in a real document must show up
     /// in the receipt (R1 m4, R2 MINOR-2).
+    ///
+    /// **One column, and what it means depends on the LANE.** At
+    /// `Sym<Interval>` — the lane the driver replays in — every
+    /// contributing arm is a proof of a defect (`Contradicted`:
+    /// disjoint certified enclosures; `Cyclic`), so a non-zero count on
+    /// a real document is a finding. At `Sym<f64>` the count also
+    /// collects `Disputed`, which may be nothing worse than the
+    /// arithmetic running out of significand, so zero is not something
+    /// to assert there.
+    ///
+    /// **This column is a BACKSTOP and not the loud channel, and the
+    /// difference is measured.** A registrant that starts stating a
+    /// small lie — one the exact witness still ADMITS, because the two
+    /// certified enclosures meet — is never refused, so it never
+    /// reaches this count; what moves is
+    /// [`SymCounts::registered`], which collapses as the registry stops
+    /// discharging. A registrant stating a GEOMETRIC lie is caught
+    /// earlier still, by its own `debug_assert!` on the exact witness's
+    /// refusal, which is live in every profile. What is left for this
+    /// column is `Cyclic` and any future registrant that binds an exact
+    /// refusal instead of asserting on it. The fixture-scale row asserts
+    /// all three together
+    /// (`editor-core/tests/m10_9_pins_interval.rs`,
+    /// `m10_9_no_registrant_lies_on_any_measured_document`).
     pub registrations_refused: u64,
     /// **Decisions where a REGISTERED zero met a DEFINITE numeric
     /// sign** — the two channels in contradiction, which for a
@@ -874,10 +1080,45 @@ pub struct SymCounts {
     /// like any other, so the K vocabulary needs nothing new. What is
     /// new is the RECEIPT's statement that a stated identity was
     /// contradicted.
+    ///
+    /// **It does NOT count [`SymRegistration::Contradicted`]**, despite
+    /// the shared word: that arm is the door REFUSING a registration at
+    /// the moment it is stated, and it lands in
+    /// [`SymCounts::registrations_refused`] with every other refusal.
+    /// This column is about a registration the door ACCEPTED, later
+    /// contradicted by the numeric channel at a decide site — two
+    /// different events, one of which happens after the other could
+    /// not.
     pub registrations_contradicted: u64,
     /// Decisions handed to the numeric channel.
     pub numeric: u64,
-    /// Nodes frozen into indeterminates (a budget or an overflow).
+    /// **Nodes this session's plain walk froze** into indeterminates (a
+    /// budget or an overflow) — a count of THIS leaf's work, unlike the
+    /// decision columns beside it, which are claims about this leaf's
+    /// predicates.
+    ///
+    /// **The column has two meanings and they are different numbers.**
+    /// Here it is the freezes one session computed. On a DRIVE's receipt
+    /// it is the DISTINCT nodes frozen over the whole drive
+    /// ([`DriveMemo::frozen`]) — a set, so it is the same under every
+    /// schedule, which a sum of the leaves' counts is not once a leaf
+    /// can inherit a form another leaf froze from the drive's plain
+    /// memo. [`SymCounts::absorb`] therefore does not sum this column;
+    /// the driver writes the drive's own.
+    ///
+    /// Under a drive memo a leaf's count is what that leaf happened to
+    /// compute rather than what its decisions needed, so it is a work
+    /// measure and not a receipt column: which leaf pays for a node
+    /// depends on the schedule. The drive's column is the one that does
+    /// not.
+    ///
+    /// `CertifiedLeaf`/`RefusedLeaf` derive `PartialEq` over their
+    /// `decisions`, so a row that compares whole leaf lists across
+    /// schedules compares this column too. Those rows are green because
+    /// a drive's level-0 root publishes the whole DAG before anything
+    /// splits, so no later leaf freezes at all —
+    /// `work/sym/leaf-frozen-column-is-schedule-dependent-under-the-drive-memo`
+    /// carries that dependence and the options for closing it.
     pub frozen: u64,
 }
 
@@ -888,7 +1129,11 @@ impl SymCounts {
         self.symbolic_zero + self.sign_gated + self.registered + self.numeric
     }
 
-    /// Adds another session's counts into this one.
+    /// Adds another session's DECISION counts into this one.
+    ///
+    /// **`frozen` is not summed** — [`SymCounts::frozen`] argues the
+    /// column; the driver writes the drive's own once the drive is
+    /// done.
     pub fn absorb(&mut self, other: Self) {
         self.symbolic_zero += other.symbolic_zero;
         self.sign_gated += other.sign_gated;
@@ -896,7 +1141,6 @@ impl SymCounts {
         self.registrations_refused += other.registrations_refused;
         self.registrations_contradicted += other.registrations_contradicted;
         self.numeric += other.numeric;
-        self.frozen += other.frozen;
     }
 }
 
@@ -995,6 +1239,34 @@ pub struct SymRules {
     /// the ring — and why a zero reached through it is counted
     /// `sign_gated` rather than `symbolic_zero`. Needs `early`.
     pub signed_root: bool,
+    /// **E — the quotient's COMMON FACTOR** ([`quotient`]): in the
+    /// early walk every form has the monomial its numerator and
+    /// denominator share divided out, and a numerator that is a
+    /// rational multiple of its denominator folds to that rational.
+    /// Both are equalities of rational functions wherever the
+    /// denominator is non-zero, which clause 1 guarantees — a point
+    /// where a form's denominator vanishes is one the value channel
+    /// divided by zero at, and the whole-box certification has already
+    /// refused there.
+    ///
+    /// It is what a NORMALISATION needs. `Vec3::normalize` is
+    /// `self / self.norm()`, so a unit vector reaches the DAG as three
+    /// quotients over one `sqrt(v·v)` atom and everything built from it
+    /// carries that atom in both halves; the plain form cancels no
+    /// common factor, so each further normalisation multiplies the
+    /// shared power and each square doubles it. On a derived frame
+    /// whose axes carry a parameter the forms reach total degree 128 in
+    /// a handful of terms and freeze — and the already-unit vector's
+    /// own norm is `sqrt(P/P)`, the literal number one carried as an
+    /// opaque atom because neither half of `P/P` is a constant for A0
+    /// to read.
+    ///
+    /// No step cap beside it: unlike rules A/B the fold cannot
+    /// reintroduce anything, it is one pass over the terms, and every
+    /// form it returns has at most the terms and at most the degree of
+    /// the one it was given ([`quotient`]'s docs carry the argument).
+    /// Needs `early`.
+    pub common_factor: bool,
     /// **The REGISTERED-IDENTITY DOOR** (M10-9, ERROR-DESIGN E12's
     /// provenance reserve): the early walk consults the session's
     /// registry ([`Sym::register_equal`]), so a node a constructor
@@ -1023,6 +1295,7 @@ impl SymRules {
             early_ab: true,
             trig_of_atan: true,
             signed_root: true,
+            common_factor: true,
             registered: true,
         }
     }
@@ -1045,6 +1318,7 @@ impl SymRules {
     /// | D + A/B per node (`trig_of_atan`, `early_ab`, `sqrt_square`, `pythagoras`), with A1's `atan2` and half-π folds under D's dial | the plate's four identity residuals all go: the plate certifies 0.24–0.26 and the annulus 0.70–0.84 of their REAL studies, their ceilings bounded by dependency widening of real margins; pad 1.20× | plate 0.15 s at its real study, pad 2.1 → 10.5 s, link 0.43 → 4.1 s (with rule D's `sin`/`cos` pair built once) | **yes** |
     /// | A/B over the top residual (`sqrt_square`/`pythagoras` at `discharge`'s site, once the walks have declined) | none, alone or with rule D: the plate's nominal split is M10-9's under it alone and rule D's with D (`CAD_M10_10_RULES=top_only`, `d_top_only`); M10-8 measured it inert and it still is | +18% on the plate's `1e2·ε` leaf (0.131 → 0.154 s with rule D), +12% on the link (0.76 → 0.85 s) | ships only because it shares the per-node walk's dials — disclosed as M10-10's D17, not chosen |
     /// | C in the early walk (`signed_root`) | none; folds on no document at 256 bits | ~2× | no (inert; reads a value) |
+    /// | E, the quotient's common factor (`common_factor`, SYM-5) | none on the five; R1's boss at bulge 2 `8.2611e2 → 9.3559e2 · ε` (1.13×), and a derived frame whose AXES carry a parameter certifies where its authored twin does, which no dial reached before | one whole-box leaf, release: plate 0.13 → 0.36 s, annulus 0.12 → 0.29, bracket 0.44 → 1.70, link 3.31 → 2.43, pad 3.85 → 14.40 | **yes**, with the bracket, the pad and the link over the 1.6 s line disclosed |
     ///
     /// The pins in `m10_8_pins_interval.rs`, `m10_9_pins_interval.rs`
     /// and `m10_10_pins_interval.rs` hold each layer to what it
@@ -1059,6 +1333,7 @@ impl SymRules {
             early_ab: true,
             trig_of_atan: true,
             signed_root: false,
+            common_factor: true,
             registered: true,
         }
     }
@@ -1075,6 +1350,7 @@ impl SymRules {
             early_ab: false,
             trig_of_atan: false,
             signed_root: false,
+            common_factor: false,
             registered: false,
         }
     }
@@ -1092,6 +1368,7 @@ impl SymRules {
             pythagoras: false,
             early_ab: false,
             trig_of_atan: false,
+            common_factor: false,
             ..Self::shipped()
         }
     }
@@ -1104,6 +1381,18 @@ impl SymRules {
     pub const fn shipped_without_the_door() -> Self {
         Self {
             registered: false,
+            ..Self::shipped()
+        }
+    }
+    /// **The shipped set with rule E SHUT** — the quotient's common
+    /// factor left uncancelled, every other rule as it is: M10-10's
+    /// tier exactly, bit for bit, and the differential every claim
+    /// about what rule E costs and what it buys is measured against
+    /// ([`Self::common_factor`]).
+    #[must_use]
+    pub const fn without_rule_e() -> Self {
+        Self {
+            common_factor: false,
             ..Self::shipped()
         }
     }
@@ -1143,21 +1432,36 @@ type IdMap<V> = HashMap<SymId, V, core::hash::BuildHasherDefault<IdHasher>>;
 /// verbatim hasher serves).
 type IndetMap<V> = HashMap<u128, V, core::hash::BuildHasherDefault<IdHasher>>;
 
+/// A SET of node ids, spelled once so that two of them are the same
+/// type ([`DriveMemo`]'s frozen set is the one in the tier today).
+///
+/// `profile`'s own id sets stay `BTreeSet<u128>`: they are PUBLIC
+/// fields of a public struct, and this alias is built on the private
+/// [`IdHasher`], which a public interface may not name.
+type IdSet = IdMap<()>;
+
 /// What one opaque atom is: its op and the forms of its arguments —
 /// what rule A needs (`sqrt`'s argument), what rule B needs (a `sin`'s
 /// argument digest names its `cos` twin), and what the shape report
 /// renders.
+#[derive(Clone)]
 struct AtomInfo {
     op: SymOp,
     /// R2's experiment: the node payload the atom's id was keyed with,
     /// without which a rule that rewrites an atom's ARGUMENT cannot
     /// re-mint the atom's id.
     payload: u64,
-    args: [Option<Rc<Form>>; 2],
+    args: [Option<Arc<Form>>; 2],
 }
 
 /// One leaf replay's DAG: the hash-consing table, the memoized forms and
-/// the counts. Dropped with the leaf; nothing is shared across leaves.
+/// the counts. Dropped with the leaf.
+///
+/// Everything here is this leaf's own, with ONE exception: `memo`, a
+/// handle on the drive's shared plain forms when a driver installed one
+/// ([`with_session_memo`]). The hash-consing table, the early and door
+/// memos, the registry, the parameter brackets and the counts never
+/// leave the leaf.
 struct Session {
     budget: SymBudget,
     rules: SymRules,
@@ -1166,10 +1470,10 @@ struct Session {
     /// constant fold, which cannot cost a cancellation). Rules A/B are
     /// applied afterwards over the top residual ([`algebra::reduce`])
     /// and per node in `forms_early`; nothing ruled is memoized here.
-    forms: IdMap<Rc<Form>>,
+    forms: IdMap<Arc<Form>>,
     /// The EARLY-reduced forms (`SymRules::early`), a second memo
     /// beside the plain one.
-    forms_early: IdMap<Rc<Form>>,
+    forms_early: IdMap<Arc<Form>>,
     /// **The DOOR-reduced forms** ([`SymRules::registered`]): the early
     /// walk again, this time with the session's registry applied — a
     /// THIRD memo, beside the plain one and the early one, and the
@@ -1185,7 +1489,7 @@ struct Session {
     /// Built lazily like the others, and never at all while the
     /// registry is empty — so a document with no registrants (all of
     /// straight geometry) pays nothing and serializes M10-8's bytes.
-    forms_door: IdMap<Rc<Form>>,
+    forms_door: IdMap<Arc<Form>>,
     /// The `f64` bracket of each document parameter this leaf was
     /// evaluated over, by the parameter's indeterminate id — recorded
     /// by [`Sym::param_over`], read only by rule C ([`signed`]).
@@ -1206,9 +1510,60 @@ struct Session {
     /// digest, per session like every other memo here.
     trig_closed: IndetMap<Option<Rc<trig::Closed>>>,
     counts: SymCounts,
+    /// **The drive's shared plain memo** ([`DriveMemo`]), when a drive
+    /// installed one ([`with_session_memo`]). The plain walk consults
+    /// it on a miss in `forms` and the leaf publishes to it once, at its
+    /// end; every other memo here is this leaf's alone.
+    memo: Option<Arc<DriveMemo>>,
+    /// **What this leaf owes the drive memo**, accumulated as the plain
+    /// walk computes and handed over in ONE write lock at the leaf's end
+    /// (`DriveMemo`'s header says why one and not one per node): the
+    /// ids it built a plain form for, the atoms that walk minted, and
+    /// the ids it froze. Empty when no drive installed a memo.
+    plain_built: Vec<SymId>,
+    plain_atoms: Vec<u128>,
+    plain_frozen: Vec<SymId>,
+    /// **The nodes whose plain form this leaf built out of an
+    /// UNRECORDED one**, and which it therefore may not publish.
+    ///
+    /// A node absent from `nodes` is frozen into its own indeterminate,
+    /// and that is this LEAF's answer, not the node's: a leaf that
+    /// recorded it builds a real form. The freeze does not stay put —
+    /// the recorded parent above it combines the indeterminate into its
+    /// own form, under an id that is a content hash of the CHILDREN'S
+    /// IDS and so is the same id the recording leaf uses. So the taint
+    /// propagates up the walk and the publication guard follows it,
+    /// rather than stopping at the unrecorded node itself. Kept only
+    /// while a drive memo is installed; empty otherwise.
+    plain_tainted: IdSet,
 }
 
 impl Session {
+    /// **The one place a session is built** — every field of it, in one
+    /// literal, so a field added here cannot leave a second literal
+    /// somewhere else half-initialised (the `trig` test module kept one,
+    /// and it is this now).
+    fn new(budget: SymBudget, rules: SymRules, memo: Option<Arc<DriveMemo>>) -> Self {
+        Self {
+            budget,
+            rules,
+            nodes: IdMap::default(),
+            forms: IdMap::default(),
+            forms_early: IdMap::default(),
+            forms_door: IdMap::default(),
+            params: IndetMap::default(),
+            atoms: IndetMap::default(),
+            registry: IdMap::default(),
+            trig_closed: IndetMap::default(),
+            counts: SymCounts::default(),
+            memo,
+            plain_built: Vec::new(),
+            plain_atoms: Vec::new(),
+            plain_frozen: Vec::new(),
+            plain_tainted: IdSet::default(),
+        }
+    }
+
     /// The node `id` denotes, following the registry to its end — `id`
     /// itself when nothing was registered for it.
     ///
@@ -1305,6 +1660,11 @@ impl Drop for OpaqueSeqGuard {
 /// reach another leaf, and the counts are that leaf's own. Nesting is
 /// refused rather than silently flattened — an inner session would count
 /// a different leaf's decisions into the outer one's receipt.
+///
+/// This door installs NO drive memo, so the session it makes holds
+/// nothing across leaves at all; [`with_session_memo`] is the spelling
+/// a driver uses to share the plain forms across the leaves of one
+/// drive.
 pub fn with_session<R>(budget: SymBudget, f: impl FnOnce() -> R) -> (R, SymCounts) {
     with_session_rules(budget, SymRules::shipped(), f)
 }
@@ -1315,6 +1675,51 @@ pub fn with_session<R>(budget: SymBudget, f: impl FnOnce() -> R) -> (R, SymCount
 pub fn with_session_rules<R>(
     budget: SymBudget,
     rules: SymRules,
+    f: impl FnOnce() -> R,
+) -> (R, SymCounts) {
+    with_session_in(budget, rules, None, f)
+}
+
+/// [`with_session_rules`] with a DRIVE-scoped plain memo installed
+/// ([`DriveMemo`]): the leaf's plain walk consults `memo` on a miss in
+/// its own table and publishes what it computed to `memo` at its end.
+///
+/// Everything else about the session is unchanged — the hash-consing
+/// table, the early and door memos, the registry and the parameter
+/// brackets are this leaf's and are dropped with it. The counts the
+/// call answers are this leaf's own, so its [`SymCounts::frozen`] is
+/// what THIS leaf refused; the drive's column is [`DriveMemo::frozen`].
+///
+/// **The memo is valid for one `(budget, rules)` pair** and refuses a
+/// leaf that does not match it: a plain form is a function of the node
+/// id and those two, so serving one across a budget change would hand
+/// back a form the leaf would not have built.
+///
+/// The mismatch is a `debug_assert!`, which is loud in every profile
+/// this workspace builds — `[profile.release]` keeps debug assertions
+/// on. A build that turned them OFF would run the leaf with NO memo
+/// instead: sound (it is the pre-memo tier) but quiet, and its freezes
+/// would never be published, so the drive's `frozen` column would
+/// under-count in exactly that build. No configuration in this repo
+/// reaches it.
+pub fn with_session_memo<R>(
+    budget: SymBudget,
+    rules: SymRules,
+    memo: &Arc<DriveMemo>,
+    f: impl FnOnce() -> R,
+) -> (R, SymCounts) {
+    let accepts = memo.accepts(budget, rules);
+    debug_assert!(
+        accepts,
+        "a drive memo is valid for the budget and rules it was made for"
+    );
+    with_session_in(budget, rules, accepts.then(|| Arc::clone(memo)), f)
+}
+
+fn with_session_in<R>(
+    budget: SymBudget,
+    rules: SymRules,
+    memo: Option<Arc<DriveMemo>>,
     f: impl FnOnce() -> R,
 ) -> (R, SymCounts) {
     let nested = SESSION.with(|s| s.borrow().is_some());
@@ -1330,28 +1735,56 @@ pub fn with_session_rules<R>(
         return (f(), SymCounts::default());
     }
     SESSION.with(|s| {
-        *s.borrow_mut() = Some(Session {
-            budget,
-            rules,
-            nodes: IdMap::default(),
-            forms: IdMap::default(),
-            forms_early: IdMap::default(),
-            forms_door: IdMap::default(),
-            params: IndetMap::default(),
-            atoms: IndetMap::default(),
-            registry: IdMap::default(),
-            trig_closed: IndetMap::default(),
-            counts: SymCounts::default(),
-        });
+        *s.borrow_mut() = Some(Session::new(budget, rules, memo));
     });
+    #[cfg(feature = "sym-profile-testing")]
+    profile::session_start();
     let out = f();
     let sess = SESSION.with(|s| s.borrow_mut().take());
     #[cfg(feature = "sym-profile-testing")]
     if let Some(s) = &sess {
         profile::session_done(s.nodes.len(), s.atoms.len());
     }
+    if let Some(s) = &sess {
+        publish_to_memo(s);
+    }
     let counts = sess.map_or_else(SymCounts::default, |s| s.counts);
     (out, counts)
+}
+
+/// Hands the leaf's plain walk to the drive memo under ONE write lock
+/// (`DriveMemo`'s header says why one per leaf and not one per node).
+///
+/// A node the leaf took FROM the memo is not in `plain_built`, so what
+/// is offered here is what this leaf computed; the memo keeps whichever
+/// copy arrived first, and they are the same form.
+fn publish_to_memo(sess: &Session) {
+    let Some(memo) = &sess.memo else { return };
+    // An id on a publication list with no entry in this leaf's own map
+    // is a BUG in whoever put it there, not a case to pass over: every
+    // push sits beside the insert that makes it findable. Loud in
+    // debug; in release the entry simply does not reach the memo, which
+    // costs a hit and cannot cost a decision.
+    let found = |ok: bool, what: &str| {
+        debug_assert!(
+            ok,
+            "the drive memo's publication list names a {what} this leaf never recorded"
+        );
+        ok
+    };
+    memo.publish(
+        sess.plain_built.iter().filter_map(|id| {
+            let f = sess.forms.get(id);
+            found(f.is_some(), "plain form");
+            f.map(|f| (*id, Arc::clone(f)))
+        }),
+        sess.plain_atoms.iter().filter_map(|id| {
+            let a = sess.atoms.get(id);
+            found(a.is_some(), "plain-walk atom");
+            a.map(|a| (*id, a.clone()))
+        }),
+        sess.plain_frozen.iter().copied(),
+    );
 }
 
 /// The counts so far in the installed session (`None` outside one) — the
@@ -1429,14 +1862,10 @@ fn unary_at_zero(op: SymOp) -> Option<Form> {
         SymOp::Cos => Some(Form::poly(Poly::one())),
         // acos 0 = π/2 — expressible, because π is an indeterminate of
         // the form rather than a number.
-        SymOp::Acos => {
-            let mut p = Poly::indet(INDET_PI);
-            let half = Rat::new(1, 2, 0)?;
-            for c in p.terms.values_mut() {
-                *c = c.mul(&half)?;
-            }
-            Some(Form::poly(p))
-        }
+        SymOp::Acos => Some(Form::poly(Poly::term(
+            vec![(INDET_PI, 1)],
+            Rat::new(1, 2, 0)?,
+        ))),
         // 1/0 is not a real; the numeric channel owns that refusal.
         _ => None,
     }
@@ -1482,10 +1911,10 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
             return Some(gate(f));
         }
         let id = indet_atom(op.tag(), node.payload, &[a.digest()]);
-        sess.atoms.entry(id).or_insert_with(|| AtomInfo {
+        mint_atom(sess, id, early, || AtomInfo {
             op,
             payload: node.payload,
-            args: [Some(Rc::new(a.clone())), None],
+            args: [Some(Arc::new(a.clone())), None],
         });
         Some(gate(Form::poly(Poly::indet(id))))
     };
@@ -1620,10 +2049,10 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
                 return Some(z);
             }
             let id = indet_atom(node.op.tag(), node.payload, &[a.digest(), b.digest()]);
-            sess.atoms.entry(id).or_insert_with(|| AtomInfo {
+            mint_atom(sess, id, early, || AtomInfo {
                 op: node.op,
                 payload: node.payload,
-                args: [Some(Rc::new(a.clone())), Some(Rc::new(b.clone()))],
+                args: [Some(Arc::new(a.clone())), Some(Arc::new(b.clone()))],
             });
             let mut f = Form::poly(Poly::indet(id));
             f.gated = a.gated || b.gated;
@@ -1674,16 +2103,50 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
 /// plain walk, measured per document in `SymRules::shipped`'s docs.
 fn form_in(
     sess: &mut Session,
-    memo: &mut IdMap<Rc<Form>>,
+    memo: &mut IdMap<Arc<Form>>,
     root: SymId,
     early: bool,
     registry: bool,
-) -> Rc<Form> {
-    let frozen = |sess: &mut Session, id: SymId| -> Rc<Form> {
+) -> Arc<Form> {
+    // The freeze this WALK made, counted into the leaf's own
+    // [`SymCounts::frozen`] — which is the leaf's work, not the drive's
+    // column (that doc carries both meanings).
+    let frozen = |sess: &mut Session, id: SymId| -> Arc<Form> {
         if !early {
             sess.counts.frozen += 1;
         }
-        Rc::new(Form::poly(Poly::indet(id.bits())))
+        Arc::new(Form::poly(Poly::indet(id.bits())))
+    };
+    // **One predicate for the plain walk**, and the drive's memo behind
+    // it: the memo is the PLAIN walk's alone, because the early and door
+    // walks consult this leaf's registry and its parameter brackets,
+    // which a value-dependent refusal can make differ between leaves.
+    let plain = !early && !registry;
+    let drive = plain.then(|| sess.memo.clone()).flatten();
+    // **One place that notes what this walk computed** — the profile's
+    // distinct-id counter, and the drive memo's publication list.
+    //
+    // `publish` is the WRITE side of the guard the read side makes
+    // below, and the two must agree: a node absent from this leaf's
+    // table is frozen here by design, and publishing that freeze under
+    // the node's CONTENT id would hand it to a leaf that recorded the
+    // node and would have computed a real form for it — a decision
+    // moved, and an order-dependent one (R1 M6 / R2 MINOR-2, both
+    // demonstrated at the door). The guard is on the TAINT, not on the
+    // unrecorded node alone: its recorded parent's id is a hash of the
+    // children's ids, so the parent carries the same id in both leaves
+    // and a different form (`Session::plain_tainted`).
+    let note = |sess: &mut Session, id: SymId, froze: bool, publish: bool| {
+        #[cfg(feature = "sym-profile-testing")]
+        if plain {
+            profile::record_plain_id(id.bits());
+        }
+        if publish && drive.is_some() {
+            sess.plain_built.push(id);
+            if froze {
+                sess.plain_frozen.push(id);
+            }
+        }
     };
     let mut stack = vec![(root, false)];
     while let Some((id, expanded)) = stack.pop() {
@@ -1716,10 +2179,30 @@ fn form_in(
             #[cfg(feature = "sym-profile-testing")]
             profile::record_unrecorded(profile::Walk::of(early, registry));
             let f = frozen(sess, id);
+            // NOT published, and everything built from it is tainted:
+            // `note`'s own comment says why.
+            if drive.is_some() {
+                sess.plain_tainted.insert(id, ());
+            }
+            note(sess, id, true, false);
             memo.insert(id, f);
             continue;
         };
         let arity = node.op.arity();
+        // **The drive memo, asked only for a node THIS leaf recorded.**
+        // An id absent from the table is one minted before the session
+        // was installed, and the walk freezes it above by design; taking
+        // a drive-built form for it would move a decision the tier makes
+        // about an unrecorded node. Asked before the children are
+        // expanded, so a hit costs the subtree nothing.
+        if !expanded
+            && let Some(d) = &drive
+            && let Some(f) = d.form(id)
+        {
+            d.seed_atoms(&f, &mut sess.atoms);
+            memo.insert(id, f);
+            continue;
+        }
         if !expanded {
             let pending: Vec<SymId> = node.kids[..arity]
                 .iter()
@@ -1744,6 +2227,14 @@ fn form_in(
             None
         };
         let budget = sess.budget;
+        // Built out of an unrecorded node? Then this leaf's form for
+        // `id` is this leaf's alone, and the atoms this node mints are
+        // keyed by its tainted argument digests.
+        let taint = drive.is_some()
+            && node.kids[..arity]
+                .iter()
+                .any(|k| sess.plain_tainted.contains_key(k));
+        let atoms_before = sess.plain_atoms.len();
         let made = {
             let kids = [
                 fa.as_deref().unwrap_or(&empty),
@@ -1758,7 +2249,7 @@ fn form_in(
             // not fit.
             let combined = if early && sess.rules.early_ab {
                 combined.map(|f| {
-                    if f.num.terms.len() + f.den.terms.len() > EARLY_AB_TERMS {
+                    if f.num.terms().len() + f.den.terms().len() > EARLY_AB_TERMS {
                         return f;
                     }
                     #[cfg(feature = "sym-profile-testing")]
@@ -1788,6 +2279,30 @@ fn form_in(
             } else {
                 combined
             };
+            // **Rule E**, after the per-node A/B reduction and before
+            // the budget check. AFTER is the order that lets the rule
+            // ACT, and the walk ledger
+            // (`editor-core/tests/m10_sym_profile_interval`) is what
+            // pins it: planted BEFORE the reduction, that ledger reds
+            // in four lines — the slab's `Early/Assertion` digest, and
+            // on the plate `Early/Decision` frozen 8 → 48 with its
+            // digest, `Early/Assertion`'s digest and `Door/Decision`'s
+            // — with the largest form the walk builds falling
+            // 288 → 90, the plate's early-decision walk back where it
+            // was before the rule. So under the other order the rule
+            // does almost nothing there: this is a REACH requirement
+            // and not only a convention. It is also the order
+            // `trig::sqrt_atom` applies to a form it builds by hand,
+            // which is what makes the two spellings of one arc key one
+            // atom.
+            // Before the budget check, because the rule can only
+            // SHRINK a form in terms and degree, so one it cancels may
+            // fit where the raw one would have frozen.
+            let combined = if early && sess.rules.common_factor {
+                combined.map(|f| quotient::cancel(&f))
+            } else {
+                combined
+            };
             let made = combined.filter(|f| within(budget, f));
             #[cfg(feature = "sym-profile-testing")]
             profile::record_node(
@@ -1799,20 +2314,50 @@ fn form_in(
             made
         };
         drop((fa, fb));
+        if taint {
+            sess.plain_tainted.insert(id, ());
+            // Every atom this node minted is keyed by a tainted
+            // argument's digest, so no untainted form can reference one.
+            sess.plain_atoms.truncate(atoms_before);
+        }
+        let froze = made.is_none();
         let f = match made {
-            Some(p) => Rc::new(p),
+            Some(p) => Arc::new(p),
             None => frozen(sess, id),
         };
+        note(sess, id, froze, !taint);
         memo.insert(id, f);
     }
     memo.get(&root)
         .cloned()
-        .unwrap_or_else(|| Rc::new(Form::poly(Poly::indet(root.bits()))))
+        .unwrap_or_else(|| Arc::new(Form::poly(Poly::indet(root.bits()))))
+}
+
+/// Records the atom `id` in the session, noting it for the drive memo
+/// whenever the PLAIN walk REFERENCES it — the atoms a plain form's
+/// indeterminates stand for, which a leaf that takes that form from the
+/// memo needs and never mints itself.
+///
+/// **Noted on every plain-walk reference, not only on a fresh mint**,
+/// and that is load-bearing rather than slack: the two walks share one
+/// `atoms` map, and an atom's id is a hash of the op, the payload and
+/// the ARGUMENT FORM's digest — so wherever a rule left a kid's early
+/// form equal to its plain one, an earlier EARLY walk has already
+/// minted the atom a later plain walk references. Noting only the mint
+/// would publish a plain form whose indeterminate the memo cannot
+/// explain, and the leaf that took it would lose the rule-A
+/// substitution [`algebra::reduce`] looks the argument up for. The list
+/// is deduplicated at the memo's `or_insert`.
+fn mint_atom(sess: &mut Session, id: u128, early: bool, info: impl FnOnce() -> AtomInfo) {
+    sess.atoms.entry(id).or_insert_with(info);
+    if !early && sess.memo.is_some() {
+        sess.plain_atoms.push(id);
+    }
 }
 
 /// The plain quotient form of `root` — every atom opaque, no rule
 /// applied, no value read. Memoized in the session's persistent table.
-fn plain_form(sess: &mut Session, root: SymId) -> Rc<Form> {
+fn plain_form(sess: &mut Session, root: SymId) -> Arc<Form> {
     let mut memo = core::mem::take(&mut sess.forms);
     #[cfg(feature = "sym-profile-testing")]
     let t0 = profile::clock();
@@ -1845,7 +2390,7 @@ const EARLY_AB_TERMS: usize = 512;
 /// its own table beside the plain one: the same walk as
 /// [`plain_form`], with rules A/B applied per node under
 /// [`EARLY_STEPS`] and rule C's fold at each `sqrt`/`abs`.
-fn early_form(sess: &mut Session, root: SymId) -> Rc<Form> {
+fn early_form(sess: &mut Session, root: SymId) -> Arc<Form> {
     let mut memo = core::mem::take(&mut sess.forms_early);
     #[cfg(feature = "sym-profile-testing")]
     let t0 = profile::clock();
@@ -1861,7 +2406,7 @@ fn early_form(sess: &mut Session, root: SymId) -> Rc<Form> {
 /// third table. Asked only after the plain and the early forms have
 /// both declined, so a zero it finds is one the registration was
 /// needed for.
-fn door_form(sess: &mut Session, root: SymId) -> Rc<Form> {
+fn door_form(sess: &mut Session, root: SymId) -> Arc<Form> {
     let mut memo = core::mem::take(&mut sess.forms_door);
     #[cfg(feature = "sym-profile-testing")]
     let t0 = profile::clock();
@@ -2089,6 +2634,8 @@ impl<T> Sym<T> {
             c.set(n.wrapping_add(1));
             n
         });
+        #[cfg(feature = "sym-profile-testing")]
+        profile::record_opaque(indet_opaque(seq));
         Self::nullary(value, SymOp::Opaque, seq)
     }
 
@@ -2209,11 +2756,16 @@ impl<T: Real> Sym<T> {
     ///
     /// The lane scalar is asked first ([`Real::register_equal`]): at
     /// [`crate::Interval`] the two certified enclosures must MEET, at
-    /// `f64` the two values must agree to the funnel's own coincidence
-    /// threshold ([`Real::register_equal`]). Where they
-    /// do not, the door records nothing and answers
-    /// [`SymRegistration::Contradicted`], typed, so a constructor that
-    /// does not build what it claims cannot state it. A registration
+    /// `f64` the two values must agree to the run's ε relative to the
+    /// larger magnitude — which is why `tol` is a parameter here, and
+    /// why it is handed down rather than read ([`Real::register_equal`]).
+    /// Where they do not, the door records nothing and answers the lane
+    /// scalar's own refusal arm, forwarded: `Contradicted` from the
+    /// exact witness, `Disputed` from an inexact one. A constructor that
+    /// does not build what it claims therefore cannot state it, and the
+    /// answer says whether the refusal is a PROOF of that or an
+    /// arithmetic that could not tell
+    /// ([`SymRegistration::Disputed`]). A registration
     /// that would close a cycle is refused
     /// [`SymRegistration::Cyclic`] — `form_in`'s termination rests on
     /// a node's id being a hash of its children's, and the registry is
@@ -2252,15 +2804,21 @@ impl<T: Real> Sym<T> {
     /// argument runs.
     #[must_use = "a registration can be REFUSED, and a refusal a caller \
                   drops is a lie nobody sees"]
-    pub fn register_equal(self, other: Self) -> SymRegistration {
-        // The witness first: an unwitnessed or contradicted claim never
-        // reaches the registry at all. A refusal is COUNTED — the
-        // receipt is where a constructor that states a lie becomes
-        // visible.
-        match self.value.register_equal(other.value) {
-            SymRegistration::Contradicted => {
+    pub fn register_equal(self, other: Self, tol: Tol) -> SymRegistration {
+        // The witness first: a claim the value channel refused
+        // (`Contradicted` or `Disputed`) or could not witness
+        // (`Unwitnessed`) never reaches the registry at all. A refusal
+        // is COUNTED — the receipt is where a constructor that states a
+        // lie becomes visible — and the value channel's ARM is FORWARDED unchanged,
+        // because which refusal it is is a fact about the lane scalar's
+        // witness rather than about the registry: `Contradicted` is a
+        // proof (`Interval`'s disjoint certified enclosures),
+        // `Disputed` an inexact witness that could not tell (`f64`,
+        // `Probe`). Both refuse identically here — nothing is recorded.
+        match self.value.register_equal(other.value, tol) {
+            refusal @ (SymRegistration::Contradicted | SymRegistration::Disputed) => {
                 count_registration_refused();
-                return SymRegistration::Contradicted;
+                return refusal;
             }
             SymRegistration::Unwitnessed => return SymRegistration::Unwitnessed,
             _ => {}
@@ -2386,8 +2944,8 @@ impl<T: Real> Real for Sym<T> {
     /// **The one scalar that RECORDS** rather than only witnessing —
     /// the door itself ([`Sym::register_equal`], which carries the
     /// whole of the contract).
-    fn register_equal(self, other: Self) -> SymRegistration {
-        Sym::register_equal(self, other)
+    fn register_equal(self, other: Self, tol: Tol) -> SymRegistration {
+        Sym::register_equal(self, other, tol)
     }
 
     fn powi(self, n: i32) -> Self {
@@ -3084,7 +3642,10 @@ mod tests {
             with_session(budget(), || {
                 let (n, r, resid) = rim(3.0, 4.0, 5.0);
                 if register {
-                    assert_eq!(n.register_equal(r), SymRegistration::Recorded);
+                    assert_eq!(
+                        n.register_equal(r, Tol::witness()),
+                        SymRegistration::Recorded
+                    );
                 }
                 resid.map(how)
             })
@@ -3132,7 +3693,7 @@ mod tests {
                 let z = p("z", 2.0);
                 let to = if gated { (y * y).sqrt() } else { y };
                 assert_eq!(
-                    z.register_equal(to),
+                    z.register_equal(to, Tol::witness()),
                     SymRegistration::Recorded,
                     "both registrations are witnessed at the point"
                 );
@@ -3165,7 +3726,7 @@ mod tests {
             with_session(budget(), || {
                 let (n, r, resid) = rim(0.3, 0.4, 0.5000000001);
                 if register {
-                    let _ = n.register_equal(r);
+                    let _ = n.register_equal(r, Tol::witness());
                 }
                 [resid[0].value.to_bits(), resid[1].value.to_bits()]
             })
@@ -3191,16 +3752,18 @@ mod tests {
     }
 
     /// **A lying registration is refused, typed, and the decisions stay
-    /// numeric** — the planted `‖q − c‖ ≡ 2r`.
+    /// numeric** — the planted `‖q − c‖ ≡ 2r`. This lane's witness is
+    /// `f64`'s, which is inexact, so the arm is `Disputed`: the claim is
+    /// false, and a comparison at a slack cannot say that it is.
     #[test]
     fn a_lying_registration_is_refused_typed() {
         let (how_, counts) = with_session(budget(), || {
             let (n, r, resid) = rim(3.0, 4.0, 5.0);
             let two_r = Sym::from_f64(2.0) * r;
             assert_eq!(
-                n.register_equal(two_r),
-                SymRegistration::Contradicted,
-                "5 is not 10, and the witness says so at the point"
+                n.register_equal(two_r, Tol::witness()),
+                SymRegistration::Disputed,
+                "5 is not 10, and the INEXACT witness at this lane says so at the point"
             );
             resid.map(how)
         });
@@ -3217,10 +3780,16 @@ mod tests {
         let (rows, counts) = with_session(budget(), || {
             let (n, r, resid) = rim(3.0, 4.0, 5.0);
             let first = how(resid[0]);
-            assert_eq!(n.register_equal(r), SymRegistration::Recorded);
+            assert_eq!(
+                n.register_equal(r, Tol::witness()),
+                SymRegistration::Recorded
+            );
             let second = how(resid[0]);
             // Idempotent, and a repeat invalidates nothing.
-            assert_eq!(n.register_equal(r), SymRegistration::Already);
+            assert_eq!(
+                n.register_equal(r, Tol::witness()),
+                SymRegistration::Already
+            );
             [first, second]
         });
         assert_eq!(
@@ -3240,10 +3809,16 @@ mod tests {
         with_session(budget(), || {
             let x = p("w", 1.0);
             let bigger = x * x;
-            assert_eq!(x.register_equal(bigger), SymRegistration::Cyclic);
+            assert_eq!(
+                x.register_equal(bigger, Tol::witness()),
+                SymRegistration::Cyclic
+            );
             // The other direction is not a cycle: `bigger` contains
             // `x`, `x` does not contain `bigger`.
-            assert_eq!(bigger.register_equal(x), SymRegistration::Recorded);
+            assert_eq!(
+                bigger.register_equal(x, Tol::witness()),
+                SymRegistration::Recorded
+            );
         });
     }
 
@@ -3254,11 +3829,69 @@ mod tests {
         let (rows, counts) =
             with_session_rules(budget(), SymRules::shipped_without_the_door(), || {
                 let (n, r, resid) = rim(3.0, 4.0, 5.0);
-                assert_eq!(n.register_equal(r), SymRegistration::Witnessed);
+                assert_eq!(
+                    n.register_equal(r, Tol::witness()),
+                    SymRegistration::Witnessed
+                );
                 resid.map(how)
             });
         assert_eq!(rows, ["numeric", "numeric"]);
         assert_eq!((counts.registered, counts.numeric), (0, 2));
+    }
+
+    /// **The slack's SHAPE, away from the origin** — adopted from R1's
+    /// SYM-6 review row `r1_the_slack_is_relative_and_floored_at_1e9`,
+    /// because nothing else in the suite asserted the
+    /// relative-and-floored spelling anywhere but near 1.
+    ///
+    /// Three claims at one scale, `a = 10⁹`, at whatever ε row the
+    /// process runs at:
+    ///
+    /// - **RELATIVE**: a gap of `k · ε · a` is witnessed for `k` below
+    ///   one and `Disputed` above it, so the slack tracks the magnitude
+    ///   rather than a constant;
+    /// - **FLOORED at one**: the same `k` sweep near zero is compared
+    ///   ABSOLUTELY at ε, so the relative form does not shrink to no
+    ///   slack at all where the magnitudes do;
+    /// - **and a TRUE identity survives**: two values 1000 ULP apart at
+    ///   10⁹ differ by ~1e-7, which an ABSOLUTE ε would refuse at the
+    ///   1e-9 and 1e-12 rows. That refusal is the measurement that
+    ///   killed the absolute spelling (CI run 34048088597), and this is
+    ///   the row that keeps it dead.
+    #[test]
+    fn the_slack_is_relative_and_floored_at_1e9() {
+        let tol = Tol::witness();
+        let eps = tol.eps();
+        let a = 1.0e9_f64;
+        for (k, want) in [
+            (0.99_f64, SymRegistration::Witnessed),
+            (1.01_f64, SymRegistration::Disputed),
+        ] {
+            let b = a + k * eps * a;
+            let got = <f64 as Real>::register_equal(a, b, tol);
+            println!("   k={k} eps={eps:e} a={a:e} b-a={:e} -> {got:?}", b - a);
+            assert_eq!(got, want, "k={k} at eps={eps:e}: the slack is k·ε·|a|");
+        }
+        // The floor: near zero the comparison is ABSOLUTE at ε.
+        assert_eq!(
+            <f64 as Real>::register_equal(1.0e-30, 1.0e-30 + 0.99 * eps, tol),
+            SymRegistration::Witnessed,
+            "inside the floor at eps={eps:e}"
+        );
+        assert_eq!(
+            <f64 as Real>::register_equal(1.0e-30, 1.0e-30 + 1.01 * eps, tol),
+            SymRegistration::Disputed,
+            "outside the floor at eps={eps:e}"
+        );
+        // A true identity at 1e9 whose two sides differ by rounding only.
+        let rounded = f64::from_bits(a.to_bits() + 1000);
+        println!("   1000 ulp at 1e9 is {:e}", rounded - a);
+        assert_eq!(
+            <f64 as Real>::register_equal(a, rounded, tol),
+            SymRegistration::Witnessed,
+            "a true identity at 1e9 must be witnessed at eps={eps:e}; an absolute ε \
+             refuses it, which is why the slack is relative"
+        );
     }
 
     /// **Outside a session the claim is witnessed and nothing is
@@ -3267,21 +3900,25 @@ mod tests {
     #[test]
     fn the_hook_is_a_no_op_off_the_symbolic_scalar() {
         assert_eq!(
-            <f64 as Real>::register_equal(1.0, 1.0 + 1e-15),
+            <f64 as Real>::register_equal(1.0, 1.0 + 1e-15, Tol::witness()),
             SymRegistration::Witnessed
         );
         assert_eq!(
-            <f64 as Real>::register_equal(1.0, 2.0),
-            SymRegistration::Contradicted
+            <f64 as Real>::register_equal(1.0, 2.0, Tol::witness()),
+            SymRegistration::Disputed,
+            "an INEXACT witness never answers Contradicted"
         );
         assert_eq!(
-            <f64 as Real>::register_equal(f64::NAN, 1.0),
+            <f64 as Real>::register_equal(f64::NAN, 1.0, Tol::witness()),
             SymRegistration::Unwitnessed
         );
         // Outside `with_session` there is no table to record in.
         let a = Sym::<f64>::from_f64(2.0);
         let b = Sym::<f64>::from_f64(2.0);
-        assert_eq!(a.register_equal(b), SymRegistration::Witnessed);
+        assert_eq!(
+            a.register_equal(b, Tol::witness()),
+            SymRegistration::Witnessed
+        );
     }
 
     /// **Claim 9 — the axiom agrees with the tier where the tier can
@@ -3361,7 +3998,10 @@ mod tests {
         let (rows, counts) = with_session(budget(), || {
             let [p_end, q_to, resid] = span(0.4, 0.0);
             for (a, b) in p_end.into_iter().zip(q_to) {
-                assert_eq!(a.register_equal(b), SymRegistration::Recorded);
+                assert_eq!(
+                    a.register_equal(b, Tol::witness()),
+                    SymRegistration::Recorded
+                );
             }
             resid.map(how)
         });
@@ -3373,9 +4013,9 @@ mod tests {
             let [p_end, q_to, resid] = span(0.4, 1.0e-3);
             for (a, b) in p_end.into_iter().zip(q_to) {
                 assert_eq!(
-                    a.register_equal(b),
-                    SymRegistration::Contradicted,
-                    "the witness separates a displaced far vertex"
+                    a.register_equal(b, Tol::witness()),
+                    SymRegistration::Disputed,
+                    "the inexact witness separates a displaced far vertex"
                 );
             }
             resid.map(how)
@@ -3394,7 +4034,7 @@ mod tests {
         let run = || {
             with_session(budget(), || {
                 let (n, r, resid) = rim(3.0, 4.0, 5.0);
-                let _ = n.register_equal(r);
+                let _ = n.register_equal(r, Tol::witness());
                 // The registrant's node, recomputed: `Vec3::norm` is
                 // `norm_squared().sqrt()` and ids are content hashes, so
                 // the consumer's divisor is the very node registered.

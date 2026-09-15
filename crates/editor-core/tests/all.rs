@@ -506,6 +506,14 @@ mod m10_10_pins_interval;
 mod m10_10_r1_probes_interval;
 #[path = "m10_10_r2_probes_interval.rs"]
 mod m10_10_r2_probes_interval;
+#[path = "m10_bulge_interval.rs"]
+mod m10_bulge_interval;
+#[path = "m10_derived_frame_interval.rs"]
+mod m10_derived_frame_interval;
+#[path = "m10_derived_frame_tilted_interval.rs"]
+mod m10_derived_frame_tilted_interval;
+#[path = "m10_sym_drive_memo_interval.rs"]
+mod m10_sym_drive_memo_interval;
 #[path = "m10_sym_profile_interval.rs"]
 mod m10_sym_profile_interval;
 

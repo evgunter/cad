@@ -337,7 +337,9 @@ pub use instance::{
     GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed,
     graft_disjoint_all_onto_keyed,
 };
-pub use merge_faces::{MergeCoplanarError, MergeCoplanarOutcome, MergedGroup, SkippedMerge};
+pub use merge_faces::{
+    MergeCoplanarError, MergeCoplanarOutcome, MergeKind, MergedGroup, SkippedMerge,
+};
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use offset_axial::{is_axial, offset_charts_together};
 pub use offset_nappe::{Nappe, face_nappe, group_nappe};
@@ -359,12 +361,12 @@ pub use query::{
 };
 pub use readback::{DanglingRef, EulerCounts, EulerParityError, Pose, ReadbackError};
 pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offset};
-pub use revert::RevertError;
+pub use revert::{RevertError, RevertLink};
 pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
 pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
 };
-pub use source::{GeomSource, Or, SourceAttachError, SourceExpr};
+pub use source::{GeomOrigin, GeomSource, Or, SourceAttachError, SourceExpr};
 pub use split::SplitEdgeCreated;
 pub use splitting::{
     ArcWindowCase, LoopContainment, NullEdgeRecord, PlaneSide, PointInLoopError, Section,

@@ -2,15 +2,23 @@
 //! symbolic normal form on the M10-3 slab and the two-hole plate
 //! (`work/sym/symbolic-tier-costs-95-percent-of-the-m10-3-drive`).
 //!
-//! Every row here is EVIDENCE-ONLY and `#[ignore]`d: each prints the
-//! tier's structural profile (`geom_core::sym::profile`, behind the
-//! test-only `sym-profile-testing` feature the dev-dependency edge turns
-//! on) for one replay or one drive, and asserts nothing about the
-//! numbers — they are the record, read into the item body and the
-//! tier's `# Cost` section, and re-taken by re-running the row. The
-//! fixtures are the ones the M10-3 suite drives (`bounded_chamber`,
-//! the row S-TCOST bisected on) and the plate the tier was built for,
-//! through the same doors.
+//! Every row here but one is EVIDENCE-ONLY and `#[ignore]`d: each
+//! prints the tier's structural profile (`geom_core::sym::profile`,
+//! behind the test-only `sym-profile-testing` feature the
+//! dev-dependency edge turns on) for one replay or one drive, and
+//! asserts nothing about the numbers — they are the record, read into
+//! the item body and the tier's `# Cost` section, and re-taken by
+//! re-running the row. The fixtures are the ones the M10-3 suite
+//! drives (`bounded_chamber`, the row S-TCOST bisected on) and the
+//! plate the tier was built for, through the same doors.
+//!
+//! The one gating row,
+//! [`the_forms_the_walks_build_are_pinned_per_eps_row`], reads the
+//! same instrument for the one thing in it that is not a clock: the
+//! walk ledger — per walk and origin the calls, the forms, the frozen,
+//! and the digest chain of the forms built — so what the tier BUILDS
+//! on both documents is a pinned number, over and above what the
+//! pins say it DECIDES.
 //!
 //! The one row without the profile installed,
 //! [`sym_profile_callgrind_replay`], is the callgrind target: it
@@ -233,5 +241,197 @@ fn sym_profile_callgrind_replay() {
             "replay {i} {scale}: wall {:?} counts {counts:?}",
             t0.elapsed()
         );
+    }
+}
+
+/// The ε row this run is on, as the index into a three-row table
+/// (`1e-6`, `1e-9`, `1e-12`); any other ε has no captured row and
+/// fails loud rather than reading a neighbour's.
+fn eps_row(eps: f64) -> usize {
+    [1.0e-6, 1.0e-9, 1.0e-12]
+        .iter()
+        .position(|&e| (eps / e - 1.0).abs() < 1.0e-3)
+        .unwrap_or_else(|| panic!("no captured row at eps = {eps:e}: capture one and add it"))
+}
+
+/// The slab's walk ledger at its nominal, per ε row.
+const SLAB_LEDGER: [&str; 3] = [
+    "\
+     Plain/Decision calls 980 forms 9686 frozen 0 digest 4c206fa8091829f2e72e255bfcf8cb34\n\
+     Plain/Assertion calls 510 forms 918 frozen 0 digest 9a5a90ce2fb285a663e9cb3773b3fb8d\n\
+     Plain/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
+     Early/Decision calls 16 forms 36 frozen 0 digest decd8ef36980d8f320cb03f6ac5b09e2\n\
+     Early/Assertion calls 510 forms 1958 frozen 0 digest 144775155146a913025d282ba655d459\n\
+     Early/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000",
+    "\
+     Plain/Decision calls 980 forms 9686 frozen 0 digest 68a31dec794118be1e5494c295c01a77\n\
+     Plain/Assertion calls 510 forms 918 frozen 0 digest dc273a096929ffb480ee3ac3734fcf6e\n\
+     Plain/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
+     Early/Decision calls 16 forms 36 frozen 0 digest decd8ef36980d8f320cb03f6ac5b09e2\n\
+     Early/Assertion calls 510 forms 1958 frozen 0 digest 25e1a56d72b822e9b22340ed78923147\n\
+     Early/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000",
+    "\
+     Plain/Decision calls 980 forms 9686 frozen 0 digest b2316116afff13c352e218269a06ec67\n\
+     Plain/Assertion calls 510 forms 918 frozen 0 digest 03d710606e809b65dc34948ac3a0d5b9\n\
+     Plain/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
+     Early/Decision calls 16 forms 36 frozen 0 digest decd8ef36980d8f320cb03f6ac5b09e2\n\
+     Early/Assertion calls 510 forms 1958 frozen 0 digest 6c3dbae8d12c81cbc6c544897d4d3ae1\n\
+     Early/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000",
+];
+
+/// The largest form (numerator plus denominator terms) any op built
+/// on each document at its nominal — the growth guard: a
+/// representation change that grows forms reds here in seconds,
+/// where the ledger alone would first run for minutes.
+///
+/// **Both moved with SYM-5's rule E** (the quotient's common factor),
+/// and in opposite directions, which is the rule's shape: the slab's
+/// largest 10 → 6, because the rule divides the shared factor out of
+/// every form it is given and can only SHRINK that form; the plate's
+/// 90 → 288, because a form the rule brings back under the budget is
+/// one that no longer FREEZES to a one-term indeterminate, and its
+/// consumers then build what the freeze used to cut off (the plate's
+/// `Early/Decision` frozen falls 48 → 8 in the ledger below). The rule
+/// never grows a form; the WALK's largest form grows because fewer
+/// forms are cut short.
+const SLAB_MAX_TERMS: usize = 6;
+const PLATE_MAX_TERMS: usize = 288;
+
+/// The plate's walk ledger at its nominal — one row, because the
+/// plate's nominal reads no ε (its dimensions are literals, not
+/// multiples of ε) and the captures at the three rows agree.
+const PLATE_LEDGER: &str = "\
+     Plain/Decision calls 951 forms 15030 frozen 672 digest 28009db4cb59a2d8449d77d029a0c6e1\n\
+     Plain/Assertion calls 462 forms 2594 frozen 372 digest 85728cdbe8c1b239b969bff8b2d83dbe\n\
+     Plain/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
+     Early/Decision calls 320 forms 7979 frozen 8 digest 7b9779738faac62b022ea91d8e03be38\n\
+     Early/Assertion calls 462 forms 3406 frozen 104 digest c0bd974b4501fd372c3882438eb9676f\n\
+     Early/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
+     Door/Decision calls 330 forms 11884 frozen 104 digest 4472e9a44e2d62da994e09f453faba6c\n\
+     Door/Assertion calls 190 forms 0 frozen 0 digest 00000000000000000000000000000000";
+
+/// **What the walks BUILD is pinned, not only what the tier decides.**
+/// For the slab and the plate at their nominals, every (walk, origin)
+/// line of the profile's walk ledger — calls, forms, frozen, and the
+/// digest chain of the forms themselves (`WalkProfile::digest`: each
+/// memoized form's canonical digest, the key an atom over it is minted
+/// under, chained in build order). The ledger was captured on the tree
+/// that held a form as a `BTreeMap` of terms and is asserted since: a
+/// form's storage may change, and what it SAYS — every coefficient,
+/// every term in the map's order, hence every atom key and every
+/// decision — may not. The pins hold the decisions; this row holds
+/// the forms behind them, so a swapped term order or a coefficient
+/// normalised differently reads here even where the outcome survives
+/// it. The slab's ledger is per ε row, because its literals are
+/// multiples of ε.
+#[test]
+fn the_forms_the_walks_build_are_pinned_per_eps_row() {
+    let tol = Tol::witness();
+    let row = eps_row(tol.eps());
+    let slab_doc = slab();
+    let plate_doc = the_plate(tol);
+    // Both ledgers are taken before either is read, so a red on the
+    // slab still shows the plate's.
+    let taken: Vec<_> = [
+        ("slab", &slab_doc, SLAB_LEDGER[row], SLAB_MAX_TERMS),
+        ("plate", &plate_doc, PLATE_LEDGER, PLATE_MAX_TERMS),
+    ]
+    .into_iter()
+    .map(|(name, doc, expected, max_terms)| {
+        let (_, nominal) = boxes(doc).into_iter().next().unwrap();
+        start_profile();
+        let (_, _, counts) = replay(doc, &nominal, SymRules::shipped(), tol);
+        let profile = take_profile();
+        let ledger = profile.walk_ledger();
+        let largest = profile
+            .ops
+            .values()
+            .map(|o| o.max_terms_out)
+            .max()
+            .unwrap_or(0);
+        println!(
+            "\nLEDGER {name} eps {:e} largest form {largest}\n{ledger}",
+            tol.eps()
+        );
+        (name, ledger, expected, counts, largest, max_terms)
+    })
+    .collect();
+    for (name, ledger, expected, counts, largest, max_terms) in taken {
+        assert_eq!(
+            largest,
+            max_terms,
+            "{name} at eps {:e}: the largest form built has {largest} terms, pinned {max_terms}",
+            tol.eps()
+        );
+        assert_eq!(
+            ledger.trim(),
+            expected.trim(),
+            "{name} at eps {:e}: the walks built different forms (counts {counts:?})",
+            tol.eps()
+        );
+    }
+}
+
+/// **The walk ledger on the documents the pinned row does not
+/// measure** — the M10-10 evidence set at scale 1 (the plate, the two
+/// brackets, the annulus, the pad, the link), at the nominal and over
+/// a leaf-sized box — printed, not asserted, so a merge-base build and
+/// a head build of one row can be diffed: every counter and every
+/// digest chain must agree. From SYM-4's reviews (both reviewers ran
+/// this differential: `origin/sym/4-review-r2`'s row, with
+/// `origin/sym/4-review-r1`'s four-document twin), which is the
+/// coverage the unit's own record did not claim.
+#[test]
+#[ignore = "evidence-only: the walk ledger on six documents, for a merge-base differential"]
+fn the_walk_ledger_on_the_unmeasured_documents() {
+    let tol = Tol::witness();
+    let docs: Vec<(&str, ProfileDoc)> = vec![
+        ("two_hole_plate", the_plate(tol)),
+        (
+            "r2_filleted_bracket",
+            crate::m10_7_r2_probes_interval::bracket(1.0, tol).0,
+        ),
+        (
+            "r1_bracket",
+            crate::m10_8_arc_family_interval::documents(tol)
+                .pop()
+                .map(|(_, d)| d)
+                .unwrap(),
+        ),
+        (
+            "r1_annulus",
+            crate::m10_8_r1_probes_interval::annulus(1.0, tol).0,
+        ),
+        (
+            "r2_rounded_pad",
+            crate::m10_8_r2_probes_interval::pad(1.0, tol).0,
+        ),
+        ("r2_link", crate::m10_9_r2_probes_interval::link(1.0, tol).0),
+    ];
+    for (name, doc) in &docs {
+        for (scale, box_) in boxes(doc) {
+            if scale == "root" {
+                continue;
+            }
+            start_profile();
+            let t0 = Instant::now();
+            let (shapes, refusal, counts) = replay(doc, &box_, SymRules::shipped(), tol);
+            let wall = t0.elapsed();
+            let prof = take_profile();
+            println!(
+                "LEDGER {name} {scale} eps {:e} counts {counts:?} refusal {refusal:?} outcomes {:?} nodes {} atoms {} freezes {} rat_ops {} big_ops {} promotions {} widest {} refused {} (wall {wall:?}, local)\n{}",
+                tol.eps(),
+                outcomes(&shapes),
+                prof.nodes,
+                prof.atoms,
+                prof.freezes.len(),
+                prof.rat_ops,
+                prof.big_ops,
+                prof.promotions,
+                prof.widest_bits,
+                prof.widest_refused_bits,
+                prof.walk_ledger()
+            );
+        }
     }
 }

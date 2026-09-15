@@ -36,10 +36,11 @@
 //!    names and hand back a [`Pose`] or a count, and
 //!    [`face_carrier_kind`] hands back the face's stored
 //!    [`SurfaceKind`](crate::prelude::SurfaceKind) tag — a value too, the one "is this face
-//!    planar" is a comparison of. Arena keys are
+//!    planar" is a comparison of — with [`edge_carrier_kind`] doing
+//!    the same for an edge's [`CurveKind`] tag. Arena keys are
 //!    body-lineage-scoped and do not leave `editor-core`; a NURBS
-//!    face has no canonical frame, so `face_frame` refuses it rather
-//!    than nominating one (its kind is still readable).
+//!    face or edge has no canonical frame, so the frame doors refuse
+//!    it rather than nominating one (its kind is still readable).
 //!
 //! **A name can also be MINTED, not only answered.** A selection that
 //! is AUTHORED rather than materialized — a shell's open list, a
@@ -89,8 +90,9 @@ pub use editor_core::{
     ProfileVertexRef, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag,
     SelectRefusal, Selector, Side, SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges,
     all_faces, all_vertices, attribute, band, band_pi, band_rim, carried, declare, declare_all,
-    declare_node, denotation, edge_frame, edge_name, face_carrier_kind, face_frame, face_name,
-    find_flush_candidates, meridian_vertex, select, select_where, vertex_position,
+    declare_node, denotation, edge_carrier_kind, edge_frame, edge_name, face_carrier_kind,
+    face_frame, face_name, find_flush_candidates, meridian_vertex, select, select_where,
+    vertex_position,
 };
 /// The kernel contact FINDING — "this face pair would verify as this
 /// class, on this evidence" — the fourth quarter of a vocabulary this

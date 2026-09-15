@@ -470,6 +470,131 @@ inputs, each with the count that argues for it, none with a design.
   freeze anywhere; max 90 terms against 4,096) and the coefficient
   bound is a fifth of the freezes (280, widest refused 401 bits).
 
+## The change (SYM-4)
+
+Ask 3, on the two in-session levers the profile ranked first and
+third: **a `Poly`'s terms are one sorted vector in the `BTreeMap`'s
+own order**, and **the ring skips the gcd and the products by one on
+the dyadic shape**. Every count identical before → after on both
+documents — forms, atoms, frozen, decisions by outcome, and the digest
+chain of every form the walks build, which
+`m10_sym_profile_interval::the_forms_the_walks_build_are_pinned_per_eps_row`
+now pins per ε row on the slab and once on the plate (captured on the
+merge base, asserted since). The one profile line that moved is the
+ring's `big-path int ops` (slab 288 → 144, plate 21,132 → 10,584):
+the heap gcds against one and products by one the second lever
+removed. Method as SYM-1's, re-taken on the SYM-4 lane's box (4 vCPU,
+shared with one review lane); instruction counts are callgrind's over
+one bare replay at the nominal and reproduce to within 500 Ir across
+takes; the walls are local and say so.
+
+| instructions, release (one replay) | before | vector terms | + dyadic ring |
+|---|--:|--:|--:|
+| slab, total | 141.5 M | 104.3 M (−26 %) | 99.0 M (−30 %) |
+| slab, term storage (allocator + `BTreeMap` + monomial/`Rc`/glue) | 75.7 M · 53 % | 39.8 M · 38 % | 39.7 M · 40 % |
+| slab, the ring (`i128` path + `num-bigint`) | 13.2 M · 9.4 % | 13.2 M · 12.7 % | 8.6 M · 8.7 % |
+| slab, `Rat::from_parts` inclusive | 6.6 % | 9.0 % | 5.7 % |
+| slab, `plain_form` inclusive ÷ plain forms | 7.6 k | 5.0 k | 4.7 k |
+| plate, total | 1,300 M | 976 M (−25 %) | 713 M (−45 %) |
+| plate, term storage | 728 M · 56 % | 371 M · 38 % | 365 M · 51 % |
+| plate, the ring | 346 M · 27 % | 346 M · 35 % | 109 M · 15 % |
+| plate, `num-bigint` alone | 169 M · 13 % | 169 M · 17 % | 5.0 M · 0.7 % |
+| plate, `Rat::from_parts` inclusive | 24.3 % | 32.3 % | 10.4 % |
+
+| local walls (an iteration reading, not a result) | before | vector terms | + dyadic ring |
+|---|--:|--:|--:|
+| slab nominal replay, release, profile on | 47.2 ms | (not taken) | 35.1 ms |
+| plate nominal replay, release, profile on | 283 ms | (not taken) | 149 ms |
+| the chamber drive row, test profile, sequential harness, one take | 368.0 s | 239.7 s | 225.0 s |
+
+**The hosted before/after** (`memories/perf-measurement-lane.md`: a
+hosted runner's numbers, read with the spread in mind; the instruction
+counts above are the numbers of record). Base: run 34812106311, the
+nearest code-tier PR run to the merge base — which is TRIM-3 PR-2's
+HEAD (`8e53655d`), not the merge base itself, so its cpu-s carry that
+PR's change beside the runner's contention; no run of the merge base
+alone exists (main pushes carry no test matrix). After: SYM-4's PR
+run 34823472408 on head `3d7f3526b` (all twelve `test` jobs and five
+`k-lint` unifications green). The nextest `count:*/2` partition re-cut
+around the new row and the change filter bought a different set of
+suites (2,406 → 3,810 tests in the interval `1/2` shards), so
+per-shard durations do not compare and per-test cpu-s carry
+contention from whatever shared the runner — the spread between two
+runs of one tree is itself large (the frozen head's second run read a
+shard at 92 s that its first run read at 169 s, ~1.8×), so the
+DIRECTION of the per-test drops below survives it and their
+magnitudes do not. The rows are the ones in both runs' top-20 tables:
+
+| interval lane, cpu-s per test | base (shard) | SYM-4 (shard) |
+|---|--:|--:|
+| `m10_7_r2 … r2_the_drive_is_bit_identical_across_repeats_and_the_rayon_schedule` | 302.9 (default 2/2); 302.0 (1e-12 2/2) | 212.2; 248.7 |
+| `m10_7_r2 … r2_the_tier_off_serialization_carries_no_symbolic_line` | 278.5; 259.4 | 189.8; 203.2 |
+| `m10_10_r2_probes::r2_rule_d_agrees_with_a_by_hand_closed_form…` (geom-core) | 70.0; 52.7 | 44.1; 42.5 |
+| `m10_10_pins … eps_relative_ceilings_under_the_shipped_set` | 30.4 (default 1/2); 29.9 (1e-12 1/2) | 16.1 (default 2/2); 17.4 (1e-12 2/2) |
+| `m10_3_r2 … my_own_drive_is_bit_identical_across_repeats_and_schedules` | 19.6; 19.7 | 13.1; 12.3 |
+| `m10_3_driver … a_sliver_wrapped_in_the_ops_own_error…` | 14.1; 13.9 | 9.4; 10.6 |
+| **the chamber row** `m10_3_r1 … the_driven_chamber_replays_bit_identically…` | **121.96 (default 1/2); 130.98 (1e-12 1/2)** | **did not run** — the suite is gated to the driver's paths, not the tier's (`work/tcost/m10-3-chamber-probes-gated-away-from-the-symbolic-tier`) |
+
+Shard walls, for the record and not for comparison: `test (interval,
+eps = default, 1/2)` 147 → 169 s, `2/2` 355 → 248 s, `1e-6 1/2` 129 →
+123 s, `1e-6 2/2` 138 → 136 s, `1e-12 1/2` 558 → 118 s, `1e-12 2/2`
+355 → 826 s (the 479-cpu-s tolerance-study probe moved shards and
+read 760 cpu-s beside the two `m10_7_r2` drives).
+
+**Disclosed deviations.** (1) `unary_at_zero`'s `Acos` arm — `acos(0)
+= π/2` — was `Poly::indet(π)` with its coefficient multiplied by ½ and
+is now `Poly::term(π, ½)`: the same polynomial to the bit, one
+`Rat::mul` fewer, so the profile's `rat ops` is one lower per
+`acos(0)` fold (zero on the slab and the plate at their nominals,
+whose rat-ops lines are identical; it would read on a document that
+folds `acos(0)`) — an instrument-only change, no decision. (2) Four
+files outside the spec's list changed only where they read the map's
+API or spelt a one-term polynomial: `sym/algebra.rs`, `sym/signed.rs`,
+`sym/trig.rs`, `sym/report.rs`. (3) The fix pass adopted the reviews'
+rows — the canonical-`Rat` row in `rational.rs` (red under a gcd
+skipped on every shape, green on the tree), three `form.rs` rows on
+the vector's invariant, the six-document walk-ledger evidence row
+(`the_walk_ledger_on_the_unmeasured_documents`: the plate, both
+brackets, the annulus, the pad, the link — the coverage this record
+did not claim; both reviewers ran that differential identical), and
+the largest-form growth guard on the pinned row (slab 10, plate 90 —
+a guard that fails LEGIBLY, not fast: it is read after the replay
+returns, so a compounding growth mutant still times out before the
+assertion is reached, as the delta measured; a non-compounding one
+names itself) — and made `Poly::terms` private behind an accessor.
+`mul` shrinks its product to fit (+0.14 % instructions, inside the
+spread); `add` still allocates `|a| + |b|` and keeps what the merge
+drops (~1.8 MB of slack on the plate's nominal, the delta's probe) — a
+half-fix on the slack class, memory and not a decision, left as is.
+
+**What was measured and not taken, with its number.** The monomial
+inline (`smallvec` at width four, the slab's maximum and nine tenths
+of the plate's monomials): 413 M against 417 M on the slab and 971 M
+against 976 M on the plate — under one percent, because a 224-byte
+term entry costs in memmove and clone most of what the allocator
+saves and the crate's non-inlined `cmp` eats the rest; a new shipped
+dependency in the kernel crate does not buy one percent. The product
+loop as collect-then-sort-and-merge: 436 M and 1,020 M, a fifth worse
+on both. A scratch monomial reused across the product loop: a wash
+(418 M / 980 M), because a product here is mostly one term by one. A
+cached degree: `within`'s self cost is 1.1 % of the slab and
+`Poly::degree`'s own row 1.2 % of the plate where it is not inlined,
+so the cache's whole gain is bounded by about one percent and it was
+not written.
+
+**What remains, as the next input.** The storage class is still the
+largest number on both documents (40 % / 51 %), and it is now the
+allocator's per-form traffic — one `Vec` per monomial, one `Rc<Form>`
+per memo entry, the term vector's clone on every `add`, `neg` and
+`recip` — not a tree. The walk's own overhead and the DAG build are
+the second number on the slab (24 %, `intern` 18 %): the volume, and
+the drive-scoped plain memo that would remove it is the session-model
+decision this unit was cut not to take. The ring is 9 % of the slab
+and 15 % of the plate, its `from_parts` 5.7 % and 10.4 % inclusive,
+`strip_twos` 1.5 % and 3.1 %. The assertion's share is unchanged as a
+fraction (a tenth of the slab's plain forms, 95 % of its early forms)
+and is the item's separate question.
+
 ## Coverage: which rows DO red with the tier off
 
 The observation above ("all nine M10-3 rows pass with `enabled:
@@ -494,3 +619,123 @@ no-op would leave those green and the pins above red. The tier's
 answers are therefore pinned in the tree — in the M10-8/9/10 pin
 suites and not in the M10-3 suite that pays for them, which is the
 row S-TCOST's cost question is about.
+
+## Decision for Ev (2026-09-14, `[ev]` PR from the SYM orchestrator): the plain form's memo and the leaf
+
+**Where the cost stands after SYM-4.** In release, one nominal replay
+of the M10-3 slab is 99 M instructions (was 141.5 M); storage 40 %,
+the walk and the DAG build 24 %, the ring 9 %. Nothing freezes on the
+slab. What the slab pays for is VOLUME: ~10,000 plain forms per leaf
+for 1,490 decisions, and the same 12,208-node DAG interned afresh in
+each of a drive's 2,559 sessions (21.7 M `intern`s over the drive; 19
+M plain forms). The plain walk is half of every leaf's replay and it
+recomputes, leaf after leaf, forms that are the SAME function of the
+same content hash.
+
+**The fact the proposal rests on.** A node's id is a content hash of
+`(op, children, payload)`, leaf-invariant (a `Param` carries only its
+symbol, a `Lit` its bits, an `Opaque` the per-leaf sequence — the
+same on every leaf of one drive by D9's fixed single-threaded walk),
+and the PLAIN form reads no value: it is a function of the id and the
+session's budget alone. So a plain form computed on one leaf is valid
+on every other leaf of the same drive.
+
+**D3 — may the tier's plain-form memo outlive the leaf?** Today the
+hash-consing table is per-leaf-replay, holds nothing across leaves,
+and is dropped with the leaf (`sym.rs`, the D9 section — the tier's
+own module docs, not ERROR-DESIGN E12, which says only "memoized per
+node").
+
+- **(1) A drive-scoped plain memo**, keyed by `SymId`, installed by the
+  drive around its leaves and dropped with the drive; the early and
+  door walks stay per leaf (they consult the registry and the leaf's
+  rules). Three side effects, each with a definition to choose:
+  `sess.atoms` are registered inside the plain walk and read by the
+  top-residual reduce and by `reduce_steps` — the memo carries its
+  atoms; `SymCounts::frozen` is incremented inside the walk — it
+  becomes "distinct nodes frozen over the drive" on the drive's
+  receipt while each leaf's receipt keeps its decision counts (the
+  per-leaf accounting goldens' `frozen` column moves and is
+  re-blessed as the acceptance's own move); the opaque-sequence
+  argument becomes load-bearing across leaves (a pin). **Recommended**:
+  it removes up to the plain walk's half from every leaf after the
+  first — the largest lever left on the slab — and its soundness
+  argument is the one the tier already makes for two occurrences of a
+  node inside one leaf, applied across leaves.
+- **(2) Keep the per-leaf session** (status quo, ratified as not-now):
+  the leaf stays a self-contained unit with a self-contained receipt;
+  the cost is the volume above, paid on every drive.
+- **(3) A subtree memo**: a child leaf inherits its parent's memo at
+  the split and drops it with the subtree — (1) confined to the
+  bisection tree, the same side effects one level down. Not
+  recommended over (1): it buys most of the win with a second scope
+  to reason about.
+
+The orchestrator's pick is (1), as a unit in block SYM-B2 (H,
+STRUCTURAL — the receipt semantics are the design, the memo is the
+code), unless Ev prefers the leaf to stay self-contained, in which
+case this proposal closes with (2) on the record. The assertion
+discharge (the `Decide` impl's `debug_assert!` — a tenth of the
+slab's plain forms, 95 % of its early-walk forms) is a separate
+question and is not asked here.
+
+## Ev's answer (2026-09-14): (1), the drive-scoped plain memo
+
+"(1) sounds good!" on #2581. Taken as a unit of block SYM-B2 (H /
+STRUCTURAL): the plain-form memo keyed by `SymId`, installed by the
+drive and dropped with it; the early and door walks per leaf; the
+three side effects defined as above (the memo carries its atoms;
+`frozen` becomes distinct-nodes-over-the-drive on the drive's receipt,
+the per-leaf goldens' column re-blessed as the acceptance's own move;
+the opaque-sequence argument pinned across leaves). The assertion
+discharge stays a separate question.
+
+## What the drive-scoped plain memo took, and what it left (SYM-7, 2026-09-15)
+
+The volume ask above closes with SYM-7 (`geom_core::sym::DriveMemo`,
+`DriveConfig::plain_memo`). What it moved, measured on the box this
+item's other readings were taken on:
+
+| document | leaves | schedule | memo off | memo on | ratio |
+|---|--:|---|--:|--:|--:|
+| slab | 1,280 | sequential | 157.13 s | 78.17 s | 2.01× |
+| slab | 1,280 | parallel | 40.12 s | 21.04 s | 1.91× |
+| plate | 256 | sequential | 247.47 s | 205.35 s | 1.20× |
+| plate | 256 | parallel | 65.01 s | 51.42 s | 1.26× |
+
+Test profile, one take each. In RELEASE both reviewers re-took the slab
+at **2.7–3.05×**, which is the number to quote for a shipped build: the
+test profile spreads a quarter of the count over glue that release
+inlines away, and that glue is in both lanes.
+
+### The ceiling it was sized against
+
+| document | leaves | plain forms | per leaf | distinct ids | ratio |
+|---|--:|--:|--:|--:|--:|
+| slab (M10-3 chamber, 1,280-leaf budget) | 2,559 | 19,099,919 | 7,464 | 18,833 | 1,014.2× |
+| plate (256-leaf budget) | 511 | 9,005,864 | 17,624 | 17,624 | 511.0× |
+
+### Phase 3 — the hash-consing table shared across the drive: MEASURED, NOT TAKEN
+
+`intern` is the largest remaining share of a memo-on slab drive:
+**101,014,539 of 297,806,769 Ir inclusive, 33.9 %** (callgrind, release,
+8-leaf sequential drive). Almost all of that is `SymNode::id()`, the
+128-bit content hash, which a shared table does not remove — the id has
+to be computed before any table can be consulted. What sharing could
+remove is the TABLE work: `rustc_entry` 10,176,058 + `reserve_rehash`
+6,573,305 + `insert_no_grow` 5,286,294 = **22,035,657 Ir, 7.4 % of the
+drive** — an upper bound taken before any lock cost, against 21.7 M
+interns over a drive each of which would need one. SYM-7's spec gated
+the change at **≥ 10 % of wall time**, so it is not taken; both
+reviewers accepted the partition. The number stays here rather than in a
+merged PR body, which is where the spec said it should live.
+
+### What the memo does NOT help
+
+A drive whose leaves are dominated by the EARLY walk, which stays per
+leaf. R2 measured the boss-on-a-derived-frame-over-a-tilted-datum
+document at 48 leaves: **275.8 s with the memo on against 276.1 s with
+it off** — every leaf refused, the per-node rule A/B reduction is the
+cost, and the plain memo saves nothing there. The class the memo helps
+is plain-walk-dominated drives, which is what the slab is and what the
+plate half is.

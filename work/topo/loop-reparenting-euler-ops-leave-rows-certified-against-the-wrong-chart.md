@@ -2,9 +2,11 @@
 id: loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart
 kind: unit
 title: kfmrh and ring_move re-parent a loop onto a face with a different chart; its pcurve rows keep their keys and lose their meaning, and tier 3 is silent whenever the target is planar
-status: dispatched
+status: closed
 opened: 2026-09-14
+pr: 2549
 branch: topo/loop-reparenting-rows
+closed: 2026-09-14
 ---
 
 Found by PR 2531's reviewers (R2 by execution on `kfmrh`, R1 by reading
@@ -97,3 +99,25 @@ disposition measured, not asserted.
 Branch `topo/loop-reparenting-rows`. PR title: "TOPO: a re-parented
 loop carries no rows about the chart it left". Do not close the item;
 the dual runs at review.
+
+## Corrections to this record (2026-09-14, PR 2549's fix pass)
+
+- **`kfmrh`'s citation above is wrong.** The mechanism section files
+  `Body::kfmrh` under `crates/topo/src/euler_kill.rs`; `kfmrh` lives in
+  `crates/topo/src/euler_ring.rs` beside `Body::ring_move`, and
+  `euler_kill.rs` is where `Body::mfkrh` and `Body::mfkrh_plug` live.
+  The table and the text above are otherwise as measured.
+- **A third door belongs in the mechanism list.** `Body::mfkrh`
+  promotes a ring to the outer loop of a new face whose surface the
+  caller names, which is the same loop re-parenting; `mfkrh_plug` is
+  that door onto a placeholder, which is never the chart a row was
+  stated in.
+- **What the fix decides the comparison by.** Not the surface KEY, as
+  the brief's shape (a) spells it, but the CHART: one key, or two keys
+  the body records as one description (`Body::same_chart`, the merge
+  door's two hard rungs). The residue — two keys holding an equal
+  surface that no `GeomSource` ties — is filed as
+  `work/topo/two-provenance-free-keys-holding-one-surface-read-as-two-charts`
+  with the bound-widening measurement that says why it is not closed
+  here.
+

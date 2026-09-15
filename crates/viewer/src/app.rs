@@ -59,6 +59,7 @@ use pncad::geom_core::Tol;
 use crate::camera::{self, Camera, CameraError};
 use crate::display::DisplayView;
 use crate::drafts::Drafts;
+use crate::evalseam::FitService;
 #[cfg(not(target_family = "wasm"))]
 use crate::evalseam::ThreadEvaluator;
 use crate::frame::{self, IdQueryLog, StatusUpdate};
@@ -300,10 +301,20 @@ pub struct ViewerApp {
     id_log: IdQueryLog,
     /// Bumped on every rebuild; the GPU uploads when it disagrees.
     revision: u64,
-    /// The evaluation generation `scene` was built from. When it
-    /// disagrees with the session's landed generation, the picture is
-    /// out of date and exactly one rebuild is owed.
-    scene_generation: Option<Generation>,
+    /// **The index identity `scene` carries**: the `(generation, δ)`
+    /// pair of the [`PickIndex`] whose id map minted the per-corner ids
+    /// in the mesh on screen, as [`PickIndex::current_for`] takes them.
+    ///
+    /// A pick id is a word of ONE index's alphabet. Anything that
+    /// resolves an id the picture produced, or mints one for the
+    /// picture to compare against, is reading that alphabet, so it owes
+    /// a check that the index in hand is the index this pair names —
+    /// `pane::viewport::drawn_index` is where that check lives.
+    ///
+    /// `None` is a picture no index minted ids for: the startup mesh
+    /// comes from [`scene::scene_of`], whose corners all carry
+    /// [`crate::pickindex::IdMap::NOTHING`].
+    scene_key: Option<(Generation, DisplayTolerance)>,
     /// The display-state revision `scene` was built under — hide and
     /// free-move are scene inputs too, so a display change owes a
     /// rebuild exactly as a new evaluation does.
@@ -353,6 +364,17 @@ pub struct ViewerApp {
     /// the number on screen is theirs and the badge would be claiming
     /// a choice it did not make.
     budget_delta: Option<crate::scene::FittedDelta>,
+    /// **The display budget's seam** — where the probe tessellations
+    /// that price a document run, which is not this thread.
+    ///
+    /// State ABOUT WORK IN FLIGHT rather than a second opinion about
+    /// the document, which is the same standing `PickCache`'s record
+    /// of what it has asked for has (`crates/viewer/GUI-DESIGN.md`,
+    /// *What that does to the frame-state inventory*). Nothing here is
+    /// derived from the document and nothing here can be WRONG about
+    /// it: what the seam holds is a request, and the δ it answers with
+    /// is compared against the δ in force before it is taken.
+    fit: Box<dyn FitService>,
     /// **The modal tools, at most one open** — the mate tool, the
     /// revolve tool and the four combining tools as one value, with
     /// the exclusivity rule inside it rather than spread across the
@@ -598,6 +620,29 @@ fn indexer() -> Result<Box<dyn crate::evalseam::IndexService>, StartupError> {
     }
 }
 
+/// The display budget's fit seam this build runs on — [`evaluator`]'s
+/// choice again, for its reason.
+///
+/// # Errors
+///
+/// [`StartupError::Worker`] if the OS refuses the thread; the wasm arm
+/// is infallible. The index build waits on this seam's answer, so a
+/// viewer whose fit worker never started would open every document to
+/// a picture that never arrives — a failure to meet at startup, not to
+/// discover by opening a file.
+fn fitter() -> Result<Box<dyn FitService>, StartupError> {
+    #[cfg(not(target_family = "wasm"))]
+    {
+        Ok(Box::new(
+            crate::evalseam::ThreadFitter::spawn().map_err(StartupError::Worker)?,
+        ))
+    }
+    #[cfg(target_family = "wasm")]
+    {
+        Ok(Box::new(crate::evalseam::InlineFitter::new()))
+    }
+}
+
 impl ViewerApp {
     /// Build the application: author the starting document, evaluate
     /// it, tessellate at the initial δ, frame a camera on the result,
@@ -691,7 +736,7 @@ impl ViewerApp {
             id_answer: Arc::new(AtomicU64::new(0)),
             id_log: IdQueryLog::new(),
             revision: 1,
-            scene_generation: None,
+            scene_key: None,
             scene_display: None,
             scene_focus: BTreeSet::new(),
             scene_fault: None,
@@ -703,6 +748,7 @@ impl ViewerApp {
             // waiting to be a bug.
             fit_delta_on_scene: true,
             budget_delta: None,
+            fit: fitter()?,
             tools: Tools::new(),
             part_chooser: None,
             profile_form_drawn: false,
@@ -724,6 +770,37 @@ impl ViewerApp {
             store,
             keys_pref: saved.keys,
         })
+    }
+
+    /// Take the display budget's answer, if one is ready.
+    ///
+    /// **Dropped rather than applied on either half of a mismatched
+    /// key.** An answer for a generation the session has moved past
+    /// prices a document nobody is looking at. One for a δ the View
+    /// pane has moved off prices a number the user has replaced, and
+    /// the budget's authority stops at the δ a document OPENS at
+    /// ([`ViewerApp::fit_delta_on_scene`]) — so the typed number wins,
+    /// silently, because nothing was taken away from anyone.
+    ///
+    /// A fit that REFUSED leaves δ alone: the document is one whose
+    /// roots do not gather, or one that tessellates at NEITHER of the
+    /// two δ the fit can fall back between (`scene::fit_delta`'s scale
+    /// probe and the rung that prices the request — a refusal at one of
+    /// them is answered by the other, so only a body that refuses at
+    /// both gets here). The index build is about to say so with its own
+    /// typed refusal, and two opinions about that would be one too many.
+    fn take_fit(&mut self) {
+        while let Some(done) = self.fit.poll() {
+            if Some(done.generation) != self.session.landed_generation()
+                || done.requested != self.delta
+            {
+                continue;
+            }
+            if let Ok(fitted) = done.fit {
+                self.delta = fitted.delta;
+                self.budget_delta = fitted.requested_cost.map(|_| fitted);
+            }
+        }
     }
 
     /// Take whatever the seam finished and, if the picture is behind
@@ -753,33 +830,24 @@ impl ViewerApp {
         // carries the method and the numbers; `TRIANGLE_BUDGET` says
         // why there is a budget at all.
         //
-        // A fit that cannot run leaves δ alone: the document is one
-        // whose roots do not gather (no landed body), or one that
-        // tessellates at NEITHER of the two δ the fit can fall back
-        // between (`scene::fit_delta`'s scale probe and the rung that
-        // prices the request — a refusal at one of them is answered by
-        // the other, so only a body that refuses at both reaches
-        // here). The index build below is about to say so with its own
-        // typed refusal, and two opinions about that would be one too
-        // many.
-        if self.fit_delta_on_scene
-            && let Some((doc, evaluation)) = self.session.landed_pair()
-        {
+        // **It runs on its own worker** (`crate::evalseam::FitService`).
+        // The ladder is a run of probe tessellations costing about an
+        // eighth of a full one, which on a document dense enough to
+        // want a budget is the better part of a second, and a window
+        // that stops repainting for it is the defect the index seam was
+        // cut to remove — one step earlier, and on the very documents
+        // the seam was cut for. So the shape is the index seam's:
+        // submit, keep painting, take the answer when it comes.
+        self.take_fit();
+        if self.fit_delta_on_scene && self.session.landed_generation().is_some() {
+            // Spent on the first landing, whether or not that landing
+            // has a body to price: a document whose product refuses has
+            // no size to fit a δ to, and leaving the budget armed for
+            // its first successful EDIT would make it something other
+            // than the δ a document OPENS at.
             self.fit_delta_on_scene = false;
-            // The LANDING's body, which its own gather already paid
-            // for. The gather below runs for one landing shape only —
-            // an assembly whose A5 gate refused ate the product it
-            // judged — and is spelled out rather than hidden behind
-            // the getter, so the one path that costs a gather is the
-            // one path that names one.
-            let fitted = match self.session.landed_body() {
-                Some(body) => scene::fit_delta(body, self.delta, self.session.tol()),
-                None => scene::product_of_evaluation(doc, evaluation, self.session.tol())
-                    .and_then(|body| scene::fit_delta(&body, self.delta, self.session.tol())),
-            };
-            if let Ok(fitted) = fitted {
-                self.delta = fitted.delta;
-                self.budget_delta = fitted.requested_cost.map(|_| fitted);
+            if let Some(request) = self.session.fit_request(self.delta) {
+                self.fit.submit(request);
             }
         }
         // **The index seam answers here.** A build that finished is
@@ -810,7 +878,22 @@ impl ViewerApp {
         // Every arm but `Current` leaves the viewport drawing the mesh
         // it already has — an older picture, which the indexing
         // indicator names and `pickcache::unindexed` refuses picks against.
-        match self.picks.sync(self.session.index_inputs(), self.delta) {
+        // **The index waits for the budget's answer.** A build
+        // submitted at the δ in force while the fit is still pricing
+        // the document IS the un-budgeted build the budget exists to
+        // avoid, so there is no δ to offer until the fit is done and
+        // `None` is how the cache is told. It forgets: the previous
+        // document's index stops answering picks the moment this one
+        // lands, exactly as it would have on a submit.
+        //
+        // A δ typed while a fit is outstanding waits for it too, then
+        // discards it (`ViewerApp::take_fit`) and builds verbatim. The
+        // wait is the fit's own length and buys nothing, and is
+        // accepted rather than tracked: the alternative is a second
+        // record of what the seam already holds, for a window under a
+        // second on the frames just after a document opens.
+        let settled = (!self.fit.busy()).then_some(self.delta);
+        match self.picks.sync(self.session.index_inputs(), settled) {
             pickcache::CacheStep::Held
             | pickcache::CacheStep::Nothing
             | pickcache::CacheStep::Submitted
@@ -834,7 +917,12 @@ impl ViewerApp {
                 // not consume this (generation, display) pair, or the
                 // stale picture stays on screen marked as the current
                 // one and is never retried.
-                self.scene_generation = self.session.landed_generation();
+                // Taken from the INDEX, not from the session: the
+                // pair that matters is the one whose id map is in this
+                // mesh, and reading the session's generation here would
+                // be a second derivation of it that nothing holds to
+                // the first.
+                self.scene_key = Some((index.generation(), index.delta()));
                 self.scene_display = Some(display_revision);
                 self.scene_focus = focus;
                 self.scene = Arc::new(mesh);
@@ -1310,7 +1398,15 @@ impl ViewerApp {
             // the session owes against what the index seam is
             // doing, so the toolbar never lights two spinners for
             // the same moment.
-            match frame::progress(self.session.outstanding(), self.picks.indexing()) {
+            // **The spinner follows the work, never the name**
+            // (`frame::Progress::Canceled`). A fit in flight is the
+            // index build's first step from a user's seat — nothing is
+            // on screen for it, the build follows it with no gap, and
+            // the one progress state is what says a picture is coming.
+            match frame::progress(
+                self.session.outstanding(),
+                self.picks.indexing() || self.fit.busy(),
+            ) {
                 Some(frame::Progress::Evaluating) => {
                     ui.separator();
                     ui.spinner();
@@ -1530,6 +1626,7 @@ impl eframe::App for ViewerApp {
                     budget_delta: self.budget_delta,
                     scene: &self.scene,
                     index: self.picks.index(),
+                    scene_key: self.scene_key,
                     indexing: self.picks.indexing(),
                     revision: self.revision,
                     camera: &mut self.camera,
@@ -1623,6 +1720,10 @@ pub(crate) struct ViewerBehavior<'a> {
     pub(crate) budget_delta: Option<crate::scene::FittedDelta>,
     pub(crate) scene: &'a Arc<SceneMesh>,
     pub(crate) index: Option<&'a PickIndex>,
+    /// The index identity the `scene` above carries (`ViewerApp::
+    /// scene_key`), for the reads of `index` that are about the
+    /// PICTURE rather than about the document.
+    pub(crate) scene_key: Option<(Generation, DisplayTolerance)>,
     /// Whether a build for the picture this frame WANTS is under way —
     /// the other half of what `index: None` means, and the half that
     /// decides which sentence a refused pick gets

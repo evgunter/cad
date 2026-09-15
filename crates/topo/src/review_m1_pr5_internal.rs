@@ -286,6 +286,10 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     ("set_point_source", "GeomSource metadata, no arena key"),
     ("clear_geom_sources", "GeomSource metadata, no arena key"),
     (
+        "mark_imported",
+        "origin metadata beside the GeomSource maps (`crate::GeomOrigin`), no arena key",
+    ),
+    (
         "set_surface_field_source",
         "ParamSource metadata, no arena key (a per-field side record beside the surface)",
     ),
