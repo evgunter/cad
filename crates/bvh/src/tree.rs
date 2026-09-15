@@ -140,6 +140,17 @@ impl Bvh {
         self.boxes.is_empty()
     }
 
+    /// Whether this is the tree over exactly `boxes`, in this order —
+    /// bit for bit ([`Aabb::same_bits`]): the item boxes are
+    /// [`Bvh::build`]'s argument verbatim and the build is a function
+    /// of their bits alone, so a `true` here says a rebuild would
+    /// produce this tree again, node for node. A consumer that caches
+    /// trees answers "is the cached tree the tree over these boxes"
+    /// with this instead of rebuilding to compare.
+    pub fn is_over(&self, boxes: &[Aabb]) -> bool {
+        self.boxes.len() == boxes.len() && self.boxes.iter().zip(boxes).all(|(a, b)| a.same_bits(b))
+    }
+
     /// All input indices whose item box overlaps `query`, in
     /// **ascending input order** (a subsequence of the arena order —
     /// the D9-relevant contract; tree shape never leaks into the

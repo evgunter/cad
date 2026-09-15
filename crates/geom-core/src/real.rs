@@ -66,6 +66,8 @@
 use core::fmt::Debug;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
+use crate::tolerance::Tol;
+
 /// **What the registered-identity door did with one registration**
 /// ([`crate::Sym::register_equal`], ERROR-DESIGN E12's provenance reserve).
 ///
@@ -73,19 +75,20 @@ use core::ops::{Add, Div, Mul, Neg, Sub};
 /// the door answers what it did, so a registrant that wanted to be
 /// loud can be and a pin can read it.
 ///
-/// **Six flat arms over two axes, and that is a decision** (a review
+/// **Seven flat arms over two axes, and that is a decision** (a review
 /// flagged the flattening; this is the call). The axes are the WITNESS
 /// — did the value channel find the two values one real: witnessed,
-/// contradicted, or unable to say — and the REGISTRY — recorded,
+/// refused by an exact witness, refused by an inexact one, or unable to
+/// say — and the REGISTRY — recorded,
 /// already there, refused as cyclic, or not consulted. A struct of two
 /// fields would name them separately and would also make
 /// `{Contradicted, Recorded}` spellable, which is a state the door must
 /// never be in; a registrant would then match twice to learn one thing.
-/// The six arms are exactly the reachable combinations, so the
+/// The seven arms are exactly the reachable combinations, so the
 /// impossible ones cannot be written down, and a call site reads one
 /// answer. The cost, stated: "was this refused?" is a two-arm match
 /// rather than a field read, and every registrant pays it by hand
-/// (`work/m10/sym-registration-flattens-two-axes`).
+/// (`work/sym/sym-registration-flattens-two-axes`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SymRegistration {
     /// Recorded: from here on the two nodes denote one function of the
@@ -96,14 +99,48 @@ pub enum SymRegistration {
     /// already resolves to one. Idempotent, and cheap: nothing is
     /// invalidated.
     Already,
-    /// **REFUSED, typed: the two values are not one real.** The lane
-    /// scalar's own witness said so — certified enclosures that do not
-    /// MEET at [`crate::Interval`], `f64` values apart by more than
-    /// [`WITNESS_REL`] of the larger magnitude — so the constructor did not
-    /// build what it claims. Nothing is recorded, the registry is
-    /// unchanged, and every decision that would have rested on the
-    /// record stays numeric.
+    /// **REFUSED by an EXACT witness: the two values are PROVED not one
+    /// real.** Reserved for [`crate::Interval`], whose certified
+    /// enclosures of the two sides are DISJOINT over the leaf's box.
+    /// There is no slack in that test and nothing to lose at the scale,
+    /// so the answer is a proof of a defect: either the constructor did
+    /// not build what it claims, or an upstream enclosure does not
+    /// contain its real. A registrant may therefore `debug_assert!` on
+    /// this arm, and the swept registrants do. `f64` and
+    /// [`crate::Probe`] never answer it — an inexact witness answers
+    /// [`SymRegistration::Disputed`].
+    ///
+    /// **A registrant's assertion on this arm is LIVE IN RELEASE, and
+    /// that is a deliberate change of behaviour.** This workspace ships
+    /// `[profile.release] debug-assertions = true`, so a registrant that
+    /// `debug_assert!`s here ABORTS in every profile, where before the
+    /// arm split the same configuration was a counted refusal in all of
+    /// them. It is the right shape: at an exact witness a refusal is a
+    /// proof of a soundness defect somewhere upstream, and this codebase
+    /// fails loud rather than recording a defect in a column. What is
+    /// bought with it is that nothing downstream can rest on a
+    /// registration the exact witness disproved.
+    ///
+    /// Nothing is recorded, the registry is unchanged, and every
+    /// decision that would have rested on the record stays numeric.
     Contradicted,
+    /// **REFUSED by an INEXACT witness: the two values are apart by more
+    /// than its slack, and it cannot say which claim that is.** The
+    /// answer of `f64` and [`crate::Probe`], which compare at a point
+    /// with a slack of the run's ε relative to the larger magnitude
+    /// ([`Real::register_equal`]'s `f64` impl). The registration may be
+    /// a lie; it may equally be a theorem of the reals whose two sides
+    /// separate because the arithmetic ran out of significand at this
+    /// scale — an adversarial torus at a minor radius of 10¹⁸ with walls
+    /// below one ULP reaches exactly that, and nothing is wrong there.
+    /// **Never asserted on.** The gap cannot tell the two apart (at that
+    /// torus the sides are many ULPs apart), which is why the arm is
+    /// keyed to the KIND of witness and not to a second threshold.
+    ///
+    /// Nothing is recorded, and the refusal is counted exactly as
+    /// [`SymRegistration::Contradicted`] is
+    /// ([`crate::SymCounts::registrations_refused`]).
+    Disputed,
     /// **REFUSED, typed: the registration would close a cycle** — the
     /// right node's expression already contains the left one, so
     /// aliasing them would make the normal form's walk non-terminating.
@@ -126,41 +163,6 @@ pub enum SymRegistration {
     /// expression with no value witnesses nothing.
     Unwitnessed,
 }
-
-/// **The `f64` witness's slack: RELATIVE to the larger magnitude,
-/// floored at one — and DELIBERATELY not the run's ε.**
-///
-/// It gates whether a registration is RECORDED and nothing else:
-/// nothing is certified by it, no margin is classified against it, and
-/// a registration it admits is still an axiom whose soundness rests on
-/// the registrant's proof ([`Real::register_equal`]).
-///
-/// **Why it is not `Tol`'s ε, which a review asked for and this pass
-/// tried.** Two reasons, and the second is measured:
-///
-/// 1. **`Tol::witness()` in library code is an ambient read**, and
-///    `scripts/gates/witness-not-ambient.sh` forbids it for a reason
-///    that outranks this preference: the run's ε is an entry-point
-///    commitment, taken as a `tol: Tol` parameter and passed down. The
-///    door has no tolerance parameter — `Real::register_equal(self,
-///    other)` is called from generic constructor code that has none
-///    either — so making the slack ε-derived means threading `Tol`
-///    through the swept/revolve pipeline or putting one on the
-///    symbolic session. Both are real changes and neither belongs in a
-///    fix pass.
-/// 2. **An ABSOLUTE slack is wrong far from the origin.** ε is a length
-///    in metres; a rim at coordinates of 10⁹ carries `f64` rounding of
-///    ~10⁻⁷, so an absolute ε refuses a true identity and the
-///    registrants' `debug_assert!`s fire. Measured, not reasoned: the
-///    absolute spelling turned `mesh`'s far-placement ball probe and
-///    `sweep`'s tube-wall radii probe red in the `f64` lane.
-///
-/// So the slack stays relative and ε-independent, and the limit is
-/// FILED rather than hidden
-/// (`work/m10/the-witness-slack-is-eps-independent`): at a tight ε row
-/// this threshold is many band-widths loose, which weakens the witness
-/// exactly where the review said it does.
-pub const WITNESS_REL: f64 = 1e-9;
 
 /// The scalar type the geometry evaluation layer is generic over.
 ///
@@ -254,12 +256,16 @@ pub trait Real:
     ///
     /// - a scalar whose value channel can WITNESS the claim answers
     ///   [`crate::sym::SymRegistration::Witnessed`] or, when the two
-    ///   values are not the same real,
-    ///   [`crate::sym::SymRegistration::Contradicted`] — `f64` and
-    ///   [`crate::Probe`] by a point tolerance
-    ///   ([`WITNESS_REL`]), [`crate::Interval`] by whether
-    ///   the two certified enclosures MEET. Neither records anything:
-    ///   there is no expression at a bare scalar to record it about;
+    ///   values are not the same real, one of the two REFUSAL arms,
+    ///   chosen by the KIND of witness: `f64` and [`crate::Probe`]
+    ///   compare at a point with the run's ε as slack, taken as `tol`
+    ///   ([`Real::register_equal`]'s `f64` impl argues the spelling),
+    ///   and answer [`crate::sym::SymRegistration::Disputed`];
+    ///   [`crate::Interval`] asks whether the two certified enclosures
+    ///   MEET — an exact test — and answers
+    ///   [`crate::sym::SymRegistration::Contradicted`]. Neither records
+    ///   anything: there is no expression at a bare scalar to record it
+    ///   about;
     /// - [`crate::Sym`] asks its own lane scalar that question first
     ///   and, on a witness, RECORDS the identity in the installed
     ///   session, where the symbolic tier's early normal form consults
@@ -269,9 +275,11 @@ pub trait Real:
     /// method's first cut overstated, corrected by two reviews taken by
     /// execution. A registration is an AXIOM; its soundness rests on
     /// the REGISTRANT'S PROOF and on nothing here. The witness refuses
-    /// only a lie visible AT THE POINT (`f64`, `Probe`) or one whose
-    /// two certified enclosures are DISJOINT over the box
-    /// (`Interval`) — and "the enclosures meet" is satisfied by every
+    /// only a lie visible AT THE POINT (`f64`, `Probe`, and there only
+    /// as `Disputed`, which may also be the arithmetic giving up) or one
+    /// whose two certified enclosures are DISJOINT over the box
+    /// (`Interval`, where the refusal is a proof) — and "the enclosures
+    /// meet" is satisfied by every
     /// coincidence, so `x² ≡ x` over `[0.9, 1.1]` is recorded, and a
     /// registration false by a geometric amount is recorded as soon as
     /// the box is wide enough for the two enclosures to overlap. **The
@@ -281,7 +289,21 @@ pub trait Real:
     /// the numeric-first shield is weakest — a residual whose two sides
     /// are dependency-widened straddles zero for the same reason its
     /// two enclosures meet. The rows that establish this are
-    /// `geom-core/tests/m10_9_witness_limits_interval.rs`.
+    /// `geom-core/tests/m10_9_r1_sym_probes.rs`
+    /// (`r1_a_coincidence_at_one_point_of_the_box_registers_and_decides_zero`
+    /// and `r1_a_geometric_lie_the_f64_witness_refuses_is_recorded_at_interval`)
+    /// and `geom-core/tests/m10_9_r2_sym_probes.rs`
+    /// (`r2_the_interval_witness_lets_a_geometric_lie_through_over_a_wide_box`).
+    ///
+    /// **`tol` is the run's ε, and it ARRIVES.** The inexact witnesses
+    /// (`f64`, [`crate::Probe`]) compare at a slack, and a slack that
+    /// does not move with the run's ε is loosest exactly where the
+    /// numeric-first shield is tightest. The run's ε is an entry-point
+    /// commitment, so it is taken as a parameter and passed down from
+    /// whichever registrant holds one — kernel library code may not
+    /// mint a tolerance witness (`scripts/gates/witness-not-ambient.sh`).
+    /// A scalar whose witness is EXACT ([`crate::Interval`]'s meet of
+    /// two certified enclosures) ignores it, and says so at its impl.
     ///
     /// **WHERE IT MAY BE CALLED.** This method hands every generic
     /// `T: Real` body a value COMPARISON — the capability
@@ -298,7 +320,7 @@ pub trait Real:
     /// counted in the session's receipt
     /// ([`crate::SymCounts::registrations_refused`]).
     #[must_use]
-    fn register_equal(self, _other: Self) -> SymRegistration {
+    fn register_equal(self, _other: Self, _tol: Tol) -> SymRegistration {
         SymRegistration::Unwitnessed
     }
 
@@ -995,6 +1017,26 @@ pub mod bounds_allowlist {
     //! constructor beside its invariants plus a query driver over the C10
     //! tree, deciding no topology.
     //!
+    //! `topo::census` — the at-rest census's BVH pre-filter — falls under
+    //! this entry on the same terms: `census::Trees` builds the C10 tree's
+    //! item boxes through the certified box constructors (`face_box`,
+    //! `edge_box`, a vertex point widened by the sweep pad) and
+    //! `census::Candidates` drives the tree's queries, deciding nothing —
+    //! the exact sweeps that follow decide. The weakest bound that works
+    //! is `Decide + Bounds`: the tree's boxes are `f64` brackets read
+    //! through `Bounds::lo`/`hi` (`bvh::Aabb::from_points`), and the
+    //! census is decision code on the same scalar. Sole `Bounds` fails —
+    //! the sweeps call the funnel — and sole `Decide` fails — no box can
+    //! be read without the bracket, so there is no tree to query. The
+    //! bound rides the three `validate` doors that reach the census
+    //! (`validate_pseudomanifold`, `validate_pseudomanifold_certificate`,
+    //! and the `via` they share) as a REACHABILITY ride only: those
+    //! doors are validators, not driver code, and carry `T: Bounds`
+    //! because the census cannot be reached except through them — the
+    //! first time this amendment's bound rides onto a non-driver public
+    //! door, said plainly so the next ride is argued rather than
+    //! inherited.
+    //!
     //! `Separation::of`, `Separation::certify` and `image` carry **no**
     //! [`CertifiedEnclosure`](super::CertifiedEnclosure), and their box NON-overlap answer is a GRANT
     //! (`certify`'s own doc: *"`Ok(())` is the certificate"*, and
@@ -1527,23 +1569,59 @@ impl Real for f64 {
     /// the half of the door's contract that keeps a constructor from
     /// stating something it did not build.
     ///
-    /// The comparison is relative to the larger magnitude, floored at
-    /// one, at [`WITNESS_REL`] (whose docs argue the number and say why
-    /// it is not the run's ε). A poisoned value witnesses nothing: NaN
-    /// is not a real, so no claim about it is checkable.
+    /// **The slack is the run's ε, RELATIVE to the larger magnitude and
+    /// floored at one**: `|a − b| ≤ tol.eps() · max(|a|, |b|, 1)`. Each
+    /// of the three parts is a decision.
+    ///
+    /// - **The run's ε**, because this gates whether a registration is
+    ///   RECORDED, and a fixed constant is loosest exactly where the
+    ///   numeric-first shield is tightest: at ε = 1e-12 a constant of
+    ///   1e-9 admits two sides a thousand band-widths apart. It arrives
+    ///   as `tol` rather than being read ([`Real::register_equal`]).
+    /// - **Relative**, because ε is a length in metres and `f64`
+    ///   rounding at coordinates of 10⁹ is ~10⁻⁷: an absolute ε refuses
+    ///   a TRUE identity far from the origin. Measured, not reasoned —
+    ///   the absolute spelling turns `mesh`'s far-placement ball probe
+    ///   and `sweep`'s tube-wall radii probe red in this lane.
+    /// - **Floored at one**, so a pair near the origin is compared
+    ///   absolutely at ε and the relative form does not shrink to zero
+    ///   slack where the magnitudes do.
+    ///
+    /// **The cost, stated rather than implied.** Tying the slack to ε
+    /// LOOSENS it at a loose ε: at ε = 1e-6 this witness admits two
+    /// sides a thousand times further apart than the retired 1e-9
+    /// constant did, so a lie between those two scales is now recorded
+    /// where it was refused. That is the same trade in the other
+    /// direction as the tightening at 1e-12, and it is the one a run
+    /// asked for by choosing its ε: a registration is an axiom the
+    /// registrant's proof carries, and this witness only ever refused
+    /// what was visible at the point. Measured: no additional
+    /// registration is recorded on any measured document at 1e-6
+    /// (`m10_9_no_registrant_lies_on_any_measured_document` pins
+    /// `registered` per document, identical at all three rows).
+    ///
+    /// **This witness is INEXACT, so its refusal is
+    /// [`SymRegistration::Disputed`] and never
+    /// [`SymRegistration::Contradicted`]**: a comparison at a slack
+    /// cannot tell a false claim from a true one the arithmetic lost at
+    /// this scale, and `Contradicted` is reserved for the exact witness
+    /// that can ([`crate::Interval`]'s meet).
+    ///
+    /// A poisoned value witnesses nothing: NaN is not a real, so no
+    /// claim about it is checkable.
     ///
     /// It catches a lie AT THE POINT and nothing else — a claim true at
     /// the nominal and false elsewhere passes here as it passes at
     /// every scalar ([`Real::register_equal`]'s contract).
-    fn register_equal(self, other: Self) -> SymRegistration {
+    fn register_equal(self, other: Self, tol: Tol) -> SymRegistration {
         if self.is_nan() || other.is_nan() {
             return SymRegistration::Unwitnessed;
         }
         let scale = self.abs().max(other.abs()).max(1.0);
-        if (self - other).abs() <= WITNESS_REL * scale {
+        if (self - other).abs() <= tol.eps() * scale {
             SymRegistration::Witnessed
         } else {
-            SymRegistration::Contradicted
+            SymRegistration::Disputed
         }
     }
 

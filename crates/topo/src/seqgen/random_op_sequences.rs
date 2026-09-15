@@ -45,11 +45,25 @@ use super::tests::{RoundtripTally, run_properties};
 /// teardown to empty arenas + empty provenance maps.
 ///
 /// How much of property (c) ran is checked, and the check is
-/// per-step: every documented no-re-make subcase lives
-/// in an arm `OpChoice::may_skip_roundtrip` names, so a selection on
-/// any other choice must execute, and `run_properties` asserts
-/// exactly that as each step happens. **That per-step assertion is
-/// the whole of the bar.**
+/// per-step: every documented no-re-make subcase lives in an arm
+/// `OpChoice::may_skip_roundtrip_at` admits, so a selection on any
+/// other choice must execute, and `run_properties` asserts exactly
+/// that as each step happens. **That per-step assertion is the whole
+/// of the bar.**
+///
+/// **What the bar cannot see, and what was done about it.** The
+/// admission used to be per-KIND (`may_skip_roundtrip`), and a
+/// per-kind bar is blind to a skip that WIDENS inside one arm: every
+/// `Kev` was admitted, so `skipped <= skippable` read identically
+/// whether the `Kev` skip covered the mirror adjacency alone or every
+/// fan merge — and it read identically across the change that did
+/// exactly that (`seqgen`'s taxonomy: 28 mirror skips before, 97 skips
+/// after, over the pinned streams). For `Kev` the admission is now
+/// per-SITE — the strut and segment kills MUST execute — so the bar
+/// moves with a widening of that arm. The other three arms
+/// (`Kef`, `KfmrhFuse`, `Movefac`) are still per-kind and still blind
+/// in the same way; a widening inside one of them would go unreported
+/// here.
 ///
 /// The totals below are two different things, and the difference
 /// matters more than either:
@@ -64,7 +78,9 @@ use super::tests::{RoundtripTally, run_properties};
 ///   tally is accumulated, the second from the per-step assertion
 ///   that has already run. Neither can independently go red; they
 ///   are here to state the shape of the tally for a reader, and
-///   nothing more.
+///   nothing more. `skippable` is no tighter than the per-step
+///   admission it is accumulated from, so the blindness stated above
+///   is its blindness too.
 ///
 /// No numeric threshold is asserted, because there is no number to
 /// assert: proptest seeds its RNG from entropy, so every run draws a

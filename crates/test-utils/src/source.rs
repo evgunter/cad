@@ -346,6 +346,74 @@ fn char_literal_len(b: &[u8], i: usize) -> Option<usize> {
 /// **Panics** if the walk finds nothing: a guard built on an empty
 /// traversal passes by finding no sites, which is the vacuity this
 /// crate exists to forbid. A caller wanting a stronger floor (a
+/// **The text a pair of sentinel comments guards**, as a byte range
+/// into `text`: from the end of `begin` to the start of `end`.
+///
+/// A guard whose subject is one REGION of a file — a match, a module,
+/// a door — brackets it with two comments and reads between them, so
+/// that a row added inside is measured the moment it is typed and one
+/// added outside is not silently counted. Three sites had written this
+/// walk themselves before it was hoisted here, and the third was
+/// nearly line-for-line the second.
+///
+/// **Located in the RAW text, deliberately.** The sentinels are
+/// comments, so every [`keeping`] view blanks them — and because a
+/// view blanks in place, the range this answers is valid in the raw
+/// text and in every view of it alike. A caller locates the region
+/// here and reads it out of whichever view its needle wants.
+///
+/// `what` names the text in the refusals: a guard that reported a
+/// missing sentinel without saying which file sends its reader
+/// nowhere.
+///
+/// **Panics** when either sentinel is absent or they are inverted. A
+/// region that cannot be located is not an empty region — a guard that
+/// answered `0..0` would report green over the text it exists to read,
+/// which is the silent direction.
+#[must_use]
+pub fn sentinel_region(text: &str, what: &str, begin: &str, end: &str) -> std::ops::Range<usize> {
+    let b = text
+        .find(begin)
+        .unwrap_or_else(|| panic!("{what}: the opening sentinel `{begin}` is gone"));
+    let e = text
+        .find(end)
+        .unwrap_or_else(|| panic!("{what}: the closing sentinel `{end}` is gone"));
+    assert!(
+        b < e,
+        "{what}: `{begin}` must precede `{end}`, and does not"
+    );
+    b + begin.len()..e
+}
+
+/// **The 1-based line `at` falls on**, for a guard whose refusal a
+/// reader has to be able to open. Offsets come out of a blanked view
+/// and a view blanks in place, so this is correct against the raw text
+/// and against every view of it alike.
+///
+/// Shared because two censuses wrote it byte-identically before this
+/// existed, and a guard that spells its own version of a shared
+/// operation is the defect the module docs above argue against.
+#[must_use]
+pub fn line(text: &str, at: usize) -> usize {
+    text[..at].lines().count()
+}
+
+/// **Is the byte before `at` outside an identifier?** — what makes a
+/// needle match a WHOLE name. Without it `operand` matches inside
+/// `wrong_operand` and `kind(` inside `carrier_kind(`; `true` at the
+/// start of the text, where there is no preceding byte to disqualify
+/// the match.
+///
+/// A needle's own trailing boundary is usually carried by the needle
+/// (`kind(`, `Variant {`), so only the leading side needs asking.
+#[must_use]
+pub fn boundary_before(code: &str, at: usize) -> bool {
+    code[..at]
+        .chars()
+        .next_back()
+        .is_none_or(|c| !c.is_alphanumeric() && c != '_')
+}
+
 /// minimum count, a required file) should assert it on the result.
 #[must_use]
 pub fn rust_sources(dir: &std::path::Path) -> Vec<std::path::PathBuf> {

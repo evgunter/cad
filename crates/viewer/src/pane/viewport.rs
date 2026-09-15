@@ -12,11 +12,13 @@ use crate::app::{ViewerBehavior, chrome, to_f32};
 use crate::camera::{self, Camera, CameraOp};
 use crate::datums::{self, datum_view};
 use crate::frame::{self, IdStep};
+use crate::generation::Generation;
 use crate::gpu::{IdQuery, ViewportCallback};
 use crate::input::{self, PointerButton, ViewportEvent, ViewportSize};
 use crate::marks;
 use crate::pickcache;
 use crate::pickindex::PickIndex;
+use crate::scene::DisplayTolerance;
 use crate::session::SessionOp;
 use crate::sketch::{heading, tip_mark};
 
@@ -48,9 +50,172 @@ pub(crate) fn land(
     frame::deliver(notices, status, frame::fold_status(folded));
 }
 
+/// The index the picture on screen was drawn FROM, or `None` when the
+/// index in hand describes some other picture.
+///
+/// # Why a read of the index can need this and not the evaluation
+///
+/// `ViewerBehavior::index` is the index for the document the session
+/// has landed. `ViewerBehavior::scene` is the mesh of whatever picture
+/// last succeeded in being built, which is the same thing on almost
+/// every frame and is NOT the same thing whenever a scene rebuild
+/// refused: `ViewerApp::sync_scene` marks the pair current only on
+/// success, so a landed index over a refused rebuild leaves a new index
+/// beside an older picture, and nothing retries while the display and
+/// the focus hold still.
+///
+/// Two reads care, and they are the reads whose currency is a pick
+/// **id** rather than a document fact:
+///
+/// - resolving an id the id pass produced, which is a word of the id
+///   map of whichever index minted the picture's corners; and
+/// - minting ids or world-space segments for the picture to draw over
+///   itself, where the shader compares them against those same
+///   corners.
+///
+/// Both are false-by-construction across two pictures, and the first
+/// writes its falsehood to the status line as *the two picking paths
+/// disagree* — a sentence issue #1097 §4 tells an operator to read as
+/// an `R32Uint` clear fault, so a wrong subsystem gets named.
+///
+/// **The pair, not the generation.** An index is keyed by
+/// `(generation, δ)` and so is its id map: a δ typed while the picture
+/// stands rebuilds the index at the same generation, over a different
+/// tessellation, with a different alphabet. A generation-only check
+/// reads as co-identity and is not it, so the question goes to
+/// [`PickIndex::current_for`], the one door that answers *does this
+/// index describe this picture*.
+///
+/// **What it deliberately does not guard** is the pick path itself.
+/// A click asks what is under the cursor in the DOCUMENT, resolves it
+/// through the index and the evaluation with no id and no mesh in
+/// sight, and answers in the session's own currency; gating it on the
+/// picture would refuse picks over a stale-but-drawn scene, which is a
+/// product decision and not this rule's to make.
+fn drawn_index(
+    index: Option<&PickIndex>,
+    scene_key: Option<(Generation, DisplayTolerance)>,
+) -> Option<&PickIndex> {
+    let (generation, delta) = scene_key?;
+    index.filter(|index| index.current_for(Some(generation), delta))
+}
+
 /// Direction the light travels, world space; a unit vector over the
 /// viewer's left shoulder.
 const LIGHT_DIRECTION: [f32; 3] = [0.408_248_3, 0.408_248_3, -0.816_496_6];
+
+/// Which button of the viewer's vocabulary an `egui` button denotes,
+/// or `None` for one the viewer binds nothing to.
+///
+/// **The one place the toolkit's button set meets the viewer's**, and
+/// the two are deliberately not the same set. [`input::PointerButton`]
+/// names the buttons this viewer BINDS; `egui::PointerButton` names
+/// the buttons a mouse can report, side buttons included.
+///
+/// **A side button gets `None` because there is nothing for it to
+/// be.** [`input::InputMap`]'s four bindings are filled by the three
+/// main buttons; no preset, preferences key or API call can name a
+/// fifth; and the bindings follow mainstream CAD (`input`'s module
+/// docs), which has no side-button gesture. A variant for one would
+/// be a word of the vocabulary that no sentence could use — and on
+/// the web backend these two are the browser's back and forward.
+/// Binding them is a product decision, and it arrives as a variant on
+/// `input::PointerButton`, a binding field or preset that can name it,
+/// and an arm here that stops saying `None`.
+///
+/// **The compiler holds the SET, and nothing more.** This match names
+/// every `egui::PointerButton` and the enum is not `#[non_exhaustive]`,
+/// so an egui that grows a sixth button makes it non-exhaustive;
+/// [`egui_buttons`] is `NUM_POINTER_BUTTONS` long, so the same upgrade
+/// fails its length. A version bump is the only moment the toolkit's
+/// set can change, and it is the moment both of these fire. (Were egui
+/// to become `#[non_exhaustive]`, the match half dies — `_ => None` is
+/// then the only shape available — and the array's length is the whole
+/// hold. Say so here on the day it happens.)
+///
+/// **Which button pairs with which is held by a ROW, not by the
+/// compiler**, and it could not be otherwise: the pairing is a naming
+/// decision with nothing to derive it from. Swapping two arms here
+/// type-checks and changes what every mouse does.
+/// `tests::the_pairing_is_the_one_this_module_intends` is the second
+/// statement of the table that makes such an edit red, and the only
+/// thing in the tree that can.
+fn viewer_button(button: egui::PointerButton) -> Option<PointerButton> {
+    match button {
+        egui::PointerButton::Primary => Some(PointerButton::Primary),
+        egui::PointerButton::Secondary => Some(PointerButton::Secondary),
+        egui::PointerButton::Middle => Some(PointerButton::Middle),
+        egui::PointerButton::Extra1 | egui::PointerButton::Extra2 => None,
+    }
+}
+
+/// Every button `egui` can report.
+///
+/// A function rather than a `const` item, and its length is the
+/// toolkit's own `NUM_POINTER_BUTTONS`: the compiler counts this list
+/// against the declaration it mirrors, so it is not a hand-maintained
+/// membership list and wants no row on
+/// `crates/viewer/README.md`'s roster of those.
+fn egui_buttons() -> [egui::PointerButton; egui::NUM_POINTER_BUTTONS] {
+    [
+        egui::PointerButton::Primary,
+        egui::PointerButton::Secondary,
+        egui::PointerButton::Middle,
+        egui::PointerButton::Extra1,
+        egui::PointerButton::Extra2,
+    ]
+}
+
+/// The drag and click events this frame's pointer denotes.
+///
+/// **Every button the toolkit can report is asked**, and the ones the
+/// viewer binds nothing to are dropped by [`viewer_button`] rather
+/// than by omission: a button missing from this loop produces no
+/// event at all, which every reader downstream cannot tell from a
+/// button nobody pressed.
+///
+/// **Which click selects is [`input::InputMap::select_button`]'s to
+/// decide**, so a click of any bound button is produced and `pick`
+/// reads the binding. A click carries the cursor position, so one
+/// with no position is not an event.
+///
+/// Drags come before clicks: [`input::fold_events`] applies the camera
+/// in stream order and [`input::pick_stream`] reads the cursor in
+/// stream order.
+fn button_events(
+    response: &egui::Response,
+    shift: bool,
+    alt: bool,
+    pixels_per_point: f64,
+    cursor_px: Option<[f64; 2]>,
+) -> Vec<ViewportEvent> {
+    let mut drags = Vec::new();
+    let mut clicks = Vec::new();
+    for egui_button in egui_buttons() {
+        let Some(button) = viewer_button(egui_button) else {
+            continue;
+        };
+        if response.dragged_by(egui_button) {
+            let delta = response.drag_delta();
+            drags.push(ViewportEvent::Drag {
+                button,
+                shift,
+                alt,
+                delta_px: [
+                    f64::from(delta.x) * pixels_per_point,
+                    f64::from(delta.y) * pixels_per_point,
+                ],
+            });
+        }
+        if let Some(pos_px) = cursor_px
+            && response.clicked_by(egui_button)
+        {
+            clicks.push(ViewportEvent::Click { button, pos_px });
+        }
+    }
+    drags.append(&mut clicks);
+    drags
+}
 
 impl ViewerBehavior<'_> {
     /// The viewport pane: read the pointer, fold it into camera
@@ -80,25 +245,18 @@ impl ViewerBehavior<'_> {
         };
 
         let (shift, alt) = ui.input(|i| (i.modifiers.shift, i.modifiers.alt));
-        let mut events: Vec<ViewportEvent> = Vec::new();
-        for (egui_button, button) in [
-            (egui::PointerButton::Primary, PointerButton::Primary),
-            (egui::PointerButton::Secondary, PointerButton::Secondary),
-            (egui::PointerButton::Middle, PointerButton::Middle),
-        ] {
-            if response.dragged_by(egui_button) {
-                let delta = response.drag_delta();
-                events.push(ViewportEvent::Drag {
-                    button,
-                    shift,
-                    alt,
-                    delta_px: [
-                        f64::from(delta.x) * pixels_per_point,
-                        f64::from(delta.y) * pixels_per_point,
-                    ],
-                });
-            }
-        }
+        // The cursor, first: `hover_pos` is in screen POINTS, and the
+        // viewport speaks physical pixels from the pane's own top-left
+        // corner, so the two conversions happen here and everything
+        // below sees one convention. A click carries a position, so
+        // the button reading needs this before it can run.
+        let cursor_px = response.hover_pos().map(|pos| {
+            [
+                f64::from(pos.x - rect.min.x) * pixels_per_point,
+                f64::from(pos.y - rect.min.y) * pixels_per_point,
+            ]
+        });
+        let mut events = button_events(&response, shift, alt, pixels_per_point, cursor_px);
         if response.hovered() {
             let scroll = ui.input(|i| i.smooth_scroll_delta.y);
             if scroll != 0.0 {
@@ -109,24 +267,8 @@ impl ViewerBehavior<'_> {
                 });
             }
         }
-        // Cursor events, in the same stream. `hover_pos` is in screen
-        // POINTS; the viewport speaks physical pixels from the pane's
-        // own top-left corner, so the two conversions happen here and
-        // the mapping below sees one convention.
-        let cursor_px = response.hover_pos().map(|pos| {
-            [
-                f64::from(pos.x - rect.min.x) * pixels_per_point,
-                f64::from(pos.y - rect.min.y) * pixels_per_point,
-            ]
-        });
         match cursor_px {
             Some(pos_px) => {
-                if response.clicked_by(egui::PointerButton::Primary) {
-                    events.push(ViewportEvent::Click {
-                        button: PointerButton::Primary,
-                        pos_px,
-                    });
-                }
                 events.push(ViewportEvent::Hover { pos_px });
             }
             // Only when there is a hover to clear — the session's own
@@ -218,15 +360,22 @@ impl ViewerBehavior<'_> {
             self.notices.push(frame::unindexed_refusal(&refusal));
         }
 
+        // **The index the PICTURE was drawn from**, which is the index
+        // in hand on every frame but the ones `drawn_index` exists for.
+        // Everything below this line that reads an index is about what
+        // is on screen — marks composited against the drawn corners'
+        // ids, and the id pass's answer read back through an id map —
+        // so all of it asks this one and none of it asks the current
+        // one.
+        let on_screen = drawn_index(self.index, self.scene_key);
+
         // What to mark, as a pure function of what is drawn and what is
         // selected. Recomputed every frame; nothing retains it.
-        let highlight = self
-            .index
+        let highlight = on_screen
             .map(|index| marks::highlight(index, self.session.selection(), self.session.hover()));
         // The edge half of the same question, and the same discipline:
         // recomputed every frame from state that lives in one place.
-        let mut edges = self
-            .index
+        let mut edges = on_screen
             .map(|index| {
                 marks::edge_overlay(
                     index,
@@ -245,7 +394,7 @@ impl ViewerBehavior<'_> {
         // body) narrowing a single selection gets — one pass over the
         // target's drawn edges, so the cost is the body's edge count
         // and not its square.
-        if let (Some(index), Some(tool)) = (self.index, self.tools.blend()) {
+        if let (Some(index), Some(tool)) = (on_screen, self.tools.blend()) {
             edges
                 .selected
                 .extend(tool.mark_segments(index, self.display));
@@ -400,14 +549,14 @@ impl ViewerBehavior<'_> {
         // question is outstanding at all.
         let outstanding = self.id_log.outstanding();
         let from_ray = outstanding.and_then(|_| {
-            let index = self.index?;
+            let index = on_screen?;
             let eval = self.session.evaluation()?;
             index
                 .face_under_cursor(eval, self.camera, viewport, cursor_px?, self.display)
                 .ok()
                 .flatten()
         });
-        if let Some(report) = self.index.and_then(|index| {
+        if let Some(report) = on_screen.and_then(|index| {
             frame::disagreement(
                 index,
                 self.id_answer.load(Ordering::Relaxed),
@@ -470,11 +619,15 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use super::land;
+    use eframe::egui;
+
+    use super::{button_events, drawn_index, egui_buttons, land, viewer_button};
     use crate::camera::{Camera, CameraOp, fold_recorded};
     use crate::frame::{self, product_badge};
+    use crate::input::{self, InputMap, PointerButton, ViewportEvent};
+    use crate::pickindex::{IdMap, PickIndex};
     use crate::props::SlotValue;
-    use crate::scene;
+    use crate::scene::{self, DisplayTolerance};
     use crate::session::{DocSession, SessionOp};
     use pncad::document::SlotId;
     use pncad::geom_core::Tol;
@@ -680,5 +833,368 @@ mod tests {
             Some(raised),
             "the re-frame an Open books is not news and erases none"
         );
+    }
+
+    /// A pane that senses what the viewport's does, driven by raw
+    /// `egui` events.
+    ///
+    /// The viewport pane itself needs a GPU, a session and a scene;
+    /// what the rows below are about is one function of it — the
+    /// translation from what the toolkit says the pointer did to the
+    /// vocabulary `input` consumes — so the probe allocates the same
+    /// [`egui::Sense`] over a bare `Ui` and reads that function.
+    struct Pane {
+        ctx: egui::Context,
+    }
+
+    /// Where the probe's pointer aims: the middle of its 800x600
+    /// screen, which is inside the pane the probe allocates.
+    const AIM: egui::Pos2 = egui::pos2(400.0, 300.0);
+
+    /// [`AIM`] in the pane's own physical pixels — the pane fills the
+    /// screen from its origin and the probe runs at one pixel per
+    /// point, so the two agree.
+    const AIM_PX: [f64; 2] = [400.0, 300.0];
+
+    impl Pane {
+        fn new() -> Self {
+            Self {
+                ctx: egui::Context::default(),
+            }
+        }
+
+        /// Run one frame and hand back the pointer events the viewport
+        /// would read from it.
+        fn frame(&self, events: Vec<egui::Event>) -> Vec<ViewportEvent> {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(800.0, 600.0),
+                )),
+                events,
+                ..Default::default()
+            };
+            let mut read = Vec::new();
+            let out = &mut read;
+            let mut output = self.ctx.clone().run_ui(input, |ui| {
+                let (rect, response) =
+                    ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
+                let cursor_px = response
+                    .hover_pos()
+                    .map(|pos| [f64::from(pos.x - rect.min.x), f64::from(pos.y - rect.min.y)]);
+                *out = button_events(&response, false, false, 1.0, cursor_px);
+            });
+            // A frame's texture upload is the caller's to apply; this
+            // probe paints nothing, and dropping it unapplied panics.
+            output.textures_delta.clear();
+            read
+        }
+
+        /// Lay the pane out and put the pointer on it. Two empty
+        /// frames first: egui interacts against the PREVIOUS frame's
+        /// widget rects, so nothing is hittable until one has been
+        /// laid out.
+        fn reach(&self) {
+            self.frame(Vec::new());
+            self.frame(Vec::new());
+            self.frame(vec![egui::Event::PointerMoved(AIM)]);
+        }
+    }
+
+    fn button(button: egui::PointerButton, pressed: bool, pos: egui::Pos2) -> egui::Event {
+        egui::Event::PointerButton {
+            pos,
+            button,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        }
+    }
+
+    /// Press and release without moving: what the toolkit calls a
+    /// click. The release frame is the one that reports it.
+    fn click(pane: &Pane, egui_button: egui::PointerButton) -> Vec<ViewportEvent> {
+        pane.reach();
+        pane.frame(vec![button(egui_button, true, AIM)]);
+        pane.frame(vec![button(egui_button, false, AIM)])
+    }
+
+    /// Press and move: what the toolkit calls a drag. The moving frame
+    /// is the one that reports it.
+    fn drag(pane: &Pane, egui_button: egui::PointerButton) -> Vec<ViewportEvent> {
+        pane.reach();
+        pane.frame(vec![button(egui_button, true, AIM)]);
+        pane.frame(vec![egui::Event::PointerMoved(AIM + egui::vec2(40.0, 0.0))])
+    }
+
+    /// A δ, coarse enough to index the plate quickly.
+    fn a_delta(mm: f64) -> DisplayTolerance {
+        DisplayTolerance::new(mm * 1.0e-3).expect("a positive δ")
+    }
+
+    /// The plate, landed, plus the index of its landed evaluation at
+    /// `delta`.
+    fn plate_index(session: &DocSession, delta: DisplayTolerance) -> PickIndex {
+        let (doc, eval) = session.landed_pair().expect("the inline seam lands");
+        let generation = session
+            .landed_generation()
+            .expect("a landed evaluation has a generation");
+        PickIndex::build(doc, eval, generation, delta, session.tol()).expect("the plate indexes")
+    }
+
+    /// **The picture's alphabet is `(generation, δ)`, and the guard
+    /// holds both halves.**
+    ///
+    /// The half a generation-only check would drop is δ: a δ typed
+    /// while the document stands rebuilds the index at the SAME
+    /// generation over a different tessellation, so the id map is a
+    /// different alphabet under an identical generation. A guard that
+    /// compared generations would pass the cross pairing below and read
+    /// as co-identity while checking something else — which is the
+    /// shape this unit was sent to remove, not to re-mint.
+    #[test]
+    fn the_drawn_index_is_the_one_whose_generation_and_delta_the_picture_carries() {
+        let tol = Tol::witness();
+        let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+
+        let coarse = plate_index(&session, a_delta(0.5));
+        let fine = plate_index(&session, a_delta(0.05));
+        let key = |index: &PickIndex| (index.generation(), index.delta());
+        assert_eq!(
+            coarse.generation(),
+            fine.generation(),
+            "both index the same landed evaluation, so only δ separates them"
+        );
+        assert_ne!(coarse.delta(), fine.delta(), "and δ does separate them");
+
+        assert!(
+            drawn_index(Some(&coarse), Some(key(&coarse))).is_some(),
+            "the index the picture was built from IS the drawn index"
+        );
+        assert!(
+            drawn_index(Some(&fine), Some(key(&coarse))).is_none(),
+            "an index at another δ did not mint this picture's ids"
+        );
+
+        // The other half, over the same predicate: an edit lands a new
+        // generation, and the index of it is not the index of the
+        // picture still on screen.
+        let outcome = session.perform(SessionOp::SetSlot {
+            node: extrude,
+            slot: SlotId::Distance,
+            value: SlotValue::Continuous(0.004),
+        });
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        session.pump();
+        let edited = plate_index(&session, a_delta(0.5));
+        assert_ne!(
+            edited.generation(),
+            coarse.generation(),
+            "the edit landed a new generation"
+        );
+        assert!(
+            drawn_index(Some(&edited), Some(key(&coarse))).is_none(),
+            "an index of the edited document did not mint the old picture's ids"
+        );
+    }
+
+    /// **The false diagnosis this guard exists to stop, shown to be a
+    /// real sentence, and shown to be unreachable through the guard.**
+    ///
+    /// A picture no index minted ids for — the startup mesh, whose
+    /// corners all carry [`IdMap::NOTHING`] — makes the id pass answer
+    /// *nothing* everywhere. Compared against a ray that names a face,
+    /// that is a disagreement, and [`frame::Disagreement`] writes it to
+    /// the status line as *the two picking paths disagree*, which issue
+    /// #1097 §4 tells an operator to read as an `R32Uint` clear fault.
+    ///
+    /// So the first assertion is that the sentence really is produced
+    /// by the pairing, and the second is that `drawn_index` never hands
+    /// the comparison that pairing.
+    #[test]
+    fn a_picture_no_index_minted_ids_for_is_not_compared_against_one() {
+        let tol = Tol::witness();
+        let (doc, _extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        let index = plate_index(&session, a_delta(0.5));
+
+        let id = index.ids().ids().next().expect("the plate draws patches");
+        let named = index
+            .name_of(id)
+            .expect("an id of this index has an entry")
+            .as_ref()
+            .expect("and the plate's patches name cleanly")
+            .clone();
+
+        let serial = 7u32;
+        let nothing = (u64::from(serial) << 32) | u64::from(IdMap::NOTHING);
+        let report = frame::disagreement(&index, nothing, Some(serial), Some(&named))
+            .expect("nothing-under-the-cursor against a named face is a disagreement");
+        assert_eq!(report.from_gpu, None, "the id pass answered nothing");
+        assert_eq!(report.from_ray, Some(named), "the ray answered a face");
+
+        assert!(
+            drawn_index(Some(&index), None).is_none(),
+            "a picture with no index behind it is compared against no index"
+        );
+    }
+
+    /// **[`egui_buttons`] is every toolkit button exactly once, and
+    /// that is a THEOREM rather than a reading of the list.**
+    ///
+    /// Three facts compose to it. The array's length is
+    /// `egui::NUM_POINTER_BUTTONS`, which the compiler checks against
+    /// the declaration. [`viewer_button`]'s exhaustive match means the
+    /// enum has exactly that many variants — an egui that adds one
+    /// without raising the constant reds there. And this row says the
+    /// entries are pairwise distinct. `n` distinct members of an
+    /// `n`-member set are all of them, so the array is a permutation
+    /// of the enum: nothing missing, nothing doubled.
+    ///
+    /// **Without this row the length is the only hold, and length
+    /// alone is not membership.** `[Primary; NUM_POINTER_BUTTONS]`
+    /// compiles, and the rows below derive their expectations from
+    /// [`egui_buttons`] itself, so a doubled entry asks one button
+    /// twice and another never — silently, for any pair the viewer
+    /// binds nothing to. A complete list held only by its length is
+    /// the class this fix was sent to close, and it would have been
+    /// re-minted here.
+    #[test]
+    fn the_toolkits_buttons_are_each_asked_exactly_once() {
+        let buttons = egui_buttons();
+        for (index, button) in buttons.iter().enumerate() {
+            for other in &buttons[index + 1..] {
+                assert_ne!(button, other, "{buttons:?} asks a button twice");
+            }
+        }
+    }
+
+    /// **Every button the toolkit can report reaches the pane, and
+    /// what [`viewer_button`] says of it is what comes out.**
+    ///
+    /// This row is over the PLUMBING, and its reach is exactly that.
+    /// Buttons come from [`egui_buttons`] and the expectation from
+    /// [`viewer_button`], so a button the loop stopped polling fails
+    /// here — the defect this row was written for, where a button
+    /// produced no event and no reader could tell that from a button
+    /// nobody pressed.
+    ///
+    /// **What it cannot catch is a change to `viewer_button` itself**,
+    /// because both sides of the assertion move with it: give `Extra1`
+    /// an arm and this row stays green, having asked for the new
+    /// answer and got it. The decision that function encodes is held
+    /// by [`the_pairing_is_the_one_this_module_intends`] instead, and
+    /// the two rows are complementary rather than overlapping.
+    #[test]
+    fn every_toolkit_button_the_adapter_binds_produces_its_click() {
+        for egui_button in egui_buttons() {
+            let events = click(&Pane::new(), egui_button);
+            let expected: Vec<ViewportEvent> = viewer_button(egui_button)
+                .map(|button| ViewportEvent::Click {
+                    button,
+                    pos_px: AIM_PX,
+                })
+                .into_iter()
+                .collect();
+            assert_eq!(events, expected, "clicking {egui_button:?}");
+        }
+    }
+
+    /// The same plumbing over drags, with the same reach and the same
+    /// blind spot: the three main buttons already dragged before this
+    /// unit, so what it adds is the side buttons, whose events stop at
+    /// [`viewer_button`]'s `None` rather than at a loop that never
+    /// asked. Whether `None` is the right answer for them is
+    /// [`the_pairing_is_the_one_this_module_intends`]'s to say.
+    #[test]
+    fn every_toolkit_button_the_adapter_binds_produces_its_drag() {
+        for egui_button in egui_buttons() {
+            let events = drag(&Pane::new(), egui_button);
+            let expected: Vec<ViewportEvent> = viewer_button(egui_button)
+                .map(|button| ViewportEvent::Drag {
+                    button,
+                    shift: false,
+                    alt: false,
+                    delta_px: [40.0, 0.0],
+                })
+                .into_iter()
+                .collect();
+            assert_eq!(events, expected, "dragging {egui_button:?}");
+        }
+    }
+
+    /// **`select_button` decides which click selects, and the pane
+    /// produces the click it names.**
+    ///
+    /// [`InputMap::select_button`] is a binding: any button of the
+    /// vocabulary may hold it, and `InputMap::pick` reads the field
+    /// rather than a fixed button. `InputMap` is `pub` with `pub`
+    /// fields and re-exported from the crate root, so an embedder can
+    /// already write `select_button: Middle` — and before this unit
+    /// that setting selected nothing, silently, because the pane
+    /// produced a click for `Primary` only.
+    ///
+    /// **The bound buttons are DERIVED, not listed.** Filtering
+    /// [`egui_buttons`] through [`viewer_button`] is every button the
+    /// viewer binds, by construction: a hand-written
+    /// `[Primary, Secondary, Middle]` here would be a complete list of
+    /// [`input::PointerButton`] that nothing forces — the shape
+    /// `work/view/viewer-suites-hold-hand-written-complete-variant-lists.md`
+    /// catalogues, and one `viewer-vocab-declared-once.sh` names as a
+    /// blind spot it cannot see. Derived, the row also widens itself
+    /// on the day a side button gains a binding.
+    #[test]
+    fn a_click_selects_through_whichever_button_the_map_binds() {
+        for egui_button in egui_buttons() {
+            let Some(select_button) = viewer_button(egui_button) else {
+                continue;
+            };
+            let map = InputMap {
+                select_button,
+                ..InputMap::DEFAULT
+            };
+            assert_eq!(
+                input::pick_stream(&map, &click(&Pane::new(), egui_button)),
+                vec![input::PickAction::Select(AIM_PX)],
+                "a click of {select_button:?}, the button this map binds, selects"
+            );
+        }
+    }
+
+    /// **The pairing itself, written a second time so that changing it
+    /// by accident is red.**
+    ///
+    /// Everything else about the adapter is derivable and so is
+    /// derived. This is not: which toolkit button denotes which of the
+    /// viewer's is a naming decision, with nothing in the tree to
+    /// check it against. Swapping two arms of [`viewer_button`]
+    /// type-checks, keeps the set complete and the list a permutation,
+    /// and leaves every other row here green — because they all ask
+    /// that function what to expect. The mouse would simply behave
+    /// wrongly.
+    ///
+    /// So the table is stated twice on purpose, and the second copy
+    /// costs an edit that has to be made deliberately in two places.
+    /// **That cost is the guard, not a defect in it.** Both copies are
+    /// exhaustive matches over a closed enum, so neither can fall
+    /// behind the toolkit while the other moves: a sixth
+    /// `egui::PointerButton` reds them together.
+    #[test]
+    fn the_pairing_is_the_one_this_module_intends() {
+        for egui_button in egui_buttons() {
+            let intended = match egui_button {
+                egui::PointerButton::Primary => Some(PointerButton::Primary),
+                egui::PointerButton::Secondary => Some(PointerButton::Secondary),
+                egui::PointerButton::Middle => Some(PointerButton::Middle),
+                egui::PointerButton::Extra1 | egui::PointerButton::Extra2 => None,
+            };
+            assert_eq!(
+                viewer_button(egui_button),
+                intended,
+                "{egui_button:?} denotes the wrong button of the viewer's vocabulary"
+            );
+        }
     }
 }

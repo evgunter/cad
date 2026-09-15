@@ -63,3 +63,21 @@ mint can reach it — and
 `shell7_seam_corner::a_collinear_cap_vertex_drum_is_taken_by_the_door_and_stops_at_void_insertion`
 keeps refusing `ShellError::Insert` naming that item. This item
 closes when the drum half lands.
+
+## Drum half landed (TOPO, 2026-09-14)
+
+`Body::revert` now mirrors every plane `Chart` image and every stored
+row on a plane face with the plane's frame (`crates/topo/src/revert.rs`;
+`geom_brep::EdgeCurve::with_chart_v_mirrored`,
+`geom_brep::PcurveCache::mirrored_v`). The drum's reverted cavity
+re-certifies edge for edge through the graft's meter and reports
+exactly `NegativeVolume` at tier 3; `insert_voids` takes it; `shell`
+of the collinear-cap drum reaches the thin solid's closed form
+`π r² h − π(r−t)²(h−2t)`, tier-3 valid and watertight —
+`shell7_seam_corner::a_collinear_cap_vertex_drum_shells_to_its_closed_form`
+(the refusing row, flipped), `shell9_probe`'s two drum rows (flipped
+to the taken door and the verbatim image certifying),
+`shell9_r1_probes::r1_drum_reverted_cavity_alone` (flipped), and the
+reversal's own rows in `crates/sweep/tests/revert_plane_charts.rs`.
+Both halves are closed by measurement; closing the item is this
+program's call, as the section above says.

@@ -24,7 +24,8 @@
 //! the ruling to the stored cap plane; nothing is sampled or decided.
 //!
 //! Carve (`ruled_phase`): per end, split each rim edge at its foot
-//! (`seam_split_param`, the ladder's one home for a split parameter)
+//! (`surgery::split_fragment`, the one home of a band split and its
+//! provenance, over `seam_split_param`'s split parameter)
 //! and `mef` the cut-off arc across the cap between the two
 //! feet — the corner region between the arc and the old vertex becomes
 //! a SLIVER face. Per support, one trimline `mef` along the ruling
@@ -74,8 +75,9 @@ use crate::blend::admit::AdmittedOpen;
 use crate::blend::battery::cap_incidence;
 use crate::blend::naming::BlendNaming;
 use crate::blend::surgery::{
-    ContactCarrier, Described, SourceFaces, chord_site, edge_touches, face_of_half, halves_of,
-    loop_of_half, not_intact, op, point_of, seam_split_param, unbuilt_chain, unbuilt_geometry,
+    ContactCarrier, Described, SourceFaces, SplitFragments, chord_site, face_of_half, halves_of,
+    loop_of_half, not_intact, op, point_of, retire_fragment, seam_split_param, split_fragment,
+    unbuilt_chain, unbuilt_geometry,
 };
 
 /// One transverse cap of a ruled link, as the plan read it.
@@ -279,26 +281,16 @@ fn cap_rims<T: Decide>(
     })
 }
 
-/// A split rim edge, as the carve needs it: the piece still touching
-/// the old vertex (it dies with the sliver) and the foot vertex.
-struct SplitRim {
-    near: EdgeKey,
-    foot: VertexKey,
-}
-
 /// Split one cap rim edge at the trimline's foot on it, recording the
 /// foot and the surviving piece as births of this carve.
 ///
-/// **The rim may already be a fragment.** Two creases on one cap share
-/// the rim between them (the rod's two creases share the flat's chord),
-/// so the second carve splits a piece the first one left — a key that is
-/// either the SOURCE rim's or a fresh one, and in either case already
-/// carries a `meridian_remnants` row. Provenance is read off that row:
-/// the surviving piece is recorded as a fragment of the ORIGINAL source,
-/// the stale fragment row is retired, and only a source key that dies is
-/// a retirement (a minted piece that dies needs no row). Without this the
-/// second split recorded the survivor twice, which the document layer's
-/// emitter refuses as "the surgery recorded one entity twice".
+/// The split's provenance — which piece is a fragment of which source,
+/// and whether the dying piece is a retirement — is
+/// [`split_fragment`]'s and [`retire_fragment`]'s, shared with the
+/// ladder rim phase's meridian splits, and the answer travels in that
+/// type rather than in a cap-rim re-wrap of it. The `near` piece always
+/// dies here: it is the remnant the cap's `kev` folds away with the
+/// sliver.
 #[allow(clippy::too_many_arguments)]
 fn split_rim<T: Decide + Bounds>(
     body: &mut Body<T>,
@@ -309,31 +301,12 @@ fn split_rim<T: Decide + Bounds>(
     foot: Point3<T>,
     rec: &mut BlendNaming,
     tol: Tol,
-) -> Result<SplitRim, BlendError> {
+) -> Result<SplitFragments, BlendError> {
     let t = seam_split_param(body, rim, crease, foot)?;
-    let created = body
-        .split_edge(rim, t, tol)
-        .map_err(|e| op("cap rim split", e))?;
-    let (near, far) = if edge_touches(body, rim, vertex) {
-        (rim, created.new_edge)
-    } else {
-        (created.new_edge, rim)
-    };
-    let source = rec
-        .meridian_remnants
-        .iter()
-        .find(|(piece, _)| *piece == rim)
-        .map_or(rim, |(_, source)| *source);
-    rec.meridian_remnants.retain(|(piece, _)| *piece != rim);
-    rec.feet.push((created.vertex, vertex, support));
-    rec.meridian_remnants.push((far, source));
-    if near == source {
-        rec.dead.edges.push(source);
-    }
-    Ok(SplitRim {
-        near,
-        foot: created.vertex,
-    })
+    let frag = split_fragment(body, rim, vertex, t, rec, "cap rim split", tol)?;
+    rec.feet.push((frag.vertex, vertex, support));
+    retire_fragment(rec, frag.near, frag.source);
+    Ok(frag)
 }
 
 /// **Carve one ruled link**: the band between its two transverse caps.
@@ -362,7 +335,7 @@ pub(in crate::blend) fn ruled_phase<T: Decide + Bounds>(
     // the first foot through the old vertex to the second is what
     // moves onto the new face, so the new face is the SLIVER and the
     // cap keeps its key, surface, sense and rings. ----
-    let mut slivers: Vec<(SplitRim, SplitRim)> = Vec::with_capacity(2);
+    let mut slivers: Vec<(SplitFragments, SplitFragments)> = Vec::with_capacity(2);
     for end in &plan.ends {
         let v = end.vertex;
         // Live, not planned: an earlier link's carve on the same cap
@@ -381,7 +354,7 @@ pub(in crate::blend) fn ruled_phase<T: Decide + Bounds>(
         // at the other.
         let ends_at_v = |body: &Body<T>, he: HalfEdgeKey| body.half_edge_end(he) == Some(v);
         let (he1, he2, x, y) = chord_site(body, end.cap, |row| ends_at_v(body, row.0), 0, 2)?;
-        if !((x == a.foot && y == b.foot) || (x == b.foot && y == a.foot)) {
+        if !((x == a.vertex && y == b.vertex) || (x == b.vertex && y == a.vertex)) {
             return Err(not_intact(
                 EntityId::Vertex(v),
                 "a cap's cycle around the old vertex is not flanked by the two feet just split",
@@ -421,8 +394,8 @@ pub(in crate::blend) fn ruled_phase<T: Decide + Bounds>(
         .ok_or_else(|| not_intact(EntityId::Edge(crease), "the crease being carved"))?;
     let mut trims: Vec<EdgeKey> = Vec::with_capacity(2);
     for (face, half, feet) in [
-        (l.face_a, hp, [slivers[0].0.foot, slivers[1].0.foot]),
-        (l.face_b, hm, [slivers[0].1.foot, slivers[1].1.foot]),
+        (l.face_a, hp, [slivers[0].0.vertex, slivers[1].0.vertex]),
+        (l.face_b, hm, [slivers[0].1.vertex, slivers[1].1.vertex]),
     ] {
         let (he1, he2, x, y) = chord_site(body, face, |row| row.0 == half, 1, 2)?;
         if !((x == feet[0] && y == feet[1]) || (x == feet[1] && y == feet[0])) {

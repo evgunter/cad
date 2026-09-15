@@ -224,11 +224,14 @@ pub use ::profile::{
 //   isolated endpoint touch, or a shared sub-locus of positive
 //   length. Three self-intersections with three repairs, and the arm
 //   is the only place the profile says which.
-// - `EscalationSite` is `Escalated`'s: which decision could not be
-//   made — one segment, a segment PAIR, a loop's orientation, or the
-//   fillet construction. The first three are facts about the authored
-//   geometry and the fourth is a fact about the requested radius, so
-//   the recourse forks on this discriminant before it reads the band.
+// - `EscalationSite` is `ProfileError::Escalated`'s: which decision
+//   could not be made — one segment, a segment PAIR, or a loop's
+//   orientation. All three are facts about the authored geometry, and
+//   a caller that cannot name the site cannot act on the refusal. The
+//   fillet construction is NOT among them: its gates leave through
+//   `PathError::Escalated`, whose Display selects the gate's own
+//   recourse from the predicate name rather than from a site
+//   discriminant.
 // - `SegmentRef` is the rung under that one, and under four arms
 //   besides: `DegenerateSegment` and `NearFullArc` carry one,
 //   `NonSimple` and `TangentialContact` two apiece. It is where in
@@ -677,8 +680,8 @@ pub use crate::select::{
     ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg,
     SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side, SplitHalf, SurfaceKindSet,
     TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, declare, declare_all,
-    declare_node, denotation, edge_frame, edge_name, face_carrier_kind, face_frame, face_name,
-    find_flush_candidates, select, select_where, vertex_position,
+    declare_node, denotation, edge_carrier_kind, edge_frame, edge_name, face_carrier_kind,
+    face_frame, face_name, find_flush_candidates, select, select_where, vertex_position,
 };
 // The KERNEL query seat (`topo::query`): the same selection
 // vocabulary as a pure function of a `Body`, for the caller who holds

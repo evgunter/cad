@@ -100,6 +100,7 @@ use geom_core::{
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::null::CurveGeom;
+use crate::readback::{CarrierAbsence, DanglingRef};
 
 /// Which [`Curve3`] variant a carrier is: the fieldless mirror of the
 /// curve enum, and the edge-side twin of [`SurfaceKind`].
@@ -109,10 +110,19 @@ use crate::null::CurveGeom;
 /// to compile here rather than silently classifying as something else
 /// — the same fail-loud tripwire the role-segment mirrors use.
 ///
-/// (Placement: the mirror lives where it is used — [`SurfaceKind`]
-/// beside the certify machinery in `geom-brep`, this one beside the
-/// query predicates that read it. `SurfaceKind` stays the workspace's
-/// ONE fieldless surface mirror; no second is minted here.)
+/// (Placement, as this crate keeps it: the mirror lives where it is
+/// used — [`SurfaceKind`] beside the certify machinery in `geom-brep`,
+/// this one beside the query predicates that read it, [`CurveKindSet`]
+/// and its bit numbering included. The typed door that copies the tag
+/// out, [`crate::readback::edge_carrier_kind`], imports it from here,
+/// the way that module imports [`SurfaceKind`] from `geom-brep` for
+/// the face twin: a door names its answer type wherever the mirror is
+/// authored. `SurfaceKind` stays the workspace's ONE fieldless surface
+/// mirror; no second is minted here. Whether this is where the mirror
+/// BELONGS is open and not this crate's to settle — the ratified verb-seat
+/// design says it moves down beside [`Curve3`], and has said so since
+/// before SEAT-2 put it here; the question is
+/// `curve-kind-placement-disagrees-with-the-ratified-seat-clause`.)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum CurveKind {
     /// [`Curve3::Line`].
@@ -299,12 +309,14 @@ pub fn all_faces<T: Real>(body: &Body<T>) -> Vec<FaceKey> {
 /// The certified carrier kind of an edge, or `None` for a dangling key
 /// or an uncertified (null-scaffold) carrier — for the EXACT
 /// predicates, "no carrier" is an honest no, not a refusal.
+///
+/// The flattening of the typed readback door
+/// [`crate::readback::edge_carrier_kind`], which is the one reading of
+/// an edge's carrier tag: the three lookups run once, there, and what
+/// is dropped here is only WHICH of them came back empty.
 #[must_use]
 pub fn edge_carrier_kind<T: Real>(body: &Body<T>, e: EdgeKey) -> Option<CurveKind> {
-    let curve = body.get_edge(e)?.curve;
-    body.get_curve_geom(curve)
-        .and_then(CurveGeom::certified)
-        .map(|c| CurveKind::of(c.carrier()))
+    crate::readback::edge_carrier_kind(body, e).ok()
 }
 
 /// The surface kind of a face, or `None` for a dangling key or an
@@ -1086,15 +1098,25 @@ fn same_pair(a: (SurfaceKey, SurfaceKey), b: (SurfaceKey, SurfaceKey)) -> bool {
 /// chain, [`RimError::NotIntact`] on a dangling key or an unreadable
 /// reference.
 pub fn rim_of<T: Bounds>(body: &Body<T>, edge: EdgeKey) -> Result<Vec<EdgeKey>, RimError> {
-    let seed_edge = body
-        .get_edge(edge)
-        .ok_or(RimError::NotIntact(EntityId::Edge(edge)))?;
-    let seed_carrier = match body
-        .get_curve_geom(seed_edge.curve)
-        .and_then(CurveGeom::certified)
-    {
-        Some(c) => c.carrier().clone(),
-        None => return Err(RimError::NotAnArc { edge, kind: None }),
+    // The seed's carrier comes through the crate's one walk to it
+    // (`readback::edge_carrier_ref`), renamed here: this door's
+    // vocabulary is `RimError`, and the rename is exhaustive so a
+    // fourth way for that walk to come back empty cannot arrive
+    // silently.
+    let seed_carrier = match crate::readback::edge_carrier_ref(body, edge) {
+        Ok(carrier) => carrier.clone(),
+        Err(CarrierAbsence::Dangling(DanglingRef::Entity(id))) => {
+            return Err(RimError::NotIntact(id));
+        }
+        // A curve key a live edge names and the arena does not hold is
+        // NOT a null scaffold, and this door says the same thing about
+        // both: `NotIntact` carries an `EntityId`, and a curve key is
+        // not one. Telling them apart changes what a `RimError` arm
+        // means — the open issue is
+        // `rim-of-flattens-a-dangling-curve-key`.
+        Err(CarrierAbsence::Dangling(DanglingRef::Geometry(_)) | CarrierAbsence::NoCarrier) => {
+            return Err(RimError::NotAnArc { edge, kind: None });
+        }
     };
     let Some(seed_circle) = circle_id(&seed_carrier) else {
         return Err(RimError::NotAnArc {

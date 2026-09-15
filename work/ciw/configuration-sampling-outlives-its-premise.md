@@ -104,7 +104,8 @@ requested in a run's log, which this reading did not open.
 - **`k-lint`'s 1-of-5 unification sampler is a SECOND, independent
   sampler** and is not in the price above. It is also the only sampler
   with a recorded red to its name
-  (`work/m10/probe-census-red-interval-cfg-gate`: *"k-lint samples 1-of-5
+  (M10's closed `probe-census-red-interval-cfg-gate`,
+  `docs/DOC-LEDGER.md` sweep 13: *"k-lint samples 1-of-5
   rows per run, which is why it surfaces intermittently"*). Its job
   median is 127 s with a p75 of 347 s and a max of 1039 s, so
   un-sampling it is a materially different sum and wants its own

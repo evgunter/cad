@@ -57,3 +57,14 @@ Neither is decided here.
 The real answer may be neither: a rim with a NAME needs no station
 (`no-public-rim-arc-selector`, and the names vocabulary
 `rim-seed-finders-disagree-on-at-this-radius` points at).
+
+## Fifth instance (BLEND unit 7)
+
+`crates/sweep/src/test_support.rs` `circle_arcs_at_z` — a z-station
+scan for the extruded N-arc fixtures, homed rather than rolled per
+suite, with a THIRD behaviour: station only, no radius filter and no
+co-surface exclusion, guarded instead by requiring every arc found to
+share one radius (its doc says why that is right for those fixtures
+and not in general). It is the z-poled twin the home would absorb the
+day `arcs_at` reads a station on either axis; until then it is the
+fifth spelling.

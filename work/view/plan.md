@@ -64,7 +64,7 @@ section, written after the fact from `git log`.
    `tool-kind-all-and-ordinal-have-no-production-reader`, both open.
 
 2. `pick-priority-filter-vocabulary` — **deferred**, ratified by
-   `crates/viewer/README.md` GQ7. The status vocabulary that could not
+   `crates/viewer/GUI-DESIGN.md` GQ7. The status vocabulary that could not
    spell it is settled: Ev ruled `deferred` into `work/README.md` and
    made `lint` refuse a `parked` row whose blockers have all closed
    (#1857).
@@ -362,9 +362,25 @@ EXIT 0 FROM THEM.** This register and every dispatch built on it said
 `--skip-viewer-toolkit` itself and hands everything else to
 `gate_parse_args` (`scripts/gates/lib.sh:55-64`), whose `*)` arm prints
 `usage: scripts/doc-gate.sh [--selftest] [--root DIR]` and **exits 2**.
-Verified by running it. The real commands are the ones CI runs
-(`ci.yml:1804-1808`): `scripts/doc-gate.sh --selftest`, then
-`scripts/doc-gate.sh`, then `scripts/doc-gate.sh --skip-viewer-toolkit`.
+Verified by running it. The real commands are
+`scripts/doc-gate.sh --selftest`, `scripts/doc-gate.sh`, and
+`scripts/doc-gate.sh --skip-viewer-toolkit`.
+
+**But do not say "the ones CI runs", because CI never runs all three.**
+`ci.yml:1802-1809`'s `rustdoc (gate)` step runs `--selftest` and then
+an **if/else**: `scripts/doc-gate.sh` when
+`needs.filter.outputs.run_viewer_toolkit` is `true`, else
+`scripts/doc-gate.sh --skip-viewer-toolkit`. They are alternatives on
+every run, never both. The orchestrator wrote *"CI runs 1, 2, 3"* into
+several dispatches and into this register; #2561's lane read the
+workflow and said so.
+
+**That wording undercut the very rule it introduced.** The reason a
+viewer lane owes BOTH passes locally is that CI runs exactly ONE of
+them, so the other is covered by nothing anywhere — and a brief that
+says CI runs both hands the lane a reason to skip the local run. A
+mis-stated justification for a correct rule is worse than none: it
+survives review because the rule it guards is right.
 
 Several lanes reported **exit 0** for the non-existent invocation. A
 command that cannot run cannot return 0, so those receipts were not
@@ -1015,6 +1031,36 @@ code match a written contract that is currently false, which is a
 different and much stronger argument. Generalises: when weighing fix
 shapes, read the doc comment on the **type** as well as the one on the
 function — a contract stated there converts a preference into a defect.
+
+**A validation item written for the code tier leaves a docs-tier lane
+with no receipt at all.** My dispatch template's item 8 asks a lane to
+report `test (…)` and `k-lint (gate, …)` counts and warns that
+`docs-only ok` is never a tier marker. On a `work/`-only change every
+code row is *skipped*, so both counts are **zero** and the one row that
+is green is the one the warning forbids citing — the lane is left with
+a receipt it is told not to give. The fix is to state the docs-tier
+shape as its own receipt: **every code row skipped**, plus `gate ok`,
+`change filter` and `CI half parity + gate wiring (every tier)`
+success, and the `TIER=` / `RUN_VIEWER_TOOLKIT=` that
+`scripts/ci-filter.py --base origin/main` reads. Generalises past this
+template: a checklist written from one branch of a conditional reads as
+complete from inside that branch, which is the proxy defect wearing a
+different hat.
+
+**The `~5 µs per triangle` that made hit (2) look pathological was a
+ratio across two different δ.** `ui-thread-work-after-the-index-seam`
+recorded `scene_focused` as *"ten times a full tessellation of the same
+body"* by dividing a **δ=1e-5** time (5 123 ms) by a **δ=1e-4**
+tessellation (511 ms) — and derived the per-triangle figure by
+dividing the 1e-5 time by the 1e-4 triangle count. At equal δ the
+measured figures are **60 ns/triangle** and **0.09× steady**: a copy
+loop running at copy-loop speed. The item's own text carried the
+contradiction already — its hit (1) section cites 6b's **6.5 s**
+fine-δ tessellation of the same body — so the check that would have
+caught it was reading the file's other sections, not re-measuring.
+Generalises: a ratio between two measurements is only a ratio if both
+were taken at the same setting, and a number quoted without its
+setting is not yet a measurement.
 
 ## Exit shape
 

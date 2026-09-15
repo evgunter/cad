@@ -16,6 +16,7 @@
 use geom_core::{Affine3, Point2, Point3, Sign, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use topo::readback::euler_counts;
 use topo::{
     Body, FaceKey, ShellError, ShellKey, ShellRole, VoidContainment, VoidEvidence, insert_void,
 };
@@ -352,10 +353,10 @@ fn r1p6_open_a_void_ceiling_with_a_pillar_through_it() {
     let holed = extrude(&profile, Extrusion::Distance(2.0), tol())
         .expect("the holed box extrudes")
         .body;
+    let holed_counts = euler_counts(&holed);
     println!(
         "[measured] holed box: faces={} rings={}",
-        holed.faces().count(),
-        holed.faces().map(|(_, f)| f.rings.len()).sum::<usize>()
+        holed_counts.f, holed_counts.r
     );
     let cube = boxy_at(0.0, 0.0, 0.0, 4.0, 4.0, 4.0);
     let body = match topo::subtract(&cube, &holed, tol()) {
