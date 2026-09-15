@@ -23,3 +23,20 @@ Python refusal tags go with them; PORT announced). The wire's private
 `AxisFrame` becomes the type; `SketchPlane::from_frame` and the Python
 plane door route through it. Ground: PROPS, WIRE, BLEND (`sweep`),
 PORT; announce each. Full v6 dual.
+
+## Digest receipt at the merge base
+
+Recipe: the zero-parameter one in `rate-pair-in-geom-core.md`
+§"Digest receipt" — `cargo build --release` in `demos/tour`, the binary
+run directly into the literal relative outdir `tour-out`, both streams
+digested whole.
+
+At the merge base `d71bb6a78` (`origin/main` at dispatch), taken before
+the first code change of this unit:
+
+- 1766 emitted files; digest of the sorted per-file digest listing:
+  `87be4dd9df4cc3af9bd44593a6b981608c8e73721c746413a00322ff61e4a892`
+- narration, 729 lines:
+  `e930abf542c371677b2c0d87b02c2bf84eb15fbaf62ded6389f48c899ef14d49`
+
+Both match the values PR 2657 recorded at `origin/main` (`4f71edaea`).
