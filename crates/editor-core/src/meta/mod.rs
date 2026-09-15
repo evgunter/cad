@@ -36,7 +36,6 @@ use std::collections::BTreeMap;
 /// The self-describing metadata value tree (spec D7). See the module
 /// docs for the contract; construct directly or via [`to_value`].
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
 pub enum MetaValue {
     /// Absence-as-data.
     Null,
