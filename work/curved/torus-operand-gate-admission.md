@@ -10,7 +10,7 @@ refs: [torus-operand-boxes-span-whole-ring, circle-residual-harmonics-needs-toru
 
 ## What
 
-`docs/CURVED-TORUS-SPEC.md` §Lily derives the lily stem glue's door
+`docs/CURVED-TORUS-SPEC.md` §Lily (deleted at PR-2's merge; recoverable at the SHA `docs/DOC-LEDGER.md` names) derives the lily stem glue's door
 sequence beyond the box (PR-1) and the residual arm (PR-2):
 
 - (a) `Torus` onto `boolean_arm_exists` (`reduce.rs`) — the gate never
