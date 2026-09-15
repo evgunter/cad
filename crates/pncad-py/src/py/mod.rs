@@ -624,14 +624,15 @@ pyo3::create_exception!(
 ///
 /// **The second thing enforced in one place: a class that carries a
 /// discriminant mints it here.** [`ErrorClass::Evaluation`] holds a
-/// [`crate::errors::EvalReason`], and `EvaluationError.reason` is
-/// written from it by [`raise_typed`] — not by the raise site, which
-/// cannot name the class without naming the reason and therefore
-/// cannot spell a word of its own. A site that passes a `reason`
-/// field anyway is overwritten by the minted word and named by the
-/// assertion below; that is the one gap the type cannot close, since
-/// the payload is a list of `(&str, Py<PyAny>)` pairs and any name is
-/// spellable in it.
+/// [`crate::errors::EvalReason`] and [`ErrorClass::Validation`] a
+/// [`crate::errors::ValidationRefusal`]; [`class_discriminant`] says
+/// which attribute each writes and what word, and [`raise_typed`]
+/// writes it — not the raise site, which cannot name either class
+/// without naming a variant and therefore cannot spell a word of its
+/// own. A site that passes that attribute anyway is overwritten by the
+/// minted word and named by the assertion below; that is the one gap
+/// the type cannot close, since the payload is a list of
+/// `(&str, Py<PyAny>)` pairs and any name is spellable in it.
 pub(crate) fn typed_err(
     py: Python<'_>,
     class: ErrorClass,
@@ -646,12 +647,15 @@ pub(crate) fn typed_err(
         class.class_name()
     );
     debug_assert!(
-        !matches!(class, ErrorClass::Evaluation(_))
-            || !fields.iter().any(|(name, _)| *name == "reason"),
-        "the evaluation door's `reason` is minted from the \
-         `EvalReason` its class carries; a raise site that passes one \
-         too is spelling a Python-visible word where no inventory \
-         reads it"
+        match class_discriminant(class) {
+            Some((attribute, _)) => !fields.iter().any(|(name, _)| *name == attribute),
+            None => true,
+        },
+        "{}'s `{}` is minted from the discriminant its class carries; a \
+         raise site that passes one too is spelling a Python-visible \
+         word where no inventory reads it",
+        class.class_name(),
+        class_discriminant(class).map_or("", |(attribute, _)| attribute)
     );
     raise_typed(py, class, message, fields)
 }
