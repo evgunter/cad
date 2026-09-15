@@ -343,6 +343,22 @@ the selection given one home rather than a negation at every consumer;
 the tree-wide guard pins the three sanctioned scalar negations by name
 instead of asserting zero, which is what D6 §0 prescribes.
 
+## Block SCALAR-B3 landed (2026-09-15)
+
+The branch-side block record — pre-draw fields, the draw (byte 207 ⇒
+slot 0 FABLE), and the three rows SENSE-FOLD (#211), FRAME-WITNESS
+(#210), EXHAUST-LANE (#208) — merges to main with this entry. No tally
+candidate in the block: SENSE-FOLD's arms found no MAJOR; EXHAUST-LANE's
+one MAJOR and FRAME-WITNESS's headline MAJOR were each found by both
+arms (the second FRAME-WITNESS MAJOR is R1's two MINORs, the same
+class). The v6 tally is unchanged from B2. The sample numbers collided
+a second time under the branch-side shape — PROPS' mignitude-floor
+(#2469) claimed #208 while EXHAUST-LANE held it branch-side and had
+merged earlier in main's first-parent order; PROPS is told on its PR
+that its row is #209, and the META row carries the instance. With B3
+landed every unit the ratifications named is on main; what remains on
+the slate is the plan's residue.
+
 ## RATE-PAIR dual concluded; a tally candidate (2026-09-15)
 
 `rate-pair-in-geom-core` (PR 2657, block SCALAR-B2 slot 2, ordinal
