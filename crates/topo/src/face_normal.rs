@@ -229,6 +229,16 @@ mod tests {
         for sense in [true, false] {
             body.set_face_sense(face, sense).unwrap();
             let flat = face_outward_normal(&body, face).unwrap();
+            // The flip itself, on the planar door: the chart normal
+            // where the bit is set, its negation where it is not.
+            let expected = if sense { normal } else { -normal };
+            assert!(
+                flat.vec().x.to_bits() == expected.x.to_bits()
+                    && flat.vec().y.to_bits() == expected.y.to_bits()
+                    && flat.vec().z.to_bits() == expected.z.to_bits(),
+                "sense {sense}: the planar door answered {:?}, not {expected:?}",
+                flat.vec()
+            );
             // Deliberately far off the plane: the planar arm must not
             // have grown a dependence on the point.
             for p in [Point3::new(0.0, 0.0, 3.0), Point3::new(7.0, -2.0, -11.0)] {
