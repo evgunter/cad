@@ -22,12 +22,16 @@
 //! vocabulary this build has since grown (a new node arm, a new
 //! optional field) never names it, so it loads — additive growth
 //! invalidates nothing. A NEWER document carrying a field this build
-//! lacks refuses (every wire type is `deny_unknown_fields`): a stale
-//! reader must not silently drop data. A BREAKING change — a field
-//! made required, a spelling retired — refuses naming the field. The
-//! recourse is the one sentence it always was, and it is also on
-//! [`PersistError::HeaderId`], because a document from before the
-//! `id:` line is a file this build cannot read too.
+//! lacks refuses through `deny_unknown_fields` on the wire type that
+//! owns the field: a stale reader must not silently drop data. That
+//! attribute needs a NAMED field to act on, so it is this arm's
+//! machinery only where the wire type has one — a unit or
+//! tuple-variant enum carries nothing for it to deny, and refuses an
+//! unknown VARIANT unconditionally without it. A BREAKING change — a
+//! field made required, a spelling retired — refuses naming the field
+//! or the variant. The recourse is the one sentence it always was,
+//! and it is also on [`PersistError::HeaderId`], because a document
+//! from before the `id:` line is a file this build cannot read too.
 //!
 //! Which arm a refusal lands on is decided by serde_json's own
 //! classification of its failure and by nothing else — the one

@@ -593,9 +593,12 @@ fn plane_ref<'de, D: Deserializer<'de>>(de: D) -> Result<RecipeNodeId, D::Error>
 /// **`plane` was four placement columns and is now a node id.** That
 /// is a BREAKING change to the format, which this format's one door
 /// handles by refusing typed: a document written before it names a
-/// `plane` object where this build expects a number, and
-/// `deny_unknown_fields` plus the shape mismatch put it on
-/// [`super::PersistError::Unreadable`] with the regenerate recourse.
+/// `plane` object where this build expects a number, and `plane_ref`'s
+/// visitor refuses that shape — naming the placement in its own
+/// `expecting` — onto [`super::PersistError::Unreadable`] with the
+/// regenerate recourse. `deny_unknown_fields` on this struct is not
+/// what fires: `plane` is a field this build knows, so the refusal is
+/// the field type's and not the attribute's.
 /// No migration, by the module header's ruling — nothing has shipped,
 /// and every checked-in document is regenerable.
 #[derive(Debug, Serialize, Deserialize)]
