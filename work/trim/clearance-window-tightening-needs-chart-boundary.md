@@ -2,10 +2,11 @@
 id: clearance-window-tightening-needs-chart-boundary
 kind: unit
 title: Clearance windows are bounding rectangles: tightening needs the face boundary in chart coordinates
-status: dispatched
+status: closed
 opened: 2026-09-03
 branch: trim/3-chart-bound
 pr: 2554
+closed: 2026-09-15
 ---
 
 ## What
@@ -104,3 +105,14 @@ all three places), a residue file whose structural premise was false
 rule lifted into a named `cut_root` with unit rows and a live e2e row
 for the `[0, τ] ∩ hull` mistake, and the drop's non-overlap fallback
 turned from "keep the description" into "drop it".
+
+## Closed (2026-09-15)
+
+PR #2554 merged (ordinal 2502, sample #201; block TRIM-B1 slot 2 —
+the block concludes): the clearance sweep reads each face's
+chart-boundary description, cuts the root window to the described
+hull and drops the cells certified off the face; the three measured
+shapes flip. The unit's record is MODEL-AB-LOG row T3B; the spec's
+§Rulings and Amendments are the ruling. Six residues stay open on this
+program (listed above); `min_separation` stays untightened as the
+identity with its mechanism now stated correctly.
