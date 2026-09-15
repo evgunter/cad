@@ -57,7 +57,7 @@ use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use std::collections::BTreeSet;
-use sweep::{Extrusion, Section, extrude, loft_body};
+use sweep::{Extrusion, extrude};
 use topo::{
     Body, BooleanError, ContactRecords, EntityId, SweepStrategy, SweepTrace, ValidationError,
     sweep_traces, validate_pseudomanifold,
@@ -230,20 +230,7 @@ fn a_body_above_the_cylinder_is_still_cleared_by_containment() {
 /// so its walls are genuine `Surface::Nurbs` with a real control net —
 /// not the `mvfs` placeholder, whose net is poison.
 fn lofted() -> Body<f64> {
-    let quad = |pts: [(f64, f64); 4]| -> Section {
-        vec![ProfileLoop::polygon(pts.iter().map(|&(x, y)| p2(x, y)))]
-    };
-    let square = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-    let trapezoid = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-    let sections = vec![quad(square), quad(trapezoid), quad(square)];
-    let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
-    ];
-    loft_body::<f64>(&sections, &places, 2, Tol::witness())
-        .unwrap()
-        .body
+    sweep::test_support::loft_prism(Tol::witness())
 }
 
 /// **Why `NurbsExtentUnsupported` has no end-to-end row, pinned so the
