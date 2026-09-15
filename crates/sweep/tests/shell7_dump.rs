@@ -18,6 +18,7 @@ use core::f64::consts::{FRAC_PI_2, PI};
 use geom::Curve3;
 use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use sweep::test_support::tube_frame;
 use sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow};
 use topo::{Body, FaceKey, VertexKey};
 
@@ -303,14 +304,27 @@ fn tube_torus(wall: Option<f64>) -> Body<f64> {
     let (c, a, u) = (Point3::new(0.0, 0.0, 0.0), Vec3::unit_y(), Vec3::unit_x());
     match wall {
         None => {
-            tube_along_arc::<f64>(c, a, u, 2.0, TubeWindow::Full, 0.5, tol())
-                .expect("the solid torus builds")
-                .body
+            tube_along_arc::<f64>(
+                tube_frame(c, a, u, tol()),
+                2.0,
+                TubeWindow::Full,
+                0.5,
+                tol(),
+            )
+            .expect("the solid torus builds")
+            .body
         }
         Some(w) => {
-            tube_along_arc_hollow::<f64>(c, a, u, 2.0, TubeWindow::Full, 0.5, w, tol())
-                .expect("the hollow torus builds")
-                .body
+            tube_along_arc_hollow::<f64>(
+                tube_frame(c, a, u, tol()),
+                2.0,
+                TubeWindow::Full,
+                0.5,
+                w,
+                tol(),
+            )
+            .expect("the hollow torus builds")
+            .body
         }
     }
 }

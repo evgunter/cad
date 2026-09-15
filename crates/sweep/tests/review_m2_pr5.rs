@@ -24,6 +24,7 @@ use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use revolve_common::*;
+use sweep::test_support::sketch_from_axes;
 use sweep::{Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind, revolve};
 use topo::{Body, EdgeKey, FaceKey, LoopBoundary};
 
@@ -725,10 +726,11 @@ fn survives_seam_alignment_under_rotated_placement_and_oblique_axis() {
     // Placed plane: origin off to the side, u/v a rotated orthonormal
     // pair (normal = u × v).
     let s = std::f64::consts::FRAC_1_SQRT_2;
-    let plane = SketchPlane::from_frame(
+    let plane = sketch_from_axes(
         Point3::new(5.0, -3.0, 2.0),
         Vec3::new(s, 0.0, s),
         Vec3::new(0.0, 1.0, 0.0),
+        Tol::witness(),
     );
     let vp = Profile::new(plane, vec![lp])
         .validate(Tol::witness())

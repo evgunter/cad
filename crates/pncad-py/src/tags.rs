@@ -134,7 +134,10 @@ use pncad::document::{
     RecordedProgramError, RefusedRef, Relation, RootFault, ShellClassifyError, SlotId,
     SnapshotError, SplitError, Subgroup, UpdateError,
 };
-use pncad::geom_core::{BandError, BandField, FrameError, FrameInput, FrameVector};
+use pncad::geom_core::{
+    BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthoFrameError,
+    UnitVec3Error,
+};
 use pncad::mesh::TessellateError;
 use pncad::prelude::BlendKind;
 use pncad::profile::{
@@ -727,6 +730,30 @@ pub fn frame_error_tag(err: &FrameError) -> &'static str {
     }
 }
 
+/// The stable tag for a FRAME WITNESS mint's refusal
+/// (`geom_core::OrthoFrame::gram_schmidt`), which is what the sketch
+/// plane door raises.
+///
+/// Two axes times the direction door's three definite facts, plus the
+/// escalation: the axis is what a caller branches on — `u` is the
+/// authored first direction and `v` the residual perpendicular to it,
+/// so `degenerate_v_axis` is the word for "these two span no plane" —
+/// and the fact is what says whether a different tolerance could
+/// help. The escalated arm carries the classifier payload on the
+/// exception's own fields rather than in the word, exactly as
+/// [`frame_error_tag`]'s degenerate arm does.
+pub fn ortho_frame_error_tag(err: &OrthoFrameError) -> &'static str {
+    match (err.axis, err.error) {
+        (OrthoAxis::U, UnitVec3Error::Degenerate) => "degenerate_u_axis",
+        (OrthoAxis::V, UnitVec3Error::Degenerate) => "degenerate_v_axis",
+        (OrthoAxis::U, UnitVec3Error::NonFiniteLength) => "non_finite_u_axis",
+        (OrthoAxis::V, UnitVec3Error::NonFiniteLength) => "non_finite_v_axis",
+        (OrthoAxis::U, UnitVec3Error::UnderflowedLength) => "underflowed_u_axis",
+        (OrthoAxis::V, UnitVec3Error::UnderflowedLength) => "underflowed_v_axis",
+        (_, UnitVec3Error::Escalated(_)) => "escalated",
+    }
+}
+
 /// The stable tag for WHICH band threshold a
 /// `BandError::InvalidValue` is about.
 ///
@@ -1233,9 +1260,6 @@ pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
 pub fn tube_error_tag(err: &TubeError) -> &'static str {
     match err {
         TubeError::Band(_) => "band",
-        TubeError::NonUnitAxis => "non_unit_axis",
-        TubeError::NonUnitURef => "non_unit_u_ref",
-        TubeError::FrameNotOrthogonal => "frame_not_orthogonal",
         TubeError::DegenerateWindow => "degenerate_window",
         TubeError::FullRangeWindow => "full_range_window",
         TubeError::NonpositiveWall { .. } => "nonpositive_wall",

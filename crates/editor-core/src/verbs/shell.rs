@@ -517,15 +517,13 @@ mod tests {
     #[cfg(feature = "interval")]
     #[test]
     fn the_interval_witness_reports_the_end_each_field_declares() {
-        use geom_core::{Interval, Point2, Vec3};
+        use geom_core::{Interval, Point2};
         use profile::RawLoop;
         // The keys are carried verbatim by the fold; any two faces of
         // any body serve, so a unit cube's first two are read.
-        let plane = profile::SketchPlane::from_frame(
+        let plane = profile::SketchPlane::from_frame(geom_core::OrthoFrame::axes_xy(
             geom_core::Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(1.0, 0.0, 0.0),
-            Vec3::new(0.0, 1.0, 0.0),
-        );
+        ));
         let square = profile::ProfileLoop::polygon(
             [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
                 .into_iter()

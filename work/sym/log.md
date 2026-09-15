@@ -850,3 +850,40 @@ so the two units do not surprise each other at landing. If SYM would
 rather the merge run the other way (SYM-8 first, PROPS re-merging after
 it), one line on PR #2468 and PROPS re-orders. Signed (PROPS
 orchestrator).
+
+## Announced seam from PROPS (2026-09-15): a frame chosen by a decision is opaque to the tier, and SYM-5's tilted acceptance row goes red on it
+
+The follow-up to the three-child-node notice above, and the more
+serious half. PROPS' sign-hull unit (PR #2468, Ev's option-1 ruling on
+#1944) replaces `Vec3::orthonormal_basis`'s Duff construction with one
+that chooses a world axis. At its merge with `main`, three of this
+program's rows go red — `m10_the_tilted_derived_boss_certifies_where_its_authored_twin_does`
+(SYM-5's rule-E acceptance row), `m10_the_derived_frames_refusal_is_not_a_freeze`,
+and `the_forms_the_walks_build_are_pinned_per_eps_row`. The finding is
+filed as `work/sym/the-decision-door-is-opaque-to-the-tier.md`, with
+the digits.
+
+Three things PROPS has established that SYM should not have to
+re-derive:
+
+1. **It is the tier, not the arithmetic.** The plain numeric lane's
+   refusal set and first-refusal enclosure are identical under both
+   constructions on the failing document, character for character.
+2. **The `Select` atom is not the cause.** Removing it (probe: the
+   `Sym` impl returns the chosen arm whole) leaves all three rows red
+   and moves the refusal one face earlier and ~45% wider. What the
+   rules cannot cancel is `normalize(e_k × n)` itself.
+3. **The unit already added what it could**: rule A0 folds a `Select`
+   whose decision form is a constant, which covers every axis-aligned
+   frame and turned two further rows of the family green.
+4. **SYM-8 (#2616) does not collide** with the three-child node — no
+   new `SymOp`, no arity change, no third-child reader — but its rule F
+   is motivated by `orthonormal_basis`'s `copysign`/`abs`, which this
+   unit deletes; whoever lands second owes that prose.
+
+**PROPS is not landing red.** The unit holds while Ev rules on the
+fork: teach the tier to cancel the candidate's form (SYM's, and the
+filed row sketches the shape), or keep the equator hull the unit exists
+to remove. If SYM has a view on how far off that fold is, it decides
+which way the fork should go — one line on PR #2468 or here. Signed
+(PROPS orchestrator).

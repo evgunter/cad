@@ -3839,7 +3839,6 @@ lesson is what the review's dispatch-level findings are: a doc comment
 that states a COUNT goes stale silently; one that states a TEST goes
 stale loudly, because the next reader can apply it.
 
-
 ## #2026 MERGED, and the orchestrator branch had gone 32 commits unmerged again (2026-09-06)
 
 **#2026 merged at `c2d7e78ce`.** Ten units on main this session. CI: 37
@@ -7604,6 +7603,7 @@ README: nothing), alongside HTML blocks and block quotes.
 used to red about a table having no rows when it had two. With the
 strip, a one-to-three-space row IS a row and the case cannot arise; a
 four-space one is reported by `!indent`, which is asked before both.
+
 ## 2026-09-10 — `view/wasm-docs`: the repo had already answered this one axis over
 
 `viewer-docs-do-not-build-at-wasm32` offered two shapes over nine broken
@@ -8798,6 +8798,7 @@ push — which it named as its own worst error of the lane, because it
 had offered a force-push to route around a diagnosis it had not
 checked. It was offered and refused; the merge that was owed on the
 merits was the answer, and it is what fired Actions.
+
 ## 2026-09-11 — `view/gesture-doors`: the two gesture doors, and one fan-out
 
 Two items, both adjacent to what #2348 landed.
@@ -8906,6 +8907,7 @@ before either branch existed.
 nobody was watching: the skip-mode pass exited 0 over three intra-doc
 links to items this diff had just deleted, while the full workspace pass
 exited 1. Both passes are owed by a viewer lane. In `plan.md`.
+
 ## 2026-09-11 — `view/gesture-identity`: the driving operations name their gesture
 
 `preview-and-commit-carry-no-gesture-identity` closed. Shape 1 of the
@@ -10290,6 +10292,7 @@ attached is not evidence about four; it is one claim about a method.
 arithmetic** — including when the arithmetic was mine.
 
 **VIEW stands at 70 open / 85 closed, nothing waiting on Ev.**
+
 ## 2026-09-12, later — `view/drag-field-precision`: every numeric field gets a text that reads back
 
 `a-drag-field-renders-a-length-at-a-precision-its-drag-speed-sets` is
@@ -10481,6 +10484,7 @@ beside a name may go stale, and two closed `work/door/` rows left alone
 because a closed row is a record.
 
 **VIEW stands at 71 open / 86 closed, nothing waiting on Ev.**
+
 ## 2026-09-12 — `probe-identity-stops-at-the-instance`: answered
 
 `view/probe-identity`. The fork was *should the door refuse a second
@@ -10836,6 +10840,7 @@ for the prose**; when one returns nothing, re-run it joined before
 believing the absence.
 
 **VIEW stands at 73 open / 88 closed, nothing waiting on Ev.**
+
 ## 2026-09-14 — `view/toolbar-wrap`: the row was measured, and it misses by 580 points
 
 `the-toolbar-row-does-not-wrap` — **closed.** The row's own framing
@@ -11714,6 +11719,62 @@ Filed while sweeping, on FIX's slate:
 reach `Subject::Unavailable`.
 
 Signed (WIRE implementer lane `wire-n1`, PR #2629).
+
+## 2026-09-15, `view/withdrawal-causes` — the INNER join gets a type
+
+Closes `withdrawal-causes-join-on-a-mark-a-fault-may-contain`, filed
+by #2665 when it fixed the outer level. `Display for Withdrawal` joins
+a withdrawal's causes with `LIST_SEPARATOR`, flat, and
+`DisplayFault::NonRigidFrame` writes one inside a single sentence. It
+was unambiguous only because neither admission test happens to raise
+that arm — a property of two functions' error sets, with no type
+carrying it.
+
+**The fix is the item's own first option: `Withdrawn.cause` narrows.**
+`display::AdmissionFault` holds the four faults the admission tests
+answer, MOVED out of `DisplayFault` rather than copied, and
+`DisplayFault` gains `Admission(AdmissionFault)`. The three check
+functions answer the narrow type; every door still answers
+`DisplayFault` through `From` at the `?`; ~30 call sites moved under
+the compiler.
+
+**Why not the other two.** The mark treatment (`Message::new` /
+`Message::joined` one level in) needs a mark that is never legitimate
+in-band, and one level in from the bullet there is none left — every
+candidate is punctuation a sentence is entitled to, and a rewriting
+door would show a reader words its author did not write, which is the
+objection `frame_status`'s own doc already makes to escaping at a
+join. Re-wording `NonRigidFrame` is a claim about one arm, and it has
+a cost nobody had priced: #2665's
+`a_joined_line_splits_back_into_the_notices_it_was_made_from` is built
+on that sentence as the one REAL fault text carrying the mark, and
+guards itself with an assert that reds if it stops carrying one. That
+row would have had to fall back to prose written for the row, which is
+what its doc says it refuses to do.
+
+**Receipts.** Reverting the field to `DisplayFault` and letting the
+census range over the type it then has: the split returns **nine
+pieces for eight causes**, `NonRigidFrame`'s single sentence cut in
+two. Giving `MateConstrained` a semicolon on the fixed tree: both new
+rows red. Widening `free_move_check` to answer `NonRigidFrame`: E0308.
+
+**Two findings filed from the sweep**, both on this slate.
+`startup-notices-join-on-a-mark-a-prefs-notice-contains` is the same
+class at `LIST_SEPARATOR`'s other consumer and is **live, not latent**
+— three `prefs::Notice` arms carry a `"; "` and two startup notices
+need only a prefs file naming an unknown theme and an unknown preset.
+`seat-line-spells-the-list-mark-as-a-literal` is the mark's second
+spelling.
+
+**Also corrected, both stale before this branch:** `display.rs` and
+`frame.rs` each said *"the remaining three"* `DisplayFault` arms name
+no id, written 2026-09-05 when there were seven arms and falsified on
+2026-09-11 by `WrongFreeMove`; the split states it structurally
+instead. `crates/viewer/README.md` said `rank`'s `Display(_)` is a
+catch-all, which #2053's fix pass made false on 2026-09-06 —
+`git log -S` finds an agent commit and no ratification.
+
+Signed (VIEW implementer lane `withdrawal-causes`, PR #2693).
 
 ## 2026-09-15 — `view/style-installs`: startup's two context-wide installs are held, and the premise was measured before it was built on
 

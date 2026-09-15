@@ -400,6 +400,18 @@ pub fn sentinel_region(text: &str, what: &str, begin: &str, end: &str) -> std::o
     b + begin.len()..e
 }
 
+/// The offset at which the line holding `at` begins.
+///
+/// The offset half of [`line()`], which answers the line NUMBER. Here
+/// because three readers had spelled the same `rfind('\n')` fold, and
+/// a caller wanting the text before a match ON ITS OWN LINE — a
+/// declaration's modifiers, an attribute's indentation — is asking one
+/// question the tree had three answers to.
+#[must_use]
+pub fn line_start(text: &str, at: usize) -> usize {
+    text[..at].rfind('\n').map_or(0, |nl| nl + 1)
+}
+
 /// **The 1-based line `at` falls on**, for a guard whose refusal a
 /// reader has to be able to open. Offsets come out of a blanked view
 /// and a view blanks in place, so this is correct against the raw text
@@ -638,6 +650,157 @@ pub fn angle_end(blanked: &str, open: usize) -> Option<usize> {
         }
     }
     None
+}
+
+/// What an `impl` head names: the trait it implements, where it names
+/// one, and the self type it implements it for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImplHead {
+    /// The trait as the head WRITES it, path qualification and generic
+    /// arguments kept: `core::fmt::Debug`, `PartialEq<Other>`. `None`
+    /// on an inherent `impl`. A spelling, never a resolution — a
+    /// caller wanting the bare word asks [`type_base`] for it, and one
+    /// that must not conflate `PartialEq<Other>` with `PartialEq` does
+    /// not.
+    pub trait_path: Option<String>,
+    /// The self type as the head writes it, whitespace collapsed:
+    /// `Coset`, `SignCertificate<'_, T>`.
+    pub self_type: String,
+}
+
+/// The trait and self type the `impl` at `impl_at` names, or `None`
+/// where the head is one this reader cannot parse.
+///
+/// **The generic list is stepped over first.** `impl<P: PartialEq>
+/// Doc<P>` names a trait in a BOUND and implements none; reading the
+/// whole head for the word answers a trait the impl does not have.
+///
+/// `blanked` is a [`code_only`] view and `body_start` the offset of
+/// the body's `{`, which is what keeps a `for` or a `<` inside a
+/// comment or a literal out of the head.
+///
+/// **Shared because two censuses read impl heads.**
+/// `crates/test-utils/tests/hand_written_impl_census.rs` keys its
+/// suppression list on `(path, trait, self type)` and
+/// `crates/pncad-py/src/tests.rs` keys its minting roster on
+/// `(trait, self type, item name)`; both had written this walk, by two
+/// algorithms, and a reader hosted inside one of its consumers is how
+/// the tree got its drift.
+#[must_use]
+pub fn impl_head(blanked: &str, impl_at: usize, body_start: usize) -> Option<ImplHead> {
+    let mut at = skip_ws(blanked, impl_at + "impl".len());
+    if blanked[at..].starts_with('<') {
+        at = angle_end(blanked, at)? + 1;
+    }
+    let head = blanked.get(at..body_start)?;
+    let Some(for_at) = top_level_for(head) else {
+        return Some(ImplHead {
+            trait_path: None,
+            self_type: collapsed(head),
+        });
+    };
+    Some(ImplHead {
+        trait_path: Some(collapsed(&head[..for_at])),
+        self_type: collapsed(&head[for_at + "for".len()..]),
+    })
+}
+
+/// A type or trait spelling with its `where` clause, its body brace and
+/// its surrounding whitespace dropped, and the whitespace inside it
+/// collapsed to one space.
+///
+/// A `where` clause is a bound on the impl and not part of the type,
+/// and an UNTERMINATED head runs past the body's own brace — so both
+/// end the spelling.
+fn collapsed(spelling: &str) -> String {
+    let mut end = spelling.len();
+    let mut from = 0usize;
+    while let Some(off) = spelling[from..].find("where") {
+        let at = from + off;
+        from = at + "where".len();
+        if word_at(spelling, at, "where") {
+            end = at;
+            break;
+        }
+    }
+    if let Some(brace) = spelling[..end].find('{') {
+        end = brace;
+    }
+    spelling[..end]
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// The offset of the first whole-word `for` in `head` at bracket depth
+/// zero, or `None`.
+///
+/// **Depth matters and is not decoration.** A bound like
+/// `impl<T: Fn(&str) -> bool> …` and a higher-ranked
+/// `for<'a> Trait<'a>` both put a `for`-shaped token where it ends no
+/// trait; reading either as the separator answers a trait that is not
+/// one. Round and square brackets are counted, angle brackets are not —
+/// the generic list is stepped over by [`angle_end`] before this runs,
+/// so a `for<'a>` inside a WHERE clause is past the body already.
+fn top_level_for(head: &str) -> Option<usize> {
+    let (mut paren, mut bracket) = (0usize, 0usize);
+    for (at, c) in head.char_indices() {
+        match c {
+            '(' => paren += 1,
+            ')' => paren = paren.saturating_sub(1),
+            '[' => bracket += 1,
+            ']' => bracket = bracket.saturating_sub(1),
+            'f' if paren == 0 && bracket == 0 && word_at(head, at, "for") => {
+                // `for<'a>` is a binder, not the separator.
+                let after = skip_ws(head, at + 3);
+                if !head[after..].starts_with('<') {
+                    return Some(at);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// The bare name at the head of a type or trait spelling: its path
+/// qualification and its generic arguments dropped.
+///
+/// `SignCertificate<'_, T>` is destructured as `SignCertificate { … }`
+/// and `crate::mate::Coset` as `Coset { … }`, so this is the word a
+/// pattern would carry — and the word a roster keyed on a type carries
+/// for `Foo<'a>` and `Foo` alike.
+#[must_use]
+pub fn type_base(spelling: &str) -> &str {
+    spelling
+        .split('<')
+        .next()
+        .unwrap_or_default()
+        .rsplit("::")
+        .next()
+        .unwrap_or_default()
+        .trim()
+}
+
+/// The identifier beginning at `at`, empty when none does.
+///
+/// **A raw identifier is ONE identifier, `r#` included.** Reading
+/// `r#type` as `r` leaves the reader looking at a `#`, and a struct
+/// variant whose name is a keyword then reads as a unit one — a false
+/// green, since the enum has a named field the attribute denies. A
+/// second reader had written the plain-alphanumeric half of this
+/// without the `r#` arm, which is the same defect one keyword away.
+#[must_use]
+pub fn ident(code: &str, at: usize) -> &str {
+    let from = if code[at..].starts_with("r#") {
+        at + 2
+    } else {
+        at
+    };
+    let end = code[from..]
+        .find(|c: char| !c.is_alphanumeric() && c != '_')
+        .map_or(code.len(), |off| from + off);
+    &code[at..end]
 }
 
 /// The byte ranges of the `sep`-separated items of `blanked` at bracket
