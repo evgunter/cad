@@ -1,7 +1,7 @@
 ---
 id: sixty-one-tag-words-are-minted-by-two-or-more-maps-and-seven-are-read
 kind: issue
-title: 61 tag words in tags.rs are minted by two or more maps; seven have been read
+title: Most of the tags.rs words minted by two or more maps have never been read against the scoping rule
 status: open
 opened: 2026-09-15
 ---
@@ -14,13 +14,27 @@ two maps both speak is a coincidence and not a collision — and offered
 as evidence that `join` already collided with itself twice in-file.
 
 The rule was DECIDED over the seven words one unit was dispatched at
-and ASSERTED over the file.
-The population it covers is **61 words minted by two or more maps**,
-measured two ways that agree: a per-function sweep of `tags.rs`'s
-literals, and the same computation over `TAG_INVENTORY`'s 98 committed
-rows. Seven of those 61 words have been read by anybody — `face`,
-`edge`, `vertex`, `empty`, `join`, `split`, `no_at_rest_record`.
-**54 have not.**
+and ASSERTED over the file. The population it covers was **61 words
+minted by two or more maps** when this row was opened and is **62 on
+`census/py-raise-literals`**, measured two ways that agree: a
+per-function sweep of `tags.rs`'s literals, and the same computation
+over `TAG_INVENTORY`'s committed rows (98 at the opening, 102 on that
+branch). Eight of the 62 have been read by anybody — `face`, `edge`,
+`vertex`, `empty`, `join`, `split`, `no_at_rest_record`, and `validate`,
+which CENSUS-PY-RAISE-LITERALS dispositioned as a coincidence at
+`SHARED_TAG_WORDS`'s own site when `validation_refusal_tag` landed.
+**54 have not** — the same 54, because the unit that grew the
+population also read the word it added.
+
+**No count is written into the prose this row is about any more.**
+`tags.rs`'s header carried `61` and went stale in the diff that moved
+the population to 62; it now names `SHARED_TAG_WORDS` instead, which
+is derived from `TAG_INVENTORY` and is therefore the measurement.
+**This row's ID keeps its number** and its body no longer does: the id
+is cited by `docs/DOC-LEDGER.md`'s CENSUS-PY-GETTERS entry as the
+residue that unit filed, by `work/STATUS.md`, and by three sibling
+rows, and a rename would falsify a ledger line that records what was
+filed under that name. Read the id as a name, not as a measurement.
 
 ## What the fix pass left behind
 
@@ -36,8 +50,9 @@ question.
 ## The measured population
 
 Words minted by two or more maps, with the maps that mint them. Taken
-from `TAG_INVENTORY` on this tree; the test above is what keeps it
-from decaying silently.
+from `TAG_INVENTORY` as of `census/py-raise-literals`; the test above
+is what keeps it from decaying silently, and it is what to re-derive
+from rather than this list.
 
 - band (16): blend_error_tag boolean_error_tag checks_error_tag distribution_kind_tag extrude_error_tag frame_error_tag loft_error_tag node_error_tag path_error_tag profile_error_tag revolve_error_tag shell_classify_error_tag shell_error_tag transform_error_tag tube_error_tag validation_error_tag
 - escalated (10): blend_error_tag boolean_error_tag check_evidence_tag naming_error_tag node_error_tag path_error_tag profile_error_tag shell_classify_error_tag shell_error_tag tube_error_tag
@@ -96,6 +111,10 @@ from decaying silently.
 - underflowed_direction (2): node_error_tag path_error_tag
 - unnamed (2): hit_test_error_tag naming_error_tag
 - unreadable (2): persist_error_tag select_refusal_tag
+- validate (2): program_refusal_tag validation_refusal_tag — READ: a
+  profile program's own validator against the Python method name
+  `Body.validate`, two vocabularies sharing an English word and nothing
+  else. Coincidence, decided at `SHARED_TAG_WORDS`.
 - vertex (2): entity_id_tag entity_kind_tag
 - vertex_on_edge (2): census_contact_tag ring_contact_tag
 - vertex_on_face (2): census_contact_tag stale_declaration_tag
