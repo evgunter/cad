@@ -693,3 +693,100 @@ shape this log has now recorded eight times.
 **Where the program stands.** 25 open and one parked on this branch,
 after the four moves and the one filing; the repoint unit closes two
 more and is in review. Nothing waits on Ev.
+
+## Four rows re-pointed by subject; the two reports that found the rot are closed (2026-09-15)
+
+`chrome/citation-repoint`. Six rows, no source file touched.
+
+Four rows carried citations that rotted when
+`viewer-session-god-module-split` (#1830) took `app.rs` and
+`session.rs` apart. All four are re-pointed **by symbol name and
+file**, with no line number written anywhere —
+`docs/prompts/implementer-discipline.md` §7, and the shape
+`work/view/citation-repoint-shifted-a-number-the-lane-knew-was-wrong`
+set after a sibling lane shifted a number it had just declared wrong:
+
+- `drag-tick-has-three-homes` — the finding was intact and every
+  address dead. Its three homes are `forms.rs` (the rule and the four
+  constants), `pane/properties.rs` (the two converted panel fields)
+  and the hand-picking spread across `pane/create.rs`, `widgets.rs`
+  and `pane/properties.rs`. Population re-derived: 45 grep lines, **38
+  real call sites**, and the grep's blind spot named in the row.
+- `parameter-row-field-has-no-text-door` — four bands past the end of
+  `app.rs`; all four subjects are in `pane/properties.rs`. Still
+  `parked`; its blocker moved to `work/edit/` and is open.
+- `add-parameter-form-authors-canonical-only` — re-pointed, and **one
+  supporting bullet struck rather than re-pointed**: the form's tick is
+  no longer a hand-named constant, `add_param_ui` derives it from
+  `FieldWriting::of`. The head claim (canonical-only DECLARATION) is
+  untouched and still true.
+- `add-profile-placement-on-picked-face-frame` — **premise re-cut, row
+  kept open.** `SessionOp::AddProfile` takes a picked frame node, not
+  world XY; `sketch::frames` already admits `Datum::FaceFrame`; and
+  `names::interrogate::face_carrier_kind` answers the planarity
+  question the row said nothing answered. What is actually missing is
+  one seat: `DatumSpec` (`session/author.rs`) has no `FaceFrame`
+  variant, so no chrome can mint the node every other layer accepts.
+
+Closed with them: `drag-tick-row-cites-app-rs-for-a-finding-that-lives-in-forms-rs`
+and `parameter-row-field-cites-a-pre-split-app-rs`, the two VIEW-filed
+reports that existed only to say the rows had rotted. Every location
+either of them named checked out. One sentence in the first does not:
+*"`app.rs` holds none of them"* is off by a re-export path, which that
+row's `## Closed` section records — and which a later review showed had
+more behind it than this log first claimed (below).
+
+Filed on the way: `add-profile-ui-doc-comment-states-a-premise-the-tree-falsified`
+(the same two falsehoods, still standing in `pane/create.rs`'s own doc
+comment, which the fence of this unit put out of reach), and a sixth
+instance plus a correction added to
+`work/issues/dead-work-citations-from-shipped-code-and-docs.md`.
+
+## The citation-repoint fix pass: a repointing unit minted its own errors (2026-09-15)
+
+Same branch, after a style review returned 14 findings, three of them
+on text the repoint pass itself wrote. Worth recording as a pattern
+rather than a list: **a unit whose subject is stale claims is not
+immune to making them**, and two of the three were the exact shape it
+existed to close — a fresh census written into a row while repointing
+it, and a replacement reproduction command that misleads whoever runs
+it just as the dead one did.
+
+- `add-profile-placement-on-picked-face-frame` asserted that a
+  face-frame arm committing two nodes would break one-submit-one-edit.
+  **False, and against a ratified page that names the row by id**:
+  `crates/editor-core/REFERENCES.md` DM1 rules that both "on a new XY
+  frame" and "on this face" are two inserts in one `commit_action`,
+  and `DocSession::commit_action` ships — all-or-nothing, one history
+  state, *"one user action is one undo"*. The constraint is struck in
+  both that row and `add-profile-mints-no-frame`, which is where the
+  claim originated and which the re-cut row had inherited it from.
+  Removing it pushes the two rows apart: one wants a node kind the
+  chrome can already mint, the other a seat that does not exist.
+- `add-profile-mints-no-frame`'s reason for inaction — *"work thrown
+  away if that fork goes the derived way"* — was spent: the fork went
+  derived in PR 1829. Announced in the row rather than left standing.
+- `drag-tick-has-three-homes`: caller list read as a census and named
+  three of four; `git grep -c` described as printing a total when it
+  prints four `file:count` lines; a per-file figure contradicting the
+  row's own subtraction; and "two doc-comment mentions" in `app.rs`
+  where there is one `//` line comment and one mention of the MODULE.
+  All four corrected, with the derivations shown so the next reader
+  can check them rather than trust them.
+
+Two findings landed in territory ceded to VIEW and were filed, not
+fixed: evidence added to
+`work/view/every-crate-root-reexport-is-a-second-path-not-the-only-one`
+(`app.rs`'s re-export comment names a test as its only consumer while
+`props.rs` links through the same path in production, at the wrong
+home) — which also corrects this program's earlier judgement that the
+re-export wrinkle left no open thread; it left two — and a new row,
+`forms-rs-fieldwriting-doc-says-the-creation-forms-do-not-use-it`.
+
+That new row makes **three** known instances of "a viewer comment
+asserting something the tree falsified", with
+`add-profile-ui-doc-comment-states-a-premise-the-tree-falsified` and
+the orchestrator's `addboolean-doc-names-a-vocabulary-that-does-not-exist`.
+All three were found incidentally by lanes doing something else, which
+is what an un-enumerated population looks like. **The class sweep is
+still unrun and should be scheduled.**

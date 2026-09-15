@@ -100,3 +100,84 @@ tracker-wide re-home of 2026-09-04, which routed rows by PATH GLOB
 (`crates/*/tests/*`, `crates/test-utils/*`) rather than by question.
 This program is the question it was always about: whether the suite
 asserts what it claims to assert.
+
+## Re-derived (2026-09-15, lane C)
+
+**VERDICT: REPRODUCES** — the check is byte-for-byte the one this row
+describes, the `Shared` population has grown, and the audit the row said
+nobody had done turns up a live partial reversion.
+
+**The check.** `every_shared_entry_actually_reaches_the_shared_lexer` in
+`crates/test-utils/tests/reader_census.rs` still filters on the single
+substring
+
+```rust
+!test_utils::source::code_only(&text).contains("test_utils::source")
+```
+
+and its rustdoc still promises the strong reading (*"a converted site
+that reverts to a hand-rolled reader keeps its `Shared` line … and the
+census stays green over exactly the change it was built to catch"*).
+None of the three candidate shapes in `## What a unit here does` has
+been taken: there is no call-shaped needle, no second-lexer needle set,
+and the doc does not accept the coarseness. The stricter row the D261
+review wrote (`every_shared_entry_reads_through_a_view_not_only_a_traversal`,
+quoted in the sibling row `source-lacks-an-item-body-carve-…`) is not in
+the file — `grep -n "reads_through_a_view"` over the tree returns
+nothing.
+
+**The population, re-derived.** Parsing `LEDGER` (`python3`, regex over
+`path:`/`disposition:` pairs) gives **63 entries: 57 `Shared`, 4
+`Unconverted`, 1 `NotRust`, 1 `Home`**. `UNCONVERTED_TODAY` is `4` and
+matches. "Dozens" in the body is right and is now 57.
+
+**The row's own fix is in the tree.** `plain_string_literal`,
+`initializers` and `sole_initializer` are `pub fn`s of
+`crates/test-utils/src/source.rs`, and `tools/k-lint/tests/predicate_roster.rs`
+and `tools/tess-meter/tests/derivations.rs` both call
+`source::plain_string_literal` rather than carrying copies. So the
+INSTANCE is repaired and the CLASS check is not — exactly the state the
+row predicted.
+
+**The audit, done here for the first time (the part "nobody has looked"
+covered).** Over all 57 `Shared` files, with `//`-comments stripped:
+
+- *Bare import, no call at all*: **none**. Every one of the 57 reaches at
+  least one `test_utils::source` item by name, so the demonstrated
+  satisfiability has no current instance.
+- *No VIEW call, only a traversal or a carve*: **one** —
+  `crates/topo/src/live.rs`, which imports `{ItemBody, balanced_end,
+  item_body}` and takes its blanked text from `source_walk::CodeOnly::of`
+  (topo's adapter). The reviewer's proposed stricter row would go RED on
+  it today; it was green at PR 1919's head. Whoever takes this owes
+  `live.rs` a disposition before writing that row.
+- *A second lexer beside the import (the partial reversion this row is
+  named for)*: **one live instance — `crates/pncad/tests/all.rs`.** It is
+  dispositioned `Shared`, imports `{ItemBody, balanced_end,
+  code_and_literals, code_only, item_body}`, and beside that hand-rolls
+  `string_literals` (a byte walk over `b'"'` honouring `\` escapes — the
+  lexer arm `source.rs` documents as the one "this tree has got wrong
+  three times"), `token_starts_at` (an identifier-boundary predicate that
+  duplicates `source::boundary_before`), `line_of` (duplicates
+  `source::line`) and a `depth`-counting argument splitter (duplicates
+  `source::top_level_split`). Every one of the row's three needle shapes
+  fires on it, and the check is green.
+
+  Needle set used: `b'/'`/`b'"'`/`b'\''` byte matches, and the
+  identifiers `in_comment`/`in_string`/`in_literal`/`in_block`, over each
+  `Shared` file with line comments stripped.
+  **What that sweep could not match**: a hand-rolled reader written over
+  `chars()` with differently-named state, a copy behind a macro, one in a
+  module the file `#[path]`-mounts, and a lexer whose only tell is a
+  `depth` counter (searched for separately and too noisy to be a needle —
+  `top_level_split`-shaped code is everywhere). The three `in_*` hits on
+  `wire_operand_door.rs`, `predicate_roster.rs` and `derivations.rs` were
+  false positives: all three are the substring `plain_string_literal`.
+
+**Recommendation (orchestrator's call).** Keep open. The unit is
+unchanged in shape but now has two named subjects to disposition —
+`crates/pncad/tests/all.rs` (partial reversion, live) and
+`crates/topo/src/live.rs` (reaches a view only through an adapter, and is
+dispositioned `Shared` while `crates/topo/src/boolean/boxes.rs` is
+`Unconverted` with a reason that names exactly that situation). That
+asymmetry is new since filing and is reported separately.

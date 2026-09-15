@@ -66,3 +66,66 @@ S-TCOST because the defect is an enumeration nobody updated, not a cost
 lever — S-TINT's own charter shape, and the same shape as
 `r2-m10-6-header-roster-omits-the-suites-heaviest-row` and
 `decoration-seam-header-names-no-pin-for-enclose` already on this slate.
+
+## Re-derived (2026-09-15, lane C)
+
+**VERDICT: REPRODUCES** — unchanged in every particular. Five of ten
+rungs, the same five, and the header still claims all ten.
+
+**The header.** `crates/editor-core/tests/lib_u5_interrogate.rs` still
+opens *"What is pinned HERE is the part a doctest cannot reach
+comfortably: every rung of [`InterrogateError`], and `edge_frame` against
+a body whose edges are lines"*, and still argues for itself on that scope
+*"An untested ladder is one where two rungs silently collapse into each
+other."*
+
+**The table, re-derived** (`grep -c "\b<variant>\b"` per variant over the
+file; `InterrogateError`'s ten variants read off its `pub enum` in
+`crates/editor-core/src/names/interrogate.rs`):
+
+| rung | hits in the suite |
+| --- | --- |
+| `NodeNotEvaluated` | 3 |
+| `NoSuchName` | 4 |
+| `Ambiguous` | 1 |
+| `WrongKind` | 3 |
+| `WholeBody` | 1 |
+| `NodeFailed` | **0** |
+| `NodePoisoned` | **0** |
+| `NoBodies` | **0** |
+| `NoSuchBody` | **0** |
+| `Readback` | **0** |
+
+Identical to the table filed at `62c0e277e`: the five absent rungs do not
+appear in the file at all, so the gap is five and the header's scope
+sentence is five rungs wider than its evidence.
+
+**The enum has not grown.** Ten variants exactly —
+`NodeNotEvaluated`, `NodeFailed`, `NodePoisoned`, `NoSuchName`,
+`Ambiguous`, `WrongKind`, `WholeBody`, `NoBodies`, `NoSuchBody`,
+`Readback` — so the denominator in the title is still right.
+
+**The `NoBodies` blocker is still in place.**
+`work/shell/clearance-reports-a-no-bodies-payload-as-a-bad-body-index.md`
+exists on SHELL's slate, so the "blocked on SHELL's repair, not on
+reachability" disposition stands and the four unmeasured rungs
+(`NodeFailed`, `NodePoisoned`, `NoSuchBody`, `Readback`) are still
+unmeasured.
+
+**Adjacent, same enum, worth knowing before a unit is cut.** The row
+`assert-f6-dump-lists-are-hand-written-mirrors-of-error-enums` on this
+same slate re-derived `InterrogateError` at the same base: its `dumps`
+list in `crates/editor-core/tests/display_contract.rs` **is** complete at
+ten. So `InterrogateError` is fully enumerated in the F6 suite and half
+enumerated in its own ladder suite — a unit that adds the five missing
+rungs has a ready source for their identifiers.
+
+**Blind spot of this re-derivation.** The count is a whole-word grep over
+the file text, so a rung constructed through a helper that names the
+variant elsewhere would read as 0 here, and a rung mentioned only in a
+doc comment would read as present. Both directions were checked by eye for
+the five "yes" rows (each is constructed or matched in code) and the five
+zeros are absolute — the identifiers do not occur in the file in any
+form.
+
+**Recommendation (orchestrator's call).** Keep open, unchanged.
