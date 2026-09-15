@@ -689,3 +689,53 @@ three side effects defined as above (the memo carries its atoms;
 the per-leaf goldens' column re-blessed as the acceptance's own move;
 the opaque-sequence argument pinned across leaves). The assertion
 discharge stays a separate question.
+
+## What the drive-scoped plain memo took, and what it left (SYM-7, 2026-09-15)
+
+The volume ask above closes with SYM-7 (`geom_core::sym::DriveMemo`,
+`DriveConfig::plain_memo`). What it moved, measured on the box this
+item's other readings were taken on:
+
+| document | leaves | schedule | memo off | memo on | ratio |
+|---|--:|---|--:|--:|--:|
+| slab | 1,280 | sequential | 157.13 s | 78.17 s | 2.01× |
+| slab | 1,280 | parallel | 40.12 s | 21.04 s | 1.91× |
+| plate | 256 | sequential | 247.47 s | 205.35 s | 1.20× |
+| plate | 256 | parallel | 65.01 s | 51.42 s | 1.26× |
+
+Test profile, one take each. In RELEASE both reviewers re-took the slab
+at **2.7–3.05×**, which is the number to quote for a shipped build: the
+test profile spreads a quarter of the count over glue that release
+inlines away, and that glue is in both lanes.
+
+### The ceiling it was sized against
+
+| document | leaves | plain forms | per leaf | distinct ids | ratio |
+|---|--:|--:|--:|--:|--:|
+| slab (M10-3 chamber, 1,280-leaf budget) | 2,559 | 19,099,919 | 7,464 | 18,833 | 1,014.2× |
+| plate (256-leaf budget) | 511 | 9,005,864 | 17,624 | 17,624 | 511.0× |
+
+### Phase 3 — the hash-consing table shared across the drive: MEASURED, NOT TAKEN
+
+`intern` is the largest remaining share of a memo-on slab drive:
+**101,014,539 of 297,806,769 Ir inclusive, 33.9 %** (callgrind, release,
+8-leaf sequential drive). Almost all of that is `SymNode::id()`, the
+128-bit content hash, which a shared table does not remove — the id has
+to be computed before any table can be consulted. What sharing could
+remove is the TABLE work: `rustc_entry` 10,176,058 + `reserve_rehash`
+6,573,305 + `insert_no_grow` 5,286,294 = **22,035,657 Ir, 7.4 % of the
+drive** — an upper bound taken before any lock cost, against 21.7 M
+interns over a drive each of which would need one. SYM-7's spec gated
+the change at **≥ 10 % of wall time**, so it is not taken; both
+reviewers accepted the partition. The number stays here rather than in a
+merged PR body, which is where the spec said it should live.
+
+### What the memo does NOT help
+
+A drive whose leaves are dominated by the EARLY walk, which stays per
+leaf. R2 measured the boss-on-a-derived-frame-over-a-tilted-datum
+document at 48 leaves: **275.8 s with the memo on against 276.1 s with
+it off** — every leaf refused, the per-node rule A/B reduction is the
+cost, and the plain memo saves nothing there. The class the memo helps
+is plain-walk-dominated drives, which is what the slab is and what the
+plate half is.

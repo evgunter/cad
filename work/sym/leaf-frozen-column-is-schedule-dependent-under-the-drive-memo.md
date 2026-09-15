@@ -25,6 +25,28 @@ differential row prints it): the leaves' own `frozen` sums to 50,112
 with the dial off and 0 with it on, and the drive's own column is
 1,044 either way.
 
+## The latent dependence a review found (2026-09-15)
+
+`CertifiedLeaf` and `RefusedLeaf` derive `PartialEq`, and that
+derivation covers `decisions` — so it covers the per-leaf `frozen`
+column. Rows that compare whole leaf lists across schedules therefore
+compare it too, and
+`m10_3_r2_probes_interval::my_own_drive_is_bit_identical_across_repeats_and_schedules`
+is one of them (both reviewers of SYM-7 found this; the census in that
+PR's body under-reported it).
+
+It is green today for a reason that is not a guarantee: the level-0 root
+box publishes the whole DAG before any level splits, so every later leaf
+finds every form in the memo and freezes NOTHING — both reviewers
+measured the leaves' own `frozen` at 0 with the memo on, on both
+documents. A document whose DAG grows between levels, or a drive whose
+first level is wider than one box, would let two leaves race for a node
+and make that column differ between schedules. The row would then red,
+and correctly.
+
+So the options below are not only tidying: the first two make that row's
+comparison well-founded instead of accidentally satisfied.
+
 The DRIVE's column is sound and that is the one the receipt
 serializes: `ParamBoxVerdict::serialize` writes the distinct nodes
 frozen over the drive (`DriveMemo::frozen`), a set, so

@@ -50,6 +50,13 @@ use crate::m10_3_r1_probes_interval::{CHAMBER_LEAVES, bounded_chamber};
 use crate::m10_7_plate::plate;
 use crate::m10_derived_frame_tilted_interval::boss_on_tilted;
 
+// The preamble below — `eps`, `slab`, `the_plate` — is copied from
+// `m10_sym_profile_interval` verbatim, so that the two suites' numbers
+// are about one document. It is one more instance of the class
+// `work/sym/interval-test-preamble-is-copied-across-the-m10-files`
+// counts, and that row records this copy and why it was taken over an
+// import (an import makes this suite's gated marker name the exporting
+// one, and couples the unit's rows to a file they do not depend on).
 fn eps() -> f64 {
     Tol::witness().eps()
 }

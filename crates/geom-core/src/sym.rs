@@ -534,11 +534,21 @@
 //! Measured on the drives at the test profile, one take on the
 //! measuring box: the slab at 1,280 leaves 157.1 s → 78.2 s
 //! sequentially and 40.1 s → 21.0 s over four workers; the plate at 256
-//! leaves 247.5 s → 205.4 s and 65.0 s → 51.4 s. The slab halves
-//! because the plain walk is half of its replay and nearly all of it is
-//! recomputation; the plate moves by a fifth, because what dominates
-//! there is the per-node rule A/B reduction inside the EARLY walk,
-//! which consults the leaf's registry and stays per leaf.
+//! leaves 247.5 s → 205.4 s and 65.0 s → 51.4 s. In RELEASE the slab is
+//! 2.7–3.05× (both of SYM-7's reviewers re-took it): the test profile
+//! spreads a quarter of the count over glue release inlines away, and
+//! that glue is in both lanes.
+//!
+//! **The class the memo helps is a PLAIN-WALK-DOMINATED drive**, and
+//! the three documents say so between them. The slab halves because the
+//! plain walk is half of its replay and nearly all of it is
+//! recomputation. The plate moves by a fifth, because half of it is the
+//! per-node rule A/B reduction inside the EARLY walk, which consults
+//! the leaf's registry and stays per leaf. And a boss on a derived
+//! frame over a tilted datum — every leaf refused, the early walk the
+//! whole cost — moves by NOTHING: 275.8 s with the memo on against
+//! 276.1 s with it off at 48 leaves (R2's reading). A drive of that
+//! shape pays the memo's bookkeeping and collects none of its win.
 //!
 //! The memo's own cost on a leaf that gains nothing from it — the
 //! bookkeeping, and the `Arc` the forms are held behind so that a hit
@@ -1101,6 +1111,14 @@ pub struct SymCounts {
     /// measure and not a receipt column: which leaf pays for a node
     /// depends on the schedule. The drive's column is the one that does
     /// not.
+    ///
+    /// `CertifiedLeaf`/`RefusedLeaf` derive `PartialEq` over their
+    /// `decisions`, so a row that compares whole leaf lists across
+    /// schedules compares this column too. Those rows are green because
+    /// a drive's level-0 root publishes the whole DAG before anything
+    /// splits, so no later leaf freezes at all —
+    /// `work/sym/leaf-frozen-column-is-schedule-dependent-under-the-drive-memo`
+    /// carries that dependence and the options for closing it.
     pub frozen: u64,
 }
 
