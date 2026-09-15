@@ -42,7 +42,7 @@ been drawn**, and the PR that reaches the path draws it.
 
 Nine rows opened the program. Seven are closed on main (2026-09-15): the
 three door rows `D290` (PR 2461, #201), `S393` (PR 2466, #203) and
-`sweep-test-rebuilds-validated-net-for-v-reversal` (PR 2586, #204), and
+`sweep-test-rebuilds-validated-net-for-v-reversal` (PR 2627, #204), and
 the three rulings `D6`, `D283` and `unit-vector-invariants-carried-as-prose`,
 answered in the first `[ev]` sitting (PR 2457) and executed as the six
 units below. Two are open:
