@@ -44,8 +44,8 @@ test_utils::gated_to![
     "crates/geom-core/src/real.rs"
 ];
 
-use geom_core::exact::two_sum;
 use geom_core::RingInterval;
+use geom_core::exact::two_sum;
 use std::cmp::Ordering;
 use test_utils::fuzz;
 

@@ -871,12 +871,7 @@ impl<T: Real> NurbsSurface<T> {
                 weights.push(self.weights[iu * nv + iv]);
             }
         }
-        Self::from_validated_parts(
-            self.knots_v.clone(),
-            self.knots_u.clone(),
-            control,
-            weights,
-        )
+        Self::from_validated_parts(self.knots_v.clone(), self.knots_u.clone(), control, weights)
     }
 
     /// The same surface with its `u` orientation reversed —
@@ -1472,9 +1467,9 @@ mod reversal_tests {
     /// passing through zero has a neighbourhood where two answers a
     /// femtometre apart are thousands of ulps apart.
     fn scale(s: &NurbsSurface<f64>) -> f64 {
-        s.control()
-            .iter()
-            .fold(0.0f64, |m, p| m.max(p.x.abs()).max(p.y.abs()).max(p.z.abs()))
+        s.control().iter().fold(0.0f64, |m, p| {
+            m.max(p.x.abs()).max(p.y.abs()).max(p.z.abs())
+        })
     }
 
     /// `r` answers at `(u, v)` what `s` answers at `(u, 1 − v)`, on a
@@ -1549,7 +1544,11 @@ mod reversal_tests {
         }
         let direct =
             NurbsSurface::new(s.knots_u().clone(), s.knots_v().clone(), control, weights).unwrap();
-        same_structure(&r, &direct, "reversed_v against a direct column permutation");
+        same_structure(
+            &r,
+            &direct,
+            "reversed_v against a direct column permutation",
+        );
         assert_ne!(
             r.control()[0].x,
             s.control()[0].x,
@@ -1631,7 +1630,7 @@ mod reversal_tests {
                 .map(|i| Point3::new(i as f64, (i * i) as f64, 0.0))
                 .collect(),
             vec![1.0; 8],
-            )
+        )
         .unwrap();
         let e = s.reversed_u().unwrap_err();
         assert_eq!(
