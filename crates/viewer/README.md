@@ -959,7 +959,24 @@ happen to be in hand:
   tessellation, so generations alone would read as co-identity while
   checking something else.
 - A read of the index's **identity alone** — `PickIndex::generation` as
-  a cache key — resolves nothing and needs neither.
+  half the id query's key — resolves nothing and needs neither.
+
+**The id query's key is the picture AND the index**, which is the same
+rule met from the other side. `frame::IdQueryLog` holds a query open
+while its answer still describes the cursor, and that answer is an id
+the GPU read out of one picture, resolved through one index's id map —
+so `frame::IdSubject` carries both halves, `ViewerApp::revision` for the
+picture and the index's generation for the alphabet. **Neither half
+subsumes the other.** `sync_scene` rebuilds on a display-revision or
+focus-set change at a standing generation, so hiding a part draws ids
+the generation cannot distinguish from the ones before it; and a rebuild
+`sync_scene` REFUSES does not bump the revision, so an index that landed
+over one is a new generation beside the picture already on screen. A key
+carrying one half holds a question that should be re-asked, and a held
+query keeps the last answer MATCHED — so `frame::disagreement` finds a
+fresh ray answer against a GPU answer about a different picture and
+reports it as *the two picking paths disagree*, which issue #1097 §4
+tells an operator to read as an `R32Uint` clear fault.
 
 **What produced the rule.** The population is *a site that uses the
 `&PickIndex` a pane was handed*, and there are **eight**: five about the
