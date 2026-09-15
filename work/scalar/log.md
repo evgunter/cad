@@ -226,3 +226,10 @@ merge conflict; one widened the class of hand-rolled frames to nine
 sites, the other found an identity placement in the unit's own file.
 What landed: `work/scalar/S393.md` §Closed. The spec is deleted per the
 ledger. Two door rows down, VREV's dual in flight.
+
+## SENSE-DOORS merged (2026-09-15)
+
+PR 2649, block SCALAR-B2 slot 0, ordinal 4104; dual review, both arms
+APPROVE WITH FIXES, no MAJOR — no tally candidate. What landed: the
+item's §Closed. The spec is deleted per the ledger. Handed on: the
+`blend/arms.rs` `±1` field (second unit), the frame doors (third).

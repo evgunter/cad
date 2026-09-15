@@ -2843,3 +2843,24 @@ section.
 
 - `TINT-1-SPEC.md` — TINT-1, the `assert_f6` ban lists stop being
   hand-written mirrors (#2648)
+
+## Per-merge deletion — SENSE-DOORS's spec (2026-09-15)
+
+Recoverable at `git show 68f1d4729:docs/SENSE-DOORS-SPEC.md` (the
+fix-pass head). Its sentences that did not survive: "a conditional
+negation is exact in IEEE, so … bit for bit" — bit-identical at `f64` on
+every non-NaN, non-zero value, but the old `κ·(±1)` product carried a
+NaN's sign bit, a signed zero and, at `Interval`, an ulp of padding at
+tiny magnitudes that the negation does not (head strictly tighter; no
+verdict or margin moves; a signed-zero row pins it); "the missing-face
+arm refuses through the same vocabulary" (it refuses, but with its own
+words now — `face_of` says "declared face key does not resolve" and keeps
+"lost its surface" for a stale surface key); "check whether anything
+relied on the zero arm" — nothing could: `linear_rim_side` refuses
+`Zero` itself, and that is now the one home of the claim, with the
+sphere's and cylinder's sites reading identically and unguarded; the
+fence (the fix pass reached `props/mod.rs`, `boolean/reduce.rs`, the
+`mesh` and `sweep` suites and `crates/topo/README.md`, each said in the
+PR body). Recorded in the PR body and the unit's `## Closed` section.
+
+- `SENSE-DOORS-SPEC.md` — SENSE-DOORS, the five bare-T sense-sign doors take the bit (#2649)
