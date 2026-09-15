@@ -521,3 +521,14 @@ that: `loft-seam-carrier-exact-knot-compare` is S-CERT's file (seam or
 exit first), so the slot's leading candidate is TRIM-2 PR-2 (after
 PR-1 merges; the S-MESH seam announced at dispatch) or
 `boundary-iso-doors-panic-before-they-can-refuse` (E, single review).
+
+## TRIM-2 PR-1 dual dispatched; PROPS seam announced late (2026-09-15)
+
+Ev, in-chat: finish the open duals before the usage limit. Ordinal 2503
+claimed (PR #2669); byte 136, parity 0 ⇒ R1 Opus, R2 Fable; frozen head
+`0c7cc6637`; briefs stored with sha256; dispatched with the spiric pair.
+**Gate**: `docs/TRIM-2-SPEC.md` §4 makes PROPS's acknowledgement of the
+`quad.rs` / `props.rs::nurbs_face` seam a merge condition. The
+announcement was owed at PR open (2026-09-14) and was not made — the
+orchestrator's miss; posted now on #2564 (comment 5683759668) and on the
+sign-off watchlist. PR-1 does not merge without the ack or Ev's ruling.

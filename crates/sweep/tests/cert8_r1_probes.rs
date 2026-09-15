@@ -15,13 +15,8 @@ use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use sweep::test_support::stacked_at;
 use topo::{Body, FaceKey};
-
-fn at_z(zs: &[f64]) -> Vec<Affine3<f64>> {
-    zs.iter()
-        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
-        .collect()
-}
 
 fn nurbs_wall(body: &Body<f64>) -> FaceKey {
     body.faces()
@@ -149,7 +144,7 @@ fn probe_loft_wall_digits_and_sampled_soundness() {
         ])]
     };
     let sections = vec![bulged(), bulged()];
-    let body = sweep::loft_body::<f64>(&sections, &at_z(&[0.0, 1.0]), 1, Tol::witness())
+    let body = sweep::loft_body::<f64>(&sections, &stacked_at(&[0.0, 1.0]), 1, Tol::witness())
         .expect("the bulged prism builds")
         .body;
     for (_, face) in body.faces() {

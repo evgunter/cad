@@ -30,7 +30,7 @@ use editor_core::{
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::mesh::Mesh;
 use viewer::evalseam::{IndexDone, IndexRequest, IndexService, InlineIndexer, MemoReport};
-use viewer::pickindex::PickIndex;
+use viewer::pickindex::{PickIndex, PictureKey};
 use viewer::scene::DisplayTolerance;
 use viewer::session::{DocSession, SessionOp};
 
@@ -166,10 +166,12 @@ fn another_length_slot(doc: &ProfileDoc, not: RecipeNodeId) -> Option<Edit> {
 fn request_at(session: &DocSession, at: DisplayTolerance) -> IndexRequest {
     let (doc, _) = session.landed_pair().expect("a landed pair");
     IndexRequest {
-        generation: session
-            .landed_generation()
-            .expect("a landed evaluation has a generation"),
-        delta: at,
+        key: PictureKey::of(
+            session
+                .landed_generation()
+                .expect("a landed evaluation has a generation"),
+            at,
+        ),
         doc: doc.clone(),
         evaluation: Arc::clone(session.evaluation_arc().expect("a landed run")),
         tol: session.tol(),
@@ -179,11 +181,11 @@ fn request_at(session: &DocSession, at: DisplayTolerance) -> IndexRequest {
 /// A seam's answer for a request, waited for: the inline seam answers
 /// inside `poll`, the threaded one when its worker is done.
 fn answer(seam: &mut impl IndexService, request: IndexRequest) -> IndexDone {
-    let generation = request.generation;
+    let key = request.key;
     seam.submit(request);
     for _ in 0..100_000 {
         if let Some(done) = seam.poll() {
-            assert_eq!(done.generation, generation);
+            assert_eq!(done.key, key);
             return done;
         }
         std::thread::sleep(std::time::Duration::from_millis(1));
@@ -315,7 +317,12 @@ fn fresh_index(session: &DocSession) -> Result<PickIndex, viewer::pickindex::Pic
     let generation = session
         .landed_generation()
         .expect("a landed evaluation has a generation");
-    PickIndex::build(doc, eval, generation, delta(), session.tol())
+    PickIndex::build(
+        doc,
+        eval,
+        PictureKey::of(generation, delta()),
+        session.tol(),
+    )
 }
 
 /// A fixed set of rays for the picture: the six axis rays through the

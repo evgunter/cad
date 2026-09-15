@@ -288,3 +288,13 @@ chosen at dispatch from the plan's lanes (leading candidates:
 `equator-seam-reauthor-refuses-the-hollowed-elbow`, then spiric
 PR-1b once 1a merges). Idle lanes: none; every finished lane and
 target reclaimed (44 G free).
+
+## Spiric PR-1a dual dispatched (2026-09-15)
+
+Ev, in-chat after the box's reboot: finish the open duals and get all
+state on main before the usage limit. The hold is lifted: ordinal 2204
+claimed (PR #2669); byte 226, parity 0 ⇒ R1 Opus, R2 Fable; frozen
+head `e9ef3ae3b`; briefs stored with sha256; both reviewers dispatched
+together with TRIM-2 PR-1's pair (four lanes on the width-1 slot).
+Session monitors re-armed after the crash; nothing of this program's
+was running when the box went down.

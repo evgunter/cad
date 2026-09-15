@@ -3005,3 +3005,70 @@ keeps its text" — `PatchRegularity`'s derived `Debug` prints the tag
 the unit's `## Closed` section.
 
 - `RATE-PAIR-SPEC.md` — RATE-PAIR, SupSpeed and InfSpeed beside Margin; metered takes the inf; a sup door (#2657)
+
+## Per-merge deletion — CENSUS-PY-GETTERS's spec (2026-09-15)
+
+Recoverable at `git show 712d1a071:docs/CENSUS-PY-GETTERS-SPEC.md` (PR
+#2663's last head before the merge). CENSUS's fourth unit, first of the
+`pncad-py` block. Its sentences that did not survive:
+
+- **the count, presented as verified** — the spec said six Python-visible
+  maps and 23 words, and said it had **independently re-measured** them.
+  The row's pattern and that check were both lowercase-anchored scans for
+  `=> "word"`, so both missed `py/value.rs`'s `dimension_name`, whose
+  four words are CAPITALISED and reach Python as `Measurement.dimension`.
+  Nine minting, seven Python-visible, 27 words. **A verification shaped
+  like the finding it checks is not a verification**, and that is the
+  lesson rather than the arithmetic.
+- **the siting argument** — `errors.rs` claimed to hold "the one
+  Python-visible alphabet that is not lower snake case", with a
+  counter-example 370 lines below it in the same file
+  (`ErrorClass::class_name`'s 35 exception-class names). The siting stands
+  on the reader's lower-snake constraint instead.
+- **a stated blind spot** — the unit reported that a rename probe cannot
+  see a map moved wholesale out of `tags.rs`, and built an argument on it.
+  The inventory guard has an explicit GONE branch; one probe dissolves
+  the claim. The entry was reasoned rather than executed.
+
+Not a spec sentence but recorded here because it was the ORCHESTRATOR's
+error: the adjudication of the style review directed a row to be filed
+for the `#[pyclass]` enum vocabulary as an uncensused population. It is
+not — `tests/test_stubs.py` holds all 114 member names against the stub
+name-for-name in both directions, proven by renaming `ArcSweep::Ccw`.
+The fix pass refused the filing with the probe output. Filing it would
+have been this program's fifth overclaiming row.
+
+The corrections are on the item file, which survives this deletion, and
+the unit's record is `work/census/log.md`'s CENSUS-PY-GETTERS entry plus
+the PR body. Residue filed on `work/census/`:
+`sixty-one-tag-words-are-minted-by-two-or-more-maps-and-seven-are-read`
+and `errors-rs-holds-four-python-visible-maps-and-nothing-enumerates-that-file`.
+
+- `CENSUS-PY-GETTERS-SPEC.md` — CENSUS-PY-GETTERS, seven discriminant maps move to the inventory (#2663)
+## Per-merge deletion — TINT-2's spec (2026-09-15)
+
+Recoverable at `git show befcfe4ae:docs/TINT-2-SPEC.md` (the fix-pass
+head). **Its central recommendation was impossible**, which is why this
+entry is longer than the deletion warrants: the spec offered a fork and
+leaned to option (A), *"make a stand-down a fact the suite can floor —
+`vacuity::Exposure` already has that shape in the same module"*. The
+lane refused it and the review verified the refusal behaviourally: under
+the pinned `cargo-nextest 0.9.140` a two-row probe reports pids 12156
+and 12157 with a `static AtomicUsize` reading 0 in both, so **nextest is
+process-per-test** and nothing a `stood_down` call records can be read by
+any other row. Option (A) had no mechanism inside the unit's fence. What
+landed is (B) on both halves plus `test_utils::loud_skip_marker!` as one
+home — which the spec did not propose, because it also asserted, wrongly,
+that the unit should weigh only tallying against stripping.
+
+Other sentences that did not survive: the spec's claim that the marker
+population's hand-kept enumeration lived only in the `println!` bodies
+(two marker NAMES were enumerations too, and the name is the half that
+reaches the PASS list); and its framing of `crates/viewer/src/lib.rs` as
+simply out of fence (true, but it is also the tree's worked example of
+the fix shape, which the spec did not say). What DID survive and was the
+spec's real contribution: the working-half/broken-half framing that made
+the two rows one unit, and the requirement that the unit state what its
+guard does not enforce — which it did, at its sites and in its PR.
+
+- `TINT-2-SPEC.md` — TINT-2, a stand-down that nobody can hear (#2656)

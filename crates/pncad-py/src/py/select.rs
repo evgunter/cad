@@ -46,6 +46,16 @@ use pncad::select as s;
 // ---------------------------------------------------------------
 
 /// Which entity kind a name denotes.
+///
+/// These four member names are a THIRD Python-visible spelling of
+/// this vocabulary, beside `crate::tags::entity_kind_tag`'s words
+/// (`RefusedRef.kind`) and `crate::tags::entity_id_tag`'s (a census
+/// subject). Those two are pinned to each other in `src/tests.rs`;
+/// this one reaches Python as an IDENTIFIER, with no literal for a
+/// word census to read — what holds it is `tests/test_stubs.py`,
+/// which compares this class's attributes against `pncad.pyi`'s
+/// `Final` members name for name, in both directions. What no
+/// instrument holds is the capitalisation between the two spellings.
 #[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(

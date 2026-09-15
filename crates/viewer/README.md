@@ -604,8 +604,11 @@ the field list comes from the walk's INPUTS rather than from the
 declaration and a new field has no claim on it: `ViewerApp::sync_scene`
 installs a rebuild's eleven outputs, `BlendTool::load_all_edges` seats
 a computed pick set, `PickCache::sync` and `land` install a landing's
-fate, and the three `Drop`s in `evalseam` close a channel and leave the
-language's own drop glue to be exhaustive.
+fate, and `evalseam`'s one `Coalescing::close` closes a channel and
+leaves the language's own drop glue to be exhaustive. **The count above
+is a reading nothing re-takes**, and it does not reproduce:
+`work/view/viewer-readme-multi-field-write-sweep-count-does-not-reproduce`
+holds later readings of the same rule against it.
 `DocSession::clear_for_new_document` is the case the rule matches and
 the design answers: its two statements are `Derived::none()` and
 `display.clear()`, and its doc says so — the census is collapsed into
@@ -811,6 +814,26 @@ Notices — a tool's declined pick, a survival drop, a
 about another value's failure: the failure renders itself, and what the
 chrome adds is its own subject.
 
+**The line is composed at two levels and they are two marks.**
+`frame::NOTICE_SEPARATOR` goes between two of a frame's notices;
+`frame::LIST_SEPARATOR` goes between the items of a list ONE notice
+carries — a `Withdrawal`'s causes, the preferences path's startup
+notices. One spelling served both until a frame could hold two
+notices, and then a reader could not tell a boundary from the notice
+talking, because a notice is free to write the mark inside its own
+sentence and two of them do. The boundary is
+`frame::NOTICE_MARK`, and `frame::Message::new` — the only door, the
+fields being private — takes that mark out of every text that reaches
+it, while the one constructor that writes it takes `Message`s rather
+than strings, so the only way to a boundary mark is to have had two
+notices and `line.split(NOTICE_SEPARATOR)` returns exactly the ones
+that went in. **The enforcement is at the door and not at the join**: "no
+notice contains the separator" is a claim about strings that no
+signature carries, and the door is the one place where making it true
+costs nothing a reader sees — no producer writes a bullet, and a door
+that refused one would be reachable from the keyboard through the δ
+field's echo of what was typed.
+
 ### The app driver, split for size
 
 `app` is a driver, and a driver too large to read is still a driver.
@@ -942,14 +965,15 @@ is where the question of whether it should be broken at all is kept.
 
 ### A pick id is one index's word
 
-`PickIndex` holds an `IdMap` keyed by `(generation, δ)`, and every id
-in the drawn mesh's per-corner `ids` was minted by the id map of the
-index that built it. So an id is only a name in the alphabet of the
+`PickIndex` holds an `IdMap` keyed by a `PictureKey` — the landed
+generation and the δ its roots were tessellated at, one value because
+it is one question — and every id in the drawn mesh's per-corner `ids`
+was minted by the id map of the index that built it. So an id is only a name in the alphabet of the
 index that minted it, and reading one through another index resolves it
 to whatever that index happens to keep at the same number.
 
 **The index in hand is not always the index on screen.**
-`ViewerApp::sync_scene` marks the scene's `(generation, δ)` pair current
+`ViewerApp::sync_scene` marks the scene's `PictureKey` current
 only on a successful rebuild — a refused one must not consume the pair,
 or the stale picture stays marked as the current one and is never
 retried — so a landed index over a refused rebuild leaves a newer index
@@ -970,13 +994,18 @@ happen to be in hand:
 - A read about the **picture** — an id the id pass produced, or a mark
   the shader composites against the drawn corners — goes through
   `drawn_index`, which answers `None` unless the index in hand is the
-  one whose id map minted those corners. Both halves of the key are
-  asked, through `PickIndex::current_for`: a δ typed while the document
-  stands rebuilds the index at the same generation over a different
-  tessellation, so generations alone would read as co-identity while
-  checking something else.
+  one whose id map minted those corners. The whole key is asked,
+  through `PickIndex::current_for`, which takes a `PictureKey` and
+  nothing smaller: a δ typed while the document stands rebuilds the
+  index at the same generation over a different tessellation, so
+  generations alone would read as co-identity while checking something
+  else — and a door that takes one value cannot be handed one half of
+  it.
 - A read of the index's **identity alone** — `PickIndex::generation` as
-  half the id query's key — resolves nothing and needs neither.
+  half the id query's key — resolves nothing and needs neither. It is
+  the one read that wants less than a picture, and it says so by
+  reaching past `PickIndex::key` for a named half rather than by
+  comparing one.
 
 **The pick asks `drawn_index` too, and for a different reason.** The
 sorting above is about currency, and nothing about a pick is false by
