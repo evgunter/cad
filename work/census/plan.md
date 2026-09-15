@@ -47,6 +47,8 @@ its fence in the PR that lands it and announces it to the owners; the
 | `S113` | **M** | Multi-file; member (d) needs a real invariance re-derivation of the retry ladder. | `crates/geom-core/src/ring_interval.rs`, `crates/topo/src/chart_region.rs`, `crates/topo/src/splitting/containment.rs`, `demos/README.md` (+ S64/S67/S74/S89/S98 members) |
 | `S133` | **M** | profile half discharged; remaining sweep+disposition rides staffed lanes, scope needs judgement. | `crates/topo/src/chord_join.rs`, `crates/profile/src/path/{path.rs,family.rs,program.rs}` |
 | `S57` | **M** | Five known sites, but widening a crate-scoped guard to a concept needs a new instrument. | `crates/editor-core/src/names/emit_topo.rs`, `crates/sweep/src/blend/{build.rs,battery.rs}`, `crates/topo/src/face_normal.rs`, the anti-re-fork guard in `scripts/gates/*`; unswept `crates/mesh/src/walk.rs`, `crates/step-export/src/` |
+| `pncad-py-eval-err-variants-outside-the-tag-inventory` | **E** | Arrived from M10 (2026-09-13). Eight `eval_err` call sites mint four refusal words as string literals the inventory cannot lex; the disposition between the row's two closes is the orchestrator's, not the lane's. | `crates/pncad-py/src/tests.rs` (`TAG_INVENTORY`'s reader and its stated scope), `crates/pncad-py/src/py/value.rs` and its sibling `py/` modules, `crates/pncad-py/pncad.pyi` |
+| `a-document-vocabulary-declared-outside-the-macro-is-uncensused` | **M** | Arrived from DOCM (2026-09-13). The three live instances are dispositioned by hand at the site; what is open is the general case, and every door to it is a walk over source TEXT — the exact instrument PR 2501 removed as unsound. | `crates/editor-core/src/program.rs` (the `document_vocabulary!` invocation and its `DOCUMENT_VOCABULARIES` doc) |
 | `prose-census-cannot-see-a-bypassed-prose-renderer` | **H** | Instrument rework plus triage of 453 unmeasured sites; verdict key is a design choice | `crates/pncad-py/src/prose_census.rs` (`census()` scan set, `declaration_verdict`), plus sites it reds: `crates/viewer/src/session/refuse.rs`, `crates/editor-core/src/edit.rs`, `crates/pncad-py/src/py/`, `crates/test-utils/` |
 | `the-prose-word-for-a-kind-has-four-spellings-and-only-display-is-censused` | **H** | Two decisions owed, owner undecided, 23+ sites over seven crates and three programs. | `crates/pncad-py/src/prose_census.rs`, `crates/editor-core/src/{expr.rs,node.rs,mate.rs,edit.rs}`, `crates/viewer/src/{session/refuse.rs,tools.rs,sketch.rs,pane/properties.rs}`, 23 `label()`/`name()` sites across `geom-brep`, `sweep`, `topo`, `profile`, `geom-core` |
 
@@ -58,6 +60,23 @@ lane's habit of leaving the instrument behind.
 `hand-listed-debug-censuses-…` next — the pattern is already proven by
 PR 2093, so the row is a repetition with a scope call on the `PartialEq`
 half.
+
+`pncad-py-eval-err-variants-outside-the-tag-inventory` third: it is the
+charter stated in one file and the smallest row on the slate, and it
+rides the habit the first two build. Its one call — widen the reader to
+lex the literal-variant `eval_err` sites, or rule a call-site literal
+deliberately out of scope and pin the one uncovered word — is decided
+in the spec rather than handed to the lane, because it is a question
+about the gate's REACH and answering it is the unit.
+
+`a-document-vocabulary-declared-outside-the-macro-is-uncensused` fourth,
+and it is the row where this program's standing trap is sharpest: its
+three named doors are all source-text walks, and PR 2501 deleted one
+such walk after measuring it report agreement over a set missing exactly
+the variant it existed to catch. A lane taking this owes the reader's
+own guard before the reader, or the reasoned decision to ship the third
+door (accept and say so at the site) — which is what ships today and may
+well be the right answer.
 
 Then `S113` and `S133`, which are prose and duplication counts that
 several staffed lanes already ride.
@@ -75,9 +94,35 @@ GUARD**, never landed from here.
 
 ## Review posture
 
-One style review per unit, plus a correctness arm on any unit that
-changes what an instrument SCANS — a census that stops seeing a
-population fails silently and no test catches it.
+**No A/B protocol** (Ev, 2026-09-15). The band stays claimed for
+bookkeeping, as `docs/MODEL-AB-LOG.md` already records for this
+program; nothing draws an ordinal from it.
+
+**One style review per unit.** A full correctness review is reserved
+for the hardest units — on today's slate, the two **H** rows and
+nothing else.
+
+The scan-set rule this section used to state mechanically — a
+correctness arm on every unit that changes what an instrument SCANS —
+is **carried by the style brief instead** (Ev, 2026-09-15). The hazard
+it was drawn against is real and is not a function of how hard the unit
+was: a census that stops seeing a population fails silently, reports
+agreement over the set it can still read, and no test goes red. So the
+brief for any unit touching a census, gate, inventory or reader
+**names silent omission as a thing to hunt for by name**: what does the
+instrument no longer read after this diff, and what would it report if
+the population it exists to watch went missing entirely? That question
+is cheap for a style lane to carry and expensive to discover later,
+which is the whole argument for putting it there rather than buying a
+second lane for it.
+
+Units that get that added obligation today:
+`inert-deny-unknown-fields-on-unit-enums` (only if it leaves an
+instrument behind), `hand-listed-debug-censuses-…`,
+`pncad-py-eval-err-variants-outside-the-tag-inventory`,
+`a-document-vocabulary-declared-outside-the-macro-is-uncensused`, and
+both **H** rows — which get the full review as well.
+
 ## How the class column is read
 
 `E` / `M` / `H` is a **dispatch estimate**, made on 2026-09-11 by reading
