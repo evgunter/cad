@@ -11533,3 +11533,70 @@ producer of *the two picking paths disagree*, which no co-guard closes,
 because there the index is the drawn one and the GPU ANSWER is stale —
 and `a-pick-over-a-stale-picture-answers-about-a-picture-nobody-can-see`,
 the product question the rule's document-side half leaves open.
+
+## 2026-09-15 — #2615 merged; a picture-side index read is guarded on the picture's key, and my proposed guard was short a term
+
+**#2615 merged** (`26f77ea66d`), verified from the job list: code tier,
+**39 check runs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok`
+success**, all four render-lane rows success, six skipped, nothing
+failed or neutral.
+
+**I dispatched a wrong guard and said it was a claim; the lane found
+the missing term.** My brief proposed `scene_generation ==
+index.generation()` as the honest check at `frame::disagreement`. It is
+right in substance and **insufficient**: `PickIndex::current_for`
+(`pickindex.rs:820-822`) compares `(generation, δ)`, because a δ typed
+while the document stands rebuilds the index at the **same generation**
+over a different tessellation — a different id alphabet under an
+identical generation. A generation-only check would have read as
+co-identity while checking something else, **which is the exact defect
+the unit was sent to remove**. Recorded as such: proposing the fix
+shape is where a dispatcher's exposure is highest, and stating it as a
+claim is what let the lane overturn it.
+
+**`scene_generation` had no reader at all.** `git grep` on `main`:
+declaration, initializer, one write, zero reads — and its doc said
+*"when it disagrees with the session's landed generation, the picture
+is out of date"*, a sentence nothing checked. It became
+`scene_key: Option<(Generation, DisplayTolerance)>`, taken from the
+index rather than re-derived from the session, and got the reader that
+makes its doc true.
+
+**The item's population was wrong twice** and the lane's census stands:
+eight uses, not six, across two files. `marks::highlight` and
+`marks::edge_overlay` are picture-side and the item omits both, so a
+fix guided by its list would have repaired two of five. `create.rs:1133`
+is the document-side read the item never mentioned, already correct
+(`target.zip(self.session.evaluation()).zip(self.index)`).
+
+**My shift map: four rows right, one gloss wrong.** I wrote that `:302`
+*"reads `self.indexing`, not `self.index`"* — true of the line and
+wrong about the site, which is the `else` arm of the `:284` guard and
+so is exactly the item's read-about-the-index's-ABSENCE. A lane
+trusting the gloss would have concluded the item's citation was bogus.
+Four of five subjects right is better than the 2-of-4 that made me
+warn about shift maps in the first place, and the failure mode moved
+from *wrong line* to *right line, wrong description* — which a lane
+catches only by opening the file, exactly as this one did.
+
+**One correction I made after merging, not on the lane branch.** The
+README's sweep paragraph named the guard's binding `drawn`; the lane's
+final commit renamed it `on_screen` precisely because two unrelated
+inner bindings at `viewport.rs:424` and `:432` are called `drawn`, so
+the prose sent a reader to the wrong symbols. The branch was verified
+green at `469eb52b32` and re-pushing for one word would have cost a
+full code-tier re-run and a second 39-row verification; the fix rides
+here instead. Same end state on `main`, stated in both places.
+
+Filed by the lane, both on VIEW's slate:
+`id-query-is-keyed-on-the-generation-not-on-the-picture` — a **second
+producer of the same false sentence that no co-guard closes**, since
+`IdQueryLog::step` keys on `(cursor, generation)` while the scene also
+rebuilds on display-revision and focus changes that hold the generation
+still — and
+`a-pick-over-a-stale-picture-answers-about-a-picture-nobody-can-see`,
+the product question the rule's document-side half deliberately leaves
+open.
+
+Item **closed**. **VIEW stands at 75 open / 92 closed, nothing waiting
+on Ev.**

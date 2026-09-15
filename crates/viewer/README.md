@@ -968,8 +968,8 @@ steps, because neither alone produces it. `ViewerBehavior::index` is a
 field, so `self.index` finds every place a pane takes one — four
 bindings, in `pane::viewport` and `pane::create`, and a pane that grew a
 fifth would appear there. It does **not** find the uses: the five
-picture-side ones read a binding called `drawn`, and a name is not a
-pattern, so each binding's scope is read in order instead.
+picture-side ones read a binding called `on_screen`, and a name is not
+a pattern, so each binding's scope is read in order instead.
 
 ### `Refusal`'s delegation discipline
 

@@ -2,10 +2,11 @@
 id: index-reads-without-the-evaluation-co-guard
 kind: issue
 title: Two viewport reads of the pick index lack the evaluation co-guard the pick path has, and one of them writes a false diagnosis
-status: review
+status: closed
 opened: 2026-09-05
 branch: view/index-co-guard
 pr: 2615
+closed: 2026-09-15
 ---
 
 
