@@ -73,6 +73,8 @@ mod coeffs_bit_identity_ext;
 mod coeffs_bit_identity_interval;
 #[path = "coeffs_pair_identity.rs"]
 mod coeffs_pair_identity;
+#[path = "d290_r2_probes.rs"]
+mod d290_r2_probes;
 #[path = "d8_knot_queries_adversarial.rs"]
 mod d8_knot_queries_adversarial;
 #[path = "decoration_seam.rs"]
@@ -160,6 +162,8 @@ mod cert4r1_probe_period;
 mod r1_p2_onb_probes;
 #[path = "r2_cert3_probes.rs"]
 mod r2_cert3_probes;
+#[path = "rate_pair_doors.rs"]
+mod rate_pair_doors;
 
 #[path = "cert3_evidence.rs"]
 mod cert3_evidence;

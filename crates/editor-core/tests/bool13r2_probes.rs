@@ -237,8 +237,11 @@ fn the_classification_seam_holds_at_its_edges() {
     let (header, v) = split(&small());
     let pretty = serde_json::to_string_pretty(&v).unwrap();
 
-    // Duplicate top-level key: `deny_unknown_fields` makes it a
-    // duplicate-field refusal, not a last-wins silent accept.
+    // Duplicate top-level key: serde's derived reader refuses a
+    // second occurrence of a field it has already taken, so this is a
+    // duplicate-field refusal and not a last-wins silent accept.
+    // `deny_unknown_fields` is not what fires here — the repeated key
+    // is one `FileBody` knows.
     assert!(
         pretty.starts_with("{\n  \"edits\""),
         "serde_json orders keys: {pretty:.40}"

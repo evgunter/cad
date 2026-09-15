@@ -353,7 +353,7 @@ where, exhaustively:
   **That case is empty today by a contingency, not by construction, and
   the contingency is the thing to write down.** Every cross-crate link
   in the renderer-free half targets `pncad` — twelve sites:
-  `blend.rs:425`, `display.rs:262`, `docio.rs:85`, `marks.rs:297`,
+  `blend.rs:425`, `display.rs:262`, `docio.rs:85`, `marks.rs:324`,
   `matetool.rs:33`, `:54`, `:153`, `:220`, `parts.rs:11`,
   `props.rs:652`, `sketch.rs:939`, `tree.rs:143` — and `pncad` is itself
   a toolkit seed (`scripts/ci-filter.py:1428`,

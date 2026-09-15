@@ -58,3 +58,31 @@ that unit; given a file at disclosure per `work/README.md`.
 
 `crates/viewer/src/scene.rs` — CHROME's and VIEW's by the territories
 table. The resolution likely touches `crates/mesh`, which is not.
+
+## Re-homed to MESH, 2026-09-15
+
+Moved out of `work/chrome/` by the CHROME orchestrator. The row's own
+preferred resolution is **a guarantee sentence in another crate's
+contract** — whether a returned `FacePatch` may contain a zero-area
+triangle — and that contract is `crates/mesh`'s to state. `crates/mesh`
+does drop *pole*-degenerate triangles (the "Emit: drop pole-degenerate
+triangles, certify the rest" step in `crates/mesh/src/curved.rs`), but
+nothing says what a consumer may assume. Until it does, the viewer's
+`triangle_normal` is guessing at a contract rather than defending
+against a known one.
+
+The viewer side is unchanged and still live: `scene::triangle_normal`
+(`crates/viewer/src/scene.rs`) still substitutes `[0.0, 0.0, 1.0]` when
+`len` is zero or non-finite. **If MESH rules that a zero-area triangle
+cannot be emitted, the viewer substitution becomes dead code and the
+row closes on both sides; if it rules that one can, the viewer owes a
+refusal and CHROME (or VIEW) takes that half back.** Either way the
+kernel answers first, which is why the row moves rather than splits.
+
+One caution for whoever takes it: this project's standard is **not**
+"never substitute". `BoundsProbe::new` substitutes too and is accepted,
+because it names its consumer and weighs the two failures at the site —
+`datums::grid_pitch`'s rustdoc is the model. A citation is a legitimate
+close here.
+
+Signed: (CHROME orchestrator)

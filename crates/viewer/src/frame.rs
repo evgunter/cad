@@ -330,6 +330,16 @@ partial_mirror! {
 /// for [`Badge`]'s reason: a struct literal is a second way to build
 /// one, and a value whose whole point is that a decision was made in
 /// one place must not have a spelling that skips it.
+///
+/// **A message's text carries no [`NOTICE_MARK`], and that is what
+/// makes a joined line readable.** [`frame_status`] puts several
+/// notices on one line separated by [`NOTICE_SEPARATOR`], so a reader
+/// can only find the boundaries if the mark the separator is built
+/// from means "a new notice starts here" and nothing else. That is a
+/// claim about every string any producer will ever hand this type,
+/// which no signature can carry — so the only door enforces it
+/// instead of asserting it, and the invariant belongs to the value
+/// rather than to the one function that happens to join today.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Message {
     subject: Subject,
@@ -337,11 +347,48 @@ pub struct Message {
 }
 
 impl Message {
-    /// A message about `subject`, in `text`'s own words.
+    /// A message about `subject`, in `text`'s own words — with any
+    /// [`NOTICE_MARK`] in them rewritten to the within-a-notice mark.
+    ///
+    /// **Rewritten rather than refused.** A door that panicked would
+    /// be reachable from the keyboard: [`delta_not_a_number`] echoes
+    /// what the user typed into the δ field, so a pasted bullet would
+    /// take the application down. And a text that asks for a boundary
+    /// mark is asking for a list mark one level in — it is inside a
+    /// notice, which is what [`LIST_SEPARATOR`] is for — so the
+    /// rewrite says what the author meant at the level they are at.
     pub fn new(subject: Subject, text: impl Into<String>) -> Self {
         Self {
             subject,
-            text: text.into(),
+            text: text.into().replace(NOTICE_MARK, LIST_SEPARATOR.trim()),
+        }
+    }
+
+    /// **One line carrying several notices**, separated by
+    /// [`NOTICE_SEPARATOR`] — the rank-2 line [`frame_status`]
+    /// composes.
+    ///
+    /// **The one place a [`NOTICE_MARK`] is written into a message's
+    /// text, and the reason [`Message::new`] can rewrite every
+    /// other.** It takes [`Message`]s and not strings, so the texts it
+    /// joins already satisfy the invariant and nothing it produces
+    /// can be read as a boundary that was not one. A joiner handed
+    /// raw strings would be a second way to mint the mark, which is
+    /// the same objection [`Message::new`]'s private fields answer one
+    /// level up — so this is private to the module, and the public
+    /// door cannot express it.
+    ///
+    /// The caller decides the subject, because what a joined line is
+    /// ABOUT is a separate question with its own rule
+    /// ([`joined_subject`]).
+    fn joined(subject: Subject, notices: &[Message]) -> Self {
+        Self {
+            subject,
+            text: notices
+                .iter()
+                .map(Message::text)
+                .collect::<Vec<_>>()
+                .join(NOTICE_SEPARATOR),
         }
     }
 
@@ -546,6 +593,37 @@ pub fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>) -> StatusUpdat
 /// still its own typed value's own rendering, which is what the error
 /// micro-decision asks. Nothing here writes prose about someone else's
 /// failure.
+///
+/// # The join is invertible, and that is the whole rule
+///
+/// `line.split(NOTICE_SEPARATOR)` returns exactly the texts that went
+/// in, in order. A reader scanning for the boundary finds `n - 1` of
+/// them in a line carrying `n` notices and no more, because
+/// [`Message::new`] takes [`NOTICE_MARK`] out of every text that
+/// reaches it.
+///
+/// **The rule lives on the type, in two halves.** "No notice contains
+/// the separator" is a claim about strings, and no signature carries
+/// it: a joiner cannot check what it was given without either
+/// refusing a value the user caused or lying about it. What the crate
+/// CAN do is make the claim true where every notice is built and
+/// leave exactly one place able to write the mark — [`Message::new`]
+/// takes it out, [`Message::joined`] puts it in, and `joined` takes
+/// [`Message`]s rather than strings, so the only way to a boundary
+/// mark is to have had two notices. Both halves are private-field
+/// consequences, so this function asserts nothing and a second joiner
+/// written tomorrow inherits the guarantee instead of re-deriving
+/// it.
+///
+/// **Why not the alternatives.** Escaping at the join reads the same
+/// only until it fires, and then it shows the reader a sentence its
+/// author did not write, on a line whose whole job is to report
+/// accurately. Making the line stop being one string — several
+/// labels, one per notice — is the better answer and is not this
+/// function's to give: it needs a value that carries several
+/// subjects, which `work/view/one-line-one-subject-loses-a-mixed-
+/// frames-expiry.md` owns and which is a design question for Ev.
+/// Until then the line is one string, and one string needs a mark.
 pub fn frame_status(
     notices: &[Message],
     ops: &[SessionOp],
@@ -554,14 +632,7 @@ pub fn frame_status(
     match batch_status(ops, refusal) {
         refused @ StatusUpdate::Show(_) => refused,
         verdict if notices.is_empty() => verdict,
-        _ => StatusUpdate::Show(Message::new(
-            joined_subject(notices),
-            notices
-                .iter()
-                .map(Message::text)
-                .collect::<Vec<_>>()
-                .join(NOTICE_SEPARATOR),
-        )),
+        _ => StatusUpdate::Show(Message::joined(joined_subject(notices), notices)),
     }
 }
 
@@ -607,10 +678,44 @@ fn joined_subject(notices: &[Message]) -> Subject {
     }
 }
 
-/// What several notices in one frame are joined with — one spelling,
-/// shared with the preferences path's startup notices so the status
-/// line reads the same however many things it is carrying.
-pub const NOTICE_SEPARATOR: &str = "; ";
+/// **The mark that means "a new notice starts here"** — the one
+/// character a [`Message`]'s text may not carry, which
+/// [`Message::new`] is what makes true.
+///
+/// A bullet and not punctuation, deliberately. The marks a notice's
+/// own sentence uses are punctuation — a semicolon between the items
+/// of a list it carries, an em-dash between a preamble and what it
+/// introduces — and a boundary between two separate pieces of news
+/// has to be legible as something other than more of the same
+/// sentence. Any in-band mark is a claim about the text it sits in;
+/// this is the claim the crate can actually hold, because no notice
+/// writes prose with a bullet in it and the door makes that true
+/// rather than hoping for it.
+pub const NOTICE_MARK: char = '\u{2022}';
+
+/// **What [`frame_status`] puts between two of a frame's notices.**
+///
+/// Built from [`NOTICE_MARK`], so the joined line splits back into
+/// exactly the notices it was made from: there are `n - 1` of these
+/// in a line carrying `n` notices, never more, whatever any notice's
+/// own text says.
+///
+/// It was [`LIST_SEPARATOR`] until this rule existed, and the two
+/// being one spelling is what made the line ambiguous at two notices
+/// — a [`Withdrawal`] joins its own causes with the same string, and
+/// `DisplayFault::NonRigidFrame` writes one inside a single sentence,
+/// so a reader met a separator that might be a boundary or might be
+/// the notice talking.
+pub const NOTICE_SEPARATOR: &str = " \u{2022} ";
+
+/// **What ONE notice puts between the items of a list of its own** —
+/// a [`Withdrawal`]'s causes, the preferences path's startup notices.
+///
+/// A level in from [`NOTICE_SEPARATOR`], and spelled differently for
+/// that reason: the two levels are two questions, and one spelling
+/// could not answer both. A notice's text may carry this mark freely,
+/// which is exactly why the boundary between notices is not it.
+pub const LIST_SEPARATOR: &str = "; ";
 
 /// **What an accepted edit WITHDREW from the display state**, as a
 /// notice for [`frame_status`]'s rank 2.
@@ -885,20 +990,29 @@ impl core::fmt::Display for Withdrawal<'_> {
             None => write!(f, "{kind}: {one}{consequence} — ")?,
         }
         // Each cause rendered by its own `Display`, in the order the
-        // prune found them, joined with [`NOTICE_SEPARATOR`] rather
-        // than composed into a sentence, for the reason
-        // [`frame_status`] joins notices with it: a list of several
-        // typed values must not become one written claim about them.
-        // The one spelling, so a line carrying two faults reads like a
-        // line carrying two notices.
+        // prune found them, joined with [`LIST_SEPARATOR`] rather than
+        // composed into a sentence, for the reason [`frame_status`]
+        // joins notices: a list of several typed values must not
+        // become one written claim about them.
         //
-        // The join is flat, so a fault whose own text contains the
-        // separator nests inside it and a reader cannot see where one
-        // cause ends. `DisplayFault::NonRigidFrame` is such a text; no
-        // prune path produces it here.
+        // This is the WITHIN-a-notice level, so it takes the
+        // within-a-notice mark. The whole rendering is one notice and
+        // [`frame_status`] puts [`NOTICE_SEPARATOR`] around it, so
+        // these marks cannot be read as boundaries between notices.
+        //
+        // The join is flat, so a fault whose own text contains
+        // [`LIST_SEPARATOR`] nests inside it and a reader cannot see
+        // where one cause ends. `DisplayFault::NonRigidFrame` is such
+        // a text and no prune path produces it — `prune` fills every
+        // cause from `free_move_check` or `display_check`, whose
+        // `# Errors` sections name four faults and not that one. That
+        // is a property of two functions' error sets and no type
+        // carries it, which is
+        // `work/view/withdrawal-causes-join-on-a-mark-a-fault-may-
+        // contain.md`.
         for (position, entry) in withdrawn.iter().enumerate() {
             if position > 0 {
-                f.write_str(NOTICE_SEPARATOR)?;
+                f.write_str(LIST_SEPARATOR)?;
             }
             write!(f, "{}", entry.cause)?;
         }
@@ -1292,8 +1406,7 @@ pub fn store_refusal(error: &StoreError) -> Message {
 /// the decision is made rather than a type that forbids the other
 /// answer.
 pub fn startup_notices(notices: &[String]) -> Option<Message> {
-    (!notices.is_empty())
-        .then(|| Message::new(Subject::Preferences, notices.join(NOTICE_SEPARATOR)))
+    (!notices.is_empty()).then(|| Message::new(Subject::Preferences, notices.join(LIST_SEPARATOR)))
 }
 
 /// **What a cursor action the pick index refused says.**
@@ -1449,11 +1562,12 @@ pub fn delta_badge(fitted: Option<&FittedDelta>) -> Option<Badge> {
 ///
 /// # The arms that stay silent, and why
 ///
-/// **A document with no body root is EMPTY, not malformed.** A fresh
-/// document is in that state, and so is one whose last feature was just
-/// deleted — and the blank viewport says so more plainly than any words
-/// could. Reporting it makes deleting the last feature look like a
-/// failure.
+/// **A document with no body is not this channel's to report.** The
+/// class means there is nothing to gather rather than something wrong
+/// — the reading, and the documents in that state, are
+/// [`pncad::document::ProductErrorKind::means_no_body`]'s — and the
+/// blank viewport is already the picture of it. A badge here would
+/// make an ordinary state look like a failure.
 ///
 /// **A per-node state the feature tree already badges is not this
 /// channel's to repeat.** [`crate::tree::RowStatus`] has exactly three
@@ -1476,13 +1590,13 @@ pub fn delta_badge(fitted: Option<&FittedDelta>) -> Option<Badge> {
 pub fn product_badge(fault: Option<&ProductError>) -> Option<Badge> {
     fault
         .filter(|fault| {
-            !matches!(
-                fault,
-                ProductError::NoBodyRoots
-                    | ProductError::RootFailed { .. }
-                    | ProductError::RootPoisoned { .. }
-                    | ProductError::UnknownNode { .. }
-            )
+            !(fault.kind().means_no_body()
+                || matches!(
+                    fault,
+                    ProductError::RootFailed { .. }
+                        | ProductError::RootPoisoned { .. }
+                        | ProductError::UnknownNode { .. }
+                ))
         })
         .map(|fault| Badge::read(Subject::Document, fault.to_string(), Tone::Actionable))
 }
@@ -1957,6 +2071,42 @@ pub enum IdStep {
     Void,
 }
 
+/// **What an id query is asked ABOUT**, beside the cursor: the picture
+/// on screen and the index whose alphabet its ids are words of.
+///
+/// **Both halves, because neither is a subset of the other.** The
+/// query's answer is an id the GPU read out of the picture identified
+/// by `revision`, and it is resolved through the id map of the index
+/// identified by `generation` — so a change to either makes the
+/// outstanding answer describe something nobody is asking about:
+///
+/// - **A new picture at the same generation.** Hiding a part rebuilds
+///   the scene from the index already in hand
+///   ([`crate::app::ViewerApp::sync_scene`] rebuilds on a display
+///   revision or a focus-set change too), so the drawn ids lose the
+///   hidden part's patches while the generation holds still. Keyed on
+///   the generation alone the query holds, the GPU's answer for the
+///   picture that still had the part stays matched, and the ray path's
+///   fresh *nothing* is reported as *the two picking paths disagree* —
+///   the sentence issue #1097 §4 tells an operator to read as an
+///   `R32Uint` clear fault.
+/// - **A new generation at the same picture.** A rebuild that REFUSES
+///   does not bump the revision (`sync_scene` marks the pair current
+///   only on success), so an index that landed over a refused rebuild
+///   is a new generation beside the picture already on screen. Keyed on
+///   the revision alone the query holds, and the hover the pick path
+///   skips on a [`IdStep::Hold`] is a question about the DOCUMENT,
+///   which has moved.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct IdSubject {
+    /// [`crate::app::ViewerApp`]'s scene revision: the identity of the
+    /// mesh the id pass renders, bumped on every successful rebuild.
+    pub revision: u64,
+    /// The generation of the index in hand, `None` while one is being
+    /// built.
+    pub generation: Option<Generation>,
+}
+
 /// The id pass's query bookkeeping: which query is outstanding, and
 /// what it was asked about.
 ///
@@ -1972,9 +2122,9 @@ pub enum IdStep {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct IdQueryLog {
     serial: u32,
-    /// The cursor and the picture the outstanding query was asked
+    /// The cursor and the subject the outstanding query was asked
     /// about. `None` when nothing is outstanding.
-    asked: Option<([f64; 2], Option<Generation>)>,
+    asked: Option<([f64; 2], IdSubject)>,
 }
 
 impl IdQueryLog {
@@ -1992,25 +2142,26 @@ impl IdQueryLog {
         self.asked.map(|_| self.serial)
     }
 
-    /// Advance the log for this frame's cursor and picture.
+    /// Advance the log for this frame's cursor and subject.
     ///
     /// `cursor` is `None` when the pointer is outside the pane.
-    /// `generation` is the evaluation the index describes: a query is
-    /// re-asked when the picture changes under a still cursor, because
-    /// the answer is about the picture and not only about the pointer.
-    pub fn step(&mut self, cursor: Option<[f64; 2]>, generation: Option<Generation>) -> IdStep {
+    /// `subject` is what the query is about beside the pointer — the
+    /// picture and the index ([`IdSubject`], which carries the argument
+    /// for asking both) — so a query is re-asked when either changes
+    /// under a still cursor.
+    pub fn step(&mut self, cursor: Option<[f64; 2]>, subject: IdSubject) -> IdStep {
         let Some(cursor) = cursor else {
             self.asked = None;
             return IdStep::Void;
         };
-        if self.asked == Some((cursor, generation)) {
+        if self.asked == Some((cursor, subject)) {
             return IdStep::Hold;
         }
         // Saturating past zero: zero is the "nothing was ever asked"
         // serial the answer channel is initialised to, so a wrap must
         // not land on it.
         self.serial = self.serial.wrapping_add(1).max(1);
-        self.asked = Some((cursor, generation));
+        self.asked = Some((cursor, subject));
         IdStep::Ask {
             serial: self.serial,
         }
@@ -2651,7 +2802,7 @@ mod tests {
             dropped_hide_text(&two).expect("two dropped hides are news"),
             format!(
                 "hide: 2 hides were dropped and the hidden geometry is drawn \
-                 again — {}{NOTICE_SEPARATOR}{}",
+                 again — {}{LIST_SEPARATOR}{}",
                 two[0].cause, two[1].cause
             ),
             "the plural agrees, and the consequence is said because both \
@@ -2696,7 +2847,7 @@ mod tests {
         assert_eq!(
             both,
             format!(
-                "free move: 2 committed placements were discarded — {}{NOTICE_SEPARATOR}{}",
+                "free move: 2 committed placements were discarded — {}{LIST_SEPARATOR}{}",
                 two[0].cause, two[1].cause
             ),
             "every word of the preamble agreeing with itself in number, and \

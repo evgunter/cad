@@ -24,19 +24,30 @@ next three are `PickCache`'s, in `pickcache.rs`):
 - `self.outstanding == Some(wanted)` and `self.attempted == Some(wanted)`;
 - `self.attempted != Some((done.generation, done.delta))` in `land`;
 - `(next.generation, next.delta) != (done.generation, done.delta)` in
-  `ThreadIndexer::poll`.
+  `<IndexRequest as Job>::supersedes` — `ThreadIndexer::poll` until the
+  three threaded seams were folded onto one coalescing handle, which
+  moved the comparison without changing it.
 
 Each is correct today. What is missing is the one place that says what
 the key IS, so a sixth site cannot be written with one half of it —
-which is exactly the defect the review found and this unit fixed in
-`ThreadIndexer::poll`, where the comparison had been by position
-instead.
+which is exactly the defect the review found and this unit fixed in the
+fifth, where the comparison had been by position instead.
 
-**Note the near-miss**: `frame::IdQueryLog::step` keys on the
-generation **without** δ. That is currently right — it asks "has the
-picture changed under a still cursor", and a δ change reaches it as a
-new index — but it is the site most likely to be wrong if the key ever
-becomes a type and this one is migrated by search-and-replace.
+**And the fold that moved the fifth site added a sibling worth naming**:
+`<FitRequest as Job>::supersedes` compares `(generation, requested)` by
+exactly the same shape. It is NOT a sixth spelling of this key — a fit's
+δ is the δ someone asked for and not the δ a picture was built at — but
+it now sits one trait impl away from one that is, spelled identically,
+which is the search-and-replace hazard the near-miss below is about.
+
+**Note the near-miss**: `frame::IdQueryLog::step` keys on
+`frame::IdSubject`, which is the scene revision and the generation
+**without** δ. That is currently right — a δ change reaches it as a new
+index, because `PickCache::sync` nulls the held index at the submit and
+only `land` installs one, so an index cannot change δ without the key
+seeing `None` in between — but it is the site most likely to be wrong if
+the key ever becomes a type and this one is migrated by
+search-and-replace.
 
 ## The two fields
 

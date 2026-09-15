@@ -197,3 +197,19 @@ half-width a document would actually carry.
 `editor-core/tests/m10_derived_frame_tilted_interval`'s
 `sym5_the_reach_on_documents_the_unit_did_not_build` builds it
 (`tiltV stacked-2`).
+
+## Added 2026-09-15 (SCALAR's `unit-vector-witness-in-geom-core` sweep)
+
+The same `normal_sum.normalize()` (`crates/geom-brep/src/newell.rs`,
+`newell_plane`) is why `Vec3::orthonormal_basis` keeps a bare door:
+`geom_core::UnitVec3` now carries "unit, by a decided length" across
+function boundaries and `UnitVec3::orthonormal_basis` is the witness
+door, but `newell_plane` decides no length before it normalizes — the
+residual decide comes after, on a different quantity — so it holds
+nothing to mint with, and that unit did not add a decision the site
+does not make. Whatever this row's fix does to the cross-sum, the
+normalize that follows it is the place a `UnitVec3::new(sum,
+"newell_plane_normal", band)` belongs (the band is in hand); the day
+it lands, this site and `step-import`'s `recognize` (exch's
+`recognize-normalizes-without-a-length-decision-and-cannot-mint-the-witness`)
+are the only two callers of the bare door, and it retires with them.

@@ -208,3 +208,112 @@ door takes; `D283` — route A, the `SupSpeed`/`InfSpeed` pair in
 2026-09-15: "that plan re D283 sounds good"). The three rows are closed
 and six units are on the slate (plan §The ratified units). `D290` and
 `S393` are in review; the third door row waits on lane capacity.
+
+## D290 merged (2026-09-15)
+
+PR 2461, block SCALAR-B1 slot 0, ordinal 4100; dual review, both arms
+APPROVE (with fixes), no MAJOR on either — no tally candidate. What
+landed and what moved: `work/scalar/D290.md` §Closed. The spec is
+deleted per the ledger. `S393`'s fix pass and VREV's dual are in
+flight; the block closes when VREV's reviews conclude.
+
+## S393 merged (2026-09-15)
+
+PR 2466, block SCALAR-B1 slot 1, ordinal 4101; dual review, both arms
+APPROVE WITH FIXES, no MAJOR — no tally candidate. Both reviews
+independently measured the quarter-turn identity's sign and the
+merge conflict; one widened the class of hand-rolled frames to nine
+sites, the other found an identity placement in the unit's own file.
+What landed: `work/scalar/S393.md` §Closed. The spec is deleted per the
+ledger. Two door rows down, VREV's dual in flight.
+
+## SENSE-DOORS dual concluded; the sample numbers re-derived (2026-09-15)
+
+`sense-sign-doors-take-the-bit` (PR 2649, block SCALAR-B2 slot 0,
+ordinal 4104): both arms APPROVE WITH FIXES, no MAJOR — no tally
+candidate. Bilateral: the "bit for bit" receipt at `material_kappa_rel`
+is false as written (NaN sign, signed zero, and at `Interval` the old
+`±1` product was PADDED where the negation is exact — head tighter, no
+verdict moves); stale `sense_sign` prose at the moved sites including
+`crates/topo/README.md`; `blend/arms.rs` `trace` minting a `±1`
+`side: T` field from a face bit — D6's class through all three sweep
+patterns' blind spot, handed to the second unit. Unique R1: the sphere
+guard's unguarded cylinder twin, `SphereFluxSide` beside
+`MaterialSign`, a `classify_shared_rim` mutant the whole suite
+survives. Unique R2: `classify_material_pairing` respelling
+`from_chart` by hand. Both exercised the public surface and found the
+same thing: a ball with ONE band reversed measures volume exactly
+`0.0` through `mass_properties` with no error, and tier 3 names it
+`LaminaWedge`. Twelve items adjudicated; fix pass dispatched on the
+implementer's arm.
+
+Found while preparing the block close: **the sample numbers collided.**
+TRIM-3 PR-2 (PR 2554) recorded #201 on main ten minutes after D290
+(PR 2461) merged with #201 branch-side; S393 then copied the visible
+#201 and wrote #202. Main's first-parent order rules (the CERT
+precedent): D290 #201, TRIM-3 #202, S393 #203, VREV #204. S393's row
+is corrected here; TRIM's is TRIM's, announced on their PR; the
+protocol gap is filed on META's slate as
+`work/meta/ab-log-sample-numbers-collide-under-branch-side-block-records.md`.
+
+## VREV merged; block SCALAR-B1 closes (2026-09-15)
+
+PR 2627, block SCALAR-B1 slot 2, ordinal 4102; dual review, both arms
+APPROVE WITH FIXES, no MAJOR — no tally candidate. One arm found the
+door's exactness cost (decimal-symmetric knots refuse; the upstream
+fix is BLEND's), the other that a reversed chart re-attached leaves its
+pcurves stale and that `two_sum` was the tree's third copy. What
+landed: the item's §Closed. The spec is deleted per the ledger. With
+its reviews concluded the block's last slot is done: the branch-side
+block record (pre-draw fields, draw, three rows) merges to main.
+
+## Block SCALAR-B1 landed (2026-09-15)
+
+The branch-side block record — pre-draw fields, the draw (byte 69),
+and the three rows D290 (#201), S393 (#203), VREV (#204) — merges to
+main with this entry, the META row for the sample-number collision
+beside it. Block SCALAR-B2's pre-draw and draw stay on
+`scalar/orchestrator` until its last slot's reviews conclude.
+
+## UNITVEC merged (2026-09-15)
+
+PR 2646, block SCALAR-B2 slot 1, ordinal 4103; dual review, both arms
+APPROVE WITH FIXES. R2 ranked three findings MAJOR — the sweep's
+freshness claim, the mirror ladder's "hands it on", the bare
+`orthonormal_basis` still standing — all three about what the PR body
+and docs CLAIMED rather than what the code computes (no verdict, bit
+or refusal moved), so they are recorded as claim-class and excluded
+from the tally per the instrument; no tally candidate. What landed:
+the item's §Closed. The spec is deleted per the ledger. The `sin_cos`
+mint waits for a customer; the frame doors taking the witness are the
+next unit's (`frame-witness-and-the-tube-door`).
+
+## SENSE-DOORS merged (2026-09-15)
+
+PR 2649, block SCALAR-B2 slot 0, ordinal 4104; dual review, both arms
+APPROVE WITH FIXES, no MAJOR — no tally candidate. What landed: the
+item's §Closed. The spec is deleted per the ledger. Handed on: the
+`blend/arms.rs` `±1` field (second unit), the frame doors (third).
+
+## RATE-PAIR merged; block SCALAR-B2 closes (2026-09-15)
+
+PR 2657, block SCALAR-B2 slot 2, ordinal 4105. The fix pass took all
+twelve items and demonstrated M1 by execution (the frozen head's
+`chart_stretch_sup` answered `SupSpeed(1)` for a cone whose true sup at
+`v = 4` is `2`; the door now refuses and a `v`-arm door mints the exact
+1), so R1's finding **counts** for the OPUS arm under the instrument.
+What landed: the item's §Closed. The spec is deleted per the ledger.
+With its reviews concluded the block's last slot is done: the
+branch-side block record (pre-draw fields, draw, three rows) merges to
+main. Handed on: the angular arms (TRIM), the second D283 unit
+(`exhaustiveness-receipt-carries-its-lane`).
+
+## Block SCALAR-B2 landed (2026-09-15)
+
+The branch-side block record — pre-draw fields, the draw (byte 187),
+and the three rows UNITVEC (#205), SENSE-DOORS (#206), RATE-PAIR
+(#207) — merges to main with this entry. One tally candidate in the
+block, RATE-PAIR's M1, counted for the OPUS arm (unilateral,
+contract-API class, demonstrated by execution in the fix pass); the
+other five arms found no MAJOR. Block SCALAR-B3's pre-draw and draw
+stay on `scalar/orchestrator` until its last slot's reviews conclude.

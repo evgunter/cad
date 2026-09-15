@@ -102,12 +102,15 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // **`Indeterminate` IS here, and the count is the argument.** It is
 // the two-tolerance escalation payload (D4 ¶1 addendum): the thing a
 // refusal carries when the kernel could not certify a sign at the
-// tolerance it was given. THIRTEEN prelude-curated refusals carry it
+// tolerance it was given. TWELVE prelude-curated refusals carry it
 // — `BlendError`, `BooleanError`, `ContactRefusal`, `ExtrudeError`,
 // `LoftError`, `MateFault`, `PathError`, `ProfileError`,
-// `RevolveError`, `SelectRefusal`, `TubeError`, `UnitVec3Error`,
-// `ValidationError` — against one carrier for the payload CUR3
-// carried and one apiece for CUR4's four. A caller holding an
+// `RevolveError`, `SelectRefusal`, `TubeError`, `ValidationError` —
+// against one carrier for the payload CUR3 carried and one apiece
+// for CUR4's four. (`geom_core::UnitVec3Error`, the unit-vector
+// witness's refusal, carries it too and is reached at
+// `pncad::geom_core` beside the type it refuses for, not through this
+// prelude — a kernel type's refusal, not a curated façade name.) A caller holding an
 // `Escalated` arm out of any of them reads `band` off it to decide
 // whether tightening ε would help, and could not name what it was
 // holding without a module hop.
@@ -136,7 +139,7 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // moves, off a struct this list already carries.
 //
 // So the rung under a carried struct is carried too: a caller holding
-// an `Escalated` arm out of any of the thirteen reads `band`,
+// an `Escalated` arm out of any of the twelve reads `band`,
 // `predicate` and `margin` by bare name in one import. `Indeterminate`,
 // `MarginDiag` and `Band` sit at ONE root together
 // (`pncad::geom_core`) for anyone who prefers the module path — a

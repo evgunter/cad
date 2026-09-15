@@ -18,6 +18,8 @@ use crate::common;
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
+use std::thread::JoinHandle;
 
 use common::asm;
 use pncad::document::{
@@ -29,8 +31,11 @@ use pncad::prelude::{EntityKind, StableName};
 use pncad::select::{ContactClass, Ray};
 use viewer::camera::{Camera, CameraOp};
 use viewer::display::{DisplayFault, DisplayView};
-use viewer::evalseam::{IndexDone, IndexRequest, IndexService, InlineIndexer, MemoReport};
-use viewer::frame::{self, IdQueryLog, IdStep, StatusUpdate};
+use viewer::evalseam::{
+    EvalDone, EvalRequest, EvalService, IndexDone, IndexRequest, IndexService, InlineIndexer,
+    MemoReport,
+};
+use viewer::frame::{self, IdQueryLog, IdStep, IdSubject, StatusUpdate};
 use viewer::generation::Generation;
 use viewer::input::{self, InputMap, ViewportSize};
 use viewer::pickcache::{self, CacheStep, IndexLanding, PickCache};
@@ -195,6 +200,121 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
         frame::Subject::Document,
         "notices that agree on a subject are joined under it, so the \
          joined line still knows what retires it"
+    );
+}
+
+/// **A joined line splits back into the notices it was made from.**
+///
+/// The defect: `frame_status` joined notices with `"; "` and a notice
+/// is free to write `"; "` inside its own sentence, so at two notices
+/// a reader met a separator that might be a boundary and might be the
+/// notice talking. Unfalsifiable at one notice, wrong at two.
+///
+/// Both texts here are real faults' own renderings through a real
+/// door, not prose written for the row: `NonRigidFrame` writes a
+/// `LIST_SEPARATOR` inside one sentence — the hazard
+/// `work/view/joined-notices-nest-their-own-separator.md` records as
+/// mechanical and present — and `FusedGeometry` writes an em-dash.
+/// Under the old spelling the first alone makes this split return
+/// three pieces where two went in.
+///
+/// Asserted as the SPLIT and not as a separator count: a count is the
+/// weaker half of the same claim, and `Withdrawal`'s own row already
+/// says why a count passes over text that reads as one item too many.
+#[test]
+fn a_joined_line_splits_back_into_the_notices_it_was_made_from() {
+    let nests = frame::tool_news(DisplayFault::NonRigidFrame { determinant: 0.5 }.to_string());
+    let dashes = frame::tool_news(
+        DisplayFault::FusedGeometry {
+            instance: RecipeNodeId(3),
+            root: RecipeNodeId(9),
+            others: vec![RecipeNodeId(5)],
+        }
+        .to_string(),
+    );
+    assert!(
+        nests.text().contains(frame::LIST_SEPARATOR),
+        "the row is about a notice that carries the within-a-notice \
+         mark; this one no longer does, so it proves nothing: {nests}"
+    );
+
+    let StatusUpdate::Show(line) = frame::frame_status(
+        &[nests.clone(), dashes.clone()],
+        &[SessionOp::Select(Selection::None)],
+        None,
+    ) else {
+        panic!("two notices are shown");
+    };
+    assert_eq!(
+        line.text()
+            .split(frame::NOTICE_SEPARATOR)
+            .collect::<Vec<_>>(),
+        vec![nests.text(), dashes.text()],
+        "the boundary between two notices is legible as a boundary and \
+         as nothing else, whatever either notice's own sentence says"
+    );
+}
+
+/// **A notice cannot be constructed carrying the boundary mark.**
+///
+/// The rule above is a claim about every string any producer will
+/// ever hand `Message`, which no signature carries — so the only door
+/// enforces it, and this is the row that goes red if it stops.
+///
+/// The door rewrites rather than refuses because it is reachable from
+/// the keyboard: `delta_not_a_number` echoes what was typed into the
+/// δ field, so a pasted bullet must not be able to take the
+/// application down. That path is asserted here too, through its own
+/// door, because it is the one that makes the choice necessary.
+#[test]
+fn a_notice_cannot_carry_the_boundary_mark() {
+    let asked = frame::Message::new(frame::Subject::Document, "one \u{2022} two");
+    assert!(
+        !asked.text().contains(frame::NOTICE_MARK),
+        "the door takes the boundary mark out: {asked}"
+    );
+
+    let pasted = "1 \u{2022} 2".parse::<f64>().expect_err("not a number");
+    let typed = frame::delta_not_a_number("1 \u{2022} 2", &pasted);
+    assert!(
+        !typed.text().contains(frame::NOTICE_MARK),
+        "a bullet pasted into the δ field reaches a notice verbatim: {typed}"
+    );
+
+    let StatusUpdate::Show(line) = frame::frame_status(
+        &[asked.clone(), typed.clone()],
+        &[SessionOp::Select(Selection::None)],
+        None,
+    ) else {
+        panic!("two notices are shown");
+    };
+    assert_eq!(
+        line.text().split(frame::NOTICE_SEPARATOR).count(),
+        2,
+        "a notice that asked for the mark still cannot forge a boundary: {line}"
+    );
+}
+
+/// **The two marks are two marks**, which is the whole of the rule.
+///
+/// `Message::new` derives what it rewrites a boundary mark to from
+/// `LIST_SEPARATOR`, so an all-whitespace list separator would make
+/// `str::replace` insert between every character of every notice.
+/// Nothing else in the crate would notice.
+#[test]
+fn the_boundary_mark_belongs_to_the_boundary_alone() {
+    assert_eq!(
+        frame::NOTICE_SEPARATOR.matches(frame::NOTICE_MARK).count(),
+        1,
+        "the separator carries the mark it is named for, once"
+    );
+    assert!(
+        !frame::LIST_SEPARATOR.contains(frame::NOTICE_MARK),
+        "a notice's own list mark is not a boundary"
+    );
+    assert!(
+        !frame::LIST_SEPARATOR.trim().is_empty(),
+        "what the door rewrites a boundary mark TO has to be a mark"
     );
 }
 
@@ -901,31 +1021,86 @@ fn an_empty_batch_and_a_pure_cursor_stream_move_no_camera() {
 
 // --- the id query's bookkeeping ------------------------------------
 
+/// What the viewport hands the log for a picture built at `revision`
+/// from the index at `generation`.
+fn subject(revision: u64, generation: Generation) -> IdSubject {
+    IdSubject {
+        revision,
+        generation: Some(generation),
+    }
+}
+
 #[test]
 fn the_id_query_is_asked_once_per_cursor_and_re_asked_when_the_picture_moves() {
     let mut log = IdQueryLog::new();
-    let generation = Some(Generation::FIRST);
-    let IdStep::Ask { serial: first } = log.step(Some([10.0, 20.0]), generation) else {
+    let asked_about = subject(1, Generation::FIRST);
+    let IdStep::Ask { serial: first } = log.step(Some([10.0, 20.0]), asked_about) else {
         panic!("the first look at a cursor asks");
     };
     assert_eq!(log.outstanding(), Some(first));
     assert_eq!(
-        log.step(Some([10.0, 20.0]), generation),
+        log.step(Some([10.0, 20.0]), asked_about),
         IdStep::Hold,
         "a still cursor over an unchanged picture asks nothing"
     );
-    let IdStep::Ask { serial: moved } = log.step(Some([11.0, 20.0]), generation) else {
+    let IdStep::Ask { serial: moved } = log.step(Some([11.0, 20.0]), asked_about) else {
         panic!("a moved cursor asks again");
     };
     assert_ne!(moved, first);
     // The picture changing under a STILL cursor is also a new question:
     // the answer is about what is drawn, not only about the pointer.
     let IdStep::Ask { serial: repainted } =
-        log.step(Some([11.0, 20.0]), Some(Generation::FIRST.next()))
+        log.step(Some([11.0, 20.0]), subject(2, Generation::FIRST.next()))
     else {
         panic!("a new generation re-asks");
     };
     assert_ne!(repainted, moved);
+}
+
+/// **Both halves of the subject, one direction each.**
+///
+/// The query's answer is an id the GPU read out of ONE picture and the
+/// viewport resolves through ONE index's id map, and the two move
+/// independently: `ViewerApp::sync_scene` rebuilds on a display or
+/// focus change at a standing generation, and a rebuild it REFUSES
+/// leaves a landed index beside the picture already on screen. So a key
+/// carrying either half alone holds a question that should be re-asked
+/// — silently, because a held query keeps the last answer MATCHED and
+/// the disagreement check then compares two pictures and reports two
+/// picking paths.
+#[test]
+fn a_new_picture_and_a_new_index_each_re_ask_on_their_own() {
+    let cursor = Some([10.0, 20.0]);
+    let mut log = IdQueryLog::new();
+    let IdStep::Ask { serial: opened } = log.step(cursor, subject(1, Generation::FIRST)) else {
+        panic!("the first look at a cursor asks");
+    };
+
+    // Hiding a part: a rebuilt picture at the generation already in
+    // hand. Keyed on the generation alone this is a `Hold`.
+    let IdStep::Ask { serial: repainted } = log.step(cursor, subject(2, Generation::FIRST)) else {
+        panic!("a new picture at one generation re-asks");
+    };
+    assert_ne!(repainted, opened);
+    assert_eq!(
+        log.step(cursor, subject(2, Generation::FIRST)),
+        IdStep::Hold,
+        "and the re-asked question is held once it is asked"
+    );
+
+    // An index landing over a refused rebuild: a new generation at the
+    // picture still on screen. Keyed on the revision alone this is a
+    // `Hold`.
+    let IdStep::Ask { serial: landed } = log.step(cursor, subject(2, Generation::FIRST.next()))
+    else {
+        panic!("a new index at one picture re-asks");
+    };
+    assert_ne!(landed, repainted);
+    assert_eq!(
+        log.step(cursor, subject(2, Generation::FIRST.next())),
+        IdStep::Hold,
+        "and that one is held once it is asked too"
+    );
 }
 
 #[test]
@@ -935,13 +1110,13 @@ fn leaving_the_pane_voids_the_outstanding_answer() {
     // against a hover that had been cleared, printing the exact message
     // issue #1097 §4 tells the operator to read as a clear-value fault.
     let mut log = IdQueryLog::new();
-    let generation = Some(Generation::FIRST);
+    let asked_about = subject(1, Generation::FIRST);
     assert!(matches!(
-        log.step(Some([10.0, 20.0]), generation),
+        log.step(Some([10.0, 20.0]), asked_about),
         IdStep::Ask { .. }
     ));
     assert!(log.outstanding().is_some());
-    assert_eq!(log.step(None, generation), IdStep::Void);
+    assert_eq!(log.step(None, asked_about), IdStep::Void);
     assert_eq!(
         log.outstanding(),
         None,
@@ -949,7 +1124,7 @@ fn leaving_the_pane_voids_the_outstanding_answer() {
     );
     // And coming back asks fresh rather than reusing the void answer.
     assert!(matches!(
-        log.step(Some([10.0, 20.0]), generation),
+        log.step(Some([10.0, 20.0]), asked_about),
         IdStep::Ask { .. }
     ));
 }
@@ -1674,11 +1849,11 @@ fn an_answer_built_at_another_delta_is_discarded_too() {
 fn a_click_with_no_index_refuses_typed_and_a_hover_stays_quiet() {
     let click = [input::PickAction::Select([10.0, 10.0])];
     assert_eq!(
-        pickcache::unindexed(&click, true),
+        pickcache::unindexed(&click, None, true),
         Some(pickcache::NotIndexed::Building),
     );
     assert_eq!(
-        pickcache::unindexed(&click, false),
+        pickcache::unindexed(&click, None, false),
         Some(pickcache::NotIndexed::Absent),
         "a refused build is not a build that is still running, and the \
          sentence must not promise an answer that is not coming",
@@ -1690,12 +1865,13 @@ fn a_click_with_no_index_refuses_typed_and_a_hover_stays_quiet() {
                     input::PickAction::Hover([10.0, 10.0]),
                     input::PickAction::ClearHover,
                 ],
+                None,
                 indexing,
             ),
             None,
             "an observation asked every frame is not a refusal to report",
         );
-        assert_eq!(pickcache::unindexed(&[], indexing), None);
+        assert_eq!(pickcache::unindexed(&[], None, indexing), None);
     }
     assert_ne!(
         pickcache::NotIndexed::Building.to_string(),
@@ -1710,6 +1886,60 @@ fn a_click_with_no_index_refuses_typed_and_a_hover_stays_quiet() {
             "and each sentence says which of the two answers it is",
         );
     }
+}
+
+/// **An index in hand for a picture nobody has seen is refused as
+/// itself**, not as an absence — Ev's ruling, 2026-09-15.
+///
+/// `ViewerApp::sync_scene` marks the scene's `(generation, δ)` pair
+/// current only on a successful rebuild, so a landing over a refused
+/// one leaves a newer index beside an older picture. Answering from it
+/// selects geometry the screen is not showing; the ruling is that the
+/// click says so instead.
+///
+/// The sentence is asserted against the other two rather than quoted:
+/// what a reader needs from it is that it does not promise an arriving
+/// answer (`Building`) and does not claim there is nothing to ask
+/// (`Absent`), and a copy of the string here would go stale the first
+/// time anyone improves the wording.
+#[test]
+fn a_click_over_a_picture_the_index_did_not_draw_says_which_of_the_three() {
+    let tol = Tol::witness();
+    let (session, _extrude) = plate_session(tol);
+    let held = index_of(&session);
+    let click = [input::PickAction::Select([10.0, 10.0])];
+
+    assert_eq!(
+        pickcache::unindexed(&click, Some(&held), false),
+        Some(pickcache::NotIndexed::AnotherPicture),
+        "an index is in hand, so the refusal is not about an absence",
+    );
+    assert_eq!(
+        pickcache::unindexed(
+            &[
+                input::PickAction::Hover([10.0, 10.0]),
+                input::PickAction::ClearHover,
+            ],
+            Some(&held),
+            false,
+        ),
+        None,
+        "and the act filter is the same one: a hover is not news here \
+         either",
+    );
+
+    let stale = pickcache::NotIndexed::AnotherPicture.to_string();
+    for other in [
+        pickcache::NotIndexed::Building,
+        pickcache::NotIndexed::Absent,
+    ] {
+        assert_ne!(stale, other.to_string());
+    }
+    assert!(
+        stale.contains("older"),
+        "the sentence names what is wrong with the picture, which is \
+         that it is behind the document the cursor is over",
+    );
 }
 
 /// One indicator for one wait, and the ranking that decides which.
@@ -2132,5 +2362,242 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     assert_eq!(
         frame::frame_status(&[], core::slice::from_ref(&mate), outcome.refusal.as_ref()),
         StatusUpdate::Clear,
+    );
+}
+
+// --- a worker that dies under a submitted request -------------------
+
+/// A worker that takes one request and panics inside it, over the two
+/// channel ends a seam handle keeps.
+///
+/// **A real panic on a real thread, which is the only way this state is
+/// reachable.** `ThreadIndexer` and `ThreadEvaluator` own their
+/// worker's entry point — the loop is a private function with no door
+/// to inject a failure through — so nothing above the seam can make a
+/// shipped worker die, and the state is reachable only by a panic
+/// inside a build. What a test can stand up instead is the same pair of
+/// channels behind a worker that really panicked: the request sender
+/// whose receiver went down with the thread, and the result receiver
+/// that will only ever report `Disconnected`. Both handles' arms for
+/// that are mirrored below.
+///
+/// The worker prints one `thread '…' panicked` line to stderr when a
+/// row lets it die. That line is what the rows are about, not a
+/// failure.
+fn dying_worker<Req, Done>(name: &str) -> (Sender<Req>, Receiver<Done>, JoinHandle<()>)
+where
+    Req: Send + 'static,
+    Done: Send + 'static,
+{
+    let (to_worker, requests) = mpsc::channel::<Req>();
+    let (results, from_worker) = mpsc::channel::<Done>();
+    let worker = std::thread::Builder::new()
+        .name(name.to_owned())
+        .spawn(move || {
+            // The worker owns both ends, as the shipped ones do: the
+            // unwind is what drops them and disconnects the seam.
+            let results = results;
+            let _request = requests.recv().expect("the work reaches the worker");
+            drop(results);
+            panic!("the worker died under the request it was handed");
+        })
+        .expect("the worker spawns");
+    (to_worker, from_worker, worker)
+}
+
+/// The index seam over [`dying_worker`], with `ThreadIndexer`'s own two
+/// arms for a worker that has gone: a failed `send` and a `Disconnected`
+/// `try_recv` each clear the running flag, so `busy` goes dark.
+struct DyingIndexer {
+    to_worker: Sender<IndexRequest>,
+    from_worker: Receiver<IndexDone>,
+    running: bool,
+}
+
+impl DyingIndexer {
+    fn new() -> (Box<Self>, JoinHandle<()>) {
+        let (to_worker, from_worker, worker) = dying_worker("index-worker-that-dies");
+        (
+            Box::new(Self {
+                to_worker,
+                from_worker,
+                running: false,
+            }),
+            worker,
+        )
+    }
+}
+
+impl IndexService for DyingIndexer {
+    fn submit(&mut self, request: IndexRequest) {
+        self.running = self.to_worker.send(request).is_ok();
+    }
+
+    fn poll(&mut self) -> Option<IndexDone> {
+        match self.from_worker.try_recv() {
+            Ok(done) => Some(done),
+            Err(TryRecvError::Empty) => None,
+            Err(TryRecvError::Disconnected) => {
+                self.running = false;
+                None
+            }
+        }
+    }
+
+    fn busy(&self) -> bool {
+        self.running
+    }
+}
+
+/// The evaluation seam over the same worker, with `ThreadEvaluator`'s
+/// arms. `cancel` has nothing to stop.
+struct DyingEvaluator {
+    to_worker: Sender<EvalRequest>,
+    from_worker: Receiver<EvalDone>,
+    running: bool,
+}
+
+impl DyingEvaluator {
+    fn new() -> (Box<Self>, JoinHandle<()>) {
+        let (to_worker, from_worker, worker) = dying_worker("eval-worker-that-dies");
+        (
+            Box::new(Self {
+                to_worker,
+                from_worker,
+                running: false,
+            }),
+            worker,
+        )
+    }
+}
+
+impl EvalService for DyingEvaluator {
+    fn submit(&mut self, request: EvalRequest) {
+        self.running = self.to_worker.send(request).is_ok();
+    }
+
+    fn cancel(&mut self) {}
+
+    fn poll(&mut self) -> Option<EvalDone> {
+        match self.from_worker.try_recv() {
+            Ok(done) => Some(done),
+            Err(TryRecvError::Empty) => None,
+            Err(TryRecvError::Disconnected) => {
+                self.running = false;
+                None
+            }
+        }
+    }
+
+    fn busy(&self) -> bool {
+        self.running
+    }
+}
+
+/// **A promise nobody is left to keep, withdrawn.**
+///
+/// The seam notices a worker that has gone; what this holds is that the
+/// CONSUMER asks. `PickCache::outstanding` is cleared by an answer, so
+/// a build whose worker panicked leaves it set for the life of the
+/// window — and reporting it alone spun `indexing…` forever, repainted
+/// every frame to collect a result nobody would send, and refused every
+/// click with *the picture is still being indexed*, of a picture nobody
+/// is indexing.
+///
+/// The three reads the chrome actually makes are all here: the toolbar's
+/// progress state, the pick refusal's sentence, and the indicator itself.
+#[test]
+fn a_build_whose_worker_panicked_stops_promising_an_answer() {
+    let tol = Tol::witness();
+    let (session, _extrude) = plate_session(tol);
+    let (seam, worker) = DyingIndexer::new();
+    let mut cache = PickCache::new(seam);
+
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(delta())),
+        CacheStep::Submitted
+    );
+    assert!(
+        cache.indexing(),
+        "the build is with the worker and the answer is genuinely owed"
+    );
+
+    // The build panics. Joining is how the row waits for a death a
+    // frame loop would only ever discover by polling.
+    assert!(
+        worker.join().is_err(),
+        "the row needs the worker to have actually panicked"
+    );
+
+    assert_eq!(
+        cache.pump(),
+        Vec::new(),
+        "there is no answer to take, and there never will be"
+    );
+    assert!(
+        !cache.indexing(),
+        "so the toolbar stops saying one is coming",
+    );
+    assert_eq!(
+        frame::progress(session.outstanding(), cache.indexing()),
+        None,
+        "and the chrome has nothing to spin over",
+    );
+    assert_eq!(
+        pickcache::unindexed(
+            &[input::PickAction::Select([10.0, 10.0])],
+            cache.index(),
+            cache.indexing(),
+        ),
+        Some(pickcache::NotIndexed::Absent),
+        "a click is refused as one nothing will answer, not as one an \
+         arriving index is about to",
+    );
+
+    // And the retry policy still holds: the attempt was made, and a
+    // dead seam is not a reason to make it sixty times a second. The
+    // step is still `Indexing`, because `sync` answers from the
+    // submitted attempt — which is why that is a statement about what
+    // was asked for and `indexing` is what the chrome reads.
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(delta())),
+        CacheStep::Indexing
+    );
+    assert!(!cache.indexing());
+}
+
+/// The same worker under the EVALUATION seam, which already asks.
+///
+/// `DocSession::busy` is about the picture — is it older than the
+/// document — and stays true, correctly, because it is. What answers
+/// *is anyone doing something about it* is `DocSession::running`, which
+/// is the seam's own `busy`, and the two are folded into `Outstanding`
+/// before any chrome sees them. So a panicked evaluator lands on
+/// `Canceled` and its recourse rather than on a permanent `evaluating…`.
+#[test]
+fn a_panicked_evaluator_reaches_the_chrome_as_canceled_not_as_evaluating() {
+    let tol = Tol::witness();
+    let (doc, _extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+    let (seam, worker) = DyingEvaluator::new();
+    // `new` submits the first run, so the worker has it already.
+    let mut session = DocSession::new(doc, tol, seam);
+    assert_eq!(session.outstanding(), Outstanding::Evaluating);
+
+    assert!(
+        worker.join().is_err(),
+        "the row needs the worker to have actually panicked"
+    );
+
+    assert_eq!(session.pump(), Vec::new(), "no result is coming");
+    assert!(
+        session.busy(),
+        "the picture IS older than the document, and that is what busy says"
+    );
+    assert!(!session.running(), "but nothing is working on it");
+    assert_eq!(session.outstanding(), Outstanding::Canceled);
+    assert_eq!(
+        frame::progress(session.outstanding(), false),
+        Some(frame::Progress::Canceled { indexing: false }),
+        "the state the chrome draws with a Re-evaluate button beside it",
     );
 }

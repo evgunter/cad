@@ -104,7 +104,9 @@ Structural edits may renumber; stale selections then refuse Vanished.
 or `CircleSplit { centre, radius, n, phase }`, the carrier forms being
 one-step programs whose form is structural. There is one wire
 vocabulary: no raw vertex-table loop exists at rest (VQ1). The wire
-shape is `WireProfile { plane, loops }` with `deny_unknown_fields`; the
+shape is `WireProfile { plane, loops }` with `deny_unknown_fields`,
+which denies an unknown KEY and nothing else — a `plane` written in the
+pre-node shape refuses at `plane_ref`'s own visitor instead; the
 format carries no schema version and no migration, and a file this
 build cannot read refuses `PersistError::Unreadable` with the regenerate
 recourse. `plane` references a `Datum::Frame` node, so a profile has a
