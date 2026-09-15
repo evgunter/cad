@@ -387,7 +387,7 @@ pub fn sentinel_region(text: &str, what: &str, begin: &str, end: &str) -> std::o
 
 /// The offset at which the line holding `at` begins.
 ///
-/// The offset half of [`line`], which answers the line NUMBER. Here
+/// The offset half of [`line()`], which answers the line NUMBER. Here
 /// because three readers had spelled the same `rfind('\n')` fold, and
 /// a caller wanting the text before a match ON ITS OWN LINE — a
 /// declaration's modifiers, an attribute's indentation — is asking one
