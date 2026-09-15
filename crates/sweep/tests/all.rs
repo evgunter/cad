@@ -342,6 +342,8 @@ mod s16_box_soundness;
 mod s49_census_jurisdiction;
 #[path = "seat6_germ_channel.rs"]
 mod seat6_germ_channel;
+#[path = "s393_r2_probes.rs"]
+mod s393_r2_probes;
 #[path = "turning_orientation.rs"]
 mod turning_orientation;
 #[path = "verbs_1031b_arcwind.rs"]
