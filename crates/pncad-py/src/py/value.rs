@@ -2074,7 +2074,7 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<ImportReport> 
         // The tag is the importer's own, through `crate::tags`. Every
         // arm of `StepImportError` is reachable here, and the entity
         // id and line that would tell them apart live in the message
-        // prose — so one literal for all twenty-one would make them
+        // prose — so one literal for every arm would make them
         // indistinguishable to a caller.
         //
         // `promoted_kind` is the one arm's payload discriminant,

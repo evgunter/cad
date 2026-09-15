@@ -3555,6 +3555,142 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
     }
 }
 
+/// **`ValidationRefusal::ALL` is the enum, and the inventory is what
+/// says so.**
+///
+/// The roster exists so the class's attribute set can be derived from
+/// the enum rather than restated, which is worth nothing if the roster
+/// can fall behind the enum. Nothing in Rust enumerates a plain enum's
+/// variants, so this borrows the instrument that already reads the
+/// tree: [`TAG_INVENTORY`]'s `validation_refusal_tag` row is compared
+/// against `src/tags.rs` by
+/// [`the_whole_tag_table_matches_its_committed_inventory`], so a sixth
+/// refusal is an arm in that map (a compile error until it is
+/// written), then a word in the inventory (a red row until it is
+/// named), and then a member of the roster — a red row HERE until it
+/// joins.
+///
+/// What it cannot see: a refusal added to the enum and to the map with
+/// the inventory row updated in the same change and the roster left
+/// alone would red here and nowhere else, which is the point; a
+/// refusal added to the enum alone does not compile.
+#[test]
+fn validation_refusals_are_the_roster_the_inventory_reads() {
+    let entry = TAG_INVENTORY
+        .iter()
+        .find(|entry| entry.function == "validation_refusal_tag")
+        .expect("the inventory carries the validation class's vocabulary");
+    let mut from_roster: Vec<&str> = crate::errors::ValidationRefusal::ALL
+        .iter()
+        .map(|refusal| crate::tags::validation_refusal_tag(*refusal))
+        .collect();
+    from_roster.sort_unstable();
+    assert_eq!(
+        from_roster, entry.values,
+        "`ValidationRefusal::ALL` and the map's inventoried words have drifted \
+         apart — the roster is missing a refusal the enum has, or names one it \
+         does not"
+    );
+}
+
+/// **The `ValidationError` class mints onto exactly two attributes.**
+///
+/// [`crate::errors::ValidationRefusal::ATTRIBUTES`] is what
+/// `crate::py::typed_err` asserts a raise site did not spell, so it has
+/// to be the whole image of `attribute()` — a third attribute missing
+/// from it would be a Python-visible word a raise site could still pass
+/// unnoticed, which is the gap the set replaced a single word to close.
+/// Both directions, so a stale member cannot sit there either.
+#[test]
+fn the_validation_class_mints_exactly_these_attributes() {
+    use crate::errors::ValidationRefusal;
+    let written: BTreeSet<&str> = ValidationRefusal::ALL
+        .iter()
+        .map(|refusal| refusal.attribute())
+        .collect();
+    assert_eq!(
+        written.into_iter().collect::<Vec<_>>(),
+        ValidationRefusal::ATTRIBUTES,
+        "the attributes the refusals actually write are not the set the raise \
+         door is asserted against"
+    );
+}
+
+/// **Which attribute each validation refusal's word lands on**,
+/// committed.
+///
+/// `attribute()` is the one thing deciding whether a refusal's word
+/// reaches Python as `ValidationError.door` or as
+/// `ValidationError.reason`, and moving a variant between its arms
+/// changes a published contract while every other guard on this page
+/// stays green: the word is still minted from the map, still
+/// inventoried, still spelled once. Two of the five are held from the
+/// Python side (`tests/test_validate.py` reads `door` on
+/// `validate_pseudomanifold` and `reason` on `mass_properties_failed`)
+/// and three are reachable from no Python test, because a body the
+/// kernel produces passes the first three rungs. So the routing is
+/// pinned here instead, for all five.
+///
+/// **This pins; it does not close.** A sixth refusal routed to the
+/// wrong attribute is caught by the row it has to add here, not by the
+/// compiler.
+const VALIDATION_ROUTING: &[(crate::errors::ValidationRefusal, &str, &str)] = &[
+    (
+        crate::errors::ValidationRefusal::Validate,
+        "door",
+        "validate",
+    ),
+    (
+        crate::errors::ValidationRefusal::Closed,
+        "door",
+        "validate_closed",
+    ),
+    (
+        crate::errors::ValidationRefusal::Geometric,
+        "door",
+        "validate_geometric",
+    ),
+    (
+        crate::errors::ValidationRefusal::Pseudomanifold,
+        "door",
+        "validate_pseudomanifold",
+    ),
+    (
+        crate::errors::ValidationRefusal::MassProperties,
+        "reason",
+        "mass_properties_failed",
+    ),
+];
+
+/// Every refusal writes the attribute and the word [`VALIDATION_ROUTING`]
+/// commits it to, and the table names no refusal the enum does not.
+#[test]
+fn every_validation_refusal_writes_the_attribute_it_is_committed_to() {
+    use crate::errors::ValidationRefusal;
+    for refusal in ValidationRefusal::ALL {
+        let (_, attribute, word) = VALIDATION_ROUTING
+            .iter()
+            .find(|(committed, _, _)| committed == refusal)
+            .unwrap_or_else(|| panic!("{refusal:?} has no committed routing"));
+        assert_eq!(
+            refusal.attribute(),
+            *attribute,
+            "{refusal:?} writes a different Python attribute than the one \
+             committed for it"
+        );
+        assert_eq!(
+            crate::tags::validation_refusal_tag(*refusal),
+            *word,
+            "{refusal:?}'s word is not the one committed for it"
+        );
+    }
+    assert_eq!(
+        VALIDATION_ROUTING.len(),
+        ValidationRefusal::ALL.len(),
+        "the committed routing names a refusal the enum does not have"
+    );
+}
+
 /// **Two layers spell one entity the same way.**
 ///
 /// [`crate::tags::entity_kind_tag`] is total over what a document
@@ -5192,9 +5328,11 @@ fn every_word_two_tag_maps_share_is_on_the_committed_roster() {
 /// So the form is the fallback for a word that has no enum to hang
 /// off. [`crate::tags::STEP_IMPORT_WIREFRAME`] is one: it names an arm
 /// of the STEP importer's SUCCESS enum that the import door does not
-/// adopt, while the other twenty-one words on that attribute are the
-/// kernel refusal's, so there is no type the class could carry that
-/// would not be a second spelling of the kernel's arm list. That
+/// adopt, while every other word on that attribute is the kernel
+/// refusal's — `step_import_error_tag` is the sole other source of
+/// `StepImportError.variant` — so there is no type the class could
+/// carry that would not be a second spelling of the kernel's arm
+/// list. That
 /// door's growth is walled by the compiler instead — the enum is not
 /// `#[non_exhaustive]` and the door matches it exhaustively.
 const TAG_CONSTS: &[(&str, &str)] = &[("STEP_IMPORT_WIREFRAME", "wireframe")];
@@ -5574,7 +5712,8 @@ impl<'a> Cursor<'a> {
 /// recognising a form does not fail — it reports agreement over the
 /// set it can still see. Every other check on this page exercises it
 /// against `src/tags.rs`, which covers only the forms that file
-/// happens to hold: it declares no `pub const` tag word at all, and no
+/// happens to hold, and holds a single instance of some: one
+/// `pub const` tag word ([`TAG_CONSTS`]), and no
 /// `Option<&'static str>` map with a bare `None` arm sits where an
 /// eye would notice it going unread.
 ///
@@ -5673,7 +5812,9 @@ pub const SAMPLE_WORD: &str = "sample_word";
     assert_eq!(values, &["maybe"]);
     assert!(delegates.is_empty());
 
-    // The form `src/tags.rs` no longer supplies an instance of.
+    // The `pub const` form, over the fixture's own instance: the
+    // subject here is the reader, and `src/tags.rs`'s single const
+    // would make this branch's coverage a fact about that file.
     assert_eq!(
         table.constants,
         BTreeMap::from([("SAMPLE_WORD".to_owned(), "sample_word".to_owned())])
@@ -6050,10 +6191,15 @@ fn read_tag_table(source: &str) -> TagTable {
 /// them. `work/lib/` carries that as its own row.
 ///
 /// **The `reason` and `door` words are a second family, and no raise
-/// site under `src/py/` mints one any more.** Such an attribute is as
+/// site under `src/py/` MINTS one any more.** Such an attribute is as
 /// Python-visible as a `variant`, and the words used to be spelled at
 /// construction sites where an inventory reading `src/tags.rs` alone
-/// could not see them. Two classes now CARRY their discriminant, which
+/// could not see them. Minting is the claim and it is narrower than
+/// "no such word is written there": `crate::py::measure` writes
+/// `door`, `verb` and `scalar` from a kernel value's own `&str`
+/// fields, which this crate does not choose and no inventory reads —
+/// `work/census/`'s `DimensionError.op` row carries that population,
+/// the `door` literal in `editor-core` included. Two classes now CARRY their discriminant, which
 /// is the strongest of the arrangements below because it makes the
 /// word unspellable rather than merely spelled elsewhere: no raise of
 /// [`crate::errors::ErrorClass::Evaluation`] or

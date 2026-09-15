@@ -73,10 +73,13 @@
 //!
 //! **The scope of that rule, said plainly.** It was decided over the
 //! seven pairs one unit was dispatched at and is asserted over the
-//! rest: a per-function sweep of this file's literals finds **61
-//! words minted by two or more maps**, and nobody has read most of
-//! them. What holds the claim to the tree is not this paragraph but
-//! `src/tests.rs`'s
+//! rest: **dozens of this file's words are minted by two or more
+//! maps**, and nobody has read most of them. The number is not
+//! written here, because a count in prose goes stale the first time a
+//! map grows and this one already had; the population is
+//! `src/tests.rs`'s `SHARED_TAG_WORDS`, which is derived from
+//! `TAG_INVENTORY` and is therefore the measurement. What holds the
+//! claim to the tree is not this paragraph but
 //! `every_word_two_tag_maps_share_is_on_the_committed_roster`, which
 //! reds when a word starts or stops colliding. That row does not
 //! decide a new pair — it asks, which is the part prose here could
@@ -372,9 +375,10 @@ pub fn stl_refusal_tag(refusal: StlRefusal<'_>) -> &'static str {
 /// `pncad::step_import::StepImport` rather than one of
 /// [`step_import_error_tag`]'s refusals, and it shares that map's
 /// namespace without being one of its words. There is no enum the
-/// class could carry, because the other twenty-one words on this
-/// attribute are the kernel refusal's and a binding mirror of those
-/// would be a second spelling of the kernel's arm list.
+/// class could carry, because every OTHER word on this attribute is
+/// the kernel refusal's — that map is the sole other source of
+/// `StepImportError.variant` — and a binding mirror of its arms would
+/// be a second spelling of them.
 ///
 /// So this pins the TEXT and does not close the class: it puts the word
 /// where the inventory reads it, and a raise site can still spell a new
