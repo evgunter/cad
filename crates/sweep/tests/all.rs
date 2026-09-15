@@ -338,6 +338,8 @@ mod revolve_washer;
 mod ring_r1_probes;
 #[path = "s16_box_soundness.rs"]
 mod s16_box_soundness;
+#[path = "s393_r1_probes.rs"]
+mod s393_r1_probes;
 #[path = "s49_census_jurisdiction.rs"]
 mod s49_census_jurisdiction;
 #[path = "seat6_germ_channel.rs"]
