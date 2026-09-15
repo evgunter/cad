@@ -1042,9 +1042,11 @@ class TestTheSketchPlaneVocabulary(unittest.TestCase):
     def test_rigidity_is_the_doors_not_the_callers(self):
         """The Rust contract, verbatim: `from_frame` ORTHONORMALIZES
         the pair it is given — `u` normalized and kept, `v` yielding
-        its component along `u` — so a skewed sketch is not a thing
-        this class can hold. The binding adds no predicate of its own;
-        what it adds is that the pair must span a plane."""
+        its component along `u` — so what a caller reads back off a
+        plane built here is perpendicular whatever they passed in. It
+        is the DOOR that decides, not the class. The binding adds no
+        predicate of its own; what it adds is that the pair must span
+        a plane."""
         # `v` leans 45 degrees into `u`, and comes back as the part of
         # itself that does not: the world xy plane, exactly.
         leaning = SketchPlane.from_frame(

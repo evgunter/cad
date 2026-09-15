@@ -749,7 +749,7 @@ the value). The names that reach the funnel through them today:
 |---|---|---|
 | `datum_unit_norm` | `topo`'s const, passed by `editor-core`'s `frame_axes` | yes — every authored and face frame |
 | `eval_direction_norm` | `editor-core`'s const, passed by `tube_args` | yes — every recipe tube's reference radial |
-| `frame_point_at_roll_offset`, `frame_path_start_reference_z`, `frame_path_start_reference_x` | `geom-core`'s ladders, unchanged | as before |
+| `frame_point_at_roll_offset`, `frame_path_start_reference_z`, `frame_path_start_reference_x` | `geom-core`'s ladders, same names | as before, at a slightly SMALLER count — see below |
 | `tour_frame_axis` | `demos/tour/src/scalar.rs`, a const the TOUR owns | **yes** — the demo-scenes leg of `scripts/k_probe_sweep.sh` runs the scenes that mint it |
 | `fixture_frame_axis` | `crates/sweep/src/test_support.rs`, a const the fixtures own | only if a rostered probe module builds a fixture plane off the world axes; none does today |
 | `sketch_plane_frame_norm` | `crates/pncad-py/src/py/doc.rs`, the binding's own | no — the binding is not in the sweep's roster |
@@ -758,7 +758,21 @@ the value). The names that reach the funnel through them today:
 decision-free mints are the three cyclic world frames and the tour's
 planes are not all among them; that friction is filed at
 `work/props/exact-frame-mints-cover-three-of-the-world-frames.md`, with
-the two shapes a fix could take.
+the two shapes a fix could take. The two names the sweep's corpus does
+NOT reach — `sketch_plane_frame_norm`, which is production code, and
+`fixture_frame_axis` — are filed at
+`work/instr/frame-mint-funnel-names-outside-every-sweep-corpus.md`.
+
+**The three ladder names keep their names and lose a few samples.**
+The aiming ladders' roll offset used to be classified by a bare
+`decide`, which recorded a sample for every offset it was handed. It
+now goes through `UnitVec3::new`, whose two format gates refuse BEFORE
+the funnel (that door's own K-consequence paragraph), so an offset
+whose length is not finite, or underflowed out of the format, no
+longer contributes. Reachable only for a tangent within about 1e-170
+of ±ẑ, so the expected effect on any shipped corpus is zero samples;
+it is recorded because "unchanged" is true of the names and not quite
+of the counts.
 
 **None of this is a threshold move.** A retired name removes samples; a
 new one adds them under its own name; no margin's arithmetic changed
