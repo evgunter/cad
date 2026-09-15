@@ -729,6 +729,44 @@ behavioural half does not, which is the second blind spot this section
 names, in its live form. The first sweep after the consumer lands is
 what reads their distribution.
 
+**Roster change (FRAME-WITNESS): two tube frame names RETIRE, and the
+new frame mint carries the caller's name.** `sweep`'s tube door used to
+decide its own frame — `tube_frame_unit` (the axis's and the reference
+direction's length against 1, `Margin::levered` on `major + minor`) and
+`tube_frame_orthogonal` (their dot product on the same lever). Both are
+gone: the door takes a `geom_core::OrthoFrame`, whose axes were decided
+at whichever mint built it, so the two names are no longer emitted by
+anything and drop out of the roster. Neither was ever recorded here —
+both were bare literals at their `decide` sites — so this paragraph is
+the record of their retirement rather than a deletion from a table.
+
+What replaces them is not a name of the kernel's: `OrthoFrame`'s mints
+take the funnel site as a PARAMETER, exactly as `decide_unit_direction`
+does and for the same reason (the name belongs to the layer that owns
+the value). The names that reach the funnel through them today:
+
+| name | carrier | reaches the sweep's corpus? |
+|---|---|---|
+| `datum_unit_norm` | `topo`'s const, passed by `editor-core`'s `frame_axes` | yes — every authored and face frame |
+| `eval_direction_norm` | `editor-core`'s const, passed by `tube_args` | yes — every recipe tube's reference radial |
+| `frame_point_at_roll_offset`, `frame_path_start_reference_z`, `frame_path_start_reference_x` | `geom-core`'s ladders, unchanged | as before |
+| `tour_frame_axis` | `demos/tour/src/scalar.rs`, a const the TOUR owns | **yes** — the demo-scenes leg of `scripts/k_probe_sweep.sh` runs the scenes that mint it |
+| `fixture_frame_axis` | `crates/sweep/src/test_support.rs`, a const the fixtures own | only if a rostered probe module builds a fixture plane off the world axes; none does today |
+| `sketch_plane_frame_norm` | `crates/pncad-py/src/py/doc.rs`, the binding's own | no — the binding is not in the sweep's roster |
+
+`tour_frame_axis` is a demo minting a roster name because the type's
+decision-free mints are the three cyclic world frames and the tour's
+planes are not all among them; that friction is filed at
+`work/props/exact-frame-mints-cover-three-of-the-world-frames.md`, with
+the two shapes a fix could take.
+
+**None of this is a threshold move.** A retired name removes samples; a
+new one adds them under its own name; no margin's arithmetic changed
+anywhere — the tube's frame decides were `Zero`-passing gates, not
+comparands anything else reads. The first `k-lint` sweep after the
+merge is what reads the new distribution, as the maintenance note above
+says for every roster change.
+
 **Why no per-predicate margin data in this snapshot.** The recording
 mechanism is the `Probe` scalar: per-predicate CSVs require running a
 corpus end-to-end at `T = Probe` with `CAD_K_REPORT_OUT` set, one
