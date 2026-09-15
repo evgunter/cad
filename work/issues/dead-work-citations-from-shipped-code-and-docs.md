@@ -1,7 +1,7 @@
 ---
 id: dead-work-citations-from-shipped-code-and-docs
 kind: issue
-title: Five shipped files cite work/ items that no longer exist
+title: Six shipped files cite work/ items at paths that no longer resolve
 status: open
 opened: 2026-09-13
 ---
@@ -18,7 +18,9 @@ and cannot tell "this reading was superseded" from "this reading is
 still live, somewhere".
 
 Found while sweeping for stale citations in BLEND-12's fix pass (R2
-NOTE-3). Five instances, each a path that does not resolve at this SHA:
+NOTE-3). Five instances were found then, each a path that does not
+resolve at this SHA; a sixth was added on 2026-09-15 and is in its own
+section below, with a correction to how the fifth row reads.
 
 | citing file | cited path | still there? |
 | --- | --- | --- |

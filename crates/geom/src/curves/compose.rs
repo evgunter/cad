@@ -546,11 +546,7 @@ fn assemble(
 
         // Interior knots only: the clamped end blocks are supplied by
         // the composed vector's own ends and by the seam blocks.
-        let own = curve.knots().knots();
-        let interior = own
-            .get(degree + 1..own.len().saturating_sub(degree + 1))
-            .unwrap_or_default();
-        knots.extend(interior.iter().copied().map(remap));
+        knots.extend(curve.knots().interior().iter().copied().map(remap));
         if leg < last {
             // The seam knot at multiplicity `p` (see the module docs on
             // why it is not dropped to `p − 1`).

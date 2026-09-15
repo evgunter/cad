@@ -21,10 +21,14 @@ places**, and in one of them the answers already disagree.
    four declared in that same file beside it.
 2. `FieldWriting::of` (`crates/viewer/src/forms.rs`, PR 1776) —
    `drag_tick` put through the field's written unit, plus the
-   whole-numbers rule for a `Count`. The two PANEL fields go through
-   it — `ViewerBehavior::slot_value_ui` and the `Selection::Param`
-   arm of `ViewerBehavior::properties_ui` — and so does the free-move
-   probe; all three are in `crates/viewer/src/pane/properties.rs`.
+   whole-numbers rule for a `Count`. It has **four callers, all in
+   `crates/viewer/src/pane/properties.rs`**
+   (`git grep -n 'FieldWriting::of' -- crates/viewer/src`): the two
+   PANEL fields it was built for — `ViewerBehavior::slot_value_ui` and
+   the `Selection::Param` arm of `ViewerBehavior::properties_ui` — plus
+   the free-move probe, and `ViewerBehavior::add_param_ui`, which is a
+   CREATION form and is the one this item's second half has already
+   been done at.
 3. **The creation forms, by hand.** The call sites name one of the four
    constants at the call, across three files:
    `crates/viewer/src/pane/create.rs`,
@@ -36,27 +40,57 @@ places**, and in one of them the answers already disagree.
    `unit_field`, `named_scalar` and `vec3_row` take a tick the same
    way.
 
-**The population, re-derived 2026-09-15.** `git grep -c '_DRAG_SPEED,'
--- crates/viewer/src` gives 45 lines: `pane/create.rs` 22,
-`widgets.rs` 17, `forms.rs` 4, `pane/properties.rs` 2. Of those 45,
-**eight are not call sites**: the four match arms of `drag_tick`
-itself (`forms.rs`) and four `use` lines (two in `pane/create.rs`, one
-each in `widgets.rs` and `pane/properties.rs`). What the grep **misses**
-is a call site that passes a speed as the LAST argument, with no
-trailing comma — `git grep -n '_DRAG_SPEED' -- crates/viewer/src |
-grep -v '_DRAG_SPEED,'` returns 9 such lines, four constant
-declarations, four rustdoc mentions, and **one real call site**:
+**The population, re-derived 2026-09-15.** Two commands, and what
+each prints:
+
+```
+git grep -n '_DRAG_SPEED,' -- crates/viewer/src | wc -l      # 45
+git grep -c '_DRAG_SPEED,' -- crates/viewer/src              # the per-file split
+```
+
+The second prints four `file:count` lines, not a total —
+`pane/create.rs:22`, `widgets.rs:17`, `forms.rs:4`,
+`pane/properties.rs:2` — and the first is where the 45 comes from.
+
+**45 lines is not 45 call sites**, in both directions.
+
+*Subtract 8.* Four are `drag_tick`'s own match arms (`forms.rs`), which
+are the definition and not a use of it; four are `use` lines (two in
+`pane/create.rs`, one each in `widgets.rs` and `pane/properties.rs`).
+
+*Add 1.* The grep matches on a trailing comma, so it cannot see a call
+that passes the speed as its LAST argument.
+`git grep -n '_DRAG_SPEED' -- crates/viewer/src | grep -v
+'_DRAG_SPEED,'` returns 9 such lines — four constant declarations, four
+rustdoc mentions, and **one real call site**:
 `number_field(&mut self.drafts.pattern_count, COUNT_DRAG_SPEED)` in
 `pane/create.rs`, which is the very site the count disagreement below
-is about. So the hand-picked population is **38 call sites across three
-files**, not the `~30 of 41 in app.rs` this row was filed with. Two of
-those 38 are `pane/properties.rs`: its `use` aside, the panel's one
-remaining hand-named tick is the no-dimension placeholder in
-`add_param_ui` (below).
+is about.
 
-**`crates/viewer/src/app.rs` holds none of this.** It retains
-`pub use crate::forms::FieldWriting;` — a path to the type, not a home
-for the rule — and two doc-comment mentions. The row was filed before
+So the hand-picked population is **38 call sites across three files**
+— `pane/create.rs` 21, `widgets.rs` 16, `pane/properties.rs` 1 —
+against the `~30 of 41 in app.rs` this row was filed with. `forms.rs`
+contributes none: all four of its hits are `drag_tick`'s own arms. The
+single `pane/properties.rs` site is the no-dimension placeholder in
+`add_param_ui` (below); that file's other grep line is its `use`.
+
+**What both commands are blind to.** A tick held in a local
+(`let speed = …;` then `named_field(ui, …, speed, …)`) matches neither,
+and so does a bare numeric literal passed where a constant belongs.
+The literals exist: `number_field(value, 0.5)` and
+`egui::DragValue::new(value).speed(0.5)` appear in `widgets.rs` — but
+only inside its two `#[cfg(test)]` modules, as harness fixtures rather
+than as chrome, so they are outside this item's subject and are noted
+here only so the next sweep does not re-find them and count them in.
+
+**`crates/viewer/src/app.rs` holds none of this.**
+`git grep -n 'FieldWriting\|crate::forms' -- crates/viewer/src/app.rs`
+returns exactly three lines, and not one of them is a definition: the
+`pub use crate::forms::FieldWriting;` itself — a path to the type, not
+a home for the rule — a `//` line comment above it explaining why the
+re-export exists (a line comment, not a doc comment), and one `//!`
+module-doc line naming `crate::forms` as a module, which is not a
+mention of the type at all. The row was filed before
 `viewer-session-god-module-split` (#1830) and cited `app.rs`
 throughout; `drag-tick-row-cites-app-rs-for-a-finding-that-lives-in-forms-rs`
 reported that and this pass discharges it.
@@ -102,6 +136,7 @@ the form already knows, not about reaching a row.
 2. Do the creation-form fields derive their tick from their dimension
    (`FieldWriting::of(dimension, Some(unit)).tick`) instead of naming a
    constant? That is a mechanical change over the 38 call sites above
+   — 37, once `add_param_ui`'s placeholder is read as already done —
    and would leave `drag_tick` with exactly one caller
    (`FieldWriting::of`).
 
@@ -139,4 +174,25 @@ here, per `docs/prompts/implementer-discipline.md` §7. The report that
 prompted it,
 `drag-tick-row-cites-app-rs-for-a-finding-that-lives-in-forms-rs`, is
 closed by it — including the `likely` it carried on the 41 → 45
-reading, which the population paragraph above settles.
+reading, which the population section above settles.
+
+**Corrected in the same branch's fix pass**, after a style review
+caught this pass minting fresh errors into a row it was repointing —
+the defect it exists to close:
+
+- The `FieldWriting::of` caller list read as a census and named three
+  of four. It is four; `add_param_ui` is the fourth, and the one that
+  matters most here, because it is a creation form already doing what
+  this item proposes.
+- `git grep -c` was described as "giving 45 lines". It prints four
+  `file:count` lines. The closed report's whole complaint was a
+  reproduction command that misleads whoever runs it, so both commands
+  are now shown with what each actually prints.
+- "Two of those 38 are `pane/properties.rs`" contradicted the
+  subtraction three sentences above it — that file's two grep lines
+  include the `use` already subtracted. It is one, and the 38 is now
+  decomposed per file so the arithmetic is checkable.
+- "Two doc-comment mentions" in `app.rs` was a fresh, wrong census:
+  the `FieldWriting` mention is a `//` line comment, and the other line
+  names the `forms` MODULE, not the type. Replaced with the grep and
+  what its three lines are.

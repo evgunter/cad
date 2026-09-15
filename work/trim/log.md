@@ -486,3 +486,28 @@ usage limit (3(e)). **Seam gate**: the announcement to SHELL/M10
 2026-09-15 — a week's silence; PR-2 may merge after the fix pass.
 Recorded, not fixed: `raw_hull` is the identity until a Fitted/General
 pcurve reaches a window; `window_of`'s `Err` arm has no e2e fixture.
+
+## TRIM-3 PR-2 merged (2026-09-15) — block TRIM-B1 concludes
+
+PR #2554, ordinal 2502, sample #201; block TRIM-B1's last slot ({OPUS,
+FABLE, OPUS} all executed; the block record folds to main with this
+merge). Fix pass from the dual: all fourteen executable items taken,
+two recorded as the coverage boundary; the headline row is R2's P6 —
+an extruded `CircleSplit` at phase −π/4 mints a negative cylinder band
+and both `[0,τ] ∩ hull` spellings mint a phantom `Holds` against it —
+with the cylinder root rule lifted into `cut_root`. Honest negatives
+kept in the PR body: E4 catches neither of the two mutants it used to
+claim (E2/E3's pinned receipts do); `window_of`'s `Err` arm and the
+loose-window column are unreachable on this tree (filed). **Seam
+record**: the seam into `editor-core/clearance.rs` (SHELL/M10's file)
+was announced on #1911 (comment 5568210053, 2026-09-07) with the
+diff's shape; no objection or acknowledgement arrived through
+2026-09-15; the merge proceeded on the week's silence per the plan's
+gate — this entry is the on-repo record R2's NOTE-11 asked for.
+Residues on the program from this unit: `clearance-window-cone-sphere-torus`,
+`exact-region-cells-for-lower-bound-only`,
+`min-separation-tightening-crosses-the-drive`,
+`revolved-bands-reach-no-clearance-row`, `three-tables-of-the-chart-arms`,
+`a-refused-chart-boundary-has-no-reachable-window`. `docs/TRIM-3-SPEC.md`
+is fully delivered (PR-1 #1911, PR-2 #2554) and leaves `docs/` per the
+ledger in the post-merge docs PR.
