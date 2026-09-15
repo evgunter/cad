@@ -20,3 +20,108 @@ path, which `plan.md` says in as many words.
 No branch exists yet. First act: read `S52` and
 `topo-arena-census-duplicate-spellings` together and decide whether they
 are one row.
+
+## The slate re-read against the tree (2026-09-15)
+
+Orchestrator session opened. Every row read against the tree before the
+first dispatch; three facts had moved since the cut.
+
+**`genus-rings-helper-spelled-nine-times` closed itself elsewhere.**
+PR 2131 built `topo::readback::euler_counts` / `EulerCounts::genus` as a
+public kernel door and deleted every copy the row named, including the
+two `demos/tour` copies whose detached cargo root was the row's only real
+question. The row was already `closed` in its own header; `plan.md`
+still carried it in the slate table and named it second in the order.
+Both are gone. Nothing here staffed it and nothing here should.
+
+**`S52` and `topo-arena-census-duplicate-spellings` are one unit.** The
+plan left this to the first lane to read them; read together, their open
+remainders are the same two items — the generic `cube<T: Real>`
+(`crates/sweep/tests/m6_surgery_interval.rs` still builds a
+`Body<Interval>` cube beside `crates/sweep/src/test_support.rs`'s `f64`
+one) and the body builders in `crates/{mesh,step-export,editor-core}/tests/`.
+`topo-arena` takes `rides_with: S52` rather than being closed against it,
+so lint refuses to let the passenger outlive the carrier and the `github:
+672` provenance stays attached to the row that carries it.
+
+**The `editor-core` stub census has drifted and the row's list is no
+longer the population.** Of the eleven suites the row names, four still
+carry their own `impl PartResolver for` — `mate6_gather_mints`,
+`mate6r1_shared`, `mate6r2_probes`, `asm_r2b_assembly` — and the rest now
+read `crates/editor-core/tests/fixture/`. Seven the row never named carry
+one today: `asm2a_instantiate`, `asm2b_multisolid`, `asm4_split_inline`,
+`asm_r2a_mate_solve`, `docm4_evaluation_identity`, `kstats_bracket_rows`,
+`seat6_param_source`. Eleven suites still carry a stub; it is a different
+eleven. Re-taking the census is the unit's first act, not the migration
+the row describes.
+
+**`demos/tour/` is in no open program's `paths`.** `program.md`'s
+`keep_out` announced `D403` to "code-quality Track X, which that program
+still dispatches"; `work/code-quality/` left the tracker on 2026-09-11,
+the same day this program opened (`docs/DOC-LEDGER.md`, sweep 11), so the
+clause named a program that was being deleted as it was written. INSTR's
+own `keep_out` records the residue — `demos/tour` is in no program's
+paths at all, and SHELL holds the scenes by courtesy of Track X. `D403`
+lands there unclaimed and announces to SHELL; this program does not draw
+a fence over a demo tree for one row.
+
+## Posture for this session (Ev, in-chat 2026-09-15)
+
+- **No A/B protocol.** No arm is drawn, no `docs/MODEL-AB-LOG.md` row is
+  claimed, and the `ab_band: 4200-4299` allocation in `program.md` goes
+  unused this session. The band stays in the header as an allocation.
+- **Style review per unit** (`docs/prompts/reviewer-style-lane.md`), with
+  a full review reserved for `S392` — the one H — and `D114`, which
+  builds an instrument rather than deduplicating one, and whose failure
+  mode is a differential that cannot go red.
+- **Close the program this session.** Six units, run in waves by
+  territory rather than one at a time; then the exit walk, which is
+  Ev's to ratify.
+
+Order: `S391`, `D403` and the `editor-core` stub migration open together
+(disjoint files); then `S52` (+ passenger) and `D114`; `S392` last,
+alone, because it touches all of the above.
+
+## S391 closed (2026-09-15, PR 2624)
+
+First unit of the program. `stack_axis` → `first_wall_chord`; pure
+rename, no assertion's truth value moved, no second helper minted.
+
+**The row's premise was wrong and the unit says so.** "Two of its
+readers want the stack" — neither does; one wants *a* fixed reference
+and the other wants *index 1's own*. That is why the row's
+second-helper arm was the wrong fix rather than the dearer one, and it
+is worth carrying forward: this program's rows are two to four weeks
+old and each one's premise is a claim about a tree that has moved.
+
+Style review (one, per the session's posture) returned eighteen
+findings and no MAJOR. Ten were taken. Two are worth the log:
+
+- **The rename was undone one line later at both live call sites**
+  (`let axis = first_wall_chord(…)`), so the helper's name got honest
+  and the code a reader actually reads did not. That is this program's
+  standing question — does the shared helper make the suite's intent
+  readable at its call site — answered in the wrong direction by the
+  unit that exists to answer it. Only a reader who did not write the
+  fix caught it.
+- **A doc sentence would have taught the next row the opposite of the
+  truth**: it attributed a 54° chord divergence to the fixture's
+  authored θ = 0.05, where the effective roll is θ − π/2 and a genuine
+  0.05 roll puts the chord 2.86° off. The fixture's own doc derives the
+  relation; the new sentence contradicted it.
+
+**A dispatch error of this orchestrator's, recorded because the lane
+should not carry it.** The review brief asked the reviewer to verify
+the implementer's claim that a wall chord makes the orientability guard
+"only stricter" than a true stack. The claim is false — with level
+normals `ẑ`, stack `(1,0,1)` and a roll displacing the first wall's
+midpoint by `(−1,0,0)`, the wall chord reads `cos = 1` against the
+stack's `0.707`, looser, and constructible. The unit's conclusion
+survives on the existential reading the committed doc already carried.
+The orchestrator repeated the implementer's argument in the brief
+instead of testing it, which is how a brief's premise becomes a
+reviewer's premise.
+
+Residue filed on S-TINT: `orient-module-prose-accumulation.md` (824
+lines, six spellings of one argument across three files, a module
+header that routes items and nothing that routes prose).

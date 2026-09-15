@@ -31,3 +31,36 @@ tracker-wide re-home of 2026-09-04, which routed rows by PATH GLOB
 (`crates/*/tests/*`, `crates/test-utils/*`) rather than by question.
 This program is the question it was always about: whether the suite
 asserts what it claims to assert.
+
+## Re-derived (2026-09-15, lane D)
+
+**VERDICT: REPRODUCES** — unchanged, including the line number.
+
+`crates/editor-core/tests/m10_p_lift.rs`'s `interval_plane` is still at
+`:207`, still
+`profile::SketchPlane::new(Affine3::from_parts(Mat3::from_cols(v(a.linear.c0),
+v(a.linear.c1), v(a.linear.c2)), v(a.translation)))` with a local
+`v: Vec3<f64> -> Vec3<Interval>` closure spelling
+`Interval::from_f64` per component — **twelve calls**, three per vector
+across four vectors, exactly as the row counts.
+
+**The one-line replacement exists and is documented as such.**
+`SketchPlane::map` is at `crates/profile/src/lib.rs:645`
+(`pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> SketchPlane<U>`), and
+its own doc ten lines above names this case verbatim: *"`plane.map(S::from_f64)`
+— the `f64` frame lifted whole."* `Affine3::map` sits under it at
+`crates/geom-core/src/linalg/affine.rs:47`, and the spelling is already
+used in `crates/sweep/src/loft.rs` and `crates/editor-core/src/placement.rs`.
+
+**`D385`'s two siblings in this crate are also live** (line drift only):
+`crates/editor-core/tests/m10_p_fence.rs:539` and
+`crates/editor-core/tests/cert3r1_dump.rs:96`, both the
+`let pt = |p: Point2<f64>| Point2::new(T::from_f64(p.x), T::from_f64(p.y))`
+hand-lift.
+
+**Command.** `grep -n -A22 'fn interval_plane' crates/editor-core/tests/m10_p_lift.rs`;
+`grep -rn 'pub fn map' crates/profile/src/lib.rs crates/geom-core/src/linalg/affine.rs`.
+
+**Blind spot.** Only the named file and `D385`'s two named siblings were
+checked; no crate-wide sweep for other hand-written `from_f64` frame
+lifts was run, so this says nothing about the class's floor.

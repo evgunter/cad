@@ -208,3 +208,11 @@ door takes; `D283` — route A, the `SupSpeed`/`InfSpeed` pair in
 2026-09-15: "that plan re D283 sounds good"). The three rows are closed
 and six units are on the slate (plan §The ratified units). `D290` and
 `S393` are in review; the third door row waits on lane capacity.
+
+## D290 merged (2026-09-15)
+
+PR 2461, block SCALAR-B1 slot 0, ordinal 4100; dual review, both arms
+APPROVE (with fixes), no MAJOR on either — no tally candidate. What
+landed and what moved: `work/scalar/D290.md` §Closed. The spec is
+deleted per the ledger. `S393`'s fix pass and VREV's dual are in
+flight; the block closes when VREV's reviews conclude.
