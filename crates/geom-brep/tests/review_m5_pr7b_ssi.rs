@@ -343,7 +343,7 @@ fn retirement_breadth_a_multicell_wall_is_served_or_refuses_loudly() {
                 SsiError::CertificateLimb { .. }
                 | SsiError::Escalated(_)
                 | SsiError::FitSampleBudget { .. }
-                | SsiError::ExhaustivenessInconclusive { .. } => {}
+                | SsiError::ExhaustivenessInconclusive(_) => {}
                 other => panic!("unexpected refusal shape: {other}"),
             }
         }

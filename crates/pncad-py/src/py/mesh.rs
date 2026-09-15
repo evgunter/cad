@@ -379,18 +379,25 @@ impl Mesh {
     /// a character outside the printable ASCII the single-line grammar
     /// admits refuses here, as `StlError` with a
     /// `solid_name_unrepresentable` variant, rather than being
-    /// sanitized into a file no parser can read.
-    #[pyo3(signature = (solid_name=""))]
-    fn to_stl_ascii(&self, py: Python<'_>, solid_name: &str) -> PyResult<String> {
-        let name =
-            stl::SolidName::new(solid_name).map_err(|err| stl_err(py, StlRefusal::Name(&err)))?;
+    /// sanitized into a file no parser can read. Omitted, the name is
+    /// the Rust default — the generic part name `AsciiOptions::default`
+    /// carries, so the file this door writes with no arguments is the
+    /// file a Rust caller gets with none. Its options are a literal
+    /// naming every field, held to `AsciiOptions` by the surface
+    /// census's options roster.
+    #[pyo3(signature = (solid_name=None))]
+    fn to_stl_ascii(&self, py: Python<'_>, solid_name: Option<&str>) -> PyResult<String> {
+        let defaults = stl::AsciiOptions::default();
+        let options = stl::AsciiOptions {
+            solid_name: solid_name
+                .map(stl::SolidName::new)
+                .transpose()
+                .map_err(|err| stl_err(py, StlRefusal::Name(&err)))?
+                .unwrap_or(defaults.solid_name),
+        };
         let mut out = Vec::new();
-        stl::write_ascii(
-            &self.inner,
-            &stl::AsciiOptions { solid_name: name },
-            &mut out,
-        )
-        .map_err(|err| stl_err(py, StlRefusal::Write(&err)))?;
+        stl::write_ascii(&self.inner, &options, &mut out)
+            .map_err(|err| stl_err(py, StlRefusal::Write(&err)))?;
         // The writer emits ASCII by construction (the name is
         // validated printable-ASCII and the numbers are formatted), so
         // a decode failure here would be a kernel defect, surfaced
@@ -404,13 +411,26 @@ impl Mesh {
     /// conventionally the producer. It is validated: a header that
     /// does not fit, or one that would make the file sniff as ASCII
     /// STL, refuses here as `StlError` rather than being truncated or
-    /// written.
-    #[pyo3(signature = (header=""))]
-    fn to_stl_binary<'py>(&self, py: Python<'py>, header: &str) -> PyResult<Bound<'py, PyBytes>> {
-        let header =
-            stl::BinaryHeader::new(header).map_err(|err| stl_err(py, StlRefusal::Header(&err)))?;
+    /// written. Omitted, the header is the Rust default — the
+    /// producer text `BinaryOptions::default` carries, not 80 zero
+    /// bytes. Its options are a literal naming every field, held to
+    /// `BinaryOptions` by the surface census's options roster.
+    #[pyo3(signature = (header=None))]
+    fn to_stl_binary<'py>(
+        &self,
+        py: Python<'py>,
+        header: Option<&str>,
+    ) -> PyResult<Bound<'py, PyBytes>> {
+        let defaults = stl::BinaryOptions::default();
+        let options = stl::BinaryOptions {
+            header: header
+                .map(stl::BinaryHeader::new)
+                .transpose()
+                .map_err(|err| stl_err(py, StlRefusal::Header(&err)))?
+                .unwrap_or(defaults.header),
+        };
         let mut out = Vec::new();
-        stl::write_binary(&self.inner, &stl::BinaryOptions { header }, &mut out)
+        stl::write_binary(&self.inner, &options, &mut out)
             .map_err(|err| stl_err(py, StlRefusal::Write(&err)))?;
         Ok(PyBytes::new(py, &out))
     }
