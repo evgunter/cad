@@ -133,6 +133,8 @@ mod span_newtype;
 mod spline_hull;
 #[path = "sym_rule_e_rows.rs"]
 mod sym_rule_e_rows;
+#[path = "sym_rule_f_rows.rs"]
+mod sym_rule_f_rows;
 #[path = "tolerance_init.rs"]
 mod tolerance_init;
 

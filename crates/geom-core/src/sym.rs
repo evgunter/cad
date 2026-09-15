@@ -1272,7 +1272,7 @@ impl SymRules {
             trig_of_atan: true,
             signed_root: false,
             common_factor: true,
-            manifest_sign: false,
+            manifest_sign: true,
             registered: true,
         }
     }
@@ -1333,6 +1333,19 @@ impl SymRules {
     pub const fn without_rule_e() -> Self {
         Self {
             common_factor: false,
+            ..Self::shipped()
+        }
+    }
+
+    /// **The shipped set with rule F SHUT** — the `copysign` and `abs`
+    /// atoms of a manifestly positive argument left opaque, every other
+    /// rule as it is: SYM-5's tier exactly, bit for bit, and the
+    /// differential every claim about what rule F costs and what it
+    /// buys is measured against ([`Self::manifest_sign`]).
+    #[must_use]
+    pub const fn without_rule_f() -> Self {
+        Self {
+            manifest_sign: false,
             ..Self::shipped()
         }
     }

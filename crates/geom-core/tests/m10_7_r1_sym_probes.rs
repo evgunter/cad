@@ -9,8 +9,8 @@
 
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, Margin, Sign};
-use geom_core::sym::with_session;
-use geom_core::{ParamSymbol, Real, Sym, SymBudget, Tol};
+use geom_core::sym::{with_session, with_session_rules};
+use geom_core::{ParamSymbol, Real, Sym, SymBudget, SymRules, Tol};
 
 fn budget() -> SymBudget {
     SymBudget {
@@ -286,14 +286,21 @@ fn r1_atoms_over_the_zero_form_fold_to_their_values() {
 }
 
 /// Atoms keyed by arguments: `min(x, x) − x`, `floor(1) − 1`,
-/// `max(x, y) − max(y, x)`, `copysign(x, 1) − |x|`, `abs(x) − abs(−x)`
-/// — none is reached (the conservative direction). `abs(x) − abs(−x)`
-/// would be rule C's second shape (`|x| = ±x` by a certified sign), but
-/// rule C is FILED UNBUILT, so it too stays opaque. Pinned so a future
-/// fold is a visible move.
+/// `max(x, y) − max(y, x)`, `abs(x) − abs(−x)` — none is reached (the
+/// conservative direction). `abs(x) − abs(−x)` would be rule C's second
+/// shape (`|x| = ±x` by a certified sign), but rule C is dial-off, so it
+/// too stays opaque. Pinned so a future fold is a visible move.
+///
+/// `copysign(x, 1) − |x|` was the fifth case here and is one no longer:
+/// SYM-8's rule F (`SymRules::manifest_sign`) folds a `copysign` whose
+/// SIGN argument is manifestly positive, and the literal `1` is, so the
+/// residual is the zero form and the decision is a theorem — a true
+/// one, `copysign(y, x) = |y|` for every `x > 0`. It has moved to
+/// [`r1_copysign_of_a_manifestly_positive_sign_is_the_magnitude`] below,
+/// which asserts the fold rather than its absence.
 #[test]
 fn r1_argument_keyed_atoms_stay_conservative() {
-    let cases: [fn() -> Sym<f64>; 5] = [
+    let cases: [fn() -> Sym<f64>; 4] = [
         || {
             let x = p("x", 0.4);
             x.min(x) - x
@@ -302,10 +309,6 @@ fn r1_argument_keyed_atoms_stay_conservative() {
         || {
             let (x, y) = (p("x", 0.4), p("y", 0.9));
             x.max(y) - y.max(x)
-        },
-        || {
-            let x = p("x", 0.4);
-            x.copysign(lit(1.0)) - x.abs()
         },
         || {
             let x = p("x", 0.4);
@@ -320,6 +323,31 @@ fn r1_argument_keyed_atoms_stay_conservative() {
             "case {i} decided symbolically: {counts:?}"
         );
     }
+}
+
+/// **`copysign(x, 1) − |x|` is a THEOREM under rule F** — the sign
+/// argument is the literal `1`, which the form shows positive, and
+/// `copysign(y, x) = |y|` for every `x > 0`. With the rule shut it is
+/// the opaque atom it used to be, which is what the second half asserts,
+/// so the row says which rule took it.
+#[test]
+fn r1_copysign_of_a_manifestly_positive_sign_is_the_magnitude() {
+    let resid = || {
+        let x = p("x", 0.4);
+        x.copysign(lit(1.0)) - x.abs()
+    };
+    let (_, counts) = with_session_rules(budget(), SymRules::shipped(), || zero(resid()));
+    assert_eq!(
+        counts.symbolic_zero, 1,
+        "copysign(x, 1) − |x| is a theorem: {counts:?}"
+    );
+    assert_eq!(counts.sign_gated, 0, "it reads no value: {counts:?}");
+    let (_, shut) = with_session_rules(budget(), SymRules::without_rule_f(), || zero(resid()));
+    assert_eq!(
+        shut.symbolic_zero + shut.sign_gated,
+        0,
+        "with rule F shut the copysign stays opaque: {shut:?}"
+    );
 }
 
 /// `copysign(0, s)` folds to zero for ANY sign argument — including a

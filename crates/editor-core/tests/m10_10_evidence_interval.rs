@@ -277,11 +277,8 @@ fn rules_named(name: &str) -> SymRules {
         // for bit.
         "no_e" => SymRules::without_rule_e(),
         // SYM-8's differential: the shipped set with rule F (the
-        // manifest sign) ON, against `shipped` with it off.
-        "f_on" => SymRules {
-            manifest_sign: true,
-            ..SymRules::shipped()
-        },
+        // manifest sign) SHUT, which is SYM-5's tier bit for bit.
+        "no_f" => SymRules::without_rule_f(),
         // The cost breakdown: rule D alone, and rules A/B per node alone.
         "d_only" => SymRules {
             trig_of_atan: true,
@@ -316,7 +313,7 @@ fn rules_named(name: &str) -> SymRules {
             ..SymRules::without_the_algebra()
         },
         other => panic!(
-            "unknown rule set {other:?}: shipped | none | all | shut | off | no_e | f_on \
+            "unknown rule set {other:?}: shipped | none | all | shut | off | no_e | no_f \
              | d_only | ab_only | top_only | d_top_only"
         ),
     }

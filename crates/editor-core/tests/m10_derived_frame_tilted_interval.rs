@@ -738,13 +738,11 @@ fn sym5_the_reach_on_documents_the_unit_did_not_build() {
     assert!(lost.is_empty(), "rule E lost a certification: {lost:?}");
 }
 
-/// The shipped set with **rule F** — the manifest sign — ON, for the
-/// SYM-8 rows below.
+/// The shipped set, which carries **rule F** — the manifest sign —
+/// for the SYM-8 rows below; [`SymRules::without_rule_f`] is the
+/// differential's other half.
 fn with_rule_f() -> SymRules {
-    SymRules {
-        manifest_sign: true,
-        ..SymRules::shipped()
-    }
+    SymRules::shipped()
 }
 
 /// How many `copysign(`/`abs(`/`sqrt(` atoms a rendered form spells,
@@ -803,7 +801,7 @@ fn sym8_phase1_the_tilt_u_wall_with_and_without_the_manifest_sign() {
             {
                 continue;
             }
-            for (label, rules) in [("F-off", SymRules::shipped()), ("F-on", with_rule_f())] {
+            for (label, rules) in [("F-off", SymRules::without_rule_f()), ("F-on", with_rule_f())] {
                 let o = EvalOptions {
                     param_box: Some(Arc::new(box_.clone())),
                     profile_lift: lift,
@@ -854,6 +852,47 @@ fn sym8_phase1_the_tilt_u_wall_with_and_without_the_manifest_sign() {
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+/// **SYM-8 Phase 1.1's ladder** — the tilt-`u` derived document and its
+/// authored twin at both widths and both lifts, with rule F off and on,
+/// counts and first refusal only (no shape report, so it is affordable
+/// where `sym8_phase1_the_tilt_u_wall_with_and_without_the_manifest_sign`
+/// is not: that row renders every blocked residual to six levels, which
+/// on the `Pinned` lift exhausts the measuring box's memory at BOTH
+/// dials).
+#[test]
+#[ignore = "evidence-only: SYM-8 Phase 1.1, the tilt-U ladder at both widths and both lifts"]
+fn sym8_phase1_the_tilt_u_ladder() {
+    for half in [1.0e-3, 5.0e-2] {
+        for (kind, place) in [
+            ("authored", Place::Authored),
+            ("derived", Place::Derived(1)),
+        ] {
+            let doc = r2_document(half, Base::TiltU, place);
+            for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
+                let p = plain(&doc, lift);
+                println!(
+                    "tiltU {kind} half={half:e} {lift:?} plain: {} {}",
+                    p.len(),
+                    head(p.first().map_or("", String::as_str), 200)
+                );
+                for (label, rules) in [("F-off", SymRules::without_rule_f()), ("F-on", with_rule_f())] {
+                    let t = std::time::Instant::now();
+                    let (f, c) = sym(&doc, lift, rules, budget());
+                    println!(
+                        "tiltU {kind} half={half:e} {lift:?} {label}: frozen {} sym0 {} num {} in {:.1}s\n  fails {} {}",
+                        c.frozen,
+                        c.symbolic_zero,
+                        c.numeric,
+                        t.elapsed().as_secs_f64(),
+                        f.len(),
+                        head(f.first().map_or("", String::as_str), 200)
+                    );
                 }
             }
         }
