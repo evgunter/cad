@@ -107,7 +107,7 @@ fn closed_circle() -> NurbsCurve3<f64> {
 /// Meter + soundness: the bound is positive and the densely sampled
 /// true speed never dips below it. Returns the meter.
 fn assert_positive_and_sound(name: &str, c: &NurbsCurve3<f64>) -> f64 {
-    let m = c.speed_lower_bound();
+    let m = c.speed_lower_bound().get();
     assert!(m > 0.0, "{name}: expected a positive meter, got {m}");
     let (lo, hi) = c.domain();
     for i in 0..=4000 {
@@ -230,7 +230,7 @@ fn a_genuine_cusp_still_refuses() {
         vec![1.0, 1.0, 1.0],
     )
     .unwrap();
-    let m = c.speed_lower_bound();
+    let m = c.speed_lower_bound().get();
     assert!(
         !(m > 0.0),
         "a cusped carrier must refuse (non-positive or poison), got {m}"
@@ -246,7 +246,7 @@ fn a_genuine_cusp_still_refuses() {
         })
         .collect();
     let c = NurbsCurve3::<f64>::interpolate(&pts, 3).unwrap();
-    let m = c.speed_lower_bound();
+    let m = c.speed_lower_bound().get();
     assert!(
         !(m > 0.0),
         "a turn-around carrier (zero speed at the apex) must refuse, got {m}"
@@ -281,7 +281,7 @@ fn meter_corpus_table() {
     println!("carrier | old single-chord | speed_lower_bound | sampled min speed");
     for (name, c) in &rows {
         let old = old_global_chord_bound(c);
-        let m = c.speed_lower_bound();
+        let m = c.speed_lower_bound().get();
         let (lo, hi) = c.domain();
         let mut smin = f64::INFINITY;
         for i in 0..=4000 {

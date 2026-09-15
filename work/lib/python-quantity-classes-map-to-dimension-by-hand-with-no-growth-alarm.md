@@ -23,7 +23,7 @@ raises a typed `QuantityOpMismatch` or a plain `TypeError`.
 
 Nothing fences the chain. Every other spelling of the dimension list in
 this crate is an exhaustive `match` (`errors::dimension_tag`,
-`errors::canonical_unit`, `py::value::dimension_name`,
+`errors::canonical_unit`, `errors::measurement_dimension_tag`,
 `py::analysis::quantity`) and stops compiling on a dimension added to
 the lattice; this one compiles unchanged and silently answers `None`
 for the new dimension, so a Python quantity class added beside it would

@@ -65,3 +65,30 @@ The lane that moved the display budget's fit onto its own worker, which
 added a third `Drop` to `evalseam` and so had to touch the phrase *the
 two `Drop`s in `evalseam`* in the same paragraph. That phrase was
 corrected; the count was not, because it could not be verified.
+
+## A third reading, and a population that has since moved
+
+The lane that folded the three threaded seams onto one coalescing
+handle (`work/view/the-two-seams-are-hand-maintained-twins`) had to
+touch this paragraph again, for the same reason the fit lane did: its
+diff deletes the sites the prose names. It re-took the rule with its
+own instrument — for each `fn` under `crates/viewer/src`, the distinct
+`self.<field>` names in an `=`, a `.clear()` or a `.take()`, kept at two
+or more, `fn` extent by brace depth — and read **28** on `origin/main`
+at `d71bb6a785` and **21** on its own head.
+
+So there are now three readings of one rule: 23 (the README), 24, and
+28, all over trees within a few days of each other. **That settles the
+first question this row asks**: the difference is not one hit and it is
+not drift, because two instruments disagree by four on the SAME tree —
+the enumeration rule as stated does not determine a number, and which
+`fn` a `self.<field>` write belongs to is the ambiguity (a closure
+inside a `fn`, an `impl` block's `Drop` body, a macro expansion). A
+number nobody can re-derive is not a receipt, and the honest repair is
+the last one this row offers: **retire the count and keep the claim**,
+which is what carries the weight.
+
+The -7 is all `evalseam`: eleven hits there became four, because
+`submit`/`dispatch`/`poll`/`drop` × three seams became one
+`Coalescing`. The README's example phrase was corrected in the same PR;
+the count was not, for this row's original reason.

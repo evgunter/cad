@@ -48,5 +48,20 @@ be four.
 CENSUS-TAG-REACH's spec forbade it from touching `pncad.pyi`'s
 surface, which is why the sentence is still five words long.
 
+## The Rust-side half of that general question (CENSUS-PY-GETTERS, 2026-09-15)
+
+The question this row asks of `pncad.pyi`'s docstrings —
+which restate a vocabulary the Rust side now enumerates — has a
+measured answer on the Rust side, filed as
+`work/census/tag-vocabularies-restated-in-py-doc-comments.md`: eight
+getters under `src/py/` whose own doc comments restate their map's
+words. Those doc comments are Python docstrings too, since pyo3 puts
+them on the getter.
+
+One stub instance beside this row's, found by that unit and not
+measured further: `pncad.pyi`'s `Subgroup.variant` docstring
+hand-lists all seven subgroup words, which
+`crate::tags::subgroup_tag` now holds and `TAG_INVENTORY` pins.
+
 Territory: `crates/pncad-py/*` is LIB's fence and this program's
 `keep_out` announces its pncad-py rows there.

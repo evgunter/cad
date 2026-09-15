@@ -62,3 +62,31 @@ fifth one should have joined.
 
 Territory: `crates/pncad-py/*` is LIB's fence and this program's
 `keep_out` announces its pncad-py rows there.
+
+## A fifth instrument, found by CENSUS-PY-GETTERS' fix pass (2026-09-15)
+
+`crates/pncad-py/tests/test_binding_census.py` (3710 lines) asks this
+row's question on the Python side: every name the Rust façade's
+curated `pub use` lists introduce is either bound in Python or listed
+with the family it belongs to, and a name that is neither fails there.
+Its own header says it is the Python twin of
+`crates/pncad/tests/all.rs`'s façade census, reads only source TEXT
+(the façade `.rs` files and `pncad.pyi`) and never imports the
+compiled module.
+
+It is a fifth device over a fifth population, and it OVERLAPS the four:
+it names `Subgroup::`, `ClassAdmission::` and `ClusterMaintenance::`
+variants — three of the seven maps CENSUS-PY-GETTERS relocated — and
+does not name `MatePrimitive`, `InterfaceCrossing`, `EntityKind` or
+`Dimension`. So the same vocabulary is partly covered by two
+instruments and partly by one, which is the condition this row exists
+to decide.
+
+**The number in this row's title is a design input**, so it should be
+five rather than four when the call is made. `crates/pncad-py/tests/`
+holds a sixth in the same family — `test_stubs.py`'s depth-2 walk,
+which compares every stub class's ATTRIBUTES against the compiled
+class name-for-name, and is what actually holds the crate's
+`#[pyclass]` enum member vocabulary (see the note on that unit's item).
+Whether a stub/module name check belongs in this family or is a
+different question is itself part of the call.

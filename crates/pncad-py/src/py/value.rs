@@ -33,7 +33,7 @@ use std::sync::Arc;
 use pyo3::prelude::*;
 use pyo3::types::{PyFloat, PyString};
 
-use crate::errors::{ErrorClass, EvalReason};
+use crate::errors::{ErrorClass, EvalReason, measurement_dimension_tag};
 use crate::py::quantity::Length;
 use crate::py::{doc::NodeId, typed_err};
 use crate::tags::{
@@ -736,7 +736,14 @@ impl Datum {
 /// surface uses.
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Measurement {
-    /// `"Length"`, `"Angle"`, `"Count"` or `"Scalar"`.
+    /// The dimension measured in: `"Length"`, `"Angle"`, `"Count"`
+    /// or `"Scalar"`, capitalized where every other door's dimension
+    /// word is not. Spelled out because this docstring is the only
+    /// place a Python caller can read the four — `pncad.pyi` names
+    /// the attribute and not its words.
+    // The map is `crate::errors::measurement_dimension_tag`, held to
+    // `dimension_tag`'s lower-case four by
+    // `the_two_dimension_alphabets_are_one_list_in_two_cases`.
     #[pyo3(get)]
     dimension: &'static str,
     /// The measured value in canonical kernel units.
@@ -792,22 +799,6 @@ impl Verdict {
             (Some(m), Some(b)) => format!("Verdict({}: {m} vs {b})", self.status),
             _ => format!("Verdict({})", self.status),
         }
-    }
-}
-
-/// The F1 dimension as the one spelling this surface uses.
-///
-/// Capitalized on purpose: this is the Python-facing type name a
-/// `Measurement` repr reads back as, not prose. The other two
-/// spellings of the same word list are the kernel's prose rendering
-/// (`Dimension`'s `Display`, lowercase) and `errors::dimension_tag`
-/// (the lowercase FFI tag, pinned equal to that rendering).
-fn dimension_name(dim: d::Dimension) -> &'static str {
-    match dim {
-        d::Dimension::Length => "Length",
-        d::Dimension::Angle => "Angle",
-        d::Dimension::Count => "Count",
-        d::Dimension::Scalar => "Scalar",
     }
 }
 
@@ -1030,7 +1021,7 @@ impl Value {
     fn measure(&self, py: Python<'_>) -> PyResult<Measurement> {
         match &self.payload {
             d::ValuePayload::Measure { value, dim } => Ok(Measurement {
-                dimension: dimension_name(*dim),
+                dimension: measurement_dimension_tag(*dim),
                 value: *value,
                 length: (*dim == d::Dimension::Length)
                     .then(|| Length(pncad::quantity::Length::from_meters(*value))),
