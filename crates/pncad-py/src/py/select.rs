@@ -713,8 +713,9 @@ impl GeomPred {
 /// house every-attribute-always-present rule cannot hold at one of
 /// them and not the other: a caller that reads `err.name` after
 /// catching a `SelectRefusal` gets `None`, never an `AttributeError`,
-/// whichever door refused. The arms that carry a payload overwrite
-/// their own entries by index below.
+/// whichever door refused. A door whose arm carries a payload
+/// overwrites its own entries by index; the contact-class crossing in
+/// `crate::py::flush` carries none and takes the list as it stands.
 pub(crate) fn refusal_fields(py: Python<'_>, reason: &str) -> Vec<(&'static str, Py<PyAny>)> {
     let none = || py.None().into_any();
     vec![
