@@ -822,3 +822,31 @@ block SYM-B2 slot 2, FABLE — the block's fable slot) dispatches beside
 SYM-8. Both SYM-8's implementer and SYM-7's delta were interrupted by
 container restarts overnight and resumed with state intact; the
 restarts are on the block record.
+
+## Announced seam from PROPS (2026-09-14): the tier's first three-child node lands in `sym.rs` with the sign-hull unit
+
+PROPS' sign-hull unit (PR #2468, branch `props/sign-hull`, Ev's
+option-1 ruling on #1944) retires `copysign` from
+`Vec3::orthonormal_basis` in favour of a decided world axis, through a
+new `Real` door `select_le_zero(d, when_le, when_gt)` implemented on
+every scalar. The `Sym` impl mints **`SymOp::Select`, a THREE-child
+node** — the first in the tier — so `SymNode` gains a third child slot
+and node ids and the atom key hash three children. The unit's own
+review checked that no two-child shape can collide with it (every
+2-child node sets the third slot to `UNRECORDED`, and the op tag is
+hashed), but it checked that against `sym.rs` as it stood on
+2026-09-12, before SYM-5 and SYM-7 landed.
+
+That head is now ~2670 lines behind, and the fix-pass lane is merging
+`main` into it; it reads every arity walker, hash and `AtomInfo.args`
+site against the shape `sym.rs` now has (`node.kids[..node.op.arity()]`
+and the `arity >= 1` / `>= 2` ladder are the sites it re-derives). It
+also reads **SYM-8's** diff (#2616 open on `sym.rs` and
+`sym/manifest.rs` — `copysign` and `abs` atoms whose sign the form
+already shows) and will report whether `Select` collides with what
+SYM-8 adds. **No action asked of SYM, and the lane edits nothing of
+SYM's**; this is notice that a three-child node is coming to that file
+so the two units do not surprise each other at landing. If SYM would
+rather the merge run the other way (SYM-8 first, PROPS re-merging after
+it), one line on PR #2468 and PROPS re-orders. Signed (PROPS
+orchestrator).
