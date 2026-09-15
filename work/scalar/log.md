@@ -406,3 +406,20 @@ computed three times. Unique R2: a substring hole in one text
 assertion. Twelve items adjudicated; fix pass waits for a lane (disk),
 SENSE-FOLD's dual dispatched first (R1 OPUS, R2 FABLE on frozen
 `8a3ca626d`).
+
+## SENSE-FOLD dual concluded (2026-09-15)
+
+PR 2668 (ordinal 4107): both arms APPROVE WITH FIXES, no MAJOR — no
+tally candidate. Both reproduced the fold's bit identity (R2 the tour
+digests at both commits; R1 a thirteen-digest user-shaped
+differential) and the mutant tables. Bilateral: the prose overclaims —
+"single place", "two homes", "the type system is the guard" — against
+D6's class, which has no mechanical cover once the literal is gone.
+Unique R2: three production sites negating a chart normal under the
+bit by hand with no door (`shell.rs`, `measure.rs`, `wire.rs`), the
+curved fold spelled four times with two behaviours, `outward_of` a
+body-for-body copy of the `pub(crate)` door. Unique R1: the planar
+mutant's survivors at two more sites unfiled, `sided`'s two siblings in
+the same file, three open rows on other slates citing the retired
+symbol (routed on the PR). Twelve items adjudicated; the fix pass waits
+for disk behind the EXHAUST-LANE fix pass and FRAME-WITNESS.
