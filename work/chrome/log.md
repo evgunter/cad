@@ -1019,3 +1019,59 @@ added the third and fourth), and
 population the next sweep should start from — six unslated members in
 `sketch.rs`, `scene.rs`, `bounds.rs`, `camera.rs` and `app.rs`, all
 VIEW's ground this week.
+
+## 2026-09-15 — the slate lands, and two rows go to VIEW rather than wait on it
+
+Seven PRs merged: the orchestrator re-cut (2640), the memory deletion
+(2641), the citation repoint and its own fix pass (2642), the carve-out
+corrections (2643), the datums substitution sweep (2644), the Band
+refusal's first coverage (2684), and the bounds honesty pass with its
+CI fix (2683).
+
+**Two rows and one boundary question moved to VIEW's slate, rather than
+being held for VIEW's agreement.** That correction is worth recording
+because the instinct behind the delay was wrong in a specific way.
+
+`datum-view-propagates-rather-than-refusing-by-name` and
+`a-datum-the-view-cannot-scale-vanishes-without-a-word` both act in
+`pane/viewport.rs`, ceded to VIEW. CHROME had been holding them to
+`park` them on VIEW's viewport-adapter lane, which needed a trigger id
+CHROME could not identify — nineteen open VIEW rows cite that file,
+none matches the statements VIEW described narrowing, and none of the
+three rows in `review` cites those lines. **The search was the wrong
+activity.** `work/README.md` says a finding goes onto the slate of the
+program whose ground it lands on, and that a lane does not need the
+owner's permission to put it there. Re-homing beats parking: VIEW
+sequences its own work and nothing waits on a handshake. The
+`datums.rs` halves stay CHROME's and are inside CHROME's fence.
+
+**And unit 5 exposed a real gap in the carve-out**, filed as
+`work/view/the-file-level-carve-out-cannot-express-a-row-whose-work-
+crosses-a-call-site`. The division is **by file**, and
+`body-seat-reads-through-the-placer-chain`'s fix crosses it **through a
+call site**: `denotes_body`'s only production caller is
+`session/refuse.rs`, VIEW's. A CHROME lane can write the whole fix and
+cannot make the crate build. This will recur for any CHROME row whose
+fix changes a signature in its own half, so the row asks for a standing
+rule rather than a per-instance negotiation. `plan.md`'s unit 5 now
+says it is not dispatchable as written.
+
+**Where the program stands.** More rows are open than when the session
+began, and that is the honest outcome rather than a failure — the
+program's own 2026-09-04 entry already made this argument, and it holds
+again: the alternative was not fewer defects but the same defects
+unrecorded. Every row filed today carries a `file:line`, a population
+where one was measurable, and a stated blind spot where it was not.
+
+**The session's one durable lesson, stated once.** Every unit was
+corrected by the layer below it, and five of those corrections changed
+the answer rather than a detail: the orchestrator's diagnosis of the
+datums defect, its cluster-scoping of the Band fault, its claim that
+the README documented POISONED attribution, its count of the shifted
+citations, and its "file, don't fix" on ground that was never ceded.
+None was reachable by asking whether the code was right. Each was found
+by someone opening a file to check whether the **words** were true —
+which is what the style-review posture is for, and is now evidenced
+rather than asserted. The sixth came from CI, which ran a configuration
+the local battery did not and caught an assertion that held at one eps
+row only because the floor happens to sit at zero there.
