@@ -16,7 +16,7 @@
 
 use crate::common;
 
-use common::census;
+use common::arena_census;
 use geom_core::{Point2, Tol};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use step_import::{ImportOptions, StepImport, import_step};
@@ -70,7 +70,11 @@ fn the_chamfered_cube_round_trips_through_step() {
         other => panic!("the chamfered cube must re-import as a solid, got {other:?}"),
     };
 
-    assert_eq!(census(&back), census(&native), "census across the trip");
+    assert_eq!(
+        arena_census(&back),
+        arena_census(&native),
+        "census across the trip"
+    );
     assert_eq!(topo::validate(&back), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&back), Ok(()), "tier 2");
     assert_eq!(

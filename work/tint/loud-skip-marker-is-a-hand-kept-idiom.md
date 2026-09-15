@@ -5,6 +5,7 @@ title: The loud-skip marker is a hand-kept idiom in eight files, each copy namin
 status: open
 opened: 2026-09-04
 refs: [1776]
+parent: loud-stand-down-announcements-are-discarded-by-the-gate
 ---
 
 

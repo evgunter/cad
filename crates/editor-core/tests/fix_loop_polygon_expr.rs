@@ -30,8 +30,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::path::PathBuf;
-
 use editor_core::{Dimension, Expr, LoopProgram, ParamName, ProgramStep, ProgramTarget};
 
 /// A Length literal.
@@ -105,20 +103,6 @@ fn parametric_corners_expand_to_the_same_shape() {
     );
 }
 
-/// The repository root: this crate's directory, two levels up.
-fn repo_root() -> PathBuf {
-    let root = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()
-        .expect("the repository root resolves");
-    assert!(
-        root.join("Cargo.toml").is_file(),
-        "{} is not the repository root",
-        root.display()
-    );
-    root
-}
-
 /// **The polygon close is written once in shipped `src`.**
 ///
 /// The agreement rows above cannot see a second expansion; this one
@@ -142,7 +126,7 @@ fn the_polygon_close_is_written_once_in_shipped_src() {
         "push(ProgramStep::LineTo(ProgramTarget::Start))",
         "push(d::ProgramStep::LineTo(d::ProgramTarget::Start))",
     ];
-    let root = repo_root();
+    let root = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR"));
     let mut found: Vec<String> = Vec::new();
     for entry in std::fs::read_dir(root.join("crates")).expect("crates dir listing") {
         let src = entry.expect("dir entry").path().join("src");
