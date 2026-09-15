@@ -869,11 +869,26 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                         + bx.y.mag() * bx.y.mag()
                         + bx.z.mag() * bx.z.mag())
                     .sqrt();
+                    // R2 PROBE PLANT (probes branch only): model a collapsed speed.
+                    let m = match std::env::var("R2_PLANT").as_deref() {
+                        Ok("zero") => 0.0,
+                        Ok("inf") => f64::INFINITY,
+                        _ => m,
+                    };
                     SupSpeed::new(if m > 0.0 { m } else { f64::NAN })
                 };
                 let su = speed(nb.deriv_box(ud.0, ud.1, vd.0, vd.1, true));
                 let sv = speed(nb.deriv_box(ud.0, ud.1, vd.0, vd.1, false));
-                probe_tube_chart(p, n, normal, (su.to_param(radius), sv.to_param(radius)))
+                // R2 PROBE PLANT (probes branch only): show the pads.
+                let probe = probe_tube_chart(p, n, normal, (su.to_param(radius), sv.to_param(radius)));
+                eprintln!(
+                    "R2PAD radius={radius:e} su={:e} sv={:e} pad=({:e},{:e}) probe={probe:?}",
+                    su.get(),
+                    sv.get(),
+                    su.to_param(radius),
+                    sv.to_param(radius)
+                );
+                probe
             }
             (SsiOperand::Nurbs(_), SsiOperand::Nurbs(_)) => {
                 return Err(SsiError::UnsupportedCertificate {

@@ -77,6 +77,10 @@ mod d290_r2_e2e;
 mod decoration_plane_mint;
 #[path = "exhaust_lane_meters.rs"]
 mod exhaust_lane_meters;
+#[path = "r2_exhaust_probe_base.rs"]
+mod r2_exhaust_probe_base;
+#[path = "r2_exhaust_probe_head.rs"]
+mod r2_exhaust_probe_head;
 #[path = "imported_chart_arc_rim.rs"]
 mod imported_chart_arc_rim;
 #[path = "interior_iso_column.rs"]
