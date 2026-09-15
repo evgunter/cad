@@ -233,7 +233,7 @@ mod tests {
             AtomInfo {
                 op: SymOp::Sqrt,
                 payload: 0,
-                args: [Some(std::sync::Arc::new(Form::poly(x.clone()))), None],
+                args: [Some(std::sync::Arc::new(Form::poly(x.clone()))), None, None],
             },
         );
         let resid = Poly::term(vec![(atom, 2)], Rat::new(1, 1, 0).unwrap());

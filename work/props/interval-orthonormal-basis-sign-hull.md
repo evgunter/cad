@@ -2,10 +2,10 @@
 id: interval-orthonormal-basis-sign-hull
 kind: issue
 title: Vec3::orthonormal_basis returns a sign-hulled frame at Interval when n.z encloses zero
-status: open
+status: review
 opened: 2026-09-03
 refs: [1191, 1939]
-pr: 1939
+pr: 2468
 ---
 
 ## What was measured

@@ -122,3 +122,23 @@ this row exists partly to stop that reading hardening. `topo` (78
 sites) and `geom-brep` (21) are where the next look belongs;
 `geom-brep/src/enters.rs` was found there, which is why this row has
 two sites and not one.
+
+## AMENDED 2026-09-14 (PROPS's sign-hull unit) — site 1 of the DOC's pair is gone; this row's two sites stand
+
+Appended rather than written into the body above, per this file's own
+convention: what is above is what was filed, and what changed goes
+here.
+
+`geom_core::is_finite_length`'s "declined half" list cited two
+instances, `editor-core`'s `clearance::chart_frame` and this row's site 2
+(`geom-brep`'s `enters::enters_material`). **The first is gone**: the
+sign-hull unit retired the clearance engine's planar re-chart with both
+its doors, because a wall's stored frame decides and refines at the
+equator now, so nothing there normalizes an un-asked length any more.
+The doc's list is site 2 alone, and the doc says so.
+
+Nothing else moves. This row's title and its two sites are unchanged —
+`chart_region.rs`'s collinear lane and `enters_material` — and the
+sentence the deletion invalidated ("the doc claims one site and there
+are at least two") is now simply history: the doc claims one site, and
+that one site is this row's site 2.

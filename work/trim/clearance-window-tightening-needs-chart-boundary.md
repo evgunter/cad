@@ -116,3 +116,33 @@ shapes flip. The unit's record is MODEL-AB-LOG row T3B; the spec's
 §Rulings and Amendments are the ruling. Six residues stay open on this
 program (listed above); `min_separation` stays untightened as the
 identity with its mechanism now stated correctly.
+
+## Evidence, added 2026-09-14 (PROPS's sign-hull unit)
+
+**One end of the looseness is worse than `Violated` at a place neither
+face occupies: an enclosure that does not contain the truth.** Measured
+by `r2_m10_6_probes_interval::min_clearance_between_two_separated_bodies_reads_zero`
+— a C-shaped solid and a block 0.1 m apart, whose `MinClearance` at
+`Interval` reads
+
+```text
+notched pair: min_clearance = [0, 0.02576941016012847], true solid separation 0.1
+```
+
+A minimum over a SUPERSET of the two faces is at most the minimum over
+the faces, so a window that covers the notch pulls BOTH ends down: `lo`
+collapsing to zero is the sound direction this item already describes,
+and `hi` landing below the truth is the same mechanism in the direction
+nothing guards. The measure layer refuses that arm typed today
+(`UnevaluatedReason::WindowSuperset { endpoint: "upper", .. }`, whose
+`recourse` names this file), so nothing reads the unsound endpoint — but
+the refusal is the cost, not the fix: the assertion `min_clearance ≥
+0.05`, which these solids meet twice over, gets no verdict at all. The
+row asserts the refusal, its endpoint and its recourse.
+
+Frame-independent: these carriers are axis-aligned, so the stored frame
+and the re-chart the engine used to compute differ by a quarter turn
+about the normal, and the boundary AABB projected on the frame's axes is
+the same point set under an axis swap. What the quarter turn changed was
+which axis the subdivision halves first — the numbers moved, the defect
+did not.
