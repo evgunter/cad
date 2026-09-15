@@ -1186,3 +1186,21 @@ distinct nodes frozen over the drive (its `serialize`/`render` docs) —
 nothing else in that file. Ev's D3 = (1) on `[ev]` #2581. The M10-3
 receipt-identity row across schedules is the acceptance the memo is
 shared (not per worker) to keep.
+
+**Session moved to a local machine (2026-09-14).** The cloud session hit
+its usage limit twice; on the second, the sign-hull fix pass died three
+items in (nothing pushed) and the mignitude R2 reviewer died before
+reading its brief. Ev moved the orchestrator to a local box. What was
+lost: every lane worktree, both implementer target dirs, and — the one
+that costs something — all four reviewers' probe files, which are
+reported in their reports but were never pushed. Both units' branches
+and both PRs were untouched at their frozen heads, and `props/b2-block`
+kept every stored brief. Re-dispatched: the mignitude R2 review against
+a re-pathed copy of its stored brief (claims byte-identical, the
+deviation disclosed in the A/B record), and the sign-hull fix pass as a
+fresh lane on the same arm, re-deriving the adopted rows from the
+reports' quoted numbers. Its first job is the merge of `main`, which
+has moved ~2300 commits under it — `crates/geom-core/src/sym.rs` alone
+by ~2670 lines (SYM-5, SYM-7), where this unit adds the tier's first
+three-child node; SYM-8 (#2616) is open on the same file and the lane
+reports whether `SymOp::Select` collides with it.
