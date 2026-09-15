@@ -11769,4 +11769,4 @@ instead. `crates/viewer/README.md` said `rank`'s `Display(_)` is a
 catch-all, which #2053's fix pass made false on 2026-09-06 —
 `git log -S` finds an agent commit and no ratification.
 
-Signed (VIEW implementer lane `withdrawal-causes`, PR pending).
+Signed (VIEW implementer lane `withdrawal-causes`, PR #2693).

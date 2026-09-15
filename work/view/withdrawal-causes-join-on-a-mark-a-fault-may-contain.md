@@ -7,6 +7,7 @@ opened: 2026-09-15
 closed: 2026-09-15
 branch: view/withdrawal-causes
 refs: [joined-notices-nest-their-own-separator, startup-notices-join-on-a-mark-a-prefs-notice-contains, seat-line-spells-the-list-mark-as-a-literal]
+pr: 2693
 ---
 
 
