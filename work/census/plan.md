@@ -172,13 +172,24 @@ The scan-set rule this section used to state mechanically — a
 correctness arm on every unit that changes what an instrument SCANS —
 is **carried by each unit's dispatch brief, written by the
 orchestrator** (Ev, 2026-09-15). It is **not** a standing clause in
-`docs/prompts/reviewer-style-lane.md` and there is nothing there to
-point at: the obligation reaches a reviewer only because the
-orchestrator writes it into that unit's brief, so a unit dispatched
-without it is dispatched without the rule. Whether it SHOULD become a
-standing clause is open with Ev — `docs/prompts/` binds every lane by
-path and is his call under CLAUDE.md's merge rule, so no lane adds it
-there.
+`docs/prompts/reviewer-style-lane.md`, and **it is not going to be**
+(Ev, 2026-09-15, asked directly): *"this doesn't go in
+reviewer-style-lane because most implementation work does not refer to
+such instruments."* That is a signal-to-noise ruling and it settles the
+question — a clause firing on every unit everywhere would tax every
+lane in the repo for a case the majority never meet, and a rule that is
+skimmed is worse than one that is written per-unit by someone who has
+read the diff.
+
+So the obligation reaches a reviewer only because the orchestrator
+writes it into that unit's brief, and a unit dispatched without it is
+dispatched without the rule. **The trigger is therefore stated here
+rather than left to per-unit judgement**: a unit carries the obligation
+if it lands, changes, removes or relies on a census, gate, inventory or
+source-text reader — **including one the unit itself creates**, which
+is the case the first four units all fell under and the one easiest to
+miss, because the instrument does not exist yet when the spec is
+written.
 
 The hazard it is drawn against is real and is not a function of how
 hard the unit was: a census that stops seeing a population fails
