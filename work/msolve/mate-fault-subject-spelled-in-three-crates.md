@@ -79,3 +79,48 @@ first is `crates/viewer/src/tree.rs` (CHROME/VIEW) — so adopting a
 unilateral edit.
 
 Signed: (CHROME orchestrator), re-homed 2026-09-15
+
+## Evidence added 2026-09-15 (CHROME, `chrome/band-refusal-badging`)
+
+Measured while covering `MateFault::Band` in `viewer::tree`. Three
+facts about the subject question that the row's two consumers both
+re-derive, and that a `subject()` on the enum would state once:
+
+1. **Two arms name no mate, and they are not the same case.** `Band`
+   (`crates/editor-core/src/mate.rs`, `MateFault::Band { error }`)
+   carries a `BandError` and nothing else; `PosesOfAnotherDocument`
+   carries two `DocumentId`s. `PosesOfAnotherDocument` is raised by
+   `SolvedPoses::placement` (`crates/editor-core/src/mate/solve.rs`,
+   ~`:142`) and **never inserted into a solve's fault map**, so no node
+   result can carry it — while `Band` IS recorded against nodes and a
+   user does meet it. A `subject()` returning `Option<RecipeNodeId>`
+   would answer `None` for both and lose that asymmetry; the two
+   consumers' comments carry it today, in prose, twice.
+
+2. **`Band`'s fan-out is the DOCUMENT's, not a cluster's.**
+   `solve_document` (`crates/editor-core/src/mate/solve.rs`, the
+   `Band::linear` arm at the top of the function) inserts the one
+   cloned fault against **every** `Node::Mate` and **every**
+   `Node::InstantiatePart` in `doc.order()` and returns before it reads
+   a single mate — so the refusal reaches instances in singleton
+   clusters that no mate touches, and reaches them before `has_mates`
+   or `read_mates` is consulted. Any consumer wording that scopes this
+   refusal to "the cluster" names the wrong set. Pinned from the viewer
+   side by `crates/viewer/tests/tree_badges.rs`'s
+   `a_band_refusal_reaches_the_whole_document_and_blames_no_row`.
+
+3. **The arm is reachable, and only along one path.** At a tolerance
+   `Band::linear` refuses, the evaluator's own band door
+   (`crates/editor-core/src/eval/wire.rs`, `fn band`) refuses most
+   nodes with `NodeErrorKind::Band` first, and the authoring door
+   refuses a profile outright — so `MateFault::Band` is met only by a
+   document of instances and mates carrying no geometry of its own,
+   which is what a saved document commits when its stored ε is read
+   back through `Tolerance::init_document_eps`. That is the user path
+   the badging complaint
+   (`work/chrome/band-refusal-still-badges-every-row.md`) sits on, and
+   it is worth stating on the enum rather than rediscovered per
+   consumer.
+
+No kernel change is proposed here and none was made — this is evidence
+for whoever takes the row.

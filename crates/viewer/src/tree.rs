@@ -25,13 +25,24 @@
 //! it as its own `Failed`. Read verbatim that draws four identical
 //! FAILED badges and sends the eye nowhere.
 //!
-//! The fault itself resolves that: every `MateFault` arm but
-//! [`MateFault::Band`] names its subject, and the subject is a mate
-//! node (`blamed_mates` holds that carve-out). So a row whose id the
-//! fault NAMES is the cause and stays `Failed`; a row the same fault
-//! merely reached is [`RowStatus::Poisoned`] through the mate that is
-//! named — the only thing read being which node the kernel's own
-//! words point at.
+//! The fault itself resolves that wherever it names a subject, and
+//! that subject is a mate node (`blamed_mates` is the reading). So a
+//! row whose id the fault NAMES is the cause and stays `Failed`; a row
+//! the same fault merely reached is [`RowStatus::Poisoned`] through
+//! the mate that is named — the only thing read being which node the
+//! kernel's own words point at.
+//!
+//! **[`MateFault::Band`] names none, and it is the arm that still
+//! reaches rows.** A band is the RUN's tolerance, not a decision about
+//! any node: with no band the solve decides nothing, and faults every
+//! mate and every instance in the DOCUMENT — across cluster
+//! boundaries, and including instances no mate touches — with one
+//! shared cause. No row is more at fault than another, so nothing here
+//! picks one and every row it reached keeps its own `Failed`. That
+//! reading is honest about blame and poor about scope, and improving
+//! it wants a status saying "the run, not this row" rather than a
+//! culprit invented here
+//! (`work/chrome/band-refusal-still-badges-every-row.md`).
 //!
 //! # Order and depth
 //!
@@ -317,8 +328,9 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> RowStatus {
 /// Exhaustive on purpose: a fault arm the kernel grows must decide
 /// here whether it names a mate, rather than falling into a wildcard
 /// and silently drawing every reached row as downstream of nothing.
-/// [`MateFault::Band`] and [`MateFault::PosesOfAnotherDocument`] name
-/// none, and every row they reached keeps its own `Failed`.
+///
+/// Two arms name none, and they get an arm each because they are not
+/// the same case: one reaches rows and one cannot reach any.
 fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
     match fault {
         MateFault::Frame { mate, .. }
@@ -331,12 +343,17 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::SelfMate { mate, .. }
         | MateFault::PartSelectsAnotherCopy { mate, .. }
         | MateFault::Unleverable { mate, .. } => vec![*mate],
-        // Neither names a mate: no band, no decisions, so no mate is
-        // more at fault than any other; and a solve read against the
-        // wrong document blames the pairing, not a node — that arm is
-        // raised by `SolvedPoses::placement` and never recorded in a
-        // solve's fault map, so no row here can carry it.
-        MateFault::Band { .. } | MateFault::PosesOfAnotherDocument { .. } => Vec::new(),
+        // **The arm that reaches rows and blames none.** No band, no
+        // decisions, so no mate is more at fault than any other — and
+        // the refusal is the run's, reaching every mate and every
+        // instance in the document rather than one cluster's.
+        MateFault::Band { .. } => Vec::new(),
+        // A solve read against the wrong document blames the pairing,
+        // not a node. Raised by `SolvedPoses::placement` and never
+        // recorded in a solve's fault map, so no row here can carry it
+        // at all — the empty answer is unreachable rather than a
+        // reading a user meets.
+        MateFault::PosesOfAnotherDocument { .. } => Vec::new(),
         // A contradiction is a claim about a PAIR of mates: neither is
         // the wrong one on the fault's own telling, so both read as
         // causes and the user picks which to relax.
@@ -355,7 +372,8 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
 ///
 /// `None` — the row keeps its own `Failed` — when the failure is not
 /// a mate refusal, when the fault names this very node, and when it
-/// names no mate at all.
+/// names no mate at all ([`MateFault::Band`], the module header's
+/// third section).
 ///
 /// **The blame is read directly**, and [`RowStatus::Poisoned`]'s
 /// walkable-in-one-hop invariant holds because the kernel's answer is
