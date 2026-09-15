@@ -1,6 +1,6 @@
 ---
 name: git-workflow
-description: The GitHub hazards around this repo's merge-only workflow — issue-closing keywords in PR bodies, stacked branches, unprotected main — plus what never goes in a public artifact
+description: The GitHub hazards around this repo's merge-only workflow — stacked branches, unprotected main — plus what never goes in a public artifact
 metadata:
   type: feedback
 ---
@@ -12,17 +12,6 @@ questions or change `memories/`). What follows is what that leaves out.
 
 **Push branches early and often** — after each meaningful commit,
 before review. Ev follows work in progress remotely.
-
-**A PR body closes an issue by DESCRIBING it.** GitHub scans PR bodies
-and commit messages (never the diff) for
-`close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved`
-immediately followed by an issue reference, with no negation, tense or
-subject analysis — so *"a style track does not fix #N"* closes it, and
-quoting the hazard fires it. This repo's documents park lanes AT the
-issue they wait on, so the collision is structural, not a slip. Scan
-every PR body and commit message before publishing, mechanically. The
-only safe forms break the token adjacency: drop the `#`, or put a word
-between.
 
 **Never delete a branch another PR is stacked on** — GitHub auto-closes
 the stacked PR, and a PR whose base branch was deleted can never be
