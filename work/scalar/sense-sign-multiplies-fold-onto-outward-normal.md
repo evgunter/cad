@@ -4,6 +4,7 @@ kind: unit
 title: The ten hand multiplies of normal by sense_sign fold onto OutwardNormal, and Face::sense_sign retires
 status: open
 opened: 2026-09-15
+branch: scalar/sense-fold
 ---
 
 
