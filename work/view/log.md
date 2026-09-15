@@ -11659,3 +11659,77 @@ be.**
 
 Item **closed**. **VIEW stands at 74 open / 93 closed, nothing waiting
 on Ev.**
+
+## 2026-09-15 — #2625 merged; a justification that borrowed another path's mechanism was hiding which guard was load-bearing
+
+**#2625 merged** (`9c379b9fa6`), verified from the job list: code tier,
+**39 check runs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok`
+success**, all four render-lane rows success, six skipped, nothing
+failed or neutral.
+
+**The mechanism check is the whole unit, and it inverted the fix.** My
+brief said candidate 1 — make `highlight` dedupe like `edge_overlay`
+does — *"needs the shader's precedence checked, not assumed"*. Checking
+it found something better than a caveat: **the edge path has no
+downstream precedence at all**, so `edge_overlay`'s filter is not an
+echo of the face path's ruling. It is the edge path's ONLY statement of
+one. I verified every link:
+
+- an edge vertex carries exactly one mark word — `EDGE_MARK_SELECTED`
+  is `0` and is the ABSENCE of `EDGE_MARK_HOVERED`, with the doc at
+  `gpu.rs:265` saying why (*"two bits would admit a state meaning
+  both"*);
+- `ensure_geometry` writes the selected lane (`:925`) then the hovered
+  lane (`:929`) into one buffer for one draw;
+- the edge pipeline is `blend: None`, `depth_write_enabled: Some(false)`,
+  `depth_compare: LessEqual` (`:863-886`), so identical geometry drawn
+  second **overwrites**;
+- the face shader's `Uniforms::highlight` is `[selected, hovered, 0, 0]`
+  (`:1087`) and hovered is reached by an `else if` (`:1335`), so the
+  face path gives **selection** precedence.
+
+**Without the filter the two halves would disagree in OPPOSITE
+directions** — edges resolving hover over selection, faces the reverse.
+So they obey one rule, each applying it at the last place that can see
+both answers: the fragment for faces, Rust for edges.
+
+**And candidate 1 would have been a silent guard removal.** It changes
+no pixels, because `fs_main`'s `else if` already gives selection
+precedence — so it would have left the shader's stated arbitration with
+no reachable input while every row stayed green. `Highlight`'s fields
+are `pub` and the type is re-exported from `lib.rs`, so `crate::marks`
+is not its only possible producer and the shader arbitrates for all of
+them. That is this program's own silently-never-fires shape, and my
+brief offered it first.
+
+**The rule this earns** (recorded in `plan.md`): **a justification that
+cites another path's mechanism is not yet a justification.**
+`edge_overlay`'s doc said its filter was *"the precedence the shader's
+face path already states"*. The borrowed wording is what made an
+essential guard read as a redundant one — and it would have survived
+review, because the sentence it borrows is true about the path it
+borrows from.
+
+What was actually wrong was the record: `EdgeOverlay::hovered`'s own
+field doc said *"the hovered edge's segments"*, which is the convention
+the function does not implement. Both types now state their own
+convention where a reader meets them.
+
+**No README amendment, argued rather than skipped.** The README has no
+mark-precedence clause, and putting the invariant there would re-create
+this item's defect one level up — the record living somewhere other
+than where the type is read. The lane said so instead of adding prose
+by reflex.
+
+**The sweep found no third member**, and both of the item's named
+candidates are non-members with reasons: `theme`'s `selected`/`hovered`
+are palette entries, always both present, never an answer about one
+gesture; `Mark::over` composites one mark rather than ordering a pair,
+and the ordering the item attributes to it is in the shader.
+`Selection` against `DocSession::hover` is the SOURCE of the pair,
+deliberately un-narrowed. Stated blind spot: **the pattern is the
+word** — it cannot see a `committed`/`transient` or
+`primary`/`secondary` pair, or one split across two types.
+
+Item **closed**. **VIEW stands at 73 open / 94 closed, nothing waiting
+on Ev.**

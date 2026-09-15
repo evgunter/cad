@@ -1075,6 +1075,24 @@ shape: where a change can be made to alter a signature rather than a
 body, the compiler becomes the sweep, and the blind spot a lane would
 otherwise have to disclose stops existing.
 
+**A justification that cites another path's mechanism is not yet a
+justification.** `marks::edge_overlay` filtered a hover that was already
+the selection, and its doc called that *"the precedence the shader's
+face path already states"* — which reads as an echo of a ruling made
+downstream, i.e. as a redundant convenience. It is the opposite: the
+edge path has no downstream arbitration at all (one mark word per
+vertex, selected lane then hovered lane into one buffer, `blend: None`
+with `depth_compare: LessEqual`, so the second write wins), and without
+the filter edges would resolve hover over selection while faces resolve
+selection over hover. The guard is essential and its doc made it look
+removable. **The borrowed sentence is TRUE about the path it is
+borrowed from**, which is exactly why it survives review. So: when a
+doc justifies a local choice by naming another path's mechanism, check
+that the local path HAS the mechanism it is deferring to. Generalises
+to the dispatcher's own briefs — mine offered the symmetric fix first,
+and it would have removed the face path's only arbitration without
+moving a pixel or redding a row.
+
 ## Exit shape
 
 The README states the module map and every item above has landed or
