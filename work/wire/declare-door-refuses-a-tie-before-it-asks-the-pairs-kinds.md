@@ -2,9 +2,10 @@
 id: declare-door-refuses-a-tie-before-it-asks-the-pairs-kinds
 kind: unit
 title: resolve_declarations refuses Ambiguous for a tied name before DeclareUnsupportedPair can ask the pair's kinds
-status: dispatched
+status: review
 opened: 2026-09-15
 branch: wire/tie-before-kind
+pr: 2681
 ---
 
 
@@ -86,3 +87,14 @@ it.
   already landed.
 - `work/wire/interrogate-read-answers-a-tie-before-the-door-s-kind` —
   the second instance, filed by the same unit.
+
+## In review (PR 2681, `wire/tie-before-kind`)
+
+Taken with its two siblings, as this row asked. `resolve_declarations`
+now walks rungs 1 and 3 per name through `declare_landing`, asks the
+PAIR's kind question through `declared_pair_supported` — the v1
+vocabulary written once, over the two names' kinds and the operands
+they landed in — and only then runs `ladder::resolve`, so the tie is
+the one refusal the kind question outranks. `ladder::vanished` gives
+rung 3's payload one home so the door reaches the same refusal
+`ladder::resolve` mints. The tie machinery is untouched.

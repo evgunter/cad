@@ -5063,3 +5063,60 @@ unit took three conflict rounds to land, none of them in code. Two lanes
 is the level this tree supports. It is next in the queue, not deferred.
 
 Signed (WIRE orchestrator).
+
+## 2026-09-15 — `wire-t1` — the tie-before-kind unit, in review (PR 2681)
+
+Three rows of one class, closed together on `wire/tie-before-kind`:
+`declare-door-refuses-a-tie-before-it-asks-the-pairs-kinds`,
+`the-declared-pair-refusal-reads-the-authored-kind` and
+`interrogate-read-answers-a-tie-before-the-door-s-kind`.
+
+**The premise holds by construction**, which is the answer the brief
+asked for and the stronger of the two it offered. `NameTable::forward`
+is a private field with exactly two writers — `insert_ref` and
+`insert_tied_ref` — and both refuse a row whose `name.kind` disagrees
+with a candidate's `key.kind()`. `insert` / `insert_tied` are wrappers;
+`project` reaches `Entry::Tied` only through `defer::narrow_into`,
+which is one of those two calls. So it is not "safe today by an
+invariant one module away": the module that holds the invariant is the
+module that holds the only door through which a row can exist.
+
+That decided the authored-kind question with it. The ordering makes the
+kind question precede resolution, a tied name has no single key, so the
+word comes off the NAME — and `the-declared-pair-refusal-…`'s own guess
+("read `k1` and `k2`") is the wrong direction. What the resolved keys
+keep is the fallthrough arm, reachable only on a broken table, under a
+`debug_assert!`: the `resolve_face` split, guard off the name and
+projection answering what the key IS. The same split landed at
+`interrogate::read`.
+
+**Nothing asserted the old behaviour.** All 1239 editor-core rows,
+`pncad` and `viewer` pass unchanged; `m4_pr5_declare`'s existing
+`Ambiguous` row declares a CROSS-operand face pair, which is supported,
+so its tie still refuses. No `.py` row asserts an `ambiguous` outcome at
+either door. No tag string changes — `declare_resolve`,
+`declare_unsupported_pair`, `ambiguous` and `wrong_kind` all exist
+already; what moves is which one a document gets. Two `pncad.pyi`
+docstrings (LIB's path) were re-worded because the change moved what
+they describe.
+
+**The sweep found the fourth instance the brief predicted, and a
+fifth.** The instrument was the caller-side pairing — a multiplicity
+token and a kind token in one non-test `fn` across all of
+`crates/editor-core/src/` — 30 candidates read by hand. Filed:
+`work/wire/the-designation-road-resolves-before-it-asks-the-kind`
+(`named_entity` and the measure reference, one row because all four
+refusals carry `entity_door::Found` and the change is one in
+`entity_door`) and
+`work/shell/clearance-window-selection-asks-how-many-before-what`
+(`clearance::windows_of`, SHELL's ground — a tied face name refuses
+`Unresolved`, and `SelectionRefusal` has no word for a tie at all).
+
+The instrument's own blind spot is stated in the PR and is worth
+carrying forward: **it segments by `fn`, so a resolve in one function
+paired with a kind test in another is invisible to it.** The measure
+site is exactly that shape and was found by reading
+`entity_door::entity`'s call sites instead. A later sweep of this class
+should not reuse the grep alone.
+
+Signed (`wire-t1`).
