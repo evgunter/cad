@@ -5265,9 +5265,9 @@ impl<'a> Cursor<'a> {
 /// returned and its form is refused as unreadable — and every variant
 /// in `ALL` must be exercised here or the assertions at the end of
 /// this test red by name. A seventh form added to the reader without
-/// an instance in the fixture below cannot be green, which is exactly
-/// what the previous version of this guard could not say: a seventh
-/// `if` in the parse chain passed it untouched.
+/// an instance in the fixture below cannot be green — which is a
+/// property of the dispatch shape and not of anyone remembering to
+/// extend a list.
 #[test]
 fn the_tag_table_reader_recognises_every_form_it_claims() {
     // Not `src/tags.rs`: the subject is the reader, and a fixture it
