@@ -1,0 +1,6 @@
+head c1d8a7ffe, recipe from work/scalar/rate-pair-in-geom-core.md:
+  1766 files, listing digest 1389dbb20bb6c0a9efca999a587a7b5db2930b82d0ac29ed32c3643b0310d50a
+  narration 729 lines, e930abf542c371677b2c0d87b02c2bf84eb15fbaf62ded6389f48c899ef14d49
+Both match the PR body exactly; the narration digest also matches the
+value PR 2657 recorded at origin/main and the item file records at the
+merge base, so the narration is unchanged base to head.

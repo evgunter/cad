@@ -18,3 +18,7 @@ pncad = { path = "../../crates/pncad" }
 
 [profile.release]
 debug = 0
+
+[[bin]]
+name = "r2third"
+path = "src/thirdcol.rs"

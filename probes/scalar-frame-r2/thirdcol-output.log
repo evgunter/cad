@@ -1,0 +1,22 @@
+$ cargo run --release --bin r2third     # at c1d8a7ffe
+w      = [4597246776463018425, 13826259864167333975, 4605580746036719168]
+u x v  = [4597246776463018426, 13826259864167333976, 4605580746036719168]
+equal? false
+to_affine c2 = [4597246776463018425, 13826259864167333975, 4605580746036719168] vs hand c2 = [4597246776463018426, 13826259864167333976, 4605580746036719168]
+
+The frame is `OrthoFrame::from_aim(origin, aim, perp, ..)` with `perp` a
+cross product WITH the aim, exactly as `point_at` and `path_start_frame`
+build one. Its stored `w` is the aim verbatim; `u x v` is the same
+direction two ulps away. So for aim-minted frames:
+
+- `ortho_frame.rs`'s module doc "w = u x v" is true mathematically, not
+  bitwise;
+- `to_affine`'s doc "The third column is the frame's own `w`, computed
+  at the mint as `u x v` -- the same product, in the same evaluation
+  order" is false: `w` was never computed as `u x v` here;
+- `to_affine_is_the_hand_spelling_bit_for_bit` cannot see it, because
+  its corpus is built only through `gram_schmidt`.
+
+`point_at`'s own twelve output components are nonetheless identical at
+the merge base and the head (base-output.log / head-output.log), because
+the old `frame_from_unit_aim` stored the aim verbatim too.
