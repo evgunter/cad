@@ -1233,3 +1233,21 @@ bit-identity sentence, false on the four requests whose schedule moved
 the fit's knot count. Fix pass dispatched on the same arm as a fresh
 lane; R2's probe files survived the machine move and are adopted from
 disk, R1's did not and are re-derived from its report.
+
+**Mignitude-floor MERGED (2026-09-15).** PR #2469 at `f050e2d6f` (run
+35015861638 green, 35 jobs; two merge-forwards, main having moved 442
+then 17 commits under the branch and touched all three of its files —
+D290's `on_domain` and RATE-PAIR's speed tags — with no certified digit
+moving, argued by reading `on_domain`'s identity on a `[0,1]` chart and
+measured at all six lane/eps points). Item closed, spec into the
+ledger, A/B row at ordinal 2404, sample #208. The fix pass took all
+twelve adjudicated items, including two the lane was right to decide
+its own way: an unrecoverable digest table retired rather than a byte
+order invented, and a Ratified README sentence measured false and
+corrected after `git log -S` found no ratification behind it. Three
+rows adopted from the review lanes plus a fourteen-column corpus
+census that costs the suite nothing. Filed on other slates: the
+`f64`-fold divisor class on SHELL (`cell_normal`'s assembly B) and
+TRIM (`Box3::speed_sup`, where the extraction's own doc settles the
+rounding difference the wrong way — "folding them into one would move
+bits" is the reading discipline section 3 forbids as a justification).
