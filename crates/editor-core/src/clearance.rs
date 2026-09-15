@@ -517,7 +517,6 @@ pub struct GeometryWitness {
     /// swept by a negative-angle revolve occupies `[θ, 0]` with `θ`
     /// negative, and a witness there reports a negative `u`. Fold it
     /// and it names a different point of the same surface.
->>>>>>> origin/main
     pub a_uv: (f64, f64),
     /// The point there.
     pub a_point: Point3<f64>,
