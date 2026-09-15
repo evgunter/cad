@@ -6,6 +6,7 @@ status: open
 opened: 2026-08-19
 github: 672
 refs: [668, 679, S52]
+rides_with: S52
 ---
 
 ## From GitHub issue 672
