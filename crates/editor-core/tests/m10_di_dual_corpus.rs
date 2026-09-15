@@ -6,11 +6,14 @@
 //!
 //! # What the value-channel digest reads — and does not
 //!
-//! The feed is `fixture::value_channel`'s, shared with every
-//! other cross-scalar differential in this tree so that the claim means
-//! one thing: for every node in evaluation order, the result's arm
-//! (`Ok`/`Failed`/`Poisoned`), the payload's arm, and the payload's
-//! stored geometry read through each scalar's OWN value channel —
+//! The feed is `fixture::value_channel`'s, shared with the other
+//! cross-scalar differential over this corpus (`m4_pr8_k_probe`'s
+//! `Probe`-vs-`f64` row) so that the claim means one thing for both.
+//! It is not shared with every cross-scalar differential in the tree —
+//! `profile`'s and `sweep`'s read their own crates' values and cannot
+//! reach an `Evaluation` at all. For every node in evaluation order:
+//! the result's arm (`Ok`/`Failed`/`Poisoned`), the payload's arm, and
+//! the payload's stored geometry read through each scalar's OWN value channel —
 //! `f64` bits at `f64`, the value channel's bits at `Dual64`,
 //! `repr_bits` with the decoration at the interval pair. It does NOT
 //! read curve carriers, surface geometry, or pcurves — the adopted
@@ -62,7 +65,7 @@
 
 use crate::corpus;
 
-use crate::fixture::value_channel::{Digest, value_digest};
+use crate::fixture::value_channel::{body_digest, value_digest};
 
 use corpus::{CorpusDoc, cone, documents, eval, failures};
 use editor_core::eval::KeyHasher;
@@ -143,10 +146,12 @@ fn the_gather_opens_at_dual64_and_the_witness_set_is_pinned() {
             .unwrap_or_else(|e| panic!("{}: the f64 product gather refused: {e}", doc.name));
         let product_d = product_recorded(&doc.doc, &ev_d, tol)
             .unwrap_or_else(|e| panic!("{}: gathers at f64 but refused at Dual64: {e}", doc.name));
-        let (mut df, mut dd) = (Digest::new(), Digest::new());
-        df.body(&product_f.body);
-        dd.body(&product_d.body);
-        assert_eq!(df.hash(), dd.hash(), "{}: product value channel", doc.name);
+        assert_eq!(
+            body_digest(&product_f.body),
+            body_digest(&product_d.body),
+            "{}: product value channel",
+            doc.name
+        );
         if topo::validate_geometric_structural(&product_d.body, tol).is_err() {
             structural_door_refused.push(doc.name);
         }

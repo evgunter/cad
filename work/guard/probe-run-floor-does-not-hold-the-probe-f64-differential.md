@@ -14,7 +14,20 @@ opened: 2026-09-15
 `#[ignore]`d tests: `dump_corpus_k_samples` (the K-telemetry dump) and
 `probe_agrees_with_f64_bit_for_bit_over_the_corpus` (SUITE/D114's
 `Probe`-vs-f64 differential, the only check of the recording scalar's
-wrapper property in the tree).
+wrapper property **at the evaluation lane**).
+
+**A correction to this row's own first draft, kept rather than
+silently fixed.** It said "the only check of the recording scalar's
+wrapper property in the tree". That was false and it was a restatement
+of the false premise in `work/suite/D114.md` / S168:
+`crates/profile/tests/review_m2_pr2_probe.rs` ::
+`probe_canonical_form_is_bit_identical_to_f64` and
+`probe_errors_equal_f64_errors` have compared the two scalars bit for
+bit at the canonical-form lane since M2, and are rostered
+(`plain:profile:review_m2_pr2_probe:2`). The floor raise this row asks
+for is unaffected — what it turns on is that `m4_pr8_k_probe`'s two
+`#[ignore]`d tests do different jobs, not on the differential being
+unique.
 
 Deleting the differential leaves every check in this gate green:
 

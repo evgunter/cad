@@ -45,3 +45,19 @@ bit-identity against an f64 run, which the `--ignored` half's
 selection does not."* No behaviour changes.
 
 Filed by SUITE/D114.
+
+## A second site, same sentence, same owner
+
+`.github/workflows/ci.yml`'s probe-sweep step carries prose of the same
+shape (around the `K-telemetry probe sweep` / probe test-surface
+comment block). `.github/workflows/*` is CIW's too, so it is added here
+rather than opened as a second row.
+
+## And a scope note the re-wording should not repeat
+
+The clause is false about this tree in a second way that predates
+D114: `crates/profile/tests/review_m2_pr2_probe.rs` has compared
+`Probe` against `f64` bit for bit at the canonical-form lane since M2.
+So the re-wording should say which LANE the plain selection does not
+compare, not that nothing in the tree compares anything.
+
