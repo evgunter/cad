@@ -97,10 +97,7 @@ pub(crate) fn plane_outward_normal<T: Real>(
 /// `None` for a non-planar face (the caller falls through to its own
 /// curved arms, or has none), and for a face or surface key that no
 /// longer resolves.
-pub fn face_outward_normal<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Option<OutwardNormal<T>> {
+pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<OutwardNormal<T>> {
     let f = body.get_face(face)?;
     match body.get_surface(f.surface) {
         Some(geom::Surface::Plane { normal, .. }) => Some(plane_outward_normal(f, *normal)),
@@ -468,7 +465,10 @@ mod tests {
     #[test]
     fn no_source_file_folds_the_bit_by_hand() {
         let root = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR"));
-        let exempt = ["crates/geom-brep/src/enters.rs", "crates/topo/src/face_normal.rs"];
+        let exempt = [
+            "crates/geom-brep/src/enters.rs",
+            "crates/topo/src/face_normal.rs",
+        ];
         // Each a genuinely signed SCALAR, negated at its point of use
         // as D6 spells it: a jet curvature measured along the plus
         // face's outward normal, a loop's chart-frame area, an offset

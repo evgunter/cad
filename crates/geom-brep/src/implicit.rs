@@ -236,7 +236,11 @@ pub fn implicit_gradient<T: Real>(s: &Surface<T>, p: Point3<T>) -> Vec3<T> {
 /// unit-magnitude; this one normalizes, so the two readings can differ
 /// in the last ulps on the same input and neither substitutes for the
 /// other.
-pub fn implicit_outward_normal<T: Real>(s: &Surface<T>, sense: bool, p: Point3<T>) -> OutwardNormal<T> {
+pub fn implicit_outward_normal<T: Real>(
+    s: &Surface<T>,
+    sense: bool,
+    p: Point3<T>,
+) -> OutwardNormal<T> {
     OutwardNormal::from_chart(implicit_gradient(s, p).normalize(), sense)
 }
 

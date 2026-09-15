@@ -99,7 +99,10 @@ fn plane_of(body: &Body<f64>, face: FaceKey) -> (Point3<f64>, Vec3<f64>) {
     let Some(geom::Surface::Plane { origin, normal, .. }) = body.get_surface(data.surface) else {
         panic!("{face:?} is not planar")
     };
-    (*origin, geom_brep::OutwardNormal::from_chart(*normal, data.sense).vec())
+    (
+        *origin,
+        geom_brep::OutwardNormal::from_chart(*normal, data.sense).vec(),
+    )
 }
 
 /// The plane constant `n_out · x` of a planar face.
