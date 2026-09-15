@@ -400,15 +400,22 @@ fn probing_an_expression_driven_slot_refuses_with_the_affordance() {
 /// **The two halves do not assert the same thing and the second is
 /// not about the seed.** The reach is: a metre seed reaches a
 /// thousand times further, and the assertion below is one it cannot
-/// satisfy. The bracket is NOT, and saying it was would be a story —
-/// the floor in this document is the single value `0` (a negative
-/// thickness still builds, `crates/viewer/src/bounds.rs`'s own row
-/// `work/chrome/a-negative-extrude-distance-probes-as-valid.md`), so
-/// a direction brackets only when a doubling lands exactly on it.
-/// What the bracket half tests is the REFINEMENT's closure, and what
-/// carries the seed there is the `let else`: a ladder that steps over
-/// the floor reports [`Bound::Open`] and the row dies there, saying
-/// so.
+/// satisfy. The bracket is NOT, and saying it was would be a story.
+/// What the bracket half tests is the REFINEMENT's closure; what
+/// carries the seed there is the `let else`, because a ladder that
+/// steps over the floor reports [`Bound::Open`] and the row dies
+/// there saying so.
+///
+/// **How thin the floor is depends on ε, so nothing here may assume
+/// it is a point.** A negative thickness builds at every ε, so the
+/// failing region is bounded above by a thickness the tolerance
+/// decides: at the default ε and at `1e-12` only the exact value `0`
+/// fails, while at `1e-6` everything below about `1e-5` does. Both
+/// are the same rule — an extrusion the tolerance cannot tell from
+/// zero — and the row is written to hold under either, which is why
+/// it asserts a halving COUNT and not a width. The finding that a
+/// negative distance builds at all is
+/// `work/chrome/a-negative-extrude-distance-probes-as-valid.md`.
 #[test]
 fn a_millimetre_parameter_is_probed_at_millimetre_scale() {
     let tol = Tol::witness();
@@ -460,30 +467,43 @@ fn a_millimetre_parameter_is_probed_at_millimetre_scale() {
         "a millimetre-seeded reach stops metres out, not kilometres: {:?}",
         result.high
     );
-    // Downward: the plate fails at a thickness of exactly zero and
-    // nowhere else nearby, so the floor is ONE POINT and a direction
-    // brackets it only when a doubling lands on it. A millimetre
-    // ladder does — the floor is 8 seeds out, and 8 is a power of two
-    // — so this document brackets. A ladder that steps over the point
-    // finds nothing and reports `Open`, which is what this `let else`
-    // is for and what a metre seed does here.
+    // Downward: the plate fails at a vanishing thickness — at the
+    // exact value 0, and at whatever thin band above it the tolerance
+    // cannot tell from 0 — so the failing region is narrow and a
+    // direction brackets it only by landing a doubling inside it. A
+    // millimetre ladder does, because the floor is 8 seeds out and 8
+    // is a power of two. A ladder that steps over the band finds
+    // nothing below and reports `Open`, which is what this `let else`
+    // is for.
     let Bound::Edge { valid, invalid } = result.low else {
         panic!(
-            "the floor here is the single thickness 0, so the low side brackets only when a \
-             doubling lands exactly on it; a seed whose ladder steps over it reaches past the \
-             floor and reports Open: {result:?}"
+            "the failing region here is a vanishing thickness, so the low side brackets only \
+             when a doubling lands inside it; a seed whose ladder steps over it reaches past \
+             the floor and reports Open: {result:?}"
         );
     };
     assert!(invalid < valid, "a bracket straddles: {invalid}..{valid}");
     // The refinement ENTERED the bracket the reach left it: the last
     // doubling that was valid and the first that was not, which
-    // around a floor one origin out is `origin/2` wide. What
-    // `MAX_REFINES` halvings leave of that is the closure claim, and
-    // a refinement that stopped early is what makes it false.
+    // around a floor one origin out is `origin/2` wide. The claim is
+    // that it then spent every halving it has on that bracket, and a
+    // refinement that stopped early is what makes it false.
+    //
+    // Stated as a COUNT of halvings rather than as a width compared
+    // to an ideal one, because the pair is reported in ABSOLUTE
+    // field values: `Bound::Edge` carries `origin ±
+    // offset`, so the difference of its two ends inherits the ULP of
+    // the ORIGIN (~1.7e-18 here) and not of the bracket (~8.5e-22).
+    // Against a reconstructed ideal width that dust decides the
+    // comparison outright, and which way it falls depends on where
+    // the floor sits, which ε moves. A halving is a factor of two, so
+    // the nearest wrong answer is a whole one away and no amount of
+    // dust reaches it.
+    let halvings = (result.origin / 2.0 / (valid - invalid)).log2();
     assert!(
-        valid - invalid <= BoundsProbe::refined_width(result.origin / 2.0),
-        "the halvings close the bracket they entered, and this one is wider than \
-         {MAX_REFINES} of them leave: {invalid}..{valid}",
-        MAX_REFINES = BoundsProbe::MAX_REFINES
+        halvings >= f64::from(BoundsProbe::MAX_REFINES) - 0.5,
+        "the refinement spent {halvings:.2} halvings on the bracket it entered, not the \
+         {refines} it has: {invalid}..{valid}",
+        refines = BoundsProbe::MAX_REFINES
     );
 }

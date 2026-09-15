@@ -65,14 +65,12 @@ because a discharge note is exactly where an unverified causal story
 gets enshrined.
 
 **2. Neither threshold is a literal any more, and neither is restated
-in the test.** The derivations live on `BoundsProbe`, which is where
-the constants live: `BoundsProbe::furthest_reach(seed)` is the
-furthest offset a reach can place, and `BoundsProbe::refined_width(w)`
-is what `MAX_REFINES` halvings leave of a bracket `w` wide. `Sweep`'s
-reach ladder reads the same private `reach_offset` the first does, so
-the test no longer computes anything the probe computes. This is the
-`Camera::pitch_limit` / `datums::patch_cover` shape: the point is that
-the DERIVATION has one home, not that a constant is readable.
+in the test.** `BoundsProbe::furthest_reach(seed)` is the furthest
+offset a reach can place, and `Sweep`'s reach ladder reads the same
+private `reach_offset` it does, so the test no longer computes
+anything the probe computes. This is the `Camera::pitch_limit` /
+`datums::patch_cover` shape: the point is that the DERIVATION has one
+home, not that a constant is readable.
 
 **The two halves discriminate different things, and only the first is
 about the seed.**
@@ -85,11 +83,35 @@ about the seed.**
   Not falsified by `MAX_REACHES` moving, which was finding 2's
   complaint.
 - **Bracket (downward).** Falsified by the REFINEMENT, not the seed.
-  Measured: the bracket entered is `[4 seeds, 8 seeds]` = `origin/2`
-  wide and closes to 3.90624999999957e-6 against a threshold of
-  `refined_width(origin/2)` = 3.90625e-6. Planted red: settling one
-  halving early yields 7.81249999999914e-6 and the row goes red
-  naming the halvings.
+  It asserts a COUNT — that the refinement spent all `MAX_REFINES`
+  halvings on the bracket it entered (`origin/2` wide) — and not a
+  width. Measured: 10.000000000000158 halvings at the default ε,
+  9.999999999999519 at `ε = 1e-6`. Planted red at BOTH those ε rows:
+  settling one halving early reads 9.00 and the row reds naming the
+  count.
+
+  **Why a count and not a width — this is the CI failure of PR
+  2683.** The first version compared `valid - invalid` to an ideal
+  `origin/2 / 2^MAX_REFINES`. `Bound::Edge` reports ABSOLUTE field
+  values, each formed as `origin ± offset`, so their difference
+  inherits the ULP of the ORIGIN (1.734e-18 at 0.008) rather than of
+  the bracket (~8.5e-22). At the default ε the floor sits at exactly
+  0, the low end of the pair is exactly 0, the subtraction is exact
+  and the comparison passed **by luck**; at `ε = 1e-6` both ends are
+  ordinary non-zero floats and the same rule measured
+  3.9062500000013e-6 against 3.90625e-6 — over by 1.304e-18, which is
+  0.75 of one ULP of the origin. Two CI jobs failed on it with
+  byte-identical numbers (`test (eps = 1e-6, 2/2)` and
+  `test (interval, eps = 1e-6, 1/2)`), which is itself the evidence
+  that the lane does not reach this path and ε alone does. A halving
+  is a factor of two, so the nearest wrong answer is a whole one away
+  and no rounding dust reaches it.
+
+  `BoundsProbe::refined_width`, minted in the first fix pass to hold
+  that ideal width, is DELETED rather than left public with no
+  caller: nothing should ship a door whose only use was an assertion
+  that could not be made robust. The law it held is stated on
+  `MAX_REFINES`, together with why a check counts halvings instead.
 
 **CORRECTION — the first version of this note was wrong about the
 downward search, in the comment, in the helper's doc and here.** It
@@ -117,6 +139,26 @@ filed as its own row,
 it is a finding about the kernel's reading of a length field and not
 about these rows.
 
+**PREMISE CORRECTION — the floor's LOCATION moves with ε, and two
+earlier notes here stated it flatly.** Measured on this fixture at
+three ε rows, failing nodes by thickness:
+
+| thickness | default ε | `1e-6` | `1e-12` |
+| --- | --- | --- | --- |
+| -8 mm, -1 mm | builds | builds | builds |
+| 0 | FAILS | FAILS | FAILS |
+| 1e-6, 5e-6 | builds | **FAILS** | builds |
+| 1e-5 and up | builds | builds | builds |
+
+So "the floor is the single value `0`" is true at the default ε and
+at `1e-12` and FALSE at `1e-6`, where everything below about `1e-5`
+fails — one rule (an extrusion the tolerance cannot tell from zero)
+whose width is ε's to set. What does NOT move is that a negative
+thickness builds at every ε, which is the finding
+`work/chrome/a-negative-extrude-distance-probes-as-valid.md` carries.
+The row's prose and that row both say this now; neither may assume a
+point.
+
 **3. The stale premise was in `bounds.rs`, and it is now fixed rather
 than quoted.** This is a CORRECTION of the first note, which quoted
 `MAX_REFINES`' own doc approvingly as "the comment was right". It was
@@ -128,9 +170,10 @@ is the reach stride that caught the failure. Measured on this fixture:
 a 1e-3 seed closes to 3.9e-6, four times looser than a thousandth of
 the seed, because the stride that caught the floor was four seeds
 wide. Both sentences are rewritten to the law the code holds, and
-`BoundsProbe::refined_width` is that law as arithmetic. With the
-premise gone from all three spellings, finding 3 is discharged on the
-merits rather than by adjudication.
+`MAX_REFINES` now also carries why a CHECK on that law counts halvings
+rather than measuring the reported pair. With the premise gone from
+every spelling, finding 3 is discharged on the merits rather than by
+adjudication.
 
 **Findings 1 and 4 are untouched.** The reach assertion is still
 one-sided (`<=`), so every degradation finding 1 lists still satisfies

@@ -453,9 +453,15 @@ impl BoundsProbe {
     /// failure and NOT the seed: the stride doubles, so a bracket
     /// entered four seeds wide closes to about four thousandths of a
     /// seed, and one entered a thousand seeds wide closes no finer
-    /// than a seed. [`BoundsProbe::refined_width`] is that
-    /// arithmetic, and how fine the answer is therefore depends on
-    /// how far out the failure was, not on the step alone.
+    /// than a seed. How fine the reported pair is therefore depends
+    /// on how far out the failure was, not on the step alone.
+    ///
+    /// **The division is exact and the reported pair is not.** Each
+    /// end of a [`Bound::Edge`] is `origin ± offset`, so the width a
+    /// reader measures off the pair carries the ORIGIN's rounding,
+    /// which at a millimetre-scale bracket around a centimetre-scale
+    /// origin is four thousand times the bracket's own. A check on
+    /// this law counts halvings; it does not compare widths.
     pub const MAX_REFINES: u32 = 10;
 
     /// The ceiling on samples over both directions — the cost bound the
@@ -486,26 +492,14 @@ impl BoundsProbe {
         Self::reach_offset(seed, Self::MAX_REACHES - 1)
     }
 
-    /// What [`Self::MAX_REFINES`] halvings leave of a bracket `width`
-    /// wide — the law [`Self::MAX_REFINES`] states, as arithmetic.
-    ///
-    /// The argument is the bracket the REFINEMENT ENTERED, never the
-    /// seed: what a reader wants to know is how tight the reported
-    /// pair is, and that is set by how far out the failure was.
-    /// Public for [`Self::furthest_reach`]'s reason.
-    #[must_use]
-    pub fn refined_width(width: f64) -> f64 {
-        width / f64::from(1u32 << Self::MAX_REFINES)
-    }
-
     /// A probe around `origin`, stepping by `seed`.
     ///
     /// `seed` is the field's natural step — one of whatever unit the
     /// panel is writing it in, and 1 for a count — and sets the scale
     /// of the whole search: the first sample is one seed out, the
     /// furthest is [`BoundsProbe::furthest_reach`] of one, and a
-    /// bracket closes to [`BoundsProbe::refined_width`] of the stride
-    /// that found it. A non-finite or
+    /// bracket closes to about a thousandth of the stride that found
+    /// it ([`BoundsProbe::MAX_REFINES`]). A non-finite or
     /// non-positive seed is replaced by its magnitude or by 1, because
     /// a probe that refused would leave the panel with nothing to say
     /// about a field whose scale it could not guess.
