@@ -39,6 +39,13 @@
 //!   strut** at the anchor position (a distinct fan slot to splice
 //!   against), killed by `kev` immediately after.
 //!
+//! Both scaffold mints hold one rule: a strut whose two endpoints
+//! coincide has no direction to certify, so neither site mints one.
+//! Planting skips a coincident anchor and refuses when the scan
+//! exhausts them; the self-loop's strut has a single candidate
+//! endpoint and refuses as soon as it turns out to be the vertex
+//! again (`coincide`, `strut_endpoint`).
+//!
 //! All phase-A geometry is the operators' own chord/self-loop
 //! scaffolding sugar (`mev_line` / `mef_chord` / `mekr_chord`); every
 //! edge is re-described and re-certified against its real parsed
@@ -62,6 +69,81 @@ use crate::adopt;
 use crate::entities::SolidSpec;
 use crate::error::StepImportError;
 use geom_core::Tol;
+
+/// The absolute offset, along +x, that mints a temporary strut's far
+/// endpoint beside an existing vertex ([`strut_endpoint`]).
+const STRUT_OFFSET: f64 = 1.0;
+
+/// Two scaffold endpoints are the same point — the state no strut may
+/// be minted in, at either mint site.
+///
+/// A scaffold strut is a `mev_line` chord between two points, and a
+/// chord whose endpoints coincide has no direction to certify
+/// against. The pair is therefore checked before the mint rather than
+/// left to the operator's certificate, which refuses in the kernel's
+/// vocabulary about carriers where the reader owes one about the
+/// file.
+///
+/// VALUE equality on all three components, because the carrier is
+/// built from the difference and the question is exactly whether
+/// that difference is zero. Three consequences, each with where it
+/// is decided:
+///
+/// * `0.0` and `-0.0` are one point. A parsed coordinate is never
+///   `-0.0` — [`crate::signed_zero`] owns that argument and
+///   `entities::as_real` flushes every literal at the read — so this
+///   is not the case the change is FOR; it is what the question
+///   being asked implies, and a predicate that answered it the other
+///   way would be answering a different question.
+/// * A coordinate that is not a number cannot arrive: a Part 21 real
+///   token is `+`, `-` or a digit followed by digits, `.` and an
+///   exponent (`Parser::value`), so `NaN` has no spelling to be
+///   lexed from. `==`'s one gap is therefore closed upstream rather
+///   than here.
+/// * An infinity DOES have a spelling — `1E999` parses to one, and
+///   nothing on the read path rejects it — and two equal infinities
+///   compare equal here, which is the answer that makes
+///   [`strut_endpoint`] withhold a strut at one.
+///
+/// **Exact, not toleranced**, though `Tol` is in scope at both call
+/// sites. The certificate a scaffold chord has to pass refuses a
+/// zero-span parameter interval, not a short one; asking `tol` here
+/// would refuse struts the operators accept, and would answer a
+/// different question (is this scaffold USEFUL) than the one the two
+/// sites share (can this chord be certified at all).
+fn coincide(a: geom_core::Point3<f64>, b: geom_core::Point3<f64>) -> bool {
+    a.x == b.x && a.y == b.y && a.z == b.z
+}
+
+/// The far endpoint of the temporary strut minted beside `p`, or
+/// `None` where that point would BE `p`.
+///
+/// The offset is absolute, so it is lost wherever `p.x`'s own `f64`
+/// spacing swallows it. **Which coordinates those are is not a
+/// magnitude test**, and that is why this asks the sum rather than
+/// `p.x`:
+///
+/// * `p.x >= 2^54` or `p.x <= -2^54` — the spacing is at least four
+///   times the offset, which always rounds away. Lost everywhere.
+/// * `2^53 <= p.x < 2^54`, and `-2^54 < p.x <= -2^53` — the offset is
+///   exactly HALF a step, so round-half-to-even decides, and it
+///   decides on the value's own mantissa parity: `2^53` loses it,
+///   `2^53 + 2` keeps it. Lost at about half the values in each band,
+///   interleaved.
+/// * `|p.x| < 2^53` — the spacing is at most the offset. Never lost.
+///
+/// The two bands are not mirror images, because a POSITIVE offset
+/// added to a negative coordinate moves toward zero, into the next
+/// finer binade: `-2^53 + 1.0` is exactly `-(2^53 - 1)` while
+/// `2^53 + 1.0` is `2^53`.
+///
+/// The reader takes untrusted coordinates, so the sum is checked
+/// rather than assumed: the caller refuses, which is the same
+/// standing [`Builder::plant`] gives the same state.
+fn strut_endpoint(p: geom_core::Point3<f64>) -> Option<geom_core::Point3<f64>> {
+    let offset = geom_core::Point3::new(p.x + STRUT_OFFSET, p.y, p.z);
+    (!coincide(offset, p)).then_some(offset)
+}
 
 /// One edge-use in the flattened target complex.
 #[derive(Clone, Copy, Debug)]
@@ -546,7 +628,11 @@ impl<'a> Builder<'a> {
         // Strut before `s`, self-loop spliced around it, strut killed.
         let spec = &self.solid.edges[&edge_id];
         let p = self.solid.vertices[&spec.start];
-        let offset = geom_core::Point3::new(p.x + 1.0, p.y, p.z);
+        let offset = strut_endpoint(p).ok_or(StepImportError::Topology {
+            id: edge_id,
+            what: "a self-loop's scaffold strut would be zero-length (the strut's \
+                   offset rounds away at this vertex's x coordinate)",
+        })?;
         let strut = self
             .body
             .mev_line(MevSite::Fan { he1: s, he2: s }, offset, tol)
@@ -574,16 +660,11 @@ impl<'a> Builder<'a> {
     fn plant(&mut self, edge_id: u64, vertex_id: u64, tol: Tol) -> Result<(), StepImportError> {
         let p = self.solid.vertices[&vertex_id];
         // Deterministic anchor scan: the first realized use whose
-        // start position differs from `p` (a zero-length scaffold
-        // chord cannot certify).
+        // start position differs from `p` ([`coincide`]).
         for i in 0..self.use_he.len() {
             let Some(he) = self.use_he[i] else { continue };
             let anchor_pos = self.solid.vertices[&self.target.start_vertex[i]];
-            // Bitwise coincidence check (a zero-length chord poisons).
-            if anchor_pos.x.to_bits() == p.x.to_bits()
-                && anchor_pos.y.to_bits() == p.y.to_bits()
-                && anchor_pos.z.to_bits() == p.z.to_bits()
-            {
+            if coincide(anchor_pos, p) {
                 continue;
             }
             let strut = self
@@ -845,4 +926,232 @@ pub(crate) fn build_one_solid(solid: &SolidSpec, tol: Tol) -> Result<Body<f64>, 
     topo::mint_pcurves(&mut door, tol).map_err(|source| StepImportError::Pcurves { source })?;
     door.sweep_and_close();
     Ok(body)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    use geom_core::Point3;
+
+    /// The scaffold rule where an absolute offset stops being one.
+    /// `strut_endpoint`'s docs say which coordinates those are and
+    /// why it is not a magnitude test; this pins the answer at every
+    /// boundary that argument turns on, so a guard rewritten as
+    /// `|p.x| >= 2^53` — the claim this row's own prose carried
+    /// before it was checked — reddens at `-2^53`.
+    ///
+    /// Both directions are covered: a guard deleted reds on the
+    /// withheld rows, a guard widened until it refuses ordinary
+    /// coordinates reds on the minted ones.
+    #[test]
+    fn a_scaffold_strut_is_withheld_where_its_offset_vanishes() {
+        let ordinary = Point3::new(3.0, -1.0, 0.5);
+        let minted = strut_endpoint(ordinary).expect("an ordinary coordinate mints a strut");
+        assert_eq!(minted.x, 4.0, "the offset is absolute and along +x");
+        assert_eq!((minted.y, minted.z), (ordinary.y, ordinary.z));
+        assert!(!coincide(minted, ordinary));
+
+        // `true` means the strut is MINTED at that coordinate. The
+        // two tie bands are sampled on both parities, and each band's
+        // edge is paired with its neighbour on the other side, so a
+        // guard rewritten as a magnitude test reddens here whichever
+        // magnitude it picks.
+        for (x, mints) in [
+            // Below the first tie band the spacing is at most the
+            // offset, both ways.
+            (9_007_199_254_740_991.0_f64, true), //  2^53 - 1
+            (-9_007_199_254_740_991.0, true),    // -2^53 + 1
+            // `[2^53, 2^54)`: the offset is half a step and
+            // round-half-to-even decides on mantissa parity.
+            (9_007_199_254_740_992.0, false), // 2^53
+            (9_007_199_254_740_994.0, true),  // 2^53 + 2
+            (9_007_199_254_740_996.0, false), // 2^53 + 4
+            // `(-2^54, -2^53]`: the SAME band on the other side is
+            // shifted by one representable step, because a positive
+            // offset moves a negative coordinate toward zero into the
+            // next finer binade. `-2^53` mints where `2^53` does not.
+            (-9_007_199_254_740_992.0, true),  // -2^53
+            (-9_007_199_254_740_994.0, true),  // -2^53 - 2
+            (-9_007_199_254_740_996.0, false), // -2^53 - 4
+            // From `2^54` out the spacing is four times the offset or
+            // more, so it always rounds away — no parity left.
+            (18_014_398_509_481_984.0, false),  //  2^54
+            (18_014_398_509_481_988.0, false),  //  2^54 + 4
+            (-18_014_398_509_481_984.0, false), // -2^54
+            (-18_014_398_509_481_988.0, false), // -2^54 - 4
+            (f64::MAX, false),
+            (f64::MIN, false),
+            // The overflow a Part 21 real literal can reach.
+            (f64::INFINITY, false),
+            (f64::NEG_INFINITY, false),
+        ] {
+            let p = Point3::new(x, 0.0, 0.0);
+            assert_eq!(
+                strut_endpoint(p).is_some(),
+                mints,
+                "a strut at {x} must {}",
+                if mints { "be minted" } else { "be withheld" }
+            );
+        }
+    }
+
+    /// Coincidence is the question "is this chord zero-length", asked
+    /// on all three components: a difference in any one of them is a
+    /// strut with a direction, and the two spellings of zero are one
+    /// point.
+    #[test]
+    fn scaffold_coincidence_is_all_three_components() {
+        let p = Point3::new(1.0, 2.0, 3.0);
+        assert!(coincide(p, p));
+        assert!(!coincide(p, Point3::new(1.0, 2.0, 3.000_000_000_000_001)));
+        assert!(!coincide(p, Point3::new(1.0, 2.000_000_000_000_001, 3.0)));
+        assert!(!coincide(p, Point3::new(1.000_000_000_000_000_2, 2.0, 3.0)));
+        assert!(
+            coincide(Point3::new(0.0, 0.0, 0.0), Point3::new(-0.0, -0.0, -0.0)),
+            "a chord between the two spellings of the origin is still zero-length"
+        );
+    }
+
+    /// **The site, not the rule.** Drives `insert_selfloop_tied` with
+    /// a start vertex whose coordinate swallows the strut offset and
+    /// asserts the door refuses `Topology` naming the case — rather
+    /// than minting a chord `mev_line` then rejects as
+    /// `Assembly { source }`, which blames the file for the reader's
+    /// own arithmetic.
+    ///
+    /// The builder is assembled here rather than driven from a file
+    /// because **no fixture in the suite reaches this branch**: the
+    /// arm needs a self-loop whose two uses share their only built
+    /// anchor AND whose target fan order is the reversed one, and the
+    /// corpus takes the plain `mef` order every time (this unit's PR
+    /// carries the instrumented count). So the state the arm exists
+    /// for is set up directly. Everything it reads before the refusal
+    /// is real — `sigma`, `use_he` and the solid's own vertex table —
+    /// and it reads the body only after, which is why a body holding
+    /// one unrelated half-edge is enough.
+    ///
+    /// The ordinary-coordinate control is the half that makes this a
+    /// row about the guard rather than about the arm: the same call
+    /// at `x = 0` must get PAST the guard, so a guard that refuses
+    /// everything reds here.
+    #[test]
+    fn the_tied_selfloop_door_refuses_a_strut_it_cannot_mint() {
+        use crate::entities::EdgeSpec;
+        use geom::Curve3;
+        use geom_core::{Point3, Tol, Vec3};
+
+        const SELF_LOOP: u64 = 10;
+        const NEIGHBOUR: u64 = 20;
+        const VERTEX: u64 = 100;
+        // `2^53`: the offset is exactly half a step there and the
+        // value's mantissa parity loses the tie, so the strut would
+        // land back on its own start.
+        const SWALLOWED: f64 = 9_007_199_254_740_992.0;
+
+        let tol = Tol::witness();
+        let solid_at = |x: f64| SolidSpec {
+            id: 1,
+            faces: Vec::new(),
+            edges: BTreeMap::from([(
+                SELF_LOOP,
+                EdgeSpec {
+                    start: VERTEX,
+                    end: VERTEX,
+                    carrier: Curve3::Line {
+                        origin: Point3::new(x, 0.0, 0.0),
+                        dir: Vec3::new(1.0, 0.0, 0.0),
+                    },
+                    t0: 0.0,
+                    t1: 1.0,
+                    reversed: false,
+                },
+            )]),
+            vertices: BTreeMap::from([(VERTEX, Point3::new(x, 0.0, 0.0))]),
+            band_seams: std::collections::BTreeSet::new(),
+        };
+        // Use 0 is the self-loop's forward use, 1 its reversed use, 2
+        // the built neighbour. `sigma(0) = next[mate[0]] = next[1] =
+        // 2`, which is built — so the target fan order is the
+        // reversed one and the arm takes the strut branch.
+        let target = || Target {
+            uses: vec![
+                Use {
+                    edge: SELF_LOOP,
+                    forward: true,
+                },
+                Use {
+                    edge: SELF_LOOP,
+                    forward: false,
+                },
+                Use {
+                    edge: NEIGHBOUR,
+                    forward: true,
+                },
+            ],
+            loops: Vec::new(),
+            face_loops: Vec::new(),
+            next: vec![0, 2, 0],
+            mate: vec![1, 0, 2],
+            start_vertex: vec![VERTEX, VERTEX, VERTEX],
+            edge_uses: BTreeMap::from([(SELF_LOOP, (0, 1))]),
+        };
+        // A body with one real half-edge, so `use_he` can hold a key
+        // the fan walk reads as built.
+        let anchor = |body: &mut Body<f64>| {
+            let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).expect("mvfs");
+            body.mev_line(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                Point3::new(1.0, 0.0, 0.0),
+                tol,
+            )
+            .expect("a spur to anchor on")
+            .he_plus
+        };
+
+        let mut body = Body::new();
+        let s = anchor(&mut body);
+        let swallowed = solid_at(SWALLOWED);
+        let refusal = Builder {
+            body: &mut body,
+            target: target(),
+            solid: &swallowed,
+            use_he: vec![None, None, Some(s)],
+            vstate: BTreeMap::new(),
+        }
+        .insert_selfloop_tied(SELF_LOOP, 0, 1, s, tol);
+        match refusal {
+            Err(StepImportError::Topology { id, what }) => {
+                assert_eq!(id, SELF_LOOP, "the refusal names the edge it is about");
+                assert!(
+                    what.contains("scaffold strut"),
+                    "the refusal names the scaffold strut, not a carrier: {what}"
+                );
+            }
+            other => panic!("a strut that cannot be minted must refuse Topology, got {other:?}"),
+        }
+
+        // The control: the same arm at an ordinary coordinate gets
+        // past the guard. What it meets afterwards is the operators'
+        // own business — this body is not a real self-loop site — so
+        // the assertion is only that the guard let it through.
+        let mut body = Body::new();
+        let s = anchor(&mut body);
+        let ordinary = solid_at(0.0);
+        let past = Builder {
+            body: &mut body,
+            target: target(),
+            solid: &ordinary,
+            use_he: vec![None, None, Some(s)],
+            vstate: BTreeMap::new(),
+        }
+        .insert_selfloop_tied(SELF_LOOP, 0, 1, s, tol);
+        assert!(
+            !matches!(past, Err(StepImportError::Topology { .. })),
+            "an ordinary coordinate must reach the mint, not the guard's refusal: {past:?}"
+        );
+    }
 }

@@ -28,10 +28,13 @@
 //!   choose a hand-editable format is that its errors are worth
 //!   showing.
 //! - **An unknown key reports** ([`Notice::UnknownKey`]) and the rest
-//!   of the file still applies. Documents use `deny_unknown_fields`
-//!   because a key nobody understands may mean the geometry is not
-//!   what it looks like; nothing here can be that. A newer viewer's
-//!   key must not stop an older one from opening.
+//!   of the file still applies. The document path's posture is the
+//!   opposite — an unknown key there is a file this build cannot read
+//!   (`editor_core::persist`'s module docs, which are also the one
+//!   home for how far that posture is actually enforced) — because a
+//!   key nobody understands may mean the geometry is not what it looks
+//!   like; nothing here can be that. A newer viewer's key must not
+//!   stop an older one from opening.
 //! - **An unknown VALUE reports and falls back**
 //!   ([`Notice::UnknownTheme`], [`Notice::UnknownPreset`]) — a theme
 //!   may be renamed between versions, and the file is a memory of an

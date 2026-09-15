@@ -10,7 +10,7 @@
 
 use crate::common;
 
-use common::{census, fixture};
+use common::{arena_census, fixture};
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
@@ -115,7 +115,7 @@ fn probe_refit_seam_refuses_typed() {
                 PLANT < eps,
                 "MISADOPTION: refit seam displaced {PLANT:e} m — past ε_in {eps:e} — \
                  imported as a solid (census {:?})",
-                census(&body)
+                arena_census(&body)
             );
             topo::validate_geometric(&body, Tol::witness())
                 .expect("a seam adopted inside ε_in leaves a body that is valid at rest");
@@ -136,7 +136,7 @@ fn probe_all_unit_weight_rational_instance_imports_identically() {
     assert_ne!(text, orig, "wall #87 rewritten as complex instance");
     let body = solid(&text, "all-unit-weight complex instance");
     let base = solid(&orig, "committed fixture");
-    assert_eq!(census(&body), census(&base), "census unchanged");
+    assert_eq!(arena_census(&body), arena_census(&base), "census unchanged");
     assert_eq!(topo::validate(&body), Ok(()), "t1");
     assert_eq!(topo::validate_closed(&body), Ok(()), "t2");
     assert_eq!(
@@ -224,7 +224,7 @@ fn probe_arc_loft_weights_snapped_to_one_refuses() {
             let t3 = topo::validate_geometric(&body, Tol::witness());
             panic!(
                 "LAUNDERED: weight-snapped rational wall imported; t3 = {t3:?}, census {:?}",
-                census(&body)
+                arena_census(&body)
             );
         }
         Ok(other) => panic!("unexpected disposition: {other:?}"),
@@ -445,7 +445,11 @@ fn probe_rim_same_sense_flip_is_honest() {
         Ok(StepImport::Solid { body, .. }) => {
             // If accepted, it must be the SAME body (flag interpretive).
             let base = solid(&orig, "committed fixture");
-            assert_eq!(census(&body), census(&base), "census must match");
+            assert_eq!(
+                arena_census(&body),
+                arena_census(&base),
+                "census must match"
+            );
             assert_eq!(topo::validate(&body), Ok(()), "t1");
             assert_eq!(topo::validate_closed(&body), Ok(()), "t2");
             assert_eq!(

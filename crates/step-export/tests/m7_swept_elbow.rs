@@ -54,7 +54,7 @@ fn the_swept_elbow_exports_and_both_oracles_reconstruct_it() {
     let body = swept_elbow();
     // Four walls, four wall–wall seams, two planar caps; the caps
     // contribute the four rim edges each shares with its walls.
-    let census = common::census(&body);
+    let census = common::fev_census(&body);
     assert_eq!(census, (6, 12, 8), "kernel census (a topological box)");
     let text = export(&body, "swept_elbow");
 
@@ -106,7 +106,7 @@ fn the_swept_elbows_walls_go_out_non_rational() {
 #[test]
 fn the_nonuniform_loft_exports_non_rational_and_both_oracles_reconstruct_it() {
     let body = nonuniform_loft();
-    let census = common::census(&body);
+    let census = common::fev_census(&body);
     assert_eq!(census, (6, 12, 8), "kernel census (loft_prism's topology)");
     let text = export(&body, "nonuniform_loft");
 

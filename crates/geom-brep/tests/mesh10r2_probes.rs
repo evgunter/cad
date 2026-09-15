@@ -81,7 +81,7 @@ fn control() -> Vec<LoopEdge<f64>> {
 #[test]
 fn m10r2_a_gap_between_same_id_pieces_refuses_at_the_contiguity_test() {
     let s = torus();
-    let ctl = curved_face(&s, &control(), 1.0, band()).unwrap();
+    let ctl = curved_face(&s, &control(), true, band()).unwrap();
     let gapped = vec![
         trim(V0, U0, U1, 0, 1),
         tmer(U1, V0, 0.5, 1, 2, Some(1)),
@@ -90,7 +90,7 @@ fn m10r2_a_gap_between_same_id_pieces_refuses_at_the_contiguity_test() {
         tmer(U0, V1, V0, 4, 0, Some(2)),
     ];
     let door = require_iso_rectangle(&s, &gapped, band());
-    let flux = curved_face(&s, &gapped, 1.0, band());
+    let flux = curved_face(&s, &gapped, true, band());
     println!(
         "M10R2 gapped pieces: door {door:?}, flux {flux:?} vs control ({}, {})",
         ctl.flux, ctl.area
@@ -130,7 +130,7 @@ fn m10r2_a_rimless_loop_of_one_meridians_pieces() {
         tmer(U1, 0.0, 2.0, 0, 1, Some(1)),
     ];
     let door = require_iso_rectangle(&s, &pieces, band());
-    let flux = curved_face(&s, &pieces, 1.0, band()).map(|c| (c.flux, c.area));
+    let flux = curved_face(&s, &pieces, true, band()).map(|c| (c.flux, c.area));
     println!("M10R2 rimless pieces: door {door:?}, flux {flux:?}");
     let closed = PropsError::NotIsoRectangle {
         what: "torus meridian pieces close a loop with no rim",

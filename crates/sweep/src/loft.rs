@@ -602,6 +602,18 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
 /// states a pairing, by design — *"no honest way to guess a
 /// correspondence that was not given"* ([`loft_geometry`]).
 ///
+/// **And the vertex order decides more than the pairing**: the whole
+/// surface's v-parameterization is the FIRST STRIP's, so a section
+/// spelled from a different starting vertex — or rolled about its own
+/// normal by a symmetry that leaves its ring pointwise identical —
+/// builds a different body. [`loft_geometry`]'s comment at the
+/// parameterization is the statement of it.
+///
+/// `places[i]` is the caller's. For the plane normal to a curve at a
+/// point, `geom_core::linalg::frame::path_start_frame(point, tangent,
+/// tol)` is the door that hands one out, and a different roll is a
+/// rotation composed about the tangent onto it.
+///
 /// # Errors
 ///
 /// [`LoftError`] — every door named on the enum.
@@ -627,8 +639,21 @@ pub fn loft_body<T: Decide + geom_brep::PcurveFittedLane>(
 /// index pairing is the identity whatever the profile's vertex order
 /// was. What the canonical start still decides is which wall of the
 /// built body is which — the segment order the returned
-/// [`Lofted::side_faces`] is keyed in. The body's roll comes from the
-/// path frame ([`sweep_places`]), not from the sections.
+/// [`Lofted::side_faces`] is keyed in, and, through the first strip,
+/// the surface's v-parameterization ([`loft_body`]). The body's roll
+/// comes from the path frame ([`sweep_places`]), not from the
+/// sections.
+///
+/// # The starting frame
+///
+/// `place` — the frame every station is carried from — is the
+/// caller's, and `geom_core::linalg::frame::path_start_frame(path
+/// start, start tangent, tol)` is where a caller gets it: the plane
+/// through the start point whose local +Z is the start tangent, its
+/// roll off a reference ladder decided under the tolerance band, with
+/// a typed refusal when no rung decides. A caller wanting a different
+/// roll composes a rotation about the tangent onto that frame; there
+/// is no second door.
 ///
 /// # Errors
 ///

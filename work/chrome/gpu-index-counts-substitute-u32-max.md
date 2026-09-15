@@ -2,9 +2,8 @@
 id: gpu-index-counts-substitute-u32-max
 kind: issue
 title: gpu.rs substitutes u32::MAX for a draw count it could not convert
-status: parked
+status: open
 opened: 2026-09-12
-blocked_on: [scene-mesh-carries-an-identity-index-buffer]
 ---
 
 ## Finding
@@ -49,3 +48,47 @@ Parked rather than left open because a row nobody intends to work
 should not read as available on the board. The trigger is a real item
 lint can see close. Whoever takes either should take both — neither
 program can see that from its own slate alone.
+
+## The trigger fired, and it minted the defect again (2026-09-15)
+
+VIEW closed `scene-mesh-carries-an-identity-index-buffer` hours after
+this row was parked on it, so `parked` became false and lint said so.
+Re-opened. **What the trigger did is the point.**
+
+The park note predicted: *"that change DELETES the `index_count` site
+this row is about. The `vertices` site survives, and VIEW's replacement
+draw count needs the same conversion, so that change MOVES this row
+rather than closing it."*
+
+That is exactly what happened. `SceneMesh::indices`, `draw_indexed` and
+`set_index_buffer` are gone — `gpu.rs` now carries a test asserting
+their absence — and the site this row cited went with them. In its
+place:
+
+```rust
+fn corner_count(scene: &SceneMesh) -> u32 {
+    u32::try_from(scene.positions().len()).unwrap_or(u32::MAX)
+}
+```
+
+**The same substitution, one function further out, and now in the only
+place the draw range is derived** — `corner_count`'s own doc says *"This
+is the only place that number is derived, so the two passes over one
+scene cannot draw different ranges of it."* Centralising the number
+made this the single point where a failed conversion becomes a draw
+count of `u32::MAX`, which is a larger exposure than the two sites it
+replaced, not a smaller one.
+
+So the population is unchanged at two, by subject rather than by line:
+`gpu::corner_count`, and the `vertices` binding in the buffer-build
+path. Both are `u32::try_from(...).unwrap_or(u32::MAX)`.
+
+**This is the case for the note that rode the park.** A unit closing a
+substitution minted one — `docs/REVIEW-STYLE-DISPATCH.md` §2's first
+shape — in a diff whose author had no reason to know this row existed.
+Neither program could see it from its own slate: VIEW was removing an
+index buffer, CHROME was tracking a conversion.
+
+Ground is ceded to VIEW under the 2026-09-15 carve-out, so CHROME does
+not work it. Re-homing to VIEW is the obvious next step and is not taken
+unilaterally here.

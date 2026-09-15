@@ -549,16 +549,17 @@ Six ways a name escapes the old pattern, all live today:
    just named, and the reason they are also a separate way of
    escaping the pattern. Since SEAT-DN one function decides
    direction length for the whole workspace
-   (`topo::query::decide_unit_direction`: finiteness, then underflow,
+   (`geom_core::decide_unit_direction`: finiteness, then underflow,
    then the sign of the norm, then normalize or refuse) and it takes
    the funnel site
    as a `&'static str` PARAMETER, because the layer that owns a value
    is the layer whose telemetry names its length decision. So
-   `decide(` at that site names a variable: `datum_unit_norm` is
-   passed by `UnitVec3::new` a few dozen lines below for a datum's
-   normal or axis direction, and `eval_direction_norm` by
-   `editor-core`'s `unit()`, a crate away, for the directions the
-   evaluation layer owns (a transform's rotation axis, a pattern's
+   `decide(` at that site names a variable: `datum_unit_norm` (the
+   name `topo` owns) is passed to `geom_core::UnitVec3::new` by
+   `editor-core`'s `datum_unit` — the datum arms of `wire_datum` —
+   for a datum's normal or axis direction, and `eval_direction_norm`
+   by `editor-core`'s `unit()`, in the same file, for the directions
+   the evaluation layer owns (a transform's rotation axis, a pattern's
    direction, and the mate solve's re-derivation of both from the
    recipe). Two names, one body — Ev's ratified answer to the
    direction-family question, executed by SEAT-DN. The consequence
@@ -576,7 +577,11 @@ Six ways a name escapes the old pattern, all live today:
    roster at all (see "Maintenance: this roster is a RECORD" below).
    That is this document's standing hole made one route wider, not a
    new one: a third caller of the shared body owes an entry here, by
-   hand, exactly as a new `decide("literal")` site does.
+   hand, exactly as a new `decide("literal")` site does. **And the
+   reach of that route is every `geom-core` dependent** — the body
+   and the witness live in `geom-core` now, so a crate below `topo`
+   (`geom`, `geom-brep`, `sweep`, `profile`) can mint a name this way
+   as readily as one above it; it used to be `topo`'s dependents only.
 5. **A struct field or a local table.** `ray_parity::ParityRows` (the
    one carrier this document already listed), `swept.rs`'s
    `CosurfaceNames`, and `transform.rs:129`'s seven-element
@@ -1537,9 +1542,9 @@ the committed snapshot, which still says 233 because it still contains
 the six old names.
 
 **And SEAT-DV adds one: 232 at a sweep cut immediately after it.**
-`datum_unit_norm` is the length decision inside `topo::query`'s
-`UnitVec3::new`, which is where a datum's normal or axis direction is
-now normalized. It does not REPLACE `eval_direction_norm`, which keeps
+`datum_unit_norm` is the length decision `editor-core`'s `datum_unit`
+passes to `geom_core::UnitVec3::new`, which is where a datum's normal
+or axis direction is normalized. It does not REPLACE `eval_direction_norm`, which keeps
 the directions the evaluation layer owns (a transform's rotation axis,
 a linear pattern's direction) — so this is one name in, none out. The
 population it takes is small and it moves rather than grows: the datum
@@ -1577,7 +1582,7 @@ one triple under two names by road is a property of the roads, not a
 defect of either site.
 
 What SEAT-DN did collapse is the BODY: both names are now passed as a
-parameter to `topo::query::decide_unit_direction`, the workspace's only
+parameter to `geom_core::decide_unit_direction`, the workspace's only
 decide/normalize/refuse for a 3-D direction length. The census
 consequence is nil (same names, same margins, same order, same
 outcomes); the roster consequence is that neither name is a literal at

@@ -101,3 +101,91 @@ tracker-wide re-home of 2026-09-04, which routed rows by PATH GLOB
 (`crates/*/tests/*`, `crates/test-utils/*`) rather than by question.
 This program is the question it was always about: whether the suite
 asserts what it claims to assert.
+
+## Re-derived (2026-09-15, lane B)
+
+**VERDICT: PARTIAL** — the revolve corner of the corpus is swept, pinned
+and green-with-a-latent-suspect; the wider corpus the issue actually asks
+about is still unswept, and the population is at least 28 sign-asserts in
+10 files. No test was run.
+
+### What is now CLOSED, verified by name
+
+- **The repaired row.** `crates/sweep/tests/revolve_washer.rs` still holds
+  `donut_two_arc_profile_shares_one_torus`, and
+  `signed_volume_lifted` is live in six files:
+  `sweep/tests/{revolve_washer,revolve_cone,revolve_ball,r1_probes_issue1362_donut,r2_mesh1_donut_probes}.rs`
+  and `sweep/tests/revolve_common/mod.rs`. The lifted vocabulary shipped
+  and spread past its one call site.
+- **The census the comment promised is a COMMITTED ROW, and it is live.**
+  `crates/sweep/tests/r1_probes_issue1362_donut.rs::r1_sweeps_the_revolve_fixtures_for_more_structural_zeros`
+  builds the eight fixtures, computes each body's fan against its own
+  probe-bbox scale with the relative floor the comment states —
+  `let structural_zero = near.abs() < 1e-12 * scale;` — and pins the set:
+
+```
+    assert_eq!(
+        unlifted_suspects,
+        vec!["ball quarter"],
+        "the structural-zero census over the revolve fixtures moved"
+    );
+```
+
+  So the comment's claim *"the census above is a committed row … so it
+  fails loudly if the set moves"* is true of today's tree, and `ball
+  quarter` is still the single unlifted suspect. The row also writes the
+  two-mechanism finding (coplanar boundary vs mirror-paired faces) into
+  the source as a comment, which is where the sweep's framing now lives.
+
+### What REPRODUCES — the wider corpus is still unswept
+
+The issue's ask was *"other assertions whose evidence is a
+structurally-zero measurement passing a sign/positivity test on noise"*,
+tree-wide, not just the revolve fixtures. Re-derived population, pattern
+
+```
+grep -rEn "assert!\(\s*[a-z_]*(signed_volume|volume|area|fan)[a-z_0-9]*\([^)]*\)\s*[><]\s*(-?)0\.0" crates/ demos/ tools/ --include=*.rs
+```
+
+**28 hits in 10 files**:
+
+| file | sign-asserts |
+| --- | --- |
+| `sweep/tests/review_m2_pr4.rs` | 8 |
+| `sweep/tests/review_m2_pr5.rs` | 7 (`my_signed_volume`, a local helper) |
+| `sweep/tests/revolve_partial.rs` | 3 |
+| `sweep/tests/review_blend_e2_r1_probes.rs` | 3 (`signed_area2`, both signs) |
+| `mesh/tests/review_m2_pr6_walk_shapes.rs` | 2 |
+| `mesh/tests/{review_m2_pr6_cert_oracle,newell_probes}.rs` | 1 each |
+| `sweep/tests/{revolve_washer,revolve_determinism}.rs` | 1 each |
+| `editor-core/tests/m5_pr11_corpus_curved.rs` | 1 |
+
+Only the `revolve_*` rows are covered by the committed census. **The
+`review_m2_pr4.rs` / `review_m2_pr5.rs` pair alone is 15 sign-asserts on
+sweep bodies with no structural-zero check anywhere near them** — and
+`review_m2_pr5.rs` routes all seven through a private `my_signed_volume`
+helper, which is exactly the anchored-fan shape the issue describes.
+Nobody has applied the cheap discriminator (fold the per-loop area
+vectors `A_L` and look for cancellation across faces) to any of them.
+
+### Blind spot of this re-derivation
+
+The pattern is one spelling: `assert!(<something>(…) > 0.0)` on one line,
+with a name containing `signed_volume`, `volume`, `area` or `fan`. It
+cannot see a sign assertion written over a bound VARIABLE
+(`let v = …; assert!(v > 0.0)`), one spelled `assert!(v.is_sign_positive())`,
+one comparing against a small positive epsilon rather than `0.0`, a
+`debug_assert!`, or a sign check inside `crates/*/src` production code.
+It was run over `crates/`, `demos/` and `tools/`; `benches/` and
+`interval-transcendentals/` are unswept. **It is a floor on the
+population, not a census** — and none of the 28 was checked for whether
+its fixture's exact value is zero by symmetry, which is the actual work
+the issue asks for and which needs a run.
+
+### Recommendation
+
+Do not close. Record that the revolve corner is done and pinned, re-scope
+the row to the remaining 28-site population, and start at
+`review_m2_pr5.rs`'s `my_signed_volume` — seven asserts behind one helper
+is the same cheapest-member argument that made `assert_dominates` the
+entry point on `D383`.

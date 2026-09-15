@@ -3,6 +3,10 @@
 //!
 //! Today it holds:
 //!
+//! - [`f6`], the ratified `Display` contract's predicate — a refusal
+//!   renders as a sentence and never as its own `Debug` dump — with the
+//!   variant identifier and the field punctuation read off the value
+//!   rather than written down beside the assertion.
 //! - [`fuzz`], the harness every randomized falsification sweep draws
 //!   its RNG, its per-run seed and its EFFORT dial from.
 //! - [`source`], the SHARED Rust lexer for guards that pin a claim
@@ -34,6 +38,7 @@
 #[cfg(test)]
 mod panic_capture;
 
+pub mod f6;
 pub mod fuzz;
 pub mod source;
 pub mod tightness;

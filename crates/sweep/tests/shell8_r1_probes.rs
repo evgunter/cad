@@ -14,10 +14,11 @@
 )]
 
 use geom_core::{Affine3, Tol, Vec3};
+use sweep::test_support::{block, brick};
 use topo::{Body, FaceKey, ShellKey, SolidKey};
 
 use crate::common::approx::band;
-use crate::verbs_shell::{boxy, hollow_box, v, vessel};
+use crate::verbs_shell::{hollow_box, v, vessel};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -129,7 +130,11 @@ fn deep_dump(body: &Body<f64>, solid: SolidKey) -> Vec<String> {
 /// patterns.
 #[test]
 fn r1_axial_door_leaves_the_other_solid_deep_identical() {
-    let pair = beside(&vessel(1.0, 2.0), &boxy(2.0, 3.0, 4.0), 10.0);
+    let pair = beside(
+        &vessel(1.0, 2.0),
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        10.0,
+    );
     let solids: Vec<SolidKey> = pair.solids().map(|(k, _)| k).collect();
     assert_eq!(solids.len(), 2, "a vessel beside a box");
     let (ves, bx) = (solids[0], solids[1]);
@@ -167,7 +172,7 @@ fn r1_a_distant_box_does_not_lever_the_vessels_margins() {
         .expect("the vessel alone")
         .body;
     let far = topo::shell(
-        &beside(&vessel(r, h), &boxy(2.0, 3.0, 4.0), 1.0e6),
+        &beside(&vessel(r, h), &block(2.0, 3.0, 4.0, Tol::witness()), 1.0e6),
         t,
         tol(),
     )
@@ -197,8 +202,12 @@ fn r1_a_distant_box_does_not_lever_the_vessels_margins() {
 #[test]
 fn r1_a_scope_of_two_of_three_solids() {
     let three = beside(
-        &beside(&boxy(2.0, 3.0, 4.0), &boxy(2.0, 3.0, 4.0), 10.0),
-        &boxy(2.0, 3.0, 4.0),
+        &beside(
+            &block(2.0, 3.0, 4.0, Tol::witness()),
+            &block(2.0, 3.0, 4.0, Tol::witness()),
+            10.0,
+        ),
+        &block(2.0, 3.0, 4.0, Tol::witness()),
         20.0,
     );
     let solids: Vec<SolidKey> = three.solids().map(|(k, _)| k).collect();
@@ -251,10 +260,14 @@ fn r1_the_roles_read_is_per_hollow_solid() {
             .count()
     };
     // Only plain solids: nothing is classified at all.
-    let plain = beside(&boxy(2.0, 3.0, 4.0), &boxy(2.0, 3.0, 4.0), 10.0);
+    let plain = beside(
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        10.0,
+    );
     let n_plain = count(&plain);
     // A hollow solid (2 shells) beside a plain one (1 shell).
-    let mixed = beside(&hollow_box(), &boxy(2.0, 3.0, 4.0), 10.0);
+    let mixed = beside(&hollow_box(), &block(2.0, 3.0, 4.0, Tol::witness()), 10.0);
     let n_mixed = count(&mixed);
     // The hollow solid alone.
     let lone = count(&hollow_box());
@@ -282,7 +295,7 @@ fn r1_the_roles_read_is_per_hollow_solid() {
 #[test]
 fn r1_a_hollow_and_a_plain_solid_shell_together() {
     let t = 0.02;
-    let body = beside(&hollow_box(), &boxy(2.0, 3.0, 4.0), 10.0);
+    let body = beside(&hollow_box(), &block(2.0, 3.0, 4.0, Tol::witness()), 10.0);
     let out = topo::shell(&body, t, tol())
         .expect("the mixed body shells")
         .body;
@@ -312,10 +325,10 @@ fn r1_a_hollow_and_a_plain_solid_shell_together() {
 /// through each other, and the row measures whether the verb notices.
 #[test]
 fn r1_a_part_inside_another_solids_void() {
-    // hollow_box() is boxy(2,3,4) shelled at 0.25 — its void is the box
+    // hollow_box() is block(2,3,4, Tol::witness()) shelled at 0.25 — its void is the box
     // [0.25, 1.75] x [0.25, 2.75] x [0.25, 3.75].
     let t = 0.05;
-    let inner = crate::verbs_shell::brick(0.27, 1.73, 0.27, 2.73, 0.27, 3.73);
+    let inner = brick((0.27, 1.73), (0.27, 2.73), (0.27, 3.73), Tol::witness());
     let mut body = hollow_box();
     let placed = topo::transform_rigid(
         &inner,
@@ -365,7 +378,7 @@ fn r1_the_lift_door_is_the_designated_faces_solids() {
     let hollow_vessel = topo::shell(&vessel(r, h), t1, tol())
         .expect("the vessel hollows")
         .body;
-    let pair = beside(&hollow_vessel, &boxy(2.0, 3.0, 4.0), 10.0);
+    let pair = beside(&hollow_vessel, &block(2.0, 3.0, 4.0, Tol::witness()), 10.0);
     // The void's ceiling: the z = h - t1 plane on the vessel's solid.
     let ves = pair.solids().map(|(k, _)| k).next().unwrap();
     // `vessel` revolves about +y, so the void's CEILING is the plane at
@@ -417,8 +430,8 @@ fn r1_the_lift_door_is_the_designated_faces_solids() {
 #[test]
 fn r1_the_solid_order_assertion_is_a_tautology_on_a_clone() {
     let churned = beside(
-        &beside(&hollow_box(), &boxy(1.0, 1.0, 1.0), 10.0),
-        &boxy(1.0, 1.0, 1.0),
+        &beside(&hollow_box(), &block(1.0, 1.0, 1.0, Tol::witness()), 10.0),
+        &block(1.0, 1.0, 1.0, Tol::witness()),
         20.0,
     );
     let a: Vec<SolidKey> = churned.solids().map(|(k, _)| k).collect();
@@ -449,7 +462,11 @@ fn r1_the_solid_order_assertion_is_a_tautology_on_a_clone() {
 #[test]
 fn r1_e2e_two_parts_one_body() {
     let t = 0.05;
-    let assembly = beside(&boxy(2.0, 3.0, 4.0), &vessel(1.0, 2.0), 10.0);
+    let assembly = beside(
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        &vessel(1.0, 2.0),
+        10.0,
+    );
     assert_eq!(
         topo::validate_geometric(&assembly, tol()),
         Ok(()),
@@ -544,7 +561,7 @@ fn r1_e2e_two_parts_one_body() {
 /// what that walk costs.
 #[test]
 fn r1_naming_the_inner_wall_after_two_hollowings() {
-    let once = topo::shell(&boxy(2.0, 3.0, 4.0), 0.25, tol())
+    let once = topo::shell(&block(2.0, 3.0, 4.0, Tol::witness()), 0.25, tol())
         .expect("first hollow")
         .body;
     let twice = topo::shell(&once, 0.05, tol()).expect("second hollow").body;

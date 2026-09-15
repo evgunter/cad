@@ -37,10 +37,11 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::{
-    Alignment, Assembly, AssemblyError, Attribution, AxisSense, CancelToken, CapEnd, ContactClass,
-    DocEdit, DocRef, DocumentId, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, Frame,
-    MateFrame, MatePrimitive, Node, ProfileDoc, RecipeNodeId, Relation, ResolveFailure,
-    ResolveFault, RoleSeg, SitedRef, StableName, assemble, content_pin, evaluate, product_recorded,
+    Alignment, Assembly, AssemblyError, Attribution, AxisSense, CancelToken, CapEnd,
+    CarriedRefusal, ContactClass, DocEdit, DocRef, DocumentId, EntityKey, EntityKind, Entry,
+    EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive, Node, ProfileDoc, RecipeNodeId,
+    Relation, ResolveFailure, ResolveFault, RoleSeg, SitedRef, StableName, assemble, content_pin,
+    evaluate, product_recorded,
 };
 use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
@@ -709,13 +710,17 @@ fn an_inner_mint_refusal_refuses_the_outer_gate_naming_document_and_mate() {
     let inner_ev = run(&inner, &opts(store.clone()));
     assert!(matches!(
         assemble(&inner, &inner_ev, Tol::witness()),
-        Err(AssemblyError::NoAtRestRecord { mate, .. }) if mate == inner_mate
+        Err(AssemblyError::Mint { refusals })
+            if matches!(refusals.as_slice(), [r] if r.mate() == inner_mate)
     ));
 
     let ev = run(&outer, &opts(store));
     let result = assemble(&outer, &ev, Tol::witness());
-    let Err(AssemblyError::CarriedMintRefusal { route, refusal }) = &result else {
+    let Err(AssemblyError::CarriedMintRefusal { refusals }) = &result else {
         panic!("an inner part with an unverified contact is not at rest: {result:?}");
+    };
+    let [CarriedRefusal { route, refusal }] = refusals.as_slice() else {
+        panic!("one broken part, so one carried row: {refusals:?}");
     };
     assert_eq!(
         (route.through, route.of, route.via.len()),
@@ -776,7 +781,8 @@ fn the_carried_refusal_precedes_the_own_unminted_head_and_the_at_rest_gate() {
     let ev = run(&doc, &opts(store.clone()));
     assert!(matches!(
         assemble(&doc, &ev, Tol::witness()),
-        Err(AssemblyError::NoAtRestRecord { mate, .. }) if mate == own_mate
+        Err(AssemblyError::Mint { refusals })
+            if matches!(refusals.as_slice(), [r] if r.mate() == own_mate)
     ));
 
     // (c) The same document over a BROKEN part: the carried refusal
@@ -786,8 +792,8 @@ fn the_carried_refusal_precedes_the_own_unminted_head_and_the_at_rest_gate() {
     let ev = run(&doc, &opts(store));
     let result = assemble(&doc, &ev, Tol::witness());
     assert!(
-        matches!(&result, Err(AssemblyError::CarriedMintRefusal { route, .. })
-            if route.of == broken_id),
+        matches!(&result, Err(AssemblyError::CarriedMintRefusal { refusals })
+            if !refusals.is_empty() && refusals.iter().all(|r| r.route.of == broken_id)),
         "inner mint health is read first: {result:?}"
     );
 }
@@ -803,8 +809,11 @@ fn a_refusal_two_levels_down_names_its_route() {
 
     let ev = run(&outer, &opts(store));
     let result = assemble(&outer, &ev, Tol::witness());
-    let Err(AssemblyError::CarriedMintRefusal { route, refusal }) = &result else {
+    let Err(AssemblyError::CarriedMintRefusal { refusals }) = &result else {
         panic!("the refusal reaches the outermost gate: {result:?}");
+    };
+    let [CarriedRefusal { route, refusal }] = refusals.as_slice() else {
+        panic!("one broken part, so one carried row: {refusals:?}");
     };
     assert_eq!(
         (
@@ -822,14 +831,16 @@ fn a_refusal_two_levels_down_names_its_route() {
     );
 }
 
-/// **Which carried refusal is raised**: the HEAD in gather order, and
-/// only the head — the same rule the own `unminted` head follows, and
-/// the same follow-up would widen both.
+/// **Which carried refusals are raised**: EVERY one, in gather order
+/// — the same rule this document's own `unminted` list follows. An
+/// author whose assembly holds two broken parts has two files to open,
+/// and learning about the second only after repairing the first makes
+/// the gate's answer a function of how many evaluations they ran.
 #[test]
-fn the_head_carried_refusal_in_gather_order_is_the_one_raised() {
+fn every_carried_refusal_is_raised_in_gather_order() {
     let mut store = StubStore::default();
     let (first, first_id, first_mate) = broken_part(&mut store, "docm6-head-first");
-    let (second, second_id, _) = broken_part(&mut store, "docm6-head-second");
+    let (second, second_id, second_mate) = broken_part(&mut store, "docm6-head-second");
     assert_ne!(first_id, second_id);
 
     let doc = ProfileDoc::empty(DocumentId::derive("docm6-head-row"), Tol::witness());
@@ -849,13 +860,21 @@ fn the_head_carried_refusal_in_gather_order_is_the_one_raised() {
         "both rows are carried, in gather order"
     );
     let result = assemble(&doc, &ev, Tol::witness());
-    let Err(AssemblyError::CarriedMintRefusal { route, refusal }) = &result else {
+    let Err(AssemblyError::CarriedMintRefusal { refusals }) = &result else {
         panic!("the gate refuses: {result:?}");
     };
     assert_eq!(
-        (route.through, route.of, refusal.mate()),
-        (a, first_id, first_mate),
-        "the head, not the second"
+        refusals
+            .iter()
+            .map(|r| (r.route.through, r.route.of, r.refusal.mate()))
+            .collect::<Vec<_>>(),
+        vec![(a, first_id, first_mate), (b, second_id, second_mate)],
+        "both rows, in gather order — not the head alone"
+    );
+    let rendered = result.unwrap_err().to_string();
+    assert!(
+        rendered.contains(&first_id.to_string()) && rendered.contains(&second_id.to_string()),
+        "and both documents are named in the one message: {rendered:?}"
     );
 }
 
