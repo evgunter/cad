@@ -18,8 +18,7 @@
 
 use geom::{NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
-use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
-use profile::RawLoop;
+use geom_core::{Affine3, Point3, Tol, Vec3};
 
 /// A `3 × nv` net with no symmetry of its own, on a given `knots_v`.
 fn surface_on(knots_v: Vec<f64>, pv: usize) -> NurbsSurface<f64> {
@@ -84,14 +83,9 @@ fn decimal_symmetric_interior_pairs_mostly_refuse() {
     }
 }
 
+/// The unit square, through the crate's own section helper.
 fn square() -> sweep::Section {
-    let v = |x: f64, y: f64| profile::ProfileVertex::new(Point2::new(x, y), 0.0);
-    vec![profile::ProfileLoop::new(vec![
-        v(-1.0, -1.0),
-        v(1.0, -1.0),
-        v(1.0, 1.0),
-        v(-1.0, 1.0),
-    ])]
+    crate::common::quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)])
 }
 
 /// The `knots_v` a `k`-section loft of equally spaced squares mints,

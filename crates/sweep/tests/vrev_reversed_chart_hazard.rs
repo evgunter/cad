@@ -18,21 +18,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Affine3, Point2, Tol, Vec3};
-use profile::RawLoop;
+use geom_core::{Affine3, Tol, Vec3};
 use std::sync::Arc;
 use topo::{Body, FaceSurface, ValidationError};
 
 fn prism() -> Body<f64> {
-    let square = || -> sweep::Section {
-        let v = |x: f64, y: f64| profile::ProfileVertex::new(Point2::new(x, y), 0.0);
-        vec![profile::ProfileLoop::new(vec![
-            v(-1.0, -1.0),
-            v(1.0, -1.0),
-            v(1.0, 1.0),
-            v(-1.0, 1.0),
-        ])]
-    };
+    let square = || crate::common::quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]);
     let sections = vec![square(), square(), square()];
     let places = vec![
         Affine3::identity(),
