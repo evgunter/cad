@@ -144,14 +144,14 @@ fn the_lifted_form_is_the_revalidated_form<T: EvalScalar>(scalar: &str, channels
                     p.validated.plane().map(T::from_f64)
                 }
                 _ => {
-                    let ValuePayload::Datum(DatumValue::Frame { origin, u, v }) = &ev
+                    let ValuePayload::Datum(DatumValue::Frame(f)) = &ev
                         .value(program.plane)
                         .expect("the frame evaluates")
                         .payload
                     else {
                         panic!("{}: {:?} is a frame", d.name, program.plane);
                     };
-                    SketchPlane::from_frame(*origin, u.get(), v.get())
+                    SketchPlane::from_frame(*f)
                 }
             };
             let loops = program

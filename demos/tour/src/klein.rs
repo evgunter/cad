@@ -225,14 +225,14 @@ use core::f64::consts::PI;
 
 use pncad::authoring::{p2, p3, v2, v3, validated};
 use pncad::geom_brep::SurfaceKind;
-use pncad::geom_core::{Affine3, CertifiedBounds, Mat3, Point3, Tol};
+use pncad::geom_core::{Affine3, CertifiedBounds, Mat3, OrthoFrame, Point3, Tol};
 use pncad::prelude::{Open, ProfileLoop, Start, SurfaceKindSet, circle, query};
 use pncad::profile::SketchPlane;
 use pncad::sweep::blend::{BlendError, fillet_edges};
 use pncad::sweep::{LoftError, Revolution, RevolveAxis, revolve};
 use pncad::topo::{Body, BooleanError, BooleanOp, EdgeKey, Operand};
 
-use crate::scalar::Scalar;
+use crate::scalar::{Scalar, sketch_frame};
 use crate::{SceneBody, Stop, View};
 
 // ---------------------------------------------------------------
@@ -440,10 +440,11 @@ fn sharp_band<S: Scalar>(m: &Meridian, tol: Tol) -> ProfileLoop<S> {
 /// bulb; the partial form exists only so wall 2 can ask the same
 /// question of an OPEN rim (findings entry 2).
 fn bulb<S: Scalar>(loop_: ProfileLoop<S>, revolution: Revolution<S>, tol: Tol) -> Body<S> {
-    let plane = SketchPlane::from_frame(
+    let plane = sketch_frame(
         p3::<S>(0.0, 0.0, 0.0),
         v3::<S>(1.0, 0.0, 0.0),
         v3::<S>(0.0, 0.0, 1.0),
+        tol,
     );
     revolve(
         &validated(plane, vec![loop_], tol).expect("the meridian band validates"),
@@ -473,11 +474,7 @@ fn bulb<S: Scalar>(loop_: ProfileLoop<S>, revolution: Revolution<S>, tol: Tol) -
 /// on the `r ≥ 0` side): the right-hand rule about −ŷ then carries
 /// the section UP, which is where the loop goes.
 fn elbow<S: Scalar>(z0: f64, sweep: f64, tol: Tol) -> Body<S> {
-    let plane = SketchPlane::from_frame(
-        p3::<S>(0.0, 0.0, z0),
-        v3::<S>(1.0, 0.0, 0.0),
-        v3::<S>(0.0, 1.0, 0.0),
-    );
+    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3::<S>(0.0, 0.0, z0)));
     let annulus = vec![
         circle(p2::<S>(0.0, 0.0), S::from_f64(R + WALL / 2.0), tol)
             .expect("the outer wall")
@@ -925,10 +922,11 @@ pub fn wall_probes<S: Scalar + CertifiedBounds>(tol: Tol) {
     // forms for planar faces only, so a multi-shell CURVED solid
     // refuses typed — OFFSET-DESIGN O6's known standing demo gate,
     // recorded here and never worked around.
-    let ring_plane = SketchPlane::from_frame(
+    let ring_plane = sketch_frame(
         p3::<S>(0.0, 0.0, 0.0),
         v3::<S>(1.0, 0.0, 0.0),
         v3::<S>(0.0, 0.0, 1.0),
+        tol,
     );
     let ring = validated(
         ring_plane,
@@ -974,10 +972,11 @@ pub fn wall_probes<S: Scalar + CertifiedBounds>(tol: Tol) {
     // f64: `step_export` is a rendering/interchange-side door and
     // takes the run's own numbers (the wall-7 posture).
     let ring_f64 = validated(
-        SketchPlane::from_frame(
+        sketch_frame(
             p3::<f64>(0.0, 0.0, 0.0),
             v3::<f64>(1.0, 0.0, 0.0),
             v3::<f64>(0.0, 0.0, 1.0),
+            tol,
         ),
         vec![
             circle(p2::<f64>(RLOOP, 0.0), R + WALL / 2.0, tol)

@@ -18,7 +18,7 @@ use crate::common::census::{genus_of, rings_of};
 use geom_core::k_stats::Bracket;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use sweep::test_support::{block, brick};
+use sweep::test_support::{block, brick, tube_frame};
 use sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, tube_along_arc_hollow,
 };
@@ -610,9 +610,12 @@ fn the_full_period_torus_shells_solid_and_hollow_alike() {
     let tol = Tol::witness();
     let (big_r, r, w, t) = (2.0, 0.5, 0.125, 0.05);
     let solid = sweep::tube_along_arc::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+            tol,
+        ),
         big_r,
         TubeWindow::Full,
         r,
@@ -621,9 +624,12 @@ fn the_full_period_torus_shells_solid_and_hollow_alike() {
     .expect("the solid torus builds")
     .body;
     let hollow = tube_along_arc_hollow::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+            tol,
+        ),
         big_r,
         TubeWindow::Full,
         r,

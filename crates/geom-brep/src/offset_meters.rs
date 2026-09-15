@@ -296,12 +296,19 @@ fn cross(a: &[RingInterval; 3], b: &[RingInterval; 3]) -> [RingInterval; 3] {
 /// The enclosure of `‖v‖²` — the DEPENDENT square per component, so
 /// a component straddling zero cannot drag the lower end negative
 /// (`x·x` treats its factors as independent; `x.sqr()` does not).
-fn norm_sq(v: &[RingInterval; 3]) -> RingInterval {
+pub(crate) fn norm_sq(v: &[RingInterval; 3]) -> RingInterval {
     v[0].sqr() + v[1].sqr() + v[2].sqr()
 }
 
 /// A certified upper bound on `‖v‖` for a componentwise enclosure.
-fn norm_sup(v: &[RingInterval; 3]) -> f64 {
+///
+/// Every step rounds outward: the per-component `sqr()` and the two
+/// ring sums, then [`sqrt_up`]. An `f64` fold of the same endpoints
+/// rounds to nearest at each step and can land BELOW the real norm
+/// by ulps, which is the unsound side wherever the result is a
+/// divisor of a lower bound — so a site that wants an upper bound on
+/// a norm calls this rather than re-spelling the fold.
+pub(crate) fn norm_sup(v: &[RingInterval; 3]) -> f64 {
     sqrt_up(norm_sq(v).hi())
 }
 

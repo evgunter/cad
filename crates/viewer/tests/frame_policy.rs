@@ -30,7 +30,7 @@ use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::prelude::{EntityKind, StableName};
 use pncad::select::{ContactClass, Ray};
 use viewer::camera::{Camera, CameraOp};
-use viewer::display::{DisplayFault, DisplayView};
+use viewer::display::{AdmissionFault, DisplayFault, DisplayView, PruneReport, Withdrawn};
 use viewer::evalseam::{
     EvalDone, EvalRequest, EvalService, IndexDone, IndexRequest, IndexService, InlineIndexer,
     MemoReport,
@@ -224,7 +224,7 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
 fn a_joined_line_splits_back_into_the_notices_it_was_made_from() {
     let nests = frame::tool_news(DisplayFault::NonRigidFrame { determinant: 0.5 }.to_string());
     let dashes = frame::tool_news(
-        DisplayFault::FusedGeometry {
+        AdmissionFault::FusedGeometry {
             instance: RecipeNodeId(3),
             root: RecipeNodeId(9),
             others: vec![RecipeNodeId(5)],
@@ -314,6 +314,151 @@ fn the_boundary_mark_belongs_to_the_boundary_alone() {
     assert!(
         !frame::LIST_SEPARATOR.trim().is_empty(),
         "what the door rewrites a boundary mark TO has to be a mark"
+    );
+}
+
+/// Each admission fault's position in the vocabulary, as an
+/// exhaustive match — the census's oracle, and `path_authoring`'s
+/// `ordinal` shape ported to a payload-carrying enum.
+///
+/// **A fault added to `AdmissionFault` takes a number BEFORE
+/// `FusedGeometry`'s, and `FusedGeometry` keeps the last one.** The
+/// row below reads the vocabulary's size off `FusedGeometry` — it has
+/// no other way to know it — so a fault numbered past it would be a
+/// fault the census never renders. Renumbering the arms is free; the
+/// obligation is only that `FusedGeometry` ends them.
+fn cause_ordinal(cause: &AdmissionFault) -> usize {
+    match cause {
+        AdmissionFault::NoSuchNode { .. } => 0,
+        AdmissionFault::NotAnInstance { .. } => 1,
+        AdmissionFault::MateConstrained { .. } => 2,
+        AdmissionFault::FusedGeometry { .. } => 3,
+    }
+}
+
+/// One of each admission fault, payloads plural where the arm renders
+/// a list — the shape most likely to reach for a separator.
+fn every_cause() -> Vec<AdmissionFault> {
+    vec![
+        AdmissionFault::NoSuchNode {
+            node: RecipeNodeId(4),
+        },
+        AdmissionFault::NotAnInstance {
+            node: RecipeNodeId(5),
+        },
+        AdmissionFault::MateConstrained {
+            instance: RecipeNodeId(6),
+            mates: vec![RecipeNodeId(7), RecipeNodeId(8)],
+        },
+        AdmissionFault::FusedGeometry {
+            instance: RecipeNodeId(9),
+            root: RecipeNodeId(10),
+            others: vec![RecipeNodeId(11), RecipeNodeId(12)],
+        },
+    ]
+}
+
+/// **No cause a withdrawal can carry writes the mark its causes are
+/// joined on.**
+///
+/// `Display for Withdrawal` joins a withdrawal's causes flat with
+/// `LIST_SEPARATOR`, so a cause whose own sentence writes one reads as
+/// an item more than it is — the ambiguity-at-two the notice level
+/// answered with a mark of its own. One level in there is no mark left
+/// to take: every remaining candidate is punctuation a sentence is
+/// entitled to, and a door that rewrote it would show a reader words
+/// its author did not write.
+///
+/// What is held instead is the POPULATION. The admission tests answer
+/// `AdmissionFault` and `Withdrawn::cause` stores what they answer, so
+/// the sentences this claim ranges over are exactly these four — the
+/// compiler's census, `cause_ordinal` being exhaustive and the
+/// ordinals having to run from 0 with no hole — and this row is the
+/// claim over it. Before the narrowing the field was the whole of
+/// `DisplayFault`, where `NonRigidFrame` writes a `LIST_SEPARATOR`
+/// inside one sentence: the property was true only because neither
+/// test happened to raise it, which is not something a reader of
+/// either type could see.
+#[test]
+fn a_withdrawn_cause_never_carries_the_list_mark() {
+    let covered: std::collections::BTreeSet<usize> =
+        every_cause().iter().map(cause_ordinal).collect();
+    let contiguous: std::collections::BTreeSet<usize> = (0..covered.len()).collect();
+    assert_eq!(
+        covered, contiguous,
+        "the causes covered here leave a hole: every ordinal from 0 needs a sample",
+    );
+    assert_eq!(
+        covered.len(),
+        cause_ordinal(&AdmissionFault::FusedGeometry {
+            instance: RecipeNodeId(1),
+            root: RecipeNodeId(2),
+            others: vec![],
+        }) + 1,
+        "the vocabulary is bigger than this row covers — see `cause_ordinal`'s obligation",
+    );
+
+    for cause in every_cause() {
+        let sentence = cause.to_string();
+        assert!(
+            !sentence.contains(frame::LIST_SEPARATOR),
+            "a cause that writes the list mark nests inside the join that \
+             uses it, and the withdrawal reads as one cause more than it \
+             has: {sentence}"
+        );
+    }
+}
+
+/// **A withdrawal's cause list splits back into the causes it joined.**
+///
+/// The row above is the claim about each sentence; this is the claim
+/// about the join, driven through the one public door from a report to
+/// its notices. Every cause the type admits is in this one withdrawal,
+/// so the split is over the whole population rather than over a pair
+/// chosen for the row.
+///
+/// The preamble is taken off at its own mark — the em-dash
+/// `Display for Withdrawal` writes once, before the first cause — and
+/// what is left is the list. A cause's own sentence may carry an
+/// em-dash and two of these do; `split_once` takes the first, which is
+/// the preamble's, and that is why the em-dash was never the boundary
+/// the notice level had to move off.
+#[test]
+fn a_withdrawals_cause_list_splits_back_into_its_causes() {
+    let causes = every_cause();
+    let report = PruneReport {
+        superseded: causes
+            .iter()
+            .enumerate()
+            .map(|(seat, cause)| Withdrawn {
+                instance: RecipeNodeId(seat as u64 + 20),
+                cause: cause.clone(),
+            })
+            .collect(),
+        ..PruneReport::default()
+    };
+    let withdrawal = frame::Withdrawal::all(&report)
+        .next()
+        .expect("a report with superseded placements words them");
+    let sentence = withdrawal.to_string();
+    let (preamble, list) = sentence
+        .split_once(" \u{2014} ")
+        .expect("the preamble is followed by the causes");
+    assert!(
+        preamble.contains(&causes.len().to_string()),
+        "the preamble counts what it introduces: {preamble}"
+    );
+    assert_eq!(
+        list.split(frame::LIST_SEPARATOR).collect::<Vec<_>>(),
+        causes
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        "the join is invertible: each piece is one cause's own rendering, \
+         whole, and there are as many pieces as there were causes"
     );
 }
 
@@ -2314,7 +2459,7 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     );
     // The PAYLOAD, not the variant: the variant is what the op this row
     // just performed already implies.
-    let DisplayFault::MateConstrained { instance, mates } = &superseded.cause else {
+    let AdmissionFault::MateConstrained { instance, mates } = &superseded.cause else {
         panic!(
             "a mate landing supersedes with its own fault: {}",
             superseded.cause

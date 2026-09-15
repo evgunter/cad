@@ -10,6 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point3, Tol, Vec3};
+use sweep::test_support::tube_frame;
 use sweep::{TubeWindow, tube_along_arc};
 
 /// Prints one bit-faithful line per solid-door configuration, tagged
@@ -34,9 +35,12 @@ fn r2_solid_door_bits_dump() {
             Some((t0, t1)) => TubeWindow::Arc { t0, t1 },
         };
         let t = tube_along_arc::<f64>(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::unit_y(),
-            Vec3::unit_x(),
+            tube_frame(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::unit_y(),
+                Vec3::unit_x(),
+                Tol::witness(),
+            ),
             major,
             window,
             minor,
@@ -52,11 +56,12 @@ fn r2_solid_door_bits_dump() {
             t.body
         );
     }
-    // The five refusal doors, with their rendered messages: the solid
-    // door's verdict sequence is part of what must not have moved.
+    // The refusal doors the SOLID door still has, with their rendered
+    // messages: the verdict sequence is part of what must not have
+    // moved. The two frame doors are not among them — the spine frame
+    // arrives as a witness, so a non-unit axis is normalized at its
+    // mint and a reference on the axis line refuses there.
     let bad = [
-        (Vec3::unit_y() * 1.5, Vec3::unit_x(), 2.0, 0.5, None),
-        (Vec3::unit_y(), Vec3::unit_y(), 2.0, 0.5, None),
         (
             Vec3::unit_y(),
             Vec3::unit_x(),
@@ -79,9 +84,7 @@ fn r2_solid_door_bits_dump() {
             Some((t0, t1)) => TubeWindow::Arc { t0, t1 },
         };
         let e = tube_along_arc::<f64>(
-            Point3::new(0.0, 0.0, 0.0),
-            axis,
-            u_ref,
+            tube_frame(Point3::new(0.0, 0.0, 0.0), axis, u_ref, Tol::witness()),
             major,
             window,
             minor,

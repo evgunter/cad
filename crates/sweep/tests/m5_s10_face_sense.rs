@@ -36,7 +36,7 @@ use profile::RawLoop;
 
 use geom::Surface;
 use geom_core::Tol;
-use geom_core::{Band, Point2, Point3};
+use geom_core::{Band, OrthoFrame, Point2, Point3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use revolve_common::{axis_y, p2, validated};
 use sweep::{Extrusion, Revolution, extrude, revolve};
@@ -364,11 +364,7 @@ fn pellet() -> Body<f64> {
         p2(1.1, 1.35),
         p2(0.9, 1.35),
     ]);
-    let plane = SketchPlane::from_frame(
-        Point3::new(0.0, 0.0, 0.3),
-        geom_core::Vec3::new(1.0, 0.0, 0.0),
-        geom_core::Vec3::new(0.0, 1.0, 0.0),
-    );
+    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(0.0, 0.0, 0.3)));
     let vp = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();

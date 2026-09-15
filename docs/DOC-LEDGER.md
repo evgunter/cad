@@ -3176,6 +3176,54 @@ which is the filed TRIM row). Recorded in the PR body and the unit's
 
 - `EXHAUST-LANE-SPEC.md` — EXHAUST-LANE, the exhaustiveness receipt carries its lane (#2667)
 
+## Per-merge deletion — PROPS mignitude-floor's spec (2026-09-15)
+
+Recoverable at `git show f050e2d6f:docs/PROPS-MIGNITUDE-FLOOR-SPEC.md`
+(the unit head, before the state-sync commit that deleted it). Its
+acceptance held as written — `e_lo` within a factor of two of `|d|` at
+the micron row's sup cell (0.56 of it), every certificate tighter or
+unchanged, the fit's bits unmoved — with two sentences the measurement
+did not support. "Every certificate tightens or holds" is true of the
+CELL bound and not of the DOOR bound, which is not monotone in it: one
+of seventy requests rose by 1.8 per cent through the marking schedule,
+which the spec called a MAJOR finding to stop and report, and which the
+unit reported, filed and did not fix (both review lanes judged filing
+right — a marking rule that changes every request's schedule is a unit,
+not a rider). And the spec's "read whether meter 1 has a witness to
+read together" resolves to: it does not need one, because
+`offset_meters::cell_normal` already joins its componentwise assembly
+with two together-readings and takes the largest. The rule above; the
+unit's record is its `## Closed` section, its row in `MODEL-AB-LOG.md`
+(ordinal 2404, sample #208) and the MERGED entry in `work/props/log.md`.
+
+- `PROPS-MIGNITUDE-FLOOR-SPEC.md` — PROPS mignitude-floor, the floor on the residual's norm read through the sign witness instead of componentwise (#2469)
+
+## Per-merge deletion — FRAME-WITNESS's spec (2026-09-15)
+
+Recoverable at `git show 65dd211e3:docs/FRAME-WITNESS-SPEC.md` (the
+fix-pass head). Its sentences that did not survive: "`from_aim` … the
+`point_at`/`path_start_frame` recipe" as a public mint — the dual's
+bilateral MAJOR: it took perpendicularity on trust, so it is
+`pub(in crate::linalg)` and the public aim door is
+`from_aim_and_reference`, which makes the perpendicular; "`w = u × v`
+… the rounded cross product" — for the aim mints `w` is the aim
+verbatim, `v = aim × u`, and the type's doc says `w` is the third
+witness the mint produced; "`gram_schmidt(origin, u_raw, v_raw,
+site_u, site_v, band)`" — one `site`, the refusal an `OrthoFrameError
+{ axis, error }` naming the ROLE (`OrthoAxis::U` kept, `V` yields)
+shared by all four mints; "`Node.tube` … mint the frame … through
+`from_aim`" — the one home is `from_axis_and_reference(origin,
+axis_raw, reference, site, band)` and the five copies of that ladder
+(Python tube doors, `tube_args`, the tour) became one call each;
+"WIRE's private `AxisFrame` becomes `OrthoFrame`" — read and folded
+through `frame_axes` (no separate struct remains); "`SketchPlane` …
+hand the frame through" for the stored placement — it holds any
+`Affine3`, said honestly, with the witness dying at the read boundary
+(the filed BOOL row). Recorded in the PR body and the unit's
+`## Closed` section.
+
+- `FRAME-WITNESS-SPEC.md` — FRAME-WITNESS, the frame witness in geom-core, minted by the decided ladders; `from_frame` and the tube door take it (#2675)
+
 ## Per-merge deletion — SENSE-FOLD's spec (2026-09-15)
 
 Recoverable at `git show 80ab05d69:docs/SENSE-FOLD-SPEC.md` (the

@@ -422,15 +422,15 @@ fn frame_of(
     ev: &editor_core::Evaluation<f64>,
     node: RecipeNodeId,
 ) -> (Vec3<f64>, Vec3<f64>, Vec3<f64>) {
-    let ValuePayload::Datum(DatumValue::Frame { origin, u, v }) =
+    let ValuePayload::Datum(DatumValue::Frame(f)) =
         &ev.value(node).expect("the frame evaluated").payload
     else {
         panic!("a frame value");
     };
     (
-        *origin - geom_core::Point3::origin(),
-        UnitVec3::get(*u),
-        UnitVec3::get(*v),
+        f.origin() - geom_core::Point3::origin(),
+        UnitVec3::get(f.u()),
+        UnitVec3::get(f.v()),
     )
 }
 

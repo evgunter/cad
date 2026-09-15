@@ -44,6 +44,7 @@ use core::f64::consts::PI;
 
 use geom::Surface;
 use geom_core::{Point3, Tol, Vec3};
+use sweep::test_support::tube_frame;
 use sweep::{Revolved, TubeError, TubeWindow, tube_along_arc, tube_along_arc_hollow};
 use topo::Body;
 
@@ -68,9 +69,12 @@ fn hollow(major: f64, outer: f64, wall: f64, window: Option<(f64, f64)>) -> Revo
         Some((t0, t1)) => TubeWindow::Arc { t0, t1 },
     };
     tube_along_arc_hollow::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_z(),
-        Vec3::unit_x(),
+        tube_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+            Tol::witness(),
+        ),
         major,
         window,
         outer,
@@ -139,9 +143,12 @@ fn the_bore_differences_out_against_the_solid_door() {
         let inner = outer - wall;
         let h = hollow(major, outer, wall, window);
         let s = tube_along_arc::<f64>(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::unit_z(),
-            Vec3::unit_x(),
+            tube_frame(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::unit_z(),
+                Vec3::unit_x(),
+                Tol::witness(),
+            ),
             major,
             TubeWindow::Arc { t0, t1 },
             outer,
@@ -198,9 +205,12 @@ fn intent_bits_survive_adversarial_values() {
 fn u_ref_caveat_is_honest_in_both_directions() {
     let get_u_refs = |t0: f64| -> Vec<Vec3<f64>> {
         let t = tube_along_arc_hollow::<f64>(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::unit_z(),
-            Vec3::unit_x(),
+            tube_frame(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::unit_z(),
+                Vec3::unit_x(),
+                Tol::witness(),
+            ),
             2.5,
             TubeWindow::Arc { t0, t1: t0 + 1.5 },
             0.6,
@@ -245,9 +255,12 @@ fn the_metered_wall_refuses_what_a_bracket_read_would_pass() {
     let in_band = eps * k.sqrt();
     let build = |outer: f64, wall: f64| {
         tube_along_arc_hollow::<f64>(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::unit_z(),
-            Vec3::unit_x(),
+            tube_frame(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::unit_z(),
+                Vec3::unit_x(),
+                Tol::witness(),
+            ),
             2.0,
             TubeWindow::Full,
             outer,
@@ -352,9 +365,12 @@ mod certified {
                 },
             };
             let built = tube_along_arc_hollow::<Interval>(
-                Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-                Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                tube_frame(
+                    Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                    Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+                    Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                    Tol::witness(),
+                ),
                 iv(major),
                 win,
                 iv(outer),
@@ -369,9 +385,12 @@ mod certified {
                 // door must refuse the identical fixture.
                 Err(TubeError::Revolve(_)) if major >= 1000.0 && eps <= 1e-12 => {
                     let solid = tube_along_arc::<Interval>(
-                        Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                        Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-                        Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                        tube_frame(
+                            Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                            Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+                            Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                            Tol::witness(),
+                        ),
                         iv(major),
                         win,
                         iv(outer),
