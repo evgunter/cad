@@ -706,6 +706,29 @@ impl GeomPred {
     }
 }
 
+/// **The `SelectRefusal` class's whole attribute shape**, with
+/// `reason` filled and every payload attribute present and `None`.
+///
+/// One declaration for the two doors that raise this class, so the
+/// house every-attribute-always-present rule cannot hold at one of
+/// them and not the other: a caller that reads `err.name` after
+/// catching a `SelectRefusal` gets `None`, never an `AttributeError`,
+/// whichever door refused. The arms that carry a payload overwrite
+/// their own entries by index below.
+pub(crate) fn refusal_fields(py: Python<'_>, reason: &str) -> Vec<(&'static str, Py<PyAny>)> {
+    let none = || py.None().into_any();
+    vec![
+        ("reason", PyString::new(py, reason).unbind().into_any()),
+        ("name", none()),
+        ("predicate", none()),
+        ("matched", none()),
+        ("candidates", none()),
+        ("datum", none()),
+        ("found", none()),
+        ("dim", none()),
+    ]
+}
+
 /// Raise `SelectRefusal` mirroring the kernel's refusal: `reason` is
 /// the arm's stable tag (`crate::tags::select_refusal_tag`), and the
 /// per-arm payload rides as attributes that are ALWAYS present —
@@ -720,22 +743,11 @@ impl GeomPred {
 /// contract; the message is prose.
 pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
     use s::SelectRefusal as R;
-    let reason = select_refusal_tag(err);
-    let none = || py.None().into_any();
     let text = |v: &str| PyString::new(py, v).unbind().into_any();
     // `name` renders through `name_text` — the same alphabet every
     // other door speaks. A serialization failure surfaces as its own
     // raise rather than being swallowed.
-    let mut fields: Vec<(&str, Py<PyAny>)> = vec![
-        ("reason", text(reason)),
-        ("name", none()),
-        ("predicate", none()),
-        ("matched", none()),
-        ("candidates", none()),
-        ("datum", none()),
-        ("found", none()),
-        ("dim", none()),
-    ];
+    let mut fields = refusal_fields(py, select_refusal_tag(err));
     let message = match err {
         R::InBand {
             name,

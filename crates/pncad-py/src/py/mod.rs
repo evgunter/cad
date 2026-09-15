@@ -673,7 +673,7 @@ fn raise_typed(
     let err = match class {
         ErrorClass::Edit => EditError::new_err(message),
         ErrorClass::Evaluation(_) => EvaluationError::new_err(message),
-        ErrorClass::Validation => ValidationError::new_err(message),
+        ErrorClass::Validation(_) => ValidationError::new_err(message),
         ErrorClass::Dimension => DimensionError::new_err(message),
         ErrorClass::FmtQuantity => FmtQuantityError::new_err(message),
         ErrorClass::Literal => LiteralError::new_err(message),
@@ -720,15 +720,33 @@ fn raise_typed(
     // that the word the class carries is the word Python reads even
     // where a site spelled one beside it (`typed_err` asserts that it
     // did not).
-    if let ErrorClass::Evaluation(reason) = class
-        && let Err(set_failed) = value.setattr(
-            "reason",
-            pyo3::types::PyString::new(py, crate::tags::eval_reason_tag(reason)),
-        )
+    if let Some((attribute, word)) = class_discriminant(class)
+        && let Err(set_failed) = value.setattr(attribute, pyo3::types::PyString::new(py, word))
     {
         return set_failed;
     }
     PyErr::from_value(value.clone().into_any())
+}
+
+/// The attribute a class's own carried discriminant is written to, and
+/// the word written there — `None` for a class that carries none.
+///
+/// The two classes that carry one are the two whose discriminant is
+/// this crate's decision rather than a kernel refusal's tag, and
+/// carrying it is what makes the word unspellable at a raise site: a
+/// site cannot name the class without naming a variant, and the word is
+/// minted here from the exhaustive map rather than read off the field
+/// list. Every other class's `variant` or `reason` is a kernel enum's
+/// word, taken from that enum's own map at the raise.
+fn class_discriminant(class: ErrorClass) -> Option<(&'static str, &'static str)> {
+    match class {
+        ErrorClass::Evaluation(reason) => Some(("reason", crate::tags::eval_reason_tag(reason))),
+        ErrorClass::Validation(refusal) => Some((
+            refusal.attribute(),
+            crate::tags::validation_refusal_tag(refusal),
+        )),
+        _ => None,
+    }
 }
 
 /// Python bindings for the pncad B-rep CAD kernel.

@@ -114,7 +114,7 @@ fn error_classes_name_the_python_hierarchy() {
         match class {
             ErrorClass::Edit => "EditError",
             ErrorClass::Evaluation(_) => "EvaluationError",
-            ErrorClass::Validation => "ValidationError",
+            ErrorClass::Validation(_) => "ValidationError",
             ErrorClass::Dimension => "DimensionError",
             ErrorClass::FmtQuantity => "FmtQuantityError",
             ErrorClass::Literal => "LiteralError",
@@ -151,11 +151,11 @@ fn error_classes_name_the_python_hierarchy() {
     }
     for class in [
         ErrorClass::Edit,
-        // The one class with a payload: its word is the same for
-        // every reason, and `eval_reason_tag` is what pins the
-        // reasons themselves.
+        // The two classes with a payload: the word is the same for
+        // every reason, and `eval_reason_tag` and
+        // `validation_refusal_tag` are what pin the reasons themselves.
         ErrorClass::Evaluation(crate::errors::EvalReason::NodeFailed),
-        ErrorClass::Validation,
+        ErrorClass::Validation(crate::errors::ValidationRefusal::Validate),
         ErrorClass::Dimension,
         ErrorClass::FmtQuantity,
         ErrorClass::Literal,
@@ -3759,6 +3759,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "boundary_edit_tag",
+        values: &["name_serialize"],
+        delegates: &["declare_error_tag", "placement_rule_fault_tag"],
+    },
+    TagEntry {
         function: "boolean_error_tag",
         values: &[
             "arc_loop_containment_unsupported",
@@ -4638,10 +4643,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_a_length",
             "pair_in_band",
             "tied_disagrees",
-            "unclassified",
             "unreadable",
         ],
-        delegates: &["band_error_tag"],
+        delegates: &["band_error_tag", "unmirrored_select_tag"],
     },
     TagEntry {
         function: "shell_classify_error_tag",
@@ -4838,6 +4842,15 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "stl_refusal_tag",
+        values: &["not_utf8"],
+        delegates: &[
+            "binary_header_error_tag",
+            "solid_name_error_tag",
+            "stl_error_tag",
+        ],
+    },
+    TagEntry {
         function: "structure_refusal_tag",
         values: &["flipped", "indeterminate"],
         delegates: &[],
@@ -4915,8 +4928,26 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "unmirrored_select_tag",
+        // Twice on purpose: one word for two arms, and the multiset is
+        // what says the two are held equal here rather than by prose.
+        values: &["unclassified", "unclassified"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "update_error_tag",
         values: &["already_pinned", "no_such_reference"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "validation_refusal_tag",
+        values: &[
+            "mass_properties_failed",
+            "validate",
+            "validate_closed",
+            "validate_geometric",
+            "validate_pseudomanifold",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5098,6 +5129,11 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("unknown_param", 4),
     ("unnamed", 2),
     ("unreadable", 2),
+    // `program_refusal_tag`'s profile-program validator and
+    // `validation_refusal_tag`'s `Body.validate`: two vocabularies that
+    // share an English word and nothing else — different attributes on
+    // different classes. Coincidence, decided here.
+    ("validate", 2),
     ("vertex", 2),
     ("vertex_on_edge", 2),
     ("vertex_on_face", 2),
@@ -5146,20 +5182,22 @@ fn every_word_two_tag_maps_share_is_on_the_committed_roster() {
 /// The committed inventory of `src/tags.rs`'s `pub const` tag words —
 /// the tags that are not behind a `match` at all.
 ///
-/// **Empty, and that is a fact about the file rather than a gap in the
-/// pin.** Every tag in `src/tags.rs` is behind an exhaustive `match`
-/// today, which is the arrangement that makes a new one stop the
-/// build. The row that used to sit here was the evaluation door's
-/// standing-ladder rung, spelled by hand because that door had no enum
-/// to match on; it has one now ([`crate::errors::EvalReason`]) and the
-/// word comes from [`crate::tags::eval_reason_tag`] with the rest of
-/// that door's vocabulary.
+/// **One row, and what a row here means is weaker than a map's.** A
+/// word behind an exhaustive `match` is reached by naming a variant,
+/// so a raise site cannot spell a new one and a kernel arm that
+/// arrives without a word stops the build. A `pub const` gives neither:
+/// it pins the TEXT where this guard reads it, and the next raise site
+/// can still write a literal.
 ///
-/// The half of the guard that reads the `pub const` form still runs —
-/// against a fixture, in
-/// [`the_tag_table_reader_recognises_every_form_it_claims`] — so a
-/// `pub const` added to `src/tags.rs` still reds here as a NEW word.
-const TAG_CONSTS: &[(&str, &str)] = &[];
+/// So the form is the fallback for a word that has no enum to hang
+/// off. [`crate::tags::STEP_IMPORT_WIREFRAME`] is one: it names an arm
+/// of the STEP importer's SUCCESS enum that the import door does not
+/// adopt, while the other twenty-one words on that attribute are the
+/// kernel refusal's, so there is no type the class could carry that
+/// would not be a second spelling of the kernel's arm list. That
+/// door's growth is walled by the compiler instead — the enum is not
+/// `#[non_exhaustive]` and the door matches it exhaustively.
+const TAG_CONSTS: &[(&str, &str)] = &[("STEP_IMPORT_WIREFRAME", "wireframe")];
 
 /// Everything [`read_tag_table`] recognised in the source it read.
 struct TagTable {
@@ -6011,47 +6049,42 @@ fn read_tag_table(source: &str) -> TagTable {
 /// `select_refusal_tags_are_stable`), so nothing on this page pins
 /// them. `work/lib/` carries that as its own row.
 ///
-/// **The `reason` words are a second family, and the EVALUATION
-/// door's half is now inside.** A `reason` attribute is as
-/// Python-visible as a `variant`, and `py/value.rs` used to mint its
-/// words at ten sites — nine of them bare literals — where an
-/// inventory that reads `src/tags.rs` alone could not see them. The
-/// evaluation door's six (`wrong_kind`, `empty_boolean`,
-/// `unknown_node`, `node_not_evaluated`, `node_failed`, `poisoned`)
-/// now come from [`crate::tags::eval_reason_tag`] over
-/// [`crate::errors::EvalReason`], so they are pinned above and a
-/// seventh cannot be minted at a raise site: the reason rides on the
-/// CLASS (`errors::ErrorClass::Evaluation` carries the enum), so no
-/// raise of that class — in this file or in one that does not exist
-/// yet — can be written without naming a variant of it.
+/// **The `reason` and `door` words are a second family, and no raise
+/// site under `src/py/` mints one any more.** Such an attribute is as
+/// Python-visible as a `variant`, and the words used to be spelled at
+/// construction sites where an inventory reading `src/tags.rs` alone
+/// could not see them. Two classes now CARRY their discriminant, which
+/// is the strongest of the arrangements below because it makes the
+/// word unspellable rather than merely spelled elsewhere: no raise of
+/// [`crate::errors::ErrorClass::Evaluation`] or
+/// [`crate::errors::ErrorClass::Validation`] — in this crate or in a
+/// file that does not exist yet — can be written without naming a
+/// variant, and `crate::py::raise_typed` mints the word from the map.
 ///
-/// **What is still outside**, each a literal `reason` or `variant` at
-/// a construction site under `src/py/` — and only one of the three is
-/// a door with no vocabulary of its own:
+/// **The other doors are closed one rung lower, and the difference is
+/// worth reading.** `crate::py::doc`'s boundary raise takes a
+/// [`crate::errors::BoundaryEdit`] and `crate::py::mesh`'s export raise
+/// a [`crate::errors::StlRefusal`], so no CALL SITE of either can spell
+/// a word — but `EditError.variant` and `StlError.variant` also carry
+/// the kernel refusals' own words, so the class cannot carry a type
+/// without the binding restating a kernel enum's arm list, and a fresh
+/// raise of either class could still pass a `variant` of its own.
+/// [`crate::tags::unmirrored_select_tag`] is lower again: it makes the
+/// query door's wildcard and the contact-class crossing one word in one
+/// place, and stops there.
 ///
-/// * `"mass_properties_failed"` (`py/value.rs`'s `measurement_err`) —
-///   a `ValidationError`, not this door, and a door whose `reason` has
-///   no enum anywhere.
-/// * `"unclassified"` (`py/flush.rs`'s unknown-`ContactClass`
-///   refusal) — a `SelectRefusal`, whose `reason` everywhere else
-///   comes from [`crate::tags::select_refusal_tag`], **which mints
-///   this same word at its own wildcard arm**. A second spelling of
-///   one word on one attribute of one class, not an unenumerated
-///   door.
-/// * `"wireframe"` (`py/value.rs`'s STEP-import success arm this door
-///   does not adopt) — a `StepImportError`, whose `variant` otherwise
-///   comes from the inventoried `step_import_error_tag`; the site's
-///   own comment says the word shares that namespace.
+/// **And one word is pinned by text alone**, which is the weakest
+/// arrangement and is marked as such where it lives:
+/// [`crate::tags::STEP_IMPORT_WIREFRAME`], in [`TAG_CONSTS`].
 ///
-/// Each is covered only by accident — `pncad.pyi` or a Python test
-/// names it — and nothing reds if one is renamed or a fourth is
-/// added. **Three is what a sweep for a literal beside a
-/// `reason`/`variant` key finds, not the population**: the same
-/// words minted in tuple position (`py/mesh.rs`'s `not_utf8`), passed
-/// as a `&'static str` argument (`py/doc.rs`'s `name_serialize`, the
-/// four `ValidationError.door` words) or returned from a getter under
-/// `src/py/` are the same class and are invisible to it.
-/// `work/census/` carries the measured population as two rows.
+/// **What a sweep shape can and cannot see** is the standing lesson
+/// here rather than any of those words. A sweep for a literal beside a
+/// `reason`/`variant` key found three of the nine; the same words
+/// minted in tuple position, passed as a `&'static str` argument, or
+/// returned from a getter are the same class and were invisible to it.
+/// `work/census/` carries what is measured and unfixed — including
+/// `DimensionError.op`, whose twelve words still reach Python from
+/// literals at call sites of two `&'static str` parameters.
 #[test]
 fn the_whole_tag_table_matches_its_committed_inventory() {
     // `crate_dir`, not the baked path alone: a nextest ARCHIVE replayed
