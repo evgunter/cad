@@ -963,12 +963,12 @@ impl Value {
                 in_plane: None,
                 axes: None,
             }),
-            d::ValuePayload::Datum(d::DatumValue::Frame { origin, u, v }) => {
-                let (x, y) = (u.get(), v.get());
-                let n = d::DatumValue::frame_normal(*u, *v);
+            d::ValuePayload::Datum(d::DatumValue::Frame(f)) => {
+                let (x, y) = (f.u().get(), f.v().get());
+                let n = f.w().get();
                 Ok(Datum {
                     kind: "frame",
-                    origin: lengths(*origin),
+                    origin: lengths(f.origin()),
                     direction: Some((n.x, n.y, n.z)),
                     in_plane: None,
                     axes: Some(((x.x, x.y, x.z), (y.x, y.y, y.z))),

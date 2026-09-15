@@ -90,7 +90,7 @@
 
 use geom::NurbsCurve3;
 use geom_brep::PcurveFittedLane;
-use geom_core::{Affine3, Band, Bounds, Decide, Point2, Point3, Real, Vec2, Vec3};
+use geom_core::{Affine3, Band, Bounds, Decide, OrthoFrame, Point2, Point3, Real, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, EdgeKey, FaceKey, LoopBoundary};
@@ -555,11 +555,7 @@ pub fn extruded<T: Decide>(
 /// The world xy sketch plane lifted to station `z0`, the placement
 /// every axis-aligned fixture here extrudes from.
 pub fn sketch_at<T: Decide>(z0: T) -> SketchPlane<T> {
-    SketchPlane::new(Affine3::from_frame(
-        Point3::new(T::zero(), T::zero(), z0),
-        Vec3::new(T::one(), T::zero(), T::zero()),
-        Vec3::new(T::zero(), T::one(), T::zero()),
-    ))
+    SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(T::zero(), T::zero(), z0)))
 }
 
 /// **A prism on an arbitrary sketch plane**: one closed loop of

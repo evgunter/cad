@@ -429,10 +429,10 @@ fn draw_one(node: RecipeNodeId, datum: &DatumValue<f64>, view: View) -> DatumDra
             kind: DatumKind::Point,
             segments: point_segments(*position, view),
         },
-        DatumValue::Frame { origin, u, v } => DatumDraw {
+        DatumValue::Frame(f) => DatumDraw {
             node,
             kind: DatumKind::Frame,
-            segments: frame_segments(*origin, u.get(), v.get(), view),
+            segments: frame_segments(f.origin(), f.u().get(), f.v().get(), view),
         },
         // Drawn from the WORLD lift, and drawn as the axis it is: the
         // sketch coordinates it was authored in are what a revolve

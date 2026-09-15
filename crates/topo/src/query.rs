@@ -95,7 +95,8 @@ use geom::Curve3;
 use geom_brep::{SurfaceKey, SurfaceKind};
 use geom_core::k_stats::decide;
 use geom_core::{
-    Band, Bounds, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, UnitVec3, Vec2, Vec3,
+    Band, Bounds, Decide, Indeterminate, Margin, OrthoFrame, Point2, Point3, Real, Sign, UnitVec3,
+    Vec2, Vec3,
 };
 
 use crate::body::Body;
@@ -437,21 +438,12 @@ pub enum DatumValue<T: Real> {
     /// `(x, y)` pair on. The two are separate variants for that
     /// reason, not as a naming accident.
     ///
-    /// `u` and `v` are unit by their type and ORTHOGONAL by the
-    /// contract of whoever built the value — the evaluation layer
-    /// orthonormalizes and refuses a degenerate pair loudly, so a
-    /// frame reaching a consumer spans a plane. The normal is `u × v`,
-    /// computed rather than stored: storing it would be a second
-    /// opinion that could come to disagree with the pair.
-    Frame {
-        /// Sketch (0, 0) in world space.
-        origin: Point3<T>,
-        /// The first in-plane direction — sketch +x.
-        u: UnitVec3<T>,
-        /// The second in-plane direction — sketch +y, perpendicular to
-        /// `u`.
-        v: UnitVec3<T>,
-    },
+    /// The payload is the frame WITNESS: `u` (sketch +x) and `v`
+    /// (sketch +y) are unit and orthogonal as a property of the type,
+    /// decided where the frame was minted, and `w = u × v` is the
+    /// normal — carried by the witness rather than recomputed at each
+    /// reader, which is where two spellings would drift apart.
+    Frame(OrthoFrame<T>),
     /// **An axis that lives in a sketch frame**, carried in BOTH
     /// spellings — the frame's own 2-D coordinates, and the world
     /// line those coordinates name.
@@ -483,21 +475,6 @@ pub enum DatumValue<T: Real> {
         /// direction, unit.
         dir: UnitVec3<T>,
     },
-}
-
-impl<T: Real> DatumValue<T> {
-    /// A frame's normal, `u × v` — unit because a unit orthogonal pair
-    /// crosses to a unit vector, so this is a projection of the frame
-    /// and not a renormalization.
-    ///
-    /// Spelled here rather than at each reader for the reason the
-    /// variant's own doc gives: the normal is DERIVED, and a consumer
-    /// that recomputed it locally would be the place the two spellings
-    /// drift apart.
-    #[must_use]
-    pub fn frame_normal(u: UnitVec3<T>, v: UnitVec3<T>) -> Vec3<T> {
-        u.get().cross(v.get())
-    }
 }
 
 /// **The funnel site name** of the decided position predicate — the
@@ -534,7 +511,7 @@ pub fn datum_distance<T: Real>(datum: &DatumValue<T>, p: Point3<T>) -> T {
             (v - d * v.dot(d)).norm()
         }
         DatumValue::Point { position } => (p - *position).norm(),
-        DatumValue::Frame { origin, u, v } => (p - *origin).dot(DatumValue::frame_normal(*u, *v)),
+        DatumValue::Frame(f) => (p - f.origin()).dot(f.w().get()),
         // The world lift, by the same arithmetic the 3-D axis uses —
         // an axis is an axis to a measurement, whichever coordinates
         // it was written in.
