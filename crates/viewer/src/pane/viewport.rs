@@ -195,7 +195,11 @@ fn egui_buttons() -> [egui::PointerButton; egui::NUM_POINTER_BUTTONS] {
 /// and not `#[non_exhaustive]`, so a pattern over it must mention
 /// every field the toolkit declares: the day egui grows a sixth
 /// modifier this stops compiling, and someone answers for it in
-/// writing. It is the struct's form of the exhaustive match
+/// writing. **A stop rather than a wall** — the error names the
+/// missing field and offers `..` among its repairs, so what it buys is
+/// that the answer is given HERE, on the day the field appears,
+/// instead of being given by omission. It is the struct's form of the
+/// exhaustive match
 /// [`viewer_button`] makes over the toolkit's button enum, and it
 /// fires at the same moment — a version bump, the only moment either
 /// set can change. **It holds the set and nothing else**: which field
@@ -1364,13 +1368,16 @@ mod tests {
         ] {
             let pane = Pane::new();
             let events = drag_modified(&pane, egui::PointerButton::Middle, modifiers);
-            let [ViewportEvent::Drag { shift, alt, .. }] = events[..] else {
-                panic!("a middle drag with {modifiers:?} held is one drag, got {events:?}");
-            };
+            let (shift, alt) = expected;
             assert_eq!(
-                (shift, alt),
-                expected,
-                "what a drag carries with {modifiers:?} held"
+                events,
+                vec![ViewportEvent::Drag {
+                    button: PointerButton::Middle,
+                    shift,
+                    alt,
+                    delta_px: [40.0, 0.0],
+                }],
+                "what a middle drag carries with {modifiers:?} held"
             );
         }
     }
