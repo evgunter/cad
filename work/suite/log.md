@@ -168,3 +168,47 @@ outside consumer's seat, so they never reach into a crate's
 `test_support`. That is why the tour's copies in `S392`'s population are
 deliberately separate spellings and not unconverted duplication. Raised
 by the S52 lane, ratified here for the rest of the program.
+
+## D114 closed (2026-09-15, PR 2630)
+
+The Probe-vs-f64 differential exists, runs at three ε, and compares
+nine of ten `NodeValue` fields plus the certificate and the boolean
+payload's contacts. Three things this unit taught the program.
+
+**A finding's sentence is not evidence, even when the finding is
+right.** `S168` claimed no test in this tree compares `Probe` against
+f64; `crates/profile/tests/review_m2_pr2_probe.rs` already did, with
+the same anti-vacuity idiom, rostered and running under the default
+selection. The real gap was narrower — profile's canonical-form lane
+was checked, editor-core's evaluation lane was not — and the unit is
+worth exactly that much, which is still worth it. A row filed on
+GUARD's slate had already inherited the false sentence as its stated
+cause; it was corrected in the same PR. This is
+`memories/refusal-text-is-not-cause.md` one level up: the text of a
+finding is not the cause of the gap it names.
+
+The lane's own account of why its sweep missed it is the useful part:
+*"it was not a sweep"* — it grepped `bit-identical` in four files it had
+already chosen as claim sites, so the pattern never reached
+`crates/*/tests/`. And it had read `RUN_FLOOR` in full to site its own
+test, where `plain:profile:review_m2_pr2_probe:2` is a line — *"I read
+the roster as a list of slots, not of suites."*
+
+**An instrument's guards must count feeding, not presence.** The first
+version had three anti-vacuity guards and the review still made it pass
+vacuously: the mass-properties arm, the one arm ε reaches and whose
+subject is stored nowhere, had no counter, so disabling it for all 25
+documents left the row green. The fix — counters that increment only
+after the assertion runs and only for a non-empty record — is the shape
+any future instrument here should copy.
+
+**Vacuous coverage is disclosed, not tallied.** Two of the four fields
+added to the comparison (`contacts`, `carried`) are filled on the
+instantiate path alone, and the registry has no instantiate op, so those
+comparisons hold vacuously today. The unit says so at the claim site
+rather than reporting four-of-five fields now covered.
+
+Six rows filed outward: three to S-TINT, one each extending CIW's,
+GUARD's and INSTR's. The Track K fence held — nothing under
+`scripts/gates/` (GUARD's, not "GATES'" as this orchestrator's brief
+wrongly said), `tools/` or `docs/K-REPORT.md` was edited.
