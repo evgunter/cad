@@ -5,6 +5,7 @@ title: The ten hand multiplies of normal by sense_sign fold onto OutwardNormal, 
 status: open
 opened: 2026-09-15
 branch: scalar/sense-fold
+pr: 2668
 ---
 
 
