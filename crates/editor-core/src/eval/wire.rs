@@ -53,15 +53,14 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom_core::{Affine3, Band, Decide, Mat3, Point2, Point3, Sign, Tol, Vec2, Vec3};
+use geom_core::{UnitVec3, UnitVec3Error, decide_unit_direction};
 use sweep::blend::BlendKind;
 use sweep::{Revolution, RevolveAxis};
-use topo::query;
 use topo::splitting::SplitPart;
 use topo::transform::transform_rigid;
 use topo::{
     Body, BooleanDeclarations, CarriedContacts, CarriedVf, CarriedVv, ContactClass,
-    DATUM_UNIT_NORM, FacePairDeclaration, GeomSource, UnitVec3, UnitVec3Error, VfContact,
-    VvContact,
+    DATUM_UNIT_NORM, FacePairDeclaration, GeomSource, VfContact, VvContact,
 };
 
 use super::anchor::{self, ProfileNaming, ProfilePre, ProfileValue};
@@ -884,7 +883,7 @@ fn band(tol: Tol) -> Result<Band, NodeErrorKind> {
 /// the mate solve's re-derivation of both from the recipe.
 ///
 /// It reaches the funnel as an argument to
-/// [`topo::query::decide_unit_direction`] rather than as a literal at the
+/// [`decide_unit_direction`] rather than as a literal at the
 /// `decide` call, so it is a roster carrier (`docs/K-REPORT.md`, "The
 /// inventory method, restated"), and it is a constant so that the
 /// name the telemetry records and the name an escalation reports
@@ -896,7 +895,7 @@ pub(crate) const EVAL_DIRECTION_NORM: &str = "eval_direction_norm";
 /// indeterminacy escalates.
 ///
 /// **The decision is the kernel's one body**
-/// ([`topo::query::decide_unit_direction`]): finiteness asked first through
+/// ([`decide_unit_direction`]): finiteness asked first through
 /// the value channel every scalar has, then whether the length
 /// underflowed out of the format through the same channel, then which
 /// side of zero the length lies on, then normalize or refuse. This function is that
@@ -911,7 +910,7 @@ pub(crate) const EVAL_DIRECTION_NORM: &str = "eval_direction_norm";
 /// decision. This door carries the directions this layer owns; a
 /// datum's normal or axis direction is decided under
 /// [`DATUM_UNIT_NORM`] inside the kernel type that holds it
-/// ([`topo::UnitVec3::new`]), because `DatumValue` has no
+/// ([`UnitVec3::new`]), because `DatumValue` has no
 /// unnormalized spelling and there is nowhere for this door to stand
 /// in that path. Collapsing the two names would erase which layer a
 /// length decision came from; collapsing the two BODIES was the
@@ -931,7 +930,7 @@ pub(crate) fn unit<T: Decide>(
     role: &'static str,
     band: Band,
 ) -> Result<Vec3<T>, NodeErrorKind> {
-    query::decide_unit_direction(v, EVAL_DIRECTION_NORM, band)
+    decide_unit_direction(v, EVAL_DIRECTION_NORM, band)
         .map_err(|e| refusal(e, role, EVAL_DIRECTION_NORM))
 }
 
@@ -1048,7 +1047,7 @@ fn datum_unit<T: Decide>(
     role: &'static str,
     band: Band,
 ) -> Result<UnitVec3<T>, DirectionRefusal> {
-    UnitVec3::new(v, band).map_err(|error| DirectionRefusal { role, error })
+    UnitVec3::new(v, DATUM_UNIT_NORM, band).map_err(|error| DirectionRefusal { role, error })
 }
 
 /// **What reading an authored frame's slots produced** — the frame, or

@@ -28,9 +28,10 @@ use editor_core::{
     face_frame,
 };
 use geom_brep::SurfaceKind;
+use geom_core::UnitVec3;
 use geom_core::{Tol, Vec3};
 use topo::readback;
-use topo::{CurveKind, DatumValue, UnitVec3};
+use topo::{CurveKind, DatumValue};
 
 fn len(v: f64) -> Expr {
     Expr::literal(v, Dimension::Length).expect("a length literal")

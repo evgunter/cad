@@ -1,0 +1,62 @@
+---
+id: recognize-normalizes-without-a-length-decision-and-cannot-mint-the-witness
+kind: issue
+title: step-import recognize.rs normalizes a plane normal with no length decision and plus_zero's it, so it cannot mint the unit witness — the bare Vec3::orthonormal_basis stays for it
+status: open
+opened: 2026-09-15
+---
+
+## Where this came from
+
+The class sweep of `unit-vector-witness-in-geom-core` (SCALAR; the
+ruling is `work/scalar/unit-vector-invariants-carried-as-prose.md`
+§RATIFIED). The class: a function whose doc or parameter name asserts
+a unit-vector precondition it does not check. `geom_core::UnitVec3<T>`
+now exists to carry that fact across a function boundary — minted by
+the normalizing constructor (`UnitVec3::new(v, site, band)`: decide the
+length under the band, divide), by exact negation, by `sin_cos`, and by
+`geom-core`'s `frame.rs` ladders. A function in the class takes the
+witness the day its caller holds one; until then the precondition
+stays prose, and this row is where that is recorded rather than in a
+merged PR body.
+
+The geometry CARRIER fields (`Line.dir`, `Plane.normal`, the conic
+axes) stay bare under `geom/src/lib.rs`'s at-rest rule by the ruling;
+a parameter that is read straight out of such a field is in the class
+but its caller holds no witness, so the take waits on either a
+decision at the read (a `UnitVec3::new` under a name the reader owns)
+or the carrier rule changing, which is not this row's call.
+
+## The site, and why the bare `orthonormal_basis` stays
+
+`crates/step-import/src/recognize.rs`, the plane arm of `recognize`
+(`:213`–`:227`): `normal_sum.normalize()` with no length decision —
+the refutation that follows (`align.is_finite() && align != 0.0`) is
+a hand-rolled check on a DIFFERENT quantity — and then `plus_zero`
+on the normalized vector before `normal.orthonormal_basis()`. Two
+things keep it from minting the witness: it holds no `Band` (the
+function takes `eps_in: f64` and decides nothing through the funnel),
+and `plus_zero` is not one of the three mints (negation is exact and
+minted; a signed-zero rewrite is exact too, but adding it as a mint is
+a design choice this unit did not make).
+
+So `Vec3::orthonormal_basis` keeps its bare door for exactly this
+caller and `geom_brep::newell` (the props row
+`a-widened-derived-placement-normalises-a-straddling-newell-sum`
+carries that one). The witness door is
+`geom_core::UnitVec3::orthonormal_basis`; the bare one retires when
+both callers decide their length — a decision this file's owner makes,
+not the sweep.
+
+## Siblings in this crate pair, from the same sweep
+
+- `crates/step-import/src/normalize.rs`, `half_turn` (`:111`): "rotates
+  `w` a half turn about the unit direction `axis`" — exact-identity
+  arithmetic that is only an involution for a unit `axis`.
+- `crates/step-import/src/adopt.rs`, `line_frame` (`:1031`): takes
+  `dir` from the ε_in direction reader, which validates it by hand;
+  a witness minted at that reader would let this and `half_turn` take
+  the type.
+- `crates/step-export/src/writer.rs`, `direction` (`:166`): "unit by
+  the conventions of every stored normal/axis/dir — emitted as stored,
+  never renormalized". The carrier case, on the way out.

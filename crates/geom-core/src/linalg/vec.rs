@@ -544,7 +544,11 @@ impl<T: Real> Vec3<T> {
     /// non-unit input yields a well-defined but non-orthonormal pair
     /// (no poison, no check — same posture as unit-`dir` curve data;
     /// tier-3 certification owns the invariant). A poisoned input
-    /// propagates poison.
+    /// propagates poison. A caller holding the fact as a type calls
+    /// [`UnitVec3::orthonormal_basis`](super::UnitVec3::orthonormal_basis)
+    /// instead; this bare door remains for the callers that normalize
+    /// a carrier direction under the at-rest rule without deciding
+    /// its length.
     pub fn orthonormal_basis(self) -> (Self, Self) {
         let s = T::one().copysign(self.z);
         let r = T::one() / (T::one() + self.z.abs());

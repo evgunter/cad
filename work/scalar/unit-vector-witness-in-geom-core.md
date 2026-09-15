@@ -4,6 +4,7 @@ kind: unit
 title: The unit-vector witness moves to geom-core, minted by the decided-normalize ladder, and from_frame's consumers take it
 status: open
 opened: 2026-09-15
+branch: scalar/unit-vector-witness
 ---
 
 

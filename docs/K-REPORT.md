@@ -549,14 +549,14 @@ Six ways a name escapes the old pattern, all live today:
    just named, and the reason they are also a separate way of
    escaping the pattern. Since SEAT-DN one function decides
    direction length for the whole workspace
-   (`topo::query::decide_unit_direction`: finiteness, then underflow,
+   (`geom_core::decide_unit_direction`: finiteness, then underflow,
    then the sign of the norm, then normalize or refuse) and it takes
    the funnel site
    as a `&'static str` PARAMETER, because the layer that owns a value
    is the layer whose telemetry names its length decision. So
    `decide(` at that site names a variable: `datum_unit_norm` is
-   passed by `UnitVec3::new` a few dozen lines below for a datum's
-   normal or axis direction, and `eval_direction_norm` by
+   passed to `geom_core::UnitVec3::new` by `topo`'s datum callers for
+   a datum's normal or axis direction, and `eval_direction_norm` by
    `editor-core`'s `unit()`, a crate away, for the directions the
    evaluation layer owns (a transform's rotation axis, a pattern's
    direction, and the mate solve's re-derivation of both from the
@@ -1577,7 +1577,7 @@ one triple under two names by road is a property of the roads, not a
 defect of either site.
 
 What SEAT-DN did collapse is the BODY: both names are now passed as a
-parameter to `topo::query::decide_unit_direction`, the workspace's only
+parameter to `geom_core::decide_unit_direction`, the workspace's only
 decide/normalize/refuse for a 3-D direction length. The census
 consequence is nil (same names, same margins, same order, same
 outcomes); the roster consequence is that neither name is a literal at

@@ -129,7 +129,7 @@
 //! win; sharing an abstraction would cost a layer.
 
 use crate::k_stats::decide;
-use crate::linalg::{Affine3, Mat3, Point3, Vec3};
+use crate::linalg::{Affine3, Mat3, Point3, UnitVec3, Vec3};
 use crate::predicate::{
     Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Sign,
 };
@@ -421,10 +421,25 @@ fn definitely_positive<T: Decide>(
     }
 }
 
+/// [`definitely_positive`] on a vector's own length, then the divide:
+/// the witness the three normalizing doors mint, on the line after the
+/// gate that decided the quantity it normalizes. `v.norm()` and
+/// `v.norm_witness()` are spelled here once, as the gate's contract
+/// asks, rather than at each of the three.
+fn decided_unit<T: Decide>(
+    name: &'static str,
+    v: Vec3<T>,
+    band: Band,
+    input: FrameVector,
+) -> Result<UnitVec3<T>, FrameError> {
+    definitely_positive(name, v.norm(), v.norm_witness(), band, input)?;
+    Ok(UnitVec3::after_decided_length(v))
+}
+
 /// The one recipe, shared by [`point_at`] and [`path_start_frame`]:
-/// the right-handed frame at `origin` whose local +Z is the **unit**
-/// `aim` and whose roll is fixed by `reference` per the module docs'
-/// convention.
+/// the right-handed frame at `origin` whose local +Z is `aim` — unit
+/// as a property of its type — and whose roll is fixed by `reference`
+/// per the module docs' convention.
 ///
 /// `cross_len` is the already-decided `|reference × aim|` and
 /// `perp` the cross product itself, passed in so the caller's ladder
@@ -436,10 +451,11 @@ fn definitely_positive<T: Decide>(
 /// translation `origin − O`.
 fn frame_from_unit_aim<T: Real>(
     origin: Point3<T>,
-    aim: Vec3<T>,
+    aim: UnitVec3<T>,
     perp: Vec3<T>,
     cross_len: T,
 ) -> Affine3<T> {
+    let aim = aim.get();
     let x = perp / cross_len;
     let y = aim.cross(x);
     Affine3::from_parts(Mat3::from_cols(x, y, aim), origin - Point3::origin())
@@ -487,15 +503,8 @@ pub fn point_at<T: Decide>(
 ) -> Result<Affine3<T>, FrameError> {
     let band = Band::linear(tol).map_err(FrameError::Band)?;
     let aim = target - eye;
-    definitely_positive(
-        "frame_point_at_aim",
-        aim.norm(),
-        aim.norm_witness(),
-        band,
-        FrameVector::Aim,
-    )?;
-    let unit = aim.normalize();
-    let perp = roll_reference.cross(unit);
+    let unit = decided_unit("frame_point_at_aim", aim, band, FrameVector::Aim)?;
+    let perp = roll_reference.cross(unit.get());
     let len = perp.norm();
     definitely_positive(
         "frame_point_at_roll_offset",
@@ -544,14 +553,12 @@ pub fn path_start_frame<T: Decide>(
     tol: Tol,
 ) -> Result<Affine3<T>, FrameError> {
     let band = Band::linear(tol).map_err(FrameError::Band)?;
-    definitely_positive(
+    let unit = decided_unit(
         "frame_path_start_tangent",
-        tangent.norm(),
-        tangent.norm_witness(),
+        tangent,
         band,
         FrameVector::Tangent,
     )?;
-    let unit = tangent.normalize();
     // The ladder, in order. A rung is taken only on a DEFINITE
     // off-axis decision: both the coincident outcome (the rung is the
     // tangent line) and the in-band outcome (too close to it to fix a
@@ -562,7 +569,7 @@ pub fn path_start_frame<T: Decide>(
         ("frame_path_start_reference_z", Vec3::unit_z()),
         ("frame_path_start_reference_x", Vec3::unit_x()),
     ] {
-        let perp = reference.cross(unit);
+        let perp = reference.cross(unit.get());
         let len = perp.norm();
         match decide(name, Margin::of(len), band) {
             Ok(Sign::Positive) => return Ok(frame_from_unit_aim(origin, unit, perp, len)),
@@ -666,14 +673,13 @@ pub fn mirror_across_plane<T: Decide>(
     tol: Tol,
 ) -> Result<Affine3<T>, FrameError> {
     let band = Band::linear(tol).map_err(FrameError::Band)?;
-    definitely_positive(
+    let n = decided_unit(
         "frame_mirror_normal",
-        normal.norm(),
-        normal.norm_witness(),
+        normal,
         band,
         FrameVector::MirrorNormal,
-    )?;
-    let n = normal.normalize();
+    )?
+    .get();
     let two = T::from_f64(2.0);
     let t = n * two;
     let linear = Mat3::from_cols(

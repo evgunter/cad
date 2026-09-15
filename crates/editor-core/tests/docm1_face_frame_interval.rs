@@ -20,8 +20,9 @@ use editor_core::{
     Evaluation, Expr, Node, NodeError, NodeErrorKind, NodeResult, ParamName, ProfileDoc,
     ProfileLift, RecipeNodeId, RoleSeg, UnitSym, ValuePayload, evaluate,
 };
+use geom_core::UnitVec3;
 use geom_core::{Bounds, Interval, Tol};
-use topo::{DatumValue, UnitVec3, validate_closed};
+use topo::{DatumValue, validate_closed};
 
 fn run(
     doc: &ProfileDoc,
