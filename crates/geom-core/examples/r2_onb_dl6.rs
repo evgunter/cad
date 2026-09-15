@@ -6,7 +6,7 @@
 //! exist" — rather than merely against "is it bounded on the equator".
 //!
 //! The construction crosses the normal with `e_z` when
-//! `|n.z| ≤ max(|n.x|, |n.y|)` and with `e_y` otherwise, and
+//! `|n.z| ≤ max(|n.x|, |n.y|)/2` and with `e_y` otherwise, and
 //! normalizes. Two places could absorb, and both are audited here: the
 //! axis choice at an enclosure that cannot decide it (which must HULL,
 //! not refuse), and the normalization of a candidate (well conditioned
@@ -32,7 +32,7 @@ fn main() {
     let show = |e: Interval| format!("[{:.6}, {:.6}]", e.lo(), e.hi());
     let bounded = |e: Interval| e.lo().is_finite() && e.hi().is_finite();
 
-    // The equator is not a seam: |n.z| is far below max(|n.x|, |n.y|)
+    // The equator is not a seam: |n.z| is far below max(|n.x|, |n.y|)/2
     // at a wall, so the axis choice decides and the frame is exact.
     println!("== A. the equator, where the sign-transfer spelling hulled ==");
     println!(

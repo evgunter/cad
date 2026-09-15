@@ -1294,7 +1294,8 @@ fn r2_the_envelope_arm_is_reached_and_sound_on_an_arc_bounded_cap() {
 /// stored was sign-hulled at the interval scalar on the whole equator,
 /// and the row pinned the consumer's re-chart as the way through.
 /// `Vec3::orthonormal_basis` chooses its world axis by
-/// `|n.z| ≤ max(|n.x|, |n.y|)` now and transfers no sign, so a wall's
+/// `|n.z| ≤ max(|n.x|, |n.y|)/2` now and transfers no sign, so a
+/// wall's
 /// stored `u_ref` is exact and the re-chart it needed is gone from
 /// `clearance.rs`. The row keeps the re-chart replicated beside the
 /// stored chart and requires BOTH to describe every wall: the stored

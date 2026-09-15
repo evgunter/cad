@@ -210,8 +210,9 @@ fn both_blends_evaluate_in_one_document() {
 ///
 /// RE-BLESSED for the axis-order orthonormal basis: the digest feeds
 /// each surface's `Debug`, and every planar carrier's stored `u_ref`
-/// is now `normalize(e_k × n)` for the smallest-magnitude component's
-/// axis. The plane's LOCUS did not move — origin and normal are
+/// is now `e_z × n` or `e_y × n` — whichever axis the comparison
+/// `|n.z| ≤ max(|n.x|, |n.y|)/2` picks — divided by its own length.
+/// The plane's LOCUS did not move — origin and normal are
 /// bit-identical, which the STEP fixtures' record-level diff shows
 /// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
 /// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
@@ -303,8 +304,9 @@ fn a_boolean_document_round_trips_byte_identical() {
 ///
 /// RE-BLESSED for the axis-order orthonormal basis: the digest feeds
 /// each surface's `Debug`, and every planar carrier's stored `u_ref`
-/// is now `normalize(e_k × n)` for the smallest-magnitude component's
-/// axis. The plane's LOCUS did not move — origin and normal are
+/// is now `e_z × n` or `e_y × n` — whichever axis the comparison
+/// `|n.z| ≤ max(|n.x|, |n.y|)/2` picks — divided by its own length.
+/// The plane's LOCUS did not move — origin and normal are
 /// bit-identical, which the STEP fixtures' record-level diff shows
 /// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
 /// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
@@ -355,8 +357,9 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
 ///
 /// RE-BLESSED for the axis-order orthonormal basis: the digest feeds
 /// each surface's `Debug`, and every planar carrier's stored `u_ref`
-/// is now `normalize(e_k × n)` for the smallest-magnitude component's
-/// axis. The plane's LOCUS did not move — origin and normal are
+/// is now `e_z × n` or `e_y × n` — whichever axis the comparison
+/// `|n.z| ≤ max(|n.x|, |n.y|)/2` picks — divided by its own length.
+/// The plane's LOCUS did not move — origin and normal are
 /// bit-identical, which the STEP fixtures' record-level diff shows
 /// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
 /// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were

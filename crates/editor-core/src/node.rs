@@ -726,7 +726,7 @@ pub enum Datum {
         /// the carrier's stored `u_ref` and that reference is a
         /// convention: the frame the carrier stores is
         /// `Vec3::orthonormal_basis`'s — the normal crossed with `e_z`
-        /// when `|n.z| ≤ max(|n.x|, |n.y|)` and with `e_y` otherwise,
+        /// when `|n.z| ≤ max(|n.x|, |n.y|)/2` and with `e_y` otherwise,
         /// normalized. On a vertical WALL that is the in-plane
         /// horizontal `(−n.y, n.x, 0)`, so sketch +x runs level and
         /// sketch +y runs up; on a horizontal CAP it is `±e_x`, with

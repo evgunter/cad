@@ -21,7 +21,7 @@
 //!
 //! Every carrier is measured in its STORED chart. A planar face's
 //! `u_ref` comes from the orthonormal basis's world-axis comparison,
-//! `|n.z| ≤ max(|n.x|, |n.y|)`, which decides at the equator — a
+//! `|n.z| ≤ max(|n.x|, |n.y|)/2`, which decides at the equator — a
 //! vertical wall's `|n.z|` is zero and the other two are not — so a
 //! wall stores an exact in-plane horizontal and the engine has nothing
 //! to re-chart around. The `refines` door stays: it refuses a chart

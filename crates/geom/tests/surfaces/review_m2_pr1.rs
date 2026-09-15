@@ -648,9 +648,10 @@ fn copysign_sign_tangent_discard_at_the_jump() {
 // 3. The axis-order basis: adversarial directions
 // ---------------------------------------------------------------------
 
-/// The equator is NOT a seam: `|n.z|` is the strict smallest magnitude
-/// at a wall, so the axis choice is the same on both sides of it and on
-/// both signed zeros — the tie-break reads the value, not the sign bit.
+/// The equator is NOT a seam: at a wall `|n.z|` is zero and
+/// `max(|n.x|, |n.y|)/2` is not, so the comparison decides the same way
+/// on both sides of it and on both signed zeros — the tie-break reads
+/// the value, not the sign bit.
 /// Every frame is an orthonormal right-handed one.
 #[test]
 fn basis_equator_is_not_a_seam() {

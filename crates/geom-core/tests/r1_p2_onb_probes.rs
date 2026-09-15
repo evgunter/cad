@@ -28,7 +28,7 @@ use geom_core::Vec3;
 /// survive an enclosure scalar. PRIVATE to this suite, so the
 /// comparison does not lean on anything the unit wrote.
 fn reference(n: Vec3<f64>) -> (Vec3<f64>, Vec3<f64>) {
-    let axis = if n.z.abs() <= n.x.abs().max(n.y.abs()) {
+    let axis = if n.z.abs() <= 0.5 * n.x.abs().max(n.y.abs()) {
         Vec3::new(-n.y, n.x, 0.0)
     } else {
         Vec3::new(n.z, 0.0, -n.x)
@@ -188,7 +188,7 @@ mod interval_lane {
     /// **Near-vertical, not merely vertical.** The unit pins
     /// `n.z = [±0.0, ±0.0]` exactly; these rows ask about the
     /// neighbourhood, where `|n.z|` is still far below
-    /// `max(|n.x|, |n.y|)` and the axis choice therefore still
+    /// `max(|n.x|, |n.y|)/2` and the axis choice therefore still
     /// DECIDES: a
     /// sign-definite tiny `z` (both sides), a straddling tiny
     /// enclosure, and point enclosures at subnormal `z`. Every
@@ -266,50 +266,87 @@ mod interval_lane {
     }
 
     /// **Where the construction genuinely ends** — measured, so the
-    /// boundary is on record rather than implied. An unbounded answer
-    /// needs the comparison undecided AND a candidate that is the zero
-    /// vector inside the box, and those two together force the box to
-    /// contain the ZERO VECTOR itself, which names no direction. A box
-    /// that is merely wide does not reach it.
+    /// boundary is on record rather than implied. Each candidate is
+    /// divided by `max(|v|, k‖n‖)`, so a denominator's lower bound is
+    /// zero only when `‖n‖`'s is: the answer is unbounded exactly where
+    /// the box contains the ZERO VECTOR, which names no direction. A
+    /// box that is merely wide, or one where a candidate's own length
+    /// reaches zero, does not reach it.
     #[test]
     fn r1_onb_interval_wide_box_boundary_recorded() {
-        // A tight enclosure straddling the 45° cone: still bounded,
-        // because both candidates are conditioned at least ‖n‖²/3.
-        let half = core::f64::consts::FRAC_1_SQRT_2;
-        let z = Interval::from_bounds(half - 1e-9, half + 1e-9);
-        let n = Vec3::new(iv(half), iv(0.0), z);
+        // A tight enclosure straddling the seam: still bounded,
+        // because each candidate's length is above its own floor there.
+        let r = 2.0 / 5f64.sqrt();
+        let z = Interval::from_bounds(0.5 * r - 1e-9, 0.5 * r + 1e-9);
+        let n = Vec3::new(iv(r), iv(0.0), z);
         let (b1, b2) = n.orthonormal_basis();
         for (e, which) in components(b1, b2) {
             assert!(
                 e.lo().is_finite() && e.hi().is_finite(),
-                "{which} unbounded at a tight cone straddle: [{}, {}]",
+                "{which} unbounded at a tight seam straddle: [{}, {}]",
                 e.lo(),
                 e.hi()
             );
         }
-        // A whole meridian at the azimuth whose `e_y` candidate
-        // degenerates: the comparison still decides it.
-        let n = Vec3::new(iv(0.0), iv(1.0), Interval::from_bounds(0.0, 1.0));
+        // A box that straddles the seam with BOTH horizontal
+        // components enclosing zero — one candidate's length reaches
+        // zero over it, and the floor is what keeps the answer
+        // bounded. This box holds no zero vector.
+        let n = Vec3::new(
+            Interval::from_bounds(-0.5, 0.5),
+            Interval::from_bounds(-0.5, 0.5),
+            Interval::from_bounds(0.5, 1.0),
+        );
+        let (b1, b2) = n.orthonormal_basis();
+        for (e, which) in components(b1, b2) {
+            assert!(
+                e.lo().is_finite() && e.hi().is_finite() && e.is_certified(),
+                "{which} over a box with no zero vector but a vanishing candidate: \
+                 [{}, {}] certified = {}",
+                e.lo(),
+                e.hi(),
+                e.is_certified()
+            );
+        }
+        // Half a meridian at the azimuth whose `e_y` candidate
+        // degenerates: `|n.z|` reaches the comparison's threshold and
+        // no further, so it still decides, exactly.
+        let n = Vec3::new(iv(0.0), iv(1.0), Interval::from_bounds(0.0, 0.5));
         let (m1, _) = n.orthonormal_basis();
         assert!(
             m1.x.lo() == -1.0 && m1.x.hi() == -1.0,
-            "a whole meridian is not decided: b1.x = [{}, {}]",
+            "half a meridian is not decided: b1.x = [{}, {}]",
             m1.x.lo(),
             m1.x.hi()
         );
-        // The box that contains the zero vector. Recorded, not demanded.
+        // The WHOLE meridian straddles the comparison, and what comes
+        // back is the honest hull of the two arms: bounded, certified,
+        // and wider than the unit cube — the `e_y` arm's floor is
+        // `‖n‖/4`, so its quotient can reach four. A driver splits it;
+        // nothing pretends it is a direction.
+        let n = Vec3::new(iv(0.0), iv(1.0), Interval::from_bounds(0.0, 1.0));
+        let (w1, _) = n.orthonormal_basis();
+        assert!(
+            w1.x.lo().is_finite() && w1.x.hi().is_finite() && w1.x.is_certified(),
+            "a whole meridian's hull is not usable: b1.x = [{}, {}]",
+            w1.x.lo(),
+            w1.x.hi()
+        );
+        // The box that contains the zero vector — the one exception,
+        // and it is asserted rather than printed now that the theorem
+        // names it exactly.
         let n = Vec3::new(
             Interval::from_bounds(-1.0, 1.0),
             Interval::from_bounds(-1.0, 1.0),
             Interval::from_bounds(-1.0, 1.0),
         );
         let (b1, _) = n.orthonormal_basis();
-        println!(
-            "note: n = [-1, 1]^3 gives b1.x = [{}, {}] (bounded: {}, certified: {})",
+        assert!(
+            !b1.x.lo().is_finite() || !b1.x.hi().is_finite(),
+            "n = [-1, 1]^3 contains the zero vector and answered boundedly: \
+             b1.x = [{}, {}]",
             b1.x.lo(),
-            b1.x.hi(),
-            b1.x.lo().is_finite() && b1.x.hi().is_finite(),
-            b1.x.is_certified()
+            b1.x.hi()
         );
     }
 }

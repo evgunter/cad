@@ -437,8 +437,9 @@ impl<T: Real> Vec3<T> {
     /// each candidate by its own length:
     ///
     /// ```text
-    /// v_y = ( n.z, 0, −n.x)            c_y = v_y / max(|v_y|, ‖n‖/4)
-    /// v_z = (−n.y, n.x, 0 )            c_z = v_z / max(|v_z|, ‖n‖/2)
+    /// s   = min(‖n‖, max|n_i|)         // the scale the floors are in
+    /// v_y = ( n.z, 0, −n.x)            c_y = v_y / max(|v_y|, s/4)
+    /// v_z = (−n.y, n.x, 0 )            c_z = v_z / max(|v_z|, s/2)
     /// b1  = select(|n.z| − max(|n.x|, |n.y|)/2, c_z, c_y)  // ties → e_z
     /// b2  = n × b1
     /// ```
@@ -465,17 +466,27 @@ impl<T: Real> Vec3<T> {
     /// every direction, unit or not, and in particular at the equator
     /// `n.z = 0` where every vertical wall lives. **The `max` in each
     /// denominator is that floor rounded down to a dyadic**
-    /// (`‖n‖/2 < 0.894‖n‖`, `‖n‖/4 < ‖n‖/3`): wherever an arm is READ
-    /// its own length is at or above its floor, so the `max` is that
-    /// length and the `f64` value is `v/|v|` exactly. What the floor
-    /// changes is the ENCLOSURE over a box where a candidate's length
-    /// reaches zero.
+    /// (`s/2 < 0.894‖n‖` and `s/4 < ‖n‖/3`, since `s ≤ ‖n‖`): wherever
+    /// an arm is READ its own length is at or above its floor, so the
+    /// `max` is that length and the `f64` value is `v/|v|` exactly.
+    /// What the floor changes is the ENCLOSURE over a box where a
+    /// candidate's length reaches zero.
+    ///
+    /// **The scale `s` is `min(‖n‖, max|n_i|)`** — the norm and its own
+    /// witness ([`Vec3::norm_witness`]), which bracket each other
+    /// within `√3` wherever both are computed. The witness keeps the
+    /// floor finite where the NORM overflows (components past ~1e154),
+    /// and the norm keeps the floor at zero where the norm UNDERFLOWS
+    /// (all components below ~1e-162), so an underflowed direction
+    /// still blows up loudly instead of being handed a plausible wrong
+    /// answer — [`Vec3::normalize`]'s own band, unchanged.
     ///
     /// **Boundedness — unbounded only where the box contains the ZERO
-    /// VECTOR** (DL6). A denominator's lower bound is zero only when
-    /// `‖n‖`'s is, and `‖n‖`'s is zero exactly when every component of
-    /// `n` encloses zero: a box holding the vector that names no
-    /// direction. Everywhere else both candidates are bounded, so the
+    /// VECTOR** (DL6), or where the norm underflows. A denominator's
+    /// lower bound is zero only when `s`'s is, and `s`'s is zero
+    /// exactly when every component of `n` encloses zero — a box
+    /// holding the vector that names no direction — or when the squared
+    /// norm flushed to zero. Everywhere else both candidates are bounded, so the
     /// answer is bounded whether the comparison decides or hulls, and a
     /// box that straddles the seam with `n.x` and `n.y` both enclosing
     /// zero — where `|v_z|` reaches zero while the box still holds only
@@ -535,7 +546,7 @@ impl<T: Real> Vec3<T> {
     /// direction — poisons through `0/0`.
     pub fn orthonormal_basis(self) -> (Self, Self) {
         let zero = T::zero();
-        let scale = self.norm();
+        let scale = self.norm().min(self.norm_witness());
         let vy = Self::new(self.z, zero, -self.x);
         let vz = Self::new(-self.y, self.x, zero);
         let cy = vy / vy.norm().max(scale * T::from_f64(0.25));

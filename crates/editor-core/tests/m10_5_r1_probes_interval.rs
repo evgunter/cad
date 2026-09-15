@@ -1064,7 +1064,8 @@ fn what_the_sound_prism_rows_hand_to_the_funnel() {
 /// come back sign-hulled at `Interval`, because the construction opened
 /// with `copysign(1, n.z)` and the enclosure arm of `copysign` must
 /// hull at any zero-containing sign. The construction crosses the
-/// normal with a world axis chosen by `|n.z| ≤ max(|n.x|, |n.y|)` now,
+/// normal with a world axis chosen by `|n.z| ≤ max(|n.x|, |n.y|)/2`
+/// now,
 /// and transfers no sign at all, so a wall's frame is EXACT.
 #[test]
 fn the_orthonormal_basis_is_exact_at_interval_when_nz_is_zero() {
