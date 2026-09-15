@@ -462,3 +462,66 @@ unit test beside the enum, where the match IS exhaustive — but
 lane files that residue as its own row and this seat announces it. Six of
 seven compiler-enforced with the seventh stated is the honest outcome;
 weakening the six to match the seventh is not.
+
+## TINT-1 landed, and the review is why it is worth anything (2026-09-15)
+
+PR #2648, branch `tint/1-assert-f6-dumps`, CI green on run 34953299497 —
+12 `test (…)` jobs, 5 `k-lint (gate, …)`, 0 failures, verified at this
+seat rather than taken on report. The two `neutral` render-drift checks
+are Checks-API postings, not jobs, and `memories/freecad-render-lane.md`
+is explicit that a PR posts one and that chasing it green is wrong.
+
+**The first implementation was green, complete against its spec, and
+still shipped the defect it was closing.** It made a wildcard-free
+`match` per enum whose arms returned **hand-typed identifier strings**,
+with a `*_VARIANTS` roster beside it. rustc checks a match's PATTERNS
+and never its strings — so an arm reading
+`ParseError::UnknownUnitSymbol { .. } => "UnknownUnit"`, which is what a
+RENAME produces, left the suite **green while banning a dead identifier
+and leaving the live one unbanned.** The style review planted exactly
+that and ran it on the pre-fix file: `... ok`.
+
+That is this program's own charter shape, minted by the fix for it, in
+the unit whose spec warned against precisely that trap in a paragraph of
+its own. **Naming the trap did not prevent it.** Only a reader who did
+not write the fix caught it — which is the standing claim of
+`docs/prompts/reviewer-style-lane.md` §1, and it just paid for itself on
+the first unit this program ever ran.
+
+**The repair, and the honest statement of what the guard is.** The
+identifier now comes off each value's own derived `Debug`
+(`test_utils::f6::variant_identifier`) — ground truth — and the match
+arms name nothing, returning `()`. So the chain is: an exhaustiveness
+token that **forces the author to open the file** and nothing more; an
+identifier that cannot be misspelt because it is read, not written; and
+a set difference that therefore **enforces** the roster rather than
+trusting it. **"The compiler is the census" was my spec's phrase and it
+was wrong**; it is withdrawn there and in the code comment that had
+copied it. One hole remains and is disclosed at the helper: add a
+variant, add its arm, add neither a case nor a roster entry.
+
+**Fixing it turned up two more live instances and a fourth suite.**
+`a_predicate_flip_names_its_signs_as_words` banned two of `Sign`'s three
+variants; `NodePickError::Tessellate` had never run the F6 shape at all;
+and `crates/mesh/tests/errors.rs` bans 14 of `TessellateError`'s 15 with
+a `Band` case already constructed — filed, not fixed. The predicted
+divergence in `work/view/f6-display-predicate-is-spelled-three-times-with-no-home`
+**had already happened** (`m4_pr4_hit.rs` banned `"node:"`,
+`display_contract.rs` banned `"node:"` and `"name:"`), so the predicate
+took the home that row names, `crates/test-utils/src/f6.rs`, and that
+row got evidence rather than a duplicate.
+
+**Three residues filed on three slates**: WIRE (`SelectRefusal` is
+`#[non_exhaustive]`, so ADDITION cannot be compiler-checked from the test
+crate), S-TINT (the sibling suites, carrying the live mesh hole), and
+EDIT (`persist/check.rs` renders `slot {slot:?}` into a user-facing
+sentence, so a variant identifier reaches the reader — found by the
+review, outside the unit's diff entirely).
+
+**Process note worth keeping.** The fix pass also tried deriving the
+field-name roster from the payload's `Debug` and it false-positives:
+`MeshPickError::PositionOutOfRange` renders *"pick index: triangle 5 of
+patch 1"*, a door's own prose, against a payload with an `index` field.
+A derivation needing a per-site exemption is a hand list in a
+derivation's clothes, so that half stays the caller's and says so at the
+module doc. Not every hand-written list has a derivation waiting for it.
