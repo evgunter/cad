@@ -2,9 +2,15 @@
 //!
 //! Failures reach Python as **typed exceptions carrying the
 //! structured error, never strings**. The items here say what that
-//! means, and no count of them is kept in this paragraph — nothing
-//! enumerates this file, which is `work/census/`'s row rather than
-//! this header's claim:
+//! means, and no count of them is kept in this paragraph — what
+//! enumerates this file is an instrument rather than a sentence.
+//! `tests::ERRORS_MINTING_ITEMS` names every item here that spells a
+//! string literal, and the check that holds its words; a further one,
+//! in any form and at any depth, reds that roster by name. **So a word
+//! added here is loud, and a word added here with nothing holding it
+//! is the finding that roster asks its author for.**
+//!
+//! The items:
 //!
 //! * [`QuantityOpMismatch`] — the boundary refusal a Python user can
 //!   provoke that the Rust surface refuses at COMPILE time

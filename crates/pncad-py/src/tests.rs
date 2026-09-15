@@ -6428,18 +6428,18 @@ struct MintingItem {
 /// a new map there is *"a new set of public Python words that no
 /// inventory has looked at"* the moment it lands. This file had no
 /// equivalent, and the cost was measured rather than predicted — a
-/// fifth `-> &'static str` map arrived here unpinned, in a diff that
+/// further `-> &'static str` map arrived here unpinned, in a diff that
 /// left the tracker row predicting it untouched.
 ///
 /// **The population is the shared lexer's, not a grammar of this
 /// reader's own, and that is the whole design.** Every previous
 /// instrument over this crate's vocabulary was keyed on a FORM — a
 /// top-level `pub fn`, a literal beside a key, a lowercase word — and
-/// each went blind to the arrival that did not wear it: two of the
-/// five maps below are inherent methods inside `impl` blocks, which a
-/// top-level-keyed reader does not see, and all five are
-/// `pub const fn`, which the tag reader's `pub fn ` forms do not
-/// admit. [`read_minting_items`] asks [`test_utils::source`] which
+/// each went blind to the arrival that did not wear it: this file's
+/// `-> &'static str` maps include inherent methods inside `impl`
+/// blocks, which a top-level-keyed reader does not walk, and every one
+/// of them is a `pub const fn`, which the tag reader's `pub fn ` forms
+/// do not admit. [`read_minting_items`] asks [`test_utils::source`] which
 /// bytes of the file are literals and attributes each to the item
 /// that spells it, so a word cannot arrive in a form the reader was
 /// not taught: there is no form.
@@ -6801,24 +6801,29 @@ fn minting_complaints(found: &BTreeMap<String, Vec<String>>) -> Vec<String> {
     complaints
 }
 
+/// This crate's own `src/errors.rs` — the census's subject, and what
+/// the guards below drive it over with an arrival spliced on.
+///
+/// `crate_dir`, not the baked path alone: a nextest ARCHIVE replayed on
+/// another runner has no such directory, and this crate's own source is
+/// what the census opens.
+fn errors_source() -> String {
+    let path = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"))
+        .join("src")
+        .join("errors.rs");
+    std::fs::read_to_string(&path).expect("this crate's own src/errors.rs")
+}
+
 /// **Nothing enumerated `src/errors.rs`, and a fifth Python-visible
 /// map arrived here unpinned while the tracker row predicting it sat
 /// untouched in the same diff.** This is the arrival alarm that row
 /// asked for.
 ///
 /// The roster IS the enumeration, so there is no floor: every item is
-/// named, and a reader that came back with nothing reports nine
-/// missing rows by name rather than a count that drifted.
+/// named, and a reader that came back with nothing reports every row
+/// missing BY NAME rather than a count that drifted.
 #[test]
 fn errors_rs_spells_literals_in_exactly_these_items() {
-    // `crate_dir`, not the baked path alone: a nextest ARCHIVE replayed
-    // on another runner has no such directory, and this crate's own
-    // source is what the guard opens.
-    let path = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"))
-        .join("src")
-        .join("errors.rs");
-    let source = std::fs::read_to_string(&path).expect("this crate's own src/errors.rs");
-
     let ordered: Vec<&str> = ERRORS_MINTING_ITEMS.iter().map(|item| item.owner).collect();
     let mut by_name = ordered.clone();
     by_name.sort_unstable();
@@ -6827,7 +6832,7 @@ fn errors_rs_spells_literals_in_exactly_these_items() {
         "ERRORS_MINTING_ITEMS is not in the order its doc claims — by owner"
     );
 
-    let complaints = minting_complaints(&read_minting_items(&source));
+    let complaints = minting_complaints(&read_minting_items(&errors_source()));
     assert!(
         complaints.is_empty(),
         "src/errors.rs and ERRORS_MINTING_ITEMS disagree. Every string literal in \
@@ -6835,15 +6840,6 @@ fn errors_rs_spells_literals_in_exactly_these_items() {
          what says one has arrived.\n\n  {}",
         complaints.join("\n  ")
     );
-}
-
-/// This crate's own `src/errors.rs`, for the guards that drive the
-/// census over it with an arrival spliced on.
-fn errors_source() -> String {
-    let path = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"))
-        .join("src")
-        .join("errors.rs");
-    std::fs::read_to_string(&path).expect("this crate's own src/errors.rs")
 }
 
 /// **The mint reader's own guard.**
