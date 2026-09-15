@@ -391,33 +391,33 @@ fn r2_the_u_ref_verdicts_stay_reachable_from_a_document() {
         "a long u_ref names the same radial and must build"
     );
 
-    for (what, u) in [("u_ref parallel to the axis", [0.0, 0.0, 1.0])] {
-        let (mut doc, spine) = axis_doc("r2_uref", [0.0, 0.0, 1.0]);
-        doc = push(
-            &doc,
-            &DocEdit::InsertNode {
-                node: Node::Tube {
-                    spine,
-                    u_ref: u.map(scalar),
-                    major_radius: len(2.0),
-                    window: TubeWindow::Full,
-                    minor_radius: len(0.5),
-                },
+    // A `u_ref` ON the spine axis line names no radial at all, and
+    // refuses where the frame is minted rather than at the door.
+    let (mut doc, spine) = axis_doc("r2_uref", [0.0, 0.0, 1.0]);
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Tube {
+                spine,
+                u_ref: [0.0, 0.0, 1.0].map(scalar),
+                major_radius: len(2.0),
+                window: TubeWindow::Full,
+                minor_radius: len(0.5),
             },
-        );
-        let tube = *doc.order().last().expect("the tube");
-        let ev = eval::<f64>(&doc);
-        match ev.nodes.get(&tube) {
-            Some(NodeResult::Failed(e)) => match &e.kind {
-                NodeErrorKind::DegenerateDirection { role } => {
-                    assert_eq!(*role, "tube reference direction", "{what}");
-                }
-                other => panic!(
-                    "{what} must refuse as the frame mint's direction verdict, got {other:?}"
-                ),
-            },
-            other => panic!("{what} must refuse, got {other:?}"),
-        }
+        },
+    );
+    let tube = *doc.order().last().expect("the tube");
+    let ev = eval::<f64>(&doc);
+    match ev.nodes.get(&tube) {
+        Some(NodeResult::Failed(e)) => match &e.kind {
+            NodeErrorKind::DegenerateDirection { role } => {
+                assert_eq!(*role, "tube reference direction");
+            }
+            other => {
+                panic!("a u_ref on the axis line refuses as a direction verdict, got {other:?}")
+            }
+        },
+        other => panic!("a u_ref on the axis line must refuse, got {other:?}"),
     }
 }
 
