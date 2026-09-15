@@ -4387,3 +4387,71 @@ The reader that would answer Ev's PR-2404 question is still WIRE's to
 place; `GeomOrigin` is the door it would use.
 
 Signed (TOPO fix-pass lane, `geom-source-absence-conflates-four-origins`).
+
+## 2026-09-15 — orchestrator handoff, and a residue the last session disclosed but did not file
+
+A new orchestrator takes WIRE. There was no handoff entry to read: the
+previous session wound down at 90% of its 5h usage window on 2026-09-14
+and the log ends with three TOPO announcements that arrived after it, so
+the resting state had to be re-derived from the tree rather than
+inherited. It is clean, and that is worth saying plainly.
+
+**The resting state, measured rather than assumed.** 22 open rows, 1
+parked (`axis-shaped-identity-channel`, on TOPO's and EXCH's step-1
+rows, and `work.py lint` confirms neither trigger has fired), 2
+deferred, 28 closed. **Nothing dispatched, nothing in review, no open
+`wire/` PR, no `needs_ev: true` anywhere on the slate, lint green (0
+problems).** No local `wire/` branches on this box.
+
+**The `[ev]` channel is clear, and the clearing is the interesting
+part.** PR 2555 asked whether five of this program's working rules
+should be promoted into `docs/prompts/reviewer-style-lane.md`. It was
+**declined** and merged with its doc edits reverted — the doc on main
+carries neither insertion, which is the state the PR body promised for
+a no. Ev's reading pointed past the rule it was aimed at: a scan that
+returns an honest zero over a file that *must* contain its markers has
+a broken premise and should refuse **at the scan**, which is a code
+change rather than a paragraph. That became
+`a-source-census-scan-that-matches-nothing-should-refuse-at-the-scan`
+and is the better result the exchange produced. `plan.md`'s "What
+eight units taught" section still said the promotion "goes out as an
+`[ev]` PR"; corrected here to say it went, and what came back.
+
+Also corrected: the slate header said twenty-seven rows closed, and the
+twenty-eighth (`reviewer-discipline-owes-the-census-failure-rules`)
+closed with 2555 on 2026-09-14.
+
+### The residue that was disclosed and not scheduled — filed now
+
+The 2026-09-14 wind-down entry names a finding and says it is *"worth a
+row on `work/meta/` when the box is not rate-limited"*: the usage-alert
+bullet in `memories/orchestration-model.md` prescribes the two-window
+check by a path (`<agent-dir>/events/claude/usage/events.jsonl`) that
+was not there for that agent. **The row was never filed**, which is
+exactly the failure `work/README.md` describes — a residue disclosed
+inside prose is invisible to the re-homing sweep and dies with the
+directory. Filed as
+`work/meta/orchestration-model-prescribes-a-usage-instrument-with-no-file.md`.
+
+It carries a second data point taken here: on this hosted box there is
+no agent-directory layout at all — no `~/.local/share/cad-work`, and a
+bounded `find` for a usage `events.jsonl` returns nothing. So the rule
+is unfollowable on two layouts, not one, and the fix is `memories/`,
+which makes it Ev's call and the row the right vehicle.
+
+### Posture
+
+Ev re-affirmed it in-chat today in the same two terms the opening set:
+**no A/B protocol** (band 3700–3799 stays bookkeeping, no ordinal
+drawn), and **style reviews generally, a full review kept for the
+hardest units**. Recorded in `plan.md`'s posture section beside the
+2026-09-11 direction it repeats.
+
+### What this orchestrator inherits as the first real decision
+
+The seven DOCM rows are still **unread against the tree by this
+program**, and `plan.md` is emphatic that this program has twice paid
+for dispatching on a row's prose. That read is the next move, before
+any grouping.
+
+Signed (WIRE orchestrator).

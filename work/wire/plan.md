@@ -45,9 +45,9 @@ announce rather than land) and **`crates/profile/*`** (S-BOOL's glob —
 the lift door is minted there by announced seam, exactly as EVAL's
 EVAL-1 and FILLET's fillet door did).
 
-## The slate — present state, 2026-09-14
+## The slate — present state, 2026-09-15
 
-**The opening slate is discharged.** Twenty-seven rows are closed; what
+**The opening slate is discharged.** Twenty-eight rows are closed; what
 remains arrived after the program opened, from three sources, and the
 sources matter more than the count because they want different handling.
 
@@ -101,9 +101,16 @@ not-now, and no lane resolves a deferred row by implementing it.
 ## What eight units taught, and what it costs to ignore
 
 These are **this program's working rules**, earned by rounds that broke
-things rather than by argument. They are not ratified discipline: the
-case for promoting them to `docs/prompts/reviewer-style-lane.md` is Ev's
-and goes out as an `[ev]` PR.
+things rather than by argument. They are not ratified discipline, and
+they are not going to become it: the promotion case went to Ev as
+`[ev]` PR 2555 and was **declined**. `reviewer-style-lane.md` opens by
+insisting its questions are not a checklist, and more imperatives make
+it more checklist-shaped; the reading Ev gave instead pointed past rule
+2 to a code change — a scan over a file that must contain its markers
+and finds none should refuse **at the scan** — which is now
+`a-source-census-scan-that-matches-nothing-should-refuse-at-the-scan`
+on this slate. The PR merged with its doc edits reverted, so these
+rules stay here, read by WIRE and by whoever reads WIRE.
 
 1. **Prefer a bijection.** A floor over a hand-written roster is the
    defect one level up. A floor is what you write when you have *proved*
@@ -162,6 +169,12 @@ document evaluates to) and it supersedes it for this program. The
 what `docs/MODEL-AB-LOG.md` already records for the eleven programs of
 the 2026-09-11 cut: WIRE's band **3700–3799** was claimed at the opening
 for bookkeeping, and no ordinal is drawn from it.
+
+**Re-affirmed by Ev in-chat on 2026-09-15**, at this orchestrator's
+opening, in the same two terms: no A/B protocol, and style reviews
+generally, with a full review kept for the hardest units. Nothing in
+the posture moves; the table below is what "hardest" has meant so far
+and is still correctable by any lane that finds a call wrong.
 
 Which units are which, decided at the opening and correctable by any
 lane that finds the call wrong:
