@@ -404,13 +404,37 @@ pub fn line(text: &str, at: usize) -> usize {
 /// start of the text, where there is no preceding byte to disqualify
 /// the match.
 ///
-/// A needle's own trailing boundary is usually carried by the needle
-/// (`kind(`, `Variant {`), so only the leading side needs asking.
+/// A needle that ends in punctuation (`kind(`, `Variant {`) carries
+/// its own trailing boundary and needs only this side;
+/// [`boundary_after`] is the other half, for a needle that is a bare
+/// identifier and carries neither.
 #[must_use]
 pub fn boundary_before(code: &str, at: usize) -> bool {
     code[..at]
         .chars()
         .next_back()
+        .is_none_or(|c| !c.is_alphanumeric() && c != '_')
+}
+
+/// **Is the byte at `at` outside an identifier?** — the trailing half
+/// of a whole-word match, where `at` is one past the needle's last
+/// byte. `true` at the end of the text, where there is no following
+/// byte to disqualify the match.
+///
+/// **A bare-identifier needle needs both halves and neither is
+/// optional.** `deny_unknown_fields` is a whole attribute word and
+/// also the prefix of `deny_unknown_fields_census`, so a leading-only
+/// check reports a match inside the longer name and sends the reader
+/// looking for a declaration that is not there. This is the shared
+/// spelling of that check because the predicate — not alphanumeric and
+/// not `_` — is [`boundary_before`]'s byte for byte, and a caller that
+/// writes its own copy has minted the duplication this module exists
+/// to remove.
+#[must_use]
+pub fn boundary_after(code: &str, at: usize) -> bool {
+    code[at..]
+        .chars()
+        .next()
         .is_none_or(|c| !c.is_alphanumeric() && c != '_')
 }
 
@@ -988,9 +1012,37 @@ mod tests {
     // flakes about one run in thirteen (15/200; **issue #882**). Do not
     // copy that shape here.
     use super::{
-        ItemBody, Region, aggregation_violations, angle_end, balanced_end, code_and_literals,
-        code_only, comments_only, file_module_decls, item_body, keeping, top_level_split,
+        ItemBody, Region, aggregation_violations, angle_end, balanced_end, boundary_after,
+        boundary_before, code_and_literals, code_only, comments_only, file_module_decls, item_body,
+        keeping, top_level_split,
     };
+
+    /// A whole-word match needs BOTH boundaries, and each half refuses
+    /// a different way of being inside a longer name.
+    #[test]
+    fn a_whole_word_match_needs_both_boundaries() {
+        let code = "wrong_operand operand operand_kind";
+        let first = code.find("operand").unwrap();
+        // Inside `wrong_operand`: the leading half refuses it, the
+        // trailing half cannot see anything wrong.
+        assert!(!boundary_before(code, first));
+        assert!(boundary_after(code, first + "operand".len()));
+
+        let bare = code[first + 1..].find("operand").unwrap() + first + 1;
+        assert!(boundary_before(code, bare));
+        assert!(boundary_after(code, bare + "operand".len()));
+
+        // A PREFIX of a longer name: now the halves swap roles, which
+        // is why a guard that asks only the leading one matches here.
+        let prefix = code.rfind("operand").unwrap();
+        assert!(boundary_before(code, prefix));
+        assert!(!boundary_after(code, prefix + "operand".len()));
+
+        // Either end of the text is a boundary: there is no byte there
+        // to disqualify the match.
+        assert!(boundary_before(code, 0));
+        assert!(boundary_after(code, code.len()));
+    }
 
     /// A generic list closes at its own `>`, and the constructs that
     /// carry a `>` or a `;` without ending it do not close it early.

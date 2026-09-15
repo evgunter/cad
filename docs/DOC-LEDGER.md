@@ -743,6 +743,28 @@ sentence; four `work/issues/` items whose `refs` named a SEAT unit id
 now name the unit's PR instead. Prose citations of "VERB-SEAT-DESIGN
 §n" resolve against `crates/verbs/README.md` by clause id.
 
+## Per-merge deletion — S415's spec (2026-09-15)
+
+Recoverable at `git show bce676c75:docs/S415-SPEC.md` (the PORT
+orchestrator's commit that wrote it, which is the last revision where
+it stands alone; the unit branch merged that commit and deleted the
+file in its own first commit). The rule above; the unit's record is
+`work/port/S415.md`, which carries the corrections to the spec's
+premises, and the 2026-09-15 entry in `work/port/log.md`.
+
+**Three of its statements are corrected by the unit** and the item
+file is the statement of record for each: the printable-ASCII band is
+two formats and not three (the spec has this right); `no_minted_id`
+does have a kernel enum behind it (right); and the spec's claim that
+`declare_err` "carries the arm's fields" where `boundary_edit_err`
+does not is **wrong for that arm** — both pass `EditPayload::NONE`
+with no inner variant. The spec's `|p.x| >= 2^53` threshold for the
+vanishing strut offset is also wrong on the negative side and is not
+a threshold on either; `strut_endpoint`'s own docs carry the checked
+statement.
+
+- `S415-SPEC.md` — S415, the three boundary residues: one scaffold rule, the Part 21 band disclosed as one rule in two crates, one hand-minted tag derived (#2633)
+
 ## Per-merge deletion — M10's merged-unit specs (2026-09-03)
 
 Recoverable at `git show 08931277cf23c29d35daa41a15a4cecc6495022e:docs/<NAME>`
@@ -2714,3 +2736,87 @@ and `work/curved/circle-residual-harmonics-needs-torus-arm.md` and the
 MERGED entries in `work/curved/log.md`. Still open from the spec's
 residue: `torus-operand-gate-admission` (the lily's remaining pin's
 retirement) and `the-chord-dip-charge-has-two-homes` (S-BOOL's half).
+
+
+## Per-merge deletion — D290's spec (2026-09-15)
+
+Recoverable at `git show f91aea516:docs/D290-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: the interior formula as the
+unit-domain `lo + (hi − lo)·k` (landed as the general `[a, b] → [lo, hi]`
+form, bit-identical on a unit source); "add a `KnotVectorIssue` variant
+if none says it" for the domain refusal (landed as a `SplineError` arm —
+a request-shaped refusal, not a vector defect — so `KnotVectorIssue`
+kept `Eq`); the surface-level door left to the implementer's call (not
+landed: no `src` consumer). Recorded in the PR body and the unit's
+`## Closed` section.
+
+- `D290-SPEC.md` — D290, the knot rescale is a `KnotVector` door (#2461)
+
+## Per-merge deletion — TRIM-3's spec (2026-09-15)
+
+Recoverable at `git show f1e984812:docs/TRIM-3-SPEC.md` (PR #2554's
+merge commit, the last head carrying it). Both PRs delivered: PR-1
+(#1911, the `topo` chart-boundary description and outside test, A/B row
+T3A) and PR-2 (#2554, the clearance seam in `editor-core/clearance.rs`,
+A/B row T3B). The spec's §Rulings and its Amendments (the metred hull;
+the cylinder root rule reading the hull verbatim — now the named
+`cut_root`) are the unit's record together with the closed item
+`work/trim/clearance-window-tightening-needs-chart-boundary.md`, the
+two MERGED entries in `work/trim/log.md` (PR-1 2026-09-07, PR-2
+2026-09-15), and the six residues the unit
+left on the program (`clearance-window-cone-sphere-torus`,
+`exact-region-cells-for-lower-bound-only`,
+`min-separation-tightening-crosses-the-drive`,
+`revolved-bands-reach-no-clearance-row`, `three-tables-of-the-chart-arms`,
+`a-refused-chart-boundary-has-no-reachable-window`). The seam into
+SHELL/M10's file was announced on #1911 (comment 5568210053) and
+merged on a week's silence, recorded in the TRIM log.
+
+## Per-merge deletion — S393's spec (2026-09-15)
+
+Recoverable at `git show 2f786af43:docs/S393-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "the two hand copies" (five
+were folded: the sweep suite's, the tour's two sweep cells, its loft
+cell and its S-duct, and the cert5 fixture); "eight call sites" (three
+plus the definition); the tour pin on the sweep cells (sited on the
+loft cell as invariants instead — the cells' placements are three inline
+lines); the `0.95` pin in `geom-core` (sited in the sweep suite,
+PROPS' file being outside the fence); the fence itself (the k-lint gate
+fired and the runbook's re-cut reached INSTR's baseline and its census
+pins). Recorded in the PR body and the unit's `## Closed` section.
+
+- `S393-SPEC.md` — S393, the path sweep's start frame has a door (#2466)
+
+## Per-merge deletion — CENSUS-INERT-DENY's spec (2026-09-15)
+
+Recoverable at `git show 6cf25b356:docs/CENSUS-INERT-DENY-SPEC.md` (PR
+#2634's last head before the merge). CENSUS's first unit. Its sentences
+that did not survive, all three refuted by the lane re-taking the
+measurements the spec itself flagged as a hypothesis: "13 prose sites"
+(14 in `.rs`, and 16 counting the two in markdown the spec's `.rs`-only
+count could not see); "the fourteenth non-attribute is `doc.rs`'s
+multi-line `#[serde(bound(…))]`" (no `deny_unknown_fields` appears in a
+`serde(bound)` — that site is an ordinary attribute above an interleaved
+comment); and the prose placing `Qualifier` and `RoleSeg` on the inert
+side of the named-field rule (`Qualifier::OrderAlong { rank, of }` is a
+struct variant and `RoleSeg` has fourteen — both govern, and the spec's
+own total of 22 inert sites was unaffected, the error being in its
+prose rather than its measurement). Also not landed as written: the
+spec's allowance for keeping an inert attribute with a one-sentence
+"habit-guard" reason (zero keeps taken — a kept site needs an exemption
+in the instrument, and an exemption list is the hand-written list this
+program exists to remove), and its "one style review, no correctness
+lane" leaving the guard's blind-spot list unchecked (the style lane
+refuted the list's exclusivity claim with four executed counterexamples
+and the fix pass found a fifth).
+
+The three premise corrections are recorded on the item file, which
+survives this deletion, and the unit's record is
+`work/census/log.md`'s CENSUS-INERT-DENY entry plus the PR body.
+Residue, both filed rather than left in prose:
+`work/census/census-sees-an-inert-attribute-but-not-a-missing-one.md`
+(the census is one-directional) and
+`work/msolve/mate-primitive-accepts-a-stray-field-the-module-docs-say-refuses.md`
+(its one confirmed instance).
+
+- `CENSUS-INERT-DENY-SPEC.md` — CENSUS-INERT-DENY, an attribute with nothing to deny (#2634)

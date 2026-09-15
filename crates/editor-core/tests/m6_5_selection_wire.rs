@@ -94,9 +94,11 @@ fn the_selection_reaches_the_wire_canonical() {
 
     // A fillet with no `selection` at all (an "every edge" fillet, the
     // shape before the field existed) cannot be promoted by hand: the
-    // field has no default and `deny_unknown_fields` admits no
-    // stand-in, so the body is unreadable by this build and the
-    // refusal names the field it met instead.
+    // field has no default, so the body is unreadable by this build
+    // either way. What `deny_unknown_fields` on `Node` buys is WHICH
+    // NAME the refusal carries — the stand-in it met rather than the
+    // field it wanted — which is what the assertion below reads, and
+    // it is the only difference the attribute makes here.
     let unselected = text.replacen("\"selection\"", "\"unselection\"", 1);
     match load(&unselected, Tol::witness()) {
         Err(PersistError::Unreadable { detail, .. }) => {
