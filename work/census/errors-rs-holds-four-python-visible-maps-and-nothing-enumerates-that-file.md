@@ -130,14 +130,18 @@ cannot move without the enum moving too.
 A sixth map was added to this file for real — an inherent
 `pub const fn` inside an `impl ValidationRefusal`, the position the
 census is weakest against and where both already-unseen maps live. It
-reds by name, and **nothing else in the 103-test Rust suite moved**:
-that is the row's thesis, measured.
+reds by name, and **nothing else in the crate's Rust suite moved** —
+100 other tests passed over a file that had just grown two
+Python-shaped words. That is the row's thesis, measured.
 
 The reader's own guard is
-`the_errors_mint_reader_recognises_what_it_claims` plus four executed
-limits. One claim in its first draft was wrong and execution corrected
-it: an `extern "C"` ABI string IS a literal and IS counted, where the
-draft reasoned that the lexer would blank it.
+`the_errors_mint_reader_recognises_what_it_claims`, driven over a
+fixture holding one of every form it reads, with six more tests
+executing its limits: the file going quiet, an arrival inside an
+`impl`, the not-a-literal blind spot, and three refusals it must make
+loud. One claim in the fixture's first draft was wrong and execution
+corrected it: an `extern "C"` ABI string IS a literal and IS counted,
+where the draft reasoned that the lexer would blank it.
 
 ### What the tag reader does with a `pub const fn`
 

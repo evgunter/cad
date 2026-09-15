@@ -6452,7 +6452,7 @@ struct MintingItem {
 /// the `held_by` column's business. A word that reaches Python from
 /// this file without being a literal here — forwarded from
 /// `crate::tags`, or built from a kernel `Display` — is invisible to
-/// it, and `the_errors_mint_reader_reports_what_it_cannot_see`
+/// it, and `the_errors_mint_census_cannot_see_a_word_that_is_not_a_literal`
 /// executes that case rather than asserting it.
 ///
 /// Sorted by owner, and the test below checks that rather than
@@ -6517,18 +6517,20 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
 /// Every string literal `source` spells, by the item that spells it.
 ///
 /// **Which bytes are literals is [`test_utils::source`]'s answer, not
-/// this function's**: `code` has every comment and literal blanked and
-/// `text` has the comments alone blanked, so a byte that is blank in
-/// one and not the other is inside a literal, and no grammar of this
-/// reader's decides the population. What is left to do is
-/// ATTRIBUTION — which item spells it — and a wrong answer there is
-/// loud, because the owner it invents is a name the roster does not
-/// carry.
+/// this function's**, taken from three of its views at once: `code`
+/// blanks comments and literals, `comments` keeps comments alone, and
+/// `text` keeps literals alone, so a byte blank in the first two and
+/// not the third is inside a literal. No grammar of this reader's
+/// decides the population, which is what keeps a word from arriving in
+/// a form it was never taught. What is left to do is ATTRIBUTION —
+/// which item spells it — and a wrong answer there is loud, because
+/// the owner it invents is a name the roster does not carry.
 ///
-/// Fails loud on what it cannot place: a literal before any
-/// declaration, a literal form that is not a plain `"…"`, an `impl`
-/// whose body does not close, two items that would answer to one
-/// qualified name.
+/// Fails loud on what it cannot place: a literal above every
+/// declaration, a literal form it cannot lex, an `impl` whose body
+/// does not close, two items that would answer to one qualified name.
+/// A CHARACTER literal is the one form it reads and drops — no word
+/// reaches Python from one, and this file spells several.
 fn read_minting_items(source: &str) -> BTreeMap<String, Vec<String>> {
     let text = code_and_literals(source);
     let code = code_only(source);
