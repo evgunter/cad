@@ -484,7 +484,7 @@ mod tests {
                 AtomInfo {
                     op,
                     payload: 0,
-                    args: [Some(Arc::new(x.clone())), Some(Arc::new(x.clone()))],
+                    args: [Some(Arc::new(x.clone())), Some(Arc::new(x.clone())), None],
                 },
             );
         }
