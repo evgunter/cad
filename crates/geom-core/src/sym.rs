@@ -2091,7 +2091,11 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
                 && let Some(inv) = d.recip()
                 && let Some(c) = n.mul(&inv)
             {
-                let arm = if c.is_zero() || c.is_negative() { b } else { third };
+                let arm = if c.is_zero() || c.is_negative() {
+                    b
+                } else {
+                    third
+                };
                 let mut f = arm.clone();
                 f.gated = a.gated || arm.gated;
                 return Some(f);
@@ -3464,7 +3468,11 @@ mod tests {
             )
         });
         assert_eq!(out.0, (3.0, 0.25, 3.0), "the value channel is f64's door");
-        assert!(out.1.0 && out.1.1 && out.1.2, "each arm is a theorem: {:?}", out.1);
+        assert!(
+            out.1.0 && out.1.1 && out.1.2,
+            "each arm is a theorem: {:?}",
+            out.1
+        );
         assert_eq!(
             counts.numeric, 0,
             "a constant decision needs no numeric fallback"
