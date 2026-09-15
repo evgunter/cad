@@ -19,6 +19,7 @@ use sweep::blend::battery::{
     spine_regularity,
 };
 use sweep::blend::{BlendError, BlendSite, CornerConfig, RunOutPolicy};
+use sweep::test_support::cube;
 use sweep::test_support::disc_of_arcs;
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, FaceKey, FaceSurface, VertexKey};
@@ -35,21 +36,6 @@ fn in_band() -> f64 {
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-fn boxy() -> Body<f64> {
-    let lp = ProfileLoop::new(
-        [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
-            .into_iter()
-            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-            .collect(),
-    );
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(tol())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
 }
 
 /// A cylinder: a three-arc circle extruded.
@@ -82,7 +68,7 @@ fn keys(body: &Body<f64>) -> (FaceKey, VertexKey, EdgeKey) {
 /// exactly what such a vertex would need.
 #[test]
 fn corner_tag_n_edge_vertex_names_stop_at_vertex() {
-    let body = boxy();
+    let body = cube(1.0, Tol::witness());
     let (_, v, _) = keys(&body);
     match corner_config(v, 4, 4, [Vec3::new(0.0, 0.0, 1.0); 3], 0.1, band()) {
         Err(BlendError::UnsupportedCorner {
@@ -102,7 +88,7 @@ fn corner_tag_n_edge_vertex_names_stop_at_vertex() {
 /// distance conditions, so there is no corner ball to mint.
 #[test]
 fn corner_tag_dependent_normals_refuses_definitely() {
-    let body = boxy();
+    let body = cube(1.0, Tol::witness());
     let (_, v, _) = keys(&body);
     let normals = [
         Vec3::new(1.0, 0.0, 0.0),
@@ -124,7 +110,7 @@ fn corner_tag_dependent_normals_refuses_definitely() {
 /// decays to zero before the vertex can.
 #[test]
 fn corner_tag_mixed_convexity_names_feather() {
-    let body = boxy();
+    let body = cube(1.0, Tol::witness());
     let (_, v, _) = keys(&body);
     let normals = [
         Vec3::new(1.0, 0.0, 0.0),
@@ -153,7 +139,7 @@ fn corner_tag_mixed_convexity_names_feather() {
 /// door).
 #[test]
 fn corner_config_admits_either_uniform_trihedron() {
-    let body = boxy();
+    let body = cube(1.0, Tol::witness());
     let (_, v, _) = keys(&body);
     let normals = [
         Vec3::new(1.0, 0.0, 0.0),
@@ -180,7 +166,7 @@ fn corner_config_admits_either_uniform_trihedron() {
 /// is not a refusal.
 #[test]
 fn corner_tag_three_convex_edges_is_the_one_that_passes() {
-    let body = boxy();
+    let body = cube(1.0, Tol::witness());
     let (_, v, _) = keys(&body);
     let normals = [
         Vec3::new(1.0, 0.0, 0.0),
@@ -459,7 +445,7 @@ fn trio_coaxial_ring_containment_is_answered_by_the_screen() {
 
 #[test]
 fn trio_face_clearance() {
-    let body = boxy();
+    let body = cube(1.0, Tol::witness());
     let (f, _, _) = keys(&body);
     let b = band();
     let definite = face_clearance(f, 1.0, 0.8, 0.8, false, b).unwrap_err();
@@ -471,7 +457,7 @@ fn trio_face_clearance() {
 
 #[test]
 fn trio_chain_g1() {
-    let body = boxy();
+    let body = cube(1.0, Tol::witness());
     let (_, v, _) = keys(&body);
     let b = band();
     let x = Vec3::new(1.0, 0.0, 0.0);
@@ -504,7 +490,7 @@ fn trio_chain_g1() {
 
 #[test]
 fn trio_convexity_sign() {
-    let body = boxy();
+    let body = cube(1.0, Tol::witness());
     let (_, _, e) = keys(&body);
     let b = band();
     let tau = Vec3::new(0.0, 0.0, 1.0);
@@ -568,7 +554,7 @@ fn trio_convexity_sign() {
 
 #[test]
 fn trio_corner_independence() {
-    let body = boxy();
+    let body = cube(1.0, Tol::witness());
     let (_, v, _) = keys(&body);
     let b = band();
     let n = |x: f64, y: f64, z: f64| Vec3::new(x, y, z);

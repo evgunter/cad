@@ -33,24 +33,13 @@ pub fn cube() -> Body<f64> {
 /// A pocketed die at `[x0,x0+1]³`: unit cube minus a centered
 /// 0.5×0.5×0.5 pocket opening through the TOP face (the M3 die shape;
 /// exact volume 0.875). A genuine boolean result: the top face carries
-/// a ring (the pocket mouth).
+/// a ring (the pocket mouth). The kernel's own fixture — `stl`'s
+/// review suite builds the same die from the same door.
+pub use sweep::test_support::pocket_die;
+
+/// [`pocket_die`] at `Tol::witness()`, this module's tolerance.
 pub fn die(x0: f64, y0: f64, z0: f64) -> Body<f64> {
-    let cube = brick(
-        (x0, x0 + 1.0),
-        (y0, y0 + 1.0),
-        (z0, z0 + 1.0),
-        Tol::witness(),
-    );
-    let cutter = brick(
-        (x0 + 0.25, x0 + 0.75),
-        (y0 + 0.25, y0 + 0.75),
-        (z0 + 0.5, z0 + 1.5),
-        Tol::witness(),
-    );
-    let BooleanResult::Body(b) = subtract(&cube, &cutter, Tol::witness()).unwrap() else {
-        panic!("die subtract is a body");
-    };
-    b.body
+    pocket_die(x0, y0, z0, Tol::witness())
 }
 
 /// Two pocketed dies kissing at the corner `(1,1,1)` — the M3 R6
