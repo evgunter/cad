@@ -4,8 +4,11 @@
 //! - [`Expr`] persists as a plain AST tree and is REBUILT through the
 //!   dimension-checking smart constructors on load — a corrupt or
 //!   hand-edited file can never smuggle an ill-dimensioned tree (or a
-//!   non-finite literal) past the construction door. The cached
-//!   dimension is deliberately not persisted: it re-derives.
+//!   non-finite literal) past the construction door, and the checker's
+//!   refusal reaches the caller WHOLE rather than as prose — how a
+//!   typed value leaves a `Deserialize` impl at all is
+//!   [`super::refusal`]'s subject. The cached dimension is deliberately
+//!   not persisted: it re-derives.
 //! - [`ProfileProgram`] persists STRUCTURALLY (the `plane` NODE ID —
 //!   twelve placement columns until the sketch plane became a node —
 //!   plus per-loop step lists whose continuous args are [`Expr`]s) and
@@ -154,8 +157,13 @@ impl Serialize for Expr {
 impl<'de> Deserialize<'de> for Expr {
     fn deserialize<D: Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
         let wire = WireExpr::deserialize(de)?;
-        wire.rebuild()
-            .map_err(|e| D::Error::custom(format!("ill-dimensioned expression refused: {e}")))
+        wire.rebuild().map_err(|e| {
+            // The typed refusal leaves through the slot; the serde
+            // message is the human half of the same fact
+            // (`persist::refusal`).
+            super::refusal::record(&e);
+            D::Error::custom(format!("ill-dimensioned expression refused: {e}"))
+        })
     }
 }
 
@@ -756,6 +764,7 @@ impl<'de> Deserialize<'de> for MeasureExpr {
     fn deserialize<D: Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
         let wire = WireMeasureExpr::deserialize(de)?;
         wire.rebuild().map_err(|e| {
+            super::refusal::record(&e);
             D::Error::custom(format!("ill-dimensioned measure expression refused: {e}"))
         })
     }

@@ -28,8 +28,9 @@
 //!   a runtime value; making it a STRUCTURED value rather than a
 //!   formatted string is what keeps that promise. It is NOT the
 //!   document layer's `DimensionError`, which is the expression
-//!   layer's ten-arm refusal; the two are unrelated types and this
-//!   one is deliberately not named after it.
+//!   layer's ten-arm refusal; the two are unrelated types, and this
+//!   one crosses under its own name so a Python caller reads the same
+//!   two words a Rust caller does.
 //! * [`ErrorClass`] — which typed Python exception a kernel refusal
 //!   becomes, and for the classes whose discriminant is this crate's
 //!   own decision rather than a kernel refusal's tag, WHICH refusal
@@ -127,11 +128,10 @@ pub const fn canonical_unit(dim: Dimension) -> Option<&'static str> {
 /// The fields are the payload, not the message: a caller inspects
 /// `err.op`, `err.left`, `err.right` rather than parsing prose.
 ///
-/// Raised to Python as the `DimensionError` class. That class name is
-/// the SURFACE spelling and this is the Rust type behind it; the
-/// document layer's own `DimensionError` is a different type entirely
-/// (the expression layer's ten-arm refusal), which is why this one
-/// does not share its name.
+/// Raised to Python under this type's own name. The document layer's
+/// own `DimensionError` is a different type entirely — the expression
+/// layer's ten-arm refusal — and it crosses on three doors of its own,
+/// under each door's name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct QuantityOpMismatch {
     /// The operator that was attempted, e.g. `"+"`.
@@ -214,15 +214,15 @@ pub enum ErrorClass {
     /// than over the one word this refusal writes.
     Validation(ValidationRefusal),
     /// An operator applied to two quantities whose dimensions do not
-    /// admit it ([`QuantityOpMismatch`]). The Python class is
-    /// `DimensionError`.
-    Dimension,
+    /// admit it. The Python class keeps the Rust type's own name,
+    /// [`QuantityOpMismatch`].
+    QuantityOp,
     /// The display formatter refused a value: it is NaN or ±∞, and a
     /// non-finite quantity has no display form. The Python class
     /// keeps the Rust type's own name, `FmtQuantityError`.
     ///
     /// The quantity boundary's SECOND refusal, and the other one is
-    /// not its neighbour by accident: [`Self::Dimension`] is about
+    /// not its neighbour by accident: [`Self::QuantityOp`] is about
     /// the pair of dimensions an operator was handed, this one about
     /// the single number a formatter was handed. `quantity`'s
     /// newtypes are plain value wrappers and refuse no float, so a
@@ -237,21 +237,24 @@ pub enum ErrorClass {
     /// The Python class is `LiteralError`.
     ///
     /// That type has genuine dimension-mismatch arms too, and three
-    /// other doors reach them. `load` does (`WireExpr::rebuild`
-    /// re-runs every check through the operator builders) and they
-    /// arrive as [`ErrorClass::Persist`] with the `parse` tag rather
-    /// than under any dimension class — issue #694. The expression
-    /// TEXT door does too, and they arrive as [`ErrorClass::Parse`]
-    /// with `variant == "dimension"` and the mismatch's own tag as
-    /// `kind`, which is the one of those two that keeps the inner
-    /// refusal branchable. And the MEASUREMENT sublanguage's
-    /// arithmetic constructors do, arriving on THIS class with the
-    /// mismatch's own tag as `kind` — they are the same kernel type
-    /// refusing at the same layer, because that language asks `Expr`'s
-    /// own constructors for its dimensions rather than restating the
-    /// F1 table. Nothing anywhere is routed to
-    /// [`ErrorClass::Dimension`], which is the quantity boundary's
-    /// own check and a different type.
+    /// other doors reach them. `load` does (`WireExpr::rebuild` and
+    /// its measurement twin re-run every check through the operator
+    /// builders), and they arrive as [`ErrorClass::Persist`] with
+    /// `variant == "dimension"` and the mismatch's own tag as
+    /// `inner_variant`. The expression TEXT door does too, arriving as
+    /// [`ErrorClass::Parse`] with `variant == "dimension"` and the
+    /// mismatch's own tag as `kind`. And the MEASUREMENT
+    /// sublanguage's arithmetic constructors do, arriving on THIS
+    /// class with the mismatch's own tag as `kind` — they are the same
+    /// kernel type refusing at the same layer, because that language
+    /// asks `Expr`'s own constructors for its dimensions rather than
+    /// restating the F1 table. So the type crosses at four doors under
+    /// three class names, each naming the DOOR, and every one of them
+    /// carries the failing check's own tag beside it: which check
+    /// refused is branchable everywhere, and the word comes from one
+    /// map (`crate::tags::expr_dimension_error_tag`). Nothing anywhere
+    /// is routed to [`ErrorClass::QuantityOp`], which is the quantity
+    /// boundary's own check and a different type.
     ///
     /// So `value` is the offending number where the refusing door had
     /// one in hand and `None` where it did not: a measurement
@@ -494,7 +497,7 @@ impl ErrorClass {
             Self::Edit => "EditError",
             Self::Evaluation(_) => "EvaluationError",
             Self::Validation(_) => "ValidationError",
-            Self::Dimension => "DimensionError",
+            Self::QuantityOp => "QuantityOpMismatch",
             Self::FmtQuantity => "FmtQuantityError",
             Self::Literal => "LiteralError",
             Self::Parse => "ParseError",

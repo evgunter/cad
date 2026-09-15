@@ -825,6 +825,34 @@ per-roster.
 
 - `PORT-PYOPTS-SPEC.md` — PORT `python-cannot-set-options-structs`, the four options doors bound field by field with a destructure anchor per struct (#2678)
 
+## Per-merge deletion — PORT-DIMS-1's spec (2026-09-15)
+
+Recoverable at `git show ef0c7ef60:docs/PORT-DIMS-1-SPEC.md` (the PORT
+orchestrator's commit that wrote it; the unit branch merged that commit
+and carried the file to its own merge). The rule above; the unit's
+record is `work/port/PORT-DIMS-1.md` and the two rows it carries, plus
+the 2026-09-15 entries in `work/port/log.md`.
+
+**Three of its statements are corrected by the unit**, and the item
+files are the statement of record for each. The spec listed among the
+things it had *confirmed* that a rebuild refusal "becomes
+`PersistError::Parse`, whose Python tag is `parse`"; it became
+`PersistError::Unreadable`, tag `unreadable`, and had since PR 1553
+routed body refusals by `serde_json::error::Category` — `Parse` is the
+reader's classes and a rebuild refusal is `Data`. The four-week-old row
+it inherited that claim from says `parse` too, and so did five doc
+comments, the binding census and the guide; all are corrected here.
+The spec also says the row's first sweep "names instances that are gone
+or were never instances" — true of the `pncad-py` half, and the
+`persist/` half of that sweep was exact: thirteen `Error::custom` calls,
+disposed one by one in the PR. And it sketches the load-door design as
+three directions with the structure going somewhere; the direction it
+describes as "a side channel that survives the serde round trip" is the
+one that exists, because the other two cost either the deserializer's
+line/column payload or a parallel wire tree for the whole document.
+
+- `PORT-DIMS-1-SPEC.md` — PORT-DIMS-1, the load door's structured refusal and the vacated name: `PersistError::Dimension` carries the document layer's `DimensionError` whole, and the Python quantity class takes its Rust type's own name (#2702)
+
 ## Per-merge deletion — PORT-DOORS-1's spec (2026-09-15)
 
 Recoverable at `git show 58e485ca4:docs/PORT-DOORS-1-SPEC.md` (the PORT

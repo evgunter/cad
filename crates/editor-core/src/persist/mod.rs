@@ -105,7 +105,11 @@
 //!   through the dimension-checking constructors and the wire-only
 //!   canonical-set rule, [`wire`]) → the shared validator → edit
 //!   replay through [`crate::edit::apply`]'s doors → ε reconciliation
-//!   (D4). No silent best-effort loads, ever.
+//!   (D4). No silent best-effort loads, ever. A rebuild refusal keeps
+//!   its STRUCTURE across the deserializer, which gives it nowhere to
+//!   put one ([`refusal`]), and refuses as
+//!   [`PersistError::Dimension`] carrying the document layer's own
+//!   [`crate::expr::DimensionError`].
 //!
 //! # ε wiring (spec D4)
 //!
@@ -126,6 +130,7 @@ pub mod hexbytes;
 /// follows.
 pub(crate) mod kernel_wire;
 pub(crate) mod pairs;
+mod refusal;
 pub(crate) mod strict;
 mod wire;
 
@@ -271,9 +276,11 @@ pub enum PersistError {
     /// The body passed the JSON reader and this build's TYPES rejected
     /// it — serde_json's `Data` class (the seam is stated once, on
     /// [`parse_err`]): a variant or field this build has no name for,
-    /// a required field it lacks, a wrong type, a rebuild refusal.
+    /// a required field it lacks, a wrong type, a duplicate key.
     /// `detail` is the deserializer's own words and the offending name
-    /// is in there. Both directions of growth meet this arm or none
+    /// is in there. A DIMENSION refusal is the one `Data` failure that
+    /// does not land here: it has a typed value to carry and carries it
+    /// ([`Self::Dimension`]). Both directions of growth meet this arm or none
     /// (module docs): an OLDER document that merely lacks vocabulary
     /// grown since does NOT land here — it loads; an OLDER document
     /// missing a field since made required lands here naming it; a
@@ -291,6 +298,32 @@ pub enum PersistError {
         /// The deserializer's message, naming the vocabulary it could
         /// not place.
         detail: String,
+    },
+    /// The body parsed and one of its EXPRESSIONS was refused by the
+    /// document layer's dimension checker on rebuild
+    /// ([`wire::WireExpr::rebuild`] and its measurement twin re-run the
+    /// authoring constructors, so a file cannot carry a tree the
+    /// authoring API refuses).
+    ///
+    /// The refusal crosses whole, not as prose: this is the load
+    /// door's half of the bindings' never-strings contract, and the
+    /// structure is what lets a caller branch on WHICH check failed
+    /// rather than read a sentence. How a typed value leaves a
+    /// `Deserialize` impl at all is [`refusal`]'s subject.
+    ///
+    /// Not [`Self::Unreadable`], although serde_json classes both as
+    /// `Data` (see [`parse_err`]): these bytes are not a document this
+    /// build has lost the vocabulary for, so [`REGENERATE_RECOURSE`] is
+    /// the wrong advice — regenerating a file whose expression is
+    /// dimensionally wrong produces the same refusal. What is wrong is
+    /// the expression.
+    Dimension {
+        /// Line within the body (serde_json's 1-based position).
+        line: usize,
+        /// Column within the line.
+        column: usize,
+        /// The document layer's own refusal.
+        error: crate::expr::DimensionError,
     },
     /// The snapshot violates a document invariant — a parsed one on
     /// load, or an in-memory one at save (which would have written an
@@ -377,6 +410,15 @@ impl core::fmt::Display for PersistError {
                 f,
                 "persist: this build cannot read the document (body line {line} column \
                  {column}: {detail}) — {REGENERATE_RECOURSE}"
+            ),
+            Self::Dimension {
+                line,
+                column,
+                error,
+            } => write!(
+                f,
+                "persist: body line {line} column {column}: ill-dimensioned expression \
+                 refused: {error}"
             ),
             Self::Snapshot(e) => write!(f, "persist: invalid snapshot: {e}"),
             Self::EditReplay { index, error } => {
@@ -538,7 +580,14 @@ pub fn header_document_id(text: &str) -> Result<DocumentId, PersistError> {
 }
 
 fn parse_body(body_text: &str) -> Result<FileBody, PersistError> {
-    serde_json::from_str(body_text).map_err(parse_err)
+    // The refusal slot is THIS call's, start to end: emptied before the
+    // parse so nothing an earlier one left can be read as this one's,
+    // and taken after it on both paths so nothing this one leaves can
+    // be read as the next one's (`refusal`).
+    let _ = refusal::take();
+    let parsed = serde_json::from_str(body_text);
+    let refused = refusal::take();
+    parsed.map_err(|e| parse_err(e, refused))
 }
 
 /// THE seam, stated once (the variant docs and the module header point
@@ -552,6 +601,15 @@ fn parse_body(body_text: &str) -> Result<FileBody, PersistError> {
 /// rejected the bytes before any type was consulted. `Io` cannot arise
 /// from a `&str` source and is grouped with the reader's classes
 /// rather than left to a wildcard.
+///
+/// **One refusal inside `Data` is told apart from the rest, and not by
+/// its message**: an expression the document layer's dimension checker
+/// refused on rebuild arrives here with its TYPED value beside it
+/// ([`refusal`]), and that is what routes it to
+/// [`PersistError::Dimension`]. Nothing is sniffed — the structured
+/// value is either in hand or it is not. A `Syntax`/`Eof` failure with
+/// a refusal recorded is a refusal that did not decide the parse, and
+/// the reader's class still wins.
 ///
 /// The executed edges, so nobody has to guess where the line falls
 /// (`tests/bool13_r1_probes.rs`, `tests/bool13r2_probes.rs`):
@@ -567,15 +625,26 @@ fn parse_body(body_text: &str) -> Result<FileBody, PersistError> {
 /// `Syntax` although the bytes are grammatical JSON) are all
 /// → `Parse`. That last edge is the one place the two descriptions
 /// "not JSON" and "reader-rejected" part company, and the reader's
-/// class is the one this door follows.
-fn parse_err(e: serde_json::Error) -> PersistError {
+/// class is the one this door follows. The two rebuild refusals named
+/// above have MOVED off `Unreadable` since: an ill-dimensioned
+/// expression and an unknown display unit are the document layer's
+/// `DimensionError` and land on [`PersistError::Dimension`], while a
+/// duplicate strict-map key is the format's own rule and stays here.
+fn parse_err(e: serde_json::Error, refused: Option<crate::expr::DimensionError>) -> PersistError {
     use serde_json::error::Category;
     let (line, column, message) = (e.line(), e.column(), e.to_string());
     match e.classify() {
-        Category::Data => PersistError::Unreadable {
-            line,
-            column,
-            detail: message,
+        Category::Data => match refused {
+            Some(error) => PersistError::Dimension {
+                line,
+                column,
+                error,
+            },
+            None => PersistError::Unreadable {
+                line,
+                column,
+                detail: message,
+            },
         },
         Category::Syntax | Category::Eof | Category::Io => PersistError::Parse {
             line,
