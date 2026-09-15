@@ -5389,7 +5389,11 @@ mod inf_arms_interval {
     /// Promoted from the reviewer probe's printed table.
     #[test]
     fn the_spline_pole_joint_gate_answers_all_three_ways() {
-        let sup = |span: f64| geom_brep::chart_stretch_sup(&flat_chart(span, span)).0.get();
+        let sup = |span: f64| {
+            geom_brep::chart_stretch_sup(&flat_chart(span, span))
+                .0
+                .get()
+        };
         assert_eq!(
             decide("pcurve_loop_pole_joint", Margin::of(sup(1e-12)), band()),
             Ok(Sign::Zero)

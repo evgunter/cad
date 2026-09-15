@@ -2947,7 +2947,9 @@ pub fn chart_stretch_sup<T: Real>(surface: &Surface<T>) -> (SupSpeed<T>, SupSpee
         Surface::Approx(ref a) => nurbs_stretch_bounds(a.fit()),
         // A plane chart's parameters are already metres; the cone's
         // arms are the caller's to supply (see the sphere note above).
-        Surface::Plane { .. } | Surface::Cone { .. } => (SupSpeed::new(T::one()), SupSpeed::new(T::one())),
+        Surface::Plane { .. } | Surface::Cone { .. } => {
+            (SupSpeed::new(T::one()), SupSpeed::new(T::one()))
+        }
     }
 }
 
@@ -3273,8 +3275,11 @@ fn nurbs_stretch_inf<T: Real>(s: &geom::NurbsSurface<T>) -> ChartStretchInf<T> {
 
 /// `sup |C′|` bound for a **non-rational** spline curve — the curve
 /// twin of [`nurbs_stretch_bounds`], used by the iso lane's
-/// parameter-map slack. Callers gate rationality.
-fn curve_rate_bound<T: Real>(c: &NurbsCurve3<T>) -> T {
+/// parameter-map slack. Callers gate rationality. A [`SupSpeed`] by
+/// the same argument as its surface twin: the slack it meters is an
+/// overshoot, so over-stating the rate widens the envelope and can
+/// only refuse.
+fn curve_rate_bound<T: Real>(c: &NurbsCurve3<T>) -> SupSpeed<T> {
     let ctl = c.control();
     let (p, k) = (c.knots().degree(), c.knots().knots());
     let mut sup = T::zero();
@@ -3292,7 +3297,7 @@ fn curve_rate_bound<T: Real>(c: &NurbsCurve3<T>) -> T {
     // 1992) multiplies it by the weight ratio; squaring it is the
     // conservative reading. Exactly 1 on a unit-weight net, so no
     // integral-lane number moves.
-    sup * weight_ratio_factor::<T>(c.weights())
+    SupSpeed::new(sup * weight_ratio_factor::<T>(c.weights()))
 }
 
 /// `(w_max/w_min)²` for a positive weight list, `1` when the list is
@@ -3894,13 +3899,21 @@ fn side_of<T: Decide>(
     band: Band,
     esc: &impl Fn(Indeterminate) -> PcurveCertifyError,
 ) -> Result<Option<(bool, T)>, PcurveCertifyError> {
-    if let Sign::Zero =
-        decide("pcurve_iso_boundary", Margin::metered_sup(w - lo, arm), band).map_err(esc)?
+    if let Sign::Zero = decide(
+        "pcurve_iso_boundary",
+        Margin::metered_sup(w - lo, arm),
+        band,
+    )
+    .map_err(esc)?
     {
         return Ok(Some((false, arm.to_meters((w - lo).abs()) + drift)));
     }
-    if let Sign::Zero =
-        decide("pcurve_iso_boundary", Margin::metered_sup(w - hi, arm), band).map_err(esc)?
+    if let Sign::Zero = decide(
+        "pcurve_iso_boundary",
+        Margin::metered_sup(w - hi, arm),
+        band,
+    )
+    .map_err(esc)?
     {
         return Ok(Some((true, arm.to_meters((w - hi).abs()) + drift)));
     }
@@ -4130,7 +4143,8 @@ fn run_iso_checks<T: Decide>(
             // endpoints; metered through the carrier's own rate bound.
             let v_at_0 = p0.y + pl.y * t0;
             let v_at_1 = p0.y + pl.y * t1;
-            let slack_param = (v_at_0 - t0).abs().max((v_at_1 - t1).abs()) * curve_rate_bound(c);
+            let slack_param =
+                curve_rate_bound(c).to_meters((v_at_0 - t0).abs().max((v_at_1 - t1).abs()));
             // Domain containment: the hull and rate bounds hold on the
             // carrier's knot domain only.
             let (d0, d1) = c.domain();
@@ -4139,8 +4153,12 @@ fn run_iso_checks<T: Decide>(
             let over = (T::from_f64(d0) - lo)
                 .max(hi - T::from_f64(d1))
                 .max(T::zero());
-            match decide("pcurve_iso_domain", Margin::metered_sup(over, stretch_v), band)
-                .map_err(esc)?
+            match decide(
+                "pcurve_iso_domain",
+                Margin::metered_sup(over, stretch_v),
+                band,
+            )
+            .map_err(esc)?
             {
                 Sign::Zero => {}
                 Sign::Positive | Sign::Negative => {
@@ -4221,8 +4239,12 @@ fn run_iso_checks<T: Decide>(
             let over = (T::from_f64(d0) - u_at_0.min(u_at_1))
                 .max(u_at_0.max(u_at_1) - T::from_f64(d1))
                 .max(T::zero());
-            match decide("pcurve_iso_domain", Margin::metered_sup(over, stretch_u), band)
-                .map_err(esc)?
+            match decide(
+                "pcurve_iso_domain",
+                Margin::metered_sup(over, stretch_u),
+                band,
+            )
+            .map_err(esc)?
             {
                 Sign::Zero => {}
                 Sign::Positive | Sign::Negative => {

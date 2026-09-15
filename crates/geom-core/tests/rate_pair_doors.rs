@@ -142,10 +142,7 @@ fn a_poisoned_or_collapsed_rate_passes_straight_through() {
             Margin::metered(1.0, InfSpeed::new(rate)).value(),
             1.0 * rate
         ));
-        assert!(same_bits(
-            SupSpeed::new(rate).to_param(1.0),
-            1.0_f64 / rate
-        ));
+        assert!(same_bits(SupSpeed::new(rate).to_param(1.0), 1.0_f64 / rate));
     }
 }
 

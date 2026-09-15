@@ -1049,8 +1049,14 @@ pub fn plane_nurbs_ssi(
         branches.push(branch);
     }
 
-    let exhaustiveness =
-        exhaust::account_chart_plane(wall, p0, normal, root, &tubes, speed.to_param(domain.floor(band)))?;
+    let exhaustiveness = exhaust::account_chart_plane(
+        wall,
+        p0,
+        normal,
+        root,
+        &tubes,
+        speed.to_param(domain.floor(band)),
+    )?;
     Ok(SsiOutcome {
         branches,
         exhaustiveness,

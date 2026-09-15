@@ -32,6 +32,16 @@ in the same file) records that a full sup-swap of `certified_arms`
 passed the entire topo+sweep suite green, which is the sharpest
 statement of why prose is not enough here.
 
+## Its neighbour, the same shape
+
+`geom_brep::chart_stretch_inf`'s `ChartStretchInf` is the other half:
+`inf_u`/`inf_v` are inf rates and `sup_u`/`sup_v` are the very numbers
+`chart_stretch_sup` now answers as `SupSpeed` (the two doors report ONE
+sup — `the_two_doors_report_one_sup` pins that equality). Its fields
+stayed bare `f64`/`T` for the same scoping reason, and `area_inf` is an
+AREA rate, which the linear pair does not name at all. Whoever types
+`certified_arms` will pass through this struct on the way.
+
 ## Shape
 
 `certified_arms` answers `InfSpeed<T>` per axis; the `Margin::of` gate

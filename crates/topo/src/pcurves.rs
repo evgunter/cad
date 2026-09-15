@@ -1307,7 +1307,9 @@ fn polar_arm<T: Real>(surface: &Surface<T>) -> Option<T> {
 /// direction rides out as a [`SupSpeed`]: the exact polar radius is a
 /// sup by being exact, and the spline stretch is one by derivation.
 fn v_meter<T: Real>(surface: &Surface<T>) -> SupSpeed<T> {
-    SupSpeed::new(polar_arm(surface).unwrap_or_else(|| geom_brep::chart_stretch_sup(surface).1.get()))
+    SupSpeed::new(
+        polar_arm(surface).unwrap_or_else(|| geom_brep::chart_stretch_sup(surface).1.get()),
+    )
 }
 
 /// A whole-period shift of the MERIDIONAL channel — the `v` twin of
