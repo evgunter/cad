@@ -1,10 +1,11 @@
 ---
 id: hand-listed-debug-censuses-in-geom-core-geom-and-topo
-kind: issue
+kind: unit
 title: nine hand-written Debug impls across geom-core, geom and topo list their fields by hand and end in finish(), so a new field is silently unrendered under a completeness claim
-status: open
+status: spec
 opened: 2026-09-06
 refs: [2093]
+branch: census/debug-census
 ---
 
 Found by #2093's sweep, which fixed the same class inside
@@ -84,6 +85,46 @@ outside equality too, which is the sharper consequence: a `Debug` that
 misses a field misleads a reader, an `Eq` that misses one answers
 wrong. Unswept, and named here so the next reader does not have to
 re-derive it.
+
+## Specced as CENSUS-DEBUG (2026-09-15), with the hit list corrected
+
+`docs/CENSUS-DEBUG-SPEC.md` binds it; the spec is deleted at merge and
+this section survives.
+
+**The hit list above was accurate on 2026-09-06 and is now short by
+four.** Its own enumeration rule — `grep -rnE "impl[^=]*\bDebug\b for"
+crates/`, minus `crates/viewer/` — gave eight rows and nine concrete
+impls then. On 2026-09-15 it gives **14**, and four of the six arrivals
+are in the class:
+
+| site | value |
+| --- | --- |
+| `crates/mesh/src/memo.rs` | `PatchMemo` — `debug_struct` … `finish()`, 4 fields |
+| `crates/editor-core/src/resolve/pick.rs` | `PickMemo` — same shape, 6 fields |
+| `crates/editor-core/src/names/table.rs` | `NameTable` — same shape, 2 fields |
+| `crates/geom-core/src/sym/memo.rs` | `DriveMemo` — same shape, 2 fields |
+
+The other two arrivals are NOT the class and are recorded so a later
+reader does not re-derive it: `topo/src/props.rs`'s `SignCertificate`
+uses `write!`, and `editor-core/src/names/role.rs`'s `NameRef` delegates
+to `self.0.name` — the latter being the PROSE-census rows' shape (a
+renderer that delegates), not this one's.
+
+**This is the row's own thesis arriving as evidence about the row.** A
+hand-written list of hand-written lists decays at the same rate as its
+subject, and nothing observed four arrivals in nine days. It is the
+argument the unit's instrument half has to answer.
+
+`crates/geom-core/src/sym/memo.rs` is SYM's and is a fence this row did
+not previously reach.
+
+## The `PartialEq` half is in scope (orchestrator's call, 2026-09-15)
+
+The body above names it unswept and gives the reason it should not be:
+a `Debug` that misses a field misleads a reader, an `Eq` that misses one
+answers wrong. Same impls, same types, same files, same repair. Bounded
+to the types whose `Debug` the unit touches; the rest are triaged and
+filed rather than swept.
 
 ## Re-homed to CENSUS (2026-09-11, the cut in `docs/WORK-TRACKS-2026-09.md` addendum 3)
 
