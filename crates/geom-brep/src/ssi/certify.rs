@@ -939,6 +939,140 @@ pub(crate) fn witness<T: Decide + Bounds + CertifiedEnclosure>(
 }
 
 #[cfg(test)]
+mod r1_collapse_probe {
+    //! R1 review probe (not for merge): reproduce, by execution, the two
+    //! collapses `work/trim/limb-3-chart-tube-speed-has-neither-guard-its-sibling-site-has.md`
+    //! claims for this site.
+    #![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
+    use super::probe_tube_chart;
+    use crate::ssi::{SsiDomain, SsiError};
+    use geom::{NurbsSurface, Surface};
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Point3, SupSpeed, Vec3, tolerance::Tol};
+
+    fn wall() -> NurbsSurface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let mut control = Vec::with_capacity(8);
+        for (x, y) in [(0.0, 0.0), (0.35, 0.14), (0.70, 0.24), (1.05, 0.30)] {
+            control.push(Point3::new(x, y, 0.0));
+            control.push(Point3::new(x, y, 0.8));
+        }
+        NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap()
+    }
+
+    /// The same wall shape with an INTERIOR knot in u, so the span grid
+    /// is 2x1 and `NurbsBoxes::cells` actually depends on the padded
+    /// window.
+    fn multispan_wall() -> NurbsSurface<f64> {
+        let ku =
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let mut control = Vec::with_capacity(10);
+        for (x, y) in [
+            (0.0, 0.0),
+            (0.26, 0.10),
+            (0.52, 0.18),
+            (0.78, 0.25),
+            (1.05, 0.30),
+        ] {
+            control.push(Point3::new(x, y, 0.0));
+            control.push(Point3::new(x, y, 0.8));
+        }
+        NurbsSurface::new(ku, kv, control, vec![1.0; 10]).unwrap()
+    }
+
+    fn plane() -> Surface<f64> {
+        let n = Vec3::new(0.0, 0.25, 1.0);
+        let n = n / n.norm();
+        let u = Vec3::new(1.0, 0.0, 0.0);
+        let u = (u - n * u.dot(n)) / (u - n * u.dot(n)).norm();
+        Surface::Plane { origin: Point3::new(0.0, 0.0, 0.4), normal: n, u_ref: u }
+    }
+
+    #[test]
+    fn r1_nan_window_at_the_span_grid() {
+        for (name, w) in [("single-span", wall()), ("multi-span", multispan_wall())] {
+            let nb = crate::ssi::enclose::NurbsBoxes::new(&w);
+            let (ud, vd) = (w.knots_u().domain(), w.knots_v().domain());
+            let full = nb.deriv_box(ud.0, ud.1, vd.0, vd.1, true);
+            let half = nb.deriv_box(ud.0, 0.5 * (ud.0 + ud.1), vd.0, vd.1, true);
+            let nanb = nb.deriv_box(f64::NAN, f64::NAN, f64::NAN, f64::NAN, true);
+            let padded = nb.deriv_box(ud.0 - 0.3, 0.5 * (ud.0 + ud.1) + 0.3, vd.0, vd.1, true);
+            println!(
+                "R1-SPAN {name}: full.x={:?} half.x={:?} nan.x={:?} padded.x={:?}",
+                (full.x.lo(), full.x.hi()),
+                (half.x.lo(), half.x.hi()),
+                (nanb.x.lo(), nanb.x.hi()),
+                (padded.x.lo(), padded.x.hi())
+            );
+            println!("R1-SPAN {name}: nan poison? {}", nanb.x.is_poison());
+        }
+    }
+
+    #[test]
+    fn r1_collapsed_chart_speed_at_limb_3() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        for w in [wall(), multispan_wall()] {
+        let p = plane();
+        println!("R1-PROBE ==== spans_u={} spans_v={}", w.knots_u().last_span() - w.knots_u().first_span() + 1, w.knots_v().last_span() - w.knots_v().first_span() + 1);
+        let dom = SsiDomain {
+            center: Point3::new(0.5, 0.0, 0.4),
+            half_extent: 2.0,
+            extent: 1.5,
+            floor_scale: SsiDomain::floor_scale_for(0.05, band),
+        };
+        let out = match crate::ssi::plane_nurbs_ssi(&p, &w, dom, band) {
+            Ok(o) => o,
+            Err(e) => { println!("R1-PROBE fixture did not certify, skipped: {e}"); continue; }
+        };
+        let br = &out.branches[0];
+        let pc = br.pcurve_b.as_ref().expect("the R4 trace supplies the pcurve");
+        let radius = br.certificate.tube_radius;
+        let Surface::Plane { normal, .. } = p else { unreachable!() };
+        println!("R1-PROBE tube_radius = {radius:e}");
+
+        // The healthy pads the live closure produces (both speeds > 0).
+        let nb = crate::ssi::enclose::NurbsBoxes::new(&w);
+        let (ud, vd) = (w.knots_u().domain(), w.knots_v().domain());
+        let mag = |bx: crate::ssi::enclose::Box3| {
+            (bx.x.mag() * bx.x.mag() + bx.y.mag() * bx.y.mag() + bx.z.mag() * bx.z.mag()).sqrt()
+        };
+        let mu = mag(nb.deriv_box(ud.0, ud.1, vd.0, vd.1, true));
+        let mv = mag(nb.deriv_box(ud.0, ud.1, vd.0, vd.1, false));
+        println!("R1-PROBE live speeds: su={mu:e} sv={mv:e}");
+        let healthy = probe_tube_chart(
+            pc,
+            &w,
+            normal,
+            (SupSpeed::new(mu).to_param(radius), SupSpeed::new(mv).to_param(radius)),
+        );
+        println!("R1-PROBE healthy pads -> {healthy:?}");
+
+        // (1) a ZERO/negative magnitude: the closure hands out NaN.
+        let nan = SupSpeed::new(f64::NAN);
+        let pads_nan = (nan.to_param(radius), nan.to_param(radius));
+        println!("R1-PROBE zero-speed pads = {pads_nan:?}");
+        let r_nan = probe_tube_chart(pc, &w, normal, pads_nan);
+        println!("R1-PROBE NaN pads -> {r_nan:?}  (None on every rung => TubeProbeSilent)");
+
+        // (2) a NON-FINITE magnitude: passes `m > 0.0`, pads by exactly 0.
+        let inf = SupSpeed::new(f64::INFINITY);
+        let pads_inf = (inf.to_param(radius), inf.to_param(radius));
+        println!("R1-PROBE inf-speed pads = {pads_inf:?} (bits {:#018x})", pads_inf.0.to_bits());
+        let r_inf = probe_tube_chart(pc, &w, normal, pads_inf);
+        let r_bare = probe_tube_chart(pc, &w, normal, (0.0, 0.0));
+        println!("R1-PROBE inf pads -> {r_inf:?}; bare-zero pads -> {r_bare:?} (identical => the bare span hulls)");
+        println!("R1-PROBE NaN==healthy? {}", format!("{r_nan:?}") == format!("{healthy:?}"));
+        println!("R1-PROBE inf==bare0?   {}", format!("{r_inf:?}") == format!("{r_bare:?}"));
+        println!("R1-PROBE inf==healthy? {}", format!("{r_inf:?}") == format!("{healthy:?}"));
+        assert_eq!(pads_inf.0.to_bits(), 0.0_f64.to_bits(), "inf speed pads by exactly +0");
+        let _ = SsiError::TubeProbeSilent { rungs: 0 };
+        }
+    }
+}
+
+#[cfg(test)]
 mod tests {
     /// **The tube ladder's floor is the run band's own ε, exactly.**
     ///

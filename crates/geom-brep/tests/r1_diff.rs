@@ -11,7 +11,7 @@ use geom_brep::ssi::{self, SsiDomain, SsiError};
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
 
-fn wall_from_cols(cols: [(f64, f64); 4]) -> NurbsSurface<f64> {
+pub(crate) fn wall_from_cols(cols: [(f64, f64); 4]) -> NurbsSurface<f64> {
     let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
     let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let mut control = Vec::with_capacity(8);
@@ -22,11 +22,11 @@ fn wall_from_cols(cols: [(f64, f64); 4]) -> NurbsSurface<f64> {
     NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap()
 }
 
-fn certifiable_wall() -> NurbsSurface<f64> {
+pub(crate) fn certifiable_wall() -> NurbsSurface<f64> {
     wall_from_cols([(0.0, 0.0), (0.35, 0.14), (0.70, 0.24), (1.05, 0.30)])
 }
 
-fn cutting_plane() -> Surface<f64> {
+pub(crate) fn cutting_plane() -> Surface<f64> {
     let n = Vec3::new(0.0, 0.25, 1.0);
     let n = n / n.norm();
     let u = Vec3::new(1.0, 0.0, 0.0);
@@ -38,7 +38,7 @@ fn cutting_plane() -> Surface<f64> {
     }
 }
 
-fn wall_domain() -> SsiDomain {
+pub(crate) fn wall_domain() -> SsiDomain {
     SsiDomain {
         center: Point3::new(0.5, 0.0, 0.4),
         half_extent: 2.0,
@@ -47,11 +47,11 @@ fn wall_domain() -> SsiDomain {
     }
 }
 
-fn sphere() -> Surface<f64> {
+pub(crate) fn sphere() -> Surface<f64> {
     crate::shared::surf::sphere(1.0)
 }
 
-fn threaded_cylinder() -> Surface<f64> {
+pub(crate) fn threaded_cylinder() -> Surface<f64> {
     Surface::Cylinder {
         origin: Point3::new(0.03, 0.0, 0.0),
         axis: Vec3::new(0.0, 0.0, 1.0),
@@ -155,7 +155,7 @@ fn r1_bit_census() {
     }
 }
 
-fn slab_dom() -> SsiDomain {
+pub(crate) fn slab_dom() -> SsiDomain {
     SsiDomain {
         center: Point3::new(0.0, 0.0, 0.0),
         half_extent: 1.5,

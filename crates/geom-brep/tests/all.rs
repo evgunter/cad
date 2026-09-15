@@ -79,6 +79,8 @@ mod decoration_plane_mint;
 mod exhaust_lane_meters;
 #[path = "r1_diff.rs"]
 mod r1_diff;
+#[path = "r1_head.rs"]
+mod r1_head;
 #[path = "imported_chart_arc_rim.rs"]
 mod imported_chart_arc_rim;
 #[path = "interior_iso_column.rs"]
