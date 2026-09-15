@@ -12,6 +12,7 @@ use core::f64::consts::{FRAC_PI_2, PI};
 
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use sweep::test_support::tube_frame;
 use sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow};
 use topo::Body;
 
@@ -162,7 +163,7 @@ fn shell7_r1_diff_corpus() {
         t0: 0.0,
         t1: PI / 3.0,
     };
-    match tube_along_arc::<f64>(c, a, u, 2.0, arc, 0.5, tol()) {
+    match tube_along_arc::<f64>(tube_frame(c, a, u, tol()), 2.0, arc, 0.5, tol()) {
         Ok(b) => {
             dump("elbow solid operand", &b.body);
             shelled("elbow solid", &b.body, 0.05);
@@ -170,9 +171,7 @@ fn shell7_r1_diff_corpus() {
         Err(e) => println!("[r1diff] elbow solid: build Err {e:?}"),
     }
     match tube_along_arc_hollow::<f64>(
-        c,
-        a,
-        u,
+        tube_frame(c, a, u, tol()),
         2.0,
         TubeWindow::Arc {
             t0: 0.0,

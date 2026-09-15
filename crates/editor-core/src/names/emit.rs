@@ -646,11 +646,9 @@ mod pattern_tests {
 
     /// A unit cube at `dx`, with its extrude's own name table.
     fn cube(node: RecipeNodeId, dx: f64) -> (Body<f64>, Arc<NameTable>) {
-        let plane = profile::SketchPlane::from_frame(
+        let plane = profile::SketchPlane::from_frame(geom_core::OrthoFrame::axes_xy(
             geom_core::Point3::new(dx, 0.0, 0.0),
-            Vec3::new(1.0, 0.0, 0.0),
-            Vec3::new(0.0, 1.0, 0.0),
-        );
+        ));
         let square = profile::ProfileLoop::polygon(
             [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
                 .into_iter()

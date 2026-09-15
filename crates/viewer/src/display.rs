@@ -19,7 +19,7 @@
 //! that appears in NO mate node ([`mates_naming`] scans the recipe's
 //! own `Node::Mate` references — the authored data, not the solver's
 //! state). An instance any mate names refuses typed
-//! ([`DisplayFault::MateConstrained`], listing the mates), because its
+//! ([`AdmissionFault::MateConstrained`], listing the mates), because its
 //! pose is mate-derived and a display value contradicting it would
 //! draw a relation the document does not have.
 //!
@@ -35,7 +35,7 @@
 //! display fact is the instance's). A root that fuses SEVERAL
 //! instances' geometry (a cross-instance boolean) can be addressed by
 //! none of them separately, and the op refuses typed
-//! ([`DisplayFault::FusedGeometry`]) — the alternative, accepting the
+//! ([`AdmissionFault::FusedGeometry`]) — the alternative, accepting the
 //! op and drawing nothing different, is the silent no-op G3's honesty
 //! rule forbids.
 //!
@@ -93,31 +93,53 @@ use crate::g1;
 /// against any actual scale or shear.
 const RIGID_SLACK: f64 = 1e-9;
 
-/// A typed display-state refusal (closed enum, D4 ¶3). Every arm names
-/// its subject; none is a message composed about another layer's
-/// failure.
+/// **Why an instance cannot hold display state** — what the admission
+/// tests answer, and the only cause a [`Withdrawn`] carries.
 ///
 /// # Each arm names its subject in the strongest vocabulary true of it
 ///
 /// The rule over the whole enum, not a property of one arm: an arm
 /// whose subject IS a part instance says **"instance N"**
-/// ([`DisplayFault::MateConstrained`], [`DisplayFault::FusedGeometry`])
+/// ([`AdmissionFault::MateConstrained`], [`AdmissionFault::FusedGeometry`])
 /// — the word the properties panel and the feature tree use for the
 /// thing a user hides or probes. An arm whose whole content is that
 /// the id does NOT denote one says **"node N"**
-/// ([`DisplayFault::NoSuchNode`], [`DisplayFault::NotAnInstance`]),
+/// ([`AdmissionFault::NoSuchNode`], [`AdmissionFault::NotAnInstance`]),
 /// because calling it an instance there would assert the very thing
-/// the arm is denying. The remaining three name no id at all: they are
-/// about a gesture or a frame, not about a node.
+/// the arm is denying.
 ///
 /// A caller rendering these must therefore not promise its reader one
 /// vocabulary across all of them.
+///
+/// # No arm's sentence carries [`crate::frame::LIST_SEPARATOR`]
+///
+/// [`crate::frame::Withdrawal`] joins a withdrawal's causes with that
+/// mark and joins them flat, so a cause whose own sentence writes one
+/// reads as an item more than it is — the ambiguity-at-two
+/// [`crate::frame::NOTICE_SEPARATOR`] answers one level out.
+///
+/// **What this type carries is the POPULATION, which is the half a
+/// signature CAN hold.** "No cause writes the mark" is a claim about
+/// strings and no signature carries it; what the join needs first is
+/// to know which sentences it is a claim about. The admission tests
+/// answer this enum rather than [`DisplayFault`], and [`Withdrawn`]
+/// stores what they answer, so the sentences the claim ranges over
+/// are these four and a fifth cannot arrive without an arm here. The
+/// claim itself is then a census over a closed set, held by
+/// `a_withdrawn_cause_never_carries_the_list_mark` in
+/// `crates/viewer/tests/frame_policy.rs`.
+///
+/// [`DisplayFault::NonRigidFrame`] is the sentence that makes this
+/// worth a type: it writes the mark inside one sentence, it is
+/// raised by [`DisplayState::preview_free_move`] alone, and it is
+/// outside this enum — so the rendering is untouched and the join
+/// still cannot meet it.
 #[derive(Debug, Clone, PartialEq)]
-pub enum DisplayFault {
+pub enum AdmissionFault {
     /// The document holds no node with this id at all — it was
     /// deleted, or an undo stepped back past the edit that made it.
     ///
-    /// **Spelled apart from [`DisplayFault::NotAnInstance`]** because
+    /// **Spelled apart from [`AdmissionFault::NotAnInstance`]** because
     /// the two are different news to a user holding display state on
     /// the id: a wrong-kind node is a mis-aimed operation, and an
     /// absent one is the thing they were looking at being gone. The
@@ -157,16 +179,6 @@ pub enum DisplayFault {
         /// Every mate node naming it, document order.
         mates: Vec<RecipeNodeId>,
     },
-    /// The previewed frame is not a finite rigid motion (orthonormal
-    /// linear part, det = +1 within [`RIGID_SLACK`]). Refused because a
-    /// scaling or mirroring probe would draw geometry the document
-    /// cannot mean, and because the pick path compares hit distances
-    /// across instances, which only lengths-preserving frames keep
-    /// comparable.
-    NonRigidFrame {
-        /// The offending frame's determinant (NaN when non-finite).
-        determinant: f64,
-    },
     /// The instance's geometry is FUSED into a drawn product together
     /// with other instances' (a boolean or placed union consumes
     /// both), so no display operation can address this instance
@@ -181,6 +193,95 @@ pub enum DisplayFault {
         root: RecipeNodeId,
         /// The other instances fused into the same root.
         others: Vec<RecipeNodeId>,
+    },
+}
+
+impl core::fmt::Display for AdmissionFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NoSuchNode { node } => {
+                write!(f, "node {} is not in the document", node.0)
+            }
+            Self::NotAnInstance { node } => {
+                write!(f, "node {} is not a part instance", node.0)
+            }
+            Self::MateConstrained { instance, mates } => {
+                let list: Vec<String> = mates.iter().map(|m| m.0.to_string()).collect();
+                write!(
+                    f,
+                    "instance {} is mate-constrained (mate node(s) {}): its pose is \
+                     mate-derived, so the free-move probe refuses — delete the mate(s) if \
+                     free relative motion is intended",
+                    instance.0,
+                    list.join(", ")
+                )
+            }
+            Self::FusedGeometry {
+                instance,
+                root,
+                others,
+            } => {
+                let list: Vec<String> = others.iter().map(|o| o.0.to_string()).collect();
+                write!(
+                    f,
+                    "instance {}'s geometry is fused into node {} together with instance(s) {} — \
+                     a display operation cannot address it separately",
+                    instance.0,
+                    root.0,
+                    list.join(", ")
+                )
+            }
+        }
+    }
+}
+
+impl core::error::Error for AdmissionFault {}
+
+impl From<AdmissionFault> for DisplayFault {
+    fn from(fault: AdmissionFault) -> Self {
+        Self::Admission(fault)
+    }
+}
+
+/// A typed display-state refusal (closed enum, D4 ¶3). Every arm names
+/// its subject; none is a message composed about another layer's
+/// failure.
+///
+/// # Two families, and the split is a type
+///
+/// [`DisplayFault::Admission`] carries the four faults that say an
+/// INSTANCE cannot hold display state — the answers of the admission
+/// tests [`display_check`] and [`free_move_check`], each naming the id
+/// it is about. The four arms beside it are about a gesture or a frame
+/// and name no id at all.
+///
+/// The families are apart because one of them is joined into a list
+/// and the other is not: [`DisplayState::prune`] fills every
+/// [`Withdrawn`] from the two admission tests, so a withdrawal's
+/// cause is an [`AdmissionFault`] by signature rather than by a
+/// property of those two functions' error sets, and
+/// [`AdmissionFault`]'s own docs carry what the join then needs of
+/// the four sentences.
+///
+/// A caller rendering these must not promise its reader one
+/// vocabulary across all of them.
+#[derive(Debug, Clone, PartialEq)]
+pub enum DisplayFault {
+    /// An instance the document cannot admit a display operation on.
+    ///
+    /// The whole of [`AdmissionFault`], forwarded: every door here
+    /// runs one of the admission tests, and the fault it raises is
+    /// the test's own answer rather than a re-wording of it.
+    Admission(AdmissionFault),
+    /// The previewed frame is not a finite rigid motion (orthonormal
+    /// linear part, det = +1 within [`RIGID_SLACK`]). Refused because a
+    /// scaling or mirroring probe would draw geometry the document
+    /// cannot mean, and because the pick path compares hit distances
+    /// across instances, which only lengths-preserving frames keep
+    /// comparable.
+    NonRigidFrame {
+        /// The offending frame's determinant (NaN when non-finite).
+        determinant: f64,
     },
     /// A free-move gesture operation arrived with no gesture in
     /// flight.
@@ -201,23 +302,7 @@ pub enum DisplayFault {
 impl core::fmt::Display for DisplayFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NoSuchNode { node } => {
-                write!(f, "node {} is not in the document", node.0)
-            }
-            Self::NotAnInstance { node } => {
-                write!(f, "node {} is not a part instance", node.0)
-            }
-            Self::MateConstrained { instance, mates } => {
-                let list: Vec<String> = mates.iter().map(|m| m.0.to_string()).collect();
-                write!(
-                    f,
-                    "instance {} is mate-constrained (mate node(s) {}): its pose is \
-                     mate-derived, so the free-move probe refuses — delete the mate(s) if \
-                     free relative motion is intended",
-                    instance.0,
-                    list.join(", ")
-                )
-            }
+            Self::Admission(fault) => write!(f, "{fault}"),
             Self::NonRigidFrame { determinant } => write!(
                 f,
                 "the free-move frame is not a finite rigid motion (determinant {determinant}); \
@@ -226,21 +311,6 @@ impl core::fmt::Display for DisplayFault {
             Self::NoFreeMove => write!(f, "no free-move is in progress"),
             Self::FreeMoveInFlight => write!(f, "finish the free-move first"),
             Self::WrongFreeMove => write!(f, "that is not the free-move in progress"),
-            Self::FusedGeometry {
-                instance,
-                root,
-                others,
-            } => {
-                let list: Vec<String> = others.iter().map(|o| o.0.to_string()).collect();
-                write!(
-                    f,
-                    "instance {}'s geometry is fused into node {} together with instance(s) {} — \
-                     a display operation cannot address it separately",
-                    instance.0,
-                    root.0,
-                    list.join(", ")
-                )
-            }
         }
     }
 }
@@ -371,24 +441,24 @@ pub fn roots_deriving_from(
 /// the typed refusal that says why none can be: every product root
 /// whose geometry derives from the instance alone. A root whose
 /// geometry fuses this instance with others (a cross-instance boolean)
-/// refuses [`DisplayFault::FusedGeometry`] — the op could not take
+/// refuses [`AdmissionFault::FusedGeometry`] — the op could not take
 /// effect without moving material that is not the instance's, and an
 /// accepted-but-inert op is the dishonesty G3 forbids.
 ///
 /// # Errors
 ///
-/// [`DisplayFault::NoSuchNode`], [`DisplayFault::NotAnInstance`],
-/// [`DisplayFault::FusedGeometry`].
+/// [`AdmissionFault::NoSuchNode`], [`AdmissionFault::NotAnInstance`],
+/// [`AdmissionFault::FusedGeometry`].
 pub fn drawn_targets(
     doc: &Doc<ProfileProgram>,
     instance: RecipeNodeId,
-) -> Result<BTreeSet<RecipeNodeId>, DisplayFault> {
+) -> Result<BTreeSet<RecipeNodeId>, AdmissionFault> {
     match doc.node(instance) {
         // Absent and wrong-kind are two different answers, and the
         // caller that reports rather than refuses needs them apart.
-        None => return Err(DisplayFault::NoSuchNode { node: instance }),
+        None => return Err(AdmissionFault::NoSuchNode { node: instance }),
         Some(Node::InstantiatePart { .. }) => {}
-        Some(_) => return Err(DisplayFault::NotAnInstance { node: instance }),
+        Some(_) => return Err(AdmissionFault::NotAnInstance { node: instance }),
     }
     let mut targets = BTreeSet::new();
     for (root, instances) in instances_by_root(doc) {
@@ -396,7 +466,7 @@ pub fn drawn_targets(
             continue;
         }
         if instances.len() > 1 {
-            return Err(DisplayFault::FusedGeometry {
+            return Err(AdmissionFault::FusedGeometry {
                 instance,
                 root,
                 others: instances.into_iter().filter(|&i| i != instance).collect(),
@@ -416,7 +486,7 @@ pub fn drawn_targets(
 pub fn display_check(
     doc: &Doc<ProfileProgram>,
     instance: RecipeNodeId,
-) -> Result<(), DisplayFault> {
+) -> Result<(), AdmissionFault> {
     drawn_targets(doc, instance).map(|_| ())
 }
 
@@ -425,18 +495,18 @@ pub fn display_check(
 ///
 /// # Errors
 ///
-/// [`DisplayFault::NoSuchNode`], [`DisplayFault::NotAnInstance`],
-/// [`DisplayFault::FusedGeometry`], [`DisplayFault::MateConstrained`].
+/// [`AdmissionFault::NoSuchNode`], [`AdmissionFault::NotAnInstance`],
+/// [`AdmissionFault::FusedGeometry`], [`AdmissionFault::MateConstrained`].
 pub fn free_move_check(
     doc: &Doc<ProfileProgram>,
     instance: RecipeNodeId,
-) -> Result<(), DisplayFault> {
+) -> Result<(), AdmissionFault> {
     display_check(doc, instance)?;
     let mates = mates_naming(doc, instance);
     if mates.is_empty() {
         Ok(())
     } else {
-        Err(DisplayFault::MateConstrained { instance, mates })
+        Err(AdmissionFault::MateConstrained { instance, mates })
     }
 }
 
@@ -513,7 +583,7 @@ impl DisplayView {
 /// that says why it can no longer hold.
 ///
 /// [`DisplayState::prune`] decides what to drop by asking a display
-/// predicate, and the predicate answers a [`DisplayFault`] whose
+/// predicate, and the predicate answers an [`AdmissionFault`] whose
 /// `Display` already names the cause and the remedy. Carrying the
 /// answer instead of testing it with `is_ok` is what lets the chrome
 /// render the fault through its own `Display` rather than compose
@@ -524,7 +594,16 @@ pub struct Withdrawn {
     /// The instance the display fact was keyed on.
     pub instance: RecipeNodeId,
     /// Why the document no longer admits it.
-    pub cause: DisplayFault,
+    ///
+    /// **[`AdmissionFault`] and not [`DisplayFault`]**, because the
+    /// causes a prune can withdraw on are exactly what the two
+    /// admission tests answer — and because
+    /// [`crate::frame::Withdrawal`] joins several of these into one
+    /// sentence with [`crate::frame::LIST_SEPARATOR`], which is a
+    /// claim about what the four can say. A field typed as the whole
+    /// vocabulary would have left that claim resting on which faults
+    /// `prune`'s two callees happen to raise.
+    pub cause: AdmissionFault,
 }
 
 /// **What a [`DisplayState::prune`] withdrew**, per kind of display
@@ -710,11 +789,11 @@ impl DisplayState {
     ///
     /// # Errors
     ///
-    /// [`DisplayFault::NoSuchNode`] for an id the document does not
-    /// hold, [`DisplayFault::NotAnInstance`] — hiding is a
+    /// [`AdmissionFault::NoSuchNode`] for an id the document does not
+    /// hold, [`AdmissionFault::NotAnInstance`] — hiding is a
     /// per-instance operation; other node kinds draw through their own
     /// roots and have no instance identity to hide by — and
-    /// [`DisplayFault::FusedGeometry`] for an instance the drawn
+    /// [`AdmissionFault::FusedGeometry`] for an instance the drawn
     /// picture cannot address separately.
     pub fn set_hidden(
         &mut self,
@@ -936,7 +1015,7 @@ impl DisplayState {
     ///
     /// **And a truthful [`Withdrawn`] cannot be built here at all**,
     /// which is what makes this a typing fact rather than a taste in
-    /// wording. A `Withdrawn` carries a [`DisplayFault`] about a
+    /// wording. A `Withdrawn` carries an [`AdmissionFault`] about a
     /// document, and the only document left to ask is the replacement
     /// — where these ids mean something else. A [`RecipeNodeId`] is
     /// minted from a counter the `Doc` owns, so the outgoing
@@ -944,7 +1023,7 @@ impl DisplayState {
     /// nodes. Asking [`free_move_check`] about them would answer
     /// `Ok(())` wherever the incoming document happens to hold a free
     /// instance at that id — a report that says nothing was withdrawn
-    /// while everything was — and [`DisplayFault::NoSuchNode`]
+    /// while everything was — and [`AdmissionFault::NoSuchNode`]
     /// otherwise, which is a true sentence about the incoming document
     /// and a false explanation of where the placement went.
     ///

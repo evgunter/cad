@@ -411,6 +411,8 @@ mod review_m5_pr9_doc_probe;
 mod review_m6_5_pr2_probes;
 #[path = "ring_r1_names_probe.rs"]
 mod ring_r1_names_probe;
+#[path = "scalar_frame_r1_probes.rs"]
+mod scalar_frame_r1_probes;
 #[path = "seat4_verb_lowering.rs"]
 mod seat4_verb_lowering;
 #[path = "seat6_param_source.rs"]
@@ -442,14 +444,7 @@ mod u8a_parse;
 #[path = "unreadable_by_this_build.rs"]
 mod unreadable_by_this_build;
 
-/// The aggregation and ONE HOME checks, whose one home — the walk, the
-/// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
-#[test]
-fn every_suite_file_is_aggregated() {
-    let tests = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
-    assert!(violations.is_empty(), "{}", violations.join("\n"));
-}
+test_utils::every_suite_file_is_aggregated!();
 
 #[path = "cert_m2r1_corpus.rs"]
 mod cert_m2r1_corpus;

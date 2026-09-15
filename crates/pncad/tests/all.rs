@@ -684,6 +684,46 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
     );
 }
 
+/// **A tube is minted AND built from prelude names alone.** The frame
+/// witness made the tube doors take a type instead of three vectors,
+/// and the facade's claim is that this costs a modeller no module hop:
+/// `OrthoFrame::from_axis_and_reference` takes the two RAW directions
+/// a program actually holds - there is no `UnitVec3` step to import -
+/// and `Band`, `Tol`, `Point3`, `Vec3`, `OrthoFrame`, `TubeWindow` and
+/// `tube_along_arc` are all bare prelude names. Nothing below reaches
+/// through a module path, and adding one is the regression this row
+/// catches.
+#[test]
+fn a_tube_is_minted_and_built_from_prelude_names_alone() {
+    let tol = Tol::witness();
+    let frame = OrthoFrame::from_axis_and_reference(
+        p3::<f64>(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 3.0),
+        Vec3::new(2.0, 0.0, 1.0),
+        "pncad_prelude_tube_axis",
+        Band::linear(tol).expect("the witness tolerance forms a band"),
+    )
+    .expect("the spine axis has a direction and the reference radial is off it");
+    // The axis is kept as the frame's `w` and the reference yields to
+    // it: the raw `(0, 0, 3)` comes back as exactly the unit z axis,
+    // and the raw reference's on-axis component is gone.
+    let xyz = |v: Vec3<f64>| [v.x, v.y, v.z];
+    assert_eq!(xyz(frame.w().get()), [0.0, 0.0, 1.0]);
+    assert_eq!(xyz(frame.u().get()), [1.0, 0.0, 0.0]);
+    let major = 1.0;
+    let minor = 0.25;
+    let built =
+        tube_along_arc(frame, major, TubeWindow::Full, minor, tol).expect("the tube builds");
+    let props = mass_properties(&built.body, tol).expect("mass properties");
+    // Pappus: V = 2 pi^2 R r^2.
+    let want = 2.0 * core::f64::consts::PI * core::f64::consts::PI * major * minor * minor;
+    assert!(
+        (props.volume - want).abs() <= 1e-6 * want,
+        "the prelude-built torus has the closed-form volume: {} vs {want}",
+        props.volume
+    );
+}
+
 /// The two type-erased entity sums, matched through the prelude —
 /// what a dangling read-back reports its site as, and what three
 /// `BlendError` arms name directly.
@@ -1345,11 +1385,7 @@ fn a_boolean_result_validates_at_tier_3_prime() {
             .and_then(|t| t.line_to(p2(x.0, y.1), Tol::witness()))
             .and_then(|t| t.line_to(Start, Tol::witness()))
             .expect("the slab rectangle authors");
-        let plane = SketchPlane::from_frame(
-            p3::<f64>(0.0, 0.0, z.0),
-            v3(1.0, 0.0, 0.0),
-            v3(0.0, 1.0, 0.0),
-        );
+        let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3::<f64>(0.0, 0.0, z.0)));
         let profile = validated(plane, vec![rect.into()], Tol::witness()).expect("slab profile");
         extrude(
             &profile,

@@ -26,6 +26,16 @@ impl<T: Real> Affine3<T> {
     /// Builds an affine map from its linear part and translation. A
     /// `const fn` (the doctest at [`Point3::new`] reads a constant
     /// placement built through it).
+    ///
+    /// Everything it stores, it stores VERBATIM. Where a caller builds
+    /// a placement from a base point — the frame witness's
+    /// [`OrthoFrame::to_affine`](crate::OrthoFrame::to_affine) is where
+    /// that happens — the translation is the subtraction
+    /// `origin − Point3::origin()`: componentwise `x − (+0.0)`, which
+    /// IEEE 754 leaves at `x` for every bit pattern (`−0.0`, `±inf` and
+    /// NaN payloads included, which the corpus row in this file's tests
+    /// measures), so a placement read back from the stored map, columns
+    /// and translation, is bitwise the one that was written.
     pub const fn from_parts(linear: Mat3<T>, translation: Vec3<T>) -> Self {
         Self {
             linear,
@@ -51,29 +61,6 @@ impl<T: Real> Affine3<T> {
     /// The pure translation by `v` (identity linear part).
     pub fn translation(v: Vec3<T>) -> Self {
         Self::from_parts(Mat3::identity(), v)
-    }
-
-    /// The placement of a frame: the map sending the coordinate origin
-    /// to `origin`, `x̂` to `u`, `ŷ` to `v` and `ẑ` to `u × v` — linear
-    /// columns `u`, `v`, `u.cross(v)` ([`Mat3::from_cols`]) and
-    /// translation `origin − Point3::origin()`, in exactly that order
-    /// (D9).
-    ///
-    /// The third column is **computed here, never supplied by the
-    /// caller**: a frame is two axes and a base point, and the normal
-    /// is what those two determine — right-handed by construction when
-    /// `u ⊥ v` are unit, which is the caller's conventional obligation,
-    /// **unchecked**. Non-orthonormal axes yield a well-defined skew map,
-    /// not poison; rigidity is a predicate-layer decision.
-    ///
-    /// The translation is the subtraction `origin − Point3::origin()`:
-    /// componentwise `x − (+0.0)`, which IEEE 754 leaves at `x` for
-    /// every bit pattern — `−0.0`, `±inf` and NaN payloads included
-    /// (the corpus row below measures it) — so a frame read back from
-    /// the stored map, columns and translation, is bitwise the frame
-    /// that was written.
-    pub fn from_frame(origin: Point3<T>, u: Vec3<T>, v: Vec3<T>) -> Self {
-        Self::from_parts(Mat3::from_cols(u, v, u.cross(v)), origin - Point3::origin())
     }
 
     /// The rotation by `angle` radians (right-hand rule) about the axis
@@ -622,9 +609,9 @@ mod tests {
         }
     }
 
-    /// The frames the `from_frame` rows sweep — THE corpus for the
-    /// door's bit identity (`profile`'s `sketch_plane.rs` keeps only
-    /// its delegation row and points here): every sign pattern of
+    /// The placements the storage row sweeps — THE corpus for what
+    /// [`Affine3::from_parts`] keeps of what it was handed: every sign
+    /// pattern of
     /// zeros over all nine components; a general non-orthonormal frame
     /// with each single component replaced by `+0.0` and by `−0.0` in
     /// turn; a subnormal, a huge value, `±inf` and NaN in a slot of
@@ -675,34 +662,19 @@ mod tests {
     }
 
     #[test]
-    fn from_frame_is_the_explicit_spelling_bit_for_bit() {
-        // One home for the frame construction: the door is the same
-        // operations in the same order as the spelling it replaces at
-        // its callers, so every stored component — the signed zeros of
-        // the origin included — is bitwise the same.
+    fn from_parts_stores_the_columns_and_the_origin_bitwise() {
+        // The map stores what it was handed: the three columns are the
+        // caller's values, and the translation `origin − Point3::origin()`
+        // is `x − (+0.0)`, which is `x` to the bit — signed zeros,
+        // infinities and NaN payloads included. The corpus is
+        // deliberately non-unit and non-orthogonal, because this claim
+        // is about storage and not about frames.
         for (o, u, v) in frame_corpus() {
-            let explicit =
-                Affine3::from_parts(Mat3::from_cols(u, v, u.cross(v)), o - Point3::origin());
-            assert_eq!(
-                bits(Affine3::from_frame(o, u, v)),
-                bits(explicit),
-                "at {o:?} {u:?} {v:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn from_frame_stores_the_axes_and_origin_bitwise_and_computes_the_normal() {
-        // The first two columns are the caller's values stored; the
-        // translation is `x − (+0.0)`, which is `x` to the bit (signed
-        // zeros, infinities and NaN payloads included); the third
-        // column is `u × v`, computed.
-        for (o, u, v) in frame_corpus() {
-            let a = Affine3::from_frame(o, u, v);
             let n = u.cross(v);
+            let a = Affine3::from_parts(Mat3::from_cols(u, v, n), o - Point3::origin());
             let want =
                 [u.x, u.y, u.z, v.x, v.y, v.z, n.x, n.y, n.z, o.x, o.y, o.z].map(f64::to_bits);
-            assert_eq!(bits(a), want);
+            assert_eq!(bits(a), want, "at {o:?} {u:?} {v:?}");
         }
     }
 }

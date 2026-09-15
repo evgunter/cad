@@ -12,7 +12,7 @@ use geom_core::{Point2, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::battery::{BlendRequest, convexity_at, run_battery};
 use sweep::blend::{BlendError, BlendSite};
-use sweep::test_support::disc_of_arcs;
+use sweep::test_support::{disc_of_arcs, sketch_from_axes};
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, FaceSurface};
 
@@ -509,7 +509,7 @@ fn r1_a_boss_on_an_in_band_tilted_sketch_plane_through_the_union() {
         let theta = (departure / 0.25).asin();
         let u = Vec3::new(1.0, 0.0, 0.0);
         let v = Vec3::new(0.0, theta.cos(), theta.sin());
-        let plane = SketchPlane::from_frame(geom_core::Point3::new(0.0, 0.0, z0), u, v);
+        let plane = sketch_from_axes(geom_core::Point3::new(0.0, 0.0, z0), u, v, Tol::witness());
         let b120 = (core::f64::consts::PI / 6.0).tan();
         let at = |deg: f64| {
             let th: f64 = deg.to_radians();

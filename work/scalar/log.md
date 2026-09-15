@@ -325,6 +325,15 @@ PR 2667, block SCALAR-B3 slot 2, ordinal 4106. What landed: the item's
 causal story nobody had run — the lesson is on the TRIM row's
 provenance note — and gave the two chart doors one crossing shape.
 
+## FRAME-WITNESS merged (2026-09-15)
+
+PR 2675, block SCALAR-B3 slot 1, ordinal 4108. What landed: the item's
+§Closed. The spec is deleted per the ledger. The one finding both arms
+made — `from_aim` trusting a perpendicular — is what the spec asked
+for by name; the fix pass sealed it inside the module and gave the
+five hand-rolled axis-and-reference ladders one door. The lily digest
+moved last-bit under the mint and is re-baselined with its cause named.
+
 ## RATE-PAIR dual concluded; a tally candidate (2026-09-15)
 
 `rate-pair-in-geom-core` (PR 2657, block SCALAR-B2 slot 2, ordinal

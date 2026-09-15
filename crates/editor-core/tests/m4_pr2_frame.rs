@@ -44,9 +44,7 @@ fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> (ProfileDoc, editor_core
 fn evaluated(doc: &ProfileDoc, id: editor_core::RecipeNodeId) -> (Vec3<f64>, Vec3<f64>, Vec3<f64>) {
     match run(doc).nodes.get(&id) {
         Some(NodeResult::Ok(val)) => match &val.payload {
-            ValuePayload::Datum(DatumValue::Frame { u, v, .. }) => {
-                (u.get(), v.get(), DatumValue::frame_normal(*u, *v))
-            }
+            ValuePayload::Datum(DatumValue::Frame(f)) => (f.u().get(), f.v().get(), f.w().get()),
             other => panic!("expected a frame value, got {other:?}"),
         },
         other => panic!("expected Ok, got {other:?}"),

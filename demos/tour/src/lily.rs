@@ -149,7 +149,7 @@
 use core::f64::consts::PI;
 
 use pncad::geom_brep::SurfaceKind;
-use pncad::geom_core::{Affine3, Mat3, Point2, Point3, Vec2, Vec3};
+use pncad::geom_core::{Affine3, Mat3, OrthoFrame, Point2, Point3, Vec2, Vec3};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane, Via};
 use pncad::sweep::blend::BlendError;
@@ -159,7 +159,7 @@ use pncad::sweep::{
 };
 use pncad::topo::{Body, BooleanError, Operand, TransformError};
 
-use crate::scalar::Scalar;
+use crate::scalar::{Scalar, authored_frame, axis_frame, sketch_frame};
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::{p2, p3, polygon, v2, v3, validated};
 use pncad::geom_core::Tol;
@@ -264,9 +264,12 @@ fn sketch_axis<S: Scalar>() -> RevolveAxis<S> {
 fn tube_arc<S: Scalar>(spec: ArcSpec, tube: f64, tol: Tol) -> (Body<S>, WedgeFrames<S>) {
     let sense = if spec.turn >= 0.0 { -1.0 } else { 1.0 };
     let revolved = tube_along_arc(
-        spec.center.map(S::from_f64),
-        v3(0.0, sense, 0.0),
-        spec.radial.map(S::from_f64),
+        axis_frame(
+            spec.center.map(S::from_f64),
+            v3(0.0, sense, 0.0),
+            spec.radial.map(S::from_f64),
+            tol,
+        ),
         S::from_f64(spec.ring),
         TubeWindow::Arc {
             t0: S::from_f64(0.0),
@@ -399,7 +402,7 @@ fn lantern<S: Scalar>(
     // flower axis (into the flower), u the in-plane radial — the
     // flower axis turned a quarter turn in the plant's own plane,
     // i.e. crossed with ŷ.
-    let plane = SketchPlane::from_frame(attach, dir.cross(Vec3::unit_y()), dir).map(S::from_f64);
+    let plane = sketch_frame(attach, dir.cross(Vec3::unit_y()), dir, tol).map(S::from_f64);
     revolve(
         &validated(
             plane,
@@ -475,7 +478,12 @@ fn corm<S: Scalar>(
         .line_to(Start, tol)
         .expect("corm bore wall")
         .into();
-    let plane = SketchPlane::from_frame(p3(0.0, 0.0, top_z), v3(1.0, 0.0, 0.0), v3(0.0, 0.0, -1.0));
+    let plane = sketch_frame(
+        p3(0.0, 0.0, top_z),
+        v3(1.0, 0.0, 0.0),
+        v3(0.0, 0.0, -1.0),
+        tol,
+    );
     revolve(
         &validated(plane, vec![lp], tol).expect("corm profile validates"),
         sketch_axis(),
@@ -595,7 +603,6 @@ fn bud<S: Scalar>(
         // the direction `lean` radians round from its own place.
         let l = rad(phi + lean);
         let (st, ct) = (tilt.sin(), tilt.cos());
-        let a = (dir * ct + l * st).normalize();
         // The wedge STARTS half a span before the segment's
         // place — and then sweeps AWAY from it, not across it:
         // `revolve` turns right-handed about the sketch axis,
@@ -610,13 +617,15 @@ fn bud<S: Scalar>(
         // off the realized centre is `lean + span`, still nowhere
         // near the achiral star, and still a pinwheel.
         //
-        // Rejected from the tilted axis, since that radial is only
-        // perpendicular to the BUD's axis, not to this segment's.
-        let start = rad(phi - 0.5 * span);
-        let u = start.reject_from(a).normalize();
-        // All three share the ATTACHMENT: the tilt splays their
-        // tips, not their bellies.
-        let plane = SketchPlane::from_frame(attach, u, a).map(S::from_f64);
+        // The segment's own axis and the wedge's start radial,
+        // DECIDED together: the axis is kept as the frame's `w` and
+        // the radial yields its component along it, since that radial
+        // is only perpendicular to the BUD's axis, not to this
+        // segment's. All three share the ATTACHMENT: the tilt splays
+        // their tips, not their bellies.
+        let spine = axis_frame::<f64>(attach, dir * ct + l * st, rad(phi - 0.5 * span), tol);
+        let a = spine.w().get();
+        let plane = sketch_frame(attach, spine.u().get(), a, tol).map(S::from_f64);
         revolve(
             &validated(
                 plane,
@@ -756,7 +765,7 @@ fn leaf<S: Scalar>(
     curl: f64,
     tol: Tol,
 ) -> Body<S> {
-    let (d, v, u) = blade_frame(dir, up);
+    let (d, v, u) = blade_frame(dir, up, tol);
     // The spine: a circular arc of length `len` turning through `curl`
     // in the (d, v) plane, i.e. radius len/curl, sampled exactly.
     let r = len / curl;
@@ -771,7 +780,7 @@ fn leaf<S: Scalar>(
     let path = pncad::geom::NurbsCurve3::interpolate(&pts, 3).expect("the leaf spine interpolates");
     // The skinning lane's own door is `f64` (`sweep_body` takes an
     // `Affine3<f64>`), so this frame is not lifted at all.
-    let place = Affine3::from_frame(base, u, v);
+    let place = authored_frame(base, u, v, tol).to_affine();
     // The kite, wound counterclockwise in the sketch (s, t) frame:
     // margin, keel, margin, ridge.
     let loops: Vec<ProfileLoop<f64>> = vec![
@@ -1087,7 +1096,7 @@ fn try_lofted_blade<S: Scalar>(
     stations: usize,
     tol: Tol,
 ) -> Result<pncad::sweep::Lofted<S>, pncad::sweep::LoftError> {
-    let (d, v, u) = blade_frame(dir, up);
+    let (d, v, u) = blade_frame(dir, up, tol);
     let r = len / curl;
     let mut sections: Vec<Vec<ProfileLoop<f64>>> = Vec::with_capacity(stations);
     let mut places: Vec<Affine3<f64>> = Vec::with_capacity(stations);
@@ -1107,7 +1116,7 @@ fn try_lofted_blade<S: Scalar>(
         let uu = u * ct + vk * st;
         let vv = vk * ct - u * st;
         sections.push(plan.at(s).outline(tol));
-        places.push(Affine3::from_frame(p, uu, vv));
+        places.push(authored_frame(p, uu, vv, tol).to_affine());
     }
     loft_body::<S>(&sections, &places, LEAF_V_DEGREE, tol)
 }
@@ -1200,17 +1209,20 @@ fn sepals<S: Scalar>(
 type BladeFrame = (Vec3<f64>, Vec3<f64>, Vec3<f64>);
 
 /// The right-handed `(d, v, u)` blade frame: `d` the spine's start
-/// tangent, `v` the `up` vector rejected from it ([`Vec3::reject_from`],
-/// whose grouping is the kernel's contract and not this file's), and
-/// `u = v x d`, so a sketch plane built on `(u, v)` has `d` for its
-/// normal. Shared by [`leaf`] and [`lofted_blade`] so the swept and
-/// lofted blades sit in the SAME frame — the difference between them
-/// is the verb, not the placement.
-fn blade_frame(dir: Vec3<f64>, up: Vec3<f64>) -> BladeFrame {
-    let d = dir.normalize();
-    let v = up.reject_from(d).normalize();
-    let u = v.cross(d);
-    (d, v, u)
+/// tangent, `v` the direction the blade curls toward, and `u = v x d`,
+/// so a sketch plane built on `(u, v)` has `d` for its normal. Shared
+/// by [`leaf`] and [`lofted_blade`] so the swept and lofted blades sit
+/// in the SAME frame — the difference between them is the verb, not
+/// the placement.
+///
+/// `d` and `v` are the MINT's, not this file's: [`axis_frame`] keeps
+/// the tangent and yields `up` to it at the run's band, which is the
+/// same decision every other frame in the tour goes through. `u` is
+/// then an exact cross of two witnesses — no length left to decide.
+fn blade_frame(dir: Vec3<f64>, up: Vec3<f64>, tol: Tol) -> BladeFrame {
+    let f = axis_frame::<f64>(Point3::origin(), dir, up, tol);
+    let (d, v) = (f.w().get(), f.u().get());
+    (d, v, v.cross(d))
 }
 
 // ---------------------------------------------------------------
@@ -1846,7 +1858,12 @@ fn weld_circle<S: Scalar>(
 /// y = 0), as a revolve of a half-disc whose diameter lies on the
 /// axis — the shape a tepal seam would be carved with.
 fn ball<S: Scalar>(c: Point3<f64>, r: f64, tol: Tol) -> Body<S> {
-    let plane = SketchPlane::from_frame(c.map(S::from_f64), v3(1.0, 0.0, 0.0), v3(0.0, 0.0, 1.0));
+    let plane = sketch_frame(
+        c.map(S::from_f64),
+        v3(1.0, 0.0, 0.0),
+        v3(0.0, 0.0, 1.0),
+        tol,
+    );
     // Algebra-authored (LIB-G1): centre-first, with the sphere's own
     // centre authored and the bulge derived at lowering.
     let lp = Open
@@ -2061,8 +2078,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    extrusion is deferred past M2. The probe pins that door, not
     //    the out-of-plane blade, which the scene above builds live.
     let leafp = {
-        let plane =
-            SketchPlane::from_frame(p3(0.0, 0.0, 0.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+        let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, 0.0)));
         // Algebra-authored (LIB-G1): via-point arcs (see `leaf`).
         let lp = Open
             .at(p2(0.0, 0.0))
