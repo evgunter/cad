@@ -38,7 +38,7 @@ pub use k_stats::{MarginSample, Probe, SampleOutcome};
 pub use linalg::{Affine3, FrameError, FrameInput, FrameVector, Mat3, Point2, Point3, Vec2, Vec3};
 pub use predicate::{
     Band, BandError, BandField, COINCIDENCE_RECOURSE, DEFAULT_K, Decide, Indeterminate,
-    IndeterminatePayload, Margin, MarginDiag, Sign,
+    IndeterminatePayload, InfSpeed, Margin, MarginDiag, Sign, SupSpeed,
 };
 pub use real::{
     Bounds, CertifiedBounds, CertifiedEnclosure, Enclosure, Real, is_finite_length,

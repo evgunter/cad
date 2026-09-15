@@ -161,7 +161,9 @@ use geom::{NurbsSurface, Surface};
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
 use geom_core::spline::{KnotVector, SpanLocate, SplineError};
-use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
+use geom_core::{
+    Decide, Indeterminate, InfSpeed, Margin, Point2, Point3, Real, Sign, SupSpeed, Vec2, Vec3,
+};
 
 use crate::certify::CERT_SAMPLES;
 use crate::ssi::{SsiCertificate, SsiLimb, SsiOperand};
@@ -2603,12 +2605,12 @@ fn chart_windings<T: Decide>(
 /// receive one: `carrier_harmonic` answers `None` for a net, and the
 /// ARC-RIM class refuses any carrier that is not a `Curve3::Circle`.
 /// A new caller that CAN see a net must take the gate.
-fn param_rate<T: Real>(carrier: &Curve3<T>) -> T {
+fn param_rate<T: Real>(carrier: &Curve3<T>) -> InfSpeed<T> {
     match *carrier {
-        Curve3::Line { .. } => T::one(),
+        Curve3::Line { .. } => InfSpeed::new(T::one()),
         Curve3::Nurbs(ref n) => n.speed_lower_bound(),
-        Curve3::Circle { radius, .. } => radius,
-        Curve3::Ellipse { minor, .. } => minor,
+        Curve3::Circle { radius, .. } => InfSpeed::new(radius),
+        Curve3::Ellipse { minor, .. } => InfSpeed::new(minor),
     }
 }
 
@@ -2627,7 +2629,10 @@ fn param_rate<T: Real>(carrier: &Curve3<T>) -> T {
 /// [`Indeterminate`] carrying [`geom_core::MarginDiag::Invalid`] when
 /// the subtended length is not definitely positive; the classifier's
 /// own escalation otherwise.
-fn param_rate_gate<T: Decide>(carrier: &Curve3<T>, band: Band) -> Result<T, Indeterminate> {
+fn param_rate_gate<T: Decide>(
+    carrier: &Curve3<T>,
+    band: Band,
+) -> Result<InfSpeed<T>, Indeterminate> {
     let rate = param_rate(carrier);
     let extent = match *carrier {
         Curve3::Nurbs(ref n) => {
@@ -2896,20 +2901,23 @@ pub(crate) fn chart_name<T: Real>(surface: &Surface<T>) -> &'static str {
 /// the safe direction, and the same posture the cylinder arm takes
 /// exactly. A plane chart's parameters are already metres, so its
 /// arms are exactly `(1, 1)` by construction rather than by default.
-pub fn chart_stretch_sup<T: Real>(surface: &Surface<T>) -> (T, T) {
+pub fn chart_stretch_sup<T: Real>(surface: &Surface<T>) -> (SupSpeed<T>, SupSpeed<T>) {
     match *surface {
-        Surface::Cylinder { radius, .. } => (radius, T::one()),
+        Surface::Cylinder { radius, .. } => (SupSpeed::new(radius), SupSpeed::new(T::one())),
         // The sphere/torus second parameter IS an angle (M6-3): its
         // arm is the polar / meridional radius. The cone keeps unit
         // arms HERE — its true azimuth arm needs a `v` reach no
         // surface-level constant dominates; the containment check
         // supplies it through [`chart_arms_at`].
-        Surface::Sphere { radius, .. } => (radius, radius),
+        Surface::Sphere { radius, .. } => (SupSpeed::new(radius), SupSpeed::new(radius)),
         Surface::Torus {
             major_radius,
             minor_radius,
             ..
-        } => (major_radius + minor_radius, minor_radius),
+        } => (
+            SupSpeed::new(major_radius + minor_radius),
+            SupSpeed::new(minor_radius),
+        ),
         // A described NURBS chart's honest arms are its derivative-net
         // stretch bounds (`sup |S_u|`, `sup |S_v|`) — over-statements
         // of the local stretch, the safe direction exactly as the
@@ -2931,7 +2939,7 @@ pub fn chart_stretch_sup<T: Real>(surface: &Surface<T>) -> (T, T) {
         // direction here (see the rational note above).
         Surface::Nurbs(ref payload) => {
             if payload.is_placeholder() {
-                (T::one(), T::one())
+                (SupSpeed::new(T::one()), SupSpeed::new(T::one()))
             } else {
                 nurbs_stretch_bounds(payload)
             }
@@ -2939,7 +2947,7 @@ pub fn chart_stretch_sup<T: Real>(surface: &Surface<T>) -> (T, T) {
         Surface::Approx(ref a) => nurbs_stretch_bounds(a.fit()),
         // A plane chart's parameters are already metres; the cone's
         // arms are the caller's to supply (see the sphere note above).
-        Surface::Plane { .. } | Surface::Cone { .. } => (T::one(), T::one()),
+        Surface::Plane { .. } | Surface::Cone { .. } => (SupSpeed::new(T::one()), SupSpeed::new(T::one())),
     }
 }
 
@@ -2952,7 +2960,7 @@ fn chart_arms_at<T: Real>(
     surface: &Surface<T>,
     boxed: &ChartWindow<T>,
     window: &ChartWindow<T>,
-) -> (T, T) {
+) -> (SupSpeed<T>, SupSpeed<T>) {
     match *surface {
         Surface::Cone { .. } => {
             let v_sup = boxed
@@ -2961,7 +2969,10 @@ fn chart_arms_at<T: Real>(
                 .max(boxed.v_max.abs())
                 .max(window.v_min.abs())
                 .max(window.v_max.abs());
-            (azimuth_lever(surface, v_sup), T::one())
+            (
+                SupSpeed::new(azimuth_lever(surface, v_sup)),
+                SupSpeed::new(T::one()),
+            )
         }
         _ => chart_stretch_sup(surface),
     }
@@ -2981,7 +2992,7 @@ fn chart_arms_at<T: Real>(
 /// rational gate came out; it is spelled out here because
 /// [`chart_stretch_inf`] cites this function three times and a stale
 /// precondition on a cited derivation is a trap for the next reader.
-fn nurbs_stretch_bounds<T: Real>(s: &geom::NurbsSurface<T>) -> (T, T) {
+fn nurbs_stretch_bounds<T: Real>(s: &geom::NurbsSurface<T>) -> (SupSpeed<T>, SupSpeed<T>) {
     // **The rational factor** (M8-3). The control-difference bounds
     // are POLYNOMIAL convexity facts. For a rational patch the
     // standard extension (Floater 1992, derivatives of rational
@@ -3003,8 +3014,8 @@ fn nurbs_stretch_bounds<T: Real>(s: &geom::NurbsSurface<T>) -> (T, T) {
     // `the_two_doors_report_one_sup`.
     let sup_of = |q: &[Vec3<T>]| q.iter().fold(T::zero(), |m, v| m.max(v.norm()));
     (
-        sup_of(&derivative_net(s, false)) * ratio,
-        sup_of(&derivative_net(s, true)) * ratio,
+        SupSpeed::new(sup_of(&derivative_net(s, false)) * ratio),
+        SupSpeed::new(sup_of(&derivative_net(s, true)) * ratio),
     )
 }
 
@@ -3343,10 +3354,10 @@ fn trim_containment<T: Decide>(
     let boxed = pcurve.chart_box(t0, t1);
     let (u_arm, v_arm) = chart_arms_at(surface, &boxed, &window);
     let escapes = [
-        Margin::metered(window.u_min - boxed.u_min, u_arm),
-        Margin::metered(boxed.u_max - window.u_max, u_arm),
-        Margin::metered(window.v_min - boxed.v_min, v_arm),
-        Margin::metered(boxed.v_max - window.v_max, v_arm),
+        Margin::metered_sup(window.u_min - boxed.u_min, u_arm),
+        Margin::metered_sup(boxed.u_max - window.u_max, u_arm),
+        Margin::metered_sup(window.v_min - boxed.v_min, v_arm),
+        Margin::metered_sup(boxed.v_max - window.v_max, v_arm),
     ];
     for over in escapes {
         match decide("pcurve_trim_containment", over, band) {
@@ -3437,10 +3448,14 @@ fn run_fitted_checks<T: PcurveFittedLane>(
         // `v` reach that dominates both the pcurve's box and the
         // window, which is the local lever's supremum everywhere
         // either object lives (`chart_arms_at`'s safe direction).
+        // The headroom is dimensionless (radians), so this crossing is
+        // the LEVERED door's, not the metric one's: the arm is metres
+        // per radian at a `v`, not a rate per parameter unit, and the
+        // sup tag comes off at the call.
         let (u_arm, _) = chart_arms_at(surface, &boxed, &window);
         let headroom = decide(
             "pcurve_azimuth_period",
-            Margin::levered(T::tau() - (boxed.u_max - boxed.u_min), u_arm),
+            Margin::levered(T::tau() - (boxed.u_max - boxed.u_min), u_arm.get()),
             band,
         );
         match headroom.map_err(|cause| PcurveCertifyError::Escalated {
@@ -3630,7 +3645,7 @@ fn run_iso_arc_checks<T: Decide>(
         cv0,
         cv1,
         stretch_v,
-        pd.y.abs() * stretch_v,
+        stretch_v.to_meters(pd.y.abs()),
         band,
         &esc,
     )?
@@ -3698,7 +3713,7 @@ fn run_iso_arc_checks<T: Decide>(
     }
     match decide(
         "pcurve_iso_boundary",
-        Margin::metered(knot_dev, stretch_u),
+        Margin::metered_sup(knot_dev, stretch_u),
         band,
     )
     .map_err(&esc)?
@@ -3712,7 +3727,7 @@ fn run_iso_arc_checks<T: Decide>(
             ));
         }
     }
-    let slack_knots = knot_dev * stretch_u;
+    let slack_knots = stretch_u.to_meters(knot_dev);
     let bw = b.weights();
     if bw.len() != 2 * spans + 1 || bw.first() != Some(&1.0) || bw.last() != Some(&1.0) {
         return Err(bad(
@@ -3736,7 +3751,7 @@ fn run_iso_arc_checks<T: Decide>(
     let (_, cos_half) = (h * T::from_f64(0.5)).sin_cos();
     match decide(
         "pcurve_iso_boundary",
-        Margin::metered(T::from_f64(half_w) - cos_half, *radius),
+        Margin::metered(T::from_f64(half_w) - cos_half, InfSpeed::new(*radius)),
         band,
     )
     .map_err(&esc)?
@@ -3827,7 +3842,7 @@ fn run_iso_arc_checks<T: Decide>(
     } else {
         (p0.x + pd.x - cu0).abs()
     };
-    let slack_affine = slack_start.max(far * stretch_u);
+    let slack_affine = slack_start.max(stretch_u.to_meters(far));
     let envelope = hull + slack_v + slack_affine + slack_knots;
     let mut envelope_margin = T::zero();
     check_residual(
@@ -3874,20 +3889,20 @@ fn side_of<T: Decide>(
     w: T,
     lo: T,
     hi: T,
-    arm: T,
+    arm: SupSpeed<T>,
     drift: T,
     band: Band,
     esc: &impl Fn(Indeterminate) -> PcurveCertifyError,
 ) -> Result<Option<(bool, T)>, PcurveCertifyError> {
     if let Sign::Zero =
-        decide("pcurve_iso_boundary", Margin::metered(w - lo, arm), band).map_err(esc)?
+        decide("pcurve_iso_boundary", Margin::metered_sup(w - lo, arm), band).map_err(esc)?
     {
-        return Ok(Some((false, (w - lo).abs() * arm + drift)));
+        return Ok(Some((false, arm.to_meters((w - lo).abs()) + drift)));
     }
     if let Sign::Zero =
-        decide("pcurve_iso_boundary", Margin::metered(w - hi, arm), band).map_err(esc)?
+        decide("pcurve_iso_boundary", Margin::metered_sup(w - hi, arm), band).map_err(esc)?
     {
-        return Ok(Some((true, (w - hi).abs() * arm + drift)));
+        return Ok(Some((true, arm.to_meters((w - hi).abs()) + drift)));
     }
     Ok(None)
 }
@@ -3969,8 +3984,8 @@ fn run_iso_checks<T: Decide>(
         cause,
     };
     let (stretch_u, stretch_v) = nurbs_stretch_bounds(payload);
-    let du_extent = Margin::metered(pl.x.abs() * span, stretch_u);
-    let dv_extent = Margin::metered(pl.y.abs() * span, stretch_v);
+    let du_extent = Margin::metered_sup(pl.x.abs() * span, stretch_u);
+    let dv_extent = Margin::metered_sup(pl.y.abs() * span, stretch_v);
     let u_moves = !matches!(
         decide("pcurve_iso_axis_u", du_extent, band).map_err(esc)?,
         Sign::Zero
@@ -4051,7 +4066,7 @@ fn run_iso_checks<T: Decide>(
                         .max(T::zero());
                     match decide(
                         "pcurve_iso_domain",
-                        Margin::metered(outside, stretch_u),
+                        Margin::metered_sup(outside, stretch_u),
                         band,
                     )
                     .map_err(esc)?
@@ -4124,7 +4139,7 @@ fn run_iso_checks<T: Decide>(
             let over = (T::from_f64(d0) - lo)
                 .max(hi - T::from_f64(d1))
                 .max(T::zero());
-            match decide("pcurve_iso_domain", Margin::metered(over, stretch_v), band)
+            match decide("pcurve_iso_domain", Margin::metered_sup(over, stretch_v), band)
                 .map_err(esc)?
             {
                 Sign::Zero => {}
@@ -4135,7 +4150,7 @@ fn run_iso_checks<T: Decide>(
                     });
                 }
             }
-            hull + slack_u + slack_param + over * stretch_v
+            hull + slack_u + slack_param + stretch_v.to_meters(over)
         }
         // The CAP class: v banded-constant on a boundary, u affine in
         // the carrier parameter, carrier a straight line. The affine
@@ -4206,7 +4221,7 @@ fn run_iso_checks<T: Decide>(
             let over = (T::from_f64(d0) - u_at_0.min(u_at_1))
                 .max(u_at_0.max(u_at_1) - T::from_f64(d1))
                 .max(T::zero());
-            match decide("pcurve_iso_domain", Margin::metered(over, stretch_u), band)
+            match decide("pcurve_iso_domain", Margin::metered_sup(over, stretch_u), band)
                 .map_err(esc)?
             {
                 Sign::Zero => {}
@@ -4217,7 +4232,7 @@ fn run_iso_checks<T: Decide>(
                     });
                 }
             }
-            hull + slack_v + over * stretch_u
+            hull + slack_v + stretch_u.to_meters(over)
         }
         (false, false) => {
             return Err(PcurveCertifyError::IsoUnsupported {
@@ -5409,6 +5424,7 @@ mod tests {
             v_max: 2.25,
         };
         let (arm, v_arm) = chart_arms_at(&cone, &boxed, &window);
+        let (arm, v_arm) = (arm.get(), v_arm.get());
         assert!(
             (v_arm - 1.0).abs() < 1e-15,
             "the cone's v IS a slant length"
@@ -5441,7 +5457,7 @@ mod tests {
         let net = NurbsCurve3::new(knots, vec![point, point], vec![1.0, 1.0]).unwrap();
         let carrier = Curve3::Nurbs(Arc::new(net));
         assert!(
-            param_rate(&carrier).is_nan(),
+            param_rate(&carrier).get().is_nan(),
             "a net that never moves states no speed bound at all"
         );
         let cause = param_rate_gate(&carrier, band())
@@ -5457,7 +5473,9 @@ mod tests {
             vec![1.0, 1.0],
         )
         .unwrap();
-        let rate = param_rate_gate(&Curve3::Nurbs(Arc::new(ok)), band()).unwrap();
+        let rate = param_rate_gate(&Curve3::Nurbs(Arc::new(ok)), band())
+            .unwrap()
+            .get();
         assert!((rate - 1.0).abs() < 1e-15, "the unit-chord net meters at 1");
     }
 }
@@ -5529,8 +5547,8 @@ mod stretch_door_agreement {
             ));
             let (sup_u, sup_v) = super::chart_stretch_sup(&s);
             let inf = super::chart_stretch_inf(&s);
-            assert_eq!(sup_u, inf.sup_u, "the u sup must be ONE number");
-            assert_eq!(sup_v, inf.sup_v, "the v sup must be ONE number");
+            assert_eq!(sup_u.get(), inf.sup_u, "the u sup must be ONE number");
+            assert_eq!(sup_v.get(), inf.sup_v, "the v sup must be ONE number");
         }
     }
 }

@@ -254,7 +254,7 @@ use geom_brep::{
 use geom_core::Tol;
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
-use geom_core::{Decide, Indeterminate, Margin, Point2, Real, Sign};
+use geom_core::{Decide, Indeterminate, Margin, Point2, Real, Sign, SupSpeed};
 
 use crate::body::Body;
 use crate::chart_bound::{ChartBound, ChartEdge, ChartLoop};
@@ -1169,6 +1169,13 @@ pub(crate) fn is_plus<T: Decide>(
 /// `geom_brep::chart_stretch_sup` is that bound and states the same
 /// split at the export; it is emphatically not a lower bound, and
 /// nothing here may be read as one.
+///
+/// The return is a bare `T` and not a [`SupSpeed`]: an azimuth arm is
+/// metres per RADIAN, so it reaches the band through
+/// [`Margin::levered`] rather than through a metric door, and the
+/// rate pair is the parameter-to-metres crossing only. The spline
+/// arm's `sup |S_u|` IS such a rate at the mint, so its tag comes off
+/// here, at the one place where the same number is read as an arm.
 fn azimuth_arm<T: Real>(surface: &Surface<T>, v: T) -> T {
     match *surface {
         Surface::Cylinder { radius, .. } => radius,
@@ -1184,7 +1191,7 @@ fn azimuth_arm<T: Real>(surface: &Surface<T>, v: T) -> T {
         // net's own `sup |S_u|` — a placeholder payload, which has no
         // net to bound, answers 1 there too.
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
-            geom_brep::chart_stretch_sup(surface).0
+            geom_brep::chart_stretch_sup(surface).0.get()
         }
     }
 }
@@ -1295,8 +1302,12 @@ fn polar_arm<T: Real>(surface: &Surface<T>) -> Option<T> {
 /// [`azimuth_arm`]'s — an over-stated rate can only refuse a closure,
 /// while `1` on a chart with a 100 m/unit stretch under-states the
 /// metre gap by that factor and certifies a loop closed across it.
-fn v_meter<T: Real>(surface: &Surface<T>) -> T {
-    polar_arm(surface).unwrap_or_else(|| geom_brep::chart_stretch_sup(surface).1)
+/// Unlike [`azimuth_arm`] this channel's parameter is not always an
+/// angle, so the crossing IS a rate per parameter unit and the bound
+/// direction rides out as a [`SupSpeed`]: the exact polar radius is a
+/// sup by being exact, and the spline stretch is one by derivation.
+fn v_meter<T: Real>(surface: &Surface<T>) -> SupSpeed<T> {
+    SupSpeed::new(polar_arm(surface).unwrap_or_else(|| geom_brep::chart_stretch_sup(surface).1.get()))
 }
 
 /// A whole-period shift of the MERIDIONAL channel — the `v` twin of
@@ -2054,7 +2065,7 @@ pub(crate) fn walk_loop<T: PcurveFittedLane>(
                     let mut fits = true;
                     for margin in [
                         Margin::levered(entry.x - prev.x, arm),
-                        Margin::metered(entry.y - prev.y, v_meter),
+                        Margin::metered_sup(entry.y - prev.y, v_meter),
                     ] {
                         match decide("pcurve_loop_continuity", margin, band) {
                             Ok(Sign::Zero) => {}
@@ -2343,7 +2354,7 @@ pub fn chart_boundary<T: PcurveFittedLane>(
         ) && matches!(
             decide(
                 "pcurve_loop_closure_height",
-                Margin::metered(end.y - start.y, v_meter(chart)),
+                Margin::metered_sup(end.y - start.y, v_meter(chart)),
                 band
             ),
             Ok(Sign::Zero)
@@ -2490,7 +2501,7 @@ pub fn validate_pcurves<T: PcurveFittedLane>(body: &Body<T>, band: Band) -> Vec<
                     let arm = azimuth_arm(&surface, prev.y);
                     for margin in [
                         Margin::levered(entry.x - prev.x, arm),
-                        Margin::metered(entry.y - prev.y, v_meter),
+                        Margin::metered_sup(entry.y - prev.y, v_meter),
                     ] {
                         match decide("pcurve_loop_continuity", margin, band) {
                             Ok(Sign::Zero) => {}
@@ -2916,7 +2927,7 @@ pub(crate) mod staleness_posture {
 mod stretch_meter {
     #![allow(clippy::unwrap_used, clippy::float_cmp)]
 
-    use super::{azimuth_arm, v_meter};
+    use super::{SupSpeed, azimuth_arm, v_meter};
     use geom::{NurbsSurface, Surface};
     use geom_core::k_stats::decide;
     use geom_core::spline::KnotVector;
@@ -2984,18 +2995,22 @@ mod stretch_meter {
     fn a_stretched_nurbs_chart_meters_its_second_channel_in_metres() {
         let s = flat_chart(100.0);
         let meter = v_meter(&s);
-        assert_eq!(meter, 100.0);
+        assert_eq!(meter.get(), 100.0);
         let gap = 1e-10;
         assert_eq!(
             decide(
                 "pcurve_loop_continuity",
-                Margin::metered(gap, meter),
+                Margin::metered_sup(gap, meter),
                 band()
             ),
             Ok(Sign::Positive)
         );
         assert_eq!(
-            decide("pcurve_loop_continuity", Margin::metered(gap, 1.0), band()),
+            decide(
+                "pcurve_loop_continuity",
+                Margin::metered_sup(gap, SupSpeed::new(1.0)),
+                band()
+            ),
             Ok(Sign::Zero)
         );
     }
@@ -3009,7 +3024,7 @@ mod stretch_meter {
         let small = flat_chart(100.0);
         let large = flat_chart(100.0e3);
         assert_eq!(azimuth_arm(&large, 0.0), azimuth_arm(&small, 0.0) * 1e3);
-        assert_eq!(v_meter(&large), v_meter(&small) * 1e3);
+        assert_eq!(v_meter(&large).get(), v_meter(&small).get() * 1e3);
     }
 
     /// **The plane arm is 1 by construction, not by default**, and
@@ -3019,7 +3034,7 @@ mod stretch_meter {
         let p = plane();
         assert_eq!(azimuth_arm(&p, 0.0), 1.0);
         assert_eq!(azimuth_arm(&p, 0.7), 1.0);
-        assert_eq!(v_meter(&p), 1.0);
+        assert_eq!(v_meter(&p).get(), 1.0);
     }
 
     /// **Three-outcome posture on the newly-honest arm.** A chart gap
@@ -3125,7 +3140,7 @@ mod stretch_meter {
     fn a_placeholder_chart_keeps_unit_arms() {
         let s: Surface<f64> = Surface::Nurbs(Arc::new(NurbsSurface::placeholder()));
         assert_eq!(azimuth_arm(&s, 0.0), 1.0);
-        assert_eq!(v_meter(&s), 1.0);
+        assert_eq!(v_meter(&s).get(), 1.0);
     }
 }
 

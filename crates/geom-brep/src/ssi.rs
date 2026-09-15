@@ -997,9 +997,18 @@ pub fn plane_nurbs_ssi(
                    meters can be translated into its parameter domain",
         });
     }
+    // Tagged only now, past the two guards: the rate pair is a
+    // dimension-and-direction tag, not a positivity witness, and this
+    // lane's reading of a zero or non-finite rate is its own (above).
+    // The direction is SUP — `mag` is an upper bound on each
+    // derivative box — and dividing a metre floor by it UNDER-states
+    // the parameter reach, which is the safe side of a floor and of a
+    // tube pad alike.
+    let speed = geom_core::SupSpeed::new(speed);
 
     // ---- seeds ----
-    let seeds = exhaust::seed_chart_plane(wall, p0, normal, root, domain.seed_floor() / speed)?;
+    let seeds =
+        exhaust::seed_chart_plane(wall, p0, normal, root, speed.to_param(domain.seed_floor()))?;
     let seed_count = seeds.len() as u32;
 
     let v_ref = normal.cross(u_ref);
@@ -1034,14 +1043,14 @@ pub fn plane_nurbs_ssi(
         if let Some(ref pc) = branch.pcurve_b {
             // The tube the CERTIFICATE earned, in chart units — the
             // same region limb 3 proved one-arc-ness over.
-            let pad = branch.certificate.tube_radius / speed;
+            let pad = speed.to_param(branch.certificate.tube_radius);
             tubes.extend(pcurve_windows(pc, pad, pad));
         }
         branches.push(branch);
     }
 
     let exhaustiveness =
-        exhaust::account_chart_plane(wall, p0, normal, root, &tubes, domain.floor(band) / speed)?;
+        exhaust::account_chart_plane(wall, p0, normal, root, &tubes, speed.to_param(domain.floor(band)))?;
     Ok(SsiOutcome {
         branches,
         exhaustiveness,

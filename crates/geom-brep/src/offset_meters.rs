@@ -141,7 +141,7 @@
 //! offset distance against a patch's.
 
 use geom_core::ring_interval::RingInterval;
-use geom_core::{Band, Indeterminate, Margin, Sign};
+use geom_core::{Band, Indeterminate, Margin, Sign, SupSpeed};
 
 use crate::dihedral::decide;
 use crate::patch_bound::{PatchBoundError, PatchCell, patch_cells_refined};
@@ -382,10 +382,15 @@ pub struct PatchRegularity {
     pub floor: f64,
     /// `sup ‖S_u × S_v‖` from above (m²).
     pub sup: f64,
-    /// `sup ‖S_u‖` (m per unit parameter).
-    pub speed_u: f64,
-    /// `sup ‖S_v‖` (m per unit parameter).
-    pub speed_v: f64,
+    /// `sup ‖S_u‖` (m per unit parameter) — a [`SupSpeed`] by
+    /// signature: every consumer of it meters an overshoot (the
+    /// regularity lever below, the refinement schedule's split
+    /// selection), where over-stating the speed refuses and
+    /// under-stating admits a fold.
+    pub speed_u: SupSpeed<f64>,
+    /// `sup ‖S_v‖` (m per unit parameter); see
+    /// [`PatchRegularity::speed_u`] for the bound direction.
+    pub speed_v: SupSpeed<f64>,
     /// `floor / (speed_u · speed_v)` — a dimensionless lower bound on
     /// `sin∠(S_u, S_v)`. A DIAGNOSTIC: the predicate classifies
     /// [`PatchRegularity::thinness`], not this (module docs).
@@ -396,9 +401,11 @@ pub struct PatchRegularity {
 
 impl PatchRegularity {
     /// The lever the regularity predicate divides by: the patch's
-    /// faster chart speed, in metres per unit parameter.
-    pub fn speed_lever(&self) -> f64 {
-        self.speed_u.max(self.speed_v)
+    /// faster chart speed, in metres per unit parameter. The max of
+    /// two sup bounds is a sup bound, so the pair's tag survives the
+    /// fold.
+    pub fn speed_lever(&self) -> SupSpeed<f64> {
+        SupSpeed::new(self.speed_u.get().max(self.speed_v.get()))
     }
 
     /// The margin [`offset_normal_floor`] classifies — the chart
@@ -410,8 +417,14 @@ impl PatchRegularity {
     /// number on every input: a zero lever leaves `0/0`, which
     /// escalates rather than certifying, and an infinite one leaves a
     /// zero margin, which refuses. Both are the loud answer.
+    /// The rate pair's [`to_param`](SupSpeed::to_param) door does not
+    /// serve this quotient and the tag comes off here: `floor` is an
+    /// AREA rate (m² per unit parameter area), not a model-space
+    /// length, so dividing it by a linear rate leaves metres rather
+    /// than parameter units. The door's dimensional argument would be
+    /// a false one.
     pub fn thinness(&self) -> f64 {
-        self.floor / self.speed_lever()
+        self.floor / self.speed_lever().get()
     }
 }
 
@@ -452,8 +465,8 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
     PatchRegularity {
         floor,
         sup,
-        speed_u,
-        speed_v,
+        speed_u: SupSpeed::new(speed_u),
+        speed_v: SupSpeed::new(speed_v),
         sine_floor,
         cells: cells.len() as u32,
     }
@@ -472,7 +485,7 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
 /// below zero, [`MeterError::Escalated`] when it lands in the
 /// ambiguity band or is poisoned.
 pub fn offset_normal_floor(reg: &PatchRegularity, band: Band) -> Result<(), MeterError> {
-    let margin = Margin::over_lever(reg.floor, reg.speed_lever());
+    let margin = Margin::over_lever(reg.floor, reg.speed_lever().get());
     match decide("offset_normal_floor", margin, band)
         .map_err(|source| MeterError::Escalated { source })?
     {
@@ -480,7 +493,7 @@ pub fn offset_normal_floor(reg: &PatchRegularity, band: Band) -> Result<(), Mete
         Sign::Zero | Sign::Negative => Err(MeterError::NormalFloor {
             floor: reg.floor,
             thinness: margin.value(),
-            speed_lever: reg.speed_lever(),
+            speed_lever: reg.speed_lever().get(),
         }),
     }
 }
