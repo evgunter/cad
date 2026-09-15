@@ -1,9 +1,10 @@
 ---
 id: pncad-py-eval-err-variants-outside-the-tag-inventory
-kind: issue
+kind: unit
 title: TAG_INVENTORY cannot see a refusal variant minted at an eval_err call site, and measure_unavailable is pinned nowhere
-status: open
+status: spec
 opened: 2026-09-04
+branch: census/tag-reach
 ---
 
 
@@ -65,6 +66,47 @@ Territory note: `crates/pncad-py/*` is LIB's fence and the gate is
 LIB's (`434964dfa`), but LIB is not active and the uncovered word is
 M10-6's, so this is filed to M10 on the same reasoning Ev gave for
 re-homing the sibling item (2026-09-04).
+
+## The uncovered word closed itself; measured 2026-09-15 at spec time
+
+**`measure_unavailable` is no longer minted as a literal and is no
+longer uncovered.** `crates/pncad-py/src/py/value.rs` routes
+`ValuePayload::MeasureUnavailable` through
+`super::measure::measure_unavailable_at_err`
+(`crates/pncad-py/src/py/measure.rs`), whose `variant` field reads
+`measure_unavailable_at_tag(reason)` — a `tags.rs` function, inside the
+inventory's reach. The word appears 19 times across the tree and is
+pinned in `src/tests.rs`. The body above cites `value.rs:721` as the one
+place naming it; that line is today `Datum::__repr__`.
+
+Nobody closed this row when the code closed its instance. **That is the
+decay direction that inflates a board**: the row still read as a live
+leak with a word ungated, when what it actually holds is a design
+question about the gate's reach.
+
+**What remains, measured:** seven literal sites in `value.rs` minting
+three words — `wrong_kind` (`:884`, `:920`, `:995`, `:1034`, `:1047`),
+`empty_boolean` (`:878`), `unknown_node` (`:1171`) — not the eight sites
+and four words above. All three are covered by accident, in
+`src/tests.rs` and `pncad.pyi`, so **no word is uncovered today**.
+
+## The disposition, taken at spec time (orchestrator, 2026-09-15)
+
+Neither of the two closes the body offers. `value.rs:1164`, in the same
+function as two of the literals, already passes `NODE_NOT_EVALUATED` —
+a `pub const` imported from `crate::tags` — and the gate already reaches
+consts: `src/tests.rs` carries `TAG_CONSTS`, the committed inventory of
+`tags.rs`'s `pub const` tag words, its reader parses
+`pub const NAME: &str = "value";` beside the `pub fn` form, and a new one
+reds.
+
+So the fix **moves the word, not the reader**: each literal becomes a
+`pub const` in `tags.rs` and is imported at the call site. Widening the
+lexer to scan `src/py/` would mint a new source-text reader, and a reader
+needs a guard of its own — this program's trap, sprung by both previous
+units. Ruling literals permanently out of scope documents a second
+channel instead of closing it. `docs/CENSUS-TAG-REACH-SPEC.md` carries
+the argument.
 
 ## Re-homed at M10's exit sweep (2026-09-13)
 
