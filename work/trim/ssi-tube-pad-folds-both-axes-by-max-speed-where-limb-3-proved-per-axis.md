@@ -10,11 +10,14 @@ opened: 2026-09-12
 ## Finding
 
 `crates/geom-brep/src/ssi.rs`, `plane_nurbs_ssi`: the chart-space tube
-pad is `branch.certificate.tube_radius / speed` with `speed` the
-max-fold of the u and v derivative-box magnitudes, applied on both
+pad is `speed.to_param(branch.certificate.tube_radius)` with `speed`
+the max-fold of the u and v derivative-box magnitudes, applied on both
 axes. `crates/geom-brep/src/ssi/certify.rs`'s limb 3 proved the tube
-with a PER-AXIS pad (`radius / su`, `radius / sv`, each from its own
-box). Dividing by the larger speed on both axes gives a chart region
+with a PER-AXIS pad (`su.to_param(radius)`, `sv.to_param(radius)`,
+each from its own box). Both sites were bare divisions until SCALAR's
+`exhaustiveness-receipt-carries-its-lane` typed them through
+`SupSpeed`, which moved no bits and settles nothing here. Dividing by
+the larger speed on both axes gives a chart region
 that is a SUBSET of the proved one — sound (the accounting is harder,
 never easier) — but the comment beside the pad says it is "the same
 region limb 3 proved", which it is not. Either the pad becomes

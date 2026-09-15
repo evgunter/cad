@@ -5064,6 +5064,85 @@ is the level this tree supports. It is next in the queue, not deferred.
 
 Signed (WIRE orchestrator).
 
+## 2026-09-15 — RULED: N3's retire-loudly generalises, and it settled four of five compositions
+
+PR 2677 merged (`2835e57b`). Ev, in the PR's comments:
+
+> *"refuse and offer where a unique best offer exists" is good. for
+> context on n3, the decision that was made against was not even
+> refusing, just silently taking the merged descendant*
+
+**Asking the framing first was worth it, and this is the evidence.** One
+comment settled three rulings' worth of ground; answered separately they
+would have been three decisions with three chances to disagree with each
+other, which is how this vocabulary accumulated two spellings of things
+before.
+
+### The half that did the work was the half I did not ask about
+
+I asked whether N3 generalises. The answer that made the hard cases
+decidable was the **context**: N3's rejected alternative was *"not even
+refusing, just silently taking the merged descendant."* So the value the
+rule protects is **never silently re-point** — refusing is the floor, and
+the offer is the courtesy above it.
+
+That is what unsticks the cases where no offer can be computed. I had
+been carrying "refuse with no offer is a weaker promise than N3 makes" as
+a reason the generalisation might strain; under the real reading it is
+not a weakening at all, because the thing being ruled out is silence, not
+absence of an offer. `ResolutionFailure::offers` is already a
+`Vec<StableName>` documented *"Empty when nothing structural offers
+itself"*, so zero, one and many were always expressible and nothing needs
+building.
+
+**A framing question is worth asking when the answer might reframe the
+question** — not merely when it might say yes or no. That is the
+transferable version.
+
+### What it settled, and what it deliberately did not
+
+Four of the five compositions, and the fifth explicitly not:
+
+- **split**, **containment**, **fragmented merged row** → refuse, no
+  offer. `member-space-look-through-…` re-kinded `ruling` → `issue`: it
+  is now the application of a decision.
+- **two roots** → refuse, which `ProductError::Naming` already does, so
+  the refusal's KIND was never the question. Qualifying by root is not
+  available (it is a naming scheme, not an offer, and neither root is
+  *best*). `product-refuses-naming-…` re-kinded `ruling` → `issue`: what
+  remains is refusing EARLIER and in the recipe's vocabulary. Its real
+  severity is untouched — the solve still accepts a document the gather
+  cannot represent.
+- **operand seat (A/B)** → **not settled**, and the row now says why at
+  length so nobody applies the rule here by analogy: nothing is
+  re-pointed. No name vanishes, nothing resolves wrongly, no refusal is
+  owed — two orders produce two VALID documents whose names differ. The
+  rule governs a reference whose entity went away, and this is not that.
+  It is now WIRE's only ruling.
+
+### One residue decided rather than escalated
+
+Ev said *unique best*; N3's own offer is **plural** (*"the merged name
+vanishes with its constituents offered"*), so a reading exists under
+which a split offers its fragment SET. Took the narrower reading —
+refuse, no offer — on the ground that N3's plural case is an exact
+DECOMPOSITION of what the merged name covered, whereas a split's
+fragments are CANDIDATES for what the reference meant, and offering
+candidates is one step from the silent pick the rule exists to prevent.
+Written at the ruling row and at `member-space-look-through-…` with the
+reasoning, so a lane that disagrees argues in a PR rather than silently
+taking the other reading.
+
+### Reported to the live lane
+
+`wire-e2` was told, because the ruling names its unit: the
+fragmented-merge shape is unreachable *because* its emitter refusal
+fires first. Its fence is unchanged — it does not get to make that shape
+reachable or name it — but if its re-classification moves which refusal
+that shape hits, a row on this slate is waiting on exactly that.
+
+Signed (WIRE orchestrator).
+
 ## 2026-09-15 — `wire-t1` — the tie-before-kind unit, in review (PR 2681)
 
 Three rows of one class, closed together on `wire/tie-before-kind`:

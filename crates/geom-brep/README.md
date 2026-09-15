@@ -114,9 +114,14 @@ Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of
 the bounded domain is *excluded* (an implicit residual bounded away from
 zero by enclosure), *accounted* (contained in a found branch's tube), or
 refined to the named floor, where the op refuses
-`SsiError::ExhaustivenessInconclusive`. The op does not return until
-every branch is found or it refuses; the subdivision doubles as the seed
-generator, so finding never depends on luck. Closure of a trace and loop
+`SsiError::ExhaustivenessInconclusive`. The receipt and that refusal
+state their lengths in the units their own lane subdivides in and carry
+an `ExhaustLane` saying which — metres on the ℝ³ lane, chart units plus
+the certified `SupSpeed` that crossed them on the chart lane — so metres
+come from `floor_meters()` rather than from a caller holding the rate.
+The op does not return until every branch is found or it refuses; the
+subdivision doubles as the seed generator, so finding never depends on
+luck. Closure of a trace and loop
 topology are named trileans on parameter-space distances. Near-tangential
 configurations (the transversality band along the trace) refuse toward
 C7; Hoffmann §6.5's tracing through singular points is deliberately not
