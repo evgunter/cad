@@ -558,6 +558,142 @@ leaves standing — so the honest end state of this session is a program
 whose slate is complete and whose remainder is scheduled against a
 named trigger.
 
+## 2026-09-15 — the program resumes, and the slate is re-read against eleven days of tree
+
+Ev asked for an orchestrator on CHROME again, reaffirming the standing
+posture in the same breath: **no A/B protocol, style-only reviews for
+the easier units.** That matches what this program has done since it
+opened, so nothing is being changed — but `docs/MODEL-AB-LOG.md`'s
+roster line states it too narrowly (*"infra-only and test-only units in
+CIW and CHROME record no row"*), and the program-level truth is no
+duals at all. Recorded in `program.md` rather than by editing the
+roster, which is shared ground and would be a second program's file to
+touch for one sentence.
+
+**The first act was not to dispatch anything.** The log's previous
+entry is dated 2026-09-04; `main` had moved roughly eight hundred PRs.
+Every one of the 29 live rows was re-read against the tree before any
+unit was cut, in four parallel audits.
+
+**Nothing was dead.** VIEW closed none of CHROME's rows in eleven days
+of working the same crate. It moved the *addresses* of about twelve and
+narrowed the stake of one. That is worth stating plainly because the
+opposite was the reasonable expectation: a program dormant while a
+sibling refactors its territory should expect attrition, and got none.
+
+**What it did find is that rows rot in two ways, and the second is the
+dangerous one.** The first is citation rot — line bands that now hold
+unrelated code, and one row citing `crates/viewer/src/pick.rs`, a file
+that no longer exists. That is visible the moment anyone looks. The
+second is **premise rot**: `add-profile-placement-on-picked-face-frame`
+asserted that the shipped tool authors on world XY only and that the
+kernel deliberately answers no "is this face planar" verdict. Both had
+been falsified by work that landed after the filing —
+`SessionOp::AddProfile` carries a picked `RecipeNodeId`, and
+`face_carrier_kind` exists and is reachable. A lane handed that row on
+trust would have written a detailed, plausible fix for a defect that
+is not there. Same shape one row over:
+`mate-fault-subject-spelled-in-three-crates` counted three spellings,
+where one had since been deleted by LIB and a second
+(`tags::mate_fault_tag`) answers *which arm fired*, never *which mate*
+— so it was never an instance of this finding at all. **One third of
+that row was wrong on the day it was written.**
+
+And the counts inside rows rot quietly:
+`chrome-weight-is-outside-the-palette` says `ui.weak` is spelled 49
+times in `app.rs`. It is spelled **three** times; the other 47 went to
+`pane/*` in the split. I re-derived that one myself rather than take
+the audit's word, because the whole point of this entry is that
+asserted numbers decay.
+
+## The VIEW carve-out — taken, not asked
+
+CHROME and VIEW both claim `crates/viewer/src/*`, both `keep_out`s name
+the other, and **both clauses were false.** CHROME's said *"CHROME goes
+first"*; VIEW went first, eleven days ago. VIEW's said CHROME *"has
+been dormant since 07:00"* and discharged the wait clause on that
+basis; true when written, false the moment this session opened. Lint
+cannot see either, because it checks that the pair is recorded on both
+sides and not that the sentences are true.
+
+A sequencing decision with a recommendation does not wait on Ev
+(`memories/orchestration-model.md`), so: **the two programs divide the
+files rather than take turns.** CHROME works `datums.rs`, `bounds.rs`,
+`combine.rs::denotes_body`, `tree.rs::blamed_mates` and three test
+files; it cedes `scene.rs`, `gpu.rs`, `theme.rs`, `pane/features.rs`,
+`marks.rs`, `blend.rs` and the whole spine. The cessions are not
+politeness — **each one is a file where VIEW holds an OPEN row on the
+same ground**, and in one case (`renamed-module-leaves-citations-in-two-
+other-programs`) a VIEW row claims a CHROME row by id and line number.
+The alternative was two programs fixing one defect twice.
+
+The carve-out cost CHROME three files it had been assigned that
+morning. `scene.rs` and `gpu.rs` went because VIEW opened
+`scene-mesh-carries-an-identity-index-buffer` *that same day*, and it
+deletes one of the two sites `gpu-index-counts-substitute-u32-max` is
+about. Whoever takes either should take both; neither program can see
+that from its own slate alone. Ev is carrying the carve-out to VIEW.
+
+## Four rows re-homed, one of them re-cut first
+
+DOCM exited on 2026-09-14 and its territory divided, which left CHROME
+rows pointing at ground that had changed owner underneath them. Moved
+(`git mv`, ids unchanged, a `## Re-homed` section on each saying why):
+
+- `fmt-cache-carries-the-toolkit-codegen` → **CIW**. Names no crate
+  file at all; its whole subject is the `fmt:` job in `ci.yml`.
+- `a-declared-union-has-no-one-pass-authoring-path` → **EDIT**. The row
+  offered a viewer seat or a kernel edit as alternatives; only the
+  second can exist, because **no `DocEdit` writes `declare`** — the
+  whole vocabulary was enumerated to check.
+- `degenerate-triangle-normal-is-substituted` → **MESH**. Its own
+  preferred resolution is a guarantee sentence about what `crates/mesh`
+  may emit. The viewer half resolves either way once the kernel answers.
+- `mate-fault-subject-spelled-in-three-crates` → **MSOLVE**, *after*
+  correcting its premise in place. Moving a row with a false premise
+  only relocates the error, and this one's cost argument was arithmetic
+  on a count that was wrong.
+
+**One row filed**, from a finding one hop off the union row:
+`addboolean-doc-names-a-vocabulary-that-does-not-exist`.
+`SessionOp::AddBoolean`'s doc says a declaration *"is added afterwards
+through the vocabulary that owns it"*. There is no such vocabulary, and
+the sentence is the stated *reason* for a design decision rather than a
+decoration. Filed rather than fixed in passing: the file is ceded to
+VIEW, and the row records that the **class** — a comment promising a
+door that does not exist — has never been swept in this crate, so one
+instance is not evidence about the population.
+
+## An orchestrator error worth recording: two lanes, one working tree
+
+I dispatched the citation-repoint lane and the datums lane into the
+**same checkout**, with no worktree isolation. The second lane found
+the first's uncommitted work in its tree, correctly declined to
+`git checkout` over it — that would have destroyed another lane's
+work — and said so in its report. No work was lost, and only because
+the lane was careful; nothing in my dispatch made it safe.
+
+The fix is `isolation: worktree` per lane, and the orchestrator's own
+edits in a worktree of their own. The reviews dispatched after this
+point use it. Recording it because
+`memories/agent-lane-operations.md`'s existing rule is about *target
+directories* — a lane serving another lane's binary — and this is the
+same failure one level up, in the source tree rather than the build
+tree, which that rule does not name.
+
+**A second correction to myself, smaller.** I told the audit lanes the
+clone was shallow past 2026-09-13 and that history archaeology was
+therefore unavailable. It has ~150 graft points and reaches 2026-09-02,
+which covers the whole CHROME/VIEW period. Two lanes worked around the
+caveat and one checked it and told me I was wrong. Asserted from one
+commit's diff without checking what `.git/shallow` actually contained —
+the same "asserted from a command whose semantics were not checked"
+shape this log has now recorded eight times.
+
+**Where the program stands.** 25 open and one parked on this branch,
+after the four moves and the one filing; the repoint unit closes two
+more and is in review. Nothing waits on Ev.
+
 ## Four rows re-pointed by subject; the two reports that found the rot are closed (2026-09-15)
 
 `chrome/citation-repoint`. Six rows, no source file touched.
