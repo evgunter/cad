@@ -110,7 +110,8 @@ use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface, tensor};
 use geom_core::{
-    Band, Bounds, CertifiedEnclosure, Decide, Margin, Point3, Real, RingInterval, Sign, Vec3,
+    Band, Bounds, CertifiedEnclosure, Decide, Margin, Point3, Real, RingInterval, Sign, SupSpeed,
+    Vec3,
 };
 
 use crate::certify::CERT_SAMPLES;
@@ -856,7 +857,11 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                 // The radius in chart units: metres ÷ a certified chart
                 // speed, taken over the whole domain so the pad is
                 // conservative in the safe direction (a wider uv pad
-                // gives a wider enclosure and a HARDER test).
+                // gives a wider enclosure and a HARDER test). The rate
+                // is a `SupSpeed` — a derivative box's magnitude is an
+                // upper bound — and the tag is not a positivity
+                // witness, so a collapsed speed still arrives at the
+                // NaN this closure hands out.
                 let (ud, vd) = (n.knots_u().domain(), n.knots_v().domain());
                 let nb = NurbsBoxes::new(n);
                 let speed = |bx: Box3| {
@@ -864,11 +869,11 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                         + bx.y.mag() * bx.y.mag()
                         + bx.z.mag() * bx.z.mag())
                     .sqrt();
-                    if m > 0.0 { m } else { f64::NAN }
+                    SupSpeed::new(if m > 0.0 { m } else { f64::NAN })
                 };
                 let su = speed(nb.deriv_box(ud.0, ud.1, vd.0, vd.1, true));
                 let sv = speed(nb.deriv_box(ud.0, ud.1, vd.0, vd.1, false));
-                probe_tube_chart(p, n, normal, (radius / su, radius / sv))
+                probe_tube_chart(p, n, normal, (su.to_param(radius), sv.to_param(radius)))
             }
             (SsiOperand::Nurbs(_), SsiOperand::Nurbs(_)) => {
                 return Err(SsiError::UnsupportedCertificate {

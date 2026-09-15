@@ -679,6 +679,11 @@ fn the_floor_clamped_planted_fixture_refuses_typed() {
             // The refusal says what it means and what to do.
             assert!(msg.contains("exhaustiveness inconclusive"), "{msg}");
             assert!(msg.contains("refuses"), "{msg}");
+            // On this lane the two lengths are already meters, and the
+            // text says so once — the chart twin's row asserts the
+            // other half of the same claim.
+            assert!(msg.contains("on the ℝ³ lane"), "{msg}");
+            assert!(!msg.contains("chart"), "{msg}");
         }
         // At a fine enough ε the fit budget fires before any branch is
         // fitted, so the floor never gets its turn — and no fixture
@@ -1734,39 +1739,6 @@ fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_doma
 // refusal, never a silent truncation of the search" — that no fixture
 // drove.
 
-/// The substrate wall's **certified chart speed** — the quantity
-/// `plane_nurbs_ssi` divides its two floors by, so that a floor stated
-/// in meters means the same thing in both lanes.
-///
-/// It is a bound on `|∂S/∂u|` and `|∂S/∂v|` over the wall's whole knot
-/// domain, taken from ring boxes over the control net. **No ε enters
-/// it**, which is why one literal serves the whole battery — and why
-/// pinning it is the chart lane's form of the ℝ³ rows' FLOOR-TIE. It is
-/// a measurement of this fixture on this tree, not a tuned constant: if
-/// `NurbsBoxes::deriv_box` is ever tightened, the certified floor
-/// translation genuinely moves, the assertion below goes red with both
-/// numbers in its message, and this literal is re-measured rather than
-/// widened.
-const WALL_CHART_SPEED: f64 = 1.130_884_609_498_248;
-
-/// **FLOOR-TIE, the chart lane's form.** The reported floor is in
-/// chart units; multiplied back by the one scale that translated it,
-/// it must be the meters floor the caller asked for and nothing else.
-/// A second tolerance entering the translation moves it.
-///
-/// Slack of a few ulps: the caller's floor is reconstituted as
-/// `SSI_FLOOR · ε · (meters/ε)` and then divided by the speed, so two
-/// roundings stand between the literal and the receipt.
-fn assert_floor_is_the_meters_floor_over_the_chart_speed(floor: f64, meters: f64, which: &str) {
-    let recovered = floor * WALL_CHART_SPEED;
-    assert!(
-        (recovered - meters).abs() <= 4.0 * f64::EPSILON * meters,
-        "FLOOR-TIE ({which}): the sweep reported a floor of {floor:e} in chart units, \
-         which is {recovered:e} m at the certified chart speed {WALL_CHART_SPEED:e} — \
-         the row asked for {meters:e} m, so a second scale entered the translation"
-    );
-}
-
 /// **The fourth cell of the {lane} × {tube set} cross product**: the
 /// chart lane refusing at the floor with a tube set that is NOT empty —
 /// the twin of [`the_floor_clamped_planted_fixture_refuses_typed`], one
@@ -1831,9 +1803,9 @@ fn assert_floor_is_the_meters_floor_over_the_chart_speed(floor: f64, meters: f64
 /// **The floor tie is exact, in both runs.** The ℝ³ twin asserts its
 /// refusal floor equals `SSI_FLOOR · ε · floor_scale` outright. Here a
 /// second scale sits in the expression — the certified chart speed the
-/// floor is divided by — and the test cannot recompute it from the
-/// public API, so it is pinned as `WALL_CHART_SPEED` and both floors
-/// are carried back to meters through it. Run 1's receipt and run 2's
+/// floor is divided by — and the receipt carries it, so both floors
+/// are read back in meters through `floor_meters()` rather than
+/// through a speed this file pins by hand. Run 1's receipt and run 2's
 /// refusal each have to come out at the meters floor this row asked
 /// for. A ratio between the two runs would NOT do: any scale shared by
 /// both translations cancels out of it, which is the mutation that
@@ -1877,10 +1849,17 @@ fn the_floor_clamped_chart_run_refuses_typed_with_a_banked_tube_set() {
         e.excluded + e.accounted + e.refined,
         "MODE RECEIPT: {e:?}"
     );
-    // FLOOR-TIE, run 1: the receipt's floor is the meters floor this
-    // row asked for, divided by the certified chart speed and by
-    // nothing else. See `WALL_CHART_SPEED`.
-    assert_floor_is_the_meters_floor_over_the_chart_speed(e.floor, 0.05, "MODE RECEIPT");
+    // FLOOR-TIE, run 1: the receipt's floor, read back in meters
+    // through the rate the receipt itself carries, is the meters floor
+    // this row asked for and nothing else. The slack is the round trip
+    // `to_param` then `to_meters` — two roundings, no third scale.
+    let back = e.floor_meters();
+    assert!(
+        (back - 0.05).abs() <= 4.0 * f64::EPSILON * 0.05,
+        "FLOOR-TIE (MODE RECEIPT): the receipt reads {back:e} m at its own lane's \
+         rate, and the row asked for 5e-2 m, so a second scale entered the \
+         translation: {e}"
+    );
 
     // ---- Run 2, the CLAIM: the same branch, the same tubes, a floor
     // above the width at which the sweep resolves the domain.
@@ -1894,10 +1873,23 @@ fn the_floor_clamped_chart_run_refuses_typed_with_a_banked_tube_set() {
             // own guard read back out, so the content is the refusal's
             // TEXT, which is what a caller acts on.
             assert!(cell_width <= floor, "{cell_width} vs {floor}");
-            assert_floor_is_the_meters_floor_over_the_chart_speed(floor, 0.5, "CLAIM");
+            // FLOOR-TIE, run 2, on the same terms as run 1's.
+            let back = err
+                .floor_meters()
+                .expect("the exhaustiveness refusal has a floor");
+            assert!(
+                (back - 0.5).abs() <= 4.0 * f64::EPSILON * 0.5,
+                "FLOOR-TIE (CLAIM): the refusal reads {back:e} m at its own lane's \
+                 rate, and the row asked for 5e-1 m, so a second scale entered the \
+                 translation: {err}"
+            );
             let msg = format!("{err}");
             assert!(msg.contains("exhaustiveness inconclusive"), "{msg}");
             assert!(msg.contains("refuses"), "{msg}");
+            // The lane and its unit word are the refusal's claim, and
+            // this fixture is the chart lane.
+            assert!(msg.contains("on the chart lane"), "{msg}");
+            assert!(msg.contains("chart units"), "{msg}");
         }
         Err(other) => panic!("expected the exhaustiveness refusal, got {other}"),
         Ok(out) => panic!(

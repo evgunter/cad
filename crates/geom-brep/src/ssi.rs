@@ -127,7 +127,7 @@ use geom::{NurbsSurface, Surface};
 use geom_core::{Band, Indeterminate, Margin, Point3};
 
 pub use certify::{SSI_CERT_SPANS, SSI_TUBE_RADIUS, SsiCertificate, SsiLimb};
-pub use exhaust::{Exhaustiveness, SSI_FLOOR, SSI_MAX_CELLS, SSI_SEED_FLOOR};
+pub use exhaust::{ExhaustLane, Exhaustiveness, SSI_FLOOR, SSI_MAX_CELLS, SSI_SEED_FLOOR};
 pub use march::{
     BranchEnd, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL, SSI_STEP_DEVIATION,
     SSI_STEP_MAX, StepperMode,
@@ -236,7 +236,14 @@ impl<T: geom_core::Bounds> TubeScale<T> {
 }
 
 /// A typed rung-3 refusal — D4 ¶3: actionable, closed, never silence.
-#[derive(Clone, Debug, PartialEq)]
+///
+/// No `PartialEq`: [`ExhaustLane`] carries a [`SupSpeed`](geom_core::SupSpeed),
+/// which has none by the `Real` surface's rule that a tagged rate is
+/// never compared without `get()`. Deriving one here would have to
+/// compare rates, and the payloads it would compare include a
+/// deliberate `f64::NAN` ([`Self::CertificateLimb`]'s `value`), which
+/// no derived equality can call equal to itself.
+#[derive(Clone, Debug)]
 pub enum SsiError {
     /// The transversality margin `sin θ · arm` landed in the sliver
     /// band along the candidate locus. This is the C7 regime
@@ -257,9 +264,14 @@ pub enum SsiError {
     /// obligation firing**: there may be a branch in that cell and we
     /// decline to pretend otherwise.
     ExhaustivenessInconclusive {
-        /// The offending cell's width, in meters (or chart units).
+        /// Which lane's subdivision refused, and — on the chart lane —
+        /// the rate this refusal's two lengths are stated in.
+        lane: ExhaustLane,
+        /// The offending cell's width, in `lane`'s own units.
+        /// [`SsiError::cell_width_meters`] reads it in metres.
         cell_width: f64,
-        /// The floor it hit.
+        /// The floor it hit, in the same units.
+        /// [`SsiError::floor_meters`] reads it in metres.
         floor: f64,
         /// Cells examined before the refusal.
         examined: u32,
@@ -415,6 +427,60 @@ impl From<geom_core::BandError> for SsiError {
     }
 }
 
+impl SsiError {
+    /// The `(lane, cell width, floor)` a refusal states in a lane's own
+    /// units, when it states any.
+    ///
+    /// Exhaustive by variant with **no wildcard arm**: a refusal the
+    /// taxonomy gains that carries a lane-dependent length has to be
+    /// dispositioned here, rather than silently reporting that it has
+    /// no metre reading.
+    fn lane_lengths(&self) -> Option<(ExhaustLane, f64, f64)> {
+        match self {
+            Self::ExhaustivenessInconclusive {
+                lane,
+                cell_width,
+                floor,
+                ..
+            } => Some((*lane, *cell_width, *floor)),
+            Self::TransversalityBand { .. }
+            | Self::CellBudget { .. }
+            | Self::StepBudget { .. }
+            | Self::StepCollapsed { .. }
+            | Self::SeedRefinementFailed { .. }
+            | Self::SelfCrossingLocus { .. }
+            | Self::CertificateLimb { .. }
+            | Self::TubeLadderEmpty { .. }
+            | Self::TubeProbeSilent { .. }
+            | Self::TubeStraddles { .. }
+            | Self::FootPointInconclusive { .. }
+            | Self::Fit(_)
+            | Self::FitSampleBudget { .. }
+            | Self::UnsupportedCertificate { .. }
+            | Self::WrongLane { .. }
+            | Self::Escalated(_)
+            | Self::Band(_)
+            | Self::InvalidMarchTol { .. }
+            | Self::MarchTolMismatch { .. } => None,
+        }
+    }
+
+    /// The offending cell's width in metres, when this is
+    /// [`Self::ExhaustivenessInconclusive`]; `None` for every other
+    /// refusal, none of which carries a cell.
+    pub fn cell_width_meters(&self) -> Option<f64> {
+        self.lane_lengths()
+            .map(|(lane, cell_width, _)| exhaust::meters(lane, cell_width))
+    }
+
+    /// The refinement floor in metres, on the same terms as
+    /// [`Self::cell_width_meters`].
+    pub fn floor_meters(&self) -> Option<f64> {
+        self.lane_lengths()
+            .map(|(lane, _, floor)| exhaust::meters(lane, floor))
+    }
+}
+
 impl core::fmt::Display for SsiError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -431,17 +497,31 @@ impl core::fmt::Display for SsiError {
                  the tolerance"
             ),
             Self::ExhaustivenessInconclusive {
+                lane,
                 cell_width,
                 floor,
                 examined,
-            } => write!(
-                f,
-                "ssi: exhaustiveness inconclusive — after {examined} cells a cell of \
-                 width {cell_width:e} at the refinement floor {floor:e} could be \
-                 neither excluded nor accounted for, so a branch may be hiding in it; \
-                 the operation refuses rather than report a possibly incomplete \
-                 intersection"
-            ),
+            } => match lane {
+                ExhaustLane::R3 => write!(
+                    f,
+                    "ssi: exhaustiveness inconclusive on the ℝ³ lane — after {examined} \
+                     cells a cell of width {cell_width:e} m at the refinement floor \
+                     {floor:e} m could be neither excluded nor accounted for, so a \
+                     branch may be hiding in it; the operation refuses rather than \
+                     report a possibly incomplete intersection"
+                ),
+                ExhaustLane::Chart { .. } => write!(
+                    f,
+                    "ssi: exhaustiveness inconclusive on the chart lane — after \
+                     {examined} cells a cell of width {cell_width:e} chart units \
+                     ({:e} m) at the refinement floor {floor:e} chart units ({:e} m) \
+                     could be neither excluded nor accounted for, so a branch may be \
+                     hiding in it; the operation refuses rather than report a possibly \
+                     incomplete intersection",
+                    exhaust::meters(*lane, *cell_width),
+                    exhaust::meters(*lane, *floor)
+                ),
+            },
             Self::CellBudget { budget } => write!(
                 f,
                 "ssi: the exhaustiveness subdivision exceeded its {budget}-cell budget \
@@ -1049,14 +1129,8 @@ pub fn plane_nurbs_ssi(
         branches.push(branch);
     }
 
-    let exhaustiveness = exhaust::account_chart_plane(
-        wall,
-        p0,
-        normal,
-        root,
-        &tubes,
-        speed.to_param(domain.floor(band)),
-    )?;
+    let exhaustiveness =
+        exhaust::account_chart_plane(wall, p0, normal, root, &tubes, speed, domain.floor(band))?;
     Ok(SsiOutcome {
         branches,
         exhaustiveness,
