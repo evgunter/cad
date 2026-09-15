@@ -473,9 +473,9 @@ pub(super) fn face_source<T: Decide>(
 /// `sweep::blend::battery::outward`, plus two in a test oracle,
 /// `sweep/tests/common/orient.rs`'s `wall_outward_at` and
 /// `assert_caps_face_out`. Two crates that look like readers are not:
-/// **`geom-brep`** does not depend on `topo` at all and its
-/// `sense_sign` occurrences in `props/curved.rs` are a parameter name
-/// on a value `topo::props` passes in; **`step-export`** reads
+/// **`geom-brep`** does not depend on `topo` at all and its material
+/// doors take the orientation as a `bool`, minting whatever normal
+/// they need from their own gradients; **`step-export`** reads
 /// `Face::sense` as the `same_sense` bit, never the ±1. **This list is
 /// recited, not computed** — it is the work order for consolidating
 /// them onto this door, and it goes stale the moment that work runs.

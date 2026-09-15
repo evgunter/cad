@@ -2,10 +2,11 @@
 id: PORT-DOORS-1
 kind: unit
 title: One order and one list at the assembly doors: widen the mint refusals, ask kind before tie
-status: spec
+status: review
 opened: 2026-09-15
 refs: [2090, 1854]
 branch: port/doors-1-refusal-order
+pr: 2635
 ---
 
 

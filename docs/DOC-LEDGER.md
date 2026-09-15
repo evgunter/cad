@@ -2881,3 +2881,167 @@ the door, not just imports). Recorded in the PR body and the unit's
 `## Closed` section.
 
 - `UNITVEC-SPEC.md` — UNITVEC, the unit-vector witness moves to geom-core, minted by the decided ladder (#2646)
+
+## Per-merge deletion — CENSUS-DEBUG's spec (2026-09-15)
+
+Recoverable at `git show 67e56e2cf:docs/CENSUS-DEBUG-SPEC.md` (PR
+#2655's last head before the merge). CENSUS's second unit. Its sentences
+that did not survive:
+
+- **the criterion excluding `topo/src/props.rs`'s `SignCertificate`** —
+  the spec ruled it out because it uses `write!` rather than
+  `debug_struct(…).finish()`, which is a claim about the TERMINATOR.
+  The class is the tie to the declaration, and by that question it is
+  squarely in: it renders in braced struct shape and reads `self.runs`
+  by name. The instruction not to fix it was followed; the criterion is
+  corrected on
+  `work/census/hand-listed-partialeq-siblings-outside-the-census-debug-fence.md`,
+  which names the spec as the source of the wrong criterion.
+- **"the per-field question is compiler-known, so a census must not
+  re-ask it"** — true of the twelve impls Half A touched, false of the
+  population the resulting census then declares clean. Four body shapes
+  answered green, one of them (`self.0.name`, a newtype reading a NAMED
+  field of its inner type) de-listed at the site as something the
+  classifier answers. Three are now closed in the classifier and the
+  fourth is on the blind-spot list.
+- **Half B's population** — stated as the item's six sites / seven
+  impls; `knots.rs`'s `impl PartialEq for Span<'_>`, sitting directly
+  under a `Debug` the hit list does carry, makes it seven and eight.
+
+Also not landed as written: the spec's hit list of four new in-class
+`Debug` impls was correct, but its reading of the item's own decay
+understated it — the item's enumeration rule gave 14 impls on
+2026-09-15 against the eight rows it recorded on 2026-09-06.
+
+The premise corrections are recorded on the item file, which survives
+this deletion, and the unit's record is `work/census/log.md`'s
+CENSUS-DEBUG entry plus the PR body. Residue, all filed:
+`work/census/hand-listed-partialeq-siblings-outside-the-census-debug-fence.md`
+(six out-of-fence walks, two of them invisible to the census),
+`work/shell/geometrywitness-eq-ignores-the-two-chart-axes-its-uv-fields-are-stated-in.md`,
+`work/topo/censussubject-eq-answers-false-for-a-new-variant-against-itself.md`
+and `work/mesh/memo-dumps-hide-the-closed-bit-the-counters-depend-on.md`.
+
+- `CENSUS-DEBUG-SPEC.md` — CENSUS-DEBUG, a hand-listed `Debug` under a completeness claim (#2655)
+
+## Per-merge deletion — SENSE-DOORS's spec (2026-09-15)
+
+Recoverable at `git show 68f1d4729:docs/SENSE-DOORS-SPEC.md` (the
+fix-pass head). Its sentences that did not survive: "a conditional
+negation is exact in IEEE, so … bit for bit" — bit-identical at `f64` on
+every non-NaN, non-zero value, but the old `κ·(±1)` product carried a
+NaN's sign bit, a signed zero and, at `Interval`, an ulp of padding at
+tiny magnitudes that the negation does not (head strictly tighter; no
+verdict or margin moves; a signed-zero row pins it); "the missing-face
+arm refuses through the same vocabulary" (it refuses, but with its own
+words now — `face_of` says "declared face key does not resolve" and keeps
+"lost its surface" for a stale surface key); "check whether anything
+relied on the zero arm" — nothing could: `linear_rim_side` refuses
+`Zero` itself, and that is now the one home of the claim, with the
+sphere's and cylinder's sites reading identically and unguarded; the
+fence (the fix pass reached `props/mod.rs`, `boolean/reduce.rs`, the
+`mesh` and `sweep` suites and `crates/topo/README.md`, each said in the
+PR body). Recorded in the PR body and the unit's `## Closed` section.
+
+- `SENSE-DOORS-SPEC.md` — SENSE-DOORS, the five bare-T sense-sign doors take the bit (#2649)
+
+## Per-merge deletion — CENSUS-TAG-REACH's spec (2026-09-15)
+
+Recoverable at `git show 246ae018c:docs/CENSUS-TAG-REACH-SPEC.md` (PR
+#2660's last head before the merge). CENSUS's third unit. Its sentences
+that did not survive:
+
+- **the criterion** — the spec said these words reach Python as
+  `.variant`. They reach it as **`reason`**: `eval_err` writes that
+  field and `pncad.pyi` declares `EvaluationError.reason`. A sweep on
+  `variant` finds none of the sites and reports the class clean. The
+  second criterion error in three specs, and the more dangerous kind,
+  because a wrong criterion silently re-scopes the whole unit.
+- **the fence** — "an `eval_err` call site" missed `node_failed` and
+  `poisoned` at direct `typed_err` raises, the same door's vocabulary
+  ten lines away. Ten sites, not seven.
+- **the disposition** — the spec ruled that each word become a
+  `pub const` in `tags.rs`, and required the lane to test by execution
+  what would stop the next word. **Against the spec's own disposition,
+  nothing red**: a fresh site minting a word that had never existed
+  passed 85 Rust and 832 Python tests. The word became a TYPE, and then
+  — after the style review found the wall guarded `eval_err` rather than
+  the door — a type carried by `ErrorClass::Evaluation` itself.
+
+The premise corrections are on the item file, which survives this
+deletion, and the unit's record is `work/census/log.md`'s
+CENSUS-TAG-REACH entry plus the PR body. Residue, all filed on
+`work/census/`: `py-discriminant-getters-under-src-py-are-outside-every-inventory`,
+`py-reason-and-variant-literals-outside-any-enum`,
+`four-censuses-of-python-visible-vocabulary-in-one-crate`,
+`pncad-py-tests-rs-is-six-thousand-lines-and-carries-two-unremeasured-floors`,
+`datum-kind-vocabulary-is-hand-spelled-and-uncensused` and
+`evaluationerror-stub-lists-five-reasons-and-the-door-raises-six`.
+
+- `CENSUS-TAG-REACH-SPEC.md` — CENSUS-TAG-REACH, the refusal word rides the class (#2660)
+
+## Per-merge deletion — RATE-PAIR's spec (2026-09-15)
+
+Recoverable at `git show 9530c9070:docs/RATE-PAIR-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "`Margin::levered` with an
+angular ARM (m per radian …) is NOT a rate per parameter unit and
+stays" — false in the tree for the plane and spline kinds, whose
+u-channel arm is `chart_stretch_sup`'s own `SupSpeed`; the carve-out was
+redrawn for a LEVER that is not the curve's or chart's own parameter
+rate, `azimuth_arm` became `chart_u_arm` returning `ChartArm { Angular,
+Rate(SupSpeed) }`, `certify.rs` check 2's circle/ellipse arms went
+through `metered` with the `InfSpeed` `param_rate` already mints, and
+the remaining angular arms are filed as the class's next member;
+"`chart_stretch_sup` … (`SupSpeed` pairs)" — its Cone arm could not
+honour the tag (`|S_u| = v·sin α`), so the door refuses
+`NoChartSup::ConeAzimuthGrowsWithV` and `chart_stretch_sup_v` mints the
+cone's exact `v` arm; "the two conversions" on `InfSpeed` — `to_param`
+had no caller and the wrong safe side, deleted; "a digest row committed
+before the change" — the committed narration hash was not reproducible
+from its recipe, replaced by a zero-parameter recipe re-taken at
+`origin/main` and at head; "the `Display`/`Debug` of every receipt …
+keeps its text" — `PatchRegularity`'s derived `Debug` prints the tag
+(nothing observable reads it; disclosed). Recorded in the PR body and
+the unit's `## Closed` section.
+
+- `RATE-PAIR-SPEC.md` — RATE-PAIR, SupSpeed and InfSpeed beside Margin; metered takes the inf; a sup door (#2657)
+
+## Per-merge deletion — CENSUS-PY-GETTERS's spec (2026-09-15)
+
+Recoverable at `git show 712d1a071:docs/CENSUS-PY-GETTERS-SPEC.md` (PR
+#2663's last head before the merge). CENSUS's fourth unit, first of the
+`pncad-py` block. Its sentences that did not survive:
+
+- **the count, presented as verified** — the spec said six Python-visible
+  maps and 23 words, and said it had **independently re-measured** them.
+  The row's pattern and that check were both lowercase-anchored scans for
+  `=> "word"`, so both missed `py/value.rs`'s `dimension_name`, whose
+  four words are CAPITALISED and reach Python as `Measurement.dimension`.
+  Nine minting, seven Python-visible, 27 words. **A verification shaped
+  like the finding it checks is not a verification**, and that is the
+  lesson rather than the arithmetic.
+- **the siting argument** — `errors.rs` claimed to hold "the one
+  Python-visible alphabet that is not lower snake case", with a
+  counter-example 370 lines below it in the same file
+  (`ErrorClass::class_name`'s 35 exception-class names). The siting stands
+  on the reader's lower-snake constraint instead.
+- **a stated blind spot** — the unit reported that a rename probe cannot
+  see a map moved wholesale out of `tags.rs`, and built an argument on it.
+  The inventory guard has an explicit GONE branch; one probe dissolves
+  the claim. The entry was reasoned rather than executed.
+
+Not a spec sentence but recorded here because it was the ORCHESTRATOR's
+error: the adjudication of the style review directed a row to be filed
+for the `#[pyclass]` enum vocabulary as an uncensused population. It is
+not — `tests/test_stubs.py` holds all 114 member names against the stub
+name-for-name in both directions, proven by renaming `ArcSweep::Ccw`.
+The fix pass refused the filing with the probe output. Filing it would
+have been this program's fifth overclaiming row.
+
+The corrections are on the item file, which survives this deletion, and
+the unit's record is `work/census/log.md`'s CENSUS-PY-GETTERS entry plus
+the PR body. Residue filed on `work/census/`:
+`sixty-one-tag-words-are-minted-by-two-or-more-maps-and-seven-are-read`
+and `errors-rs-holds-four-python-visible-maps-and-nothing-enumerates-that-file`.
+
+- `CENSUS-PY-GETTERS-SPEC.md` — CENSUS-PY-GETTERS, seven discriminant maps move to the inventory (#2663)

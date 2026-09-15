@@ -55,8 +55,8 @@ moves by `git mv` like any other claim.
 | `S415` | **M** | Three unrelated residues over four crates; two flagged unsure, shared-constant question is a judgement call | `crates/step-import/src/assemble.rs`, `crates/step-import/src/parse.rs`, `crates/step-export/src/lib.rs`, `crates/stl/src/options.rs`, `crates/pncad-py/src/*` |
 | `python-cannot-set-options-structs` | **M** | Four doors, pattern already established by PR 1493; multi-file, census anchors to add | `crates/pncad-py/src/py/value.rs:999`, `crates/pncad-py/src/py/` STL and eval doors, `crates/pncad-py/src/surface_census.rs`, `.pyi` + py tests |
 | `D341` | **M** | New `match Node` census anchored on ~18 variants; census shape needs deciding. | `crates/pncad-py/src/surface_census.rs` (`verb_spelling` mold), `crates/pncad-py/src/py/*`; reads `crates/editor-core/src/node.rs` `Node<P>` |
-| `assembly-door-raises-only-the-head-of-each-refusal-list` | **M** | Widen-vs-contract **decided** (widen, 2026-09-15 — the row says why); dispatches with `product-table-…` as one unit | `crates/editor-core/src/assembly.rs` (`assemble_gathered`, the two `into_iter().next()` sites), `AssemblyError` in `crates/editor-core/src/`, `crates/pncad-py/src/py/` façade |
-| `product-table-answers-a-tie-before-kind-the-operand-the-reverse` | **M** | Order **decided** (kind-first, 2026-09-15 — the row says why); one-arm change plus two control assertions | `crates/editor-core/src/assembly.rs` (`resolve_face`, `display_contract`), `crates/editor-core/tests/msolve5_read_below_a_root.rs` |
+| `assembly-door-raises-only-the-head-of-each-refusal-list` | **H** (was **M**; corrected by the lane, PR 2635) | Widen-vs-contract **decided** (widen, 2026-09-15 — the row says why); dispatches with `product-table-…` as one unit. **The estimate was wrong**: widening retires two public `AssemblyError` variants, so the change spans EDIT's `assembly.rs` and LIB's whole façade — the tag vocabulary, the stub, the guide and the binding census — which is the `H` clause's "spanning several programs' territory". | `crates/editor-core/src/assembly.rs` (`assemble_gathered`, the two `into_iter().next()` sites), `AssemblyError` in `crates/editor-core/src/`, `crates/pncad-py/src/py/` façade, `crates/pncad-py/src/tags.rs`, `pncad.pyi`, `docs/guide/assembly.md`, `crates/pncad/tests/all.rs` |
+| `product-table-answers-a-tie-before-kind-the-operand-the-reverse` | **H** (was **M**; corrected by the lane, PR 2635 — the letter follows its unit, which dispatches as one) | Order **decided** (kind-first, 2026-09-15 — the row says why); one-arm change plus ONE control assertion (the tied-face row does not move). **`M` was right for this row alone**; it carries `H` because it dispatches as one unit with the row above and a class letter is a unit's, not a half-unit's. | `crates/editor-core/src/assembly.rs` (`resolve_face`, `display_contract`), `crates/editor-core/tests/msolve5_read_below_a_root.rs` |
 | `msrv-floor-is-declared-and-never-compiled` | **E** | **Answered** (Ev, 2026-09-15): a check that the two strings are equal. Was **M** for the decision in front of it; with that gone it is one gate script. | `Cargo.toml` (`rust-version`), `rust-toolchain.toml`, a new `scripts/gates/` row with its two calls in `.github/workflows/ci.yml` |
 | `load-path-stringifies-structured-refusals` | **H** | Arrived 2026-09-13 at DOCM's exit sweep, after the table above was first written. Structured kernel refusals stringified at the load door; carries a two-sweep class obligation. **The one row this program gives a full review.** | `crates/editor-core/src/persist/wire.rs` (`Error::custom`), `crates/pncad-py/src/tags.rs`, `crates/pncad-py/src/py/value.rs`, `py/flush.rs` |
 | `python-dimensionerror-names-the-quantity-check-not-the-dimension-check` | **M** | **Ruled a defect** (Ev, 2026-09-15) — `S107`'s successor, filed the day the ruling landed. The rename is small; the re-documentation it deletes is the bulk. | `crates/pncad-py/src/errors.rs`, `src/py/mod.rs`, the door docstrings in `src/py/*`, `pncad.pyi`, `src/tests.rs` + the py suite |
@@ -107,8 +107,9 @@ from outside the repository, where the reader has no access to the
 kernel's types.
 
 **The full review goes to `load-path-stringifies-structured-refusals`**,
-and on this slate to that row alone. Three things earn it, and no other
-row has all three: the defect was found by *execution* rather than by
+and to `PORT-DOORS-1`, which asked for the second arm under the escape
+hatch below and was granted it (PR 2635). Three things earn the first,
+and no other row has all three: the defect was found by *execution* rather than by
 reading, so the tree does not show it; the fix carries an explicit
 two-sweep class obligation over `format!("{err:?}")` sites and the
 `tags.rs` reachability question; and a wrong fix there is **invisible
@@ -120,7 +121,11 @@ rides that review since they spec together.
 Nothing above is a floor. A lane that finds a row harder than this
 section assumed says so in its PR and asks for the second arm, and this
 section is corrected in the same PR — the same rule the class column
-runs on.
+runs on. `PORT-DOORS-1` is the first row to use it: a public
+error-channel change across two programs' territory, and the full
+review is what found the ratified-page citation the style lane's
+sweep would not have asked for.
+
 ## How the class column is read
 
 `E` / `M` / `H` is a **dispatch estimate**, made on 2026-09-11 by reading

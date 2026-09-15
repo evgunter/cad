@@ -30,9 +30,9 @@ use crate::fixture;
 
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKey,
-    EntityKind, EntityRef, Entry, EvalOptions, InterfaceCrossing, MateFrame, MatePrimitive, Node,
-    NodeErrorKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, assemble, content_pin,
-    inline, product_recorded, split,
+    EntityKind, EntityRef, Entry, EvalOptions, InterfaceCrossing, MateFrame, MatePrimitive,
+    MintRefusal, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName,
+    assemble, content_pin, inline, product_recorded, split,
 };
 use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, relations, run, step};
@@ -1145,19 +1145,24 @@ fn a_tangent_mate_solves_and_then_refuses_at_the_mint_door() {
     // Door two: the mint refuses it, naming the class.
     let ev = run(&doc, &with_resolver(store));
     match assemble(&doc, &ev, Tol::witness()) {
-        Err(AssemblyError::NoAtRestRecord {
-            class,
-            mate,
-            why: rendered,
-        }) => {
-            assert_eq!(class, ContactClass::Tangent);
-            assert_eq!(mate, tangent, "naming the mate that declared it");
-            assert_eq!(
-                rendered, why,
-                "and giving the TABLE's reason for this class, never one \
-                 borrowed from another"
-            );
-        }
+        Err(AssemblyError::Mint { refusals }) => match refusals.as_slice() {
+            [
+                MintRefusal::NoAtRestRecord {
+                    class,
+                    mate,
+                    why: rendered,
+                },
+            ] => {
+                assert_eq!(*class, ContactClass::Tangent);
+                assert_eq!(*mate, tangent, "naming the mate that declared it");
+                assert_eq!(
+                    *rendered, why,
+                    "and giving the TABLE's reason for this class, never one \
+                     borrowed from another"
+                );
+            }
+            rows => panic!("one mate refused, so one row: {rows:?}"),
+        },
         other => panic!("a Tangent mate must refuse at the mint door: {other:?}"),
     }
 }
@@ -1324,18 +1329,23 @@ fn the_mint_door_renders_each_class_its_own_reason() {
         let mate = mate.expect("the mate mints");
         let ev = run(&doc, &with_resolver(store));
         match assemble(&doc, &ev, Tol::witness()) {
-            Err(AssemblyError::NoAtRestRecord {
-                class: refused,
-                mate: named,
-                why: rendered,
-            }) => {
-                assert_eq!(refused, class);
-                assert_eq!(named, mate);
-                assert_eq!(
-                    rendered, why,
-                    "the door renders THIS class's reason: {class:?}"
-                );
-            }
+            Err(AssemblyError::Mint { refusals }) => match refusals.as_slice() {
+                [
+                    MintRefusal::NoAtRestRecord {
+                        class: refused,
+                        mate: named,
+                        why: rendered,
+                    },
+                ] => {
+                    assert_eq!(*refused, class);
+                    assert_eq!(*named, mate);
+                    assert_eq!(
+                        *rendered, why,
+                        "the door renders THIS class's reason: {class:?}"
+                    );
+                }
+                rows => panic!("one mate refused, so one row: {rows:?}"),
+            },
             other => panic!("{class:?} must refuse at the mint door: {other:?}"),
         }
         assert!(
@@ -1414,9 +1424,12 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
     let (doc, _) = step(doc, DocEdit::InsertNode { node });
     let ev = run(&doc, &with_resolver(store));
     match assemble(&doc, &ev, Tol::witness()) {
-        Err(AssemblyError::Reference { why, .. }) => {
-            assert_eq!(why, editor_core::RefusedRef::Vanished);
-        }
+        Err(AssemblyError::Mint { refusals }) => match refusals.as_slice() {
+            [MintRefusal::Reference { why, .. }] => {
+                assert_eq!(*why, editor_core::RefusedRef::Vanished);
+            }
+            rows => panic!("one mate refused, so one row: {rows:?}"),
+        },
         other => panic!("an unresolvable reference must refuse typed: {other:?}"),
     }
 }

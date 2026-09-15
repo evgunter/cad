@@ -562,10 +562,13 @@ fn a_class_with_no_at_rest_record_refuses_at_the_gate_not_at_the_gather() {
         gathered.unminted
     );
     match assemble(&doc, &ev, Tol::witness()) {
-        Err(AssemblyError::NoAtRestRecord { class, mate, .. }) => {
-            assert_eq!(class, ContactClass::Tangent);
-            assert_eq!(mate, tangent, "naming the mate that declared it");
-        }
+        Err(AssemblyError::Mint { refusals }) => match refusals.as_slice() {
+            [MintRefusal::NoAtRestRecord { class, mate, .. }] => {
+                assert_eq!(*class, ContactClass::Tangent);
+                assert_eq!(*mate, tangent, "naming the mate that declared it");
+            }
+            rows => panic!("one mate refused, so one row: {rows:?}"),
+        },
         other => panic!("the at-rest door refuses a Tangent: {other:?}"),
     }
 }
@@ -702,8 +705,8 @@ fn an_unmintable_class_before_a_good_mate_does_not_swallow_it() {
 
 /// GUARD (the rows, and their ORDER): a document that refuses BOTH ways
 /// with a good mate between them. The refusal rows are the whole set, in
-/// DOCUMENT ORDER — which is what makes `assemble`'s "raise the first
-/// one" a statement about the document rather than about the walk.
+/// DOCUMENT ORDER — which is what makes `assemble`'s "raise every one"
+/// a statement about the document rather than about the walk.
 ///
 /// This is the row the stop-at-first-bad-mate walk cannot pass on any
 /// assertion: it would mint nothing, record one refusal, and never reach
@@ -767,12 +770,28 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
         "each under its own arm: {:?}",
         gathered.unminted
     );
-    // And the door that raises reads that set head-first, so the verdict
-    // is the FIRST refusal in document order, not merely some refusal.
+    // And the door that raises reads the WHOLE set, in document order:
+    // an author with two broken mates has two repairs, and a verdict
+    // naming one of them makes the second a second evaluation.
     match assemble(&doc, &ev, Tol::witness()) {
-        Err(AssemblyError::NoAtRestRecord { mate, .. }) => {
-            assert_eq!(mate, first_bad, "the first refusal in document order");
+        Err(AssemblyError::Mint { refusals }) => {
+            assert_eq!(
+                refusals.iter().map(MintRefusal::mate).collect::<Vec<_>>(),
+                vec![first_bad, second_bad],
+                "every refusal, in document order"
+            );
+            assert!(
+                matches!(refusals[0], MintRefusal::NoAtRestRecord { .. })
+                    && matches!(refusals[1], MintRefusal::Reference { .. }),
+                "each still under its own arm: {refusals:?}"
+            );
+            let rendered = AssemblyError::Mint { refusals }.to_string();
+            assert!(
+                rendered.contains(&format!("mate {}", first_bad.0))
+                    && rendered.contains(&format!("mate {}", second_bad.0)),
+                "and both are in the one message: {rendered:?}"
+            );
         }
-        other => panic!("expected the first refusal raised, got {other:?}"),
+        other => panic!("expected every refusal raised, got {other:?}"),
     }
 }

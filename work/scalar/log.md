@@ -287,3 +287,33 @@ from the tally per the instrument; no tally candidate. What landed:
 the item's §Closed. The spec is deleted per the ledger. The `sin_cos`
 mint waits for a customer; the frame doors taking the witness are the
 next unit's (`frame-witness-and-the-tube-door`).
+
+## SENSE-DOORS merged (2026-09-15)
+
+PR 2649, block SCALAR-B2 slot 0, ordinal 4104; dual review, both arms
+APPROVE WITH FIXES, no MAJOR — no tally candidate. What landed: the
+item's §Closed. The spec is deleted per the ledger. Handed on: the
+`blend/arms.rs` `±1` field (second unit), the frame doors (third).
+
+## RATE-PAIR merged; block SCALAR-B2 closes (2026-09-15)
+
+PR 2657, block SCALAR-B2 slot 2, ordinal 4105. The fix pass took all
+twelve items and demonstrated M1 by execution (the frozen head's
+`chart_stretch_sup` answered `SupSpeed(1)` for a cone whose true sup at
+`v = 4` is `2`; the door now refuses and a `v`-arm door mints the exact
+1), so R1's finding **counts** for the OPUS arm under the instrument.
+What landed: the item's §Closed. The spec is deleted per the ledger.
+With its reviews concluded the block's last slot is done: the
+branch-side block record (pre-draw fields, draw, three rows) merges to
+main. Handed on: the angular arms (TRIM), the second D283 unit
+(`exhaustiveness-receipt-carries-its-lane`).
+
+## Block SCALAR-B2 landed (2026-09-15)
+
+The branch-side block record — pre-draw fields, the draw (byte 187),
+and the three rows UNITVEC (#205), SENSE-DOORS (#206), RATE-PAIR
+(#207) — merges to main with this entry. One tally candidate in the
+block, RATE-PAIR's M1, counted for the OPUS arm (unilateral,
+contract-API class, demonstrated by execution in the fix pass); the
+other five arms found no MAJOR. Block SCALAR-B3's pre-draw and draw
+stay on `scalar/orchestrator` until its last slot's reviews conclude.

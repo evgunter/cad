@@ -47,9 +47,18 @@ its fence in the PR that lands it and announces it to the owners; the
 | `S113` | **M** | Multi-file; member (d) needs a real invariance re-derivation of the retry ladder. | `crates/geom-core/src/ring_interval.rs`, `crates/topo/src/chart_region.rs`, `crates/topo/src/splitting/containment.rs`, `demos/README.md` (+ S64/S67/S74/S89/S98 members) |
 | `S133` | **M** | profile half discharged; remaining sweep+disposition rides staffed lanes, scope needs judgement. | `crates/topo/src/chord_join.rs`, `crates/profile/src/path/{path.rs,family.rs,program.rs}` |
 | `S57` | **M** | Five known sites, but widening a crate-scoped guard to a concept needs a new instrument. | `crates/editor-core/src/names/emit_topo.rs`, `crates/sweep/src/blend/{build.rs,battery.rs}`, `crates/topo/src/face_normal.rs`, the anti-re-fork guard in `scripts/gates/*`; unswept `crates/mesh/src/walk.rs`, `crates/step-export/src/` |
-| `pncad-py-eval-err-variants-outside-the-tag-inventory` | **E** | Arrived from M10 (2026-09-13). Eight `eval_err` call sites mint four refusal words as string literals the inventory cannot lex; the disposition between the row's two closes is the orchestrator's, not the lane's. | `crates/pncad-py/src/tests.rs` (`TAG_INVENTORY`'s reader and its stated scope), `crates/pncad-py/src/py/value.rs` and its sibling `py/` modules, `crates/pncad-py/pncad.pyi` |
+| `pncad-py-eval-err-variants-outside-the-tag-inventory` | **E** | Arrived from M10 (2026-09-13). Ten sites in `py/value.rs` mint the evaluation door's refusal words as string literals the inventory cannot lex; the disposition between the row's two closes was the orchestrator's, and the third one it took — give the door a typed reason — is what makes the class closable. Landed 2026-09-15; E held, because the design call was made in the spec. | `crates/pncad-py/src/errors.rs` (`EvalReason`), `crates/pncad-py/src/tags.rs` (`eval_reason_tag`), `crates/pncad-py/src/tests.rs` (`TAG_INVENTORY`, `TAG_CONSTS` and the reader's own guard), `crates/pncad-py/src/py/value.rs` |
 | `a-document-vocabulary-declared-outside-the-macro-is-uncensused` | **M** | Arrived from DOCM (2026-09-13). The three live instances are dispositioned by hand at the site; what is open is the general case, and every door to it is a walk over source TEXT — the exact instrument PR 2501 removed as unsound. | `crates/editor-core/src/program.rs` (the `document_vocabulary!` invocation and its `DOCUMENT_VOCABULARIES` doc) |
 | `census-sees-an-inert-attribute-but-not-a-missing-one` | **H** | Arrived from `inert-deny-unknown-fields-on-unit-enums` (2026-09-15); class estimated by that lane, order not yet placed. The census sees the inert attribute and is blind to the missing one. The walk is the easy half; the verdict key is a design call (which `Deserialize` types OWE the attribute) and the one confirmed instance changes what a document accepts. | `crates/test-utils/tests/deny_unknown_fields_census.rs`, `crates/editor-core/src/persist/mod.rs`, and the msolve instance `crates/editor-core/src/mate.rs` |
+| `hand-listed-partialeq-siblings-outside-the-census-debug-fence` | **M** | Arrived from `hand-listed-debug-censuses-…` (2026-09-15) with its class estimated by that lane; order not yet placed. Six hand-listed `PartialEq`/`Debug` walks the CENSUS-DEBUG unit checked and filed rather than swept. Four are one destructure each and are held in the meantime by `KNOWN_HAND_LISTED`; the other two — `SketchPlane`'s hand-list behind a delegation and `NameRef`'s behind a tuple index — are **invisible to the arrival census** and held by the row alone, so landing the four destructures does not close it. It also records that `expr.rs` and `topo/src/props.rs` are claimed by no open program, which is why the row is on this slate at all. | `crates/editor-core/src/{expr.rs,mate/coset.rs,program.rs,names/role.rs}`, `crates/topo/src/props.rs`, `crates/profile/src/lib.rs`; `crates/editor-core/src/clearance.rs` is shell's under its own row |
+| `py-discriminant-getters-under-src-py-are-outside-every-inventory` | **M** | From CENSUS-TAG-REACH (2026-09-15). 30 `-> &'static str` functions under `src/py/`, 6 minting 23 Python-visible words no inventory reads — and **7 of the 23 have a second spelling in `tags.rs`**, held equal by nothing. Two are named `*_tag` and live outside that file. | `crates/pncad-py/src/py/{mate.rs,assembly.rs,refactor.rs,mesh.rs,doc.rs}`, `crates/pncad-py/src/tags.rs` |
+| `py-reason-and-variant-literals-outside-any-enum` | **M** | From CENSUS-TAG-REACH. Nine sites in four files: six words in doors with no enum, three that are a SECOND mint of the same attribute of the same exception class. Carries a separate `AttributeError` defect at `flush.rs`. | `crates/pncad-py/src/py/{flush.rs,value.rs,select.rs}`, `crates/pncad-py/src/tags.rs` |
+| `datum-kind-vocabulary-is-hand-spelled-and-uncensused` | **E** | From CENSUS-DEBUG's sibling sweep. `Datum.kind`'s five words are a `&'static str` struct field on a `#[pyclass]` — neither a literal beside a key nor a getter, so every sweep so far was blind to the shape; three have no Rust pin at all. | `crates/pncad-py/src/py/value.rs` |
+| `evaluationerror-stub-lists-five-reasons-and-the-door-raises-six` | **E** | From CENSUS-TAG-REACH. `pncad.pyi` hand-lists a vocabulary that now has a machine census (`EvalReason`); the stub says five and the door raises six. | `crates/pncad-py/pncad.pyi`, `crates/pncad-py/src/errors.rs` |
+| `pncad-py-tests-rs-is-six-thousand-lines-and-carries-two-unremeasured-floors` | **M** | From CENSUS-TAG-REACH. 6317 lines holding the taxonomy pin, four censuses, a 120-line Rust recogniser and its guard; two magic floors (`>= 60` functions, `>= 500` literals) that nothing re-measures. The floors are the row; the split is the file owner's call. | `crates/pncad-py/src/tests.rs` |
+| `four-censuses-of-python-visible-vocabulary-in-one-crate` | **H** | From CENSUS-TAG-REACH. `TAG_INVENTORY`, `NODE_KIND_ROSTER`, `surface_census` and `prose_census` ask one question — can a Python caller reach every member of this vocabulary — over four populations with four devices. Whether four should be fewer is the design call. | `crates/pncad-py/src/{tests.rs,surface_census.rs,prose_census.rs,node_kind.rs}` |
+| `sixty-one-tag-words-are-minted-by-two-or-more-maps-and-seven-are-read` | **M** | From CENSUS-PY-GETTERS (2026-09-15). `tags.rs` mints 61 words that two or more maps speak — `band` in sixteen, `escalated` in ten. Seven were read and dispositioned; **54 are covered by a scoping rule nobody read them against**. The instrument that holds the population to a roster landed with the unit; the judgement on the remainder did not. | `crates/pncad-py/src/tags.rs`, `crates/pncad-py/src/tests.rs` |
+| `errors-rs-holds-four-python-visible-maps-and-nothing-enumerates-that-file` | **E** | From CENSUS-PY-GETTERS. All four maps have pins; the defect is that **nothing enumerates the file**, so a fifth arrives with no "NEW tag function" sentence to catch it. Two fix shapes named: a loose arrival reader, or capitalising at the boundary so the seventh map stops existing. | `crates/pncad-py/src/errors.rs`, `crates/pncad-py/src/tests.rs` |
 | `prose-census-cannot-see-a-bypassed-prose-renderer` | **H** | Instrument rework plus triage of 453 unmeasured sites; verdict key is a design choice | `crates/pncad-py/src/prose_census.rs` (`census()` scan set, `declaration_verdict`), plus sites it reds: `crates/viewer/src/session/refuse.rs`, `crates/editor-core/src/edit.rs`, `crates/pncad-py/src/py/`, `crates/test-utils/` |
 | `the-prose-word-for-a-kind-has-four-spellings-and-only-display-is-censused` | **H** | Two decisions owed, owner undecided, 23+ sites over seven crates and three programs. | `crates/pncad-py/src/prose_census.rs`, `crates/editor-core/src/{expr.rs,node.rs,mate.rs,edit.rs}`, `crates/viewer/src/{session/refuse.rs,tools.rs,sketch.rs,pane/properties.rs}`, 23 `label()`/`name()` sites across `geom-brep`, `sweep`, `topo`, `profile`, `geom-core` |
 
@@ -78,6 +87,43 @@ the variant it existed to catch. A lane taking this owes the reader's
 own guard before the reader, or the reasoned decision to ship the third
 door (accept and say so at the site) — which is what ships today and may
 well be the right answer.
+
+**The `pncad-py` block runs next, as a block**, and that is a departure
+from the class axis worth stating. Five rows — `py-discriminant-getters-…`
+(M), `py-reason-and-variant-literals-…` (M), `datum-kind-…` (E),
+`evaluationerror-stub-…` (E) and `pncad-py-tests-rs-…` (M) — are one
+crate, one class, and all five were found by CENSUS-TAG-REACH's own
+sweeps. **Their fix shape is now proven rather than hypothetical**: the
+word rides a closed type, the type rides the class where a class
+selects the door, and `tags.rs` holds the map the inventory reads. A
+lane that has read that unit can do all five; a lane arriving cold in a
+month re-derives the argument from scratch, and two of the rows record
+facts with a shelf life (which words have a second spelling, which
+doors have no enum).
+
+`sixty-one-tag-words-…` and `errors-rs-holds-four-…` join the block and
+run with it — both are `tags.rs`/`errors.rs` and both were opened by the
+unit that just landed there, so the same warm context applies. The
+61-word row carries the sharper obligation of the two: its instrument
+ships, and what is missing is the READING of 54 pairs, which is exactly
+the kind of debt that stops looking urgent once the instrument is green.
+
+`four-censuses-of-python-visible-vocabulary-in-one-crate` does **not**
+ride with them and stays with the H rows: it asks whether four
+instruments should be fewer, which is a design call that wants the five
+above landed first — three of them change what the instruments see.
+
+`hand-listed-partialeq-siblings-outside-the-census-debug-fence` fifth,
+and **early for its class rather than late**, which is a deliberate
+departure from the order's axis. Most of its six sites are other
+programs' — `expr.rs` and `role.rs` are EDIT's, `coset.rs` MSOLVE's,
+`profile/src/lib.rs` S-BOOL's — so the bulk of the row is routing, and
+routing decays: the row already records that `expr.rs` and
+`topo/src/props.rs` are claimed by NO open program, which is a fact with
+a shelf life, and every program that closes between now and then moves
+an owner. The two sites the census cannot see (`SketchPlane` behind a
+delegation, `NameRef` through a tuple index) are the harder half and
+are what keeps it **M** rather than E.
 
 Then `S113` and `S133`, which are prose and duplication counts that
 several staffed lanes already ride.

@@ -26,9 +26,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use test_utils::source::{code_and_literals, rust_sources};
+use test_utils::source::{code_and_literals, repo_root, rust_sources};
 
 /// The repository's own directories, skipped by NAME rather than by a
 /// roster: a build directory, and anything hidden.
@@ -263,6 +263,11 @@ const LEDGER: &[Entry] = &[
                              // each heads, code view
     },
     Entry {
+        path: "crates/test-utils/tests/hand_written_impl_census.rs",
+        disposition: Shared, // hand-written `Debug`/`PartialEq` impls and the bodies
+                             // they walk, code view
+    },
+    Entry {
         path: "crates/test-utils/tests/reader_census.rs",
         disposition: Shared, // this census, literal view
     },
@@ -358,28 +363,6 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // cross-root const pins: code view to locate, literal view to read
     },
 ];
-
-/// The repository root: this crate's directory, two levels up.
-///
-/// The "both ways the suite runs" resolution is
-/// [`test_utils::source::crate_dir`]'s, shared — three copies of that
-/// six-line fallback and its paragraph existed in this tree, which is
-/// the same defect one level up from the one this file guards.
-fn repo_root() -> PathBuf {
-    let root = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        // Canonical, so `..` is not a path COMPONENT: the skip below
-        // reads components, and a relative one matched every file in
-        // the tree at once — which looked exactly like a clean walk.
-        .canonicalize()
-        .expect("the repository root resolves");
-    assert!(
-        root.join("Cargo.toml").is_file(),
-        "{} is not the repository root",
-        root.display()
-    );
-    root
-}
 
 /// Whether `code` (a comments-blanked view) reads Rust source as text.
 ///
@@ -621,7 +604,7 @@ fn sites_reading_rust_source(root: &Path) -> Vec<String> {
 /// directory underneath it as well.
 #[test]
 fn every_site_that_reads_rust_source_is_in_the_ledger() {
-    let root = repo_root();
+    let root = repo_root(env!("CARGO_MANIFEST_DIR"));
     let mut found = sites_reading_rust_source(&root);
     found.sort();
     let ledger: Vec<&str> = LEDGER.iter().map(|e| e.path).collect();
@@ -649,7 +632,7 @@ fn every_site_that_reads_rust_source_is_in_the_ledger() {
 /// census stays green over exactly the change it was built to catch.
 #[test]
 fn every_shared_entry_actually_reaches_the_shared_lexer() {
-    let root = repo_root();
+    let root = repo_root(env!("CARGO_MANIFEST_DIR"));
     let liars: Vec<&str> = LEDGER
         .iter()
         .filter(|e| matches!(e.disposition, Shared))
