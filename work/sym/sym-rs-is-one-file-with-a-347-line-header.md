@@ -118,7 +118,7 @@ move.
 
 ## Re-measured at SYM-7's merge (2026-09-15)
 
-`crates/geom-core/src/sym.rs` is **4,281 lines** behind a **680-line**
+`crates/geom-core/src/sym.rs` is **4,299 lines** behind a **680-line**
 `//!` header. The title and the body above carry the numbers this row
 was filed at (3,898 / 347); both have grown by roughly a tenth and a
 double since, and the file is not splitting on its own.

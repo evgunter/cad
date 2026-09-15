@@ -762,3 +762,55 @@ disclosed (a process name, command lines after delivery, a worktree
 listing), none carrying a finding. SYM-8 (the manifest sign, block
 SYM-B2 slot 1, OPUS) dispatched on the lane SYM-5 freed while SYM-7's
 dual runs.
+
+## SYM-7 merged (2026-09-15): the plain form outlives the leaf — block SYM-B2 slot 0
+
+PR #2609, fix-pass head `e9f75d5b5`, hosted run 34912125421 green on the
+full matrix; ordinal **4703**, sample #199; the v6 dual on
+frozen head `65408aa3f` — R1 (OPUS) MERGEABLE-AFTER-FIXES 1/5/2,
+rubric 4/3/3; R2 (FABLE) MERGEABLE-AFTER-FIXES 1/4/3, rubric 4/2/3.
+Both found the SAME MAJOR and the same door-level box; no unilateral
+MAJOR, no tally candidate. R2 was interrupted by a container restart
+after R1 had delivered and resumed with state intact; R1 disclosed
+two `pgrep -af` calls against its own path (own processes only). The
+row is in `docs/MODEL-AB-LOG.md`'s SYM section.
+
+**What it did** (D3 = (1) on `[ev]` #2581). One `DriveMemo` per
+drive — the plain forms, their atoms and the frozen set, keyed by
+`SymId` and `(budget, rules)`, behind one `RwLock` shared across the
+drive's rayon workers with one publish per leaf — installed by
+`drive.rs` around the level loop behind `DriveConfig.plain_memo`; the
+early and door walks stay per leaf. `frozen` on the drive's receipt
+is the distinct set over the drive (schedule-independent; the M10-3
+receipt-identity row holds across one sequential and two parallel
+drives), a leaf's own `frozen` the nodes it computed (zero on a hit
+path — the filed residue). No certification decision moves: every
+pin, and both reviewers' own freezing documents at four schedules,
+byte-identical. The slab drive 157 → 78 s in the test profile,
+25.5 → 9.5 s (R1) and 35.0 → 11.5 s (R2) in release — 2.7–3.05×;
+callgrind 2.12× per leaf; the plate 1.18×; a document whose cost is
+the early walk (the tilted derived frame, every leaf refused) gains
+nothing, and `# Cost` names the class. Phase 3 (the hash-consing
+table shared) measured at 7.4 % table work under a ≥ 10 % gate and
+not taken.
+
+**What the reviews added.** The spec's premise pin compared EMPTY
+sets on every document — no drive reaches `Sym::opaque` — and the PR
+cited it as executed evidence (both reviewers, by planting a
+value-dependent mint and showing the row reds first once opaques
+exist); the row now says what it measures, and R2's correction stands:
+the opaque sequence governs hits, not soundness. An unrecorded node's
+frozen indeterminate was published under the content id a recording
+leaf computes a real form for (both, at the door): never published
+now, the reach from a drive pinned at zero. Two rows could not red on
+their subject (the drop-with-the-drive row, the dial-refusal row), the
+moved column was pinned across schedules only at zero (the slab never
+freezes): a freezing document now drives across schedules in the
+suite. `plain_memo`'s doc was false with the dial off; `publish`
+assumed what it can check; seven restatements of `frozen`'s two
+meanings became one home; the memo skipped with the tier off.
+
+**Fix pass** (the union, three commits to `e9f75d5b5`; one push red on
+a stale `Session` literal in `trig.rs`'s tests and a gated-suite
+marker, fixed the same hour): A–F all taken. Delta by R1 on the fixed
+head: MERGEABLE — all seven items confirmed, five by execution: the premise row reds first and alone under a re-planted value-dependent mint while the schedule rows stay green; the taint guard disabled turns the adopted door row red (leaf B `(0,1,0)` against `(1,0,0)`) and restored turns it green; the unrecorded-freeze ledger pin reads 0 of 4,284 on the plate; the gated freezing-document row runs at 8 leaves with `frozen` 1,044 asserted; the M10-3 receipt-identity row green across one sequential and two parallel drives. One stated divergence accepted (the differential asserts `own(on) == 0` tied to `own(off) > 0` rather than the literal 50,112, which moves with the ε row and the leaf count); three stale numbers named and corrected in this state-sync (the file-size item's 4,299 lines / 691-line header; the PR body's row count). The delta was interrupted by a container restart and resumed with state intact. The cost item's volume ask closes here.
