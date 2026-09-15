@@ -6771,3 +6771,17 @@ in the plan table. Impl phase: ~354k tokens (harness), ~2 h wall
 the k-lint gate demanded); impl CI **34720968363** GREEN on the head
 (twelve `test` jobs, five `k-lint (gate, …)`, the render lanes
 reporting). Sample number at merge. Row at merge.
+
+## VREV review ordinal fixed at dispatch (2026-09-15)
+
+`sweep-test-rebuilds-validated-net-for-v-reversal` (VREV; SCALAR; PR
+#2627 open — frozen head `53424215b`): **ordinal 4102** (SCALAR band).
+Protocol v6 dual: draw = `/dev/urandom` byte **125**, parity 1 ⇒
+**R1 = FABLE, R2 = OPUS**, concurrent on the frozen head, read-side
+isolation (v6 item 5), briefs identical and stored before either ran.
+Pre-draw difficulty **S / structural** (recorded branch-side at the
+block draw). Impl phase: ~? tokens (harness; lane did not report a
+count), ~50 min wall; impl CI **34938321458** GREEN on the head (twelve
+`test` jobs, five `k-lint (gate, …)`). Sample number at merge. Row at
+merge. This is block SCALAR-B1's last slot: the block record merges
+from `scalar/orchestrator` when this dual concludes.
