@@ -7,6 +7,7 @@ opened: 2026-09-01
 github: 1495
 refs: [1493, 730]
 branch: port/pyopts-four-doors
+pr: 2678
 ---
 
 ## From GitHub issue 1495

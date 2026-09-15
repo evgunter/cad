@@ -785,7 +785,7 @@ read the stub's DECLARED NAMES, which an options keyword never is, so
 an options entry would have stayed green forever. The alphabet is now
 per-roster.
 
-- `PORT-PYOPTS-SPEC.md` — PORT `python-cannot-set-options-structs`, the four options doors bound field by field with a destructure anchor per struct (#PYOPTS_PR)
+- `PORT-PYOPTS-SPEC.md` — PORT `python-cannot-set-options-structs`, the four options doors bound field by field with a destructure anchor per struct (#2678)
 
 ## Per-merge deletion — PORT-DOORS-1's spec (2026-09-15)
 

@@ -462,3 +462,44 @@ Next: the Python pair, `python-cannot-set-options-structs` then `D341`.
 `msrv-floor-…` is specced and unclaimed. The two naming rows —
 `python-dimensionerror-…` and `load-path-…` — are one door and one spec,
 and `load-path-…` is the row this program gives a full review.
+
+## 2026-09-15 — `python-cannot-set-options-structs` in review (#2678)
+
+Four doors bound, one census grown from one options struct to five.
+The unit's claim was measured rather than inspected, twice: a probe
+field added to each struct before the diff, and again after. **Before,
+two of the four were silent at both sites** — `ImportOptions` (the door
+called `::default()`) and `EvalOptions` (the literal ended in `..`) —
+and the other two red only at the door, because no struct had a census
+roster. After, all four red at both. The census half also reds on the
+default no-Python build path, which is where the ordinary `test (…)`
+jobs compile, so three of the four are guarded where nothing guarded
+them before.
+
+**Two of the spec's premises were wrong, and the lane found both by
+reading the tree.** The spec said the STL doors' work was small because
+they already take `solid_name=` / `header=`; they took them defaulting
+to `""`, which is neither struct's `Default` — so `to_stl_ascii()` from
+Python wrote `solid ` where Rust wrote `solid part`, and
+`to_stl_binary()` wrote 80 zero bytes where Rust wrote the producer
+text. That is the re-spelled-constant half of the same class, sitting
+at the two doors the spec waved through. And the spec said a `NotBound`
+entry's decay was already checked; the decay half read the stub's
+DECLARED NAMES, which an options keyword never is, so the first options
+entry to be declined would have stayed green forever. The alphabet is
+per-roster now. Both corrections are in the ledger row that retired the
+spec.
+
+The sweep found a **fifth instance** and filed it: `ChecksConfig`'s
+Python constructor re-spells all four of the kernel struct's defaults
+in its `#[pyo3(signature = …)]` instead of forwarding them, and neither
+it nor `McConfig` has a census anchor. Two rows went to LIB — that one,
+and this unit's own residue, `ImportOptions::declared_contacts`, which
+cannot be a keyword until `ImportContact` has a Python value class.
+
+Class `M` was right and stands. Style review, as the posture says; the
+correctness arm is the compiler, and the four probe measurements are
+what say the anchor is actually there.
+
+Next: `D341`, the `match Node` census this unit's instrument is the mold
+for. `msrv-floor-…` is specced and unclaimed.
