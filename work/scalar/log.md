@@ -288,6 +288,7 @@ the item's §Closed. The spec is deleted per the ledger. The `sin_cos`
 mint waits for a customer; the frame doors taking the witness are the
 next unit's (`frame-witness-and-the-tube-door`).
 
+<<<<<<< HEAD
 ## RATE-PAIR dual concluded; a tally candidate (2026-09-15)
 
 `rate-pair-in-geom-core` (PR 2657, block SCALAR-B2 slot 2, ordinal
@@ -317,3 +318,11 @@ dimensional sentence wrong on its own premise; class members the
 census could not see (`clearance.rs` `chart_arms`, `ScaledFace::build`'s
 arms, `chart_bound`'s `assembled`). Twelve items adjudicated; fix pass
 dispatched on the implementer's arm.
+=======
+## SENSE-DOORS merged (2026-09-15)
+
+PR 2649, block SCALAR-B2 slot 0, ordinal 4104; dual review, both arms
+APPROVE WITH FIXES, no MAJOR — no tally candidate. What landed: the
+item's §Closed. The spec is deleted per the ledger. Handed on: the
+`blend/arms.rs` `±1` field (second unit), the frame doors (third).
+>>>>>>> origin/main

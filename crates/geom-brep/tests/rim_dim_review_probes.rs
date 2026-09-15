@@ -89,7 +89,7 @@ fn split_rim_patch(r: f64, h: f64, delta: f64) -> (Surface<Probe>, Vec<LoopEdge<
 fn small_body_rims_50eps_apart_refuse() {
     let eps = geom_core::Tol::witness().get().eps;
     let (surface, edges) = split_rim_patch(1e-4, 1e-3, 50.0 * eps);
-    let got = curved_face(&surface, &edges, Probe(1.0), band());
+    let got = curved_face(&surface, &edges, true, band());
     assert!(
         got.is_err(),
         "50eps-separated split rim must NOT silently group (pre-fix the area \
@@ -103,7 +103,7 @@ fn small_body_rims_50eps_apart_refuse() {
 fn large_body_rims_half_eps_apart_compute() {
     let eps = geom_core::Tol::witness().get().eps;
     let (surface, edges) = split_rim_patch(1e3, 1e4, 0.5 * eps);
-    let got = curved_face(&surface, &edges, Probe(1.0), band());
+    let got = curved_face(&surface, &edges, true, band());
     assert!(
         got.is_ok(),
         "0.5eps-separated split rim is coincident at tolerance; pre-fix the \
