@@ -389,3 +389,20 @@ negation at every consumer, digests identical. Both duals are
 concurrent on their frozen heads; SENSE-FOLD's waited on disk until
 EXHAUST-LANE's reviewers were done building. FRAME-WITNESS is still
 implementing.
+
+## EXHAUST-LANE dual concluded (2026-09-15)
+
+PR 2667 (ordinal 4106): both arms APPROVE WITH FIXES. R1 ranked one
+finding MAJOR and R2 the same finding MINOR — bilateral, so no tally
+candidate: the TRIM row the unit filed states a zero-speed mechanism
+execution contradicts (the NaN pads are swallowed at the span grid and
+limb 3 certifies silently over the wrong cell — worse than filed), and
+a new comment in `ssi/certify.rs` enshrines the same story. Bilateral
+too: the FLOOR-TIE tolerance's rationale counting two roundings where
+there are five; unit-less fields in the touched types. Unique R1: the
+refusal's `Display` not printing the speed the doc says a refusal
+reader needs; no public reader of the rate; the derivative-box sup
+computed three times. Unique R2: a substring hole in one text
+assertion. Twelve items adjudicated; fix pass waits for a lane (disk),
+SENSE-FOLD's dual dispatched first (R1 OPUS, R2 FABLE on frozen
+`8a3ca626d`).
