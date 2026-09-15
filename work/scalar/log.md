@@ -499,3 +499,13 @@ reference on the axis, the lily's own hand Gram–Schmidt left in front
 of the mint, the tube-frame helper in four copies. Thirteen items
 adjudicated; the fix pass (OPUS, the implementer's arm) waits for disk
 behind the two fix passes already building.
+
+## Six units landed; the slate after the first sitting (2026-09-15)
+
+With block SCALAR-B3 on main, every unit the first `[ev]` sitting
+ratified is landed and the three door rows before them. The plan's
+slate now carries two rows: the Curve3 jet door (dispatchable, opens
+block SCALAR-B4 as slot 0) and `H5`, gated on the second sitting. This
+entry lands with the seven branch-side entries above it, which were the
+program's record while the blocks were open.
+
