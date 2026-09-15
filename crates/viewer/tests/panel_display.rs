@@ -762,25 +762,11 @@ fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
     assert!(!m.contains(" mm"), "{m}");
 }
 
-/// **Loud skip.** The row below needs `viewer::app`, which is not in a
-/// default-feature build; say so rather than letting the run report one
-/// fewer test and nothing else. Its seat is the hosted row
-/// `cargo nextest run -p viewer --features app`
-/// (`.github/workflows/ci.yml`).
-///
-/// **This row closes no gate and cannot fail** — its payload is its
-/// NAME in the PASS list. It names the row by hand, so a second
-/// `app`-gated row added to this file leaves the marker quietly
-/// incomplete.
-#[cfg(not(feature = "app"))]
-#[test]
-fn app_lane_skipped_parameter_field_units_not_checked_here() {
-    println!(
-        "SKIPPED (no --features app): a_parameter_field_is_written_the_way_its_declaration_says \
-         does not run - the parameter field's shown number, its authored number and its drag \
-         tick are unchecked in this build."
-    );
-}
+test_utils::loud_skip_marker!(
+    feature = "app",
+    row = app_lane_skipped_no_panel_display_coverage_here,
+    absent = "coverage of the parameter panel's writing",
+);
 
 /// **A parameter field is shown, scrubbed and authored in the unit its
 /// DECLARATION names** — `app::FieldWriting`, the value the panel

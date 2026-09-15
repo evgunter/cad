@@ -39,7 +39,7 @@ use pncad::prelude::{StableName, ValuePayload};
 use viewer::blend::FREEZE_NOTE;
 use viewer::blend::{BlendError, BlendEvent, BlendKindChoice, BlendTarget, BlendTool};
 use viewer::display::DisplayView;
-use viewer::pickindex::{PickIndex, PickKinds};
+use viewer::pickindex::{PickIndex, PickKinds, PictureKey};
 use viewer::scene::DisplayTolerance;
 use viewer::session::{
     DatumSpec, DocSession, EdgeSelection, FaceSelection, NodeKindWanted, ProfileShape, Refusal,
@@ -98,7 +98,13 @@ fn index_of(session: &DocSession) -> PickIndex {
     let generation = session
         .landed_generation()
         .expect("a landed evaluation has a generation");
-    PickIndex::build(doc, eval, generation, delta(), session.tol()).expect("the box indexes")
+    PickIndex::build(
+        doc,
+        eval,
+        PictureKey::of(generation, delta()),
+        session.tol(),
+    )
+    .expect("the box indexes")
 }
 
 /// Every drawn edge of a node's body 0, as the pick selections a

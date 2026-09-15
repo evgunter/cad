@@ -20,8 +20,6 @@
 
 use crate::fixture;
 
-use std::sync::Arc;
-
 use editor_core::{
     Alignment, AssemblyError, AxisSense, BooleanOp, CapEnd, ContactClass, Datum, DocEdit,
     DocumentId, EntityKind, Entry, EvalOptions, Evaluation, Expr, MateFrame, MatePrimitive,
@@ -29,7 +27,7 @@ use editor_core::{
     ProductError, ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, RoleSeg, SitedRef,
     StableName, ValuePayload, product, solve_document,
 };
-use fixture::resolver::{PART_BODY, PartStore, in_part};
+use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
 use fixture::{gate, in_copy, insert, len, on_frame, run, scl, step, xform};
 use geom_core::Tol;
 
@@ -166,10 +164,7 @@ fn lifted(label: &str, top_part: ProfileDoc) -> Scene {
         Tol::witness(),
     );
     let top_ref = store.insert(top_part, Tol::witness());
-    let opts = EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    };
+    let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
@@ -646,10 +641,7 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         box_part("msolve5-poisoned-top", 1.0, TOP_HEIGHT),
         Tol::witness(),
     );
-    let opts = EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    };
+    let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("msolve5-poisoned"), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));

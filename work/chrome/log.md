@@ -947,3 +947,75 @@ lives with the unit that made them refuse — and does not touch
 the trigger is a VIEW branch, and `blocked_on` takes an item or a PR
 number, not a promise in a conversation. When VIEW names the row or the
 PR, these get parked on it properly.
+
+## `datums.rs`, the substitution sweep (branch `chrome/datums-substitution-sweep`)
+
+The whole file rather than one row. `datums.rs` held **five** members
+of the class *a value the function did not compute, returned in the
+shape of one it did*, two of them filed:
+
+- `View::metres_per_pixel_at`'s `.max(f64::MIN_POSITIVE)` — now
+  `Option<f64>`. The ripple stayed inside the file: all three scale
+  doors are private and `grid_pitch` and `datum_view` keep their
+  signatures.
+- `rule_patch`'s `((last - first) as usize)` under an INCLUSIVE range
+  — now an exclusive range over bounds checked finite, with
+  `last < first` ruling none. Three distinct zeros the cast merged,
+  not the two the row named.
+- `half_patch_at`'s `viewport_px.max(1.0)` — floor dropped; a viewport
+  that is not a positive number of pixels reaches the product check
+  and is refused there.
+- `datum_view`'s `height_px.max(1.0)` — floor dropped.
+- `datum_view`'s `width_px.max(height)` — unfiled and unnamed by the
+  dispatch: `f64::max` answers with the other operand against a NaN,
+  so a width that is not a number was reported as the HEIGHT.
+
+Swept and closed by argument, not changed: `unit`'s zero-length
+fallback and `basis`'s seed choice (a `UnitVec3` cannot hold a
+non-finite direction — `topo::query::UnitVec3Error::NonFiniteLength`
+is refused at construction), and `grid_pitch`'s `best = decade` seed
+(`decade` is itself a rung of the ladder, so the seed is a member of
+the answer set rather than a substitute for one; brute-forced over the
+subnormal band and the top of the normal range with no non-positive or
+non-finite rung).
+
+Filed on the way: `datum-view-propagates-rather-than-refusing-by-name`
+and `a-datum-the-view-cannot-scale-vanishes-without-a-word`, both
+needing an edit in `pane/viewport.rs`, which is VIEW's.
+
+### Fix pass on the same branch, after the style review
+
+Nineteen findings; six changed the tree.
+
+- **The flagship row certified a wrong drawing.** A datum at
+  `f64::MAX` on the `z = 0` plane, looked at from the origin, drew
+  **27 zero-length segments** per plane-like kind: the patch's ends
+  `cv ± half` both round to `cv` at that magnitude, so the extent is
+  lost and every segment's two endpoints coincide. Finite, in the
+  right plane, not lines — and a row asserting only `is_finite` gets
+  EASIER as that degrades. `rule_patch` now asks the emitted geometry
+  whether it is geometry and commits a direction's ruling whole or not
+  at all; the row asserts positive segment length and carries a
+  near-datum control so a total refusal cannot satisfy it.
+- **`MAX_GRID_LINES`' effective maximum moved from 97 to 96** and
+  nothing said so. Now stated on the closing row: the const's doc said
+  96 all along and was false by one before this change.
+- `PATCH_COVER` gained `patch_cover()`, on `Camera::pitch_limit`'s
+  argument — a loose bound in a test is a hand-synced copy with a
+  fudge factor.
+- `reach`, the instrument three refusal rows measure with, folded with
+  `f64::max` and would have reported a drawing containing `NaN` as
+  reaching however far its finite positions did.
+- `View`'s two field docs now carry the contract the sweep changed,
+  instead of a justification sitting a screen away on `datum_view`.
+- `unit`'s comment claimed a cross-product bound of `1/√3`; the bound
+  on the cross is `√(2/3)` and `1/√3` bounds the COMPONENT. That
+  comment is one of the two sites the sweep closed by argument.
+
+Filed rather than fixed: `max-grid-lines-truncates-a-ruling-and-calls-it-one`,
+`four-spellings-of-one-finiteness-predicate-in-datums-rs` (the sweep
+added the third and fourth), and
+`viewer-substituted-value-class-is-crate-wide`, which carries the
+population the next sweep should start from — six unslated members in
+`sketch.rs`, `scene.rs`, `bounds.rs`, `camera.rs` and `app.rs`, all
+VIEW's ground this week.
