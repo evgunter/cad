@@ -177,12 +177,13 @@ fn sites(root: &Path) -> Vec<(String, Governed)> {
         // attribute, not an attribute.
         let code = code_only(&text);
         let mut from = 0;
-        while let Some(off) = code[from..].find(NEEDLE) {
+        // A WHOLE word, both ends. `mod deny_unknown_fields_census;`
+        // in the aggregator one directory up has the needle as a
+        // PREFIX of an identifier, and a prefix match sends the reader
+        // looking for a declaration that is not there.
+        while let Some(off) = word(&code[from..], NEEDLE) {
             let at = from + off;
             from = at + NEEDLE.len();
-            if !boundary_before(&code, at) {
-                continue;
-            }
             out.push((
                 format!(
                     "{}:{}",
@@ -309,6 +310,13 @@ fn the_classifier_answers_each_declaration_shape() {
     assert!(
         !prose.contains(NEEDLE),
         "a doc-comment mention survives the code view"
+    );
+    // The needle as a PREFIX of an identifier is not a site either —
+    // `tests/all.rs` mounts this suite by its module name, which begins
+    // with it.
+    assert!(
+        word(&code_only(&format!("mod {NEEDLE}_census;\n")), NEEDLE).is_none(),
+        "an identifier the needle merely prefixes reads as a site"
     );
 }
 
