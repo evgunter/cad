@@ -75,3 +75,52 @@ endpoints, used as a divisor.* Sibling filed on SHELL's slate as
 Re-read at `37dce8287`: `crates/geom-brep/src/ssi/certify.rs` is
 unchanged on `main` since this was filed, and `stretch` is still the
 bare `.sqrt()` over three `mag()` products quoted above.
+
+## Re-read after the `speed_sup` extraction (2026-09-15, supersedes the section above)
+
+The spelling this row quotes is gone; the arithmetic is not. `stretch`
+is now `vt.speed_sup()`, and `Box3::speed_sup` in
+`crates/geom-brep/src/ssi/enclose.rs` has the identical body —
+
+```rust
+(self.x.mag() * self.x.mag() + self.y.mag() * self.y.mag() + self.z.mag() * self.z.mag())
+    .sqrt()
+```
+
+— three multiplies, two adds and a square root, every one of them
+rounded to NEAREST. Two things changed and neither is the fix.
+
+**It has three callers now, not one**: `ssi.rs`'s chart-tube speed
+(`nan_propagating_max(du.speed_sup(), dv.speed_sup())`),
+`certify.rs`'s `stretch` at the plane×NURBS margin, and `certify.rs`'s
+`m` in the tube fold. Whether each of them is on the unsound side is a
+per-caller question — `stretch` demonstrably is, because it divides a
+`zero_free_lower_bound` and the comment above it claims an upper
+bound — but the arithmetic is now in ONE home, so the fix is one line
+where it used to be three.
+
+**The extraction's own doc raises the rounding and settles it the
+wrong way.** It says: *"`offset_meters::norm_sup` is the same shape
+over a different operand and a different arithmetic — it rounds the
+square root outward — so the two are siblings, not copies, and folding
+them into one would move bits."* That is the correct READING of the
+difference and the wrong CONCLUSION from it. "Folding them would move
+bits" is not a reason (`memories/output-stability-as-justification.md`,
+and implementer discipline §3: a change justified by output staying
+identical has not been justified). The question is which of the two
+arithmetics each caller needs, and a caller that divides a lower bound
+by this number needs the outward one. Where the bits move, they move
+because the old ones were not certified.
+
+So the finding is unchanged in substance and better placed: it is one
+method, with a doc that already names the sibling it should have been.
+What it needs is a decision per caller — outward-rounded where the
+result is a bound, round-to-nearest only where it is a diagnostic —
+rather than one arithmetic chosen for stability.
+
+**Sibling row, not a duplicate.**
+`work/trim/limb-3-chart-tube-speed-has-neither-guard-its-sibling-site-has.md`
+is about the same method's GUARDS (what `0`, `NaN` and `+∞` mean at
+each caller), which `speed_sup`'s doc also points at. This row is about
+its ROUNDING. The two want settling together and neither subsumes the
+other.
