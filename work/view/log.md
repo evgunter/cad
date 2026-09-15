@@ -11637,6 +11637,33 @@ session — in `pane/viewport.rs`'s own tests.
 says the pick path is deliberately ungated; the re-statement is record
 of what the code does and lands with the change.
 
+## 2026-09-15 — `view/picture-key`: the key becomes a type
+
+`(Generation, DisplayTolerance)` is now `pickindex::PictureKey`: private
+fields, `PictureKey::of` the only door, `PartialEq` over the pair. The
+five spellings the item named were five; the compiler found **fifteen
+files and 54 type errors**, because `ViewerApp::scene_key` and
+`pane::viewport::drawn_index` carry the same key and the item did not
+name them, and because ten test files build indexes through
+`PickIndex::build`. A grep over the tuple type found five sites and a
+grep over the positional pair found three; neither can see the other's,
+which is the argument for the type rather than a sweep.
+
+The cache's two fields are one. `PickCache::outstanding` was always
+`None` or exactly `attempted` — four writes in the file, read one by
+one — so the pair is `Attempt::Asked(key)` / `Attempt::Answered(key)`,
+one value with a state. A cache waiting on a picture other than the one
+attempted is unrepresentable rather than merely absent, and `land` moves
+a state where it used to clear a second field.
+
+Both landmines held. `<FitRequest as Job>::supersedes` still compares
+`(generation, requested)`, now with the argument at the impl for why it
+is not this key; `frame.rs` was not opened. `crates/viewer/README.md`'s
+*A pick id is one index's word* re-states by symbol name;
+`GUI-DESIGN.md` is untouched, its `(generation, δ)` sentence still true
+and its wasm doc-link census re-taken above the module boundary at
+2 / 1 / 3, unchanged.
+
 ## Announced seam from WIRE (2026-09-15)
 
 WIRE's `nobodyroots-classification-has-two-homes` gave the

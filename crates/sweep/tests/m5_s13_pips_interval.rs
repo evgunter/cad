@@ -11,19 +11,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-/// **Loud skip.** Without `--features interval` this binary is empty;
-/// announce the skip so a lane that silently lost its certified rows
-/// stays visible in the battery log.
-#[cfg(not(feature = "interval"))]
-#[test]
-fn interval_lane_skipped_no_certified_coverage_here() {
-    println!(
-        "SKIPPED (no --features interval): m5_s13_pips_interval.rs \
-         contributes NO certified coverage in this run — the S13 rows \
-         (the bracketed 17.30900 union, the pip ∖/∩ enclosures and \
-         their additivity) run only in the interval lane."
-    );
-}
+test_utils::loud_skip_marker!(
+    feature = "interval",
+    row = interval_lane_skipped_no_certified_coverage_here,
+    absent = "certified coverage of the S13 die-pip rows",
+);
 
 #[cfg(feature = "interval")]
 mod certified {
