@@ -112,11 +112,11 @@ use crate::curves::Curve3;
 use crate::surfaces::Surface;
 
 #[cfg(doc)]
-use geom_core::KnotVector;
-#[cfg(doc)]
 use crate::curves::NurbsCurve3;
 #[cfg(doc)]
 use crate::surfaces::{ApproxSurface, NurbsSurface, SurfaceDescription};
+#[cfg(doc)]
+use geom_core::KnotVector;
 
 impl<T: Real> Curve3<T> {
     /// The same curve read at another scalar (module docs): analytic
