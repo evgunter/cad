@@ -206,9 +206,17 @@ macro_rules! nurbs_curve {
         /// (itself address-equal on its vector): a window is a proof
         /// about *that* control net, and a curve is not [`Eq`] — its
         /// knots and weights are `f64`.
+        ///
+        /// **Both walks below destructure `Self` exhaustively**, so a
+        /// field added to the declaration is an E0027 unbound-pattern
+        /// error rather than a value silently outside equality and
+        /// outside the dump. Expanded once per invocation, so the
+        /// error names the window it belongs to.
         impl<T: Real> PartialEq for $Window<'_, T> {
             fn eq(&self, other: &Self) -> bool {
-                core::ptr::eq(self.curve, other.curve) && self.span == other.span
+                let Self { curve, span } = self;
+                let Self { curve: other_curve, span: other_span } = other;
+                core::ptr::eq(*curve, *other_curve) && span == other_span
             }
         }
 
@@ -220,9 +228,10 @@ macro_rules! nurbs_curve {
         /// one cost a borrow-carrying token can impose by accident.
         impl<T: Real> core::fmt::Debug for $Window<'_, T> {
             fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                let Self { curve, span } = self;
                 f.debug_struct(stringify!($Window))
-                    .field("curve", &core::ptr::from_ref(self.curve))
-                    .field("span", &self.span)
+                    .field("curve", &core::ptr::from_ref(*curve))
+                    .field("span", span)
                     .finish()
             }
         }

@@ -323,12 +323,29 @@ impl DriveMemo {
     }
 }
 
+/// **The dump is held to the declaration**: `Self` is destructured
+/// exhaustively, so a field added to [`DriveMemo`] is an E0027
+/// unbound-pattern error rather than a value silently absent from every
+/// dump. `inner` is carried as [`Self::size`], the three counts a dump
+/// is asked for, where the tables themselves are every form and every
+/// atom of the drive.
+///
+/// `budget` and `rules` are not carried — they are the drive's
+/// configuration and say nothing about what the memo HOLDS, which is
+/// what a memo's dump is asked for — so this ends in
+/// `finish_non_exhaustive` rather than claiming every field is shown.
 impl core::fmt::Debug for DriveMemo {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            budget: _,
+            rules: _,
+            serves_forms,
+            inner: _,
+        } = self;
         f.debug_struct("DriveMemo")
-            .field("serves_forms", &self.serves_forms)
+            .field("serves_forms", serves_forms)
             .field("size", &self.size())
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

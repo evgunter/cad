@@ -161,25 +161,54 @@ pub struct SurfaceWindow<'a, T: Real> {
 /// The borrow is printed as an ADDRESS, never followed. A derived
 /// `Debug` would dump the whole control net, both knot vectors and the
 /// weights through the reference at every `{:?}`.
+///
+/// **Both walks destructure `Self` exhaustively**, so a field added to
+/// the declaration is an E0027 unbound-pattern error rather than a
+/// value silently outside equality and outside the dump. `base` and
+/// `stride` are fixed at the mint by the surface and the two spans,
+/// and both walks carry them anyway: they are what every `row(i) + j`
+/// reads, so a window that disagreed on either is a different proof
+/// and says so.
 impl<T: Real> core::fmt::Debug for SurfaceWindow<'_, T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            surface,
+            span_u,
+            span_v,
+            base,
+            stride,
+        } = self;
         f.debug_struct("SurfaceWindow")
-            .field("surface", &core::ptr::from_ref(self.surface))
-            .field("span_u", &self.span_u)
-            .field("span_v", &self.span_v)
-            .field("base", &self.base)
-            .field("stride", &self.stride)
+            .field("surface", &core::ptr::from_ref(*surface))
+            .field("span_u", span_u)
+            .field("span_v", span_v)
+            .field("base", base)
+            .field("stride", stride)
             .finish()
     }
 }
 
 impl<T: Real> PartialEq for SurfaceWindow<'_, T> {
     fn eq(&self, other: &Self) -> bool {
-        core::ptr::eq(self.surface, other.surface)
-            && self.span_u == other.span_u
-            && self.span_v == other.span_v
-            && self.base == other.base
-            && self.stride == other.stride
+        let Self {
+            surface,
+            span_u,
+            span_v,
+            base,
+            stride,
+        } = self;
+        let Self {
+            surface: other_surface,
+            span_u: other_span_u,
+            span_v: other_span_v,
+            base: other_base,
+            stride: other_stride,
+        } = other;
+        core::ptr::eq(*surface, *other_surface)
+            && span_u == other_span_u
+            && span_v == other_span_v
+            && base == other_base
+            && stride == other_stride
     }
 }
 
