@@ -2771,3 +2771,18 @@ left on the program (`clearance-window-cone-sphere-torus`,
 `a-refused-chart-boundary-has-no-reachable-window`). The seam into
 SHELL/M10's file was announced on #1911 (comment 5568210053) and
 merged on a week's silence, recorded in the TRIM log.
+
+## Per-merge deletion — S393's spec (2026-09-15)
+
+Recoverable at `git show 2f786af43:docs/S393-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "the two hand copies" (five
+were folded: the sweep suite's, the tour's two sweep cells, its loft
+cell and its S-duct, and the cert5 fixture); "eight call sites" (three
+plus the definition); the tour pin on the sweep cells (sited on the
+loft cell as invariants instead — the cells' placements are three inline
+lines); the `0.95` pin in `geom-core` (sited in the sweep suite,
+PROPS' file being outside the fence); the fence itself (the k-lint gate
+fired and the runbook's re-cut reached INSTR's baseline and its census
+pins). Recorded in the PR body and the unit's `## Closed` section.
+
+- `S393-SPEC.md` — S393, the path sweep's start frame has a door (#2466)

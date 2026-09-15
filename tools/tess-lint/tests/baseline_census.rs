@@ -890,9 +890,9 @@ fn the_committed_baseline_sizes_this_much() {
     // `the_committed_baseline_carries_this_many_indistinguishable_pairs`
     // above and is deliberately not restated here; the report prints
     // its two percentages from that pair against this one.
-    assert_eq!(t.triangles, 360_730, "triangles over the whole sweep");
+    assert_eq!(t.triangles, 362_154, "triangles over the whole sweep");
     assert_eq!(
-        t.nurbs_triangles, 259_678,
+        t.nurbs_triangles, 261_106,
         "triangles the Hessian-sized faces carry"
     );
 
@@ -902,14 +902,14 @@ fn the_committed_baseline_sizes_this_much() {
     // retired schedule's own (`NurbsColumns::nu` says so); the other
     // two are the optima the same certificates still admit
     // (whole-patch bound / per cell).
-    assert_eq!(t.grid_cells, 87_481.0, "grid cells the lane built");
-    assert_eq!(t.patch_cells, 147_957.0, "the whole-patch counterfactual");
+    assert_eq!(t.grid_cells, 88_036.0, "grid cells the lane built");
+    assert_eq!(t.patch_cells, 147_960.0, "the whole-patch counterfactual");
     assert_eq!(
-        t.opt_cells, 126_705.0,
+        t.opt_cells, 127_966.0,
         "cheapest split under the whole-patch bound"
     );
     assert_eq!(
-        t.span_opt_cells, 75_954.0,
+        t.span_opt_cells, 76_599.0,
         "per-cell sizing at the cheapest split in each cell"
     );
 
@@ -917,11 +917,11 @@ fn the_committed_baseline_sizes_this_much() {
     let held = t.span_held().expect("the sweep has Hessian-sized faces");
     let recoverable = t.recoverable().expect("the sweep has Hessian-sized faces");
     assert!(
-        (held - 1.6913).abs() < 5e-4,
+        (held - 1.6807).abs() < 5e-4,
         "the held span gain, patch_cells / grid_cells; got {held}"
     );
     assert!(
-        (recoverable - 1.1518).abs() < 5e-4,
+        (recoverable - 1.1493).abs() < 5e-4,
         "slack still recoverable, grid_cells / span_opt_cells; got {recoverable}"
     );
 }
