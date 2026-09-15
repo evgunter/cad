@@ -33,12 +33,12 @@ use std::sync::Arc;
 use pyo3::prelude::*;
 use pyo3::types::{PyFloat, PyString};
 
-use crate::errors::ErrorClass;
+use crate::errors::{ErrorClass, EvalReason, measurement_dimension_tag};
 use crate::py::quantity::Length;
 use crate::py::{doc::NodeId, typed_err};
 use crate::tags::{
-    NODE_NOT_EVALUATED, export_error_tag, node_error_tag, node_inner_kind_tag,
-    normalization_kind_tag, promoted_curve_kind_tag, promoted_kind_tag, step_import_error_tag,
+    export_error_tag, node_error_tag, node_inner_kind_tag, normalization_kind_tag,
+    promoted_curve_kind_tag, promoted_kind_tag, step_import_error_tag,
 };
 use crate::validation;
 use pncad::document as d;
@@ -57,13 +57,21 @@ fn inner_kind(py: Python<'_>, kind: &d::NodeErrorKind) -> Py<PyAny> {
 
 /// Raise `EvaluationError` with a stable `reason` tag.
 ///
+/// The reason is an [`EvalReason`], not a `&str`, and it rides on the
+/// CLASS ([`ErrorClass::Evaluation`]) rather than in the payload: the
+/// word a Python caller branches on is minted once, by
+/// [`crate::tags::eval_reason_tag`], on a page the tag-table guard
+/// reads. That holds for this door's other two raises below and for
+/// any future one, because no raise of this class can be written
+/// without naming a variant of the enum.
+///
 /// `kind`, `inner_kind`, `through` and `finding` are ALWAYS present on
 /// the exception — `None` where the reason has no failing kind, no
 /// arm under that kind, no poisoning ancestor, or no refusal-menu
 /// payload — so stub-guided code can read them without an
 /// `AttributeError` trap — a stub that over-promises is worse than one
 /// that says `None`.
-fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: NodeId) -> PyErr {
+fn eval_err(py: Python<'_>, message: impl Into<String>, reason: EvalReason, node: NodeId) -> PyErr {
     let node = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
         // A `#[pyclass]` conversion fails as a `PyErr` already —
@@ -72,10 +80,9 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: Node
     };
     typed_err(
         py,
-        ErrorClass::Evaluation,
+        ErrorClass::Evaluation(reason),
         message,
         &[
-            ("reason", PyString::new(py, reason).unbind().into_any()),
             ("node", node),
             ("kind", py.None().into_any()),
             ("inner_kind", py.None().into_any()),
@@ -114,13 +121,9 @@ fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
     };
     typed_err(
         py,
-        ErrorClass::Evaluation,
+        ErrorClass::Evaluation(EvalReason::NodeFailed),
         error.to_string(),
         &[
-            (
-                "reason",
-                PyString::new(py, "node_failed").unbind().into_any(),
-            ),
             ("node", node_obj),
             (
                 "kind",
@@ -146,7 +149,6 @@ fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::Nod
         (Err(failed), _) | (_, Err(failed)) => return failed,
     };
     let mut fields: Vec<(&str, Py<PyAny>)> = vec![
-        ("reason", PyString::new(py, "poisoned").unbind().into_any()),
         ("node", node_obj),
         ("through", through_obj),
         ("finding", py.None().into_any()),
@@ -170,7 +172,12 @@ fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::Nod
             format!("never ran — poisoned through node {}", through.0.0)
         }
     };
-    typed_err(py, ErrorClass::Evaluation, message, &fields)
+    typed_err(
+        py,
+        ErrorClass::Evaluation(EvalReason::Poisoned),
+        message,
+        &fields,
+    )
 }
 
 /// Bulk mass properties of a body, in canonical units.
@@ -729,7 +736,14 @@ impl Datum {
 /// surface uses.
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Measurement {
-    /// `"Length"`, `"Angle"`, `"Count"` or `"Scalar"`.
+    /// The dimension measured in: `"Length"`, `"Angle"`, `"Count"`
+    /// or `"Scalar"`, capitalized where every other door's dimension
+    /// word is not. Spelled out because this docstring is the only
+    /// place a Python caller can read the four — `pncad.pyi` names
+    /// the attribute and not its words.
+    // The map is `crate::errors::measurement_dimension_tag`, held to
+    // `dimension_tag`'s lower-case four by
+    // `the_two_dimension_alphabets_are_one_list_in_two_cases`.
     #[pyo3(get)]
     dimension: &'static str,
     /// The measured value in canonical kernel units.
@@ -785,22 +799,6 @@ impl Verdict {
             (Some(m), Some(b)) => format!("Verdict({}: {m} vs {b})", self.status),
             _ => format!("Verdict({})", self.status),
         }
-    }
-}
-
-/// The F1 dimension as the one spelling this surface uses.
-///
-/// Capitalized on purpose: this is the Python-facing type name a
-/// `Measurement` repr reads back as, not prose. The other two
-/// spellings of the same word list are the kernel's prose rendering
-/// (`Dimension`'s `Display`, lowercase) and `errors::dimension_tag`
-/// (the lowercase FFI tag, pinned equal to that rendering).
-fn dimension_name(dim: d::Dimension) -> &'static str {
-    match dim {
-        d::Dimension::Length => "Length",
-        d::Dimension::Angle => "Angle",
-        d::Dimension::Count => "Count",
-        d::Dimension::Scalar => "Scalar",
     }
 }
 
@@ -878,13 +876,13 @@ impl Value {
             d::ValuePayload::Boolean(d::BooleanValue::Empty) => Err(eval_err(
                 py,
                 "the Boolean produced an empty result",
-                "empty_boolean",
+                EvalReason::EmptyBoolean,
                 self.node,
             )),
             other => Err(eval_err(
                 py,
                 format!("a `{}` value is not a body", other.kind_name()),
-                "wrong_kind",
+                EvalReason::WrongKind,
                 self.node,
             )),
         }
@@ -920,7 +918,7 @@ impl Value {
             other => Err(eval_err(
                 py,
                 format!("a `{}` value is not a split", other.kind_name()),
-                "wrong_kind",
+                EvalReason::WrongKind,
                 self.node,
             )),
         }
@@ -995,7 +993,7 @@ impl Value {
             other => Err(eval_err(
                 py,
                 format!("a `{}` value is not a datum", other.kind_name()),
-                "wrong_kind",
+                EvalReason::WrongKind,
                 self.node,
             )),
         }
@@ -1023,7 +1021,7 @@ impl Value {
     fn measure(&self, py: Python<'_>) -> PyResult<Measurement> {
         match &self.payload {
             d::ValuePayload::Measure { value, dim } => Ok(Measurement {
-                dimension: dimension_name(*dim),
+                dimension: measurement_dimension_tag(*dim),
                 value: *value,
                 length: (*dim == d::Dimension::Length)
                     .then(|| Length(pncad::quantity::Length::from_meters(*value))),
@@ -1034,7 +1032,7 @@ impl Value {
             other => Err(eval_err(
                 py,
                 format!("a `{}` value is not a measure", other.kind_name()),
-                "wrong_kind",
+                EvalReason::WrongKind,
                 self.node,
             )),
         }
@@ -1047,7 +1045,7 @@ impl Value {
             return Err(eval_err(
                 py,
                 format!("a `{}` value is not an assertion", self.payload.kind_name()),
-                "wrong_kind",
+                EvalReason::WrongKind,
                 self.node,
             ));
         };
@@ -1165,13 +1163,13 @@ impl Evaluation {
                 py,
                 "this evaluation never reached the node: it was canceled first, \
                  and holds the completed prefix only",
-                NODE_NOT_EVALUATED,
+                EvalReason::NodeNotEvaluated,
                 *node,
             )),
             None => Err(eval_err(
                 py,
                 "no such node in the evaluated document",
-                "unknown_node",
+                EvalReason::UnknownNode,
                 *node,
             )),
         }

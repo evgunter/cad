@@ -218,6 +218,15 @@ impl core::error::Error for SceneError {}
 /// The buffers are `f32` because that is what a GPU consumes; every
 /// decision above them was taken at `f64` (D2's precision boundary
 /// sits at the display seam, not inside it).
+///
+/// **Non-indexed geometry.** Every triangle emits its own three
+/// corners carrying its own face normal, so no corner is ever shared
+/// and there is no permutation for a draw to go through: a pass over
+/// this scene draws [`SceneMesh::positions`]`.len()` vertices in the
+/// order they were emitted. A welded build — shared corners, normals
+/// averaged across the triangles that meet at one — would be a
+/// different walk producing different corners, and it is that walk
+/// which would mint the index buffer such a scene needs.
 #[derive(Clone, Debug)]
 pub struct SceneMesh {
     /// One entry per triangle corner: three per triangle, never
@@ -226,9 +235,6 @@ pub struct SceneMesh {
     /// The owning triangle's outward unit normal, repeated per
     /// corner.
     normals: Vec<[f32; 3]>,
-    /// `0, 1, 2, …` — kept explicit so the draw call is an indexed
-    /// one and a future welded build changes only this module.
-    indices: Vec<u32>,
     /// The id of the patch each corner belongs to, parallel to
     /// [`SceneMesh::positions`]. `IdMap::NOTHING` for a corner drawn
     /// from a part that carries no ids.
@@ -330,7 +336,6 @@ impl SceneMesh {
         Self {
             positions: Vec::new(),
             normals: Vec::new(),
-            indices: Vec::new(),
             ids: Vec::new(),
             flags: Vec::new(),
             bounds,
@@ -526,7 +531,6 @@ impl SceneMesh {
                 }
             }
         }
-        let indices = (0..positions.len() as u32).collect();
         let bounds = Aabb::from_points(parts.iter().flat_map(|part| {
             let map: Option<Affine3<f64>> = part.probe.map(|frame| frame.affine());
             part.mesh
@@ -538,7 +542,6 @@ impl SceneMesh {
         Ok(Self {
             positions,
             normals,
-            indices,
             ids,
             flags,
             bounds,
@@ -552,7 +555,9 @@ impl SceneMesh {
         })
     }
 
-    /// Triangle-corner positions, one per index.
+    /// Triangle-corner positions: three per triangle, in draw order.
+    /// Their count is the number of vertices one pass over this scene
+    /// draws.
     pub fn positions(&self) -> &[[f32; 3]] {
         &self.positions
     }
@@ -561,11 +566,6 @@ impl SceneMesh {
     /// [`SceneMesh::positions`].
     pub fn normals(&self) -> &[[f32; 3]] {
         &self.normals
-    }
-
-    /// The index buffer.
-    pub fn indices(&self) -> &[u32] {
-        &self.indices
     }
 
     /// The per-corner patch ids, parallel to

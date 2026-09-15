@@ -886,7 +886,14 @@ pub fn fit_offset_at(
         // set is "the round whose schedule came from a both-directions
         // marking", and that is a fact about `next`, not about the
         // order of two statements.
-        let mut next = refine_schedule(&us, &vs, &report, reg.speed_u, reg.speed_v, verdict);
+        let mut next = refine_schedule(
+            &us,
+            &vs,
+            &report,
+            reg.speed_u.get(),
+            reg.speed_v.get(),
+            verdict,
+        );
         // A directional marking can fail to grow the schedule even
         // though it marked intervals: `bisect` drops a midpoint that
         // is not strictly between its endpoints, which is what an
@@ -898,8 +905,8 @@ pub fn fit_offset_at(
                 &us,
                 &vs,
                 &report,
-                reg.speed_u,
-                reg.speed_v,
+                reg.speed_u.get(),
+                reg.speed_v.get(),
                 Refine::BothDirections,
             );
         }
@@ -1630,6 +1637,11 @@ fn refine_schedule(
 /// parameters — which is what makes it invariant to how the two
 /// directions happen to be parameterized. Ties go to `u`, on
 /// structure (D9: deterministic, never data-dependent tuning).
+///
+/// The speeds arrive as bare `f64`: this is a **structure selection**,
+/// not a classification, so no margin crosses the decide seam here and
+/// the rate pair's tag comes off at the caller rather than riding into
+/// a comparison the band never sees.
 fn directional_mark(
     us: &[f64],
     vs: &[f64],

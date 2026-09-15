@@ -59,6 +59,35 @@ Doc drift fixed here: the divergence item's path (it lives under
 not exist — TOPO's line to fix. Residual 1's pin name above is the old
 one.
 
+## Residual 2, extended: what the MEASURING door answers (SENSE-DOORS, 2026-09-15)
+
+Both of SENSE-DOORS' reviewers exercised the one-band-reversed ball
+through the public API and found the same two things, which the residual
+above records only half of. On a revolved unit ball with ONE band's
+`Face::sense` flipped (`Body::set_face_sense`):
+
+1. **`topo::props::mass_properties` answers volume exactly `0.0`, with
+   no error.** The two hemispheres' radial terms cancel term for term,
+   so the door a user reaches for first returns a plausible-looking
+   number for a body that encloses nothing. The residual above is
+   written about what the GATE sees; this is what the MEASUREMENT says,
+   and a caller who never runs tier 3 gets it silently.
+2. **Tier 3 refuses, and the refusal names the wrong thing.**
+   `validate_geometric` raises exactly one `LaminaWedge { edge }` — the
+   seam meridians reading as conformal contact — on a body whose defect
+   is an inverted face, and it reports one edge although both seam
+   meridians are lamina. There is no `CurvedSenseInverted`: the lamina
+   reading wins first. That is MATE3's known `LaminaWedge`-message
+   problem on the exact shape this residual is about.
+
+Pinned as of SENSE-DOORS (PR 2649):
+`crates/mesh/tests/r2_sense_e2e.rs::a_reversed_band_measures_zero_and_is_caught_only_by_tier_three`
+asserts all three of the ball's volumes and both refusals, so the day
+either half changes the row says so. Flip condition for the residual is
+unchanged (a shell-level orientation check or a second encoding
+channel); what is added here is that the measuring door's silence is
+part of what that design conversation has to answer.
+
 ## Home
 
 `work/issues/`: the four residuals span `validate` check 6, the props sense gate and the NURBS vocabulary, and no open program's charter claims the set — VERBS cites only residual 1, as VERBS-CONE's known trap.

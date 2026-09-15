@@ -103,7 +103,7 @@ fn the_villarceau_lens_is_refused_by_the_shape_door() {
     println!("villarceau lens: door = {got:?}");
     println!(
         "villarceau lens: flux = {:?}",
-        curved_face(&surface, &edges, 1.0, band())
+        curved_face(&surface, &edges, true, band())
     );
     assert!(
         matches!(
@@ -162,7 +162,7 @@ fn a_zero_extent_cylinder_face_passes_the_shape_door_and_not_the_flux_lane() {
         mer(0.0, 0.0, 0.0, 3, 0),
     ];
     let door = require_iso_rectangle(&surface, &edges, band());
-    let flux = curved_face(&surface, &edges, 1.0, band());
+    let flux = curved_face(&surface, &edges, true, band());
     println!("zero-extent cylinder face: door = {door:?}, flux = {flux:?}");
     assert_eq!(door, Ok(()), "the shape door is vacuous on a zero extent");
     assert!(

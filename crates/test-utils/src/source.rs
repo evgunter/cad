@@ -404,13 +404,37 @@ pub fn line(text: &str, at: usize) -> usize {
 /// start of the text, where there is no preceding byte to disqualify
 /// the match.
 ///
-/// A needle's own trailing boundary is usually carried by the needle
-/// (`kind(`, `Variant {`), so only the leading side needs asking.
+/// A needle that ends in punctuation (`kind(`, `Variant {`) carries
+/// its own trailing boundary and needs only this side;
+/// [`boundary_after`] is the other half, for a needle that is a bare
+/// identifier and carries neither.
 #[must_use]
 pub fn boundary_before(code: &str, at: usize) -> bool {
     code[..at]
         .chars()
         .next_back()
+        .is_none_or(|c| !c.is_alphanumeric() && c != '_')
+}
+
+/// **Is the byte at `at` outside an identifier?** — the trailing half
+/// of a whole-word match, where `at` is one past the needle's last
+/// byte. `true` at the end of the text, where there is no following
+/// byte to disqualify the match.
+///
+/// **A bare-identifier needle needs both halves and neither is
+/// optional.** `deny_unknown_fields` is a whole attribute word and
+/// also the prefix of `deny_unknown_fields_census`, so a leading-only
+/// check reports a match inside the longer name and sends the reader
+/// looking for a declaration that is not there. This is the shared
+/// spelling of that check because the predicate — not alphanumeric and
+/// not `_` — is [`boundary_before`]'s byte for byte, and a caller that
+/// writes its own copy has minted the duplication this module exists
+/// to remove.
+#[must_use]
+pub fn boundary_after(code: &str, at: usize) -> bool {
+    code[at..]
+        .chars()
+        .next()
         .is_none_or(|c| !c.is_alphanumeric() && c != '_')
 }
 
@@ -747,6 +771,65 @@ pub fn crate_dir(baked: &str) -> std::path::PathBuf {
     cwd
 }
 
+/// The REPOSITORY root, for a guard whose subject is the whole tree:
+/// [`crate_dir`]'s answer two levels up, canonicalized.
+///
+/// **Canonical, so `..` is not a path COMPONENT.** Every caller of
+/// this walks `rust_sources` from the root and skips directories by
+/// component name; a root still spelled `…/crates/test-utils/../..`
+/// carries a `..` component of its own, which a skip list matches
+/// against every file in the tree at once — and that looks exactly
+/// like a clean walk.
+///
+/// **Panics** when the result holds no `Cargo.toml`: a guard that
+/// resolved to the wrong root would read the wrong tree and report
+/// agreement over it. Five guards had written these eight lines
+/// themselves, in four crates.
+#[must_use]
+pub fn repo_root(baked: &str) -> std::path::PathBuf {
+    let root = crate_dir(baked)
+        .join("../..")
+        .canonicalize()
+        .expect("the repository root resolves");
+    assert!(
+        root.join("Cargo.toml").is_file(),
+        "{} is not the repository root",
+        root.display()
+    );
+    root
+}
+
+/// `at` advanced past whitespace.
+///
+/// Here rather than at each reader for [`boundary_after`]'s reason: a
+/// walk that steps a cursor over a blanked view needs it at every
+/// token, and three of them had written the same five lines. A
+/// comment or a literal is whitespace in a blanked view, so a step
+/// over this crosses them too.
+#[must_use]
+pub fn skip_ws(code: &str, mut at: usize) -> usize {
+    while let Some(c) = code[at..].chars().next() {
+        if !c.is_whitespace() {
+            break;
+        }
+        at += c.len_utf8();
+    }
+    at
+}
+
+/// Whether `word` sits at `at` as a WHOLE word — both boundaries, and
+/// neither is optional.
+///
+/// The positional half of the whole-word test: a caller that has
+/// already found a candidate offset asks this, where one searching for
+/// the first occurrence filters `match_indices` through it.
+#[must_use]
+pub fn word_at(code: &str, at: usize, word: &str) -> bool {
+    code[at..].starts_with(word)
+        && boundary_before(code, at)
+        && boundary_after(code, at + word.len())
+}
+
 /// Every SUITE file under a crate's `tests/` directory, relative to it,
 /// `/`-separated and sorted, with `all.rs` itself excluded.
 ///
@@ -988,9 +1071,37 @@ mod tests {
     // flakes about one run in thirteen (15/200; **issue #882**). Do not
     // copy that shape here.
     use super::{
-        ItemBody, Region, aggregation_violations, angle_end, balanced_end, code_and_literals,
-        code_only, comments_only, file_module_decls, item_body, keeping, top_level_split,
+        ItemBody, Region, aggregation_violations, angle_end, balanced_end, boundary_after,
+        boundary_before, code_and_literals, code_only, comments_only, file_module_decls, item_body,
+        keeping, top_level_split,
     };
+
+    /// A whole-word match needs BOTH boundaries, and each half refuses
+    /// a different way of being inside a longer name.
+    #[test]
+    fn a_whole_word_match_needs_both_boundaries() {
+        let code = "wrong_operand operand operand_kind";
+        let first = code.find("operand").unwrap();
+        // Inside `wrong_operand`: the leading half refuses it, the
+        // trailing half cannot see anything wrong.
+        assert!(!boundary_before(code, first));
+        assert!(boundary_after(code, first + "operand".len()));
+
+        let bare = code[first + 1..].find("operand").unwrap() + first + 1;
+        assert!(boundary_before(code, bare));
+        assert!(boundary_after(code, bare + "operand".len()));
+
+        // A PREFIX of a longer name: now the halves swap roles, which
+        // is why a guard that asks only the leading one matches here.
+        let prefix = code.rfind("operand").unwrap();
+        assert!(boundary_before(code, prefix));
+        assert!(!boundary_after(code, prefix + "operand".len()));
+
+        // Either end of the text is a boundary: there is no byte there
+        // to disqualify the match.
+        assert!(boundary_before(code, 0));
+        assert!(boundary_after(code, code.len()));
+    }
 
     /// A generic list closes at its own `>`, and the constructs that
     /// carry a `>` or a `;` without ending it do not close it early.

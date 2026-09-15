@@ -203,16 +203,12 @@ pub enum ProductError {
 // the PROBLEM and FORWARDS its payload's own `Display` — the kernel's
 // refusals and validity findings both carry one, so no arm re-states
 // them (and none Debug-dumps them). A validity-finding list renders
-// one kernel finding per indented line, the finding sink's list
-// shape; node ids render plain, names as kind + minting node.
+// one kernel finding per indented line through the finding sink's own
+// `render_lines`, which is where that shape lives for the whole layer;
+// node ids render plain, names as kind + minting node.
 impl core::fmt::Display for ProductError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let list = |f: &mut core::fmt::Formatter<'_>, errors: &[ValidationError]| {
-            for error in errors {
-                write!(f, "\n  {error}")?;
-            }
-            Ok(())
-        };
+        let list = crate::finding::render_lines::<&ValidationError, _>;
         match self {
             Self::EvaluationOfAnotherDocument { expected, found } => write!(
                 f,
