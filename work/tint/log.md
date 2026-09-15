@@ -659,3 +659,59 @@ ONE executable check rather than four prose edits that re-rot, and
 whether that check is worth building is the decision to take before
 spending an edit on any of them. If it is not, they close the way `D113`
 closed.
+
+## The roster class was not a class (2026-09-15)
+
+A feasibility probe ran BEFORE a spec was written — the first time this
+program has done that, and it broke the grouping this seat had proposed
+to Ev two hours earlier.
+
+**The claim was that four rows wanted one executable check. Two do.**
+
+- `interrogate-ladder-header-claims-every-rung-and-pins-five` claims
+  coverage of an **enum's variants**, which a roster of test names
+  cannot see. Its welded shape is TINT-1's exhaustive `match`, which has
+  landed, and `display_contract.rs` already carries a complete welded
+  enumeration of `InterrogateError`'s ten variants to copy. **Routed out
+  of the class; cheaper than it looked.**
+- `test-headers-name-fns-that-exist-nowhere` is **closed as wrongly
+  filed, by the seat that filed it this morning.** Both its sites name
+  retired rows on purpose — `m5_pr13_curved.rs` under an explicit
+  *"Lineage: `CENSUS` succeeds …"* heading. The row read a population
+  off a pattern (backticked identifiers resolving nowhere) and assigned
+  it a subject (a roster that over-counts) without reading the sentences
+  around the names. **That is this program's own charter defect,
+  committed while filing against it** — observation 1, one level up from
+  the code.
+- TOPO's `review-d18-probes` stays TOPO's. The mechanism is verified to
+  work in its exact shape (`#[cfg(test)] mod` inside `src/`) and has
+  been offered as a pointer with its limits stated, not as a request.
+
+**The mechanism, which the probe built and ran rather than proposed**:
+read the roster off libtest's own `--list` via a `current_exe()`
+re-exec — the harness's ground truth, **no Rust parsed**, so not a
+fresh instance of `source-scanning-censuses-are-a-tripwire-on-ordinary-rust`.
+The weld is a `roster!` macro whose each entry is an ident feeding three
+consumers: `let _: fn() = $name;` (a retired name is a compile error),
+`stringify!($name)` (the compared string cannot be mistyped), and the
+printed text. Five falsifiers run green, ~3.6 ms per check, and the
+tree already re-execs its own test binary at eighteen sites.
+
+**TINT-4 cut** — `docs/TINT-4-SPEC.md`, branch `tint/4-roster-weld`, ONE
+row and ONE adopting file. The spec names the measurement that can kill
+it (time the self-`--list` inside `editor-core`'s `all.rs` under
+`--features interval`, the largest binary in the tree and the one the
+adopting file lives in) and requires the lane to stop and report if it
+comes out badly. It also states, at the site and in the PR, that the
+mechanism welds **names and never prose** — the m10-6 row's own defect
+has a sentence half this design will never catch, and a lane that ships
+"the roster cannot go stale" would be wrong in exactly TINT-1's way.
+
+**What changed in how this program works.** Observation 2 said a spec
+must name the measurement that would show its mechanism cannot work.
+This is the first spec written after an executed probe rather than
+before one, and the probe's value was not the mechanism — it was
+discovering that two of the four rows were mis-classed, one of them by
+this seat, on the same day. **Probing before speccing found a filing
+error that two reviews would not have**, because no reviewer reads a
+row's premise against the tree; they read a diff.

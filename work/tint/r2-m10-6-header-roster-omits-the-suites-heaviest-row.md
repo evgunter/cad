@@ -1,9 +1,10 @@
 ---
 id: r2-m10-6-header-roster-omits-the-suites-heaviest-row
-kind: issue
+kind: unit
 title: A test file's own roster lists five of seven rows, omits the heaviest, and names one in the opposite sense
-status: open
+status: spec
 opened: 2026-09-12
+branch: tint/4-roster-weld
 ---
 
 
