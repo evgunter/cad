@@ -1,7 +1,7 @@
 ---
 id: pncad-py-tests-rs-is-six-thousand-lines-and-carries-two-unremeasured-floors
 kind: issue
-title: pncad-py tests.rs is 7795 lines and its two vacuity floors are numbers nothing re-measures
+title: pncad-py tests.rs is 8543 lines and its two vacuity floors are numbers nothing re-measures
 status: open
 opened: 2026-09-15
 ---
@@ -13,17 +13,18 @@ it.
 
 ## What is in one file
 
-`crates/pncad-py/src/tests.rs` is **7795 lines**, re-derivable by
+`crates/pncad-py/src/tests.rs` is **8543 lines**, re-derivable by
 `git show <sha>:crates/pncad-py/src/tests.rs | wc -l` and measured at
 the commit that writes this sentence (6317 when this row was written
 at `census/tag-reach`, 6064 before that unit's fix pass added the
-reader's shape rosters, 6798 at the merge base `cc6fb870c`). It holds the error-class
+reader's shape rosters, 6798 at the merge base `cc6fb870c`, 7805 on
+`main` at `370bd6f41`). It holds the error-class
 taxonomy pin, **three** of this crate's vocabulary censuses
 (`TAG_INVENTORY`, `NODE_KIND_ROSTER` and now `ERRORS_MINTING_ITEMS`),
 **two** Rust source recognisers with their fixture guards — the
 ~200-line tag-table one (`read_tag_table`, `Cursor`, `ArmShape`,
 `TopForm`) and the ~350-line literal-attribution one
-(`read_minting_items`, `impl_spans`, `declaration_heads`) — some sixty
+(`read_minting_items`, `scope_spans`, `declaration_heads`) — some sixty
 construction pins, and a `#[cfg(test)] mod` of gather-memoization tests
 at the end.
 
@@ -42,6 +43,30 @@ born stale in the very paragraph whose subject is a count that went
 unre-measured. That is standing finding 11 (*a stale count can be born
 stale*) at one more level up, and it is the argument for what follows.
 
+**The corrected 7795 then went stale at the MERGE, which is a way this
+row had not recorded.** 7795 is right at `fa49e26b0`, the commit that
+wrote it, and `17a68a0fa` — the merge that landed it — is 7805:
+another lane had added an `ortho_frame_error_tag` row to
+`TAG_INVENTORY` on the other parent, and the merge carried both. So
+the mitigation this row adopted, *stated with the command that
+re-derives it and measured at the commit that writes it*, does not
+survive a concurrent change to the same file, and the stale number
+reached `main`, this row's title, `plan.md`'s slate and the spec of the
+next unit. What a count in a tracker row is about is the TREE, and a
+merge-only repo moves the tree between the measurement and the landing.
+
+**CENSUS-ARRIVAL-RESIDUE grew it a further 738 lines, 9.5%**
+(8543 at `54454b0a0`, against 7805 on `main` at `370bd6f41`; 867 added
+and 129 removed, of which 367 of the additions are doc comments — and
+this sentence was written saying 8542 and re-measured after one more
+doc edit to the same file, which is the third instance in this row of
+the shape the paragraph above it is about). Its
+subject was the residue of the instrument that grew this file last, so
+it is the same recogniser growing again: a per-entry blind-spot list on
+the scope walk, three tests for the cases that list names, a `held_by`
+column restructured from prose into holders a reader re-derives, and a
+stub reader with its own fixture guard.
+
 **No instrument holds this number, and one that pinned it would be
 wrong.** A test comparing a committed line count to `wc -l` reds on
 every line added to a file that is expected to change, and its repair
@@ -50,7 +75,10 @@ per-commit frequency instead of per-unit. What is cheap and is done
 instead is to make the number SELF-CHECKING rather than held: it is
 stated with the command that re-derives it and is measured at the
 commit that writes it, so a reader can date it in one line rather than
-trusting it. The floors below are the opposite case — they are
+trusting it — and, since the paragraph above shows that is not enough
+on its own, with the SHA on `main` it was last true of beside it, so a
+merge that moves the file leaves a number a reader can falsify rather
+than one they have to believe. The floors below are the opposite case — they are
 assertions, they already run, and deriving them from the committed
 inventory in the same file costs nothing and is what this row asks
 for.
