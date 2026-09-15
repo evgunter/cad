@@ -81,7 +81,7 @@ fn a_keyway_refuses_at_the_door_by_the_same_name_the_flux_lane_uses() {
         mer(0.0, 1.0, 0.0, 3, 0),
     ];
     assert_eq!(require_iso_rectangle(&cylinder(), &rect, band()), Ok(()));
-    assert!(curved_face(&cylinder(), &rect, 1.0, band()).is_ok());
+    assert!(curved_face(&cylinder(), &rect, true, band()).is_ok());
     let keyway = vec![
         rim(0.0, 0.0, 1.5, 0, 1),
         mer(1.5, 0.0, 1.0, 1, 2),
@@ -97,7 +97,7 @@ fn a_keyway_refuses_at_the_door_by_the_same_name_the_flux_lane_uses() {
     });
     assert_eq!(require_iso_rectangle(&cylinder(), &keyway, band()), want);
     assert_eq!(
-        curved_face(&cylinder(), &keyway, 1.0, band()).map(|_| ()),
+        curved_face(&cylinder(), &keyway, true, band()).map(|_| ()),
         want
     );
 }
@@ -116,7 +116,7 @@ fn a_rimless_lune_passes_the_door_and_fails_the_flux_lane() {
     ];
     assert_eq!(require_iso_rectangle(&sphere(), &lune, band()), Ok(()));
     assert_eq!(
-        curved_face(&sphere(), &lune, 1.0, band()).map(|_| ()),
+        curved_face(&sphere(), &lune, true, band()).map(|_| ()),
         Err(PropsError::NotIsoRectangle {
             what: "props_band_coplanar"
         })
@@ -156,7 +156,10 @@ fn an_oblique_sphere_section_is_refused_on_rim_incidence() {
         what: "props_rim_axis_parallel",
     });
     assert_eq!(require_iso_rectangle(&sphere(), &lens, band()), want);
-    assert_eq!(curved_face(&sphere(), &lens, 1.0, band()).map(|_| ()), want);
+    assert_eq!(
+        curved_face(&sphere(), &lens, true, band()).map(|_| ()),
+        want
+    );
 }
 
 /// A plane is not the door's question and refuses typed, as
@@ -253,13 +256,13 @@ fn bits(c: geom_brep::props::FaceContribution<f64>) -> (u64, u64) {
 #[test]
 fn a_meridian_in_pieces_folds_by_lineage_into_the_edge_it_came_from() {
     let s = torus();
-    let ctl = bits(curved_face(&s, &control(), 1.0, band()).expect("the control rectangle"));
+    let ctl = bits(curved_face(&s, &control(), true, band()).expect("the control rectangle"));
     let side = boundary_material_sign(&s, &control(), band()).expect("the control's side");
     assert!(matches!(side, MaterialSign::Encoded(_)));
     let loop_ = pieced(Some(1), Some(2));
     assert_eq!(require_iso_rectangle(&s, &loop_, band()), Ok(()));
     assert_eq!(
-        bits(curved_face(&s, &loop_, 1.0, band()).expect("the pieced rectangle")),
+        bits(curved_face(&s, &loop_, true, band()).expect("the pieced rectangle")),
         ctl,
         "flux and area bitwise: the fold reads the edge's own interval and anchor"
     );
@@ -272,7 +275,7 @@ fn a_meridian_in_pieces_folds_by_lineage_into_the_edge_it_came_from() {
             Ok(()),
             "rotation {k}"
         );
-        let c = curved_face(&s, &rot, 1.0, band())
+        let c = curved_face(&s, &rot, true, band())
             .unwrap_or_else(|e| panic!("rotation {k}: refused {e:?}"));
         assert_eq!(bits(c), ctl, "rotation {k}: bitwise the control");
     }
@@ -302,7 +305,7 @@ fn pieces_from_distinct_edges_never_fold() {
             "{name}: door"
         );
         assert_eq!(
-            curved_face(&s, loop_, 1.0, band()).map(|_| ()),
+            curved_face(&s, loop_, true, band()).map(|_| ()),
             Err(rim_level.clone()),
             "{name}: flux lane"
         );

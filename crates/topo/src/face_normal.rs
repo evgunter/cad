@@ -368,44 +368,27 @@ mod tests {
     /// - `boolean/rest.rs` — `face_carrier`, the curved generalization
     ///   of the door; it binds the `±1` to a local before multiplying,
     ///   which is the form a textual `* ….sense_sign` sweep misses.
-    /// - `boolean/mod.rs` — the shared-rim routing's two face senses,
-    ///   handed to `boolean::rim_wedge` and through it to the same two
-    ///   `geom_brep` entry points check 4's material arm uses. It
-    ///   cannot take the door for that arm's reason and one more of
-    ///   its own: the question is a PAIR of material sides at a point
-    ///   on a shared rim, over kinds [`face_outward_normal_at`]
-    ///   answers `None` for (torus above all), and the operands are
-    ///   two different bodies, so there is no single body the door
-    ///   could be asked about.
     /// - `merge_faces.rs` — two sense-tuple reads in the coplanarity
     ///   gate and the survivor's plane hand-multiply.
-    /// - `props.rs` — the `±1` handed to `curved_face`'s closed form.
-    ///   Not a normal multiply, and the only read whose consumer is a
-    ///   curved carrier.
-    /// - `census.rs` — two, the crossing rung's side test
-    ///   (`ee_cross_backed`): the declared pair's two `±1`s handed to
-    ///   `geom_brep::classify_material_pairing`, exactly as check 4's
-    ///   material arm below hands them — the same lemma, read at a
-    ///   boundary crossing between bodies rather than edge-locally
-    ///   within one. It cannot take the door for check 4's reason:
-    ///   the question is the PAIR of material sides at one point on a
-    ///   shared carrier, and the sign belongs beside the gradient the
-    ///   sense algebra computes.
-    /// - `validate.rs` — three, all in tier 3. Check 6's outward
-    ///   normal, where the sense bit is read as a claim to be
-    ///   falsified rather than honored; and check 4's material arm,
-    ///   which hands the plus and minus faces' `±1` to
-    ///   `geom_brep::classify_material_pairing` and
-    ///   `geom_brep::material_kappa_rel`. The arm cannot take the
-    ///   door: its question is the PAIR of material sides at a point
-    ///   on a shared carrier, over every kind with an implicit form
-    ///   (cone and torus tangencies included, which
-    ///   [`face_outward_normal_at`] answers `None` for), and the
-    ///   normals it needs are the gradients the wedge classifier
-    ///   already computes — routing them back out and in would fold
-    ///   the sign in one crate and the gradient in another. The `±1`
-    ///   is threaded as a scalar, which is what
-    ///   `contact_verify`'s tangency arm does with the same lemma.
+    /// - `validate.rs` — one, tier 3's check 6: the outward normal
+    ///   whose sense bit is read as a claim to be FALSIFIED rather
+    ///   than honored, so the `±1` sits beside the winding it is
+    ///   compared against.
+    /// - `boolean/mod.rs`, `census.rs`, `props.rs` and check 4's
+    ///   material arm in `validate.rs` — **zero**, and this is the
+    ///   general shape rather than four coincidences. Each of them
+    ///   hands a face's orientation to a door that mints the outward
+    ///   normal ITSELF: `geom_brep::classify_material_pairing` and
+    ///   `material_kappa_rel` from the gradients the wedge classifier
+    ///   already computes, `geom_brep::props::curved_face` from the
+    ///   rimless sphere band's closed form. A door like that takes the
+    ///   `Face::sense` BIT, so there is no `±1` to hand it and no
+    ///   multiply to inventory. They cannot take
+    ///   [`face_outward_normal_at`] either — the question is a PAIR of
+    ///   material sides at a point on a shared carrier, over kinds it
+    ///   answers `None` for, and in `boolean/mod.rs` across two
+    ///   different bodies — which is why the bit goes to the door that
+    ///   can.
     /// - `face_normal.rs` — **zero**: the door takes the sense BIT
     ///   through [`OutwardNormal::from_chart`], never the `±1`. That
     ///   is why the walk below reads the method name out of `concat!`
@@ -442,15 +425,15 @@ mod tests {
     fn every_hand_multiply_of_the_face_sign_is_inventoried() {
         const PINNED: [(&str, usize); 10] = [
             ("boolean/join.rs", 1),
-            ("boolean/mod.rs", 1),
+            ("boolean/mod.rs", 0),
             ("boolean/rest.rs", 1),
             ("boolean/solid_contain.rs", 2),
-            ("census.rs", 2),
+            ("census.rs", 0),
             ("entity.rs", 1),
             ("face_normal.rs", 0),
             ("merge_faces.rs", 3),
-            ("props.rs", 1),
-            ("validate.rs", 3),
+            ("props.rs", 0),
+            ("validate.rs", 1),
         ];
         let needle = concat!("sense", "_sign");
         let root = crate::source_walk::src_root();

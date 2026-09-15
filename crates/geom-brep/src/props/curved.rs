@@ -38,18 +38,22 @@ use crate::dihedral::decide;
 /// faces before calling). Dispatches on the surface kind; `band` is
 /// the run's linear band, built once at operation entry.
 ///
-/// `sense_sign` is the face's `±1` orientation sense (M5 S10,
-/// `topo::Face::sense_sign`). It is **deliberately not applied to
-/// every term**: `A⃗` and the rim-derived `s_f` are recovered from the
-/// face's STORED LOOP TRAVERSAL, which the interior-left rule already
-/// ties to the outward normal — `revert` reverses loops and flips
-/// `sense` together, so multiplying those terms by the sense would
-/// double-count and negate the volume twice. `sense_sign` is consumed
-/// at exactly one place: the **rimless** sphere band, whose boundary
-/// carries no rim to derive `s_f` from and which previously hardcoded
-/// `s_f = +1` on the assumption that sweeps emit outward shells only.
-/// That is the one orientation fact in this module the boundary does
-/// not encode, so it is the one the bit must supply.
+/// `sense` is the face's orientation BIT (`topo::Face::sense`, M5
+/// S10): `true` where the surface's chart normal already points out of
+/// the material, `false` where the face reverses it. It is the bit and
+/// not a `T` ±1 for the reason
+/// [`crate::enters::OutwardNormal::from_chart`]'s doc gives. It is
+/// **deliberately not applied to every term**: `A⃗` and the rim-derived
+/// flux side are recovered from the face's STORED LOOP TRAVERSAL,
+/// which the interior-left rule already ties to the outward normal —
+/// `revert` reverses loops and flips `sense` together, so signing
+/// those terms by the sense as well would double-count and negate the
+/// volume twice. `sense` is consumed at exactly one place: the
+/// **rimless** sphere band, whose boundary carries no rim to derive a
+/// flux side from and which previously hardcoded `s_f = +1` on the
+/// assumption that sweeps emit outward shells only. That is the one
+/// orientation fact in this module the boundary does not encode, so it
+/// is the one the bit must supply.
 ///
 /// # Errors
 ///
@@ -58,7 +62,7 @@ use crate::dihedral::decide;
 pub fn curved_face<T: Decide>(
     surface: &Surface<T>,
     outer: &[LoopEdge<T>],
-    sense_sign: T,
+    sense: bool,
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
     match *surface {
@@ -82,7 +86,7 @@ pub fn curved_face<T: Decide>(
             radius,
             axis,
             ..
-        } => sphere(center, radius, axis, outer, sense_sign, band),
+        } => sphere(center, radius, axis, outer, sense, band),
         Surface::Torus {
             center,
             axis,
@@ -1546,27 +1550,30 @@ fn cone_arm<T: Real>(rims: &[Rim<T>], sin_a: T) -> T {
 ///   fact about the levels, not about this exemption — do not read
 ///   the exemption as "the domain is verified a rectangle".
 ///
-/// Its `s_f` is the **only** flux
-/// sign in this module that the boundary does not encode — with no rim
-/// there is no traversal to read it off, and a rimless band's two
-/// meridians are traversed the same way whichever side is material.
-/// Before M5 S10 it was hardcoded `+1`, justified by "M2 sweeps emit
-/// single outward shells only, so a rimless band with inward
-/// orientation is unrepresentable at rest". S10 makes that
-/// representable — `Face::sense` is exactly the missing bit — so the
-/// hardcode becomes `s_f = sense_sign`. Identical for every face this
-/// build mints (all `sense: true`); the difference is that an inward
-/// rimless band is no longer silently metered as outward.
+/// **The flux side is the one thing the two branches below do not
+/// share.** The rimless band's is the **face's sense bit** — the only
+/// flux sign in this module that the boundary does not encode, since
+/// with no rim there is no traversal to read it off and a rimless
+/// band's two meridians are traversed the same way whichever side is
+/// material. Before M5 S10 it was hardcoded `+1`, justified by "M2
+/// sweeps emit single outward shells only, so a rimless band with
+/// inward orientation is unrepresentable at rest"; S10 makes that
+/// representable — `Face::sense` is exactly the missing bit. The
+/// rim-bearing branch's is [`linear_rim_side`]'s DECIDED side, a
+/// discrete [`Sign`] definite by that function's construction. The two
+/// are different claims about different evidence and are kept as
+/// different types ([`SphereFluxSide`]) up to the single term that
+/// consumes either.
 fn sphere<T: Decide>(
     center: Point3<T>,
     radius: T,
     axis: Vec3<T>,
     edges: &[LoopEdge<T>],
-    sense_sign: T,
+    sense: bool,
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
     let (b, meridian_axes) = sphere_boundary(center, radius, axis, edges, band)?;
-    let (du, s_f);
+    let (du, side);
     let (lo, hi) = min_max(&b.levels)?;
     require_extent(Margin::levered(hi - lo, radius), band)?;
     if b.rims.is_empty() {
@@ -1585,20 +1592,65 @@ fn sphere<T: Decide>(
         }
         du = T::pi();
         // The one orientation fact no rim encodes (see the fn docs):
-        // the face's sense IS `s_f` here, not a cross-check of it.
-        s_f = sense_sign;
+        // the face's sense IS the flux side here, not a cross-check of
+        // it.
+        side = SphereFluxSide::Sense(sense);
     } else {
         // The iso-rectangle premise (S58/#649). Sphere rims carry the
         // `(sin v, cos v)` direction pair, so the scalar extremes are
         // lifted into the same representation (`as_level`) and metered
         // at the sphere radius.
-        s_f = t_sign::<T>(linear_rim_side(&b, (lo, hi), band)?);
+        side = SphereFluxSide::Rim(linear_rim_side(&b, (lo, hi), band)?);
         du = du_of_rims(&b.rims, b.arms, band)?;
     }
     let area = radius.powi(2) * du * (hi - lo);
     let va = loop_vector_area(edges, center)?;
-    let flux = s_f * (radius * area) + (center - Point3::origin()).dot(va);
+    let flux = side.signed(radius * area) + (center - Point3::origin()).dot(va);
     Ok(FaceContribution { flux, area })
+}
+
+/// Which way a sphere face's material faces, for the radial term of
+/// its flux — the one quantity [`sphere`]'s two branches establish
+/// from different evidence, kept apart so neither reads as the other.
+#[derive(Clone, Copy)]
+enum SphereFluxSide {
+    /// The rimless two-band face: no rim encodes the side, so the
+    /// face's `Face::sense` BIT is it ([`sphere`]'s docs). A bit, not
+    /// a `T` ±1, for the reason
+    /// [`crate::enters::OutwardNormal::from_chart`]'s doc gives.
+    Sense(bool),
+    /// A rim-bearing face: the side the boundary itself encodes, as
+    /// [`linear_rim_side`] decides it.
+    Rim(Sign),
+}
+
+impl SphereFluxSide {
+    /// The radial term `R·Area` signed by this side.
+    ///
+    /// **`Sign::Zero` is unreachable on the [`Self::Rim`] arm**, and
+    /// the `debug_assert` says so rather than the arm quietly metering
+    /// a rimmed face's radial term as nothing.
+    /// [`linear_rim_side`] answers either `rim.d_u_sign` or its flip,
+    /// and a sphere rim's `d_u_sign` is `rim_dir` of a
+    /// `props_circle_axis_class` outcome already matched definite —
+    /// `flip` fixes only `Zero`, so the answer is definite by
+    /// construction. (Before the split this arm ran through
+    /// [`t_sign`], whose `Zero => T::zero()` case is live for the
+    /// torus's [`sign_mul`] and was inherited here; the sphere never
+    /// reached it.)
+    fn signed<T: Real>(self, radial: T) -> T {
+        match self {
+            Self::Sense(true) => radial,
+            Self::Sense(false) => -radial,
+            Self::Rim(s) => {
+                debug_assert!(
+                    s != Sign::Zero,
+                    "linear_rim_side answers a definite rim traversal direction"
+                );
+                t_sign::<T>(s) * radial
+            }
+        }
+    }
 }
 
 /// **Certification's per-edge span bounds, re-decided at the parse**

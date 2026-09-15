@@ -1916,22 +1916,15 @@ fn ee_cross_backed<T: Decide + crate::chart_region::ChartRegionLane>(
             }
         }
         let arm = geom_brep::folded_lever_arm(sa, sb, q, arm_extent);
-        let side = match geom_brep::classify_material_pairing(
-            sa,
-            da.sense_sign::<T>(),
-            sb,
-            db.sense_sign::<T>(),
-            q,
-            arm,
-            band,
-        ) {
-            Ok(geom_brep::MaterialPairing::Opposed) => CrossingSideVerdict::OppositeSides,
-            Ok(geom_brep::MaterialPairing::Aligned) => CrossingSideVerdict::SameSide,
-            Err(cause) => {
-                undecided.push(cause);
-                continue;
-            }
-        };
+        let side =
+            match geom_brep::classify_material_pairing(sa, da.sense, sb, db.sense, q, arm, band) {
+                Ok(geom_brep::MaterialPairing::Opposed) => CrossingSideVerdict::OppositeSides,
+                Ok(geom_brep::MaterialPairing::Aligned) => CrossingSideVerdict::SameSide,
+                Err(cause) => {
+                    undecided.push(cause);
+                    continue;
+                }
+            };
         if side == CrossingSideVerdict::OppositeSides {
             if pair_region_verified(body, fa, fb, band) || pair_region_verified(body, fb, fa, band)
             {

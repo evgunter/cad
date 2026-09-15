@@ -4054,11 +4054,11 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
             ContactMark::Transverse
         } else if all_smooth {
             let sense_plus = match body.get_face(f_plus) {
-                Some(face) => face.sense_sign::<T>(),
+                Some(face) => face.sense,
                 None => continue, // unreachable on tier-1 input
             };
             let sense_minus = match body.get_face(f_minus) {
-                Some(face) => face.sense_sign::<T>(),
+                Some(face) => face.sense,
                 None => continue, // unreachable on tier-1 input
             };
             let mut jet_determinate = true;
