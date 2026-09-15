@@ -4,6 +4,7 @@ kind: unit
 title: SupSpeed and InfSpeed beside Margin: metered takes the inf, a sup door for overshoot metering, the three blurred sites typed
 status: open
 opened: 2026-09-15
+branch: scalar/rate-pair
 ---
 
 
@@ -52,3 +53,17 @@ The same two hashes are re-taken after the change in the PR body. The
 listing itself is a one-shot comparison artefact and is not committed
 (`memories/test-suite-cost.md`): the aggregate hash is what a second
 run has to reproduce.
+
+**Correction to the narration recipe, at the re-take.** The narration
+hash above was cut at a fixed line number and kept the absolute output
+path, so it digests the run's own `cargo` preamble and its outdir name
+as well as the kernel's words — neither of which is a statement about
+the kernel, and both of which differ between two runs whatever the
+code does. The recipe that reproduces is: take the log from the line
+after cargo's `Running` line, drop the harness's own trailing lines,
+and rewrite the outdir name to a constant. The **pre-change log, the
+one captured above and unmodified**, re-digests under that recipe to
+**728 lines**,
+`8522886427381545d312aafd1ff6a1a6757ea4d6500c47278036c2d847ab6712` —
+and so does the post-change run. The file-listing hash needed no
+correction and is unchanged.
