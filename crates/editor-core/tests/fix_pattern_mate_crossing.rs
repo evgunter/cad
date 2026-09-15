@@ -40,11 +40,9 @@ use editor_core::{
     MateFrame, MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef,
     StableName, content_pin, split,
 };
+use fixture::resolver::{PART_BODY, in_part};
 use fixture::{insert, len, on_frame, scl, step};
 use geom_core::Tol;
-
-/// The extrude in a one-block part document (frame, profile, extrude).
-const PART_BODY: RecipeNodeId = RecipeNodeId(2);
 
 /// The unit cube `[0,1]³`, as a whole part document.
 fn block(label: &str) -> ProfileDoc {
@@ -70,22 +68,6 @@ fn block_ref(label: &str) -> DocRef {
     let doc = block(label);
     let pin = content_pin(&doc, Tol::witness()).unwrap();
     DocRef { id: doc.id(), pin }
-}
-
-/// A face of `instance`'s part product — the plain member spelling.
-fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: PART_BODY,
-                path: vec![RoleSeg::Cap(cap)],
-            }
-            .into(),
-        }],
-    }
 }
 
 /// A face of pattern copy `i` — the `Instance(i)` spelling, the PATTERN
