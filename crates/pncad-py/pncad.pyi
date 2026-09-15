@@ -5268,7 +5268,12 @@ class MintRefusal:
 
     @property
     def why(self) -> Optional[RefusedRef]:
-        """Why that reference did not resolve."""
+        """Why that reference did not resolve.
+
+        `None` for `no_at_rest_record`, whose reason is of a different
+        kind: the class's own entry in the admission table. Ask
+        `class_admission(refusal.class_).why` for it — the same string
+        `str(refusal)` carries, from the one place it lives."""
 
     @property
     def class_(self) -> Optional[ContactClass]:

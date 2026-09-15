@@ -976,7 +976,10 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     let err = assemble(&swapped, &ev, tol).expect_err("a Tangent mate has no at-rest record");
     assert!(
         matches!(&err, AssemblyError::Mint { refusals }
-            if refusals.iter().all(|r| matches!(r, MintRefusal::NoAtRestRecord { .. }))),
+            if !refusals.is_empty()
+                && refusals
+                    .iter()
+                    .all(|r| matches!(r, MintRefusal::NoAtRestRecord { .. }))),
         "the class table's mint half is what refuses, got {err}"
     );
     assert!(

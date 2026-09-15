@@ -145,3 +145,77 @@ own.
 
 **Territory announced:** `crates/editor-core/src/assembly.rs` is EDIT's
 and the pncad-py façade is LIB's; PORT claims no paths.
+
+## 2026-09-15 — PORT-DOORS-1 fix pass (PR 2635, full review)
+
+Full review returned no MAJOR, one MINOR, nineteen style findings. The
+MINOR was a **falsified claim**: `crates/editor-core/ASSEMBLY.md`'s A3
+still cited `AssemblyError::NoAtRestRecord`, a path the change retired.
+Repaired to `MintRefusal::NoAtRestRecord`, and a SECOND stale sentence
+the review did not name was found beside it — the same page said the
+carried refusal is raised *"on the head row in gather order"*, which
+the widening makes false. Both are repointings of a ratified page that
+an approved code change moved, not decisions (CLAUDE.md's git-workflow
+test), so they land with the change that caused them; what the clauses
+DECIDE is untouched.
+
+**The class letters were wrong twice.** The lane reported `L`, which is
+not in this program's vocabulary — `plan.md` defines `E`/`M`/`H` and
+no plan in `work/` carries an `L`. Both cells are now **H**, on the
+scale's own "spanning several programs' territory" clause: the widening
+retires two public `AssemblyError` variants and reaches EDIT's
+`assembly.rs` and LIB's whole façade. `plan.md`'s review-posture
+sentence is corrected in the same PR too: the full review is no longer
+"that row alone", because this unit asked for the second arm under the
+escape hatch the same section defines — and the escape hatch earned
+its keep, since the style lane's sweep would not have asked after a
+ratified page's citations.
+
+**The list-renderer class, all three sites disposed.** The review was
+right that a point fix was a half-fix: `finding::render_list`,
+`product.rs`'s disclosed-but-unrouted closure and the lane's own
+`render_refusals` were three copies of one loop. The unification is in
+`finding.rs`: `render_lines` is the loop, over anything that renders as
+ONE line, and `render_list` is `render_lines` over a `Composed`
+adapter. Both mint arms and `ProductError` now call it. The reason the
+lane gave for not routing — a `MintRefusal` is already a composed
+sentence — was a reason not to COMPOSE it, never a reason to copy the
+loop, and that distinction is now what the sink's doc says.
+
+**A second sweep, shaped for the shape the first one missed.** The
+review observed that two of the three known instances are CALLER-SIDE
+kind/tie pairings, which the `Entry::Tied`-adjacent grep can only find
+by luck, and asked whether the instrument was structurally wrong. It
+was. The second instrument walks every fn body in `crates/*/src`, finds
+those that both reach a tie-refusal producer and test an entity kind,
+and reports which comes FIRST. 23 functions do both; 8 reach the tie
+first; 5 are projection or tag matches where arm order is not
+semantics, 1 is a test fixture, 1 is `resolve_face` matching its own
+signature line — and 1 is new:
+`work/wire/declare-door-refuses-a-tie-before-it-asks-the-pairs-kinds`,
+the declare door refusing `Ambiguous` before `DeclareUnsupportedPair`
+can name the pair's kinds. Third instance of the class, filed on WIRE's
+slate beside the second, and it sits on the same two lines as WIRE's
+existing `the-declared-pair-refusal-reads-the-authored-kind`.
+
+**Also filed:**
+`work/lib/route-fields-builds-both-python-objects-to-return-one` —
+the lane added the third and fourth caller that indexes a helper
+returning a pair, deliberately (a consistent wart over an inconsistent
+fix in LIB's file), and disclosing it without a row would have been the
+thing `work/README.md:117` forbids.
+
+Everything else the review raised was taken: the Python row that
+computed its expectation from the answer's own length (both mates and
+both words are written out now), the two probe names that asserted
+"first bad mate wins" over a diff that made both win, the sweep-receipt
+line that gave an untrue reason for a true conclusion (`select.rs`
+DOES refuse over a tie — it is kind-first because `NamePat::matches`
+tests `name.kind` and `continue`s before a candidate is read), the two
+`TiedDisagrees` sites absent from the table, the non-empty "guarantee"
+that was prose on a `pub Vec` (now stated as what the door does, with
+the demo's vacuous `all` fixed), the `display_contract` sentence
+claiming a guard that could not exist, `MintRefusal`'s type doc naming
+one of its two destinations, the carried arm repeating its recourse
+once per row (now once, in the header), and `debug_assert!(false, ...)`
+restated as a positive predicate.

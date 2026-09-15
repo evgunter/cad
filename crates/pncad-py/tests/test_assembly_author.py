@@ -844,20 +844,26 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertEqual(caught.exception.variant, "read_site_missing_node")
 
     def test_a_class_the_gate_cannot_mint_refuses_at_the_gate(self):
-        doc, _, (mate_1, _) = TestBenchStand.stand(self, class_=ContactClass.Tangent)
+        doc, _, (mate_1, mate_2) = TestBenchStand.stand(self, class_=ContactClass.Tangent)
         with self.assertRaises(pncad.AssemblyError) as caught:
             assemble(doc, evaluate(doc, resolver=self.ws))
         # A Tangent mate SOLVES and mints nothing at rest: the two
         # doors admit different sets, which is the whole reason the
         # admission table is one value both read.
         self.assertEqual(caught.exception.variant, "unminted_mates")
-        # EVERY mate that did not mint, in document order — the stand
-        # declares two, and an author repairs both from one gate call.
+        # EVERY mate that did not mint, in document order. The stand
+        # declares TWO Tangent mates, and both are named: an
+        # expectation built from the answer's own length could not red
+        # on a dropped row, which is the one thing this unit exists to
+        # prevent, so both mates and both words are written out.
         rows = caught.exception.refusals
-        self.assertEqual([r.variant for r in rows], ["no_at_rest_record"] * len(rows))
-        self.assertEqual(rows[0].mate, mate_1)
-        self.assertEqual(rows[0].class_, ContactClass.Tangent)
-        self.assertGreaterEqual(len(rows), 2)
+        self.assertEqual(
+            [(r.variant, r.mate, r.class_) for r in rows],
+            [
+                ("no_at_rest_record", mate_1, ContactClass.Tangent),
+                ("no_at_rest_record", mate_2, ContactClass.Tangent),
+            ],
+        )
         # And it says what to do about it: `Rest` is the one class v1
         # carries all the way to the gate.
         self.assertIn(

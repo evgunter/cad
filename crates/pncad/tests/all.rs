@@ -4214,10 +4214,10 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `Vec<MintRefusal>` and `AssemblyError::CarriedMintRefusal` a
 ///   `Vec<CarriedRefusal>`. They were held out while each arm was one
 ///   refusal flattened into the enum's own fields — the gate's answer
-///   then named no row type, and a consumer matching it never had to
-///   — and a consumer who cannot name a row cannot read the answer.
-///   `CarriedDeclaration`,
-///   `CarriedDeclarations`, `Route` and `Relation` ARE carried,
+///   then named no row type, so a consumer matching it never had to,
+///   and a consumer who cannot name a row cannot read the answer.
+///   `CarriedDeclaration`, `CarriedDeclarations`, `Route` and
+///   `Relation` ARE carried,
 ///   because nothing else states them: the first is what
 ///   `Product::carried` and `Assembly::carried` hold, and the last two
 ///   are fields of `Attribution::Carried`, which a consumer matching

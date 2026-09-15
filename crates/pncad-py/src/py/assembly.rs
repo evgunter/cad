@@ -493,6 +493,13 @@ impl MintRefusal {
     }
 
     /// Why the reference did not resolve.
+    ///
+    /// `None` on the `no_at_rest_record` arm, which has a reason of a
+    /// different KIND: not a refused reference but the class's own
+    /// entry in the admission table. That reason is not re-minted
+    /// here, because the table is where it is sourced and
+    /// `class_admission(refusal.class_).why` is the same string the
+    /// message carries. One home, asked by the door that owns it.
     #[getter]
     fn why(&self) -> Option<RefusedRef> {
         match &self.0 {

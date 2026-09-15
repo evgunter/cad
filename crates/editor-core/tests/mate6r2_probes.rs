@@ -254,7 +254,7 @@ fn headline(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> Strin
 /// reference — first in document order — heads the list, on both
 /// trees.
 #[test]
-fn p1_first_bad_mate_wins_badref_before_tangent() {
+fn p1_both_bad_mates_refuse_badref_heading_the_list() {
     let mut store = StubStore::default();
     let part = store.insert(cube_part("m6r2-p1-cube"), Tol::witness());
     let (doc, ids, _) = stand("m6r2-p1-stand", part, 1.5);
@@ -300,7 +300,7 @@ fn p1_first_bad_mate_wins_badref_before_tangent() {
 /// same two refusals, with the Tangent's `NoAtRestRecord` at the head,
 /// on both trees — the list is the DOCUMENT's order, not the walk's.
 #[test]
-fn p2_first_bad_mate_wins_tangent_before_badref() {
+fn p2_both_bad_mates_refuse_tangent_heading_the_list() {
     let mut store = StubStore::default();
     let part = store.insert(cube_part("m6r2-p2-cube"), Tol::witness());
     let (doc, ids, _) = stand("m6r2-p2-stand", part, 1.5);

@@ -192,17 +192,20 @@ pub struct CarriedRefusal {
     pub refusal: MintRefusal,
 }
 
-// One carried row as an author reads it: which document, what it
-// could not mint, and the file to open. The refusal forwards the
-// inner document's own words rather than restating them, so a row
-// read here and the same row read in that document say one thing.
+// One carried row as an author reads it: which document, and what it
+// could not mint. The refusal forwards the inner document's own words
+// rather than restating them, so a row read here and the same row read
+// in that document say one thing.
+//
+// NO RECOURSE HERE, for the reason [`AtRestFinding`]'s `recourse`
+// answers `""`: the repair is the same sentence for every row of the
+// list — open those documents — so it belongs once, in the header the
+// arm writes, and not once per mate.
 impl core::fmt::Display for CarriedRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
-            "{} did not mint one of its own mates, so this assembly is not \
-             at rest over it: {} — open that document and repair the \
-             mate there",
+            "{} did not mint one of its own mates: {}",
             self.route, self.refusal
         )
     }
@@ -502,9 +505,17 @@ pub struct AtRestFinding {
 /// material the document denotes, and a document whose mate reference
 /// went stale, or whose class carries no record at rest, still has a
 /// product to draw and to measure. [`assemble`] is where they become
-/// refusals — every one it holds, on [`AssemblyError::Mint`] in
-/// document order — because "these records are the ones this
-/// document rests on" is the at-rest gate's claim, not the gather's.
+/// refusals, because "these records are the ones this document rests
+/// on" is the at-rest gate's claim, not the gather's.
+///
+/// **Two destinations, and a row reads the same in both.** This
+/// document's own rows travel whole on [`AssemblyError::Mint`], in the
+/// gather's document order. A row of a document BELOW this one is the
+/// payload of a [`CarriedRefusal`] and travels on
+/// [`AssemblyError::CarriedMintRefusal`], in the inner documents' own
+/// order, with the route it arrived by beside it. The refusal itself
+/// is the inner document's verbatim, which is why one `Display` serves
+/// both.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MintRefusal {
     /// A mate's reference did not resolve to a product face.
@@ -580,16 +591,22 @@ impl core::fmt::Display for MintRefusal {
 pub enum AssemblyError {
     /// The gather itself refused.
     Product(Box<ProductError>),
-    /// Mates of THIS document whose declarations were not minted —
-    /// a reference that named no product face, a class that mints no
-    /// record at rest ([`crate::mate::class_admission`]), or both, on
-    /// as many mates as the gather found.
+    /// Mates of THIS document whose declarations were not minted:
+    /// ONE ROW PER MATE, saying why that mate did not mint — its
+    /// reference named no product face, or its class mints no record
+    /// at rest ([`crate::mate::class_admission`]).
     ///
     /// **Every refusal travels**, in the gather's document order, each
     /// in its own words: an author with two broken mates learns about
     /// both from one evaluation rather than repairing one to be told
-    /// about the next. Non-empty — a document that refused nothing
-    /// does not reach this arm.
+    /// about the next.
+    ///
+    /// [`assemble_gathered`] builds this arm only from a non-empty
+    /// list, so a refusal a caller RECEIVES names at least one mate.
+    /// That is what the door does, not what the type enforces: the
+    /// field is a `pub Vec` and anyone may construct an empty one, and
+    /// a reader who needs the guarantee asks the list rather than this
+    /// sentence.
     Mint {
         /// Every refusal.
         refusals: Vec<MintRefusal>,
@@ -607,8 +624,12 @@ pub enum AssemblyError {
     /// make the precedence invisible.
     ///
     /// **Every refusal travels**, in the inner documents' own order,
-    /// each with the route it arrived by. Non-empty. Nothing is
-    /// re-decided here: each inner document refused its row itself.
+    /// each with the route it arrived by. Nothing is re-decided here:
+    /// each inner document refused its row itself.
+    ///
+    /// Non-empty on the same terms as [`AssemblyError::Mint`]: the
+    /// door builds it from a non-empty list, and the type does not
+    /// enforce that.
     CarriedMintRefusal {
         /// Every carried refusal.
         refusals: Vec<CarriedRefusal>,
@@ -710,43 +731,27 @@ impl AssemblyError {
     }
 }
 
-// The two mint channels' lists, under the header their arm has
-// already written: one refusal per indented line, in the order the
-// gather found them. `finding::render_list`'s shape, spelled here
-// because a mint refusal is already ONE composed sentence — subject,
-// story and recourse together — rather than the three parts that
-// sink composes.
-fn render_refusals<T: core::fmt::Display>(
-    f: &mut core::fmt::Formatter<'_>,
-    refusals: &[T],
-) -> core::fmt::Result {
-    for refusal in refusals {
-        write!(f, "\n  {refusal}")?;
-    }
-    Ok(())
-}
-
 impl core::fmt::Display for AssemblyError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Product(e) => f.write_str(&Self::product_refusal(e)),
-            // The pin builds its expectation from the impl, so a copy
-            // that stops tracking it fails.
             Self::Mint { refusals } => {
                 write!(
                     f,
                     "assembly: this document did not mint {} of its own mate(s)",
                     refusals.len()
                 )?;
-                render_refusals(f, refusals)
+                crate::finding::render_lines(f, refusals)
             }
             Self::CarriedMintRefusal { refusals } => {
                 write!(
                     f,
-                    "assembly: {} mate(s) of documents below this one did not mint",
+                    "assembly: {} mate(s) of documents below this one did not \
+                     mint, so this assembly is not at rest over them — open \
+                     those documents and repair the mates there",
                     refusals.len()
                 )?;
-                render_refusals(f, refusals)
+                crate::finding::render_lines(f, refusals)
             }
             Self::AtRest { findings } => {
                 write!(
@@ -1082,20 +1087,23 @@ fn resolve_face<P, T: Decide>(
         return Err(refuse(RefusedRef::NotAFace { kind: name.kind }));
     }
     match entry {
-        // A face by the question above and the table's own rule that a
-        // row's kind is its name's; a key that is not one is that rule
-        // broken, and this door answers what the key IS rather than
-        // inventing a face.
-        Entry::Unique(ent) => ent.key.face().ok_or_else(|| {
+        Entry::Unique(ent) => {
+            // A face by the question above and the table's own rule
+            // that a row's kind is its name's; a key that is not one
+            // is that rule broken, and this door answers what the key
+            // IS rather than inventing a face. Asserted in debug and
+            // answered in release, [`operand_answer`]'s rung 4.
             debug_assert!(
-                false,
+                matches!(ent.key, crate::names::EntityKey::Face(_)),
                 "the product's table holds a non-face under a face name: \
                  `NameTable::insert` admits a row only at its name's kind"
             );
-            refuse(RefusedRef::NotAFace {
-                kind: ent.key.kind(),
+            ent.key.face().ok_or_else(|| {
+                refuse(RefusedRef::NotAFace {
+                    kind: ent.key.kind(),
+                })
             })
-        }),
+        }
         Entry::Tied(ents) => Err(refuse(RefusedRef::Ambiguous {
             width: u32::try_from(ents.len()).unwrap_or(u32::MAX),
         })),

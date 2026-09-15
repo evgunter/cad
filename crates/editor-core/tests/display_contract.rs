@@ -773,10 +773,15 @@ fn the_mint_doors_at_rest_refusal_ends_on_its_recourse_from_both_carriers() {
 /// **Every refusal the gate holds is rendered**, each on its own
 /// indented line under a header that counts them — the two mint arms
 /// answer with the whole list the gather recorded, so an author with
-/// three broken mates reads three repairs rather than the first.
+/// two broken mates reads two repairs rather than the first.
 ///
-/// The count in the header is the list's own length, so a header that
-/// stops tracking the rows reds here.
+/// The count is built from the FIXTURE's own length rather than
+/// written as a word, so a header that reports a constant, or reports
+/// a count off by one, reds here. It is not a guard on the header
+/// tracking the body: those are one expression over one slice and
+/// cannot drift. What each arm's rows carry — each mate's own
+/// sentence, and for the carried arm the route and the ONE recourse in
+/// the header — is the rest of it.
 #[test]
 fn the_mint_arms_render_every_refusal_they_hold() {
     let why = editor_core::class_admission(ContactClass::Tangent).no_record_reason();
@@ -795,10 +800,17 @@ fn the_mint_arms_render_every_refusal_they_hold() {
             },
         ],
     };
+    let AssemblyError::Mint { refusals } = &raised else {
+        panic!("built as the mint arm");
+    };
+    let counted = format!(
+        "this document did not mint {} of its own mate(s)",
+        refusals.len()
+    );
     assert_f6(
         &raised,
         &[
-            "this document did not mint 2 of its own mate(s)",
+            &counted,
             "mate 2's a reference",
             "mate 5's class Tangent has no at-rest kernel record",
         ],
@@ -831,15 +843,32 @@ fn the_mint_arms_render_every_refusal_they_hold() {
             },
         ],
     };
+    let AssemblyError::CarriedMintRefusal { refusals } = &carried else {
+        panic!("built as the carried arm");
+    };
+    let counted = format!(
+        "{} mate(s) of documents below this one did not mint",
+        refusals.len()
+    );
+    let shown = carried.to_string();
     assert_f6(
         &carried,
         &[
-            "2 mate(s) of documents below this one did not mint",
+            &counted,
             "mate 2's a reference",
             "mate 5's class Tangent has no at-rest kernel record",
-            "open that document and repair the mate there",
         ],
         &["CarriedMintRefusal", "CarriedRefusal"],
+    );
+    // ONE recourse for the list, in the header: the repair is the same
+    // sentence for every row, and a per-row copy is the generic tail
+    // the finding sink exists to forbid.
+    assert_eq!(
+        shown
+            .matches("open those documents and repair the mates there")
+            .count(),
+        1,
+        "the carried repair is stated once, not once per row: {shown:?}"
     );
 }
 
