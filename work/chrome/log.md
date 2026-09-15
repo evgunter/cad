@@ -562,7 +562,7 @@ named trigger.
 
 WIRE's `nobodyroots-classification-has-two-homes` gave the
 empty-document reading of a gather refusal ONE home:
-`ProductErrorKind::is_empty_document` in
+`ProductErrorKind::means_no_body` in
 `crates/editor-core/src/product.rs` (WIRE's), with the argument moved
 onto it. A predicate with no caller would be the very defect this
 program has an open row for
@@ -570,29 +570,32 @@ program has an open row for
 consumers that re-derived the partition now cite it. Four did; the three sites below are yours.
 
 **`crates/viewer/src/frame.rs` and `crates/viewer/src/session.rs`
-(CHROME's and VIEW's), two sites.**
+(CHROME's and VIEW's), two files, three edits.**
 
 - `frame::product_badge`'s filter: the `ProductError::NoBodyRoots`
   alternative leaves the `matches!` and becomes
-  `fault.kind().is_empty_document() || matches!(…)` over the other
+  `fault.kind().means_no_body() || matches!(…)` over the other
   three. The four declined arms are the same four.
 - `product_badge`'s doc, the first "arms that stay silent" paragraph:
-  the *"EMPTY, not malformed / a fresh document is in that state"*
-  argument becomes a citation of
-  `pncad::document::ProductErrorKind::is_empty_document`, keeping the
-  chrome's own half — the blank viewport says it, and reporting it
-  makes deleting the last feature look like a failure. **The second
-  paragraph is untouched**: the three per-node arms are declined
-  because the Features pane already badges them with a typed cause,
-  which is not the same reason and is not WIRE's to move.
+  the *"EMPTY, not malformed / a fresh document is in that state / one
+  whose last feature was just deleted"* argument becomes a citation of
+  `pncad::document::ProductErrorKind::means_no_body`, **worked examples
+  included** — the paragraph now says only what is the chrome's: the
+  blank viewport is already the picture of this state, so a badge here
+  would make an ordinary state look like a failure. The examples are
+  MOVED, not copied; leaving them on both sides is the defect this unit
+  closes, one size smaller. **The second paragraph is untouched**: the
+  three per-node arms are declined because the Features pane already
+  badges them with a typed cause, which is not the same reason and is
+  not WIRE's to move.
 - `DocSession`'s landing: `matches!(fault, ProductError::NoBodyRoots)`
-  becomes `fault.kind().is_empty_document()`, and the comment above it
+  becomes `fault.kind().means_no_body()`, and the comment above it
   cites the predicate instead of restating *"has no product and no
   failure either"*.
 
 **No signature moved.** `product_badge`, `run_checks`,
 `DocSession`'s landing and `checks_report` keep their signatures,
-their arms and their behaviour — `is_empty_document` is true of exactly
+their arms and their behaviour — `means_no_body` is true of exactly
 `NoBodyRoots` and of nothing else, which this lane pins as a census
 test over `product::tests::every_arm`. The doc/comment edits replace a
 re-argument of the shared classification with a citation of it and

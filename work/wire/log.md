@@ -4393,7 +4393,7 @@ Signed (TOPO fix-pass lane, `geom-source-absence-conflates-four-origins`).
 Lane `wire-n1`, branch `wire/nobodyroots-predicate`. **Open for review;
 not merged.**
 
-**What landed.** `ProductErrorKind::is_empty_document`
+**What landed.** `ProductErrorKind::means_no_body`
 (`crates/editor-core/src/product.rs`) — the empty-document reading of a
 gather refusal, argued once, in the crate that owns the enum.
 
@@ -4402,10 +4402,10 @@ payload, so nothing beyond the class informs the answer; `kind()` is
 already the one exhaustive projection, so a predicate on the kind adds no
 second exhaustive match over `ProductError` and makes a tenth arm a
 compile error TWICE by name — once to give it a class, once to classify
-it. A delegating `ProductError::is_empty_document` was considered and
+it. A delegating `ProductError::means_no_body` was considered and
 refused: its only production caller would be its own delegate, which is
 `frame-linear-generic-door-has-no-consumers` with a new instance. Every
-consumer spells `fault.kind().is_empty_document()`.
+consumer spells `fault.kind().means_no_body()`.
 
 **The row's count was two. It is four.** The read section of 2026-09-15
 discharged the two candidates it inherited (`py/assembly.rs`,
@@ -4432,5 +4432,67 @@ an empty document into a `ChecksError::Product`. Three in-tree callers
 route around it by hand; nothing states the precondition. The predicate is
 what makes the guard a one-liner, so the row is newly cheap rather than
 newly true.
+
+Signed (WIRE implementer lane `wire-n1`).
+
+## Review pass on #2629 (2026-09-15)
+
+Three stated claims were false and are repaired; the code's behaviour
+did not change.
+
+- **The new census test promised a red it cannot deliver.** Its doc said
+  a tenth arm read as no-body *"reds here, naming the arm"*. It does
+  not: `means_no_body` is exhaustive over the KIND, so an arm added
+  under an EXISTING kind and left out of `every_arm` reads no-body with
+  nothing red anywhere. No bijection is available to assert — stable
+  Rust cannot enumerate an enum's variants, which is why the roster is
+  hand-written at all — so the claim is narrowed to the floor it is and
+  the residue is written at the site, citing the census's own caveat
+  rather than restating it. The predicate's own closing paragraph
+  carried the same overclaim (*"a compile error twice over"*) and is
+  narrowed with it.
+- **The predicate's doc overclaimed in the `true` direction.** It read
+  the class absolutely — *"nothing is wrong … asking it for one is not a
+  failure"* — while `eval/parts.rs`'s `product_fault` falls the arm
+  through to `PartFault::PartProduct`, because instantiating a body-less
+  part document IS a fault of the instantiate node. The
+  consumer-freedom paragraph now covers both directions and names that
+  case. This lane's own sweep called `parts.rs` "a payload extraction",
+  which is right about what the function does and misses what its
+  fall-through decides.
+- **The row filed on FIX's slate named three callers of
+  `Subject::refused` from memory and got all three wrong.** Re-derived
+  with `git grep`: two production callers (`run_checks`,
+  `checks_report`) and two test callers; `viewer::session` is not one —
+  its test decides whether to run the checks, not which subject to
+  build. The row's option (a) said "all three callers" and now says
+  both production ones. The `pncad-py` literal it cited as evidence of
+  reachability is filler in a tag-stability test, and is dropped.
+
+**Renamed `is_empty_document` → `means_no_body`.** A kind is not a
+document, and a document holding sketches and datums is not empty; the
+doc's first line was doing repair the name should not need. Naming the
+shared fact after one consumer's reading is this row's own defect one
+size smaller, so the code says what the class means and the chrome goes
+on calling it the empty-document reading.
+
+**Asked and answered: is `session.rs`'s `at_rest` refusal over
+`NoBodyRoots` constructible?** **Yes**, derived from the tree rather
+than built: `roots::is_sink` makes the root set exactly the sink set;
+`Node::Measure`'s `inputs()` are the nodes its references are read AT;
+`product::sources_of` returns `None` for a measure. So a document of an
+`InstantiatePart` plus a `Measure` whose refs are read at it has the
+instantiate de-sunk, the measure as its only root, and gathers
+`NoBodyRoots` — while `session::assembly_shaped` is true, because it
+scans `order()` for any `InstantiatePart` and does not care about roots.
+That reaches `AtRestBadge::Refused` carrying the no-body refusal: the
+"deleting the last feature looks like a failure" outcome, three lines
+below the line that avoids it. Not fixed here — pre-existing, and
+CHROME's and VIEW's. Two routes were closed on the way and are worth
+recording so nobody re-walks them: a `BooleanValue::Empty` root still
+sets `any_body_denoting` (it returns `Some(vec![])`), and
+`Node::Mate`'s `inputs()` is empty, so a mate never de-sinks an
+instance. What was NOT checked is whether the GUI will author a measure
+over the only body-producing node.
 
 Signed (WIRE implementer lane `wire-n1`).

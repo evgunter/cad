@@ -2693,7 +2693,7 @@ worth keeping unfired.
 
 WIRE's `nobodyroots-classification-has-two-homes` gave the
 empty-document reading of a gather refusal ONE home:
-`ProductErrorKind::is_empty_document` in
+`ProductErrorKind::means_no_body` in
 `crates/editor-core/src/product.rs` (WIRE's), with the argument moved
 onto it. A predicate with no caller would be the very defect this
 program has an open row for
@@ -2704,19 +2704,19 @@ consumers that re-derived the partition now cite it. Four did; the two lines bel
 
 - `run_checks`'s gather match: `Err(product::ProductError::NoBodyRoots)
   => Subject::NoBodyRoots` becomes a guard,
-  `Err(ref source) if source.kind().is_empty_document() =>
+  `Err(ref source) if source.kind().means_no_body() =>
   Subject::NoBodyRoots`. Same routing, same arm.
 - `Subject`'s doc comment, the `Subject::NoBodyRoots` bullet: *"an
   empty document, or one holding only sketches and datums. Not a
   failure to run the registry"* becomes a citation of
-  `product::ProductErrorKind::is_empty_document`. The rest of the
+  `product::ProductErrorKind::means_no_body`. The rest of the
   bullet — what a resident that needs a body does, and what
   connectedness does — is the REGISTRY's own consequence and is
   untouched.
 
 **No signature moved.** `product_badge`, `run_checks`,
 `DocSession`'s landing and `checks_report` keep their signatures,
-their arms and their behaviour — `is_empty_document` is true of exactly
+their arms and their behaviour — `means_no_body` is true of exactly
 `NoBodyRoots` and of nothing else, which this lane pins as a census
 test over `product::tests::every_arm`. The doc/comment edits replace a
 re-argument of the shared classification with a citation of it and

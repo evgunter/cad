@@ -1449,12 +1449,12 @@ pub fn delta_badge(fitted: Option<&FittedDelta>) -> Option<Badge> {
 ///
 /// # The arms that stay silent, and why
 ///
-/// **A document with no body is not a fault**, which is the reading
-/// [`pncad::document::ProductErrorKind::is_empty_document`] states and
-/// this badge cites rather than restates. Nothing here is wrong to
-/// report, and the blank viewport says so more plainly than any words
-/// could; reporting it makes deleting the last feature look like a
-/// failure.
+/// **A document with no body is not this channel's to report.** The
+/// class means there is nothing to gather rather than something wrong
+/// — the reading, and the documents in that state, are
+/// [`pncad::document::ProductErrorKind::means_no_body`]'s — and the
+/// blank viewport is already the picture of it. A badge here would
+/// make an ordinary state look like a failure.
 ///
 /// **A per-node state the feature tree already badges is not this
 /// channel's to repeat.** [`crate::tree::RowStatus`] has exactly three
@@ -1477,7 +1477,7 @@ pub fn delta_badge(fitted: Option<&FittedDelta>) -> Option<Badge> {
 pub fn product_badge(fault: Option<&ProductError>) -> Option<Badge> {
     fault
         .filter(|fault| {
-            !(fault.kind().is_empty_document()
+            !(fault.kind().means_no_body()
                 || matches!(
                     fault,
                     ProductError::RootFailed { .. }

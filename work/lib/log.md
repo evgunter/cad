@@ -5143,7 +5143,7 @@ lane).
 
 WIRE's `nobodyroots-classification-has-two-homes` gave the
 empty-document reading of a gather refusal ONE home:
-`ProductErrorKind::is_empty_document` in
+`ProductErrorKind::means_no_body` in
 `crates/editor-core/src/product.rs` (WIRE's), with the argument moved
 onto it. A predicate with no caller would be the very defect this
 program has an open row for
@@ -5154,7 +5154,7 @@ consumers that re-derived the partition now cite it. Four did; the one line belo
 
 `checks_report`'s match on the memoized gather:
 `Err(d::ProductError::NoBodyRoots) => { … }` becomes
-`Err(ref source) if source.kind().is_empty_document() => { … }`. The
+`Err(ref source) if source.kind().means_no_body() => { … }`. The
 arm's body, the `Subject::NoBodyRoots` it builds and the fall-through
 `Subject::refused` arm are unchanged. This site was NOT in the row's
 brief — WIRE's sweep found it, and leaving the fourth consumer
@@ -5163,7 +5163,7 @@ the unit closes.
 
 **No signature moved.** `product_badge`, `run_checks`,
 `DocSession`'s landing and `checks_report` keep their signatures,
-their arms and their behaviour — `is_empty_document` is true of exactly
+their arms and their behaviour — `means_no_body` is true of exactly
 `NoBodyRoots` and of nothing else, which this lane pins as a census
 test over `product::tests::every_arm`. The doc/comment edits replace a
 re-argument of the shared classification with a citation of it and
