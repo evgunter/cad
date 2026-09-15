@@ -159,7 +159,7 @@ use pncad::sweep::{
 };
 use pncad::topo::{Body, BooleanError, Operand, TransformError};
 
-use crate::scalar::{Scalar, authored_frame, sketch_frame, axis_frame};
+use crate::scalar::{Scalar, authored_frame, axis_frame, sketch_frame};
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::{p2, p3, polygon, v2, v3, validated};
 use pncad::geom_core::Tol;
