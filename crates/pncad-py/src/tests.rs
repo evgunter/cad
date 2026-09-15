@@ -6469,6 +6469,22 @@ struct MintingItem {
 /// exception to the header's claim in `src/errors.rs`, and the header
 /// states it.
 ///
+/// **Why this census is in this file, weighed.** Against: this
+/// program's other two instruments —
+/// `crates/test-utils/tests/hand_written_impl_census.rs` and
+/// `deny_unknown_fields_census.rs` — are each their own file, and this
+/// one lands 6,000 lines into a `mod tests` whose size is an open row
+/// on the same slate, which this unit then grew. For: the subject is
+/// ONE sibling module of this crate, read through `crate_dir` like
+/// `TAG_INVENTORY` above it reads `src/tags.rs`, and the `held_by`
+/// column names tests that live here — a census in `test-utils` would
+/// cite nine tests it cannot reach and would be a second place to look
+/// for "what holds a word in this crate". The `TAG_INVENTORY`
+/// precedent decided it. **What it costs is real and is not paid
+/// here**: the file grew 14% in the diff that added this, and
+/// `work/census/pncad-py-tests-rs-…` carries both sides for whoever
+/// splits it.
+///
 /// **Where this reader's parts live, and why each is where it is.**
 /// Four operations here are not this census's: reading an `impl` head
 /// ([`test_utils::source::impl_head`]), taking a type's bare name

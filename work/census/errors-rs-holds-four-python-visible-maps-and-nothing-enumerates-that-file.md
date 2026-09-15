@@ -153,6 +153,54 @@ diagnostic ladder names the form, with
 `the_tag_table_reader_refuses_a_const_fn_map` driving the rung. The
 grammar still admits no `const` map; nothing was widened.
 
+### What the style review found, and what the claim says now
+(fix pass, 2026-09-15)
+
+**The central claim was false and was executed twice**, against the
+real tree, by the style reviewer:
+
+- A CHARACTER literal was read and DROPPED, and with it the item that
+  spelled nothing else. `impl ValidationRefusal { pub const fn sep(self)
+  -> char { '/' } }` spliced onto `src/errors.rs` gave `[]`.
+- A literal in an OUTER ATTRIBUTE was charged to the item ABOVE it, so
+  `#[deprecated(note = "…")]` inflated the previous roster row rather
+  than inventing an unrostered name — and a deletion in the same item
+  cancelled it to `[]`.
+
+Both are **closed**, not narrowed. Every literal counts now, character
+literals included and carried as written; a declaration's head starts
+at the first attribute of the run above it, so an attribute literal
+lands on the item it decorates, and an attribute on an item this
+reader cannot name refuses rather than charging it anywhere. Four
+tests execute the three cases and the refusal.
+
+**The duplicate-name key was `SelfType::fn_name`**, so
+`impl fmt::Debug for QuantityOpMismatch` beside the existing
+`impl fmt::Display` hard-stopped the census with *"Qualify them apart
+in the same diff"* — an instruction Rust gives no way to follow. The
+key is `(self type, trait, item name)` now, spelled `<Type as
+Trait>::name`, **which is this program's own unit-2 key**:
+`crates/test-utils/tests/hand_written_impl_census.rs` keys on
+`(path, trait, self type)` and says at the site why the trait is in it.
+This unit had dropped it and walked into the collision that census had
+already solved.
+
+`the_errors_mint_census_reds_when_the_file_goes_quiet` drove the
+comparison only — `read_minting_items("")` is empty for a broken reader
+too — while its doc claimed both halves. It drives both now, over an
+empty source and over a legible file holding none of the roster, and
+asserts every row BY NAME. Proven by mutation in both directions: a
+reader returning empty for every non-empty source reds it (it was green
+before), and disabling the missing-row loop reds only it.
+
+Four operations this census had written for itself moved to
+`crates/test-utils/src/source.rs`, which is where the tree's shared
+lexer already lives: `impl_head`, `type_base`, `ident` and
+`line_start`. Each had a second implementation by a different
+algorithm in a sibling census; `hand_written_impl_census.rs`,
+`deny_unknown_fields_census.rs` and one `editor-core` test read the
+shared ones now.
+
 ## Two observations about WHY the file keeps growing
 
 Both were raised in CENSUS-PY-RAISE-LITERALS' style review, rated

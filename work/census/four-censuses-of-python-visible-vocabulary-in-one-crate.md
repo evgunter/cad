@@ -90,3 +90,36 @@ class name-for-name, and is what actually holds the crate's
 `#[pyclass]` enum member vocabulary (see the note on that unit's item).
 Whether a stub/module name check belongs in this family or is a
 different question is itself part of the call.
+
+## A seventh device, and the answer to whether it joins the family
+(CENSUS-ERRORS-ARRIVAL, 2026-09-15)
+
+`ERRORS_MINTING_ITEMS` and `read_minting_items` in `src/tests.rs` are
+a further instrument over a further population in this same crate —
+every item in `src/errors.rs` that spells a literal — landed by the
+unit whose entire subject was that a row predicting the next instance
+does not stop it. This paragraph exists because that unit added the
+device and left this row untouched, which is that failure once more.
+
+**It is NOT a member of this family, and the reason is the question it
+asks.** The four (now six) above all ask *can a Python caller reach
+every member of this vocabulary, and does the word it reaches under
+still say what it said* — a question about WORDS and their reach.
+`ERRORS_MINTING_ITEMS` asks *has an ITEM arrived in this file*, and it
+is deliberately indifferent to whether the literals it counts are
+vocabulary at all: it counts an ABI string (`"C"` in the fixture) and
+a character literal (`'_'` in `is_bare_camel_token`) toward an item's
+tally, and its `held_by` column exists precisely because the census
+itself answers nothing about the words. Its population is the file's
+LITERALS, its verdict is a roster row, and its failure mode is "a new
+item nobody has looked at" rather than "a word Python cannot reach".
+
+So it is an arrival alarm, and what it couples to is not this row but
+`work/census/errors-rs-holds-four-python-visible-maps-and-nothing-enumerates-that-file.md`.
+**It is still a design input here**, in one direction: if the call
+made on this row is that a vocabulary should be enumerated by a
+compile-time device rather than by a source reader, the arrival alarm
+is the counter-case — the thing it detects (an item that did not exist
+before) is not compiler-known at all, and no exhaustive `match` can be
+written over it. A merged instrument would have to keep it or lose the
+arrival question.
