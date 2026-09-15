@@ -27,8 +27,9 @@ use std::path::Path;
 // code, prose or a literal"; `crates/test-utils/tests/reader_census.rs`
 // carries the line that says so.
 use test_utils::source::{
-    ItemBody, balanced_end, code_and_literals, code_only, comments_only, ident, impl_head,
-    item_body, line_start, plain_string_literal, type_base,
+    ItemBody, balanced_end, boundary_after, boundary_before, code_and_literals, code_only,
+    comments_only, ident, impl_head, item_body, line_start, plain_string_literal, skip_ws,
+    type_base,
 };
 
 #[test]
@@ -6606,11 +6607,11 @@ fn read_minting_items(source: &str) -> BTreeMap<String, Vec<String>> {
     let text = code_and_literals(source);
     let code = code_only(source);
     let comments = comments_only(source);
-    let impls = impl_spans(&code);
+    let scopes = scope_spans(&code);
     let decls = declaration_heads(&code);
     let mut named: BTreeSet<String> = BTreeSet::new();
     for &(start, ref name) in &decls.heads {
-        let owner = qualified(&impls, start, name);
+        let owner = qualified(&scopes, start, name);
         assert!(
             named.insert(owner.clone()),
             "errors.rs: two items answer to `{owner}` — this reader keys on the item \
@@ -6655,7 +6656,7 @@ fn read_minting_items(source: &str) -> BTreeMap<String, Vec<String>> {
             );
         };
         found
-            .entry(minting_owner(&text, &impls, &decls, at))
+            .entry(minting_owner(&text, &scopes, &decls, at))
             .or_default()
             .push(value);
         at += raw.len();
@@ -6666,12 +6667,30 @@ fn read_minting_items(source: &str) -> BTreeMap<String, Vec<String>> {
     found
 }
 
-/// Every `impl` block in the file: the prefix a name declared inside
-/// it is qualified by, and the byte range its body spans.
+/// Every `impl` and `mod` block in the file: the prefix a name
+/// declared inside it is qualified by, and the byte range its body
+/// spans.
+///
+/// **The scan is free and the guard is the sibling census's**, not a
+/// line-start rule of this reader's own.
+/// `crates/test-utils/tests/hand_written_impl_census.rs` walks
+/// `code[from..].find("impl")` over the blanked view and admits a hit
+/// only where [`boundary_before`] and [`boundary_after`] make it a
+/// keyword; [`item_body`] then says whether a body follows. An `impl`
+/// inside a `mod` or a function body is ordinary Rust that a
+/// line-start rule does not see, and its methods then answer to bare
+/// names — loud, because a bare name is not on the roster, but loud
+/// under an item that does not exist by that name.
+///
+/// **`mod` is in the walk because the qualifier is a PATH.** A scope
+/// that contributes no prefix is a scope two types of the same bare
+/// name can collide under, and the collision is the one direction this
+/// census cannot be loud in — two names merging into one roster row.
+/// With the module in the key, `named` below is refusing a name Rust
+/// itself refuses, which is what its message claims.
 ///
 /// **The key carries the TRAIT, and that is the sibling census's key
-/// rather than this reader's invention.**
-/// `crates/test-utils/tests/hand_written_impl_census.rs` keys on
+/// rather than this reader's invention.** That census keys on
 /// `(path, trait, self type)` and says why: a key naming less than the
 /// impl covers impls it was never written about. Here the third
 /// element is the item name instead of the file, and dropping the
@@ -6680,52 +6699,112 @@ fn read_minting_items(source: &str) -> BTreeMap<String, Vec<String>> {
 /// two `fmt`s under one key, and ordinary correct Rust then hard-stops
 /// the census on a demand no author can satisfy, because two trait
 /// `fmt`s cannot be qualified apart. `<Type as Trait>::name` is Rust's
-/// own spelling for the distinction and is what the roster carries.
+/// own spelling for the distinction and is what the roster carries; a
+/// module prefix is written BEFORE it (`nested::<Type as Trait>::name`)
+/// rather than inside the angle brackets, which is not how Rust spells
+/// that path — the key's job is to be unique, and [`read_minting_items`]
+/// refuses the case where it is not.
 ///
-/// **Column 0 is the claim, and what makes it a safe one is the key
-/// above rather than rustfmt.** An `impl` inside a `mod` or a function
-/// body is ordinary indented Rust that rustfmt is happy with, and this
-/// walk does not see it: its methods lose their qualifier and answer
-/// to bare names. That is loud — a bare name is not on the roster, so
-/// every one of them reports NEW — and the case where it was NOT loud
-/// was the collision, two unqualified names merging into one row,
-/// which the trait in the key has taken from two `fmt`s to a name Rust
-/// itself rejects. Teaching this walk to nest is the better fix and is
-/// not this unit's; what it costs today is a noisier red, not a quiet
-/// one.
-fn impl_spans(code: &str) -> Vec<(String, std::ops::Range<usize>)> {
+/// **What this walk cannot see, each with what executes it and what
+/// that execution does not reach.** A list like this one has claimed
+/// exclusivity and been short four times in this program, so it claims
+/// none: these are the ones that have been run, and the walk is a
+/// text walk, so there are others.
+///
+/// * **An `impl` or `mod` a macro expands to.** A `macro_rules!` body
+///   spelling `impl` is text this walk reads out of its expansion
+///   context; one that pastes the keyword together, or a proc macro,
+///   spells nothing for it to read at all.
+///   `the_errors_mint_reader_reads_a_macro_body_as_text_and_says_so`
+///   executes the declarative case. **What that probe does not reach:**
+///   a derive or attribute macro, whose output no text in this file
+///   spells — no probe written in this file can reach it, and this
+///   census is silent on every item such a macro mints.
+/// * **A `mod name;` whose body is another file.** The items are
+///   outside this reader's population entirely.
+///   `the_errors_mint_reader_does_not_read_a_file_module_as_a_scope`
+///   executes it. **What that probe does not reach:** it shows the
+///   walk does not MISATTRIBUTE the rest of the file into that module,
+///   and says nothing whatever about the words in the other file.
+/// * **`impl` in type position** — `-> impl Display`, `impl Trait`
+///   arguments. [`item_body`] answers [`ItemBody::Declaration`] for
+///   these and they are skipped.
+///   `the_errors_mint_reader_reads_what_it_claims` holds one in its
+///   fixture. **What that probe does not reach:** it is the same
+///   mechanism the sibling census uses, so a defect in
+///   `boundary_before`/`item_body` would pass both together. The
+///   check that is differently shaped is the roster itself — the ten
+///   rows over the real `src/errors.rs` are a behavioural pin that
+///   moves if this walk starts or stops seeing a scope.
+/// * **The prefix is the SYNTACTIC nesting, not the type's defining
+///   path.** `mod a { impl crate::Taxonomy { … } }` keys under
+///   `a::Taxonomy`, and a top-level `impl Taxonomy` under `Taxonomy`,
+///   for one type.
+///   `the_errors_mint_reader_keys_a_nested_impl_by_where_it_is_written`
+///   executes it and pins the answer. **What that probe does not
+///   reach:** it records what this reader answers, not that the answer
+///   is the one a future author expects; it is a disclosed property
+///   and not a repair.
+/// * **A generic list closed early by a `>` comparison in a const
+///   generic argument** — [`test_utils::source::angle_end`]'s own
+///   disclosed residue, inherited here through [`impl_head`].
+///   `the_errors_mint_reader_reads_what_it_claims` carries an
+///   `impl<'a>` and an `impl<const N: usize>`. **What that probe does
+///   not reach:** the residue is about a comparison INSIDE the
+///   argument, which neither fixture spells, so this entry is
+///   disclosed unexecuted.
+fn scope_spans(code: &str) -> Vec<(String, std::ops::Range<usize>)> {
     let mut spans = Vec::new();
-    let mut at = 0usize;
-    for line in code.split_inclusive('\n') {
-        let start = at;
-        at += line.len();
-        if !(line.starts_with("impl")
-            && line[4..].starts_with(|c: char| c.is_whitespace() || c == '<'))
-        {
-            continue;
+    for keyword in ["impl", "mod"] {
+        let mut from = 0usize;
+        while let Some(off) = code[from..].find(keyword) {
+            let at = from + off;
+            from = at + keyword.len();
+            if !boundary_before(code, at) || !boundary_after(code, at + keyword.len()) {
+                continue;
+            }
+            let body = match item_body(code, at) {
+                ItemBody::Body(body) => body,
+                // `impl Trait` in type position and `mod name;` both
+                // end at a `;` and neither opens a scope this file
+                // holds items in.
+                ItemBody::Declaration(_) => continue,
+                ItemBody::Unterminated => panic!(
+                    "errors.rs:{}: an `{keyword}` whose body neither opens nor closes — \
+                     I do not understand where its items end",
+                    test_utils::source::line(code, at)
+                ),
+            };
+            spans.push((scope_qualifier(code, keyword, at, body.start), body));
         }
-        let ItemBody::Body(body) = item_body(code, start) else {
-            panic!(
-                "errors.rs:{}: an `impl` whose body neither opens nor closes — I do \
-                 not understand where its items end",
-                test_utils::source::line(code, start)
-            );
-        };
-        let head = impl_head(code, start, body.start).unwrap_or_else(|| {
-            panic!(
-                "errors.rs:{}: an `impl` head I cannot read — its generic list does \
-                 not close before its body",
-                test_utils::source::line(code, start)
-            )
-        });
-        let subject = type_base(&head.self_type);
-        let qualifier = head.trait_path.map_or_else(
-            || subject.to_owned(),
-            |named| format!("<{subject} as {}>", trait_key(&named)),
-        );
-        spans.push((qualifier, body));
     }
     spans
+}
+
+/// The prefix a name declared directly inside one scope is written
+/// under: a module's own name, or an `impl`'s subject and trait.
+fn scope_qualifier(code: &str, keyword: &str, at: usize, body_start: usize) -> String {
+    if keyword == "mod" {
+        let name = ident(code, skip_ws(code, at + keyword.len()));
+        assert!(
+            !name.is_empty(),
+            "errors.rs:{}: a `mod` whose name I cannot read",
+            test_utils::source::line(code, at)
+        );
+        return name.to_owned();
+    }
+    let head = impl_head(code, at, body_start).unwrap_or_else(|| {
+        panic!(
+            "errors.rs:{}: an `impl` head I cannot read — its generic list does \
+             not close before its body",
+            test_utils::source::line(code, at)
+        )
+    });
+    let subject = type_base(&head.self_type);
+    head.trait_path.map_or_else(
+        || subject.to_owned(),
+        |named| format!("<{subject} as {}>", trait_key(&named)),
+    )
 }
 
 /// A trait spelling as a key: its path qualification dropped, its
@@ -6889,17 +6968,28 @@ fn identifier(token: &str) -> Option<String> {
     (!name.is_empty()).then(|| name.to_owned())
 }
 
-/// A declaration's name qualified by the innermost `impl` block whose
-/// body holds it — `Type::name`, or `<Type as Trait>::name`.
-fn qualified(impls: &[(String, std::ops::Range<usize>)], at: usize, name: &str) -> String {
-    impls
+/// A declaration's name written under EVERY scope whose body holds
+/// it, outermost first — `Type::name`, `<Type as Trait>::name`,
+/// `module::Type::name`.
+///
+/// Every enclosing scope and not just the innermost: a prefix dropped
+/// is two items that can answer to one key, and merging two rows into
+/// one is the direction this census has no way to be loud in.
+/// Enclosure nests, so the containing scope is the one that starts
+/// first.
+fn qualified(scopes: &[(String, std::ops::Range<usize>)], at: usize, name: &str) -> String {
+    let mut enclosing: Vec<&(String, std::ops::Range<usize>)> = scopes
         .iter()
         .filter(|(_, body)| body.contains(&at))
-        .min_by_key(|(_, body)| body.end - body.start)
-        .map_or_else(
-            || name.to_owned(),
-            |(qualifier, _)| format!("{qualifier}::{name}"),
-        )
+        .collect();
+    enclosing.sort_by_key(|(_, body)| body.start);
+    let mut out = String::new();
+    for (qualifier, _) in enclosing {
+        out.push_str(qualifier);
+        out.push_str("::");
+    }
+    out.push_str(name);
+    out
 }
 
 /// Which item spells the literal at `at` — the nearest declaration
@@ -6915,7 +7005,7 @@ fn qualified(impls: &[(String, std::ops::Range<usize>)], at: usize, name: &str) 
 /// item cancels the inflation to no complaint at all.
 fn minting_owner(
     text: &str,
-    impls: &[(String, std::ops::Range<usize>)],
+    scopes: &[(String, std::ops::Range<usize>)],
     decls: &Declarations,
     at: usize,
 ) -> String {
@@ -6939,7 +7029,7 @@ fn minting_owner(
                 test_utils::source::line(text, at)
             )
         });
-    qualified(impls, *start, name)
+    qualified(scopes, *start, name)
 }
 
 /// Where [`ERRORS_MINTING_ITEMS`] and the file disagree.
