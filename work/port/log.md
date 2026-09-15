@@ -847,3 +847,60 @@ of one field drifted in opposite directions), three on GUARD (a
 second gate too; gate counts in prose that go stale on every new gate;
 embedded python readers copied between gates and outside `ruff.toml`'s
 population).
+
+## PORT-DIMS-1 — the load door's structure and the vacated name (2026-09-15)
+
+**Merged as PR PRNUM** on `port/dims-1-load-door-and-name`. Both rows
+close: `load-path-stringifies-structured-refusals` and
+`python-dimensionerror-names-the-quantity-check-not-the-dimension-check`.
+**`H` was right**, and for the reason the plan gave — the decision, not
+the diff.
+
+**Where the structure goes.** A per-parse refusal slot
+(`persist/refusal.rs`), read back by `parse_body` and routed by
+`parse_err`. serde's `Deserialize` hands an impl one error type and it
+is the format's, so a typed value can only leave by a channel beside the
+error. The two alternatives the spec sketched were priced and rejected
+in the PR: a deserializer adapter with our own `Error` type costs
+`Unreadable`'s line/column, which is a tested payload, and validating
+the wire type ahead of serde costs a parallel wire tree for the whole
+document. Both are bigger than this unit; the slot is ~70 lines and
+carries its own hazard statement.
+
+**The name.** Reading 1 — vacant. `QuantityOpMismatch` crosses under its
+Rust name; the document layer's `DimensionError` keeps reaching Python
+under DOOR names, because it reaches it at four doors and two of them
+carry payload the type has no room for. Part A's refusals therefore
+arrive as `PersistError` / `variant == "dimension"` / `inner_variant`
+from `expr_dimension_error_tag` — the shape `ParseError` already had.
+
+**Three of the spec's premises were wrong**, all in its own "confirmed"
+list or adjacent to it, and all corrected in the deleted spec's ledger
+row: the load door's tag was `unreadable` and not `parse` (and had been
+since PR 1553), which five doc comments, the binding census and both
+rows had copied onward; the `persist/` half of the row's first sweep was
+exact rather than stale; and the side-channel direction was the only one
+of the three sketched that does not cost something already tested.
+
+**Two assertions in the tree were not reaching their subject**, both
+found by executing them rather than by reading:
+`m4_pr6_refusal::corrupt_payloads_refuse_typed`'s ill-dimensioned case
+needled a literal spelling that lost its match when `unit` was added to
+the wire, and fell to an `else` branch that probed `serde_json::from_str`
+instead of `load`; and `pncad-py`'s seven-arm load-door probe wrote its
+literals without `unit`, so five of the seven refused as a MISSING FIELD
+and never reached the dimension checker at all — they passed on
+`unreadable` for the wrong reason. Both are now structural tampers that
+fail if the slot they aim at is gone.
+
+**Rows filed outside the fence**: one on EDIT
+(`load-door-is-the-construction-door-for-expressions-and-not-for-profile-programs`
+— the reachability sweep's finding: `wire.rs` rebuilds expressions
+through their constructors and profile programs structurally, and states
+only the first; `ProgramRefusal::Validate` has no stated disposition),
+and a second sighting added to LIB's existing
+`persist-err-projects-fourteen-arms-through-a-fifteen-slot-positional-tuple`
+rather than a duplicate.
+
+**Territory**: `crates/editor-core/src/persist/*` is EDIT's and
+`crates/pncad-py/*` is LIB's; both announced on the PR.

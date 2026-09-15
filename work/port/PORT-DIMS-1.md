@@ -2,7 +2,7 @@
 id: PORT-DIMS-1
 kind: unit
 title: The dimension refusals at the Python boundary: keep the structure at the load door, and let the name mean what Rust means
-status: spec
+status: review
 opened: 2026-09-15
 refs: [694, 689, S107]
 branch: port/dims-1-load-door-and-name
