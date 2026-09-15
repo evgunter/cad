@@ -367,3 +367,36 @@ The freecad lane's re-baseline has not landed on main yet, so
 same scene and the same cause, and the check says a PR run does not
 re-baseline: main's own run commits the cells after the merge. Nothing
 to commit by hand here, and nothing about this unit.
+
+### Merge-forward before landing (2026-09-15)
+
+One conflicted path, `crates/editor-core/tests/display_contract.rs`,
+resolved by keeping BOTH sides. TINT-1 (#2648) re-homed `assert_f6`
+into `test_utils::f6` and added `assert_f6_every_variant`; this lane
+added the `mint()` helper that every assembly row in that file now
+builds its subject with. The local `assert_f6` this lane was calling is
+SUPERSEDED, not dropped: main's replacement has the same name and the
+same signature and passes exactly the field-punctuation roster the
+local copy hard-coded (`node:`, `name:`), so every rewritten row keeps
+its meaning while the predicate moves to its one home. Taking this
+lane's copy instead would have re-minted the third spelling that
+TINT-1 exists to delete. No other path collided; every assembly row
+this lane rewrote survived the auto-merge and was re-read to confirm
+it.
+
+**S415 (#2633) was already an ancestor** of this branch before the
+conflict arose, so its `py/doc.rs` and `tags.rs` work had already been
+merged silently. Re-verified against it rather than assumed: the
+pncad-py tag-inventory test, the binding census and the full python
+suite are green.
+
+**The render drift is closed, re-read rather than re-asserted.** Main
+now carries BOTH re-baselines and both are ancestors of this branch:
+`cba1c4e8b` for the kernel lane and `29fdea8d6` for the freecad lane,
+the latter touching exactly the two cells the drift check named
+(`montage-freecad.png`, `twisted_tube.png`). Checked independently
+that this lane could not have caused either: `s_duct` and
+`twisted_tube` are built in `demos/tour/src/skinned.rs`, and this
+branch's only change under `demos/` is an import line and one
+assertion in `demos/tour/src/assembly.rs`, which renders no cell. The
+run on the merge-forward posts NO drift check on either lane.
