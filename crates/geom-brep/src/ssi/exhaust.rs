@@ -114,6 +114,16 @@ pub const SSI_MAX_CELLS: usize = 200_000;
 ///
 /// No `PartialEq`: [`SupSpeed`] has none, by the `Real` surface's rule
 /// that a tagged rate is never compared without `get()`.
+///
+/// **Why a tag rather than public rate fields.** The in-tree receipt
+/// with the same duty, `offset_meters::PatchRegularity`, carries its
+/// rates as public `SupSpeed` fields, which it can because every
+/// patch it describes has them. A receipt here comes from one of two
+/// subdivisions and only one of them has a rate at all, so a public
+/// field would have to be an `Option` — or a fabricated number — on
+/// the ℝ³ lane, and the unit a length is stated in would still be
+/// read off something other than the rate. The tag answers both at
+/// once: which lane, and the rate if that lane has one.
 #[derive(Clone, Copy, Debug)]
 pub enum ExhaustLane {
     /// Cells are boxes in ℝ³ and every length on the receipt is
@@ -130,17 +140,65 @@ pub enum ExhaustLane {
     },
 }
 
-/// **The one crossing**: a length on a receipt or on the refusal, read
-/// in metres.
+impl ExhaustLane {
+    /// **The one crossing**: a length this lane stated, read in metres.
+    ///
+    /// Every metre reading either type offers goes through here, so
+    /// which lane needs a multiply is decided once. On ℝ³ the value
+    /// already is metres; on the chart lane [`SupSpeed::to_meters`] is
+    /// one operation, so the reading is the bare product's bits.
+    #[must_use]
+    pub fn meters(self, x: f64) -> f64 {
+        match self {
+            Self::R3 => x,
+            Self::Chart { speed } => speed.to_meters(x),
+        }
+    }
+
+    /// The certified rate this lane's lengths are stated in, or `None`
+    /// on the lane that has no rate. The `Option` is the ℝ³ lane's
+    /// answer, not an unknown: nothing on that path divides or
+    /// multiplies by a speed.
+    #[must_use]
+    pub fn speed(self) -> Option<SupSpeed<f64>> {
+        match self {
+            Self::R3 => None,
+            Self::Chart { speed } => Some(speed),
+        }
+    }
+}
+
+/// How a chart-lane text names the rate it crossed with.
+#[derive(Clone, Copy)]
+pub(super) enum RateClause {
+    /// Name the certified speed inside the metre reading's own
+    /// parenthesis. Each text does this exactly once.
+    Name,
+    /// State the metres and stop — the text names the rate elsewhere.
+    Omit,
+}
+
+/// **One spelling of a chart-lane length**, for both types' `Display`.
 ///
-/// Every metre reading either type offers goes through here, so which
-/// lane needs a multiply is decided once. On ℝ³ the value already is
-/// metres; on the chart lane [`SupSpeed::to_meters`] is one operation,
-/// so the reading is the bare product's bits.
-pub(super) fn meters(lane: ExhaustLane, x: f64) -> f64 {
-    match lane {
-        ExhaustLane::R3 => x,
-        ExhaustLane::Chart { speed } => speed.to_meters(x),
+/// A chart-unit number is unreadable without the metres it stands for
+/// and the rate that crossed it, and the receipt and the refusal make
+/// the same claim about the same pair, so they write it with the same
+/// words.
+pub(super) fn write_chart_length(
+    f: &mut core::fmt::Formatter<'_>,
+    x: f64,
+    speed: SupSpeed<f64>,
+    rate: RateClause,
+) -> core::fmt::Result {
+    let m = speed.to_meters(x);
+    match rate {
+        RateClause::Name => write!(
+            f,
+            "{x:e} chart units ({m:e} m at a certified chart speed of {:e} m per \
+             chart unit)",
+            speed.get()
+        ),
+        RateClause::Omit => write!(f, "{x:e} chart units ({m:e} m)"),
     }
 }
 
@@ -177,8 +235,14 @@ pub struct Exhaustiveness {
 
 impl Exhaustiveness {
     /// The refinement floor in metres, whichever lane this is.
+    ///
+    /// On the chart lane this is the caller's own metre floor come
+    /// back: it was divided into chart units by this rate and is
+    /// multiplied back through it, so what a reader sees is that round
+    /// trip's two roundings, not a new measurement.
+    #[must_use]
     pub fn floor_meters(&self) -> f64 {
-        meters(self.lane, self.floor)
+        self.lane.meters(self.floor)
     }
 }
 
@@ -196,15 +260,58 @@ impl core::fmt::Display for Exhaustiveness {
                 "on the ℝ³ lane, at the refinement floor {:e} m",
                 self.floor
             ),
-            ExhaustLane::Chart { speed } => write!(
-                f,
-                "on the chart lane, at the refinement floor {:e} chart units \
-                 ({:e} m at a certified chart speed of {:e} m per chart unit)",
-                self.floor,
-                self.floor_meters(),
-                speed.get()
-            ),
+            ExhaustLane::Chart { speed } => {
+                write!(f, "on the chart lane, at the refinement floor ")?;
+                write_chart_length(f, self.floor, speed, RateClause::Name)
+            }
         }
+    }
+}
+
+/// **What the subdivision could not prove** — the payload of
+/// [`SsiError::ExhaustivenessInconclusive`].
+///
+/// A named payload rather than four fields on the variant, mirroring
+/// [`Exhaustiveness`]: the two metre readings belong to this refusal
+/// and to no other refusal in the taxonomy, so hung on the error they
+/// had to answer for twenty variants and hand back an `Option` that
+/// every caller who had already matched the variant knew was `Some`.
+#[derive(Clone, Copy, Debug)]
+pub struct ExhaustivenessRefusal {
+    /// Which lane's subdivision refused, and — on the chart lane — the
+    /// rate this refusal's two lengths are stated in.
+    pub lane: ExhaustLane,
+    /// The offending cell's width, in [`lane`](Self::lane)'s own units.
+    /// [`Self::cell_width_meters`] reads it in metres.
+    pub cell_width: f64,
+    /// The floor it hit, in the same units. [`Self::floor_meters`]
+    /// reads it in metres.
+    pub floor: f64,
+    /// Cells examined before the refusal.
+    pub examined: u32,
+}
+
+impl ExhaustivenessRefusal {
+    /// The offending cell's width in metres.
+    ///
+    /// On the chart lane this multiplies a real chart width by an
+    /// UPPER bound on the surface's speed, so it over-states the cell:
+    /// it is a ceiling on how large the unproved region can be, never
+    /// a measurement of it.
+    #[must_use]
+    pub fn cell_width_meters(&self) -> f64 {
+        self.lane.meters(self.cell_width)
+    }
+
+    /// The refinement floor in metres.
+    ///
+    /// On the chart lane this is the caller's own metre floor come
+    /// back: it was divided into chart units by this rate and is
+    /// multiplied back through it, so what a reader sees is that round
+    /// trip's two roundings, not a second measurement.
+    #[must_use]
+    pub fn floor_meters(&self) -> f64 {
+        self.lane.meters(self.floor)
     }
 }
 
@@ -285,11 +392,13 @@ impl SweepCell for Box3 {
 /// The recursion's own bookkeeping: counts, in no units and on no
 /// lane.
 ///
-/// The lane belongs to the ANSWER rather than to the walk. Only the
-/// accounting duty hands an answer back — a seeding run's survivors
-/// are seeds and [`seed_r3`] / [`seed_chart_plane`] return no receipt
-/// at all — so the two accounting doors attach the lane to this, and
-/// the seeding doors have none to invent.
+/// The lane belongs to the ANSWER rather than to the walk. Both
+/// seeding doors could name their lane — [`seed_r3`] is on ℝ³ and
+/// [`seed_chart_plane`] holds the chart rate — and neither has
+/// anywhere to put it: a seeding run's survivors are seeds and it
+/// returns no receipt at all. So the two accounting doors attach the
+/// lane to this, where it is read, rather than the walk carrying a
+/// tag half its callers discard.
 #[derive(Clone, Copy, Debug, Default)]
 struct SweepTally {
     examined: u32,
@@ -365,12 +474,14 @@ fn sweep<C: SweepCell>(
                     continue;
                 }
                 SweepDuty::Account { lane, .. } => {
-                    return Err(SsiError::ExhaustivenessInconclusive {
-                        lane,
-                        cell_width: cell.width(),
-                        floor,
-                        examined: stats.examined,
-                    });
+                    return Err(SsiError::ExhaustivenessInconclusive(
+                        ExhaustivenessRefusal {
+                            lane,
+                            cell_width: cell.width(),
+                            floor,
+                            examined: stats.examined,
+                        },
+                    ));
                 }
             }
         }
@@ -393,9 +504,9 @@ pub(crate) fn seed_r3(
     s1: &Surface<f64>,
     s2: &Surface<f64>,
     root: Box3,
-    floor: f64,
+    floor_meters: f64,
 ) -> Result<Vec<Point3<f64>>, SsiError> {
-    let (_, seeds) = sweep_r3(s1, s2, root, SweepDuty::Seed, floor)?;
+    let (_, seeds) = sweep_r3(s1, s2, root, SweepDuty::Seed, floor_meters)?;
     Ok(seeds)
 }
 
@@ -417,11 +528,17 @@ pub(crate) fn account_r3(
     s2: &Surface<f64>,
     root: Box3,
     tubes: &[Box3],
-    floor: f64,
+    floor_meters: f64,
 ) -> Result<Exhaustiveness, SsiError> {
     let lane = ExhaustLane::R3;
-    let (tally, _) = sweep_r3(s1, s2, root, SweepDuty::Account { tubes, lane }, floor)?;
-    Ok(tally.receipt(lane, floor))
+    let (tally, _) = sweep_r3(
+        s1,
+        s2,
+        root,
+        SweepDuty::Account { tubes, lane },
+        floor_meters,
+    )?;
+    Ok(tally.receipt(lane, floor_meters))
 }
 
 /// The ℝ³ lane's exclusion rule, over the one shared [`sweep`]: a cell
@@ -462,9 +579,9 @@ fn excludes_zero(i: RingInterval) -> bool {
 /// A rectangle in a surface's parameter domain — the chart lane's cell.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct UvRect {
-    /// `u` bounds.
+    /// `u` bounds, in chart units.
     pub u: (f64, f64),
-    /// `v` bounds.
+    /// `v` bounds, in chart units.
     pub v: (f64, f64),
 }
 
@@ -530,6 +647,12 @@ impl SweepCell for UvRect {
 /// **Seed generation**, chart lane: the centers of the parameter cells
 /// that survived exclusion against the plane.
 ///
+/// Takes `speed` and `floor_meters` as [`account_chart_plane`] does,
+/// and crosses the one into the other's units the same way: the chart
+/// lane is entered through one shape whichever duty is being asked
+/// for. What it does not do is hand back a lane — seeding hands back
+/// no receipt to state one on.
+///
 /// # Errors
 ///
 /// As [`account_chart_plane`], minus the floor refusal.
@@ -538,7 +661,8 @@ pub(crate) fn seed_chart_plane(
     plane_origin: Point3<f64>,
     plane_normal: Vec3<f64>,
     root: UvRect,
-    floor_uv: f64,
+    speed: SupSpeed<f64>,
+    floor_meters: f64,
 ) -> Result<Vec<(f64, f64)>, SsiError> {
     let (_, seeds) = sweep_chart_plane(
         surface,
@@ -546,7 +670,7 @@ pub(crate) fn seed_chart_plane(
         plane_normal,
         root,
         SweepDuty::Seed,
-        floor_uv,
+        speed.to_param(floor_meters),
     )?;
     Ok(seeds)
 }

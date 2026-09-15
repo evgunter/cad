@@ -127,14 +127,16 @@ use geom::{NurbsSurface, Surface};
 use geom_core::{Band, Indeterminate, Margin, Point3};
 
 pub use certify::{SSI_CERT_SPANS, SSI_TUBE_RADIUS, SsiCertificate, SsiLimb};
-pub use exhaust::{ExhaustLane, Exhaustiveness, SSI_FLOOR, SSI_MAX_CELLS, SSI_SEED_FLOOR};
+pub use exhaust::{
+    ExhaustLane, Exhaustiveness, ExhaustivenessRefusal, SSI_FLOOR, SSI_MAX_CELLS, SSI_SEED_FLOOR,
+};
 pub use march::{
     BranchEnd, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL, SSI_STEP_DEVIATION,
     SSI_STEP_MAX, StepperMode,
 };
 
 use enclose::{Box3, NurbsBoxes};
-use exhaust::UvRect;
+use exhaust::{RateClause, UvRect};
 use march::{MarchContext, MarchTol, Trace, march_both, trace_points};
 use system::{Chart, ImplicitPairR3, ParametricPairR4};
 
@@ -209,7 +211,8 @@ pub enum SsiOperand<'a, T: geom_core::Real> {
 /// curvature arm narrower than the feature it sits on.
 #[derive(Clone, Copy, Debug)]
 pub struct TubeScale<T> {
-    /// The lever arm the transversality margin is stated over.
+    /// The lever arm the transversality margin is stated over, in
+    /// meters.
     pub(crate) arm: T,
     /// The feature extent, in meters — the ladder's widest rung.
     pub(crate) extent: f64,
@@ -263,19 +266,7 @@ pub enum SsiError {
     /// neither exclude nor account for. **This is the never-silence
     /// obligation firing**: there may be a branch in that cell and we
     /// decline to pretend otherwise.
-    ExhaustivenessInconclusive {
-        /// Which lane's subdivision refused, and — on the chart lane —
-        /// the rate this refusal's two lengths are stated in.
-        lane: ExhaustLane,
-        /// The offending cell's width, in `lane`'s own units.
-        /// [`SsiError::cell_width_meters`] reads it in metres.
-        cell_width: f64,
-        /// The floor it hit, in the same units.
-        /// [`SsiError::floor_meters`] reads it in metres.
-        floor: f64,
-        /// Cells examined before the refusal.
-        examined: u32,
-    },
+    ExhaustivenessInconclusive(ExhaustivenessRefusal),
     /// The cell enumeration exceeded its budget — a refusal, never a
     /// silently truncated search.
     CellBudget {
@@ -311,7 +302,8 @@ pub enum SsiError {
         /// The cosine of the angle between the returning and seed
         /// tangents (≈ +1 for a genuine closure).
         cos_phi: f64,
-        /// The branch's arc length, the lever arm it was measured over.
+        /// The branch's arc length in meters, the lever arm it was
+        /// measured over.
         arc_length: f64,
     },
     /// A C2 limb refused. The limb is named so a consumer — and the
@@ -354,7 +346,9 @@ pub enum SsiError {
     /// box: two branches pass within the band of each other. A genuine
     /// sliver (F6), not a resolution failure to retry.
     TubeStraddles {
-        /// The certified margin (zero when the enclosure straddles).
+        /// The certified transversality margin in meters: a
+        /// dimensionless sine-like quantity already levered by the
+        /// tube scale's arm (zero when the enclosure straddles).
         margin: f64,
         /// Boxes in the chain.
         boxes: u32,
@@ -364,7 +358,7 @@ pub enum SsiError {
     FootPointInconclusive {
         /// The schedule parameter it failed at.
         t: f64,
-        /// The last distance the projection saw.
+        /// The last distance the projection saw, in meters.
         last_distance: f64,
     },
     /// The fitting stack refused the marched polyline.
@@ -427,60 +421,6 @@ impl From<geom_core::BandError> for SsiError {
     }
 }
 
-impl SsiError {
-    /// The `(lane, cell width, floor)` a refusal states in a lane's own
-    /// units, when it states any.
-    ///
-    /// Exhaustive by variant with **no wildcard arm**: a refusal the
-    /// taxonomy gains that carries a lane-dependent length has to be
-    /// dispositioned here, rather than silently reporting that it has
-    /// no metre reading.
-    fn lane_lengths(&self) -> Option<(ExhaustLane, f64, f64)> {
-        match self {
-            Self::ExhaustivenessInconclusive {
-                lane,
-                cell_width,
-                floor,
-                ..
-            } => Some((*lane, *cell_width, *floor)),
-            Self::TransversalityBand { .. }
-            | Self::CellBudget { .. }
-            | Self::StepBudget { .. }
-            | Self::StepCollapsed { .. }
-            | Self::SeedRefinementFailed { .. }
-            | Self::SelfCrossingLocus { .. }
-            | Self::CertificateLimb { .. }
-            | Self::TubeLadderEmpty { .. }
-            | Self::TubeProbeSilent { .. }
-            | Self::TubeStraddles { .. }
-            | Self::FootPointInconclusive { .. }
-            | Self::Fit(_)
-            | Self::FitSampleBudget { .. }
-            | Self::UnsupportedCertificate { .. }
-            | Self::WrongLane { .. }
-            | Self::Escalated(_)
-            | Self::Band(_)
-            | Self::InvalidMarchTol { .. }
-            | Self::MarchTolMismatch { .. } => None,
-        }
-    }
-
-    /// The offending cell's width in metres, when this is
-    /// [`Self::ExhaustivenessInconclusive`]; `None` for every other
-    /// refusal, none of which carries a cell.
-    pub fn cell_width_meters(&self) -> Option<f64> {
-        self.lane_lengths()
-            .map(|(lane, cell_width, _)| exhaust::meters(lane, cell_width))
-    }
-
-    /// The refinement floor in metres, on the same terms as
-    /// [`Self::cell_width_meters`].
-    pub fn floor_meters(&self) -> Option<f64> {
-        self.lane_lengths()
-            .map(|(lane, _, floor)| exhaust::meters(lane, floor))
-    }
-}
-
 impl core::fmt::Display for SsiError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -496,32 +436,36 @@ impl core::fmt::Display for SsiError {
                  march through; separate the operands, declare the tangency, or lower \
                  the tolerance"
             ),
-            Self::ExhaustivenessInconclusive {
-                lane,
-                cell_width,
-                floor,
-                examined,
-            } => match lane {
-                ExhaustLane::R3 => write!(
-                    f,
-                    "ssi: exhaustiveness inconclusive on the ℝ³ lane — after {examined} \
-                     cells a cell of width {cell_width:e} m at the refinement floor \
-                     {floor:e} m could be neither excluded nor accounted for, so a \
-                     branch may be hiding in it; the operation refuses rather than \
-                     report a possibly incomplete intersection"
-                ),
-                ExhaustLane::Chart { .. } => write!(
-                    f,
-                    "ssi: exhaustiveness inconclusive on the chart lane — after \
-                     {examined} cells a cell of width {cell_width:e} chart units \
-                     ({:e} m) at the refinement floor {floor:e} chart units ({:e} m) \
-                     could be neither excluded nor accounted for, so a branch may be \
-                     hiding in it; the operation refuses rather than report a possibly \
-                     incomplete intersection",
-                    exhaust::meters(*lane, *cell_width),
-                    exhaust::meters(*lane, *floor)
-                ),
-            },
+            Self::ExhaustivenessInconclusive(r) => {
+                let (cell_width, floor, examined) = (r.cell_width, r.floor, r.examined);
+                match r.lane {
+                    ExhaustLane::R3 => write!(
+                        f,
+                        "ssi: exhaustiveness inconclusive on the ℝ³ lane — after \
+                         {examined} cells a cell of width {cell_width:e} m at the \
+                         refinement floor {floor:e} m could be neither excluded nor \
+                         accounted for, so a branch may be hiding in it; the \
+                         operation refuses rather than report a possibly incomplete \
+                         intersection"
+                    ),
+                    ExhaustLane::Chart { speed } => {
+                        write!(
+                            f,
+                            "ssi: exhaustiveness inconclusive on the chart lane — \
+                             after {examined} cells a cell of width "
+                        )?;
+                        exhaust::write_chart_length(f, cell_width, speed, RateClause::Omit)?;
+                        write!(f, " at the refinement floor ")?;
+                        exhaust::write_chart_length(f, floor, speed, RateClause::Name)?;
+                        write!(
+                            f,
+                            " could be neither excluded nor accounted for, so a branch \
+                             may be hiding in it; the operation refuses rather than \
+                             report a possibly incomplete intersection"
+                        )
+                    }
+                }
+            }
             Self::CellBudget { budget } => write!(
                 f,
                 "ssi: the exhaustiveness subdivision exceeded its {budget}-cell budget \
@@ -1053,9 +997,7 @@ pub fn plane_nurbs_ssi(
     let nb = NurbsBoxes::new(wall);
     let du = nb.deriv_box(ud.0, ud.1, vd.0, vd.1, true);
     let dv = nb.deriv_box(ud.0, ud.1, vd.0, vd.1, false);
-    let mag =
-        |b: Box3| (b.x.mag() * b.x.mag() + b.y.mag() * b.y.mag() + b.z.mag() * b.z.mag()).sqrt();
-    let speed = nan_propagating_max(mag(du), mag(dv));
+    let speed = nan_propagating_max(du.speed_sup(), dv.speed_sup());
     // A speed OUTSIDE the positive-finite class can never translate a
     // floor: `floor / ∞` is exactly zero — a floor no cell can ever
     // reach — so a non-finite speed would let the sweep run to its
@@ -1087,8 +1029,7 @@ pub fn plane_nurbs_ssi(
     let speed = geom_core::SupSpeed::new(speed);
 
     // ---- seeds ----
-    let seeds =
-        exhaust::seed_chart_plane(wall, p0, normal, root, speed.to_param(domain.seed_floor()))?;
+    let seeds = exhaust::seed_chart_plane(wall, p0, normal, root, speed, domain.seed_floor())?;
     let seed_count = seeds.len() as u32;
 
     let v_ref = normal.cross(u_ref);

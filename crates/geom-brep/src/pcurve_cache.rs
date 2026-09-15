@@ -1580,7 +1580,7 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         // refusals whose full text lives at the SSI door; none of them
         // measured a quantity this lane can name.
         E::TransversalityBand { .. }
-        | E::ExhaustivenessInconclusive { .. }
+        | E::ExhaustivenessInconclusive(_)
         | E::CellBudget { .. }
         | E::StepBudget { .. }
         | E::StepCollapsed { .. }

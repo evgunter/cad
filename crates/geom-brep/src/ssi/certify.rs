@@ -717,8 +717,7 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
             y: du.y * ex + dv.y * ey,
             z: du.z * ex + dv.z * ey,
         };
-        let stretch =
-            (vt.x.mag() * vt.x.mag() + vt.y.mag() * vt.y.mag() + vt.z.mag() * vt.z.mag()).sqrt();
+        let stretch = vt.speed_sup();
         // Positive FINITE only: an admitted `+∞` stretch divides the
         // margin to an exact `0`, which the fold below then records as
         // the certificate's worst transversality — a definite-looking
@@ -859,16 +858,20 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                 // conservative in the safe direction (a wider uv pad
                 // gives a wider enclosure and a HARDER test). The rate
                 // is a `SupSpeed` — a derivative box's magnitude is an
-                // upper bound — and the tag is not a positivity
-                // witness, so a collapsed speed still arrives at the
-                // NaN this closure hands out.
+                // upper bound.
+                //
+                // A collapsed magnitude is NOT refused here, and the
+                // `f64::NAN` it becomes is not caught downstream
+                // either: a NaN pad widens the span window to NaN ends,
+                // which the span grid clamps onto the first span, so
+                // the ladder answers with a margin over a region it was
+                // not asked about instead of refusing. That is a filed
+                // finding on TRIM's slate, unchanged by this file's
+                // typing of the division.
                 let (ud, vd) = (n.knots_u().domain(), n.knots_v().domain());
                 let nb = NurbsBoxes::new(n);
                 let speed = |bx: Box3| {
-                    let m = (bx.x.mag() * bx.x.mag()
-                        + bx.y.mag() * bx.y.mag()
-                        + bx.z.mag() * bx.z.mag())
-                    .sqrt();
+                    let m = bx.speed_sup();
                     SupSpeed::new(if m > 0.0 { m } else { f64::NAN })
                 };
                 let su = speed(nb.deriv_box(ud.0, ud.1, vd.0, vd.1, true));

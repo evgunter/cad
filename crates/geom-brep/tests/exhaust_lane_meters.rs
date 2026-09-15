@@ -1,11 +1,11 @@
 //! **The exhaustiveness receipt's metre reading is the bare
 //! arithmetic, per lane.**
 //!
-//! `Exhaustiveness` and `SsiError::ExhaustivenessInconclusive` state
-//! their lengths in the units their own lane measured cells in, and
-//! carry the lane that says which. The metre readings
-//! (`floor_meters`, `cell_width_meters`) are one `match` over that
-//! tag: the ℝ³ arm hands the value back untouched and the chart arm is
+//! `Exhaustiveness` and `ExhaustivenessRefusal` — the receipt and the
+//! payload of `SsiError::ExhaustivenessInconclusive` — state their
+//! lengths in the units their own lane measured cells in, and carry
+//! the lane that says which. The metre readings (`floor_meters`,
+//! `cell_width_meters`) are one `match` over that tag: the ℝ³ arm hands the value back untouched and the chart arm is
 //! `SupSpeed::to_meters`, one multiply. These rows make that a checked
 //! claim rather than a sentence — they compare **bits**, not `==`,
 //! because `==` cannot see a signed zero and calls every NaN unequal,
@@ -34,7 +34,7 @@
 
 #![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
 
-use geom_brep::{ExhaustLane, Exhaustiveness, SsiError};
+use geom_brep::{ExhaustLane, Exhaustiveness, ExhaustivenessRefusal, SsiError};
 use geom_core::SupSpeed;
 
 /// Every value a rate or a length can be, including the ones only a
@@ -76,13 +76,18 @@ fn receipt(lane: ExhaustLane, floor: f64) -> Exhaustiveness {
     }
 }
 
-fn refusal(lane: ExhaustLane, cell_width: f64, floor: f64) -> SsiError {
-    SsiError::ExhaustivenessInconclusive {
+fn refusal(lane: ExhaustLane, cell_width: f64, floor: f64) -> ExhaustivenessRefusal {
+    ExhaustivenessRefusal {
         lane,
         cell_width,
         floor,
         examined: 11,
     }
+}
+
+/// The same refusal as the error a caller actually catches.
+fn refusal_error(lane: ExhaustLane, cell_width: f64, floor: f64) -> SsiError {
+    SsiError::ExhaustivenessInconclusive(refusal(lane, cell_width, floor))
 }
 
 /// **The ℝ³ lane's reading is the value itself** — no rate exists on
@@ -98,8 +103,8 @@ fn the_r3_lane_reads_its_own_floor_back_bit_for_bit() {
             "the ℝ³ receipt's floor is already meters: {floor:e}"
         );
         let err = refusal(ExhaustLane::R3, floor, floor);
-        assert_eq!(err.cell_width_meters().unwrap().to_bits(), floor.to_bits());
-        assert_eq!(err.floor_meters().unwrap().to_bits(), floor.to_bits());
+        assert_eq!(err.cell_width_meters().to_bits(), floor.to_bits());
+        assert_eq!(err.floor_meters().to_bits(), floor.to_bits());
     }
 }
 
@@ -121,22 +126,13 @@ fn the_chart_lane_reads_the_bare_product_bit_for_bit() {
             );
             let err = refusal(lane, x, x);
             assert_eq!(
-                err.cell_width_meters().unwrap().to_bits(),
+                err.cell_width_meters().to_bits(),
                 bare.to_bits(),
                 "cell width {x:e} at rate {rate:e}"
             );
-            assert_eq!(err.floor_meters().unwrap().to_bits(), bare.to_bits());
+            assert_eq!(err.floor_meters().to_bits(), bare.to_bits());
         }
     }
-}
-
-/// **A refusal that carries no cell has no metre reading**, rather
-/// than a zero or a default standing in for one.
-#[test]
-fn a_refusal_without_a_cell_offers_no_meters() {
-    let other = SsiError::CellBudget { budget: 17 };
-    assert!(other.cell_width_meters().is_none());
-    assert!(other.floor_meters().is_none());
 }
 
 /// **Both texts name their lane and their unit word.** A caller acting
@@ -157,21 +153,40 @@ fn both_texts_name_the_lane_and_the_unit() {
     assert!(ch.contains("2.5e-1 chart units"), "{ch}");
     // The meters reading and the rate that produced it, beside the
     // chart-unit floor: this is what makes a receipt diagnosable
-    // without the caller holding the speed.
-    assert!(ch.contains("5e-1 m"), "{ch}");
+    // without the caller holding the speed. Anchored on the opening
+    // parenthesis and the word after the unit, because a bare
+    // `"5e-1 m"` is a substring of `"2.5e-1 m"` — which is exactly the
+    // text a reading that handed the chart-unit number back as metres
+    // would print.
+    assert!(ch.contains("(5e-1 m at"), "{ch}");
     assert!(ch.contains("2e0 m per chart unit"), "{ch}");
+    // The chart lane's negatives, the counterpart of the ℝ³ rows':
+    // this text names no other lane, and it never states the
+    // chart-unit floor as a length in metres.
+    assert!(!ch.contains("ℝ³"), "{ch}");
+    assert!(!ch.contains("2.5e-1 m"), "{ch}");
 
-    let r3e = format!("{}", refusal(ExhaustLane::R3, 0.125, 0.25));
+    let r3e = format!("{}", refusal_error(ExhaustLane::R3, 0.125, 0.25));
     assert!(r3e.contains("on the ℝ³ lane"), "{r3e}");
     assert!(r3e.contains("width 1.25e-1 m"), "{r3e}");
     assert!(r3e.contains("floor 2.5e-1 m"), "{r3e}");
     assert!(!r3e.contains("chart"), "{r3e}");
 
-    let che = format!("{}", refusal(chart, 0.125, 0.25));
+    let che = format!("{}", refusal_error(chart, 0.125, 0.25));
     assert!(che.contains("on the chart lane"), "{che}");
     assert!(
         che.contains("width 1.25e-1 chart units (2.5e-1 m)"),
         "{che}"
     );
-    assert!(che.contains("floor 2.5e-1 chart units (5e-1 m)"), "{che}");
+    // The refusal names the rate too, once, on its floor — the reading
+    // a caller needs to tell a fine floor from a slow chart.
+    assert!(
+        che.contains(
+            "floor 2.5e-1 chart units (5e-1 m at a certified chart speed of 2e0 m per \
+             chart unit)"
+        ),
+        "{che}"
+    );
+    assert!(!che.contains("ℝ³"), "{che}");
+    assert!(!che.contains("(1.25e-1 m"), "{che}");
 }

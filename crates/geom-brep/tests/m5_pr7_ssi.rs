@@ -668,9 +668,8 @@ fn the_floor_clamped_planted_fixture_refuses_typed() {
     let err = ssi::cylinder_sphere_ssi(&c, &s, d, band()).expect_err("must refuse");
     let msg = format!("{err}");
     match err {
-        SsiError::ExhaustivenessInconclusive {
-            cell_width, floor, ..
-        } => {
+        SsiError::ExhaustivenessInconclusive(r) => {
+            let (cell_width, floor) = (r.cell_width, r.floor);
             assert!(cell_width <= floor, "{cell_width} vs {floor}");
             // The accounting floor is stated in the RUN band's ε and
             // in nothing else — exact equality, so the row goes red the
@@ -824,11 +823,8 @@ fn an_unseeded_run_refuses_typed_rather_than_receipting_an_unprovable_domain() {
     // ---- Run 2, the CLAIM: the same seeding, the same empty tube set,
     // a floor no enclosure can beat.
     match ssi::cylinder_sphere_ssi(&c, &s, domain(0.1), band()) {
-        Err(
-            ref e @ SsiError::ExhaustivenessInconclusive {
-                cell_width, floor, ..
-            },
-        ) => {
+        Err(ref e @ SsiError::ExhaustivenessInconclusive(r)) => {
+            let (cell_width, floor) = (r.cell_width, r.floor);
             // As the floor-clamped row above: the width/floor relation
             // is `sweep`'s own guard read back out and can only catch a
             // mis-populated refusal, so the refusal's TEXT is the part
@@ -1667,11 +1663,8 @@ fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_doma
     // ---- Run 2, the CLAIM: the same seeding, the same empty tube set,
     // a floor no enclosure can beat.
     match ssi::plane_nurbs_ssi(&p, &w, domain(0.1), band()) {
-        Err(
-            ref e @ SsiError::ExhaustivenessInconclusive {
-                cell_width, floor, ..
-            },
-        ) => {
+        Err(ref e @ SsiError::ExhaustivenessInconclusive(r)) => {
+            let (cell_width, floor) = (r.cell_width, r.floor);
             // The width/floor relation is `sweep`'s own guard read back
             // out, so it can only catch a mis-populated refusal — the
             // content is the refusal's TEXT, which is what a caller
@@ -1805,12 +1798,13 @@ fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_doma
 /// none: if the fit budget ever does preempt this row, it fails and
 /// someone looks.
 ///
-/// **The floor tie is exact, in both runs.** The ℝ³ twin asserts its
-/// refusal floor equals `SSI_FLOOR · ε · floor_scale` outright. Here a
-/// second scale sits in the expression — the certified chart speed the
-/// floor is divided by — and the receipt carries it, so both floors
-/// are read back in meters through `floor_meters()` rather than
-/// through a speed this file pins by hand. Run 1's receipt and run 2's
+/// **The floor tie, in both runs.** The ℝ³ twin asserts its refusal
+/// floor equals `SSI_FLOOR · ε · floor_scale` outright. Here a second
+/// scale sits in the expression — the certified chart speed the floor
+/// is divided by — and the receipt carries it, so both floors are read
+/// back in meters through `floor_meters()` rather than through a speed
+/// this file pins by hand. The tie is therefore a TOLERANCE, not an
+/// equality; what it is a tolerance on is stated at each assertion. Run 1's receipt and run 2's
 /// refusal each have to come out at the meters floor this row asked
 /// for. A ratio between the two runs would NOT do: any scale shared by
 /// both translations cancels out of it, which is the mutation that
@@ -1856,8 +1850,18 @@ fn the_floor_clamped_chart_run_refuses_typed_with_a_banked_tube_set() {
     );
     // FLOOR-TIE, run 1: the receipt's floor, read back in meters
     // through the rate the receipt itself carries, is the meters floor
-    // this row asked for and nothing else. The slack is the round trip
-    // `to_param` then `to_meters` — two roundings, no third scale.
+    // this row asked for and nothing else — no second SCALE entered
+    // the translation.
+    //
+    // The budget is what the path's roundings cost, and the path is
+    // five operations, not two: `floor_scale_for`'s divide, the two
+    // multiplies in `SsiDomain::floor`, then `to_param` and
+    // `to_meters`. That is ≤ 2.5 ε relative, so `4 · ε · meters` is
+    // adequate with room to spare — and it is deliberately NOT tight.
+    // A rate this row could not see (one ulp wrong, say) stays inside
+    // it; the bit-for-bit rows in `exhaust_lane_meters.rs` are what
+    // catch that, and this row's claim is only that no extra scale is
+    // in the expression.
     let back = e.floor_meters();
     assert!(
         (back - 0.05).abs() <= 4.0 * f64::EPSILON * 0.05,
@@ -1869,19 +1873,14 @@ fn the_floor_clamped_chart_run_refuses_typed_with_a_banked_tube_set() {
     // ---- Run 2, the CLAIM: the same branch, the same tubes, a floor
     // above the width at which the sweep resolves the domain.
     match ssi::plane_nurbs_ssi(&p, &w, domain(0.5), band()) {
-        Err(
-            ref err @ SsiError::ExhaustivenessInconclusive {
-                cell_width, floor, ..
-            },
-        ) => {
+        Err(ref err @ SsiError::ExhaustivenessInconclusive(r)) => {
+            let (cell_width, floor) = (r.cell_width, r.floor);
             // As the rows above: the width/floor relation is `sweep`'s
             // own guard read back out, so the content is the refusal's
             // TEXT, which is what a caller acts on.
             assert!(cell_width <= floor, "{cell_width} vs {floor}");
             // FLOOR-TIE, run 2, on the same terms as run 1's.
-            let back = err
-                .floor_meters()
-                .expect("the exhaustiveness refusal has a floor");
+            let back = r.floor_meters();
             assert!(
                 (back - 0.5).abs() <= 4.0 * f64::EPSILON * 0.5,
                 "FLOOR-TIE (CLAIM): the refusal reads {back:e} m at its own lane's \
@@ -2346,7 +2345,7 @@ fn a_clipped_domain_ends_the_branch_on_the_boundary() {
         // A slab that clips this tightly may also fail to prove itself
         // exhausted; that is a typed refusal and equally acceptable —
         // what must never happen is a silently-closed loop.
-        Err(SsiError::ExhaustivenessInconclusive { .. }) => {}
+        Err(SsiError::ExhaustivenessInconclusive(_)) => {}
         Err(e) => panic!("unexpected: {e}"),
     }
 }

@@ -127,8 +127,8 @@ pub use props::{
     require_one_chart_branch,
 };
 pub use ssi::{
-    ExhaustLane, Exhaustiveness, SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS, SsiBranch,
-    SsiCertificate, SsiDomain, SsiError, SsiLimb, SsiOperand, SsiOutcome, StepperMode,
+    ExhaustLane, Exhaustiveness, ExhaustivenessRefusal, SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS,
+    SsiBranch, SsiCertificate, SsiDomain, SsiError, SsiLimb, SsiOperand, SsiOutcome, StepperMode,
     certify_rung3, cylinder_sphere_ssi, idealized_trace_r3, plane_nurbs_ssi,
     trace_plane_nurbs_uncertified,
 };
