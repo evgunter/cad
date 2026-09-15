@@ -251,13 +251,20 @@ fn own_rational_wall_roundtrips_through_the_import_door() {
                 "E2E POSTURE: at a tighter eps the only honest refusal here is the \
                  budget: {e}"
             );
-            // The stand-down goes through the tree's ONE in-row door
-            // (`test_utils::vacuity`'s module docs: every in-row
-            // stand-down in `crates/` uses it, and the whole-binary
-            // `#[cfg]`-gated `interval_lane_skipped_…` rows are a
-            // different idiom). It has to be the in-row one here: the
-            // condition is the RUN's ε, read at run time, so no
-            // `#[cfg]` and therefore no test NAME can carry it.
+            // The stand-down goes through the tree's in-row door rather
+            // than a hand-rolled print. It has to be the IN-ROW one: the
+            // condition is the RUN's ε, read at run time, so no `#[cfg]`
+            // and therefore no test NAME can carry it — which is what
+            // separates this door from `test_utils::loud_skip_marker!`, the
+            // whole-binary spelling. That every in-row stand-down in
+            // `crates/` goes through this door is NOT claimed: it was a
+            // sweep result, `vacuity`'s module docs now name the
+            // counterexample, and nothing guards it.
+            //
+            // The announcement reaches no reader on a gating run (same
+            // module docs). What this row still gets from it is a local
+            // reader and one sentence stating which claims below were
+            // not made; what it does not get is any way to go red.
             test_utils::vacuity::stood_down(
                 "cert5-r1 balloon round trip",
                 &format!(
