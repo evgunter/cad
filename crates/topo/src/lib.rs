@@ -295,6 +295,11 @@ pub use surgery::Surgery;
 // that can hold it: upward layers RE-EXPORT these, never redefine.
 #[cfg(feature = "sweep-testing")]
 pub use boolean::{PlantedDegradation, sweep_traces, sweep_traces_with_pad};
+// The census's idealized/realized pair (its `Candidates`): the
+// vocabulary always, the door on the boolean sweep's terms.
+pub use census::{CensusStrategy, CensusTrace, SweepPairs};
+#[cfg(feature = "sweep-testing")]
+pub use census::{census_traces, census_traces_planted};
 pub use contact::{
     CONTACT_RECOURSE, ContactClass, ContactFinding, ContactRefusal, ContactVerdict,
     DeclaredContact, FIT_DEFERRAL,
@@ -332,7 +337,9 @@ pub use instance::{
     GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed,
     graft_disjoint_all_onto_keyed,
 };
-pub use merge_faces::{MergeCoplanarError, MergeCoplanarOutcome, MergedGroup, SkippedMerge};
+pub use merge_faces::{
+    MergeCoplanarError, MergeCoplanarOutcome, MergeKind, MergedGroup, SkippedMerge,
+};
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use offset_axial::{is_axial, offset_charts_together};
 pub use offset_nappe::{Nappe, face_nappe, group_nappe};
@@ -352,14 +359,14 @@ pub use query::{
     ALL_SURFACE_KINDS, CurveKind, CurveKindSet, DATUM_UNIT_NORM, DatumValue, RimError,
     SEL_DATUM_DISTANCE, SurfaceKindSet, UnitVec3, UnitVec3Error,
 };
-pub use readback::{DanglingRef, Pose, ReadbackError};
+pub use readback::{DanglingRef, EulerCounts, EulerParityError, Pose, ReadbackError};
 pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offset};
-pub use revert::RevertError;
+pub use revert::{RevertError, RevertLink};
 pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
 pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
 };
-pub use source::{GeomSource, Or, SourceAttachError, SourceExpr};
+pub use source::{GeomOrigin, GeomSource, Or, SourceAttachError, SourceExpr};
 pub use split::SplitEdgeCreated;
 pub use splitting::{
     ArcWindowCase, LoopContainment, NullEdgeRecord, PlaneSide, PointInLoopError, Section,

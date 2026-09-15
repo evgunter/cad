@@ -88,3 +88,33 @@ standing conclusion is *"the run record is the instrument; the workflow
 source is not."* This row is the fourth face and the worst-sited: the
 instrument reads the run record faithfully and cannot tell a run that had
 twenty jobs from one that should have had twenty-one.
+
+## The same population read, in the opposite direction: a FALSE RED (WIRE, 2026-09-13)
+
+Run `34749650737` (WIRE PR 2501, head `bfabc3d7d`). Every job in the run
+concluded **success** — twelve `test (…)`, all five `k-lint (gate, …)`,
+the python suite, rustdoc, the render lanes. `gate ok` failed anyway:
+
+    FAILED: these jobs had not finished when this gate ran:
+      k-lint (gate, release-default) (in_progress)
+
+The timings say what happened. `k-lint (gate, release-default)`
+completed at **09:51:02**; `gate ok` started at **09:51:05** and read
+that job as `in_progress` at **09:51:11**. `needs:` had been satisfied —
+which is what released `gate ok` to start — and the **jobs API was still
+serving a snapshot nine seconds stale**.
+
+This is the same root as the row above, read the other way. The script
+derives its population and its verdict from one API response and trusts
+that response as the state of the run: an absent job reads green, and a
+concluded job the API has not caught up on reads red. `needs:` already
+carries the "has it finished" answer and is authoritative — the workflow
+would not have started this job otherwise — so the `completed` test adds
+no information the scheduler did not already give, and costs a false red
+whenever the API lags. A roster fixes the green direction; **the red
+direction wants the `completed` check to stop being read off the API at
+all**, or to be retried until the API agrees with `needs:`.
+
+Cost here: a re-run of the required check on a run that was already
+green in every job, plus the reading time to establish that nothing in
+the diff was implicated.

@@ -61,3 +61,25 @@ Not obvious, and the choice is a design statement, not a cleanup:
 (2) is cheap and closes the silent arms; (1) closes the duplication
 and is the larger change. Either needs a ruling on whether
 `geom-core` should carry user-facing recourse prose at all.
+
+## Two homes now (BLEND-12, 2026-09-13)
+
+The third home is gone. `EscalationSite::Fillet` had no producer, so its
+`match source.predicate` under `ProfileError::Escalated` rendered for
+nobody; unit 12 retired the variant and the arm together and moved the
+nine `fillet_*` names to `validate::fillet_recourse_for`, a single
+`&str -> Option<&'static str>` function that the second home
+(`PathError::Escalated`'s `Display`) calls.
+
+What that changes for this item:
+
+- the count is two implementations, not three, and the retired one's
+  silent `_ => {}` failure mode is gone with it;
+- the surviving `profile` home now has a census:
+  `crates/profile/tests/fillet_recourse_followability.rs`'s
+  `every_fillet_predicate_has_its_own_sentence_and_never_the_shared_one`
+  reads the `fillet_*` names out of `sugar.rs`'s own source and fails if
+  one has no sentence. That is the enforcement this item says nothing has
+  — for the fillet family only. The `path_*` keys and `sweep`'s blend
+  table still have none, and `path.rs`'s `_ =>` arm still ASSERTS "path
+  junction classification" for any unknown name.

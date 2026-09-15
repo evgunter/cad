@@ -177,7 +177,7 @@ use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
 use crate::session::{AtRestBadge, Outstanding, Refusal, SessionOp};
-use crate::vocab::vocabulary;
+use crate::vocab::{partial_mirror, vocabulary};
 
 /// **What something the chrome shows is ABOUT** — carried by a
 /// [`Message`] on the line and by a [`Badge`] on the toolbar alike.
@@ -286,7 +286,39 @@ pub enum Subject {
 /// because they name three different events, and the alternative
 /// (one name for "swept only by `Clear`") would have to be renamed
 /// three ways the first time any of them grew an issuer.
+///
+/// **Deliberately partial, and told when [`Subject`] grows.** Nothing
+/// forces this list to be complete — completeness is what it does not
+/// claim, and the three above belong out of it. What the
+/// `partial_mirror!` invocation below forces
+/// (`crates/viewer/src/vocab.rs` declares the macro) is that every
+/// subject is either offered at a seat of this list or named there as
+/// deliberately absent with its reason. A sixth subject WITH an issuer
+/// would otherwise miss the list with no row going red, and its
+/// messages would then be swept only by [`StatusUpdate::Clear`],
+/// silently. The
+/// suite's own row over this list holds a different direction — that
+/// the two named here are the two the policies it calls actually
+/// issue — and cannot see a policy it does not call.
 pub const SUBJECTS_WITH_AN_EXPIRY_ISSUER: [Subject; 2] = [Subject::Camera, Subject::Cursor];
+
+partial_mirror! {
+    Subject, bare SUBJECTS_WITH_AN_EXPIRY_ISSUER,
+    offered [Camera, Cursor],
+    absent [
+        Document => "its event is the next act the document ACCEPTS, \
+                     which nothing marks yet; what sweeps it today is \
+                     the subject-blind `StatusUpdate::Clear`",
+        Display => "its event is the next rebuild of the thing the \
+                    message is about, which nothing marks yet; the \
+                    held facts about the picture badge instead, and \
+                    the news that does wear this subject is swept only \
+                    by `StatusUpdate::Clear`",
+        Preferences => "its event is the next write of the preferences \
+                        file, which nothing marks yet; swept only by \
+                        `StatusUpdate::Clear`, for `Display`'s reason",
+    ],
+}
 
 /// **One frame's news**: what it is about, and its own words.
 ///
@@ -1585,10 +1617,11 @@ pub enum Progress {
     /// running** — what a cancel leaves behind. A spinner over that
     /// alone would be a lie about work nobody is doing.
     ///
-    /// `indexing` is whether the OTHER seam is nonetheless busy, and
-    /// it is carried here rather than answered by a second indicator
-    /// because this is the one state where the two seams disagree
-    /// about whether anything is happening: an index build submitted
+    /// `indexing` is whether a seam BELOW the evaluation is
+    /// nonetheless busy — an index build, or the display fit the index
+    /// waits on — and it is carried here rather than answered by a
+    /// second indicator because this is the one state where the seams
+    /// disagree about whether anything is happening: a build submitted
     /// before the cancel is still running, and it will change the
     /// picture. The rule the payload buys is **the spinner follows the
     /// work, never the name** — so a canceled evaluation with a live

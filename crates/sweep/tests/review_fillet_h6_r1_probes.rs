@@ -18,7 +18,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::cap_rims::{cap_rims, description};
+use crate::common::cap_rims::cap_rims;
 use geom_brep::EdgeDescription;
 use geom_core::{Point2, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
@@ -191,21 +191,17 @@ fn transverse_cap_rims_validate_at_rest() {
     }
 }
 
-/// **Deviation 3, measured.** `revolve::upgrade::jet_determinate` folds
-/// an in-band `tangent_second_order` verdict into `false` and keeps the
-/// conventional description, where extrude's strut arm escalates the
-/// same verdict as `SliverJoin`. This row builds the body that tells
-/// the two policies apart: a bore cylinder of radius `r` meeting a
-/// unit-minor-radius torus tangentially at a latitude circle of radius
-/// `r`, with `r² / 2 = (1 + K)·ε / 2` — the second-order sagitta
-/// squarely inside the band at every ε. The door hands the body back
-/// `Ok`, the join carries a chart image, and the at-rest gate refuses
-/// that body under the very predicate the fold swallowed.
+/// **An in-band second order refuses at the revolve door**, on the
+/// body that tells the two verbs' policies apart: a bore cylinder of
+/// radius `r` meeting a unit-minor-radius torus tangentially at a
+/// latitude circle of radius `r`, with `r² / 2 = (1 + K)·ε / 2` — the
+/// second-order sagitta squarely inside the band at every ε. The rule
+/// is one rule on both verbs, so this refuses `SliverJoin` under
+/// `tangent_second_order` exactly as the extrude strut does, and the
+/// body tier 3 would have to refuse is never handed back.
 #[test]
-fn revolve_folds_an_in_band_second_order_into_a_body_tier_3_refuses() {
-    use geom::Surface;
+fn revolve_refuses_an_in_band_second_order_at_the_door() {
     use sweep::{Revolution, RevolveAxis, revolve};
-    use topo::ValidationError;
 
     let tol = Tol::witness();
     let (eps, k) = (tol.eps(), tol.k());
@@ -231,48 +227,13 @@ fn revolve_folds_an_in_band_second_order_into_a_body_tier_3_refuses() {
         origin: p2(0.0, 0.0),
         dir: geom_core::Vec2::new(0.0, 1.0),
     };
-    let built = revolve(&profile, axis, Revolution::Full, tol)
-        .unwrap_or_else(|e| panic!("the fold means the door does not refuse; got {e:?}"));
-    let body = &built.body;
-
-    // The torus–bore join: the one edge between a torus and a
-    // cylinder. Its description is what the fold left it.
-    let surface_of = |he| {
-        let face = body
-            .get_loop(body.get_half_edge(he).unwrap().parent_loop)
-            .unwrap()
-            .face;
-        body.get_surface(body.get_face(face).unwrap().surface)
-            .unwrap()
-            .clone()
-    };
-    let mut joins = 0usize;
-    for (ek, e) in body.edges() {
-        let (a, c) = (surface_of(e.he_plus), surface_of(e.he_minus));
-        let torus_cyl = matches!(
-            (&a, &c),
-            (Surface::Torus { .. }, Surface::Cylinder { .. })
-                | (Surface::Cylinder { .. }, Surface::Torus { .. })
-        );
-        if !torus_cyl {
-            continue;
-        }
-        joins += 1;
-        let d = description(body, ek);
-        assert!(
-            matches!(&d, EdgeDescription::Chart(ch) if !ch.seam),
-            "the folded join must carry the conventional chart image, got {d:?}",
-        );
+    match revolve(&profile, axis, Revolution::Full, tol) {
+        Err(sweep::RevolveError::SliverJoin { source, .. }) => assert_eq!(
+            source.predicate,
+            Some("tangent_second_order"),
+            "the refusal must name the must-carry rule's metered predicate",
+        ),
+        Err(other) => panic!("the in-band latitude join must refuse as a sliver JOIN: {other:?}"),
+        Ok(_) => panic!("an in-band second-order margin was built silently"),
     }
-    assert_eq!(joins, 1, "one torus–bore latitude join expected");
-
-    let refused = validate_geometric(body, tol).expect_err("tier 3 must refuse the folded join");
-    assert!(
-        refused.iter().any(|e| matches!(
-            e,
-            ValidationError::SliverDihedral { cause, .. }
-                if cause.predicate == Some("tangent_second_order")
-        )),
-        "expected a SliverDihedral under tangent_second_order, got {refused:?}",
-    );
 }

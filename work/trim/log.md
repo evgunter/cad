@@ -135,3 +135,326 @@ first door. Filed at adjudication: `step-adopt-let-ok-iso-discards`
 (`work/issues/`, EXCH's), `rational-gates-test-unit-weights-not-constancy`
 (TRIM). Next on this program: TRIM-3 PR-2 (the clearance seam; announce
 to SHELL/M10 first) and TRIM-2's spec.
+
+## Resumed after a six-day outage (2026-09-13)
+
+Two items landed on this slate from other orchestrators while this
+session was blocked: `boundary-iso-doors-panic-before-they-can-refuse`
+(DOOR: `boundary_iso_u/v` panic in the slice on a count-corrupt net
+where their `# Errors` contract promises a typed refusal — E, this
+program's `nurbs_iso.rs`; folded into TRIM-2's spec lane as a rider
+candidate, or its own small unit) and `S351` (a citation watch on
+`nurbs_iso.rs`'s placement rule, re-homed from CITE at its close; not
+fired). TRIM-3 PR-2's seam announcement (2026-09-07) drew no objection
+in six days: dispatched on `trim/3-window-seam` (TRIM-B1 slot 2, Opus).
+TRIM-2's spec lane opened with the re-cut (the crease gate) as its
+first premise.
+
+## Announced seam from TOPO (2026-09-13): `pcurves.rs` read, and possibly one helper, with the split-edge unit
+
+TOPO's `split-edge-children-lack-pcurve-rows-on-curved-charts`
+(branch `topo/split-edge-pcurve-rows`) makes `Body::split_edge`'s
+children carry pcurve cache rows. The lane reads `mint_pcurves`,
+`mint_pcurves_of` and the row types in TRIM's `crates/topo/src/pcurves.rs`
+end to end; if the mint needs a helper that splits one cached row at a
+parameter, that helper lands in `pcurves.rs` by this seam — one
+function, its doc, its rows — and the PR names it. No other edit
+there. Signed (TOPO orchestrator).
+
+## Announced seam from TOPO (2026-09-13): one helper in `pcurves.rs`, `split_cache`
+
+TOPO-B2 slot 1 (`split-edge-children-lack-pcurve-rows-on-curved-charts`,
+PR #2531) closes `Body::split_edge`'s missing child rows by CARRYING the
+parent half-edges' rows across the split rather than by documenting the
+gap. The mechanism is one new `pub(crate)` helper in this program's
+file — **`split_cache`** — plus the `SplitRows<T>` alias that names its
+answer: it reads the parent's stored row, re-derives the face's chart
+window as the hull of that face's stored chart boxes (the
+self-referential way `mint_face` builds it and `validate_pcurves`
+re-builds it), and re-certifies the parent's image over `[t0, t]` and
+`[t, t1]` through `PcurveCache::certify`. Read-only, called from
+`split_edge`'s plan phase, so a refusal arrives with the body untouched.
+
+Two smaller edits in the same file, both statements rather than
+arithmetic: `Posture::Carries` joins the `staleness_posture` vocabulary
+and `split_edge`'s `DECLARED` entry moves onto it (its old entry, "the
+one primitive that makes a row stale in CONTENT rather than by key", is
+no longer true of it), and the module docs' posture section gains a
+`Carries` bullet while the `Neither` bullet loses `split_edge`. Nothing
+else in the file moves: `mint_pcurves`, `mint_pcurves_of`, `mint_face`,
+`walk_loop`, `chart_boundary` and `validate_pcurves` are untouched, and
+no derivation lane's `PcurveFittedLane` bound changes.
+
+**A finding for this board, filed in the same PR**:
+`validate-pcurves-never-recertifies-a-face-it-finds-incomplete` — the
+pass skips its re-certification and continuity passes for the whole
+face when any half-edge is missing a row, so a stale stored row on an
+incomplete face is accepted unmeasured. Measured on the item's own
+fixture. Neighbour of `S331`, and distinct from it: that row is about a
+CLEARED face, this one about an INCOMPLETE one.
+Signed (TOPO implementer lane, `topo/split-edge-pcurve-rows`).
+
+## The seam as built, and a second finding (2026-09-14, PR #2531 fix pass)
+
+The announced helper landed with two changes to what was announced,
+both inside the same seam and both narrowing what this file spells
+twice:
+
+- **`split_cache` takes the edge's two half-edges, not one**, and
+  derives the face's chart window **once per face** instead of once per
+  half. `SplitRows<T>` is gone: a one-use alias for
+  `Option<(PcurveCache<T>, PcurveCache<T>)>` named nothing the tuple did
+  not.
+- **The window has one home in this file.** `stored_rows(body, face)`
+  walks a face's loops once and returns each loop's cycle with the hull
+  of the chart boxes its stored rows carry; `validate_pcurves`'s passes
+  0 and 1 now read it instead of walking the same loops and hulling the
+  same boxes themselves, and `split_cache` reads the same function. The
+  findings `validate_pcurves` reports, and their order, are unchanged.
+  `mint_face`'s window is deliberately NOT this one — it hulls the
+  images it is deriving, none of which is stored yet.
+- **`Posture::Carries` was dropped.** The posture walk only
+  distinguishes `Maintains` from everything else, so a fourth arm no
+  walk can read was a comment wearing an enum's clothes (and it made the
+  module docs' "three postures exist" false). `split_edge` is declared
+  `Transfers` — the posture that moves each row onto the key that now
+  carries what it says — with its note saying what it restricts.
+
+**One line in `crates/geom-brep/src/pcurve_cache.rs`, also this
+board's**: `Pcurve::chart_box`'s `IsoArc` arm said its whole-segment box
+is tight "at the full span, which is the only span any mint asks for".
+A restriction of a stored row to one child of a split asks for a
+sub-span, so the sentence is false at this head; it now says a sub-span
+gets the conservative box. The arm's arithmetic is untouched.
+
+**A second finding for this board, filed in the same PR**:
+`iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain` —
+`nurbs_iso_derive`'s two rim arms map an edge's whole carrier interval
+onto the chart's whole `u` domain, so `mint_pcurves` refuses on any
+body whose spline-chart wall edge has been split, while minting the
+same body unsplit. Measured on `sweep::loft_body` prisms; the fixtures
+are committed as `crates/sweep/tests/split_edge_loft_charts.rs`, whose
+rows pin the refusal as the current, filed behaviour.
+Signed (TOPO fix-pass lane, `topo/split-edge-pcurve-rows`).
+
+## Announced seam from TOPO (2026-09-14): pcurve rows under `revert`, with the revert unit
+
+TOPO's `revert-does-not-mirror-plane-chart-images` (branch
+`topo/revert-mirrors-chart-images`) makes `Body::revert` transform
+the `Chart` images and the pcurve cache rows of faces on a reverted
+plane with the frame (`(u, v) ↦ (u, −v)`). If the row transform lands
+in TRIM's `crates/topo/src/pcurves.rs` it is one function by this
+seam, its doc and its rows, named in the PR; otherwise the rows are
+dropped and re-minted through `mint_pcurves_of`, which the PR says.
+No other edit there. Signed (TOPO orchestrator).
+
+## Announced seam from TOPO (2026-09-14): two doors beside `shift_branch`, and the posture docs' fourth position
+
+TOPO-B2 slot 2 (`revert-does-not-mirror-plane-chart-images`) closes
+`Body::revert`'s unmirrored plane charts by RE-STATING every datum in
+a plane's chart coordinates under the reflection its frame undergoes
+(`v_ref = normal × u_ref` negates with the normal, so `(u, v) ↦ (u,
+−v)`). Two doors land in this program's `crates/geom-brep/src/pcurve_cache.rs`
+by this seam:
+
+- **`Pcurve::mirror_v`**, beside `shift_branch` and in its shape — the
+  image under `(u, v) ↦ (u, −v)`, exact in every variant (a sign flip on
+  the `v` coefficients; a NURBS image's control net negated in `y`
+  with knots, weights and parameter untouched, rebuilt through
+  `NurbsCurve2::new` exactly as the shift does). Its own `impl<T:
+  Real>` block, because it needs no `SpanLocate`.
+- **`PcurveCache::mirrored_v`** — the same certified cache with its
+  image mirrored and the certificate VERBATIM, the `with_remapped_surfaces`
+  argument: the mirrored image on the mirrored chart evaluates to the
+  same 3-D points (bit-identical up to the sign of a zero, which a
+  distance squares away), so every number the run would produce again
+  is the number it produced.
+
+Two edits in `crates/topo/src/pcurves.rs`, both prose: the posture
+section gains a paragraph for `revert` — a fourth position, outside
+the guard's walk (the door takes `&self`), carrying every row key for
+key with the plane faces' rows mirrored — and `insert_voids`'s
+`DECLARED` note stops saying the reverted rows go stale in content.
+No arithmetic in this file moves; `mint_pcurves`, `mint_face`,
+`walk_loop`, `validate_pcurves` and `split_cache` are untouched.
+
+**One finding filed on TOPO's slate, named here because its middle
+answer is this file's**:
+`revert-leaves-a-periodic-charts-loop-wrap-mid-chain` — with the plane
+images mirrored the drum's reverted cavity reports exactly
+`NegativeVolume`, but the two-arc sphere's still reports the
+`LoopDiscontinuity` SHELL-9 measured, because the forward walk's
+one-period wrap is parked at a closure the reversed loop no longer
+has. Whether the continuity pass should accept a wrap anywhere on a
+closed loop is the question that lands here.
+Signed (TOPO implementer lane, `topo/revert-mirrors-chart-images`).
+
+## Fix pass on the announced seam (2026-09-14, PR 2542): one door, no fourth posture, one row filed here
+
+The two doors above landed as ONE affine door and its two callers.
+`Pcurve::map_affine(point, vector)` in `pcurve_cache.rs` carries every
+chart-space coefficient through an affine map of the chart given as
+its action on points and its linear part on vectors — a NURBS net
+through `NurbsCurve2::map_points`, the tree's infallible door for a
+pointwise map of a validated net, so no arm can refuse and the two
+`RevertError` variants minted for the refusal are gone. `mirror_v`
+is that door with the second channel negated; `shift_branch` is that
+door with the first channel of points translated and vectors left
+alone, its behaviour unchanged (its rows are the pin; the
+`.ok()?` on a re-validated `NurbsCurve2::new` it carried was the
+same unreachable arm). `PcurveCache::mirrored_v` is infallible with
+it; the certificate-verbatim argument now has one home, on
+`Pcurve::mirror_v`, and the doors point at it. The posture docs no
+longer call `revert` a fourth posture: it is a `&self -> Self`
+producer outside the guard's walk, said as such, with the dead-key
+exception stated there rather than only at the call site. Filed on
+this slate, because the guard is this file's:
+`pcurve-posture-guard-is-blind-to-body-producing-doors` — every
+body-returning producer's row posture is prose checked by nothing,
+and `revert` was the one that was wrong. Signed (TOPO fix-pass lane).
+
+## Announced seam from TOPO (2026-09-14): two posture notes with the loop-re-parenting unit
+
+TOPO's `loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart`
+(branch `topo/loop-reparenting-rows`) makes `kfmrh` and `ring_move`
+honest about the pcurve rows of the loop they move. In TRIM's
+`crates/topo/src/pcurves.rs` it re-states the two doors' notes in
+`staleness_posture::DECLARED` to say what each does with those rows;
+no other edit there. Signed (TOPO orchestrator).
+
+## The seam as built (2026-09-14, PR 2549): four posture entries, a third door, and two sites left open
+
+The unit announced above closes the case where a door
+moves a whole LOOP between faces on different surfaces: the rows on
+that loop keep their keys and change which CHART they are stated in,
+and where the target face does not `chart_mints` — a plane, or a NURBS
+placeholder — `validate_pcurves` skips the face and says nothing. The
+fix is a `Decide`-bound limb in this program's territory only by its
+prose: `Body::drop_rows_on_chart_change` lands in
+`crates/topo/src/euler_ring.rs` (TOPO's), compares the two faces'
+surface KEYS, carries every row when they agree and drops the moved
+loop's rows when they do not. It derives nothing, so no bound moves and
+`geom-brep` is untouched.
+
+In this program's `crates/topo/src/pcurves.rs` the edits are prose
+only, and no arithmetic in the file moves — `chart_mints`,
+`mint_pcurves`, `mint_face`, `walk_loop`, `stored_rows`, `split_cache`
+and `validate_pcurves` are all untouched:
+
+- `staleness_posture::DECLARED` moves **four** entries from `Neither`
+  to `Transfers` — `kfmrh`, `mfkrh`, `mfkrh_plug` and `ring_move` —
+  each with the note that says which surface key decides. The item
+  named two doors; the class sweep found `mfkrh` is the third (its
+  `mfkrh_plug` sugar always changes chart, because a placeholder is
+  always a fresh key), so four entries move rather than two.
+- The posture section gains a paragraph for the three doors, and the
+  `Neither` line stops reading "the Euler operators, the kill ops, ring
+  surgery" — ring surgery is no longer in that bucket. The same
+  paragraph names the two sites the sweep measured and did NOT close
+  (`mef`'s moved run, `kef`'s remnant — half-edge runs rather than
+  loops), filed on TOPO's slate as
+  `mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows`
+  and pointed at from there.
+
+Nothing in this seam changes what `validate_pcurves` measures. One
+behaviour change worth this program knowing about: a loop moved onto a
+DIFFERENT MINTING chart used to leave rows that the pass re-certified
+and refused (`Certify` per row); after the fix those rows are gone and
+the face reads as one the minting pass has not run on, which the pass
+is silent about by design. The refusal is not lost so much as made
+unnecessary — the body no longer holds the wrong row — and the two
+rows in `crates/topo/tests/loop_reparenting_pcurve_rows.rs` that
+measure it say so at the assertion. Signed (TOPO implementer lane,
+`topo/loop-reparenting-rows`).
+
+## The seam widened by one function, and three prose repairs (2026-09-14, PR 2549's fix pass)
+
+Both blinded reviews of the head above converged on four things inside
+this program's `crates/topo/src/pcurves.rs`. None of them moves any
+arithmetic in the file; `chart_mints`, `mint_pcurves`, `mint_face`,
+`walk_loop`, `split_cache` and `validate_pcurves` still compute what
+they computed.
+
+**The seam is one function wider than announced.** The fix adds
+`pcurves::loop_rows` — **the one per-loop rows walk**: given a loop, the
+half-edges a pcurve row can be keyed on, as a three-way `LoopRows`
+(`Cycle`, `NoCycle`, `Corrupt`) so a caller states its disposition
+instead of re-deciding it. `stored_rows` now calls it (its own
+let-else is gone, its behaviour unchanged in all three arms), and so
+does the loop-re-parenting doors' drop in TOPO's `euler_ring.rs`. The
+reason it lands here rather than beside the doors is this program's:
+the question "which rows does this loop have" is `validate_pcurves`'s
+question, and a second spelling of it is how a door and the validator
+came to disagree about a face's rows without either being able to see
+it. The third and fourth copies — `shell.rs`'s `rename_loop_surface`,
+which discards differently, and the outer
+`once(outer).chain(rings)` chain at 33 sites — are NOT folded in here
+and stay on TOPO's
+`a-faces-loops-are-walked-by-hand-in-thirty-four-places`.
+
+**Three prose claims this change made false, repaired.** The header's
+"there is no invalidation machinery and none is needed" (there is now,
+per door); the header's "the tier-3 pcurve pass catches a stale row
+LOUD … so the posture is fail-loud, not silent-wrong" and
+`Posture::Neither`'s "safe because the tier-3 pass catches the
+consequence loud" (the pass reads an INCOMPLETE face and a face whose
+rows no longer certify, and is silent about a complete face on the
+wrong chart and about any face `chart_mints` refuses — the same
+paragraph that PR added names `mef`/`kef` as leaving rows the pass
+never reports). `Posture::Transfers`'s own doc named only the graft and
+the split, neither of which is what the four new entries do; it now
+covers a row whose key never moved but whose chart did, so the four
+entries sit under an arm that describes them. `set_face_surface`'s
+entry claimed the pass "re-certifies against" a surface swap, which is
+true only where the new surface mints; corrected, with the measurement
+filed on TOPO's slate as
+`set-face-surface-leaves-a-complete-face-certified-against-the-chart-it-left`.
+
+**One row filed on this program's slate**, by both reviewers'
+finding: `validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`
+— the pass reads a face a door emptied exactly as it reads one never
+minted, measured on three doors, an S331-shaped vacuous green beside
+`validate-pcurves-never-recertifies-a-face-it-finds-incomplete`.
+Signed (TOPO fix-pass lane, `topo/loop-reparenting-rows`).
+
+
+## TRIM-3 PR-2 and TRIM-2 PR-1 delivered; the week's pacing (2026-09-14)
+
+TRIM-3 PR-2 (PR #2554, the clearance seam) and TRIM-2 PR-1 (PR #2564,
+the trimmed-region quadrature) both delivered green on the full matrix.
+TRIM-3 PR-2 landed three of the spec's four consumer edits: the
+`min_separation` half crosses the drive's flip-crossing divergence
+census (seven M10-6/R2 drive rows lose their certified leaf) and is
+filed rather than forced (`min-separation-tightening-crosses-the-drive`);
+the negative-angle-revolve mutant has no e2e row because no revolve
+replays at `Interval` over an ε box (filed). TRIM-2 PR-1's fixture
+measurement mirrored §0 (the `General` seam on `u = 2`); the lune box
+is the CHORD's frame, not the axes' (the axis-aligned box is only
+second order per chord). TRIM-3 PR-2's dual dispatched (ordinal 2502,
+R1 Opus, R2 Fable). **TRIM-2 PR-1's dual is HELD for next week's
+budget** (the weekly window is at ~64% with six days left); it draws
+ordinal 2503 and TRIM-B2 slot 0's arm (Opus) when dispatched.
+
+## Announced seam from TOPO (2026-09-14): a reverse-parking helper, with the revert-wrap unit
+
+TOPO's `revert-leaves-a-periodic-charts-loop-wrap-mid-chain` (branch
+`topo/revert-reparks-the-wrap`) makes `revert` re-park a periodic
+chart's wrap at the reversed closure. `walk_loop`/`loop_closes` in
+TRIM's `crates/topo/src/pcurves.rs` are read; if the re-park needs a
+helper there it is one function by this seam, named in the PR. Signed
+(TOPO orchestrator).
+
+## The reverse-parking seam, as landed (2026-09-14): no helper, one paragraph
+
+The revert-wrap unit (`topo/revert-reparks-the-wrap`) needed no
+function in `crates/topo/src/pcurves.rs`: the wrap is re-parked by
+moving each curved loop's `Cycle::first` to its source predecessor
+inside `Body::revert`, which puts the forward walk's closure joint at
+the reversed closure with no row shifted — `walk_loop` and
+`loop_closes` are read, unchanged. What this lane touched in TRIM's
+file is ONE prose paragraph, the posture docs' "`revert` carries the
+map" position, whose last sentences said the reversal does not
+re-state the branch choice and leaves the wrap to the producer's
+closing mint; they now say how the reversal re-states it and point at
+the anchor bullet in `revert`'s module docs for the argument. Signed
+(TOPO, the revert-wrap lane).

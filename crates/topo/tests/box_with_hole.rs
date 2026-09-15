@@ -46,6 +46,7 @@
 
 use geom_core::Point3;
 use geom_core::Tol;
+use topo::readback::euler_counts;
 use topo::{
     Body, EntityId, KemrResult, KfmrhResult, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated,
     Provenance, validate, validate_closed,
@@ -215,12 +216,14 @@ fn holed_box_validates_with_minimal_counts_at_genus_one() {
     assert_eq!(body.surfaces().count(), 1);
     assert_eq!(b.plug.killed_surface, None);
 
-    // The Euler–Poincaré ledger at genus 1, by hand:
+    // The Euler–Poincaré ledger at genus 1, through the census door:
     //   v − e + f − r = 16 − 24 + 10 − 2 = 0 = 2(s − h) = 2(1 − 1).
-    let (v, e, f) = (16_i64, 24_i64, 10_i64);
-    let rings: usize = body.faces().map(|(_, face)| face.rings.len()).sum();
-    assert_eq!(rings, 2);
-    assert_eq!(v - e + f - 2, 0);
+    let counts = euler_counts(&body);
+    assert_eq!(
+        (counts.v, counts.e, counts.f, counts.r, counts.s),
+        (16, 24, 10, 2, 1)
+    );
+    assert_eq!(counts.genus(), Ok(1));
 
     // Exactly two faces carry rings: the top (the hole's rim ring from
     // kemr's lineage) and the bottom (the demoted membrane loop from

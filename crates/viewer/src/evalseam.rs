@@ -1,9 +1,10 @@
-//! The two seams the picture is built across — where a document
-//! becomes a result DAG, and where that DAG becomes the pick index the
-//! viewport draws and picks against. **The one place in this crate
-//! that OWNS a thread**: `app` spawns both workers because it decides
-//! which implementation this build runs, and every join handle,
-//! channel and hand-off between them is here.
+//! The three seams the picture is built across — where a document
+//! becomes a result DAG, where the display budget prices that result
+//! to choose the δ it is drawn at, and where the DAG becomes the pick
+//! index the viewport draws and picks against. **The one place in this
+//! crate that OWNS a thread**: `app` spawns all three workers because
+//! it decides which implementation this build runs, and every join
+//! handle, channel and hand-off between them is here.
 //!
 //! # Why a seam at all
 //!
@@ -13,7 +14,7 @@
 //! natively a background thread, on wasm a Worker or an inline slice,
 //! with no source change above this boundary. So the vocabulary here
 //! is submit / poll over a [`Generation`] — plus cancel, for the one
-//! of the two seams whose work can be stopped — and
+//! of the three whose work can be stopped — and
 //! [`InlineEvaluator`] — which runs the whole evaluation inside
 //! `poll` — satisfies it exactly as well as [`ThreadEvaluator`] does.
 //! Every test in this crate drives the inline one; the application
@@ -109,10 +110,11 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use pncad::select::PickMemo;
+use pncad::topo::Body;
 
 use crate::generation::Generation;
 use crate::pickindex::{PickIndex, PickIndexError};
-use crate::scene::DisplayTolerance;
+use crate::scene::{DisplayTolerance, FittedDelta, SceneError, fit_delta, product_of_evaluation};
 
 /// What the seam was asked to evaluate.
 #[derive(Clone, Debug)]
@@ -382,6 +384,12 @@ pub struct MemoReport {
     pub face_misses: usize,
     /// The patch memo's heap footprint, approximately.
     pub bytes: usize,
+    /// Per-patch pick tables held after the build.
+    pub tables: usize,
+    /// Patches whose whole pick table was served from the memo.
+    pub table_hits: usize,
+    /// Patches whose pick table was built.
+    pub table_misses: usize,
 }
 
 impl MemoReport {
@@ -396,6 +404,9 @@ impl MemoReport {
             face_hits: patches.hits(),
             face_misses: patches.misses(),
             bytes: patches.bytes(),
+            tables: memo.table_len(),
+            table_hits: memo.table_hits(),
+            table_misses: memo.table_misses(),
         }
     }
 }
@@ -500,6 +511,143 @@ impl IndexService for InlineIndexer {
     }
 }
 
+// --- the display budget's fit -----------------------------------------
+
+/// What the display budget was asked to price: a landed body, and the
+/// δ someone wants to see it at.
+///
+/// **Keyed by generation alone**, where [`IndexRequest`]'s key is a
+/// pair. δ is this request's ANSWER and not an input to it, so two
+/// outstanding fits of one landing could not be two different wants.
+/// The requested δ rides along so an answer can be recognised as being
+/// about a number the View pane has since moved off — see
+/// [`FitDone::requested`].
+#[derive(Clone, Debug)]
+pub struct FitRequest {
+    /// The landing this fit prices.
+    pub generation: Generation,
+    /// The δ that was asked for — what the ladder prices, and may
+    /// coarsen.
+    pub requested: DisplayTolerance,
+    /// What to probe.
+    pub subject: FitSubject,
+    /// The ε the probe tessellations run at.
+    pub tol: Tol,
+}
+
+/// The body a fit probes, in the two shapes a landing leaves it.
+///
+/// Read off the landing by the SUBMITTER, where that landing is
+/// (`crate::app::ViewerApp::sync_scene`), so this seam names no
+/// session.
+#[derive(Clone, Debug)]
+pub enum FitSubject {
+    /// The landing's own body, shared rather than copied: the gather
+    /// that produced it was paid once, where the result became the
+    /// session's (`crate::session::DocSession::land`).
+    Landed(Arc<Body<f64>>),
+    /// A landing whose A5 gate consumed the product it judged. There
+    /// is no body to share, so the fit gathers one — **here, on the
+    /// worker**, which is half of what this seam buys: a gather is
+    /// unbounded per-document work, and the frame is where this one
+    /// used to run.
+    Ungathered {
+        /// The document, shared: this is the landing's own copy, which
+        /// nothing edits.
+        doc: Arc<Doc<ProfileProgram>>,
+        /// The run it gathers, shared.
+        evaluation: Arc<Evaluation<f64>>,
+    },
+}
+
+/// A finished fit.
+///
+/// Not `Clone`, and neither is [`IndexDone`]: an answer carries what a
+/// request does not — here a [`SceneError`] on the refusing arm, there
+/// a built index — and one answer has exactly one reader.
+#[derive(Debug)]
+pub struct FitDone {
+    /// The generation the request carried.
+    pub generation: Generation,
+    /// The δ the request asked for. The submitter compares it against
+    /// the δ in force now: a user who typed a δ while this ran has
+    /// asked for that number verbatim, and the budget's authority is
+    /// over the δ a document OPENS at and nothing else
+    /// (`crate::pickcache::PickCache::sync`).
+    pub requested: DisplayTolerance,
+    /// The budget's answer, or why it had none.
+    pub fit: Result<FittedDelta, SceneError>,
+}
+
+/// The fit seam's vocabulary — [`IndexService`]'s shape, and for the
+/// same reason it has that shape rather than [`EvalService`]'s: the
+/// step behind it is a ladder of `pncad::mesh::tessellate` calls, none
+/// of which reads a token, so the policy is restart without cancel.
+pub trait FitService {
+    /// Ask for `request`. A fit already in flight runs to completion
+    /// and its answer is dropped; a request only WAITING is replaced.
+    fn submit(&mut self, request: FitRequest);
+
+    /// Take a finished fit, if one is ready. Never blocks.
+    fn poll(&mut self) -> Option<FitDone>;
+
+    /// Whether a fit is in flight or waiting.
+    fn busy(&self) -> bool;
+}
+
+/// Run one fit, stamping the answer with the request's own key.
+///
+/// The seam's one call into [`crate::scene::fit_delta`], shared by
+/// both implementations for [`build_index`]'s reason: the key the
+/// answer is filed under is read from the request that produced it,
+/// in one place, so the two cannot disagree.
+fn run_fit(request: &FitRequest) -> FitDone {
+    let fit = match &request.subject {
+        FitSubject::Landed(body) => fit_delta(body, request.requested, request.tol),
+        FitSubject::Ungathered { doc, evaluation } => {
+            product_of_evaluation(doc, evaluation, request.tol)
+                .and_then(|body| fit_delta(&body, request.requested, request.tol))
+        }
+    };
+    FitDone {
+        generation: request.generation,
+        requested: request.requested,
+        fit,
+    }
+}
+
+/// The fit seam with no thread behind it: `submit` records the request
+/// and `poll` runs it — [`InlineIndexer`]'s standing, for
+/// [`InlineEvaluator`]'s reason.
+#[derive(Debug, Default)]
+pub struct InlineFitter {
+    pending: Option<FitRequest>,
+}
+
+impl InlineFitter {
+    /// A seam that has fitted nothing.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl FitService for InlineFitter {
+    fn submit(&mut self, request: FitRequest) {
+        // Restart, degenerately: nothing has started, so the newer
+        // request replaces the older one at no cost.
+        self.pending = Some(request);
+    }
+
+    fn poll(&mut self) -> Option<FitDone> {
+        let request = self.pending.take()?;
+        Some(run_fit(&request))
+    }
+
+    fn busy(&self) -> bool {
+        self.pending.is_some()
+    }
+}
+
 /// **The seam's traffic is `Send`, checked here rather than assumed.**
 ///
 /// The threaded implementation would fail to compile without it, but
@@ -513,12 +661,14 @@ const _: fn() = || {
     assert_send::<EvalDone>();
     assert_send::<IndexRequest>();
     assert_send::<IndexDone>();
+    assert_send::<FitRequest>();
+    assert_send::<FitDone>();
     // The memo moves onto the worker thread with the loop that owns it.
     assert_send::<PickMemo>();
 };
 
 #[cfg(not(target_family = "wasm"))]
-pub use threaded::{SpawnError, ThreadEvaluator, ThreadIndexer, Worker};
+pub use threaded::{SpawnError, ThreadEvaluator, ThreadFitter, ThreadIndexer, Worker};
 
 /// The native seam: one worker thread, a request channel, a result
 /// channel.
@@ -535,8 +685,8 @@ mod threaded {
     use pncad::document::CancelToken;
 
     use super::{
-        EvalDone, EvalRequest, EvalService, IndexDone, IndexRequest, IndexService, PickMemo,
-        PriorRun, build_index, run_once,
+        EvalDone, EvalRequest, EvalService, FitDone, FitRequest, FitService, IndexDone,
+        IndexRequest, IndexService, PickMemo, PriorRun, build_index, run_fit, run_once,
     };
 
     /// A request plus the token that stops it.
@@ -563,6 +713,8 @@ mod threaded {
         Evaluation,
         /// The index worker ([`ThreadIndexer`]).
         Index,
+        /// The display budget's fit worker ([`ThreadFitter`]).
+        Fit,
     }
 
     impl core::fmt::Display for Worker {
@@ -570,6 +722,7 @@ mod threaded {
             f.write_str(match self {
                 Self::Evaluation => "evaluation",
                 Self::Index => "index",
+                Self::Fit => "display fit",
             })
         }
     }
@@ -926,6 +1079,159 @@ mod threaded {
         /// buy, so the worker is left to finish and die on its own.
         /// What it holds while it does is a document copy and a handle
         /// on a run nobody is looking at any more.
+        fn drop(&mut self) {
+            self.to_worker = None;
+            self.waiting = None;
+        }
+    }
+
+    // --- the display budget's fit --------------------------------
+
+    /// A background-thread fit seam.
+    ///
+    /// [`ThreadIndexer`]'s shape exactly, over a shorter job: the
+    /// ladder of probe tessellations the display budget prices a
+    /// document with. At most one fit is ever with the worker, a
+    /// submit while it holds one replaces [`ThreadFitter::waiting`]
+    /// rather than queueing, and [`FitService::poll`] drops an answer
+    /// a waiting request has already superseded.
+    ///
+    /// **Its own thread, not the indexer's.** The two are sequential
+    /// for one document — the fit picks the δ the index is built at —
+    /// but they are not sequential across documents: a δ typed into
+    /// the View pane submits an index build for the picture on screen,
+    /// and a fit for a document that arrived meanwhile must not sit
+    /// behind it. That is the argument the index worker's own docs
+    /// make about the evaluator, one step further along: an
+    /// uninterruptible job in front of another job's queue weakens
+    /// whatever promise was made above it.
+    #[derive(Debug)]
+    pub struct ThreadFitter {
+        to_worker: Option<Sender<FitRequest>>,
+        from_worker: Receiver<FitDone>,
+        /// Whether the worker holds a request. A flag rather than a
+        /// count, because the channel never holds more than one.
+        running: bool,
+        /// The newest request, held back until the worker is free.
+        /// Replaced, never appended to: that is latest-wins.
+        waiting: Option<FitRequest>,
+    }
+
+    impl ThreadFitter {
+        /// Spawn the worker.
+        ///
+        /// # Errors
+        ///
+        /// [`SpawnError::Thread`] if the OS refuses the thread. Loud
+        /// rather than degraded, for [`ThreadEvaluator::spawn`]'s
+        /// reason: a seam whose worker never started accepts every
+        /// submit and answers none, and the index build waits on this
+        /// seam's answer — so every document would open to a picture
+        /// that never arrives, with no failure anywhere to read.
+        pub fn spawn() -> Result<Self, SpawnError> {
+            let (to_worker, requests) = channel::<FitRequest>();
+            let (results, from_worker) = channel::<FitDone>();
+            std::thread::Builder::new()
+                .name("viewer-fit".to_owned())
+                .spawn(move || fit_work(&requests, &results))
+                .map_err(|error| SpawnError::Thread {
+                    worker: Worker::Fit,
+                    error,
+                })?;
+            Ok(Self {
+                to_worker: Some(to_worker),
+                from_worker,
+                running: false,
+                waiting: None,
+            })
+        }
+
+        /// Hand `request` to the worker, or record that the worker is
+        /// gone.
+        fn dispatch(&mut self, request: FitRequest) {
+            match self.to_worker.as_ref() {
+                Some(to_worker) if to_worker.send(request).is_ok() => self.running = true,
+                // The worker ended (only reachable after `Drop` has
+                // closed the channel, or if it panicked). Nothing more
+                // will ever be answered, and the indicator must not
+                // stay lit for an answer that is not coming.
+                _ => {
+                    self.running = false;
+                    self.waiting = None;
+                }
+            }
+        }
+    }
+
+    /// The worker loop: price each request and answer with its key.
+    ///
+    /// Nothing survives between jobs here. The index worker keeps a
+    /// memo because a picture's faces recur; a fit reads a body it is
+    /// handed and answers a number, so there is no state a second fit
+    /// could reuse.
+    fn fit_work(requests: &Receiver<FitRequest>, results: &Sender<FitDone>) {
+        while let Ok(request) = requests.recv() {
+            if results.send(run_fit(&request)).is_err() {
+                return;
+            }
+        }
+    }
+
+    impl FitService for ThreadFitter {
+        fn submit(&mut self, request: FitRequest) {
+            if self.running {
+                // Restart WITHOUT cancel: the ladder the worker is on
+                // has no token to stop it, so it runs to completion
+                // and `poll` throws its answer away.
+                self.waiting = Some(request);
+            } else {
+                self.dispatch(request);
+            }
+        }
+
+        fn poll(&mut self) -> Option<FitDone> {
+            loop {
+                match self.from_worker.try_recv() {
+                    Ok(done) => {
+                        self.running = false;
+                        match self.waiting.take() {
+                            // Superseded is decided by KEY, not by
+                            // position ([`ThreadIndexer::poll`]): a
+                            // waiting request for the answer already
+                            // in hand would cost a second ladder for
+                            // a number nobody's view of the world has
+                            // moved off.
+                            Some(next)
+                                if (next.generation, next.requested)
+                                    != (done.generation, done.requested) =>
+                            {
+                                self.dispatch(next);
+                            }
+                            _ => return Some(done),
+                        }
+                    }
+                    Err(TryRecvError::Empty) => return None,
+                    // The worker is gone. Nothing further will ever
+                    // land, so the indicator must not stay lit forever.
+                    Err(TryRecvError::Disconnected) => {
+                        self.running = false;
+                        self.waiting = None;
+                        return None;
+                    }
+                }
+            }
+        }
+
+        fn busy(&self) -> bool {
+            self.running || self.waiting.is_some()
+        }
+    }
+
+    impl Drop for ThreadFitter {
+        /// [`ThreadIndexer`]'s `Drop`, for its reason: the job has no
+        /// token, so nothing bounds a join and a close button that did
+        /// nothing until the ladder finished would be paying for
+        /// shutdown determinism with what the seam exists to buy.
         fn drop(&mut self) {
             self.to_worker = None;
             self.waiting = None;

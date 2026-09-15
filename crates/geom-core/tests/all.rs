@@ -133,6 +133,10 @@ mod span_hull_window;
 mod span_newtype;
 #[path = "spline_hull.rs"]
 mod spline_hull;
+#[path = "sym_drive_memo.rs"]
+mod sym_drive_memo;
+#[path = "sym_rule_e_rows.rs"]
+mod sym_rule_e_rows;
 #[path = "tolerance_init.rs"]
 mod tolerance_init;
 
@@ -187,3 +191,11 @@ mod m10_9_r1_sym_probes;
 
 #[path = "m10_9_r2_sym_probes.rs"]
 mod m10_9_r2_sym_probes;
+
+#[path = "m10_10_atan2_interval.rs"]
+mod m10_10_atan2_interval;
+
+#[path = "m10_10_r1_sym_probes.rs"]
+mod m10_10_r1_sym_probes;
+#[path = "m10_10_r2_probes.rs"]
+mod m10_10_r2_probes;

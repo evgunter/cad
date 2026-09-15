@@ -12,11 +12,13 @@ use crate::app::{ViewerBehavior, chrome, to_f32};
 use crate::camera::{self, Camera, CameraOp};
 use crate::datums::{self, datum_view};
 use crate::frame::{self, IdStep};
+use crate::generation::Generation;
 use crate::gpu::{IdQuery, ViewportCallback};
 use crate::input::{self, PointerButton, ViewportEvent, ViewportSize};
 use crate::marks;
 use crate::pickcache;
 use crate::pickindex::PickIndex;
+use crate::scene::DisplayTolerance;
 use crate::session::SessionOp;
 use crate::sketch::{heading, tip_mark};
 
@@ -46,6 +48,56 @@ pub(crate) fn land(
     // sentence and reaches the field directly, because a notice cannot
     // un-say anything.
     frame::deliver(notices, status, frame::fold_status(folded));
+}
+
+/// The index the picture on screen was drawn FROM, or `None` when the
+/// index in hand describes some other picture.
+///
+/// # Why a read of the index can need this and not the evaluation
+///
+/// `ViewerBehavior::index` is the index for the document the session
+/// has landed. `ViewerBehavior::scene` is the mesh of whatever picture
+/// last succeeded in being built, which is the same thing on almost
+/// every frame and is NOT the same thing whenever a scene rebuild
+/// refused: `ViewerApp::sync_scene` marks the pair current only on
+/// success, so a landed index over a refused rebuild leaves a new index
+/// beside an older picture, and nothing retries while the display and
+/// the focus hold still.
+///
+/// Two reads care, and they are the reads whose currency is a pick
+/// **id** rather than a document fact:
+///
+/// - resolving an id the id pass produced, which is a word of the id
+///   map of whichever index minted the picture's corners; and
+/// - minting ids or world-space segments for the picture to draw over
+///   itself, where the shader compares them against those same
+///   corners.
+///
+/// Both are false-by-construction across two pictures, and the first
+/// writes its falsehood to the status line as *the two picking paths
+/// disagree* — a sentence issue #1097 §4 tells an operator to read as
+/// an `R32Uint` clear fault, so a wrong subsystem gets named.
+///
+/// **The pair, not the generation.** An index is keyed by
+/// `(generation, δ)` and so is its id map: a δ typed while the picture
+/// stands rebuilds the index at the same generation, over a different
+/// tessellation, with a different alphabet. A generation-only check
+/// reads as co-identity and is not it, so the question goes to
+/// [`PickIndex::current_for`], the one door that answers *does this
+/// index describe this picture*.
+///
+/// **What it deliberately does not guard** is the pick path itself.
+/// A click asks what is under the cursor in the DOCUMENT, resolves it
+/// through the index and the evaluation with no id and no mesh in
+/// sight, and answers in the session's own currency; gating it on the
+/// picture would refuse picks over a stale-but-drawn scene, which is a
+/// product decision and not this rule's to make.
+fn drawn_index(
+    index: Option<&PickIndex>,
+    scene_key: Option<(Generation, DisplayTolerance)>,
+) -> Option<&PickIndex> {
+    let (generation, delta) = scene_key?;
+    index.filter(|index| index.current_for(Some(generation), delta))
 }
 
 /// Direction the light travels, world space; a unit vector over the
@@ -308,15 +360,22 @@ impl ViewerBehavior<'_> {
             self.notices.push(frame::unindexed_refusal(&refusal));
         }
 
+        // **The index the PICTURE was drawn from**, which is the index
+        // in hand on every frame but the ones `drawn_index` exists for.
+        // Everything below this line that reads an index is about what
+        // is on screen — marks composited against the drawn corners'
+        // ids, and the id pass's answer read back through an id map —
+        // so all of it asks this one and none of it asks the current
+        // one.
+        let on_screen = drawn_index(self.index, self.scene_key);
+
         // What to mark, as a pure function of what is drawn and what is
         // selected. Recomputed every frame; nothing retains it.
-        let highlight = self
-            .index
+        let highlight = on_screen
             .map(|index| marks::highlight(index, self.session.selection(), self.session.hover()));
         // The edge half of the same question, and the same discipline:
         // recomputed every frame from state that lives in one place.
-        let mut edges = self
-            .index
+        let mut edges = on_screen
             .map(|index| {
                 marks::edge_overlay(
                     index,
@@ -335,7 +394,7 @@ impl ViewerBehavior<'_> {
         // body) narrowing a single selection gets — one pass over the
         // target's drawn edges, so the cost is the body's edge count
         // and not its square.
-        if let (Some(index), Some(tool)) = (self.index, self.tools.blend()) {
+        if let (Some(index), Some(tool)) = (on_screen, self.tools.blend()) {
             edges
                 .selected
                 .extend(tool.mark_segments(index, self.display));
@@ -490,14 +549,14 @@ impl ViewerBehavior<'_> {
         // question is outstanding at all.
         let outstanding = self.id_log.outstanding();
         let from_ray = outstanding.and_then(|_| {
-            let index = self.index?;
+            let index = on_screen?;
             let eval = self.session.evaluation()?;
             index
                 .face_under_cursor(eval, self.camera, viewport, cursor_px?, self.display)
                 .ok()
                 .flatten()
         });
-        if let Some(report) = self.index.and_then(|index| {
+        if let Some(report) = on_screen.and_then(|index| {
             frame::disagreement(
                 index,
                 self.id_answer.load(Ordering::Relaxed),
@@ -562,12 +621,13 @@ mod tests {
 
     use eframe::egui;
 
-    use super::{button_events, egui_buttons, land, viewer_button};
+    use super::{button_events, drawn_index, egui_buttons, land, viewer_button};
     use crate::camera::{Camera, CameraOp, fold_recorded};
     use crate::frame::{self, product_badge};
     use crate::input::{self, InputMap, PointerButton, ViewportEvent};
+    use crate::pickindex::{IdMap, PickIndex};
     use crate::props::SlotValue;
-    use crate::scene;
+    use crate::scene::{self, DisplayTolerance};
     use crate::session::{DocSession, SessionOp};
     use pncad::document::SlotId;
     use pncad::geom_core::Tol;
@@ -864,6 +924,121 @@ mod tests {
         pane.reach();
         pane.frame(vec![button(egui_button, true, AIM)]);
         pane.frame(vec![egui::Event::PointerMoved(AIM + egui::vec2(40.0, 0.0))])
+    }
+
+    /// A δ, coarse enough to index the plate quickly.
+    fn a_delta(mm: f64) -> DisplayTolerance {
+        DisplayTolerance::new(mm * 1.0e-3).expect("a positive δ")
+    }
+
+    /// The plate, landed, plus the index of its landed evaluation at
+    /// `delta`.
+    fn plate_index(session: &DocSession, delta: DisplayTolerance) -> PickIndex {
+        let (doc, eval) = session.landed_pair().expect("the inline seam lands");
+        let generation = session
+            .landed_generation()
+            .expect("a landed evaluation has a generation");
+        PickIndex::build(doc, eval, generation, delta, session.tol()).expect("the plate indexes")
+    }
+
+    /// **The picture's alphabet is `(generation, δ)`, and the guard
+    /// holds both halves.**
+    ///
+    /// The half a generation-only check would drop is δ: a δ typed
+    /// while the document stands rebuilds the index at the SAME
+    /// generation over a different tessellation, so the id map is a
+    /// different alphabet under an identical generation. A guard that
+    /// compared generations would pass the cross pairing below and read
+    /// as co-identity while checking something else — which is the
+    /// shape this unit was sent to remove, not to re-mint.
+    #[test]
+    fn the_drawn_index_is_the_one_whose_generation_and_delta_the_picture_carries() {
+        let tol = Tol::witness();
+        let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+
+        let coarse = plate_index(&session, a_delta(0.5));
+        let fine = plate_index(&session, a_delta(0.05));
+        let key = |index: &PickIndex| (index.generation(), index.delta());
+        assert_eq!(
+            coarse.generation(),
+            fine.generation(),
+            "both index the same landed evaluation, so only δ separates them"
+        );
+        assert_ne!(coarse.delta(), fine.delta(), "and δ does separate them");
+
+        assert!(
+            drawn_index(Some(&coarse), Some(key(&coarse))).is_some(),
+            "the index the picture was built from IS the drawn index"
+        );
+        assert!(
+            drawn_index(Some(&fine), Some(key(&coarse))).is_none(),
+            "an index at another δ did not mint this picture's ids"
+        );
+
+        // The other half, over the same predicate: an edit lands a new
+        // generation, and the index of it is not the index of the
+        // picture still on screen.
+        let outcome = session.perform(SessionOp::SetSlot {
+            node: extrude,
+            slot: SlotId::Distance,
+            value: SlotValue::Continuous(0.004),
+        });
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        session.pump();
+        let edited = plate_index(&session, a_delta(0.5));
+        assert_ne!(
+            edited.generation(),
+            coarse.generation(),
+            "the edit landed a new generation"
+        );
+        assert!(
+            drawn_index(Some(&edited), Some(key(&coarse))).is_none(),
+            "an index of the edited document did not mint the old picture's ids"
+        );
+    }
+
+    /// **The false diagnosis this guard exists to stop, shown to be a
+    /// real sentence, and shown to be unreachable through the guard.**
+    ///
+    /// A picture no index minted ids for — the startup mesh, whose
+    /// corners all carry [`IdMap::NOTHING`] — makes the id pass answer
+    /// *nothing* everywhere. Compared against a ray that names a face,
+    /// that is a disagreement, and [`frame::Disagreement`] writes it to
+    /// the status line as *the two picking paths disagree*, which issue
+    /// #1097 §4 tells an operator to read as an `R32Uint` clear fault.
+    ///
+    /// So the first assertion is that the sentence really is produced
+    /// by the pairing, and the second is that `drawn_index` never hands
+    /// the comparison that pairing.
+    #[test]
+    fn a_picture_no_index_minted_ids_for_is_not_compared_against_one() {
+        let tol = Tol::witness();
+        let (doc, _extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        let index = plate_index(&session, a_delta(0.5));
+
+        let id = index.ids().ids().next().expect("the plate draws patches");
+        let named = index
+            .name_of(id)
+            .expect("an id of this index has an entry")
+            .as_ref()
+            .expect("and the plate's patches name cleanly")
+            .clone();
+
+        let serial = 7u32;
+        let nothing = (u64::from(serial) << 32) | u64::from(IdMap::NOTHING);
+        let report = frame::disagreement(&index, nothing, Some(serial), Some(&named))
+            .expect("nothing-under-the-cursor against a named face is a disagreement");
+        assert_eq!(report.from_gpu, None, "the id pass answered nothing");
+        assert_eq!(report.from_ray, Some(named), "the ray answered a face");
+
+        assert!(
+            drawn_index(Some(&index), None).is_none(),
+            "a picture with no index behind it is compared against no index"
+        );
     }
 
     /// **[`egui_buttons`] is every toolkit button exactly once, and
