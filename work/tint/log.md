@@ -218,3 +218,37 @@ re-filed as work nobody asked for.
 **Board: two of the slate's three decision rows are now closed** and
 neither cost a unit. The remaining one is "any change to a `memories/`
 clause", which is not a row. 40 items live.
+
+## Two stale citations fixed (2026-09-15)
+
+Ev, in-chat: fix the two, and let them ride the next state sync. Done on
+`tint/orchestrator`; they are the only CODE edits this branch carries and
+this entry is why.
+
+They are the two of ~62 that sit in frequently-read files — the test that
+sorted them is Ev's: *"if any of them are actually in frequently read
+code they could be cleaned up now … probably not worth it though if they
+were just encountered by going looking."* The other ~60 are in leaf probe
+suites and are **not** filed and **not** scheduled.
+
+- `crates/topo/tests/common/mod.rs` — ``[`BooleanDeclarations`]`` →
+  ``[`topo::BooleanDeclarations`]``. The type is `pub` (declared in
+  `topo/src/boolean/mod.rs`) and the helper's own return type already
+  spells it qualified; only the citation was bare, and that file imports
+  `topo::{Body, FaceSurface, …}` without it.
+- `crates/mesh/tests/all.rs` — ``[`Eps`]`` → `` `Eps` ``. There is
+  nothing to point it at: `Eps` is `pub(crate)` in
+  `crates/mesh/src/sizing.rs`, so an integration test can never resolve
+  it (D113's `Leg::tangent_point` case). The same doc comment already
+  spells the name in plain backticks nine other times, so this makes one
+  outlier match its neighbours rather than applying any policy — **D113
+  ruled that a citation FORMAT is not a lever and nothing here reopens
+  that.**
+
+**The biggest single file in the hit list was not touched and is not a
+defect.** `crates/mesh/tests/common/mod.rs` carries six of the ~62 and
+all six are false positives: `[1,2]×[0,1]` interval notation that
+rustdoc reads as links. Across the whole sweep 30 of 111 are that shape
+(`[0,1]` alone is 12), which is a property of the instrument and not of
+the tree — worth knowing before anyone re-runs that sweep and reads its
+count as a defect count.
