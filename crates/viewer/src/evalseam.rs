@@ -17,8 +17,8 @@
 //! of the three whose work can be stopped — and
 //! [`InlineEvaluator`] — which runs the whole evaluation inside
 //! `poll` — satisfies it exactly as well as [`ThreadEvaluator`] does.
-//! Every test in this crate drives the inline one; the application
-//! drives the threaded one; nothing else changes.
+//! Rows in this crate's suite drive both, and the application drives
+//! the threaded one; nothing else changes.
 //!
 //! # The policy for an edit during an evaluation: CANCEL AND RESTART
 //!
