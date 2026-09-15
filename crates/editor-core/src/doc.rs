@@ -21,7 +21,6 @@ use geom_core::Tol;
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-#[serde(deny_unknown_fields)]
 pub struct ParamName(pub String);
 
 impl ParamName {
@@ -101,7 +100,6 @@ pub enum DocParam {
 /// [`DocParam`] from `(dim, value)` deletes the annotation, silently,
 /// because [`crate::DocEdit::SetDocParam`] is create-or-replace.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
 pub enum DocParamValue {
     /// A continuous parameter's nominal, in its ALREADY-DECLARED
     /// dimension (canonical kernel units).
