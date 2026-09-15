@@ -12,7 +12,7 @@ use geom_core::Decide;
 use sweep::Extruded;
 use topo::{Body, EdgeKey, VertexKey};
 
-use super::emit::{NamingError, edge_ends, ent, name1, unique_shared_edge};
+use super::emit::{NamingError, edge_ends, ent, name1, shared_rim};
 use super::role::{CapEnd, EntityKind, MeridianEnd, ProfileEdgeRef, ProfileVertexRef, RoleSeg};
 use super::table::{EntityKey, NameTable};
 use crate::node::RecipeNodeId;
@@ -28,6 +28,21 @@ use crate::node::RecipeNodeId;
 /// `poles` export.
 const UNRESOLVED: NamingError = NamingError::Emission {
     what: "revolve meridian vertex unresolved: rim and meridian are not incident",
+};
+
+/// The typed refusal when a wall and a cap of the body THIS emitter has
+/// just built do not share exactly one edge.
+///
+/// The same shape as [`UNRESOLVED`], and the same word for the same
+/// reason: a swept solid's wall meets each cap along one rim by
+/// construction, so any other cardinality means the built topology
+/// contradicts the key bundle this emitter is naming from. The walk
+/// itself reports the cardinality without classifying it
+/// (`super::emit::shared_rim`) because a caller that did NOT build the
+/// body it asks about draws the opposite conclusion from the same
+/// answer.
+const CAP_RIM_CONTRADICTED: NamingError = NamingError::Emission {
+    what: "swept cap rim: a wall and a cap of the built body do not share exactly one edge",
 };
 
 /// Truncating-safe index cast (loop/segment counts are far below
@@ -107,7 +122,7 @@ fn name_swept_topology<T: Decide>(
                 ent(0, EntityKey::Face(wall)),
             )?;
             for (end, cap) in [(CapEnd::End, end_cap), (CapEnd::Start, start_cap)] {
-                let rim = unique_shared_edge(body, wall, cap)?;
+                let rim = shared_rim(body, wall, cap)?.map_err(|_| CAP_RIM_CONTRADICTED)?;
                 t.insert(
                     name1(EntityKind::Edge, node, RoleSeg::RimEdge(end, pe)),
                     ent(0, EntityKey::Edge(rim)),
@@ -132,7 +147,7 @@ fn name_swept_topology<T: Decide>(
             let (s0, s1) = edge_ends(body, strut)?;
             for (end, cap) in [(CapEnd::End, end_cap), (CapEnd::Start, start_cap)] {
                 let wall = side_faces[l][j];
-                let rim = unique_shared_edge(body, wall, cap)?;
+                let rim = shared_rim(body, wall, cap)?.map_err(|_| CAP_RIM_CONTRADICTED)?;
                 let (r0, r1) = edge_ends(body, rim)?;
                 let vtx = common_vertex((s0, s1), (r0, r1)).ok_or(NamingError::Emission {
                     what: "extrude cap vertex: strut and rim share no endpoint",

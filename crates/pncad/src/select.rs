@@ -73,13 +73,15 @@
 //
 // **That placement is the general rule and not a one-name
 // exception**, and `EntityKind`, `SplitHalf` and `RimShare` below are
-// the rest of it. `RimShare` is one level in — the typed discriminant
-// `NamingError::SharedRim` carries instead of prose — and a consumer
-// that cannot name it is back to reading the refusal out of its
-// sentence, which is the thing that payload exists to stop. Both are `document::NodeErrorKind`'s payload as well — and
-// `RefusedRef`'s and `PartSelect`'s — and both are the naming-role
-// vocabulary this module owns, beside `RoleSeg`, `SegTag` and
-// `Denotation`. A payload whose vocabulary one of the curated
+// the rest of it. `EntityKind` and `SplitHalf` are
+// `document::NodeErrorKind`'s payload as well — and `RefusedRef`'s and
+// `PartSelect`'s — and both are the naming-role vocabulary this module
+// owns, beside `RoleSeg`, `SegTag` and `Denotation`. `RimShare` is on
+// the list for the payload rule alone, one level further in: it is the
+// typed discriminant `NamingError::SharedRim` carries instead of
+// prose, so a consumer that cannot name it is back to reading the
+// refusal out of its sentence, which is what that payload exists to
+// stop. A payload whose vocabulary one of the curated
 // lists owns lives on THAT list, spelled once; a payload whose only
 // home is the refusal holding it rides its carrier, which is what
 // `crate::document`'s `VerbKind` does. The cost is one extra `use`

@@ -77,6 +77,10 @@ fn a_seam_vertex_no_rule_names_is_a_missing_rule_not_a_kernel_bug() {
             shown.contains("seam vertex"),
             "{order:?}: the refusal must name the construction: {shown}"
         );
+        assert!(
+            !shown.contains("  "),
+            "{order:?}: prose a human reads has no padded run in it: {shown}"
+        );
     }
 
     // The same three members, folded the other way round, build a body.
@@ -100,8 +104,13 @@ fn a_seam_vertex_no_rule_names_is_a_missing_rule_not_a_kernel_bug() {
 /// `a` and `b` meet flush along x with their caps declared, so the
 /// fold's first step merges them; `g` is a slab that rises through the
 /// merged top cap and out through both y-walls. At step 2 a seam chord
-/// asks the A operand for the one edge two of its faces share, and the
-/// pair does not have one.
+/// GUESSES that two faces it descended into the A operand carry its
+/// rim, and the pair does not have one.
+///
+/// The premise is what makes this a missing rule rather than a bug, so
+/// the row also pins WHICH caller raised it: `emit_sweep` asks the same
+/// walk about a body it built itself and calls the same answer an
+/// emission inconsistency.
 ///
 /// The recipe is legal: the same declaration over the same two members
 /// fuses on its own, and `g` is an ordinary overlapping solid declared
@@ -128,7 +137,9 @@ fn a_rim_that_is_not_unique_is_a_missing_rule_not_a_kernel_bug() {
         .map(ToString::to_string)
         .unwrap_or_default();
     let (face, other) = match failure(&ev, union) {
-        Some(NodeErrorKind::Naming(NamingError::SharedRim { face, other, found })) => {
+        Some(NodeErrorKind::Naming(NamingError::SharedRim {
+            face, other, found, ..
+        })) => {
             assert_eq!(
                 *found,
                 RimShare::Several,
@@ -149,5 +160,13 @@ fn a_rim_that_is_not_unique_is_a_missing_rule_not_a_kernel_bug() {
     assert!(
         shown.contains(&format!("{face:?}")) && shown.contains(&format!("{other:?}")),
         "both faces of the pair reach the sentence: {shown}"
+    );
+    assert!(
+        shown.contains("operand node"),
+        "the keys are an OPERAND body's, so the sentence must say whose: {shown}"
+    );
+    assert!(
+        !shown.contains("  "),
+        "prose a human reads has no padded run in it: {shown}"
     );
 }
