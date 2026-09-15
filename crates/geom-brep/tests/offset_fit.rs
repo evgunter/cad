@@ -500,15 +500,38 @@ fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_round_budget() {
 /// caller to the wrong knob.
 ///
 /// The bumpy patch at `d = 1e-4` is that shape at an unreachable
-/// `1e-15`: it exhausts the budget carrying `1.071e-8`, a finite
+/// `1e-15`: it exhausts the budget carrying `1.070770e-8`, a finite
 /// bound above the tolerance. `RefinementStalled` is reached by no
 /// fixture in this suite's corpus (module docs, "Reachability"), and
 /// `budget_faces`'s census is the standing count of which faces the
 /// corpus does reach.
+///
+/// **The row asserts that the last round really did not improve**,
+/// because the name says so and a schedule change could otherwise
+/// leave it green over a loop that was never the shape it claims. The
+/// loop exposes no per-round trace, but it does not need to: the
+/// refinement schedule is a function of `(base, d)` alone — the
+/// tolerance decides only WHERE the walk stops — so a request whose
+/// tolerance an earlier round already met certifies ON that round and
+/// hands back exactly the bound this run stepped off. The ladder read
+/// back that way, at `d = 1e-4`:
+///
+/// ```text
+/// round 0   1.8219683e-5   (144 cells)
+/// round 1   6.5173322e-8   (224 cells)
+/// round 5   6.0173184e-9   (782 cells)
+/// round 6   1.0707700e-8   — the budget face, HIGHER than round 5
+/// ```
+///
+/// Round 6 is the non-improving one, and it is a LONE one: round 5
+/// came in under `1e-8` where round 4 did not, so round 5 improved,
+/// so the marking that built round 6's grid was the directional one
+/// rather than the both-directions fallback — which is the admission
+/// set the stall's refusal wants and does not have here.
 #[test]
 fn a_single_non_improving_round_is_the_budgets_face_not_the_stalls() {
     let base = bumpy_patch();
-    match fit_offset_at(&base, 1e-4, 1e-15, band()) {
+    let achieved = match fit_offset_at(&base, 1e-4, 1e-15, band()) {
         Err(OffsetFitError::BudgetExhausted {
             budget,
             grid,
@@ -518,13 +541,45 @@ fn a_single_non_improving_round_is_the_budgets_face_not_the_stalls() {
             assert_eq!(budget, OFFSET_FIT_BUDGET);
             assert!(achieved.is_finite() && achieved > tolerance);
             assert!(
-                (achieved - 1.0714e-8).abs() < achieved * 1e-3,
+                (achieved - 1.0707700e-8).abs() < achieved * 1e-5,
                 "the budget face carries {achieved:e}"
             );
-            eprintln!("budget face: grid={grid:?} achieved={achieved:.4e}");
+            eprintln!("budget face: grid={grid:?} achieved={achieved:.7e}");
+            achieved
         }
         other => panic!("the budget's last round did not wear the budget's face: {other:?}"),
-    }
+    };
+    // The round the budget face stepped off, read back through the
+    // door. `1e-8` is met by round 5 and by no round before it.
+    let (_, prev) = fit_offset_at(&base, 1e-4, 1e-8, band())
+        .unwrap_or_else(|e| panic!("the round before the budget face refused: {e}"));
+    assert!(
+        prev.rounds == 5 && (prev.hull_sup - 6.0173184e-9).abs() < prev.hull_sup * 1e-5,
+        "the ladder moved: round {} carries {:e}",
+        prev.rounds,
+        prev.hull_sup
+    );
+    // THE CLAIM IN THE NAME. The budget's last round gained nothing.
+    assert!(
+        achieved > prev.hull_sup,
+        "the last round improved ({:e} against {achieved:e}), so this fixture no longer \
+         exercises a non-improving round and the row's name is no longer its claim",
+        prev.hull_sup
+    );
+    // And it is a SINGLE one, which `prev.rounds == 5` above is what
+    // says: the loop stops at the FIRST round under the tolerance, so
+    // a `1e-8` request that ran to round 5 is a run where round 4's
+    // bound was still above `1e-8` and round 5's was below it. Round
+    // 5 therefore improved, and round 6's grid came from a
+    // directional marking. Two non-improving rounds in a row, the
+    // second past a both-directions marking, is the stall's admission
+    // set, and this is not it.
+    //
+    // The ordering this row does NOT pin: the stall verdict is taken
+    // before the budget test, and round 6's verdict is
+    // `BothDirections` rather than `Refuse`, so swapping the two
+    // blocks yields the budget face either way. Filed as
+    // `work/props/offset-fit-stall-face-has-no-fixture`.
 }
 
 /// **What the floor on `‖E‖` reaches on a non-analytic base.** The
@@ -743,35 +798,36 @@ fn a_zero_or_non_finite_request_refuses_at_the_door() {
 /// ring's rounding on the intermediates scaled with the base's
 /// coordinate magnitude, and a micron offset on a metre part a
 /// kilometre from the origin certified as `inf` while the same part
-/// at the origin certified at 3.2e-4.
+/// at the origin certified at 1.7072e-5.
 ///
 /// The composite now builds every net against one recentring origin
 /// (the base control net's bbox midpoint), which is exact in ℝ and
 /// leaves every claim identical.
 ///
 /// **The row states its true domain, because the invariance is not
-/// unlimited.** Measured on the decade ladder at `d = 1e-6`:
+/// unlimited.** Measured on the decade ladder at `d = 1e-6`, every
+/// station on the SAME 308-cell grid:
 ///
 /// ```text
-/// 1e0..1e4   3.2215e-4 .. 3.2219e-4   flat to 4 figures
-/// 1e5        3.2288e-4               1.002x the origin
-/// 1e6        3.3078e-4               1.027x
-/// 1e7        4.1422e-4               1.286x
-/// 1e8        4.4346e-7               0.0014x — TIGHTER
-/// 1e9        5.1654e-6
+/// 1e0..1e4   1.7072e-5   flat to five figures
+/// 1e5        1.7073e-5   1.00006x the origin
+/// 1e6        1.7082e-5   1.0006x
+/// 1e7        1.7168e-5   1.0056x
+/// 1e8        1.8223e-5   1.0674x
+/// 1e9        4.6979e-5   2.751x
 /// 1e10       refused: BoundNotFinite, last_finite None — no grid reached one
 /// ```
 ///
 /// So the band is asserted where the claim is meaningful — out to
-/// 1e6, where rounding still tracks the recentred patch — and the
+/// 1e7, where rounding still tracks the recentred patch — and the
 /// stations beyond it are pinned for what is actually true of them:
-/// containment, which holds at every finite station. It does not hold
-/// that the bound is monotone in the shift. At 1e8 the refinement
-/// loop takes a different trajectory (364 cells over 5 rounds against
-/// 308 over 4) and lands on a better fit, so the bound there is not
-/// comparable with the origin's in either direction. At 1e10 the door
-/// refuses typed rather than return something uncertified, which is
-/// the honest end of the ladder and is pinned as such.
+/// containment, which holds at every finite station. The ladder is
+/// monotone in the shift as far as it was measured, and the row does
+/// not assert that either: monotonicity would be a claim about the
+/// refinement schedule, which is the kernel's and not this row's
+/// subject. At 1e10 the door refuses typed rather than return
+/// something uncertified, which is the honest end of the ladder and
+/// is pinned as such.
 ///
 /// Containment at each station is what stops the invariance being
 /// bought by a bound that stopped bounding.
@@ -794,26 +850,25 @@ fn a_patch_far_from_the_origin_certifies_as_well_as_one_at_it() {
         )
         .unwrap()
     };
-    // The stations, not every decade: as measured, `fit_offset` takes
-    // the SAME trajectory (308 cells over 4 rounds) at every shift
-    // from the origin through 1e7, and the same larger one (364 over
-    // 5) at 1e8 and 1e9, so a decade that reproduces a neighbour's
-    // trajectory re-derives a bound already asserted. What is kept is
-    // one station per distinct behaviour: the origin's baseline,
-    // three in-band stations up to the band edge at 1e6, the first
-    // out-of-band station, the station where the trajectory changes,
+    // The stations, not every decade: as measured, `fit_offset` walks
+    // the SAME 308-cell grid at every shift from the origin through
+    // 1e9, and the ladder in this row's doc is flat to five figures
+    // from 1e0 to 1e4, so a decade inside the flat run re-derives a
+    // bound already asserted. What is kept is one station per
+    // distinct reading: the origin's baseline, the far end of the
+    // flat run, the three stations where the digits walk away from it
+    // (1e5, 1e6, 1e7 — the band edge), the two out-of-band stations,
     // and the refusal below.
     //
-    // That trajectory reading is UNGUARDED, deliberately. The
-    // schedule it describes is the kernel's, not this row's, and
-    // pinning `cells`/`rounds` here would turn any refinement
-    // improvement red in a row whose subject is recentring
-    // invariance. What lapses if the schedule moves is only the
-    // coverage argument for the decades not visited: every station
-    // this row does visit still asserts containment, and the
-    // invariance band is still asserted where the claim is
-    // meaningful.
-    for e in [0i32, 3, 5, 6, 7, 8] {
+    // That grid reading is UNGUARDED, deliberately. The schedule it
+    // describes is the kernel's, not this row's, and pinning
+    // `cells`/`rounds` here would turn any refinement improvement red
+    // in a row whose subject is recentring invariance. What lapses if
+    // the schedule moves is only the coverage argument for the
+    // decades not visited: every station this row does visit still
+    // asserts containment, and the invariance band is still asserted
+    // where the claim is meaningful.
+    for e in [0i32, 4, 5, 6, 7, 8, 9] {
         let shift = if e == 0 { 0.0 } else { 10f64.powi(e) };
         let base = shifted(shift);
         let (fit, cert) = fit_offset_at(&base, d, 1e-2, band())
@@ -828,9 +883,9 @@ fn a_patch_far_from_the_origin_certifies_as_well_as_one_at_it() {
         );
         if e == 0 {
             at_origin = cert.hull_sup;
-        } else if e <= 6 {
+        } else if e <= 7 {
             // The invariance band, where the claim is meaningful.
-            // Measured worst over this range is 1.027x at 1e6.
+            // Measured worst over this range is 1.0056x at 1e7.
             assert!(
                 cert.hull_sup <= at_origin * 1.05,
                 "shift 1e{e}: hull_sup {} is more than 5% above the same patch at the \
