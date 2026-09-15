@@ -19,7 +19,9 @@
 //!   (generation, δ), reporting [`CacheStep`] for what a sync did and
 //!   [`IndexLanding`] for what an answer did;
 //! - [`NotIndexed`] and [`unindexed`] — the typed refusal a pick
-//!   stream earns while no index describes the picture on screen.
+//!   stream earns while no index describes the picture on screen,
+//!   whether because there is none at all or because the one in hand
+//!   describes a picture that has not been drawn.
 //!
 //! # The boundary is stateful against pure
 //!
@@ -473,22 +475,23 @@ impl PickCache {
     }
 }
 
-/// **A pick attempted while no index describes the document on
+/// **A pick attempted while no index describes the picture on
 /// screen** — the typed *not indexed yet*.
 ///
 /// Distinct from a miss, and that distinction is the whole of it. A
 /// miss is an answer: the index was asked and there is nothing under
-/// the cursor, so clearing the selection is right. This is the absence
-/// of anybody to ask, and doing nothing quietly is what made the
-/// window between two indexes look like a viewport that had decided
-/// the user was pointing at empty space.
+/// the cursor, so clearing the selection is right. This is having
+/// nobody to ask about what is on screen, and doing nothing quietly is
+/// what made the window between two indexes look like a viewport that
+/// had decided the user was pointing at empty space.
 ///
-/// **Two arms, because waiting and not waiting are different advice.**
-/// They are named for what is observably true rather than for a cause,
-/// so neither can be shown over a state it does not describe: a
+/// **The arms are named for what is observably true rather than for a
+/// cause**, so none can be shown over a state it does not describe: a
 /// refused build and a document that has never been evaluated are both
 /// "no index and nobody building one", and a sentence promising an
-/// answer shortly would be false in both.
+/// answer shortly would be false in both. Waiting and not waiting are
+/// different advice, and so is an index that exists for a picture
+/// nobody is looking at.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NotIndexed {
     /// A build is under way ([`PickCache::indexing`]): the answer is
@@ -507,6 +510,32 @@ pub enum NotIndexed {
     /// [`NotIndexed::Building`] precisely because the sentence
     /// `Building` carries would be a promise nobody can keep.
     Absent,
+    /// An index is in hand and it did not mint the picture's corners:
+    /// it describes a rebuild that has not been drawn.
+    ///
+    /// **The one arm that is not about an absence**, and it is here
+    /// rather than in a vocabulary of its own because this type's
+    /// subject is *no index describes the picture on screen* and this
+    /// is the third way that sentence is true. `ViewerApp::sync_scene`
+    /// marks the scene's `(generation, δ)` pair current only on a
+    /// successful rebuild — a refused one must not consume the pair,
+    /// or the stale picture stays marked as current and is never
+    /// retried — so a landing over a refused rebuild leaves a newer
+    /// index beside an older picture, and nothing retries while the
+    /// display revision and the focus set hold still.
+    ///
+    /// **Refusing is a ruling, not a repair** (Ev, 2026-09-15). The
+    /// index would happily answer, and the answer would name geometry
+    /// the screen is not showing; a selection the user cannot see is a
+    /// worse outcome than a click that says why it did nothing.
+    ///
+    /// **What retires it is a scene rebuild**, not an index build —
+    /// the other two arms' event. Both seams sit under
+    /// [`crate::frame::Subject::Display`], which is the coarser
+    /// question of what retires a fact, so the subject
+    /// [`crate::frame::unindexed_refusal`] reads off this type is
+    /// right for this arm too.
+    AnotherPicture,
 }
 
 impl core::fmt::Display for NotIndexed {
@@ -523,14 +552,21 @@ impl core::fmt::Display for NotIndexed {
                  is being built — the last index build refused, nothing has \
                  been evaluated yet, or the index seam has stopped answering"
             ),
+            Self::AnotherPicture => write!(
+                f,
+                "not picked: the picture on screen is older than the document \
+                 under the cursor — the index that would answer this click \
+                 describes a rebuild that has not been drawn, and a pick is \
+                 answered about what is on screen or not at all"
+            ),
         }
     }
 }
 
 impl core::error::Error for NotIndexed {}
 
-/// The refusal a pick stream earns when there is no index to answer it
-/// — `Some` for an ACT, `None` for an observation.
+/// The refusal a pick stream earns when no index describes the picture
+/// on screen — `Some` for an ACT, `None` for an observation.
 ///
 /// **A hover is not news.** It is pushed on every frame the pointer is
 /// inside the pane, so a refusal raised for one would rewrite the
@@ -541,10 +577,26 @@ impl core::error::Error for NotIndexed {}
 /// for something and did not get it — and that is exactly what the
 /// line carries.
 ///
-/// `indexing` is [`PickCache::indexing`] — which of the two sentences
-/// is true, asked of the one value that knows.
+/// **Which sentence is true is read from what the pane holds**, not
+/// chosen at the call site. `held` is the index in hand
+/// ([`PickCache::index`]) and `indexing` is [`PickCache::indexing`].
+///
+/// **The two cannot both be set**, so they are not a pair of flags a
+/// caller could swap: [`PickCache::sync`] drops the held index in the
+/// same step that marks a build outstanding, which is the whole of
+/// *current or absent, never behind* above.
+///
+/// **This door is asked where no index describes the picture on
+/// screen** — the `else` of the pane's one currency read, which is
+/// `pane::viewport`'s `drawn_index`. A `Some` in `held` there is
+/// therefore an index for a DIFFERENT picture, which is
+/// [`NotIndexed::AnotherPicture`]. The precondition is the caller's
+/// because the scene's `(generation, δ)` is the pane's and not this
+/// module's; nothing here can re-derive it, and a second derivation
+/// of it is exactly what the one currency read exists to prevent.
 pub fn unindexed<'a>(
     actions: impl IntoIterator<Item = &'a PickAction>,
+    held: Option<&PickIndex>,
     indexing: bool,
 ) -> Option<NotIndexed> {
     actions
@@ -558,9 +610,9 @@ pub fn unindexed<'a>(
             // "not news" because a wildcard put it there.
             PickAction::Hover(_) | PickAction::ClearHover => false,
         })
-        .then_some(if indexing {
-            NotIndexed::Building
-        } else {
-            NotIndexed::Absent
+        .then_some(match (held, indexing) {
+            (Some(_), _) => NotIndexed::AnotherPicture,
+            (None, true) => NotIndexed::Building,
+            (None, false) => NotIndexed::Absent,
         })
 }
