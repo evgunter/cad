@@ -1011,7 +1011,7 @@ Each layer depends only on the layers below it.
 
 | Crate | Contents |
 |---|---|
-| `test-utils` | The shared fuzz/property harness (seed + effort dial), a dev-dependency with ZERO dependencies — a leaf below every crate, which is what lets the excluded `interval-transcendentals` workspace depend on it too |
+| `test-utils` | The shared test scaffolding several suites would otherwise each hand-roll: the fuzz/property harness (seed + effort dial), the `Display`-contract predicate, the anti-vacuity floor and its tightness companion, the shared Rust lexer, and the header-roster weld. A dev-dependency with ZERO dependencies — a leaf below every crate, which is what lets the excluded `interval-transcendentals` workspace depend on it too |
 | `geom-core` | The `Real` scalar trait (`f64`, `Interval`, `Dual<T>`, `Sym`), points/vectors/transforms (hand-rolled, fixed-dim), the predicate vocabulary (`Decide`, `Margin<T>`, `MarginDiag`), `Tolerance`, root finding, spline hulls |
 | `interval-transcendentals` | The `interval` feature's backend beneath `geom-core`: proven per-function libm error pads, MPFR-differential-certified. A separate workspace root on purpose (root `Cargo.toml`'s `exclude`), so its gmp-backed oracle never enters the kernel's graph |
 | `bvh` | Deterministic AABB tree: arena-order build, fixed split rule with total tie-breaks, conservative-superset contract — the tree prunes, exact predicates decide. Below the geometry crates (only `geom-core` under it) so SSI subdivision can consume it; certified box constructors live beside their invariants in `geom` |
