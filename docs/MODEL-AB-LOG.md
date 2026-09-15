@@ -6823,3 +6823,16 @@ count), ~50 min wall; impl CI **34938321458** GREEN on the head (twelve
 `test` jobs, five `k-lint (gate, …)`). Sample number at merge. Row at
 merge. This is block SCALAR-B1's last slot: the block record merges
 from `scalar/orchestrator` when this dual concludes.
+
+## SENSE-DOORS review ordinal fixed at dispatch (2026-09-15)
+
+`sense-sign-doors-take-the-bit` (SENSE-DOORS; SCALAR; PR #2649 open —
+frozen head `6e8e804c1`): **ordinal 4104** (SCALAR band). Protocol v6
+dual: draw = `/dev/urandom` byte **80**, parity 0 ⇒ **R1 = OPUS, R2 =
+FABLE**, concurrent on the frozen head, read-side isolation (v6 item 5),
+briefs identical and stored before either ran. Pre-draw difficulty
+**M / structural** (recorded branch-side at the block draw). Impl phase:
+~326k tokens (harness), ~1 h 40 min wall (one disk-full recovery on the
+shared box); impl CI **34948471752** GREEN on the head (twelve `test`
+jobs, five `k-lint (gate, …)`, no predicate-count change). Sample
+number at merge. Row at merge.
