@@ -1062,6 +1062,19 @@ Generalises: a ratio between two measurements is only a ratio if both
 were taken at the same setting, and a number quoted without its
 setting is not yet a measurement.
 
+**When a sweep's blind spot is "a use under another name", changing a
+TYPE is a census a grep cannot be.** The co-guard unit lost five of
+eight index uses to a local binding with a different name, and named
+that as its residual blind spot honestly. The id-query unit had the
+same blind spot and closed it by a different means: `IdQueryLog::step`'s
+second parameter changed type, so every caller anywhere in the
+workspace must be edited or the build fails, and a clean
+`clippy --all-targets` plus a clean workspace doc-gate is then a
+complete census rather than a sample. Generalises to the choice of fix
+shape: where a change can be made to alter a signature rather than a
+body, the compiler becomes the sweep, and the blind spot a lane would
+otherwise have to disclose stops existing.
+
 ## Exit shape
 
 The README states the module map and every item above has landed or

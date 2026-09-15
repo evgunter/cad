@@ -11600,3 +11600,62 @@ open.
 
 Item **closed**. **VIEW stands at 75 open / 92 closed, nothing waiting
 on Ev.**
+
+## 2026-09-15 — #2622 merged; the id query's key is the pair, because the item's own check found the counterexample
+
+**#2622 merged** (`3c79322358`), verified from the job list: code tier,
+**39 check runs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok`
+success**, all four render-lane rows success, six skipped, nothing
+failed or neutral.
+
+**The item proposed `revision`; the answer is `(revision, generation)`,
+and the item is what found that out.** Its own *check before taking it*
+asked whether a generation change exists with no scene rebuild behind
+it. One does: `ViewerApp::revision` has exactly two writes (`app.rs:738`
+init, `:929` bump) and **the bump is inside `sync_scene`'s `Ok` arm**,
+beside `scene_key`, `scene_display`, `scene_focus` and `scene`. A
+refused `scene_focused` writes `scene_fault` and nothing else, on
+purpose, so the pair is retried rather than marked current — which
+leaves **a new generation beside the picture already on screen with the
+revision unmoved**. Keyed on the revision alone the query would Hold,
+and the hover it skips on a `Hold` is a question about the DOCUMENT,
+which has moved. I verified both writes myself.
+
+`frame::IdSubject { revision, generation }` now carries the argument for
+asking both, with each direction's reachability written at the type. A
+paragraph in a doc is where this program's invariants keep dying; a
+named type is where this one now lives.
+
+**The δ omission is argued, not overlooked** — and that is the half
+worth checking, because an omission is where this program's defects
+live. `PickCache::sync` nulls the held index at every submit
+(`pickcache.rs:324`, *"dropped before the answer, not after it"*) and
+`land` is the only installer (`:417`), so an index cannot change δ
+without the key seeing `None` in between. `Option<Generation>` carries
+that `None`. Checked.
+
+**#2615 did not close this**, and the lane checked rather than reasoning
+from the PR: on a hide, `scene_key` is written from
+`(index.generation(), index.delta())` and a hide moves neither, so
+`drawn_index` answers true and hands the index straight back.
+
+**The mutation receipt found the silence the item predicted.** Planted
+generation-only: the new row fails at *"a new picture at one generation
+re-asks"*. Planted revision-only: it fails at *"a new index at one
+picture re-asks"*. **The pre-existing row
+`the_id_query_is_asked_once_per_cursor_and_re_asked_when_the_picture_moves`
+stayed green under BOTH** — it moves cursor, generation and revision
+together and cannot tell the three keys apart. That is exactly the
+silence the item warned of, demonstrated rather than asserted.
+
+**The sweep's blind spot was closed by the compiler, not by a pattern.**
+Five patterns, none of which can match a call through a binding under
+another name — the class that cost the co-guard unit five of eight
+index uses. What closes it here is that `step`'s second parameter
+changed TYPE, so every caller anywhere must be edited or the build
+fails. Worth recording as a rule: **when a sweep's blind spot is
+"a use under another name", changing a type is a census a grep cannot
+be.**
+
+Item **closed**. **VIEW stands at 74 open / 93 closed, nothing waiting
+on Ev.**
