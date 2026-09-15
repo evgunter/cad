@@ -801,7 +801,10 @@ fn sym8_phase1_the_tilt_u_wall_with_and_without_the_manifest_sign() {
             {
                 continue;
             }
-            for (label, rules) in [("F-off", SymRules::without_rule_f()), ("F-on", with_rule_f())] {
+            for (label, rules) in [
+                ("F-off", SymRules::without_rule_f()),
+                ("F-on", with_rule_f()),
+            ] {
                 let o = EvalOptions {
                     param_box: Some(Arc::new(box_.clone())),
                     profile_lift: lift,
@@ -881,7 +884,10 @@ fn sym8_phase1_the_tilt_u_ladder() {
                     p.len(),
                     head(p.first().map_or("", String::as_str), 200)
                 );
-                for (label, rules) in [("F-off", SymRules::without_rule_f()), ("F-on", with_rule_f())] {
+                for (label, rules) in [
+                    ("F-off", SymRules::without_rule_f()),
+                    ("F-on", with_rule_f()),
+                ] {
                     let t = std::time::Instant::now();
                     let (f, c) = sym(&doc, lift, rules, budget());
                     println!(

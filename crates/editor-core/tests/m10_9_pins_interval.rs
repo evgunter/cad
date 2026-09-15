@@ -122,7 +122,23 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // byte-identical at both dials except for `symbolic_zero`
             // rising against `numeric` (link 485 → 515, bracket
             // 1075 → 1083, plate and annulus unmoved).
-            registered: 104,
+            //
+            // 104 until SYM-8's rule F (`manifest_sign`), which moves
+            // this same document and only this one again, and again
+            // the second cause: `without_rule_f` reads
+            // `symbolic_zero: 858, registered: 104, numeric: 991`
+            // here and the shipped set `854 / 128 / 971` — the same
+            // 1953 decisions, 24 of them moving INTO the door, 20 out
+            // of `numeric` and FOUR out of `symbolic_zero`. Those four
+            // are the unit's disclosed finding: opening an `abs` atom
+            // the early walk was cancelling over can cost that walk a
+            // theorem the registry then re-takes
+            // (`work/sym/coefficient-ring-width-is-not-monotone-in-reach`,
+            // the class). No decision is lost, `frozen` is 2750 at
+            // both dials, no per-predicate split at any document's
+            // nominal moves, and no ceiling on any of the eight
+            // measured documents moves by a digit.
+            registered: 128,
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]

@@ -155,7 +155,9 @@ fn the_shapes_the_manifest_sign_must_not_fold() {
     assert_ne!(
         sound(
             "copysign(1, x² + y²) − 1 at (3, 4)",
-            how(s, || one().copysign(p("x", 3.0).powi(2) + p("y", 4.0).powi(2)) - one())
+            how(s, || one()
+                .copysign(p("x", 3.0).powi(2) + p("y", 4.0).powi(2))
+                - one())
         ),
         "theorem",
         "a sum of squares can be zero"
