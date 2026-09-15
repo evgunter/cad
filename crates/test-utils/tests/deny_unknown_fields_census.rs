@@ -25,6 +25,12 @@
 //!
 //! # What this cannot see
 //!
+//! - **The OTHER direction, entirely.** This reds on an attribute with
+//!   no field to deny; nothing reds on a named field with no attribute,
+//!   which is the same silence pointed the other way and the defect
+//!   `MatePrimitive::PlanarRest` actually has. The complement wants an
+//!   instrument of its own and a verdict key this one does not need —
+//!   `work/census/census-sees-an-inert-attribute-but-not-a-missing-one.md`.
 //! - **Macro-generated declarations.** A `struct` or `enum` assembled
 //!   inside a `macro_rules!` body, or by `paste!`/`concat_idents!`, is
 //!   text to a lexer and a declaration only after expansion. An

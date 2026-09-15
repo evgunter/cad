@@ -49,6 +49,7 @@ its fence in the PR that lands it and announces it to the owners; the
 | `S57` | **M** | Five known sites, but widening a crate-scoped guard to a concept needs a new instrument. | `crates/editor-core/src/names/emit_topo.rs`, `crates/sweep/src/blend/{build.rs,battery.rs}`, `crates/topo/src/face_normal.rs`, the anti-re-fork guard in `scripts/gates/*`; unswept `crates/mesh/src/walk.rs`, `crates/step-export/src/` |
 | `pncad-py-eval-err-variants-outside-the-tag-inventory` | **E** | Arrived from M10 (2026-09-13). Eight `eval_err` call sites mint four refusal words as string literals the inventory cannot lex; the disposition between the row's two closes is the orchestrator's, not the lane's. | `crates/pncad-py/src/tests.rs` (`TAG_INVENTORY`'s reader and its stated scope), `crates/pncad-py/src/py/value.rs` and its sibling `py/` modules, `crates/pncad-py/pncad.pyi` |
 | `a-document-vocabulary-declared-outside-the-macro-is-uncensused` | **M** | Arrived from DOCM (2026-09-13). The three live instances are dispositioned by hand at the site; what is open is the general case, and every door to it is a walk over source TEXT — the exact instrument PR 2501 removed as unsound. | `crates/editor-core/src/program.rs` (the `document_vocabulary!` invocation and its `DOCUMENT_VOCABULARIES` doc) |
+| `census-sees-an-inert-attribute-but-not-a-missing-one` | **H** | Arrived from `inert-deny-unknown-fields-on-unit-enums` (2026-09-15); class estimated by that lane, order not yet placed. The census sees the inert attribute and is blind to the missing one. The walk is the easy half; the verdict key is a design call (which `Deserialize` types OWE the attribute) and the one confirmed instance changes what a document accepts. | `crates/test-utils/tests/deny_unknown_fields_census.rs`, `crates/editor-core/src/persist/mod.rs`, and the msolve instance `crates/editor-core/src/mate.rs` |
 | `prose-census-cannot-see-a-bypassed-prose-renderer` | **H** | Instrument rework plus triage of 453 unmeasured sites; verdict key is a design choice | `crates/pncad-py/src/prose_census.rs` (`census()` scan set, `declaration_verdict`), plus sites it reds: `crates/viewer/src/session/refuse.rs`, `crates/editor-core/src/edit.rs`, `crates/pncad-py/src/py/`, `crates/test-utils/` |
 | `the-prose-word-for-a-kind-has-four-spellings-and-only-display-is-censused` | **H** | Two decisions owed, owner undecided, 23+ sites over seven crates and three programs. | `crates/pncad-py/src/prose_census.rs`, `crates/editor-core/src/{expr.rs,node.rs,mate.rs,edit.rs}`, `crates/viewer/src/{session/refuse.rs,tools.rs,sketch.rs,pane/properties.rs}`, 23 `label()`/`name()` sites across `geom-brep`, `sweep`, `topo`, `profile`, `geom-core` |
 
@@ -99,29 +100,42 @@ bookkeeping, as `docs/MODEL-AB-LOG.md` already records for this
 program; nothing draws an ordinal from it.
 
 **One style review per unit.** A full correctness review is reserved
-for the hardest units — on today's slate, the two **H** rows and
-nothing else.
+for the hardest units — the **H** rows on the slate and nothing else.
+
+Both postures above were settled by Ev in chat on 2026-09-15, which is
+why `git log -S` finds nothing older than this plan for either: the
+attribution is the record, and the tree carries no earlier one to
+check it against.
 
 The scan-set rule this section used to state mechanically — a
 correctness arm on every unit that changes what an instrument SCANS —
-is **carried by the style brief instead** (Ev, 2026-09-15). The hazard
-it was drawn against is real and is not a function of how hard the unit
-was: a census that stops seeing a population fails silently, reports
-agreement over the set it can still read, and no test goes red. So the
-brief for any unit touching a census, gate, inventory or reader
-**names silent omission as a thing to hunt for by name**: what does the
-instrument no longer read after this diff, and what would it report if
-the population it exists to watch went missing entirely? That question
-is cheap for a style lane to carry and expensive to discover later,
-which is the whole argument for putting it there rather than buying a
-second lane for it.
+is **carried by each unit's dispatch brief, written by the
+orchestrator** (Ev, 2026-09-15). It is **not** a standing clause in
+`docs/prompts/reviewer-style-lane.md` and there is nothing there to
+point at: the obligation reaches a reviewer only because the
+orchestrator writes it into that unit's brief, so a unit dispatched
+without it is dispatched without the rule. Whether it SHOULD become a
+standing clause is open with Ev — `docs/prompts/` binds every lane by
+path and is his call under CLAUDE.md's merge rule, so no lane adds it
+there.
+
+The hazard it is drawn against is real and is not a function of how
+hard the unit was: a census that stops seeing a population fails
+silently, reports agreement over the set it can still read, and no test
+goes red. So the brief for any unit touching a census, gate, inventory
+or reader **names silent omission as a thing to hunt for by name**:
+what does the instrument no longer read after this diff, and what would
+it report if the population it exists to watch went missing entirely?
+That question is cheap for a style lane to carry and expensive to
+discover later, which is the whole argument for putting it in the brief
+rather than buying a second lane for it.
 
 Units that get that added obligation today:
 `inert-deny-unknown-fields-on-unit-enums` (only if it leaves an
 instrument behind), `hand-listed-debug-censuses-…`,
 `pncad-py-eval-err-variants-outside-the-tag-inventory`,
 `a-document-vocabulary-declared-outside-the-macro-is-uncensused`, and
-both **H** rows — which get the full review as well.
+every **H** row — which gets the full review as well.
 
 ## How the class column is read
 
