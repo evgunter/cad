@@ -9,7 +9,7 @@
 //! loft producer mints for `k` equally spaced sections.
 //!
 //! The loft row is also the evidence behind
-//! `work/blend/interpolate-columns-could-mint-symmetric-knots.md`: the
+//! `work/blend/interpolate-columns-averaged-knots-could-be-mirror-symmetric.md`: the
 //! averaged knots `skin::interpolate_columns` computes could be minted
 //! mirror-symmetric by construction when the parameters are, and the
 //! `k = 7` and `k = 8` refusals below are what it costs that they are
