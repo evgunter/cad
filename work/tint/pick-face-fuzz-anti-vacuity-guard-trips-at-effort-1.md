@@ -130,3 +130,46 @@ do, but nothing here measures it.
 
 **Recommendation:** do not close; this is the cheapest live row on the
 slate and it has now reddened two programs' gates on unrelated diffs.
+
+## Third instance, a third seed, a third eps row (2026-09-15, PORT)
+
+Added as evidence rather than a second row, and it is the instance the
+sibling row's re-derivation asked for: **this one carries the message.**
+
+PORT's `msrv-floor-equality-gate` run `34997969247`, job
+`test (eps = 1e-12, 1/2)`, `crates/editor-core/tests/review_gui1_r1.rs:498`:
+
+```
+no draw hit the cube — generator shape broke;
+reproduce with CAD_FUZZ_SEED=0xf30b717118986019 CAD_FUZZ_EFFORT=1
+```
+
+Three seeds now — `0x2870e278…`, `0x1a9e0f26…`, `0xf30b7171…` — across
+**three different eps rows**: the filing was `(interval, eps = 1e-6, 1/2)`,
+WIRE's was `(eps = 1e-6, 2/2)`, this is `(eps = 1e-12, 1/2)`. The guard is
+not correlated with a lane, an eps row or a shard, which is what the row
+already says a distribution looks like from outside and is now the third
+reading of it.
+
+**The diff it reddened was a shell script and a YAML step.** PORT's change
+is `scripts/gates/msrv-floor-equals-channel.sh` and its two calls in
+`.github/workflows/ci.yml` — it compiles nothing, links nothing and cannot
+reach `editor-core`. The other eleven `test (…)` jobs of the same run were
+green on the same tree, including `test (eps = 1e-12, 2/2)`, the other
+shard of the same eps row. This is WIRE's "reddened a docs-only commit"
+one step further out: the tree under test was not merely unrelated to the
+failure, it was **not Rust at all**.
+
+**What this lane could not do**, said rather than left implicit: re-running
+the failed job on identical code — the decisive instrument WIRE used — was
+not available to it (the API returned 403 for `rerun-failed-jobs`), so the
+seed-not-tree conclusion here rests on the eleven green sibling jobs and on
+the failure message naming the guard, not on a re-run.
+
+**For the sibling row.** `work/tint/random-integer-rays-search-trips-at-eps-1e-6-on-one-run.md`
+asks which of two assertions its 2026-09-09 flake was, and says nothing in
+the tree distinguishes them. This instance does not answer that question
+for that run — a message this row's instance carries is not a message that
+one's had — but it does raise the prior: three of three fully-messaged
+reds of this `#[test]` are the searched anti-vacuity guard, and zero are
+oracle disagreements.
