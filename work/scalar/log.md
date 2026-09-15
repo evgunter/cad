@@ -287,3 +287,10 @@ from the tally per the instrument; no tally candidate. What landed:
 the item's §Closed. The spec is deleted per the ledger. The `sin_cos`
 mint waits for a customer; the frame doors taking the witness are the
 next unit's (`frame-witness-and-the-tube-door`).
+
+## SENSE-DOORS merged (2026-09-15)
+
+PR 2649, block SCALAR-B2 slot 0, ordinal 4104; dual review, both arms
+APPROVE WITH FIXES, no MAJOR — no tally candidate. What landed: the
+item's §Closed. The spec is deleted per the ledger. Handed on: the
+`blend/arms.rs` `±1` field (second unit), the frame doors (third).
