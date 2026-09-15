@@ -5,6 +5,7 @@ title: review_probes_m8_4.rs rebuilds a validated NURBS net for a v-reversal and
 status: open
 opened: 2026-09-04
 refs: [1782]
+branch: scalar/vrev-surface-door
 ---
 
 ## Finding
