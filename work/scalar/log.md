@@ -307,3 +307,13 @@ With its reviews concluded the block's last slot is done: the
 branch-side block record (pre-draw fields, draw, three rows) merges to
 main. Handed on: the angular arms (TRIM), the second D283 unit
 (`exhaustiveness-receipt-carries-its-lane`).
+
+## Block SCALAR-B2 landed (2026-09-15)
+
+The branch-side block record — pre-draw fields, the draw (byte 187),
+and the three rows UNITVEC (#205), SENSE-DOORS (#206), RATE-PAIR
+(#207) — merges to main with this entry. One tally candidate in the
+block, RATE-PAIR's M1, counted for the OPUS arm (unilateral,
+contract-API class, demonstrated by execution in the fix pass); the
+other five arms found no MAJOR. Block SCALAR-B3's pre-draw and draw
+stay on `scalar/orchestrator` until its last slot's reviews conclude.
