@@ -411,7 +411,5 @@ pub fn strip_section(s: f64, delta: f64, reversed: bool) -> Section {
 /// `+z` translations — the stacking that makes a loft of identical
 /// sections reproduce the EXTRUSION of that section exactly.
 pub fn stacked(z: &[f64], s: f64) -> Vec<Affine3<f64>> {
-    z.iter()
-        .map(|h| Affine3::translation(Vec3::new(0.0, 0.0, h * s)))
-        .collect()
+    sweep::test_support::stacked_at(&z.iter().map(|h| h * s).collect::<Vec<_>>())
 }

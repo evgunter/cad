@@ -26,7 +26,8 @@ use geom_core::Tol;
 use geom_core::{Band, Point2, Point3, Vec3};
 use mesh::TessellateError;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::{Extrusion, extrude, loft_body};
+use sweep::test_support::loft_prism;
+use sweep::{Extrusion, extrude};
 use test_utils::vacuity;
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::{Body, HalfEdgeKey};
@@ -161,23 +162,6 @@ fn build_fitted_cache() -> Option<PcurveCache<f64>> {
 
 // ---- Host bodies ---------------------------------------------------
 
-/// `loft_prism` (the m7_nurbs_trimmed suite's constant).
-fn loft_prism() -> Body<f64> {
-    let quad = common::quad;
-    let sections = vec![
-        quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-        quad([(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-        quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-    ];
-    let places: Vec<geom_core::Affine3<f64>> = [0.0, 1.0, 2.0]
-        .iter()
-        .map(|z| geom_core::Affine3::translation(Vec3::new(0.0, 0.0, *z)))
-        .collect();
-    loft_body::<f64>(&sections, &places, 2, Tol::witness())
-        .expect("loft builds")
-        .body
-}
-
 /// The m5_pr11_trimmed suite's split cylinder (trimmed cylinder walls
 /// with Harmonic caches), lower half — `disc`/`halves` verbatim.
 fn split_cylinder_half() -> Body<f64> {
@@ -260,7 +244,7 @@ fn a_fitted_cache_refuses_typed_at_the_chord_pass_and_in_the_trim_walk() {
     };
 
     // ---- Arm 1: the CHORD pass, on a NURBS face --------------------
-    let mut body = loft_prism();
+    let mut body = loft_prism(Tol::witness());
     let hek = cached_half_edge_on(&body, |s| matches!(s, Surface::Nurbs(_)));
     body.attach_pcurve(hek, cache.clone());
     match mesh::tessellate(&body, 1e-2, Tol::witness()) {
