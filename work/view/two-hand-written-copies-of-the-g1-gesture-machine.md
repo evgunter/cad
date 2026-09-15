@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-04
 branch: view/g1-gesture
 refs: [two-gestures-can-be-in-flight-together, gesture-drags-have-no-cancel-door, the-value-drags-in-flight-refusal-has-two-spellings]
+pr: 2672
 ---
 
 
