@@ -5,11 +5,12 @@
 //! are watertight, volume-sane, deterministic, and inside the δ + ε
 //! promise BY MEASUREMENT.
 //!
-//! The elbow is `sweep::test_support`'s corpus body, shared with the
-//! suite that brackets its volume and with the STEP fixture; the
-//! prism is still the #212 fixture's construction, constant for
-//! constant (`step-export`'s `loft_prism`). Between them they carry
-//! the degree-1×2 and 1×3 wall classes the lane was promoted for.
+//! Both bodies are `sweep::test_support`'s: the elbow, shared with the
+//! suite that brackets its volume and with the STEP fixture, and the
+//! `loft_prism` the STEP corpus and the editor's corpus document are
+//! also built from — so this suite meters the same solid they do
+//! rather than a restatement of it. Between them they carry the
+//! degree-1×2 and 1×3 wall classes the lane was promoted for.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

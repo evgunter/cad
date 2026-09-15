@@ -43,3 +43,38 @@ fixture whose scalar an argument pins is generic in place; one whose
 scalar only the return type pins keeps an `f64` name so its callers do
 not turbofish. Two of these pairs are then the rule and three are the
 defect, and a reader can tell which is which.
+
+## `_at` now means two different things in this module (2026-09-15, SUITE/S392)
+
+Added by the reviewer of `S392`'s PR #2650, on the tree that PR leaves.
+
+The rule this row asks for has to settle a second question at the same
+time, because the suffix the five pairs above use for **the scalar** is
+now also in use for **the placement**:
+
+| door | `_at` means |
+| --- | --- |
+| `waisted_at<T>`, `bowl_at<T>`, `ball_poled_z_at<T>`, `hemisphere_on_flat_base_at<T>`, `revolved_about_y_at<T>` | at scalar `T` |
+| `prism_at(verts, z0, h, tol)` | at station `z0` |
+| `loft_prism_at(zs, tol)` | at placements `zs` |
+| `rim_arcs_at`, `one_edge_rim_at`, `arcs_at` | at a rim radius and height |
+
+Both senses predate `S392` — `prism_at` and the three `*_at` query
+helpers are the placement sense, the five wrapper pairs are the scalar
+sense — so this is an accumulation the module already had, not one that
+unit introduced; `loft_prism_at` joins the larger of the two groups.
+The reviewer's judgement, recorded because it is the part a later lane
+would otherwise re-litigate: `loft_prism_at` is a **placement** door and
+not a scalar wrapper (a generic loft family is impossible —
+`Section = Vec<ProfileLoop<f64>>`), so it is not a sixth member of the
+class above.
+
+The consequence for the fix: **deleting the three avoidable scalar
+wrappers does not leave `_at` unambiguous**, because the placement
+sense stays and is the majority. So the header rule this row wants
+should say what `_at` means (the placement, which is the reading the
+word carries in English) and what the surviving scalar pairs are called
+instead — or accept both senses explicitly and say how a reader tells
+them apart from the signature. Either is fine; leaving it unsaid is
+what put a reader in front of eleven doors with one suffix and two
+meanings.

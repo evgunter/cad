@@ -224,8 +224,10 @@ pub(crate) fn tilted_halves() -> (Body<f64>, Body<f64>) {
     (above.clone(), below.clone())
 }
 
-/// The NURBS-walled corpus bodies, built the way `m7_nurbs_trimmed`
-/// builds them (its own header carries the provenance of each).
+/// The NURBS-walled corpus bodies. One name per body, kept because
+/// `patch_memo` reads them by it; the bodies themselves are
+/// `sweep::test_support`'s, whose doc comments carry the provenance
+/// and the derived volumes.
 pub(crate) mod nurbs_bodies {
     use geom_core::Tol;
     use topo::Body;

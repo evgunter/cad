@@ -54,10 +54,10 @@
 //! [`cube`] are its named specializations. All of them are generic in
 //! the scalar, because the `Interval` and `Probe` lanes build the same
 //! bodies as the `f64` one and the only alternative is a second copy at
-//! each scalar: that is what the seventh `cube` was. A shape that is
-//! not here yet joins by naming the primitive and its own loops — it
-//! needs no new door, no new gate and no new manifest edge beyond the
-//! one its crate already has.
+//! each scalar: a per-scalar copy per suite is what this family was
+//! before it was one. A shape that is not here yet joins by naming the
+//! primitive and its own loops — it needs no new door, no new gate and
+//! no new manifest edge beyond the one its crate already has.
 //!
 //! # The loft family
 //!
@@ -66,11 +66,18 @@
 //! `loft_body` has one scalar and so does everything built on it.
 //! [`loft_prism_sections`] is that family's primitive — the three
 //! sections — and [`loft_prism_at`] and [`loft_prism`] are its named
-//! placements. The split is where the suites actually divide:
-//! thirteen constructions want the solid, six want the sections under
-//! a placement of their own (reversed, re-spaced, rotated), and that
-//! placement is the thing their row is about, so it stays written
-//! where it is read.
+//! placements.
+//!
+//! **The sections door is not a convenience over the body door**, and
+//! the split is not arbitrary: a suite reaches for the sections when
+//! the body is not what it is measuring. Two kinds do. One varies the
+//! PLACEMENT — stacking against the base normal, re-spacing 1 : 2,
+//! carrying the stack through a rotation — where the placement is the
+//! subject and belongs on the line that reads it. The other needs the
+//! PRE-BODY artifact the solid has already discarded: the [`Lofted`]
+//! handoff's wall and cap keys, the geometry `loft_geometry` returns,
+//! or the `(sections, places)` pair a row compares against a second
+//! section set. Neither kind can be served by handing it a `Body`.
 //!
 //! # Editing a fixture here re-authors committed bytes
 //!
@@ -786,11 +793,16 @@ fn quad_section(pts: [(f64, f64); 4]) -> Section {
 /// square.
 ///
 /// The door for the suites that keep their own PLACEMENTS, which is
-/// most of the ones that vary anything — the reversed-stacking probe
-/// stacks these down the base normal, the STEP fold re-places them at
-/// 1 : 2 spacing, and the transform suite carries them through a
-/// rotation. The sections are what they share; the placement is what
-/// each row is about, and stays written where it is read.
+/// the suites for which the finished solid is not the subject.
+///
+/// Two kinds ask for them. One varies the PLACEMENT and is measuring
+/// that: the reversed-stacking probe stacks these down the base
+/// normal, the STEP fold re-places them at 1 : 2 spacing. The other
+/// keeps the standard [`PRISM_Z`] placement but needs what
+/// [`loft_prism`] has already thrown away — the [`Lofted`] handoff's
+/// wall and cap keys, the geometry `loft_geometry` returns, or the
+/// `(sections, places)` pair a row carries beside a second section
+/// set to compare the two. A `Body` cannot serve either.
 pub fn loft_prism_sections() -> Vec<Section> {
     vec![
         quad_section(PRISM_SQUARE),
@@ -799,7 +811,20 @@ pub fn loft_prism_sections() -> Vec<Section> {
     ]
 }
 
-/// Loft placements: `zs` as pure `+z` translations.
+/// **Placements: `zs` as pure `+z` translations** — the one home for
+/// the four lines every stacked fixture would otherwise re-spell.
+///
+/// It sits here rather than in a suite because it was seven spellings
+/// when this door was written: `sweep/tests/common`'s `stacked`, which
+/// now delegates here, and a private `at_z` in each of five `tests/`
+/// suites, byte-identical to one another. Only a `src/` home is
+/// reachable from all of them — a `tests/` module is a different crate
+/// to every other crate's suites, and the fixtures here are placed by
+/// `mesh`, `step-export` and `tools/tess-meter` as well.
+///
+/// Not specific to the loft: [`prism_at`] and [`brick`] place their
+/// own sketch planes, and a fixture that stacks anything joins by
+/// naming this.
 pub fn stacked_at(zs: &[f64]) -> Vec<Affine3<f64>> {
     zs.iter()
         .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))

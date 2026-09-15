@@ -79,6 +79,9 @@ fn roster() -> Vec<(String, Body<f64>)> {
         .iter()
         .map(|k| (format!("arc_loft_{k:e}eps"), arc_loft(k * eps)))
         .collect();
+    // Polyline sections, so `loft_prism`'s walls are described splines
+    // on the quadrature lane — the lane whose continuation this row is
+    // about, and the one the arc lofts above do not reach.
     out.push(("loft_prism".to_string(), loft_prism(Tol::witness())));
     out.push(("quintic_prism".to_string(), quintic_prism()));
     out

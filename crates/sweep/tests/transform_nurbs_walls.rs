@@ -41,7 +41,7 @@ use common::{arc_section, stacked, sup_dist};
 use geom::{Curve3, Surface};
 use geom_core::Tol;
 use geom_core::{Affine3, Mat3, Vec3};
-use sweep::test_support::loft_prism_sections;
+use sweep::test_support::{PRISM_Z, loft_prism_sections, stacked_at};
 use sweep::{Section, loft_body};
 
 /// Squares at z = 0 and z = 2 with a trapezoid between: the middle
@@ -49,7 +49,7 @@ use sweep::{Section, loft_body};
 /// genuinely curved degree-2 nets rather than ruled strips — and, being
 /// polyline profiles, every weight is 1.
 fn walled_sections() -> (Vec<Section>, Vec<Affine3<f64>>) {
-    (loft_prism_sections(), stacked(&[0.0, 1.0, 2.0], 1.0))
+    (loft_prism_sections(), stacked_at(&PRISM_Z))
 }
 
 /// The arc-bearing profile at two scales: its quarter-circle side

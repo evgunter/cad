@@ -103,6 +103,14 @@ fn roster() -> Vec<(String, Body<f64>)> {
         ("quintic_prism".to_string(), quintic_prism()),
         ("tilted_cut_upper".to_string(), tilted_cut_upper()),
         ("bulged_extrusion".to_string(), bulged_extrusion()),
+        // `loft_prism` is in this roster because it is the body the
+        // finding measured
+        // (`work/perf/mass-properties-are-serial-per-face.md`: 157 ms)
+        // — polyline sections, so its walls are described splines on
+        // the quadrature lane, which is the lane the per-face serialism
+        // is about. A corpus DOCUMENT cannot stand in for it here:
+        // `editor-core` sits above this crate, so the kernel-side
+        // fixture is the only reachable spelling.
         ("loft_prism".to_string(), loft_prism(Tol::witness())),
     ];
     out.extend(
