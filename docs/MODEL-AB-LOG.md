@@ -6910,6 +6910,20 @@ no re-baseline). Sample number at merge. Row at merge. This is block
 SCALAR-B2's last slot: the block record merges from `scalar/orchestrator`
 when this dual concludes.
 
+## EXHAUST-LANE review ordinal fixed at dispatch (2026-09-15)
+
+`exhaustiveness-receipt-carries-its-lane` (EXHAUST-LANE; SCALAR; PR
+#2667 open — frozen head `0414760f5`): **ordinal 4106** (SCALAR band).
+Protocol v6 dual: draw = `/dev/urandom` byte **14**, parity 0 ⇒ **R1 =
+OPUS, R2 = FABLE**, concurrent on the frozen head, read-side isolation
+(v6 item 5), briefs identical and stored before either ran. Pre-draw
+difficulty **S / structural** (recorded branch-side at the block draw;
+block SCALAR-B3 slot 2, the first of the block to reach review). Impl
+phase: ~271k tokens (harness), ~1 h 22 min wall; impl CI **34990915062**
+GREEN on the head (twelve `test` jobs, five `k-lint (gate, …)`, no
+predicate-count change, no render re-baseline). Sample number at
+merge. Row at merge.
+
 ## SENSE-FOLD review ordinal fixed at dispatch (2026-09-15)
 
 `sense-sign-multiplies-fold-onto-outward-normal` (SENSE-FOLD; SCALAR;
