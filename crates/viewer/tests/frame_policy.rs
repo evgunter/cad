@@ -2374,10 +2374,7 @@ fn a_build_whose_worker_panicked_stops_promising_an_answer() {
         "and the chrome has nothing to spin over",
     );
     assert_eq!(
-        pickcache::unindexed(
-            &[input::PickAction::Select([10.0, 10.0])],
-            cache.indexing()
-        ),
+        pickcache::unindexed(&[input::PickAction::Select([10.0, 10.0])], cache.indexing()),
         Some(pickcache::NotIndexed::Absent),
         "a click is refused as one nothing will answer, not as one an \
          arriving index is about to",
