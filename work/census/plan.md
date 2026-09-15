@@ -82,6 +82,21 @@ well be the right answer.
 Then `S113` and `S133`, which are prose and duplication counts that
 several staffed lanes already ride.
 
+`census-sees-an-inert-attribute-but-not-a-missing-one` is **H and goes
+with the H rows, but couples to none of them** — the prose-census pair
+below has an order between its two members, and this row has no such
+tie. Placed here because the class axis is what this order runs on, and
+it is genuinely H: the walk is the easy half, and the verdict key is a
+design call about which `Deserialize` types OWE the attribute, which is
+a reachability question about the type graph that no text walk answers.
+
+A later orchestrator may reasonably pull it forward, and the argument
+for doing so is recorded rather than taken: it is the direct complement
+of `inert-deny-unknown-fields-on-unit-enums`, its instrument is built
+and warm, and the longer it waits the more the one-directional census
+reads as the finished answer. What argues against is that its design
+call wants more of the tree swept first. Neither dominates today.
+
 The two prose-census rows go last and go together:
 `prose-census-cannot-see-a-bypassed-prose-renderer` fixes the
 instrument's scan set, and
