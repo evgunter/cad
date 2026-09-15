@@ -12,10 +12,10 @@ import pncad
 from pncad import (
     Angle,
     Count,
-    DimensionError,
     Doc,
     FmtQuantityError,
     Length,
+    QuantityOpMismatch,
     cm,
     deg,
     inch,
@@ -98,11 +98,11 @@ class TestArithmetic(unittest.TestCase):
         self.assertEqual(1 * m, 100 * cm)
 
 
-class TestTypedDimensionErrors(unittest.TestCase):
+class TestTypedQuantityOpMismatches(unittest.TestCase):
     """Rust refuses these at compile time; Python raises them, TYPED."""
 
     def test_length_plus_angle_raises_typed_error(self):
-        with self.assertRaises(DimensionError) as caught:
+        with self.assertRaises(QuantityOpMismatch) as caught:
             _ = (1 * m) + (1 * rad)
         err = caught.exception
         # The payload is ATTRIBUTES, not a parsed message (§L4).
@@ -111,19 +111,19 @@ class TestTypedDimensionErrors(unittest.TestCase):
         self.assertEqual(err.right, "angle")
 
     def test_length_plus_bare_number_names_the_scalar_dimension(self):
-        with self.assertRaises(DimensionError) as caught:
+        with self.assertRaises(QuantityOpMismatch) as caught:
             _ = (1 * m) + 1.0
         self.assertEqual(caught.exception.right, "scalar")
 
     def test_quantity_times_quantity_is_refused(self):
         # `quantity` has no `Mul<Self>`; an area type would be an
         # invention, so this is a refusal rather than a new dimension.
-        with self.assertRaises(DimensionError) as caught:
+        with self.assertRaises(QuantityOpMismatch) as caught:
             _ = (2 * m) * (3 * m)
         self.assertEqual(caught.exception.op, "*")
 
     def test_dimension_errors_are_pncad_errors(self):
-        self.assertTrue(issubclass(DimensionError, pncad.PncadError))
+        self.assertTrue(issubclass(QuantityOpMismatch, pncad.PncadError))
 
     def test_a_foreign_operand_is_a_plain_type_error(self):
         # Not dimensionally wrong — genuinely undefined.
@@ -390,12 +390,12 @@ class TestDisplayFormatter(unittest.TestCase):
         angle, and that stays a typed refusal rather than becoming
         `False`.
         """
-        with self.assertRaises(DimensionError) as caught:
+        with self.assertRaises(QuantityOpMismatch) as caught:
             (1 * m) < (1 * rad)  # noqa: B015
         self.assertEqual(caught.exception.op, "<=>")
-        with self.assertRaises(DimensionError):
+        with self.assertRaises(QuantityOpMismatch):
             (1 * m) == (1 * rad)  # noqa: B015
-        with self.assertRaises(DimensionError) as caught:
+        with self.assertRaises(QuantityOpMismatch) as caught:
             (1 * m) < 1.0  # noqa: B015
         self.assertEqual(caught.exception.right, "scalar")
         with self.assertRaises(TypeError):

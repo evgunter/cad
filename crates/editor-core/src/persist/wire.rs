@@ -154,8 +154,13 @@ impl Serialize for Expr {
 impl<'de> Deserialize<'de> for Expr {
     fn deserialize<D: Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
         let wire = WireExpr::deserialize(de)?;
-        wire.rebuild()
-            .map_err(|e| D::Error::custom(format!("ill-dimensioned expression refused: {e}")))
+        wire.rebuild().map_err(|e| {
+            // The typed refusal leaves through the slot; the serde
+            // message is the human half of the same fact
+            // (`persist::refusal`).
+            super::refusal::record(&e);
+            D::Error::custom(format!("ill-dimensioned expression refused: {e}"))
+        })
     }
 }
 
@@ -756,6 +761,7 @@ impl<'de> Deserialize<'de> for MeasureExpr {
     fn deserialize<D: Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
         let wire = WireMeasureExpr::deserialize(de)?;
         wire.rebuild().map_err(|e| {
+            super::refusal::record(&e);
             D::Error::custom(format!("ill-dimensioned measure expression refused: {e}"))
         })
     }

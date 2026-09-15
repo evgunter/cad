@@ -538,6 +538,26 @@ BOUND_AS = {
     "IN": "inch",
     "M": "m",
     "MM": "mm",
+    # THE SECOND SAME-SPELLED PAIR was here, and this roster is where
+    # it ends up now that the collision is gone. `pncad.pyi` published
+    # a `DimensionError` class that was the QUANTITY boundary's
+    # operator check — `1 * m + 1 * rad`, with `op`/`left`/`right` —
+    # while the curated name is `editor_core`'s document-layer refusal,
+    # a different type answering a different question; rule 1 matched
+    # them on spelling alone, exactly as it matched the two `Datum`s.
+    # The quantity refusal now crosses under its own Rust name
+    # (`QuantityOpMismatch`), so no Python class shares this spelling
+    # and rule 1 has nothing to match — the name is argued whole, here.
+    #
+    # Its ten arms cross at three doors, each class named for the DOOR
+    # and each carrying this type's own tag beside it: `ParseError`
+    # with `variant == "dimension"` and the tag as `kind` from
+    # `Doc.parse_expr`, `LiteralError` with the tag as `kind` from
+    # literal construction, and `PersistError` with `variant ==
+    # "dimension"` and the tag as `inner_variant` from `load`. One
+    # attribute is named here because a row takes one; the tag
+    # vocabulary is the same at all three.
+    "DimensionError": "ParseError.kind",
     "NodeErrorKind": "EvaluationError.kind",
     "NodeValue": "Value",
     # The gather's refusal class, flattened to the tag its carrier
@@ -2869,28 +2889,6 @@ MEMBERS_BOUND_AS = {
     "ClusterMaintenance::Split": "ClusterMaintenance.variant",
     "ClusterMaintenance::GaugeRewrite": "ClusterMaintenance.variant",
     "ClusterMaintenance::Drop": "ClusterMaintenance.variant",
-    # THE SECOND SAME-SPELLED PAIR, and this rule is what found it.
-    # `pncad.pyi`'s `DimensionError` is the QUANTITY boundary's refusal —
-    # `1 * m + 1 * rad`, with `op`/`left`/`right` — while the curated
-    # name is `editor_core`'s document-layer refusal, a different type
-    # answering a different question. Rule 1 matched them on spelling
-    # alone, exactly as it matched the two `Datum`s. The ten arms cross
-    # where the class's own docstring says they do: `Doc.parse_expr`
-    # raises `ParseError` with `variant == "dimension"` and the
-    # mismatch's own tag as `kind`, which is the one of the three
-    # crossings that keeps it branchable (literal construction is
-    # `LiteralError.kind`; a save file's arrives as `PersistError`
-    # `variant == "parse"`, issue #694).
-    "DimensionError::Mismatch": "ParseError.kind",
-    "DimensionError::MulNeedsScalar": "ParseError.kind",
-    "DimensionError::DivNeedsScalarDivisor": "ParseError.kind",
-    "DimensionError::TrigNeedsAngle": "ParseError.kind",
-    "DimensionError::CountNeedsExplicitPromotion": "ParseError.kind",
-    "DimensionError::NotCount": "ParseError.kind",
-    "DimensionError::LiteralCountIsInteger": "ParseError.kind",
-    "DimensionError::NonFiniteLiteral": "ParseError.kind",
-    "DimensionError::DisplayUnitMismatch": "ParseError.kind",
-    "DimensionError::UnknownDisplayUnit": "ParseError.kind",
     "DistributionFault::NonFinite": "DistributionFault.variant",
     "DistributionFault::SigmaNotPositive": "DistributionFault.variant",
     "DistributionFault::NominalOutsideSupport": "DistributionFault.variant",
@@ -3049,6 +3047,7 @@ MEMBERS_BOUND_AS = {
     "PersistError::IdMismatch": "PersistError.variant",
     "PersistError::Parse": "PersistError.variant",
     "PersistError::Unreadable": "PersistError.variant",
+    "PersistError::Dimension": "PersistError.variant",
     "PersistError::EditReplay": "PersistError.variant",
     "PersistError::ToleranceConflict": "PersistError.variant",
     "PersistError::ToleranceInvalid": "PersistError.variant",

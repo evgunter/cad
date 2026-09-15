@@ -8,6 +8,7 @@
 
 use crate::fixture;
 
+use editor_core::expr::DimensionError;
 use editor_core::persist::SnapshotError;
 use editor_core::{
     CancelToken, Dimension, DocEdit, DocParam, EvalOptions, Expr, MetaValue, Node, NodeErrorKind,
@@ -82,9 +83,11 @@ fn truncated_file_refuses_typed_with_position() {
 }
 
 /// Valid JSON the typed shape rejects — a non-hex byte string, an
-/// unknown field, an ill-dimensioned expression — is UNREADABLE by
-/// this build (the deserializer's own rejection, recourse attached);
-/// only bytes that are not JSON at all report as `Parse`.
+/// unknown field — is UNREADABLE by this build (the deserializer's own
+/// rejection, recourse attached); only bytes that are not JSON at all
+/// report as `Parse`. An ill-dimensioned expression is the one `Data`
+/// failure that is neither: it has a typed refusal to carry and
+/// carries it ([`dimension_refusals_cross_the_load_door_whole`]).
 #[test]
 fn corrupt_payloads_refuse_typed() {
     let (_, text) = small();
@@ -107,26 +110,149 @@ fn corrupt_payloads_refuse_typed() {
         ),
         "unknown field must refuse"
     );
-    // An ill-dimensioned expression tree (Length + Angle) — the
-    // rebuild-through-constructors door.
-    let bad_expr = text.replace(
-        "{\"Literal\":{\"value\":1.0,\"dim\":\"Length\"}}",
-        "{\"Add\":[{\"Literal\":{\"value\":1.0,\"dim\":\"Length\"}},{\"Literal\":{\"value\":1.0,\"dim\":\"Angle\"}}]}",
-    );
-    if bad_expr != text {
-        assert!(
-            matches!(
-                load(&bad_expr, Tol::witness()),
-                Err(PersistError::Unreadable { .. })
-            ),
-            "ill-dimensioned expression must refuse"
-        );
-    } else {
-        // Pretty-printed layout differs: fall back to a direct probe.
-        let json = "{\"Add\":[{\"Literal\":{\"value\":1.0,\"dim\":\"Length\"}},{\"Literal\":{\"value\":1.0,\"dim\":\"Angle\"}}]}";
-        let refused: Result<editor_core::Expr, _> = serde_json::from_str(json);
-        assert!(refused.is_err(), "ill-dimensioned expression must refuse");
+}
+
+/// The save's text back out with the extrude's distance expression
+/// replaced by `wire`.
+///
+/// The tamper is STRUCTURAL rather than a string replacement: an
+/// expression's spelling carries whatever fields `WireExpr` has today
+/// (a `unit` arrived after this file was written) and the layout is
+/// whatever `to_string_pretty` produces, so a needle written out in
+/// full stops matching without stopping the test, and an assertion
+/// nothing reaches is documentation. This one fails if the slot it
+/// aims at is not there.
+fn with_distance(text: &str, wire: serde_json::Value) -> String {
+    let (header, body_text) = text.split_once('\n').expect("a header line");
+    let mut body: serde_json::Value = serde_json::from_str(body_text).expect("a JSON body");
+    let nodes = body["snapshot"]["nodes"]
+        .as_object_mut()
+        .expect("a node map");
+    let mut swapped = 0;
+    for node in nodes.values_mut() {
+        if let Some(extrude) = node.get_mut("Extrude") {
+            extrude["distance"] = wire.clone();
+            swapped += 1;
+        }
     }
+    assert_eq!(swapped, 1, "the fixture has exactly one extrude to tamper");
+    format!(
+        "{header}\n{}",
+        serde_json::to_string(&body).expect("re-emit")
+    )
+}
+
+/// A literal wire expression of `dim` written in `unit`.
+fn wire_literal(dim: &str, unit: &str) -> serde_json::Value {
+    serde_json::json!({ "Literal": { "value": 1.0, "dim": dim, "unit": unit } })
+}
+
+/// An expression the document layer's dimension checker refuses crosses
+/// the load door WHOLE: `PersistError::Dimension` carries the
+/// `DimensionError` itself, not a sentence about it.
+///
+/// The refusal is the one the AUTHORING constructors raise for the same
+/// tree, because the rebuild runs those constructors.
+#[test]
+fn dimension_refusals_cross_the_load_door_whole() {
+    let (_, text) = small();
+    let length = wire_literal("Length", "m");
+    let angle = wire_literal("Angle", "rad");
+    let cases: [(serde_json::Value, DimensionError); 4] = [
+        (
+            serde_json::json!({ "Add": [length.clone(), angle.clone()] }),
+            DimensionError::Mismatch {
+                op: "add",
+                left: Dimension::Length,
+                right: Dimension::Angle,
+            },
+        ),
+        (
+            serde_json::json!({ "Mul": [length.clone(), length.clone()] }),
+            DimensionError::MulNeedsScalar {
+                left: Dimension::Length,
+                right: Dimension::Length,
+            },
+        ),
+        (
+            serde_json::json!({ "Sin": length.clone() }),
+            DimensionError::TrigNeedsAngle {
+                op: "sin",
+                found: Dimension::Length,
+            },
+        ),
+        (
+            wire_literal("Length", "furlong"),
+            DimensionError::UnknownDisplayUnit {
+                symbol: "furlong".to_owned(),
+            },
+        ),
+    ];
+    for (wire, expected) in cases {
+        let tampered = with_distance(&text, wire.clone());
+        match load(&tampered, Tol::witness()) {
+            Err(PersistError::Dimension {
+                line,
+                column,
+                error,
+            }) => {
+                assert_eq!(error, expected, "the refusal crosses whole: {wire}");
+                assert!(
+                    line >= 1,
+                    "serde_json's position rides along: {line}:{column}"
+                );
+            }
+            other => panic!("expected a Dimension refusal for {wire}, got {other:?}"),
+        }
+    }
+}
+
+/// The recourse belongs to a file this build cannot READ, and an
+/// ill-dimensioned expression is not one: regenerating it produces the
+/// same refusal, because what is wrong is the expression.
+#[test]
+fn a_dimension_refusal_does_not_advise_regenerating_the_file() {
+    let (_, text) = small();
+    let tampered = with_distance(
+        &text,
+        serde_json::json!({ "Add": [wire_literal("Length", "m"), wire_literal("Angle", "rad")] }),
+    );
+    let refusal = load(&tampered, Tol::witness()).expect_err("must refuse");
+    let message = refusal.to_string();
+    assert!(
+        !message.contains("regenerate"),
+        "a dimension refusal carries no regenerate recourse: {message}"
+    );
+    assert!(
+        message.contains("cannot apply `add` to length and angle"),
+        "the checker's own prose is the human half: {message}"
+    );
+}
+
+/// A load after one that refused does not inherit the refusal: the
+/// channel the structure crosses on belongs to ONE parse
+/// (`persist::refusal`), and a slot left dirty would make the next load
+/// answer with the last one's fault.
+#[test]
+fn a_recorded_refusal_does_not_reach_the_next_load() {
+    let (_, text) = small();
+    let tampered = with_distance(
+        &text,
+        serde_json::json!({ "Add": [wire_literal("Length", "m"), wire_literal("Angle", "rad")] }),
+    );
+    assert!(matches!(
+        load(&tampered, Tol::witness()),
+        Err(PersistError::Dimension { .. })
+    ));
+    load(&text, Tol::witness()).expect("the clean document still loads");
+    // And an unrelated `Data` failure after one is still `Unreadable`,
+    // rather than the earlier refusal wearing a new position.
+    let extra = text.replace("\"snapshot\":", "\"extra\": 1, \"snapshot\":");
+    assert_ne!(extra, text, "the fixture must carry the snapshot key");
+    assert!(matches!(
+        load(&extra, Tol::witness()),
+        Err(PersistError::Unreadable { .. })
+    ));
 }
 
 #[test]
