@@ -1355,7 +1355,7 @@ pub(crate) fn frame_axes<T: Decide>(
     v_raw: Vec3<T>,
     band: Band,
 ) -> Result<OrthoFrame<T>, DirectionRefusal> {
-    OrthoFrame::gram_schmidt(origin, u_raw, v_raw, DATUM_UNIT_NORM, DATUM_UNIT_NORM, band).map_err(
+    OrthoFrame::gram_schmidt(origin, u_raw, v_raw, DATUM_UNIT_NORM, band).map_err(
         |e| DirectionRefusal {
             role: match e.axis {
                 OrthoAxis::U => FRAME_X_ROLE,
@@ -2010,7 +2010,11 @@ fn tube_args<T: Decide>(
             EVAL_DIRECTION_NORM,
             band(tol)?,
         )
-        .map_err(|error| refusal(error, TUBE_REFERENCE_ROLE, EVAL_DIRECTION_NORM))?,
+        // The aim mint decides the reference's residual and nothing
+        // else — the axis is a witness before it arrives — so every
+        // refusal here is [`geom_core::OrthoAxis::V`]'s and the role
+        // is the reference's.
+        .map_err(|e| refusal(e.error, TUBE_REFERENCE_ROLE, EVAL_DIRECTION_NORM))?,
         major_radius: need_scalar(vals, SlotId::TubeMajorRadius)?,
         window: match window {
             crate::node::TubeWindow::Full => sweep::TubeWindow::Full,
@@ -4148,7 +4152,15 @@ pub(crate) const PLANE_NORMAL_ROLE: &str = "datum plane normal";
 /// the authored `u_ref` that fixes where the window's angles start.
 /// It reaches the frame mint from a slot, not from a datum, so this
 /// arm is where its refusal is spelled.
-pub(crate) const TUBE_REFERENCE_ROLE: &str = "tube reference direction";
+///
+/// The role names the RESIDUAL and not the vector, because that is
+/// the length the mint decides: `u_ref` yields its component along
+/// the spine axis and what remains becomes the frame's `u`. A
+/// reference five metres long that lies on the axis line refuses
+/// here, and "the tube reference direction has zero length" would be
+/// false of it.
+pub(crate) const TUBE_REFERENCE_ROLE: &str =
+    "tube reference direction's component perpendicular to the spine axis";
 
 /// The role word a DATUM AXIS's direction is normalized under. Three
 /// callers, and they do not all take the same road — the evaluation

@@ -77,12 +77,17 @@
 //!   declare the zero-turn joints they mint, both by construction.
 //!   [`ProfileLoop::tangent_joints`] is the field that carries the
 //!   result, and a fixture's way of writing one by hand.
-//! - **The sketch plane is conventional data.** [`SketchPlane`] is a
-//!   rigid placement: profile (x, y) ↦ plane origin + x·u + y·v, with
-//!   u/v/normal the columns of the placement's linear part. Rigidity
-//!   (u, v orthonormal, normal = u × v) is a convention carried by the
-//!   data, unchecked here — exactly like PR 1's `u_ref` — and validation
-//!   is purely 2-D (the plane is passed through untouched).
+//! - **The sketch plane is a placement, and validation never reads
+//!   it.** [`SketchPlane`] is profile (x, y) ↦ plane origin + x·u +
+//!   y·v, with u/v/normal the columns of the placement's linear part,
+//!   and validation is purely 2-D (the plane is passed through
+//!   untouched). Rigidity — u, v, normal orthonormal and right-handed
+//!   — is the frame witness's: [`SketchPlane::from_frame`] takes an
+//!   [`geom_core::OrthoFrame`], which was decided at its mint.
+//!   [`SketchPlane::new`] is the read-back door and holds whatever
+//!   [`geom_core::Affine3`] it is handed, so a placement that came
+//!   from somewhere other than a frame carries only what its own
+//!   source decided.
 //!
 //! # Validation and canonical form
 //!
@@ -568,18 +573,31 @@ impl<T: Real> ProfileLoop<T> {
 /// plane normal are the columns of the placement's linear part
 /// (`linear.c0`, `linear.c1`, `linear.c2`).
 ///
-/// Rigidity — u, v, normal orthonormal and right-handed — is the
-/// frame witness's, not a convention: the placement is built from an
-/// [`OrthoFrame`], whose axes were decided where they were minted.
-/// Tier-3 geometric validation certifies it at rest.
+/// Rigidity — u, v, normal orthonormal and right-handed — comes from
+/// the frame witness rather than from a caller's diligence WHEN the
+/// plane came through [`Self::from_frame`], which is the only door
+/// that mints one: the placement is then [`OrthoFrame::to_affine`],
+/// and those axes were decided where the frame was minted. Tier-3
+/// geometric validation certifies the placement at rest.
+///
+/// [`Self::new`] and the public `placement` field are the other half
+/// of the truth and the docs say so plainly: both take and hand back
+/// an arbitrary [`Affine3`], so a plane built or overwritten that way
+/// is exactly as rigid as whatever produced that map. What the type
+/// guarantees is that the MINTING road decides; it is not a proof
+/// about every value of the type.
 #[derive(Clone, Copy, Debug)]
 pub struct SketchPlane<T: Real> {
-    /// The placement map (rigid by convention).
+    /// The placement map. Rigid when [`SketchPlane::from_frame`] built
+    /// it; whatever it was assigned otherwise.
     pub placement: Affine3<T>,
 }
 
 impl<T: Real> SketchPlane<T> {
-    /// Wraps a placement map.
+    /// **Wraps a placement map already built** — a read-back door, not
+    /// a mint: it decides nothing and a skewed [`Affine3`] handed in
+    /// comes back out as a skewed plane. A caller holding two authored
+    /// directions wants [`Self::from_frame`], which decides them.
     pub fn new(placement: Affine3<T>) -> Self {
         Self { placement }
     }
@@ -620,7 +638,10 @@ impl<T: Real> SketchPlane<T> {
     /// vectors. A caller holding an authored pair mints the frame
     /// first — [`OrthoFrame::gram_schmidt`] under its own band, or one
     /// of the exact world frames — which is where "these axes are
-    /// orthonormal" stops being the caller's obligation.
+    /// orthonormal" stops being the caller's obligation. A SKEWED pair
+    /// is not refused there: the mint orthonormalizes it, keeping the
+    /// first axis and yielding the second. Only a pair that spans no
+    /// plane refuses.
     pub fn from_frame(frame: OrthoFrame<T>) -> Self {
         Self::new(frame.to_affine())
     }

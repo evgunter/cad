@@ -1391,11 +1391,15 @@ const SKETCH_PLANE_FRAME_NORM: &str = "sketch_plane_frame_norm";
 ///
 /// RIGIDITY IS THE DOOR'S, exactly as in Rust: `from_frame`
 /// orthonormalizes the pair you give it — `u` normalized and kept, `v`
-/// yielding its component along `u` — so a skewed sketch is not a
-/// thing this class can hold. What a caller must still get right is
-/// that the two directions SPAN A PLANE: a pair that does not refuses,
-/// with `FrameError.variant` naming the axis. The binding adds no
-/// predicate of its own: one semantics, two host languages.
+/// yielding its component along `u` — so the u/v/normal you read back
+/// off a plane built here are perpendicular whatever you passed in. It
+/// is the DOOR that decides, not the class: every plane Python can
+/// make comes through `from_frame` or one of the three named frames,
+/// and each of those mints a frame witness first. What a caller must
+/// still get right is that the two directions SPAN A PLANE: a pair
+/// that does not refuses, with `FrameError.variant` naming the axis.
+/// The binding adds no predicate of its own: one semantics, two host
+/// languages.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy)]
 pub(crate) struct SketchPlane(pub(crate) pncad::profile::SketchPlane<f64>);
@@ -1423,14 +1427,22 @@ impl SketchPlane {
     /// The plane through `origin` spanned by `u` and `v`.
     ///
     /// `origin` is dimensioned (`Length`s); `u` and `v` are
-    /// dimensionless direction triples, neither of which need be unit:
-    /// the door orthonormalizes them at the session's tolerance, `u`
-    /// kept and `v` yielding, and the plane's normal is what the
-    /// resulting pair crosses to.
+    /// dimensionless direction triples, neither of which need be unit
+    /// and neither of which need be perpendicular: the door
+    /// ORTHONORMALIZES them, `u` normalized and kept and `v` yielding
+    /// its component along `u`, and the plane's normal is what the
+    /// resulting pair crosses to. So a skewed pair builds, and the
+    /// plane you get back is not the pair you wrote.
+    ///
+    /// The two length decisions are made at the witness tolerance —
+    /// the kernel's fixed value doors' band, the same one every other
+    /// value constructor here uses — and not at whatever the session
+    /// was configured with.
     ///
     /// Raises `FrameError` when the pair spans no plane — parallel,
     /// antiparallel, zero, overflowed or underflowed — with `variant`
-    /// naming which axis the length question was asked of.
+    /// naming which axis the length question was asked of. That
+    /// refusal is new: this constructor used to be total.
     #[staticmethod]
     fn from_frame(
         py: Python<'_>,
@@ -1456,7 +1468,6 @@ impl SketchPlane {
             pncad::authoring::v3(u.0, u.1, u.2),
             pncad::authoring::v3(v.0, v.1, v.2),
             SKETCH_PLANE_FRAME_NORM,
-            SKETCH_PLANE_FRAME_NORM,
             band,
         )
         .map(|frame| Self(pncad::profile::SketchPlane::from_frame(frame)))
@@ -1465,11 +1476,14 @@ impl SketchPlane {
 
     /// The plane's origin — sketch (0, 0) in world space.
     ///
-    /// The four accessors READ the frame back, they never recompute
-    /// it: `from_frame(o, u, v)` round-trips through them exactly, and
-    /// `normal` is the third placement column `from_frame` filled with
-    /// u × v. Same four doors as Rust's `SketchPlane` (one
-    /// vocabulary).
+    /// The four accessors READ the placement back, they never
+    /// recompute it, and `normal` is the third placement column the
+    /// mint filled with u × v. They do NOT round-trip
+    /// `from_frame(o, u, v)`'s arguments: that door orthonormalizes,
+    /// so what comes back is the frame it minted — `origin` verbatim,
+    /// `u` normalized, `v` the perpendicular residual. An exactly
+    /// orthonormal pair is the case where the two coincide. Same four
+    /// doors as Rust's `SketchPlane` (one vocabulary).
     #[getter]
     fn origin(
         &self,

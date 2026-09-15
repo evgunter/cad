@@ -604,7 +604,6 @@ pub fn sketch_from_axes<T: Decide>(
             u,
             v,
             FIXTURE_FRAME_AXIS,
-            FIXTURE_FRAME_AXIS,
             Band::linear(tol).expect("the fixture's tolerance forms a band"),
         )
         .expect("the fixture's two axes span a plane"),
@@ -629,11 +628,14 @@ pub fn tube_frame<T: Decide>(
     u_ref: Vec3<T>,
     tol: Tol,
 ) -> geom_core::OrthoFrame<T> {
-    let band = Band::linear(tol).expect("the fixture's tolerance forms a band");
-    let axis = geom_core::UnitVec3::new(axis, FIXTURE_FRAME_AXIS, band)
-        .expect("the fixture's spine axis has a direction");
-    OrthoFrame::from_aim_and_reference(center, axis, u_ref, FIXTURE_FRAME_AXIS, band)
-        .expect("the fixture's reference radial is off the spine axis")
+    OrthoFrame::from_axis_and_reference(
+        center,
+        axis,
+        u_ref,
+        FIXTURE_FRAME_AXIS,
+        Band::linear(tol).expect("the fixture's tolerance forms a band"),
+    )
+    .expect("the fixture's spine axis has a direction and its reference radial is off it")
 }
 
 /// The world xy sketch plane lifted to station `z0`, the placement

@@ -448,10 +448,17 @@ to share a plane bind the id once and pass it twice — which is a fact
 about the document now, with something in the document to be a fact
 about.
 
-Rigidity (u, v unit and perpendicular) is **conventional data,
-unchecked**, in Python exactly as in Rust: a non-rigid frame yields a
-well-defined skewed sketch, not poison, and the kernel's geometric
-validation is what certifies a body at rest.
+Rigidity (u, v unit and perpendicular) is **the door's, not yours**,
+in Python exactly as in Rust. `SketchPlane.from_frame(origin, u, v)`
+and `doc.sketch_frame(u=..., v=...)` ORTHONORMALIZE the pair you give
+them: `u` is normalized and kept, `v` yields whatever component of it
+lies along `u`, so a `v` leaning 45 degrees into `u` comes back
+perpendicular and the numbers you read off the plane are not the
+numbers you wrote. A pair that spans NO plane — parallel,
+antiparallel, or either direction zero — raises `FrameError` rather
+than building a degenerate sketch; that refusal is new, and a
+previously total constructor can now fail. The kernel's geometric
+validation still certifies a body at rest, as before.
 
 ```python
 from pncad import Doc, Expr, Node, SketchPlane, evaluate, m

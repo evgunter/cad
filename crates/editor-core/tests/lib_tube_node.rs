@@ -662,7 +662,10 @@ fn the_frame_is_minted_rather_than_refused() {
         match ev.nodes.get(&tube) {
             Some(NodeResult::Failed(e)) => match &e.kind {
                 NodeErrorKind::DegenerateDirection { role } => {
-                    assert_eq!(*role, "tube reference direction");
+                    assert_eq!(
+                        *role,
+                        "tube reference direction's component perpendicular to the spine axis"
+                    );
                 }
                 other => panic!("a u_ref on the axis line refuses as a direction, got {other:?}"),
             },

@@ -159,7 +159,7 @@ use pncad::sweep::{
 };
 use pncad::topo::{Body, BooleanError, Operand, TransformError};
 
-use crate::scalar::{Scalar, authored_frame, sketch_frame, tube_frame};
+use crate::scalar::{Scalar, authored_frame, sketch_frame, axis_frame};
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::{p2, p3, polygon, v2, v3, validated};
 use pncad::geom_core::Tol;
@@ -264,7 +264,7 @@ fn sketch_axis<S: Scalar>() -> RevolveAxis<S> {
 fn tube_arc<S: Scalar>(spec: ArcSpec, tube: f64, tol: Tol) -> (Body<S>, WedgeFrames<S>) {
     let sense = if spec.turn >= 0.0 { -1.0 } else { 1.0 };
     let revolved = tube_along_arc(
-        tube_frame(
+        axis_frame(
             spec.center.map(S::from_f64),
             v3(0.0, sense, 0.0),
             spec.radial.map(S::from_f64),
@@ -603,7 +603,6 @@ fn bud<S: Scalar>(
         // the direction `lean` radians round from its own place.
         let l = rad(phi + lean);
         let (st, ct) = (tilt.sin(), tilt.cos());
-        let a = (dir * ct + l * st).normalize();
         // The wedge STARTS half a span before the segment's
         // place — and then sweeps AWAY from it, not across it:
         // `revolve` turns right-handed about the sketch axis,
@@ -618,13 +617,15 @@ fn bud<S: Scalar>(
         // off the realized centre is `lean + span`, still nowhere
         // near the achiral star, and still a pinwheel.
         //
-        // Rejected from the tilted axis, since that radial is only
-        // perpendicular to the BUD's axis, not to this segment's.
-        let start = rad(phi - 0.5 * span);
-        let u = start.reject_from(a).normalize();
-        // All three share the ATTACHMENT: the tilt splays their
-        // tips, not their bellies.
-        let plane = sketch_frame(attach, u, a, tol).map(S::from_f64);
+        // The segment's own axis and the wedge's start radial,
+        // DECIDED together: the axis is kept as the frame's `w` and
+        // the radial yields its component along it, since that radial
+        // is only perpendicular to the BUD's axis, not to this
+        // segment's. All three share the ATTACHMENT: the tilt splays
+        // their tips, not their bellies.
+        let spine = axis_frame::<f64>(attach, dir * ct + l * st, rad(phi - 0.5 * span), tol);
+        let a = spine.w().get();
+        let plane = sketch_frame(attach, spine.u().get(), a, tol).map(S::from_f64);
         revolve(
             &validated(
                 plane,
@@ -764,7 +765,7 @@ fn leaf<S: Scalar>(
     curl: f64,
     tol: Tol,
 ) -> Body<S> {
-    let (d, v, u) = blade_frame(dir, up);
+    let (d, v, u) = blade_frame(dir, up, tol);
     // The spine: a circular arc of length `len` turning through `curl`
     // in the (d, v) plane, i.e. radius len/curl, sampled exactly.
     let r = len / curl;
@@ -1095,7 +1096,7 @@ fn try_lofted_blade<S: Scalar>(
     stations: usize,
     tol: Tol,
 ) -> Result<pncad::sweep::Lofted<S>, pncad::sweep::LoftError> {
-    let (d, v, u) = blade_frame(dir, up);
+    let (d, v, u) = blade_frame(dir, up, tol);
     let r = len / curl;
     let mut sections: Vec<Vec<ProfileLoop<f64>>> = Vec::with_capacity(stations);
     let mut places: Vec<Affine3<f64>> = Vec::with_capacity(stations);
@@ -1208,17 +1209,20 @@ fn sepals<S: Scalar>(
 type BladeFrame = (Vec3<f64>, Vec3<f64>, Vec3<f64>);
 
 /// The right-handed `(d, v, u)` blade frame: `d` the spine's start
-/// tangent, `v` the `up` vector rejected from it ([`Vec3::reject_from`],
-/// whose grouping is the kernel's contract and not this file's), and
-/// `u = v x d`, so a sketch plane built on `(u, v)` has `d` for its
-/// normal. Shared by [`leaf`] and [`lofted_blade`] so the swept and
-/// lofted blades sit in the SAME frame — the difference between them
-/// is the verb, not the placement.
-fn blade_frame(dir: Vec3<f64>, up: Vec3<f64>) -> BladeFrame {
-    let d = dir.normalize();
-    let v = up.reject_from(d).normalize();
-    let u = v.cross(d);
-    (d, v, u)
+/// tangent, `v` the direction the blade curls toward, and `u = v x d`,
+/// so a sketch plane built on `(u, v)` has `d` for its normal. Shared
+/// by [`leaf`] and [`lofted_blade`] so the swept and lofted blades sit
+/// in the SAME frame — the difference between them is the verb, not
+/// the placement.
+///
+/// `d` and `v` are the MINT's, not this file's: [`axis_frame`] keeps
+/// the tangent and yields `up` to it at the run's band, which is the
+/// same decision every other frame in the tour goes through. `u` is
+/// then an exact cross of two witnesses — no length left to decide.
+fn blade_frame(dir: Vec3<f64>, up: Vec3<f64>, tol: Tol) -> BladeFrame {
+    let f = axis_frame::<f64>(Point3::origin(), dir, up, tol);
+    let (d, v) = (f.w().get(), f.u().get());
+    (d, v, v.cross(d))
 }
 
 // ---------------------------------------------------------------

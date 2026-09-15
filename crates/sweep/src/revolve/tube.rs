@@ -297,13 +297,17 @@ fn build<T: Decide + geom_brep::PcurveFittedLane>(
 ) -> Result<Revolved<T>, TubeError> {
     // The frame's three axes, in this door's words: `w` is the SPINE
     // AXIS, `u` the reference radial the window's angles are measured
-    // from, and `v = w × u` the third leg, which this door does not
-    // read (its own placement wants `u × w`, the other sign). They are
-    // stored VERBATIM below — the door never normalizes, because the
-    // mint already did.
+    // from, and `v = w × u` the radial a quarter turn on, which is
+    // what a windowed start direction rotates `u` towards. All three
+    // are read VERBATIM off the frame — the door never normalizes,
+    // because the mint already did, and it never re-crosses a leg the
+    // frame carries. The sketch placement's own third column is
+    // `x_dir × axis`, a different product with the other sign, and is
+    // formed below.
     let center = frame.origin();
     let axis = frame.w().get();
     let u_ref = frame.u().get();
+    let v_ref = frame.v().get();
     let band = Band::linear(tol).map_err(TubeError::Band)?;
     // The angle lever arm: the outer equator (D4 ¶1).
     let arm = major_radius + minor_radius;
@@ -393,7 +397,7 @@ fn build<T: Decide + geom_brep::PcurveFittedLane>(
         TubeWindow::Full => u_ref,
         TubeWindow::Arc { t0, .. } => {
             let (s, c) = t0.sin_cos();
-            u_ref * c + axis.cross(u_ref) * s
+            u_ref * c + v_ref * s
         }
     };
     let normal = x_dir.cross(axis);

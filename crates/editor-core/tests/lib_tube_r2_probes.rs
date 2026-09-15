@@ -411,7 +411,10 @@ fn r2_the_u_ref_verdicts_stay_reachable_from_a_document() {
     match ev.nodes.get(&tube) {
         Some(NodeResult::Failed(e)) => match &e.kind {
             NodeErrorKind::DegenerateDirection { role } => {
-                assert_eq!(*role, "tube reference direction");
+                assert_eq!(
+                    *role,
+                    "tube reference direction's component perpendicular to the spine axis"
+                );
             }
             other => {
                 panic!("a u_ref on the axis line refuses as a direction verdict, got {other:?}")

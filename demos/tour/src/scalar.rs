@@ -69,35 +69,41 @@ pub fn authored_frame<S: Scalar>(
         u,
         v,
         TOUR_FRAME_AXIS,
-        TOUR_FRAME_AXIS,
         pncad::geom_core::Band::linear(tol).expect("the run's tolerance forms a band"),
     )
     .expect("the scene's two directions span a plane")
 }
 
-/// **The spine frame a tube door takes**: a ring centre, the spine
-/// axis, and the reference radial the window's angles start from.
+/// **A frame from a raw axis and a raw reference**: the tube doors'
+/// spine and window radial, and equally a bud segment's lean or a
+/// blade's spine — any scene that holds an axis it means and a
+/// direction it wants the roll measured from.
 ///
-/// The axis is decided first and kept — it is the frame's `w`, stored
+/// The axis is decided first and KEPT — it is the frame's `w`, stored
 /// verbatim — and the reference yields whatever component of it lies
 /// along the axis, so a scene states the roll it means rather than a
-/// vector it has had to make perpendicular by hand.
+/// vector it has had to make perpendicular by hand. That is the whole
+/// helper: one call to `OrthoFrame::from_axis_and_reference`, wearing
+/// the tour's band and funnel name.
 ///
 /// # Panics
 ///
 /// If the band cannot be formed, if the axis has no direction, or if
 /// the reference lies along it.
-pub fn tube_frame<S: Scalar>(
+pub fn axis_frame<S: Scalar>(
     center: pncad::geom_core::Point3<S>,
     axis: pncad::geom_core::Vec3<S>,
     u_ref: pncad::geom_core::Vec3<S>,
     tol: pncad::geom_core::Tol,
 ) -> pncad::geom_core::OrthoFrame<S> {
-    let band = pncad::geom_core::Band::linear(tol).expect("the run's tolerance forms a band");
-    let axis = pncad::geom_core::UnitVec3::new(axis, TOUR_FRAME_AXIS, band)
-        .expect("the scene's spine axis has a direction");
-    pncad::geom_core::OrthoFrame::from_aim_and_reference(center, axis, u_ref, TOUR_FRAME_AXIS, band)
-        .expect("the scene's reference radial is off the spine axis")
+    pncad::geom_core::OrthoFrame::from_axis_and_reference(
+        center,
+        axis,
+        u_ref,
+        TOUR_FRAME_AXIS,
+        pncad::geom_core::Band::linear(tol).expect("the run's tolerance forms a band"),
+    )
+    .expect("the scene's spine axis has a direction and its reference radial is off it")
 }
 
 /// A scalar the tour can build scenes at: kernel-decidable, document-

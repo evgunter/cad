@@ -33,8 +33,9 @@ use pncad::profile::{ProfileLoop, SketchPlane};
 /// the reference radial the window's angles start from. The axis is
 /// decided and KEPT; the reference yields its component along it.
 ///
-/// Spelled here because these probes are an integration test of the
-/// tour BINARY and cannot reach the tour's own `scalar::tube_frame`.
+/// One line over `OrthoFrame::from_axis_and_reference`, spelled here
+/// because these probes are an integration test of the tour BINARY
+/// and cannot reach the tour's own `scalar::axis_frame`.
 ///
 /// # Panics
 ///
@@ -46,11 +47,14 @@ fn tube_frame(
     u_ref: Vec3<f64>,
     tol: Tol,
 ) -> pncad::geom_core::OrthoFrame<f64> {
-    const SITE: &str = "tour_probe_frame_axis";
-    let band = pncad::geom_core::Band::linear(tol).expect("the witness band");
-    let axis = pncad::geom_core::UnitVec3::new(axis, SITE, band).expect("the spine axis");
-    pncad::geom_core::OrthoFrame::from_aim_and_reference(center, axis, u_ref, SITE, band)
-        .expect("the reference radial is off the spine axis")
+    pncad::geom_core::OrthoFrame::from_axis_and_reference(
+        center,
+        axis,
+        u_ref,
+        "tour_probe_frame_axis",
+        pncad::geom_core::Band::linear(tol).expect("the witness band"),
+    )
+    .expect("the spine axis has a direction and the reference radial is off it")
 }
 
 use pncad::sweep::{

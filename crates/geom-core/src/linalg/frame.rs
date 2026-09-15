@@ -73,7 +73,7 @@
 //! 5. **Both format questions are asked before sign.** Every length
 //!    here is a vector's own norm decided by [`UnitVec3::new`] — the
 //!    aim's and the tangent's directly, the roll offset's inside
-//!    [`OrthoFrame::from_aim`] — so all of them are classified by
+//!    `OrthoFrame::from_aim` — so all of them are classified by
 //!    the same three questions in the same order, and the first is
 //!    [`is_finite_length`](crate::is_finite_length): a direction past
 //!    [`Vec3::normalize`]'s ~1e154 overflow band has an infinite
@@ -390,7 +390,7 @@ fn refused_direction(e: UnitVec3Error, input: FrameVector) -> FrameError {
 ///
 /// Evaluation order (fixed, D9): `aim = target − eye`; the aim length
 /// is decided; `ẑ = aim / |aim|`; `perp = roll_reference × ẑ`; then
-/// [`OrthoFrame::from_aim`]'s order, which decides `perp`'s length,
+/// `OrthoFrame::from_aim`'s order, which decides `perp`'s length,
 /// divides by it, and crosses.
 ///
 /// # Errors
@@ -425,7 +425,7 @@ pub fn point_at<T: Decide>(
     let perp = roll_reference.cross(unit.get());
     Ok(
         OrthoFrame::from_aim(eye, unit, perp, "frame_point_at_roll_offset", band)
-            .map_err(|e| refused_direction(e, FrameVector::RollReference))?
+            .map_err(|e| refused_direction(e.error, FrameVector::RollReference))?
             .to_affine(),
     )
 }
@@ -483,8 +483,10 @@ pub fn path_start_frame<T: Decide>(
         let perp = reference.cross(unit.get());
         match OrthoFrame::from_aim(origin, unit, perp, name, band) {
             Ok(frame) => return Ok(frame.to_affine()),
-            Err(UnitVec3Error::Escalated(i)) => last = Some(i),
-            Err(_) => last = None,
+            Err(e) => match e.error {
+                UnitVec3Error::Escalated(i) => last = Some(i),
+                _ => last = None,
+            },
         }
     }
     Err(FrameError::Degenerate {

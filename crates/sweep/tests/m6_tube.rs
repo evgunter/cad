@@ -228,20 +228,18 @@ fn tube_window_and_refusal_doors() {
     // radial — and it refuses at the FRAME MINT, under the direction
     // door's own vocabulary, before the tube door is reached.
     assert_eq!(
-        geom_core::OrthoFrame::from_aim_and_reference(
+        geom_core::OrthoFrame::from_axis_and_reference(
             Point3::new(0.0, 0.0, 0.0),
-            geom_core::UnitVec3::new(
-                Vec3::unit_y(),
-                "m6_tube_probe_axis",
-                geom_core::Band::linear(Tol::witness()).expect("the witness band"),
-            )
-            .expect("the axis has a direction"),
+            Vec3::unit_y(),
             Vec3::unit_y(),
             "m6_tube_probe_axis",
             geom_core::Band::linear(Tol::witness()).expect("the witness band"),
         )
         .unwrap_err(),
-        geom_core::UnitVec3Error::Degenerate
+        geom_core::OrthoFrameError {
+            axis: geom_core::OrthoAxis::V,
+            error: geom_core::UnitVec3Error::Degenerate,
+        }
     );
     assert!(matches!(
         build(

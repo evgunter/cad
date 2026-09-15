@@ -175,7 +175,6 @@ pub fn plane_of(doc: &ProfileDoc, plane: RecipeNodeId) -> profile::SketchPlane<f
             u,
             v,
             topo::DATUM_UNIT_NORM,
-            topo::DATUM_UNIT_NORM,
             geom_core::Band::linear(geom_core::Tol::witness()).expect("the witness band"),
         )
         .expect("a fixture frame's two axes span a plane"),

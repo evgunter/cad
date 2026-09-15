@@ -132,7 +132,6 @@ pub fn frame_of(
         u,
         v,
         FRAME_AXIS_SITE,
-        FRAME_AXIS_SITE,
         geom_core::Band::linear(tol()).expect("the witness band"),
     )
     .expect("the pair spans a plane")

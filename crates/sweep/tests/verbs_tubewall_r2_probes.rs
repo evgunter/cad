@@ -680,25 +680,25 @@ fn short(e: &TubeError) -> String {
     s.chars().take(90).collect()
 }
 
-/// The refusal ORDER: the wall arms are decided before the frame, so
-/// a call that is wrong in both ways reports the WALL. Recorded
-/// because the shipped suite never puts a bad wall and a bad frame in
-/// the same call, and because it is the one place the hollow door's
-/// verdict sequence differs in kind from the solid door's.
+/// The refusal ORDER: the hollow door's three WALL arms are decided
+/// first, before the window arms and before anything is minted, so a
+/// call that is wrong in both ways reports the WALL. Recorded because
+/// the shipped suite never puts a bad wall and a bad window in the
+/// same call, and because the wall verdicts are what a full period's
+/// cavity insertion then carries as its containment evidence.
+///
+/// The frame is not in this ordering and cannot be: the door takes an
+/// `OrthoFrame`, so a frame that is wrong refuses at its own mint,
+/// before this door is called at all.
 #[test]
-fn r2_wall_verdicts_preempt_the_frame_verdicts() {
+fn r2_wall_verdicts_preempt_the_window_verdicts() {
     let e = tube_along_arc_hollow::<f64>(
-        tube_frame(
-            c(),
-            Vec3::unit_y() * 1.5, // not unit: the solid door's NonUnitAxis
-            Vec3::unit_x(),       // and a zero wall
-            Tol::witness(),
-        ),
+        tube_frame(c(), Vec3::unit_y(), Vec3::unit_x(), Tol::witness()),
         2.0,
-        TubeWindow::Full,
+        // A window of zero span, which this door refuses on its own.
+        TubeWindow::Arc { t0: 1.0, t1: 1.0 },
         0.5,
-        0.0,
-        // and a zero wall
+        0.0, // and a zero wall
         Tol::witness(),
     )
     .expect_err("refuses");
