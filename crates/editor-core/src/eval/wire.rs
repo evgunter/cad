@@ -55,7 +55,8 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom_core::{
-    Affine3, Band, Decide, Mat3, Point2, Point3, Sign, Tol, UnitVec3, UnitVec3Error, Vec2, Vec3,
+    Affine3, Band, Decide, Mat3, OrthoAxis, OrthoFrame, Point2, Point3, Sign, Tol, UnitVec3,
+    UnitVec3Error, Vec2, Vec3,
 };
 use sweep::blend::BlendKind;
 use sweep::{Revolution, RevolveAxis};
@@ -1073,7 +1074,7 @@ fn datum_unit<T: Decide>(
 /// forced disposition; an `Err` would have forced nothing.
 enum FrameRead<T: geom_core::Real> {
     /// The orthonormal frame.
-    Frame(AuthoredFrame<T>),
+    Frame(OrthoFrame<T>),
     /// The direction door refused `u`, or `v`'s residual — see the
     /// type's own docs for which four facts that covers.
     NoDirection(DirectionRefusal),
@@ -1101,22 +1102,15 @@ fn frame_from_slots<T: Decide>(
     let origin = need_point3(vals, SlotId::Origin)?;
     Ok(
         match frame_axes(
+            origin,
             need_vec3(vals, SlotId::U)?,
             need_vec3(vals, SlotId::V)?,
             band,
         ) {
-            Ok((u, v)) => FrameRead::Frame(AuthoredFrame { origin, u, v }),
+            Ok(frame) => FrameRead::Frame(frame),
             Err(refusal) => FrameRead::NoDirection(refusal),
         },
     )
-}
-
-/// An authored frame's evaluated placement ([`frame_from_slots`]):
-/// its origin and its orthonormal in-plane axes, `u` kept.
-struct AuthoredFrame<T: geom_core::Real> {
-    origin: Point3<T>,
-    u: UnitVec3<T>,
-    v: UnitVec3<T>,
 }
 
 /// **Where a frame's profiles take their placement from** — the DM1c
@@ -1213,11 +1207,7 @@ pub(crate) fn mint_frame_placement(
     };
     match datum {
         Datum::Frame { .. } => Ok(Some(match frame_from_slots(nominal, band(tol)?)? {
-            FrameRead::Frame(f) => FramePlacement::Authored(profile::SketchPlane::from_frame(
-                f.origin,
-                f.u.get(),
-                f.v.get(),
-            )),
+            FrameRead::Frame(f) => FramePlacement::Authored(profile::SketchPlane::from_frame(f)),
             FrameRead::NoDirection(refusal) => FramePlacement::Unreadable(refusal),
         })),
         Datum::FaceFrame { .. } => Ok(Some(FramePlacement::Derived)),
@@ -1321,14 +1311,11 @@ pub(crate) fn frame_plane_lane<T: Decide>(
     results: &Results<T>,
     plane: RecipeNodeId,
 ) -> Result<profile::SketchPlane<T>, NodeErrorKind> {
-    let f = frame_value(results, plane)?;
-    // Unit and perpendicular by the datum's own construction, which is
-    // `SketchPlane::from_frame`'s stated obligation on its caller.
-    Ok(profile::SketchPlane::from_frame(
-        f.origin,
-        f.u.get(),
-        f.v.get(),
-    ))
+    // Orthonormal by the datum's own construction, and carried as the
+    // frame witness `SketchPlane::from_frame` takes.
+    Ok(profile::SketchPlane::from_frame(frame_value(
+        results, plane,
+    )?))
 }
 
 /// A lane-scalar placement carried across to `f64`, exactly, where the
@@ -1365,45 +1352,41 @@ pub(crate) fn pinned_plane<T: super::SectionScalar>(
 /// raises it on the spot, the other carries it to the reader that
 /// needed it, and both spell it through the one map.
 pub(crate) fn frame_axes<T: Decide>(
+    origin: Point3<T>,
     u_raw: Vec3<T>,
     v_raw: Vec3<T>,
     band: Band,
-) -> Result<(UnitVec3<T>, UnitVec3<T>), DirectionRefusal> {
-    let u = datum_unit(u_raw, FRAME_X_ROLE, band)?;
-    let v_perp = v_raw - u.get() * v_raw.dot(u.get());
-    Ok((u, datum_unit(v_perp, FRAME_Y_ROLE, band)?))
+) -> Result<OrthoFrame<T>, DirectionRefusal> {
+    OrthoFrame::gram_schmidt(origin, u_raw, v_raw, DATUM_UNIT_NORM, band).map_err(|e| {
+        DirectionRefusal {
+            role: match e.axis {
+                OrthoAxis::U => FRAME_X_ROLE,
+                OrthoAxis::V => FRAME_Y_ROLE,
+            },
+            error: e.error,
+        }
+    })
 }
 
-/// **A frame node's landed value, read as its orthonormal triple** —
-/// the one destructure of [`DatumValue::Frame`], for both readers that
-/// want it: [`frame_plane_lane`] as a sketch plane, and an in-plane
-/// axis as the pair its 2-D coordinates are written against.
+/// **A frame node's landed value** — the one destructure of
+/// [`DatumValue::Frame`], for both readers that want it:
+/// [`frame_plane_lane`] as a sketch plane, and an in-plane axis as the
+/// pair its 2-D coordinates are written against. The witness comes out
+/// whole, so neither reader can swap `u` for `v` and silently turn an
+/// in-plane axis by a right angle.
 ///
 /// The refusal is the operand door's: a reference whose value is not a
 /// frame is a kind mismatch at the input, not a geometry problem.
 fn frame_value<T: Decide>(
     results: &Results<T>,
     plane: RecipeNodeId,
-) -> Result<AxisFrame<T>, NodeErrorKind> {
+) -> Result<OrthoFrame<T>, NodeErrorKind> {
     operand(results, plane, super::phrase::DATUM_FRAME, |v| {
-        let ValuePayload::Datum(DatumValue::Frame { origin, u, v: y }) = &v.payload else {
+        let ValuePayload::Datum(DatumValue::Frame(frame)) = &v.payload else {
             return None;
         };
-        Some(AxisFrame {
-            origin: *origin,
-            u: *u,
-            v: *y,
-        })
+        Some(*frame)
     })
-}
-
-/// A frame's value as the three vectors its readers need — a name
-/// rather than a bare triple, because a caller that mixed up `u` and
-/// `v` would silently turn an in-plane axis by a right angle.
-struct AxisFrame<T: Decide> {
-    origin: Point3<T>,
-    u: UnitVec3<T>,
-    v: UnitVec3<T>,
 }
 
 fn wire_datum<T: Decide>(
@@ -1445,7 +1428,7 @@ fn wire_datum<T: Decide>(
         // Which axis is kept, and why, is stated at the one spelling of
         // the read, `frame_from_slots`.
         Datum::Frame { .. } => match frame_from_slots(vals, band(tol)?)? {
-            FrameRead::Frame(AuthoredFrame { origin, u, v }) => DatumValue::Frame { origin, u, v },
+            FrameRead::Frame(frame) => DatumValue::Frame(frame),
             FrameRead::NoDirection(refusal) => return Err(refusal.node_error()),
         },
         // **The one datum that reads another node.** Its four numbers
@@ -1459,7 +1442,7 @@ fn wire_datum<T: Decide>(
         // against.
         Datum::AxisInPlane { plane, .. } => {
             let f = frame_value(results, *plane)?;
-            let (frame_origin, u, v) = (f.origin, f.u, f.v);
+            let (frame_origin, u, v) = (f.origin(), f.u(), f.v());
             let plane_origin = need_point2(vals, SlotId::Origin)?;
             let plane_dir = need_vec2(vals, SlotId::Direction)?;
             let lift = |d: Vec2<T>| u.get() * d.x + v.get() * d.y;
@@ -1526,13 +1509,10 @@ fn wire_datum<T: Decide>(
             let (sin, cos) = need_scalar(vals, SlotId::Spin)?.sin_cos();
             let u_raw = u_ref * cos + n.cross(u_ref) * sin;
             let v_raw = n.cross(u_raw);
-            let (u, v) =
-                frame_axes(u_raw, v_raw, band(tol)?).map_err(DirectionRefusal::node_error)?;
-            DatumValue::Frame {
-                origin: pose.origin,
-                u,
-                v,
-            }
+            DatumValue::Frame(
+                frame_axes(pose.origin, u_raw, v_raw, band(tol)?)
+                    .map_err(DirectionRefusal::node_error)?,
+            )
         }
     }))
 }
@@ -1980,15 +1960,15 @@ fn wire_revolve<
 /// draws — two public doors over one private build — read at the
 /// recipe layer.
 ///
-/// Nothing here validates. The frame's unit-length and
-/// perpendicularity conditions, the window's span and headroom, and
-/// (for the hollow door) all three wall verdicts are the door's own,
+/// The one thing this layer does decide is the FRAME: the tube door
+/// takes a witness, so the reference direction the document authored
+/// is minted here against the datum's axis, under this layer's own
+/// funnel name and role word. The window's span and headroom and (for
+/// the hollow door) all three wall verdicts stay the door's own,
 /// decided against the run's band; a check here would be a second and
 /// weaker opinion about a body this layer is not building.
 struct TubeArgs<T: geom_core::Real> {
-    center: Point3<T>,
-    axis: Vec3<T>,
-    u_ref: Vec3<T>,
+    frame: geom_core::OrthoFrame<T>,
     major_radius: T,
     window: sweep::TubeWindow<T>,
     minor_radius: T,
@@ -1999,6 +1979,7 @@ fn tube_args<T: Decide>(
     window: &crate::node::TubeWindow,
     results: &Results<T>,
     vals: &SlotValues<T>,
+    tol: Tol,
 ) -> Result<TubeArgs<T>, NodeErrorKind> {
     let (origin, dir) = operand(results, spine, super::phrase::DATUM_AXIS, |v| {
         match &v.payload {
@@ -2008,23 +1989,34 @@ fn tube_args<T: Decide>(
     })?;
     // The datum is consumed WHOLE — origin as the spine centre, dir as
     // the spine axis — which is `Node::Revolve`'s precedent, and both
-    // cross to the door verbatim: no re-origining, and nothing
-    // normalized HERE.
+    // cross to the frame verbatim: no re-origining.
     //
     // The axis arrives already unit-length, and that is the datum
     // node's doing rather than this arm's: `wire_datum` decides
     // `DATUM_UNIT_NORM` when it evaluates the axis, so a degenerate or
     // non-finite direction refuses there, one node upstream, and what
-    // reaches the door is a `UnitVec3`. The door's own non-unit-axis
-    // verdict is therefore unreachable along the recipe path — it
-    // still guards the kernel-direct caller, which is who it was
-    // written for. `u_ref` is a bare direction that passes through NO
-    // datum, so its unit-length and perpendicularity verdicts are the
-    // door's and stay reachable from a document.
+    // reaches this arm is a `UnitVec3`. `u_ref` is a bare direction
+    // that passes through NO datum, so it is the one the frame mint
+    // decides here: its component along the axis is projected out and
+    // what remains becomes the frame's `u`, normalized, with the axis
+    // the frame's `w` VERBATIM (the mint does not re-decide a witness)
+    // and `v = w × u`. So a `u_ref` off perpendicular is no longer a
+    // refusal — it names a roll and the frame takes the part of it
+    // that can; a `u_ref` ON the axis line refuses, under the
+    // direction door's own vocabulary and this layer's role word.
     Ok(TubeArgs {
-        center: *origin,
-        axis: dir.get(),
-        u_ref: need_vec3(vals, SlotId::Direction)?,
+        frame: geom_core::OrthoFrame::from_aim_and_reference(
+            *origin,
+            *dir,
+            need_vec3(vals, SlotId::Direction)?,
+            EVAL_DIRECTION_NORM,
+            band(tol)?,
+        )
+        // The aim mint decides the reference's residual and nothing
+        // else — the axis is a witness before it arrives — so every
+        // refusal here is [`geom_core::OrthoAxis::V`]'s and the role
+        // is the reference's.
+        .map_err(|e| refusal(e.error, TUBE_REFERENCE_ROLE, EVAL_DIRECTION_NORM))?,
         major_radius: need_scalar(vals, SlotId::TubeMajorRadius)?,
         window: match window {
             crate::node::TubeWindow::Full => sweep::TubeWindow::Full,
@@ -2066,17 +2058,9 @@ fn wire_tube<T: Decide + geom_brep::PcurveFittedLane>(
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let a = tube_args(spine, window, results, vals)?;
-    let mut built = sweep::tube_along_arc(
-        a.center,
-        a.axis,
-        a.u_ref,
-        a.major_radius,
-        a.window,
-        a.minor_radius,
-        tol,
-    )
-    .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
+    let a = tube_args(spine, window, results, vals, tol)?;
+    let mut built = sweep::tube_along_arc(a.frame, a.major_radius, a.window, a.minor_radius, tol)
+        .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
     let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
     stamp_minted(&mut built.body, id);
     Ok(OpOut::plain(
@@ -2109,19 +2093,11 @@ fn wire_hollow_tube<T: Decide + geom_brep::PcurveFittedLane>(
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let a = tube_args(spine, window, results, vals)?;
+    let a = tube_args(spine, window, results, vals, tol)?;
     let wall = need_scalar(vals, SlotId::TubeWall)?;
-    let mut built = sweep::tube_along_arc_hollow(
-        a.center,
-        a.axis,
-        a.u_ref,
-        a.major_radius,
-        a.window,
-        a.minor_radius,
-        wall,
-        tol,
-    )
-    .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
+    let mut built =
+        sweep::tube_along_arc_hollow(a.frame, a.major_radius, a.window, a.minor_radius, wall, tol)
+            .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
     let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
     stamp_minted(&mut built.body, id);
     Ok(OpOut::plain(
@@ -4453,6 +4429,20 @@ pub(crate) const FRAME_Y_ROLE: &str = "datum frame y axis";
 /// The role word a plane datum's normal is normalized under.
 pub(crate) const PLANE_NORMAL_ROLE: &str = "datum plane normal";
 
+/// The role word a tube's REFERENCE DIRECTION is normalized under —
+/// the authored `u_ref` that fixes where the window's angles start.
+/// It reaches the frame mint from a slot, not from a datum, so this
+/// arm is where its refusal is spelled.
+///
+/// The role names the RESIDUAL and not the vector, because that is
+/// the length the mint decides: `u_ref` yields its component along
+/// the spine axis and what remains becomes the frame's `u`. A
+/// reference five metres long that lies on the axis line refuses
+/// here, and "the tube reference direction has zero length" would be
+/// false of it.
+pub(crate) const TUBE_REFERENCE_ROLE: &str =
+    "tube reference direction's component perpendicular to the spine axis";
+
 /// The role word a DATUM AXIS's direction is normalized under. Three
 /// callers, and they do not all take the same road — the evaluation
 /// decides it under [`DATUM_UNIT_NORM`], through the kernel type that
@@ -5182,11 +5172,9 @@ mod route_tests {
     /// Nothing below reads the body; the door reads tables.
     fn a_face_key() -> topo::FaceKey {
         use profile::RawLoop;
-        let plane = profile::SketchPlane::from_frame(
+        let plane = profile::SketchPlane::from_frame(geom_core::OrthoFrame::axes_xy(
             geom_core::Point3::new(0.0, 0.0, 0.0),
-            geom_core::Vec3::new(1.0, 0.0, 0.0),
-            geom_core::Vec3::new(0.0, 1.0, 0.0),
-        );
+        ));
         let square = profile::ProfileLoop::polygon(
             [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
                 .into_iter()

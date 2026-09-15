@@ -306,7 +306,8 @@ bindings crate).
   RATIFIED: frame CONSTRUCTORS in `geom-core` (point-at, mirror,
   path-start frame with the degenerate-axis policy stated, written
   once), consumed by `SketchPlane::from_frame`
-  and loft/sweep placements as plain `Affine3` values;
+  and loft/sweep placements — the aiming pair through the
+  `OrthoFrame` witness and out as plain `Affine3` values;
   document-level Expr-ized placement stays deferred (VQ8's pose
   conversation), so no schema change rides this unit.
   **Amendment (Ev, #362, 2026-08-10): resonance with the PATHS

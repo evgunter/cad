@@ -587,7 +587,7 @@ reads) and `CameraOp`'s at the arm. That is the property this rule is
 after: an omission that is a decision someone made. The rule matches
 one more site that is not an instance, and the distinction is the
 usual one: `frame.rs`'s
-`matches!(w.cause, DisplayFault::FusedGeometry { .. })` is a variant
+`matches!(w.cause, AdmissionFault::FusedGeometry { .. })` is a variant
 test on another type rather than a pattern over the subject. The arm
 that words a withdrawal's count beside it matches an `Option`
 exhaustively — the two kinds that are over a SET carry a plural and the
@@ -834,6 +834,29 @@ costs nothing a reader sees — no producer writes a bullet, and a door
 that refused one would be reachable from the keyboard through the δ
 field's echo of what was typed.
 
+**One level in, the same claim is held by the ELEMENT TYPE, because
+there is no mark left to take.** `Display for Withdrawal` joins a
+withdrawal's causes with `LIST_SEPARATOR` and joins them flat, so a
+cause whose own sentence writes one reads as an item more than it is.
+Every mark still available there is punctuation a sentence is entitled
+to, and a door that rewrote one would show a reader words its author
+did not write — so what the crate holds instead is the population the
+claim ranges over. `display::AdmissionFault` is what the two admission
+tests answer and what `Withdrawn::cause` stores, so the sentences that
+must not carry the mark are its four, a fifth cannot arrive without an
+arm there, and `DisplayFault::NonRigidFrame` — which writes a
+`LIST_SEPARATOR` inside one sentence — is outside the type the join
+can reach. The claim over that population is
+`a_withdrawn_cause_never_carries_the_list_mark`, and the join's
+invertibility is `a_withdrawals_cause_list_splits_back_into_its_causes`
+(`crates/viewer/tests/frame_policy.rs`).
+
+`frame::startup_notices` is `LIST_SEPARATOR`'s other consumer and is
+NOT held this way: it takes `&[String]` from three types by choice,
+three `prefs::Notice` arms write a `"; "` inside one sentence, and two
+startup notices are an ordinary state
+(`work/view/startup-notices-join-on-a-mark-a-prefs-notice-contains.md`).
+
 ### The app driver, split for size
 
 `app` is a driver, and a driver too large to read is still a driver.
@@ -856,6 +879,32 @@ not merely whether it is a vocabulary.
 
 `app.rs`'s header claim — *toolkit adaptation, and nothing else* — is
 true of the file rather than a claim it has outgrown.
+
+**Startup is split by what it needs, and the two context-wide styles
+are on the deviceless side.** `ViewerApp::new` takes an
+`eframe::CreationContext` and does one thing with the device — building
+the viewport renderer into the frame's render state — and
+`ViewerApp::assemble` is everything else: the document, its evaluation
+and tessellation, the camera, the preferences, and the two styles those
+preferences set on the `egui::Context`. The resolved palette's polarity
+is stated before anything is drawn, so a window cannot open on one
+ground and turn over to the other a frame later; the chrome's numeric
+rule goes onto the context's styles, so a field that never reached
+`widgets::number_field` still says what it holds. **Each is held by a
+row of `app`'s own** —
+`startup_states_the_resolved_polarity_on_the_context` and
+`startup_installs_the_number_rule_onto_both_of_the_contexts_styles`
+— reading the context after `assemble` and before any frame, which is
+where the installs claim to be in force. Both reads
+are behavioural: a `NumberFormatter` compares by `Arc::ptr_eq`, and a
+polarity is read as the preference the context states and the
+`dark_mode` a first frame would paint. **The population is two because
+the context reaches nothing else** — `assemble`'s `egui::Context`
+parameter is used at those two calls and at no third — so the sweep
+that would find a third install is a grep for that parameter. What the
+device half installs is held by nothing here and cannot be: a render
+state wants an adapter, which is the same wall
+`gpu`'s `every_pass_builds_on_a_real_device` stands at.
 
 Three items move out of `app` to modules that already own their
 subject rather than to new ones: `datum_view` to `datums`, and
@@ -1082,13 +1131,15 @@ merely feels like layer 3's is how the list acquires a member the door
 already refuses.
 
 `rank` stays a separate axis, and it is exhaustive over `Refusal`'s own
-arms, so a new arm is compiler-caught. It is not exhaustive one level
-down: `Display(_)` is a catch-all beneath its two named cases, so a new
-`DisplayFault` variant is ranked by default rather than by decision.
-Both costs — an arm ranked wrongly, and a delegated fault ranked by
-default — are accepted, because the alternative of deriving a rank from
-the arm's shape would make the ordering unstateable, and the ordering is
-the part users see.
+arms, so a new arm is compiler-caught. It is exhaustive one level down
+too, on the one arm whose rank is a per-payload decision: `Display`
+walks `DisplayFault` arm by arm and walks the admission family inside
+it, so a new fault of either kind reds until its rank is chosen.
+`Edit` and `SlotUnit` forward whole vocabularies at one rank each and
+that IS a default, argued at the arm. The remaining cost — an arm
+ranked wrongly — is accepted, because the alternative of deriving a
+rank from the arm's shape would make the ordering unstateable, and the
+ordering is the part users see.
 
 **A flat arm must not restate a refusal a door already gives.** That is
 where the rule bites, and `delete_node` already states it in the code:
