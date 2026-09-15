@@ -4086,8 +4086,6 @@ fn resolve_declarations(
     a_table: &NameTable,
     b_table: &NameTable,
 ) -> Result<BooleanDeclarations, NodeErrorKind> {
-    use topo::Operand;
-
     let mut out = BooleanDeclarations::none();
     for ((n1, n2), class) in pairs {
         let class = *class;
@@ -4127,53 +4125,53 @@ fn resolve_declarations(
         let k1 = ladder::resolve(live1, l1).map_err(refused)?.key;
         let k2 = ladder::resolve(live2, l2).map_err(refused)?.key;
         // The arms below PROJECT the keys of the step named above and
-        // add no shape of their own — the vocabulary is
-        // [`declared_step`]'s list and is not written twice. A
-        // projection that fails means a table holds a key of another
-        // kind than its name's: asserted in debug, and in release
-        // answered off the KEYS, the one place the two can disagree.
-        let broke = || {
+        // add no shape of their own. They read the ORIENTATION off
+        // the step too ([`sides`]) rather than re-deriving it from
+        // `o1` and `n1.kind`: a projection that re-asks a question
+        // the classifier already answered agrees with it only by
+        // coincidence, and this door is the one that exists because
+        // two sites agreed by coincidence.
+        //
+        // A projection that still fails means a table holds a key of
+        // another kind than its name's — asserted in debug, naming
+        // WHICH projection, and in release answered off the KEYS, the
+        // one place the two can disagree.
+        let broke = |shape: &'static str| {
             debug_assert!(
                 false,
-                "the operands' tables hold a key whose kind is not its name's: \
-                 `NameTable::insert_ref` and `insert_tied_ref` admit a row only at \
-                 its name's kind"
+                "a declared {shape} pair projected a key of another kind than its name's: \
+                 `NameTable::insert_ref` and `insert_tied_ref` admit a row only at its \
+                 name's kind"
             );
             unsupported((k1.kind(), k2.kind()))
         };
         match step {
-            DeclaredStep::CrossFaces => {
-                let (a, b) = if o1 == Operand::A { (k1, k2) } else { (k2, k1) };
+            DeclaredStep::CrossFaces(sides) => {
+                let (a, b) = sides.a_then_b(k1, k2);
                 let (Some(fa), Some(fb)) = (a.face(), b.face()) else {
-                    return Err(broke());
+                    return Err(broke("cross-operand face"));
                 };
                 out.coincident_faces
                     .push(FacePairDeclaration::new(fa, fb, class));
             }
-            DeclaredStep::SameVv => {
+            DeclaredStep::SameVv(side) => {
                 let (Some(va), Some(vb)) = (k1.vertex(), k2.vertex()) else {
-                    return Err(broke());
+                    return Err(broke("same-operand vertex-vertex"));
                 };
                 // The AUTHORED class, carried — not re-defaulted. The
                 // whole point of the payload change is that this door
                 // no longer has to guess.
-                carried(&mut out, o1).vv.push(CarriedVv {
+                carried(&mut out, side.operand()).vv.push(CarriedVv {
                     pair: VvContact { a: va, b: vb },
                     class,
                 });
             }
-            DeclaredStep::SameVf => {
-                // Which of the two is the vertex is the KINDS'
-                // answer, already made by [`declared_step`].
-                let (v, f) = if n1.kind == names::EntityKind::Vertex {
-                    (k1, k2)
-                } else {
-                    (k2, k1)
-                };
+            DeclaredStep::SameVf(side, roles) => {
+                let (v, f) = roles.vertex_then_face(k1, k2);
                 let (Some(vertex), Some(face)) = (v.vertex(), f.face()) else {
-                    return Err(broke());
+                    return Err(broke("same-operand vertex-face"));
                 };
-                carried(&mut out, o1).vf.push(CarriedVf {
+                carried(&mut out, side.operand()).vf.push(CarriedVf {
                     rest: VfContact { vertex, face },
                     class,
                 });
@@ -4193,14 +4191,136 @@ fn carried(out: &mut BooleanDeclarations, op: topo::Operand) -> &mut CarriedCont
     }
 }
 
+/// **The orientation facts a declared pair's step rests on, as tokens
+/// only a COMPARISON of the two sides can mint** — the device
+/// [`ladder::Live`] uses one door over, for the reason this door
+/// exists at all.
+///
+/// [`DeclaredStep`] carries these rather than a bare `Operand` or a
+/// `bool`, so [`resolve_declarations`]'s projection reads the
+/// orientation [`declared_step`] decided instead of re-deriving it
+/// from `o1` and `n1.kind`. A projection that re-asks a question the
+/// classifier already answered agrees with it only by coincidence,
+/// and two sites agreeing by coincidence is the whole subject of this
+/// door.
+///
+/// The fields are private to this module and the `of` constructors
+/// are the only way in, so an arm of [`declared_step`] cannot
+/// fabricate an orientation its own pattern does not support.
+/// Reaching past a constructor is `E0603`; naming a variant without
+/// its witness is `E0308`. What remains spellable is calling a
+/// comparison with ONE side twice (`SameOperand::of(oa, oa)`), which
+/// compiles — the residue, named here because the previous round of
+/// this door shipped an unchecked "fails to compile" and this doc is
+/// not going to ship a second one.
+mod sides {
+    use super::names::EntityKind;
+    use topo::Operand;
+
+    /// Proof that two declared names landed in the SAME operand, and
+    /// which one.
+    #[derive(Clone, Copy)]
+    pub(super) struct SameOperand(Operand);
+
+    impl SameOperand {
+        /// `None` unless the two names landed in one operand.
+        pub(super) fn of(a: Operand, b: Operand) -> Option<Self> {
+            (a == b).then_some(Self(a))
+        }
+
+        /// The operand both names landed in.
+        pub(super) fn operand(self) -> Operand {
+            self.0
+        }
+    }
+
+    /// Proof that two declared names landed in DIFFERENT operands,
+    /// and which of the two is operand A's.
+    #[derive(Clone, Copy)]
+    pub(super) struct CrossOperand {
+        a_is_first: bool,
+    }
+
+    impl CrossOperand {
+        /// `None` unless the two names landed in different operands.
+        pub(super) fn of(a: Operand, b: Operand) -> Option<Self> {
+            (a != b).then_some(Self {
+                a_is_first: a == Operand::A,
+            })
+        }
+
+        /// The pair in OPERAND order, A's first — whatever the two
+        /// carry, since the fact is about the sides and not about
+        /// what is being ordered.
+        pub(super) fn a_then_b<T>(self, first: T, second: T) -> (T, T) {
+            if self.a_is_first {
+                (first, second)
+            } else {
+                (second, first)
+            }
+        }
+    }
+
+    /// Proof that of two declared kinds exactly one is a VERTEX and
+    /// the other a FACE, and which is which.
+    #[derive(Clone, Copy)]
+    pub(super) struct VertexAndFace {
+        vertex_is_first: bool,
+    }
+
+    impl VertexAndFace {
+        /// `None` unless the two kinds are one vertex and one face.
+        pub(super) fn of(a: EntityKind, b: EntityKind) -> Option<Self> {
+            match (a, b) {
+                (EntityKind::Vertex, EntityKind::Face) => Some(Self {
+                    vertex_is_first: true,
+                }),
+                (EntityKind::Face, EntityKind::Vertex) => Some(Self {
+                    vertex_is_first: false,
+                }),
+                _ => None,
+            }
+        }
+
+        /// The pair in ROLE order, the vertex's first.
+        pub(super) fn vertex_then_face<T>(self, first: T, second: T) -> (T, T) {
+            if self.vertex_is_first {
+                (first, second)
+            } else {
+                (second, first)
+            }
+        }
+    }
+}
+
 /// **The step a declared pair has in the v1 threading vocabulary** —
 /// the ONE enumeration of that vocabulary in this crate. Every other
 /// mention points here: [`resolve_declarations`] projects the keys of
 /// whichever variant comes back and adds no shape of its own, and
 /// [`NodeErrorKind::DeclareUnsupportedPair`]'s doc names this
-/// function instead of re-listing the pairs. A fourth shape is added
-/// by adding a variant, which makes the projection below fail to
-/// compile rather than diverge quietly.
+/// function instead of re-listing the pairs.
+///
+/// Each variant carries the ORIENTATION its step needs, as a
+/// [`sides`] token: which operand is A's for a cross pair, which
+/// operand both names landed in for a same-operand pair, which
+/// authored name is the vertex. **What that buys, at the resolution
+/// it is true at** — a fourth VARIANT fails to compile until the
+/// projection covers it (`E0004`; the `match` is exhaustive with no
+/// wildcard), and a fourth PAIR SHAPE reusing a variant fails to
+/// compile in the two spellings that assert a side (`E0308` without
+/// the witness, `E0603` reaching past its constructor) while the
+/// spelling that asks for one honestly returns `None` and refuses.
+/// What is NOT caught: an arm that calls a comparison with one side
+/// twice, and an arm that pairs the wrong KINDS with a variant — the
+/// second projects nothing and reaches `broke`, which is fail-loud
+/// and not a bijection.
+///
+/// The claim is written at that resolution on purpose. The round
+/// before this one said "a fourth shape fails to compile" over PAIR
+/// SHAPES when it was only true over VARIANTS, one paragraph below a
+/// note telling future lanes that "once" is a claim to check. A
+/// property worth a sentence is worth the experiment that the
+/// sentence reports.
 ///
 /// Asked of the two names' KINDS and the operands they landed in,
 /// which is everything the question depends on — none of it needs a
@@ -4208,32 +4328,34 @@ fn carried(out: &mut BooleanDeclarations, op: topo::Operand) -> &mut CarriedCont
 /// the tie.
 #[derive(Clone, Copy)]
 enum DeclaredStep {
-    /// Cross-operand Face–Face: the cosurface glue intent, on
+    /// Cross-operand Face-Face: the cosurface glue intent, on
     /// whatever carrier the two faces share.
-    CrossFaces,
-    /// Same-operand Vertex–Vertex: a carried 3′ contact.
-    SameVv,
-    /// Same-operand Vertex–Face, either way round in the authored
-    /// pair: a carried 3′ contact.
-    SameVf,
+    CrossFaces(sides::CrossOperand),
+    /// Same-operand Vertex-Vertex: a carried 3' contact.
+    SameVv(sides::SameOperand),
+    /// Same-operand Vertex-Face, either way round in the authored
+    /// pair: a carried 3' contact.
+    SameVf(sides::SameOperand, sides::VertexAndFace),
 }
 
-/// The vocabulary itself; see [`DeclaredStep`]. `None` is
+/// The vocabulary itself; see [`DeclaredStep`]. The KINDS pick the
+/// shape and the SIDES have to witness it, so a pair whose kinds name
+/// a step its operands cannot support falls out as `None` rather than
+/// needing a guard to remember. `None` is
 /// [`NodeErrorKind::DeclareUnsupportedPair`]'s case.
 fn declared_step(
     a: (topo::Operand, names::EntityKind),
     b: (topo::Operand, names::EntityKind),
 ) -> Option<DeclaredStep> {
     use names::EntityKind::{Face, Vertex};
-    use topo::Operand;
-    match (a, b) {
-        ((Operand::A, Face), (Operand::B, Face)) | ((Operand::B, Face), (Operand::A, Face)) => {
-            Some(DeclaredStep::CrossFaces)
-        }
-        ((oa, Vertex), (ob, Vertex)) if oa == ob => Some(DeclaredStep::SameVv),
-        ((oa, Vertex), (ob, Face)) | ((oa, Face), (ob, Vertex)) if oa == ob => {
-            Some(DeclaredStep::SameVf)
-        }
+    let ((oa, ka), (ob, kb)) = (a, b);
+    match (ka, kb) {
+        (Face, Face) => Some(DeclaredStep::CrossFaces(sides::CrossOperand::of(oa, ob)?)),
+        (Vertex, Vertex) => Some(DeclaredStep::SameVv(sides::SameOperand::of(oa, ob)?)),
+        (Vertex, Face) | (Face, Vertex) => Some(DeclaredStep::SameVf(
+            sides::SameOperand::of(oa, ob)?,
+            sides::VertexAndFace::of(ka, kb)?,
+        )),
         _ => None,
     }
 }

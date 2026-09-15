@@ -4,6 +4,7 @@ kind: issue
 title: clearance::windows_of refuses Unresolved for a tied face name before it can answer NotAFace
 status: open
 opened: 2026-09-15
+refs: [named-face-scope-refuses-not-a-face-without-naming-what-it-found]
 ---
 
 
@@ -60,13 +61,20 @@ the absent name, ask the KIND off the name, and only then split on
 - `crates/editor-core/src/clearance.rs`, `SelectionRefusal` — where a
   tie has no word.
 
-## A third fault in the same four lines
+## A third fault, already on this slate
 
-Found by the style review of PR 2681, which read the quoted arm rather
-than the finding: `EntityKey::Face(k) if ent.body == sel.body` falls
-through to the `_` arm, so a name that IS a face — but a face of a
-DIFFERENT output body of the same value — is refused `NotAFace`. The
-refusal says the name denotes the wrong kind of thing when it denotes
-exactly the right kind in the wrong place. That is a third distinct
-fact (`NotAFace`, `Unresolved`, and "a face, elsewhere in this value")
-answered with two words, and a taker should decide all three together.
+The style review of PR 2681 read the quoted arm and named a third
+fact: `EntityKey::Face(k) if ent.body == sel.body` falls through to
+`NotAFace` for a name that IS a face, in a DIFFERENT output body of
+the same value. That is **not restated here** —
+`work/shell/named-face-scope-refuses-not-a-face-without-naming-what-it-found`
+is its row and has carried it since 2026-09-13, as its finding 2,
+alongside the fact that `NotAFace` names no found kind at all.
+
+The two rows are one site and two questions, so they are cross-linked
+rather than merged: that row is about what the refusal SAYS, this one
+is about the ORDER in which the arm above it decides anything. A taker
+should read both, because the repair for this row (ask the kind before
+splitting on `Unique`/`Tied`) changes which arm the wrong-body case
+reaches, and the repair for that one decides what it says when it gets
+there.

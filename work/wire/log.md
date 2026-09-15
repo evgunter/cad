@@ -5242,3 +5242,55 @@ one-home unit is exactly where it is least affordable. Writing "once"
 is a claim to check with `rg`, not a summary of intent.
 
 Signed (`wire-t1`).
+
+### Delta round 2 on PR 2681 (`wire-t1`) — the claim, not the code
+
+One MAJOR, on a **sentence**. The delta review ran the experiment my
+prose asserted and it failed: adding a fourth *variant* to
+`DeclaredStep` gave `E0004`, but adding a fourth *pair shape* reusing
+an existing variant compiled clean and silently filed a cross-operand
+vertex-vertex contact under operand 1's list. My PR body and this log
+both stated the property over pair shapes. It held over variants.
+
+**And the paragraph one above it in this log told future lanes that
+"once" is a claim to check with `rg`.** "Fails to compile" is the same
+kind of claim and I wrote a fresh unchecked one directly below the
+warning. That is the finding worth carrying forward, not the enum.
+
+**Why the code allowed it.** `DeclaredStep` carried the SHAPE and none
+of the facts `declared_step` established to pick it, so all three
+orientations were discarded at the return and re-derived at the
+projection from the raw `o1` / `n1.kind` — agreeing with the
+classifier only because both sides happened to read the same inputs.
+Rule 1 one level down, inside the fix for rule 1.
+
+**The bijection was available and is taken.** A private `mod sides`
+holds three witnesses — `SameOperand`, `CrossOperand`, `VertexAndFace`
+— whose fields are unreachable outside it and whose only constructors
+are comparisons of the two sides. `DeclaredStep`'s variants carry
+them; the projection reads orientation off the step and re-derives
+nothing. Experiments, run rather than asserted:
+
+| spelling of the mistake | result |
+| --- | --- |
+| fourth variant, projection untouched | `E0004` non-exhaustive |
+| variant named without its witness | `E0308` mismatched types |
+| reaching past a witness constructor | `E0603` constructor is private |
+| asking the constructor honestly | compiles, returns `None`, refuses |
+| calling a comparison with one side twice | **compiles** — the residue |
+
+The last row is named at the site and in the doc, at that resolution,
+because this door has now shipped one over-stated claim and will not
+ship a second. The other uncaught case — an arm pairing the wrong
+KINDS with a variant — reaches `broke` and fails loud, which is the
+floor and is called the floor.
+
+**A second lesson, cheaper.** My account of why one disclosed outcome
+was unpinnable was wrong, and the tree said so in a doc comment I had
+already cited for something else: `NameTable::project` keeps a
+straddling tie's row verbatim in both halves. I reported a blocker I
+had reasoned to instead of probing. The probe takes four minutes and
+its numbers are on the row now. **Report what you measured, or report
+that you did not measure.**
+
+Signed (`wire-t1`).

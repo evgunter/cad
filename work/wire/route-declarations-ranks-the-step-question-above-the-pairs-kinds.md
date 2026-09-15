@@ -4,6 +4,7 @@ kind: issue
 title: route_declarations refuses UnionDeclareStep before the pair's kinds can be asked, the where-before-what shape of the doors rule
 status: open
 opened: 2026-09-15
+refs: [a-declared-pairs-kinds-can-refuse-without-a-side]
 ---
 
 
@@ -48,9 +49,14 @@ routing has picked that step. So kind-before-routing needs either
 The first is small and buys most of the actionability; the second is a
 design change to where the vocabulary lives. A taker should decide
 which, and should look at `DeclareUnsupportedPair`'s `cross_operand`
-field first, because the first option cannot fill it — the same reason
-the declare door keeps `DeclareBothOperands` above its own kind
-question (PR 2681, argued at that site).
+field first, because the first option cannot fill it.
+
+**That field is the same obstruction at the declare door**, and it has
+its own row there now:
+`work/wire/a-declared-pairs-kinds-can-refuse-without-a-side`. One
+field, two doors, and the kind-only subset is what both would answer
+with — so the two rows want deciding together rather than one of them
+re-deriving the other's argument.
 
 ## Sites
 

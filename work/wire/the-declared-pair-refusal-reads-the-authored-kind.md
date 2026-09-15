@@ -1,7 +1,7 @@
 ---
 id: the-declared-pair-refusal-reads-the-authored-kind
 kind: unit
-title: route_declarations answers DeclareUnsupportedPair from the authored StableName's kind, not the resolved key
+title: resolve_declarations answers DeclareUnsupportedPair from the authored StableName's kind, not the resolved key
 status: review
 opened: 2026-09-13
 branch: wire/tie-before-kind
@@ -16,7 +16,7 @@ to the end. The sweep's pattern was right —
 `rg 'EntityKey::' crates/editor-core/src/` returns this site — and the
 sweep stopped early.
 
-`crates/editor-core/src/eval/wire.rs`'s `route_declarations` builds
+`crates/editor-core/src/eval/wire.rs`'s `resolve_declarations` builds
 
 ```rust
 let unsupported = || NodeErrorKind::DeclareUnsupportedPair {
@@ -72,8 +72,15 @@ because a tied name has no single key — the word must come off the
 NAME. So `kinds: (n1.kind, n2.kind)` stays, and what changes is that
 it is now load-bearing rather than incidental.
 
-The resolved keys keep a reading of their own: the `match` arms'
-fallthrough, reachable only on a table that broke its own rule,
-answers off `k1.kind()` / `k2.kind()` under a `debug_assert!` — the
+The resolved keys keep a reading of their own: each projection arm's
+`let-else`, reachable only on a table that broke its own rule, calls
+`broke(<shape>)` — a `debug_assert!` naming which projection failed,
+and in release an answer off `k1.kind()` / `k2.kind()`. That is the
 `resolve_face` split, where the guard answers off the name and the key
 projection answers what the key IS.
+
+**Note on this row's own citation.** Its title and its finding said
+`route_declarations`; the site is and always was `resolve_declarations`
+one function below. Corrected here, and the same mis-citation is
+corrected in `crates/editor-core/tests/wire_entity_door.rs`'s census
+and in `work/wire/the-entity-kind-door-has-six-spellings`.

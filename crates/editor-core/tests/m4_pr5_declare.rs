@@ -952,10 +952,18 @@ fn a_tied_first_name_waits_behind_the_second_names_own_faults() {
         .doc;
     let ev = run(&doc);
 
-    let rung = |node: RecipeNodeId| -> String {
+    // The VARIANT, not a substring of `Debug` — and spelled with the
+    // words `pncad`'s `resolve_error_tag` uses, because the tag is
+    // what a Python caller branches on and is what moved.
+    let rung = |node: RecipeNodeId| -> &'static str {
+        use editor_core::resolve::ResolveError;
         match ev.nodes.get(&node) {
             Some(NodeResult::Failed(e)) => match &e.kind {
-                NodeErrorKind::DeclareResolve { error } => format!("{error:?}"),
+                NodeErrorKind::DeclareResolve { error } => match &**error {
+                    ResolveError::NodeGone { .. } => "node_gone",
+                    ResolveError::Vanished { .. } => "vanished",
+                    ResolveError::Ambiguous { .. } => "ambiguous",
+                },
                 other => panic!(
                     "the second name's own fault must be raised, not the first name's tie: \
                      got {other:?}"
@@ -964,20 +972,14 @@ fn a_tied_first_name_waits_behind_the_second_names_own_faults() {
             other => panic!("expected Failed, got {other:?}"),
         }
     };
-    let gone = rung(with_gone);
-    assert!(
-        gone.contains("NodeGone"),
-        "a deleted second name outranks the first name's tie; got {gone}"
+    assert_eq!(
+        rung(with_gone),
+        "node_gone",
+        "a deleted second name outranks the first name's tie"
     );
-    let vanished = rung(with_absent);
-    assert!(
-        vanished.contains("Vanished"),
-        "a second name that names nothing here outranks the first name's tie; got {vanished}"
+    assert_eq!(
+        rung(with_absent),
+        "vanished",
+        "a second name that names nothing here outranks the first name's tie"
     );
-    for answer in [&gone, &vanished] {
-        assert!(
-            !answer.contains("Ambiguous"),
-            "the first name's tie must not be the answer; got {answer}"
-        );
-    }
 }
