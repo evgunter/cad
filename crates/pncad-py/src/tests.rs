@@ -6956,14 +6956,15 @@ fn scope_qualifier(code: &str, keyword: &str, at: usize, body_start: usize) -> S
 /// [`ItemBody::Declaration`] catches only the half that ends in a `;`.
 ///
 /// **An allow-list of what may precede an item, not a deny-list of
-/// type positions.** A deny-list is a blind-spot list, and this
-/// program's record on those is four short ones in six units. What may
-/// sit between one item and the next is whitespace — a comment is
+/// type positions.** A deny-list of the places `impl` can stand in a
+/// type is a blind-spot list, and a blind-spot list written about this
+/// reader has been short every time one has been written. What may sit
+/// between one item and the next is whitespace — a comment is
 /// whitespace in the code view — and the modifiers either keyword
-/// admits, which are a visibility and `unsafe` (`default` is
-/// specialization's and modifies neither); what may sit before that
-/// is the end of another item (`}`
-/// or `;`), the opening of the scope holding it (`{`), the close of an
+/// admits, which are a visibility and `unsafe`; `default` is
+/// specialization's and modifies neither, so it is not in the list.
+/// What may sit before that is the end of another item (`}` or `;`),
+/// the opening of the scope holding it (`{`), the close of an
 /// attribute (`]`), or the start of the file.
 ///
 /// **A wrong answer here is loud in one direction only, and that is
