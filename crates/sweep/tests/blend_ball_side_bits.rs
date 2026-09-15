@@ -18,6 +18,11 @@
 //! One ruled pair is left out: the plane–cylinder pair at
 //! `(false, true)` has no crossing — the two offsets miss — and
 //! answers poison, which pins nothing.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+// The pinned literals are the reduction's own bits; the ruled plane's
+// `u_ref` lands on `1/√2` to the ulp, and it is pinned as the bits the
+// arm answered, not as the constant.
+#![allow(clippy::approx_constant)]
 
 use geom::Surface;
 use geom_core::{Point3, Vec3};
