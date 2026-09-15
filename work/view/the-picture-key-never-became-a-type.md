@@ -5,6 +5,7 @@ title: The (generation, delta) picture key is spelled five ways and its two cach
 status: review
 opened: 2026-09-05
 branch: view/picture-key
+pr: 2670
 ---
 
 
