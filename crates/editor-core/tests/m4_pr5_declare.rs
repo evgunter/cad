@@ -846,9 +846,8 @@ fn an_unsupported_declared_pair_answers_its_kinds_with_a_tied_name_in_it() {
         .expect("the U fixture ties a face");
     let uniques: Vec<StableName> = table
         .iter()
-        .filter_map(|(n, e)| {
-            (n.kind == EntityKind::Face && matches!(e, Entry::Unique(_))).then(|| n.clone())
-        })
+        .filter(|(n, e)| n.kind == EntityKind::Face && matches!(e, Entry::Unique(_)))
+        .map(|(n, _)| n.clone())
         .take(2)
         .collect();
     let [u1, u2] = <[StableName; 2]>::try_from(uniques).expect("two unique face names");
@@ -899,9 +898,9 @@ fn an_unsupported_declared_pair_answers_its_kinds_with_a_tied_name_in_it() {
                     );
                     e.kind.to_string()
                 }
-                other => panic!(
-                    "an unsupported pair must refuse DeclareUnsupportedPair, got {other:?}"
-                ),
+                other => {
+                    panic!("an unsupported pair must refuse DeclareUnsupportedPair, got {other:?}")
+                }
             },
             other => panic!("expected Failed, got {other:?}"),
         }
