@@ -120,7 +120,7 @@ use pncad::select::PickMemo;
 use pncad::topo::Body;
 
 use crate::generation::Generation;
-use crate::pickindex::{PickIndex, PickIndexError};
+use crate::pickindex::{PickIndex, PickIndexError, PictureKey};
 use crate::scene::{DisplayTolerance, FittedDelta, SceneError, fit_delta, product_of_evaluation};
 
 /// What the seam was asked to evaluate.
@@ -336,11 +336,11 @@ impl EvalService for InlineEvaluator {
 /// evaluation while the interaction layer keeps editing.
 #[derive(Clone, Debug)]
 pub struct IndexRequest {
-    /// The generation of the evaluation this index describes.
-    pub generation: Generation,
-    /// The chordal tolerance the roots are tessellated at — half the
-    /// key, and the half the evaluation knows nothing about.
-    pub delta: DisplayTolerance,
+    /// The picture to build — the generation of the evaluation this
+    /// index describes and the chordal tolerance its roots are
+    /// tessellated at, as one value ([`PictureKey`]). The δ half is
+    /// the half the evaluation knows nothing about.
+    pub key: PictureKey,
     /// The document whose roots are walked.
     pub doc: Doc<ProfileProgram>,
     /// The run those roots' payloads are read from. Shared rather than
@@ -359,10 +359,8 @@ pub struct IndexRequest {
 /// which is the assumption a coalescing seam exists to break.
 #[derive(Debug)]
 pub struct IndexDone {
-    /// The generation the request carried.
-    pub generation: Generation,
-    /// The δ the request carried.
-    pub delta: DisplayTolerance,
+    /// The picture the request asked for.
+    pub key: PictureKey,
     /// What the seam's memo did for this answer.
     pub memo: MemoReport,
     /// The index, or the refusal that stopped it — a failed or
@@ -460,14 +458,12 @@ fn build_index(request: &IndexRequest, memo: &mut PickMemo) -> IndexDone {
     let index = PickIndex::build_with(
         &request.doc,
         &request.evaluation,
-        request.generation,
-        request.delta,
+        request.key,
         request.tol,
         memo,
     );
     IndexDone {
-        generation: request.generation,
-        delta: request.delta,
+        key: request.key,
         memo: MemoReport::of(memo),
         index,
     }
@@ -976,8 +972,14 @@ mod threaded {
         /// away and back produces, and rebuilding it would cost a
         /// second full build of an answer in hand — the one wasted
         /// build this seam accepts, paid twice for nothing.
+        ///
+        /// The key is a [`crate::pickindex::PictureKey`] and the
+        /// comparison is over the whole of it, so this impl and
+        /// [`FitRequest`]'s below cannot be read as two spellings of
+        /// one rule: they compare different values, and only one of
+        /// them is a picture.
         fn supersedes(&self, done: &IndexDone) -> bool {
-            (self.generation, self.delta) != (done.generation, done.delta)
+            self.key != done.key
         }
     }
 
@@ -987,6 +989,14 @@ mod threaded {
         /// By key, for [`IndexRequest`]'s reason: a waiting request for
         /// the answer already in hand would cost a second ladder for a
         /// number nobody's view of the world has moved off.
+        ///
+        /// **The pair is not a [`crate::pickindex::PictureKey`] and
+        /// must not become one.** It is spelled identically and sits
+        /// one impl from one that is, but `requested` is the δ somebody
+        /// ASKED for — this seam's question, not its answer — where a
+        /// picture's δ is what an index was built at. A fit for a δ the
+        /// ladder will coarsen and a picture at that δ are different
+        /// things.
         fn supersedes(&self, done: &FitDone) -> bool {
             (self.generation, self.requested) != (done.generation, done.requested)
         }

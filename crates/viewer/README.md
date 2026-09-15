@@ -965,14 +965,15 @@ is where the question of whether it should be broken at all is kept.
 
 ### A pick id is one index's word
 
-`PickIndex` holds an `IdMap` keyed by `(generation, δ)`, and every id
-in the drawn mesh's per-corner `ids` was minted by the id map of the
-index that built it. So an id is only a name in the alphabet of the
+`PickIndex` holds an `IdMap` keyed by a `PictureKey` — the landed
+generation and the δ its roots were tessellated at, one value because
+it is one question — and every id in the drawn mesh's per-corner `ids`
+was minted by the id map of the index that built it. So an id is only a name in the alphabet of the
 index that minted it, and reading one through another index resolves it
 to whatever that index happens to keep at the same number.
 
 **The index in hand is not always the index on screen.**
-`ViewerApp::sync_scene` marks the scene's `(generation, δ)` pair current
+`ViewerApp::sync_scene` marks the scene's `PictureKey` current
 only on a successful rebuild — a refused one must not consume the pair,
 or the stale picture stays marked as the current one and is never
 retried — so a landed index over a refused rebuild leaves a newer index
@@ -993,13 +994,18 @@ happen to be in hand:
 - A read about the **picture** — an id the id pass produced, or a mark
   the shader composites against the drawn corners — goes through
   `drawn_index`, which answers `None` unless the index in hand is the
-  one whose id map minted those corners. Both halves of the key are
-  asked, through `PickIndex::current_for`: a δ typed while the document
-  stands rebuilds the index at the same generation over a different
-  tessellation, so generations alone would read as co-identity while
-  checking something else.
+  one whose id map minted those corners. The whole key is asked,
+  through `PickIndex::current_for`, which takes a `PictureKey` and
+  nothing smaller: a δ typed while the document stands rebuilds the
+  index at the same generation over a different tessellation, so
+  generations alone would read as co-identity while checking something
+  else — and a door that takes one value cannot be handed one half of
+  it.
 - A read of the index's **identity alone** — `PickIndex::generation` as
-  half the id query's key — resolves nothing and needs neither.
+  half the id query's key — resolves nothing and needs neither. It is
+  the one read that wants less than a picture, and it says so by
+  reaching past `PickIndex::key` for a named half rather than by
+  comparing one.
 
 **The pick asks `drawn_index` too, and for a different reason.** The
 sorting above is about currency, and nothing about a pick is false by
