@@ -183,8 +183,9 @@
 //! needs no normals), so the ∂u → 0 poison is unreachable. Pole-to-pole
 //! bands (no rim in the loop) disambiguate their azimuth half via the
 //! loop's 3-D area vector, taken into the chart frame by the face's
-//! `sense` (negated on a reversed face) — see [`walk`]. (That threading replaced the
-//! former "assumes outward-oriented shells" assumption; the band is
+//! `sense` (negated on a reversed face) — see [`walk`]. (That
+//! threading replaced the former "assumes outward-oriented shells"
+//! assumption; the band is
 //! the same face kind whose flux sign `geom_brep::props::curved`
 //! cannot read off any rim, and it takes the same fix.)
 //!

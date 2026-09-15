@@ -52,6 +52,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use geom_brep::OutwardNormal;
 use geom_core::{
     Affine3, Band, Decide, Mat3, Point2, Point3, Sign, Tol, UnitVec3, UnitVec3Error, Vec2, Vec3,
 };
@@ -1503,11 +1504,10 @@ fn wire_datum<T: Decide>(
             }
             let pose = topo::readback::face_pose(&body, key)
                 .map_err(|error| NodeErrorKind::FaceFrameReadback { error })?;
-            // DM1a: the outward normal is the sense beside the pose
-            // times the chart axis, formed here, in the open. The
-            // sense is a bool, so the sign is selected, never
+            // DM1a: the outward normal is the chart axis folded through
+            // the sense beside the pose — the bit selects, nothing is
             // computed.
-            let n = if pose.sense { pose.axis } else { -pose.axis };
+            let n = OutwardNormal::from_chart(pose.axis, pose.sense).vec();
             // A plane carrier always fixes its u-reference (readback's
             // rule 3 leaves `None` only where the carrier fixes none,
             // which a plane never is); the kind check above is what

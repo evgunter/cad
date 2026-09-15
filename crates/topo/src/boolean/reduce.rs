@@ -462,10 +462,9 @@ pub(super) fn face_source<T: Decide>(
 /// here), one flip, so those consumers stay orientation-blind.
 ///
 /// Outside this crate the same fold is spelled through
-/// [`geom_brep::OutwardNormal`]'s only constructor, which takes the
-/// bit (not named here: `face_normal`'s guard row reads this file's
-/// text); there is no scalar sign on a face for a reader anywhere to
-/// multiply by.
+/// [`geom_brep::OutwardNormal::from_chart`], the type's only
+/// constructor, which takes the bit; there is no scalar sign on a face
+/// for a reader anywhere to multiply by.
 ///
 /// Consumers that only compare the plane RESIDUAL `(p − o)·n̂` against
 /// Zero, or that hand the normal to a ray-parity test, are unaffected

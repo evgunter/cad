@@ -84,7 +84,7 @@ use geom::Curve3;
 use geom::Surface;
 use geom_core::{Point3, Real, Vec3};
 
-use super::battery::Convexity;
+use super::battery::{Convexity, sided};
 
 /// A blend surface with its spine and its per-support trimlines —
 /// the complete analytic answer for one link of a chain.
@@ -449,11 +449,7 @@ pub fn plane_sphere_blend<T: Real>(
     // that sense agrees with the chain's convexity.
     let inside = convexity.ball_side(sphere_convex);
     // The offset sphere the ball centre rides, selected STRUCTURALLY.
-    let offset = if inside {
-        sphere_r - radius
-    } else {
-        sphere_r + radius
-    };
+    let offset = sphere_r - sided(inside, radius);
     let s2 = offset.powi(2) - h.powi(2);
     // No gate here (see the two degenerate cases in the doc above):
     // `s² < 0` yields poison and escalates at predicate 3, `0 < s ≤ r`
@@ -498,7 +494,7 @@ pub fn plane_sphere_blend<T: Real>(
             // inner offset, `s > rim` on the outer — function docs),
             // spelled by the bit rather than as `|s − rim|` so a wrong
             // fold reads as a negative length instead of hiding.
-            if inside { rim - s } else { s - rim },
+            sided(inside, rim - s),
         ),
         trim_b: (
             Curve3::Circle {
@@ -567,13 +563,6 @@ pub enum SupportTrace<T: Real> {
         /// The ball's side of the support (type docs).
         side: bool,
     },
-}
-
-/// The `R ∓ r` selector: `x` where the ball rests behind the chart
-/// normal ([`SupportTrace`]'s `side` is `true`), `−x` where it rests
-/// in front. A conditional negation, exact in every backend.
-fn sided<T: Real>(side: bool, x: T) -> T {
-    if side { x } else { -x }
 }
 
 impl<T: Real> SupportTrace<T> {

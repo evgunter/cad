@@ -11,11 +11,11 @@
 //! is `pub` that only this module uses.
 //!
 //! A wall's outward normal is `S_u × S_v`, negated where `sense` is
-//! `false`. Checking it
-//! means asking, of a point just off the wall, which side the material
-//! is on — and the answer has to come from somewhere that never reads a
-//! `sense`, a winding or a normal, or the check is circular. Everything
-//! here reads POSITIONS off the shipped charts and nothing else.
+//! `false`. Checking it means asking, of a point just off the wall,
+//! which side the material is on — and the answer has to come from
+//! somewhere that never reads a `sense`, a winding or a normal, or the
+//! check is circular. Everything here reads POSITIONS off the shipped
+//! charts and nothing else.
 //!
 //! # Level sets, and the two ways to index them
 //!

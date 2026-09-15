@@ -226,8 +226,8 @@ pub fn denotation<T: Decide>(
 
 /// **Where is the face I selected?** — the named face's carrier
 /// frame, as of THIS evaluation, with the face's orientation sense
-/// beside it ([`Pose::sense`]: the outward normal is `sense · axis`,
-/// and `axis` stays the chart's).
+/// beside it ([`Pose::sense`]: `axis` stays the chart's, and the
+/// outward normal is `OutwardNormal::from_chart(axis, sense)`).
 ///
 /// Analytic carriers answer from their stored origin and axes (a
 /// definitional re-read: no pad); a NURBS face has no canonical frame

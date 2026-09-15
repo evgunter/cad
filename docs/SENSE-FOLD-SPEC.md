@@ -65,14 +65,19 @@ a genuinely signed `T` and stays. `Convexity::signed`/`ball_side`
 **Retirement.** `Face::sense_sign<T>()` (`topo/src/entity.rs:302-304`)
 is deleted; with it `face_normal.rs`'s hand-kept census
 `every_hand_multiply_of_the_face_sign_is_inventoried` (`:356-470`) — its
-PINNED table empties and the type system is the guard from here (a new
-`sense_sign` call does not compile). The OTHER guard,
+PINNED table empties and the type system is the guard over the LITERAL
+`sense_sign` from here (a new call does not compile); the class D6 names
+— a `±1` or a negated vector minted from `Face::sense` by hand — keeps
+a raw-text row tree-wide (the fix pass's
+`no_source_file_folds_the_bit_by_hand`). The OTHER guard,
 `the_planar_sense_flip_lives_in_one_place` (`:305-354`, raw text: no
 `topo/src` file but `face_normal.rs` may contain both `Surface::Plane {`
 and `from_chart`), STAYS GREEN by construction: topo-internal planar
 sites route through `face_outward_normal` and its by-value sibling, and
-the `from_chart` text stays in `face_normal.rs` only; cross-crate sites
-(1–3, 11) are outside its walk. If you find you must name `from_chart`
+no other `topo/src` file names `from_chart` in a file that also
+destructures a plane (the conjunction is the predicate: `sector_face.rs`
+names the constructor for its curved arms and matches no plane);
+cross-crate sites (1–3, 11) are outside its walk. If you find you must name `from_chart`
 in another `topo/src` file, stop and say why in the PR body rather than
 widening the guard. `entity.rs`'s doc for `sense` (`:250-300`) says what
 the bit means and points at the two homes; the "`sense_sign() *

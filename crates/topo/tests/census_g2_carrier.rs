@@ -42,7 +42,7 @@ fn z_face(body: &Body<f64>, sign: f64) -> FaceKey {
     let mut found = None;
     for (k, f) in body.faces() {
         if let Some(Surface::Plane { normal, .. }) = body.get_surface(f.surface) {
-            let out = if f.sense { *normal } else { -*normal };
+            let out = geom_brep::OutwardNormal::from_chart(*normal, f.sense).vec();
             if out.z * sign > 0.5 {
                 assert!(
                     found.is_none(),

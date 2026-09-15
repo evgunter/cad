@@ -91,7 +91,7 @@ fn stored_outward(body: &Body<f64>, face: FaceKey) -> Vec3<f64> {
     let Surface::Plane { normal, .. } = body.get_surface(f.surface).unwrap() else {
         panic!("an extrusion cap is a plane");
     };
-    if f.sense { *normal } else { -*normal }
+    geom_brep::OutwardNormal::from_chart(*normal, f.sense).vec()
 }
 
 /// Signed offsets of a cap's outer-loop vertices from the sketch

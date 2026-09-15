@@ -94,7 +94,8 @@ on where a loop's anchor sits. The RESULTS are compensated downstream
 and do not move; the recorded verdicts do, and k-lint's population and
 every golden over recorded verdicts move with them.
 
-`σ = d_u_sign`, negated where `Face::sense` is `false`, is per rim and reads no other rim, so the
+`σ` — the rim's own `d_u_sign`, negated where the face's `Face::sense`
+is `false` — is a per-rim quantity that reads no other rim, so the
 construction above is already a face fact — **and that is the thing to
 keep.** Do not implement `props_rim_interior_side` by comparing a rim
 against the first one, and do not let its margin borrow

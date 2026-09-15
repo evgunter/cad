@@ -2084,7 +2084,7 @@ fn plane_of(body: &Body<f64>, face: FaceKey) -> (geom_core::Point3<f64>, geom_co
     let Some(geom::Surface::Plane { origin, normal, .. }) = body.get_surface(data.surface) else {
         panic!("{face:?} is not planar")
     };
-    (*origin, if data.sense { *normal } else { -*normal })
+    (*origin, geom_brep::OutwardNormal::from_chart(*normal, data.sense).vec())
 }
 
 /// The edges a loop walks, in cycle order.

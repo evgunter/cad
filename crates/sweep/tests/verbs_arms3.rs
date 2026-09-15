@@ -42,6 +42,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::approx::band;
+use crate::common::oracles::sigma;
 use geom::Surface;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::ProfileVertex;
@@ -233,9 +234,6 @@ fn the_sphere_sphere_arm_folds_both_sense_bits() {
         radius: SPHERE_R,
         side,
     };
-    // The oracle's `σ` for a ball-side bit, the sign its closed forms
-    // below are written in.
-    let sigma = |side: bool| if side { 1.0 } else { -1.0 };
     for (side_a, side_b) in [(true, true), (false, false), (true, false), (false, true)] {
         let (sa, sb) = (sigma(side_a), sigma(side_b));
         let center = sheet_center(

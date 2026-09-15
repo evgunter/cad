@@ -57,7 +57,7 @@ pub fn product_face_frame(
             normal,
             u_ref,
         } => {
-            let n = if face.sense { *normal } else { -*normal };
+            let n = geom_brep::OutwardNormal::from_chart(*normal, face.sense).vec();
             // A right-handed frame on the face: u, n x u, n.
             Affine3::from_parts(
                 Mat3::from_cols(*u_ref, n.cross(*u_ref), n),

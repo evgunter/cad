@@ -52,6 +52,8 @@
 
 use core::f64::consts::SQRT_2;
 
+use crate::common::oracles::sigma;
+
 use geom::Surface;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::ProfileVertex;
@@ -194,13 +196,6 @@ type ArmRow<'a> = (
     DistOf<'a>,
     Box<dyn Fn(f64, f64) -> bool + 'a>,
 );
-
-/// The oracle's `σ` for a ball-side bit: `+1` where the ball rests
-/// behind the chart normal, `−1` in front — the sign the closed forms
-/// below are written in.
-fn sigma(side: bool) -> f64 {
-    if side { 1.0 } else { -1.0 }
-}
 
 // ------------------------------------------------------------------
 // Reading the fixture.

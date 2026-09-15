@@ -83,6 +83,8 @@
 use geom::Surface;
 use geom_core::{Point3, Real, Vec3};
 
+use crate::enters::OutwardNormal;
+
 /// The scalar's poison value (NaN at `f64`, NaI at the interval scalar).
 fn poison<T: Real>() -> T {
     T::from_f64(f64::NAN)
@@ -217,6 +219,25 @@ pub fn implicit_gradient<T: Real>(s: &Surface<T>, p: Point3<T>) -> Vec3<T> {
         // implicit form either — and its description has none to lend.
         Surface::Nurbs(_) | Surface::Approx(_) => poison_vec(),
     }
+}
+
+/// A face's OUTWARD normal at a point on a curved carrier: the
+/// implicit gradient at `p`, normalized, folded through the face's
+/// `sense` bit — the one home of that fold for a door handed a
+/// carrier and the bit rather than a face (the contact verifier
+/// reading two bodies' faces, the dihedral's material pairing, a blend
+/// battery's supports).
+///
+/// INVARIANT, enforced by the caller and not here: `p` lies ON `s` (an
+/// off-surface gradient is a direction of nothing, and this door reads
+/// no residual), and `sense` is a `Face::sense` the caller resolved,
+/// never a decided sign. A door that certifies the point onto the
+/// chart first folds the RAW gradient it has just certified
+/// unit-magnitude; this one normalizes, so the two readings can differ
+/// in the last ulps on the same input and neither substitutes for the
+/// other.
+pub fn implicit_outward_normal<T: Real>(s: &Surface<T>, sense: bool, p: Point3<T>) -> OutwardNormal<T> {
+    OutwardNormal::from_chart(implicit_gradient(s, p).normalize(), sense)
 }
 
 /// The local curvature lever arm of `s` at `p` (module docs): the

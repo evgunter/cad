@@ -61,14 +61,14 @@
 
 use geom::Curve3;
 use geom_brep::{
-    CERT_SAMPLES, sample_param, tangent_certificate_lane, tangent_jet, tangent_span_bounds,
+    CERT_SAMPLES, implicit_outward_normal, sample_param, tangent_certificate_lane, tangent_jet,
+    tangent_span_bounds,
 };
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign, Vec3};
 
 use crate::body::Body;
 use crate::contact::{ContactClass, ContactRefusal, ContactVerdict, FIT_DEFERRAL};
 use crate::entity::FaceKey;
-use crate::face_normal::implicit_outward_normal;
 
 use super::carrier_eq::{CarrierEqError, CarrierRelation};
 
