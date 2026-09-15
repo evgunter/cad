@@ -765,6 +765,44 @@ statement.
 
 - `S415-SPEC.md` — S415, the three boundary residues: one scaffold rule, the Part 21 band disclosed as one rule in two crates, one hand-minted tag derived (#2633)
 
+## Per-merge deletion — TINT-4's spec (2026-09-15)
+
+Recoverable at `git show 5494b9927:docs/TINT-4-SPEC.md` (the fix-pass
+head). **The first S-TINT spec written after an executed probe rather
+than before one**, and the probe's value was not the mechanism it
+confirmed — it was discovering that two of the four rows the
+orchestrator had grouped into a "roster class" were mis-classed, one of
+them wrongly filed by the same seat that filed it the same morning. A
+spec written from the grouping would have sent a lane to weld two rows
+that wanted different mechanisms.
+
+What the spec got right and the unit proved: `roster!`'s ident feeding
+three consumers at once, the `--list` re-exec as ground truth, and the
+kill-shot measurement named up front (time the self-`--list` on
+`editor-core --features interval`, the largest binary in the tree) with
+the lane told to stop and report if it came out badly. It came out at
+6.6-7.9 ms over 1630 rows, so the design held.
+
+What the spec did NOT anticipate, and what the unit turned out to be
+about: the prose column it sanctioned. The spec said the weld holds
+names and never prose and required the lane to say so — and then the
+first substantive sentence written into that column was a false
+citation, in the very entry the unit existed to correct. The fix pass's
+class check found three more wrong or misplaced among the remaining six.
+The spec's "state what it does not enforce" was carried out faithfully
+and was not enough, because the column it disclosed as unchecked was
+unchecked in exactly the way it said and was wrong anyway.
+
+The spec also did not foresee the two narrowings the fix pass closed: a
+`#[test]` under a nested `mod` passing a guard named
+`the_header_roster_names_every_row_in_this_file`, and an assertion in
+the macro's own suite that could not fail. Recorded in the PR body and
+in `work/tint/r2-m10-6-header-roster-omits-the-suites-heaviest-row.md`'s
+`## Closed` section.
+
+- `TINT-4-SPEC.md` — TINT-4, a header roster welded to the rows it
+  names (#2687)
+
 ## Per-merge deletion — PORT-PYOPTS's spec (2026-09-15)
 
 Recoverable at `git show e3649a523:docs/PORT-PYOPTS-SPEC.md` (the PORT
@@ -3303,3 +3341,31 @@ entry plus the PR body. Residue filed on `work/census/`:
 and `the-errors-arrival-blind-spot-list-claimed-exclusivity-and-was-short`.
 
 - `CENSUS-ERRORS-ARRIVAL-SPEC.md` — CENSUS-ERRORS-ARRIVAL, an arrival alarm over `errors.rs` keyed on its literals (#2691)
+
+## Per-merge deletion — TINT-3's spec (2026-09-15)
+
+Recoverable at `git show da1b20f85:docs/TINT-3-SPEC.md` (the fix-pass
+head). **The first S-TINT spec whose mechanism survived contact**, and
+the reason is the section the two before it lacked: it named the
+measurement that would kill the design (does `include_str!` inside an
+exported macro resolve at the invoking file or the defining one) and
+required the lane to take it before writing the fix. It came out the
+spec's way; had it not, all fifteen rows would have checked
+`test-utils`' own tree while reporting on fifteen crates, silently.
+
+What did not survive: the spec's count. It said **fourteen** and the
+tree held **fifteen** — `crates/test-utils/tests/all.rs` landed between
+the re-derivation and the fix, which is also the row's own `test-utils`
+rider resolving itself by growing a copy. The spec also did not
+anticipate the coupling that turned out to be the unit's real subject:
+`crates/test-utils/tests/reader_census.rs` was detecting each aggregating
+`all.rs` by a margin of exactly one `.rs"` literal that
+`include_str!("all.rs")` supplied, so the collapse took fourteen of
+fifteen aggregators to zero margin and forced two detectors to move. No
+spec could have named that; the lane measured it, the review adjudicated
+it a correction rather than a silencing, and the fix pass closed the
+residue it left. Recorded in the PR body and the unit's `## Closed`
+section.
+
+- `TINT-3-SPEC.md` — TINT-3, fourteen byte-identical aggregation guards
+  (#2680)

@@ -1,9 +1,9 @@
 # S-TINT — process observations
 
-Not a slate and not a log. Two things this program has learned about
+Not a slate and not a log. Three things this program has learned about
 how its own work goes wrong, each with the evidence that made it more
-than a suspicion. Both are about S-TINT's units, not about the tree they
-repair.
+than a suspicion. All three are about S-TINT's own work, not about the
+tree it repairs.
 
 ## 1. A unit that closes a hand-written mirror mints a fresh one inside its own fix
 
@@ -79,13 +79,41 @@ cannot work, and says the lane is expected to take it first and report
 back if it fails. TINT-2's lane did that unprompted; it should not have
 had to.
 
+## 3. The orchestrator read a green light on a wire that was not connected
+
+**`"merged": true` is a claim about a PR's base. It was read as a claim
+about `main`.** TINT-3's PR was opened with base
+`tint/2-stand-down-channel` — the lane had cut its branch off TINT-2's
+head to build on unmerged work, and TINT-2 landed on `main` two minutes
+before the PR existed, which nobody noticed. The merge API then did
+exactly what it was asked and said so. The unit's merge commit,
+`e4adf05a1`, was reachable from that branch and from nothing else.
+
+The log entry declaring the unit landed was written from `merged: true`
+and a green CI run id. **Neither is a fact about `main`**, and there is
+no state in which that API call reports a wrong base, because to the API
+there is no wrong base. A check that cannot go red is not a check —
+S-TINT's charter sentence, and this seat wrote its own instance of it
+while running the program named for it.
+
+**Caught by TINT-4's style review, as a note, while reviewing a
+different unit.** Third time in this program that the outside reader
+found what the working seat could not. It is the same standing claim
+observation 1 rests on, reaching one level further out than the code.
+
+**The correction**: a unit is landed when
+`git merge-base --is-ancestor <merge-sha> origin/main` returns true, and
+the log entry saying so is written after that command rather than before
+it. Cheap, mechanical, and it is the first thing in this program that
+has closed one of these by a command rather than by a warning.
+
 ## What these do NOT license
 
-Neither observation is a reason to stop writing specs, to stop deciding
+None of the three is a reason to stop writing specs, to stop deciding
 the fix shape in them, or to soften the standing discipline. A spec that
 decides badly is still better than a lane deciding in the dark — both
 units' fix shapes were arrived at faster for having something to argue
-against. And neither observation is evidence about any OTHER program:
+against. And none of them is evidence about any OTHER program:
 S-TINT's units are unusual in that the thing being repaired and the
 thing doing the repairing are the same kind of artifact, which is
 plausibly why its fixes keep becoming instances of their own subject.
