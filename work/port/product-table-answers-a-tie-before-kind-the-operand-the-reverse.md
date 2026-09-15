@@ -2,10 +2,11 @@
 id: product-table-answers-a-tie-before-kind-the-operand-the-reverse
 kind: issue
 title: The gate answers Ambiguous for a tied non-face in the product's own rows but NotAFace for the same tie at the operand
-status: review
+status: closed
 opened: 2026-09-06
 parent: PORT-DOORS-1
 pr: 2635
+closed: 2026-09-15
 ---
 
 
