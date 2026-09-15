@@ -1327,13 +1327,27 @@ pub enum NodeErrorKind {
         /// The pair, as the recipe carries it.
         pair: Box<(crate::names::StableName, crate::names::StableName)>,
     },
-    /// A `Declare` pair outside the v1 threading vocabulary
-    /// (supported: cross-operand Face–Face; same-operand
-    /// Vertex–Vertex and Vertex–Face).
+    /// A `Declare` pair outside the v1 threading vocabulary, which is
+    /// enumerated once — in `eval::wire`'s `DeclaredStep` — and is
+    /// deliberately not re-listed here, so a fourth pair shape cannot
+    /// be added to the code and left out of this sentence.
+    ///
+    /// Asked and answered BEFORE either name is resolved to one
+    /// entity: a pair the vocabulary has no step for is unsupported
+    /// however many entities answer to either name (`wire`'s
+    /// `resolve_declarations`, and `assembly::resolve_face` for the
+    /// same rule at the mate doors).
     DeclareUnsupportedPair {
-        /// The pair's entity kinds, declaration order.
+        /// The pair's entity kinds, declaration order — the AUTHORED
+        /// names' kinds, which is the only source available before
+        /// resolution and which the name table makes every
+        /// candidate's kind (`NameTable::insert_ref` and
+        /// `insert_tied_ref` are its only two writers and both refuse
+        /// a row whose name's kind is not its key's).
         kinds: (crate::names::EntityKind, crate::names::EntityKind),
-        /// Whether the names resolved in different operands.
+        /// Whether the two names LANDED in different operands — the
+        /// side pick, made before resolution, so a tied name has a
+        /// side here without having a single entity.
         cross_operand: bool,
     },
     /// The boolean refused an UNDECLARED contact (F6) and the raise

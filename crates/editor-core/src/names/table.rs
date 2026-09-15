@@ -77,6 +77,26 @@ impl EntityKey {
             _ => None,
         }
     }
+
+    /// **The vertex this key denotes, or `None`** — the third
+    /// projection, and NOT [`EntityKey::face`]'s twin in the way the
+    /// other two are twins.
+    ///
+    /// `face` and `edge` are handed to `eval::wire`'s entity door as
+    /// `read` function pointers, so the door mints the `Found` word
+    /// from the key they decline. This one is read directly, by
+    /// `resolve_declarations`'s same-operand projection, where the
+    /// kind was already decided from the NAME and a `None` here means
+    /// the table broke its own rule rather than that a caller named
+    /// the wrong kind. If a road ever wants a vertex through that
+    /// door, this is the projection to hand it — which would make the
+    /// three genuinely alike.
+    pub(crate) fn vertex(self) -> Option<VertexKey> {
+        match self {
+            Self::Vertex(k) => Some(k),
+            _ => None,
+        }
+    }
 }
 
 /// A forward entry: unique, or the N2 tie (≥ 2 equally-admissible

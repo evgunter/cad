@@ -536,6 +536,65 @@ pub fn fname(node: RecipeNodeId, seg: RoleSeg) -> StableName {
     }
 }
 
+/// **The symmetric U cutter, whose subtract table holds an N2 tie** —
+/// a 4x4x4 block with a U-shaped prism cut through it, the U's two
+/// arms congruent so nothing covariant discriminates the faces they
+/// mint and the table records one `Entry::Tied` row instead of two
+/// names. Returns the subtract node.
+///
+/// One home for a document a row needs when it needs a REAL tie
+/// rather than a hand-planted one. The same four-node shape is
+/// hand-copied across this tree; `work/wire` carries the row for
+/// re-pointing those copies here.
+pub fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, block_profile) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]],
+    );
+    let (doc, target) = insert(
+        doc,
+        Node::Extrude {
+            profile: block_profile,
+            distance: len(4.0),
+        },
+    );
+    let (doc, u_profile) = on_frame(
+        doc,
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (2.0, 1.0),
+            (6.0, 1.0),
+            (6.0, 3.0),
+            (2.0, 3.0),
+            (2.0, 2.5),
+            (5.0, 2.5),
+            (5.0, 1.5),
+            (2.0, 1.5),
+        ]],
+    );
+    let (doc, cutter) = insert(
+        doc,
+        Node::Extrude {
+            profile: u_profile,
+            distance: len(2.0),
+        },
+    );
+    insert(
+        doc,
+        Node::Boolean {
+            op: editor_core::BooleanOp::Subtract,
+            a: target,
+            b: cutter,
+            declare: None,
+        },
+    )
+}
+
 /// One edge name at a node (authoring shorthand).
 pub fn ename(node: RecipeNodeId, seg: RoleSeg) -> StableName {
     StableName {

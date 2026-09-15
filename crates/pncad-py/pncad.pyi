@@ -707,7 +707,10 @@ class ReadbackError(PncadError):
     `ambiguous` is the one to read twice: a tie is a naming success
     and a referencing failure, and the door refuses rather than
     picking a candidate. `Evaluation.denotation` is how a caller asks
-    before reading a frame.
+    before reading a frame. It is asked AFTER `wrong_kind`: a door
+    handed a name of a kind it does not read is not a door that has
+    to pick a candidate, so such a name refuses `wrong_kind` whether
+    or not it is tied, and narrowing it is never the recourse.
 
     Every field is present on every arm, `None` where that arm does
     not carry it."""
@@ -4136,9 +4139,13 @@ class Denotation:
     `Evaluation.denotation` answers with.
 
     A TIE is a naming success and a referencing failure: the name is
-    well formed and several entities answer to it equally, so the
-    frame doors refuse (`ReadbackError`, `variant == "ambiguous"`)
-    rather than picking one. `tied` is the fact to branch on;
+    well formed and several entities answer to it equally, so a frame
+    door that reads THAT KIND refuses (`ReadbackError`,
+    `variant == "ambiguous"`) rather than picking one. A door handed a
+    name of a kind it does not read is not a door that has to pick
+    one, and refuses `wrong_kind` first, tied or not — so a tie here
+    predicts `ambiguous` only at the door for the name's own kind.
+    `tied` is the fact to branch on;
     `candidates` is how many answer, which is `1` exactly when `tied`
     is `False`. It carries a COUNT and never the candidates — those
     are arena keys, which do not cross."""
@@ -4444,10 +4451,11 @@ class Evaluation:
         half.
 
         Raises `ReadbackError`, typed: `no_such_name` for a stale
-        selection, `ambiguous` for a tie (ask `denotation` first),
-        `wrong_kind` for an edge or vertex name,
-        `no_canonical_frame` for a NURBS carrier, and the node ladder
-        for a node this evaluation did not produce."""
+        selection, `wrong_kind` for an edge or vertex name (tied or
+        not — the kind is asked before the tie), `ambiguous` for a tie
+        among FACES (ask `denotation` first), `no_canonical_frame` for
+        a NURBS carrier, and the node ladder for a node this
+        evaluation did not produce."""
 
     def edge_frame(self, node: NodeId, name: str) -> Pose:
         """Where the named edge sits — `face_frame`'s sibling, same
@@ -4481,10 +4489,12 @@ class Evaluation:
     def denotation(self, node: NodeId, name: str) -> Denotation:
         """How this name resolves — uniquely, or as a tie. The
         referencing question, answered without exposing what it
-        resolves to, and the door to ask BEFORE a frame: the three
-        frame doors refuse a tie rather than picking a candidate, and
-        this says whether one is coming. Raises `ReadbackError` for
-        `no_such_name` and the node ladder."""
+        resolves to, and the door to ask BEFORE a frame: a frame door
+        for the name's OWN kind refuses a tie rather than picking a
+        candidate, and this says whether one is coming. A door for
+        another kind refuses `wrong_kind` before it looks at the tie,
+        so this answer does not predict that one. Raises
+        `ReadbackError` for `no_such_name` and the node ladder."""
 
     def resolve(self, name: str) -> Resolution:
         """Does this STORED name still denote, in THIS evaluation? —

@@ -42,3 +42,23 @@ mid-evaluation name ladder, the declaration routing, and the
 placement-rule arithmetic — so the claim that falsified itself is gone
 and the open structural question is visible. Splitting the file is
 still not proposed by either row.
+
+## Re-measured 2026-09-15 (style review of PR 2681)
+
+The row asks a taker to re-measure rather than quote 41%. The review of
+PR 2681 read `crates/editor-core/src/eval/wire.rs` end to end — the
+same thing nothing else in this project's process does — and measured:
+
+- **5173 lines**, non-test span **4806**, **2177 comment lines against
+  2498 code lines — 46.6%.** The ratio has moved 41% → 46.6% since the
+  PR 2376 reading, on a file that grew by roughly 2100 lines.
+- Re-run with the same instrument on PR 2681's merge head (which adds
+  ~65 lines of door and doc to the file): 5238 lines, non-test span
+  4872, **2222 comment against 2517 code — 46.9%**. The drift is the
+  file's, not that PR's.
+
+`wire_sweep` still reads as dead in the body sense this row means —
+`let _` bindings, an unconditional `CurvedSolidFrontier` — and is NOT
+dead in the reachability sense: the `Node::Sweep` arm of the wiring
+dispatch calls it, which is what makes the recipe doors it runs first
+real. The row's question is unchanged.
