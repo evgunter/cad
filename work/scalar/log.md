@@ -324,3 +324,28 @@ dimensional sentence wrong on its own premise; class members the
 census could not see (`clearance.rs` `chart_arms`, `ScaledFace::build`'s
 arms, `chart_bound`'s `assembled`). Twelve items adjudicated; fix pass
 dispatched on the implementer's arm.
+
+## Block SCALAR-B3 drawn; two of three dispatched (2026-09-15)
+
+The three second units are cut as block SCALAR-B3 — `docs/SENSE-FOLD-SPEC.md`,
+`docs/FRAME-WITNESS-SPEC.md`, `docs/EXHAUST-LANE-SPEC.md`, each
+ratified at dispatch from a read-only survey of the tree at `d71bb6a78`
+(the surveys are the orchestrator's, stored off-tree). Pre-draw fields
+and the draw (byte 207 ⇒ fable position 0: SENSE-FOLD FABLE,
+FRAME-WITNESS OPUS, EXHAUST-LANE OPUS) are branch-side on
+`scalar/orchestrator`. SENSE-FOLD and FRAME-WITNESS are dispatched;
+EXHAUST-LANE waits for disk (two lanes building at once is what the
+box holds while a third target dir would push it under 10 G). Seams:
+SENSE-FOLD reaches TOPO, BOOL/CURVED, BLEND, WIRE, S-MESH, TCOST/TINT
+and the unowned `entity.rs`/`face_normal.rs`/`enters.rs`; FRAME-WITNESS
+reaches PROPS, WIRE, BOOL (`profile`), BLEND (`revolve/tube.rs`), LIB
+(`pncad`, `pncad-py` tags and census) and the unowned `demos/tour`;
+EXHAUST-LANE reaches TRIM's `ssi*` and TCOST/TINT's `m5_pr7_ssi.rs` —
+announced on each PR when it opens. Found by the surveys and written
+into the specs: two more `±1`-from-a-bit mints no `sense_sign` grep
+sees (`boolean/contact_verify.rs:303-304`) and a probe-only helper
+spelling the bit by hand to dodge the census (`topo/src/r2_probes.rs`);
+two private types named `AxisFrame` in two crates (editor-core's
+origin+u+v pair, sweep's 2-D revolve frame); the tube door deciding
+unit-ness under a LEVERED band the frame mint will not use, so two
+predicate names retire with it.
