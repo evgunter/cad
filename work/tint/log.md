@@ -766,3 +766,58 @@ seat repeated the review's claim without checking it.** Filed as
 
 **Board**: 8 rows closed. Three units landed, each one's guard proved by
 mutation rather than asserted. TINT-4 is in flight on the roster weld.
+
+## TINT-3 was merged, and not onto main (2026-09-15)
+
+The entry above says TINT-3 landed. It did not. It is on
+`tint/2-stand-down-channel`, and `e4adf05a1` — the merge commit — is
+reachable from that branch and from nothing else.
+
+**What happened, with times.** PR #2656 (TINT-2) merged into `main` at
+17:14:33. PR #2680 (TINT-3) was opened at 17:16:50 with base
+**`tint/2-stand-down-channel`**, because the lane cut its branch off
+TINT-2's head to build on work that had not landed yet — which was the
+right call at the time it was made and stopped being right two minutes
+before the PR existed. Nobody retargeted the base. At 18:46 the merge
+API returned `"merged": true` and it was telling the truth: it merged
+the head into the base it was given.
+
+**Why nothing caught it.** The merge succeeded. CI was green on the
+head. `work.py lint` passed. The log entry above was written from the
+API's `merged: true` and from a green run id, and both of those are
+facts about a PR rather than facts about `main`. There is no state in
+which that API call reports a wrong base, because to the API there is
+no wrong base.
+
+**That is this program's own charter shape, committed by this
+program's orchestrator.** A check that cannot go red is not a check.
+`"merged": true` cannot go red on the thing the orchestrator was
+actually asking — *is this on main* — so reading it as an answer to
+that question was reading a green light on a wire that is not
+connected.
+
+**Who caught it**: TINT-4's style review, as NOTE-1, about forty
+minutes later and while reviewing a different unit. Not the
+orchestrator, and not any gate. That is the third time in this program
+that the outside reader found what the seat doing the work could not
+(observation 1's two are the others).
+
+**The correction, adopted now.** A unit is landed when its merge commit
+is an ancestor of `origin/main`, asserted with
+
+```
+git fetch origin main && git merge-base --is-ancestor <merge-sha> origin/main
+```
+
+and not when an API said `merged`. The log entry naming a unit landed
+is written after that command, not before. And a lane whose branch is
+cut off another unit's branch retargets its PR base to `main` the
+moment that unit lands — or, better, cuts off `main` and merges the
+dependency in, so the base is `main` from the start and there is
+nothing to remember.
+
+**Repaired by**: this PR, which carries `e4adf05a1`'s content onto
+`main` through `tint/orchestrator` (which already contained TINT-3's
+head plus the state sync). `tint/4-roster-weld` does not contain
+TINT-3, so TINT-4 was never blocked on this and its base was always
+`main`.
