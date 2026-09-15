@@ -6726,13 +6726,15 @@ fn read_minting_items(source: &str) -> BTreeMap<String, Vec<String>> {
 ///   executes it. **What that probe does not reach:** it shows the
 ///   walk does not MISATTRIBUTE the rest of the file into that module,
 ///   and says nothing whatever about the words in the other file.
-/// * **`impl` in type position** — `-> impl Display`, `impl Trait`
-///   arguments. [`item_body`] answers [`ItemBody::Declaration`] for
-///   these and they are skipped.
-///   `the_errors_mint_reader_reads_what_it_claims` holds one in its
-///   fixture. **What that probe does not reach:** it is the same
-///   mechanism the sibling census uses, so a defect in
-///   `boundary_before`/`item_body` would pass both together. The
+/// * **`impl` in type position** — `-> impl Display`, an `impl Trait`
+///   argument. [`starts_an_item`] is what refuses these, and the half
+///   of them that ends in a `;` is refused twice over by
+///   [`ItemBody::Declaration`]; the half that ends in a `{` would
+///   otherwise take the enclosing function's own body for a scope.
+///   `the_errors_mint_reader_recognises_what_it_claims` holds one of
+///   each in its fixture. **What that probe does not reach:** the
+///   fixture is read by the same walk it is checking, so a defect in
+///   `boundary_before`/[`item_body`] would pass both together. The
 ///   check that is differently shaped is the roster itself — the ten
 ///   rows over the real `src/errors.rs` are a behavioural pin that
 ///   moves if this walk starts or stops seeing a scope.
@@ -6760,7 +6762,10 @@ fn scope_spans(code: &str) -> Vec<(String, std::ops::Range<usize>)> {
         while let Some(off) = code[from..].find(keyword) {
             let at = from + off;
             from = at + keyword.len();
-            if !boundary_before(code, at) || !boundary_after(code, at + keyword.len()) {
+            if !boundary_before(code, at)
+                || !boundary_after(code, at + keyword.len())
+                || !starts_an_item(code, at)
+            {
                 continue;
             }
             let body = match item_body(code, at) {
@@ -6805,6 +6810,77 @@ fn scope_qualifier(code: &str, keyword: &str, at: usize, body_start: usize) -> S
         || subject.to_owned(),
         |named| format!("<{subject} as {}>", trait_key(&named)),
     )
+}
+
+/// Whether the keyword at `at` opens an ITEM rather than standing in a
+/// type.
+///
+/// `impl` is a type-position keyword too — `-> impl Display`, an
+/// `impl Trait` argument — and the body [`item_body`] answers for one
+/// of those is the enclosing FUNCTION's, so a walk that took it would
+/// qualify that function's whole contents under the trait's name.
+/// [`ItemBody::Declaration`] catches only the half that ends in a `;`.
+///
+/// **An allow-list of what may precede an item, not a deny-list of
+/// type positions.** A deny-list is a blind-spot list, and this
+/// program's record on those is four short ones in six units. What may
+/// sit between one item and the next is whitespace — a comment is
+/// whitespace in the code view — and the modifiers either keyword
+/// admits, which are a visibility and `unsafe` (`default` is
+/// specialization's and modifies neither); what may sit before that
+/// is the end of another item (`}`
+/// or `;`), the opening of the scope holding it (`{`), the close of an
+/// attribute (`]`), or the start of the file.
+///
+/// **A wrong answer here is loud in one direction only, and that is
+/// the safe one.** Rejecting a real `impl` costs its methods their
+/// qualifier, and a bare name is not on the roster, so every one of
+/// them reports NEW. Accepting a type position is the quiet direction,
+/// which is why the list admits rather than excludes.
+fn starts_an_item(code: &str, at: usize) -> bool {
+    let mut head = code[..at].trim_end();
+    loop {
+        let Some(last) = head.as_bytes().last() else {
+            return true;
+        };
+        if *last == b')'
+            && let Some(open) = balanced_open(head)
+            && head[..open].trim_end().ends_with("pub")
+        {
+            head = head[..open].trim_end().trim_end_matches("pub").trim_end();
+            continue;
+        }
+        let Some(cut) = ["pub", "unsafe"]
+            .into_iter()
+            .find_map(|word| head.strip_suffix(word))
+        else {
+            return matches!(last, b'}' | b';' | b'{' | b']');
+        };
+        head = cut.trim_end();
+    }
+}
+
+/// The offset of the `(` that opens the round bracket `text` ends
+/// with, or `None` where it does not close.
+///
+/// `text` is a [`code_only`] view, so every bracket is a real bracket
+/// — the same precondition [`balanced_end`] states, read the other way
+/// round.
+fn balanced_open(text: &str) -> Option<usize> {
+    let mut depth = 0usize;
+    for (at, byte) in text.bytes().enumerate().rev() {
+        match byte {
+            b')' => depth += 1,
+            b'(' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(at);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 /// A trait spelling as a key: its path qualification dropped, its
@@ -7129,8 +7205,9 @@ fn errors_rs_spells_literals_in_exactly_these_items() {
 /// the set it can still see. The census above exercises it against
 /// `src/errors.rs`, which holds one of some forms and none of others:
 /// no generic `impl`, no `static`, no restricted visibility, no
-/// literal in an attribute, one character literal and no second trait
-/// impl for a type that already has one.
+/// literal in an attribute, one character literal, no second trait
+/// impl for a type that already has one, no `mod`, no `impl` at
+/// indentation and no `impl` in type position.
 ///
 /// So this drives it over a source written to hold one of each and
 /// pins what every item contributes. The expectation is spelled out
@@ -7151,6 +7228,18 @@ fn errors_rs_spells_literals_in_exactly_these_items() {
 /// is a literal like any other and this census counts literals, not
 /// vocabulary, so a row's count is what the file spells and the
 /// `held_by` column is where a word is said to reach Python or not.
+///
+/// **Four more rows are [`scope_spans`]'s own**, and they are here
+/// because the roster over `src/errors.rs` cannot reach them — that
+/// file has no `mod` and every `impl` in it starts a line.
+/// `nested::Taxonomy::in_a_module` and `plain::IN_PLAIN` are an `impl`
+/// at indentation and a module prefix in the key;
+/// `<Taxonomy as Sealed>::MARK` is an `unsafe impl`, and the module
+/// above it a `pub(crate)` one, which are the two modifiers
+/// [`starts_an_item`] admits. `INSIDE` is the row that holds that
+/// function: it sits in the body of a `fn` returning `impl Display`,
+/// and a walk reading that `impl` as an item head would take the
+/// FUNCTION's body for the trait's scope and answer `Display::INSIDE`.
 #[test]
 fn the_errors_mint_reader_recognises_what_it_claims() {
     let source = r#"//! A module header with a "quoted" word the reader must not read.
@@ -7208,6 +7297,37 @@ impl<'a> Borrowed<'a> {
     }
 }
 
+impl<const N: usize> Fixed<N> {
+    fn fixed() -> &'static str {
+        "fixed"
+    }
+}
+
+unsafe impl Sealed for Taxonomy {
+    const MARK: &'static str = "marked";
+}
+
+pub(crate) mod nested {
+    impl super::Taxonomy {
+        pub const fn in_a_module() -> &'static str {
+            "nested"
+        }
+    }
+}
+
+pub mod plain {
+    pub const IN_PLAIN: &str = "plain";
+}
+
+pub trait Declared {
+    fn declared(&self) -> impl fmt::Display;
+}
+
+pub fn returns_impl() -> impl fmt::Display {
+    const INSIDE: &str = "inside";
+    INSIDE
+}
+
 #[deprecated(note = "an attribute literal")]
 /// A doc comment between the attribute and its item does not break the
 /// run: over the code view it is whitespace.
@@ -7220,7 +7340,10 @@ pub fn after_the_attribute() -> &'static str {
     let expected: Vec<(&str, Vec<&str>)> = vec![
         ("<Taxonomy as Debug>::fmt", vec!["the debug word"]),
         ("<Taxonomy as Display>::fmt", vec!["the display word"]),
+        ("<Taxonomy as Sealed>::MARK", vec!["marked"]),
         ("Borrowed::borrowed", vec!["borrowed"]),
+        ("Fixed::fixed", vec!["fixed"]),
+        ("INSIDE", vec!["inside"]),
         ("SEP", vec!["'/'"]),
         ("TOP_STATIC", vec!["static_word"]),
         ("TOP_WORD", vec!["top"]),
@@ -7228,6 +7351,8 @@ pub fn after_the_attribute() -> &'static str {
         ("Taxonomy::inherent", vec!["one", "two"]),
         ("after_the_attribute", vec!["after", "an attribute literal"]),
         ("foreign", vec!["C", "foreign"]),
+        ("nested::Taxonomy::in_a_module", vec!["nested"]),
+        ("plain::IN_PLAIN", vec!["plain"]),
         ("restricted", vec!["restricted"]),
         ("top_level_map", vec!["angle", "length"]),
     ];
@@ -7306,6 +7431,80 @@ fn the_errors_mint_census_reds_on_a_map_arriving_inside_an_impl() {
             .iter()
             .any(|c| c.contains("NEW item `ValidationRefusal::sixth_map`")),
         "a sixth map inside an `impl` did not red by name: {complaints:?}"
+    );
+}
+
+/// **A map arriving inside a `mod` arrives under its QUALIFIED name.**
+///
+/// The walk that finds scopes is free, so an `impl` at indentation is
+/// an `impl`; the module is in the key, so the name the complaint
+/// prints is one a reader can go and find. A bare `seventh` was what a
+/// line-start walk reported — loud, but naming an item that does not
+/// exist by that name, which sends its reader looking for the wrong
+/// thing.
+#[test]
+fn the_errors_mint_reader_keys_a_nested_impl_by_where_it_is_written() {
+    let arrival = format!(
+        "{}\nmod nested {{\n    impl crate::errors::ValidationRefusal {{\n        pub \
+         const fn seventh(self) -> &'static str {{\n            \"seventh\"\n        \
+         }}\n    }}\n}}\n",
+        errors_source()
+    );
+    let complaints = minting_complaints(&read_minting_items(&arrival));
+    assert!(
+        complaints
+            .iter()
+            .any(|c| c.contains("NEW item `nested::ValidationRefusal::seventh`")),
+        "a map inside a `mod` did not red under its qualified name: {complaints:?}"
+    );
+    assert!(
+        !complaints.iter().any(|c| c.contains("NEW item `seventh`")),
+        "the qualifier was lost as well as carried: {complaints:?}"
+    );
+}
+
+/// **A `mod` whose body is another file opens no scope here**, and the
+/// items after it are not written under its name.
+///
+/// `mod other;` and `mod other { … }` are the same three characters to
+/// a text walk. Taking the first for the second would put every
+/// remaining item in the file under a module it is not in, and since a
+/// module prefix is part of the key, every one of those items would
+/// report NEW under a name that does not exist.
+#[test]
+fn the_errors_mint_reader_does_not_read_a_file_module_as_a_scope() {
+    let found = read_minting_items("mod other;\n\npub const WORD: &str = \"word\";\n");
+    assert_eq!(
+        found.keys().map(String::as_str).collect::<Vec<_>>(),
+        vec!["WORD"],
+        "a file module was read as a scope"
+    );
+}
+
+/// **A macro body is text, and this reader reads it once**, at the
+/// definition — not once per expansion, and not at the scope the
+/// expansion lands in.
+///
+/// That is the honest description of what a text walk can say about a
+/// macro, and it is a disclosure rather than a repair: an item minted
+/// twice is rostered once, and an item minted at a call site in
+/// another module is rostered under the module the DEFINITION sits in.
+/// What no test here can reach is a macro that pastes the keyword
+/// together, or a proc macro, whose output this file spells nowhere.
+#[test]
+fn the_errors_mint_reader_reads_a_macro_body_as_text_and_says_so() {
+    let found = read_minting_items(
+        "macro_rules! mint {\n    () => {\n        impl Taxonomy {\n            pub const \
+         fn from_macro() -> &'static str {\n                \"from_macro\"\n            \
+         }\n        }\n    };\n}\n\nmint!();\nmint!();\n",
+    );
+    assert_eq!(
+        found
+            .iter()
+            .map(|(owner, literals)| (owner.as_str(), literals.len()))
+            .collect::<Vec<_>>(),
+        vec![("Taxonomy::from_macro", 1)],
+        "the macro body was not read once at its definition"
     );
 }
 
