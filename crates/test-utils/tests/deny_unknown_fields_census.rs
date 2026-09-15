@@ -113,10 +113,20 @@ fn word(code: &str, word: &str) -> Option<usize> {
 }
 
 /// The identifier beginning at `at`, empty when none does.
+///
+/// **A raw identifier is ONE identifier, `r#` included.** Reading
+/// `r#type` as `r` leaves the reader looking at a `#`, and a struct
+/// variant whose name is a keyword then reads as a unit one — a false
+/// green, since the enum has a named field the attribute denies.
 fn ident(code: &str, at: usize) -> &str {
-    let end = code[at..]
+    let from = if code[at..].starts_with("r#") {
+        at + 2
+    } else {
+        at
+    };
+    let end = code[from..]
         .find(|c: char| !c.is_alphanumeric() && c != '_')
-        .map_or(code.len(), |off| at + off);
+        .map_or(code.len(), |off| from + off);
     &code[at..end]
 }
 
@@ -418,7 +428,7 @@ fn the_walk_still_sees_every_attribute_site() {
 /// tree.
 #[test]
 fn the_classifier_answers_each_declaration_shape() {
-    let cases: [(&str, Governed, &str); 14] = [
+    let cases: [(&str, Governed, &str); 16] = [
         ("unit struct", Governed::NothingToDeny, "pub struct U;"),
         (
             "tuple struct",
@@ -485,6 +495,16 @@ fn the_classifier_answers_each_declaration_shape() {
             "a named struct behind a where clause",
             Governed::NamedField,
             "pub struct W<T> where T: Copy { a: T }",
+        ),
+        (
+            "a struct variant under a raw identifier",
+            Governed::NamedField,
+            "enum E { A(u8), r#type { w: f64 } }",
+        ),
+        (
+            "a tuple variant under a raw identifier",
+            Governed::NothingToDeny,
+            "enum E { r#fn(u8), B }",
         ),
     ];
     for (what, want, decl) in cases {
