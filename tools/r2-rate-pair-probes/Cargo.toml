@@ -1,0 +1,18 @@
+[package]
+name = "r2-rate-pair-probes"
+version = "0.0.0"
+edition = "2024"
+
+[features]
+head = []
+
+[dependencies]
+geom-core = { path = "../../crates/geom-core" }
+geom = { path = "../../crates/geom" }
+geom-brep = { path = "../../crates/geom-brep" }
+topo = { path = "../../crates/topo" }
+sweep = { path = "../../crates/sweep", features = ["test-support"] }
+
+profile = { path = "../../crates/profile", features = ["test-support"] }
+
+[workspace]
