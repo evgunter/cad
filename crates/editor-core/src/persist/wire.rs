@@ -4,8 +4,11 @@
 //! - [`Expr`] persists as a plain AST tree and is REBUILT through the
 //!   dimension-checking smart constructors on load — a corrupt or
 //!   hand-edited file can never smuggle an ill-dimensioned tree (or a
-//!   non-finite literal) past the construction door. The cached
-//!   dimension is deliberately not persisted: it re-derives.
+//!   non-finite literal) past the construction door, and the checker's
+//!   refusal reaches the caller WHOLE rather than as prose — how a
+//!   typed value leaves a `Deserialize` impl at all is
+//!   [`super::refusal`]'s subject. The cached dimension is deliberately
+//!   not persisted: it re-derives.
 //! - [`ProfileProgram`] persists STRUCTURALLY (the `plane` NODE ID —
 //!   twelve placement columns until the sketch plane became a node —
 //!   plus per-loop step lists whose continuous args are [`Expr`]s) and
