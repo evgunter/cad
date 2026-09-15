@@ -4,6 +4,7 @@ kind: ruling
 title: product refuses Naming when one instance's names appear under two transform roots, so a document the solve accepts cannot gather
 status: open
 opened: 2026-09-05
+refs: [does-n3-retire-loudly-generalise-to-the-folds-other-compositions]
 ---
 
 

@@ -4,7 +4,7 @@ kind: ruling
 title: A member-space declaration resolves through merges only: a face consumed by a split, by containment, or inside a fragmented merged row is still order-shaped
 status: open
 opened: 2026-09-07
-refs: [2073, 2073]
+refs: [2073, does-n3-retire-loudly-generalise-to-the-folds-other-compositions]
 ---
 
 ## What
