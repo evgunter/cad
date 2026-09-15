@@ -174,10 +174,12 @@ pub use editor_core::{Distribution, DistributionFault, DistributionField};
 // REFUSAL is the detect/declare protocol's trigger, and
 // `NodeError`/`NodeErrorKind` were unreachable without the result
 // enum that carries them.
-// `UnitVec3`/`UnitVec3Error` ride with `DatumValue` because they are
-// its field type: a consumer cannot read a datum's normal, or build a
-// datum at all, without naming the type that makes it unit — and the
-// constructor's refusal is the only way a datum direction is rejected.
+// `DatumValue`'s direction fields are `geom_core::UnitVec3`, reached
+// through the re-exported `geom_core` crate rather than curated here:
+// a consumer cannot read a datum's normal, or build a datum at all,
+// without naming the type that makes it unit, and it names it at the
+// crate that mints it — the constructor's refusal (`UnitVec3Error`,
+// there too) is the only way a datum direction is rejected.
 // `VerbKind`/`Arity` ride with `NodeErrorKind` for the same reason:
 // they are `VerbArity`'s payload, so a consumer can match the variant
 // but not name what it caught without them (the prelude's `BlendKind`
@@ -201,8 +203,7 @@ pub use editor_core::{Distribution, DistributionFault, DistributionField};
 pub use editor_core::{
     Arity, BooleanValue, CancelToken, DatumValue, DirectionRefusal, EvalOptions, EvalOutcome,
     Evaluation, Found, FramePlacement, Mispaired, NodeError, NodeErrorKind, NodeRefusal,
-    NodeResult, NodeValue, ProfileLift, SplitSide, UnitVec3, UnitVec3Error, ValuePayload, VerbKind,
-    evaluate,
+    NodeResult, NodeValue, ProfileLift, SplitSide, ValuePayload, VerbKind, evaluate,
 };
 
 // Persistence: the doors, verbatim.
