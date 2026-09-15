@@ -5576,38 +5576,6 @@ PERF program rows (`work/perf/`; band 3400–3499). Protocol v6, implementer rat
 
 **Tally after this block: four clean pairs toward the twelve (B1's three and PERF-4), still no unilateral MAJOR among them.** Two pairs (PERF-5, PERF-6) are interrupted and excluded; had they counted, PERF-5 would carry a unilateral MAJOR on the opus arm and PERF-6 one on each arm — the record keeps them for calibration. Block PERF-B2 closes the program's dual-reviewed units for now; side units (the display probe, the gate-then-measure ribbon) record no row.
 
-<<<<<<< HEAD
-## SCALAR program rows (`work/scalar/`; band 4100–4199; blocks named SCALAR-B<n>)
-
-Protocol v6, implementer ratio 1:2, full dual on every kernel unit;
-a ruling records no row. **Branch-side record**: this section lives on
-`scalar/orchestrator` and merges to main only when the block's LAST
-slot's reviews conclude (the PCURVE redaction shape).
-
-### Block SCALAR-B1 — pre-draw fields (2026-09-12, before the byte)
-
-Slots by dispatch order, the three door rows the plan runs before `H5`:
-
-- slot 0 — `D290` (the knot rescale door; `docs/D290-SPEC.md`) —
-  **S / structural** (an `f64` knot-structure door and two callers; the
-  door's refusals are the existing `clamped` clauses plus a domain
-  check, no new decided predicate).
-- slot 1 — `S393` (the path sweep's start-frame door) — **S / numeric**
-  (the recipe chooses the least-parallel world axis by comparison; the
-  door MOVES that decision behind a named predicate rather than adding
-  one, but a mixed unit takes the class of the part that carries the
-  risk).
-- slot 2 — `sweep-test-rebuilds-validated-net-for-v-reversal` (a
-  v-reversal door on `NurbsSurface`) — **S / structural**.
-
-### Block SCALAR-B1 — the draw (2026-09-12)
-
-Draw: `/dev/urandom` byte **69** (< 252), 69 mod 3 = 0 ⇒ fable position
-0. Slots by dispatch order: **slot 0 D290 = FABLE, slot 1 S393 = OPUS,
-slot 2 v-reversal net = OPUS.** Remote 4-vCPU / 15 GB box, about three
-concurrent lanes, private target dirs, no build mutex script (the box
-is per-session); the same on every arm.
-=======
 ## PERF-9 review ordinal fixed at dispatch (2026-09-12)
 
 PERF-9 (`work/perf/PERF-9.md`, PR #2451 open — frozen head `aa64fab67`;
@@ -6817,7 +6785,37 @@ count), ~50 min wall; impl CI **34938321458** GREEN on the head (twelve
 `test` jobs, five `k-lint (gate, …)`). Sample number at merge. Row at
 merge. This is block SCALAR-B1's last slot: the block record merges
 from `scalar/orchestrator` when this dual concludes.
->>>>>>> origin/main
+
+## SCALAR program rows (`work/scalar/`; band 4100–4199; blocks named SCALAR-B<n>)
+
+Protocol v6, implementer ratio 1:2, full dual on every kernel unit;
+a ruling records no row. **Branch-side record**: this section lives on
+`scalar/orchestrator` and merges to main only when the block's LAST
+slot's reviews conclude (the PCURVE redaction shape).
+
+### Block SCALAR-B1 — pre-draw fields (2026-09-12, before the byte)
+
+Slots by dispatch order, the three door rows the plan runs before `H5`:
+
+- slot 0 — `D290` (the knot rescale door; `docs/D290-SPEC.md`) —
+  **S / structural** (an `f64` knot-structure door and two callers; the
+  door's refusals are the existing `clamped` clauses plus a domain
+  check, no new decided predicate).
+- slot 1 — `S393` (the path sweep's start-frame door) — **S / numeric**
+  (the recipe chooses the least-parallel world axis by comparison; the
+  door MOVES that decision behind a named predicate rather than adding
+  one, but a mixed unit takes the class of the part that carries the
+  risk).
+- slot 2 — `sweep-test-rebuilds-validated-net-for-v-reversal` (a
+  v-reversal door on `NurbsSurface`) — **S / structural**.
+
+### Block SCALAR-B1 — the draw (2026-09-12)
+
+Draw: `/dev/urandom` byte **69** (< 252), 69 mod 3 = 0 ⇒ fable position
+0. Slots by dispatch order: **slot 0 D290 = FABLE, slot 1 S393 = OPUS,
+slot 2 v-reversal net = OPUS.** Remote 4-vCPU / 15 GB box, about three
+concurrent lanes, private target dirs, no build mutex script (the box
+is per-session); the same on every arm.
 
 ### Block SCALAR-B2 — pre-draw fields (2026-09-15, before the byte)
 
