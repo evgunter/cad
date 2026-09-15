@@ -345,10 +345,21 @@ impl OffsetLimb {
 /// door is unchanged by which face speaks — and the split exists so
 /// the caller learns which knob the refusal is about.
 ///
-/// The admission set is a function of the bound, so a tighter bound
-/// moves requests OUT of these faces and never into them, and every
-/// request that crosses over is certified by the same decomposition
-/// that refused it: no addendum is owed for a face row that moves.
+/// **A face row that moves owes no addendum, and the reason is
+/// measured rather than structural.** The CELL bound only tightens —
+/// it is a max over the reading it replaces, so on a fixed grid no
+/// cell can rise, which is proved by construction and measured cell
+/// by cell. The DOOR's bound is not monotone in it: the refinement
+/// marking reads the round's sup, so tightening cells by different
+/// factors reorders which of them clear the cut, and a different
+/// schedule interpolates a different fit
+/// (`work/props/offset-fit-door-bound-is-not-monotone-in-the-cell-bound`).
+/// A request whose tolerance sits between the old door bound and the
+/// new one would therefore cross INTO a refusal face, and what rules
+/// that out here is the corpus: over `budget_faces`' 70 requests, one
+/// bound rose, by 1.8%, three orders below the tolerance it was asked
+/// for, and no request crossed in. Every request that crossed OUT is
+/// certified by the same decomposition that refused it.
 #[derive(Clone, Debug, PartialEq)]
 pub enum OffsetFitError {
     /// A door meter refused: the patch's normal is not certifiably
@@ -2521,41 +2532,39 @@ mod tests {
     #[test]
     fn the_normal_divisor_is_the_rings_reading_not_an_f64_fold() {
         let band = Band::linear(Tol::witness()).unwrap();
-        for (name, base, d, tol) in [("qc", quarter_cylinder(), 1e-6, 1e-3)] {
-            let (fit, _) = super::fit_offset_at(&base, d, tol, band).unwrap();
-            let comp = Composite::build(&base, &fit, d).unwrap();
-            let (nu, nv) = comp.x.cell_counts();
-            let (mut fold_below, mut cells) = (0usize, 0usize);
-            for su in 0..nu {
-                for sv in 0..nv {
-                    let h = [
-                        comp.m_tilde[0].cell_hull(su, sv),
-                        comp.m_tilde[1].cell_hull(su, sv),
-                        comp.m_tilde[2].cell_hull(su, sv),
-                    ];
-                    let ring = norm_sup(&h);
-                    if !ring.is_finite() || ring <= 0.0 {
-                        continue;
-                    }
-                    cells += 1;
-                    let shipped = comp.m_tilde_sup(su, sv);
-                    assert!(
-                        shipped >= ring,
-                        "{name} d={d:e} cell ({su},{sv}): the divisor {shipped:e} is below \
-                         the ring reading {ring:e} — it is not certified from above"
-                    );
-                    let fold =
-                        sqrt_up(h[0].mag().powi(2) + h[1].mag().powi(2) + h[2].mag().powi(2));
-                    if fold < ring {
-                        fold_below += 1;
-                    }
+        let (name, base, d, tol) = ("qc", quarter_cylinder(), 1e-6, 1e-3);
+        let (fit, _) = super::fit_offset_at(&base, d, tol, band).unwrap();
+        let comp = Composite::build(&base, &fit, d).unwrap();
+        let (nu, nv) = comp.x.cell_counts();
+        let (mut fold_below, mut cells) = (0usize, 0usize);
+        for su in 0..nu {
+            for sv in 0..nv {
+                let h = [
+                    comp.m_tilde[0].cell_hull(su, sv),
+                    comp.m_tilde[1].cell_hull(su, sv),
+                    comp.m_tilde[2].cell_hull(su, sv),
+                ];
+                let ring = norm_sup(&h);
+                if !ring.is_finite() || ring <= 0.0 {
+                    continue;
+                }
+                cells += 1;
+                let shipped = comp.m_tilde_sup(su, sv);
+                assert!(
+                    shipped >= ring,
+                    "{name} d={d:e} cell ({su},{sv}): the divisor {shipped:e} is below \
+                     the ring reading {ring:e} — it is not certified from above"
+                );
+                let fold = sqrt_up(h[0].mag().powi(2) + h[1].mag().powi(2) + h[2].mag().powi(2));
+                if fold < ring {
+                    fold_below += 1;
                 }
             }
-            eprintln!(
-                "{name} d={d:e}: {cells} cells, an f64 fold would sit below the ring \
-                 reading on {fold_below} of them"
-            );
         }
+        eprintln!(
+            "{name} d={d:e}: {cells} cells, an f64 fold would sit below the ring \
+             reading on {fold_below} of them"
+        );
     }
 
     /// **No cell rises on the grids of the request whose DOOR bound
@@ -2574,20 +2583,19 @@ mod tests {
     fn no_cell_rises_on_the_bumpy_grids_whose_door_bound_grew() {
         let band = Band::linear(Tol::witness()).unwrap();
         let base = bumpy_patch();
-        for (d, tol) in [(1e-5, 1e-6)] {
-            let (fit, cert) = super::fit_offset_at(&base, d, tol, band).unwrap();
-            let (reg, _) = crate::offset_meters::meter_patch(&base, d, band).unwrap();
-            let comp = Composite::build(&base, &fit, d).unwrap();
-            // `no_cell_loosens` asserts the per-cell claim; the gain
-            // it returns is reported, since it is a property of the
-            // grid rather than of the bound.
-            let worst = no_cell_loosens(&comp, reg.floor, d);
-            assert!(worst >= 1.0, "d={d:e} tol={tol:e}: widest gain {worst}");
-            eprintln!(
-                "bumpy d={d:e} tol={tol:e}: cells={} hull_sup={:.7e} widest cell gain {worst}",
-                cert.cells, cert.hull_sup
-            );
-        }
+        let (d, tol) = (1e-5, 1e-6);
+        let (fit, cert) = super::fit_offset_at(&base, d, tol, band).unwrap();
+        let (reg, _) = crate::offset_meters::meter_patch(&base, d, band).unwrap();
+        let comp = Composite::build(&base, &fit, d).unwrap();
+        // `no_cell_loosens` asserts the per-cell claim; the gain it
+        // returns is reported, since it is a property of the grid
+        // rather than of the bound.
+        let worst = no_cell_loosens(&comp, reg.floor, d);
+        assert!(worst >= 1.0, "d={d:e} tol={tol:e}: widest gain {worst}");
+        eprintln!(
+            "bumpy d={d:e} tol={tol:e}: cells={} hull_sup={:.7e} widest cell gain {worst}",
+            cert.cells, cert.hull_sup
+        );
     }
 
     /// **The soundness claim, attacked by sampling.** `e_floors`
@@ -2606,58 +2614,58 @@ mod tests {
     /// patch at `d = 1e-5` — the floor is below every sample it was
     /// checked against, on every base tried, with headroom.
     #[test]
+    #[allow(clippy::neg_cmp_op_on_partial_ord)]
     fn the_floor_on_norm_e_never_exceeds_a_sampled_norm_e() {
         let band = Band::linear(Tol::witness()).unwrap();
         const N: usize = 11;
-        for (name, base, d, tol) in [("qc", quarter_cylinder(), 1e-6, 1e-3)] {
-            let (fit, _) = super::fit_offset_at(&base, d, tol, band).unwrap();
-            let comp = Composite::build(&base, &fit, d).unwrap();
-            let (nu, nv) = comp.x.cell_counts();
-            let (mut worst, mut worst_at, mut checked) = (0.0f64, (0usize, 0usize), 0usize);
-            for su in 0..nu {
-                for sv in 0..nv {
-                    let (mig_iv, proj_iv) = comp.e_floors(su, sv);
-                    let dh = comp.dd.cell_hull(su, sv);
-                    let definite = if d > 0.0 {
-                        dh.lo() > 0.0
-                    } else {
-                        dh.hi() < 0.0
-                    };
-                    if !definite {
-                        continue;
-                    }
-                    let e_lo = mig_iv.lo().max(proj_iv.lo());
-                    if !(e_lo > 0.0) {
-                        continue;
-                    }
-                    let (ub, vb) = comp.cell_box(su, sv);
-                    let mut min_norm = f64::INFINITY;
-                    for a in 0..N {
+        let (name, base, d, tol) = ("qc", quarter_cylinder(), 1e-6, 1e-3);
+        let (fit, _) = super::fit_offset_at(&base, d, tol, band).unwrap();
+        let comp = Composite::build(&base, &fit, d).unwrap();
+        let (nu, nv) = comp.x.cell_counts();
+        let (mut worst, mut worst_at, mut checked) = (0.0f64, (0usize, 0usize), 0usize);
+        for su in 0..nu {
+            for sv in 0..nv {
+                let (mig_iv, proj_iv) = comp.e_floors(su, sv);
+                let dh = comp.dd.cell_hull(su, sv);
+                let definite = if d > 0.0 {
+                    dh.lo() > 0.0
+                } else {
+                    dh.hi() < 0.0
+                };
+                if !definite {
+                    continue;
+                }
+                let e_lo = mig_iv.lo().max(proj_iv.lo());
+                if !(e_lo > 0.0) {
+                    continue;
+                }
+                let (ub, vb) = comp.cell_box(su, sv);
+                let mut min_norm = f64::INFINITY;
+                for a in 0..N {
+                    #[allow(clippy::cast_precision_loss)]
+                    let u = ub.0 + (ub.1 - ub.0) * (a as f64) / ((N - 1) as f64);
+                    for b in 0..N {
                         #[allow(clippy::cast_precision_loss)]
-                        let u = ub.0 + (ub.1 - ub.0) * (a as f64) / ((N - 1) as f64);
-                        for b in 0..N {
-                            #[allow(clippy::cast_precision_loss)]
-                            let v = vb.0 + (vb.1 - vb.0) * (b as f64) / ((N - 1) as f64);
-                            min_norm = min_norm.min((fit.eval(u, v) - base.eval(u, v)).norm());
-                        }
-                    }
-                    checked += 1;
-                    let ratio = e_lo / min_norm;
-                    if ratio > worst {
-                        worst = ratio;
-                        worst_at = (su, sv);
+                        let v = vb.0 + (vb.1 - vb.0) * (b as f64) / ((N - 1) as f64);
+                        min_norm = min_norm.min((fit.eval(u, v) - base.eval(u, v)).norm());
                     }
                 }
+                checked += 1;
+                let ratio = e_lo / min_norm;
+                if ratio > worst {
+                    worst = ratio;
+                    worst_at = (su, sv);
+                }
             }
-            assert!(checked > 0, "{name} d={d:e}: no cell carried a floor");
-            assert!(
-                worst <= 1.0,
-                "{name} d={d:e}: the floor exceeds a sampled ‖E‖ by {worst} at {worst_at:?}"
-            );
-            eprintln!(
-                "{name} d={d:e}: {checked} cells, worst e_lo/min‖E‖ = {worst:.4} at {worst_at:?}"
-            );
         }
+        assert!(checked > 0, "{name} d={d:e}: no cell carried a floor");
+        assert!(
+            worst <= 1.0,
+            "{name} d={d:e}: the floor exceeds a sampled ‖E‖ by {worst} at {worst_at:?}"
+        );
+        eprintln!(
+            "{name} d={d:e}: {checked} cells, worst e_lo/min‖E‖ = {worst:.4} at {worst_at:?}"
+        );
     }
 
     /// The guard is silent while the bound is still `+∞`: an
