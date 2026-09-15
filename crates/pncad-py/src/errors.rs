@@ -5,10 +5,19 @@
 //! means, and no count of them is kept in this paragraph — what
 //! enumerates this file is an instrument rather than a sentence.
 //! `tests::ERRORS_MINTING_ITEMS` names every item here that spells a
-//! string literal, and the check that holds its words; a further one,
-//! in any form and at any depth, reds that roster by name. **So a word
-//! added here is loud, and a word added here with nothing holding it
-//! is the finding that roster asks its author for.**
+//! literal, and the check that holds its words. **An item that spells
+//! one is loud however it is written**: the reader's population is the
+//! shared lexer's answer about which bytes are literals, not a grammar
+//! of forms, so a further item reds that roster by name whatever its
+//! form, its depth, its trait or its literal's kind — and a word added
+//! to a rostered item moves that row's count. **An item that spells NO
+//! literal is the exception**, and it is the only one: a map that
+//! forwards `crate::tags`' word, or builds one from a kernel
+//! `Display`, adds nothing for the reader to see, and
+//! `the_errors_mint_census_cannot_see_a_word_that_is_not_a_literal`
+//! executes that case rather than leaving it to this paragraph. So a
+//! word MINTED here is loud, and one minted here with nothing holding
+//! it is the finding that roster asks its author for.
 //!
 //! The items:
 //!
