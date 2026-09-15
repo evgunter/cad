@@ -440,23 +440,22 @@ impl ErrorClass {
 /// **The complete vocabulary of `EvaluationError.reason`** — the word
 /// a Python caller branches on when a node produced no value.
 ///
-/// A discriminant, not prose: the word itself is
-/// [`crate::tags::eval_reason_tag`]'s to mint, and that map is
-/// exhaustive over this enum, so a reason added here has no tag until
-/// someone writes one into `src/tags.rs` — where
-/// `tests::the_whole_tag_table_matches_its_committed_inventory` reads
-/// it and reds against the committed inventory. **That chain is what
-/// keeps the evaluation door's vocabulary censusable.** The door used
-/// to take its reason as a `&str` and every site spelled a literal, so
-/// a new Python-visible word could arrive at a call site under
-/// `src/py/`, which no inventory reads; a typed reason makes the
-/// literal not compile.
+/// **A reason is a TYPE here so that its word cannot be minted
+/// anywhere else.** `crate::py::value::eval_err` takes this enum, not
+/// a `&str`, so a string literal at a raise site does not compile; the
+/// word comes from [`crate::tags::eval_reason_tag`], whose `match` is
+/// exhaustive over this enum, so an arm added here stops the build
+/// until a word is written into `src/tags.rs`; and that file is what
+/// `tests::the_whole_tag_table_matches_its_committed_inventory` reads,
+/// so the word reds against the committed inventory when it lands.
+/// The alternative — a word spelled at a construction site under
+/// `src/py/` — is public Python vocabulary no inventory reads.
 ///
 /// It lives here rather than in `crate::tags` because that module is
-/// READ as data by the guard above, whose recogniser admits `use`
-/// items, tag functions and `pub const` tag words and refuses
-/// everything else — the standing arrangement for a discriminant whose
-/// enum is not the kernel's (`crate::node_kind` is the other).
+/// READ as data by that guard, whose recogniser admits `use` items,
+/// tag functions and `pub const` tag words and refuses everything
+/// else — the standing arrangement for a discriminant whose enum is
+/// not the kernel's (`crate::node_kind` is the other).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EvalReason {
     /// The document holds no node under that id.

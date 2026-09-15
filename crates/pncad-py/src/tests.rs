@@ -1022,13 +1022,14 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
 /// `HitTestError` report. Those two reach the word through a `match`
 /// on a kernel arm; the evaluation door cannot, because
 /// `Evaluation::result` answers a bare `None` and the reason tag is
-/// this crate's own. So the word is a CONST and this is the pin that
-/// keeps the copy honest.
+/// this crate's own — [`crate::errors::EvalReason`], mapped by
+/// [`crate::tags::eval_reason_tag`]. Three maps, one word between
+/// them, and this is the pin that keeps them saying it.
 ///
 /// It runs in BOTH directions on purpose: renaming the kernel arms'
-/// tag fails here, and so does editing the const away from them. That
-/// is the property `picking_refusal_tags_are_stable` protects for the
-/// pick, one door further out.
+/// tag fails here, and so does editing this door's arm away from
+/// them. That is the property `picking_refusal_tags_are_stable`
+/// protects for the pick, one door further out.
 #[test]
 fn the_evaluation_door_speaks_the_standing_ladder() {
     use crate::errors::EvalReason;

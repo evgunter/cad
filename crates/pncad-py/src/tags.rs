@@ -15,6 +15,13 @@
 //! import — `crate::node_kind` is the standing example — and then its
 //! roster is pinned in `src/tests.rs` directly instead.)
 //!
+//! One map keys off neither a kernel refusal nor a kernel value:
+//! [`eval_reason_tag`] keys off [`EvalReason`], this crate's own enum,
+//! because the evaluation door's "the node produced no value" has no
+//! kernel arm behind it. The enum is declared in `crate::errors` —
+//! this file's recogniser, below, admits no `enum` — and its map lives
+//! here with the rest, so the words are inventoried with the rest.
+//!
 //! Typed exceptions carry the structured error, never strings. The
 //! exception's machine payload is a stable **tag** — a discriminant
 //! name a caller can branch on, which no `Display` prose gives it
@@ -2019,13 +2026,12 @@ pub fn interrogate_error_tag(err: &InterrogateError) -> &'static str {
 /// that reads this file as data admits `use` items and tag functions
 /// and nothing else — and this map is what turns it into a word.
 ///
-/// **Keying the door off a type is what makes its vocabulary
-/// censusable.** `py::value::eval_err` used to take the reason as a
-/// `&str`, so each site spelled a literal and a new Python-visible
-/// word could be minted under `src/py/`, which no inventory reads.
-/// Now the word can only come from here, where
+/// **This map is the door's only mint.** `py::value::eval_err` takes
+/// [`EvalReason`] rather than a `&str`, so no raise site can spell a
+/// word of its own, and every word the door can put on the wire is a
+/// literal on this page — where
 /// `tests::the_whole_tag_table_matches_its_committed_inventory` reds
-/// on a new one and on a rename.
+/// on an addition and on a rename.
 ///
 /// [`EvalReason::NodeNotEvaluated`] is the standing ladder's first
 /// rung, spelled identically to the read-back and picking doors'

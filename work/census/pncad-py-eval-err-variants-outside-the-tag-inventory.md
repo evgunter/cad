@@ -2,7 +2,7 @@
 id: pncad-py-eval-err-variants-outside-the-tag-inventory
 kind: unit
 title: TAG_INVENTORY cannot see a refusal variant minted at an eval_err call site, and measure_unavailable is pinned nowhere
-status: spec
+status: review
 opened: 2026-09-04
 branch: census/tag-reach
 ---
@@ -117,3 +117,44 @@ words as string literals. `crates/pncad-py/*` is LIB's territory and this progra
 `keep_out` already says its pncad-py rows are announced there.
 
 From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.
+
+
+## Landed, and what the lane corrected (2026-09-15)
+
+**The spec's criterion was narrower than the class, on the sharpest
+point of all: the attribute.** This row and the spec both say the
+words reach Python as `.variant`. They do not. `eval_err` writes a
+field named `reason` and the stub declares `EvaluationError.reason`
+(`crates/pncad-py/pncad.pyi`); `.variant` is a DIFFERENT attribute,
+carried by other doors. Sweeping for `variant` alone would have found
+none of these seven and would have reported a clean negative.
+
+**The seven sites and the three words are correct**, re-measured. What
+the criterion "an `eval_err` call site" hid is that the same file mints
+three MORE Python-visible `reason` words at direct `typed_err` sites —
+`node_failed` and `poisoned` (the same `EvaluationError` door, so the
+same vocabulary) and `mass_properties_failed` (a `ValidationError`) —
+and `crates/pncad-py/src/tests.rs`'s own inventory doc already listed
+all six as one family. Ten literal sites, not seven.
+
+**The disposition held, one type deeper.** Moving the words to
+`pub const`s would have left the answer to "what stops the next word"
+at *nothing*, and the lane executed the spec's probe to prove it: with
+a fresh literal `eval_err` site minting `probe_empty_boolean_datum`,
+85 Rust tests and 832 Python tests passed. So `eval_err`'s reason is a
+TYPE — `crate::errors::EvalReason`, the door's whole vocabulary, mapped
+by `crate::tags::eval_reason_tag`, an exhaustive `match` the tag-table
+guard already reads. `NODE_NOT_EVALUATED` folded into it and
+`TAG_CONSTS` is now empty; the reader's `pub const` branch is held by
+`the_tag_table_reader_recognises_every_form_it_claims`, a fixture-driven
+self-test the lane added because the file stopped supplying an instance.
+
+Three residues are filed rather than swept:
+`work/census/py-reason-and-variant-literals-outside-any-enum.md`,
+`work/census/datum-kind-vocabulary-is-hand-spelled-and-uncensused.md`,
+`work/census/evaluationerror-stub-lists-five-reasons-and-the-door-raises-six.md`.
+
+**Class E was right**, and only because the disposition was made in the
+spec. The design call — which of the three closes — is the whole
+difficulty of the row; with it made, the diff is one crate and no
+judgement.

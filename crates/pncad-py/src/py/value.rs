@@ -57,6 +57,12 @@ fn inner_kind(py: Python<'_>, kind: &d::NodeErrorKind) -> Py<PyAny> {
 
 /// Raise `EvaluationError` with a stable `reason` tag.
 ///
+/// The reason is a [`EvalReason`], not a `&str`: the word a Python
+/// caller branches on is minted once, by
+/// [`crate::tags::eval_reason_tag`], on a page the tag-table guard
+/// reads. A literal here would be public Python vocabulary no
+/// inventory can see, so it is not a thing this signature accepts.
+///
 /// `kind`, `inner_kind`, `through` and `finding` are ALWAYS present on
 /// the exception — `None` where the reason has no failing kind, no
 /// arm under that kind, no poisoning ancestor, or no refusal-menu
