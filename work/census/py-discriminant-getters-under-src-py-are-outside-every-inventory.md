@@ -1,9 +1,10 @@
 ---
 id: py-discriminant-getters-under-src-py-are-outside-every-inventory
-kind: issue
+kind: unit
 title: 23 Python-visible discriminant words are minted by getters under src/py/, outside TAG_INVENTORY
-status: open
+status: spec
 opened: 2026-09-15
+branch: census/py-getters
 ---
 
 
@@ -92,3 +93,30 @@ own, this program's standing trap. The choice is the row.
 
 Territory: `crates/pncad-py/*` is LIB's fence and this program's
 `keep_out` announces its pncad-py rows there.
+
+## Verified at spec time, and sharpened (orchestrator, 2026-09-15)
+
+The counts above were re-measured independently and **hold** — 30
+functions, six Python-visible minting six maps, 23 words, the `doc.rs`
+tripwire correctly excluded. First row in this program whose numbers
+survived that check.
+
+**The sharpening the row does not make:** all six functions are
+exhaustive matches over a kernel enum with **zero wildcard arms**, so
+`E0004` already holds each map to its kernel type — a new variant stops
+the build today. What they are outside is the INVENTORY, which pins a
+word's TEXT. So the live defect is a **rename**, not an addition:
+change `revolute` to `hinge` and every test passes while public Python
+vocabulary moves.
+
+That narrows the mechanical half to a **relocation** — a map in
+`tags.rs` is lexed, pinned in `TAG_INVENTORY` and reds on an addition or
+a rename — which CENSUS-TAG-REACH proved one door over. The design half
+is the seven second spellings, and that call is the lane's, per pair,
+because the pairs are not alike.
+
+Also for the sweep: `mate.rs`'s subgroup getter hand-lists its four
+words in prose four lines above the delegation to the map that holds
+them, with nothing tying the two.
+
+`docs/CENSUS-PY-GETTERS-SPEC.md` binds the unit.
