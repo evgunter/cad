@@ -4651,3 +4651,74 @@ the only row that would have caught the mis-description, and the only one
 that would notice if the rename breaks an emitting arm.
 
 Signed (WIRE orchestrator).
+
+## 2026-09-15 — PR 2629 open, CI verified first-hand, style review dispatched
+
+Lane `wire-n1` returned the `ProductError` predicate as **PR 2629**
+(`wire/nobodyroots-predicate`, head `dae85987`, 389+/24−, 12 files). Not
+merged; a light style review is running per `plan.md`'s posture.
+
+**CI checked against the API rather than on report**, which is this
+program's own standing lesson about background waiters. Run
+`34938629986`: **39 check runs, every one `success` except six expected
+`skipped`** (two cache primes, `interval backend crate`, `interval
+oracle`, `step import (freecad)`, `corrupt input (release profile)`).
+Counted by name: **twelve `test (…)`** — `{default, interval}` ×
+`{default, 1e-6, 1e-12}` × `{1/2, 2/2}` — and **five
+`k-lint (gate, …)`**: `dev-default`, `release-default`, `release-budget`,
+`dev-budget`, `dev-probe`. `python suite (wheel + guide + north-star)`
+ran green. Nothing narrowed the matrix.
+
+**The PR is `mergeable_state: dirty`** — main moved under a branch cut at
+`e4dcc5c7`. Lane sent back to merge `origin/main` (merge commit, never a
+rebase), with the header-conflict resolution spelled out.
+
+### What the lane did beyond its brief, and it was right to
+
+The brief named **two** consumers. The sweep found **four**:
+`viewer/src/session.rs` and `pncad-py/src/product_memo.rs` also
+re-derive the partition, and neither was in the row or in my read of it.
+A predicate cited by three of four leaves the fourth re-deriving the rule,
+which is the defect — so the fourth seam (`work/lib/log.md`) was
+announced too. **My read section was incomplete and the sweep corrected
+it**, which is the outcome §5's *assume it is a class* exists to produce.
+
+It also sited the predicate on `ProductErrorKind` rather than
+`ProductError`, and the deciding argument is the one the brief warned
+about: a `ProductError::is_empty_document` delegating to
+`self.kind().is_empty_document()` would be a public door whose only
+production caller is its own delegate — a fresh instance of
+`frame-linear-generic-door-has-no-consumers`, open on this same slate.
+The lane found the trap the brief named, in the shape the brief did not
+predict. Whether the fix mints a fresh instance anyway is the first thing
+the reviewer was pointed at.
+
+### One correction to the lane's report
+
+It recorded working around *"an uncommitted edit to my own item file"* in
+`/home/user/cad`. The edit was committed and pushed before the lane
+started; what it saw was the working tree between the `work.py set` call
+and its commit. The decision to use a separate worktree was still right,
+for the reason that actually matters — never share a checkout or a
+`CARGO_TARGET_DIR` with another lane.
+
+### A tooling trap the lane caught, now filed
+
+`work.py territory --base main` returned a ~200-path answer. Not a
+territory crossing: **the local `main` ref is stale.** Confirmed
+first-hand here — local `main` at `0312083a` (2026-09-12), `origin/main`
+at `385c01b3` (2026-09-15), `rev-list --count main..origin/main` =
+**12068**, and `origin/main..main` = 0, so it is a strict ancestor and
+simply old. Agents work in ephemeral worktrees and never check out
+`main`, so this is the normal state, not an accident of this box.
+
+`work/README.md` documents the invocation with the bare ref, twice
+(`:190`, `:257`). The failure is the expensive kind: a three-day-old base
+makes a branch look like it contains everything that landed in between,
+so the output reads as *"your branch crosses everyone's territory"*
+rather than *"your base is wrong"*. Filed as
+`work/meta/territory-base-main-reads-a-stale-local-ref-and-answers-confidently-wrong.md`
+with the three fix shapes and a note that the guard belongs in
+`work.py`'s `--selftest`, which the per-PR gate runs.
+
+Signed (WIRE orchestrator).
