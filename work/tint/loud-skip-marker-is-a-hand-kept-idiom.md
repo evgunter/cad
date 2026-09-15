@@ -2,9 +2,11 @@
 id: loud-skip-marker-is-a-hand-kept-idiom
 kind: issue
 title: The loud-skip marker is a hand-kept idiom in eight files, each copy naming its rows by hand and admitting it goes stale silently
-status: open
+status: closed
 opened: 2026-09-04
 refs: [1776]
+closed: 2026-09-15
+pr: 2656
 ---
 
 
@@ -479,3 +481,35 @@ a human reading a local run.
 copies" if the title is ever re-cut, take fix shape 2 (the `lib.rs`
 conversion is the worked example), and repair `error_display.rs`'s
 marker in the same unit since it is already incomplete.
+
+## Closed — TINT-2, PR #2656 (2026-09-15)
+
+Closed with its carrier, `loud-stand-down-announcements-are-discarded-by-the-gate`;
+that row holds the full account.
+
+**The population was ten, not the title's eight, and the repair is one
+macro** — `test_utils::loud_skip_marker!` — carrying all nine in-fence
+sites. The tenth, `crates/viewer/src/lib.rs`, is `src/` and out of
+fence; it is filed as `work/view/viewer-lib-marker-claims-the-log-carries-its-sentence`
+rather than edited.
+
+**Three copies were FALSE, not the one the review first named.** The
+row's predicted failure had fired more widely than anyone had counted:
+
+| file | `#[test]` rows before the gated block | the claim it made |
+|---|---|---|
+| `crates/topo/tests/m6_2_fitted_at_rest.rs` | 4 | false — 3 ungated |
+| `crates/viewer/tests/error_display.rs` | 16 | false — 15 ungated |
+| `crates/viewer/tests/panel_display.rs` | 17 | false — 16 ungated |
+
+Each said, in one of three spellings, that its file's rows are the gated
+ones — while fifteen and sixteen of them run right there. **The macro's
+wording closes the class by construction** rather than patching three
+sites: it says only that *the rows this file gates behind `feature`* are
+not compiled here, which is true of an empty binary and of one with
+sixteen ungated rows alike.
+
+**The hand-kept enumeration is gone in both halves.** The `println!`
+bodies no longer name rows, and the two marker NAMES that were
+themselves enumerations were renamed — the name being the half that
+reaches the PASS list and is read.

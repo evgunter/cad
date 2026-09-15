@@ -525,3 +525,67 @@ patch 1"*, a door's own prose, against a payload with an `index` field.
 A derivation needing a per-site exemption is a hand list in a
 derivation's clothes, so that half stays the caller's and says so at the
 module doc. Not every hand-written list has a derivation waiting for it.
+
+## TINT-2 landed (2026-09-15)
+
+PR #2656, CI green on run 34966198536 — 12 `test (…)`, 5
+`k-lint (gate, …)`, 0 failures. Both rows closed; their own files carry
+the account.
+
+**No guard landed and the unit says so.** Nothing in it can go red. What
+it bought is that the tree stops claiming otherwise and that nine marker
+sites became one macro. For a program whose charter is *a guard that
+cannot go red is not a guard*, shipping a unit with no guard is worth
+being explicit about: the guard was not available, which is a different
+fact from not being attempted.
+
+**The spec's preferred repair did not exist.** It leaned to a tallied
+fact the suite could floor; the review verified behaviourally that
+nextest is process-per-test (pids 12156/12157, a `static AtomicUsize`
+reading 0 in both), so nothing one row records is readable by another.
+What survives for the 22 `stood_down` sites is 22 per-row posture
+decisions, which `D70` records as **C21's** and not this unit's. One
+refinement worth keeping: a row CAN floor a dynamically counted
+condition and this tree does (`m5_pr7_ssi`'s fit-budget arms); what it
+cannot floor is a sibling's stand-down.
+
+**`test_utils::loud_skip_marker!` is the win.** The feature literal
+reaches both the `#[cfg]` and the printed sentence from the same token,
+so they cannot disagree, and `file!()` supplies the filename. Nine
+rustdoc copies and a hand-typed `mod certified` string that a `git mv`
+would have desynced in six files went with it.
+
+**Three marker copies were FALSE, not the one the review named.**
+`m6_2_fitted_at_rest.rs` (3 ungated rows), `error_display.rs` (15) and
+`panel_display.rs` (16) each claimed their file's rows were the gated
+ones. The macro's wording closes that class by construction rather than
+patching three sites.
+
+**Two marker NAMES were enumerations too**, and the name is the half that
+reaches the PASS list — renamed, with every external consumer verified
+to key on the prefix (`ci.yml`, `ci-local.sh`, `GUI-DESIGN.md`) or on
+the unchanged interval name (`check-interval-cfg-additive.py`,
+`interval-only-selection.py`).
+
+**A routing correction from the lane, worth carrying:** `scripts/check-*.py`
+is **CIW's** territory, not S-TCOST's — S-TCOST holds only
+`ci-filter.py`, `slowest-tests.py` and `base-test-listing.sh`, and
+`scripts/gates/*` is Track K's. This seat had misrouted the guard row.
+
+**`work/tint/process-observations.md` opened.** Two units in, two
+patterns worth a file rather than a log line: a unit closing a
+hand-written mirror mints a fresh one inside its own fix (twice, both
+caught only by the outside reviewer, both with the trap named in the
+spec), and both specs so far have misled their lane with a mechanism the
+orchestrator had not executed. The second is this seat's to fix, and the
+correction is written there.
+
+**Board**: five rows closed, four residues filed off-slate this unit
+(two CIW, one VIEW, one S-TINT). The roster class is the next question
+and deliberately not yet a unit — `r2-m10-6-header-roster`,
+`interrogate-ladder-header`, `test-headers-name-fns-that-exist-nowhere`
+and TOPO's `review-d18-probes-header-miscounts-its-own-rows` all want
+ONE executable check rather than four prose edits that re-rot, and
+whether that check is worth building is the decision to take before
+spending an edit on any of them. If it is not, they close the way `D113`
+closed.

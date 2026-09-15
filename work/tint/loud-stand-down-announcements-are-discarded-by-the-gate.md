@@ -2,9 +2,11 @@
 id: loud-stand-down-announcements-are-discarded-by-the-gate
 kind: issue
 title: test_utils::vacuity::stood_down prints to a stdout the twelve gating nextest jobs discard: 22 announcements nobody can hear
-status: open
+status: closed
 opened: 2026-09-15
 refs: [D70]
+closed: 2026-09-15
+pr: 2656
 ---
 
 
@@ -117,3 +119,76 @@ this row states the defect and its population.
 stand-down door"* until this closes: that answer would add 13 more
 announcements to the 22 already being discarded and change nothing
 observable about the gate. Recorded on `D70` as well.
+
+## Closed — TINT-2, PR #2656 (2026-09-15)
+
+**No guard landed, and that is the honest outcome rather than a
+shortfall.** Nothing in this unit can go red. What it delivered is that
+the tree stops claiming otherwise, and that the nine marker sites have
+one spelling instead of nine.
+
+**The spec's preferred repair did not exist.** It leaned to *"make a
+stand-down a fact the suite can floor"* using `vacuity::Exposure`. The
+lane refused, and the review verified the reason behaviourally rather
+than from prose: a two-row probe under the pinned `cargo-nextest 0.9.140`
+reports **pids 12156 and 12157** with a `static AtomicUsize` reading 0 in
+both. **nextest is process-per-test**, so nothing a `stood_down` call
+records is readable by any other row. Option (A) had no mechanism inside
+this fence and was never available.
+
+One refinement the review added, which the item keeps because the PR
+body first got it wrong: a row **can** floor a dynamically counted
+stand-down condition, and this tree does — `crates/geom-brep/tests/m5_pr7_ssi.rs`'s
+fit-budget arms assert the budget is genuinely overrun before they
+announce. What a row cannot do is floor a **sibling's** stand-down. So
+what is left for the 22 `stood_down` sites is 22 per-row posture
+decisions, which `D70` records as **C21's** question — whether a row
+should stand down at all comes before any floor — and not this unit's.
+
+**What landed.** `test_utils::loud_skip_marker!` is one home for all nine
+in-fence markers. Its shape is the point: the feature literal reaches
+both the `#[cfg(not(feature = …))]` and the printed sentence **from the
+same token**, so they cannot disagree, and `file!()` supplies the
+filename mechanically. Nine hand-kept rustdoc paragraphs and the
+hand-typed `mod certified` string that a `git mv` would have desynced in
+six files are gone with it.
+
+**Two marker NAMES were hand-kept enumerations too**, and the name is the
+half that actually reaches the gate — nextest prints it in the PASS
+list. `app_lane_skipped_startup_error_arms_not_checked_here` →
+`…_no_error_display_coverage_here` and
+`app_lane_skipped_parameter_field_units_not_checked_here` →
+`…_no_panel_display_coverage_here`. Verified that every external
+consumer keys on the `app_lane_skipped_*` PREFIX
+(`.github/workflows/ci.yml`, `local-scripts/ci-local.sh`,
+`crates/viewer/GUI-DESIGN.md`) and that
+`scripts/check-interval-cfg-additive.py` and
+`scripts/interval-only-selection.py` key on the unchanged interval name,
+so no other program's filter broke.
+
+**What is still unenforced, stated here because the unit states it at
+its own sites too:** a marker whose file gains or loses a gated row still
+says nothing; a `stood_down` in a configuration where the mode was
+reachable is still green and indistinguishable from one that was not;
+all 22 announcements are still discarded on every gating run. The macro
+itself can be wrong and pass in two ways — a `feature` naming something
+no `#[cfg]` uses, and a bad `absent` argument. Closing any of that needs
+a stdout reader on the gating jobs (CIW's, and a log-volume decision) or
+a per-row floor (C21's).
+
+## Residues, each with its own file
+
+- `work/ciw/gating-nextest-jobs-discard-every-passing-tests-stdout` —
+  the `--success-output` half. Filed with the measurement and no
+  hand-kept count.
+- `work/ciw/loud-skip-marker-text-is-unchecked-against-its-own-file` —
+  the cheap guard that would have caught this unit's own first push.
+  **Routing corrected by the lane**: `scripts/check-*.py` is CIW's, not
+  S-TCOST's, which holds only `ci-filter.py`, `slowest-tests.py` and
+  `base-test-listing.sh`.
+- `work/view/viewer-lib-marker-claims-the-log-carries-its-sentence` —
+  `crates/viewer/src/lib.rs` is `src/` and out of fence.
+- `work/tint/phantom-turn-row-stands-down-outside-the-tree-s-door` —
+  this slate; a row announcing through a bare `println!` outside the
+  door, the counterexample that forced `vacuity.rs`'s universal to be
+  retracted.
