@@ -67,3 +67,78 @@ tracker-wide re-home of 2026-09-04, which routed rows by PATH GLOB
 (`crates/*/tests/*`, `crates/test-utils/*`) rather than by question.
 This program is the question it was always about: whether the suite
 asserts what it claims to assert.
+
+## Re-derived (2026-09-15, lane D)
+
+**VERDICT: PARTIAL** — the `brick` class reproduces member for member;
+the `prism` class has moved substantially and the row's two
+byte-identical pairs are both wrong today.
+
+**Commands.** `grep -rn 'fn brick' crates/sweep/tests/`,
+`grep -rn 'fn prism' crates/sweep/tests/`, then each body extracted with
+`awk '/fn <sig>/,/^}/'` and compared by `md5sum` / `diff`.
+
+### `brick(x, y, z)` — REPRODUCES, 6 members, unchanged
+
+Byte-identical (one md5 across all three):
+`bool2_cone_doors.rs:106`, `bool3_torus_doors.rs:178`,
+`verbs_gate_r1_probes.rs:46`.
+
+Diverged by spelling only, exactly as the row says:
+`bool2_r2_probes.rs:61` (the same body with the `Profile::new(…)`
+inlined into the `extrude` call) and `r1_probes_m9_3.rs:362` (identical
+but for `geom_core::Affine3::` vs `Affine3::`).
+`s49_census_jurisdiction.rs:71` is still the `brick(z0, h)` half-width
+variant.
+
+**One member the row did not name**: `verbs_shell.rs:48`,
+`pub(crate) fn brick(x0, x1, y0, y1, z0, z1)` — the same job over six
+scalars instead of three tuples, doc'd *"R2's `brick`; shared with the
+review rows"*. It is already a shared fixture for its own family, which
+makes it the obvious candidate home for the six.
+
+### `prism` — MOVED; the row's pair claims are both stale
+
+The row's byte-identical pairs today:
+
+- `sf2a_r2_probes.rs` = `verbs_shell.rs` — **no longer identical**:
+  `diff` is one line, `verbs_shell.rs:127` is now `pub(crate) fn prism`.
+- `m8_4_intersection_iso.rs` = `r1_p2_probes.rs` — **still a
+  byte-identical pair, but of a different fixture**. Both are now
+  `fn prism(scale: f64)` (`:47` and `:53`), a three-section lofted
+  offset square prism through `sweep::loft_body`, not "a polygon on
+  `SketchPlane::xy()`, extruded by `h`". The duplication survives; the
+  row's description of it does not.
+
+`prism(pts: &[(f64, f64)], h: f64)` members today — **9**, and the
+byte-identical pair is now a NEW one:
+
+- `sf2a_r2_probes.rs:38` = `shell5_r1_dump.rs:21` (same md5) —
+  `shell5_r1_dump.rs` is **not on the row's list**;
+- `verbs_shell.rs:127` (identical but for `pub(crate)`);
+- singles: `m5_pr12_fix_pass.rs:21`, `review_pr12_probes.rs:24`,
+  `offd2_r1_probes.rs:34`, `review_chamfer_r1_probes.rs:52`,
+  `sf2a_r1.rs:37` (delegates to a local `try_polygon`, so a diverged
+  body), `sf2a_r2_interval_probe.rs:21` (over `Interval`).
+
+**Left the class**: `tcost_k3_certificate.rs:125` is now `fn prism()`
+with no parameters, returning `arc_prism(1.0e5 * Tol::witness().get().eps)`
+— a different fixture with its own derivation in its doc.
+
+### A stale pointer this row causes
+
+`crates/sweep/tests/common/cavity.rs`'s module doc restates this
+census in-tree — *"`sf2a_r2_probes.rs` = `verbs_shell.rs`,
+`m8_4_intersection_iso.rs` = `r1_p2_probes.rs`, plus six singletons"* —
+and both equalities are now wrong. It also tracks the row at
+`work/tcost/sweep-boolean-suite-brick-and-prism-copies.md`, a path that
+has not existed since the 2026-09-11 move to `work/tint/`.
+
+**Blind spot.** Re-derived on the row's own `fn brick` / `fn prism`
+names; a builder doing the same job under a third name is still
+unmatched, which is the blind spot the row itself declares. Not
+re-argued on cost — the row says it is not a cost finding and nothing
+here touches that.
+
+**Recommend: keep open, rewrite the prism half and add
+`verbs_shell.rs`'s `brick`.**

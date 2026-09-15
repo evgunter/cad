@@ -246,6 +246,16 @@ no `synchronize` run and the lane dispatched the workflow by hand (the
 render lanes skip on a dispatch); the state-sync push re-rolls a real
 run before the merge.
 
+## CURVED-MERGEDOOR close-out (2026-09-14)
+
+Block CURVED-B1 concluded at #2105's merge: slot 2 recorded on
+`curved/b1-block` (1c10adfa7) and the block record folded to main in
+#2578 (6781958cb), which also deleted `docs/CURVED-MERGEDOOR-SPEC.md`
+per the ledger. Lane and target reclaimed. CURVED-B2's draw stays
+branch-side. Running: torus-arm fix pass (#2535), TRIM-3 PR-2 dual
+(#2554). Held for the weekly reset: spiric PR-1a (#2566) and TRIM-2
+PR-1 (#2564) duals.
+
 ## CURVED-TORUS PR-2 merged (2026-09-15) — block CURVED-B2 slot 0 concludes
 
 PR #2535, ordinal 2203, sample #200. The dual (R1 Fable, R2 Opus) both
@@ -263,3 +273,18 @@ the post-merge docs PR. Filed by the unit:
 this session changed at Ev's re-login (2026-09-15); the weekly window
 on the new account sits at ~80% with its reset 2026-09-18 17:00Z, so
 the held duals (spiric PR-1a, TRIM-2 PR-1) stay held until that reset.
+
+## Pacing under the weekly budget (2026-09-15)
+
+Both of this orchestrator's first blocks are concluded (CURVED-B1 at
+#2105, TRIM-B1 at #2554); CURVED-B2 slot 0 concluded at #2535. Open
+against the budget: the spiric PR-1a dual (#2566, CURVED-B2 slot 1,
+FABLE) and the TRIM-2 PR-1 dual (#2564, TRIM-B2 slot 0). The account's
+weekly window sits at 83 % with its reset at 2026-09-18 17:00Z; both
+duals stay HELD until that reset, then dispatch together (each dual
+plus fix pass has cost 0.6–1.0 M tokens on this program). No new
+implementer dispatch before the reset; CURVED-B2 slot 2's unit is
+chosen at dispatch from the plan's lanes (leading candidates:
+`equator-seam-reauthor-refuses-the-hollowed-elbow`, then spiric
+PR-1b once 1a merges). Idle lanes: none; every finished lane and
+target reclaimed (44 G free).

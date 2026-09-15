@@ -74,6 +74,8 @@ mod curves_compose;
 mod curves_curvo_oracle;
 #[path = "curves/decoration_ring_coords.rs"]
 mod curves_decoration_ring_coords;
+#[path = "curves/domain_door.rs"]
+mod curves_domain_door;
 #[path = "curves/fit_certify.rs"]
 mod curves_fit_certify;
 #[path = "curves/fitting.rs"]
