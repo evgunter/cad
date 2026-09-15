@@ -4,7 +4,7 @@ kind: unit
 title: the clearance engine's body-level half moves into topo behind interval — one engine, two consumers
 status: open
 opened: 2026-09-04
-refs: [shell-curved-clearance-consumer, M10-7, 1737]
+refs: [shell-curved-clearance-consumer, 1725, 1737]
 ---
 
 

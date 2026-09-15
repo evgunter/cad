@@ -128,6 +128,17 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // unreachable-variant scan, code view
     },
     Entry {
+        path: "crates/editor-core/tests/wire_entity_door.rs",
+        disposition: Shared, // entity-door and entity-kind-carrier census over
+                             // eval/wire.rs and eval/mod.rs, code view
+    },
+    Entry {
+        path: "crates/editor-core/tests/wire_operand_door.rs",
+        disposition: Shared, // operand-door and expected-phrase census over
+                             // eval/wire.rs and verbs/split.rs, code and
+                             // code-and-literals views
+    },
+    Entry {
         path: "crates/geom-brep/tests/all.rs",
         disposition: Shared, // mount guard, literal view
     },
@@ -172,6 +183,16 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/profile/tests/all.rs",
         disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/profile/tests/fillet_recourse_followability.rs",
+        disposition: Shared, // the fillet gate census takes the nine predicate
+                             // names from sugar.rs, code+literal view
+    },
+    Entry {
+        path: "crates/profile/tests/generic_replay.rs",
+        disposition: Shared, // the stored-form exemption held against seg.rs's
+                             // own predicate names, code+literal view
     },
     Entry {
         path: "crates/profile/tests/r2_bool9_review_probes.rs",
@@ -278,6 +299,10 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/topo/tests/all.rs",
         disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/topo/tests/readback_sense_kind.rs",
+        disposition: Shared, // the query seat's body, code view
     },
     Entry {
         path: "crates/topo/tests/quad_lane_is_the_certified_lane.rs",

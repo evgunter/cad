@@ -18,10 +18,11 @@ use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::blend::arms::BlendArm;
 use sweep::blend::battery::{BlendRequest, ChainClosure, Convexity, run_battery};
 use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
+use sweep::test_support::realized;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
+use topo::boolean::BooleanOp;
 use topo::query::{self, SurfaceKindSet};
-use topo::{Body, BooleanDeclarations, EdgeKey};
+use topo::{Body, EdgeKey};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -93,16 +94,7 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
 fn pipped(pip_r: f64, pip_h: f64) -> Body<f64> {
     let slab = boxy(4.0, 4.0, 1.0);
     let ball = ball_at(pip_r, Vec3::new(2.0, 2.0, 1.0 + pip_r - pip_h));
-    let out = boolean_op_with(
-        BooleanOp::Subtract,
-        &slab,
-        &ball,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        Tol::witness(),
-    )
-    .expect("slab ∖ ball (S13)");
-    out.body().expect("a body").body.clone()
+    realized(BooleanOp::Subtract, &slab, &ball, Tol::witness())
 }
 
 /// The edges of `body` whose two support faces are a plane and a

@@ -22,9 +22,11 @@ the seat itself is `crates/viewer/src/seats.rs:161`), and `admits`
 `:65`) satisfies that seat for
 `Datum::AxisInPlane` and nothing else.
 
-The panel that authors datums offers four kinds — `DatumKind` is
-Plane, Axis, Point, Frame (`crates/viewer/src/forms.rs:93`; the four
-arms are built in `crates/viewer/src/pane/create.rs:358-371`) — and
+The panel that authors datums offers four kinds —
+`forms::DatumKindChoice` is Plane, Frame, Axis, Point
+(`crates/viewer/src/forms.rs`, `:124` at this writing; the four arms
+are built in `crates/viewer/src/pane/create.rs`, `add_datum_ui`'s
+`DatumSpec` match) — and
 `AxisInPlane` is not among them. `add_datum_ui` is the only
 `DatumSpec` construction site in `src/`; every
 `DatumSpec::AxisInPlane` in the tree is in `crates/viewer/tests/`.
@@ -74,3 +76,20 @@ citations above are corrected in place; this note exists so a reader
 who remembers the old ones can tell a correction from a claim change.
 Nothing about the finding moved — `stale-file-citations-after-the-split`
 is the general case, and this is VIEW's own half of it being paid.
+
+## Two citations this row carried that the tree had moved past
+
+Both refreshed above, both noted rather than silently fixed. The enum
+was named `forms::DatumKind` when this was filed and is
+`forms::DatumKindChoice` since
+`two-datumkind-enums-name-the-same-four-datum-kinds`; and the member
+ORDER quoted here, `Plane, Axis, Point, Frame`, was the declaration's
+until PR 2046 reordered it to form order, `Plane, Frame, Axis, Point`.
+Neither changes what this row finds.
+
+**What that row settled bears on this one's fix.** The add-datum form's
+enum and the public `viewer::DatumKind` a datum DRAWING carries are two
+types on purpose, and this row is the reason: giving the form an
+`AxisInPlane` choice grows `DatumKindChoice` to five while the draw tag
+stays at four, because an `AxisInPlane` is drawn as the axis it is. A
+fix here adds a member on one side only, and that is correct.

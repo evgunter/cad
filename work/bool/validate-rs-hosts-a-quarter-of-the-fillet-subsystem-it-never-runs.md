@@ -58,3 +58,22 @@ chain, guarded only by prose (*"this cannot fail for a chain whose input
 just passed — mapped defensively all the same"*). Worth reading beside
 this row: "compute it twice and trust determinism" is already the house
 idiom in this file, which is context a taker of either row wants.
+
+## Evidence amended, claim unchanged (BLEND-12, 2026-09-13)
+
+The `EscalationSite::Fillet` render arm this file cites at `:700-760`
+no longer exists: BLEND-12 (PR 2508) confirmed the variant had no
+producer anywhere in `crates/*/src` and retired the variant, the arm and
+its two hand-built test values. The nine `fillet_*` names now reach a
+caller through `PathError::Escalated`'s own arm, which selects the
+sentence from `validate::fillet_recourse_for`.
+
+**The claim this file makes survives that.** The six `FILLET_*_RECOURSE`
+constants and the one map still live in `validate.rs`, a file whose job
+is validation and which never runs a fillet gate; what changed is that
+the prose is no longer dead. Read the citation as "the constants, their
+docs and the map", and drop the `:700-760` arm from the inventory.
+
+Filed from BLEND's side by the unit that retired the arm, so the
+evidence line does not outlive the tree it describes. Nothing else here
+is touched — this is S-BOOL's slate.

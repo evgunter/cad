@@ -30,19 +30,19 @@ sites), then each read for what it hands the reader.
 
 1. **A typed refusal, rendered by the control** — the reason lives on
    the value and the control asks it for its words.
-   `pane/create.rs:248-259` (a catalogue entry's `refusal()`, *"read off
+   `pane/create.rs:249-260` (a catalogue entry's `refusal()`, *"read off
    the entry, not minted here"*) and `app.rs:1255-1262` (`CancelDoor`,
    the new one).
 2. **A literal composed at the button** — `app.rs:1175`,
-   `pane/create.rs:830`, `pane/create.rs:1132`,
-   `pane/properties.rs:211`, `pane/properties.rs:734`,
-   `pane/create.rs:589-592`.
+   `pane/create.rs:831`, `pane/create.rs:1132`,
+   `pane/properties.rs:213`, `pane/properties.rs:735`,
+   `pane/create.rs:590-593`.
 3. **A `&'static str` composed AWAY from the value that knows** —
    `frame::NO_CHOOSER_BACKEND` at `app.rs:1197` and `:1227`. Already
    filed, one facility over, as
    `environmental-facts-answer-usable-as-a-bool-with-the-reason-elsewhere`.
 4. **A prose sentence built from a typed state** —
-   `pane/create.rs:740-750`, which formats a row's label and
+   `pane/create.rs:741-751`, which formats a row's label and
    `sketch::tip_state_words(state)` into one sentence.
 
 And the two the call-shaped rule misses, both in `pane/create.rs`:
@@ -52,7 +52,7 @@ And the two the call-shaped rule misses, both in `pane/create.rs`:
   a field with the SAME NAME as `CancelDoor::blocked` and the opposite
   typing: a string, not a refusal, rendered through `ui.weak` beside
   the control rather than as its disabled reason.
-- `pane/properties.rs:350-355`, the free-move probe's ineligibility:
+- `pane/properties.rs:352-357`, the free-move probe's ineligibility:
   `ui.weak(fault.to_string())` **where the control would be**, with a
   typed `DisplayFault` — *"the same sentence the op would refuse with"*.
   The typed discipline of shape 1, rendered as shape 3's neighbour.

@@ -10,7 +10,7 @@ refs: [layer3-recipenodeid-aliases-across-rewinds]
 
 ## What is missing
 
-`docs/DOCM-IDENTITY-DESIGN.md` DI1 states the mechanism for every
+`crates/editor-core/IDENTITY.md` DI1 states the mechanism for every
 layer-3 hold of a `RecipeNodeId`: a hold carries the id plus the
 history entry that minted it, and the history "computes at pick time by
 walking up until the counter drops below the id (`History::entry`,

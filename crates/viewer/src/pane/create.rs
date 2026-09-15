@@ -11,8 +11,8 @@ use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
 use crate::combine::PatternOutputChoice;
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
-    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, DatumKind, FIELD_DRAG_SPEED, MATE_PRIMITIVES, PathVerb,
-    PatternKindChoice, ShapeKind, UNIT_DRAG_SPEED, boolean_op_label,
+    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, DatumKindChoice, FIELD_DRAG_SPEED, MATE_PRIMITIVES,
+    PathVerb, PatternKindChoice, ShapeKind, UNIT_DRAG_SPEED, boolean_op_label,
 };
 use crate::frame;
 use crate::matetool::{MateChoice, MateToolState, admitted_classes};
@@ -22,7 +22,8 @@ use crate::session::{DatumSpec, SessionOp};
 use crate::sketch::{self, PreviewError};
 use crate::tools::ToolKind;
 use crate::widgets::{
-    angle_picker, fresh_step, length_picker, path_step_fields, unit_field, unit_vec3_row, vec3_row,
+    angle_picker, fresh_step, length_picker, number_field, path_step_fields, unit_field,
+    unit_vec3_row, vec3_row,
 };
 
 /// **The smallest pattern count the form offers.**
@@ -306,7 +307,7 @@ impl ViewerBehavior<'_> {
     pub(crate) fn add_datum_ui(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             ui.label("datum");
-            for (kind, label) in DatumKind::ALL {
+            for (kind, label) in DatumKindChoice::ALL {
                 ui.radio_value(&mut self.drafts.datum_kind, kind, label);
             }
         });
@@ -315,8 +316,10 @@ impl ViewerBehavior<'_> {
             unit_vec3_row(
                 ui,
                 match kind {
-                    DatumKind::Point => "position",
-                    DatumKind::Plane | DatumKind::Axis | DatumKind::Frame => "origin",
+                    DatumKindChoice::Point => "position",
+                    DatumKindChoice::Plane | DatumKindChoice::Axis | DatumKindChoice::Frame => {
+                        "origin"
+                    }
                 },
                 self.drafts.length_unit.def(),
                 FIELD_DRAG_SPEED,
@@ -325,19 +328,19 @@ impl ViewerBehavior<'_> {
             length_picker(ui, "datum_origin", &mut self.drafts.length_unit);
         });
         match kind {
-            DatumKind::Plane => vec3_row(
+            DatumKindChoice::Plane => vec3_row(
                 ui,
                 "normal",
                 UNIT_DRAG_SPEED,
                 &mut self.drafts.datum_direction,
             ),
-            DatumKind::Axis => vec3_row(
+            DatumKindChoice::Axis => vec3_row(
                 ui,
                 "direction",
                 UNIT_DRAG_SPEED,
                 &mut self.drafts.datum_direction,
             ),
-            DatumKind::Frame => {
+            DatumKindChoice::Frame => {
                 vec3_row(ui, "x axis", UNIT_DRAG_SPEED, &mut self.drafts.datum_u);
                 vec3_row(ui, "y axis", UNIT_DRAG_SPEED, &mut self.drafts.datum_v);
                 // What the form does to the y axis before it becomes a
@@ -347,7 +350,7 @@ impl ViewerBehavior<'_> {
                 // discovers by measuring the model.
                 ui.label("y is squared against x; the normal is x × y");
             }
-            DatumKind::Point => {}
+            DatumKindChoice::Point => {}
         }
         if ui.button("Add datum").clicked() {
             // The origin is a Length triple in the form's notation; a
@@ -355,16 +358,16 @@ impl ViewerBehavior<'_> {
             let datum = (|| -> Result<DatumSpec, DimensionError> {
                 let origin = self.drafts.lengths(self.drafts.datum_origin)?;
                 Ok(match kind {
-                    DatumKind::Plane => DatumSpec::Plane {
+                    DatumKindChoice::Plane => DatumSpec::Plane {
                         origin,
                         normal: scalars(self.drafts.datum_direction)?,
                     },
-                    DatumKind::Axis => DatumSpec::Axis {
+                    DatumKindChoice::Axis => DatumSpec::Axis {
                         origin,
                         direction: scalars(self.drafts.datum_direction)?,
                     },
-                    DatumKind::Point => DatumSpec::Point { position: origin },
-                    DatumKind::Frame => DatumSpec::Frame {
+                    DatumKindChoice::Point => DatumSpec::Point { position: origin },
+                    DatumKindChoice::Frame => DatumSpec::Frame {
                         origin,
                         u: scalars(self.drafts.datum_u)?,
                         v: scalars(self.drafts.datum_v)?,
@@ -1004,8 +1007,7 @@ impl ViewerBehavior<'_> {
             // and a non-positive one refuses at evaluation, so the
             // form does not offer to author a node that cannot build.
             ui.add(
-                egui::DragValue::new(&mut self.drafts.pattern_count)
-                    .speed(COUNT_DRAG_SPEED)
+                number_field(&mut self.drafts.pattern_count, COUNT_DRAG_SPEED)
                     .range(MIN_PATTERN_COUNT..=i64::MAX),
             );
         });

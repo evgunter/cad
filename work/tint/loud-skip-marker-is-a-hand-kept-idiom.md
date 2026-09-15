@@ -299,3 +299,34 @@ but the sentence claiming every copy SAYS so is wider than the tree.
 **Out of fence, reported not fixed:** `crates/test-utils/src/vacuity.rs`
 says *"The four whole-binary `interval_lane_skipped_…` rows"* and there
 are six. That is a code comment, and this repair changes no code.
+
+
+## The `crates/viewer` citation is not stale — it is contradicted (VIEW, 2026-09-12)
+
+Checked while placing a citation sweep from a VIEW lane, which had
+proposed shifting `crates/viewer/src/lib.rs:92-100` to `:93-101` as an
+ordinary line move. It is not one.
+
+**The sentence this row quotes as "the fullest statement" no longer
+exists.** `grep -n "Nothing here goes red"` over
+`crates/viewer/src/lib.rs` returns **nothing**. The loud-skip paragraph
+now begins at `crates/viewer/src/lib.rs:96` and says the opposite of
+what is quoted here:
+
+> **This row closes no gate and cannot fail.** It is evidence, not a
+> check … It names the FEATURE and what the feature costs, and nothing
+> else — **the roster is the `#[cfg(feature = "app")]` block above,
+> which the compiler keeps**, so there is no hand-kept …
+
+So at this site the *hand-kept enumeration* the row is about was
+replaced by a compiler-kept one, and the marker was narrowed to name
+the feature rather than the modules. Whether that closes this row
+depends on the other sites it cites, which VIEW has not checked —
+`crates/viewer` is the only one on VIEW's ground.
+
+**Recorded rather than acted on**: re-pointing the line numbers would
+have preserved a quotation the source no longer contains, which is the
+`stale-file-citations` failure in its worse form — a citation that
+still resolves and now misdescribes. The VIEW lane's sweep read the
+shift as a true move because the surrounding lines still matched; the
+quoted sentence is what moved out from under it.

@@ -373,6 +373,8 @@ which is what actually moves the number.
 | boolean/plane_eq.rs:203/265 | bool_plane_offset | signed-offset difference | m | OK |
 | boolean/recl.rs:224–748 | side_code / bool_dir_same / bool_ee_collinear | cos/sin × sector arms | m | OK |
 | boolean/reduce.rs:548–802 | bool_vertex_face_side / circle & line clearances | plane residuals, /2r residual extremes, sagitta dips | m | OK |
+| boolean/reduce.rs (`bool_circle_curved_clearance`'s ARC half) | bool_circle_curved_clearance | `geom_brep::circle_arc_residual_range`: a hull of `implicit_residual` samples (m) widened by the chord-dip charge `f2·h²/8`, `f2` in **m/rad²** and `h` in rad — a residual's second derivative with respect to an ANGLE, so the product is a length and the comparand stays a length | m | OK |
+| geom-brep/implicit.rs (`circle_residual_curvature_bound`, `circle_arc_residual_range`) | — (no funnel call; the comparand is built here and decided at the row above) | `f2` is `|(d²)″|/2r`: `(d²)″` is m²/rad² over the `2r` linearization, giving **m/rad²**; the returned range is m | m/rad² and m | OK |
 | boolean/rest.rs:401 | bool_join_chord | germ-site chord LENGTH | m | OK |
 | boolean/rest.rs:411/413 | bool_join_facing | unit dir · chord | m | FIXED (was bare cosine) |
 | boolean/rest.rs:421 | bool_join_nearest | a DIFFERENCE of two chord lengths | m | OK |

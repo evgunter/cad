@@ -49,7 +49,7 @@
 //!
 //! Not "samples from the same laws" — **this run's samples**. Each
 //! one comes from `mc::sample_offsets(analyzed, config, i)`, the door
-//! `work/m10`'s
+//! `work/props`'s
 //! `mc-lanes-draws-are-not-reproducible-from-outside-the-crate` asked
 //! for, and the cell then holds itself to it: it summarizes its own
 //! replay's web readings and requires the mean, the spread and both

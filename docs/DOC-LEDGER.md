@@ -758,6 +758,17 @@ whose unit had merged; each unit's record is its row in
 - `M10-3-SPEC.md` — M10-3, the E6 subdivision driver (#1231)
 - `M10-4-SPEC.md` — M10-4, sensitivities and the stackup (#1627)
 
+## Per-merge deletion — M10-10's spec (2026-09-12)
+
+Recoverable at `git show f2efdfad2:docs/M10-10-SPEC.md` (the M10-10 unit
+head, before the state-sync commit that deleted it; its acceptance
+sentence "bounded by genuine flips" is corrected by the unit's own
+review — the MERGED entry in `work/m10/log.md` is the statement of
+record). The rule above; the unit's record is its row in
+`MODEL-AB-LOG.md` and that entry.
+
+- `M10-10-SPEC.md` — M10-10, the form-level mechanism: rule D (trig of atan, exact) with rules A/B per node made affordable, with amendment A1 (#2100)
+
 ## Per-merge deletion — M10-9's spec (2026-09-06)
 
 Recoverable at `git show 4f8262ad9:docs/M10-9-SPEC.md` (the M10-9 unit
@@ -847,6 +858,7 @@ that lands here resolves without opening the walk:
 | `S-QA-EXIT-WALK.md` | 2026-08-31 | PR #1341 | this row |
 | `S-MATE-EXIT-WALK.md` | 2026-09-04 | PR #1528, merged by Ev 2026-09-01; ratification confirmed in-chat 2026-09-04 | this row; design at `crates/editor-core/ASSEMBLY.md`; sweep 6 below |
 | `FILLET-EXIT-WALK.md` | 2026-09-06 | PR #1973, ratified in-chat 2026-09-06 | this row; sweep 7 below; vocabulary and bands at `crates/sweep/README.md` |
+| `DOCM-EXIT-WALK.md` | 2026-09-14 | ratified in advance in chat 2026-09-13 ("write it as ready to merge"); merged with sweep 14 | this row; sweep 14 below; design at `crates/editor-core/REFERENCES.md` (DM1–DM6) and `crates/editor-core/IDENTITY.md` (DI1–DI5) |
 | `S-CERT-EXIT-WALK.md` | 2026-09-06 | PR #1924, merged by Ev 2026-09-06 (the merge is the ratification, per the S-MATE convention) | this row; A/B record ordinals 700–714 in `docs/MODEL-AB-LOG.md`; sweep 7 above |
 
 
@@ -862,6 +874,7 @@ that lands here resolves without opening the walk:
 - `S-QA-EXIT-WALK.md` — S-QA exit walk — criteria vs evidence
 - `S-MATE-EXIT-WALK.md` — S-MATE exit walk — criteria vs evidence
 - `FILLET-EXIT-WALK.md` — FILLET exit walk — criteria vs evidence
+- `DOCM-EXIT-WALK.md` — DOCM exit walk — criteria vs evidence
 - `S-CERT-EXIT-WALK.md` — S-CERT exit walk — criteria vs evidence
 
 ### Per-unit specs, unit merged (46 files)
@@ -1802,6 +1815,425 @@ That is Ev's call and it was made on the diff itself.
 | `METER-EXIT-WALK.md` | 2026-09-08 | PR #2212, in three PR comments (*"1. open / 2. giving them to the successor sounds good / 3. huh i thought track X had closed / 4. delete / 5. i would like to see the diff / 6. this doesn't look like a question?"*, then *"the new 3, instr, and your plan all sound good!"*) | this row; the residue table above; `tools/README.md` and the three instrument crates' own headers; `work/instr/` for the twenty rows it carried forward |
 
 
+## Per-merge deletion — BLEND-6's spec (2026-09-13)
+
+Recoverable at `git show e3f8d06a4b4fda4ce3720b4f8783c218ce119890:docs/BLEND-6-SPEC.md`
+(the fix-pass head; the spec's two measured errors — the dome rim's
+convexity and oracle, the "nothing meters them today" premise — are
+corrected in the PR body and the unit's items, not in the spec). The
+unit's record is its row in `MODEL-AB-LOG.md`, its MERGED entry in
+`work/blend/log.md`, and the `## Closed` sections of its two items.
+
+- `BLEND-6-SPEC.md` — BLEND-6, the ring-clearance circle arm gets its relation (#2215)
+## Per-merge deletion — BLEND-7's spec (2026-09-13)
+
+Recoverable at `git show 3dd896cb8220f063d152101836b7cd9e1eb67e86:docs/BLEND-7-SPEC.md`
+(the fix-pass head; the spec's 'concave bore twin' is convex and its
+centroid sentence names the wrong corner — both corrected in the PR
+body, not in the spec). The unit's record is its row in
+`MODEL-AB-LOG.md`, its MERGED entry in `work/blend/log.md`, and the
+`## Landed` section of its item.
+
+- `BLEND-7-SPEC.md` — BLEND-7, a closed chain's junctions judged against the links that touch them (#2483)
+
+## Per-merge deletion — BLEND-9's spec (2026-09-13)
+
+Recoverable at `git show 3996ee8c1dc76b5371fa0bfb46511b68e738001f:docs/BLEND-9-SPEC.md`
+(the fix-pass head; the spec's `blend8_` suite spelling and its
+"restate the count as two" line were superseded — the suite is named by
+subject and `folded_lever_arm`'s list is a different list — both
+recorded in the PR body). The unit's record is its row in
+`MODEL-AB-LOG.md`, its MERGED entry in `work/blend/log.md`, and the
+`## Landed` section of its item.
+
+- `BLEND-9-SPEC.md` — BLEND-9, the must-carry rule's in-band policy has one home (#2491)
+## Per-merge deletion — BLEND-11's spec (2026-09-13)
+
+Recoverable at `git show 7e0758c87792fd058cf150658136af5a75d68fe8:docs/BLEND-11-SPEC.md`
+(the fix-pass head). Two of its sentences did not survive review: the
+pick could not be spelled inside `sugar.rs` (the Bounds scope rule)
+and moved to the door's `map_refusal` through
+`fillet_select::nearest_candidate`; and its reason for the pick — "the
+least radius reduction that would make it fit" — was falsified by both
+reviewers over every grid-A entry (the deficit meters the setback, not
+the radius). Both are recorded in the PR body and the unit's log entry;
+the residue is `work/blend/anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction.md`.
+
+- `BLEND-11-SPEC.md` — BLEND-11, the overrun refusal reports the nearest fit (#2495)
+
+## Sweep 14 — 2026-09-14: DOCM leaves the tracker
+
+Sweep SHA: `1cb0e8000dc74adb3fa7c8bd5a8e51b9fcd6bebe` — the commit
+immediately before the deletion (on the closing PR's branch, reachable
+from `main` through that PR's merge commit; it is the state in which
+DOCM's directory is complete, `program.md` reads `status: closed`, and
+every row in it is closed), so every path below is recoverable at
+`git show 1cb0e8000dc74adb3fa7c8bd5a8e51b9fcd6bebe:work/docm/<FILE>` and
+`git show 1cb0e8000dc74adb3fa7c8bd5a8e51b9fcd6bebe:docs/DOCM-EXIT-WALK.md`.
+
+DOCM — the document model — opened 2026-09-03 and closed 2026-09-14
+on the walk Ev ratified in advance (in chat, 2026-09-13: "write it as
+ready to merge"), merged with this sweep. **Nine units**, every one
+merged on its own green hosted head with a v6 dual: DOCM-4 (#1808),
+DOCM-3 (#1803), DOCM-1 (#1829), DOCM-2 (#1860), DOCM-5 (#1871),
+DOCM-7 (#2028), DOCM-6 (#2035), DOCM-8 (#2073), DOCM-9 (#2534) —
+ordinals 1800–1808, samples #126–#130, #148, #149, #154, #187 — and
+three mechanical E units without a review lane (#1839, #1840, #1851).
+Per the sweep-5 rule the directory leaves whole — `program.md`,
+`plan.md`, `log.md`, the nine unit rows and the fourteen closed issue
+rows — with the thirty-two OPEN rows re-homed first, below, and one
+closed at the sweep.
+
+| program | title | closed | done-state of record |
+| --- | --- | --- | --- |
+| `docm` | DOCM — the document model | 2026-09-14 | this entry; the walk at the sweep SHA; the design at `crates/editor-core/REFERENCES.md` (DM1–DM6) and `crates/editor-core/IDENTITY.md` (DI1–DI5), both ratified in-chat 2026-09-04 and amended by Ev's rulings of 2026-09-06; the A/B record at ordinals 1800–1808 in `docs/MODEL-AB-LOG.md` |
+
+### What survived, and where
+
+The program's output is the tree, not its directory:
+
+- **The design.** `crates/editor-core/REFERENCES.md` — what a recipe
+  reference may be (DM1 the derived frame, DM2 the carrier-kind read,
+  DM3 the projection node, DM4 the n-ary union with its member-space
+  declaration channel and flat merged name, DM5 pairwise-distinct
+  inputs, DM6 splice not added) — and `crates/editor-core/IDENTITY.md`
+  — a held value names the world it came from (DI1–DI5). Both were
+  `docs/DOCM-*-DESIGN.md` until this sweep; present tense, clause ids
+  kept, `docs/DESIGN.md`'s companion table repointed. The three
+  identity clauses whose builds are the viewer's (DI1, DI2's re-mount,
+  DI5) say so and are open on VIEW's and CHROME's slates.
+- **The code.** `Datum::FaceFrame` and the carrier-kind read;
+  `Node::Part`; the n-ary `Node::Union` with `DocEdit::SetMembers`,
+  its declaration channel in member space, the flat `Merged` mint and
+  the look-through through merges; `Evaluation` carrying its
+  document's identity; the check registry's `Subject` and one gather
+  per landing; `PartValue` carrying mate identity and mint health
+  across the instantiation seam with `CarriedMintRefusal` at the
+  outermost gate; `range.rs`, the certified locally-valid range query.
+- **The measured bounds, stated rather than overpromised.** A
+  member-space declaration resolves through merges only (a face
+  consumed by a split, by containment or by a fragmented merge stays
+  order-shaped — WIRE's row); the certified range query certifies
+  nothing on the repo's corpus at affordable budgets and cannot yet
+  name a failure boundary (PROPS's rows); an inner document's mint
+  refusal refuses the outer gate with no advisory channel.
+- **A successor program.** `work/edit/` — EDIT, the document model's
+  residue — opened in this sweep per `work/README.md`'s rule (a dozen
+  items on one territory are a successor's opening slate), holding
+  twelve of the thirty-two rows on DOCM's own ground and the band
+  4800–4899.
+
+### Residue re-homed before the deletion
+
+Thirty-two open rows moved (an earlier commit of the closing PR, so the
+deleting commit finds the directory holding only closed work) and one
+closed at the sweep with the reason in its file
+(`docm1-face-frame-owes-a-reader-census-ledger-line` — the ledger line
+exists on main). Every id is unchanged and every moved row carries a
+"Re-homed (2026-09-13)" note saying why it landed where it did.
+
+| item | to | why |
+| --- | --- | --- |
+| `C6` | `work/edit/` | the `ProgramStep`/`WireStep`/`SegTag` mirrors on `program.rs` — DOCM's inherited Track V row |
+| `D366` | `work/edit/` | `NodeErrorKind`'s projection; LIB answers the Python side |
+| `authored-step-to-canonical-segment-map-has-no-home` | `work/edit/` | its DOCM half; BOOL's half by announced seam |
+| `blend-selection-canonical-check-load-only` | `work/edit/` | one predicate at two doors (`edit.rs`, `persist/*`) |
+| `debug-in-prose-residue-after-finding-sink` | `work/edit/` | `PersistError`/`EditError`/`NamingError` prose debt — the inherited Track V class |
+| `deletenode-strands-a-declare-payload-name` | `work/edit/` | a payload reference as a weaker edge — a design conversation on the edit vocabulary |
+| `doc-param-unit-edit-has-no-door` | `work/edit/` | the `DocEdit` set's missing door |
+| `no-docedit-splices-a-deleted-node` | `work/edit/` | DM6 says no rewire; whether a splice is a new persisted edit is EDIT's `[ev]` conversation |
+| `pair-doors-outside-the-three-do-not-check-document-identity` | `work/edit/` | DI3's residue at the resolver's doors |
+| `pick-grazing-ray-answer-depends-on-candidate-order` | `work/edit/` | `resolve/pick.rs` |
+| `recorded-program-arguments-carry-no-notation` | `work/edit/` | the persisted program's bare arguments |
+| `replay-and-load-keep-the-document-without-its-maintenance` | `work/edit/` | `Doc::replay` and the load door |
+| `blend-slit-name-collides-when-two-rims-share-a-meridian` | `work/wire/` | the names emitter (`names/emit*.rs` is WIRE's) |
+| `cut-off-arc-persists-as-a-corner-arc` | `work/wire/` | the names emitter |
+| `member-space-look-through-stops-at-splits-containment-and-fragmented-merges` | `work/wire/` | `eval/wire.rs`'s union routing — DM4's measured bound |
+| `nobodyroots-classification-has-two-homes` | `work/wire/` | `product.rs` |
+| `product-refuses-naming-when-one-instance-is-placed-under-two-roots` | `work/wire/` | `product.rs` |
+| `the-pair-verbs-declared-merge-is-asymmetric-in-its-operands` | `work/wire/` | the pair verb's emitter |
+| `two-emitter-refusals-a-legal-declared-union-reaches` | `work/wire/` | `names/emit_topo.rs`, `names/emit.rs` |
+| `area-overlap-contact-admitted-but-unmerged-refuses-at-the-next-step` | `work/bool/` | the rest door and the F7 gate (`topo/src/boolean/*`) |
+| `join-desync-on-the-star-fixture` | `work/bool/` | the boolean's join |
+| `rows-do-not-cross-a-boolean-remap` | `work/bool/` | the boolean's key remap (unreachable today) |
+| `two-parts-of-one-body-at-one-boolean-refuse-as-ray-exhausted` | `work/bool/` | containment |
+| `mate-clocking-has-no-gui-path` | `work/msolve/` | mate authoring (`mate/*`); the viewer half rides as CHROME's announced seam |
+| `node-placer-field-docs-say-body-where-instances-are-accepted` | `work/door/` | the fix is written; one PR on `node.rs` |
+| `part-fault-partproduct-degrades-the-product-refusal` | `work/door/` | the fix is written; one PR on `eval/parts.rs` |
+| `vectorslot-slots-has-no-reader` | `work/door/` | the fix is written; one PR on `eval/slots.rs` |
+| `the-third-datum-axis-phrase-lives-in-mate-member` | `work/door/` | the fix is written; one PR on `mate/member.rs` |
+| `a-document-vocabulary-declared-outside-the-macro-is-uncensused` | `work/census/` | one vocabulary outside the census macro |
+| `load-path-stringifies-structured-refusals` | `work/port/` | the bindings' never-strings contract at a crate boundary (LIB may take it) |
+| `pick-face-fuzz-anti-vacuity-guard-trips-at-effort-1` | `work/tint/` | a probabilistic test guard |
+| `random-integer-rays-search-trips-at-eps-1e-6-on-one-run` | `work/tint/` | a once-flaky test guard |
+
+Filed by DOCM's last two units on other programs' slates and untouched
+by the sweep: `work/chrome/certify-affordance-on-the-bounds-panel`,
+`work/lib/certified-range-has-no-python-door`,
+`work/lib/document-layer-export-guard-counts-cfg-gated-names`,
+`work/props/parametric-polygon-loop-certifies-nothing` (and the
+evidence added to `coincidence-zone-priced-budget-at-the-floor`),
+`work/chrome/a-declared-union-has-no-one-pass-authoring-path`,
+`work/fix/prose-gate-has-no-mechanical-guard`'s fourth instance.
+
+### The docs that moved with the program
+
+| doc | from | to |
+| --- | --- | --- |
+| `DOCM-REFERENCES-DESIGN.md` | `docs/` | `crates/editor-core/REFERENCES.md` (present tense, DM1–DM6 kept) |
+| `DOCM-IDENTITY-DESIGN.md` | `docs/` | `crates/editor-core/IDENTITY.md` (present tense, DI1–DI5 kept) |
+| `DOCM-EXIT-WALK.md` | `docs/` | deleted with this sweep; recoverable at the sweep SHA |
+
+The nine unit specs left `docs/` at their merges (the per-merge
+deletion entries above name each unit head).
+
+## Sweep 13 — 2026-09-13: M10 leaves the tracker
+
+Sweep SHA: `bfafe4ad10286e1624f23a1100b5cb9c2fe1d7d6` — the commit
+immediately before the deletion (on the closing PR's branch, reachable
+from `main` through that PR's merge commit; it is the state in which
+M10's directory is complete, `program.md` reads `status: closed`, and
+every row in it is closed), so every path below is recoverable at
+`git show bfafe4ad10286e1624f23a1100b5cb9c2fe1d7d6:work/m10/<FILE>` and
+`git show bfafe4ad10286e1624f23a1100b5cb9c2fe1d7d6:docs/M10-EXIT-WALK.md`.
+
+M10 — the error-propagation MVP — opened 2026-08-29 and closed
+2026-09-13 on Ev's ratification of `docs/M10-EXIT-WALK.md` (PR #1700,
+in chat: approve the walk and do the exit sweep; the orchestrator that
+re-cut the walk had stopped and a successor session carried both).
+**Thirteen units**, every one merged on its own green hosted head:
+M10-D (#1146), M10-DI (#1154), M10-1 (#1147), M10-P (#1174), M10-2
+(#1213), M10-3 (#1231), M10-4 (#1627), M10-5 (#1638), M10-6 (#1685),
+M10-7 (#1725), M10-8 (#1828), M10-9 (#2048), M10-10 (#2100). Per the
+sweep-5 rule the directory leaves whole — `program.md`, `plan.md`,
+`log.md`, the seven unit rows still in it (`M10-4` … `M10-10`) and
+twelve closed issue rows — with the twenty-two OPEN rows re-homed
+first, below.
+
+| program | title | closed | done-state of record |
+| --- | --- | --- | --- |
+| `m10` | M10 — the error-propagation MVP | 2026-09-13 | this entry; the walk at the sweep SHA; the design at `docs/ERROR-DESIGN.md` (E1–E12, ratified) and `docs/DUAL-DESIGN.md` (DL1–DL6); the A/B record at ordinals 500–511 in `docs/MODEL-AB-LOG.md` |
+
+### What survived, and where
+
+The program's output is the tree, not its directory:
+
+- **The design.** `docs/ERROR-DESIGN.md` E1–E12 and its E3 amendments
+  (E12 ratified #1712), and `docs/DUAL-DESIGN.md` DL1–DL6 (#1146,
+  which closed the D1 hedge: a dual is tangent transport and never
+  certifies). Both are PROPS' files from this sweep.
+- **The code.** Distributions, the `Measure` sink and report-only
+  `Assertion`s, the E6 subdivision driver, the `Dual` sensitivities
+  and the certified-worst-case stackup, the E7 clearance
+  trichotomy, the E10/E11 reporting rows, and the E12 symbolic
+  identity tier (`geom_core::sym`) with its registered-identity door.
+- **The gates.** Three E10 CI rows, live and read by STEP conclusion
+  and by LOG: assertion gating over every registered document, the
+  goldened ε-keyed accounting, and the driver K population (rule 1 —
+  an in-band indeterminate — measured 0 at every ε row, not
+  demotable by any caller). The K addenda are in `docs/K-REPORT.md`,
+  INSTR's file.
+- **The demo.** `demos/tour/src/tolerance.rs`, two stops through
+  public doors, with its own test inside `ci.yml`'s tour step
+  asserting the numbers the captions print.
+- **A successor program.** `work/sym/` — SYM, the E12 symbolic
+  identity tier — opened in this sweep on Ev's call, holding fourteen
+  of the twenty-two rows and the band 4700–4799.
+
+### The numbers the walk carried, because nothing else now does
+
+Criterion 11 — Ev's condition for closing the program, "a macroscopic
+box certifies: the two-hole plate's real study returns certified
+leaves bounded by genuine flips, not by ε". At the LEAF: the plate's
+real study (±0.05 mm on the spacing, σ = 0.01 mm on the radii) driven
+whole at 1,024 leaves certifies **431** leaves and refuses 593 on
+budget — **89.07 %** of the mass, a certified worst-case hull
+`[0.419, 0.845]` mm against the 0.5 mm floor — and every refused leaf,
+refined to any depth by both reviewers, is bounded by the document's
+own `assert_bound`: the real flip, which enters the box at 0.625 of
+the study. Identical to the digit at three ε rows. At the CEILING: the
+widest box that certifies WHOLE is **0.263** of the study (0.237 at
+ε = 1e-6), bounded by dependency widening of the assertion's own
+affine margin, which subdivision resolves — the class now at
+`work/sym/real-margin-dependency-widening`.
+
+**Verified at the sweep by execution**, not read off the walk: the
+tour's own gating row (`the_two_stops_say_what_their_captions_say`,
+the row that puts the cell inside `ci.yml`) ran green on the sweep
+head at the default ε — `Receipt { certified: 193, refused: 319,
+splits: 511 }`, holds 0.8337 of the tolerance mass, violated 0.0002,
+unresolved 0.1661, in 320.6 s — which is criterion 8's and honesty
+row 18's arithmetic to the digit.
+
+### Residue re-homed before the deletion
+
+Twenty-two open rows. The moves are earlier commits of the closing PR,
+so the deleting commit finds the directory holding only closed work.
+Every id is unchanged and every row carries a note in its own body
+saying why it landed where it did. **Ev's call at the sweep** (in
+chat, 2026-09-13): "the 14 to a successor program, the others to
+either another successor program or a preexisting program" — the
+fourteen rows standing on one territory being what `work/README.md`
+calls a successor's opening slate rather than residue.
+
+| item | to | why |
+| --- | --- | --- |
+| `real-margin-dependency-widening` | `work/sym/` | the numeric channel's half of E12's division of labour — what stands between the plate's 0.263 ceiling and the flip at 0.625 |
+| `plate-ceiling-is-now-the-scaffold-pushforward` | `work/sym/` | one predicate bounds all five measured documents; the fix half is a PCURVE/D3 question and `geom-brep/src/certify.rs` is in no program's paths — TRIM is PCURVE's successor |
+| `rule-d-reaches-the-unit-bulge-only` | `work/sym/` | rule D is the tier's, and this is the next ceiling class after M10-10 |
+| `interval-self-dot-straddles-before-rule-a` | `work/sym/` | rule A's reach; the FIX is `powi(2)` in PROPS' `linalg/vec.rs` and is announced there — PROPS' linalg lane may take it |
+| `param-box-certification-of-implicit-quantities` | `work/sym/` | the tier's frontier: an iterated quantity has no expression in the parameters. Came to M10 from S-CERT; follows the tier |
+| `declared-tangency-needs-the-registered-identity-door` | `work/sym/` | the door's live consumer; open rather than parked, and it waits on BLEND's fillet row |
+| `the-span-identity-is-not-a-theorem-of-the-floats` | `work/sym/` | the limit of what a registration means; `register_equal` is in PROPS' `real.rs`, reached by announced seam |
+| `the-witness-slack-is-eps-independent` | `work/sym/` | the same door and the same seam: `WITNESS_REL` does not move with the run's ε |
+| `sym-registration-flattens-two-axes` | `work/sym/` | the door's shape and its cost, on the record |
+| `symbolic-tier-costs-95-percent-of-the-m10-3-drive` | `work/sym/` | the work it asks for is a profile INSIDE the normal form. **The measurement stays S-TCOST's** and is named as such in the row |
+| `derived-frame-placement-freezes-on-the-symbolic-lane` | `work/sym/` | DOCM-1's review found it; every freeze is a budget refusal in `sym::form_in`, so the row follows the mechanism and names DOCM |
+| `symbolic-tier-census` | `work/sym/` | the tier's own 107-row reference, which `sym.rs`'s module docs cite |
+| `sym-rs-is-one-file-with-a-347-line-header` | `work/sym/` | this program's file and nothing else's |
+| `registered-is-spelled-five-times-and-pinned-once` | `work/sym/` | four of the five spellings are the tier's; the fifth is INSTR's k-lint column and is named |
+| `certified-hull-padding-is-the-leaf-width-not-the-lane` | `work/props/` | the hull is `stackup.rs`'s, PROPS' already; the tier is the cause and not the site |
+| `coincidence-zone-priced-budget-at-the-floor` | `work/props/` | a `RefusalReason` arm in `drive::classify_replay`; already `refs` PROPS' `k-stats-escalation-channel-and-redo` |
+| `min-clearance-refusal-stringly-twin` | `work/props/` | the twin is in `measure.rs`; the layering question it waits on is the 1055 valve's seam |
+| `mc-lanes-draws-are-not-reproducible-from-outside-the-crate` | `work/props/` | `mc.rs` is the advisory half of the analysis lane; the `pncad` re-export half is LIB's and is named |
+| `fillet-tangency-is-not-the-constructors-node` | `work/blend/` | the profile fillet door: `build_seg` re-derives the centre the joint classifier needs. BLEND's title names that door and it inherited FILLET's residue |
+| `revolve-carriers-state-only-the-rim` | `work/blend/` | `sweep/src/revolve/*` is BLEND's paths and what is owed is a constructor change |
+| `symbolic-tier-and-clearance-engine` | `work/shell/` | `min_separation` is concrete at `Interval` in SHELL's `clearance.rs`; SHELL-3 is the same question from the other end |
+| `pncad-py-eval-err-variants-outside-the-tag-inventory` | `work/census/` | CENSUS's class exactly — a vocabulary spelled by hand and the census that cannot see one spelling; `pncad-py` is LIB's and is announced |
+
+**The territory moved with the rows.** PROPS takes the analysis lane
+its `keep_out` had named since 2026-09-06 — `analysis.rs`,
+`distribution.rs`, `drive.rs`, `measure.rs`, `mc.rs`, the `m10*` and
+`e4_dual*` suites, `ERROR-DESIGN.md` and `DUAL-DESIGN.md`. SYM takes
+`geom-core/src/sym.rs`, `sym/*` and `geom-core/tests/m10_*`, which is
+a double claim inside PROPS' `geom-core/src/*` glob, written on BOTH
+sides in the opening commit as `work/README.md` requires.
+`crates/bvh/src/*`, which PROPS' clause had parked on M10, is in no
+program's paths now and PROPS' `keep_out` says so.
+
+### The inbound pointers this sweep rewrote
+
+Every live `work/m10/…` citation in the tree, in three classes:
+
+- **a row this sweep re-homed** — repointed at its new directory, the
+  id unchanged: `geom-core/src/sym.rs`, `real.rs`, `k_stats.rs` and
+  `Cargo.toml`, the `sweep` carriers, `editor-core`'s clearance and
+  measure and its m10 suites, `demos/tour/src/tolerance.rs`,
+  `docs/ERROR-DESIGN.md`, `docs/K-REPORT.md`,
+  `scripts/gates/register-equal-allowlist.sh`,
+  `crates/pncad-py/tests/test_binding_census.py`, and eight tracker
+  rows;
+- **a row re-homed at an EARLIER sweep**, so the citation was already
+  stale: `signed-penetration-depth` (CURVED),
+  `clearance-window-tightening-needs-chart-boundary` (TRIM),
+  `contribution-bounds-via-dual-interval` (PROPS). Two of those are
+  the pointers `docs/TRIM-3-SPEC.md` item 8 asks TRIM-3 to correct as
+  a rider; **that rider is now a no-op** and the spec was left alone
+  rather than edited under a dispatched lane;
+- **a row closed WITH the program**, or M10's own plan or log — named
+  as M10's closed row with this ledger entry as the way back. Eleven
+  sites in `crates/` say so now (`first-refusal-at-twice-the-ceiling-
+  is-an-order-artefact` ×5, `plate-rim-residual-needs-the-wide-
+  coefficient-ring` ×3, `plate-ceiling-is-now-the-arc-span-identity`,
+  `rule-d-multiple-reader-wraps-on-a-huge-dyadic-coefficient` and
+  `M10-8`), and eleven more across seven tracker rows.
+
+One citation was FALSE rather than stale and was fixed:
+`work/props/three-per-node-verdict-shapes` said `drive.rs` is edited
+by an announced seam because it is M10 territory. It is PROPS' own
+from this sweep, so the seam is discharged.
+
+**Eight header `refs:` broke on the unit rows** and `lint` caught
+every one — this is the case CITE's sweep did not have. `M10-4`,
+`M10-5`, `M10-7`, `M10-8` and `M10-10` were named by eight surviving
+rows across BOOL, PROPS, SHELL and SYM, and each id was replaced with
+that unit's **PR number** (1627, 1638, 1725, 1828, 2100), which is an
+int the tracker does not resolve and which is where the unit's
+documentation actually lives. Nothing else in those headers moved.
+
+**Left as history, deliberately**: the provenance lines in programs'
+logs ("`X` from `work/m10/`"), `docs/MODEL-AB-LOG.md`'s unit rows, and
+the nine per-merge deletion entries above that cite
+`work/m10/log.md` or `work/m10/M10-*.md` as a unit's statement of
+record. Each states what was true when it was written, and every one
+of those paths is recoverable at this entry's sweep SHA.
+
+### Honesty notes
+
+- **The walk was ratified by a session that did not write it.** Ev's
+  word was to approve #1700 and sweep; this session read the walk,
+  verified the one claim it could verify in reasonable time by
+  execution (the tour's gating row, above), and did not re-run the
+  1,024-leaf study or the hosted K rows. Criterion 11's 431/89.07 %
+  and the 0.263 ceiling are the walk's numbers, carried forward here
+  on the evidence rows it cites, not re-measured at the sweep.
+- **Fourteen rows against eight is not a tidy split, and the fourteen
+  are not finished work.** They are what four units on the symbolic
+  tier left standing: three documents that do not certify their
+  studies at any affordable dial, a door with two unbuilt registrants,
+  a tier at 95 % of the interval drive that nobody has profiled
+  inside, and one file of 3,898 lines. A program opened on that slate
+  starts in debt, which is the honest shape of it.
+- **Two rows SYM's door needs are not SYM's.** The fillet's declared
+  tangency and the revolve carriers' span identity are constructor
+  changes in `crates/profile` and `crates/sweep`, so they went to
+  BLEND; SYM holds the consumer of the first and cannot finish it
+  alone. The pairing is stated in both directions (`work/sym/log.md`,
+  `work/blend/log.md`) rather than left for whoever picks one up.
+- **`work/m10/plan.md` is not quoted anywhere.** The walk quoted its
+  criterion rows verbatim and the walk is recoverable at the sweep
+  SHA; the plan itself, with its substrate inventory and its lane
+  order, is recoverable there too and is nowhere else.
+- **The A/B band 500–599 stays claimed and closed**, on the VIEW and
+  S-TCOST precedent: thirteen dual reviews at ordinals 500–511 (M10-D
+  was a design pass), samples #39, #40, #43, #49, #50, #114, #115,
+  #118, #124, #145, #150 and #173, with three symmetric tally pairs.
+  Nothing renumbers.
+## Per-merge deletion — BLEND-10's spec (2026-09-13)
+
+Recoverable at `git show 99a9d12448dcc47bbe1f029c0ec084b58716a167:docs/BLEND-10-SPEC.md`
+(the fix-pass head). Three of its sentences did not survive
+measurement: its hypothesis named reconstruction error where the loss
+is the stored chord-plus-bulge form flattening to a line below
+`θ* = √(8ε/r)` (and a second, first-order-in-radius loss the reviewers
+found); its recourse said "a smaller radius", which makes the sagitta
+worse; and its "before the arc is emitted" cannot run, since the
+outgoing joint's second segment does not exist at emission. All three
+are recorded in the PR body and the unit's log entry.
+
+- `BLEND-10-SPEC.md` — BLEND-10, the path fillet door never mints a joint the validator refuses (#2497)
+
+## Per-merge deletion — BLEND-12's spec (2026-09-13)
+
+Recoverable at `git show 594f484787444628d3b932f6933b1686e2fca9e1:docs/BLEND-12-SPEC.md`
+(the fix-pass head). Its Phase 1 table did not survive the dual: two of
+the five gates the unit called pre-empted are driveable in band through
+the public door at every ε row (`fillet_corner_turn`, whose margin is
+levered by the leg's extent; `fillet_offset_lever`, whose threshold
+grows with the corner's squared scale), so six of nine are driven and
+the two exact-order gates are pre-empted only at scalar `f64`. The
+retirement it asked for stands: `EscalationSite::Fillet` had no producer
+and is gone with its arm. Recorded in the PR body and the unit's log
+entry.
+
+- `BLEND-12-SPEC.md` — BLEND-12, the fillet door's in-band verdicts render their own sentence (#2508)
+## Per-merge deletion — BLEND-8's spec (2026-09-13)
+
+Recoverable at `git show 968e8210415b03c0f75229119dfc6a73dfcd8c97:docs/BLEND-8-SPEC.md`
+(the fix-pass head). Its premise did not survive Phase 1: the item
+called the ladder phase's fresh-key retirement "unmeasured", and the
+spec asked for it to be measured, but it was LIVE on 14 shipped rows at
+the merge base (a revolve-minted cap seam running pole → rim) — the
+unit closed a defect the tree already exhibited. Two more sentences
+fell to measurement: its door (b) (a profile authored in reverse) is
+unreachable because `profile` canonicalizes traversal, and its
+document-layer row cannot exist — the witness body is not authorable
+through the recipe layer and `emit_blend`'s retired-set guard cannot
+observe the defect (filed for EVAL). All three are recorded in the PR
+body and the unit's log entry.
+
+- `BLEND-8-SPEC.md` — BLEND-8, the ladder rim phase never retires a fresh split key (#2505)
+
 ## Sweep 12 — 2026-09-12: CITE leaves the tracker
 
 Sweep SHA: `116d96c01d4a03084d4701d7d58fb3b5dcf1703b` — the commit
@@ -2123,3 +2555,162 @@ two `SMELL-*-LOG.md` files this sweep archived. The row itself says so
 and names the one thing still worth doing — a `work.py` check that an id
 is never reissued — as META's; it was re-homed to
 `work/meta/d321-row-number-reissued.md` when CITE closed at sweep 12.
+
+## Per-merge deletion — DOCM-9's spec (2026-09-14)
+
+Recoverable at `git show ec7f7770b569fb3c3aa3c87e086f66170166712c:docs/DOCM-9-SPEC.md`
+(the DOCM-9 unit head, before the state-sync commit that deleted it;
+unamended — no stop clause fired). Two of its letters are corrected in
+the unit's record: item 3's "the first uncertified leaf outward" is
+read as the first leaf the driver decided definitely otherwise (a
+certified leaf and a flip-crossing leaf cannot be neighbours; the
+literal reading is dead code), and A1's `NewFailure` row is unmet
+because the driver prices a failing leaf as budget rather than naming
+it (PROPS's row). The rule above; the unit's record is its row in
+`MODEL-AB-LOG.md` and its MERGED entry in `work/docm/log.md`.
+
+- `DOCM-9-SPEC.md` — DOCM-9, the certified locally-valid range query (#2534)
+
+## Per-merge deletion — SYM-2's spec (2026-09-14)
+
+Recoverable at `git show b73b289a2c01677b2a328899fc1ce8336e023778:docs/SYM-2-SPEC.md`
+(the fix-pass head). One of its three moves did not land: the header's
+"What remains outside the PLAIN form" paragraph was named as `form.rs`'s
+whole, and half of it binds the rules (`algebra`, `trig`, `signed`,
+`SymRules`), so that half went back to `sym.rs` in the fix pass. The
+reviewer's proposed fourth move (the 1,045-line test module out) was
+attempted and reverted: `scripts/gates/register-equal-allowlist.sh`
+exempts `sym.rs` whole and hides the tier's thirteen test calls of the
+door, filed on `guard`'s slate. Recorded in the PR body and the unit's
+log entry.
+
+- `SYM-2-SPEC.md` — SYM-2, the tier's file split: the coefficient tower and the polynomial out of `sym.rs`, the header distributed with them (#2532)
+
+
+## Per-merge deletion — SYM-1's spec (2026-09-14)
+
+Recoverable at `git show 9153d39be:docs/SYM-1-SPEC.md` (the landing
+head). Two of its sentences did not survive the measurement: the
+feature it named `sym-profile` is `sym-profile-testing` (the
+`test-features-dev-only.sh` gate recognises only that suffix), and its
+premise that the tier "skips where the numeric channel already
+answers" was false in every profile this workspace builds — the
+`Decide` impl's `debug_assert!` runs the discharge on every definite
+margin, which the review found by execution and the unit's instrument
+now tells apart from the decision path's walks. Recorded in the PR body
+and the unit's log entry.
+
+- `SYM-1-SPEC.md` — SYM-1, the profile inside the normal form (#2530)
+
+
+## Per-merge deletion — SYM-3's spec (2026-09-14)
+
+Recoverable at `git show da1f21e50:docs/SYM-3-SPEC.md` (the fix-pass
+head). Its second ask's premise did not survive the render: the boss's
+residue at `bulge = 2` is not the item's `atan|b|`-against-`atan b`
+guess (`abs(2)` folds) but a coefficient-ring freeze first and an
+`abs` over a non-constant argument second — and opening either
+partially LOSES door discharges, which the spec's four-cause menu did
+not foresee; that finding is filed as
+`coefficient-ring-width-is-not-monotone-in-reach`. Recorded in the PR
+body and the unit's log entry.
+
+- `SYM-3-SPEC.md` — SYM-3, what stands at a bulge that is not 1 (#2558)
+
+## Per-merge deletion — CURVED-MERGEDOOR's spec (2026-09-14)
+
+Recoverable at `git show 0e1d06b47:docs/CURVED-MERGEDOOR-SPEC.md` (PR
+#2105's merge commit, the last head carrying it). Every clause was met
+as ruled: the spec's STOP 2 fired (scenes A/B reach the REST-zip's chord
+on a cylinder wall once the door records) and the orchestrator re-scoped
+the rows to the measured frontier (comment 5568446264); the rulings
+§Rulings (public-door posture; `faces` carried) and the re-scope ruling
+(no record for a pair with zero live faces; dedup at the door) are in
+the unit's record — `work/curved/cylindrical-rest-pair-hits-planar-merge.md`'s
+`## Closed` and the MERGED entry in `work/curved/log.md`; its A/B row is
+MODEL-AB-LOG MDOOR. Shape (2) is banked on S-BOOL's
+`cosurface-disjoint-curved-walls-refuse` with its consumer measured.
+
+
+## Per-merge deletion — SYM-4's spec (2026-09-14)
+
+Recoverable at `git show 972d802ff:docs/SYM-4-SPEC.md` (the fix-pass
+head). Two of its sentences did not survive the measurement: its
+"rendered-form digest row" became a per-walk, per-origin ledger of
+form digests (a superset — `DecisionShape` carries no node id and
+renders only blocked residuals), and its inline monomial and cached
+degree were measured and NOT taken (under one percent each, and a new
+shipped dependency for the first). Its "before 57 %" storage share was
+SYM-1's reading; the unit's own before read 53.5 %. Recorded in the PR
+body and the unit's log entry.
+
+- `SYM-4-SPEC.md` — SYM-4, the cost of a form (#2565)
+
+## Per-merge deletion — SYM-6's spec (2026-09-14)
+
+Recoverable at `git show 8547c73e9:docs/SYM-6-SPEC.md` (the fix-pass
+head). Written conditional on `[ev]` #2552 and amended twice the same
+day: A1 (Ev picked D1 = (1); Phase 3 held), A2 (Ev took the refined
+D2 — the refusal arm split by witness KIND; Phase 3 in scope). Two of
+its sentences did not survive: "the four implementations" (five —
+`Dual` forwards too) and a re-read of `m10_9_witness_limits_interval`
+(a file that never existed; the citation is fixed in `real.rs`). The
+picked route's own text on the item said the slack becomes
+`max(tol.eps(), WITNESS_REL · scale)`; what shipped and what the spec
+ratifies is `tol.eps() · max(|a|, |b|, 1)`, and the difference is
+recorded on the item. Recorded in the PR body and the unit's log entry.
+
+- `SYM-6-SPEC.md` — SYM-6, the door's witness moves with the run's ε
+  (#2604)
+
+## Per-merge deletion — SYM-5's spec (2026-09-14)
+
+Recoverable at `git show 68d31a750:docs/SYM-5-SPEC.md` (the fix-pass
+head). Its fixture was refuted by PR-1's review and replaced by
+Amendment A1 (the tilted derived frame); its Phase 2 named three
+mechanisms and the measurement took (b) — the quotient's common factor
+at every early-walk node, dial `common_factor`, not the `unit_vector`
+atom of (a) — with the (a)/(c) reading recorded as unmeasured; its
+"bounds stated like `EARLY_STEPS`" became a structural bound (monotone
+in terms and degree, NOT in coefficient width — a row pins the loss);
+its "shipped on only if affordable on the five measured documents" was
+not met on the pad and the bracket on the header's own instrument and
+the dial ships ON anyway by the orchestrator's call, disclosed as a
+deviation with the numbers; its acceptance width is the twin's minus
+5e-2 (PROPS' clause-1 defect, pinned by name). Recorded in the PR
+bodies (#2568, #2589) and the unit's two log entries.
+
+- `SYM-5-SPEC.md` — SYM-5, a stored unit vector does not double the
+  degree (#2568 PR-1, #2589 PR-2)
+
+## Per-merge deletion — SYM-7's spec (2026-09-15)
+
+Recoverable at `git show e9f75d5b5:docs/SYM-7-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: the memo keyed on the
+budget alone (keyed on `(budget, rules)` — `combine`'s constant fold
+reads two dials); the "opaque-sequence pin" as the premise's ALARM
+(no drive mints an opaque, so the row measures nothing on the
+measured documents and says so; the premise governs hits, not
+soundness — the memo's soundness is that an id is a content hash of
+syntax); the "per-leaf accounting goldens' `frozen` column" (none
+existed; no golden moved); Phase 3's gate (measured 7.4 % table work
+against a ≥ 10 % wall gate, not taken). Recorded in the PR body and
+the unit's log entry.
+
+- `SYM-7-SPEC.md` — SYM-7, the plain form outlives the leaf (#2609)
+
+## Per-merge deletion — CURVED-TORUS's spec (2026-09-15)
+
+Recoverable at `git show 4617fcc5b:docs/CURVED-TORUS-SPEC.md` (PR
+#2535's merge commit, the last head carrying it). Both PRs delivered:
+PR-1 (#1907, the boundary-tight torus operand box, A/B row TBOX) and
+PR-2 (#2535, the circle-residual torus arm, A/B row TARM). The spec's
+§Rulings and its Amendments of 2026-09-14 (the monotonicity theorem
+`margin_K ≥ margin_1 − f2·(Δθ/K)²/8` replacing the refuted sentence;
+the charge table at the arc-scoped `f2`; the full-carrier `f2`
+corrected to the code's 8.36e3) are the unit's record together with
+the two closed items `work/curved/torus-operand-boxes-span-whole-ring.md`
+and `work/curved/circle-residual-harmonics-needs-torus-arm.md` and the
+MERGED entries in `work/curved/log.md`. Still open from the spec's
+residue: `torus-operand-gate-admission` (the lily's remaining pin's
+retirement) and `the-chord-dip-charge-has-two-homes` (S-BOOL's half).

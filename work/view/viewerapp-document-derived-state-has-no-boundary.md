@@ -22,7 +22,7 @@ destructure can hold it there. `ViewerApp` (`crates/viewer/src/app.rs:288-477`)
 has **32** fields, and neither block claims to cover them:
 
 - `crates/viewer/src/app.rs:809-816`, inside `sync_scene`'s `Ok(mesh)`
-  arm, writes six — `scene_generation`, `scene_display`, `scene_focus`,
+  arm, writes six — `scene_key`, `scene_display`, `scene_focus`,
   `scene`, `revision`, `scene_fault`. Its own comment states the
   population: *"Marked current ONLY on success"*. These are the outputs
   of one rebuild and the key it is current for; a 33rd field

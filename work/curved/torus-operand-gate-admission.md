@@ -4,13 +4,13 @@ kind: issue
 title: Torus onto boolean_arm_exists - the stem glue's door sequence after the box and the residual arm (a gate-policy unit, CURVED's)
 status: open
 opened: 2026-09-04
-refs: [torus-operand-boxes-span-whole-ring, circle-residual-harmonics-needs-torus-arm, torus-declared-rest-lane-banked]
+refs: [torus-operand-boxes-span-whole-ring, circle-residual-harmonics-needs-torus-arm, torus-declared-rest-lane-banked, torus-coincident-pair-cannot-reach-the-covered-rung]
 ---
 
 
 ## What
 
-`docs/CURVED-TORUS-SPEC.md` §Lily derives the lily stem glue's door
+`docs/CURVED-TORUS-SPEC.md` §Lily (deleted at PR-2's merge; recoverable at the SHA `docs/DOC-LEDGER.md` names) derives the lily stem glue's door
 sequence beyond the box (PR-1) and the residual arm (PR-2):
 
 - (a) `Torus` onto `boolean_arm_exists` (`reduce.rs`) — the gate never
@@ -25,6 +25,11 @@ sequence beyond the box (PR-1) and the residual arm (PR-2):
   `curved-face-containment-lacks-cone-torus` (handover to CURVED
   pending on the away channel).
 - (d) the weld's coplanar concentric caps at the F7 merge door.
+- (e) `torus-coincident-pair-cannot-reach-the-covered-rung` — with
+  the circle rung's torus arm landed (PR-2, #1489), a COINCIDENT
+  torus pair decides definitely-Negative rather than Zero, so the
+  declared-cover rung behind it is still never consulted. The
+  reduction-order question that raises is this unit's, not PR-2's.
 
 **Correction by citation.** MATE-7a's "one function away" (PR #1477,
 issue 1489) was measured on the coincident full-torus pair, not on the

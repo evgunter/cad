@@ -62,6 +62,7 @@ use pncad::geom_core::{Affine3, Point2, Point3, Vec3};
 use pncad::prelude::{Open, Start, Via};
 use pncad::sweep::skin::{Section, loft_geometry, sweep_geometry};
 use pncad::sweep::{SketchSegment, segment_curve};
+use pncad::topo::readback::euler_counts;
 
 use crate::{SceneBody, Stop, View};
 use pncad::geom_core::Tol;
@@ -391,18 +392,6 @@ fn face_points(body: &pncad::topo::Body<f64>, face: pncad::topo::FaceKey) -> Vec
         }
     }
     out
-}
-
-/// The body's `(v, e, f)` census and the genus the Euler-Poincaré
-/// identity gives from it — the two neighbouring scenes' spelling,
-/// scene-local as theirs are.
-fn genus(body: &pncad::topo::Body<f64>) -> i64 {
-    let v = body.vertices().count() as i64;
-    let e = body.edges().count() as i64;
-    let f = body.faces().count() as i64;
-    let r: i64 = body.faces().map(|(_, x)| x.rings.len() as i64).sum();
-    let s = body.shells().count() as i64;
-    s - (v - e + f - r) / 2
 }
 
 /// The NARROW cap's own in-plane axis: the direction of its longest
@@ -883,10 +872,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // capped tube is an annulus swept along an interval, so it is a
     // solid torus and its genus is 1. The solid twin over the same
     // stations is genus 0.
-    assert_eq!(genus(&twisted_tube), 1, "a capped tube is a solid torus");
     assert_eq!(
-        genus(&twisted_solid),
-        0,
+        euler_counts(&twisted_tube).genus(),
+        Ok(1),
+        "a capped tube is a solid torus"
+    );
+    assert_eq!(
+        euler_counts(&twisted_solid).genus(),
+        Ok(0),
         "…and the hole is what makes it one"
     );
     assert_eq!(

@@ -4,7 +4,7 @@ kind: issue
 title: "A union with a declaration cannot be authored in one pass: the working path inserts a duplicate union and rebinds"
 status: open
 opened: 2026-09-06
-refs: [DOCM-7, 2028]
+refs: [2028, 2028]
 ---
 
 
@@ -59,3 +59,5 @@ pinned as a measured fact rather than left implicit —
 also records that such a document LOADS (the load door checks the mint
 counter, not `order()`) while re-inserting its nodes in document order
 refuses. This node is the first to rely on that asymmetry.
+
+(At DOCM's exit sweep, `refs` names the PRs `DOCM-7` stood for: `DOCM-7` = #2028 — the unit rows left the tracker with `work/docm/`; `docs/DOC-LEDGER.md` sweep 14.)
