@@ -240,3 +240,5 @@ mod pcurve_mirror_v;
 mod r2_mesh7_door_probes;
 #[path = "tcost_k1_budget_exit.rs"]
 mod tcost_k1_budget_exit;
+#[path = "r2_sense_doors_probe.rs"]
+mod r2_sense_doors_probe;
