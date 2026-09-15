@@ -1383,6 +1383,13 @@ impl PartSelect {
     }
 }
 
+/// The K funnel name the sketch-plane door's two axis lengths are
+/// decided under — the binding's own seat, because the pair reaches it
+/// from a user's Python call and not from a datum or from the
+/// evaluation layer. One name for both axes: WHICH axis was refused is
+/// the refusal's own field (`OrthoAxis`), not the funnel's.
+const SKETCH_PLANE_FRAME_NORM: &str = "sketch_plane_frame_norm";
+
 /// The rigid placement of a sketch plane in 3-space — the kernel's
 /// `profile::SketchPlane`, crossing as a VALUE.
 ///
@@ -1395,12 +1402,17 @@ impl PartSelect {
 /// +y) — the same convention the demo tour's letterform captions
 /// speak ("a yz sketch extruded +x").
 ///
-/// RIGIDITY IS AN UNCHECKED CONVENTION, exactly as in Rust: nothing
-/// verifies that `u` and `v` are unit and perpendicular. A non-rigid
-/// frame yields a well-defined SKEWED sketch, not poison — the
-/// kernel's tier-3 geometric validation is what certifies a body at
-/// rest. The binding deliberately adds no orthogonality predicate of
-/// its own: one semantics, two host languages.
+/// RIGIDITY IS THE DOOR'S, exactly as in Rust: `from_frame`
+/// orthonormalizes the pair you give it — `u` normalized and kept, `v`
+/// yielding its component along `u` — so the u/v/normal you read back
+/// off a plane built here are perpendicular whatever you passed in. It
+/// is the DOOR that decides, not the class: every plane Python can
+/// make comes through `from_frame` or one of the three named frames,
+/// and each of those mints a frame witness first. What a caller must
+/// still get right is that the two directions SPAN A PLANE: a pair
+/// that does not refuses, with `FrameError.variant` naming the axis.
+/// The binding adds no predicate of its own: one semantics, two host
+/// languages.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy)]
 pub(crate) struct SketchPlane(pub(crate) pncad::profile::SketchPlane<f64>);
@@ -1428,10 +1440,25 @@ impl SketchPlane {
     /// The plane through `origin` spanned by `u` and `v`.
     ///
     /// `origin` is dimensioned (`Length`s); `u` and `v` are
-    /// dimensionless direction triples. Rigidity is the caller's
-    /// unchecked convention — see the class docs.
+    /// dimensionless direction triples, neither of which need be unit
+    /// and neither of which need be perpendicular: the door
+    /// ORTHONORMALIZES them, `u` normalized and kept and `v` yielding
+    /// its component along `u`, and the plane's normal is what the
+    /// resulting pair crosses to. So a skewed pair builds, and the
+    /// plane you get back is not the pair you wrote.
+    ///
+    /// The two length decisions are made at the witness tolerance —
+    /// the kernel's fixed value doors' band, the same one every other
+    /// value constructor here uses — and not at whatever the session
+    /// was configured with.
+    ///
+    /// Raises `FrameError` when the pair spans no plane — parallel,
+    /// antiparallel, zero, overflowed or underflowed — with `variant`
+    /// naming which axis the length question was asked of. That
+    /// refusal is new: this constructor used to be total.
     #[staticmethod]
     fn from_frame(
+        py: Python<'_>,
         origin: (
             super::quantity::Length,
             super::quantity::Length,
@@ -1439,8 +1466,13 @@ impl SketchPlane {
         ),
         u: (f64, f64, f64),
         v: (f64, f64, f64),
-    ) -> Self {
-        Self(pncad::profile::SketchPlane::from_frame(
+    ) -> PyResult<Self> {
+        // The BAND is the run's tolerance configuration, not the
+        // frame: it crosses as the band refusal it is, never wearing
+        // the axes' words.
+        let band = pncad::geom_core::Band::linear(pncad::geom_core::Tol::witness())
+            .map_err(|error| super::checks::checks_err(py, &d::ChecksError::Band { error }))?;
+        pncad::geom_core::OrthoFrame::gram_schmidt(
             pncad::authoring::p3::<f64>(
                 origin.0.0.meters(),
                 origin.1.0.meters(),
@@ -1448,16 +1480,23 @@ impl SketchPlane {
             ),
             pncad::authoring::v3(u.0, u.1, u.2),
             pncad::authoring::v3(v.0, v.1, v.2),
-        ))
+            SKETCH_PLANE_FRAME_NORM,
+            band,
+        )
+        .map(|frame| Self(pncad::profile::SketchPlane::from_frame(frame)))
+        .map_err(|e| super::place::ortho_frame_err(py, &e))
     }
 
     /// The plane's origin — sketch (0, 0) in world space.
     ///
-    /// The four accessors READ the frame back, they never recompute
-    /// it: `from_frame(o, u, v)` round-trips through them exactly, and
-    /// `normal` is the third placement column `from_frame` filled with
-    /// u × v. Same four doors as Rust's `SketchPlane` (one
-    /// vocabulary).
+    /// The four accessors READ the placement back, they never
+    /// recompute it, and `normal` is the third placement column the
+    /// mint filled with u × v. They do NOT round-trip
+    /// `from_frame(o, u, v)`'s arguments: that door orthonormalizes,
+    /// so what comes back is the frame it minted — `origin` verbatim,
+    /// `u` normalized, `v` the perpendicular residual. An exactly
+    /// orthonormal pair is the case where the two coincide. Same four
+    /// doors as Rust's `SketchPlane` (one vocabulary).
     #[getter]
     fn origin(
         &self,
@@ -1540,11 +1579,7 @@ fn sketch_plane(
              pass exactly one (elevation is the xy-plane sugar)",
         )),
         (Some(p), false) => Ok(p.0),
-        (None, _) => Ok(pncad::profile::SketchPlane::from_frame(
-            pncad::authoring::p3::<f64>(0.0, 0.0, 0.0),
-            pncad::authoring::v3(1.0, 0.0, 0.0),
-            pncad::authoring::v3(0.0, 1.0, 0.0),
-        )),
+        (None, _) => Ok(pncad::profile::SketchPlane::xy()),
     }
 }
 
@@ -1717,22 +1752,25 @@ impl Node {
     /// stores the number you gave it, so `minor_radius` comes back
     /// out of the body bit for bit.
     ///
-    /// # What refuses, and the one thing that does not
+    /// # What refuses, and what is normalized instead
     ///
-    /// A non-unit `u_ref`, a `u_ref` not perpendicular to the axis, a
-    /// degenerate or reversed window, a window reaching one full
+    /// A degenerate or reversed window, a window reaching one full
     /// period (say `TubeWindow.full()` instead), and the ring-torus
-    /// convention `R > r > 0` — every one of those is the kernel's own
-    /// typed refusal at `evaluate`, tagged `tube`.
+    /// convention `R > r > 0` — each is the kernel's own typed refusal
+    /// at `evaluate`, tagged `tube`.
     ///
-    /// The AXIS is the exception, and it is worth knowing: `spine` is
-    /// a `Node.datum_axis`, and a datum axis NORMALIZES its direction
-    /// when it evaluates — exactly as it does for `Node.revolve`. So
-    /// `datum_axis` given `(0, 0, 2)` is the unit z axis and this
-    /// builds silently; only a zero-length or non-finite direction
-    /// refuses, and it refuses at the DATUM node rather than here.
-    /// `u_ref` is a bare triple that passes through no datum, which is
-    /// why it is the one direction whose length you must get right.
+    /// NEITHER DIRECTION HAS TO BE UNIT. `spine` is a
+    /// `Node.datum_axis`, and a datum axis normalizes its direction
+    /// when it evaluates — exactly as it does for `Node.revolve`, so
+    /// `datum_axis` given `(0, 0, 2)` is the unit z axis. `u_ref` is a
+    /// bare triple that passes through no datum, and the evaluator
+    /// mints the tube's FRAME from the two: `u_ref` normalized as the
+    /// frame's reference radial, the axis as its third axis, and the
+    /// second axis their exact cross product. So `u_ref` need not be
+    /// unit and need not be perpendicular — only OFF THE AXIS LINE. A
+    /// `u_ref` along the axis, or of zero or non-finite length,
+    /// refuses as `degenerate_direction` (or its format siblings)
+    /// naming the role `tube reference direction`.
     ///
     /// There is no wall argument: a tube with a wall is
     /// `Node.hollow_tube`, a different node kind.

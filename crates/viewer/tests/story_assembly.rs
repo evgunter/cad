@@ -44,7 +44,7 @@ use pncad::document::{Doc, DocumentId, Frame, RecipeNodeId, solve_document};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{Ray, Resolution, RunCtx, resolve};
 use viewer::camera::{self, Camera, CameraOp};
-use viewer::display::DisplayFault;
+use viewer::display::{AdmissionFault, DisplayFault};
 use viewer::input::ViewportSize;
 use viewer::matetool::{MateTool, MateToolState};
 use viewer::pickindex::PickIndex;
@@ -503,7 +503,7 @@ fn the_windmill_story() {
     assert!(
         matches!(
             &superseded.cause,
-            DisplayFault::MateConstrained { instance, mates }
+            AdmissionFault::MateConstrained { instance, mates }
                 if *instance == hub_i && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \
@@ -560,7 +560,10 @@ fn the_windmill_story() {
     // the mate that binds it.
     let refused = session.perform(SessionOp::BeginFreeMove { instance: hub_i });
     match refused.refusal {
-        Some(Refusal::Display(DisplayFault::MateConstrained { instance, mates })) => {
+        Some(Refusal::Display(DisplayFault::Admission(AdmissionFault::MateConstrained {
+            instance,
+            mates,
+        }))) => {
             assert_eq!(instance, hub_i);
             assert!(mates.contains(&seat_mate), "the refusal names the mate");
         }
@@ -662,7 +665,7 @@ fn the_windmill_story() {
     assert!(
         matches!(
             &superseded.cause,
-            DisplayFault::MateConstrained { instance, mates }
+            AdmissionFault::MateConstrained { instance, mates }
                 if *instance == sail_a && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \
@@ -738,7 +741,7 @@ fn the_windmill_story() {
     assert!(
         matches!(
             &superseded.cause,
-            DisplayFault::MateConstrained { instance, mates }
+            AdmissionFault::MateConstrained { instance, mates }
                 if *instance == sail_b && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \

@@ -76,8 +76,8 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use test_utils::source::{
-    ItemBody, angle_end, balanced_end, code_only, item_body, repo_root, rust_sources, skip_ws,
-    top_level_split, word_at,
+    ItemBody, angle_end, balanced_end, code_only, ident, item_body, repo_root, rust_sources,
+    skip_ws, top_level_split, word_at,
 };
 
 /// The repository's own directories, skipped by NAME. Same rule, and
@@ -110,24 +110,6 @@ fn word(code: &str, word: &str) -> Option<usize> {
     code.match_indices(word)
         .find(|(at, _)| word_at(code, *at, word))
         .map(|(at, _)| at)
-}
-
-/// The identifier beginning at `at`, empty when none does.
-///
-/// **A raw identifier is ONE identifier, `r#` included.** Reading
-/// `r#type` as `r` leaves the reader looking at a `#`, and a struct
-/// variant whose name is a keyword then reads as a unit one — a false
-/// green, since the enum has a named field the attribute denies.
-fn ident(code: &str, at: usize) -> &str {
-    let from = if code[at..].starts_with("r#") {
-        at + 2
-    } else {
-        at
-    };
-    let end = code[from..]
-        .find(|c: char| !c.is_alphanumeric() && c != '_')
-        .map_or(code.len(), |off| from + off);
-    &code[at..end]
 }
 
 /// Does any variant in an enum body carry a `{ … }` of its own?

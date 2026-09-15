@@ -228,8 +228,7 @@ fn every_evaluation_literal_stamps_the_document() {
                 continue;
             }
             // The three non-literal shapes these tokens also spell.
-            let line_start = code[..at].rfind('\n').map_or(0, |n| n + 1);
-            let before = &code[line_start..at];
+            let before = &code[test_utils::source::line_start(&code, at)..at];
             if before.contains("struct ") || before.contains("impl") || before.contains("->") {
                 continue;
             }

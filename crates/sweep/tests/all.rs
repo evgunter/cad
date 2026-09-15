@@ -146,6 +146,8 @@ mod blend4_concave_fillet;
 mod blend4_r1_probes;
 #[path = "blend6_verb_vocab.rs"]
 mod blend6_verb_vocab;
+#[path = "blend_ball_side_bits.rs"]
+mod blend_ball_side_bits;
 #[path = "blend_margin_payload_interval.rs"]
 mod blend_margin_payload_interval;
 #[path = "blend_seam_split_rim.rs"]
@@ -256,6 +258,8 @@ mod mass_props_interval;
 mod must_carry_rule;
 #[path = "r1_probes_issue1362_donut.rs"]
 mod r1_probes_issue1362_donut;
+#[path = "r2_sense_fold_probes.rs"]
+mod r2_sense_fold_probes;
 #[path = "readback_doors.rs"]
 mod readback_doors;
 #[path = "review_arceval_r1_probes.rs"]

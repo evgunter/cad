@@ -201,10 +201,7 @@ impl Convexity {
     /// there as `-signed(..)`, the one negation the fold keeps.
     #[must_use]
     pub fn signed<T: Real>(self, radius: T) -> T {
-        match self {
-            Self::Convex => radius,
-            Self::Concave => -radius,
-        }
+        sided(self.blend_sense(), radius)
     }
 
     /// **The same fold as a SIDE.** A support's stored sense bit says
@@ -220,6 +217,16 @@ impl Convexity {
     pub fn ball_side(self, sense: bool) -> bool {
         sense == self.blend_sense()
     }
+}
+
+/// **The conditional negation every `R ∓ r` selector spells**: `x`
+/// where `side` holds, `−x` where it does not — exact in every
+/// backend. [`Convexity::signed`] is this on the chain's verdict, and
+/// the sheet arms spell it on the ball side [`Convexity::ball_side`]
+/// derives from that verdict, so the one home is beside the bit's
+/// provenance rather than inside either consumer.
+pub(super) fn sided<T: Real>(side: bool, x: T) -> T {
+    if side { x } else { -x }
 }
 
 /// The request the battery judges: a body, the edges to blend, and
@@ -431,14 +438,15 @@ fn esc(site: BlendSite, source: Indeterminate) -> BlendError {
     BlendError::Escalated { site, source }
 }
 
-/// A face's outward normal at `p`: the chart normal folded through
-/// the STORED sense bit (`Face::sense_sign`) — never a sampled or
-/// re-derived orientation (S10 category A).
+/// A face's outward normal at `p`: the implicit gradient folded
+/// through the STORED sense bit (`Face::sense`) at its one home,
+/// [`geom_brep::implicit_outward_normal`] — never a sampled or
+/// re-derived orientation (S10 category A). Unwrapped here because
+/// both consumers read it as geometry (a dot, a mean).
 fn outward<T: Decide>(body: &Body<T>, face: FaceKey, p: Point3<T>) -> Option<Vec3<T>> {
     let f = body.get_face(face)?;
     let s = body.get_surface(f.surface)?;
-    let g = geom_brep::implicit_gradient(s, p);
-    Some(g.normalize() * f.sense_sign::<T>())
+    Some(geom_brep::implicit_outward_normal(s, f.sense, p).vec())
 }
 
 /// The face on a half-edge's side.

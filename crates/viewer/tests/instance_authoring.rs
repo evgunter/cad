@@ -27,7 +27,7 @@ use pncad::document::{
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use pncad::workspace::Workspace;
-use viewer::display::DisplayFault;
+use viewer::display::AdmissionFault;
 use viewer::parts::{PartChooser, PartEntry};
 use viewer::session::{DocSession, Refusal, SessionOp};
 use viewer::tree::{self, RowStatus};
@@ -189,7 +189,7 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     assert!(
         matches!(
             &superseded.cause,
-            DisplayFault::MateConstrained { instance, mates }
+            AdmissionFault::MateConstrained { instance, mates }
                 if *instance == shelf_i && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \

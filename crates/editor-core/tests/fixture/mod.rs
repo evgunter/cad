@@ -147,19 +147,16 @@ pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram>
 ///
 /// A test that builds a `profile::Profile` by hand needs the plane the
 /// profile's `plane` id names, and the id alone is not it. Reads the
-/// frame's authored literals and hands them to the same
-/// `SketchPlane::from_frame` the evaluator's own read uses.
-///
-/// **Orthonormality is the caller's, as it is at every other
-/// `from_frame`** — this asserts rather than orthogonalizes, so a
-/// fixture whose frame is not already orthonormal fails here instead of
-/// silently getting a different plane from the one the evaluator would
-/// build. Every fixture frame in this tree is authored orthonormal.
+/// frame's authored literals and mints the SAME frame witness the
+/// evaluator mints from them — Gram–Schmidt under the datum
+/// boundary's own funnel name — so the plane here is the evaluator's
+/// bit for bit whether or not the fixture authored an orthonormal
+/// pair.
 ///
 /// # Panics
 ///
 /// If `plane` is not a `Datum::Frame`, if its components are not
-/// literals, or if `u` and `v` are not an orthonormal pair.
+/// literals, or if `u` and `v` span no plane.
 pub fn plane_of(doc: &ProfileDoc, plane: RecipeNodeId) -> profile::SketchPlane<f64> {
     let Some(Node::Datum(editor_core::Datum::Frame { origin, u, v })) = doc.node(plane) else {
         panic!("node {} is not a Datum::Frame", plane.0)
@@ -172,19 +169,16 @@ pub fn plane_of(doc: &ProfileDoc, plane: RecipeNodeId) -> profile::SketchPlane<f
         geom_core::Vec3::new(c(&xs[0]), c(&xs[1]), c(&xs[2]))
     };
     let (o, u, v) = (read(origin), read(u), read(v));
-    for (name, w) in [("u", u), ("v", v)] {
-        assert!(
-            (w.norm() - 1.0).abs() < 1e-12,
-            "fixture frame {}'s {name} is not unit",
-            plane.0
-        );
-    }
-    assert!(
-        u.dot(v).abs() < 1e-12,
-        "fixture frame {}'s u and v are not perpendicular",
-        plane.0
-    );
-    profile::SketchPlane::from_frame(geom_core::Point3::new(o.x, o.y, o.z), u, v)
+    profile::SketchPlane::from_frame(
+        geom_core::OrthoFrame::gram_schmidt(
+            geom_core::Point3::new(o.x, o.y, o.z),
+            u,
+            v,
+            topo::DATUM_UNIT_NORM,
+            geom_core::Band::linear(geom_core::Tol::witness()).expect("the witness band"),
+        )
+        .expect("a fixture frame's two axes span a plane"),
+    )
 }
 
 /// The world xy frame as a node — origin at the world origin, sketch
@@ -540,6 +534,65 @@ pub fn fname(node: RecipeNodeId, seg: RoleSeg) -> StableName {
         node,
         path: vec![seg],
     }
+}
+
+/// **The symmetric U cutter, whose subtract table holds an N2 tie** —
+/// a 4x4x4 block with a U-shaped prism cut through it, the U's two
+/// arms congruent so nothing covariant discriminates the faces they
+/// mint and the table records one `Entry::Tied` row instead of two
+/// names. Returns the subtract node.
+///
+/// One home for a document a row needs when it needs a REAL tie
+/// rather than a hand-planted one. The same four-node shape is
+/// hand-copied across this tree; `work/wire` carries the row for
+/// re-pointing those copies here.
+pub fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, block_profile) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]],
+    );
+    let (doc, target) = insert(
+        doc,
+        Node::Extrude {
+            profile: block_profile,
+            distance: len(4.0),
+        },
+    );
+    let (doc, u_profile) = on_frame(
+        doc,
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (2.0, 1.0),
+            (6.0, 1.0),
+            (6.0, 3.0),
+            (2.0, 3.0),
+            (2.0, 2.5),
+            (5.0, 2.5),
+            (5.0, 1.5),
+            (2.0, 1.5),
+        ]],
+    );
+    let (doc, cutter) = insert(
+        doc,
+        Node::Extrude {
+            profile: u_profile,
+            distance: len(2.0),
+        },
+    );
+    insert(
+        doc,
+        Node::Boolean {
+            op: editor_core::BooleanOp::Subtract,
+            a: target,
+            b: cutter,
+            declare: None,
+        },
+    )
 }
 
 /// One edge name at a node (authoring shorthand).

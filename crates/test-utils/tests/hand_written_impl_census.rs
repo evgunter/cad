@@ -131,8 +131,8 @@
 use std::path::Path;
 
 use test_utils::source::{
-    ItemBody, angle_end, balanced_end, boundary_after, boundary_before, code_only, item_body,
-    repo_root, rust_sources, skip_ws, word_at,
+    ItemBody, balanced_end, boundary_after, boundary_before, code_only, impl_head, item_body,
+    repo_root, rust_sources, skip_ws, type_base, word_at,
 };
 
 /// The repository's own directories, skipped by NAME: a build
@@ -337,38 +337,8 @@ const IMPL_FILES_TODAY: [&str; 22] = [
     "crates/viewer/src/session.rs",
 ];
 
-/// The offset of the first whole-word `for` in `head` at bracket depth
-/// zero, or `None`.
-///
-/// **Depth matters and is not decoration.** A bound like
-/// `impl<T: Fn(&str) -> bool> …` and a higher-ranked
-/// `for<'a> Trait<'a>` both put a `for`-shaped token where it ends no
-/// trait; reading either as the separator answers a trait that is not
-/// one. Round and square brackets are counted, angle brackets are not —
-/// the generic list is stepped over by [`angle_end`] before this runs,
-/// so a `for<'a>` inside a WHERE clause is past the body already.
-fn top_level_for(head: &str) -> Option<usize> {
-    let (mut paren, mut bracket) = (0usize, 0usize);
-    for (at, c) in head.char_indices() {
-        match c {
-            '(' => paren += 1,
-            ')' => paren = paren.saturating_sub(1),
-            '[' => bracket += 1,
-            ']' => bracket = bracket.saturating_sub(1),
-            'f' if paren == 0 && bracket == 0 && word_at(head, at, "for") => {
-                // `for<'a>` is a binder, not the separator.
-                let after = skip_ws(head, at + 3);
-                if !head[after..].starts_with('<') {
-                    return Some(at);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
-}
-
-/// What an impl head names: the trait, and the self type as written.
+/// The trait this census's subject list names, and the self type the
+/// impl is for.
 struct Head {
     /// One of [`TRAITS`].
     trait_name: &'static str,
@@ -380,70 +350,24 @@ struct Head {
 /// The trait and self type this impl head names, or `None` when the
 /// head is an inherent impl or names some other trait.
 ///
-/// **The generic list is stepped over first.** `impl<P: PartialEq>
-/// Doc<P>` names the trait in a BOUND and implements nothing; reading
-/// the whole head for the word would call it a `PartialEq` impl and
-/// then red on a body that is not one.
+/// **The head itself is [`impl_head`]'s answer**, shared with the
+/// minting census in `crates/pncad-py/src/tests.rs`, which reads the
+/// same construct for a different key. What is this census's own is
+/// the filter below: only a trait in [`TRAITS`] is its subject.
+///
+/// **The trait's generic arguments are kept, and that is deliberate.**
+/// `PartialEq<Other>` does not match `PartialEq`, so a heterogeneous
+/// impl answers `None` rather than reading as a homogeneous one — the
+/// residue this file's header names, not an accident of the walk.
 fn head_of(code: &str, impl_at: usize, body_start: usize) -> Option<Head> {
-    let mut at = skip_ws(code, impl_at + "impl".len());
-    if code[at..].starts_with('<') {
-        at = angle_end(code, at)? + 1;
-    }
-    let head = code.get(at..body_start)?;
-    let for_at = top_level_for(head)?;
-    // The trait, with any path qualification: `core::fmt::Debug`.
-    let named = head[..for_at].trim().rsplit("::").next()?.trim();
+    let head = impl_head(code, impl_at, body_start)?;
+    let named = head.trait_path?;
+    let named = named.rsplit("::").next()?.trim();
     let trait_name = TRAITS.into_iter().find(|t| named == *t)?;
     Some(Head {
         trait_name,
-        self_type: self_type(&head[for_at + "for".len()..]),
+        self_type: head.self_type,
     })
-}
-
-/// The self type written after the `for`, whitespace collapsed.
-///
-/// **A spelling, never a resolution.** What it is for is the key of
-/// [`KNOWN_HAND_LISTED`] and the concrete name a destructure may be
-/// written with; neither wants the declaration, and reaching for it is
-/// what this census does not do.
-///
-/// A `where` clause is a bound on the impl and not part of the type,
-/// and an UNTERMINATED head runs past the body's own brace — so both
-/// end the type.
-fn self_type(after_for: &str) -> String {
-    let mut end = after_for.len();
-    let mut from = 0usize;
-    while let Some(off) = after_for[from..].find("where") {
-        let at = from + off;
-        from = at + "where".len();
-        if word_at(after_for, at, "where") {
-            end = at;
-            break;
-        }
-    }
-    if let Some(brace) = after_for[..end].find('{') {
-        end = brace;
-    }
-    after_for[..end]
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-/// The bare name of a self type: no generic arguments, no path.
-///
-/// `SignCertificate<'_, T>` is destructured as `SignCertificate { … }`
-/// and `crate::mate::Coset` as `Coset { … }`, so this is the word a
-/// pattern would carry.
-fn self_base(self_type: &str) -> &str {
-    self_type
-        .split('<')
-        .next()
-        .unwrap_or_default()
-        .rsplit("::")
-        .next()
-        .unwrap_or_default()
-        .trim()
 }
 
 /// Every local in `body` that is another name for `self`, `self`
@@ -719,7 +643,7 @@ fn sites_in(path: &str, text: &str) -> Vec<Site> {
             path: path.to_string(),
             line: test_utils::source::line(&code, at),
             trait_name: head.trait_name,
-            verdict: verdict(&body, self_base(&head.self_type)),
+            verdict: verdict(&body, type_base(&head.self_type)),
             self_type: head.self_type,
         });
     }

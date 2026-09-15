@@ -9,6 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use geom::Surface;
+use geom_brep::OutwardNormal;
 use geom_core::{Decide, Point3, Vec3};
 use topo::splitting::{PlaneSide, SplitNaming};
 use topo::{Body, EdgeKey, FaceKey, Provenance, VertexKey};
@@ -32,8 +33,10 @@ struct Side<'a, T: Decide> {
 /// The operand-face plane, **oriented outward** (result carriers are
 /// the N2 references).
 ///
-/// S10 CATEGORY A: the returned normal is the face's outward normal,
-/// `Face::sense_sign() · chart_normal`, not the raw chart normal.
+/// S10 CATEGORY A: the returned normal is the face's outward normal —
+/// the chart normal with `Face::sense` folded in through
+/// [`OutwardNormal::from_chart`], unwrapped at this door because every
+/// consumer reads it as geometry — not the raw chart normal.
 /// Every consumer uses the direction as an *oriented reference* whose
 /// sign lands in a stable name — [`side_of_face`] turns it into a
 /// `Qualifier::SideOf` verdict vector, and `n_a × n_b` orients the
@@ -43,9 +46,10 @@ struct Side<'a, T: Decide> {
 /// renaming fragments that did not move: an N4 covariance break, since
 /// a face's orientation sense is part of the geometry names are
 /// covariant *with*, not a private encoding detail the naming layer
-/// may ignore. The sign is exact structure (a `bool` selecting `±1`),
-/// so no new numeric decision enters here, and every face this build
-/// mints has `sense: true` — the multiply is `· 1` and no name moves.
+/// may ignore. The fold is exact structure (a `bool` selecting a
+/// negation), so no new numeric decision enters here, and every face
+/// this build mints has `sense: true` — the fold is the identity and
+/// no name moves.
 fn face_plane<T: Decide>(body: &Body<T>, f: FaceKey) -> Result<(Point3<T>, Vec3<T>), NamingError> {
     let bug = |what| NamingError::Emission { what };
     let face = body
@@ -55,7 +59,10 @@ fn face_plane<T: Decide>(body: &Body<T>, f: FaceKey) -> Result<(Point3<T>, Vec3<
         .get_surface(face.surface)
         .ok_or_else(|| bug("face_plane: dangling surface"))?
     {
-        Surface::Plane { origin, normal, .. } => Ok((*origin, *normal * face.sense_sign())),
+        Surface::Plane { origin, normal, .. } => Ok((
+            *origin,
+            OutwardNormal::from_chart(*normal, face.sense).vec(),
+        )),
         _ => Err(bug("face_plane: non-planar carrier in planar pipeline")),
     }
 }
@@ -1562,11 +1569,9 @@ mod tests {
     /// laterals. Written once — the rows below differ in the synthetic
     /// `BooleanNaming` they hand the emitter, never in the body.
     fn unit_cube() -> sweep::Extruded<f64> {
-        let plane = profile::SketchPlane::from_frame(
+        let plane = profile::SketchPlane::from_frame(geom_core::OrthoFrame::axes_xy(
             geom_core::Point3::new(0.0, 0.0, 0.0),
-            geom_core::Vec3::new(1.0, 0.0, 0.0),
-            geom_core::Vec3::new(0.0, 1.0, 0.0),
-        );
+        ));
         let square = profile::ProfileLoop::polygon(
             [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
                 .into_iter()

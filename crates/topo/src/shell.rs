@@ -320,6 +320,7 @@ use crate::entity::{
     VertexKey,
 };
 use crate::euler::EulerOpError;
+use crate::face_normal::plane_outward_normal;
 use crate::pcurves::{PcurveMintError, mint_pcurves};
 use crate::props::{PropsQuadLane, ShellRole};
 use crate::replace_face::ReplaceFaceError;
@@ -2473,8 +2474,7 @@ fn planar_faces<T: Real>(
         else {
             continue;
         };
-        // Outward is the chart normal on a positively-sensed face.
-        let normal = if data.sense { *normal } else { -*normal };
+        let normal = plane_outward_normal(data, *normal).vec();
         let v_ref = normal.cross(*u_ref);
         let mut box_u: Option<(T, T)> = None;
         let mut box_v: Option<(T, T)> = None;

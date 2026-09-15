@@ -8,12 +8,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
-use geom_core::{Point2, Point3, Vec3};
+use geom_core::{OrthoFrame, Point2, Point3, Vec3};
 use mesh::tessellate;
 use mesh::validate::{check_mesh, signed_volume, triangle_count};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
-use sweep::test_support::{corners, prism, prism_on};
+use sweep::test_support::{corners, prism, prism_on, sketch_from_axes};
 use sweep::{Extrusion, extrude};
 use topo::Body;
 
@@ -151,11 +151,7 @@ fn probe_c_needle_extent_ratio() {
 /// the coordinates themselves allow.
 #[test]
 fn probe_d_huge_offset_tiny_face() {
-    let plane = SketchPlane::from_frame(
-        Point3::new(1.0e8, 1.0e8, 1.0e8),
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-    );
+    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(1.0e8, 1.0e8, 1.0e8)));
     let poly = [(0.0, 0.0), (1.0e-3, 0.0), (1.0e-3, 1.0e-3), (0.0, 1.0e-3)];
     let body = prism_on(plane, corners(&poly), 1.0e-3, Tol::witness());
     let m = tessellate_or_typed(&body, 1e-6, "huge-offset").expect("must tessellate");
@@ -187,10 +183,11 @@ fn probe_d_huge_offset_tiny_face() {
 fn probe_e_noise_scale_sweep() {
     for exp in [-15i32, -20, -22, -30, -40, -43, -45, -50, -60] {
         let nu = 10.0f64.powi(exp);
-        let plane = SketchPlane::from_frame(
+        let plane = sketch_from_axes(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::new(1.0, 0.0, nu),
             Vec3::new(0.0, 1.0, 0.0),
+            Tol::witness(),
         );
         let poly = [(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)];
         let body = prism_on(plane, corners(&poly), 1.0, Tol::witness());
@@ -219,10 +216,11 @@ fn probe_e_noise_scale_sweep() {
 #[test]
 fn position_noise_subfloor_class_is_closed() {
     let body_at = |nu: f64| {
-        let plane = SketchPlane::from_frame(
+        let plane = sketch_from_axes(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::new(1.0, 0.0, nu),
             Vec3::new(0.0, 1.0, 0.0),
+            Tol::witness(),
         );
         let poly = [(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)];
         prism_on(plane, corners(&poly), 1.0, Tol::witness())
@@ -249,10 +247,11 @@ fn position_noise_subfloor_class_is_closed() {
 fn probe_e2_collinear_midpoint_on_diagonal() {
     for exp in [-33i32, -45, -50, -60] {
         let nu = 10.0f64.powi(exp);
-        let plane = SketchPlane::from_frame(
+        let plane = sketch_from_axes(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::new(1.0, 0.0, nu),
             Vec3::new(0.0, 1.0, 0.0),
+            Tol::witness(),
         );
         // (1, 0.5) sits exactly on the segment (0,0)->(2,1) = far.
         let poly = [

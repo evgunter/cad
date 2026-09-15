@@ -411,6 +411,8 @@ mod review_m5_pr9_doc_probe;
 mod review_m6_5_pr2_probes;
 #[path = "ring_r1_names_probe.rs"]
 mod ring_r1_names_probe;
+#[path = "scalar_frame_r1_probes.rs"]
+mod scalar_frame_r1_probes;
 #[path = "seat4_verb_lowering.rs"]
 mod seat4_verb_lowering;
 #[path = "seat6_param_source.rs"]

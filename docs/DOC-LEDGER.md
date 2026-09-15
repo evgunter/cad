@@ -3197,3 +3197,109 @@ unit's record is its `## Closed` section, its row in `MODEL-AB-LOG.md`
 (ordinal 2404, sample #208) and the MERGED entry in `work/props/log.md`.
 
 - `PROPS-MIGNITUDE-FLOOR-SPEC.md` — PROPS mignitude-floor, the floor on the residual's norm read through the sign witness instead of componentwise (#2469)
+
+## Per-merge deletion — FRAME-WITNESS's spec (2026-09-15)
+
+Recoverable at `git show 65dd211e3:docs/FRAME-WITNESS-SPEC.md` (the
+fix-pass head). Its sentences that did not survive: "`from_aim` … the
+`point_at`/`path_start_frame` recipe" as a public mint — the dual's
+bilateral MAJOR: it took perpendicularity on trust, so it is
+`pub(in crate::linalg)` and the public aim door is
+`from_aim_and_reference`, which makes the perpendicular; "`w = u × v`
+… the rounded cross product" — for the aim mints `w` is the aim
+verbatim, `v = aim × u`, and the type's doc says `w` is the third
+witness the mint produced; "`gram_schmidt(origin, u_raw, v_raw,
+site_u, site_v, band)`" — one `site`, the refusal an `OrthoFrameError
+{ axis, error }` naming the ROLE (`OrthoAxis::U` kept, `V` yields)
+shared by all four mints; "`Node.tube` … mint the frame … through
+`from_aim`" — the one home is `from_axis_and_reference(origin,
+axis_raw, reference, site, band)` and the five copies of that ladder
+(Python tube doors, `tube_args`, the tour) became one call each;
+"WIRE's private `AxisFrame` becomes `OrthoFrame`" — read and folded
+through `frame_axes` (no separate struct remains); "`SketchPlane` …
+hand the frame through" for the stored placement — it holds any
+`Affine3`, said honestly, with the witness dying at the read boundary
+(the filed BOOL row). Recorded in the PR body and the unit's
+`## Closed` section.
+
+- `FRAME-WITNESS-SPEC.md` — FRAME-WITNESS, the frame witness in geom-core, minted by the decided ladders; `from_frame` and the tube door take it (#2675)
+
+## Per-merge deletion — SENSE-FOLD's spec (2026-09-15)
+
+Recoverable at `git show 80ab05d69:docs/SENSE-FOLD-SPEC.md` (the
+fix-pass head). Its sentences that did not survive: "every consumer
+spells `radius * side` as a conditional negation of the radius" — the
+negation has one home, `sided(side, x)` in `blend/battery.rs` beside
+`Convexity` (whose `signed` is that call), and both `arms.rs` siblings
+fold onto it; "consider `Option<OutwardNormal<T>>`" for `outward_of` —
+the helper is deleted and its three callers read the keyed door;
+"keeps a raw-text row tree-wide" — the guard
+`no_source_file_folds_the_bit_by_hand` walks `crates/*/src` in the
+`code_only` view and pins the three D6-sanctioned scalar negations
+(`dihedral.rs` `kappa_rel`, `walk.rs` `area`, `shell.rs` `thickness`)
+rather than zero, with the vector class at zero and its blind spots
+(renamed bit, `copysign`, a `±1` local, `match`, tests/demos/tools/
+benches) stated in-file; "a row on one concave and one convex blend
+where the ball side differs, bits pinned" — the fold's proof is the
+stated differential (`a+b` vs `a-(-b)` identical; `s-rim` vs `-(rim-s)`
+identical except a signed zero at `s == rim` no consumer reads) plus
+the suites and the tour digest, the R2 fillet bit dumps having been
+dropped as assertion-free; the curved reading, unnamed by the spec,
+got a home of its own (`geom_brep::implicit_outward_normal`, the topo
+alias gone). Recorded in the PR body and the unit's `## Closed`
+section.
+
+- `SENSE-FOLD-SPEC.md` — SENSE-FOLD, the hand multiplies of a normal by `sense_sign` fold onto `OutwardNormal`, and `Face::sense_sign` retires (#2668)
+
+## Per-merge deletion — CENSUS-ERRORS-ARRIVAL's spec (2026-09-15)
+
+Recoverable at `git show fa49e26b0:docs/CENSUS-ERRORS-ARRIVAL-SPEC.md`
+(PR #2691's last head before the merge). CENSUS's sixth unit. Its
+sentences that did not survive:
+
+- **the five-map framing.** The spec said the unit was worth running
+  "rather than for the five maps, none of which is unguarded today",
+  and the row's table listed five. The file's literal-minting
+  population is **ten items and 53 literals**, three of the extras
+  Python-visible. The orchestrator had verified each of the five maps'
+  pins and asserted the shape of the population from them — standing
+  finding 10, *verified the example, asserted the class*, applied to
+  the orchestrator's own framing by the lane. The count moved twice
+  inside the unit: the lane first reported nine and 52, and the tenth
+  (`is_bare_camel_token`, one char literal) appeared only when the
+  char-literal hole the style review found was closed.
+- **the three dispositions, presented as the field.** The spec named a
+  looser reader over the file's ITEMS, a population reduction, and a
+  rule that Python-visible words come from `tags.rs` only — and
+  deliberately took none. **The lane took a fourth**, keyed on the
+  file's LITERALS, and the spec's own argument against the first
+  bullet ("it must walk `impl` bodies … itself a hand-maintained thing
+  needing a guard") turned out to describe the shape that was taken
+  rather than to count against it: it does walk `impl` bodies, it is
+  hand-maintained, and it has its own guard and four refusals.
+
+The spec's framing that survived, and that this unit is the evidence
+for: **not pre-deciding the disposition.** Three of the four specs
+before it pre-decided one and two of those were overturned by a probe
+the lane ran; this one declined, and the disposition the lane found is
+one no bullet on that page named.
+
+What did NOT survive contact with the style review, recorded because
+the PR body first asserted it: the reader's central claim that *"there
+is no form a word can arrive in that the reader was not taught,
+because there is no form"*, and that a wrong attribution is always
+loud. **Both were executed as false** — a char literal was read and
+dropped along with the item spelling nothing else, and an attribute
+literal was charged to the rostered item above it, where a deletion in
+the same item cancelled it. Both are closed, not narrowed. That is
+this program's **fourth consecutive** short exclusivity list.
+
+The corrections are on the item file, which survives this deletion,
+and the unit's record is `work/census/log.md`'s CENSUS-ERRORS-ARRIVAL
+entry plus the PR body. Residue filed on `work/census/`:
+`payload-attribute-names-are-spelled-twice-and-held-equal-by-nothing`,
+`dimension-mismatch-sentence-is-spelled-in-two-crates-and-held-equal-by-nothing`,
+`the-field-brace-fingerprint-is-spelled-at-eight-sites-in-six-crates`
+and `the-errors-arrival-blind-spot-list-claimed-exclusivity-and-was-short`.
+
+- `CENSUS-ERRORS-ARRIVAL-SPEC.md` — CENSUS-ERRORS-ARRIVAL, an arrival alarm over `errors.rs` keyed on its literals (#2691)

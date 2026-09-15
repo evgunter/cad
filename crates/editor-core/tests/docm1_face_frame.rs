@@ -422,15 +422,15 @@ fn frame_of(
     ev: &editor_core::Evaluation<f64>,
     node: RecipeNodeId,
 ) -> (Vec3<f64>, Vec3<f64>, Vec3<f64>) {
-    let ValuePayload::Datum(DatumValue::Frame { origin, u, v }) =
+    let ValuePayload::Datum(DatumValue::Frame(f)) =
         &ev.value(node).expect("the frame evaluated").payload
     else {
         panic!("a frame value");
     };
     (
-        *origin - geom_core::Point3::origin(),
-        UnitVec3::get(*u),
-        UnitVec3::get(*v),
+        f.origin() - geom_core::Point3::origin(),
+        UnitVec3::get(f.u()),
+        UnitVec3::get(f.v()),
     )
 }
 
@@ -580,7 +580,7 @@ fn a3_spin_rotates_about_the_outward_normal_and_is_a_continuous_angle_slot() {
     let (doc, frame) = fixture::insert(doc, face_frame_node(cube, top_cap(cube), theta));
     let ev2 = eval(&doc);
     let pose = face_frame(&ev, cube, &top_cap(cube)).expect("the top cap");
-    let n = if pose.sense { pose.axis } else { -pose.axis };
+    let n = geom_brep::OutwardNormal::from_chart(pose.axis, pose.sense).vec();
     let u_ref = pose.u_ref.expect("a plane fixes u_ref");
     let expected_u = u_ref * theta.cos() + n.cross(u_ref) * theta.sin();
     let (_, u, v) = frame_of(&ev2, frame);

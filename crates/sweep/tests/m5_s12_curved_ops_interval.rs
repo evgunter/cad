@@ -30,7 +30,7 @@ mod certified {
     use geom_core::Tol;
 
     use geom::Surface;
-    use geom_core::{Affine3, Bounds, Interval, Point2, Real, Vec2, Vec3};
+    use geom_core::{Affine3, Bounds, Interval, OrthoFrame, Point2, Real, Vec2, Vec3};
     use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
     use topo::{Body, mass_properties};
@@ -82,11 +82,11 @@ mod certified {
             ProfileVertex::new(at(1), bulge),
             ProfileVertex::new(at(2), bulge),
         ]);
-        let plane = SketchPlane::from_frame(
-            geom_core::Point3::new(iv(0.0), iv(0.0), iv(z0)),
-            Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
-            Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
-        );
+        let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(geom_core::Point3::new(
+            iv(0.0),
+            iv(0.0),
+            iv(z0),
+        )));
         let vp = Profile::new(plane, vec![lp])
             .validate(Tol::witness())
             .unwrap();
@@ -203,11 +203,11 @@ mod certified {
             p2(4.0, 2.5),
             p2(2.0, 2.5),
         ]);
-        let plane = SketchPlane::from_frame(
-            geom_core::Point3::new(iv(0.0), iv(0.0), iv(0.3)),
-            Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
-            Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
-        );
+        let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(geom_core::Point3::new(
+            iv(0.0),
+            iv(0.0),
+            iv(0.3),
+        )));
         let vp = Profile::new(plane, vec![lp])
             .validate(Tol::witness())
             .unwrap();

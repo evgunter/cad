@@ -2336,6 +2336,16 @@ NOT_BOUND = {
     "Mispaired": INTERIOR,
     "NameTable": INTERIOR,
     "Operand": INTERIOR,
+    # The frame WITNESS — an origin and a right-handed orthonormal
+    # triple, minted where its axes were decided. Python never holds
+    # one: `SketchPlane.from_frame` takes the two directions a caller
+    # means and mints the frame behind the door, and `Node.tube` /
+    # `Node.hollow_tube` take the spine datum and a reference triple
+    # and mint it at `evaluate`. What crosses is the refusal when the
+    # pair spans no plane (`FrameError.variant`, `ortho_frame_error_tag`
+    # / `degenerate_direction`) and the placement the frame becomes
+    # (`SketchPlane`'s four accessors) — never the witness itself.
+    "OrthoFrame": INTERIOR,
     # The evaluation environment, and the entry that had been on the
     # WRONG side of the line: it was listed as a `G1` gap on the
     # reasoning that "`select_where` takes one, so a caller who cannot

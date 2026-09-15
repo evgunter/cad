@@ -208,11 +208,11 @@ fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, i
                     d.u64(12);
                     d.point3(*position);
                 }
-                ValuePayload::Datum(DatumValue::Frame { origin, u, v }) => {
+                ValuePayload::Datum(DatumValue::Frame(f)) => {
                     d.u64(23);
-                    d.point3(*origin);
-                    d.vec3(u.get());
-                    d.vec3(v.get());
+                    d.point3(f.origin());
+                    d.vec3(f.u().get());
+                    d.vec3(f.v().get());
                 }
                 // Tag 24, appended: an in-plane axis is its own
                 // payload, and BOTH its spellings are digested —
