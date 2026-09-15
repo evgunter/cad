@@ -4387,3 +4387,50 @@ The reader that would answer Ev's PR-2404 question is still WIRE's to
 place; `GeomOrigin` is the door it would use.
 
 Signed (TOPO fix-pass lane, `geom-source-absence-conflates-four-origins`).
+
+## Dispatched: `nobodyroots-classification-has-two-homes` (2026-09-15, PR #2629)
+
+Lane `wire-n1`, branch `wire/nobodyroots-predicate`. **Open for review;
+not merged.**
+
+**What landed.** `ProductErrorKind::is_empty_document`
+(`crates/editor-core/src/product.rs`) — the empty-document reading of a
+gather refusal, argued once, in the crate that owns the enum.
+
+**On the kind and not the error, deliberately.** `NoBodyRoots` carries no
+payload, so nothing beyond the class informs the answer; `kind()` is
+already the one exhaustive projection, so a predicate on the kind adds no
+second exhaustive match over `ProductError` and makes a tenth arm a
+compile error TWICE by name — once to give it a class, once to classify
+it. A delegating `ProductError::is_empty_document` was considered and
+refused: its only production caller would be its own delegate, which is
+`frame-linear-generic-door-has-no-consumers` with a new instance. Every
+consumer spells `fault.kind().is_empty_document()`.
+
+**The row's count was two. It is four.** The read section of 2026-09-15
+discharged the two candidates it inherited (`py/assembly.rs`,
+`pncad/tests/all.rs`) and both judgements survive re-checking — neither is
+an instance. But its sweep looked only where the row pointed. A sweep of
+the SHAPE found two more production consumers re-deriving the same
+partition, both unexamined by the row:
+
+- `crates/viewer/src/session.rs` — `DocSession`'s landing, which runs the
+  registry over `Subject::NoBodyRoots` for this arm and argues *"has no
+  product and no failure either"* in its own words. **CHROME's and VIEW's.**
+- `crates/pncad-py/src/product_memo.rs` — `checks_report`, the same
+  routing as `run_checks` written again for the memoized gather. **LIB's.**
+
+All four now cite the predicate. Seams announced in `work/fix/log.md`,
+`work/chrome/log.md`, `work/view/log.md` and `work/lib/log.md`;
+`work.py territory --base origin/main` names exactly those four paths.
+No signature moved and no routing decision changed.
+
+**Filed outside the fence**, on FIX's slate:
+`work/fix/subject-refused-accepts-the-one-refusal-that-must-not-go-through-it.md`
+— `checks::Subject::refused` is public and accepts `NoBodyRoots`, turning
+an empty document into a `ChecksError::Product`. Three in-tree callers
+route around it by hand; nothing states the precondition. The predicate is
+what makes the guard a one-liner, so the row is newly cheap rather than
+newly true.
+
+Signed (WIRE implementer lane `wire-n1`).

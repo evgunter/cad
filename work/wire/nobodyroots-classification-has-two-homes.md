@@ -1,10 +1,12 @@
 ---
 id: nobodyroots-classification-has-two-homes
-kind: issue
-title: "The empty-document-is-not-a-fault rule is argued twice, in two crates, and ProductError carries no predicate for it"
-status: open
+kind: unit
+title: The empty-document-is-not-a-fault rule is argued twice, in two crates, and ProductError carries no predicate for it
+status: review
 opened: 2026-09-04
 refs: [1871]
+pr: 2629
+branch: wire/nobodyroots-predicate
 ---
 
 Found by VIEW-3's style review while moving one of the two copies

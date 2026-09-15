@@ -533,3 +533,51 @@ and this directory holds nine parked on VIEW's split plus the open
 residue. The exit walk is Ev's to ratify and the re-homing depends on
 what the split leaves standing, so the honest state is a program whose
 slate is complete and whose residue is scheduled.
+
+## Announced seam from WIRE (2026-09-15)
+
+WIRE's `nobodyroots-classification-has-two-homes` gave the
+empty-document reading of a gather refusal ONE home:
+`ProductErrorKind::is_empty_document` in
+`crates/editor-core/src/product.rs` (WIRE's), with the argument moved
+onto it. A predicate with no caller would be the very defect this
+program has an open row for
+(`work/wire/frame-linear-generic-door-has-no-consumers.md`), so the
+consumers that re-derived the partition now cite it. Four did; the three sites below are yours.
+
+**`crates/viewer/src/frame.rs` and `crates/viewer/src/session.rs`
+(CHROME's and VIEW's), two sites.**
+
+- `frame::product_badge`'s filter: the `ProductError::NoBodyRoots`
+  alternative leaves the `matches!` and becomes
+  `fault.kind().is_empty_document() || matches!(…)` over the other
+  three. The four declined arms are the same four.
+- `product_badge`'s doc, the first "arms that stay silent" paragraph:
+  the *"EMPTY, not malformed / a fresh document is in that state"*
+  argument becomes a citation of
+  `pncad::document::ProductErrorKind::is_empty_document`, keeping the
+  chrome's own half — the blank viewport says it, and reporting it
+  makes deleting the last feature look like a failure. **The second
+  paragraph is untouched**: the three per-node arms are declined
+  because the Features pane already badges them with a typed cause,
+  which is not the same reason and is not WIRE's to move.
+- `DocSession`'s landing: `matches!(fault, ProductError::NoBodyRoots)`
+  becomes `fault.kind().is_empty_document()`, and the comment above it
+  cites the predicate instead of restating *"has no product and no
+  failure either"*.
+
+**No signature moved.** `product_badge`, `run_checks`,
+`DocSession`'s landing and `checks_report` keep their signatures,
+their arms and their behaviour — `is_empty_document` is true of exactly
+`NoBodyRoots` and of nothing else, which this lane pins as a census
+test over `product::tests::every_arm`. The doc/comment edits replace a
+re-argument of the shared classification with a citation of it and
+leave every site-specific sentence standing (the viewer's three
+per-node arms stay the viewer's chrome policy, argued where they are).
+
+Filed while sweeping, on FIX's slate:
+`work/fix/subject-refused-accepts-the-one-refusal-that-must-not-go-through-it.md`
+— `Subject::refused` is public and takes the one arm that must not
+reach `Subject::Unavailable`.
+
+Signed (WIRE implementer lane `wire-n1`, PR #2629).
