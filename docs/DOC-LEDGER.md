@@ -765,6 +765,28 @@ statement.
 
 - `S415-SPEC.md` — S415, the three boundary residues: one scaffold rule, the Part 21 band disclosed as one rule in two crates, one hand-minted tag derived (#2633)
 
+## Per-merge deletion — PORT-DOORS-1's spec (2026-09-15)
+
+Recoverable at `git show 58e485ca4:docs/PORT-DOORS-1-SPEC.md` (the PORT
+orchestrator's commit that wrote it, the last revision where it stands
+alone; the unit branch merged that commit and carried the file to its
+own merge). The rule above; the unit's record is
+`work/port/PORT-DOORS-1.md` and the two findings it carries, plus the
+2026-09-15 entries in `work/port/log.md`.
+
+**Two of its statements are corrected by the unit**, and the item files
+are the statement of record for each. The spec read the widening as a
+shape change on two existing arms; it is a **vocabulary** change — the
+flattened `AssemblyError::Reference` and `NoAtRestRecord` cannot hold a
+mixed list and retire into one `Mint` arm, which is why the unit's class
+is `H` and not the `M` the spec's own plan row estimated. And the spec
+said "the two control assertions" in
+`crates/editor-core/tests/msolve5_read_below_a_root.rs` move under
+kind-first; **only one does** — a tie among faces is still `Ambiguous`,
+so the tied-face row is untouched.
+
+- `PORT-DOORS-1-SPEC.md` — PORT-DOORS-1, one order and one list at the assembly doors: the mint refusals widened to carry every row, kind asked before tie in `resolve_face` (#2635)
+
 ## Per-merge deletion — M10's merged-unit specs (2026-09-03)
 
 Recoverable at `git show 08931277cf23c29d35daa41a15a4cecc6495022e:docs/<NAME>`

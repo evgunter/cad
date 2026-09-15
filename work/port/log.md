@@ -400,3 +400,65 @@ that this lane could not have caused either: `s_duct` and
 branch's only change under `demos/` is an import line and one
 assertion in `demos/tour/src/assembly.rs`, which renders no cell. The
 run on the merge-forward posts NO drift check on either lane.
+
+## State-sync at merge: the first two units land (2026-09-15)
+
+`S415` (#2633) and `PORT-DOORS-1` (#2635) merged; both, and the two
+findings PORT-DOORS-1 carries, are closed. `PORT-DOORS-1-SPEC.md` is
+deleted with its ledger row (`docs/DOC-LEDGER.md`); `S415-SPEC.md`'s row
+landed in its own PR after the review caught that the first push had
+deleted the spec without one.
+
+**Three of the four premise corrections were to this program's own
+text**, not to the rows it inherited, which is the thing to carry
+forward. The orchestrator's `S415` spec asserted that the two
+`no_minted_id` paths differ on the wire (they are byte-identical — both
+pass `EditPayload::NONE`), invented **`D-layering`** as a decision id
+that exists nowhere in the tree, and repeated the row's `|p.x| ≳ 2⁵³`
+threshold, which is not a threshold on either side: inside
+`[2^53, 2^54)` the offset is exactly half a step, so round-half-to-even
+decides on mantissa parity, and the negative side is that picture
+shifted one binade. The `PORT-DOORS-1` spec read the widening as a shape
+change when it is a vocabulary change, and said two control assertions
+move where only one does.
+
+Each was caught by a lane or a reviewer reading the spec against the
+tree, which is the arrangement working — but a dispatch that sounds
+authoritative is read as authoritative, and `D-layering` reached a
+committed log line before anyone checked it. **`git log -S` is cheap and
+the lanes now run it**: the `ASSEMBLY.md` A5 sentence the widening
+falsified turned out never to have been ratified at all (`#2482`, a DOOR
+lane closing a stale citation, not an `[ev]` PR), so the page's
+companion-table row saying *Ratified* was not evidence about that
+sentence. CLAUDE.md says exactly this; the habit is to run the check
+before the argument, not after.
+
+**Review posture, as exercised.** `S415` took the style lane and the
+five must-fix items it returned were all real. `PORT-DOORS-1` asked for
+the second arm under the escape hatch and was granted it; the full
+review's one falsified claim was a **citation on a ratified design
+page**, which neither of that lane's sweeps was shaped to look for,
+because a lane's instruments are shaped by its own diff. Whether
+"changes a ratified design page's subject matter" becomes a fourth
+trigger for the second arm is with Ev — it binds future units. The
+narrower habit needs no ruling and the lane has adopted it: `git grep`
+over `crates/**/*.md` and `docs/**/*.md` for any public item a unit
+renames.
+
+**Two sweep instruments, and the first one was wrong.** PORT-DOORS-1's
+`Entry::Tied`-adjacent grep found one of four sites in its class, and
+only because it was the site the lane was already fixing. Challenged, the
+lane conceded and wrote a caller-side instrument — a function that both
+reaches a tie refusal and tests an entity kind, ordered by which comes
+first — which found a third instance immediately (`eval/wire.rs`, filed
+on WIRE). Both instruments are name-based and neither is a proof; the
+lane says so in the PR.
+
+Nine rows were filed outside this program's fence across the two units:
+three on EXCH, four on LIB, two on WIRE. PORT claims no paths, so every
+one of them went to the program whose ground it landed on.
+
+Next: the Python pair, `python-cannot-set-options-structs` then `D341`.
+`msrv-floor-…` is specced and unclaimed. The two naming rows —
+`python-dimensionerror-…` and `load-path-…` — are one door and one spec,
+and `load-path-…` is the row this program gives a full review.
