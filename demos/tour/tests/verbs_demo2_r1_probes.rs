@@ -30,9 +30,7 @@ use pncad::topo::{Body, EdgeKey};
 fn p1_mesh_pin_reds_on_a_one_sided_sizing_change() {
     let tol = Tol::witness();
     let hollow = tube_along_arc_hollow::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(Point3::new(0.0, 0.0, 0.0), Vec3::unit_y(), Vec3::unit_x(), tol),
         2.0,
         TubeWindow::Arc { t0: 0.25, t1: 1.75 },
         0.5,
@@ -41,9 +39,7 @@ fn p1_mesh_pin_reds_on_a_one_sided_sizing_change() {
     )
     .expect("hollow elbow");
     let solid = tube_along_arc::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(Point3::new(0.0, 0.0, 0.0), Vec3::unit_y(), Vec3::unit_x(), tol),
         2.0,
         TubeWindow::Arc { t0: 0.25, t1: 1.75 },
         0.5,
@@ -95,9 +91,7 @@ fn p2_storage_contract_holds_at_unaligned_constants() {
     let tol = Tol::witness();
     let (outer, wall) = (0.61, 0.17);
     let hollow = tube_along_arc_hollow::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(Point3::new(0.0, 0.0, 0.0), Vec3::unit_y(), Vec3::unit_x(), tol),
         1.7,
         TubeWindow::Arc { t0: 0.4, t1: 2.1 },
         outer,

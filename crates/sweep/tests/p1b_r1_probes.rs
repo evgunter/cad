@@ -27,7 +27,7 @@ use geom_brep::{EdgeDescription, EdgeDescriptionSpec, MappedCurve};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::fillet_edges;
-use sweep::test_support::arcs_at;
+use sweep::test_support::{arcs_at, tube_frame};
 use sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, loft_body, revolve, tube_along_arc,
     tube_along_arc_hollow,
@@ -251,9 +251,12 @@ fn revolve_products_carry_no_scaffold_at_rest() {
 #[test]
 fn tube_products_carry_no_scaffold_at_rest() {
     let solid = tube_along_arc::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+            Tol::witness(),
+        ),
         2.0,
         TubeWindow::Arc { t0: 0.25, t1: 1.75 },
         0.5,
@@ -263,9 +266,12 @@ fn tube_products_carry_no_scaffold_at_rest() {
     fence_crosscheck(&solid.body, "tube_along_arc (arc window)");
 
     let hollow = tube_along_arc_hollow::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+            Tol::witness(),
+        ),
         2.0,
         TubeWindow::Full,
         0.5,

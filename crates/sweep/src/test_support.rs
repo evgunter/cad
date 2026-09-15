@@ -552,6 +552,69 @@ pub fn extruded<T: Decide>(
         .body
 }
 
+/// The K funnel name a FIXTURE's authored frame axes are decided
+/// under. One name for both axes of [`sketch_from_axes`]: which axis a
+/// refusal is about is the refusal's own field, and a fixture that
+/// refuses has a bug rather than a story.
+const FIXTURE_FRAME_AXIS: &str = "fixture_frame_axis";
+
+/// **A sketch plane from an authored pair**, orthonormalized at the
+/// run's band — the fixtures' one spelling of the frame mint, for a
+/// plane that is tilted, rotated or deliberately noisy.
+///
+/// An axis-aligned fixture does not come here: the exact world frames
+/// (`OrthoFrame::axes_xy` and its two siblings) need no decision, and
+/// [`sketch_at`] is the xy one at a station.
+///
+/// # Panics
+///
+/// If the band cannot be formed, or if the two directions span no
+/// plane — a fixture whose axes are parallel is a broken fixture, not
+/// a case under test.
+pub fn sketch_from_axes<T: Decide>(
+    o: Point3<T>,
+    u: Vec3<T>,
+    v: Vec3<T>,
+    tol: Tol,
+) -> SketchPlane<T> {
+    SketchPlane::from_frame(
+        OrthoFrame::gram_schmidt(
+            o,
+            u,
+            v,
+            FIXTURE_FRAME_AXIS,
+            FIXTURE_FRAME_AXIS,
+            Band::linear(tol).expect("the fixture's tolerance forms a band"),
+        )
+        .expect("the fixture's two axes span a plane"),
+    )
+}
+
+/// **The spine frame the tube doors take**: ring centre, spine axis,
+/// and the reference radial the window's angles start from.
+///
+/// The axis is decided and KEPT — it is the frame's `w`, stored
+/// verbatim — and the reference yields whatever component of it lies
+/// along the axis.
+///
+/// # Panics
+///
+/// If the band cannot be formed, if the axis has no direction, or if
+/// the reference lies along it. A fixture that wants to exercise one
+/// of those refusals calls the mint itself.
+pub fn tube_frame<T: Decide>(
+    center: Point3<T>,
+    axis: Vec3<T>,
+    u_ref: Vec3<T>,
+    tol: Tol,
+) -> geom_core::OrthoFrame<T> {
+    let band = Band::linear(tol).expect("the fixture's tolerance forms a band");
+    let axis = geom_core::UnitVec3::new(axis, FIXTURE_FRAME_AXIS, band)
+        .expect("the fixture's spine axis has a direction");
+    OrthoFrame::from_aim_and_reference(center, axis, u_ref, FIXTURE_FRAME_AXIS, band)
+        .expect("the fixture's reference radial is off the spine axis")
+}
+
 /// The world xy sketch plane lifted to station `z0`, the placement
 /// every axis-aligned fixture here extrudes from.
 pub fn sketch_at<T: Decide>(z0: T) -> SketchPlane<T> {

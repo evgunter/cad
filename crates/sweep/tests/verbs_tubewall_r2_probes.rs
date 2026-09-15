@@ -25,6 +25,7 @@ use core::f64::consts::PI;
 
 use geom::Surface;
 use geom_core::{Point3, Tol, Vec3};
+use sweep::test_support::tube_frame;
 use sweep::{Revolved, TubeError, TubeWindow, tube_along_arc, tube_along_arc_hollow};
 use topo::Body;
 
@@ -39,9 +40,7 @@ fn build(
     wall: f64,
 ) -> Result<Revolved<f64>, TubeError> {
     tube_along_arc_hollow::<f64>(
-        c(),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(c(), Vec3::unit_y(), Vec3::unit_x(), Tol::witness()),
         major,
         window,
         minor,
@@ -287,9 +286,7 @@ fn r2_escalation_from_a_wall_predicate_reports_the_hollow_doors_name() {
     let shared = build(2.0, TubeWindow::Full, 0.5, 0.125);
     let _ = shared;
     let frame = tube_along_arc_hollow::<f64>(
-        c(),
-        Vec3::unit_y() * 1.5,
-        Vec3::unit_x(),
+        tube_frame(c(), Vec3::unit_y() * 1.5, Vec3::unit_x(), Tol::witness()),
         2.0,
         TubeWindow::Full,
         0.5,
@@ -410,9 +407,7 @@ fn r2_hollow_plus_bore_is_the_solid_tube() {
         };
         let hollow = build(major, window, minor, wall).expect("hollow builds");
         let solid = tube_along_arc::<f64>(
-            c(),
-            Vec3::unit_y(),
-            Vec3::unit_x(),
+            tube_frame(c(), Vec3::unit_y(), Vec3::unit_x(), Tol::witness()),
             major,
             window,
             minor,
@@ -420,9 +415,7 @@ fn r2_hollow_plus_bore_is_the_solid_tube() {
         )
         .expect("solid builds");
         let bore = tube_along_arc::<f64>(
-            c(),
-            Vec3::unit_y(),
-            Vec3::unit_x(),
+            tube_frame(c(), Vec3::unit_y(), Vec3::unit_x(), Tol::witness()),
             major,
             window,
             minor - wall,
@@ -457,9 +450,7 @@ fn r2_hollow_plus_bore_is_the_solid_tube() {
 #[test]
 fn r2_solid_door_dump_is_deterministic() {
     let a = tube_along_arc::<f64>(
-        c(),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(c(), Vec3::unit_y(), Vec3::unit_x(), Tol::witness()),
         2.0,
         TubeWindow::Arc { t0: 0.25, t1: 1.75 },
         0.5,
@@ -467,9 +458,7 @@ fn r2_solid_door_dump_is_deterministic() {
     )
     .expect("solid elbow");
     let b = tube_along_arc::<f64>(
-        c(),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(c(), Vec3::unit_y(), Vec3::unit_x(), Tol::witness()),
         2.0,
         TubeWindow::Arc { t0: 0.25, t1: 1.75 },
         0.5,
@@ -706,13 +695,17 @@ fn short(e: &TubeError) -> String {
 #[test]
 fn r2_wall_verdicts_preempt_the_frame_verdicts() {
     let e = tube_along_arc_hollow::<f64>(
-        c(),
-        Vec3::unit_y() * 1.5, // not unit: the solid door's NonUnitAxis
-        Vec3::unit_x(),
+        tube_frame(
+            c(),
+            Vec3::unit_y() * 1.5, // not unit: the solid door's NonUnitAxis
+            Vec3::unit_x(),       // and a zero wall
+            Tol::witness(),
+        ),
         2.0,
         TubeWindow::Full,
         0.5,
-        0.0, // and a zero wall
+        0.0,
+        // and a zero wall
         Tol::witness(),
     )
     .expect_err("refuses");
@@ -744,9 +737,12 @@ mod certified {
         wall: f64,
     ) -> Result<Revolved<Interval>, TubeError> {
         tube_along_arc_hollow::<Interval>(
-            Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-            Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
-            Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+            tube_frame(
+                Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
+                Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                Tol::witness(),
+            ),
             iv(major),
             window,
             iv(minor),

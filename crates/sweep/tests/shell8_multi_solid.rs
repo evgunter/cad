@@ -16,7 +16,7 @@
 use core::f64::consts::PI;
 
 use geom_core::{Point3, Tol, Vec3};
-use sweep::test_support::block;
+use sweep::test_support::{block, tube_frame};
 use sweep::{TubeWindow, tube_along_arc};
 use topo::{Body, ShellError, SolidKey};
 
@@ -107,9 +107,12 @@ fn a_box_beside_a_full_torus_takes_one_door_each() {
     let t = 0.05;
     let (big_r, r) = (2.0, 0.5);
     let torus = tube_along_arc::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+            tol(),
+        ),
         big_r,
         TubeWindow::Full,
         r,

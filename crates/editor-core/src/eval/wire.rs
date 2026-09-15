@@ -1205,9 +1205,7 @@ pub(crate) fn mint_frame_placement(
     };
     match datum {
         Datum::Frame { .. } => Ok(Some(match frame_from_slots(nominal, band(tol)?)? {
-            FrameRead::Frame(f) => {
-                FramePlacement::Authored(profile::SketchPlane::from_frame(f))
-            }
+            FrameRead::Frame(f) => FramePlacement::Authored(profile::SketchPlane::from_frame(f)),
             FrameRead::NoDirection(refusal) => FramePlacement::Unreadable(refusal),
         })),
         Datum::FaceFrame { .. } => Ok(Some(FramePlacement::Derived)),
@@ -1997,12 +1995,15 @@ fn tube_args<T: Decide>(
     // non-finite direction refuses there, one node upstream, and what
     // reaches this arm is a `UnitVec3`. `u_ref` is a bare direction
     // that passes through NO datum, so it is the one the frame mint
-    // decides here: it becomes the frame's `u`, normalized, and the
-    // axis its `w`, with `v = w × u` exactly perpendicular by
-    // construction. A `u_ref` on the axis line refuses under the
-    // direction door's own vocabulary, under this layer's role word.
+    // decides here: its component along the axis is projected out and
+    // what remains becomes the frame's `u`, normalized, with the axis
+    // the frame's `w` VERBATIM (the mint does not re-decide a witness)
+    // and `v = w × u`. So a `u_ref` off perpendicular is no longer a
+    // refusal — it names a roll and the frame takes the part of it
+    // that can; a `u_ref` ON the axis line refuses, under the
+    // direction door's own vocabulary and this layer's role word.
     Ok(TubeArgs {
-        frame: geom_core::OrthoFrame::from_aim(
+        frame: geom_core::OrthoFrame::from_aim_and_reference(
             *origin,
             *dir,
             need_vec3(vals, SlotId::Direction)?,
@@ -2052,9 +2053,8 @@ fn wire_tube<T: Decide + geom_brep::PcurveFittedLane>(
     tol: Tol,
 ) -> OpResult<T> {
     let a = tube_args(spine, window, results, vals, tol)?;
-    let mut built =
-        sweep::tube_along_arc(a.frame, a.major_radius, a.window, a.minor_radius, tol)
-            .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
+    let mut built = sweep::tube_along_arc(a.frame, a.major_radius, a.window, a.minor_radius, tol)
+        .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
     let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
     stamp_minted(&mut built.body, id);
     Ok(OpOut::plain(
@@ -2089,15 +2089,9 @@ fn wire_hollow_tube<T: Decide + geom_brep::PcurveFittedLane>(
 ) -> OpResult<T> {
     let a = tube_args(spine, window, results, vals, tol)?;
     let wall = need_scalar(vals, SlotId::TubeWall)?;
-    let mut built = sweep::tube_along_arc_hollow(
-        a.frame,
-        a.major_radius,
-        a.window,
-        a.minor_radius,
-        wall,
-        tol,
-    )
-    .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
+    let mut built =
+        sweep::tube_along_arc_hollow(a.frame, a.major_radius, a.window, a.minor_radius, wall, tol)
+            .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
     let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
     stamp_minted(&mut built.body, id);
     Ok(OpOut::plain(
@@ -4885,11 +4879,9 @@ mod route_tests {
     /// Nothing below reads the body; the door reads tables.
     fn a_face_key() -> topo::FaceKey {
         use profile::RawLoop;
-        let plane = profile::SketchPlane::from_frame(
+        let plane = profile::SketchPlane::from_frame(geom_core::OrthoFrame::axes_xy(
             geom_core::Point3::new(0.0, 0.0, 0.0),
-            geom_core::Vec3::new(1.0, 0.0, 0.0),
-            geom_core::Vec3::new(0.0, 1.0, 0.0),
-        );
+        ));
         let square = profile::ProfileLoop::polygon(
             [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
                 .into_iter()

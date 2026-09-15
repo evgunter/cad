@@ -35,6 +35,11 @@
 //!   in every caller here): the perpendicular is decided and
 //!   normalized into the frame's `u`, `v` is `aim × u`, and the aim
 //!   becomes `w`. One decision, under the caller's funnel name.
+//! - [`OrthoFrame::from_aim_and_reference`] — the same, for a
+//!   reference that is NOT already perpendicular: it forms the
+//!   Gram–Schmidt residual against the aim first. It is
+//!   [`OrthoFrame::gram_schmidt`] with the kept axis already decided,
+//!   and exists so that axis is not decided a second time.
 //! - [`OrthoFrame::axes_xy`], [`OrthoFrame::axes_yz`],
 //!   [`OrthoFrame::axes_zx`] — the world frames, at any origin. These
 //!   are **the only frames the type admits without a decision**,
@@ -317,6 +322,42 @@ impl<T: Decide> OrthoFrame<T> {
             w: aim,
         })
     }
+
+    /// **[`Self::gram_schmidt`] with the kept axis already decided**:
+    /// the frame whose third axis is `aim` and whose first is the part
+    /// of `reference` perpendicular to it.
+    ///
+    /// The difference from [`Self::from_aim`] is the one line this
+    /// adds — the residual `reference − aim·(reference·aim)`, which is
+    /// what MAKES the perpendicular that door requires. A caller whose
+    /// reference is already perpendicular by construction (a cross
+    /// product with the aim) wants that door and not this one: the
+    /// residual would subtract a rounding rather than nothing.
+    ///
+    /// The axis is not re-decided. Routing this through
+    /// [`Self::gram_schmidt`] instead would normalize a witness a
+    /// second time, and a witness's own norm is not exactly `1.0`, so
+    /// the axis the caller holds and the axis the frame carries would
+    /// differ in their last bits.
+    ///
+    /// Evaluation order (fixed, D9): the residual, then
+    /// [`Self::from_aim`]'s order.
+    ///
+    /// # Errors
+    ///
+    /// [`UnitVec3Error`] when the residual has no decided direction —
+    /// `reference` lies on the aim line, or the residual overflowed,
+    /// underflowed, or landed in the band.
+    pub fn from_aim_and_reference(
+        origin: Point3<T>,
+        aim: UnitVec3<T>,
+        reference: Vec3<T>,
+        site: &'static str,
+        band: Band,
+    ) -> Result<Self, UnitVec3Error> {
+        let a = aim.get();
+        Self::from_aim(origin, aim, reference - a * reference.dot(a), site, band)
+    }
 }
 
 #[cfg(test)]
@@ -393,8 +434,7 @@ mod tests {
         for (o, u_raw, v_raw) in decided_corpus() {
             let f = OrthoFrame::gram_schmidt(o, u_raw, v_raw, SITE_U, SITE_V, band()).unwrap();
             let (u, v) = (f.u().get(), f.v().get());
-            let hand =
-                Affine3::from_parts(Mat3::from_cols(u, v, u.cross(v)), o - Point3::origin());
+            let hand = Affine3::from_parts(Mat3::from_cols(u, v, u.cross(v)), o - Point3::origin());
             assert_eq!(bits12(&f.to_affine()), bits12(&hand), "at {o:?}");
         }
     }
@@ -426,8 +466,8 @@ mod tests {
                 let o = Point3::new(1.5, -0.0, 7.25);
                 let f = OrthoFrame::gram_schmidt(o, u_raw, v_raw, SITE_U, SITE_V, band()).unwrap();
                 let got = cols(f).map(|c| [c.x, c.y, c.z].map(f64::to_bits));
-                let want = [u_raw, v_raw, u_raw.cross(v_raw)]
-                    .map(|c| [c.x, c.y, c.z].map(f64::to_bits));
+                let want =
+                    [u_raw, v_raw, u_raw.cross(v_raw)].map(|c| [c.x, c.y, c.z].map(f64::to_bits));
                 assert_eq!(got, want, "at {u_raw:?} {v_raw:?}");
             }
         }

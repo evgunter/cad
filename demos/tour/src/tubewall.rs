@@ -114,9 +114,12 @@ const DELTA_TORUS: f64 = 2e-2;
 /// The hollow door at this scene's constants, for either window.
 fn hollow(window: TubeWindow<f64>, tol: Tol) -> pncad::sweep::Revolved<f64> {
     tube_along_arc_hollow::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+            tol,
+        ),
         R,
         window,
         OUTER,
@@ -234,9 +237,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // window over the same spine is heavier by exactly the bore, which
     // is the same Pappus form on the inner disc.
     let solid = tube_along_arc::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+            tol,
+        ),
         R,
         TubeWindow::Arc { t0: T0, t1: T1 },
         OUTER,

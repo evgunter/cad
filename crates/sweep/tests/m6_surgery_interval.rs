@@ -33,9 +33,9 @@ mod certified {
     use geom::Curve3;
     use geom::Surface;
     use geom_core::{Affine3, Bounds, Interval, Point2, Real, Vec2, Vec3};
-    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop};
     use sweep::blend::build::fillet_edges;
-    use sweep::test_support::cube;
+    use sweep::test_support::{cube, sketch_from_axes};
     use sweep::{Revolution, RevolveAxis, revolve};
     use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
     use topo::{Body, BooleanDeclarations, mass_properties};
@@ -69,10 +69,11 @@ mod certified {
             ProfileVertex::new(p2(0.0, PIP_R), iv(0.0)),
         ]);
         let profile = Profile::new(
-            SketchPlane::from_frame(
+            sketch_from_axes(
                 geom_core::Point3::new(iv(0.0), iv(0.0), iv(0.0)),
                 Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
                 Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+                Tol::witness(),
             ),
             vec![lp],
         )

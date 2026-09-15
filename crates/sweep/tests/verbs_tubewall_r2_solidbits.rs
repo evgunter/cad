@@ -10,6 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point3, Tol, Vec3};
+use sweep::test_support::tube_frame;
 use sweep::{TubeWindow, tube_along_arc};
 
 /// Prints one bit-faithful line per solid-door configuration, tagged
@@ -34,9 +35,12 @@ fn r2_solid_door_bits_dump() {
             Some((t0, t1)) => TubeWindow::Arc { t0, t1 },
         };
         let t = tube_along_arc::<f64>(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::unit_y(),
-            Vec3::unit_x(),
+            tube_frame(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::unit_y(),
+                Vec3::unit_x(),
+                Tol::witness(),
+            ),
             major,
             window,
             minor,
@@ -79,9 +83,7 @@ fn r2_solid_door_bits_dump() {
             Some((t0, t1)) => TubeWindow::Arc { t0, t1 },
         };
         let e = tube_along_arc::<f64>(
-            Point3::new(0.0, 0.0, 0.0),
-            axis,
-            u_ref,
+            tube_frame(Point3::new(0.0, 0.0, 0.0), axis, u_ref, Tol::witness()),
             major,
             window,
             minor,

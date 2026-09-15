@@ -38,6 +38,7 @@ use crate::revolve_common;
 use geom_core::{Band, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use revolve_common::{axis_y, p2, validated};
+use sweep::test_support::tube_frame;
 use sweep::{Revolution, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow};
 use topo::query;
 use topo::{
@@ -66,9 +67,12 @@ fn window(deg: f64) -> TubeWindow<f64> {
 /// starting at the origin heading `+z`.
 fn segment_a() -> Body<f64> {
     tube_along_arc(
-        Point3::new(-RING, 0.0, 0.0),
-        axis(),
-        Vec3::new(1.0, 0.0, 0.0),
+        tube_frame(
+            Point3::new(-RING, 0.0, 0.0),
+            axis(),
+            Vec3::new(1.0, 0.0, 0.0),
+            Tol::witness(),
+        ),
         RING,
         window(TURN),
         TUBE,
@@ -91,9 +95,7 @@ fn segment_b() -> Body<f64> {
     let inward = Vec3::new(-tangent.z, 0.0, tangent.x);
     let center = end + inward * 1.1;
     tube_along_arc(
-        center,
-        axis(),
-        (end - center).normalize(),
+        tube_frame(center, axis(), (end - center).normalize(), Tol::witness()),
         1.1,
         window(170.0),
         TUBE,
@@ -107,9 +109,12 @@ fn segment_b() -> Body<f64> {
 /// radius [`TUBE`] — the curved spelling of the bored plate.
 fn socket() -> Body<f64> {
     tube_along_arc_hollow(
-        Point3::new(-RING, 0.0, 0.0),
-        axis(),
-        Vec3::new(1.0, 0.0, 0.0),
+        tube_frame(
+            Point3::new(-RING, 0.0, 0.0),
+            axis(),
+            Vec3::new(1.0, 0.0, 0.0),
+            Tol::witness(),
+        ),
         RING,
         window(TURN),
         0.09,
@@ -135,9 +140,12 @@ fn kissing_pair() -> (Body<f64>, Body<f64>) {
 /// the origin on `+z`. It carries its two wall faces and nothing else.
 fn full_torus(major: f64) -> Body<f64> {
     tube_along_arc(
-        Point3::origin(),
-        Vec3::new(0.0, 0.0, 1.0),
-        Vec3::new(1.0, 0.0, 0.0),
+        tube_frame(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Tol::witness(),
+        ),
         major,
         TubeWindow::Full,
         TUBE,
@@ -230,9 +238,12 @@ fn a_declared_torus_rest_pair_passes_the_declaration_door() {
 fn a_contradicted_torus_rest_declaration_refuses_loudly() {
     let s = socket();
     let thin = tube_along_arc(
-        Point3::new(-RING, 0.0, 0.0),
-        axis(),
-        Vec3::new(1.0, 0.0, 0.0),
+        tube_frame(
+            Point3::new(-RING, 0.0, 0.0),
+            axis(),
+            Vec3::new(1.0, 0.0, 0.0),
+            Tol::witness(),
+        ),
         RING,
         window(TURN),
         TUBE * 0.75,
@@ -569,9 +580,12 @@ fn a_torus_pair_with_no_shared_rim_keeps_the_class_refusal() {
     // The same elbow displaced far along `y`, so nothing meets and no
     // boundary circle is shared.
     let b = tube_along_arc(
-        Point3::new(-RING, 40.0, 0.0),
-        axis(),
-        Vec3::new(1.0, 0.0, 0.0),
+        tube_frame(
+            Point3::new(-RING, 40.0, 0.0),
+            axis(),
+            Vec3::new(1.0, 0.0, 0.0),
+            Tol::witness(),
+        ),
         RING,
         window(TURN),
         TUBE,

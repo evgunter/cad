@@ -662,13 +662,11 @@ fn r2_the_two_union_walls_on_my_operands() {
         tol,
     );
     let handle = tube_along_arc::<f64>(
-        Point3 {
+        tube_frame(Point3 {
             x: 0.5,
             y: 0.5,
             z: 0.0,
-        },
-        Vec3::unit_z(),
-        Vec3::unit_x(),
+        }, Vec3::unit_z(), Vec3::unit_x(), tol),
         0.3,
         TubeWindow::Arc { t0: -2.0, t1: 2.0 },
         0.08,
@@ -913,13 +911,11 @@ fn r2_the_scene_numbers() {
     }
     // The handle and the spout, on the scene's own parameters.
     let handle = tube_along_arc::<f64>(
-        Point3 {
+        tube_frame(Point3 {
             x: rb,
             y: (yf + ys) / 2.0,
             z: 0.0,
-        },
-        Vec3::unit_z(),
-        Vec3::unit_x(),
+        }, Vec3::unit_z(), Vec3::unit_x(), tol),
         6.0 / 256.0,
         TubeWindow::Arc {
             t0: -(core::f64::consts::FRAC_PI_2 + 0.5),

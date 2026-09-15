@@ -1345,11 +1345,7 @@ fn a_boolean_result_validates_at_tier_3_prime() {
             .and_then(|t| t.line_to(p2(x.0, y.1), Tol::witness()))
             .and_then(|t| t.line_to(Start, Tol::witness()))
             .expect("the slab rectangle authors");
-        let plane = SketchPlane::from_frame(
-            p3::<f64>(0.0, 0.0, z.0),
-            v3(1.0, 0.0, 0.0),
-            v3(0.0, 1.0, 0.0),
-        );
+        let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3::<f64>(0.0, 0.0, z.0)));
         let profile = validated(plane, vec![rect.into()], Tol::witness()).expect("slab profile");
         extrude(
             &profile,

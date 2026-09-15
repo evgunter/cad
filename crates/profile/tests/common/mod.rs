@@ -111,6 +111,33 @@ pub fn is_enclosing<T: Real>(err: &PathError<T>) -> bool {
 
 /// The run's tolerance (env-driven; the multi-ε matrix parameterizes
 /// it).
+/// The K funnel name this suite's authored frame axes are decided
+/// under. One name for both, because which axis a refusal names is the
+/// refusal's own field.
+pub const FRAME_AXIS_SITE: &str = "profile_test_frame_axis";
+
+/// A frame witness from an authored pair — the mint every plane in
+/// this suite goes through, spelled once.
+///
+/// # Panics
+///
+/// If the band cannot be formed, or if the pair spans no plane.
+pub fn frame_of(
+    o: geom_core::Point3<f64>,
+    u: geom_core::Vec3<f64>,
+    v: geom_core::Vec3<f64>,
+) -> geom_core::OrthoFrame<f64> {
+    geom_core::OrthoFrame::gram_schmidt(
+        o,
+        u,
+        v,
+        FRAME_AXIS_SITE,
+        FRAME_AXIS_SITE,
+        geom_core::Band::linear(tol()).expect("the witness band"),
+    )
+    .expect("the pair spans a plane")
+}
+
 pub fn tol() -> Tol {
     Tol::witness()
 }

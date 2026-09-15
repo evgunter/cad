@@ -43,7 +43,7 @@ use crate::booleans::{check, expect_seamed, try_intersect};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::{p3, polygon, v3, validated};
-use pncad::geom_core::Tol;
+use pncad::geom_core::{OrthoFrame, Tol};
 
 /// Exact volume oracle: 880383/327680 (counter-hole A × Z), derived by
 /// independent exact-fraction integration for the #93 acceptance test
@@ -82,7 +82,7 @@ fn lp<S: Scalar>(poly: &[(f64, f64)], tol: Tol) -> ProfileLoop<S> {
 /// two bodies' y-plane sets are disjoint by 1/16 straddles).
 fn a_prism<S: Scalar>(tol: Tol) -> Body<S> {
     let plane =
-        SketchPlane::from_frame(p3(0.0, 0.0, -0.0625), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+        SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, -0.0625)));
     extrude(
         &validated(plane, vec![lp(&A_OUTLINE, tol), lp(&A_COUNTER, tol)], tol)
             .expect("A x Z profile"),
@@ -110,7 +110,7 @@ fn z_prism<S: Scalar>(tol: Tol) -> Body<S> {
         (-0.0625, 0.4375),
     ];
     let plane =
-        SketchPlane::from_frame(p3(-0.0625, 0.0, 0.0), v3(0.0, 1.0, 0.0), v3(0.0, 0.0, 1.0));
+        SketchPlane::from_frame(OrthoFrame::axes_yz(p3(-0.0625, 0.0, 0.0)));
     extrude(
         &validated(plane, vec![lp(&z_poly, tol)], tol).expect("A x Z profile"),
         Extrusion::Distance(S::from_f64(2.125)),

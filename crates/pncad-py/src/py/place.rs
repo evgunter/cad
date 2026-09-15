@@ -181,10 +181,7 @@ pub(crate) fn frame_err(py: Python<'_>, err: &pncad::geom_core::FrameError) -> P
 /// payload is [`crate::escalation`]'s, so a caller reads `margin`,
 /// `zero`, `escalate` and `predicate` off an escalated mint exactly as
 /// it reads them off an escalated ladder.
-pub(crate) fn ortho_frame_err(
-    py: Python<'_>,
-    err: &pncad::geom_core::OrthoFrameError,
-) -> PyErr {
+pub(crate) fn ortho_frame_err(py: Python<'_>, err: &pncad::geom_core::OrthoFrameError) -> PyErr {
     use pncad::geom_core::UnitVec3Error;
 
     let none = || py.None();

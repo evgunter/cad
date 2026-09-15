@@ -1,9 +1,9 @@
 //! **`tube_along_arc` — the world-coordinate tube/torus door** (M6-3
 //! Leg F; the Ev-ratified rider, #175 thread). A ring-torus body
 //! from its INTENT parameters: the spine FRAME (an [`OrthoFrame`] —
-//! its origin the ring centre, its `u` the reference radial the window
-//! is measured from, its `v` the spine axis), the major radius, an arc
-//! window (or a full ring), and the tube's minor
+//! its origin the ring centre, its `w` the spine axis, its `u` the
+//! reference radial the window is measured from), the major radius, an
+//! arc window (or a full ring), and the tube's minor
 //! radius — **stored exactly**, with no profile→bulge→radius
 //! arithmetic anywhere on the path. This is what retires the lily
 //! findings' silent sketch-frame placement (finding 11) and the
@@ -295,13 +295,14 @@ fn build<T: Decide + geom_brep::PcurveFittedLane>(
     wall: Option<T>,
     tol: Tol,
 ) -> Result<Revolved<T>, TubeError> {
-    // The frame's three axes, in this door's words: `u` is the
-    // reference radial the window's angles are measured from, `v` the
-    // spine axis, `w = u × v` the frame normal. They are stored
-    // VERBATIM below — the door never normalizes, because the mint
-    // already did.
+    // The frame's three axes, in this door's words: `w` is the SPINE
+    // AXIS, `u` the reference radial the window's angles are measured
+    // from, and `v = w × u` the third leg, which this door does not
+    // read (its own placement wants `u × w`, the other sign). They are
+    // stored VERBATIM below — the door never normalizes, because the
+    // mint already did.
     let center = frame.origin();
-    let axis = frame.v().get();
+    let axis = frame.w().get();
     let u_ref = frame.u().get();
     let band = Band::linear(tol).map_err(TubeError::Band)?;
     // The angle lever arm: the outer equator (D4 ¶1).
@@ -436,7 +437,8 @@ fn build<T: Decide + geom_brep::PcurveFittedLane>(
     let mut classes = Vec::with_capacity(loops.len());
     for (li, segs) in loops.iter().enumerate() {
         classes.push(
-            super::axis::classify_loop(segs, &sketch_frame, li, true, band).map_err(TubeError::Revolve)?,
+            super::axis::classify_loop(segs, &sketch_frame, li, true, band)
+                .map_err(TubeError::Revolve)?,
         );
     }
 
