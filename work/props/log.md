@@ -1204,3 +1204,32 @@ has moved ~2300 commits under it — `crates/geom-core/src/sym.rs` alone
 by ~2670 lines (SYM-5, SYM-7), where this unit adds the tier's first
 three-child node; SYM-8 (#2616) is open on the same file and the lane
 reports whether `SymOp::Select` collides with it.
+
+**Mignitude-floor dual adjudicated (2026-09-15).** Both arms
+APPROVE-WITH-FIXES on `c8fd64033`, **no MAJOR either arm — v6 tally
++0**. R1 (fable) 0/4/8, rubric 4/4/4; R2 (opus) 0/6/3, rubric 4/4/3.
+The bound survived both attacks by execution and independently: R1
+sampled every cell of every round grid on six bases (worst
+`e_lo`/sampled-min ratio 0.9987, ~9300 cells), R2 on five (worst
+0.9434, 1485 cells); the red and green digits, the 24-of-70 corpus
+move, the 807.7× and the single grown bound all reproduced on both,
+and each rebuilt the merge base in its own tree to do it.
+Correspondence: the `m_sup` f64 fold BILATERAL (R1 by reading, R2 by
+execution — 306 of 308 cells carry a divisor below the ring reading,
+worst 4.70e-16 relative, on the unsound side, against the PR's own
+"every intermediate stays a `RingInterval`"; R2 extends the class to
+`ssi/certify.rs`'s `stretch`, which has no `sqrt_up` at all); the test
+`decompose` copy BILATERAL (R2 sharper — it already diverges by a
+missing guard, falsifying the row's own "differ in exactly one
+expression"); the face count 7-vs-8 and the stall row's unasserted
+premise BILATERAL. Unilateral to R1: the D2 "never into them" sentence
+overclaims against this unit's own non-monotonicity item, and the
+filed item's remedies are miscast (executed: the OLD 780-cell grid
+reads the identical bound under the witness reading, so the whole 1.8%
+is schedule divergence at round 1). Unilateral to R2: two stale
+certified digits the change itself moved — one in the module doc, one
+an entire false measured ladder in the recentring row — and the
+bit-identity sentence, false on the four requests whose schedule moved
+the fit's knot count. Fix pass dispatched on the same arm as a fresh
+lane; R2's probe files survived the machine move and are adopted from
+disk, R1's did not and are re-derived from its report.
