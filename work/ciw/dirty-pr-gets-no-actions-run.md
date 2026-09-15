@@ -129,3 +129,41 @@ say the base, not `main`: *a push with no run is a conflict with the
 PR's own base to merge out, not a queue to wait on.* A lane told to
 merge `main` out, on a PR based on a lane branch, would merge the wrong
 thing and stay runless.
+
+## Fifth occurrence, and the first measured RATE (2026-09-15, S-TINT orchestrator)
+
+The row says this shape is one "this repository generates constantly by
+construction" but carries no frequency. `#2690` (`tint/orchestrator`,
+based on `main`) supplies one, because it stayed open across a busy
+stretch and its base merges were timed:
+
+**Four base merges in ~100 minutes; three of them conflicted, and all
+three conflicts were `docs/DOC-LEDGER.md` alone.** Between the third and
+fourth, `origin/main` advanced **22 commits in about 30 minutes**. The
+occurrence proper is the fourth: the push at `39dbf40eb` produced no
+Actions run for twenty minutes while `mergeable_state` read `dirty`,
+and merging `origin/main` out produced a queued run within seconds.
+
+So the rate is not "three in a day" but roughly **once per base merge
+for any PR open longer than main's inter-merge interval**, and that
+interval is currently well under the ~30 minutes one CI cycle takes.
+A PR that needs two cycles is more likely than not to go runless at
+least once, without anyone doing anything wrong.
+
+**`docs/DOC-LEDGER.md` is why, and it is not incidental.** Every program
+appends a per-merge-deletion entry to that one file at the end of every
+unit, so the file takes a tail-append from every lane in the repository
+and collides with every other open branch that has also appended. It is
+the single highest-collision file in the tree by construction, and
+nothing about the ledger's purpose requires one file — this row does not
+ask for that change, but a fix that only teaches lanes to recognise the
+silence leaves the collision rate untouched.
+
+**Who was fooled this time: the orchestrator, not a lane**, and it
+reported "queued or just starting" to its user before reading
+`mergeable_state`. The row's discriminator is right and cheap; what this
+adds is that the seat dispatching the work is no better placed to guess
+than the seat doing it, so the cheap half belongs in a place both read.
+`docs/prompts/implementer-discipline.md` is a lane's file; an
+orchestrator reads it too, which is the argument for putting it there
+rather than in a lane brief.

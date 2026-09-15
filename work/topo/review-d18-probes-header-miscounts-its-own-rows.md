@@ -82,3 +82,13 @@ nothing about a sentence that miscounts them. The count would stop
 being written down at all, which is why it can no longer be wrong; but
 if TOPO keeps a prose disposition beside the names, that disposition is
 as unchecked after adoption as before.
+
+**Two things the superseded draft of this note carried and this one
+should keep.** The cheap alternative — one corrected sentence, no
+mechanism — remains entirely reasonable, and nothing here argues
+otherwise; and TINT-4's fix pass made a `#[test]` under a **nested
+`mod`** a violation rather than a silent exemption, so a file adopting
+`roster!` must have its rows at module level. Checked against this
+file: its five rows are all top-level (`review_d18_probes.rs:69, 97,
+156, 189, 271`) and there is no nested `mod`, so the constraint does
+not bite here — but it is a hard rule now rather than a caveat.
