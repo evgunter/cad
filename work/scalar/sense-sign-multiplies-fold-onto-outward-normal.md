@@ -2,8 +2,9 @@
 id: sense-sign-multiplies-fold-onto-outward-normal
 kind: unit
 title: The ten hand multiplies of normal by sense_sign fold onto OutwardNormal, and Face::sense_sign retires
-status: open
+status: closed
 opened: 2026-09-15
+closed: 2026-09-15
 branch: scalar/sense-fold
 pr: 2668
 ---
@@ -65,3 +66,40 @@ listing and the whole narration), taken at this branch's merge base
 
 Both are the values RATE-PAIR recorded at `4f71edaea` and at its head.
 The head-of-branch pair is recorded in the PR body beside these.
+
+## Closed (2026-09-15) — PR 2668
+
+`Face::sense_sign<T>()` deleted with `face_normal.rs`'s hand-kept
+census; a new call does not compile. Every production site folds onto
+`OutwardNormal::from_chart` or a `face_normal.rs` door — `pub mod
+face_normal`, the keyed `face_outward_normal` (`outward_of` deleted, its
+three callers use it), the by-value `plane_outward_normal` for
+`merged_outline_ring` and `shell.rs` — and the curved reading has one
+home, `geom_brep::implicit_outward_normal` beside `implicit_gradient`
+(dihedral, battery, contact_verify call it; the topo alias gone; the
+header says the two curved readings differ). The genuinely signed
+scalars (`walk.rs` area, `dihedral.rs` `kappa_rel`, `shell.rs`
+thickness) spell the bit as a conditional negation, the D6 §0 shape.
+`SupportTrace::{Straight, Round}.side` is `bool`; the `R ∓ r` selection
+has one home, `sided(side, x)` in `battery.rs` beside `Convexity`
+(`Convexity::signed` = `sided(self.blend_sense(), r)`), bit-identical
+except a signed zero no consumer reads. `readback.rs` ×3 and
+`interrogate.rs` prose name the constructor; the `sigma` oracle has one
+copy in `sweep/tests/common/oracles.rs`. Guards: `the_planar_sense_flip_
+lives_in_one_place` green unchanged; `no_source_file_folds_the_bit_by_
+hand` over `crates/*/src` (`code_only`), pinned to the three sanctioned
+scalars, the vector class at zero, blind spots in-file. Mutant at head
+(`implicit_outward_normal` folds `true`): 128 red of 3618 over
+topo+sweep+mesh+geom-brep. Digests identical at base `37dce8287` and
+head (1766 files `87be4dd9…`, narration 729 lines `e930abf5…`).
+Reviews: dual, both APPROVE WITH FIXES, no MAJOR; twelve fix-pass items
+taken (site 4's opposite-orientation row declined as not cheap, receipt
+on the TOPO row: the boolean's scope, not the bit). R2's probes merged
+`--no-ff` and cut to one asserting row (the reversed rod wall:
+`CurvedSenseInverted{wall}` + `LaminaWedge` on both seams); R1's not
+adopted. Rows: TOPO
+`declared-opposite-orientation-refusal-is-unreached-by-any-row`
+(widened to the class), PROPS `m6-sense-gate-recorded-residuals` (the
+rod instance, pinned), `anti-re-fork-row-reds-on-a-doc-pointer-to-the-
+door` CLOSED. Routed: TOPO's three-answers row, CENSUS S57, PERF's
+sense-inversion row.

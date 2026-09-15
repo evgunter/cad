@@ -324,3 +324,12 @@ PR 2667, block SCALAR-B3 slot 2, ordinal 4106. What landed: the item's
 §Closed. The spec is deleted per the ledger. The fix pass corrected a
 causal story nobody had run — the lesson is on the TRIM row's
 provenance note — and gave the two chart doors one crossing shape.
+
+## SENSE-FOLD merged (2026-09-15)
+
+PR 2668, block SCALAR-B3 slot 0, ordinal 4107. What landed: the item's
+§Closed. The spec is deleted per the ledger. The `arms.rs` question the
+item posed resolved to the first reading — a sense wearing a `T` — with
+the selection given one home rather than a negation at every consumer;
+the tree-wide guard pins the three sanctioned scalar negations by name
+instead of asserting zero, which is what D6 §0 prescribes.

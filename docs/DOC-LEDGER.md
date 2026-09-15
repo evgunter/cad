@@ -3175,3 +3175,30 @@ which is the filed TRIM row). Recorded in the PR body and the unit's
 `## Closed` section.
 
 - `EXHAUST-LANE-SPEC.md` — EXHAUST-LANE, the exhaustiveness receipt carries its lane (#2667)
+
+## Per-merge deletion — SENSE-FOLD's spec (2026-09-15)
+
+Recoverable at `git show 80ab05d69:docs/SENSE-FOLD-SPEC.md` (the
+fix-pass head). Its sentences that did not survive: "every consumer
+spells `radius * side` as a conditional negation of the radius" — the
+negation has one home, `sided(side, x)` in `blend/battery.rs` beside
+`Convexity` (whose `signed` is that call), and both `arms.rs` siblings
+fold onto it; "consider `Option<OutwardNormal<T>>`" for `outward_of` —
+the helper is deleted and its three callers read the keyed door;
+"keeps a raw-text row tree-wide" — the guard
+`no_source_file_folds_the_bit_by_hand` walks `crates/*/src` in the
+`code_only` view and pins the three D6-sanctioned scalar negations
+(`dihedral.rs` `kappa_rel`, `walk.rs` `area`, `shell.rs` `thickness`)
+rather than zero, with the vector class at zero and its blind spots
+(renamed bit, `copysign`, a `±1` local, `match`, tests/demos/tools/
+benches) stated in-file; "a row on one concave and one convex blend
+where the ball side differs, bits pinned" — the fold's proof is the
+stated differential (`a+b` vs `a-(-b)` identical; `s-rim` vs `-(rim-s)`
+identical except a signed zero at `s == rim` no consumer reads) plus
+the suites and the tour digest, the R2 fillet bit dumps having been
+dropped as assertion-free; the curved reading, unnamed by the spec,
+got a home of its own (`geom_brep::implicit_outward_normal`, the topo
+alias gone). Recorded in the PR body and the unit's `## Closed`
+section.
+
+- `SENSE-FOLD-SPEC.md` — SENSE-FOLD, the hand multiplies of a normal by `sense_sign` fold onto `OutwardNormal`, and `Face::sense_sign` retires (#2668)
