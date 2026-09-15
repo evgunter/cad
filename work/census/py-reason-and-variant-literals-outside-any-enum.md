@@ -72,7 +72,15 @@ word. The wildcard arm DELEGATES to it, which the reader does admit.
 
 **The second defect at that site is confirmed and repaired.**
 `py/select.rs`'s eight-attribute list is now
-`py::select::refusal_fields`, and both doors build from it.
+`py::select::refusal_fields`, and both doors build from it; a door
+with a payload writes it by NAME through `py::select::fill`, so a
+reordering of that list cannot silently drop the entry it overwrites.
+**The repaired path is unreachable today** — the kernel's
+`ContactClass` has exactly the two arms the crossing matches, so
+nothing can execute the raise, and the repair cannot go red either.
+That is `both-unclassified-crossings-are-unreachable-and-so-is-the-repair-on-one`
+on this slate, filed rather than fixed because it is a question about
+what deserves a constructed test.
 
 **Each is covered only by accident.** `mass_properties_failed` is
 named in `crates/pncad-py/pncad.pyi` and asserted once in
