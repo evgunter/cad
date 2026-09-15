@@ -2,8 +2,9 @@
 id: id-query-is-keyed-on-the-generation-not-on-the-picture
 kind: issue
 title: The id query is re-asked on a new generation, so a scene rebuilt at the same generation leaves a stale GPU answer to be compared
-status: open
+status: review
 opened: 2026-09-15
+branch: view/id-query-key
 ---
 
 
@@ -47,3 +48,18 @@ into it.
 Check before taking it: a generation change with no scene rebuild behind
 it. If one exists, `revision` alone under-asks where `generation` did
 not, and the key is the pair.
+
+
+## Closed
+
+Taken by `view/id-query-key`. **The check the item asked for found one:
+a generation change with no scene rebuild behind it exists**, so
+`revision` alone under-asks where `generation` did not and the key is
+the pair. `ViewerApp::revision` is written in exactly two places
+(`app.rs`, the `1` at assembly and the `wrapping_add(1)` in
+`sync_scene`'s success arm), and the generation the log is handed is
+`self.picks.index()`'s — which `sync_scene` can leave newly landed over
+a rebuild it refused, since the refused arm writes `scene_fault` and
+nothing else. So the key is `frame::IdSubject { revision, generation }`,
+and `crates/viewer/README.md`'s *A pick id is one index's word* states
+it.
