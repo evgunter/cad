@@ -65,8 +65,10 @@
 //!    it. "Known" is doing real work there — see the variant's docs
 //!    for the enclosure that is not ruled out.
 //! 5. **Both format questions are asked before sign.** Every length
-//!    here is classified by `definitely_positive`, which asks
-//!    [`is_finite_length`] first: a direction past
+//!    here — a direction's own norm through [`UnitVec3::new`], the
+//!    roll offset through `definitely_positive` — is classified by
+//!    the same three questions in the same order, and the first is
+//!    [`is_finite_length`]: a direction past
 //!    [`Vec3::normalize`]'s ~1e154 overflow band has an infinite
 //!    norm, which is maximally DEFINITE to the classifier and
 //!    normalizes to the zero vector, so deciding the sign first
@@ -129,7 +131,7 @@
 //! win; sharing an abstraction would cost a layer.
 
 use crate::k_stats::decide;
-use crate::linalg::{Affine3, Mat3, Point3, UnitVec3, Vec3};
+use crate::linalg::{Affine3, Mat3, Point3, UnitVec3, UnitVec3Error, Vec3};
 use crate::predicate::{
     Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Sign,
 };
@@ -178,7 +180,7 @@ pub enum FrameInput {
     ///
     /// What IS provably dead is the combination of this input with
     /// [`FrameError::NonFiniteLength`], because the ladder decides its
-    /// rungs with a bare `decide` rather than through the funnel that
+    /// rungs with a bare `decide` rather than through either road that
     /// raises that arm. [`FrameVector`] is the type that removes it.
     ReferenceLadder,
     /// [`mirror_across_plane`]'s plane normal, whose length was not
@@ -207,7 +209,7 @@ impl FrameInput {
 /// which names a pair of unit CONSTANTS rather than anything a caller
 /// hands in. Structurally the ladder never asks this question at all:
 /// it decides its rungs with a bare [`decide`] rather than through
-/// `definitely_positive`, which is the only site that raises
+/// [`UnitVec3::new`] or `definitely_positive`, the only two roads to
 /// [`FrameError::NonFiniteLength`] — so nothing can construct a
 /// non-finite refusal naming the ladder. Reusing [`FrameInput`] here
 /// would make that dead combination REPRESENTABLE, and — because the
@@ -351,20 +353,19 @@ impl core::error::Error for FrameError {}
 /// Classifies a **length** margin (metres) as definitely positive,
 /// mapping every other outcome onto a typed refusal for `input`.
 ///
-/// The margin is a length by construction at each call site — a vector
-/// norm, or the norm of a cross product with a unit vector (which is
-/// the perpendicular distance from the vector's tip to the unit
-/// vector's line) — so [`Margin::of`] is the honest door and the
-/// metre band applies without a lever.
+/// The margin is a length by construction at its call site — the norm
+/// of a cross product with a unit vector, which is the perpendicular
+/// distance from the vector's tip to the unit vector's line — so
+/// [`Margin::of`] is the honest door and the metre band applies
+/// without a lever.
 ///
 /// **Three questions, in this order.** Is the length a finite NUMBER
 /// ([`is_finite_length`]); did it UNDERFLOW out of the format
 /// ([`is_underflowed_length`]); and only then which side of zero is it
 /// on. An infinite length is maximally definite to [`Decide`], so
-/// asking the sign first answers `Positive`, and the caller's
-/// `normalize` then divides by ∞ and hands back the zero vector —
-/// every site below normalizes exactly the quantity it decided here,
-/// which is what makes one gate at this one funnel cover all four.
+/// asking the sign first answers `Positive`, and the caller's divide
+/// then goes through ∞ and hands back the zero vector — the caller
+/// normalizes exactly the quantity it decided here.
 ///
 /// The underflowed length is the same failure at the other end, and it
 /// is not loud: the norm is exactly zero, the decision below answers
@@ -375,12 +376,21 @@ impl core::error::Error for FrameError {}
 /// [`is_underflowed_length`]'s two ratios non-finite for a reason that
 /// has nothing to do with underflow.
 ///
+/// **The three direction lengths do not come here.** A vector's OWN
+/// norm is decided and divided by [`UnitVec3::new`], which asks these
+/// three questions in this order and mints the witness; this gate is
+/// the one length in the module that is not a vector's own norm — the
+/// roll rung's `|reference × aim|`, divided by hand into the frame's
+/// x axis in [`frame_from_unit_aim`] — and it is one function with
+/// the constructor's refusals ([`refused_direction`]) so the two roads
+/// cannot drift.
+///
 /// `witness` is the largest `|component|` of the vector `length` is the
 /// norm of — [`Vec3::norm_witness`], and that pairing is the
 /// predicate's whole contract. The two arrive as separate scalars
 /// rather than as the vector itself because `length` is the quantity
-/// each caller goes on to decide and normalize, evaluated once at the
-/// call site; the pair is spelled on adjacent lines at all four.
+/// the caller goes on to decide and divide by, evaluated once at the
+/// call site; the pair is spelled on adjacent lines there.
 ///
 /// **Both gates are POINT-scalar gates**, exactly as the module docs'
 /// clause 5 says of the first: at `T = Interval` the finiteness
@@ -421,19 +431,25 @@ fn definitely_positive<T: Decide>(
     }
 }
 
-/// [`definitely_positive`] on a vector's own length, then the divide:
-/// the witness the three normalizing doors mint, on the line after the
-/// gate that decided the quantity it normalizes. `v.norm()` and
-/// `v.norm_witness()` are spelled here once, as the gate's contract
-/// asks, rather than at each of the three.
-fn decided_unit<T: Decide>(
-    name: &'static str,
-    v: Vec3<T>,
-    band: Band,
-    input: FrameVector,
-) -> Result<UnitVec3<T>, FrameError> {
-    definitely_positive(name, v.norm(), v.norm_witness(), band, input)?;
-    Ok(UnitVec3::after_decided_length(v))
+/// A refusal of [`UnitVec3::new`] in this module's vocabulary, for
+/// the caller-supplied vector it was about. Total, and arm for arm the
+/// same four facts [`definitely_positive`] refuses — the constructor
+/// asks the three questions of that gate, in its order, on the
+/// vector's own norm, so the three normalizing doors mint the witness
+/// through it under their own funnel names and map the refusal here.
+fn refused_direction(e: UnitVec3Error, input: FrameVector) -> FrameError {
+    match e {
+        UnitVec3Error::NonFiniteLength => FrameError::NonFiniteLength { input },
+        UnitVec3Error::UnderflowedLength => FrameError::UnderflowedLength { input },
+        UnitVec3Error::Degenerate => FrameError::Degenerate {
+            input: input.into(),
+            indeterminate: None,
+        },
+        UnitVec3Error::Escalated(i) => FrameError::Degenerate {
+            input: input.into(),
+            indeterminate: Some(i),
+        },
+    }
 }
 
 /// The one recipe, shared by [`point_at`] and [`path_start_frame`]:
@@ -503,7 +519,8 @@ pub fn point_at<T: Decide>(
 ) -> Result<Affine3<T>, FrameError> {
     let band = Band::linear(tol).map_err(FrameError::Band)?;
     let aim = target - eye;
-    let unit = decided_unit("frame_point_at_aim", aim, band, FrameVector::Aim)?;
+    let unit = UnitVec3::new(aim, "frame_point_at_aim", band)
+        .map_err(|e| refused_direction(e, FrameVector::Aim))?;
     let perp = roll_reference.cross(unit.get());
     let len = perp.norm();
     definitely_positive(
@@ -553,12 +570,8 @@ pub fn path_start_frame<T: Decide>(
     tol: Tol,
 ) -> Result<Affine3<T>, FrameError> {
     let band = Band::linear(tol).map_err(FrameError::Band)?;
-    let unit = decided_unit(
-        "frame_path_start_tangent",
-        tangent,
-        band,
-        FrameVector::Tangent,
-    )?;
+    let unit = UnitVec3::new(tangent, "frame_path_start_tangent", band)
+        .map_err(|e| refused_direction(e, FrameVector::Tangent))?;
     // The ladder, in order. A rung is taken only on a DEFINITE
     // off-axis decision: both the coincident outcome (the rung is the
     // tangent line) and the in-band outcome (too close to it to fix a
@@ -673,13 +686,11 @@ pub fn mirror_across_plane<T: Decide>(
     tol: Tol,
 ) -> Result<Affine3<T>, FrameError> {
     let band = Band::linear(tol).map_err(FrameError::Band)?;
-    let n = decided_unit(
-        "frame_mirror_normal",
-        normal,
-        band,
-        FrameVector::MirrorNormal,
-    )?
-    .get();
+    // The witness is read back at once: the Householder entries are
+    // its components, and no door below takes the type.
+    let n = UnitVec3::new(normal, "frame_mirror_normal", band)
+        .map_err(|e| refused_direction(e, FrameVector::MirrorNormal))?
+        .get();
     let two = T::from_f64(2.0);
     let t = n * two;
     let linear = Mat3::from_cols(

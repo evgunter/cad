@@ -36,7 +36,7 @@ a hand-rolled check on a DIFFERENT quantity — and then `plus_zero`
 on the normalized vector before `normal.orthonormal_basis()`. Two
 things keep it from minting the witness: it holds no `Band` (the
 function takes `eps_in: f64` and decides nothing through the funnel),
-and `plus_zero` is not one of the three mints (negation is exact and
+and `plus_zero` is not one of the mints (negation is exact and
 minted; a signed-zero rewrite is exact too, but adding it as a mint is
 a design choice this unit did not make).
 
@@ -60,3 +60,14 @@ not the sweep.
 - `crates/step-export/src/writer.rs`, `direction` (`:166`): "unit by
   the conventions of every stored normal/axis/dir — emitted as stored,
   never renormalized". The carrier case, on the way out.
+
+
+## Added at the fix pass (re-sweep at the merged base)
+
+- `crates/step-export/src/writer.rs`, `axis2_placement` (`:189`):
+  "every kernel frame stores `axis` unit, `ref_dir` unit and ⊥ `axis`
+  … no renormalization" — the carrier case on the way out, beside
+  `direction`; a frame, so the second unit's shape.
+- `crates/step-import/src/normalize.rs`, `half_turn_curve` (`:121`):
+  every point goes through `half_turn(p − origin, axis)`, so it
+  carries `half_turn`'s premise on the same `axis`, one call up.

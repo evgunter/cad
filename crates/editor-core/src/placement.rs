@@ -188,7 +188,7 @@ impl Frame {
             band,
         )
         .map_err(|e| AxisRefusal(NodeRefusal::from(e)))?;
-        let m = Mat3::rotation_about(dir, angle);
+        let m = Mat3::rotation_about(dir.get(), angle);
         Ok(Self {
             columns: [
                 [m.c0.x, m.c0.y, m.c0.z],

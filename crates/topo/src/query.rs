@@ -60,11 +60,13 @@
 //!   **The body is `geom-core`'s, and the NAME is this module's.** The
 //!   witness type and its decision
 //!   ([`geom_core::decide_unit_direction`], the workspace's one
-//!   `Margin::norm3` decide-then-normalize body) live in the
-//!   evaluation layer; what this seat owns is the funnel name a datum
-//!   direction is decided under, because the datum is a value this
-//!   layer owns. The evaluation layer's own direction door passes its
-//!   own name to the same body: two ratified funnel names, one body.
+//!   `Margin::norm3` decide-then-normalize body) live in `geom-core`;
+//!   what this seat owns is the funnel name a datum direction is
+//!   decided under, because the datum is a value this layer owns. The
+//!   passer is the evaluation layer (`editor-core`'s `datum_unit`,
+//!   which builds every [`DatumValue`]); its own direction door passes
+//!   its own name to the same body: two ratified funnel names, one
+//!   body.
 //!
 //! # Where an entity IS, for the decided door
 //!

@@ -28,8 +28,7 @@ use editor_core::{
     face_frame,
 };
 use geom_brep::SurfaceKind;
-use geom_core::UnitVec3;
-use geom_core::{Tol, Vec3};
+use geom_core::{Tol, UnitVec3, Vec3};
 use topo::readback;
 use topo::{CurveKind, DatumValue};
 

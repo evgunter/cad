@@ -37,3 +37,24 @@ through a function parameter. `implicit_gradient` (`:174`) in the
 same file is NOT in the class — its "unit-magnitude" is a
 postcondition — and is listed here only because the sweep's pattern
 matched it.
+
+
+## Added at the fix pass (re-sweep at the merged base)
+
+Two more members in the same crate, filed here so the row names the
+whole family:
+
+- `crates/geom-brep/src/ssi/jet.rs`, `axial_radial` (`:318`): "the
+  axial/radial decomposition of a path against an anchor and unit axis
+  — `implicit`'s `axial_radial`, lifted to series". A self-declared
+  re-derivation of the site above, with the same premise on the same
+  carrier `axis`; whatever this row does to `implicit::axial_radial`'s
+  parameter, the series lift does the same day.
+- `crates/geom-brep/src/implicit.rs`, `circle_residual_extremes`
+  (`:559`) and `circle_residual_curvature_bound` (`:593`): "the frame
+  precondition of `circle_arc_residual_range` binds here too: `axis`
+  and `u_ref` unit and mutually orthogonal, unchecked". A FRAME
+  premise — two unit vectors, orthogonal — which is the second unit's
+  shape (the frame witness the ruling's refinement names) rather than
+  the single-direction witness; recorded here because the parameters
+  are the same carrier `axis` and `u_ref`.

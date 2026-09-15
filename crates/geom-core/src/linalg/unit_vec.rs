@@ -25,11 +25,11 @@
 //!   under the caller's band and funnel-site name, then divide. The one
 //!   place a USER's vector becomes a direction, with typed refusals.
 //! - `-u` — negation is exact at every scalar.
-//! - [`UnitVec3::from_angle_xy`] — a `sin_cos` pair is a unit vector by
-//!   construction.
-//! - The deciding ladders in [`frame`](super::frame), which decide a
-//!   length through their own gate and normalize the same quantity;
-//!   they mint through a door private to this layer.
+//!
+//! The deciding ladders in [`frame`](super::frame) mint through the
+//! constructor under their own funnel names and map its refusals onto
+//! theirs; nothing else in this crate can produce the type, because the
+//! field is private to this module and no other door here writes it.
 //!
 //! There is deliberately **no** "check that it is already unit"
 //! constructor: a caller holding a bare vector it believes is unit has
@@ -263,27 +263,6 @@ impl<T: Real> UnitVec3<T> {
     #[must_use]
     pub fn get(self) -> Vec3<T> {
         self.0
-    }
-
-    /// **The ladder's mint**: `v` normalized, after the CALLER's own
-    /// gate decided `|v|` finite, not underflowed and definitely
-    /// positive under a band. Private to this layer, because the
-    /// decision it records is not in its signature — the invariant is
-    /// that it is spelled on the line after that gate and nowhere
-    /// else. The divide is [`Vec3::normalize`]'s, the same one the
-    /// gate's callers already perform.
-    pub(super) fn after_decided_length(v: Vec3<T>) -> Self {
-        Self(v.normalize())
-    }
-
-    /// The direction in the `xy` plane at `angle` radians from `+x`:
-    /// `(cos θ, sin θ, 0)`, a unit vector by construction of
-    /// [`Real::sin_cos`] — no length is decided because none is in
-    /// question.
-    #[must_use]
-    pub fn from_angle_xy(angle: T) -> Self {
-        let (s, c) = angle.sin_cos();
-        Self(Vec3::new(c, s, T::zero()))
     }
 
     /// An orthonormal basis completing this direction to a
@@ -522,26 +501,6 @@ mod tests {
                 bits3(u.get()),
                 "an involution, for {v:?}"
             );
-        }
-    }
-
-    /// The `sin_cos` mint is the bare pair, bit for bit, at every
-    /// angle tried — including the ones where a component is a signed
-    /// zero or the pair is exactly an axis.
-    #[test]
-    fn the_sin_cos_mint_is_the_bare_pair_bit_for_bit() {
-        for angle in [
-            0.0,
-            -0.0,
-            0.3,
-            core::f64::consts::FRAC_PI_2,
-            core::f64::consts::PI,
-            -core::f64::consts::FRAC_PI_4,
-            7.0,
-        ] {
-            let u = UnitVec3::from_angle_xy(angle).get();
-            let (s, c) = <f64 as Real>::sin_cos(angle);
-            assert_eq!(bits3(u), bits3(Vec3::new(c, s, 0.0)), "at {angle}");
         }
     }
 

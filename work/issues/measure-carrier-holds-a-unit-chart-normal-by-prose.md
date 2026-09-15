@@ -42,3 +42,20 @@ field.
 `work/issues/` because `crates/editor-core/src/eval/measure.rs` is in
 no open program's `paths` (`scripts/work.py territory` names no
 owner; WIRE holds `eval/wire.rs` only).
+
+
+## Added at the fix pass (re-sweep at the merged base)
+
+Two functions in the same file read the same carriers' directions as
+unit, and are members with `Carrier::Plane`:
+
+- `axis_offset` (`:596`): "the component of the separation orthogonal
+  to a UNIT direction" — `rel − axis·(rel·axis)`, a projection only
+  for unit `axis`; the axis is read out of the stored cylinder or
+  cone.
+- `parallel` (`:375`): "the sine of two unit directions' disagreement,
+  levered at the arm" — `u.cross(v).norm()` levered by `arm` into a
+  DECIDED margin, so a non-unit direction scales the margin silently,
+  the failure the witness makes unrepresentable. The same shape as
+  `mate/coset.rs`'s `parallel`
+  (`work/msolve/subgroup-directions-are-unit-by-prose.md`).
