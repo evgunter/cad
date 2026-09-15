@@ -17,6 +17,7 @@
 
 pub mod bit_identity;
 pub mod dual;
+pub mod exact;
 #[cfg(feature = "interval")]
 pub mod interval;
 pub mod k_stats;
