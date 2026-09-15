@@ -11314,3 +11314,45 @@ count reads 24 under a mechanical re-take of its own words, on
 **VIEW stands at 73 open / 91 closed, nothing waiting on Ev** — 72
 before this lane, plus the sweep-count row above. The item itself stays
 OPEN: one hit of three is done.
+
+## 2026-09-15 — `ui-thread-work-after-the-index-seam` hit (2): DIAGNOSED, not fixed
+
+Took the measurement unit the item's (2) section asked for and stopped
+where the brief said stopping was an outcome. **Neither candidate the
+item named is what the time is.**
+
+- **The walk is linear and it runs at copy-loop speed**: 53–67
+  ns/triangle across `hollow_tube_ring`, `tube_ring`, `loft_prism`,
+  `hollow_tube_elbow` and `die_composed_tour`, spanning 6.4× in
+  triangle count and both δ rows. `PickIndex::parts()` is ONE part on
+  all five, and `SceneMesh::stats().triangles` equals the
+  tessellation's own count exactly — so the walk is over the product's
+  triangles once, not several times.
+- **The item's "~5 µs per triangle" and its "ten times a full
+  tessellation" are both the same arithmetic error**: the 5 123 ms is
+  δ=1e-5 and the 511 ms tessellation it is divided by is δ=1e-4 (I
+  measure 518 ms there). At equal δ `hollow_tube_ring` tessellates in
+  **7 349 ms** and `scene_focused` is **0.61× cold, 0.09× steady**.
+- **Where the time goes is first-touch on ~1.25 GB of vertex buffers.**
+  Phase timing inside `build_parts_focused`: every phase that allocates
+  is 6–9× slower on the first build at a given size and flat after;
+  `Aabb::from_points`, which allocates nothing, does not move at all.
+  So a hide or focus change costs **~0.7 s** on the worst corpus
+  document at 1e-5, not 5 s — and the 4–5 s first build is paid by
+  construction, because `ViewerApp::sync_scene` holds the previous
+  `Arc<SceneMesh>` alive across the new build so a refusal leaves the
+  stale picture up.
+
+**Changed nothing, deliberately.** The seam question is now a 0.7 s
+question and the lever is rebuild SCOPE and buffer SIZE rather than
+where the walk runs: a focus change alters 4 of the 108 bytes a
+triangle emits and still rebuilds all of them. That is a change to what
+`SceneMesh` is, and it wants a ruling before a diff. **The item stays
+OPEN**, with the numbers, the phase split and that argument recorded on
+it; (3) also remains untouched.
+
+**Filed:** `scene-mesh-carries-an-identity-index-buffer` — the scene's
+index buffer is `(0..n).collect()`, 139 MB and 8–11 % of the step on
+`hollow_tube_ring` at 1e-5, with one production reader that only wants
+its length. Left for its own unit because it touches the draw call and
+no headless row here has a device.
