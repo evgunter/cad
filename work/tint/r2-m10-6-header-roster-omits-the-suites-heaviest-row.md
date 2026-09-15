@@ -1,9 +1,12 @@
 ---
 id: r2-m10-6-header-roster-omits-the-suites-heaviest-row
-kind: issue
+kind: unit
 title: A test file's own roster lists five of seven rows, omits the heaviest, and names one in the opposite sense
-status: open
+status: closed
 opened: 2026-09-12
+branch: tint/4-roster-weld
+pr: 2687
+closed: 2026-09-15
 ---
 
 
@@ -159,3 +162,40 @@ file has the defect, and the fix is to complete the roster, correct entry
 4's name and sense (an M10 question), and add
 `a_tolerance_study_end_to_end_through_the_public_doors` with its cost
 stated. A mechanical keeper over three files is not worth its own row.
+
+## Closed by TINT-4 (PR #2687, `2101cb36a` on main, 2026-09-15)
+
+Both defects the title names are gone, and the mechanism that removed
+them is `test_utils::roster!` — the header enumeration is now a block of
+the file's own row **idents**, each feeding `let _: fn() = $row;` (a
+retired name is `error[E0425]`), `stringify!($row)` (the compared string
+cannot be mistyped) and the text a human reads, compared against
+libtest's own `--list --format=terse` through a `current_exe()` re-exec.
+No Rust is parsed, so it is not an instance of
+`source-scanning-censuses-are-a-tripwire-on-ordinary-rust`.
+
+**The omitted row is in, and the reversed one was reversed the right
+way round.** The review verified the sense independently: the row
+asserts `assert_ne!(key(&mc_a), key(&mc_b), …)` and
+`crates/editor-core/src/report.rs`'s own "why the dials are in it" block
+agrees, so the lane corrected a wrong header rather than reversing a
+kernel claim.
+
+**What it does NOT enforce, which is the half this row should be
+remembered for.** The weld holds NAMES and never PROSE. Each entry
+carries a sentence, and `$what_it_is_for:literal` is matched and never
+expanded — nothing computes with it. The fix pass's class check over
+those seven sentences found **four wrong or misplaced on arrival**: a
+citation to a deviation that did not put the dials in (D11 does), an
+entry naming a `Violated` the row never asserts, one overclaiming, and
+one correctly restating figures whose own item says they are stated
+nowhere else — making this file a fifth site of a measurement kept
+deliberately to one. The column is now constrained to be a string
+(`const _: &[&str]`, so `row: 42` is `E0308`) and labelled as reading
+nothing, but **a wrong sentence beside a right name still passes.**
+
+Also not enforced: nothing requires a file to HAVE a roster, and the
+weld says nothing about other files' rows, `#[bench]` or no-harness
+targets. A `#[test]` under a nested `mod` is a **violation** rather than
+a silent exemption — the fix pass took that shape so the guard's name,
+which is what CI prints, would be true.

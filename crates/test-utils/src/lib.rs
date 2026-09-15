@@ -3,6 +3,9 @@
 //!
 //! Today it holds:
 //!
+//! - [`census`], the one declared-set-against-witnessed-set
+//!   comparison, so a suite whose subject is a list kept in step by
+//!   hand does not keep a second copy of the comparator that way too.
 //! - [`f6`], the ratified `Display` contract's predicate — a refusal
 //!   renders as a sentence and never as its own `Debug` dump — with the
 //!   variant identifier and the field punctuation read off the value
@@ -41,6 +44,7 @@
 #[cfg(test)]
 mod panic_capture;
 
+pub mod census;
 pub mod f6;
 pub mod fuzz;
 pub mod roster;
