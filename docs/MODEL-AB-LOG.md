@@ -6924,6 +6924,19 @@ GREEN on the head (twelve `test` jobs, five `k-lint (gate, …)`, no
 predicate-count change, no render re-baseline). Sample number at
 merge. Row at merge.
 
+## SENSE-FOLD review ordinal fixed at dispatch (2026-09-15)
+
+`sense-sign-multiplies-fold-onto-outward-normal` (SENSE-FOLD; SCALAR;
+PR #2668 open — frozen head `8a3ca626d`): **ordinal 4107** (SCALAR
+band). Protocol v6 dual: draw = `/dev/urandom` byte **234**, parity 0 ⇒
+**R1 = OPUS, R2 = FABLE**, concurrent on the frozen head, read-side
+isolation (v6 item 5), briefs identical and stored before either ran.
+Pre-draw difficulty **M / structural** (recorded branch-side at the
+block draw; block SCALAR-B3 slot 0). Impl phase: ~415k tokens (harness),
+~1 h 53 min wall; impl CI **34992120996** GREEN on the head (twelve
+`test` jobs, five `k-lint (gate, …)`, no predicate-count change, no
+render re-baseline). Sample number at merge. Row at merge.
+
 ## SCALAR program rows (`work/scalar/`; band 4100–4199; blocks named SCALAR-B<n>)
 
 Protocol v6, implementer ratio 1:2, full dual on every kernel unit;
