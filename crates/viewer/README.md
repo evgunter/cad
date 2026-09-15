@@ -811,6 +811,26 @@ Notices — a tool's declined pick, a survival drop, a
 about another value's failure: the failure renders itself, and what the
 chrome adds is its own subject.
 
+**The line is composed at two levels and they are two marks.**
+`frame::NOTICE_SEPARATOR` goes between two of a frame's notices;
+`frame::LIST_SEPARATOR` goes between the items of a list ONE notice
+carries — a `Withdrawal`'s causes, the preferences path's startup
+notices. One spelling served both until a frame could hold two
+notices, and then a reader could not tell a boundary from the notice
+talking, because a notice is free to write the mark inside its own
+sentence and two of them do. The boundary is
+`frame::NOTICE_MARK`, and `frame::Message::new` — the only door, the
+fields being private — takes that mark out of every text that reaches
+it, while the one constructor that writes it takes `Message`s rather
+than strings, so the only way to a boundary mark is to have had two
+notices and `line.split(NOTICE_SEPARATOR)` returns exactly the ones
+that went in. **The enforcement is at the door and not at the join**: "no
+notice contains the separator" is a claim about strings that no
+signature carries, and the door is the one place where making it true
+costs nothing a reader sees — no producer writes a bullet, and a door
+that refused one would be reachable from the keyboard through the δ
+field's echo of what was typed.
+
 ### The app driver, split for size
 
 `app` is a driver, and a driver too large to read is still a driver.

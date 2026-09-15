@@ -94,6 +94,22 @@ F16 ×1 — 8 shipped sites, tracked as issue #214 and pinned by
 `geom-core/tests/flagged_census.rs`: no new site ships without a row
 here, and the count only moves together with this section).
 
+**The metric door is two doors, and the rate carries its own bound
+direction.** `Margin::metered(span, rate)` takes an
+`InfSpeed<T>` and `Margin::metered_sup(span, rate)` a `SupSpeed<T>` —
+metres per parameter unit, transparent newtypes beside `Margin` in
+`geom-core`, minted at each producer (`speed_lower_bound`,
+`param_rate`, `chart_stretch_sup`, `nurbs_stretch_bounds`, `v_meter`,
+the split and conic meters, `PatchRegularity`'s speeds,
+`plane_nurbs_ssi`'s local chart speed). The direction is the semantic
+content, and the rule that says which a site needs has one home —
+`crates/geom-core/src/predicate.rs`'s module docs, *The rate pair,
+beside the doors*. Before the pair, three shipped sites passed a
+certified sup through a door whose doc promised an inf — correct in each case, argued in prose, checked by
+nothing; the rows below now cite the door that matches the tag. The
+conversions are one operation each (`span * s`, `m / s`), so no
+margin's bits moved when the sites were typed.
+
 **The `- **FNN**` bullet headings in *Findings (dispositions)* below are
 machine-read** (#801). `flagged_census.rs` extracts the fourth argument
 of every shipped `decide_flagged` call and requires it to name one of
@@ -286,8 +302,8 @@ which is what actually moves the number.
 | enters.rs:141 | tangent_sector_order2_arm | caller arm | m | OK |
 | enters.rs:153 | tangent_sector_order2 | normal curvature (1/m) × arm²/2 | m | OK |
 | newell.rs:165 | newell_plane_residual | (p−centroid)·n̂ | m | OK |
-| certify.rs:849/858 | interval_span_forward/winding (Circle) | span·radius / (τ−span)·radius | m | OK |
-| certify.rs:872/877 | interval_span_forward/winding (Ellipse) | span·minor (conservative) | m | OK |
+| certify.rs:849/858 | interval_span_forward/winding (Circle) | span × radius / (τ−span) × radius, through `Margin::metered` | m | OK. The radius IS the carrier's own parameter rate (`|dP/dθ| = r` exactly), the same number `pcurve_cache::param_rate` mints as an `InfSpeed` for a circle, so this crossing goes through the metric door like the Nurbs arm two rows down. Exact ⇒ inf, and both claims here are *definitely apart* (a forward span, headroom to one period), which is the inf side |
+| certify.rs:872/877 | interval_span_forward/winding (Ellipse) | span × minor, through `Margin::metered` | m | OK. `|dP/dθ| ≥ minor`, so the minor semi-axis is a certified LOWER bound on the ellipse's own parameter rate — an `InfSpeed`, the same mint `param_rate` and `splitting::classify` make for the same kind. Conservative in the direction a forward claim needs |
 | certify.rs:883 | interval_span_forward (Line) | span (t IS arc length) | m | OK |
 | certify.rs:1164 | nurbs_span_meter | knot-domain length × speed_lower_bound() — the net's arc-length lower bound, reparametrization-invariant | m | OK (metered door; the collapsed-arm gate on the meter) |
 | certify.rs:1175 | interval_span_forward (Nurbs) | span × (m/param) | m | OK |
@@ -311,15 +327,15 @@ which is what actually moves the number.
 | pcurve_cache.rs:1964 | pcurve_interval_forward (harmonic) | span × param_rate | m | OK |
 | pcurve_cache.rs:1988 | pcurve_azimuth_period (harmonic) | (τ−extent)·azimuth_lever | m | OK |
 | pcurve_cache.rs:1894 | pcurve_interval_meter (fitted/iso gate) | carrier parameter extent × param_rate (a NURBS net's knot domain × its certified speed lower bound) | m | OK (metered door; the collapsed-arm gate) |
-| pcurve_cache.rs:2310 | pcurve_trim_containment | chart-param overhang × `chart_arms_at` (the cone arm from the check's own boxes since M6-3) | m | OK (metered door) |
+| pcurve_cache.rs:2310 | pcurve_trim_containment | chart-param overhang × `chart_arms_at` (the cone arm from the check's own boxes since M6-3) | m | OK (**`metered_sup` door**: `chart_arms_at` answers a `SupSpeed` pair, and an escape metred through a certified upper bound can only refuse) |
 | pcurve_cache.rs:2382 / :2868 | pcurve_interval_forward (fitted / iso) | span × param_rate — a NURBS carrier's rate IS its certified speed lower bound | m | OK (metered door; the meter gated at :1894) |
 | pcurve_cache.rs:2397 | pcurve_azimuth_period (fitted) | rad headroom × `chart_arms_at`'s azimuth lever (the cone's `v_sup·sin α`) | m | OK (levered door) |
 | pcurve_cache.rs:1664 | pcurve_chart_radial_moving | Σ m-norms BARE (amplitude is metres) | m | FIXED (M6-3) |
 | pcurve_cache.rs:1680/1772/1791 | pcurve_chart_orientation / sphere meridian | m² ÷ radius | m | OK |
 | pcurve_cache.rs:1752 | pcurve_sphere_chart_frame | m at :1770, dimensionless at :1836 (tie-break) | mixed | FLAG (note N5) |
 | pcurve_cache.rs:1759–1829 | pcurve_sphere_chart_* | m-scaled coefficients / rooted | m | OK |
-| pcurve_cache.rs (iso lane, M7) | pcurve_iso_boundary / iso_axis_u/v / iso_domain | chart-param values/extents/overhangs × stretch bounds (m per chart unit); two definite non-zero `pcurve_iso_boundary` verdicts route the seam class through a `pcurve_iso_domain` decide of the fixed channel's overshoot (× `stretch_u`; a column outside the domain refuses typed) to the collapsed-row hull (an interior column, `nurbs_iso::interior_iso_u`), whose slack is the channel's drift alone — no snap term | m | OK (metered door; added by the clause-(i) migration) |
-| pcurve_cache.rs (ARC-RIM iso class, M8-3) | pcurve_interval_forward / pcurve_iso_boundary | span × `param_rate` = arc LENGTH (the class's carrier is a `Curve3::Circle` by construction, so the rate is the radius); the sub-arc weight residual `w − cos(h/2)` metered at the radius | m | OK (metered door; its rate cannot be poison, which is why it carries no meter gate) |
+| pcurve_cache.rs (iso lane, M7) | pcurve_iso_boundary / iso_axis_u/v / iso_domain | chart-param values/extents/overhangs × stretch bounds (m per chart unit); two definite non-zero `pcurve_iso_boundary` verdicts route the seam class through a `pcurve_iso_domain` decide of the fixed channel's overshoot (× `stretch_u`; a column outside the domain refuses typed) to the collapsed-row hull (an interior column, `nurbs_iso::interior_iso_u`), whose slack is the channel's drift alone — no snap term | m | OK (**`metered_sup` door**: `nurbs_stretch_bounds` answers a `SupSpeed` pair and every row here meters an overshoot or a snap slack; door added by the clause-(i) migration) |
+| pcurve_cache.rs (ARC-RIM iso class, M8-3) | pcurve_interval_forward / pcurve_iso_boundary | span × `param_rate` = arc LENGTH (the class's carrier is a `Curve3::Circle` by construction, so the rate is the radius); the sub-arc weight residual `w − cos(h/2)` metered at the radius | m | OK (metered door, so an `InfSpeed`: the class's rate is a circle radius, an exact rate and therefore an inf bound, and it cannot be poison — which is why it carries no meter gate. The arc rim's chart-column knot deviation, metred through `stretch_u`, takes `metered_sup` with the rest of the iso lane) |
 | pcurve_cache.rs (iso/fitted lanes) | pcurve_envelope | certified sup bound (m); on the seam class the traversed row's control-difference hull, a boundary row's copy or an interior column's de Boor collapse (each collapsed control point encloses the exact one at the interval scalar, so the hull's upper end still bounds the sup) | m | OK (added by the clause-(i) migration) |
 | pcurve_cache.rs (chart derivation, M6-3) | pcurve_cone/sphere/torus_chart_axial / _centered / chart_radial_moving | axial displacement sums; radial-offset norms; Σ m-norms | m | OK (added by the clause-(i) migration) |
 | pcurve_cache.rs (chart derivation) | pcurve_chart_orientation / sphere/torus_chart_meridian | oriented area a×b·n̂ over its radius lever (m²/m) | m | OK (over_lever door; added by the clause-(i) migration) |
@@ -394,9 +410,9 @@ which is what actually moves the number.
 | census.rs:666 | pm_census_ee_parallel | sin(unit dirs) × min(edge lengths) | m | FIXED (was bare sine) |
 | census.rs:812/831 | pm_census_confirm_* | distances / residuals | m | OK |
 | merge_faces.rs:924 | bool_ring_run_winding | (n̂ · Newell sum) / loop perimeter | m | FIXED (F4) |
-| pcurves.rs:976 (`azimuth_arm`) / :1086 (`v_meter`) | pcurve_loop_continuity / closure(_height) | Δu×`azimuth_arm`; Δv×`v_meter` | m on every chart kind. The AZIMUTH charts take their local lever (r, r·cos v, R+r·cos v, v·sin α) and the sphere/torus second channel its polar radius; a PLANE answers exactly 1 on both channels because its u/v ARE metres; a SPLINE chart (`Nurbs`/`Approx`, and the same for a placeholder's absent net) answers `geom_brep::chart_stretch_sup`'s `(sup \|S_u\|, sup \|S_v\|)` — the chart's own metre stretch | m | OK. Both channels of the spline arm are metred through the exported sup bound; sup is the conservative side at both callers, which make ESCAPE claims (`pcurve_loop_continuity` asks whether a joint gap keeps the loop closed, `pcurve_loop_pole_joint` whether a lever is collapsed), so an over-stated arm refuses and never certifies. Not a `decide_flagged` site |
+| pcurves.rs (`chart_u_arm`, `v_meter`) | pcurve_loop_continuity / closure(_height) | Δu × `chart_u_arm`; Δv × `v_meter` | m on every chart kind. The AZIMUTH charts take their local lever (r, r·cos v, R+r·cos v, v·sin α) and the sphere/torus second channel its polar radius; a PLANE answers exactly 1 on both channels because its u/v ARE metres; a SPLINE chart (`Nurbs`/`Approx`, and the same for a placeholder's absent net) answers `geom_brep::chart_stretch_sup`'s `(sup \|S_u\|, sup \|S_v\|)` — the chart's own metre stretch | m | OK. Both channels of the spline arm are metred through the exported sup bound; sup is the conservative side at both callers, which make ESCAPE claims (`pcurve_loop_continuity` asks whether a joint gap keeps the loop closed, `pcurve_loop_pole_joint` whether a lever is collapsed), so an over-stated arm refuses and never certifies. Not a `decide_flagged` site. **Which door the u channel takes is the chart kind's answer, carried in the arm's type** (`ChartArm`): on the angular kinds Δu is an ANGLE and the arm is metres per radian, so `Margin::levered`; on a plane or spline chart Δu is a chart-PARAMETER span and the arm is a `SupSpeed`, so `Margin::metered_sup` — the same door and the same reason as the v channel, whose rate `v_meter` answers (an exact polar radius is a sup by being exact; a spline chart's is one by derivation) |
 | pcurves.rs | pcurve_iso_side / pcurve_loop_pole_joint | chart-image point distance; local azimuth lever (m) | m | OK (added by the clause-(i) migration) |
-| split.rs:197 | split_edge_param_interior | param spans × per-kind rate (1 / radius / minor / speed bound) | m | OK |
+| split.rs:197 | split_edge_param_interior | param spans × per-kind rate (1 / radius / minor / speed bound) | m | OK (metered door; the rate is an `InfSpeed` on every kind — the three closed forms by being exact, the net by `speed_lower_bound`'s derivation — which is what an interiority claim needs) |
 | transform.rs:139 | transform_rigid_* (7 residuals) | unit-column/orthogonality/det residuals, no arm | dimensionless | FLAG F10 |
 | transform.rs:155 | transform_rigid_trans_finite_* | t·0 poison probe (0 or NaN by construction) | — | OK |
 | validate.rs:1662/1847 | planar_face/boundary_residual | plane residuals | m | OK |
@@ -414,7 +430,7 @@ which is what actually moves the number.
 | splitting/rules.rs:132/151/202 | split_sector_extent / coplanar / enters arm | extent; sin×extent | m | OK |
 | splitting/rules.rs:179 | tangent_sector_osculation | κ(1/m) × face-extent²/2 | m | FLAG F11 |
 | chord_join.rs:710 | split_sphere_section_polar | sin(axes) × sphere radius | m | OK |
-| chord_join.rs:1114 | split_tangent_chord_forward | dimensionless param diff × ‖dir‖ | m | OK |
+| chord_join.rs:1114 | split_tangent_chord_forward | dimensionless param diff × ‖dir‖ | m | OK (metered door; a line's ‖dir‖ is its exact speed and so an `InfSpeed`) |
 | chord_join.rs:855 | split_arc_window (×5) | azimuth (rad) × chart radius | m | OK for cylinder; FLAG F8 for the sphere wall (arm R vs local R·cos lat) |
 | chord_join.rs:926 | split_arc_chart_orientation | cos × semi-major (= r for the plane×cyl ellipse) | m | OK |
 | chord_join.rs:1411 | split_conic_inplane_mid | plane residual at midpoint | m | OK |
@@ -624,7 +640,7 @@ Flagged, NOT fixed here (dispositions):
   discarded drift carried by check 4's envelope in metres.
 - **F6** pcurve chart arms — **RETIRED**. M6-3 closed most of it
   (`chart_stretch_sup` answers (r, r) for spheres and (R+r, r) for tori, and
-  `pcurves.rs::azimuth_arm` is the LOCAL lever — r·cos v etc., zero at
+  `pcurves.rs::chart_u_arm` is the LOCAL lever — r·cos v etc., zero at
   poles/apex, which the walk exploits). The residue closed with F7:
   `param_rate` answers a NURBS carrier's certified speed lower bound,
   so the fitted and iso `pcurve_interval_forward` spans cross to the
@@ -633,7 +649,7 @@ Flagged, NOT fixed here (dispositions):
   idiom); and the fitted lane's azimuth headroom takes
   `chart_arms_at`'s lever, so the cone's arm is `v_sup·sin α` from the
   check's own boxes rather than 1. The last residue — the spline
-  charts' `1` at `pcurves.rs::azimuth_arm` and at the two `v_meter`
+  charts' `1` at `pcurves.rs::chart_u_arm` and at the two `v_meter`
   fallbacks — is closed too: `geom_brep::chart_stretch_sup` is the
   exported sup-side bound, `topo` meters both channels through it,
   and a spline chart's arms are now the net's own stretch rather
@@ -851,7 +867,7 @@ Flagged, NOT fixed here (dispositions):
   walk's own `pcurve_loop_closure` / `pcurve_loop_closure_height`
   names, with NO period allowed, because the description needs the
   closure the walk's `± τ` arm deliberately admits to be excluded. Same
-  quantity, same arms (`azimuth_arm`, `v_meter`), same dimension — the
+  quantity, same arms (`chart_u_arm`, `v_meter`), same dimension — the
   row two tables up covers it, and the population grows rather than
   splitting.
 

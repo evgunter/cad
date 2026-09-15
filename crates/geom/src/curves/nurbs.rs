@@ -904,7 +904,11 @@ macro_rules! nurbs_curve {
             /// A **certified lower bound** on `‖C′(t)‖` over the whole
             /// domain, in meters per parameter unit — the "meter" a
             /// parameter-space margin must be multiplied by to become a
-            /// length (D4 ¶1).
+            /// length (D4 ¶1). It is an
+            /// [`InfSpeed`](geom_core::InfSpeed) by signature: the
+            /// bound direction is what every consumer relies on (a
+            /// span this meter proves forward IS forward in metres),
+            /// and under-stating is what makes that sound.
             ///
             /// This is the rung-3 analogue of the conic lane's
             /// conservative meters (`Circle` ⇒ radius, `Ellipse` ⇒ the
@@ -1062,16 +1066,16 @@ macro_rules! nurbs_curve {
             /// discriminates assembly structure, never geometry: the
             /// geometric decision (is the bound positive?) stays with
             /// the caller's trilean.
-            pub fn speed_lower_bound(&self) -> T {
+            pub fn speed_lower_bound(&self) -> geom_core::InfSpeed<T> {
                 let poison = T::from_f64(f64::NAN);
                 // Rational ⇒ the convexity argument does not hold
                 // directly; the quotient-rule arm takes over.
                 if self.weights.iter().any(|w| *w != 1.0) {
-                    return self.rational_speed_lower_bound();
+                    return geom_core::InfSpeed::new(self.rational_speed_lower_bound());
                 }
                 let p = self.knots.degree();
                 if p == 0 || self.control.len() < 2 {
-                    return poison;
+                    return geom_core::InfSpeed::new(poison);
                 }
                 let knots = self.knots.knots();
                 // Derivative coefficients, once for the curve:
@@ -1082,15 +1086,15 @@ macro_rules! nurbs_curve {
                 let mut coeffs = Vec::with_capacity(self.control.len() - 1);
                 for i in 0..(self.control.len() - 1) {
                     let (Some(a), Some(b)) = (self.control.get(i), self.control.get(i + 1)) else {
-                        return poison;
+                        return geom_core::InfSpeed::new(poison);
                     };
                     let (Some(&lo), Some(&hi)) = (knots.get(i + 1), knots.get(i + p + 1)) else {
-                        return poison;
+                        return geom_core::InfSpeed::new(poison);
                     };
                     let du = hi - lo;
                     #[allow(clippy::neg_cmp_op_on_partial_ord)]
                     if !(du > 0.0) {
-                        return poison;
+                        return geom_core::InfSpeed::new(poison);
                     }
                     #[allow(clippy::cast_precision_loss)]
                     let scale = T::from_f64(p as f64) / T::from_f64(du);
@@ -1100,7 +1104,7 @@ macro_rules! nurbs_curve {
                 // original arm, verbatim — same direction, same fold
                 // order, bit-identical where it was defined). ----
                 let (Some(first), Some(last)) = (self.control.first(), self.control.last()) else {
-                    return poison;
+                    return geom_core::InfSpeed::new(poison);
                 };
                 let global = {
                     let chord = *last - *first;
@@ -1145,10 +1149,10 @@ macro_rules! nurbs_curve {
                         // (doc: "Poison", the stated asymmetry with
                         // chord-collapse abstention).
                         if span >= self.control.len() {
-                            return poison;
+                            return geom_core::InfSpeed::new(poison);
                         }
                         let Some(active) = coeffs.get(lo_i..span) else {
-                            return poison;
+                            return geom_core::InfSpeed::new(poison);
                         };
                         // The span's own control chord, as unit
                         // direction; collapse ⇒ 0/0 ⇒ this span
@@ -1158,7 +1162,7 @@ macro_rules! nurbs_curve {
                         let (Some(a), Some(b)) =
                             (self.control.get(lo_i), self.control.get(span))
                         else {
-                            return poison;
+                            return geom_core::InfSpeed::new(poison);
                         };
                         let chord = *b - *a;
                         let d = chord / chord.norm();
@@ -1173,12 +1177,12 @@ macro_rules! nurbs_curve {
                     acc.unwrap_or(poison)
                 };
                 // ---- The join (doc: "The join"). ----
-                match (global.is_poison(), perspan.is_poison()) {
+                geom_core::InfSpeed::new(match (global.is_poison(), perspan.is_poison()) {
                     (true, true) => poison,
                     (true, false) => perspan,
                     (false, true) => global,
                     (false, false) => global.max(perspan),
-                }
+                })
             }
 
             /// The **rational arm** of [`Self::speed_lower_bound`]: a
