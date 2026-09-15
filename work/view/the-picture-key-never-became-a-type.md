@@ -2,8 +2,11 @@
 id: the-picture-key-never-became-a-type
 kind: issue
 title: The (generation, delta) picture key is spelled five ways and its two cache fields have no stated invariant
-status: open
+status: closed
 opened: 2026-09-05
+branch: view/picture-key
+pr: 2670
+closed: 2026-09-15
 ---
 
 
@@ -62,3 +65,26 @@ actually encode.
 
 Cosmetic today. Filed because the unit that introduced the key also
 introduced the one bug it prevents, one review round apart.
+
+## Closed
+
+`PictureKey` is the type — the landed generation and the δ its roots
+were tessellated at, one value, private fields, `PartialEq` over the
+pair, and `PictureKey::of` the only door. Every site that asks *is
+this the same picture?* now holds one of these: `PickIndex::key` and
+`PickIndex::current_for`, `IndexRequest`/`IndexDone`'s `key` field and
+`<IndexRequest as Job>::supersedes`, `PickCache`'s one `Attempt`, and
+`ViewerApp::scene_key` through `pane::viewport::drawn_index`.
+
+The two fields collapsed. `PickCache::outstanding` was always either
+`None` or exactly `attempted` — verified by reading every write to
+both, of which there are four — so the pair is one value with a state,
+`Attempt::Asked(key)` and `Attempt::Answered(key)`. A cache waiting on
+a picture other than the one attempted is now unrepresentable rather
+than merely absent.
+
+Both named non-members stayed non-members:
+`<FitRequest as Job>::supersedes` still compares
+`(generation, requested)` and now says at the impl why it is not this
+key; `frame::IdQueryLog` and `frame::IdSubject` were not touched at
+all.
