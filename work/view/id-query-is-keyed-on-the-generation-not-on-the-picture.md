@@ -5,6 +5,7 @@ title: The id query is re-asked on a new generation, so a scene rebuilt at the s
 status: review
 opened: 2026-09-15
 branch: view/id-query-key
+pr: 2622
 ---
 
 
