@@ -148,6 +148,15 @@ impl SolidName {
         // control characters that break the one-line grammar, and at or
         // above 0x7F are DEL and everything non-ASCII, which no STL
         // reader agrees on the encoding of.
+        //
+        // This band equals Part 21's basic alphabet, which the two
+        // STEP crates spell for themselves, and the equality is a
+        // COINCIDENCE of two independent rules — this one is what an
+        // ASCII-STL line can carry, that one is what a STEP exchange
+        // file can carry. They are deliberately not shared: one
+        // constant would make widening STEP widen STL silently, and
+        // the day either standard is read differently the other must
+        // not move.
         match name.chars().find(|c| !(' '..='~').contains(c)) {
             Some(character) => Err(SolidNameError::Unrepresentable { character }),
             None => Ok(Self(name)),

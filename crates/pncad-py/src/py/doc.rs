@@ -161,6 +161,17 @@ pub(crate) fn edit_err(py: Python<'_>, err: &d::EditError) -> PyErr {
 /// the document layer's arms fill are present and `None`: the class's
 /// shape is one shape at every raise site, whichever side of the
 /// boundary decided it.
+///
+/// **Where the `variant` comes from**, and it is not "always
+/// `crate::tags`": the test is whether a kernel enum arm stands
+/// behind the refusal. Where one does, the word is that enum's to
+/// state and comes from its tag function even though the raise site
+/// is here — `Doc.insert`'s `no_minted_id` and `Node.placed_union`'s
+/// count-spelling refusal are the two live cases, and deriving them
+/// is what keeps each ONE word with the kernel door that publishes
+/// the same one. Where none does — a `serde_json` failure has no
+/// arm anywhere — the word is minted here because there is nothing
+/// to consult, and the site says so.
 fn boundary_edit_err(py: Python<'_>, variant: &'static str, message: String) -> PyErr {
     typed_err(
         py,
@@ -601,6 +612,13 @@ pub(crate) fn slot_expr(
 /// from either round-trips through the other.
 pub(crate) fn name_text(py: Python<'_>, name: &pncad::prelude::StableName) -> PyResult<String> {
     serde_json::to_string(name).map_err(|err| {
+        // Not a kernel arm: nothing in the document layer refuses a
+        // name for failing to serialize — `StableName` has one
+        // serialization and it does not fail — so there is no enum
+        // whose word this could be, and the tag is minted here. That
+        // is the exception `boundary_edit_err` names, and it is the
+        // reason the surrounding rule is "from the arm's enum where
+        // one exists" rather than "always through `crate::tags`".
         boundary_edit_err(
             py,
             "name_serialize",
@@ -1007,7 +1025,19 @@ impl Doc {
         self.insert_node(node.inner.clone())
             .map_err(|err| edit_err(py, &err))?
             .ok_or_else(|| {
-                boundary_edit_err(py, "no_minted_id", "an insert minted no node id".to_owned())
+                // The SAME contract violation `declare` refuses —
+                // an insert applied and minted nothing — reached
+                // through a second door, so it is the same word to a
+                // caller and takes it from the same place rather
+                // than restating it. Both raise `EditError` with
+                // this tag, no inner variant and no payload, so the
+                // two are interchangeable on the wire as well as in
+                // meaning.
+                boundary_edit_err(
+                    py,
+                    crate::tags::declare_error_tag(&pncad::select::DeclareError::NoMintedId),
+                    "an insert minted no node id".to_owned(),
+                )
             })
     }
 

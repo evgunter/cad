@@ -93,3 +93,60 @@ so it can never appear in an overlap pair, and its announcement surface
 lives entirely in prose that nothing checks.
 
 Nothing on this slate now waits on Ev. `S415` is still the opener.
+
+## 2026-09-15 — S415, the three boundary residues (implementer lane)
+
+All three closed on `port/s415-boundary-residues`. None of the files
+are PORT's: `crates/step-import/*`, `crates/step-export/*` and
+`crates/stl/*` are **EXCH's**, `crates/pncad-py/*` is **LIB's**. The
+unit is announced to both in the PR body; either may take the row's
+successors instead.
+
+**Three of the row's premises were wrong**, two of them corrected in
+the spec and one found here. The spec's two held: the printable-ASCII
+band is **two formats** (Part 21, read and written) and not three, and
+`no_minted_id` **does** have a kernel enum behind it. The third is the
+spec's own: it said the two `no_minted_id` paths differ on the wire
+because `declare_err` "carries the arm's fields" — it does not for
+that arm, which passes `(None, EditPayload::NONE)` exactly as
+`boundary_edit_err` does. The two were byte-identical to a Python
+caller, and only the human message differed. That changed the verdict
+from "a defect a caller can hit" to "a synonym nothing would have
+reported", which is the shape the LIB filing below carries.
+
+**Judgement calls taken**, since the spec left all three open:
+
+- The scaffold guard is a **post-condition on the minted endpoint**,
+  not a pre-condition on `p`: it states the rule the two sites share
+  (a strut with coincident endpoints cannot certify) rather than
+  today's arithmetic for reaching it, and it survives a change in the
+  offset. Both sites share it outright, as two free functions in
+  `assemble.rs` — `coincide` and `strut_endpoint`.
+- `plant`'s coincidence check moved from **bitwise to value
+  equality**. Bitwise is narrower than the hazard: `0.0` and `-0.0`
+  are different bits and the same point, and the chord between them
+  is still zero-length.
+- **The Part 21 duplication stays.** A shared home would need a new
+  crate or a dependency edge between the two STEP crates, and the
+  kernel is no place for a text-format constant (D-layering). What
+  changed is that it is disclosed at all three sites — the two STEP
+  sites as a mirrored pair, the STL site as a coincidence deliberately
+  not shared — and that both bounds are pinned by a test at each STEP
+  site, which neither had.
+
+**Filed outside the fence** (§6), both in the same PR:
+
+- `work/exch/step-scaffold-strut-offset-is-absolute-in-a-unit-free-format`
+  — the second half the row did not name: `1.0` is absolute in a
+  format whose coordinates carry no unit contract. The degenerate
+  half is closed here; the magnitude is a design call on EXCH's
+  ground.
+- `work/lib/boundary-minted-refusal-tags-are-pinned-nowhere-and-share-the-kernel-namespace`
+  — the tag inventory re-derives itself by reading `src/tags.rs`, so
+  the three words minted at raise sites (`name_serialize`,
+  `not_utf8`, `wireframe`) are outside its reach: their values are
+  pinned nowhere and nothing would have reported the `no_minted_id`
+  collision.
+
+The **M** estimate held: four crates, three judgement calls, two
+filings, no ruling in front of any of it.

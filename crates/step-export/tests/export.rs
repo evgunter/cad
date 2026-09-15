@@ -215,6 +215,67 @@ fn product_name_escaping() {
     }
 }
 
+/// The Part 21 basic alphabet the writer admits, with **both bounds
+/// pinned** and the two characters just outside them.
+///
+/// `product_name_escaping` above proves one character above the band
+/// refuses; that alone cannot see the band widened to DEL, and cannot
+/// see it narrowed off the space or the tilde. The admissible rows
+/// also reach a file, so the two halves cannot drift apart.
+///
+/// This band is a disclosed copy of `step_import`'s `string_body`
+/// (`quoted`'s docs say why the two are stated separately); the
+/// mirror row is `parser::part21_basic_alphabet_bounds_on_the_read_path`
+/// in `step-import`.
+#[test]
+fn part21_basic_alphabet_bounds() {
+    let body = common::cube();
+    let verdict = |name: &str| -> Result<String, ()> {
+        let options = StepOptions {
+            product_name: name.to_owned(),
+            uncertainty_m: Some(1e-9),
+            ..StepOptions::default()
+        };
+        match step_string(&body, &options, Tol::witness()) {
+            Ok(text) => Ok(text),
+            Err(StepExportError::UnrepresentableString { .. }) => Err(()),
+            other => panic!("expected a written file or UnrepresentableString, got {other:?}"),
+        }
+    };
+    for (name, admissible) in [
+        // The bounds themselves: 0x20 and 0x7E.
+        ("part ", true),
+        ("part~", true),
+        // The two characters immediately outside them.
+        ("part\u{1f}", false),
+        ("part\u{7f}", false),
+        // The classes the band exists to keep out: the record
+        // separator that would break the one-record-per-line
+        // reading, and everything non-ASCII.
+        ("part\n", false),
+        ("k\u{fc}bel", false),
+        ("part\u{2014}rev", false),
+        ("emoji\u{1f600}", false),
+    ] {
+        match (verdict(name), admissible) {
+            (Ok(text), true) => assert!(
+                text.contains(&format!("PRODUCT('{name}', '{name}', '', (")),
+                "an admissible name must reach the file verbatim: {name:?}"
+            ),
+            (Err(()), false) => {}
+            (written, _) => panic!(
+                "{name:?} must be {}, got {}",
+                if admissible { "written" } else { "refused" },
+                if written.is_ok() {
+                    "written"
+                } else {
+                    "refused"
+                }
+            ),
+        }
+    }
+}
+
 // ------------------------------------------------------ typed refusals
 
 /// The M4 refusal this row used to be — `common::ball()` refusing as

@@ -167,8 +167,16 @@ impl<'a> Cursor<'a> {
     /// A string literal (after the opening `'`): `''` unescapes to
     /// `'`, `\\` to `\`. Content is the Part 21 basic alphabet only —
     /// a raw byte outside 0x20..=0x7E or an undecoded control
-    /// directive (`\S\`, `\X2\…`) refuses typed rather than mangling
-    /// (the writer enforces the mirror-image boundary on export).
+    /// directive (`\S\`, `\X2\…`) refuses typed rather than mangling.
+    ///
+    /// **The band is a DISCLOSED COPY of one rule.** `step_export`'s
+    /// `quoted` is the mirror of this reader on the write path, over
+    /// the same paragraph of the same standard, and the two are
+    /// stated separately only because the crates share nothing but
+    /// the kernel — which is no home for a text-format constant. If
+    /// Part 21's alphabet is ever read differently, both move. The
+    /// identical band in `stl`'s `SolidName` is NOT this rule and
+    /// does not move with it (that site says so).
     ///
     /// **Wrapped literals (M7-4 Leg A).** ST-Developer folds its output
     /// at column ~72 wherever it happens to be, including the middle of

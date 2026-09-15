@@ -492,6 +492,15 @@ pub fn write_step<W: std::io::Write>(
 /// Quotes `s` as a Part 21 string literal: surrounding apostrophes,
 /// `'` doubled, `\` doubled; any character outside the basic alphabet
 /// (0x20..=0x7E) is a typed refusal.
+///
+/// **The band is a DISCLOSED COPY of one rule.** `step_import`'s
+/// `string_body` is the mirror of this writer on the read path, over
+/// the same paragraph of the same standard, and the two are stated
+/// separately only because the crates share nothing but the kernel —
+/// which is no home for a text-format constant. If Part 21's
+/// alphabet is ever read differently, both move. The identical band
+/// in `stl`'s `SolidName` is NOT this rule and does not move with it
+/// (that site says so).
 fn quoted(s: &str, context: &'static str) -> Result<String, StepExportError> {
     let mut out = String::with_capacity(s.len() + 2);
     out.push('\'');
