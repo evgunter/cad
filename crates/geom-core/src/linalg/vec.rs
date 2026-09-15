@@ -874,7 +874,7 @@ mod tests {
             prop_assert!((pp.z - p.z).abs() <= 1e-12 * m);
         }
 
-        /// The Pixar basis over random unit vectors: orthonormality
+        /// The frame over random unit vectors: orthonormality
         /// residuals within a few ulps and right-handedness
         /// (b1 × b2 = n up to rounding). Error budget: every
         /// intermediate is O(1) (unit input, |a| ≤ 1), each component
@@ -1148,7 +1148,7 @@ mod tests {
             assert_eq!((b1.x, b1.y, b1.z), (w1.x, w1.y, w1.z), "b1 at {n:?}");
             assert_eq!((b2.x, b2.y, b2.z), (w2.x, w2.y, w2.z), "b2 at {n:?}");
         }
-        // A vertical wall — the whole equator, where `n.z² = 0` takes
+        // A vertical wall — the whole equator, where `|n.z| = 0` takes
         // the `e_z` arm: `b1` is horizontal in the plane and `b2` is
         // up. The old sign-transfer construction put its seam here.
         let wall = Vec3::new(0.6, 0.8, 0.0);
@@ -1606,11 +1606,11 @@ mod tests {
 
     /// **The equator, at the input the sign-transfer construction could
     /// not answer.** A VERTICAL plane's normal has `n.z = 0`, so
-    /// `|n.z| = 0 ≤ max(|n.x|, |n.y|)` DECIDES: the frame is the EXACT in-plane
-    /// horizontal, not a bounded hull of two hemispheres. The
-    /// comparison reads a squared value and not a sign bit, so `+0.0`
-    /// and `−0.0` give the same answer and a point enclosure of either
-    /// decides.
+    /// `|n.z| = 0 ≤ max(|n.x|, |n.y|)/2` DECIDES: the frame is the
+    /// EXACT in-plane horizontal, not a bounded hull of two
+    /// hemispheres. The comparison reads a MAGNITUDE and not a sign
+    /// bit, so `+0.0` and `−0.0` give the same answer and a point
+    /// enclosure of either decides.
     ///
     /// The horizontal cap `n = ±e_z` is the other exact case, at the
     /// far end of the same comparison (`|n.z| = 1 > 0`).
