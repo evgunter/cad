@@ -54,6 +54,24 @@
 //! prints the `SKIPPED (…)` line naming the coverage this run did not
 //! deliver.
 //!
+//! **On the gate that line reaches nobody, and nothing here makes a
+//! stand-down go red.** nextest captures a passing test's stdout and
+//! throws it away unless `--success-output` says otherwise; every gating
+//! `cargo nextest run` passes no such flag, whose default is `never`, no
+//! `nextest.toml` exists in this tree to set one, and the single job
+//! that does pass the flag builds `viewer --features app`, where no call
+//! site compiles. So the announcement is for a local run, a
+//! `--no-capture` run, or a run someone asked for the flag on.
+//!
+//! The channel is the smaller half. `stood_down` has **no failing
+//! path**: a row that stood down where it could have asserted is the
+//! same green as a row that asserted, and would be even if every word
+//! reached the log. Turning that red is not a louder print — it is a
+//! floor the ROW states about its own condition, which is that row's
+//! posture to argue and not this door's to impose. It cannot be a
+//! suite-wide count either, because nextest runs each test in its own
+//! process and no tally survives the row that built it.
+//!
 //! `stood_down` is for a mode that is *unreachable in this
 //! configuration*, never for one that merely did not happen to come up.
 //! The second case is what the floor is for. And a stand-down states why
@@ -61,19 +79,24 @@
 //! assert the budget is D9's, genuinely overrun, at a finer-than-default
 //! ε before they announce.
 //!
-//! **The hand-rolled in-row `println!`s that predated this module are
-//! converted, so every in-row stand-down in `crates/` goes through this
-//! door.** Nothing guards that, so read it as a sweep result rather than
-//! an invariant: what the sweep matched is `SKIPPED (` / `SKIPPED:` over
-//! `crates/*/{src,tests}`, so it cannot see a stand-down announced
-//! without the word — an `eprintln!("standing down …")`, a `dbg!`, or a
-//! comment where a print should be — and it does not reach `demos/`,
-//! `tools/` or `interval-transcendentals/`.
+//! **The hand-rolled in-row `println!`s a sweep found were converted;
+//! that every in-row stand-down in `crates/` goes through this door is
+//! not a claim this module can make.** Nothing guards it, and the
+//! sweep's blind spot has a known occupant: in
+//! `crates/editor-core/tests/m10_5_r1_probes_interval.rs`,
+//! `a_partial_revolve_band_reports_its_phantom_turn` asserts nothing in
+//! three of its four arms and announces each through a bare `println!`
+//! the pattern cannot match. What the sweep matched is `SKIPPED (` /
+//! `SKIPPED:` over `crates/*/{src,tests}`, so it sees no stand-down
+//! announced without the word — an `eprintln!("standing down …")`, a
+//! `dbg!`, or a comment where a print should be — and it does not reach
+//! `demos/`, `tools/` or `interval-transcendentals/`.
 //!
-//! The four whole-binary
-//! `interval_lane_skipped_no_certified_coverage_here` rows are a
+//! The whole-binary `#[cfg]`-gated `*_lane_skipped_*` marker rows are a
 //! different idiom and deliberately not converted: their entire body is
-//! the announcement, and `memories/test-suite-cost.md` names them.
+//! the announcement, and they have the working half this door lacks —
+//! their NAME reaches the PASS list, which is the payload a gating run
+//! actually carries. `memories/test-suite-cost.md` names them.
 
 use std::collections::BTreeMap;
 
@@ -198,6 +221,15 @@ impl core::fmt::Display for Exposure {
 /// `what_is_not_asserted` states the claim this run did not make, in the
 /// row's own words. A stand-down that says only "skipped" leaves the
 /// reader to work out what the green meant.
+///
+/// **What this does not do.** It is a print, and it is the whole
+/// mechanism: it cannot fail, it counts nothing, and no floor reads it.
+/// It does not make the row it stands in visible as a skip — the name
+/// that reaches a gating run's PASS list is the row's own, which says
+/// the row passed. And on every gating job the line itself is discarded
+/// (see this module's docs), so the reader it addresses is a local one.
+/// A caller that needs a stand-down something can go RED on has to state
+/// a floor over its own condition; this door will not supply one.
 pub fn stood_down(label: &str, what_is_not_asserted: &str) {
     println!("SKIPPED ({label}): {what_is_not_asserted}");
 }

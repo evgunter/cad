@@ -310,23 +310,26 @@ fn indeterminate_wording_forwards_the_causes_own_words() {
     prose(&shown, "TargetFailed");
 }
 
-/// **Loud skip.** The row below needs `viewer::app`, which is not in a
-/// default-feature build; say so rather than letting the run report
-/// one fewer test and nothing else. Its seat is the hosted row
-/// `cargo nextest run -p viewer --features app`
+/// **Loud skip.** The `app`-gated rows in this file need `viewer::app`,
+/// which is not in a default-feature build; say so rather than letting
+/// the run report fewer tests and nothing else. Their seat is the
+/// hosted row `cargo nextest run -p viewer --features app`
 /// (`.github/workflows/ci.yml`).
 ///
-/// **This row closes no gate and cannot fail** — its payload is its
-/// NAME in the PASS list. It names ONE row, so a second `app`-gated
-/// row added to this file leaves the marker quietly incomplete;
-/// nothing mechanical says so.
+/// **This row closes no gate and cannot fail, and only its NAME
+/// travels.** Every gating `cargo nextest run` discards a passing
+/// test's stdout, so the line below is read on a local run and nowhere
+/// else. The name is therefore the whole payload, and it names the
+/// FEATURE and this file — not a list of rows, which would go stale
+/// inside a body no gating run can read.
 #[cfg(not(feature = "app"))]
 #[test]
-fn app_lane_skipped_startup_error_arms_not_checked_here() {
+fn app_lane_skipped_no_error_display_coverage_here() {
     println!(
-        "SKIPPED (no --features app): startup_error_forwards_every_payload_arm \
-         does not run - `StartupError`'s forwarding of the camera, scene and \
-         document arms is unchecked in this build."
+        "SKIPPED (no --features app): error_display.rs contributes NO coverage \
+         of the app's error wording in this run - its rows are the \
+         `#[cfg(feature = \"app\")]` ones in this file, which the compiler keeps, \
+         and they run only where the `app` feature is built."
     );
 }
 

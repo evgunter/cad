@@ -22,15 +22,21 @@
 /// and an empty binary reports "0 passed" — which reads like coverage
 /// in a battery summary. Announce the skip instead, so a lane that
 /// silently lost its certified rows is visible in the log.
+///
+/// **This row closes no gate and cannot fail, and only its NAME
+/// travels.** Every gating `cargo nextest run` discards a passing
+/// test's stdout, so the line below is read on a local run and nowhere
+/// else. The name is therefore the whole payload, and it names the
+/// FEATURE and this file — not a list of rows, which would go stale
+/// inside a body no gating run can read.
 #[cfg(not(feature = "interval"))]
 #[test]
 fn interval_lane_skipped_no_certified_coverage_here() {
     println!(
         "SKIPPED (no --features interval): m5_s12_curved_ops_interval.rs \
-         contributes NO certified coverage in this run — the S12 rows \
-         (bitwise curved revert, definite curved subtract/intersect, the \
-         mixed-sense split's inherited bit, the S13 sphere re-cut row) \
-         run only in the interval lane."
+         contributes NO certified coverage in this run — its rows are the \
+         `#[cfg(feature = \"interval\")] mod certified` below, which the \
+         compiler keeps, and they run only in the interval lane."
     );
 }
 

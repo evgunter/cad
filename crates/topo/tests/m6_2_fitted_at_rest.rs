@@ -183,13 +183,21 @@ fn the_band_is_the_runs_own() {
 /// **Loud skip.** Without `--features interval` this file contributes
 /// no certified coverage, and a lane that silently lost its interval
 /// rows must stay visible in the battery log.
+///
+/// **This row closes no gate and cannot fail, and only its NAME
+/// travels.** Every gating `cargo nextest run` discards a passing
+/// test's stdout, so the line below is read on a local run and nowhere
+/// else. The name is therefore the whole payload, and it names the
+/// FEATURE and this file — not a list of rows, which would go stale
+/// inside a body no gating run can read.
 #[cfg(not(feature = "interval"))]
 #[test]
 fn interval_lane_skipped_no_certified_coverage_here() {
     println!(
         "SKIPPED (no --features interval): m6_2_fitted_at_rest.rs contributes NO \
-         certified coverage in this run — the fitted-cache-at-rest certificate \
-         derived AT THE INTERVAL SCALAR is the row that shows the SSI lift happened."
+         certified coverage in this run — its rows are the `#[cfg(feature = \
+         \"interval\")] mod certified` below, which the compiler keeps, and they \
+         run only in the interval lane."
     );
 }
 

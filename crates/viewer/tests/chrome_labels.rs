@@ -21,17 +21,20 @@
 /// archive builds this crate at default features and so carries this
 /// marker instead.
 ///
-/// **This row closes no gate and cannot fail** — its payload is its
-/// NAME in the PASS list, nothing more. It does not go red if the
-/// rows it stands in for change, so the list it recites is kept by
-/// hand and a stale one would read exactly like a current one.
+/// **This row closes no gate and cannot fail, and only its NAME
+/// travels.** Every gating `cargo nextest run` discards a passing
+/// test's stdout, so the line below is read on a local run and nowhere
+/// else. The name is therefore the whole payload, and it names the
+/// FEATURE and this file — not a list of rows, which would go stale
+/// inside a body no gating run can read.
 #[cfg(not(feature = "app"))]
 #[test]
 fn app_lane_skipped_no_chrome_coverage_here() {
     println!(
         "SKIPPED (no --features app): chrome_labels.rs contributes NO chrome \
-         coverage in this run - the toolbar's document name and the initial \
-         layout's shape are pinned only where the `app` feature is built."
+         coverage in this run - its rows are the `#[cfg(feature = \"app\")] mod \
+         chrome` below, which the compiler keeps, and they are pinned only \
+         where the `app` feature is built."
     );
 }
 
