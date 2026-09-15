@@ -6,6 +6,7 @@ status: closed
 opened: 2026-09-05
 closed: 2026-09-15
 branch: view/seam-panic
+pr: 2637
 ---
 
 

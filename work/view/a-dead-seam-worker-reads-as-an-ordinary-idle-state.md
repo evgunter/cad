@@ -4,6 +4,7 @@ kind: issue
 title: A seam whose worker has died is indistinguishable, in the chrome, from one with nothing to do
 status: open
 opened: 2026-09-15
+refs: [2637]
 ---
 
 
