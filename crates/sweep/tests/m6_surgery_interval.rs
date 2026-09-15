@@ -12,26 +12,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-/// **Loud skip.** Without `--features interval` this binary is empty;
-/// announce the skip so a lane that silently lost its certified rows
-/// stays visible in the battery log.
-///
-/// **This row closes no gate and cannot fail, and only its NAME
-/// travels.** Every gating `cargo nextest run` discards a passing
-/// test's stdout, so the line below is read on a local run and nowhere
-/// else. The name is therefore the whole payload, and it names the
-/// FEATURE and this file — not a list of rows, which would go stale
-/// inside a body no gating run can read.
-#[cfg(not(feature = "interval"))]
-#[test]
-fn interval_lane_skipped_no_certified_coverage_here() {
-    println!(
-        "SKIPPED (no --features interval): m6_surgery_interval.rs \
-         contributes NO certified coverage in this run — its rows are the \
-         `#[cfg(feature = \"interval\")] mod certified` below, which the \
-         compiler keeps, and they run only in the interval lane."
-    );
-}
+test_utils::loud_skip_marker!(
+    feature = "interval",
+    row = interval_lane_skipped_no_certified_coverage_here,
+    absent = "certified coverage of the M6 composition surgery",
+);
 
 #[cfg(feature = "interval")]
 mod certified {

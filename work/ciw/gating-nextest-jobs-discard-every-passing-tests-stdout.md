@@ -75,22 +75,28 @@ bodies a reader.** The options and their cost:
 reach now say plainly that the body reaches a local run and nothing
 else, so nothing in the tree overstates the channel while this is open.
 
-## If this is repaired, nine rustdoc paragraphs become false
+## If this is repaired, the prose that states it has to move too
 
-TINT-2 wrote the channel fact into the rustdoc of each marker it could
-reach, in these words:
+**No count is given here on purpose** — a hand-kept list of the places a
+fact is written is the same defect this row's own subject is about. The
+list is derivable, and the command is the record:
 
-> **This row closes no gate and cannot fail, and only its NAME
-> travels.** Every gating `cargo nextest run` discards a passing test's
-> stdout, so the line below is read on a local run and nowhere else.
+```
+grep -rn 'success-output\|passing test' --include=*.rs crates/ \
+  | grep -v '^crates/test-utils/src/vacuity.rs'
+```
 
-The nine are `crates/viewer/tests/{chrome_labels,error_display,panel_display}.rs`,
-`crates/sweep/tests/{m5_s12_curved_ops_interval,m5_s13_pips_interval,m6_surgery_interval,review_fillet_e3_probes,blend_margin_payload_interval}.rs`
-and `crates/topo/tests/m6_2_fitted_at_rest.rs`; a tenth site,
-`crates/viewer/src/lib.rs`, is `work/view/viewer-lib-marker-claims-the-log-carries-its-sentence`.
-`crates/test-utils/src/vacuity.rs`'s module docs say it once more, for
-`stood_down`. **Whoever takes option 1 or 2 above edits those eleven
-sentences in the same PR.** They are prose rather than one shared
-constant because an integration-test binary cannot intra-doc-link into
-another crate's module and rustdoc does not build these targets at all,
-so there is nowhere for a single spelling to live.
+plus `crates/test-utils/src/vacuity.rs` itself, whose section *What a
+passing row prints reaches nobody on the gate* is the **single** home of
+the claim: TINT-2 moved the marker copies behind
+`test_utils::loud_skip_marker!`, so the nine files that each stated it now
+state nothing and the macro states it once. What the grep still finds
+outside that section are the rows that argue their own posture from it
+— at this writing `crates/geom-brep/tests/m5_pr7_ssi.rs`,
+`crates/geom-brep/tests/r2_cert6_probes.rs` and
+`crates/step-import/tests/cert5_r1_import_probes.rs`, each in its own
+words because each is about a different row.
+
+One site is outside TINT's fence and outside this grep's crate list:
+`crates/viewer/src/lib.rs`, filed as
+`work/view/viewer-lib-marker-claims-the-log-carries-its-sentence`.

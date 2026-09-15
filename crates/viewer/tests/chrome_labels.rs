@@ -10,33 +10,11 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-/// **Loud skip.** Without `--features app` this suite is empty:
-/// `viewer::app` does not exist in the build, so neither does anything
-/// it names. Announce that rather than letting a run report the whole
-/// suite as absent — a green lane over rows that were never compiled
-/// says the same thing as a green lane over rows that passed.
-///
-/// The rows below gate under `cargo nextest run -p viewer --features
-/// app` (`.github/workflows/ci.yml`) and nowhere else; the workspace
-/// archive builds this crate at default features and so carries this
-/// marker instead.
-///
-/// **This row closes no gate and cannot fail, and only its NAME
-/// travels.** Every gating `cargo nextest run` discards a passing
-/// test's stdout, so the line below is read on a local run and nowhere
-/// else. The name is therefore the whole payload, and it names the
-/// FEATURE and this file — not a list of rows, which would go stale
-/// inside a body no gating run can read.
-#[cfg(not(feature = "app"))]
-#[test]
-fn app_lane_skipped_no_chrome_coverage_here() {
-    println!(
-        "SKIPPED (no --features app): chrome_labels.rs contributes NO chrome \
-         coverage in this run - its rows are the `#[cfg(feature = \"app\")] mod \
-         chrome` below, which the compiler keeps, and they are pinned only \
-         where the `app` feature is built."
-    );
-}
+test_utils::loud_skip_marker!(
+    feature = "app",
+    row = app_lane_skipped_no_chrome_coverage_here,
+    absent = "coverage of the chrome's labels",
+);
 
 #[cfg(feature = "app")]
 mod chrome {
