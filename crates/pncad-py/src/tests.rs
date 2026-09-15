@@ -5856,6 +5856,24 @@ fn the_tag_table_reader_refuses_a_pattern_that_closes_before_its_arrow() {
     );
 }
 
+/// **A `pub const fn` map in this file is refused, and says why.**
+///
+/// `src/tags.rs` holds no `const` map today, so nothing else drives
+/// this rung — and the form is not hypothetical: every map in
+/// `src/errors.rs` has it, which is what makes "move the map here"
+/// wrong as stated wherever that is proposed. `TopForm::Const` matches
+/// on `pub const `, a PREFIX of `pub const fn `, so without the
+/// refusal above the line is read as a malformed `&str` const and the
+/// message names the wrong thing.
+#[test]
+#[should_panic(expected = "a `pub const fn` tag map")]
+fn the_tag_table_reader_refuses_a_const_fn_map() {
+    read_tag_table(
+        "pub const fn dimension_tag(dim: Dimension) -> &'static str {\n    \
+         match dim {\n        Dimension::Length => \"length\",\n    }\n}\n",
+    );
+}
+
 /// One tag function's body, read into (values, delegates) — and the
 /// arm shapes the reader dispatched on getting there.
 fn parse_tag_body(
@@ -5948,7 +5966,11 @@ impl TopForm {
             Self::OptionTagFn => {
                 after("pub fn ").filter(|rest| rest.ends_with(") -> Option<&'static str> {"))
             }
-            Self::Const => after("pub const "),
+            // `pub const ` is a prefix of `pub const fn `, and the two
+            // are different forms rather than a well-formed one and a
+            // malformed one. Refusing the second here sends it to the
+            // ladder below, which says what it is.
+            Self::Const => after("pub const ").filter(|rest| !rest.starts_with("fn ")),
         }
     }
 }
@@ -5981,6 +6003,14 @@ fn top_form<'a>(code_line: &'a str, line: &str, number: usize) -> (TopForm, &'a 
          neither `(..) -> &'static str {{` nor \
          `(..) -> Option<&'static str> {{` on one line — I do not \
          understand this, and cannot say what it puts on the wire: {line}"
+    );
+    assert!(
+        !code_line.starts_with("pub const fn "),
+        "tags.rs:{number}: a `pub const fn` tag map. This reader's two function \
+         forms strip `pub fn `, so a `const` one is a form it has never been \
+         taught — every map in `src/errors.rs` has this shape, which is why \
+         moving one here verbatim does not work. Teach this reader in the same \
+         diff that adds the construct: {line}"
     );
     panic!(
         "tags.rs:{number}: I do not understand this top-level line, so the tag \
@@ -6978,8 +7008,9 @@ fn the_errors_mint_census_cannot_see_a_word_that_is_not_a_literal() {
          {{\n        crate::tags::validation_refusal_tag(self)\n    }}\n}}\n",
         errors_source()
     );
-    assert!(
-        minting_complaints(&read_minting_items(&arrival)).is_empty(),
+    assert_eq!(
+        minting_complaints(&read_minting_items(&arrival)),
+        minting_complaints(&read_minting_items(&errors_source())),
         "the blind spot this test records has closed — say so and delete it"
     );
 }
