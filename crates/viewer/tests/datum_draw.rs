@@ -66,7 +66,14 @@ fn draws(doc: &Doc<ProfileProgram>, tol: Tol, eye: [f64; 3]) -> Vec<datums::Datu
     datums::draws(doc, &evaluation, view_from(eye))
 }
 
-/// The largest distance between any drawn point and `centre`.
+/// The largest distance between any drawn point and `centre`, or
+/// `NaN` if any of them is not a distance.
+///
+/// The fold is NOT `f64::max`, which answers with the other operand
+/// against a `NaN` and would report a drawing containing `[NaN, NaN,
+/// NaN]` as reaching however far its finite positions do. This is the
+/// instrument the refusal rows measure with, so a substitution inside
+/// it reads as a passing assertion.
 fn reach(segments: &[[f64; 3]], centre: [f64; 3]) -> f64 {
     segments
         .iter()
@@ -74,7 +81,25 @@ fn reach(segments: &[[f64; 3]], centre: [f64; 3]) -> f64 {
             let (dx, dy, dz) = (p[0] - centre[0], p[1] - centre[1], p[2] - centre[2]);
             (dx.powi(2) + dy.powi(2) + dz.powi(2)).sqrt()
         })
-        .fold(0.0_f64, f64::max)
+        .fold(0.0_f64, |acc, d| {
+            if acc.is_nan() || d.is_nan() {
+                f64::NAN
+            } else {
+                acc.max(d)
+            }
+        })
+}
+
+/// Every segment's length, as a list, so a row can say what a drawing
+/// is made of rather than only that its numbers are finite.
+fn segment_lengths(segments: &[[f64; 3]]) -> Vec<f64> {
+    segments
+        .chunks_exact(2)
+        .map(|pair| {
+            let (a, b) = (pair[0], pair[1]);
+            ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt()
+        })
+        .collect()
 }
 
 /// A plane datum, a point datum and an axis datum.
@@ -766,29 +791,36 @@ fn every_position(drawn: &[datums::DatumDraw]) -> Vec<(DatumKind, [f64; 3])> {
         .collect()
 }
 
-/// **A datum out at the end of the number line rules nothing rather
-/// than ruling one line at infinity.**
+/// **A datum out at the end of the number line draws nothing, rather
+/// than a ruling whose lines have no length.**
 ///
-/// The patch's centre is an ordinary point — the looked-at origin —
-/// so every door this module has says yes: the scale is a hundredth
-/// of a metre, the pitch has a rung and the patch has a half-width.
-/// What overflows is the datum's own coordinate in the plane's
-/// basis, `f64::MAX` away, so one direction's index bounds come out
-/// `inf` and `inf`.
+/// The plane here is `z = 0` and its origin is a point on it at
+/// `x = f64::MAX`. The camera is aimed at the world origin, which is
+/// ALSO on that plane — so the patch's centre is an ordinary point a
+/// decimetre from the eye and every scale door says yes. What cannot
+/// survive is the datum's own magnitude: the patch's ends are
+/// `cv ± half` in the plane's coordinates with `cv ≈ 1.8e308` and
+/// `half ≈ 0.26`, and `half` is far below the spacing of the
+/// representable numbers there, so both ends round to `cv`.
 ///
-/// **The value that makes this false** is `[-inf, NaN, NaN]`: with an
-/// INCLUSIVE range over a count cast from `inf - inf`, a NaN
-/// difference saturates to the integer zero and `0..=0` rules exactly
-/// one line, at `inf * pitch`. A legitimate count of zero means one
-/// line too, which is why the cast alone cannot tell the two apart
-/// and why the bounds are asked whether they are bounds.
+/// **Two values make this false, and the second is why the row does
+/// not stop at finiteness.**
+///
+/// - `[-inf, NaN, NaN]`, twice per plane-like kind: an INCLUSIVE
+///   range over a count cast from `inf - inf` rules one line at
+///   `inf * pitch`, because the saturating cast reads a NaN
+///   difference as the integer zero that means "one line fits".
+/// - **27 zero-length segments** per plane-like kind, every one at
+///   `[0, y, 0]`: finite, in the right plane, and not lines. A gate
+///   that asks only `is_finite` passes them, and an assertion that
+///   asks only `is_finite` gets EASIER as the answer degrades —
+///   which is what a ruling collapsed onto its own centre is.
 #[test]
 fn a_datum_at_the_end_of_the_number_line_rules_no_line_at_infinity() {
     let far = [f64::MAX, 0.0, 0.0];
     let (doc, tol) = evaluated(one_of_each(far));
     let view = view_at([0.0, -0.15, 0.1], [0.0, 0.0, 0.0]);
     let drawn = drawn_under(&doc, tol, view);
-    assert_eq!(drawn.len(), 4, "this row needs all four kinds drawn");
     let stray: Vec<_> = every_position(&drawn)
         .into_iter()
         .filter(|(_, p)| !p.iter().all(|c| c.is_finite()))
@@ -799,6 +831,43 @@ fn a_datum_at_the_end_of_the_number_line_rules_no_line_at_infinity() {
         stray.len(),
         &stray[..stray.len().min(4)],
     );
+    // The half this row exists for: what IS drawn has to be drawn.
+    for d in &drawn {
+        let lengths = segment_lengths(&d.segments);
+        let dead = lengths.iter().filter(|n| n.is_nan() || **n <= 0.0).count();
+        assert_eq!(
+            dead,
+            0,
+            "the {} drew {dead} of {} segments with no length, the first pair at {:?}",
+            d.kind.label(),
+            lengths.len(),
+            d.segments.first(),
+        );
+    }
+    // At this magnitude every mark refuses, which is the right answer
+    // and also an answer a TOTAL refusal would satisfy. So the
+    // premise is asserted against the same four datums brought back
+    // to the origin, under the same view: nothing above is a fact
+    // about the module declining to draw.
+    let (near_doc, near_tol) = evaluated(one_of_each([0.0, 0.0, 0.0]));
+    for (far_drawn, near_drawn) in drawn.iter().zip(&drawn_under(&near_doc, near_tol, view)) {
+        assert_eq!(
+            far_drawn.kind, near_drawn.kind,
+            "the two drawings disagree on order"
+        );
+        assert!(
+            far_drawn.segments.is_empty(),
+            "the {} drew {} positions at f64::MAX, the first at {:?}",
+            far_drawn.kind.label(),
+            far_drawn.segments.len(),
+            far_drawn.segments.first(),
+        );
+        assert!(
+            !near_drawn.segments.is_empty(),
+            "the {} drew nothing at the ORIGIN, so this row proves nothing about f64::MAX",
+            near_drawn.kind.label(),
+        );
+    }
 }
 
 /// **A camera aimed at something that is not a place draws nothing
@@ -949,6 +1018,12 @@ fn a_viewport_that_is_not_a_number_of_pixels_rules_nothing() {
 /// **The value that makes this false** is a line at `2 * pitch`,
 /// `0.005 m` from a patch about `9e-4 m` wide — a ruling of a patch
 /// that lies entirely between two lattice lines.
+///
+/// **Both aims are driven**, because "ruled none" is satisfied by
+/// anything that declines to rule at all: a guard that refused a
+/// four-pixel viewport outright would turn the first half green for
+/// the wrong reason. The second half is the same view moved onto a
+/// lattice line, where one line per direction is the answer.
 #[test]
 fn a_patch_between_two_lattice_lines_rules_neither() {
     let (doc, tol) = evaluated(vec![plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0])]);
@@ -957,33 +1032,38 @@ fn a_patch_between_two_lattice_lines_rules_neither() {
     // once.
     let per_pixel = view_at([0.0, 0.0, 0.1], [0.0, 0.0, 0.0]).metres_per_pixel_at_one_metre * 0.1;
     let pitch = grid_pitch(per_pixel).expect("a positive finite scale has a rung");
-    // Aim at the middle of a cell in both directions: the nearest
-    // lattice line each way is half a pitch off, and the patch is far
-    // narrower than that.
-    let aim = 1.5 * pitch;
-    let look_at = [-aim, aim, 0.0];
-    let mut view = view_at([look_at[0], look_at[1], 0.1], look_at);
-    view.viewport_px = 4.0;
-    // The premise, asserted rather than assumed. The patch's
-    // half-width is `viewport_px * cover * 0.5 * per_pixel` and
-    // `cover` is private, so this bounds it generously at a cover of
-    // four and still clears half a pitch by three decades.
-    let half_bound = view.viewport_px * 2.0 * per_pixel;
-    assert!(
-        half_bound < pitch * 0.5,
-        "this row needs a patch narrower than a cell: {half_bound:e} m against {pitch:e} m",
-    );
-    let segments = &drawn_under(&doc, tol, view)[0].segments;
-    let ruled: Vec<_> = segments
-        .chunks_exact(2)
-        .filter(|pair| pair[0][2].abs() < 1.0e-12 && pair[1][2].abs() < 1.0e-12)
-        .collect();
-    assert!(
-        ruled.is_empty(),
-        "a patch between two lattice lines ruled {} of them: {:?}",
-        ruled.len(),
-        ruled.first(),
-    );
+    // Aimed at the middle of a cell, then at a lattice line. The
+    // plane's normal is +z, so `basis` gives `u = +y` and `v = -x`
+    // and a look_at of `[-a, a, 0]` puts both patch coordinates at
+    // `a`.
+    for (multiple, want) in [(1.5_f64, 0), (2.0, 2)] {
+        let aim = multiple * pitch;
+        let look_at = [-aim, aim, 0.0];
+        let mut view = view_at([look_at[0], look_at[1], 0.1], look_at);
+        view.viewport_px = 4.0;
+        // The premise, asserted rather than assumed, and read from
+        // the module rather than restated: the patch's half-width is
+        // `viewport_px * patch_cover() * 0.5 * per_pixel`, so a
+        // four-pixel window's patch is a thousandth of a cell and
+        // holds at most the one lattice line it straddles.
+        let half = view.viewport_px * datums::patch_cover() * 0.5 * per_pixel;
+        assert!(
+            half < pitch * 0.5,
+            "this row needs a patch narrower than a cell: {half:e} m against {pitch:e} m",
+        );
+        let segments = &drawn_under(&doc, tol, view)[0].segments;
+        let ruled: Vec<_> = segments
+            .chunks_exact(2)
+            .filter(|pair| pair[0][2].abs() < 1.0e-12 && pair[1][2].abs() < 1.0e-12)
+            .collect();
+        assert_eq!(
+            ruled.len(),
+            want,
+            "a patch centred {multiple} pitches from the origin ruled {} lines: {:?}",
+            ruled.len(),
+            ruled.first(),
+        );
+    }
 }
 
 /// **`datum_view` carries a window that is not a number of pixels
@@ -1032,7 +1112,11 @@ fn datum_view_does_not_repair_a_viewport_that_is_not_pixels() {
         // axis's whole drawing and the plane's ruling.
         let (doc, tol) = evaluated(one_of_each([0.0, 0.0, 0.0]));
         let drawn = drawn_under(&doc, tol, view);
-        assert_eq!(drawn.len(), 4, "this row needs all four kinds drawn");
+        // A fixture check and nothing more: `draws` pushes one
+        // `DatumDraw` per datum node whatever it draws, so this
+        // counts the document, not the drawing. What each kind DREW
+        // is the loop below.
+        assert_eq!(drawn.len(), 4, "the fixture is meant to cover every kind");
         for d in &drawn {
             let patch_sized = height_px.is_nan() || d.kind == DatumKind::Axis;
             assert_eq!(

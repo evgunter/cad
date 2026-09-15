@@ -124,9 +124,21 @@ pub struct View {
     /// whole of the perspective arithmetic here.
     ///
     /// From the camera as `2 * tan(fov_y / 2) / viewport_height_px`.
+    ///
+    /// **Not promised to be a length.** A window with no height has no
+    /// such scale, and this field carries that rather than repairing
+    /// it: the division above hands back `inf` for a zero height and
+    /// `NaN` for one that is not a number ([`datum_view`]).
+    /// [`View::metres_per_pixel_at`] is where a value that is not a
+    /// scale is refused, once, for every mark.
     pub metres_per_pixel_at_one_metre: f64,
     /// The window's larger side, in pixels — what a patch has to
     /// overflow to be un-pannable-off.
+    ///
+    /// **Not promised to be a pixel count**, for the reason above and
+    /// with the same disposal: a window that is not a number of pixels
+    /// arrives here as `NaN` and [`View::half_patch_at`] draws no
+    /// patch for it.
     pub viewport_px: f64,
 }
 
@@ -266,6 +278,18 @@ pub fn grid_pitch(metres_per_pixel: f64) -> Option<f64> {
 /// a rarely-seen edge with arithmetic that blows up as the angle goes
 /// to zero.
 const PATCH_COVER: f64 = 2.2;
+
+/// **How many windows across a drawn plane's patch spans** — the
+/// value of [`PATCH_COVER`], read rather than restated.
+///
+/// Public for `Camera::pitch_limit`'s reason: it is a *contract* a
+/// test has to reason against — a patch narrower than one cell rules
+/// at most one line — and a test that restates it as a literal is a
+/// hand-synced copy of a private constant, which is the defect this
+/// accessor exists to remove. One home; read it.
+pub fn patch_cover() -> f64 {
+    PATCH_COVER
+}
 
 /// **What one grid cell aims to span on screen**, in pixels.
 ///
@@ -653,14 +677,41 @@ fn rule_patch(
         let count = ((last - first) as usize)
             .saturating_add(1)
             .min(MAX_GRID_LINES);
+        // **A ruled line has to come out a line**, and being finite
+        // is not enough to make one. The patch's ends are `cv ± half`
+        // in the plane's own coordinates; at a datum origin near the
+        // end of the number line, `half` is below the spacing of the
+        // representable numbers around `cv`, so both ends round to
+        // `cv` and every segment's two endpoints land on the same
+        // point. Nothing is non-finite and nothing is out of place —
+        // the patch's EXTENT is simply gone, and a list of
+        // zero-length segments is a ruling this function did not
+        // compute wearing the shape of one it did.
+        //
+        // Built and then committed, so the answer is the whole
+        // ruling or none of it: a direction that loses its extent
+        // loses it for every line (the loss is in `hi - lo`, which
+        // does not vary with `t`), and a partial ruling would be the
+        // same substitution one line smaller.
+        let mut lines = Vec::with_capacity(count * 2);
         for i in 0..count {
             let t = (first + i as f64) * pitch;
-            if along_u {
-                out.extend([at(t, lo), at(t, hi)]);
+            let (a, b) = if along_u {
+                (at(t, lo), at(t, hi))
             } else {
-                out.extend([at(lo, t), at(hi, t)]);
+                (at(lo, t), at(hi, t))
+            };
+            let span = (a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2);
+            if span > 0.0 {
+                lines.extend([a, b]);
+            } else {
+                // Zero, or not a number: the endpoints coincide, or
+                // the subtraction of two overflowed coordinates left
+                // no separation to measure. Neither is a line.
+                return;
             }
         }
+        out.append(&mut lines);
     };
     let (u_lo, u_hi) = (cu - half, cu + half);
     let (v_lo, v_hi) = (cv - half, cv + half);
@@ -775,10 +826,15 @@ fn cross(a: Vec3<f64>, b: Vec3<f64>) -> Vec3<f64> {
 
 /// `v` normalized, or the x axis where it has no length.
 ///
-/// The fallback is unreachable from [`basis`] — a unit normal crossed
-/// with the world axis it is least aligned with has length at least
-/// `1/√3` — and it is here rather than an assertion because a datum
-/// nobody can see is a better failure than a panic in a paint path.
+/// The fallback is unreachable from [`basis`], and `v` cannot be
+/// non-finite there either. A `UnitVec3` refuses a direction whose
+/// length is not a finite number at construction
+/// (`topo::query::UnitVec3Error::NonFiniteLength`), so `n` arrives a
+/// genuine unit vector; the axis `n` is least aligned with has
+/// `|n · e| ≤ 1/√3`, so the cross has length
+/// `√(1 − (n · e)²) ≥ √(2/3)`. It is a fallback rather than an
+/// assertion because a datum nobody can see is a better failure than
+/// a panic in a paint path.
 fn unit(v: Vec3<f64>) -> Vec3<f64> {
     let len = (v.x.powi(2) + v.y.powi(2) + v.z.powi(2)).sqrt();
     if len > 0.0 {

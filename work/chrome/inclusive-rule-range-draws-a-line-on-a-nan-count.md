@@ -99,5 +99,29 @@ a four-pixel viewport: a line at `0.02 m`, `0.005 m` outside a patch
 `9.1e-4 m` wide. Asserted by
 `datum_draw::a_patch_between_two_lattice_lines_rules_neither`.
 
-The `MAX_GRID_LINES` cap is unchanged and still a cap; it is applied
-after the count is known to be a count.
+**The cap's effective maximum MOVED, by one line per direction, and
+saying so is the point.** `((last - first) as usize).min(96)` under an
+INCLUSIVE `0..=count` drew up to **97** lines; the exclusive
+`.saturating_add(1).min(96)` under `0..count` draws up to **96**. The
+const is named `MAX_GRID_LINES` and its doc reads "The most grid lines
+one plane draws per direction", which was false by one before this
+change and is true after it — so the stored behaviour that moved is
+the one the doc already claimed. No golden or render baseline covers
+it (nothing in the tree asserts 97, and the grid rows count lattice
+membership rather than lines), which is why it would otherwise have
+moved silently.
+
+**A fourth thing the cast could not say, filed rather than fixed:**
+`MAX_GRID_LINES` still truncates a genuine count above 96 and returns
+the result as a ruling, with nothing marking it partial — see
+`max-grid-lines-truncates-a-ruling-and-calls-it-one`.
+
+**A fifth, fixed in the same closure after review measured it:** a
+ruling whose two endpoints coincide. At a datum origin near the end of
+the number line the patch's ends `cv ± half` both round to `cv`, so
+the extent is lost and every segment comes out zero-length — finite,
+in the right plane, and not a line. 27 of them per plane-like kind for
+a datum at `f64::MAX`. The bounds check now asks the emitted geometry
+whether it is geometry, and the ruling is built and committed whole so
+a direction that loses its extent rules nothing rather than something
+shorter.

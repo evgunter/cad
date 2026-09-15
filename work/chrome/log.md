@@ -637,3 +637,40 @@ non-finite rung).
 Filed on the way: `datum-view-propagates-rather-than-refusing-by-name`
 and `a-datum-the-view-cannot-scale-vanishes-without-a-word`, both
 needing an edit in `pane/viewport.rs`, which is VIEW's.
+
+### Fix pass on the same branch, after the style review
+
+Nineteen findings; six changed the tree.
+
+- **The flagship row certified a wrong drawing.** A datum at
+  `f64::MAX` on the `z = 0` plane, looked at from the origin, drew
+  **27 zero-length segments** per plane-like kind: the patch's ends
+  `cv ± half` both round to `cv` at that magnitude, so the extent is
+  lost and every segment's two endpoints coincide. Finite, in the
+  right plane, not lines — and a row asserting only `is_finite` gets
+  EASIER as that degrades. `rule_patch` now asks the emitted geometry
+  whether it is geometry and commits a direction's ruling whole or not
+  at all; the row asserts positive segment length and carries a
+  near-datum control so a total refusal cannot satisfy it.
+- **`MAX_GRID_LINES`' effective maximum moved from 97 to 96** and
+  nothing said so. Now stated on the closing row: the const's doc said
+  96 all along and was false by one before this change.
+- `PATCH_COVER` gained `patch_cover()`, on `Camera::pitch_limit`'s
+  argument — a loose bound in a test is a hand-synced copy with a
+  fudge factor.
+- `reach`, the instrument three refusal rows measure with, folded with
+  `f64::max` and would have reported a drawing containing `NaN` as
+  reaching however far its finite positions did.
+- `View`'s two field docs now carry the contract the sweep changed,
+  instead of a justification sitting a screen away on `datum_view`.
+- `unit`'s comment claimed a cross-product bound of `1/√3`; the bound
+  on the cross is `√(2/3)` and `1/√3` bounds the COMPONENT. That
+  comment is one of the two sites the sweep closed by argument.
+
+Filed rather than fixed: `max-grid-lines-truncates-a-ruling-and-calls-it-one`,
+`four-spellings-of-one-finiteness-predicate-in-datums-rs` (the sweep
+added the third and fourth), and
+`viewer-substituted-value-class-is-crate-wide`, which carries the
+population the next sweep should start from — six unslated members in
+`sketch.rs`, `scene.rs`, `bounds.rs`, `camera.rs` and `app.rs`, all
+VIEW's ground this week.

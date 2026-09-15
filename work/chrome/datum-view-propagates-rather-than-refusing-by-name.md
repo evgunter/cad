@@ -50,3 +50,32 @@ caller's and not the door's.
 `crates/viewer/src/datums.rs` and `crates/viewer/src/pane/viewport.rs`
 — CHROME's and VIEW's; the call-site edit needs VIEW's lane or its
 consent.
+
+## This is the closing unit minting an instance of its own class
+
+Recorded here so it is not re-derived later as a surprise. `NaN` in
+`View::viewport_px` is a value the function did not compute, sitting
+in a field shaped like one it did — the shape
+`docs/REVIEW-STYLE-DISPATCH.md` §2 names as *"the fix reproducing the
+defect it closes"*, minted at the last site the sweep touched.
+
+It is the honest option given the fence: the field's type is `f64`,
+the alternative inside the fence is a floor (the defect), and the
+alternative outside it is this row. What makes it survivable rather
+than a second defect is that `View`'s two field docs now say the
+fields are not promised to be a scale or a pixel count, and every door
+below refuses both — so nothing reads the value as a number. What it
+still is not is a refusal a caller can see.
+
+## Territory
+
+**VIEW acts on this, not CHROME.** The call site is
+`ViewerBehavior::viewport_ui` in `crates/viewer/src/pane/viewport.rs`,
+at its one `datum_view(self.camera, viewport)` call inside the
+`show_datums` block — the only in-tree caller. The edit is to take
+`datum_view`'s `Option`/`Result` and skip the datum loop (or badge)
+when it refuses; the `datums.rs` half is CHROME's and is a signature
+change plus the door's own check.
+
+Filed on CHROME's slate because the substituted value lives in
+`datums.rs`, which is CHROME's; it cannot be discharged without VIEW.
