@@ -107,3 +107,40 @@ makes this a ruling.
 
 The other site the row excused, `docs/DOCM-7-SPEC.md:107`, is gone with
 the spec as predicted.
+
+## NOT settled by the 2026-09-15 ruling — and this row is now the only ruling on WIRE's slate
+
+`does-n3-retire-loudly-generalise-to-the-folds-other-compositions` was
+ruled by Ev on PR 2677: a composition that breaks *one name denotes one
+entity* **refuses**, and **offers** where a **unique best** offer exists.
+That answered the other four compositions this program had open. **It
+does not reach this one, and the reason is worth stating so nobody
+applies it here by analogy.**
+
+The rule governs a **reference whose entity went away** — its protected
+value, in Ev's words, is that N3's rejected alternative was *"not even
+refusing, just silently taking the merged descendant"*, i.e. **never
+silently re-point a name**.
+
+Nothing here is re-pointed. No name vanishes, nothing resolves to the
+wrong entity, and no refusal is owed: two member orders produce **two
+valid documents** whose names differ, because the merged face keeps
+operand A's carrier and the `Fragment(OrderAlong)` rows sit on A's rims.
+The volume, the face/edge/vertex counts and the set of `Merged` rows are
+identical either way. There is no reference to refuse and nothing to
+offer, so the rule has no purchase.
+
+**The question this row asks is therefore still open and still Ev's**:
+should the pair verb's merge be **symmetric** — the surviving carrier and
+the fragmented rims picked by a canonical rule over the two names, the
+way `collapse` already canonicalizes a `Seam`'s two sides — or is a
+boolean's names the operands' and the order the author's, with DM4 saying
+so?
+
+What it costs is unchanged and is why it is not a lane's call: the
+symmetric answer **moves `Fragment` rows in every existing
+declared-merge document**, goldens and corpus. And DM4's sentence now
+lives in `crates/editor-core/REFERENCES.md`, which `docs/DESIGN.md`'s
+companion table lists as **Ratified** — so the answer amends ratified
+text either way, by changing what it decides or by adding what it does
+not currently say (that the ORDER shows in the names).

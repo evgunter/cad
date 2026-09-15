@@ -1,6 +1,6 @@
 ---
 id: product-refuses-naming-when-one-instance-is-placed-under-two-roots
-kind: ruling
+kind: issue
 title: product refuses Naming when one instance's names appear under two transform roots, so a document the solve accepts cannot gather
 status: open
 opened: 2026-09-05
@@ -59,3 +59,37 @@ way the ruling goes.
 
 `product.rs` is WIRE's, so the implementing unit lands here once the
 ruling does; the shape it lands in is what is being asked.
+
+## RULED (Ev, PR 2677, 2026-09-15) — re-kinded `ruling` → `issue`
+
+Answered by `does-n3-retire-loudly-generalise-to-the-folds-other-compositions`:
+a composition that breaks *one name denotes one entity* **refuses**, and
+**offers** only where a **unique best** offer exists.
+
+**This row's two options are decided, and the answer is the one already
+half-built.** The gather should **refuse** — which `ProductError::Naming`
+already does — so the refusal's KIND was never the problem. Qualifying a
+pass-through root's names by the root is the other option this row
+offered, and it is not available under the rule: it is not an offer, it
+is a different naming scheme, and there is no *unique best* root because
+both placements are equally the author's.
+
+**What remains is a unit, not a decision.** The row's own complaint
+survives intact: the refusal is **late** (after the last source, at the
+tie-row narrowing) and **in the wrong vocabulary** — it names a collision
+between rows that arrived from different sources, which is not a thing
+the author wrote. `product.rs`'s own comment concedes the addressing
+problem: *"A refusal here names the node that MINTED the colliding name
+rather than a root: the collision is between rows that arrived from
+different sources, so no one root is its author."*
+
+So: refuse **earlier**, and say what the author actually did — one
+instance placed under two roots — rather than reporting a name
+collision. The recipe layer knows the shape before the gather runs.
+
+**The standing fact that makes this worth doing** is unchanged and is
+this row's real severity: **the solve accepts a document the gather
+cannot represent.** Two layers disagree today, and the ruling did not
+change that; it only settled which layer's answer is right.
+
+`crates/editor-core/src/product.rs` is WIRE's, so this lands here.

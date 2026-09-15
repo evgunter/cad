@@ -2,9 +2,9 @@
 id: does-n3-retire-loudly-generalise-to-the-folds-other-compositions
 kind: ruling
 title: N3 rules what a name means when a MERGE consumes its entity; three open rulings ask the same question for four other compositions - does N3's answer generalise?
-status: open
+status: closed
 opened: 2026-09-15
-needs_ev: true
+closed: 2026-09-15
 ---
 
 
@@ -101,3 +101,62 @@ seven rows are rulings rather than units. The first framing offered in
 chat was that the naming layer HAS no one-name-one-entity contract; that
 was wrong, and N3 is the correction — the contract exists, is ratified,
 and covers exactly one composition.
+
+## RULED (Ev, PR 2677, 2026-09-15)
+
+> *"refuse and offer where a unique best offer exists" is good. for
+> context on n3, the decision that was made against was not even
+> refusing, just silently taking the merged descendant*
+
+**The rule, as ratified:** a composition that breaks *one name denotes
+one entity* **refuses**; it **offers** a replacement where a **unique
+best** offer exists, and refuses with no offer where one does not.
+
+**And the second sentence is the load-bearing half.** N3's rejected
+alternative was not "refuse without an offer" — it was **silently taking
+the merged descendant**. So what the rule protects is *never silently
+re-point*; refusing is the floor and the offer is the courtesy above it.
+That is what makes the rule decidable for cases where no offer can be
+computed: the absence of an offer is not a reason to fall back to
+silence.
+
+The mechanism is already shaped for it: `ResolutionFailure::offers` is
+`Vec<StableName>`, documented *"Empty when nothing structural offers
+itself"*, so zero, one and many are all expressible and "refuse with no
+offer" needs nothing built.
+
+## What it settles, case by case
+
+Read against the five compositions this row tabled. **Three are settled,
+one is substantially settled, one is not settled at all** — recorded
+this way rather than as a blanket "yes" because a ruling over-applied is
+the same failure as three inconsistent answers, in the other direction.
+
+| composition | verdict under the rule |
+| --- | --- |
+| **split by a later member** | **Refuse, no offer.** Which fragment the declaration meant is geometric, and DM4's routing step forbids re-measuring there — so no *unique best* offer exists. Settled, with one residue below. |
+| **consumed by containment** | **Refuse, no offer.** No replacement exists at all. Settled outright. |
+| **inside a fragmented merged row** | **Refuse, no offer**, on the split's reasoning. Unreachable today because the emitter refuses the shape first — which is `two-emitter-refusals-a-legal-declared-union-reaches`, in flight. |
+| **one instance under two roots** | **Refuse** — which `ProductError::Naming` already does, so the refusal's KIND is now correct and was never the question. No unique best offer exists (both roots are equally the author's). What remains is that the refusal is LATE and in the wrong vocabulary, which is a unit, not a decision. |
+| **the operand seat (A/B)** | **NOT settled.** Nothing here re-points a name: no name vanishes and nothing resolves to the wrong entity — two valid documents simply mint different names. The rule is about a reference whose entity went away, and this is not that. Stays a ruling. |
+
+### The one residue on the split case
+
+The rule says *unique best*, and N3's own offer is **plural** (*"the
+merged name vanishes with its constituents offered"*). So a reading
+exists under which a split offers its fragment SET rather than nothing.
+This row takes the narrower reading — **refuse with no offer** — on the
+ground that N3's plural case is an exact DECOMPOSITION of what the
+merged name covered, whereas a split's fragments are CANDIDATES for what
+the reference meant, and offering candidates is one step from the silent
+pick the rule exists to prevent. A lane that finds that wrong says so and
+this paragraph is corrected in the same PR.
+
+## Consequences on this slate, applied in this PR
+
+- `member-space-look-through-…` — re-kinded **`issue`**: the decision is
+  made and what remains is applying it.
+- `product-refuses-naming-…-two-roots` — re-kinded **`issue`**: refuse
+  earlier and in the recipe's vocabulary.
+- `the-pair-verbs-declared-merge-is-asymmetric-…` — stays **`ruling`**,
+  and is now the only one.
