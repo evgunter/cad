@@ -181,3 +181,66 @@ unchanged in shape but now has two named subjects to disposition —
 dispositioned `Shared` while `crates/topo/src/boolean/boxes.rs` is
 `Unconverted` with a reason that names exactly that situation). That
 asymmetry is new since filing and is reported separately.
+
+## TINT-3 narrowed this row's options (2026-09-15)
+
+`tint/3-aggregation-guard` (PR #2680) collapsed the fifteen copies of
+`every_suite_file_is_aggregated` onto one macro, and in doing so **added
+a second, weaker substring to exactly the check this row is about** and
+**handed the unit a fifteen-file exception to disposition**. Disclosed
+here at the moment it was done, not after.
+
+### What changed in the check
+
+`every_shared_entry_actually_reaches_the_shared_lexer` no longer tests
+one substring. It reads a two-entry `SHARED_LEXER_DOORS`:
+
+```rust
+const SHARED_LEXER_DOORS: [&str; 2] = [
+    "test_utils::source",
+    concat!("test_utils::", aggregation_row_macro!()),
+];
+```
+
+An aggregating `tests/all.rs` reaches the lexer through
+`test_utils::every_suite_file_is_aggregated!()`, whose expansion — not
+its text — holds the `source::` path. So the second door is satisfied
+without the file naming `test_utils::source` at all.
+
+### The cost to this row's cheapest candidate fix
+
+`## What a unit here does` lists, first and cheapest: *"require a CALL,
+not an import: `source::` followed by an identifier and `(`"*. **That
+needle now goes RED on fifteen honest files** — every `tests/all.rs` in
+`bvh`, `editor-core`, `geom`, `geom-brep`, `geom-core`, `mesh`,
+`profile`, `step-export`, `step-import`, `stl`, `sweep`, `test-utils`,
+`topo`, `verbs` and `viewer`. None of them reverted to anything; the
+call moved into a macro body one crate away. Whoever takes this unit
+either widens the call-shaped needle to admit the macro invocation
+(which is the second door again, so the needle stops being strictly
+call-shaped) or dispositions the fifteen as a named exception. **That
+choice is now part of the unit and was not before.**
+
+The second candidate (*"red on a second lexer beside the import"*) is
+unaffected: no `all.rs` hand-rolls anything.
+
+### What the census gained, so the trade is on the record
+
+The same PR added
+`the_aggregation_row_macro_reaches_the_shared_lexer`, which reads the
+macro body out of `crates/test-utils/src/source.rs` and asserts it still
+calls `source::crate_dir` and `source::aggregation_violations`. That is
+needed because `source.rs` is dispositioned `Home` and this row's check
+filters `Home` out, so rewriting the macro body to a hand-rolled
+`read_dir` walk left **all fifteen `Shared` lines green and every other
+row in the file passing** — measured, on that PR's branch. It is the
+partial-reversion hole this row is named for, arriving one level up: the
+new row closes it for this one macro, and says nothing about the other
+56 `Shared` entries.
+
+### Evidence for the population count
+
+The audit above says 57 `Shared`. Fifteen of them are now `all.rs` files
+that satisfy the check through the macro door rather than the original
+substring — a subset worth knowing when the unit re-derives the
+population, because they answer to a different door and always will.
