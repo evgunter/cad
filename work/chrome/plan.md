@@ -117,10 +117,17 @@ E-first, and each unit names the ground it may touch.
    every row in a refused cluster keeps its own badge. No test covers
    the Band shape today.
 5. **`combine.rs::denotes_body`** — `body-seat-reads-through-the-placer-
-   chain`. Signature change (the gate needs the `Doc`) and it re-pins
-   two `combine_ops` rows. Land it aware of
-   `work/door/node-placer-field-docs-say-body-where-instances-are-
-   accepted`, which names this row as its viewer-side member.
+   chain`. **NOT dispatchable as written, and the reason is the
+   carve-out's.** The fix is a signature change (the gate needs the
+   `Doc`), and `denotes_body`'s only production caller is
+   `session/refuse.rs`, which the carve-out cedes to VIEW — so a CHROME
+   lane can write the whole fix and cannot make the crate build. Filed
+   as `work/view/the-file-level-carve-out-cannot-express-a-row-whose-
+   work-crosses-a-call-site`, which offers three ways out and
+   recommends two. The row's own design question is settled; only the
+   boundary is open. Land it aware of `work/door/node-placer-field-docs-
+   say-body-where-instances-are-accepted`, which names this row as its
+   viewer-side member.
 6. **`probe-rows-assert-in-one-direction-only`** — tests only, but its
    fourth finding (a stale `derived.bounds` survives a refusal) lands
    in `session.rs`, which is ceded. Take findings 2 and 3 now; finding

@@ -547,6 +547,7 @@ reasons defer to; CIW gets the `step import (freecad)` job whose name
 is the export fixtures' row. PORT claims no paths, so all six went to
 the owner.
 
+<<<<<<< HEAD
 ## The options doors land; the posture is corrected per-claim (2026-09-15)
 
 `python-cannot-set-options-structs` merged (#2678) and closes. Six rows
@@ -602,3 +603,248 @@ into the class of files that read Rust source, which owes a ledger line.
 Every local check the lane ran was package-scoped (`-p pncad-py`), and a
 tree-wide census living in another crate is invisible to those. CI found
 what no local check could.
+=======
+## 2026-09-15 — `msrv-floor-is-declared-and-never-compiled` → review (PR 2676)
+
+Ev's answer of 2026-09-15 landed as `scripts/gates/msrv-floor-equals-channel.sh`:
+`Cargo.toml`'s `[workspace.package] rust-version` and
+`rust-toolchain.toml`'s `[toolchain] channel` must be the same string. Both
+read `1.97.0` today, so the gate is green from its first run and has nothing
+to say until a PR moves one of them — which is the moment it exists for.
+
+**Shape as the item proposed it, not as Ev spelled it.** Ev said "unit test";
+this is a `scripts/gates/` row, because the subject is two root manifests
+rather than a crate's behaviour and `gate-roster.sh` proves a gate in that
+directory is wired into both halves of CI. The deviation is disclosed in the
+item and again in the PR body, and the row moves if Ev wants a Rust test.
+
+**The cost is in the gate's header, where a future lane will read it.** The
+gate forbids the floor from ever lagging the channel, so the day this
+repository wants "we build with 1.99 and still support 1.97" — real once **Q9**
+lands and something is published — the gate is wrong and must be deleted
+deliberately. The header names Q9 and says so, and the non-version-channel
+arm (`channel = "stable"`) refuses with the same pointer.
+
+**Equality is exact.** `1.97` against `1.97.0` fires. The declaration is a
+copy of the pin, character for character; a tolerance is a second rule to
+maintain, and the only way the spellings diverge is an edit to one file made
+without reading the other.
+
+`local-scripts/ci-local.sh` needed **no edit** — verified, not assumed: its
+`discipline()` loops `scripts/gates/*.sh` and self-tests each gate before
+running it, so the new file is picked up by existing code. `gate-roster.sh`
+went from 21 gates to 22 and is green.
+
+Territory: `.github/workflows/ci.yml` is **CIW's** and `scripts/gates/` is
+**GUARD's** (the item and the dispatch brief both guessed META; `work.py
+territory` says `guard`). Both announced in the PR; either may take the row.
+`Cargo.toml` and `rust-toolchain.toml` are unchanged.
+
+Class **E** confirmed. **Four rows filed**, on CIW's and GUARD's slates —
+the fix-pass section below names them.
+
+This entry said *"No rows filed — nothing turned up outside the fence"*
+when it was written, and that was false: the sweep behind it looked for the
+wrong shape and reported a negative result rather than a blind spot, and
+the style review found what it missed — a MAJOR inside the fence and three
+rows outside it. The sentence is corrected here rather than annotated,
+because a reader scanning this log for what a unit filed reads the claim,
+not the footnote. What the wrong sweep was and what would have caught it is
+in `work/guard/gate-directory-counts-in-prose-go-stale-on-every-new-gate.md`.
+
+### CI (2026-09-15)
+
+Run `34997969247` (head `2f33783bb`) was green in 37 of 39 jobs. The two
+that spoke to this change — `CI half parity + gate wiring (every tier)`
+and `discipline (evaluation-code)` — were both green, as were all twelve
+`test (…)` jobs bar one and all five `k-lint (gate, …)` unifications, so
+the run was the full matrix and nothing narrowed it.
+
+The one red was `test (eps = 1e-12, 1/2)`, at
+`crates/editor-core/tests/review_gui1_r1.rs:498` — *"no draw hit the cube
+— generator shape broke"*, the searched anti-vacuity guard S-TINT already
+carries a row for, on a third seed and a third eps row. **Filed as
+evidence on the existing row** rather than as a second one:
+`work/tint/pick-face-fuzz-anti-vacuity-guard-trips-at-effort-1.md`. This
+diff is a shell script and a YAML step; it compiles nothing and cannot
+reach `editor-core`.
+
+Run **`35001465730`** (head `ee7127d48`, which adds only that markdown
+file) is **green in all 39 jobs**, `test (eps = 1e-12, 1/2)` included —
+same Rust tree, new seed. That is the run of record.
+
+### Fix pass after the style review (2026-09-15, PR 2676)
+
+The review returned one MAJOR and fifteen style findings. All are
+addressed on the same branch; what follows is what actually changed and
+which of this lane's earlier claims were wrong.
+
+**MAJOR — the gate held one of three declarations.** Three manifests in
+this tree declare a literal `rust-version`: `Cargo.toml`'s
+`[workspace.package]`, and `[package]` entries in `benches/Cargo.toml`
+and `interval-transcendentals/Cargo.toml`. The last two are in
+`Cargo.toml`'s `exclude` list, inherit nothing, and were unheld — so the
+gate would have forced the workspace floor up on a channel bump and left
+them behind, which is the failure it exists to prevent, one directory
+over. `interval-transcendentals` is in the kernel's build closure through
+`geom-core`'s `interval` feature, so its floor is live.
+
+The gate now scans **every `Cargo.toml` in the tree** (`target/` and
+`.git/` pruned) and holds every literal floor equal to the channel;
+`rust-version.workspace = true` parses as a table and is skipped as an
+inheritance rather than a declaration. `scripts/doc-gate.sh --print-roots`
+returns `.`, `benches`, `demos/tour`, `demos/wild`,
+`interval-transcendentals`, `tools/k-lint`, `tools/tess-lint`,
+`tools/tess-meter`; the walk is a **superset** of that (26 manifests,
+exactly what `git ls-files -- '*Cargo.toml'` lists), so a fifth root is
+covered the day it lands and so is the first member that stops
+inheriting. The deviation from the review's suggested derivation is
+deliberate and argued in the gate's header: `--print-roots` needs `cargo`
+and `git`, which would put both in a row that is otherwise greps and
+would make every self-test fixture an initialised repository.
+
+**A refusal and a dead reader now get different sentences**, which
+`lib.sh`'s `gate_reader_died_refusal` block draws the line for. The
+reader exits 3 for a refusal about documents it read (missing key,
+non-string floor, non-version channel, rustup's legacy bare-name file)
+and 2 for a reader that could not run (parse failure, unreadable file, no
+`tomllib`). Six self-test cases assert the framing with `--also`, so the
+two cannot quietly become one again.
+
+**Both `gate_require_file` guards now have a case.** Only the toolchain
+twin had one; deleting the manifest guard left the self-test green while
+its own summary claimed a missing subject file was diagnosed. The
+reader's blind `except` was the reason it stayed invisible — an absent
+file arrived as "does not parse" — so `OSError` and `TOMLDecodeError` are
+caught apart now.
+
+**Nine mutations, all red**: loosen the compare to major.minor; `if
+False:` for the comparison; scan only the workspace manifest (reds on the
+excluded-root case — the MAJOR, held); drop either `gate_require_file`;
+collapse the refusal framing into the dead-reader one; drop the `target/`
+prune (reds on the stale-manifest near-miss); plus the two from the first
+pass.
+
+**Rows filed — four, on two other programs' slates:**
+
+- `work/ciw/seal-oracle-refuses-toml-spellings-the-msrv-gate-blesses.md` —
+  `local-scripts/seal-oracle.sh`'s sed requires a double-quoted `channel`
+  at column 0 and refuses an indented or single-quoted one; the new gate
+  plants a single-quoted channel as a **must-pass** fixture. The two
+  readers of one field now disagree about what a well-formed pin looks
+  like. Three ways out are written down; PORT took none — it is CIW's
+  file and the choice is theirs.
+- `work/guard/gate-require-file-guards-with-no-gone-case.md` —
+  `viewer-module-kinds.sh:664` and `:665`, both deletable with its
+  `--selftest` green, proved by mutation.
+- `work/guard/gate-directory-counts-in-prose-go-stale-on-every-new-gate.md`
+  — the two stale counts this PR creates, in GUARD's own files.
+- `work/guard/embedded-python-readers-are-copied-between-gates-and-unlinted.md`
+  — three gates embed a python reader; the plumbing is copied rather than
+  shared, and none of the 297 lines is in `ruff.toml`'s population (two of
+  the three fail it, `BLE001` among them, which is the same conflation
+  that hid the guard above).
+
+**What PORT changed in another program's file, rather than filing:**
+`local-scripts/seal-oracle.sh`'s header stated *"The two carry the same
+string today and nothing requires them to"* — a premise this PR abolishes,
+in shipped code. Reworded to say that the two remain different claims, that
+a gate now holds them equal, and that the distinction is what keeps the read
+correct on the day the gate is deleted. Announced to CIW in the PR body.
+
+**Two claims of this lane's that were false:**
+
+- *"No prose in the repo carries a hardcoded gate count"* — it carries
+  two, and the sweep that said otherwise was gate-count-shaped
+  (`21 gates`) where the drift was directory-size-shaped (`(24 files)`).
+  The blind spot and a pattern that would have caught both are in the
+  GUARD row.
+- *"No rows filed — nothing turned up outside the fence"* — four did.
+
+**Also:** the ci.yml step name lost its `(ratified 2026-09-15)` suffix,
+which elsewhere marks a membership Ev ratified into a design page and here
+labelled an in-chat answer whose only written record is an item file that
+is deleted when PORT closes; the gate's header quotes the step's real
+name. The header's *"every hosted job … builds on the channel"* is now the
+hedged form the `gate_ok` line always had — the `discipline` job runs no
+cargo, `ci.yml` sets `RUSTUP_TOOLCHAIN: stable` for tool installs, and a
+TIER=docs run has no build jobs. `GATE_SCAN_FILES` is the walk's own count
+rather than a hand-held 2, and the embedded python passes `ruff.toml`.
+
+
+### Merge-forward (2026-09-15)
+
+`origin/main` moved a long way while this unit ran — `S415` (#2633),
+`PORT-DOORS-1` (#2635) and `python-cannot-set-options-structs` (#2678)
+all landed, with their state-syncs. Merged forward; **one conflicted
+path, this file**, and every entry on both sides is kept. The merged
+entries sit in date order ahead of this unit's, which are the newest
+work. Nothing else collided — the gate, its ci.yml step and the four
+filings touch no path those units reach.
+
+### The floor is not inert (2026-09-15)
+
+Added after Ev cleared the resolver question. `Cargo.toml` sets
+`resolver = "3"`, which makes `rust-version` an **input to dependency
+version selection** — cargo prefers versions whose own `rust-version`
+the floor clears. The item told Ev the floor is documentation nothing
+computes with; that premise was incomplete, and it is a reason the floor
+tracking the channel is coherent rather than merely tidy.
+
+`Cargo.lock` is committed, so the preference is consulted when the
+lockfile is **regenerated** — a deliberate act — and not on an ordinary
+build. Recorded in the gate's header and beside the declaration itself,
+because the repository recorded it nowhere.
+>>>>>>> origin/main
+
+## The MSRV floor is held, at every manifest that declares one (2026-09-15)
+
+`msrv-floor-is-declared-and-never-compiled` merged (#2676) and closes.
+Ev's ruling — hold the two strings equal and call it a day — is a
+`scripts/gates/` row with a ten-case selftest, wired into both halves by
+the roster with no hand-maintained list.
+
+**The style review returned a MAJOR and it was the completeness of the
+fence.** Three manifests declare a literal `rust-version = "1.97.0"`:
+the workspace root, `benches/` and `interval-transcendentals/`. The last
+two are in `Cargo.toml`'s `exclude` list, so they are not members and
+inherit nothing. The gate held one of the three, and its header fenced
+the gap with a sentence about *members* — true, and about the case that
+does not occur. The day the channel moved, the gate would have forced
+the root up and left two behind: the drift it exists to prevent, one
+directory over. `docs/prompts/implementer-discipline.md` §2 names that
+trap by name, listing those excludes, and the lane had read it.
+
+**The lane's remedy is better than the one prescribed and says why.**
+The orchestrator asked for the root set from `scripts/doc-gate.sh
+--print-roots`; the lane walks **every `Cargo.toml` in the tree**
+instead. That is a strict superset — it covers a fifth root the day it
+lands, and also the first *member* that stops inheriting, which a root
+list structurally cannot see because a member is not a root. It also
+keeps `cargo metadata` and `git ls-files` out of a discipline row that
+is otherwise greps, and keeps every fixture from having to be an
+initialised repo with a resolvable workspace. Argued in the header
+rather than left as a preference, which is what a better-than-spec
+deviation owes.
+
+**Nine mutants, all red**, including the one for the MAJOR itself
+(scanning only the workspace manifest reds on the new
+`plant_outside_root_drifts`). A guard green from birth — the three
+manifests already agreed — is a decoration until something shows it
+would fire.
+
+**The resolver fact is now written down.** `Cargo.toml`'s
+`resolver = "3"` makes `rust-version` an input to dependency version
+selection, so the floor is not documentation-only, which is the premise
+the item had put to Ev. `Cargo.lock` is committed, so the preference is
+consulted when the lockfile is **regenerated** — a deliberate act — not
+on an ordinary build. Ev cleared it; the header and a comment beside the
+declaration now carry it, because nothing in the repo did.
+
+Four rows filed outside the fence: one on CIW (`seal-oracle.sh`'s reader
+refuses a `rust-toolchain.toml` spelling this gate blesses — two readers
+of one field drifted in opposite directions), three on GUARD (a
+`gate_require_file` guard with no gone-case, proved by mutation in a
+second gate too; gate counts in prose that go stale on every new gate;
+embedded python readers copied between gates and outside `ruff.toml`'s
+population).
