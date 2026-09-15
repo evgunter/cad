@@ -6432,7 +6432,38 @@ struct MintingItem {
     /// What holds those WORDS. This roster holds the item's
     /// EXISTENCE; values are each row's own pin, named here so that a
     /// row cannot be added without someone answering the question.
-    held_by: &'static str,
+    held_by: &'static [Holder],
+}
+
+/// What holds one item's WORDS — the answer to the question a row
+/// cannot be added without answering.
+///
+/// A column of prose is a claim nothing re-derives: a renamed test
+/// leaves it pointing at nothing and the census stays green, because
+/// the census is about the item's EXISTENCE and not about what holds
+/// its words. Naming the holders as data rather than as a sentence is
+/// what lets `the_mint_roster_names_tests_this_file_declares` go and
+/// look.
+enum Holder {
+    /// A test in this file, by name, and what it holds. The name is
+    /// re-derived against this file's own source; nothing re-derives
+    /// `holds`, which is a description and not a fact about the tree.
+    ///
+    /// The name is the ONE spelling. Carrying the test item beside it
+    /// — `fn()` in this same array — would pin the rename at compile
+    /// time and would be a second spelling of the same thing held
+    /// equal to the first by nothing, which is the defect this
+    /// program exists to close.
+    Test {
+        /// The `#[test] fn`'s name, as this file declares it.
+        name: &'static str,
+        /// What that test holds about this item's words.
+        holds: &'static str,
+    },
+    /// A holder outside Rust — `pncad.pyi`, the Python suite. Nothing
+    /// here re-derives it, and saying so is the point: a row whose
+    /// holders are all `Outside` is a row no Rust check covers.
+    Outside(&'static str),
 }
 
 /// **The committed roster of everything in `src/errors.rs` that
@@ -6515,63 +6546,108 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
     MintingItem {
         owner: "<QuantityOpMismatch as Display>::fmt",
         literals: 1,
-        held_by: "a_quantity_operator_mismatch_carries_structure_not_prose, over the \
-                  rendered message",
+        held_by: &[Holder::Test {
+            name: "a_quantity_operator_mismatch_carries_structure_not_prose",
+            holds: "the rendered message",
+        }],
     },
     MintingItem {
         owner: "ErrorClass::class_name",
         literals: 35,
-        held_by: "error_classes_name_the_python_hierarchy, whose expectation is a \
-                  SECOND exhaustive match, so a new class stops the build",
+        held_by: &[Holder::Test {
+            name: "error_classes_name_the_python_hierarchy",
+            holds: "the 35 class names, against a SECOND exhaustive match, so a new \
+                    class stops the build",
+        }],
     },
     MintingItem {
         owner: "EvalReason::ATTRIBUTE",
         literals: 1,
-        held_by: "`pncad.pyi`'s `EvaluationError.reason` and the Python suite that \
-                  reads it — no Rust check names this word",
+        held_by: &[
+            Holder::Test {
+                name: "the_discriminant_attribute_names_are_declared_in_the_stub",
+                holds: "the word against `pncad.pyi`'s `EvaluationError` declaration",
+            },
+            Holder::Outside("the Python suite, which reads `EvaluationError.reason`"),
+        ],
     },
     MintingItem {
         owner: "ValidationRefusal::ATTRIBUTES",
         literals: 2,
-        held_by: "the_validation_class_mints_exactly_these_attributes, which holds it \
-                  equal to the image of `attribute` over `ALL` in both directions",
+        held_by: &[
+            Holder::Test {
+                name: "the_validation_class_mints_exactly_these_attributes",
+                holds: "the set, equal to the image of `attribute` over `ALL` in both \
+                        directions",
+            },
+            Holder::Test {
+                name: "the_discriminant_attribute_names_are_declared_in_the_stub",
+                holds: "`door` against `pncad.pyi`'s `ValidationError` declaration, and \
+                        `reason` as a gap that stub has not closed",
+            },
+        ],
     },
     MintingItem {
         owner: "ValidationRefusal::attribute",
         literals: 2,
-        held_by: "the_validation_class_mints_exactly_these_attributes for the words, \
-                  and every_validation_refusal_writes_the_attribute_it_is_committed_to \
-                  for which refusal writes which",
+        held_by: &[
+            Holder::Test {
+                name: "the_validation_class_mints_exactly_these_attributes",
+                holds: "the words",
+            },
+            Holder::Test {
+                name: "every_validation_refusal_writes_the_attribute_it_is_committed_to",
+                holds: "which refusal writes which",
+            },
+        ],
     },
     MintingItem {
         owner: "canonical_unit",
         literals: 2,
-        held_by: "canonical_units_match_the_gq5_ratification",
+        held_by: &[Holder::Test {
+            name: "canonical_units_match_the_gq5_ratification",
+            holds: "both units",
+        }],
     },
     MintingItem {
         owner: "dimension_tag",
         literals: 4,
-        held_by: "dimension_tags_are_stable, and dimension_tags_match_the_kernel_prose \
-                  over `Dimension::ALL`",
+        held_by: &[
+            Holder::Test {
+                name: "dimension_tags_are_stable",
+                holds: "the four words",
+            },
+            Holder::Test {
+                name: "dimension_tags_match_the_kernel_prose",
+                holds: "them against the kernel's own rendering, over `Dimension::ALL`",
+            },
+        ],
     },
     MintingItem {
         owner: "is_bare_camel_token",
         literals: 1,
-        held_by: "the_prose_rule_separates_a_display_from_a_debug_dump, which drives \
-                  the predicate over an underscored bare token — and nothing here \
-                  reaches Python, a `char` being an alphabet rather than a word",
+        held_by: &[Holder::Test {
+            name: "the_prose_rule_separates_a_display_from_a_debug_dump",
+            holds: "the predicate over an underscored bare token — and nothing here \
+                    reaches Python, a `char` being an alphabet rather than a word",
+        }],
     },
     MintingItem {
         owner: "measurement_dimension_tag",
         literals: 4,
-        held_by: "the_two_dimension_alphabets_are_one_list_in_two_cases, over \
-                  `Dimension::ALL`",
+        held_by: &[Holder::Test {
+            name: "the_two_dimension_alphabets_are_one_list_in_two_cases",
+            holds: "the four words as the capitalised spelling of `dimension_tag`'s, \
+                    over `Dimension::ALL`",
+        }],
     },
     MintingItem {
         owner: "reads_as_prose",
         literals: 1,
-        held_by: "the_prose_rule_separates_a_display_from_a_debug_dump, which drives \
-                  the predicate over both fingerprints",
+        held_by: &[Holder::Test {
+            name: "the_prose_rule_separates_a_display_from_a_debug_dump",
+            holds: "the predicate over both fingerprints",
+        }],
     },
 ];
 
@@ -7136,10 +7212,10 @@ fn minting_complaints(found: &BTreeMap<String, Vec<String>>) -> Vec<String> {
             Some(item) if item.literals != literals.len() => complaints.push(format!(
                 "`{owner}` spells {} literal(s) — {literals:?} — and \
                  ERRORS_MINTING_ITEMS says {}. A word added here is Python-visible \
-                 vocabulary; check it against `{}` and move the count.",
+                 vocabulary; check it against {} and move the count.",
                 literals.len(),
                 item.literals,
-                item.held_by
+                held_by_prose(item)
             )),
             Some(_) => {}
         }
@@ -7155,6 +7231,19 @@ fn minting_complaints(found: &BTreeMap<String, Vec<String>>) -> Vec<String> {
         }
     }
     complaints
+}
+
+/// One item's holders as a sentence, so a complaint about a moved
+/// count tells its reader where the words it is about are held.
+fn held_by_prose(item: &MintingItem) -> String {
+    item.held_by
+        .iter()
+        .map(|holder| match holder {
+            Holder::Test { name, holds } => format!("`{name}`, which holds {holds}"),
+            Holder::Outside(what) => (*what).to_owned(),
+        })
+        .collect::<Vec<_>>()
+        .join("; ")
 }
 
 /// This crate's own `src/errors.rs` — the census's subject, and what
@@ -7461,6 +7550,263 @@ fn the_errors_mint_reader_keys_a_nested_impl_by_where_it_is_written() {
         !complaints.iter().any(|c| c.contains("NEW item `seventh`")),
         "the qualifier was lost as well as carried: {complaints:?}"
     );
+}
+
+/// This file's own source — what the roster's `held_by` names are
+/// re-derived against.
+///
+/// `crate_dir` for [`errors_source`]'s reason: a nextest ARCHIVE
+/// replayed on another runner has no such directory.
+fn tests_source() -> String {
+    let path = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"))
+        .join("src")
+        .join("tests.rs");
+    std::fs::read_to_string(&path).expect("this crate's own src/tests.rs")
+}
+
+/// Whether `code` declares a `fn` called `name`.
+///
+/// A free scan, with [`ident`] deciding the match: `fn nameish` is not
+/// `fn name`, and it is the whole-identifier comparison that carries
+/// that rather than a keyword boundary — a hit inside a longer word
+/// puts the scan mid-identifier, where the name that follows is not
+/// the one asked for. `code` is a [`code_only`] view, which is what
+/// keeps a name written in a comment or a literal from answering yes.
+///
+/// **What this cannot tell apart:** a `fn` in a `macro_rules!` body
+/// reads as a declaration, and a test declared in another module of
+/// this crate reads as absent. Both are wrong answers a roster row
+/// could earn; neither is reachable from a `#[test] fn` in this file,
+/// which is what every row names.
+fn declares_fn(code: &str, name: &str) -> bool {
+    let mut from = 0usize;
+    while let Some(off) = code[from..].find("fn") {
+        let at = from + off;
+        from = at + "fn".len();
+        if ident(code, skip_ws(code, at + "fn".len())) == name {
+            return true;
+        }
+    }
+    false
+}
+
+/// **The `held_by` column, re-derived.**
+///
+/// The census holds an item's EXISTENCE and says so; what holds its
+/// WORDS is the column, and a column of prose is a claim nothing
+/// checks — a renamed test leaves it pointing at nothing and every
+/// row here stays green, because a name is not a literal and no
+/// reader in this file was looking at it.
+///
+/// So every [`Holder::Test`] is looked up in this file's own source.
+/// The lookup is differently shaped from the roster it checks: the
+/// roster is a committed list read as data, and this reads the file's
+/// text for a declaration.
+///
+/// **The two directions this does not close**, disclosed rather than
+/// claimed away. A row whose holders are all [`Holder::Outside`]
+/// names no Rust check and is not made to — that is the statement
+/// `Outside` exists to make. And `holds` is a description: nothing
+/// re-derives that the named test holds what the row says it holds,
+/// only that the test is there.
+#[test]
+fn the_mint_roster_names_tests_this_file_declares() {
+    let code = code_only(&tests_source());
+    // The reader must be finding declarations at all, and must not be
+    // finding them in a name this file does not declare: a lookup that
+    // answered yes to everything, or no to everything, would leave
+    // every row below asserting nothing.
+    assert!(
+        declares_fn(&code, "read_minting_items"),
+        "the lookup found no `read_minting_items` in this file, so nothing below is \
+         about the roster"
+    );
+    assert!(
+        !declares_fn(&code, "read_minting_items_that_nobody_wrote"),
+        "the lookup answers yes to a name this file does not declare"
+    );
+    for item in ERRORS_MINTING_ITEMS {
+        assert!(
+            !item.held_by.is_empty(),
+            "ERRORS_MINTING_ITEMS names `{}` and says nothing holds its words. Name \
+             what does, or name what does not as `Outside` — a row cannot be added \
+             without answering it.",
+            item.owner
+        );
+        for holder in item.held_by {
+            let Holder::Test { name, .. } = holder else {
+                continue;
+            };
+            assert!(
+                declares_fn(&code, name),
+                "ERRORS_MINTING_ITEMS says `{}`'s words are held by `{name}`, and this \
+                 file declares no such test. Either it was renamed — move the name here \
+                 in the same diff — or it is gone and those words are held by nothing.",
+                item.owner
+            );
+        }
+    }
+}
+
+/// Which classes carry a discriminant this crate mints, the Python
+/// attribute names it writes, and the ones `pncad.pyi` does NOT
+/// declare.
+///
+/// **The third column is the population's known gap, written down so
+/// that closing it is loud.** `ValidationError` is raised with
+/// `reason` on its one measurement refusal and with `door` on its four
+/// validator refusals, and the stub declares only the second — so the
+/// class's Python contract is short by a word, which
+/// `work/census/validation-error-reason-is-raised-and-the-stub-declares-only-door.md`
+/// carries. A reason left out of this column would read as agreement;
+/// listed here, the stub gaining the declaration reds this test.
+///
+/// **How a reader knows the two rows are all of them.** They are the
+/// two `ErrorClass` variants that carry a discriminant, which is the
+/// set `crate::py::typed_err` mints from. A third would be a third
+/// `ATTRIBUTES` const in `src/errors.rs` — and [`ERRORS_MINTING_ITEMS`]
+/// reds on one that spells a literal, while one derived from another
+/// const, as `EvalReason::ATTRIBUTES` is, spells none and arrives
+/// silent. That is this census's disclosed blind spot with a live
+/// instance, not a hypothetical, and it is why this roster is written
+/// down rather than derived from the file.
+const DISCRIMINANT_ATTRIBUTE_STUBS: &[(&str, &[&str], &[&str])] = &[
+    (
+        "EvaluationError",
+        crate::errors::EvalReason::ATTRIBUTES,
+        &[],
+    ),
+    (
+        "ValidationError",
+        crate::errors::ValidationRefusal::ATTRIBUTES,
+        &["reason"],
+    ),
+];
+
+/// The instance attributes `pncad.pyi` declares in one class's body.
+///
+/// `tests/test_stubs.py` states this stub's convention and depends on
+/// it: `Final[…]` is a class-level constant and a bare `name: type` is
+/// an instance attribute, which is how every refusal payload on every
+/// `PncadError` subclass is declared. This reads the second.
+///
+/// Docstrings are skipped by triple-quote parity and not by
+/// indentation, because a line inside one is arbitrary prose and this
+/// stub's prose names attributes constantly.
+fn stub_instance_attributes(stub: &str, class: &str) -> BTreeSet<String> {
+    let mut found = BTreeSet::new();
+    let mut inside = false;
+    let mut in_doc = false;
+    for line in stub.lines() {
+        if line.matches("\"\"\"").count() % 2 == 1 {
+            in_doc = !in_doc;
+            continue;
+        }
+        if in_doc {
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("class ") {
+            inside = ident(rest, 0) == class;
+            continue;
+        }
+        let Some(body) = line.strip_prefix("    ") else {
+            continue;
+        };
+        let name = ident(body, 0);
+        if !inside || name.is_empty() || !body[name.len()..].starts_with(": ") {
+            continue;
+        }
+        if !body[name.len() + ": ".len()..].starts_with("Final[") {
+            found.insert(name.to_owned());
+        }
+    }
+    found
+}
+
+/// **The stub reader's own guard.**
+///
+/// [`stub_instance_attributes`] is a text reader over a file whose
+/// PROSE names attributes constantly — `pncad.pyi`'s class docstrings
+/// are where this surface argues its vocabulary — so a reader that
+/// stopped skipping docstrings would report attributes the stub never
+/// declares, and one that stopped finding class bodies would report
+/// none and agree with everything.
+///
+/// The real stub happens to hold no annotation-shaped line inside a
+/// docstring on either class the roster reads, so nothing there drives
+/// the skip. This does: one of each form, and the expectation is one
+/// name.
+#[test]
+fn the_stub_attribute_reader_recognises_what_it_claims() {
+    let stub = "class Other:\n    \
+                elsewhere: str\n\n\
+                class Subject(Base):\n    \
+                \"\"\"Prose about this class.\n\n    \
+                reason: a sentence about an attribute, not a declaration of one.\n    \
+                \"\"\"\n\n    \
+                door: str\n    \
+                Host: Final[Kind]\n    \
+                def method(self) -> None: ...\n\n\
+                class After:\n    \
+                after: str\n";
+    assert_eq!(
+        stub_instance_attributes(stub, "Subject")
+            .into_iter()
+            .collect::<Vec<_>>(),
+        vec!["door".to_owned()],
+        "the stub reader read the fixture wrongly"
+    );
+}
+
+/// **The words this crate writes onto a Python attribute NAME, held
+/// against the stub that declares that attribute.**
+///
+/// `EvalReason::ATTRIBUTE` is one of the ten items in
+/// [`ERRORS_MINTING_ITEMS`] and was the one whose column said *no Rust
+/// check names this word*: the word is an attribute name, not a tag,
+/// so `TAG_INVENTORY`'s population cannot reach it however it grows,
+/// and renaming it moved a Python contract with nothing in Rust
+/// noticing. This is that check. It is not a second spelling of the
+/// word — it reads the const and goes looking for it.
+#[test]
+fn the_discriminant_attribute_names_are_declared_in_the_stub() {
+    let stub = std::fs::read_to_string(
+        test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("pncad.pyi"),
+    )
+    .expect("this crate's own pncad.pyi");
+    for (class, minted, undeclared) in DISCRIMINANT_ATTRIBUTE_STUBS {
+        let declared = stub_instance_attributes(&stub, class);
+        assert!(
+            !declared.is_empty(),
+            "read no instance attribute at all out of `{class}` — this reader has \
+             stopped seeing the stub's class bodies, and every row below would agree \
+             with it"
+        );
+        for name in *minted {
+            if undeclared.contains(name) {
+                assert!(
+                    !declared.contains(*name),
+                    "`{class}.{name}` is declared in `pncad.pyi` now. Drop it from \
+                     DISCRIMINANT_ATTRIBUTE_STUBS's third column and close the row \
+                     that carries the gap."
+                );
+            } else {
+                assert!(
+                    declared.contains(*name),
+                    "this crate writes `{name}` onto `{class}`, and `pncad.pyi` does \
+                     not declare it. A Python caller reading the stub cannot discover \
+                     an attribute a raise sets."
+                );
+            }
+        }
+        for name in *undeclared {
+            assert!(
+                minted.contains(name),
+                "`{class}`'s undeclared column names `{name}`, which this crate does \
+                 not write onto it"
+            );
+        }
+    }
 }
 
 /// **A `mod` whose body is another file opens no scope here**, and the
