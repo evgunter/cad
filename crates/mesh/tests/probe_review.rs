@@ -10,25 +10,13 @@ use sweep::loft_body;
 // The corpus swept elbow is the kernel crate's fixture, not this
 // suite's: the falsification rows below need the SAME solid the
 // skin-integrality bracket and the STEP fixture meter.
-use sweep::test_support::swept_elbow;
+use sweep::test_support::{loft_prism_at, swept_elbow};
 use topo::Body;
 
-use crate::common;
-use common::quad;
 use geom_core::Tol;
 
-const SQ: [(f64, f64); 4] = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-const TRAP: [(f64, f64); 4] = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-
 fn loft_at(zs: &[f64]) -> Body<f64> {
-    let sections = vec![quad(SQ), quad(TRAP), quad(SQ)];
-    let places: Vec<Affine3<f64>> = zs
-        .iter()
-        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
-        .collect();
-    loft_body::<f64>(&sections, &places, 2, Tol::witness())
-        .expect("loft builds")
-        .body
+    loft_prism_at(zs, Tol::witness())
 }
 
 /// A RATIONAL-walled loft (M8-5): a pie-slice profile whose curved

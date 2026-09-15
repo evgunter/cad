@@ -26,10 +26,9 @@ use geom_core::{Affine3, Point2, Vec3};
 use profile::ProfileError;
 use profile::RawLoop;
 use sweep::skin::SkinError;
+use sweep::test_support::loft_prism;
 use sweep::{LoftError, ProfileLoop, ProfileVertex, Section, loft_body};
 
-use crate::common;
-use common::quad;
 use geom_core::Tol;
 
 /// A square with a semicircular bite: three lines and one bulge-1
@@ -107,16 +106,7 @@ fn u3_differential_loft_prism_is_bit_identical_to_the_recorded_base() {
     /// (solids, shells, faces, edges, vertices) of the same body.
     const BASE_CENSUS: (usize, usize, usize, usize, usize) = (1, 1, 6, 12, 8);
 
-    let square = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-    let trapezoid = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-    let lofted = loft_body::<f64>(
-        &[quad(square), quad(trapezoid), quad(square)],
-        &at_z(&[0.0, 1.0, 2.0]),
-        2,
-        Tol::witness(),
-    )
-    .expect("the corpus loft_prism builds from profile-vocabulary sections");
-    let body = &lofted.body;
+    let body = &loft_prism(Tol::witness());
     let m = topo::props::mass_properties(body, Tol::witness()).expect("mass properties");
     assert_eq!(
         m.volume.to_bits(),

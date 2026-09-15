@@ -25,9 +25,11 @@
 //!   The feature is off by default and turned on only from
 //!   **`[dev-dependencies]`** — this crate's self dev-dependency
 //!   (`sweep = { path = ".", features = ["test-support"] }`), and the
-//!   same spelling in `mesh`, `step-export` and `stl`, whose suites
-//!   meter the [`swept_elbow`] this crate builds and extrude their
-//!   acceptance boxes through [`brick`]. So it is on exactly when some
+//!   same spelling in `mesh`, `step-export`, `stl`, `editor-core` and
+//!   the workspace-excluded `tools/tess-meter`, whose suites meter the
+//!   [`swept_elbow`] and the [`loft_prism`] this crate builds and
+//!   extrude their acceptance boxes through [`brick`]. So it is on
+//!   exactly when some
 //!   crate's TESTS compile the library, and off for every non-test
 //!   build of every dependent. A crate joins by adding that one line;
 //!   there is nothing else to wire.
@@ -51,6 +53,18 @@
 //! not here yet joins by naming the primitive and its own loops — it
 //! needs no new door, no new gate and no new manifest edge beyond the
 //! one its crate already has.
+//!
+//! # The loft family
+//!
+//! The skinned bodies are `f64` only, and not by omission:
+//! [`Section`](crate::Section) is `Vec<ProfileLoop<f64>>`, so
+//! `loft_body` has one scalar and so does everything built on it.
+//! [`loft_prism_sections`] is that family's primitive — the three
+//! sections — and [`loft_prism_at`] and [`loft_prism`] are its named
+//! placements. The split is where the suites actually divide: half of
+//! them want the solid, and half want the sections under a placement
+//! of their own (reversed, re-spaced, rotated), which is the thing
+//! their row is about and stays written where it is read.
 //!
 //! Existence and visibility coincide here, so one gate states both:
 //! nothing in this module has a non-test consumer, unlike `topo`'s
@@ -642,6 +656,88 @@ pub fn swept_elbow_lofted(tol: Tol) -> Lofted<f64> {
 /// [`swept_elbow_lofted`]'s body alone.
 pub fn swept_elbow(tol: Tol) -> Body<f64> {
     swept_elbow_lofted(tol).body
+}
+
+// ---------------------------------------------------------------------
+// The loft prism — the corpus's one NON-AFFINE skinned body.
+// ---------------------------------------------------------------------
+
+/// The prism loft's end section: the square `[−1, 1]²`.
+pub const PRISM_SQUARE: [(f64, f64); 4] = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+
+/// Its middle section: the trapezoid whose two bottom corners flare by
+/// ±d, d = 0.375.
+///
+/// The flare is the whole fixture. It makes the middle section a
+/// NON-AFFINE image of the ends, so the four walls are genuinely
+/// curved degree-2 nets in v rather than ruled strips — which is why
+/// this body, and not a box, is what the NURBS-wall suites measure.
+/// `d` is dyadic, so every corner is exact and the ±1.375 spelling and
+/// the `±(1 + d)` one are the same bits.
+pub const PRISM_TRAPEZOID: [(f64, f64); 4] =
+    [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+
+/// The v-degree the prism's three sections are interpolated at: one
+/// quadratic Bézier span through all three, which is the lowest degree
+/// that can bend.
+pub const PRISM_V_DEGREE: usize = 2;
+
+/// The heights [`loft_prism`] places its sections at: unit spacing.
+pub const PRISM_Z: [f64; 3] = [0.0, 1.0, 2.0];
+
+/// A closed four-line quad section (one loop) — the plainest INTEGRAL
+/// profile: unit weights, no arc anywhere.
+fn quad_section(pts: [(f64, f64); 4]) -> Section {
+    vec![ProfileLoop::polygon(
+        pts.iter().map(|&(x, y)| Point2::new(x, y)),
+    )]
+}
+
+/// **The prism's three sections**, bottom to top: square, trapezoid,
+/// square.
+///
+/// The door for the suites that keep their own PLACEMENTS, which is
+/// most of the ones that vary anything — the reversed-stacking probe
+/// stacks these down the base normal, the STEP fold re-places them at
+/// 1 : 2 spacing, and the transform suite carries them through a
+/// rotation. The sections are what they share; the placement is what
+/// each row is about, and stays written where it is read.
+pub fn loft_prism_sections() -> Vec<Section> {
+    vec![
+        quad_section(PRISM_SQUARE),
+        quad_section(PRISM_TRAPEZOID),
+        quad_section(PRISM_SQUARE),
+    ]
+}
+
+/// Loft placements: `zs` as pure `+z` translations.
+pub fn stacked_at(zs: &[f64]) -> Vec<Affine3<f64>> {
+    zs.iter()
+        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+        .collect()
+}
+
+/// [`loft_prism`] with its sections placed at `zs` instead of
+/// [`PRISM_Z`]. The spacing is the only thing the fold varies, so it
+/// is the only thing this door takes.
+pub fn loft_prism_at(zs: &[f64], tol: Tol) -> Body<f64> {
+    crate::loft_body::<f64>(&loft_prism_sections(), &stacked_at(zs), PRISM_V_DEGREE, tol)
+        .expect("the prism's sections skin")
+        .body
+}
+
+/// **The loft prism**: [`loft_prism_sections`] stacked at [`PRISM_Z`]
+/// and skinned at [`PRISM_V_DEGREE`] — 4 described non-rational NURBS
+/// walls, 2 planar caps, NURBS seam carriers on the 4 wall–wall edges,
+/// V = 9 m³ exactly (derived in `sweep/tests/m6_loft_body.rs`).
+///
+/// The corpus's first NURBS-walled body, and the one every downstream
+/// suite reaches for when it needs curved walls without an arc: the
+/// mesher's goldens and budget rows, the STEP fixture, the editor's
+/// corpus document and the tessellation meter are all measuring THIS
+/// solid, and were each rebuilding it.
+pub fn loft_prism(tol: Tol) -> Body<f64> {
+    loft_prism_at(&PRISM_Z, tol)
 }
 
 // ------------------------------------------------------------------

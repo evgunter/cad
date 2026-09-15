@@ -40,6 +40,7 @@ use geom_core::{Affine3, Point2, Point3, Vec3};
 use sweep::skin::{LoftGeometry, Section, loft_geometry, sweep_geometry};
 use sweep::test_support::{
     ELBOW_H, ELBOW_R, ELBOW_STATIONS, ELBOW_V_DEGREE, elbow_path, elbow_section,
+    loft_prism_sections,
 };
 use sweep::{loft_body, sweep_body};
 
@@ -55,16 +56,6 @@ use geom_core::Tol;
 /// weights, no arc anywhere).
 fn square(h: f64) -> Section {
     quad([(-h, -h), (h, -h), (h, h), (-h, h)])
-}
-
-/// The `loft_prism` corpus sections: squares at the ends, a NON-AFFINE
-/// trapezoid in the middle (so the walls are genuinely curved in v).
-fn prism_sections() -> Vec<Section> {
-    vec![
-        quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-        quad([(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-        quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-    ]
 }
 
 fn at_z(zs: &[f64]) -> Vec<Affine3<f64>> {
@@ -159,7 +150,7 @@ fn the_homogeneous_lane_still_drifts_where_the_shipped_lane_does_not() {
 #[test]
 fn the_uniform_loft_is_bitwise_unchanged() {
     let g = loft_geometry(
-        &prism_sections(),
+        &loft_prism_sections(),
         &at_z(&[0.0, 1.0, 2.0]),
         2,
         Tol::witness(),
@@ -222,10 +213,11 @@ fn nonuniform_prism_loft_body_matches_the_derived_volume() {
 fn nonuniform_trapezoid_loft_body_is_tier3_valid() {
     let places = at_z(&[0.0, 1.0, 3.0]);
     walls_are_integral(
-        &loft_geometry(&prism_sections(), &places, 2, Tol::witness()).expect("geometry"),
+        &loft_geometry(&loft_prism_sections(), &places, 2, Tol::witness()).expect("geometry"),
         "non-uniform trapezoid loft",
     );
-    let lofted = loft_body::<f64>(&prism_sections(), &places, 2, Tol::witness()).expect("builds");
+    let lofted =
+        loft_body::<f64>(&loft_prism_sections(), &places, 2, Tol::witness()).expect("builds");
     assert_eq!(topo::validate_closed(&lofted.body), Ok(()), "tier 2");
     assert_eq!(
         topo::validate_geometric(&lofted.body, Tol::witness()),

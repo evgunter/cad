@@ -113,6 +113,12 @@ test-utils = { path = "../test-utils" }
 # are test-only surface in topo; dev-dependencies are the only place
 # the feature turns on.
 topo = { path = "../topo", features = ["sweep-testing"] }
+# `sweep` again, with `test-support` ON, for the same reason `profile`
+# is named twice above: the corpus `loft_prism` document and the perf12
+# BVH differential author the SAME two section polygons the kernel's
+# own loft fixture is built from, and a second spelling of them here is
+# a divergence waiting to happen. Test builds only.
+sweep = { path = "../sweep", features = ["test-support"] }
 # M10-9's staged-ceiling evidence needs geom-core's test-only funnel
 # dial (`identity-pass-testing`), which lets one named identity
 # residual's indeterminate answer pass so a ceiling can be measured "as
