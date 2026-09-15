@@ -4,7 +4,7 @@ kind: issue
 title: The probe's new rows go red on reach growing and on nothing else, and encode BoundsProbe's constants
 status: open
 opened: 2026-09-04
-refs: [1746, display-budget-rows-restate-three-private-constants]
+refs: [1746, display-budget-rows-restate-three-private-constants, a-negative-extrude-distance-probes-as-valid]
 ---
 
 Four findings from CHROME's style lane on PR 1746, all about the rows
@@ -58,52 +58,102 @@ assertion does not test what its message says it tests.
 
 ## Discharged — findings 2 and 3 (2026-09-15, `chrome/bounds-honesty`)
 
-**2.** `crates/viewer/tests/valid_range.rs` no longer states either
-threshold as a literal. Two helpers next to the row derive them from
-the constants they depend on: `reach_of(seed)` is
-`seed · 2^(BoundsProbe::MAX_REACHES − 1)`, the furthest offset a reach
-can place, and `finest_bracket(distance)` is
-`2 · distance / 2^BoundsProbe::MAX_REFINES`, the widest bracket the
-halvings can be left holding around a failure that far out (the reach
-doubles, so the stride that catches the failure is at most twice the
-distance to it). Both constants were already `pub` on `BoundsProbe`,
-so this needed no new accessor — unlike `Camera::pitch_limit()`, the
-repo's precedent for the same defect over a PRIVATE constant.
+**Everything below was measured on the fixture, not reasoned about.**
+A first version of this note reasoned, got the downward search wrong,
+and said so confidently; the corrections are marked where they land,
+because a discharge note is exactly where an unverified causal story
+gets enshrined.
 
-**The row still goes red on what it is about, and no longer on what it
-is not.** The runtime value that makes each assertion false is the
-SEED — `session::probe`'s `probe_seed`, one written unit of the
-field's own `display_unit`: the metre fallback this row was written
-against reaches 2048 m where the millimetre seed reaches 2.048 m, and
-brackets its floor at ~1e-3 m where the millimetre seed brackets at
-~3.9e-6 m. Both assertions still fail on it. What no longer reds them
-is a change to `MAX_REACHES` or `MAX_REFINES`, which now moves the
-threshold with the answer — the specific false alarm this finding
-named (the old `10.0` had only ~2.4× of margin).
+**2. Neither threshold is a literal any more, and neither is restated
+in the test.** The derivations live on `BoundsProbe`, which is where
+the constants live: `BoundsProbe::furthest_reach(seed)` is the
+furthest offset a reach can place, and `BoundsProbe::refined_width(w)`
+is what `MAX_REFINES` halvings leave of a bracket `w` wide. `Sweep`'s
+reach ladder reads the same private `reach_offset` the first does, so
+the test no longer computes anything the probe computes. This is the
+`Camera::pitch_limit` / `datums::patch_cover` shape: the point is that
+the DERIVATION has one home, not that a constant is readable.
 
-**3. The comment was right and the number beside it was loose.**
-`MAX_REFINES`' own doc says ten halvings take a bracket "to about a
-thousandth of the seed step", and the row's document does exactly
-that: the floor at a zero-height extrude is bracketed to ~3.9e-6 m at
-a millimetre seed, about four thousandths of the seed. The `1.0e-4`
-was not a statement of that closure at all — it was a metre/millimetre
-discriminator picked with two orders of slack, which is why it read as
-contradicting the sentence above it. The assertion now states the
-closure it is about, through `finest_bracket`, and the comment says
-which seed can and cannot reach it.
+**The two halves discriminate different things, and only the first is
+about the seed.**
 
-**Findings 1 and 4 are untouched.** The upward assertion is still
-one-sided (`<=`), so every degradation finding 1 lists — a seed
-collapsing toward zero, a reach loop exiting early, an origin-only
-answer — still satisfies it. Nothing here states a degradation
-guarantee, because nothing has ruled on what one is.
+- **Reach (upward).** Threshold is `origin + furthest_reach(one
+  written millimetre)` = 2.056 m; measured answer 2.056 m, so the
+  `<=` holds exactly. Forcing `probe_seed` to 1.0 gives
+  `high: Open { probed: 2048.008 }` — red by three orders. Falsified
+  by: the seed, which is the regression this row was written for.
+  Not falsified by `MAX_REACHES` moving, which was finding 2's
+  complaint.
+- **Bracket (downward).** Falsified by the REFINEMENT, not the seed.
+  Measured: the bracket entered is `[4 seeds, 8 seeds]` = `origin/2`
+  wide and closes to 3.90624999999957e-6 against a threshold of
+  `refined_width(origin/2)` = 3.90625e-6. Planted red: settling one
+  halving early yields 7.81249999999914e-6 and the row goes red
+  naming the halvings.
+
+**CORRECTION — the first version of this note was wrong about the
+downward search, in the comment, in the helper's doc and here.** It
+said a metre seed "brackets its floor to a millimetre" and that "both
+assertions still fail on it". Measured, with `probe_seed` forced:
+
+| seed | `result.low` |
+| --- | --- |
+| 1 mm | `Edge { valid: 3.9e-6, invalid: 0.0 }` |
+| 0.8 mm | `Open { probed: -1.6304 }` |
+| 1 m | `Open { probed: -2047.992 }` |
+
+A metre seed produces **no bracket at all**, so the bracket assertion
+is not reached, let alone failed — execution stops at the `let else`.
+And the 0.8 mm row is the one that matters: an ordinary seed, no
+bracket. The reason is that **the floor is the single value `0`** — a
+negative thickness still builds — so a direction brackets it only
+when a doubling lands exactly on it, which a millimetre ladder does
+because the floor is 8 seeds out and 8 is a power of two. The old
+`finest_bracket` helper stated a universal upper bound (`2·distance /
+2^MAX_REFINES`) that the code does not hold in that case, and used it
+as a discriminator. All three spellings are gone. The measurement is
+filed as its own row,
+`work/chrome/a-negative-extrude-distance-probes-as-valid.md`, because
+it is a finding about the kernel's reading of a length field and not
+about these rows.
+
+**3. The stale premise was in `bounds.rs`, and it is now fixed rather
+than quoted.** This is a CORRECTION of the first note, which quoted
+`MAX_REFINES`' own doc approvingly as "the comment was right". It was
+not right. `MAX_REFINES` said "ten halvings take a bracket to about a
+thousandth of the SEED STEP" and `BoundsProbe::new` said "the finest
+bracket is about a thousandth of one [seed]". Both state the wrong
+law: the halvings divide **the bracket the refinement entered**, which
+is the reach stride that caught the failure. Measured on this fixture:
+a 1e-3 seed closes to 3.9e-6, four times looser than a thousandth of
+the seed, because the stride that caught the floor was four seeds
+wide. Both sentences are rewritten to the law the code holds, and
+`BoundsProbe::refined_width` is that law as arithmetic. With the
+premise gone from all three spellings, finding 3 is discharged on the
+merits rather than by adjudication.
+
+**Findings 1 and 4 are untouched.** The reach assertion is still
+one-sided (`<=`), so every degradation finding 1 lists still satisfies
+it. Nothing here states a degradation guarantee, because nothing has
+ruled on what one is.
+
+**Residue, disclosed and NOT scheduled here.** `probe_seed`
+(`crates/viewer/src/session/probe.rs`) says it is "the one place that
+arithmetic is spelled", and the reach row still states one written
+millimetre for itself. That restatement is deliberate and argued in
+the comment — the rule under test cannot be imported from the code
+under test, the argument `tests/edge_pick.rs` makes for its own
+occlusion band — but if a later lane decides the probe should expose
+its seed as a contract the way `BoundsProbe` now exposes its reach,
+that is a change in `session/probe.rs`, which this lane was fenced
+out of.
 
 A sweep of `crates/viewer/tests/` for the same shape (a row restating
 a constant that lives in `src/` as a literal) found three more in
 `display_budget.rs` and filed them as
-`work/chrome/display-budget-rows-restate-three-private-constants`;
-that row also records the three sites where NOT restating is the
-argued position, so the two are not confused.
+`work/chrome/display-budget-rows-restate-three-private-constants.md`;
+that row also records the sites where NOT restating is the argued
+position, and what the sweep could not see.
 
 ## Home
 

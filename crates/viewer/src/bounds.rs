@@ -67,18 +67,51 @@
 //! * **An INDETERMINATE interval decision means subdivide.**
 //!   `editor_core::drive`'s leaf classifier answers
 //!   `LeafVerdict::Bisect` for every escalation but the ratified
-//!   terminal sliver, which it refuses by name.
+//!   terminal sliver, which it refuses as `SliverTerminal` carrying
+//!   the escalation's predicate — `<unnamed>` where the escalation
+//!   carries none, so the arm is typed but the culprit is not always
+//!   named. The SEPARATE question of what a certified lane owes when
+//!   a value goes non-real is open and is not this door:
+//!   `work/props/certified-lane-non-real-contract-audit.md`.
 //!
-//! **What keeps THIS module the interactive answer is cost, not a
-//! missing door.** A drive is seconds per leaf and on the repo's own
-//! corpus documents certifies nothing at any budget a caller can
-//! afford, so the certified range is an ON-DEMAND query whose answer
-//! arrives later and REPLACES this reading, never merges with it: a
-//! certified range is a subset of the locally-valid range this module
-//! reports, so a panel shows both or names which one it is showing.
+//! **What keeps THIS module the interactive answer is cost**, and a
+//! drive's cost is measured rather than argued: `editor_core::range`
+//! carries the table (seconds per leaf on the corpus documents,
+//! nothing certified at a budget a caller can afford) beside the
+//! instruction to re-take it rather than trust it. **Nothing in
+//! either tree reds if those numbers drift** — they are a measurement
+//! at a tree, not an invariant — so this paragraph names where they
+//! live instead of copying them, and a reader who needs the figure
+//! reads it there and re-takes it.
+//!
+//! So the certified range is an ON-DEMAND query whose answer arrives
+//! later and REPLACES this reading rather than merging with it.
+//! **The two claims are not nested and neither contains the other.**
+//! A certified range is a subset of the LOCALLY-VALID RANGE — the
+//! thing this module is trying to report — because "does anything
+//! decide differently" is strictly more than "does anything new
+//! fail". It is NOT a subset of the BRACKET this module reports: the
+//! probe reports the furthest value it SAMPLED and found valid, which
+//! on a field with a nearby boundary sits well outside what a drive
+//! can prove, and `editor_core::range`'s own docs carry the
+//! counterexample (an 8 mm slot certified to `1.6e-8` against a
+//! furthest valid sample of `3.9e-6`). So a panel shows both or names
+//! which one it is showing, and never draws one inside the other.
+//!
+//! **A consumer reads four arms, not a yes or no.**
+//! `editor_core::range::RangeSide` is `Certified` (the seed's edge —
+//! never "unbounded"), `NewFailure` and `DecisionFlip` (a bracket
+//! around a boundary, with the driver's evidence), and
+//! `Indeterminate` (the driver could not decide). Rendering
+//! `Indeterminate` as an edge is the specific mistake to avoid, and
+//! it is sharper than "unknown": a definite failure reaches that arm
+//! today priced `Budget` at the depth floor, so "raise the budget" is
+//! honest advice only above the floor
+//! (`work/props/coincidence-zone-priced-budget-at-the-floor.md`).
+//!
 //! Nothing in `crates/viewer` asks for one on a user's behalf yet —
 //! the affordance is
-//! `work/chrome/certify-affordance-on-the-bounds-panel`, and
+//! `work/chrome/certify-affordance-on-the-bounds-panel.md`, and
 //! `crates/viewer/tests/docm9_range_vs_probe.rs` (the `interval`
 //! feature) is where the two answers are measured against each other.
 //!
@@ -323,10 +356,7 @@ impl Sweep {
     fn next_offset(&self, seed: f64, integral: bool) -> Option<f64> {
         match self.phase {
             Phase::Settled => None,
-            // seed, 2·seed, 4·seed, … — a geometric reach, so a field
-            // whose limit is far away is found in a logarithmic number
-            // of samples rather than a linear one.
-            Phase::Reaching => Some(seed * f64::from(1u32 << self.reaches)),
+            Phase::Reaching => Some(BoundsProbe::reach_offset(seed, self.reaches)),
             Phase::Refining => {
                 let invalid = self.invalid?;
                 let mid = midpoint(self.valid, invalid, integral)?;
@@ -418,20 +448,64 @@ impl BoundsProbe {
     pub const MAX_REACHES: u32 = 12;
 
     /// How many bisection steps a direction spends narrowing a
-    /// bracket. Ten halvings take a bracket to about a thousandth of
-    /// the seed step, which is finer than the number a panel shows.
+    /// bracket. Ten halvings take it to about a thousandth of the
+    /// width it STARTED at, which is the reach stride that caught the
+    /// failure and NOT the seed: the stride doubles, so a bracket
+    /// entered four seeds wide closes to about four thousandths of a
+    /// seed, and one entered a thousand seeds wide closes no finer
+    /// than a seed. [`BoundsProbe::refined_width`] is that
+    /// arithmetic, and how fine the answer is therefore depends on
+    /// how far out the failure was, not on the step alone.
     pub const MAX_REFINES: u32 = 10;
 
     /// The ceiling on samples over both directions — the cost bound the
     /// module docs quote, stated where it is enforced.
     pub const MAX_SAMPLES: usize = 2 * (Self::MAX_REACHES as usize + Self::MAX_REFINES as usize);
 
+    /// The offset the `doubling`th reach step places, stepping by
+    /// `seed`: `seed · 2^doubling`. The ladder is geometric, so a
+    /// failure far out is found in a logarithmic number of samples.
+    ///
+    /// `doubling` is a step index and is below [`Self::MAX_REACHES`]
+    /// at every caller, which is what keeps the shift in range.
+    fn reach_offset(seed: f64, doubling: u32) -> f64 {
+        seed * f64::from(1u32 << doubling)
+    }
+
+    /// The furthest offset a reach can place, stepping by `seed`: the
+    /// last of [`Self::MAX_REACHES`] doublings, `seed · 2^(N−1)`.
+    ///
+    /// Public for [`crate::camera::Camera::pitch_limit`]'s reason: it
+    /// is a *contract* a test has to reason against — how far
+    /// [`Bound::Open`] looked, for a seed — and a test that restates
+    /// it as a literal is a hand-synced copy of a constant's
+    /// consequence, which is the defect this door exists to remove.
+    /// One home; read it.
+    #[must_use]
+    pub fn furthest_reach(seed: f64) -> f64 {
+        Self::reach_offset(seed, Self::MAX_REACHES - 1)
+    }
+
+    /// What [`Self::MAX_REFINES`] halvings leave of a bracket `width`
+    /// wide — the law [`Self::MAX_REFINES`] states, as arithmetic.
+    ///
+    /// The argument is the bracket the REFINEMENT ENTERED, never the
+    /// seed: what a reader wants to know is how tight the reported
+    /// pair is, and that is set by how far out the failure was.
+    /// Public for [`Self::furthest_reach`]'s reason.
+    #[must_use]
+    pub fn refined_width(width: f64) -> f64 {
+        width / f64::from(1u32 << Self::MAX_REFINES)
+    }
+
     /// A probe around `origin`, stepping by `seed`.
     ///
     /// `seed` is the field's natural step — one of whatever unit the
     /// panel is writing it in, and 1 for a count — and sets the scale
-    /// of the whole search: the first sample is one seed out and the
-    /// finest bracket is about a thousandth of one. A non-finite or
+    /// of the whole search: the first sample is one seed out, the
+    /// furthest is [`BoundsProbe::furthest_reach`] of one, and a
+    /// bracket closes to [`BoundsProbe::refined_width`] of the stride
+    /// that found it. A non-finite or
     /// non-positive seed is replaced by its magnitude or by 1, because
     /// a probe that refused would leave the panel with nothing to say
     /// about a field whose scale it could not guess.

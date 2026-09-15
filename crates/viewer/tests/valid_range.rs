@@ -392,36 +392,23 @@ fn probing_an_expression_driven_slot_refuses_with_the_affordance() {
     assert!(session.bounds().is_some(), "the parameter door answers");
 }
 
-/// The furthest offset a reach can place, stepping by `seed`:
-/// [`BoundsProbe::MAX_REACHES`] doublings, the last landing at
-/// `seed · 2^(MAX_REACHES − 1)`.
-///
-/// Derived from the constant rather than restated as a literal, so a
-/// row asserting against it is about the SEED — the number it names —
-/// and does not go red when the reach is allowed to look further.
-fn reach_of(seed: f64) -> f64 {
-    seed * f64::from(1u32 << (BoundsProbe::MAX_REACHES - 1))
-}
-
-/// The widest bracket a refinement can be left holding around a
-/// failure that lies `distance` from the origin: the reach doubles, so
-/// the stride that catches the failure is at most `2 · distance` wide,
-/// and [`BoundsProbe::MAX_REFINES`] halvings divide it.
-fn finest_bracket(distance: f64) -> f64 {
-    2.0 * distance / f64::from(1u32 << BoundsProbe::MAX_REFINES)
-}
-
 /// **A parameter is searched at the scale it was written in.** A
 /// millimetre-authored length seeds at one millimetre, not at one
 /// canonical metre, so the search spends its budget on the decades the
 /// part lives in.
 ///
-/// Both assertions are ones a metre seed CANNOT satisfy rather than
-/// ones it merely satisfies less well, and both state their threshold
-/// through [`reach_of`] and [`finest_bracket`] — so the seed is what
-/// they are about: a metre seed answers kilometres where a millimetre
-/// seed answers metres, and brackets its floor to a millimetre where a
-/// millimetre seed brackets to micrometres.
+/// **The two halves do not assert the same thing and the second is
+/// not about the seed.** The reach is: a metre seed reaches a
+/// thousand times further, and the assertion below is one it cannot
+/// satisfy. The bracket is NOT, and saying it was would be a story —
+/// the floor in this document is the single value `0` (a negative
+/// thickness still builds, `crates/viewer/src/bounds.rs`'s own row
+/// `work/chrome/a-negative-extrude-distance-probes-as-valid.md`), so
+/// a direction brackets only when a doubling lands exactly on it.
+/// What the bracket half tests is the REFINEMENT's closure, and what
+/// carries the seed there is the `let else`: a ladder that steps over
+/// the floor reports [`Bound::Open`] and the row dies there, saying
+/// so.
 #[test]
 fn a_millimetre_parameter_is_probed_at_millimetre_scale() {
     let tol = Tol::witness();
@@ -455,29 +442,48 @@ fn a_millimetre_parameter_is_probed_at_millimetre_scale() {
     assert_eq!(result.origin, 0.008);
 
     // Upward: a thicker plate never fails, so the search reaches its
-    // ceiling, which is `reach_of` the seed it stepped by. The
-    // threshold is that ceiling AT ONE WRITTEN MILLIMETRE — the seed
-    // `probe_seed` derives for a field written in millimetres — so a
-    // canonical-metre seed overshoots it by the ratio of the two
-    // units.
+    // ceiling, which is `BoundsProbe::furthest_reach` of the seed it
+    // stepped by — read from the probe rather than restated, so the
+    // reach constant can move without reddening this.
+    //
+    // ONE WRITTEN MILLIMETRE is this row's own statement of the seed
+    // it expects, and is deliberately not imported from the session's
+    // `probe_seed`: the rule that a field steps by one of the unit it
+    // was WRITTEN in is the thing under test here, so reading it from
+    // the code under test would make the row agree by construction
+    // (the argument `tests/edge_pick.rs` makes for spelling its own
+    // occlusion band). What the row may not restate is the probe's
+    // own arithmetic, and it no longer does.
     assert!(
-        result.high.limit() <= result.origin + reach_of(props::from_written(1.0, MM.def())),
+        result.high.limit()
+            <= result.origin + BoundsProbe::furthest_reach(props::from_written(1.0, MM.def())),
         "a millimetre-seeded reach stops metres out, not kilometres: {:?}",
         result.high
     );
-    // Downward: a zero-height extrude is refused, so there is a floor,
-    // and it lies one origin below the current value — at a millimetre
-    // seed the reach straddles it within a few seeds and the halvings
-    // take that to micrometres. A metre seed's first sample straddles
-    // it by a whole metre, which the same halvings cannot take below a
-    // millimetre.
+    // Downward: the plate fails at a thickness of exactly zero and
+    // nowhere else nearby, so the floor is ONE POINT and a direction
+    // brackets it only when a doubling lands on it. A millimetre
+    // ladder does — the floor is 8 seeds out, and 8 is a power of two
+    // — so this document brackets. A ladder that steps over the point
+    // finds nothing and reports `Open`, which is what this `let else`
+    // is for and what a metre seed does here.
     let Bound::Edge { valid, invalid } = result.low else {
-        panic!("a vanishing plate fails, so there is a floor: {result:?}");
+        panic!(
+            "the floor here is the single thickness 0, so the low side brackets only when a \
+             doubling lands exactly on it; a seed whose ladder steps over it reaches past the \
+             floor and reports Open: {result:?}"
+        );
     };
     assert!(invalid < valid, "a bracket straddles: {invalid}..{valid}");
+    // The refinement ENTERED the bracket the reach left it: the last
+    // doubling that was valid and the first that was not, which
+    // around a floor one origin out is `origin/2` wide. What
+    // `MAX_REFINES` halvings leave of that is the closure claim, and
+    // a refinement that stopped early is what makes it false.
     assert!(
-        valid - invalid < finest_bracket(result.origin),
-        "a millimetre-seeded bracket closes far finer than a metre seed could: \
-         {invalid}..{valid}"
+        valid - invalid <= BoundsProbe::refined_width(result.origin / 2.0),
+        "the halvings close the bracket they entered, and this one is wider than \
+         {MAX_REFINES} of them leave: {invalid}..{valid}",
+        MAX_REFINES = BoundsProbe::MAX_REFINES
     );
 }
