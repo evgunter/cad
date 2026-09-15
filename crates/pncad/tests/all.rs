@@ -452,7 +452,7 @@ fn stale_declaration_and_ring_contact_are_matchable(
 /// The profile refusals' payloads — what `ProfileError`,
 /// `CornerReason` and `PathError` say beyond their arm names.
 ///
-/// `EscalationSite` is where the rung under it shows: two of its four
+/// `EscalationSite` is where the rung under it shows: two of its three
 /// arms hand back a `SegmentRef`, and reading the site's loop and
 /// segment indices is the whole point of binding one.
 fn profile_payloads_are_matchable(
@@ -488,7 +488,6 @@ fn profile_payloads_are_matchable(
             named::<usize>(loop_index);
             "loop"
         }
-        EscalationSite::Fillet => "fillet",
     };
     let leg = match leg {
         FilletLeg::Incoming => "incoming",
@@ -4294,22 +4293,35 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   answer `stackup` already carries. `VerdictVector`, `VerdictRow`
 ///   and `VerdictVectorKey` are the STRICT form of the verdict diff and
 ///   are argued with the instrumentation family above.
-const NOT_CARRIED: [&str; 84] = [
+///
+///   **The CERTIFIED-RANGE query is interior** (`CertifiedRange`,
+///   `DerivedRange`, `RangeField`, `RangeRefusal`, `RangeSeed`,
+///   `RangeSide`, `certified_range`). It is the on-demand answer to
+///   "how far can this field move before the build stops being this
+///   build" — the proof the sampling probe stands in for — and the
+///   Python door for it is FILED and not built, which is the whole of
+///   why these are here rather than in `crate::analysis`. The row is
+///   `work/lib/certified-range-has-no-python-door`, and carrying this
+///   family is part of what it schedules; a promise made only in this
+///   comment would be gone the moment someone edited it.
+const NOT_CARRIED: [&str; 91] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
     "AppearanceRecord",
     "AppearanceResolution",
     "Attr",
-    "BracketEnd",
     "AttrSet",
     "AxisScalar",
     "BifurcationKind",
+    "BracketEnd",
     "BranchCertification",
     "BranchMarginEvidence",
     "CarriedRefusal",
+    "CertifiedRange",
     "ContentKey",
     "Coset",
+    "DerivedRange",
     "Diagnosis",
     "DocDiff",
     "EntityKey",
@@ -4337,6 +4349,10 @@ const NOT_CARRIED: [&str; 84] = [
     "PredicateDivergence",
     "ProfilePayload",
     "Qualifier",
+    "RangeField",
+    "RangeRefusal",
+    "RangeSeed",
+    "RangeSide",
     "RecipeEditRef",
     "Resolved",
     "Rgba8",
@@ -4363,6 +4379,7 @@ const NOT_CARRIED: [&str; 84] = [
     "appearance_rebind_suggestions",
     "apply_with_names",
     "body_name",
+    "certified_range",
     "derivation_nodes",
     "diff_summaries",
     "diff_verdicts",
@@ -4482,8 +4499,9 @@ fn module_pub_use_names(code: &str) -> std::collections::BTreeSet<String> {
 /// in a repository whose determinism argument opens with a pinned
 /// compiler, and stands guards whose claims are NEGATIVE on an
 /// explicitly unstable schema, where a format that moved reads green.
-/// Two blind spots stand, and both are text-reachable: closing them
-/// is scanner work in this file, not a toolchain.
+/// Two blind spots stand in the export set this scan reads, and both
+/// are text-reachable: closing them is scanner work in this file, not
+/// a toolchain.
 ///
 /// 1. A public name reachable only by module path
 ///    (`editor_core::persist::Foo`) and never lifted to that crate's
@@ -4494,8 +4512,8 @@ fn module_pub_use_names(code: &str) -> std::collections::BTreeSet<String> {
 ///    the hole is an accounting one — public names growing with
 ///    nobody made to decide about them — rather than a leak.
 /// 2. A `pub` item written DIRECTLY in `editor-core/src/lib.rs`
-///    rather than re-exported. That root declares 32 `pub mod` at
-///    column 0, four of them behind `#[cfg(feature = "interval")]`,
+///    rather than re-exported. That root declares 34 `pub mod` at
+///    column 0, five of them behind `#[cfg(feature = "interval")]`,
 ///    and no `pub` item of any other kind — so nothing type-like
 ///    escapes this scan today, held shut by the root's shape rather
 ///    than by a rule. [`root_declared_pub_names`] is the mechanism
@@ -4516,6 +4534,15 @@ fn module_pub_use_names(code: &str) -> std::collections::BTreeSet<String> {
 /// newly aliased root export is a new name here, uncarried, and fails
 /// (naming it with the `as` clause still attached, since the scanner
 /// takes the leaf of the statement).
+///
+/// A fourth is wider than this scan and is not its to close: **no
+/// instrument in the tree guards a public METHOD.** This scan's
+/// alphabet is root `pub use` leaf names; the Python side's member
+/// census reads a declaration's enum variants and bare-`pub` fields
+/// and never an `impl` block. So a method added to a carried type
+/// lands on the public surface with nothing made to decide about it —
+/// the same drift these guards exist to stop, one level in. Scheduled
+/// on `meta`'s slate as `no-instrument-guards-a-public-method`.
 #[test]
 fn every_document_layer_root_export_is_carried_or_listed() {
     let kernel_lib =

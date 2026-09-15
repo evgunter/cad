@@ -21,7 +21,7 @@
 //! `carrier_matches_mapped_source` — the carrier against the scaffold
 //! pushforward, an identity between two independently built objects
 //! — door open and door SHUT alike
-//! (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`).
+//! (`work/sym/plate-ceiling-is-now-the-scaffold-pushforward`).
 //!
 //! **A bound is a SET, read at ceiling + δ.** The first cut of this
 //! file read one drive's first refusal at twice the ceiling and
@@ -30,6 +30,14 @@
 //! rows below assert the bracket at both ends and the over-band SET at
 //! the refusing end, which is the pair that cannot be satisfied by an
 //! artefact.
+//!
+//! **Which tier these rows pin.** M10-9's — the shipped set with the
+//! form-level algebra OFF (`SymRules::without_the_algebra`), which is
+//! that tier bit for bit and the differential the algebra is measured
+//! against; the shipped set now carries rules A/B per node and rule D
+//! on top of the door, and its state is `m10_10_pins_interval`'s.
+//! Holding at every row here is what "the algebra off reproduces
+//! M10-9" means in assertable form.
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -40,13 +48,85 @@ use geom_core::{SymRules, Tol};
 
 use crate::m10_8_harness::{certifies_whole, dials};
 
-/// A named study, as a function of the SCALE of its real study, with ONE
-/// measured scale — a multiple of ε.
-type StudyAtCeiling<'a> = (&'static str, f64, &'a dyn Fn(f64) -> ProfileDoc);
+/// **One measured document, and everything measured about it** — the
+/// single home for the five studies this file and
+/// `m10_9_evidence_interval` drive.
+///
+/// Every field is a MEASUREMENT, not a target: `certifies_at` and
+/// `refuses_at` are the two ends of the ceiling's bracket in multiples
+/// of ε, and `registered` is how many decisions the registered-identity
+/// door discharges on the document at `certifies_at` (ε-independent —
+/// the same at `1e-6`, `1e-9` and `1e-12`, and both reviews re-measured
+/// it). Three rows read this array; a re-measured ceiling or a moved
+/// count is edited once (R1 S1: it used to be typed out three times,
+/// magic constants and builders both).
+pub(crate) struct Study {
+    pub(crate) name: &'static str,
+    /// A multiple of ε that certifies whole.
+    pub(crate) certifies_at: f64,
+    /// A multiple of ε that refuses.
+    pub(crate) refuses_at: f64,
+    /// `SymCounts::registered` at `certifies_at`, shipped set.
+    pub(crate) registered: u64,
+    pub(crate) at: Box<dyn Fn(f64) -> ProfileDoc>,
+}
 
-/// The same, with the measured ceiling as the BRACKET it is: a multiple
-/// of ε that certifies whole and one that refuses, both asserted.
-type Bracketed<'a> = (&'static str, f64, f64, &'a dyn Fn(f64) -> ProfileDoc);
+/// The five, in the order every row here reports them.
+pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
+    [
+        Study {
+            name: "two_hole_plate",
+            certifies_at: 7.811e2,
+            refuses_at: 7.814e2,
+            registered: 140,
+            at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
+        },
+        Study {
+            name: "r1_annulus",
+            certifies_at: 7.805e2,
+            refuses_at: 7.810e2,
+            registered: 140,
+            at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
+        },
+        Study {
+            name: "r2_link",
+            certifies_at: 4.930e2,
+            refuses_at: 4.934e2,
+            registered: 90,
+            at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
+        },
+        Study {
+            name: "r2_filleted_bracket",
+            certifies_at: 3.870e2,
+            refuses_at: 3.873e2,
+            registered: 144,
+            at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
+        },
+        Study {
+            name: "r2_rounded_pad",
+            certifies_at: 2.083e3,
+            refuses_at: 2.084e3,
+            // 86 until SYM-5's rule E (`common_factor`). The pad is
+            // the one of the five whose `registered` the rule moves,
+            // and it moves it UP: with the dial off this replay reads
+            // `symbolic_zero: 695, registered: 86, numeric: 1172`, with
+            // it on `858 / 104 / 991` — 181 decisions leave `numeric`,
+            // 163 of them as theorems and 18 through the door, and
+            // `frozen` is 2750 either way. That is the SECOND cause
+            // the assertion below names (a changed fold rule that
+            // un-freezes a residual the door then recognises) and not
+            // the first: `registrations_refused` and
+            // `registrations_contradicted` are 0 at both dials, the
+            // registrants' own `debug_assert!` never fires, and no
+            // ceiling on this document moves. The other four are
+            // byte-identical at both dials except for `symbolic_zero`
+            // rising against `numeric` (link 485 → 515, bracket
+            // 1075 → 1083, plate and annulus unmoved).
+            registered: 104,
+            at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
+        },
+    ]
+}
 
 /// One whole-box replay at `Sym<Interval>`: the session's counts and the
 /// first node that refused.
@@ -87,10 +167,18 @@ fn replay_counts(
     })
 }
 
-/// M10-8's tier exactly — the shipped set with the door shut, and the
+/// M10-9's tier exactly — the shipped set with the algebra off.
+fn opened() -> SymRules {
+    SymRules::without_the_algebra()
+}
+
+/// M10-8's tier exactly — M10-9's with the door shut, and the
 /// differential every row here is taken against.
 fn closed() -> SymRules {
-    SymRules::shipped_without_the_door()
+    SymRules {
+        registered: false,
+        ..opened()
+    }
 }
 
 /// **The door SHIPS, and it is the only difference from M10-8's set.**
@@ -103,7 +191,7 @@ fn m10_9_the_shipped_set_carries_the_door() {
         s.early,
         "and it rides the early walk, so the plain form — asked first — never sees the registry"
     );
-    let off = closed();
+    let off = SymRules::shipped_without_the_door();
     assert!(!off.registered);
     assert_eq!(
         SymRules {
@@ -112,6 +200,14 @@ fn m10_9_the_shipped_set_carries_the_door() {
         },
         s,
         "`shipped_without_the_door` differs from `shipped` in the door and in nothing else"
+    );
+    assert_eq!(
+        SymRules {
+            registered: true,
+            ..closed()
+        },
+        opened(),
+        "and M10-9's tier is M10-8's plus the door"
     );
 }
 
@@ -140,49 +236,35 @@ fn m10_9_the_door_is_inert_on_straight_geometry() {
         .serialize()
     };
     assert_eq!(
-        run(SymRules::shipped()),
+        run(opened()),
         run(closed()),
         "straight geometry: the door changes nothing, down to the receipt line"
     );
 }
 
-/// **THE MECHANISM, read where it is visible: at TWICE the plate's
-/// ceiling.** A replay there with the door SHUT refuses on
-/// `carrier_endpoint_start` — the rim identity `‖q − c‖ = r` — and the
-/// same replay with the door OPEN gets past it and refuses on
-/// `carrier_matches_mapped_source` instead. BOTH endpoint pinnings are
-/// discharged (the rim identity and the span identity
+/// **THE MECHANISM, in the receipt.** A replay of the plate past its
+/// ceiling with the door SHUT registers nothing; the same replay with
+/// the door OPEN discharges through the registry — BOTH endpoint
+/// pinnings (the rim identity `‖q − c‖ = r` and the span identity
 /// `carrier.eval(param_end) = q_to`, the arc carrier's two same-object
-/// identities), and the drive's reported refusal moves with them.
+/// identities) — and only out of `numeric`: `symbolic_zero` and
+/// `sign_gated` are identical door open and shut.
 ///
-/// **This scale is chosen, and it is NOT the bound.** At twice the
-/// ceiling several predicates are over the band at once, so which one a
-/// drive names is evaluation ORDER — which is exactly why it can move
-/// while the ceiling does not. The BOUND is the over-band set at
-/// ceiling + δ, and it is `carrier_matches_mapped_source` door open and
-/// door shut alike
-/// (`m10_9_the_bound_at_ceiling_plus_delta_is_the_scaffold_pushforward`
-/// asserts that; `work/m10/plate-ceiling-is-now-the-scaffold-pushforward`
-/// says what it is). This row is about the MECHANISM: that the door
-/// discharges a residual a drive really did stop on.
-///
-/// Three claims in one drive pair, and each is labelled: the door
-/// discharges (`registered > 0`), it discharges only out of `numeric`
-/// (`symbolic_zero` and `sign_gated` identical), and the residual it
-/// discharges is one that really did stop a drive.
+/// The name the drive stops on is deliberately NOT read: past the
+/// ceiling several predicates are over the band at once and the name
+/// is evaluation order. The BOUND is the over-band set at ceiling + δ
+/// (`m10_9_the_bound_at_ceiling_plus_delta_is_the_scaffold_pushforward`).
 #[test]
 fn m10_9_the_rim_registrant_discharges_the_plates_endpoint_identity() {
     let tol = Tol::witness();
     let eps = tol.eps();
-    // TWICE the measured ceiling (`[7.811e2, 7.814e2] · ε`, both ends
-    // asserted by the ceiling row below): the scale where the drive's
-    // reported refusal is visible, and — see this row's doc comment —
-    // deliberately NOT the scale a bound is read at.
+    // Past the measured ceiling (`[7.811e2, 7.814e2] · ε`, both ends
+    // asserted by the ceiling row below).
     let doc = crate::m10_7_plate::plate(5.0e-5 * 1.6e3 * eps, 1.0e-5 * 1.6e3 * eps, tol).0;
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let box_ = ParamBox::of(&analyzed);
     let (shut_refusal, shut) = replay_counts(&doc, &box_, closed(), tol);
-    let (open_refusal, open) = replay_counts(&doc, &box_, SymRules::shipped(), tol);
+    let (open_refusal, open) = replay_counts(&doc, &box_, opened(), tol);
     println!(
         "   door shut {shut:?} -> {shut_refusal:?}\n   door open {open:?} -> {open_refusal:?}"
     );
@@ -208,19 +290,9 @@ fn m10_9_the_rim_registrant_discharges_the_plates_endpoint_identity() {
         open.decisions() >= shut.decisions(),
         "the door can only carry a replay further, never less far: {open:?} vs {shut:?}"
     );
-    let shut_refusal = shut_refusal.expect("past its ceiling the plate refuses with the door shut");
-    let open_refusal = open_refusal.expect("and with the door open");
     assert!(
-        shut_refusal.contains("carrier_endpoint_start"),
-        "M10-8's bound is the rim identity: {shut_refusal}"
-    );
-    assert!(
-        open_refusal.contains("carrier_matches_mapped_source"),
-        "with the rim AND span identities registered, both endpoint pinnings are \
-         discharged and this drive gets past them — the next predicate its evaluation \
-         order reaches is `carrier_matches_mapped_source`, the carrier against the \
-         scaffold pushforward, which is NOT a same-object identity of the arc carrier \
-         (work/m10/plate-ceiling-is-now-the-scaffold-pushforward): {open_refusal}"
+        shut_refusal.is_some() && open_refusal.is_some(),
+        "past its ceiling the plate refuses with the door shut and open alike"
     );
 }
 
@@ -255,7 +327,7 @@ fn m10_9_the_value_channel_is_untouched_on_a_certifying_box() {
             .collect::<Vec<_>>()
             .join("\n")
     };
-    let open = run(SymRules::shipped());
+    let open = run(opened());
     let shut = run(closed());
     assert_eq!(
         strip(open.clone()),
@@ -289,6 +361,9 @@ fn m10_9_the_value_channel_is_untouched_on_a_certifying_box() {
 /// | R2 filleted bracket | `3.870e2 · ε` | `3.873e2 · ε` | `{carrier_matches_mapped_source}`, `[0, 1.0001 · ε]` |
 /// | R2 rounded pad | `2.083e3 · ε` | `2.084e3 · ε` | `{carrier_matches_mapped_source}`, `[0, 1.0001 · ε]` |
 ///
+/// The table above is PROSE; `measured_studies` is the checked copy of
+/// the same numbers, and it is what the rows below read.
+///
 /// **Twenty drives, and they were profiled before they were written**
 /// ([[test-suite-cost]]: cost concentrates savagely). The pad is ~80%
 /// of this file, and it is bought deliberately — it is the document
@@ -305,25 +380,9 @@ fn m10_9_the_value_channel_is_untouched_on_a_certifying_box() {
 fn m10_9_the_ceilings_are_unmoved_and_both_ends_are_the_measured_bracket() {
     let tol = Tol::witness();
     let eps = tol.eps();
-    let docs: [Bracketed<'_>; 5] = [
-        ("two_hole_plate", 7.811e2, 7.814e2, &|s: f64| {
-            crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0
-        }),
-        ("r1_annulus", 7.805e2, 7.810e2, &|s: f64| {
-            crate::m10_8_r1_probes_interval::annulus(s, tol).0
-        }),
-        ("r2_link", 4.930e2, 4.934e2, &|s: f64| {
-            crate::m10_9_r2_probes_interval::link(s, tol).0
-        }),
-        ("r2_filleted_bracket", 3.870e2, 3.873e2, &|s: f64| {
-            crate::m10_7_r2_probes_interval::bracket(s, tol).0
-        }),
-        ("r2_rounded_pad", 2.083e3, 2.084e3, &|s: f64| {
-            crate::m10_8_r2_probes_interval::pad(s, tol).0
-        }),
-    ];
-    for (name, lo, hi, at) in docs {
-        for (rules, label) in [(SymRules::shipped(), "open"), (closed(), "shut")] {
+    for study in measured_studies(tol) {
+        let (name, lo, hi, at) = (study.name, study.certifies_at, study.refuses_at, &study.at);
+        for (rules, label) in [(opened(), "open"), (closed(), "shut")] {
             assert!(
                 certifies_whole(&at(lo * eps), rules, tol),
                 "{name}, door {label}: {lo:e}·ε is inside the measured bracket and must \
@@ -339,6 +398,76 @@ fn m10_9_the_ceilings_are_unmoved_and_both_ends_are_the_measured_bracket() {
     }
 }
 
+/// **NO REGISTRANT LIES ON A REAL DOCUMENT** — the loud channel the
+/// door was missing, at fixture scale, and the three assertions that
+/// make it one.
+///
+/// The five measured documents are replayed at `Sym<Interval>` with the
+/// shipped set, at the scale each certifies whole at
+/// (`measured_studies`). **The width the row reads at is the ANALYZED
+/// BOX** — `analyzed_box(doc, AnalysisPolicy::default())`, the same box
+/// the driver replays over — and that width is what the exact witness
+/// tests against, so the claim below is about the door's answers over
+/// that box and not over a point.
+///
+/// **What each assertion catches, because no one of them catches
+/// everything** (R2 MAJOR-1 / R1 MINOR-4 measured exactly this):
+///
+/// - **`registered`, pinned PER DOCUMENT.** A registration the exact
+///   witness ADMITS but should not is invisible to a refusal count: at
+///   `Sym<Interval>` two certified enclosures that still MEET are
+///   `Witnessed`, which is the door's contract and not a defect it can
+///   see. R2 planted `‖q − c‖ ≡ r · (1 + 2ε)` in `register_rim_identity`
+///   and the enclosures still met — but the registry stops discharging,
+///   so `registered` collapses (plate 140 → 16, annulus 140 → 16, link
+///   90 → 16, bracket 144 → 20, pad 86 → 24 — R2's measurement on the
+///   tier as it stood, whose pad base was 86; SYM-5's rule E has since
+///   moved that base and not the mechanism) and `numeric` rises
+///   (470 → 594 on the plate). **These counts are what a small lie
+///   moves**, so they are pinned, and they are ε-independent: the same
+///   five numbers at `1e-6`, `1e-9` and `1e-12`.
+/// - **The registrants' own `debug_assert!`** (`swept::handle_registration`).
+///   A GEOMETRIC lie separates the enclosures, the exact witness answers
+///   `Contradicted`, and the registrant aborts — first, and in every CI
+///   profile, because this workspace ships `debug-assertions = true` in
+///   release too. So a 0.1 % lie reds this row through a panic and never
+///   reaches the count below.
+/// - **`registrations_refused == 0`.** What is left once those two have
+///   had their turn: `Cyclic`, and any FUTURE registrant that binds the
+///   refusal without asserting. It is the backstop, not the loud
+///   channel, and saying otherwise was the first cut's mistake.
+///
+/// The ε rows are the suite's: one process per ε, so this row runs at
+/// `1e-6`, `1e-9` and `1e-12` and the claim is all three.
+#[test]
+fn m10_9_no_registrant_lies_on_any_measured_document() {
+    let tol = Tol::witness();
+    let eps = tol.eps();
+    for study in measured_studies(tol) {
+        let name = study.name;
+        let doc = (study.at)(study.certifies_at * eps);
+        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        let (refusal, counts) =
+            replay_counts(&doc, &ParamBox::of(&analyzed), SymRules::shipped(), tol);
+        println!("   {name} at eps={eps:e}: {counts:?} -> {refusal:?}");
+        assert_eq!(
+            counts.registered, study.registered,
+            "{name} at eps={eps:e}: the door discharges a DIFFERENT number of decisions \
+             than the measurement. The cause this pin exists for is a registrant that \
+             started stating something slightly false — it stops discharging without \
+             ever being refused — but the count moves for other reasons too: a changed \
+             fold rule, a new normal-form shortcut that discharges a residual earlier, \
+             or a re-cut document. Decide which before re-baselining: {counts:?}"
+        );
+        assert_eq!(
+            counts.registrations_refused, 0,
+            "{name} at eps={eps:e}: a registration was refused on a real document — at \
+             this lane that is `Cyclic`, or an exact-witness refusal from a registrant \
+             that binds it instead of asserting: {counts:?}"
+        );
+    }
+}
+
 /// **AND THE BOUND IS ONE PREDICATE, door open or shut** — the
 /// over-band set at ceiling + δ on the three documents a gate can
 /// afford to name it for.
@@ -350,7 +479,7 @@ fn m10_9_the_ceilings_are_unmoved_and_both_ends_are_the_measured_bracket() {
 /// carrier against the `MappedCurve` pushforward at the certifier's own
 /// samples — an identity between two INDEPENDENTLY BUILT objects, which
 /// is the line E12's reserve draws
-/// (`work/m10/plate-ceiling-is-now-the-scaffold-pushforward`).
+/// (`work/sym/plate-ceiling-is-now-the-scaffold-pushforward`).
 ///
 /// Asserted as a SET, so a second predicate joining it is a failure
 /// rather than a silent change of subject.
@@ -364,19 +493,17 @@ fn m10_9_the_bound_at_ceiling_plus_delta_is_the_scaffold_pushforward() {
     let eps = tol.eps();
     // The refusing end of each measured bracket (the row above asserts
     // that these refuse; this one says WHAT is over the band there).
-    let docs: [StudyAtCeiling<'_>; 3] = [
-        ("two_hole_plate", 7.814e2, &|s: f64| {
-            crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0
-        }),
-        ("r1_annulus", 7.810e2, &|s: f64| {
-            crate::m10_8_r1_probes_interval::annulus(s, tol).0
-        }),
-        ("r2_link", 4.934e2, &|s: f64| {
-            crate::m10_9_r2_probes_interval::link(s, tol).0
-        }),
-    ];
-    for (name, hi, at) in docs {
-        for (rules, label) in [(SymRules::shipped(), "open"), (closed(), "shut")] {
+    // The three documents a gate can afford to name the set for,
+    // selected BY NAME out of the shared table: a positional `take(3)`
+    // would let a reorder or an insert change what this row measures
+    // while the doc above still named these three.
+    for name in ["two_hole_plate", "r1_annulus", "r2_link"] {
+        let study = measured_studies(tol)
+            .into_iter()
+            .find(|study| study.name == name)
+            .unwrap_or_else(|| panic!("{name} is not in measured_studies"));
+        let (hi, at) = (study.refuses_at, &study.at);
+        for (rules, label) in [(opened(), "open"), (closed(), "shut")] {
             let doc = at(hi * eps);
             let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
             let (shapes, _, _) = replay(&doc, &ParamBox::of(&analyzed), rules, tol);
@@ -398,7 +525,7 @@ fn m10_9_the_bound_at_ceiling_plus_delta_is_the_scaffold_pushforward() {
                 "{name}, door {label}: at ceiling + δ exactly one predicate is over the \
                  band, and it is the scaffold pushforward — not an identity the door \
                  could reach, and not a real margin \
-                 (work/m10/plate-ceiling-is-now-the-scaffold-pushforward)"
+                 (work/sym/plate-ceiling-is-now-the-scaffold-pushforward)"
             );
         }
     }

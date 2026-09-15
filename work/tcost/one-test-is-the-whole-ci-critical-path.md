@@ -118,7 +118,7 @@ reading of it will be wrong by a factor of two in either direction.
 The cause is almost certainly the one already diagnosed on
 `m10-3-chamber-row-reads-ten-times-its-recorded-cost`: PR #1725's
 symbolic identity tier, 95 % of the M10-3 drive's cost, filed to M10 as
-`work/m10/symbolic-tier-costs-95-percent-of-the-m10-3-drive`. The two
+`work/sym/symbolic-tier-costs-95-percent-of-the-m10-3-drive`. The two
 rows named in that item — `the_driven_chamber_replays_bit_identically…`
 (110 – 141 s per leg here) and
 `the_band_and_uniform_drives_ship_the_same_leaf_partition` — are the

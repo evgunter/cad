@@ -1174,12 +1174,15 @@ fn curved_face_arm<T: Decide>(
     //   edge; for a short arc it answers about geometry the edge does
     //   not occupy, which is what made a corner round's carrier — not
     //   its arc — decide a cut (#347).
-    // - **the arc's**: the residual at the two ENDPOINTS bounds the
-    //   interior through the same chord-dip argument the line row uses
-    //   along a segment — a smooth function stays within `|F″|·Δθ²/8`
-    //   of its endpoint chord, and `|F″|` is the harmonics' own bound
-    //   (`geom_brep::circle_residual_curvature_bound`). Tight for a
-    //   short arc, useless for a full turn.
+    // - **the arc's**: the residual is SAMPLED across the arc at
+    //   `geom_brep::ARC_RESIDUAL_SAMPLES` steps and the sample hull is
+    //   widened by one sub-arc's chord-dip charge — a smooth function
+    //   stays within `|F″|·h²/8` of the chord of a sub-arc of width
+    //   `h` (`geom_brep::circle_arc_residual_range`). Tight for a
+    //   short arc, useless for a full turn, and it is what gives the
+    //   torus a verdict at all: the torus's composed residual has no
+    //   harmonic form, so the sampled enclosure is the only one it
+    //   has, on the arc and on the whole turn alike.
     //
     // Both are valid enclosures of the ARC's range, so the clearance
     // margin is the larger of the two one-sidedness margins: definitely
@@ -1202,26 +1205,18 @@ fn curved_face_arm<T: Decide>(
                 return Err(frontier());
             };
             let carrier_margin = lo.max(-hi);
+            let (t0, t1) = curve.params();
+            // The line row's vertex CLAMP does not port here, and the
+            // reason is the curve: along a line the residual is
+            // exactly quadratic, so "the vertex is outside the span"
+            // is a statement about a parabola and is decided by the
+            // endpoint gap alone. Along a circle it has up to four
+            // critical parameters, so an endpoint gap says nothing
+            // about where its minimum sits. Subdivision is what is
+            // available without solving for them.
             let arc_margin =
-                geom_brep::circle_residual_curvature_bound(&surface, center, axis, radius, u_ref)
-                    .map_or(carrier_margin, |f2| {
-                        let (t0, t1) = curve.params();
-                        // The line row's vertex CLAMP does not port
-                        // here, and the reason is the curve: along a
-                        // line the residual is exactly quadratic, so
-                        // "the vertex is outside the span" is a
-                        // statement about a parabola and is decided by
-                        // the endpoint gap alone. Along a circle it is
-                        // a degree-≤2 TRIGONOMETRIC polynomial with up
-                        // to four critical parameters, so an endpoint
-                        // gap says nothing about where its minimum
-                        // sits. The unclamped chord-dip charge is what
-                        // is available without solving for them.
-                        let dip = f2 * (t1 - t0).powi(2) * T::from_f64(0.125);
-                        let r_u = geom_brep::implicit_residual(&surface, pu);
-                        let r_v = geom_brep::implicit_residual(&surface, pv);
-                        (r_u.min(r_v) - dip).max(-(r_u.max(r_v) + dip))
-                    });
+                geom_brep::circle_arc_residual_range(&surface, center, axis, radius, u_ref, t0, t1)
+                    .map_or(carrier_margin, |(arc_lo, arc_hi)| arc_lo.max(-arc_hi));
             let margin = Margin::of(carrier_margin.max(arc_margin));
             return match decide("bool_circle_curved_clearance", margin, band) {
                 Ok(Sign::Positive) => Ok(CurvedEvent::None),

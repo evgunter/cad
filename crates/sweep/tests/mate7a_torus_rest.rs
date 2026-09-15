@@ -21,19 +21,21 @@
 //!
 //! **What this suite also RECORDS is where the lane stops**, because
 //! the stopping point is the unit's measurement and not an omission:
-//! an admitted torus pair reaches the crossing layer and refuses there
-//! at the curved-pierce frontier. Every edge a torus-walled body
-//! carries is a CIRCLE, and the circle×face clearance enclosure the
-//! frontier consults has no torus arm, so it declines before the
-//! declared-cover rung behind it can be consulted at all. Two rows
-//! below hold that boundary still, so the day the enclosure grows an
-//! arm they are what changes.
+//! an admitted torus pair reaches the crossing layer and refuses
+//! there. The enclosure the circle rung consults HAS a torus arm now
+//! (`geom_brep::circle_arc_residual_range`), so the rung no longer
+//! declines for want of one — it decides, and on a COINCIDENT pair it
+//! decides definitely-not-one-sided, because the residual is
+//! identically zero along a seam meridian and the sampled enclosure
+//! is `±charge` about it. The declared-cover rung behind it needs a
+//! `Zero` and is still never consulted. Two rows below hold that
+//! boundary, and the one that names it carries the measurement.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::revolve_common;
 
-use geom_core::{Point3, Tol, Vec3};
+use geom_core::{Band, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use revolve_common::{axis_y, p2, validated};
 use sweep::{Revolution, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow};
@@ -382,22 +384,78 @@ fn a_partly_covered_torus_pair_still_gates_on_the_uncovered_one() {
 
 /// **Where the lane stops once the gate is past, held still.** The
 /// admitted pair reaches the crossing layer and refuses at the
-/// curved-pierce frontier: every edge of a torus-walled body is a
-/// CIRCLE, and the circle-versus-face clearance enclosure the frontier
-/// consults has no torus arm, so it declines before the declared-cover
-/// rung behind it is consulted at all. This is a boundary, not a
-/// verdict about the declaration — and it is asserted so that growing
-/// that enclosure shows up here as a change rather than as silence.
+/// curved-pierce frontier — and the ROW is the same while the CAUSE
+/// has moved one rung on.
+///
+/// It used to be that every edge of a torus-walled body is a CIRCLE
+/// and the clearance enclosure had no torus arm at all, so the rung
+/// declined on a `None` before the declared-cover rung behind it was
+/// consulted. The enclosure has a torus arm now
+/// (`geom_brep::circle_arc_residual_range`), so the rung DECIDES —
+/// and on this fixture, two coincident tori, it decides
+/// definitely-NEGATIVE: the residual is identically zero along a seam
+/// meridian, so the sampled enclosure is `±charge` and its
+/// one-sidedness margin is `−charge`, which is 1.8e-5 m and outruns
+/// every eps cell in the run matrix. The rung takes the frontier at
+/// its `Zero | Negative` arm instead of at the `None` door.
+///
+/// The declared-cover rung behind it needs a `Zero`, and a sampled
+/// enclosure of a COINCIDENT pair cannot produce one at any `K`: the
+/// charge falls as `K⁻²` and the band does not follow it. That is
+/// `work/curved/torus-coincident-pair-cannot-reach-the-covered-rung`,
+/// and the enclosure's own width is pinned in `geom-brep`'s
+/// `a_coincident_torus_pair_encloses_pm_charge_and_reads_negative`.
+///
+/// **The landing is eps-DEPENDENT, and the margin is why.** The
+/// margin here is −4.56e-6 m. Where the escalation threshold stands
+/// under it the verdict is a definite Negative and the rung takes the
+/// typed frontier; where the margin falls INSIDE the ambiguity band
+/// the predicate is `Indeterminate` and the op escalates instead.
+/// Both are typed refusals of the same fact — no crossing verdict for
+/// a coincident torus pair — and the row asserts whichever the run's
+/// own band selects rather than picking one and skipping the other.
 #[test]
 fn the_admitted_torus_lane_stops_at_the_curved_pierce_frontier() {
     let (a, b) = (full_torus(RING), full_torus(RING));
     let decls = wall_declarations(&a, &b, TUBE, ContactClass::Rest);
     let err = topo::union_with(&a, &b, &decls, Tol::witness())
-        .expect_err("the circle-versus-torus clearance has no enclosure yet");
+        .expect_err("a coincident torus pair still has no crossing verdict");
+    println!("the admitted torus lane answers {err:?}");
+    // **The PROPERTY, not the variant.** Both arms of the v6 dual
+    // agreed the conservative reading is the one to pin: a coincident
+    // torus pair must never reach a validated BODY, and which typed
+    // refusal carries that is the run's band's business, not this
+    // row's. Matching on whichever the run selects made the row a
+    // restatement of the implementation rather than a claim about it.
     assert!(
-        matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
-        "the lane's stopping point is the curved-pierce frontier: {err:?}"
+        matches!(
+            err,
+            BooleanError::CurvedPierceUnsupported { .. } | BooleanError::Escalated { .. }
+        ),
+        "a coincident torus pair must refuse TYPED, never grant: {err:?}"
     );
+    // And where the run's band puts the margin inside the ambiguity
+    // window, the escalation's payload is pinned — so a charge that
+    // drifts is visible here rather than silently reclassifying the
+    // refusal. The margin is the chord-dip charge on this fixture's
+    // seam meridian, which is a half meridian: 4.56e-6 m.
+    let band = Band::linear(Tol::witness()).expect("the run's linear band");
+    const MARGIN: f64 = 4.559_414_566_271_785e-6;
+    if MARGIN < band.escalate() && MARGIN > band.zero() {
+        let BooleanError::Escalated { diag } = &err else {
+            panic!("inside the ambiguity band the clearance predicate escalates: {err:?}");
+        };
+        let text = format!("{diag:?}");
+        assert!(
+            text.contains("bool_circle_curved_clearance"),
+            "the escalation must name the clearance predicate: {text}"
+        );
+        assert!(
+            text.contains("-4.559414566271785e-6"),
+            "and carry the measured margin, so a drifting charge is \
+             visible rather than silent: {text}"
+        );
+    }
 }
 
 // -------------------------------------------------------------------

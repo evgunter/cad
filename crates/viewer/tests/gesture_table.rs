@@ -1560,6 +1560,132 @@ fn a_probe_on_another_instance_cannot_steer_the_open_one() {
     );
 }
 
+/// **The open probe's own instance, driven again, lands its frame** —
+/// the probe's half of
+/// `the_open_drags_own_field_dragged_again_lands_its_number`, and the
+/// reason a probe is named by the instance it is on rather than by a
+/// token its begin mints.
+///
+/// The probe has the stranded-field state the value drag has, reached
+/// by a different door: `SessionOp::Select` is permitted mid-probe
+/// (`permitted_during_free_move`) and `pane::properties`' `instance_ui`
+/// draws the probe row for `selection().node()` alone, so a selection
+/// change under an open probe takes the field away with the drag still
+/// live. It is the hole
+/// `free-move-in-flight-refusal-has-no-reachable-producer` named and
+/// left open, and the hand that reaches it is the one that row closed
+/// on: every `Select` producer in the chrome is a `clicked()`, and
+/// egui answers `clicked()` for a focused widget's Space/Enter and for
+/// an AccessKit `Action::Click` with no pointer anywhere.
+///
+/// The reader's recovery is to select the instance again and drag a
+/// box, which is a whole begin/preview/commit batch on a probe that is
+/// already open. Its begin is refused — one probe at a time — and its
+/// preview and its commit name the instance the open probe is on, so
+/// they land the frame the user dragged it to and the probe ends. A
+/// token minted per begin would refuse them and strand the reader a
+/// second time; an instance accepts them, which is what *one probe per
+/// instance, driven by whoever names it* buys.
+///
+/// Where it goes red: make `begin_free_move` permit a second begin and
+/// the recovery opens a fresh probe over the held frame instead of
+/// continuing it; make `preview_free_move` or `commit_free_move` refuse
+/// a name that matches the open probe and the reader can no longer end
+/// the drag from the panel at all.
+#[test]
+fn the_open_probes_own_instance_driven_again_lands_its_frame() {
+    let tol = Tol::witness();
+    let bench = common::asm::bench("view-probe-driven-again", tol);
+    let mut session = common::asm::open_bench(&bench, tol);
+    let (probed, other) = (bench.post_a, bench.post_b);
+
+    assert!(
+        session
+            .perform(SessionOp::BeginFreeMove { instance: probed })
+            .refusal
+            .is_none()
+    );
+    let held = Frame::translation([0.0, 0.0, 0.011]);
+    assert!(
+        session
+            .perform(SessionOp::PreviewFreeMove {
+                instance: probed,
+                frame: held,
+            })
+            .refusal
+            .is_none()
+    );
+
+    // The strand: the selection moves off the probed instance, so the
+    // panel stops drawing the row the probe is being driven from.
+    assert!(
+        session
+            .perform(SessionOp::Select(Selection::Node(other)))
+            .refusal
+            .is_none(),
+        "a selection change is permitted under a probe"
+    );
+    assert_eq!(
+        session.display().probing(),
+        Some(probed),
+        "and it leaves the probe live with its field no longer drawn"
+    );
+    assert_eq!(
+        session.display_view().moved.get(&probed),
+        Some(&held),
+        "still showing the frame it was dragged to"
+    );
+
+    // The recovery: select it again and drive the row a second time.
+    assert!(
+        session
+            .perform(SessionOp::Select(Selection::Node(probed)))
+            .refusal
+            .is_none()
+    );
+    assert!(
+        matches!(
+            session
+                .perform(SessionOp::BeginFreeMove { instance: probed })
+                .refusal,
+            Some(Refusal::Display(DisplayFault::FreeMoveInFlight))
+        ),
+        "the second batch's begin is refused — one probe at a time"
+    );
+    let again = Frame::translation([0.0, 0.0, 0.017]);
+    assert!(
+        session
+            .perform(SessionOp::PreviewFreeMove {
+                instance: probed,
+                frame: again,
+            })
+            .refusal
+            .is_none(),
+        "and its preview names the probe that is open"
+    );
+    let landed = session.perform(SessionOp::CommitFreeMove { instance: probed });
+    assert!(landed.refusal.is_none());
+    assert!(
+        landed.committed.is_empty(),
+        "a probe reaches no document edit"
+    );
+    assert_eq!(
+        session.display().free_move_of(probed),
+        Some(&again),
+        "the instance keeps the frame the second drive left it at"
+    );
+    assert_eq!(
+        session.display().probing(),
+        None,
+        "and the probe the first drive opened is the one that ended"
+    );
+    assert_eq!(
+        session.display().free_move_of(other),
+        None,
+        "nothing landed on the instance the selection passed through"
+    );
+}
+
 /// **The route the two halves meet on**: the drag that stranded
 /// itself, and the field a reader drags when the panel comes back.
 ///

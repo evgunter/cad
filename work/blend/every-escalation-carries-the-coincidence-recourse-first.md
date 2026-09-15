@@ -66,3 +66,52 @@ Whether `COINCIDENCE_RECOURSE`'s three levers should be conditioned at
 the geom-core end instead — one door's escalation is another door's —
 is the same question `escalation-recourse-dispatch-has-three-homes`
 raises from the routing side. The two want deciding together.
+
+## Another instance, repaired at the site (BLEND-10 fix pass, 2026-09-13)
+
+`PathError::Escalated`'s `Display` (`crates/profile/src/path.rs`) has the
+same shape: its fallback arm writes `"path junction classification:
+{source}"`, and `{source}` is `Indeterminate`'s own `Display` — the
+margin payload followed by `COINCIDENCE_RECOURSE`. Every escalation the
+path door relays without a keyed arm therefore tells the reader to
+declare a coincidence first.
+
+The instance BLEND-10 met: the fillet door now re-reads the loop it is
+about to emit through the verify layer's own segment and joint
+predicates, and relays an in-band classification through that arm. The
+reader of a refusal about a joint THE DOOR ITSELF MINTED was told to
+declare it — a declaration they never wrote and cannot add, since the
+door writes the declaration set. Repaired by giving those eight
+predicate names their own arm, which names the site ("reading back the
+fillet arc this door is about to store") and the levers the stored form
+actually has (`FILLET_STORED_FORM_INBAND_RECOURSE`), and which does not
+render `{source}` whole. The row is
+`fillet_recourse_followability.rs`'s
+`the_stored_form_inband_recourse_is_followed_by_dropping_the_fillet`,
+which asserts the sentence does NOT contain "declare the coincidence".
+
+What stays open here: the fallback arm itself, and every other
+escalation that reaches it.
+
+## A second instance, repaired at the site (BLEND-12, 2026-09-13)
+
+The same arm, the other family. The nine `fillet_*` gates the
+construction sugar decides (`crates/profile/src/sugar.rs`) reached the
+fallback arm too, so every in-band fillet verdict told its reader to
+declare a coincidence at a joint the caller never authored — while the
+six `FILLET_*_RECOURSE` sentences written for exactly those gates were
+rendered only by a `ProfileError::Escalated { site:
+EscalationSite::Fillet, .. }` arm that nothing constructed.
+
+Repaired by giving the nine names their own arm, ahead of BLEND-10's
+eight and of the junction keys: it names the site ("resolving the fillet
+at this corner") and appends the gate's own sentence, selected by
+`validate::fillet_recourse_for` — the crate's one name-to-sentence map —
+and does not render `{source}` whole. `EscalationSite::Fillet` was
+retired with its arm. The rows are in
+`crates/profile/tests/fillet_recourse_followability.rs`, including a
+census over the nine names read out of `sugar.rs`'s source.
+
+What stays open here is unchanged: the fallback arm itself, and every
+other escalation that reaches it — the junction keys keep the shared
+sentence on purpose, because `.tangent()` is a door their caller has.

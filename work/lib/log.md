@@ -2720,7 +2720,7 @@ and multi-unit surfaces. The next LIB unit is a substantive one.
 
 `no-door-mints-mate-frame-from-face` re-homed here by header-preserving
 `git mv`: the frozen-at-authoring answer is ratified as the mate side's
-(`docs/DOCM-REFERENCES-DESIGN.md` DM1, the asymmetry paragraph), the
+(`crates/editor-core/REFERENCES.md` DM1, the asymmetry paragraph), the
 viewer's mate tool already derives its frames that way, and what is
 left is the headless door — a `Pose` into a `MateFrame` from the façade
 — which is LIB's surface. Signed (DOCM orchestrator).
@@ -5111,3 +5111,30 @@ conflicts between docs PRs landing minutes apart and one placeholder
 left in a pushed log entry, both caught the same hour. The check-in
 routine stays armed at a long interval while anything is parked on
 another program.
+
+## Announced seam from TOPO (2026-09-14): the edge-side carrier-kind read at the façade
+
+TOPO's `edge-carrier-kind-has-no-readback-door` (branch
+`topo/edge-carrier-kind-readback-door`) adds
+`topo::readback::edge_carrier_kind` — the one reading of an edge's
+stored carrier tag, `query::edge_carrier_kind` flattening it — and the
+document twin `editor_core::names::interrogate::edge_carrier_kind`.
+The seam on LIB's ground is one name on two curated lists:
+`crates/pncad/src/select.rs` and `crates/pncad/src/prelude.rs` carry
+`edge_carrier_kind` where `face_carrier_kind` already sits, and
+`select.rs`'s rule-3 paragraph names the edge tag beside the face one.
+Nothing else in `pncad` moves.
+
+The Python BINDING is not built: `Evaluation.face_carrier_kind`
+(`crates/pncad-py/src/py/value.rs`) has no edge twin, and building one
+is LIB's call, not this unit's. Filed as
+`work/lib/python-evaluation-has-no-edge-carrier-kind-twin.md` with what
+the binding would be.
+
+What the new façade name DID oblige is the census entry that names the
+debt: `crates/pncad-py/tests/test_binding_census.py` refuses a curated
+name that is neither bound nor listed, so `edge_carrier_kind` is listed
+as a `gap:` under a new family `B-EDGE-KIND`, chartered there with what
+closing it delivers and pointing at the row above. That is the only
+edit this unit makes under `crates/pncad-py/`. Signed (TOPO implementer
+lane).

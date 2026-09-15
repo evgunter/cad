@@ -63,6 +63,8 @@ mod corpus_fold;
 mod curve_promotion_report;
 #[path = "freecad.rs"]
 mod freecad;
+#[path = "geom_origin_import_arm.rs"]
+mod geom_origin_import_arm;
 #[path = "halfcap_pole.rs"]
 mod halfcap_pole;
 #[path = "inst_review_probes.rs"]
@@ -77,6 +79,8 @@ mod onb_wild_normal_census;
 mod p1b_r1_import_scan;
 #[path = "parser.rs"]
 mod parser;
+#[path = "perf12_census_goldens.rs"]
+mod perf12_census_goldens;
 #[path = "poleguard.rs"]
 mod poleguard;
 #[path = "probe_dup.rs"]
