@@ -3175,3 +3175,29 @@ which is the filed TRIM row). Recorded in the PR body and the unit's
 `## Closed` section.
 
 - `EXHAUST-LANE-SPEC.md` — EXHAUST-LANE, the exhaustiveness receipt carries its lane (#2667)
+
+## Per-merge deletion — FRAME-WITNESS's spec (2026-09-15)
+
+Recoverable at `git show 65dd211e3:docs/FRAME-WITNESS-SPEC.md` (the
+fix-pass head). Its sentences that did not survive: "`from_aim` … the
+`point_at`/`path_start_frame` recipe" as a public mint — the dual's
+bilateral MAJOR: it took perpendicularity on trust, so it is
+`pub(in crate::linalg)` and the public aim door is
+`from_aim_and_reference`, which makes the perpendicular; "`w = u × v`
+… the rounded cross product" — for the aim mints `w` is the aim
+verbatim, `v = aim × u`, and the type's doc says `w` is the third
+witness the mint produced; "`gram_schmidt(origin, u_raw, v_raw,
+site_u, site_v, band)`" — one `site`, the refusal an `OrthoFrameError
+{ axis, error }` naming the ROLE (`OrthoAxis::U` kept, `V` yields)
+shared by all four mints; "`Node.tube` … mint the frame … through
+`from_aim`" — the one home is `from_axis_and_reference(origin,
+axis_raw, reference, site, band)` and the five copies of that ladder
+(Python tube doors, `tube_args`, the tour) became one call each;
+"WIRE's private `AxisFrame` becomes `OrthoFrame`" — read and folded
+through `frame_axes` (no separate struct remains); "`SketchPlane` …
+hand the frame through" for the stored placement — it holds any
+`Affine3`, said honestly, with the witness dying at the read boundary
+(the filed BOOL row). Recorded in the PR body and the unit's
+`## Closed` section.
+
+- `FRAME-WITNESS-SPEC.md` — FRAME-WITNESS, the frame witness in geom-core, minted by the decided ladders; `from_frame` and the tube door take it (#2675)

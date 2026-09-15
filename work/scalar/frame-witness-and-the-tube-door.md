@@ -2,8 +2,9 @@
 id: frame-witness-and-the-tube-door
 kind: unit
 title: A frame witness (origin plus a right-handed orthonormal pair) minted by the Gram-Schmidt ladders; from_frame and the tube door take it
-status: open
+status: closed
 opened: 2026-09-15
+closed: 2026-09-15
 branch: scalar/frame-witness
 pr: 2675
 ---
@@ -83,3 +84,38 @@ enclosure WIDTH, `± 9.8e-16` → `± 1.0e-15`. The volume itself
 percentage are unchanged, as is every other line of the narration:
 every census, genus, validation tier and mass property the tour prints
 is what it printed at the base.
+
+## Closed (2026-09-15) — PR 2675
+
+`OrthoFrame<T> { origin, u, v, w }` in `geom-core`'s linalg, private
+fields, minted only by `gram_schmidt` (one `site`), the exact
+`axes_xy/yz/zx`, `from_aim_and_reference` and the one-home
+`from_axis_and_reference(origin, axis_raw, reference, site, band)`;
+`from_aim` is `pub(in crate::linalg)` (the dual's bilateral MAJOR: it
+took perpendicularity on trust). Every mint refuses with one
+`OrthoFrameError { axis, error }` naming the role (`U` kept, `V`
+yields). `to_affine` is `from_frame`'s arithmetic bit for bit, pinned
+on decided and aim-minted corpora; `Affine3::from_frame` retired.
+`SketchPlane::from_frame` takes the frame (Python's door decides under
+`Tol::witness()`; a degenerate pair now refuses — new tags
+`degenerate_u_axis`/`degenerate_v_axis` and siblings); the tube doors
+`tube_along_arc`/`_hollow` take `frame` (the door reads `frame.v()`),
+`TubeError::NonUnitAxis`/`NonUnitURef`/`FrameNotOrthogonal` and their
+three Python tags retired, the two `tube_frame_*` decides gone from
+the K roster and said. Five copies of the axis-and-reference ladder
+became one call each (`tube_args`, the two Python tube doors, the
+tour's `blade_frame` and bud segment). Bit identity: every non-lily
+scene byte-identical and every `Affine3` the ladders return; 25
+`lily_*` files moved last-bit (the mint normalizes what the lily hands
+it as unit-by-intent; the residual spelled `r − a(r·a)` where
+`reject_from` spelled `(a×r)×a/|a|²`) and one narration line
+(`lily_leaf_c`'s enclosure width `±9.8e-16 → ±1.0e-15`), re-baselined
+and named. Two `compile_fail` doctests verified to fail for one reason
+each (`E0451`, `E0624`). Reviews: dual, both APPROVE WITH FIXES, one
+MAJOR bilateral; thirteen fix-pass items taken (mints taking `Tol`
+declined — `Band::linear` is fallible and its `expect` shape is a
+repo-wide convention question). Rows: INSTR
+`frame-mint-funnel-names-outside-every-sweep-corpus`, BOOL
+`sketch-plane-holds-the-affine-and-the-witness-dies-at-the-read-boundary`,
+BLEND `perp-unit-takes-an-unchecked-unit-axis` (widened). Routed:
+PROPS' const-doors row, FIX's tour-lift row, CIW's private-link row.
