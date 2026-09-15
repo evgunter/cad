@@ -15,7 +15,7 @@ The metring arms of a chart — metres per chart unit — are answered in
 three places, and two of them are copies of the first:
 
 - `topo::chart_region`'s `certified_arms` is the ONE home, and
-  `docs/TRIM-3-SPEC.md` §2 cites it as the authority for why a plane's
+  `docs/TRIM-3-SPEC.md` §2 (deleted at PR-2's merge; recoverable per `docs/DOC-LEDGER.md`) cites it as the authority for why a plane's
   `(1, 1)` and a cylinder's `(r, 1)` need no bound while every other
   carrier takes a certified inf with a gate. It is **private to that
   module**.

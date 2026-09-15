@@ -69,8 +69,11 @@ away channel (opened 2026-09-04, Ev's nod) or at S-BOOL's exit.
   `torus-declared-rest-lane-banked` (the 0/2π kissing arm) → item 5's
   consumer sweep.
 - **Torus lane completion** (VERBS' today):
-  `torus-operand-boxes-span-whole-ring` →
-  `circle-residual-harmonics-needs-torus-arm`.
+  `torus-operand-boxes-span-whole-ring` (DELIVERED #1907, 2026-09-07) →
+  `circle-residual-harmonics-needs-torus-arm` (DELIVERED #2535,
+  2026-09-15; the spec is ledgered). Left on the lane:
+  `torus-operand-gate-admission` (the lily's remaining pin) and
+  `the-chord-dip-charge-has-two-homes` (S-BOOL's half).
 - **Germ and pierce** (VERBS' today): `arc-aware-point-in-loop` (with
   #1077) → `pierce-ring-has-no-join-arm` →
   `boolean-refuses-on-arc-carrier-not-arc` (door 2) →
@@ -82,7 +85,8 @@ away channel (opened 2026-09-04, Ev's nod) or at S-BOOL's exit.
   `cosurface-disjoint-curved-walls-refuse` (D: is same-sense cosurface
   a `ContactClass` member).
 - **Merge-door reach**: `cylindrical-rest-pair-hits-planar-merge`
-  (here; the honest typed skip first) →
+  (DELIVERED #2105, 2026-09-14 — the door records; the STOP-2 re-scope
+  filed `rest-zip-seam-chord-on-cylinder-wall`) →
   `coplanar-cap-pair-f7-repair-half-b` (VERBS' today).
 - **At-rest census strengths**: `overlap-lane-boundary-crossing-cuts`
   (the D3 cut schedule) → `census-at-rest-two-boolean-lane-premises`
