@@ -47,3 +47,20 @@ Read `contact` and the centre forms before choosing. BLEND's ground.
 Test-side residue in the same class, to follow its door:
 `crates/topo/tests/readback_sense_kind.rs` mints a `±1` from
 `pose.sense`.
+
+## Digest receipt: the D9 pin for "nothing's bits move"
+
+The zero-parameter recipe of `work/scalar/rate-pair-in-geom-core.md`
+§Digest receipt (build `demos/tour` release, run the binary directly
+into the literal relative outdir `tour-out`, digest the sorted per-file
+listing and the whole narration), taken at this branch's merge base
+`origin/main` `d71bb6a78` before the first code change:
+
+- **1766 emitted files**; digest of the sorted per-file digest
+  listing:
+  `87be4dd9df4cc3af9bd44593a6b981608c8e73721c746413a00322ff61e4a892`
+- the tour's **narration**, 729 lines:
+  `e930abf542c371677b2c0d87b02c2bf84eb15fbaf62ded6389f48c899ef14d49`
+
+Both are the values RATE-PAIR recorded at `4f71edaea` and at its head.
+The head-of-branch pair is recorded in the PR body beside these.
