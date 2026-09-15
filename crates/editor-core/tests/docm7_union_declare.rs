@@ -7,6 +7,7 @@
 
 use crate::fixture;
 
+use crate::corpus::body_of;
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, CapEnd, DocEdit, EditError, EntityKind, Entry,
     EvalOptions, Evaluation, NameTable, Node, NodeErrorKind, NodeResult, ProfileDoc,
@@ -43,14 +44,6 @@ pub(crate) fn failure(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<&NodeErr
     match ev.nodes.get(&id) {
         Some(NodeResult::Failed(e)) => Some(&e.kind),
         _ => None,
-    }
-}
-
-pub(crate) fn body_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> topo::Body<f64> {
-    match &ev.value(id).expect("the node evaluated").payload {
-        ValuePayload::Body(b) => (**b).clone(),
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => (**body).clone(),
-        other => panic!("expected a body, got {other:?}"),
     }
 }
 
@@ -249,7 +242,7 @@ fn a_union_of_two_flush_placements_of_one_prototype_fuses_when_declared() {
         "the declared union refused: {:?}",
         failure(&ev, union)
     );
-    let volume = topo::mass_properties(&body_of(&ev, union), Tol::witness())
+    let volume = topo::mass_properties(body_of(&ev, union), Tol::witness())
         .expect("the fused body has mass")
         .volume;
     assert_eq!(volume, 1.5, "the fused volume is the two blocks' union");
@@ -339,9 +332,9 @@ fn a_declared_union_is_the_pair_booleans_body() {
         |b: &topo::Body<f64>| sorted(b.surfaces().map(|(_, s)| format!("{s:?}")).collect());
     let curves = |b: &topo::Body<f64>| sorted(b.curves().map(|(_, c)| format!("{c:?}")).collect());
     let points = |b: &topo::Body<f64>| sorted(b.points().map(|(_, p)| format!("{p:?}")).collect());
-    assert_eq!(surfaces(&folded), surfaces(&paired));
-    assert_eq!(curves(&folded), curves(&paired));
-    assert_eq!(points(&folded), points(&paired));
+    assert_eq!(surfaces(folded), surfaces(paired));
+    assert_eq!(curves(folded), curves(paired));
+    assert_eq!(points(folded), points(paired));
 }
 
 // ---------------------------------------------------------------------
@@ -464,10 +457,10 @@ fn a_declared_pair_routes_by_member_id_and_survives_a_reorder() {
     assert_eq!(straight.edges().count(), reordered.edges().count());
     assert_eq!(straight.vertices().count(), reordered.vertices().count());
     assert_eq!(
-        topo::mass_properties(&straight, Tol::witness())
+        topo::mass_properties(straight, Tol::witness())
             .expect("mass")
             .volume,
-        topo::mass_properties(&reordered, Tol::witness())
+        topo::mass_properties(reordered, Tol::witness())
             .expect("mass")
             .volume,
     );

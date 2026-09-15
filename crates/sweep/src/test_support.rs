@@ -25,10 +25,12 @@
 //!   The feature is off by default and turned on only from
 //!   **`[dev-dependencies]`** — this crate's self dev-dependency
 //!   (`sweep = { path = ".", features = ["test-support"] }`), and the
-//!   same spelling in `mesh` and `step-export`, whose suites meter the
-//!   [`swept_elbow`] this crate builds. So it is on exactly when some
+//!   same spelling in `mesh`, `step-export` and `stl`, whose suites
+//!   meter the [`swept_elbow`] this crate builds and extrude their
+//!   acceptance boxes through [`brick`]. So it is on exactly when some
 //!   crate's TESTS compile the library, and off for every non-test
-//!   build of every dependent.
+//!   build of every dependent. A crate joins by adding that one line;
+//!   there is nothing else to wire.
 //!
 //!   A fixture only earns a place here once a consumer OUTSIDE this
 //!   crate needs it or a second suite inside it does; the narrower
@@ -37,6 +39,18 @@
 //!   crate-PRIVATE seams a suite reads through — [`ring_clearance`]
 //!   and [`walked_chains`] — which are not fixtures but the only way a
 //!   `tests/` crate can observe a `pub(crate)` phase.
+//!
+//! # The extrusion family
+//!
+//! [`extruded`] is the primitive — loops on a plane, pushed along its
+//! normal — and [`prism_on`], [`prism`], [`prism_at`], [`brick`] and
+//! [`cube`] are its named specializations. All of them are generic in
+//! the scalar, because the `Interval` and `Probe` lanes build the same
+//! bodies as the `f64` one and the only alternative is a second copy at
+//! each scalar: that is what the seventh `cube` was. A shape that is
+//! not here yet joins by naming the primitive and its own loops — it
+//! needs no new door, no new gate and no new manifest edge beyond the
+//! one its crate already has.
 //!
 //! Existence and visibility coincide here, so one gate states both:
 //! nothing in this module has a non-test consumer, unlike `topo`'s
@@ -72,17 +86,30 @@ pub const R: f64 = 0.1;
 
 /// An axis-aligned cube of side `l` with a corner at the origin:
 /// eight trivalent corners, every one of them geometrically CONVEX.
-pub fn cube(l: f64, tol: Tol) -> Body<f64> {
+pub fn cube<T: Decide>(l: T, tol: Tol) -> Body<T> {
     prism(square(l), l, tol)
+}
+
+/// An axis-aligned box spanning `x` x `y` x `z`, as the half-open
+/// intervals `(lo, hi)` — the plainest body in the kernel and the one
+/// its acceptance suites reach for first.
+pub fn brick<T: Decide>(x: (T, T), y: (T, T), z: (T, T), tol: Tol) -> Body<T> {
+    prism_at(rect(x, y), z.0, z.1 - z.0, tol)
 }
 
 /// The square of side `l` with a corner at the origin, as profile
 /// vertices — the one spelling of the block every block fixture here
 /// extrudes.
-fn square(l: f64) -> Vec<ProfileVertex<f64>> {
-    [(0.0, 0.0), (l, 0.0), (l, l), (0.0, l)]
+fn square<T: Decide>(l: T) -> Vec<ProfileVertex<T>> {
+    rect((T::zero(), l), (T::zero(), l))
+}
+
+/// The axis-aligned rectangle `x` x `y`, counter-clockwise from its
+/// low corner, as profile vertices.
+fn rect<T: Decide>(x: (T, T), y: (T, T)) -> Vec<ProfileVertex<T>> {
+    [(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]
         .into_iter()
-        .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
+        .map(|(u, v)| ProfileVertex::new(Point2::new(u, v), T::zero()))
         .collect()
 }
 
@@ -409,32 +436,70 @@ pub fn spool(rev: crate::Revolution<f64>, tol: Tol) -> Body<f64> {
     )
 }
 
+/// **The extrusion door**: the closed `loops` on `plane`, extruded
+/// `h` along the plane normal.
+///
+/// This is the whole family's primitive, and the reason it is spelled
+/// here rather than inside one of them. Every body fixture in this
+/// repo that is "a sketch pushed along its normal" — the cube, the
+/// brick, the L-prism, the holed plate, the skewed block, the turned
+/// box — is these six lines with a different loop set, and they were
+/// copied rather than called because the six lines are shorter than
+/// the reach to a home. A fixture joins by naming this door and its
+/// own loops; nothing about it is specific to a shape, a scalar or a
+/// crate, so a shape that is not in this module today needs no
+/// redesign to move here, only a name.
+pub fn extruded<T: Decide>(
+    plane: SketchPlane<T>,
+    loops: Vec<ProfileLoop<T>>,
+    h: T,
+    tol: Tol,
+) -> Body<T> {
+    let pf = Profile::new(plane, loops)
+        .validate(tol)
+        .expect("the fixture's profile is a valid loop set");
+    extrude(&pf, Extrusion::Distance(h), tol)
+        .expect("the fixture's profile extrudes")
+        .body
+}
+
+/// The world xy sketch plane lifted to station `z0`, the placement
+/// every axis-aligned fixture here extrudes from.
+pub fn sketch_at<T: Decide>(z0: T) -> SketchPlane<T> {
+    SketchPlane::new(Affine3::from_frame(
+        Point3::new(T::zero(), T::zero(), z0),
+        Vec3::new(T::one(), T::zero(), T::zero()),
+        Vec3::new(T::zero(), T::one(), T::zero()),
+    ))
+}
+
+/// **A prism on an arbitrary sketch plane**: one closed loop of
+/// `verts`, extruded `h` along that plane's normal.
+pub fn prism_on<T: Decide>(
+    plane: SketchPlane<T>,
+    verts: Vec<ProfileVertex<T>>,
+    h: T,
+    tol: Tol,
+) -> Body<T> {
+    extruded(plane, vec![ProfileLoop::new(verts)], h, tol)
+}
+
 /// **A prism**: one closed profile loop extruded `h` along `+z`.
 ///
 /// The twelfth copy of this four-line helper in the crate's suites was
 /// what got it homed. Takes the vertices rather than a shape so the
 /// L-prism, the arc-sided prism and the turned box are all one door;
 /// panics on an invalid loop, which is a fixture bug, not an outcome.
-pub fn prism(verts: Vec<ProfileVertex<f64>>, h: f64, tol: Tol) -> Body<f64> {
-    prism_at(verts, 0.0, h, tol)
+pub fn prism<T: Decide>(verts: Vec<ProfileVertex<T>>, h: T, tol: Tol) -> Body<T> {
+    prism_at(verts, T::zero(), h, tol)
 }
 
 /// [`prism`] with its sketch plane lifted to station `z0`: the loop
 /// is extruded from `z0` up by `h`. The one home of the lifted
 /// extrusion, so a fixture that stacks a prism on or into another body
 /// does not re-spell the plane.
-pub fn prism_at(verts: Vec<ProfileVertex<f64>>, z0: f64, h: f64, tol: Tol) -> Body<f64> {
-    let plane = SketchPlane::new(Affine3::from_frame(
-        Point3::new(0.0, 0.0, z0),
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-    ));
-    let pf = Profile::new(plane, vec![ProfileLoop::new(verts)])
-        .validate(tol)
-        .expect("the fixture's profile is a valid loop");
-    extrude(&pf, Extrusion::Distance(h), tol)
-        .expect("the fixture's profile extrudes")
-        .body
+pub fn prism_at<T: Decide>(verts: Vec<ProfileVertex<T>>, z0: T, h: T, tol: Tol) -> Body<T> {
+    prism_on(sketch_at(z0), verts, h, tol)
 }
 
 /// **The #935 zone**: a sphere zone off the equator — sphere `R = 2`

@@ -14,6 +14,7 @@ use core::f64::consts::PI;
 
 use geom_core::k_stats::Bracket;
 use geom_core::{Affine3, Point3, Sign, Tol, Vec3};
+use sweep::test_support::brick;
 use topo::ShellNaming;
 use topo::{Body, FaceKey, ShellError, ShellRole, SolidKey, VoidContainment, VoidEvidence};
 
@@ -367,8 +368,8 @@ fn r2_operand_outer_shells_names_the_offending_solids_own_count() {
 
 #[test]
 fn r2_chart_spans_solids_reachability_through_a_disconnecting_subtract() {
-    let slab = crate::verbs_shell::brick(0.0, 6.0, 0.0, 1.0, 0.0, 1.0);
-    let wall = crate::verbs_shell::brick(2.5, 3.5, -1.0, 2.0, -1.0, 2.0);
+    let slab = brick((0.0, 6.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let wall = brick((2.5, 3.5), (-1.0, 2.0), (-1.0, 2.0), Tol::witness());
     let r = topo::subtract(&slab, &wall, tol());
     let body = match r {
         Ok(topo::BooleanResult::Body(b)) => {
@@ -735,8 +736,8 @@ fn r2_e2e_consumer_seat() {
 /// (public) yields a two-solid body whose chart spans both.
 #[test]
 fn r2_chart_spans_solids_through_subtract_then_move_shells() {
-    let slab = crate::verbs_shell::brick(0.0, 6.0, 0.0, 1.0, 0.0, 1.0);
-    let wall = crate::verbs_shell::brick(2.5, 3.5, -1.0, 2.0, -1.0, 2.0);
+    let slab = brick((0.0, 6.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let wall = brick((2.5, 3.5), (-1.0, 2.0), (-1.0, 2.0), Tol::witness());
     let Ok(topo::BooleanResult::Body(b)) = topo::subtract(&slab, &wall, tol()) else {
         panic!("no body")
     };

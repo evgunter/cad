@@ -7,6 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::{prism, prism_on};
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
 use mesh::tessellate;
@@ -28,20 +29,6 @@ fn validated(plane: SketchPlane<f64>, loops: Vec<ProfileLoop<f64>>) -> Validated
     Profile::new(plane, loops)
         .validate(Tol::witness())
         .expect("profile validation")
-}
-
-fn prism_on(plane: SketchPlane<f64>, poly: &[(f64, f64)], h: f64) -> Body<f64> {
-    extrude(
-        &validated(plane, vec![lp(poly)]),
-        Extrusion::Distance(h),
-        Tol::witness(),
-    )
-    .expect("extrude")
-    .body
-}
-
-fn prism(poly: &[(f64, f64)], h: f64) -> Body<f64> {
-    prism_on(SketchPlane::xy(), poly, h)
 }
 
 fn dump(m: &mesh::Mesh) -> String {

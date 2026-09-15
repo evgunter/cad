@@ -27,11 +27,17 @@ use geom_core::Tol;
 /// opening through the TOP face (cutter overshoots above). Exact
 /// volume 0.875.
 fn die(x0: f64, y0: f64, z0: f64) -> Body<f64> {
-    let cube = brick((x0, x0 + 1.0), (y0, y0 + 1.0), (z0, z0 + 1.0));
+    let cube = brick(
+        (x0, x0 + 1.0),
+        (y0, y0 + 1.0),
+        (z0, z0 + 1.0),
+        Tol::witness(),
+    );
     let cutter = brick(
         (x0 + 0.25, x0 + 0.75),
         (y0 + 0.25, y0 + 0.75),
         (z0 + 0.5, z0 + 1.5),
+        Tol::witness(),
     );
     let BooleanResult::Body(b) = subtract(&cube, &cutter, Tol::witness()).unwrap() else {
         panic!("die subtract is a body");

@@ -7,22 +7,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::prism_on;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use mesh::validate::{check_mesh, signed_volume};
 use mesh::{FacePatch, Mesh, tessellate};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::{Extrusion, extrude};
-use topo::Body;
-
-fn prism_on(plane: SketchPlane<f64>, poly: &[(f64, f64)], h: f64) -> Body<f64> {
-    let lp = ProfileLoop::polygon(poly.iter().map(|&(x, y)| Point2::new(x, y)));
-    let vp = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .expect("profile validation");
-    extrude(&vp, Extrusion::Distance(h), Tol::witness())
-        .expect("extrude")
-        .body
-}
 
 fn plane_at(offset: f64) -> SketchPlane<f64> {
     SketchPlane::from_frame(

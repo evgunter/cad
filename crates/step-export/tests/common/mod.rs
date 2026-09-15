@@ -19,33 +19,15 @@ fn validated(plane: SketchPlane<f64>, lp: ProfileLoop<f64>) -> ValidatedProfile<
         .unwrap()
 }
 
-/// An axis-aligned brick `[x0,x1]×[y0,y1]×[z0,z1]`.
-pub fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    let lp = ProfileLoop::polygon([
-        Point2::new(x.0, y.0),
-        Point2::new(x.1, y.0),
-        Point2::new(x.1, y.1),
-        Point2::new(x.0, y.1),
-    ]);
-    extrude(
-        &validated(
-            SketchPlane::from_frame(
-                Point3::new(0.0, 0.0, z.0),
-                Vec3::new(1.0, 0.0, 0.0),
-                Vec3::new(0.0, 1.0, 0.0),
-            ),
-            lp,
-        ),
-        Extrusion::Distance(z.1 - z.0),
-        Tol::witness(),
-    )
-    .unwrap()
-    .body
-}
+/// An axis-aligned brick `[x0,x1]×[y0,y1]×[z0,z1]`, as the kernel's
+/// own test-support crate spells it. Re-exported rather than
+/// re-declared: this module's copy was the same six lines as
+/// [`sweep::test_support::brick`], and so is `stl`'s.
+pub use sweep::test_support::brick;
 
 /// The unit cube `[0,1]³` — the spike's 6/12/8 reference shape.
 pub fn cube() -> Body<f64> {
-    brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0))
+    sweep::test_support::cube(1.0, Tol::witness())
 }
 
 /// A pocketed die at `[x0,x0+1]³`: unit cube minus a centered
@@ -53,11 +35,17 @@ pub fn cube() -> Body<f64> {
 /// exact volume 0.875). A genuine boolean result: the top face carries
 /// a ring (the pocket mouth).
 pub fn die(x0: f64, y0: f64, z0: f64) -> Body<f64> {
-    let cube = brick((x0, x0 + 1.0), (y0, y0 + 1.0), (z0, z0 + 1.0));
+    let cube = brick(
+        (x0, x0 + 1.0),
+        (y0, y0 + 1.0),
+        (z0, z0 + 1.0),
+        Tol::witness(),
+    );
     let cutter = brick(
         (x0 + 0.25, x0 + 0.75),
         (y0 + 0.25, y0 + 0.75),
         (z0 + 0.5, z0 + 1.5),
+        Tol::witness(),
     );
     let BooleanResult::Body(b) = subtract(&cube, &cutter, Tol::witness()).unwrap() else {
         panic!("die subtract is a body");
@@ -80,8 +68,8 @@ pub fn kiss_assembly() -> Body<f64> {
 /// A∖B with B strictly inside A: `[0,3]³` minus `[1,2]³` — the Voided
 /// boolean result (outer shell + reverted void shell; cavity volume 1).
 pub fn voided() -> Body<f64> {
-    let a = brick((0.0, 3.0), (0.0, 3.0), (0.0, 3.0));
-    let b = brick((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
+    let a = brick((0.0, 3.0), (0.0, 3.0), (0.0, 3.0), Tol::witness());
+    let b = brick((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
     let BooleanResult::Body(result) = subtract(&a, &b, Tol::witness()).unwrap() else {
         panic!("voided subtract is a body");
     };
@@ -671,7 +659,7 @@ pub fn die_pips() -> Body<f64> {
     assert_eq!(tool.shells().count(), 21, "21 disjoint sphere shells");
     boolean_op_with(
         BooleanOp::Subtract,
-        &brick((0.0, L), (0.0, L), (0.0, L)),
+        &brick((0.0, L), (0.0, L), (0.0, L), Tol::witness()),
         &tool,
         &topo::BooleanDeclarations::none(),
         SweepStrategy::Realized,
@@ -684,14 +672,19 @@ pub fn die_pips() -> Body<f64> {
     .clone()
 }
 
-/// Census tuple (faces, edges, vertices) of a body — the kernel-side
-/// oracle the parse-back reconstruction must match.
-pub fn census(body: &Body<f64>) -> (usize, usize, usize) {
-    (
-        body.faces().count(),
-        body.edges().count(),
-        body.vertices().count(),
-    )
+/// The body's `(faces, edges, vertices)` — the kernel-side oracle the
+/// parse-back reconstruction must match, in the shape an independent
+/// STEP importer reports per shell.
+///
+/// **Named for the quantity, not for "the census".** `step-import`'s
+/// suites carry a five-component census of the same body and neither
+/// is the other's tuple; one name over two field sets is the drift
+/// `topo-arena-census-duplicate-spellings` is about. Both read the
+/// kernel's ONE producer of arena lengths rather than re-walking the
+/// arenas, so a transposition here is a transposition of named fields.
+pub fn fev_census(body: &Body<f64>) -> (usize, usize, usize) {
+    let c = topo::test_support::arena_counts(body);
+    (c.faces, c.edges, c.vertices)
 }
 
 /// The M6 composed die (unit 1): [`die_pips`]'s pipped cube filleted

@@ -14,6 +14,7 @@
 )]
 
 use geom_core::{Affine3, Tol, Vec3};
+use sweep::test_support::brick;
 use topo::{Body, FaceKey, ShellKey, SolidKey};
 
 use crate::common::approx::band;
@@ -315,7 +316,7 @@ fn r1_a_part_inside_another_solids_void() {
     // hollow_box() is boxy(2,3,4) shelled at 0.25 — its void is the box
     // [0.25, 1.75] x [0.25, 2.75] x [0.25, 3.75].
     let t = 0.05;
-    let inner = crate::verbs_shell::brick(0.27, 1.73, 0.27, 2.73, 0.27, 3.73);
+    let inner = brick((0.27, 1.73), (0.27, 2.73), (0.27, 3.73), Tol::witness());
     let mut body = hollow_box();
     let placed = topo::transform_rigid(
         &inner,

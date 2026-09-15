@@ -78,6 +78,24 @@ pub fn axis_y() -> RevolveAxis<f64> {
 
 // ---- bodies -----------------------------------------------------------
 
+/// One closed polygon on `plane`, extruded `h` along the plane normal.
+///
+/// **The crate's one spelling of the extrusion the probe suites build
+/// their fixtures from.** The body is `sweep`'s own fixture door; what
+/// lives here is only the `(f64, f64)` polygon vocabulary the suites
+/// are written in, which is a mesh-side convenience and not a kernel
+/// fixture. Three probe suites carried a copy of the six lines this
+/// replaces (S52).
+pub fn prism_on(plane: SketchPlane<f64>, poly: &[(f64, f64)], h: f64) -> Body<f64> {
+    let lp = ProfileLoop::polygon(poly.iter().map(|&(x, y)| Point2::new(x, y)));
+    sweep::test_support::extruded(plane, vec![lp], h, Tol::witness())
+}
+
+/// [`prism_on`] on the world xy plane.
+pub fn prism(poly: &[(f64, f64)], h: f64) -> Body<f64> {
+    prism_on(SketchPlane::xy(), poly, h)
+}
+
 /// L-prism: L-shaped hexagon (area 3) extruded to height 1.
 pub fn l_prism() -> Body<f64> {
     let lp = ProfileLoop::polygon([

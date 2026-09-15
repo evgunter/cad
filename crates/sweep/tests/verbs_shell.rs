@@ -18,6 +18,7 @@ use crate::common::census::{genus_of, rings_of};
 use geom_core::k_stats::Bracket;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use sweep::test_support::brick;
 use sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, tube_along_arc_hollow,
 };
@@ -39,25 +40,6 @@ pub(crate) fn boxy(w: f64, d: f64, h: f64) -> Body<f64> {
         .validate(Tol::witness())
         .expect("a rectangle is a valid profile");
     extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("a rectangle extrudes")
-        .body
-}
-
-/// An axis-aligned box `[x0,x1] × [y0,y1] × [z0,z1]`, extruded from a
-/// sketch plane at `z0` (R2's `brick`; shared with the review rows).
-pub(crate) fn brick(x0: f64, x1: f64, y0: f64, y1: f64, z0: f64, z1: f64) -> Body<f64> {
-    let tol = Tol::witness();
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(x0, y0), 0.0),
-        ProfileVertex::new(p2(x1, y0), 0.0),
-        ProfileVertex::new(p2(x1, y1), 0.0),
-        ProfileVertex::new(p2(x0, y1), 0.0),
-    ]);
-    let plane = SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(tol)
-        .expect("a rectangle is a valid profile");
-    extrude(&profile, Extrusion::Distance(z1 - z0), tol)
         .expect("a rectangle extrudes")
         .body
 }
@@ -537,8 +519,14 @@ fn the_clearance_gate_reads_across_shells() {
 /// wall — built as two subtractions, the way a user would write it.
 /// Returns the body and the void gap.
 pub(crate) fn two_void_box() -> (Body<f64>, f64) {
-    let one = cut(&boxy(6.0, 4.0, 4.0), &brick(1.0, 2.2, 1.0, 3.0, 1.0, 3.0));
-    let two = cut(&one, &brick(2.6, 3.8, 1.0, 3.0, 1.0, 3.0));
+    let one = cut(
+        &boxy(6.0, 4.0, 4.0),
+        &brick((1.0, 2.2), (1.0, 3.0), (1.0, 3.0), Tol::witness()),
+    );
+    let two = cut(
+        &one,
+        &brick((2.6, 3.8), (1.0, 3.0), (1.0, 3.0), Tol::witness()),
+    );
     assert_eq!(two.solids().count(), 1, "one solid");
     assert_eq!(two.shells().count(), 3, "outer plus two voids");
     (two, 0.4)

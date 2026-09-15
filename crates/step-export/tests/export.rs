@@ -61,7 +61,7 @@ fn truck_shells(text: &str) -> Vec<(usize, usize, usize)> {
 fn cube_reconstructs_6_12_8() {
     let body = common::cube();
     let text = export(&body, "cube");
-    assert_eq!(common::census(&body), (6, 12, 8), "kernel census");
+    assert_eq!(common::fev_census(&body), (6, 12, 8), "kernel census");
     assert_eq!(
         truck_shells(&text),
         vec![(6, 12, 8)],
@@ -107,7 +107,7 @@ fn cube_syntactic_parse_and_instance_pin() {
 fn die_reconstructs_matching_kernel_census() {
     let body = common::die(0.0, 0.0, 0.0);
     let text = export(&body, "die");
-    let kernel = common::census(&body);
+    let kernel = common::fev_census(&body);
     assert_eq!(kernel, (11, 24, 16), "die census (top face carries a ring)");
     assert_eq!(truck_shells(&text), vec![kernel], "independent importer");
     // The pocket mouth is the ONE interior ring in the whole body:
@@ -129,7 +129,11 @@ fn kiss_assembly_exports_two_solids() {
     let total: (usize, usize, usize) = shells
         .iter()
         .fold((0, 0, 0), |acc, s| (acc.0 + s.0, acc.1 + s.1, acc.2 + s.2));
-    assert_eq!(total, common::census(&body), "nothing shared, nothing lost");
+    assert_eq!(
+        total,
+        common::fev_census(&body),
+        "nothing shared, nothing lost"
+    );
 }
 
 // -------------------------------------------------------- determinism

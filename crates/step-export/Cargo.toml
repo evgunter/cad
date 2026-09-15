@@ -49,6 +49,11 @@ profile = { path = "../profile", features = ["test-support"] }
 # one reaches the committed bytes. Dev-only by construction, so the
 # feature reaches no shipped build of this crate (that module's docs).
 sweep = { path = "../sweep", features = ["test-support"] }
+# `test-support` ON: this crate's suites census a body through
+# `topo::test_support::arena_counts`, the kernel's ONE producer of
+# arena lengths, rather than re-walking the arenas beside it. Dev-only,
+# so no shipped build reaches the facade.
+topo = { path = "../topo", features = ["test-support"] }
 # Float-printer round-trip property tests.
 proptest = { workspace = true }
 # Parse-back oracles (F6 decision: dev-dependencies ONLY — the writer

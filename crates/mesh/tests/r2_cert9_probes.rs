@@ -7,13 +7,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::prism_on;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use mesh::Mesh;
 use mesh::tessellate;
 use mesh::validate::{check_mesh, signed_volume};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::{Extrusion, extrude};
-use topo::Body;
 
 /// The PRE-FIX spelling, verbatim: fold anchored at the world origin.
 fn origin_fold(m: &Mesh) -> f64 {
@@ -28,16 +28,6 @@ fn origin_fold(m: &Mesh) -> f64 {
         }
     }
     six_v / 6.0
-}
-
-fn prism_on(plane: SketchPlane<f64>, poly: &[(f64, f64)], h: f64) -> Body<f64> {
-    let lp = ProfileLoop::polygon(poly.iter().map(|&(x, y)| Point2::new(x, y)));
-    let vp = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .expect("profile validation");
-    extrude(&vp, Extrusion::Distance(h), Tol::witness())
-        .expect("extrude")
-        .body
 }
 
 fn plane_at(o: f64) -> SketchPlane<f64> {
