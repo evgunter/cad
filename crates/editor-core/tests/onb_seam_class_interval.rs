@@ -39,11 +39,11 @@ use editor_core::analysis::{BoxAxis, ParamBox};
 use editor_core::clearance::{ClearanceVerdict, Selection, clearance};
 use editor_core::{
     Dimension, Distribution, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName, ProfileDoc,
-    ProfileProgram, RecipeNodeId, UnitVec3,
+    ProfileProgram, RecipeNodeId,
 };
 use geom::Surface;
 use geom_brep::newell_plane;
-use geom_core::{Band, Bounds, Interval, Point3, Real, Tol, Vec3};
+use geom_core::{Band, Bounds, Interval, Point3, Real, Tol, UnitVec3, Vec3};
 
 use fixture::{Recorder, len, scl};
 
