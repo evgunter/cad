@@ -118,10 +118,14 @@ A unit that moves kernel logic, or that changes what a guard decides in a
 way worth a second opinion on correctness, gets one extra reviewer named
 in its PR with the reason. That is a per-unit judgement, not a default.
 
-Three rows on this slate are **decisions, not work**, and ride `[ev]` PRs:
-`D70` (whether 13 silent stand-downs should be ε-conditional at all),
-`D113` (what an intra-doc link in a `tests/` file is), and any change to
-a `memories/` clause this program finds wrong.
+Two rows on this slate are **decisions, not work**, and ride `[ev]` PRs:
+`D70` (whether 13 silent stand-downs should be ε-conditional at all) and
+any change to a `memories/` clause this program finds wrong. `D113` was
+the third and is **closed** — Ev ruled on 2026-09-15 that an intra-doc
+link in a `tests/` file is prose checked by nothing, and that no format
+change and no mechanism follow, because a different citation spelling
+would not prevent drift. The reasoning and the measurement behind it are
+in that row.
 
 Hosted CI is the only gate. Implementer dispatches point at
 `docs/prompts/implementer-discipline.md` by path.
@@ -131,16 +135,19 @@ Hosted CI is the only gate. Implementer dispatches point at
 Thirty rows, moved by `git mv` from `work/tcost/` with ids unchanged and
 a `## Moved to S-TINT (2026-09-11)` record in each. Fourteen are the
 Track W units (`C18`, `D70`, `D72`, `D113`, `D380`–`D386`, `H12`,
-`S216`, `S230`); sixteen are the slugs S-TCOST's lanes filed while
-measuring. **No unit order is fixed yet** — the first orchestrator cuts
-one, and the two obvious pairings are recorded so they are not lost:
+`S216`, `S230`, of which `D113` has since closed); sixteen are the slugs
+S-TCOST's lanes filed while measuring. **No unit order is fixed yet** —
+the first orchestrator cuts one, and the pairings worth not losing are
+recorded here:
 
 - `D383` and `S230` are the same class under two names (a certified
   bound with no ceiling) and both want the `test_utils::tightness` home;
   they want one lane.
-- `H12`, `S216`, `C18` and `D113` are one question from four sides
-  (what a doctest in `tests/` is, and whether a `compile_fail` row
-  verifies the reason it names). `S216` is explicitly *not takeable as a
+- `H12`, `S216` and `C18` are one question from three sides (what a
+  doctest in `tests/` is, and whether a `compile_fail` row verifies the
+  reason it names). `D113` was recorded as a fourth side and is not one:
+  its subject was dead LINKS and these are dead PROOFS, and its closure
+  leaves all three untouched. `S216` is explicitly *not takeable as a
   doc edit* — it needs machinery — and is the one row here whose fix
   ADDS compute, which the public repo makes cheaper to justify rather
   than harder.

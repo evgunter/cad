@@ -118,3 +118,56 @@ defect still reproduce, and is the row's floor still its floor — before
 any unit is cut. The pass is bookkeeping about the slate, not work on the
 suite, and it lands as item-file edits (closures with their evidence, or
 re-derived citations) rather than as a unit.
+
+## D113 ruled and closed (2026-09-15)
+
+**Ev, in-chat: an alternate citation format would not actually prevent
+drift, so do nothing.** `D113` asked what an intra-doc link in a
+`tests/` file is and undertook to land the mechanism the answer needed.
+The answer is that it is prose, checked by nothing, and that is
+acceptable: no ban, no de-linking sweep, no gate. Closed.
+
+The row's own fork — *"the form stops being used, or something is built
+that resolves it"* — read as two live options and was one. Converting
+`[Foo]` to `` `Foo` `` removes a promise of a hyperlink that never
+rendered and adds no check; a stale link and a stale backtick are the
+same defect, and the spelling is not what rots. So the real fork was
+always *build a checker or don't*, and **a checker would key on an
+identifier in a doc line whichever brackets are around it** — it never
+needed this decision. The format question is retired as a red herring.
+
+**The measurement that closed the other half** (`work/tint/D113.md`
+carries it in full, taken this session): `cargo doc` has no test-target
+selection at all; `cargo rustdoc` does, but cargo will not pass
+`--extern` for a package's own lib when documenting its test target, so
+the doc unit has to be assembled by hand-injecting an rmeta chosen by
+trial and sensitive to feature unification. And **rustdoc does not
+document `#[test]` items** — verified twice, once by the lane and once
+independently here with a four-link control crate, where the module doc,
+a plain `fn` and a `const` were all reported and the `#[test]` one was
+silently dropped. That is **282 of 1086** candidates invisible, one of
+this row's own six named breakages among them. Cost, for the record,
+since it was the question asked: ~+170 s on a 4-core box, ~3–6 minutes
+added to the hosted `fmt` job — affordable, and not the reason to
+decline.
+
+**Two things are deliberately NOT scheduled**, so that nobody
+re-discovers half of this and re-opens it. The ~62 identifier-shaped
+citations under `tests/` that do not resolve today stay unfixed: a
+one-time cleanup with no guard behind it re-rots, which is Ev's own
+argument applied to the cleanup rather than to the format. And this
+row's census is stale by ~2.5× (465 files / 294 candidates at
+`cfdc1c6f`, against 1146 tracked files today) and is not being
+re-derived, because nothing now consumes it. Both facts are recorded on
+the row, which dies with this directory when the program closes; if the
+trade is re-taken it is re-taken as *write the checker*, never as *fix
+the 62*.
+
+**The four-sided pairing the plan recorded is dissolved and three sides
+remain.** `H12`, `S216` and `C18` share `D113`'s root cause — rustdoc
+collects nothing from a `tests/` target — but none is a citation-format
+question, and `H12` is sharper than anything `D113` was about: eleven
+`compile_fail,EXXXX` blocks in `geom-core/tests/review_m0_pr2.rs` and
+`review_m0_pr3.rs` are negative proofs no tier has ever evaluated, which
+start passing silently the day a bound is loosened. Shape 1, not shape 4.
+Plan updated.
