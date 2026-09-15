@@ -575,10 +575,14 @@ macro_rules! nurbs_curve {
             ///
             /// The invariants are load-bearing for indexing (module
             /// docs), so skipping the check needs an argument, and it
-            /// is this: `knots` and `weights` are a validated curve's
-            /// own, carried verbatim, and `control` is that curve's net
-            /// mapped POINTWISE — a map over a `Vec` cannot change its
-            /// length — so `control.len()` still equals
+            /// is this, stated once for every door that comes here:
+            /// each part is a validated curve's own, either carried
+            /// verbatim or replaced by something of the SAME COUNT —
+            /// the net mapped pointwise (a map over a `Vec` cannot
+            /// change its length), or the knots re-expressed on another
+            /// domain ([`KnotVector::on_domain`] changes neither degree
+            /// nor knot count, so [`KnotVector::control_count`] is
+            /// unchanged). So `control.len()` still equals
             /// `knots.control_count()`, `weights.len()` still equals
             /// `control.len()`, and every weight is still the positive
             /// finite value `new` admitted. The `debug_assert` re-derives
@@ -625,11 +629,8 @@ macro_rules! nurbs_curve {
             /// re-expressed on `[lo, hi]` by [`KnotVector::on_domain`]
             /// (ends exact, interior affine), the control net and the
             /// weights carried over verbatim. Construction goes through
-            /// [`Self::from_validated_parts`], and the argument is the
-            /// one `map_scalar` makes with the roles swapped: the
-            /// rescale changes neither degree nor knot count, so
-            /// [`KnotVector::control_count`] is unchanged and the
-            /// verbatim net and weights still agree with it.
+            /// [`Self::from_validated_parts`], which states why no
+            /// re-validation is run.
             ///
             /// A reparameterization, not a change of locus: the result
             /// at `lo + (hi − lo)·s` is this curve at `a + (b − a)·s`,

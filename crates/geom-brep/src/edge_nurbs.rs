@@ -403,8 +403,9 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 ///
 /// [`PlaneNurbsRefusal::FootPointInconclusive`] at the first sample
 /// whose projection does not converge (never a best-effort foot),
-/// [`PlaneNurbsRefusal::PcurveFit`] for a degenerate interpolation, or
-/// whatever `per_sample` returns.
+/// [`PlaneNurbsRefusal::PcurveFit`] for a degenerate interpolation or
+/// for a degenerate carrier interval (the domain door's refusal, which
+/// `PcurveFit` does not carry), or whatever `per_sample` returns.
 pub(crate) fn chart_image<T, F>(
     carrier: &NurbsCurve3<T>,
     wall: &NurbsSurface<T>,
@@ -428,12 +429,22 @@ where
     let (t0, t1) = carrier.domain();
     // The schedule is a SUPERSET of the certificate's own
     // ([`CERT_SAMPLES`] divides it), so limb 1 re-projects at
-    // parameters the image passes through exactly.
+    // parameters the image passes through exactly. Its ends are the
+    // carrier's ends ASSIGNED: the image is re-expressed on `[t0, t1]`
+    // exactly (`on_carrier_domain`), so the foot its last knot carries
+    // has to be the projection at `t1` itself, and `t0 + (t1 − t0)·1`
+    // is an ulp off `t1` in general.
     let mut uv = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
     let mut params = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
     for i in 0..PXN_FIT_SAMPLES {
         let frac = f64::from(i) / f64::from(PXN_FIT_SAMPLES - 1);
-        let t = t0 + (t1 - t0) * frac;
+        let t = if i == 0 {
+            t0
+        } else if i == PXN_FIT_SAMPLES - 1 {
+            t1
+        } else {
+            t0 + (t1 - t0) * frac
+        };
         let p = carrier.eval(T::from_f64(t));
         let proj = wall
             .project(p)
@@ -637,7 +648,7 @@ fn refusal(e: SsiError) -> PlaneNurbsRefusal {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_core::spline::{KnotVector, KnotVectorIssue};
+    use geom_core::spline::KnotVector;
 
     use super::*;
 
@@ -662,26 +673,21 @@ mod tests {
     /// ulp above `0.9`, so a computed end would miss it.
     const CARRIER: (f64, f64) = (0.3, 0.9);
 
-    /// The sampled parameters of the carrier interval, ends included.
-    fn samples() -> impl Iterator<Item = f64> {
-        let (t0, t1) = CARRIER;
-        (0..=16_u32).map(move |i| t0 + (t1 - t0) * (f64::from(i) / 16.0))
-    }
-
-    /// The rescale is the rescale and the lift is the lift: at `f64`
-    /// the carrier-domain image IS the domain door's curve — domain
-    /// `(t0, t1)` bit for bit, structure verbatim, evaluation identical
-    /// at every sample — and the only refusal is the knot door's, named
-    /// as the domain's.
+    /// The rescale is the rescale and the lift is the lift, at `f64`:
+    /// the carrier-domain image's domain is `(t0, t1)` bit for bit,
+    /// its knots are the domain door's and its net and weights the
+    /// source's verbatim, it is the SOURCE reparametrized — equal to
+    /// the source at the pulled-back parameter, bit for bit at the
+    /// ends and to the evaluator's rounding between them — and the
+    /// only refusal is the knot door's, named as the domain's.
     #[test]
-    fn on_carrier_domain_at_f64_is_the_domain_door_bit_for_bit() {
+    fn on_carrier_domain_at_f64_pins_the_domain_carries_the_structure_and_reparametrizes() {
         let image = image();
         let (t0, t1) = CARRIER;
         let lifted = on_carrier_domain::<f64>(&image, t0, t1).unwrap();
-        let want = image.on_domain(t0, t1).unwrap();
         let (lo, hi) = lifted.domain();
         assert_eq!((lo.to_bits(), hi.to_bits()), (t0.to_bits(), t1.to_bits()));
-        assert_eq!(lifted.knots(), want.knots());
+        assert_eq!(lifted.knots(), &image.knots().on_domain(t0, t1).unwrap());
         let net = |c: &[Point2<f64>]| {
             c.iter()
                 .map(|p| (p.x.to_bits(), p.y.to_bits()))
@@ -689,19 +695,40 @@ mod tests {
         };
         assert_eq!(net(lifted.control()), net(image.control()));
         assert_eq!(lifted.weights(), image.weights());
-        for t in samples() {
-            let (p, q) = (lifted.eval(t), want.eval(t));
-            assert_eq!(
-                (p.x.to_bits(), p.y.to_bits()),
-                (q.x.to_bits(), q.y.to_bits()),
-                "t = {t}"
+
+        // The ends, bit for bit: exact end multiplicity makes every de
+        // Boor weight 0 or 1 there on BOTH sides, so the two
+        // evaluations run the same arithmetic over the same net — which
+        // is exactly what a domain an ulp off `t1` would break.
+        let bits = |p: Point2<f64>| (p.x.to_bits(), p.y.to_bits());
+        assert_eq!(bits(lifted.eval(t0)), bits(image.eval(0.0)));
+        assert_eq!(bits(lifted.eval(t1)), bits(image.eval(1.0)));
+        // Between them, at the dyadic samples whose pull-back
+        // `(t − t0)/(t1 − t0)` is exact, so both sides evaluate the same
+        // mathematical parameter and only the evaluator's rounding
+        // (the mapped knots' included) separates them.
+        let mut compared = 0_u32;
+        for i in 1..16_u32 {
+            let s = f64::from(i) / 16.0;
+            let t = t0 + (t1 - t0) * s;
+            if (t - t0) / (t1 - t0) != s {
+                continue;
+            }
+            compared += 1;
+            let (p, q) = (lifted.eval(t), image.eval(s));
+            assert!(
+                (p.x - q.x).abs() < 1e-14 && (p.y - q.y).abs() < 1e-14,
+                "s = {s}: {p:?} vs {q:?}"
             );
         }
+        assert_eq!(
+            compared, 5,
+            "the exact pull-backs among the 15 interior samples"
+        );
+
         assert!(matches!(
             on_carrier_domain::<f64>(&image, t0, t0),
-            Err(SplineError::KnotVectorInvalid {
-                reason: KnotVectorIssue::DomainInvalid { .. }
-            })
+            Err(SplineError::DomainInvalid { .. })
         ));
     }
 
@@ -710,6 +737,14 @@ mod tests {
         use geom_core::{Bounds, Interval};
 
         use super::*;
+
+        /// The sampled parameters of the carrier interval, ends
+        /// included (the last an ulp past `t1`, which both sides
+        /// evaluate as the closed last span).
+        fn samples() -> impl Iterator<Item = f64> {
+            let (t0, t1) = CARRIER;
+            (0..=16_u32).map(move |i| t0 + (t1 - t0) * (f64::from(i) / 16.0))
+        }
 
         /// The interval half of the lift row: the lifted enclosure
         /// brackets the `f64` domain-door curve at every sample, and

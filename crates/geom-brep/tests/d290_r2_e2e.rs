@@ -14,18 +14,21 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::{NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
+use geom::{NurbsCurve2, NurbsCurve3};
 use geom_brep::plane_nurbs_limbs;
 use geom_core::spline::KnotVector;
-use geom_core::{Point2, Point3, Vec3};
+use geom_core::{Point2, Point3};
 
+use crate::shared::fixture::{quarter_cylinder_wall, transverse_plane};
 use crate::shared::tol::band;
 
 /// The carrier interval every row here uses: `0.3 + (0.9 - 0.3)` is an
 /// ulp above `0.9`, so a computed end misses it.
 const CARRIER: (f64, f64) = (0.3, 0.9);
 
-/// A degree-2 NURBS curve on `[lo, hi]` through three points.
+/// A degree-2 NURBS curve on `[lo, hi]` through three points — the
+/// `u = 0` ruling of [`quarter_cylinder_wall`], which [`transverse_plane`]
+/// contains.
 fn carrier_on(lo: f64, hi: f64) -> NurbsCurve3<f64> {
     let knots = KnotVector::clamped(vec![lo, lo, lo, hi, hi, hi], 2).unwrap();
     let control = vec![
@@ -34,30 +37,6 @@ fn carrier_on(lo: f64, hi: f64) -> NurbsCurve3<f64> {
         Point3::new(1.0, 0.0, 1.0),
     ];
     NurbsCurve3::new(knots, control, vec![1.0, 1.0, 1.0]).unwrap()
-}
-
-/// The quarter-cylinder wall the class-5/6 probes use.
-fn wall() -> NurbsSurface<f64> {
-    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
-    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-    let control = vec![
-        Point3::new(1.0, 0.0, 0.0),
-        Point3::new(1.0, 0.0, 1.0),
-        Point3::new(1.0, 1.0, 0.0),
-        Point3::new(1.0, 1.0, 1.0),
-        Point3::new(0.0, 1.0, 0.0),
-        Point3::new(0.0, 1.0, 1.0),
-    ];
-    let w = core::f64::consts::FRAC_1_SQRT_2;
-    NurbsSurface::new(ku, kv, control, vec![1.0, 1.0, w, w, 1.0, 1.0]).unwrap()
-}
-
-fn plane() -> Surface<f64> {
-    Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::new(0.0, 1.0, 0.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
 }
 
 /// **Program 1.** A caller with a curve fitted on `[0, 1]` wants it on
@@ -137,8 +116,14 @@ fn plane_nurbs_limbs_image_lands_on_the_carriers_own_domain() {
         t1.to_bits(),
         "the fixture no longer exercises the pin"
     );
-    let limbs = plane_nurbs_limbs::<f64>(&carrier, &plane(), &wall(), 1.0, band())
-        .expect("the door answers on a carrier whose domain is not [0, 1]");
+    let limbs = plane_nurbs_limbs::<f64>(
+        &carrier,
+        &transverse_plane(),
+        &quarter_cylinder_wall(),
+        1.0,
+        band(),
+    )
+    .expect("the door answers on a carrier whose domain is not [0, 1]");
     assert!(limbs.hull_sup.is_finite() && limbs.tube_radius.is_finite());
 
     // The door does not hand back the image, so the domain claim is

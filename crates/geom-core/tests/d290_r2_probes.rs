@@ -50,21 +50,24 @@ fn on_domain_onto_its_own_domain_is_not_the_identity_off_the_unit_interval() {
 }
 
 /// R2-P2. A finite `[lo, hi]` whose WIDTH overflows to `+inf`
-/// (`lo = -f64::MAX`, `hi = f64::MAX`) passes the `DomainInvalid`
-/// guard - both ends are finite and increasing - and the interior
-/// images become non-finite. The door must still refuse, not mint.
+/// (`lo = -f64::MAX`, `hi = f64::MAX`): both ends are finite and
+/// increasing, so only the width names the defect, and the door
+/// refuses it as the domain's own — not as the non-finite knot the
+/// interior images would have become.
 #[test]
 fn on_domain_refuses_a_domain_whose_width_overflows() {
     let src = kv(&[0.0, 0.0, 0.5, 1.0, 1.0], 1);
+    assert!((f64::MAX - -f64::MAX).is_infinite(), "the width overflows");
     let err = src
         .on_domain(-f64::MAX, f64::MAX)
         .expect_err("an infinite span cannot produce a finite vector");
     assert_eq!(
         err,
-        SplineError::KnotVectorInvalid {
-            reason: KnotVectorIssue::NonFinite { index: 2 }
+        SplineError::DomainInvalid {
+            lo: -f64::MAX,
+            hi: f64::MAX
         },
-        "the clause the door doc's enumeration does not list"
+        "refused as the domain's defect, not a knot's"
     );
 }
 
@@ -100,9 +103,7 @@ fn on_domain_treats_negative_zero_to_zero_as_collapsed() {
     let src = kv(&[0.0, 0.0, 0.5, 1.0, 1.0], 1);
     assert!(matches!(
         src.on_domain(-0.0, 0.0),
-        Err(SplineError::KnotVectorInvalid {
-            reason: KnotVectorIssue::DomainInvalid { .. }
-        })
+        Err(SplineError::DomainInvalid { .. })
     ));
     let out = src.on_domain(-0.0, 1.0).unwrap();
     assert_eq!(out.domain().0.to_bits(), (-0.0_f64).to_bits());
