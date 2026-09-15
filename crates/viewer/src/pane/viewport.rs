@@ -166,6 +166,102 @@ fn egui_buttons() -> [egui::PointerButton; egui::NUM_POINTER_BUTTONS] {
     ]
 }
 
+/// Which modifier keys this viewport binds, in the order
+/// [`ViewportEvent::Drag`] carries them: shift, then alt.
+///
+/// **The one place the toolkit's modifier state meets the viewer's**,
+/// and — with [`scroll_event`], which is the other half of the same
+/// decision — the place that says what this adapter reads of a frame's
+/// pointer state and what it drops. The toolkit offers five modifier
+/// fields and two scroll axes; this viewport binds two of the five and
+/// one of the two, and the parts it does not bind are named here and
+/// discarded rather than never mentioned, because a part an adapter
+/// leaves out is indistinguishable downstream from a part nobody
+/// touched.
+///
+/// **Two, because [`input::InputMap`] has two to bind**: `alt`, which
+/// turns [`input::InputMap::alt_orbit_button`]'s drag into an orbit
+/// (the trackpad binding), and `shift`, which turns the orbit binding
+/// into a pan. `ctrl`, `command` and `mac_cmd` are not gestures in
+/// this viewport — no binding field, preset or preferences key names
+/// one, and [`ViewportEvent::Drag`] carries a bare `shift` and a bare
+/// `alt` and nothing else, so a ctrl-drag is a plain drag at every
+/// reader downstream. Binding one arrives the way a side button's
+/// would ([`viewer_button`]): a field on [`ViewportEvent::Drag`] that
+/// can carry it, a binding that can name it, and a pattern here that
+/// stops discarding it.
+///
+/// **The compiler holds the SET.** `egui::Modifiers` is a plain struct
+/// and not `#[non_exhaustive]`, so a pattern over it must mention
+/// every field the toolkit declares: the day egui grows a sixth
+/// modifier this stops compiling, and someone answers for it in
+/// writing. It is the struct's form of the exhaustive match
+/// [`viewer_button`] makes over the toolkit's button enum, and it
+/// fires at the same moment — a version bump, the only moment either
+/// set can change. **It holds the set and nothing else**: which field
+/// lands in which half of the returned pair is a naming decision with
+/// nothing to derive it from, and swapping the two type-checks while
+/// inverting every modified drag in the viewer.
+/// `tests::a_drag_carries_the_two_modifiers_this_viewport_binds` is
+/// what makes that edit red.
+fn viewer_modifiers(modifiers: egui::Modifiers) -> (bool, bool) {
+    let egui::Modifiers {
+        shift,
+        alt,
+        ctrl: _,
+        mac_cmd: _,
+        command: _,
+    } = modifiers;
+    (shift, alt)
+}
+
+/// The scroll event this frame's wheel denotes, or `None` when the
+/// wheel turned in no direction this viewport binds.
+///
+/// The other half of [`viewer_modifiers`]' decision: of the toolkit's
+/// two scroll axes this viewport reads `y`, which
+/// [`input::InputMap::map`] reads as the one binding a scroll has —
+/// zoom.
+///
+/// **`x` is dropped because the viewer has no horizontal gesture.** A
+/// positive `x` is content moving right: a trackpad's sideways swipe,
+/// a tilt wheel, and shift+wheel on an ordinary mouse, which the
+/// toolkit folds onto that axis itself (`InputOptions`'
+/// `horizontal_scroll_modifier`, SHIFT by default). Zoom being the
+/// only binding a scroll has, an `x` passed on would have to zoom, and
+/// a sideways swipe that zooms is a worse answer than one that does
+/// nothing.
+///
+/// **A ctrl+wheel reaches this function as a zero, and that is the
+/// toolkit's doing rather than this adapter's.** `InputState`'s
+/// per-frame pass routes a wheel whose modifiers match `InputOptions`'
+/// `zoom_modifier` — ctrl, ⌘ or `command`, by default — into
+/// `zoom_factor_delta`, leaving `smooth_scroll_delta` at zero. So the
+/// gesture most CAD and browser users expect to zoom produces no
+/// [`ViewportEvent`] here at all: not a plain scroll wearing a
+/// modifier this adapter drops — nothing. Reading `ctrl` above would
+/// not recover it; binding it means reading a THIRD toolkit value,
+/// which is a product decision and is
+/// `work/view/ctrl-wheel-reaches-no-zoom.md`. An alt+wheel is the one
+/// modified wheel that already works, by the same mechanism in the
+/// other direction: `vertical_scroll_modifier` folds it onto `y`, so
+/// it zooms exactly as a plain wheel does.
+///
+/// **The compiler holds both axes** the way [`viewer_modifiers`] holds
+/// the five fields — `egui::Vec2` is a plain struct, so the pattern
+/// names `x` in order to drop it. That upgrade hold is nominal, a
+/// two-axis vector being unlikely to grow a third; what the pattern
+/// buys here is that the drop is written at the site rather than
+/// implied by a field access.
+fn scroll_event(delta: egui::Vec2) -> Option<ViewportEvent> {
+    let egui::Vec2 { y: points, x: _ } = delta;
+    (points != 0.0).then(|| ViewportEvent::Scroll {
+        // egui reports scroll in points; a wheel notch is
+        // conventionally 50 of them.
+        units: f64::from(points) / 50.0,
+    })
+}
+
 /// The drag and click events this frame's pointer denotes.
 ///
 /// **Every button the toolkit can report is asked**, and the ones the
@@ -244,7 +340,7 @@ impl ViewerBehavior<'_> {
             return;
         };
 
-        let (shift, alt) = ui.input(|i| (i.modifiers.shift, i.modifiers.alt));
+        let (shift, alt) = ui.input(|i| viewer_modifiers(i.modifiers));
         // The cursor, first: `hover_pos` is in screen POINTS, and the
         // viewport speaks physical pixels from the pane's own top-left
         // corner, so the two conversions happen here and everything
@@ -258,14 +354,7 @@ impl ViewerBehavior<'_> {
         });
         let mut events = button_events(&response, shift, alt, pixels_per_point, cursor_px);
         if response.hovered() {
-            let scroll = ui.input(|i| i.smooth_scroll_delta.y);
-            if scroll != 0.0 {
-                // egui reports scroll in points; a wheel notch is
-                // conventionally 50 of them.
-                events.push(ViewportEvent::Scroll {
-                    units: f64::from(scroll) / 50.0,
-                });
-            }
+            events.extend(ui.input(|i| scroll_event(i.smooth_scroll_delta)));
         }
         match cursor_px {
             Some(pos_px) => {
@@ -631,7 +720,10 @@ mod tests {
 
     use eframe::egui;
 
-    use super::{button_events, drawn_index, egui_buttons, land, viewer_button};
+    use super::{
+        button_events, drawn_index, egui_buttons, land, scroll_event, viewer_button,
+        viewer_modifiers,
+    };
     use crate::camera::{Camera, CameraOp, fold_recorded};
     use crate::frame::{self, product_badge};
     use crate::input::{self, InputMap, PointerButton, ViewportEvent};
@@ -849,10 +941,12 @@ mod tests {
     /// `egui` events.
     ///
     /// The viewport pane itself needs a GPU, a session and a scene;
-    /// what the rows below are about is one function of it — the
+    /// what the rows below are about is one part of it — the
     /// translation from what the toolkit says the pointer did to the
     /// vocabulary `input` consumes — so the probe allocates the same
-    /// [`egui::Sense`] over a bare `Ui` and reads that function.
+    /// [`egui::Sense`] over a bare `Ui` and reads the same three
+    /// functions [`ViewerBehavior::viewport_ui`] does:
+    /// [`viewer_modifiers`], [`button_events`] and [`scroll_event`].
     struct Pane {
         ctx: egui::Context,
     }
@@ -892,7 +986,12 @@ mod tests {
                 let cursor_px = response
                     .hover_pos()
                     .map(|pos| [f64::from(pos.x - rect.min.x), f64::from(pos.y - rect.min.y)]);
-                *out = button_events(&response, false, false, 1.0, cursor_px);
+                let (shift, alt) = ui.input(|i| viewer_modifiers(i.modifiers));
+                let mut events = button_events(&response, shift, alt, 1.0, cursor_px);
+                if response.hovered() {
+                    events.extend(ui.input(|i| scroll_event(i.smooth_scroll_delta)));
+                }
+                *out = events;
             });
             // A frame's texture upload is the caller's to apply; this
             // probe paints nothing, and dropping it unapplied panics.
@@ -931,9 +1030,59 @@ mod tests {
     /// Press and move: what the toolkit calls a drag. The moving frame
     /// is the one that reports it.
     fn drag(pane: &Pane, egui_button: egui::PointerButton) -> Vec<ViewportEvent> {
+        drag_modified(pane, egui_button, egui::Modifiers::NONE)
+    }
+
+    /// The same drag with `modifiers` held.
+    ///
+    /// The modifier change is its own event because that is how the
+    /// toolkit carries one: `InputState` keeps the modifier state
+    /// across frames and only `ModifiersChanged` moves it, so a
+    /// modifier named on a pointer event alone never reaches
+    /// `i.modifiers`.
+    fn drag_modified(
+        pane: &Pane,
+        egui_button: egui::PointerButton,
+        modifiers: egui::Modifiers,
+    ) -> Vec<ViewportEvent> {
         pane.reach();
-        pane.frame(vec![button(egui_button, true, AIM)]);
+        pane.frame(vec![
+            egui::Event::ModifiersChanged(modifiers),
+            egui::Event::PointerButton {
+                pos: AIM,
+                button: egui_button,
+                pressed: true,
+                modifiers,
+            },
+        ]);
         pane.frame(vec![egui::Event::PointerMoved(AIM + egui::vec2(40.0, 0.0))])
+    }
+
+    /// A wheel turn small enough that the toolkit hands it straight
+    /// over: `InputState` smooths a wheel of eight points or more
+    /// across several frames, and this probe reads one frame.
+    const WHEEL_POINTS: f32 = 4.0;
+
+    /// Turn the wheel over the pane with `modifiers` held, and hand
+    /// back what the viewport read from that frame.
+    fn turn_wheel(pane: &Pane, modifiers: egui::Modifiers) -> Vec<ViewportEvent> {
+        pane.reach();
+        pane.frame(vec![
+            egui::Event::ModifiersChanged(modifiers),
+            egui::Event::MouseWheel {
+                unit: egui::MouseWheelUnit::Point,
+                delta: egui::vec2(0.0, WHEEL_POINTS),
+                phase: egui::TouchPhase::Move,
+                modifiers,
+            },
+        ])
+    }
+
+    /// The scroll a plain [`turn_wheel`] denotes.
+    fn a_wheels_scroll() -> ViewportEvent {
+        ViewportEvent::Scroll {
+            units: f64::from(WHEEL_POINTS) / 50.0,
+        }
     }
 
     /// A δ, coarse enough to index the plate quickly.
@@ -1191,6 +1340,116 @@ mod tests {
     /// exhaustive matches over a closed enum, so neither can fall
     /// behind the toolkit while the other moves: a sixth
     /// `egui::PointerButton` reds them together.
+    /// **A drag carries the two modifiers this viewport binds, and the
+    /// other three leave no trace on it.**
+    ///
+    /// Two claims, and the second is the one nothing else can make.
+    /// [`viewer_modifiers`]'s pattern holds the SET of fields it reads;
+    /// the PAIRING — shift into the first half of the returned pair,
+    /// alt into the second — is a naming decision with nothing to
+    /// derive it from, and swapping the two type-checks while turning
+    /// every constrain into an orbit and back. That is the same gap
+    /// [`viewer_button`]'s doc names for the button table, answered the
+    /// same way: a second statement of the table, here at the far end
+    /// of a real toolkit frame.
+    #[test]
+    fn a_drag_carries_the_two_modifiers_this_viewport_binds() {
+        for (modifiers, expected) in [
+            (egui::Modifiers::NONE, (false, false)),
+            (egui::Modifiers::SHIFT, (true, false)),
+            (egui::Modifiers::ALT, (false, true)),
+            (egui::Modifiers::CTRL, (false, false)),
+            (egui::Modifiers::COMMAND, (false, false)),
+            (egui::Modifiers::MAC_CMD, (false, false)),
+        ] {
+            let pane = Pane::new();
+            let events = drag_modified(&pane, egui::PointerButton::Middle, modifiers);
+            let [ViewportEvent::Drag { shift, alt, .. }] = events[..] else {
+                panic!("a middle drag with {modifiers:?} held is one drag, got {events:?}");
+            };
+            assert_eq!(
+                (shift, alt),
+                expected,
+                "what a drag carries with {modifiers:?} held"
+            );
+        }
+    }
+
+    /// **A plain wheel is the one scroll this viewport binds.**
+    ///
+    /// The control the three rows below need: each of them asserts that
+    /// some modified wheel produces NO scroll, and a probe that never
+    /// delivered a wheel event at all would satisfy every one of them.
+    #[test]
+    fn a_plain_wheel_is_the_one_scroll_this_viewport_binds() {
+        let pane = Pane::new();
+        assert_eq!(
+            turn_wheel(&pane, egui::Modifiers::NONE),
+            vec![a_wheels_scroll()]
+        );
+    }
+
+    /// **A ctrl+wheel produces no viewport event at all, and this
+    /// adapter is not where that is decided.**
+    ///
+    /// The toolkit spends the modifier first: a wheel whose modifiers
+    /// match `InputOptions`' `zoom_modifier` goes into
+    /// `zoom_factor_delta` and `smooth_scroll_delta` stays at zero, so
+    /// there is no `y` left for [`scroll_event`] to read and reading
+    /// `ctrl` in [`viewer_modifiers`] would recover nothing. The second
+    /// assertion is what makes the first mean anything — it shows the
+    /// wheel arrived and where the toolkit put it, which is also the
+    /// value a binding would have to read
+    /// (`work/view/ctrl-wheel-reaches-no-zoom.md`).
+    #[test]
+    fn a_ctrl_wheel_is_spent_by_the_toolkit_before_the_adapter_sees_it() {
+        let pane = Pane::new();
+        assert_eq!(
+            turn_wheel(&pane, egui::Modifiers::CTRL),
+            Vec::<ViewportEvent>::new(),
+            "the gesture CAD and browsers zoom with reaches the viewport as nothing"
+        );
+        assert_ne!(
+            pane.ctx.input(|i| i.zoom_delta()),
+            1.0,
+            "the wheel did arrive, and the toolkit put it in the zoom accumulator"
+        );
+    }
+
+    /// **A shift+wheel is folded onto the axis this viewport drops.**
+    ///
+    /// `horizontal_scroll_modifier` is SHIFT, so the toolkit moves the
+    /// whole delta onto `x` before the adapter sees it — the axis
+    /// [`scroll_event`] names in order to drop. Shift is a modifier
+    /// this viewport DOES bind on a drag, which is why the row is worth
+    /// having: the two halves of the decision are independent.
+    #[test]
+    fn a_shift_wheel_is_folded_onto_the_axis_this_viewport_drops() {
+        let pane = Pane::new();
+        assert_eq!(
+            turn_wheel(&pane, egui::Modifiers::SHIFT),
+            Vec::<ViewportEvent>::new()
+        );
+        assert_ne!(
+            pane.ctx.input(|i| i.smooth_scroll_delta.x),
+            0.0,
+            "the wheel did arrive, on the axis the viewer has no gesture for"
+        );
+    }
+
+    /// **An alt+wheel is folded onto the axis this viewport binds**, so
+    /// it zooms exactly as a plain wheel does. The same toolkit
+    /// mechanism as the two rows above, pointing the other way:
+    /// `vertical_scroll_modifier` is ALT.
+    #[test]
+    fn an_alt_wheel_is_folded_onto_the_axis_this_viewport_binds() {
+        let pane = Pane::new();
+        assert_eq!(
+            turn_wheel(&pane, egui::Modifiers::ALT),
+            vec![a_wheels_scroll()]
+        );
+    }
+
     #[test]
     fn the_pairing_is_the_one_this_module_intends() {
         for egui_button in egui_buttons() {
