@@ -1,9 +1,10 @@
 ---
 id: py-reason-and-variant-literals-outside-any-enum
-kind: issue
-title: Python-visible discriminant words are minted as literals at raise sites under src/py/, two of them a second spelling of a word an inventoried map already mints
-status: open
+kind: unit
+title: Python-visible discriminant words are minted as literals at raise sites under src/py/, one of them a second spelling of a word an inventoried map already mints
+status: review
 opened: 2026-09-15
+branch: census/py-raise-literals
 ---
 
 
@@ -40,19 +41,58 @@ words, and they are not one shape:**
 
 **So "outside any enum" is true of six of the nine words and false of
 the three that matter most** — `unclassified`, `wireframe` and
-`not_utf8` each duplicate a word their own door's inventoried map
-mints. That is the correction this row needed: the common shape
-is a word minted at a raise site, and the sharper sub-shape is a
-SECOND spelling of a word an inventoried map already mints for the
-same attribute of the same class.
+`not_utf8` each ride an attribute whose other words come from an
+inventoried map. The common shape is a word minted at a raise site,
+and the sharper sub-shape is a word on an attribute a map already
+speaks.
+
+### Re-measured, 2026-09-15 (CENSUS-PY-RAISE-LITERALS)
+
+**Only ONE of the three is a second spelling of a word its map
+mints**, and this row said three. `crate::tags::select_refusal_tag`
+does return `"unclassified"` at its wildcard arm, so `unclassified` is
+genuinely one word spelled twice. `step_import_error_tag` does **not**
+mint `wireframe` — the site's own comment says so, and `grep
+'"wireframe"' src/tags.rs` returns nothing — and `stl_error_tag` does
+not mint `not_utf8`. Those two are NEW words on an attribute an
+inventoried map otherwise fills, which is a weaker claim than this
+row's and is the one that holds.
+
+**The `pub const` route offered below for `unclassified` does not
+exist.** This row says the inventory "already lexes that form", which
+is true of a top-level `pub const` and false of a `match` ARM that
+reads one: `tests.rs`'s `ArmShape` admits a literal, a nested `match`,
+a block, `None`, `Some(..)` and a delegation, and nothing else, so
+`select_refusal_tag`'s wildcard arm cannot read a const without
+teaching the reader a seventh shape. The one-arm map is what was
+taken — `crate::tags::unmirrored_select_tag` over
+`crate::errors::UnmirroredSelect`, whose two arms are the query
+door's wildcard and the contact-class crossing, both answering one
+word. The wildcard arm DELEGATES to it, which the reader does admit.
+
+**The second defect at that site is confirmed and repaired.**
+`py/select.rs`'s eight-attribute list is now
+`py::select::refusal_fields`, and both doors build from it; a door
+with a payload writes it by NAME through `py::select::fill`, so a
+reordering of that list cannot silently drop the entry it overwrites.
+**The repaired path is unreachable today** — the kernel's
+`ContactClass` has exactly the two arms the crossing matches, so
+nothing can execute the raise, and the repair cannot go red either.
+That is `both-unclassified-crossings-are-unreachable-and-so-is-the-repair-on-one`
+on this slate, filed rather than fixed because it is a question about
+what deserves a constructed test.
 
 **Each is covered only by accident.** `mass_properties_failed` is
 named in `crates/pncad-py/pncad.pyi` and asserted once in
 `crates/pncad-py/tests/test_validate.py`; `wireframe` is named in the
-stub and two Python tests; the four `door` words are in the stub and
-in `tests/test_validate.py`; `unclassified` is in neither the stub nor
-any Python test. Nothing reds if one is renamed, and nothing reds if a
-tenth is added — which is the standing lesson, not the words.
+stub and two Python test files; ONE of the four `door` words
+(`validate_pseudomanifold`) is asserted on `.door`, in
+`tests/test_validate.py` and `tests/test_checks.py`, while the other
+three appear in the suite only as METHOD names and in the stub;
+`not_utf8` is named in the stub and in no Python test; `unclassified`
+and `name_serialize` are in neither. Nothing reds if one is renamed,
+and nothing reds if a tenth is added — which is the standing lesson,
+not the words.
 
 `crates/pncad-py/src/tests.rs`'s inventory doc carries three of these
 (`mass_properties_failed`, `unclassified`, `wireframe`) as "what is

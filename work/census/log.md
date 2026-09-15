@@ -450,3 +450,32 @@ The `pncad-py` block continues, now seven rows: the two opened here join
 it. `sixty-one-tag-words-…` carries the sharper obligation — its
 instrument shipped and what is missing is the READING of 54 pairs, the
 kind of debt that stops looking urgent once the instrument is green.
+
+## The silent-omission obligation stays per-dispatch (Ev, 2026-09-15)
+
+Asked directly whether it should become a standing clause in
+`docs/prompts/reviewer-style-lane.md`, Ev ruled it should not: *"this
+doesn't go in reviewer-style-lane because most implementation work does
+not refer to such instruments."* Signal-to-noise — a clause firing on
+every unit in the repo taxes every lane for a case the majority never
+meet, and a skimmed rule is worse than one written per-unit by someone
+who has read the diff. `plan.md` §Review posture records it and the
+question is closed.
+
+**One thing the orchestrator overstated when putting the question**, and
+it is corrected here because the log is where the reasoning lives: the
+argument for a standing clause was that the obligation "depends on the
+orchestrator recognising the unit", citing CENSUS-TAG-REACH as a case
+where that recognition failed. It did not. **All four units so far
+carried the obligation**; what failed on CENSUS-TAG-REACH was the
+PROBE'S FENCE — the spec scoped it to `eval_err` when the door was
+`typed_err` — which is standing finding 5, not a recognition failure.
+The recognition has not missed yet.
+
+So the residual risk is narrower than it was put to Ev: not *"will the
+orchestrator notice an instrument"* but *"will the obligation be scoped
+to the right unit of guarding once noticed."* The trigger is now stated
+mechanically in `plan.md` (a unit carries it if it lands, changes,
+removes or relies on an instrument, **including one it creates itself**)
+so the first half stops depending on judgement, and finding 5 already
+governs the second.

@@ -52,7 +52,7 @@ its fence in the PR that lands it and announces it to the owners; the
 | `census-sees-an-inert-attribute-but-not-a-missing-one` | **H** | Arrived from `inert-deny-unknown-fields-on-unit-enums` (2026-09-15); class estimated by that lane, order not yet placed. The census sees the inert attribute and is blind to the missing one. The walk is the easy half; the verdict key is a design call (which `Deserialize` types OWE the attribute) and the one confirmed instance changes what a document accepts. | `crates/test-utils/tests/deny_unknown_fields_census.rs`, `crates/editor-core/src/persist/mod.rs`, and the msolve instance `crates/editor-core/src/mate.rs` |
 | `hand-listed-partialeq-siblings-outside-the-census-debug-fence` | **M** | Arrived from `hand-listed-debug-censuses-…` (2026-09-15) with its class estimated by that lane; order not yet placed. Six hand-listed `PartialEq`/`Debug` walks the CENSUS-DEBUG unit checked and filed rather than swept. Four are one destructure each and are held in the meantime by `KNOWN_HAND_LISTED`; the other two — `SketchPlane`'s hand-list behind a delegation and `NameRef`'s behind a tuple index — are **invisible to the arrival census** and held by the row alone, so landing the four destructures does not close it. It also records that `expr.rs` and `topo/src/props.rs` are claimed by no open program, which is why the row is on this slate at all. | `crates/editor-core/src/{expr.rs,mate/coset.rs,program.rs,names/role.rs}`, `crates/topo/src/props.rs`, `crates/profile/src/lib.rs`; `crates/editor-core/src/clearance.rs` is shell's under its own row |
 | `py-discriminant-getters-under-src-py-are-outside-every-inventory` | **M** | From CENSUS-TAG-REACH (2026-09-15). 30 `-> &'static str` functions under `src/py/`, 6 minting 23 Python-visible words no inventory reads — and **7 of the 23 have a second spelling in `tags.rs`**, held equal by nothing. Two are named `*_tag` and live outside that file. | `crates/pncad-py/src/py/{mate.rs,assembly.rs,refactor.rs,mesh.rs,doc.rs}`, `crates/pncad-py/src/tags.rs` |
-| `py-reason-and-variant-literals-outside-any-enum` | **M** | From CENSUS-TAG-REACH. Nine sites in four files: six words in doors with no enum, three that are a SECOND mint of the same attribute of the same exception class. Carries a separate `AttributeError` defect at `flush.rs`. | `crates/pncad-py/src/py/{flush.rs,value.rs,select.rs}`, `crates/pncad-py/src/tags.rs` |
+| `py-reason-and-variant-literals-outside-any-enum` | **M** | From CENSUS-TAG-REACH. Nine words minted at raise sites in four files: six in doors with no enum, three on an attribute an inventoried map otherwise fills — and only ONE of those three is a second spelling of a word its own map mints (re-measured 2026-09-15; the row carries the correction). Carries a separate `AttributeError` defect at `flush.rs`. | `crates/pncad-py/src/py/{flush.rs,value.rs,doc.rs,mesh.rs}` hold the nine; `crates/pncad-py/src/py/select.rs` is the `AttributeError` half; `crates/pncad-py/src/{errors.rs,tags.rs}` |
 | `datum-kind-vocabulary-is-hand-spelled-and-uncensused` | **E** | From CENSUS-DEBUG's sibling sweep. `Datum.kind`'s five words are a `&'static str` struct field on a `#[pyclass]` — neither a literal beside a key nor a getter, so every sweep so far was blind to the shape; three have no Rust pin at all. | `crates/pncad-py/src/py/value.rs` |
 | `evaluationerror-stub-lists-five-reasons-and-the-door-raises-six` | **E** | From CENSUS-TAG-REACH. `pncad.pyi` hand-lists a vocabulary that now has a machine census (`EvalReason`); the stub says five and the door raises six. | `crates/pncad-py/pncad.pyi`, `crates/pncad-py/src/errors.rs` |
 | `pncad-py-tests-rs-is-six-thousand-lines-and-carries-two-unremeasured-floors` | **M** | From CENSUS-TAG-REACH. 6317 lines holding the taxonomy pin, four censuses, a 120-line Rust recogniser and its guard; two magic floors (`>= 60` functions, `>= 500` literals) that nothing re-measures. The floors are the row; the split is the file owner's call. | `crates/pncad-py/src/tests.rs` |
@@ -172,13 +172,24 @@ The scan-set rule this section used to state mechanically — a
 correctness arm on every unit that changes what an instrument SCANS —
 is **carried by each unit's dispatch brief, written by the
 orchestrator** (Ev, 2026-09-15). It is **not** a standing clause in
-`docs/prompts/reviewer-style-lane.md` and there is nothing there to
-point at: the obligation reaches a reviewer only because the
-orchestrator writes it into that unit's brief, so a unit dispatched
-without it is dispatched without the rule. Whether it SHOULD become a
-standing clause is open with Ev — `docs/prompts/` binds every lane by
-path and is his call under CLAUDE.md's merge rule, so no lane adds it
-there.
+`docs/prompts/reviewer-style-lane.md`, and **it is not going to be**
+(Ev, 2026-09-15, asked directly): *"this doesn't go in
+reviewer-style-lane because most implementation work does not refer to
+such instruments."* That is a signal-to-noise ruling and it settles the
+question — a clause firing on every unit everywhere would tax every
+lane in the repo for a case the majority never meet, and a rule that is
+skimmed is worse than one that is written per-unit by someone who has
+read the diff.
+
+So the obligation reaches a reviewer only because the orchestrator
+writes it into that unit's brief, and a unit dispatched without it is
+dispatched without the rule. **The trigger is therefore stated here
+rather than left to per-unit judgement**: a unit carries the obligation
+if it lands, changes, removes or relies on a census, gate, inventory or
+source-text reader — **including one the unit itself creates**, which
+is the case the first four units all fell under and the one easiest to
+miss, because the instrument does not exist yet when the spec is
+written.
 
 The hazard it is drawn against is real and is not a function of how
 hard the unit was: a census that stops seeing a population fails
