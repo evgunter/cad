@@ -3072,3 +3072,24 @@ the two rows one unit, and the requirement that the unit state what its
 guard does not enforce — which it did, at its sites and in its PR.
 
 - `TINT-2-SPEC.md` — TINT-2, a stand-down that nobody can hear (#2656)
+
+## Per-merge deletion — EXHAUST-LANE's spec (2026-09-15)
+
+Recoverable at `git show 44a44b8de:docs/EXHAUST-LANE-SPEC.md` (the
+fix-pass head). Its sentences that did not survive: "the one writer
+(`sweep`) builds the receipt from the lane it was handed" — `sweep`
+now counts into a private tally and the two accounting doors attach
+the lane (a seeding path hands back no receipt to state a lane on);
+"`seed_chart_plane` … stays where it is" — it took the accounting
+door's shape (`speed`, metres floor, one crossing) so the chart lane
+crosses the same way twice; "metres by one private function" — the
+method is public on `ExhaustLane` (`meters`, `speed`) and the refusal
+carries a named payload (`ExhaustivenessRefusal`) so its readings
+return `f64`, not `Option`; the sibling-division sentence's "mint the
+`SupSpeed` where the closure reads the box" — the box's sup got one
+home (`Box3::speed_sup`, an `f64`: minting a tag there would pick the
+collapse policy the two chart-rate sites deliberately disagree on,
+which is the filed TRIM row). Recorded in the PR body and the unit's
+`## Closed` section.
+
+- `EXHAUST-LANE-SPEC.md` — EXHAUST-LANE, the exhaustiveness receipt carries its lane (#2667)
