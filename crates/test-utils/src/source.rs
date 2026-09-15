@@ -79,12 +79,27 @@
 //! number in prose beside a list that grows is a copy that goes stale
 //! in the silent direction.
 //!
+//! # The one thing here that is not a reader
+//!
+//! [`crate::every_suite_file_is_aggregated!`] is exported from this file and is
+//! a `macro_rules!` that GENERATES A TEST FUNCTION — not a view, not an
+//! operation over one, and not a traversal. It is here because its
+//! expansion's whole body is [`aggregation_violations`] and the two are
+//! one mechanism split by where the compiler has to expand it; homing it
+//! anywhere else would put a call site and its reader in different
+//! files. It is called out because every other paragraph in this header
+//! describes something that reads text, and a fourth category that goes
+//! unmentioned is how a header stops being an enumeration.
+//!
 //! # What it does not model
 //!
 //! It is a lexer, not a parser. An identifier assembled by a macro
 //! (`concat_idents!`, `paste!`) is invisible to any textual walk, a
-//! `pub fn` inside a `macro_rules!` body is text like any other, and
-//! an `include!`d file is not seen at all. Nested block comments,
+//! `pub fn` inside a `macro_rules!` body is text like any other — which
+//! is now a fact about THIS file, since the macro above holds one, and
+//! `crates/test-utils/tests/reader_census.rs` reads that body as text
+//! for exactly that reason — and an `include!`d file is not seen at
+//! all. Nested block comments,
 //! every string prefix (`b`, `c`, `r`, `br`, `cr`) and the
 //! lifetime-versus-char-literal distinction ARE modelled, each with a
 //! row in this module's tests that reds if it stops being.
@@ -976,10 +991,16 @@ pub fn file_module_decls(text: &str) -> Vec<String> {
 ///    ([`file_module_decls`]), and helper TREES are directories
 ///    carrying a `mod.rs`, which [`suite_files`] already excludes.
 ///
-/// # The two inputs
+/// # The two inputs, and the one caller that supplies them
+///
+/// **There is exactly one caller**, and it is
+/// [`crate::every_suite_file_is_aggregated!`]'s expansion, a hundred lines
+/// below. Both arguments are shaped by where that expansion lands, so
+/// what follows is a constraint on the macro rather than advice to an
+/// author of an `all.rs`; there are no longer fifteen of those.
 ///
 /// `tests_dir` is the crate's `tests/` directory: the walk and each
-/// suite's text are read from it at RUN time, so a caller passes
+/// suite's text are read from it at RUN time, so the macro passes
 /// [`crate_dir`]'s answer rather than a baked path — a nextest archive
 /// replayed on another runner has no compile-time directory.
 ///
@@ -1001,19 +1022,32 @@ pub fn file_module_decls(text: &str) -> Vec<String> {
 /// `expect` below, rather than through check 1's sentence. Loud either
 /// way, and it is a broken checkout rather than a test outcome.
 ///
-/// # What the call site still owes, and it is one character wide
+/// # How the call site is seen by the source-reader census
 ///
-/// `crates/test-utils/tests/reader_census.rs` detects a source reader
-/// by `named > mounted` — `.rs"` occurrences against `#[path = "` ones
-/// — and for an `all.rs` the ONLY thing carrying that margin is the
-/// `include_str!("all.rs")` this function is handed. **The margin is
-/// exactly one.** One extra `#[path = "` written inside a string
-/// literal in an `all.rs` closes it, the census stops seeing that file
-/// as a reader, and its `Shared` ledger line reds as `stale`. That is
-/// the loud direction and it is stated here because nothing else in
-/// the tree says it: before this function existed each `all.rs` also
-/// carried a `suite_files(` call, and the detector had two tells per
-/// file instead of one.
+/// `crates/test-utils/tests/reader_census.rs` has to tell an `all.rs`
+/// that READS Rust source from one that merely mounts modules, and the
+/// tell moved when this function's call site did. While each
+/// aggregator spelled the row out by hand it was arithmetic: every
+/// `#[path = "<suite>.rs"]` contributes exactly one `.rs"` literal, and
+/// the `include_str!("all.rs")` handed to this function was the single
+/// extra one, so `named > mounted` held by a margin of exactly one —
+/// which one `#[path = "` written inside a string literal in an
+/// `all.rs` would have closed, silently, leaving that file's `Shared`
+/// ledger line to red as `stale`. The row is now
+/// [`crate::every_suite_file_is_aggregated!`], which carries those
+/// tokens in its expansion rather than in the file's text: every
+/// aggregator's margin is zero, and the census recognises the
+/// INVOCATION instead.
+///
+/// Both are textual proxies for the same fact and both can be closed
+/// without touching what they proxy; they differ in how easily. The
+/// margin went to a stray `#[path = "` inside any string literal in the
+/// file. The invocation needle goes to deleting the row, or to renaming
+/// the macro — and the census holds BOTH of those: a needle that names
+/// no macro reds on its own row rather than as fifteen stale ledger
+/// lines. What it does not go to is re-delimiting:
+/// `every_suite_file_is_aggregated! { }` compiles, runs and passes, and
+/// the needle carries no delimiter for that reason.
 #[must_use]
 pub fn aggregation_violations(tests_dir: &std::path::Path, all_rs: &str) -> Vec<String> {
     let src = code_and_literals(all_rs);
@@ -1060,6 +1094,113 @@ pub fn aggregation_violations(tests_dir: &std::path::Path, all_rs: &str) -> Vec<
     }
 
     violations
+}
+
+/// **The aggregation row itself, in one spelling.** Emits the
+/// `every_suite_file_is_aggregated` row that every aggregating crate's
+/// `tests/all.rs` carries, whose body is [`aggregation_violations`]:
+///
+/// ```ignore
+/// test_utils::every_suite_file_is_aggregated!();
+/// ```
+///
+/// It takes no arguments. Both of the row's crate-specific inputs are
+/// supplied by the compiler at the site where the tokens land, so there
+/// is nothing for a caller to name — and a list of crate names or paths
+/// passed in here would be the hand-kept copy this macro exists to end,
+/// wearing one invocation instead of fifteen.
+///
+/// # Why a macro, and not a function in this module
+///
+/// [`crate_dir`] already takes `CARGO_MANIFEST_DIR` as an argument for a
+/// related reason, and the same force applies one level up.
+/// `env!("CARGO_MANIFEST_DIR")` reads the environment of the crate being
+/// compiled, and `include_str!("all.rs")` resolves relative to the FILE
+/// holding the token. Written as a function here, both would answer for
+/// `test-utils`: every crate's row would walk `test-utils`' own `tests/`
+/// and judge `test-utils`' own aggregator, and fifteen rows would pass
+/// by checking one crate. That is a guard green because it cannot see
+/// its subject, which is the exact failure this row exists to make
+/// impossible. A macro puts the two tokens in the INVOKING file, where
+/// they expand against the invoking crate — measured on a two-crate
+/// probe before this macro was written, for the bare and the
+/// `::core::`-qualified spelling both.
+///
+/// **That measurement has no mechanical guard and cannot have one, and
+/// here is the reason.** If invocation-site resolution ever flipped,
+/// `crate_dir(env!(…))` and `include_str!("all.rs")` would BOTH answer
+/// for `test-utils`, so every row would compare `test-utils`' own
+/// aggregator against `test-utils`' own `tests/` — self-consistent, and
+/// green in every crate. Nothing in this tree would red, which is the
+/// same failure named three paragraphs above. No guard can be written
+/// for it either: a guard sited in some crate would have to compare what
+/// the macro sees against that crate's directory, and that comparison is
+/// what the macro already is, so it would flip with it. The reason it is
+/// safe to leave unguarded is not that the failure would be loud: it is
+/// that `include_str!` and `env!` resolving at the invocation site is
+/// part of Rust's stability promise, so the flip is a breaking language
+/// change and not a regression this repository can land. A scheduled
+/// re-measure would buy nothing that `rustc`'s own release process does
+/// not, which is why there is not one.
+///
+/// The generated `fn` keeps the name `every_suite_file_is_aggregated`,
+/// so the row's identity in a PASS list, in `--filter` arguments and in
+/// the prose that names it across the tree is unchanged.
+///
+/// # What it does NOT enforce
+///
+/// **Nothing here checks that a crate HAS this row.** A crate that
+/// aggregates suites and never invokes the macro is silent — exactly as
+/// a crate that never pasted the five lines was silent before. This
+/// spelling neither closes that hole nor widens it, and a sixteenth
+/// crate added tomorrow with no invocation goes unremarked.
+///
+/// What covers the neighbouring ground, and does not cover this:
+/// `scripts/gates/test-aggregation.sh` holds every member to at most one
+/// `[[test]]` target, which is the opt-in itself rather than the row;
+/// and `crates/bvh/tests/aggregator_headers.rs`'s
+/// `a_non_aggregating_tests_directory_holds_one_suite_file` holds a
+/// crate that mounts NOTHING to a single suite file. Neither says that a
+/// crate which mounts suites carries the row.
+///
+/// `crates/pncad/` is the deliberate non-carrier and must stay one: its
+/// `tests/` holds a single file, its header says why it has no row, and
+/// the guard named above is what keeps that sentence true.
+///
+/// # What the collapse cost, which is redundancy
+///
+/// Fifteen copies were fifteen INDEPENDENTLY CHECKED facts.
+/// `crates/test-utils/tests/reader_census.rs` reads each `all.rs` and
+/// asserts a `Shared` ledger line against that file's own text, so a
+/// reversion in one of them red'd one file and named it. One macro is
+/// one fact: this body answers for fifteen call sites, and the file it
+/// lives in is dispositioned `Home`, which that row filters out before
+/// it looks at anything. Rewriting this expansion into a hand-rolled
+/// `read_dir` walk therefore leaves all fifteen `Shared` lines green.
+///
+/// `the_aggregation_row_macro_reaches_the_shared_lexer` is the row that
+/// closes it, by reading THIS body as text and asserting it still calls
+/// [`crate_dir`] and [`aggregation_violations`] — measured: that
+/// reversion reds it and nothing else. So the claim is checked, but it
+/// is checked ONCE. A single check with a single subject is a weaker
+/// thing than fifteen checks with fifteen subjects, and that difference
+/// is what collapsing fifteen copies to one is bought with. It is worth
+/// it here because the fifteen were byte-identical and their drift was
+/// the defect; it would not be worth it where the copies differed.
+#[macro_export]
+macro_rules! every_suite_file_is_aggregated {
+    () => {
+        /// The aggregation and ONE HOME checks, whose one home — the walk, the
+        /// three checks and the argument for each — is
+        /// `test_utils::source::aggregation_violations`.
+        #[test]
+        fn every_suite_file_is_aggregated() {
+            let tests = $crate::source::crate_dir(::core::env!("CARGO_MANIFEST_DIR")).join("tests");
+            let violations =
+                $crate::source::aggregation_violations(&tests, ::core::include_str!("all.rs"));
+            assert!(violations.is_empty(), "{}", violations.join("\n"));
+        }
+    };
 }
 
 #[cfg(test)]
