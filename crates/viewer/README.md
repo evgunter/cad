@@ -216,7 +216,7 @@ are never overridden here.
 | Decision | Modules |
 |---|---|
 | G1 layer 2 (document as a value, `DocEdit` + pure `apply`, evaluation service, hit-testing) | `crates/editor-core` (`crates/editor-core/README.md`) |
-| G1 layer 3 values and operations | `src/camera.rs` (`Camera`, `CameraOp`, `camera::apply`), `src/session.rs` (`DocSession`, `DocSession::perform`, the operation doors) and its vocabularies `session::{select, refuse, op, author, delete, probe}` (Module boundaries, below), `src/history.rs` (tree-shaped undo), `src/input.rs` (`ViewportEvent`), `src/tools.rs` and the per-tool modules |
+| G1 layer 3 values and operations | `src/camera.rs` (`Camera`, `CameraOp`, `camera::apply`), `src/g1.rs` (`Slot`, the preview/commit rules both gestures obey), `src/session.rs` (`DocSession`, `DocSession::perform`, the operation doors) and its vocabularies `session::{select, refuse, op, author, delete, probe}` (Module boundaries, below), `src/history.rs` (tree-shaped undo), `src/input.rs` (`ViewportEvent`), `src/tools.rs` and the per-tool modules |
 | G3 free-move and hiding as display state | `src/display.rs` |
 | G3 mate definition | `src/matetool.rs` |
 | Feature tree, property panel, open/save, evaluation seam, scene | `src/tree.rs`, `src/props.rs`, `src/docio.rs`, `src/evalseam.rs` (all three seams and all three workers) with `src/generation.rs` (`Generation`, the counter every seam keys its answers by), `src/scene.rs` |
@@ -1098,6 +1098,61 @@ the honest answer when the lookup fails. What separates the two cases
 is whether an edit is about to be committed that would refuse on its
 own.
 
+### The G1 machine is held once
+
+Two gestures implement G1's preview/commit shape — the value drag
+`DocSession` owns over a slot or a document parameter, and the
+free-move probe `DisplayState` owns over an instance's frame — and
+their three transition rules are one value, `g1::Slot`:
+
+- a **begin** refuses when one is already in flight, and validates its
+  target only once the slot is known free;
+- a **preview** REPLACES the value in flight rather than composing with
+  it, and refuses when nothing is in flight or when the operation names
+  another gesture;
+- a **commit** lands exactly one value, and a gesture that never
+  previewed lands nothing.
+
+**They are not one type and this is not a step toward making them
+one.** They own different value kinds (a `SlotValue` against a
+`Frame`), different validation (a slot's driver and dimension against a
+rigid-motion check on an unmated instance) and different side effects
+(a scratch `Doc` and an evaluation request against a display revision).
+What is shared is the transitions, and a generic over the rest would be
+a type nobody has a use for. DI5 changes what a probe's commit LANDS
+(`crates/editor-core/IDENTITY.md`: a `DocEdit::SetPlacement` rather
+than a `moves` entry) and changes none of the three rules, which is why
+holding them once did not wait for it — after DI5 the landing step that
+moves is the caller's, and the machine it must not break is one
+function rather than two.
+
+**What the shape makes impossible**: `g1::Slot`'s in-flight state is
+private to its module, so no caller can read it, take it or replace it
+except through `begin`, `preview`, `commit`, `cancel` and `discard`. A
+rule about the transitions cannot be spelled anywhere else, so one
+cannot be fixed in one gesture and left broken in the other. **What it
+does not do** is make a NEW shared rule land there rather than in both
+callers: the closures each door takes are the caller's own, and a rule
+written inside one of those is written for one gesture.
+
+**The vocabularies stay apart, and are declared once each.**
+`session::gesture_words` says `NoGesture` / `GestureInFlight` /
+`WrongGesture` and `display::free_move_words` says `NoFreeMove` /
+`FreeMoveInFlight` / `WrongFreeMove`; `g1::Refusals` is the struct they
+are handed in as, named rather than positional because three arguments
+of one type sit one transposition away from a door that says *finish
+the drag first* where it means *no drag is in progress*. They are
+different vocabularies about different subjects and holding the rules
+once is not a reason to merge them.
+
+The precedent is `widgets::drag_ops`, one layer up: one mapping from a
+`DragValue` to the four operations, over both vocabularies, and its own
+doc says what the two hand-written copies before it cost. This layer
+had the same two copies and no such guard;
+`tests/gesture_table.rs`'s `the_value_drag_answers_the_three_shared_rules`
+and `the_free_move_probe_answers_the_three_shared_rules` drive one
+script through both.
+
 ### Gesture safety is data
 
 The mid-gesture policy is one exhaustive value,
@@ -1132,7 +1187,8 @@ value gesture first.
 
 `BeginFreeMove` is permitted by both tables and refused anyway, one
 layer down: `DisplayState::begin_free_move` answers a second begin off
-its own state with the same `FreeMoveInFlight`. A row in the table
+its own state with the same `FreeMoveInFlight`, through `g1::Slot`'s
+first rule. A row in the table
 would be a second spelling of one answer, and the test that exercises
 the doors says so rather than smoothing it over.
 
@@ -1219,10 +1275,12 @@ token is what these two rows refuse.
 
 **The table says what it says.** `permitted_during_value_gesture` is a
 function of the operation alone, so it cannot answer a question about a
-payload; the name check lives in `DocSession::preview_gesture` /
-`commit_gesture` and `DisplayState::preview_free_move` /
-`commit_free_move`, and the refusals are spelled apart from
-`GestureInFlight` so the table's answer stays readable from the outcome.
+payload; the name check is `g1::Slot`'s, run against a predicate each of the
+four doors — `DocSession::preview_gesture` / `commit_gesture` and
+`DisplayState::preview_free_move` / `commit_free_move` — supplies for
+its own subject, and the refusals are spelled apart from
+`GestureInFlight` so the table's answer stays readable from the
+outcome.
 
 ### Every gesture has a cancel door
 
