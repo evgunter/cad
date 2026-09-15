@@ -44,9 +44,9 @@
 //! points at this section rather than carrying a copy.
 //!
 //! A door takes parts that are an ALREADY-VALIDATED curve's or
-//! surface's own: the knot vectors carried verbatim, and the net and
-//! weight vector under **one structural map**. Three shapes qualify,
-//! and the argument covers all three:
+//! surface's own: the knot vectors carried verbatim or re-domained, and the net and
+//! weight vector under **one structural map**. These shapes qualify,
+//! and the argument covers each of them:
 //!
 //! - **Pointwise** — every control point through a function, the
 //!   weights untouched. A map over a `Vec` cannot change its length.
@@ -54,8 +54,14 @@
 //!   re-indexed (a transpose, a reversal in one direction). A
 //!   permutation is a bijection of the index set onto itself, so it
 //!   changes neither the length nor the multiset of values.
-//! - **Both at once** — a pointwise map composed with a permutation,
-//!   which changes neither of the two things the checks read.
+//! - **Knots re-expressed on another domain** — the same net and the
+//!   same weights under a knot vector from [`KnotVector::on_domain`],
+//!   which changes neither the degree nor the knot count, so
+//!   [`KnotVector::control_count`] is unchanged.
+//! - **Any composition of those** — a pointwise map after a
+//!   permutation, a re-domained knot vector over a mapped net, and so
+//!   on, since none of them changes either of the two things the checks
+//!   read.
 //!
 //! So `control.len()` still equals the knots' `control_count()` (the
 //! product of the two per-direction counts, for a surface),
@@ -105,6 +111,8 @@ use geom_core::Real;
 use crate::curves::Curve3;
 use crate::surfaces::Surface;
 
+#[cfg(doc)]
+use geom_core::KnotVector;
 #[cfg(doc)]
 use crate::curves::NurbsCurve3;
 #[cfg(doc)]

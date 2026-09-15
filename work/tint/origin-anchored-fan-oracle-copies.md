@@ -68,3 +68,60 @@ tracker-wide re-home of 2026-09-04, which routed rows by PATH GLOB
 (`crates/*/tests/*`, `crates/test-utils/*`) rather than by question.
 This program is the question it was always about: whether the suite
 asserts what it claims to assert.
+
+## Re-derived (2026-09-15, lane D)
+
+**VERDICT: PARTIAL** — the documentation member is fixed and its
+divergence with its twin is gone; all five Rust members are live and
+still origin-anchored, and none of them records at the site why.
+
+**Commands.** `grep -n 'my_signed_volume\|dot(.*cross' ` per named file;
+`grep -n 'b\[1\] \* c\[2\]\|signed_volume\|divergence' docs/GUIDE.md
+docs/guide/meshing.md` for the scalar-determinant spelling.
+
+### FIXED — `docs/GUIDE.md`
+
+The executed fan is now **local-anchored**, and says so in its own
+prose: *"with each tetrahedron measured from `o`, the positions' own
+bounding-box centre. For a closed mesh the anchor cancels out over the
+reals, so this is the same volume from any anchor; in floating point it
+is the choice that keeps the products at the body's own scale instead of
+at its distance from the world origin."* The fold reads
+`(ax, ay, az) … = tuple(q[d] - o[d] …)` with
+`o = [lo[d] + (hi[d] - lo[d]) * 0.5 …]`. **The divergence from
+`docs/guide/meshing.md` is also gone**: that file's `signed_volume`
+(`:110`) carries the same anchor and near-identical prose. Both halves
+of the row's `docs/` bullet are settled.
+
+### LIVE — all five Rust members, `Point3::origin()` and raw coordinates
+
+- `crates/sweep/tests/review_m2_pr5.rs` — the private oracle
+  `my_signed_volume` at `:87` and three origin-anchored fans at `:97`,
+  `:512`, `:1125`, each `let a = p1 - Point3::origin(); … six_v +=
+  a.dot(b.cross(c));`. Its doc calls it *"the reviewer's independently
+  written signed-volume oracle"* and says nothing about the anchor.
+- `crates/sweep/tests/review_m2_pr4.rs::signed_volume` at `:181`, fan at
+  `:191`, same spelling. Its doc states the formula
+  (`V = (1/6) Σ det[p₁, pᵢ, pᵢ₊₁]`) but not the anchor choice.
+- `crates/stl/tests/review_m2_pr7.rs::soup_volume` at `:120` — the
+  doc-comment still reads *"divergence fan about the origin"*, and the
+  fold is the raw-coordinate scalar determinant at `:126-128`.
+- `crates/viewer/tests/scene_build.rs::enclosed_volume` at `:33` — the
+  scalar-determinant fan at `:41-46`. Its doc explains why POSITIVE
+  matters, not why the origin anchor is safe.
+- `crates/viewer/tests/review_gui0_r2.rs` at `:446-448`, inline.
+
+**The `docs/GUIDE.md` fix is the worked example for the other five** —
+it is the local-anchor spelling plus the sentence, which is exactly what
+the row asks for.
+
+**Blind spot.** Re-derived by the row's own two spellings
+(`a.dot(b.cross(c))` after subtracting `Point3::origin()`, and the
+expanded `a[0]*(b[1]*c[2] − …)` determinant). A fan written through a
+helper that hides the subtraction, or over a `Vec3::from(point)`
+conversion, would not be matched; no third spelling was searched for.
+Nothing here needed a test run.
+
+**Recommend: keep open, strike the `docs/GUIDE.md` bullet and its
+divergence note**, and record `GUIDE.md`'s prose as the template for the
+five that remain.
