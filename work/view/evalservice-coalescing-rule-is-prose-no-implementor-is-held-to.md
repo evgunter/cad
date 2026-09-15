@@ -26,7 +26,8 @@ generation submitted is the one that landed. The second is not:
 > — `crates/viewer/src/evalseam.rs:34-38`
 
 That is module prose about the two shipped implementations. The
-session holds `Box<dyn EvalService>` (`crates/viewer/src/session.rs:207`),
+session holds `Box<dyn EvalService>` (`DocSession::eval`,
+`crates/viewer/src/session.rs:224`),
 so the claim is about every implementor, and:
 
 - `EvalService`'s own doc comments
