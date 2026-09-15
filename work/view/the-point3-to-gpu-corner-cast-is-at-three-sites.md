@@ -12,15 +12,15 @@ Found by the style review of #2083 (pre-existing; the move carried the
 reconciling sentence into a new file, where it now understates the
 count).
 
-`crates/viewer/src/marks.rs:119-121` — `EdgeOverlay`'s doc — says *"The
+`crates/viewer/src/marks.rs:131-133` — `EdgeOverlay`'s doc — says *"The
 buffers are `f32` because that is what a GPU consumes and this is the
 display seam — the same cast, at the same boundary, that
 [`crate::scene::SceneMesh`] makes."* That names two sites. There are
 three:
 
-- `crates/viewer/src/marks.rs:273` —
+- `crates/viewer/src/marks.rs:300` —
   `|point: &Point3<f64>| [point.x as f32, point.y as f32, point.z as f32]`
-- `crates/viewer/src/scene.rs:521` —
+- `crates/viewer/src/scene.rs:526` —
   `positions.push([p.x as f32, p.y as f32, p.z as f32])`
 - `crates/viewer/src/pane/viewport.rs:311` —
   `.push([world.x as f32, world.y as f32, world.z as f32])`

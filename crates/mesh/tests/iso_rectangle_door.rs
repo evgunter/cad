@@ -166,11 +166,10 @@ fn receipts(body: &topo::Body<f64>) -> Vec<FaceReceipt> {
         .map(|(fk, f)| {
             let (outer, _) = topo::props::loop_edges(body, f.outer).unwrap();
             let surface = body.get_surface(f.surface).unwrap();
-            let sense = if f.sense { 1.0 } else { -1.0 };
             (
                 fk,
                 geom_brep::props::require_iso_rectangle(surface, &outer, band),
-                geom_brep::props::curved_face(surface, &outer, sense, band)
+                geom_brep::props::curved_face(surface, &outer, f.sense, band)
                     .map(|c| (c.flux.to_bits(), c.area.to_bits())),
                 geom_brep::props::boundary_material_sign(surface, &outer, band),
             )

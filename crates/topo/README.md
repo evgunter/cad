@@ -245,7 +245,7 @@ backs; `SameSide` refuses naming the verdict and is the future
 declared-interpenetration hook (C6 consumes it as admission evidence, so
 no bool may stand there; today it reaches the refusal only as rendered
 witness text, not a typed field); `Undecided` escalates `CensusEscalated`.
-The side is read via `Face::sense_sign` and
+The side is read by handing both faces' `Face::sense` bits to
 `geom_brep::classify_material_pairing` after `classify_dihedral`
 establishes the smooth precondition; the census is otherwise
 sense-invariant.

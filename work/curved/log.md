@@ -245,3 +245,56 @@ defect the door had hidden). Operations: the fix pass's push produced
 no `synchronize` run and the lane dispatched the workflow by hand (the
 render lanes skip on a dispatch); the state-sync push re-rolls a real
 run before the merge.
+
+## CURVED-MERGEDOOR close-out (2026-09-14)
+
+Block CURVED-B1 concluded at #2105's merge: slot 2 recorded on
+`curved/b1-block` (1c10adfa7) and the block record folded to main in
+#2578 (6781958cb), which also deleted `docs/CURVED-MERGEDOOR-SPEC.md`
+per the ledger. Lane and target reclaimed. CURVED-B2's draw stays
+branch-side. Running: torus-arm fix pass (#2535), TRIM-3 PR-2 dual
+(#2554). Held for the weekly reset: spiric PR-1a (#2566) and TRIM-2
+PR-1 (#2564) duals.
+
+## CURVED-TORUS PR-2 merged (2026-09-15) — block CURVED-B2 slot 0 concludes
+
+PR #2535, ordinal 2203, sample #200. The dual (R1 Fable, R2 Opus) both
+MERGEABLE-AFTER-FIXES; adjudication on the PR (comment 5662086549);
+twelve union items all taken. The substantive change from review: the
+suite had no random dense-oracle row for the torus, so four planted
+defects passed every shipped row — a torus family and a random row now
+red them; the PR's "M2 merely loose" sentence was wrong in the unsafe
+direction and is withdrawn in the body. Headline bilateral — no tally
+candidate; R2 paused once by the usage limit (3(e)). The spec's
+2026-09-14 amendments stand; `docs/CURVED-TORUS-SPEC.md` is now fully
+delivered (PR-1 #1907, PR-2 #2535) and leaves `docs/` per the ledger in
+the post-merge docs PR. Filed by the unit:
+`the-chord-dip-charge-has-two-homes`. Operations: the account behind
+this session changed at Ev's re-login (2026-09-15); the weekly window
+on the new account sits at ~80% with its reset 2026-09-18 17:00Z, so
+the held duals (spiric PR-1a, TRIM-2 PR-1) stay held until that reset.
+
+## Pacing under the weekly budget (2026-09-15)
+
+Both of this orchestrator's first blocks are concluded (CURVED-B1 at
+#2105, TRIM-B1 at #2554); CURVED-B2 slot 0 concluded at #2535. Open
+against the budget: the spiric PR-1a dual (#2566, CURVED-B2 slot 1,
+FABLE) and the TRIM-2 PR-1 dual (#2564, TRIM-B2 slot 0). The account's
+weekly window sits at 83 % with its reset at 2026-09-18 17:00Z; both
+duals stay HELD until that reset, then dispatch together (each dual
+plus fix pass has cost 0.6–1.0 M tokens on this program). No new
+implementer dispatch before the reset; CURVED-B2 slot 2's unit is
+chosen at dispatch from the plan's lanes (leading candidates:
+`equator-seam-reauthor-refuses-the-hollowed-elbow`, then spiric
+PR-1b once 1a merges). Idle lanes: none; every finished lane and
+target reclaimed (44 G free).
+
+## Spiric PR-1a dual dispatched (2026-09-15)
+
+Ev, in-chat after the box's reboot: finish the open duals and get all
+state on main before the usage limit. The hold is lifted: ordinal 2204
+claimed (PR #2669); byte 226, parity 0 ⇒ R1 Opus, R2 Fable; frozen
+head `e9ef3ae3b`; briefs stored with sha256; both reviewers dispatched
+together with TRIM-2 PR-1's pair (four lanes on the width-1 slot).
+Session monitors re-armed after the crash; nothing of this program's
+was running when the box went down.

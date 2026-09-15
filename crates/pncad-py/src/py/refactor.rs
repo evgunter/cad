@@ -49,7 +49,7 @@ use pyo3::types::PyString;
 
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
-use crate::tags::{inline_error_tag, split_error_tag, update_error_tag};
+use crate::tags::{inline_error_tag, interface_crossing_tag, split_error_tag, update_error_tag};
 use pncad::document as d;
 use pncad::tolerance::Tol;
 
@@ -84,13 +84,14 @@ pub(crate) struct InterfaceCrossing(d::InterfaceCrossing);
 
 #[pymethods]
 impl InterfaceCrossing {
-    /// The stable tag. One arm today, `mate`: a crossing is whatever
-    /// KIND of edge crossed, and mates are the only kind that can.
+    /// The stable tag: `mate`, the one word today — a crossing is
+    /// whatever KIND of edge crossed the cut, and a mate is the only
+    /// kind that can.
+    // The map is `crate::tags::interface_crossing_tag`, whose words
+    // `TAG_INVENTORY` pins.
     #[getter]
     fn variant(&self) -> &'static str {
-        match self.0 {
-            d::InterfaceCrossing::Mate { .. } => "mate",
-        }
+        interface_crossing_tag(&self.0)
     }
 
     /// The crossing mate, in the remainder.

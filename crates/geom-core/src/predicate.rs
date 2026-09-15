@@ -82,6 +82,28 @@
 //! length scale it acts through, so every angular threshold is derived per
 //! predicate from ε and the arm the decision turns on.
 //!
+//! # The rate pair, beside the doors
+//!
+//! Parameter space crosses to model space only through a per-kind
+//! metric rate, and the rate's **bound direction** is the semantic
+//! content of that crossing, not a detail of how it was derived.
+//! [`SupSpeed`] and [`InfSpeed`] — metres per parameter unit — carry
+//! the direction in the type, so the two metric doors
+//! ([`Margin::metered`], [`Margin::metered_sup`]) are told apart by
+//! the compiler rather than by a paragraph. **This is the rule's one
+//! home**; every door, type and conversion below points here rather
+//! than restating it:
+//!
+//! - **inf** for a "definitely apart" claim, where a certified LOWER
+//!   bound under-states the length and so cannot certify a sliver;
+//! - **sup** for an overshoot or an escape, where a certified UPPER
+//!   bound over-states the displacement and so can only refuse.
+//!
+//! Both are transparent tags rather than positivity witnesses: a rate
+//! of zero, infinity or poison means something different at each site
+//! and each keeps its own guard. Their conversions are one operation
+//! each, so typing a site moves no margin's bits.
+//!
 //! There is deliberately **no** `From<BandError> for Indeterminate`: a
 //! misconfigured band (K·ε overflowed, thresholds inverted) is not an
 //! indeterminate margin. They are different failures with different types
@@ -539,14 +561,35 @@ impl<T: crate::real::Real> Margin<T> {
     /// span** crossed to model space by its per-kind **metric rate** —
     /// computes `span * rate`. The dimensional argument: `span` is in
     /// the carrier's parameter units and `rate` is the kind's metres
-    /// per parameter unit (a certified speed lower bound, a chart's
-    /// `param_rate`), so the product is the model-space length the span
-    /// subtends. This is the levered door's shape with a rate arm — a
-    /// separate constructor because the argument is clause (iii)'s
-    /// (parameter space crosses to model space only through a per-kind
-    /// metric door), not a dimensionless-times-length one.
-    pub fn metered(span: T, rate: T) -> Self {
-        Self(span * rate)
+    /// per parameter unit, so the product is the model-space length
+    /// the span subtends. This is the levered door's shape with a rate
+    /// arm — a separate constructor because the argument is clause
+    /// (iii)'s (parameter space crosses to model space only through a
+    /// per-kind metric door), not a dimensionless-times-length one.
+    ///
+    /// The rate is an [`InfSpeed`] **by signature**: this is the
+    /// "definitely apart" door (module docs, *The rate pair*) — a
+    /// forward span, an interior split parameter, a root clear of its
+    /// endpoints. An overshoot or an escape takes
+    /// [`Margin::metered_sup`]. One operation, bit-identical to the
+    /// bare `span * rate`.
+    pub fn metered(span: T, rate: InfSpeed<T>) -> Self {
+        Self(rate.to_meters(span))
+    }
+
+    /// Metric door, sup side: a **parameter-space overshoot** crossed
+    /// to model space by a certified UPPER bound on the rate —
+    /// computes `span * rate`, the same single operation as
+    /// [`Margin::metered`] over the other bound direction.
+    ///
+    /// The dimensional argument is [`Margin::metered`]'s and the
+    /// direction argument is the module docs' (*The rate pair*): this
+    /// is the overshoot-and-escape door — trim containment, an iso
+    /// row's snap and drift slack, a loop-continuity gap. Reading the
+    /// same product as a positive-extent claim would be unsound, which
+    /// is why that direction has its own door and its own type.
+    pub fn metered_sup(span: T, rate: SupSpeed<T>) -> Self {
+        Self(rate.to_meters(span))
     }
 
     /// Norm door (3-vector form): the Euclidean norm of a
@@ -605,6 +648,163 @@ impl Margin<f64> {
     /// was built.
     pub fn lift<T: crate::real::Real>(self) -> Margin<T> {
         Margin(T::from_f64(self.0))
+    }
+}
+
+/// A certified **upper** bound on a speed — metres per parameter unit.
+///
+/// The sup half of the rate pair ([`InfSpeed`] is the other). Both are
+/// `#[repr(transparent)]` newtypes over the run scalar and both are a
+/// **dimension-and-direction tag, not a positivity witness**: `new`
+/// takes any value, poison and zero included, because the sites
+/// disagree about what a zero or infinite rate means and each keeps
+/// its own guard (`plane_nurbs_ssi`'s finite-and-positive refusal,
+/// `param_rate_gate`'s subtended-length gate,
+/// `PatchRegularity::thinness`'s deliberate absence of one).
+///
+/// # Which bound a site needs
+///
+/// Which direction a site needs is the module docs' rule (*The rate
+/// pair*), stated there and not again here. What this type adds is
+/// that the answer is a TYPE fact: [`Margin::metered`] takes the inf
+/// and [`Margin::metered_sup`] the sup, so a site that reaches for the
+/// wrong one does not compile, and these two rows are what say so.
+///
+/// A sup handed to the inf door — an over-stated rate read as a
+/// "definitely apart" claim, the unsound direction:
+///
+/// ```compile_fail,E0308
+/// use geom_core::{Margin, SupSpeed};
+/// let _ = Margin::metered(1.0_f64, SupSpeed::new(2.0_f64));
+/// ```
+///
+/// Its twin differs in one respect — the door matches the tag — and
+/// compiles:
+///
+/// ```
+/// use geom_core::{Margin, SupSpeed};
+/// let _ = Margin::metered_sup(1.0_f64, SupSpeed::new(2.0_f64));
+/// ```
+///
+/// And the mirror, an inf handed to the sup door — an under-stated
+/// escape, the other unsound direction:
+///
+/// ```compile_fail,E0308
+/// use geom_core::{InfSpeed, Margin};
+/// let _ = Margin::metered_sup(1.0_f64, InfSpeed::new(2.0_f64));
+/// ```
+///
+/// with the twin that compiles:
+///
+/// ```
+/// use geom_core::{InfSpeed, Margin};
+/// let _ = Margin::metered(1.0_f64, InfSpeed::new(2.0_f64));
+/// ```
+///
+/// Stable rustdoc checks only that a `compile_fail` block fails to
+/// build; the `,E0308` beside it is not verified there, which is what
+/// each twin is for — a typo shared by both would redden the twin.
+/// The code was read off `rustc` on these snippets at the pinned
+/// toolchain (1.97.0).
+///
+/// Neither type carries `PartialEq` or `PartialOrd`, so a rate cannot
+/// be compared without saying `get()` — the [`Real`](crate::real::Real)
+/// surface's rule. The rule it enforces is that **a tagged rate is
+/// never `==`'d or `<`'d**, not that no ordering happens: a fold that
+/// picks the larger of two sups ([`SupSpeed`] producers do this —
+/// `speed_lever`, `nurbs_stretch_bounds`) orders the bare payloads and
+/// mints the tag on the result, which is where such a fold belongs.
+///
+/// ```compile_fail,E0369
+/// use geom_core::SupSpeed;
+/// let _ = SupSpeed::new(1.0_f64) == SupSpeed::new(1.0_f64);
+/// ```
+///
+/// ```
+/// use geom_core::SupSpeed;
+/// let _ = SupSpeed::new(1.0_f64).get() == SupSpeed::new(1.0_f64).get();
+/// ```
+///
+/// # The two conversions
+///
+/// [`SupSpeed::to_meters`] and [`SupSpeed::to_param`] are **one
+/// operation each** — `span * s` and `m / s` — and therefore
+/// bit-identical to the bare arithmetic they replace (D9: the rate
+/// pair moves no margin's bits). A surface's pair of rates is two
+/// values, not a type: nothing here folds `u` and `v` together.
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy)]
+pub struct SupSpeed<T>(T);
+
+/// A certified **lower** bound on a speed — metres per parameter unit.
+///
+/// The inf half of the rate pair; see [`SupSpeed`] for the direction
+/// rule, the tag-not-a-witness contract and the one-operation
+/// conversion. This half has ONE conversion and not two: `m / inf`
+/// over-states a parameter reach, so the parameter side of the pair is
+/// [`SupSpeed::to_param`]'s alone. An **exact** closed-form rate (a line's `1`, a circle's
+/// radius, an ellipse's minor semi-axis) is an inf bound by being
+/// exact, and is minted through this door.
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy)]
+pub struct InfSpeed<T>(T);
+
+impl<T: crate::real::Real> SupSpeed<T> {
+    /// Tags a rate as a certified upper bound. The tag is the caller's
+    /// claim; nothing here checks it, exactly as choosing a
+    /// [`Margin`] door is the call site's dimension proof.
+    pub fn new(rate: T) -> Self {
+        Self(rate)
+    }
+
+    /// The rate itself, for arithmetic no conversion door names — the
+    /// exit, not an entrance.
+    pub fn get(self) -> T {
+        self.0
+    }
+
+    /// A parameter-space span crossed to metres: `span * s`, one
+    /// operation, bit-identical to the bare product.
+    pub fn to_meters(self, span: T) -> T {
+        span * self.0
+    }
+
+    /// A model-space length crossed to parameter units: `m / s`, one
+    /// operation, bit-identical to the bare quotient. Dividing by the
+    /// SUP under-states the parameter reach, which is the safe side of
+    /// a floor or a tube pad: a smaller chart-space region is claimed
+    /// than the metre statement licenses.
+    ///
+    /// This is the pair's ONLY parameter-side conversion, and
+    /// deliberately: `m / inf` over-states the reach, which is the
+    /// unsafe side of every claim the pair serves, so [`InfSpeed`] has
+    /// no `to_param` for a site to reach for.
+    pub fn to_param(self, meters: T) -> T {
+        meters / self.0
+    }
+}
+
+impl<T: crate::real::Real> InfSpeed<T> {
+    /// Tags a rate as a certified lower bound; see
+    /// [`SupSpeed::new`] for what the tag is and is not.
+    pub fn new(rate: T) -> Self {
+        Self(rate)
+    }
+
+    /// The rate itself; see [`SupSpeed::get`].
+    pub fn get(self) -> T {
+        self.0
+    }
+
+    /// A parameter-space span crossed to metres: `span * s`, one
+    /// operation, bit-identical to the bare product. Multiplying by
+    /// the INF under-states the length, which is what a
+    /// definitely-apart claim needs.
+    ///
+    /// The inf half has no parameter-side conversion: see
+    /// [`SupSpeed::to_param`], which is the whole pair's.
+    pub fn to_meters(self, span: T) -> T {
+        span * self.0
     }
 }
 

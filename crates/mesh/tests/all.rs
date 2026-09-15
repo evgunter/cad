@@ -250,7 +250,7 @@ fn every_suite_file_is_aggregated() {
 ///   3 + 1 + 5 = 9 carriers; 1 + 3 + 1 + 0 = 5 reads.
 ///
 ///   The band that `topo::coherence` reads is NOT on this inventory
-///   and cannot be: it is that crate's own `f64`, not an [`Eps`], and
+///   and cannot be: it is that crate's own `f64`, not an `Eps`, and
 ///   this row walks `crates/mesh/src` alone. The two spellings are
 ///   held together by `walk::tests::the_two_spellings_of_the_band_
 ///   agree` instead.
@@ -484,3 +484,5 @@ fn the_eps_inventory_is_pinned() {
 }
 #[path = "r2_mesh7_probes.rs"]
 mod r2_mesh7_probes;
+#[path = "r2_sense_e2e.rs"]
+mod r2_sense_e2e;

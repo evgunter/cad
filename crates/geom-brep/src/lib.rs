@@ -91,8 +91,9 @@ pub use enters::{
     EntersMaterial, OutwardNormal, ReferenceNormal, enters_material, enters_material_order2,
 };
 pub use implicit::{
-    circle_residual_curvature_bound, circle_residual_extremes, curvature_lever_arm,
-    implicit_gradient, implicit_hessian_form, implicit_max_normal_curvature, implicit_residual,
+    ARC_RESIDUAL_SAMPLES, circle_arc_residual_range, circle_residual_curvature_bound,
+    circle_residual_extremes, curvature_lever_arm, implicit_gradient, implicit_hessian_form,
+    implicit_max_normal_curvature, implicit_residual,
 };
 pub use intersect::{
     CoaxialEvidence, ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, PairRoute,
@@ -117,9 +118,9 @@ pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };
 pub use pcurve_cache::{
-    ChartStretchInf, ChartWindow, EnvelopeStatement, Pcurve, PcurveCache, PcurveCertificate,
-    PcurveCertifyError, PcurveCheck, PcurveFittedLane, chart_pcurve, chart_stretch_inf,
-    chart_stretch_sup,
+    ChartStretchInf, ChartWindow, EnvelopeStatement, NoChartSup, Pcurve, PcurveCache,
+    PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveFittedLane, chart_pcurve,
+    chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,

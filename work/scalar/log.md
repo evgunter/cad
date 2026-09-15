@@ -32,6 +32,80 @@ drafted first; `D290` dispatches beside it rather than behind it;
 `H5`'s own questions (Q1, RingInterval) go to a SECOND `[ev]` sitting
 once the door rows are in and its decomposition is cut.
 
+## The first `[ev]` sitting: D6, D283, the unit vector (2026-09-12)
+
+Three surveys of the tree, read by the orchestrator before the
+recommendations were written; each row's `## Put to Ev` section carries
+the decision and the rejected alternative, this entry the evidence.
+
+**D6.** No `SenseSign` exists. `OutwardNormal<T>` (`geom-brep/src/enters.rs`)
+wraps the product and takes the bit; `ReferenceNormal` is its sibling.
+`Face::sense_sign<T>()` (`topo/src/entity.rs`) is the only mint of the
+±1. Bare-`T` doors: `geom_brep::classify_material_pairing`
+(`dihedral.rs`; callers `census.rs` `ee_cross_backed`, `validate.rs`
+check 4, `rim_wedge.rs`), `material_kappa_rel` (`dihedral.rs`),
+`rim_wedge::classify_shared_rim` (caller `boolean/mod.rs`
+`verify_tangent_declaration`), `curved_face` and its private `sphere`
+(`props/curved.rs`; caller `topo/src/props.rs` `face_flux`). Hand
+multiplies `normal * face.sense_sign()`: `emit_topo.rs` `face_plane`,
+`blend/build.rs` `outward_of`, `blend/battery.rs` `outward`,
+`boolean/join.rs` `ring_run_ccw`, `boolean/rest.rs` `face_carrier`,
+`boolean/solid_contain.rs` `face_plane` and `face_geo`, `validate.rs`
+check 6, `merge_faces.rs` `merged_outline_ring` and
+`planes_declared_equal`, `mesh/walk.rs` `loop_polygon` (`f64`, an
+area). No comparison on the ±1 anywhere; every comparison is on the
+bit. Test-side hand-multiplies: `sweep/tests/common/orient.rs` and
+three blend suites; `dihedral.rs`'s own tests pass `1.0`/`-1.0`
+literals into the bare doors. `sphere`'s `s_f` is also minted from
+`t_sign(linear_rim_side(..))`, a decided `Sign` that can be zero.
+Defect filed: `work/bool/missing-face-in-verify-tangent-declaration-reads-as-sense-true.md`.
+
+**D283.** `Exhaustiveness` and its writer `sweep` in
+`geom-brep/src/ssi/exhaust.rs`; the lanes `account_r3` and
+`account_chart_plane`, called from `ssi.rs` with `domain.floor(band)`
+and `domain.floor(band) / speed`; `speed` from `NurbsBoxes::deriv_box`
+via `nan_propagating_max`, a local. `SsiOutcome` carries no domain,
+chart, lane or speed. Readers: `Display` (`ssi.rs`), a wildcard match in
+`pcurve_cache.rs`, and `geom-brep/tests/m5_pr7_ssi.rs` with its helper
+`assert_floor_is_the_meters_floor_over_the_chart_speed` and the pinned
+`WALL_CHART_SPEED`. The guard for #762 is `!speed.is_finite()` and
+`speed <= 0.0`; `work/curved/ssi-chart-speed-usability-boundary.md`
+holds the finite-but-huge case. Precedents: `Margin`'s constructor doors
+(`predicate.rs`, `docs/predicate-dimension-audit.md`), `Tol`
+(`tolerance.rs`), `quantity::Length` (boundary-only, restates D6),
+`PatchRegularity` (`offset_meters.rs`: `floor`, `speed_u`, `speed_v`,
+`thinness()`), `SsiLimb` (`ssi/certify.rs`). Blast radius of the tag:
+the two `Exhaustiveness` literals in `sweep`, the two chart-lane
+signatures and call sites, a manual `Default`, `Display`; every test
+destructure compiles as is.
+
+**Unit vector.** `topo::query::UnitVec3<T>` (`new(v, band)` over
+`decide_unit_direction`, funnel `DATUM_UNIT_NORM`, `get()`), consumers
+`DatumValue::{Plane, Axis, Frame, AxisInPlane}`, `eval/wire.rs`
+`frame_axes`, `AxisFrame`, `tube_args`, `frame_plane_lane`.
+`profile::path::Dir<T>` (`from_unit` does not re-decide; mints
+`unit_from_components`, `arc_fillet::carrier_tangent`, `reversed`).
+The ladder: `Vec3::normalize` is a bare divide (poison on zero,
+overflow/underflow rows open on PROPS' and FIX's slates);
+`frame::definitely_positive` then `normalize` in `point_at`,
+`path_start_frame`, `mirror_across_plane`; `sweep::revolve::axis`,
+`profile::path::unit_from_components` decide first; `enters_material`
+normalizes without the length question (FIX's row). Unchecked prose
+preconditions: `Affine3::from_frame` (callers `wire.rs` ×2,
+`anchor.rs`, `emit_topo.rs` ×4, `viewer/sketch.rs`, `pncad-py/doc.rs`
+×2), `Vec3::orthonormal_basis` (`newell.rs`, `step-import/recognize.rs`),
+`frame_from_unit_aim` (private; fed), the geom carrier fields under
+`geom/src/lib.rs`'s at-rest rule, `SplitPlane.normal`, `slab_extent`,
+`axial_radial`, `tangent::perp`, `blend/arms.rs` `perp_unit`,
+`mesh/cert.rs` `dist_line_triangle`, `mate/coset.rs` `Subgroup`
+fields, `measure.rs` `Carrier`. The opposite posture exists once:
+`revolve/tube.rs` refuses a non-unit axis at tolerance. At `Interval`,
+`UnitVec3::new` decides `‖u‖ − 1` to `Zero` for tight inputs and stays
+sound on an overflowed enclosure (`query.rs` tests). `cross_len` is a
+carried witness for `perp`'s length only; nothing carries `aim`'s.
+
+The `[ev]` PR is `scalar/ev-newtypes`; `needs_ev` is set on all three.
+
 ## D290 and S393 dispatched; the seams announced (2026-09-12)
 
 Both door rows are in flight on their own branches with a spec each
@@ -62,3 +136,184 @@ vector (`k ↦ lo + hi − k`) that D290 makes for a rescaled one; the test
 that rebuilds the net carries the knots verbatim, which is the same
 point set only when the v knots are symmetric — a door has to say what
 it does when they are not.
+
+## The rate census, for the `[ev]` sitting (2026-09-12)
+
+Ev asked on PR 2457 whether a kernel-wide `Rate` would improve
+uniformity and semantic correctness. Every parameter ↔ meters crossing
+in `crates/*/src`, by shape (sup = certified upper bound on a speed,
+inf = certified lower, pt = pointwise sampled, exact = closed form):
+
+- **Through `Margin::metered` (span · rate)**: `certify.rs`
+  `nurbs_span_meter`/`interval_span_forward` (inf,
+  `speed_lower_bound`); `pcurve_cache.rs` `param_rate` and its four
+  consumers (line 1 exact / nurbs inf / circle radius / ellipse minor);
+  `pcurve_cache.rs` `trim_containment` (SUP, `chart_stretch_sup`);
+  the `pcurve_iso_*` slack meters (SUP, `nurbs_stretch_bounds`);
+  `topo/pcurves.rs` `pcurve_loop_continuity` v-channel (`v_meter`:
+  exact polar arm or SUP); `topo/split.rs`
+  `split_edge_param_interior` (inf per kind); `splitting/classify.rs`
+  conic roots; `chord_join.rs` `split_tangent_chord_forward` (exact).
+- **Through `Margin::levered` (angle · arm)**: `pcurve_loop_continuity`
+  u-channel (`azimuth_arm`: exact per analytic kind, SUP on splines);
+  `pcurve_azimuth_period`, `chart_windings` (`azimuth_lever`);
+  `chart_bound.rs` `assembled`.
+- **Through `levered_inv` (÷ rate)**: `ssi/certify.rs`
+  `ssi_foot_orthogonality` (pt jet norms); two curvature uses
+  (`kappa_rel`, 1/m) and one length use — not rates.
+- **Through `over_lever`**: `offset_meters.rs` `offset_normal_floor`
+  and `PatchRegularity::thinness` (inf area rate ÷ max SUP speed; the
+  only struct storing named speeds).
+- **By hand beside a predicate**: `ssi.rs` `plane_nurbs_ssi` (SUP,
+  u/v max-folded, three divisions: seed floor, pad, floor);
+  `ssi/certify.rs` limb-3 tube (SUP per axis) and transversality
+  (`stretch`); `chart_region.rs` `certified_arms` (inf per kind,
+  gated through `Margin::of`); `pcurve_cache.rs` slack products
+  outside the door; the sphere `polar_rate` composition debt.
+- **By hand outside the decide seam, by design**: the SSI march
+  (`coordinate_scale`, `tangent_speed`, pt); `offset_fit.rs`
+  `directional_mark` (structure selection); `coherence.rs`
+  `gap_is_noise` and `mesh/walk.rs` (lever 0 = every gap noise, on
+  purpose); `mesh/sizing.rs` `sagitta_step`/`curvature_step`/
+  `ellipse_step`/`torus_grid_steps` and `mesh/nurbs_cert.rs`
+  `split_steps` (second-order, m/param²); `mesh/chords.rs`
+  `nurbs_tighten` (chart units per `t`); the projection Newton
+  acceptances (pt); `enters_material_order2` (pt, squared).
+- **Hazards a single type would blur**: bound direction (the
+  `metered` doc promises inf, three sites pass SUP — PROPS' row
+  `metered-margin-doc-promises-an-inf-bound-three-sites-pass-a-sup`);
+  per-axis vs max-folded (`ssi.rs` vs limb 3 — TRIM's row
+  `ssi-tube-pad-folds-both-axes-by-max-speed-where-limb-3-proved-per-axis`);
+  the u/v door asymmetry in one predicate (TRIM's row
+  `loop-continuity-meters-u-through-levered-and-v-through-metered`);
+  certified vs sampled; second-order and param→param rates; 0 and ∞
+  meaning different things per site (the #762 guard, `thinness`
+  unguarded by contract, `gap_is_noise`'s zero lever); the NaN-fold
+  divergence `nan_propagating_max` vs plain `f64::max`
+  (`work/curved/ssi-lever-arm-min-fold-hides-poison.md`).
+
+Counts: door-mediated 20, hand-spelled beside a predicate 8, outside
+the seam 9, non-rate `levered_inv` uses 3. The recommendation put to
+Ev: `SupSpeed`/`InfSpeed` in `geom-core` beside `Margin`, scoped to the
+linear m-per-parameter crossing; everything in the last bullet stays
+out.
+
+## The first sitting closed; six units cut (2026-09-15)
+
+PR 2457 merged with all three answers: `D6` — bit and product, never a
+±1 type, `sense_sign` retires; the unit vector — a witness in
+`geom-core` minted by the decided ladder, then a frame witness the tube
+door takes; `D283` — route A, the `SupSpeed`/`InfSpeed` pair in
+`geom-core` with the receipt's lane tag riding it (Ev, in-chat,
+2026-09-15: "that plan re D283 sounds good"). The three rows are closed
+and six units are on the slate (plan §The ratified units). `D290` and
+`S393` are in review; the third door row waits on lane capacity.
+
+## D290 merged (2026-09-15)
+
+PR 2461, block SCALAR-B1 slot 0, ordinal 4100; dual review, both arms
+APPROVE (with fixes), no MAJOR on either — no tally candidate. What
+landed and what moved: `work/scalar/D290.md` §Closed. The spec is
+deleted per the ledger. `S393`'s fix pass and VREV's dual are in
+flight; the block closes when VREV's reviews conclude.
+
+## S393 merged (2026-09-15)
+
+PR 2466, block SCALAR-B1 slot 1, ordinal 4101; dual review, both arms
+APPROVE WITH FIXES, no MAJOR — no tally candidate. Both reviews
+independently measured the quarter-turn identity's sign and the
+merge conflict; one widened the class of hand-rolled frames to nine
+sites, the other found an identity placement in the unit's own file.
+What landed: `work/scalar/S393.md` §Closed. The spec is deleted per the
+ledger. Two door rows down, VREV's dual in flight.
+
+## SENSE-DOORS dual concluded; the sample numbers re-derived (2026-09-15)
+
+`sense-sign-doors-take-the-bit` (PR 2649, block SCALAR-B2 slot 0,
+ordinal 4104): both arms APPROVE WITH FIXES, no MAJOR — no tally
+candidate. Bilateral: the "bit for bit" receipt at `material_kappa_rel`
+is false as written (NaN sign, signed zero, and at `Interval` the old
+`±1` product was PADDED where the negation is exact — head tighter, no
+verdict moves); stale `sense_sign` prose at the moved sites including
+`crates/topo/README.md`; `blend/arms.rs` `trace` minting a `±1`
+`side: T` field from a face bit — D6's class through all three sweep
+patterns' blind spot, handed to the second unit. Unique R1: the sphere
+guard's unguarded cylinder twin, `SphereFluxSide` beside
+`MaterialSign`, a `classify_shared_rim` mutant the whole suite
+survives. Unique R2: `classify_material_pairing` respelling
+`from_chart` by hand. Both exercised the public surface and found the
+same thing: a ball with ONE band reversed measures volume exactly
+`0.0` through `mass_properties` with no error, and tier 3 names it
+`LaminaWedge`. Twelve items adjudicated; fix pass dispatched on the
+implementer's arm.
+
+Found while preparing the block close: **the sample numbers collided.**
+TRIM-3 PR-2 (PR 2554) recorded #201 on main ten minutes after D290
+(PR 2461) merged with #201 branch-side; S393 then copied the visible
+#201 and wrote #202. Main's first-parent order rules (the CERT
+precedent): D290 #201, TRIM-3 #202, S393 #203, VREV #204. S393's row
+is corrected here; TRIM's is TRIM's, announced on their PR; the
+protocol gap is filed on META's slate as
+`work/meta/ab-log-sample-numbers-collide-under-branch-side-block-records.md`.
+
+## VREV merged; block SCALAR-B1 closes (2026-09-15)
+
+PR 2627, block SCALAR-B1 slot 2, ordinal 4102; dual review, both arms
+APPROVE WITH FIXES, no MAJOR — no tally candidate. One arm found the
+door's exactness cost (decimal-symmetric knots refuse; the upstream
+fix is BLEND's), the other that a reversed chart re-attached leaves its
+pcurves stale and that `two_sum` was the tree's third copy. What
+landed: the item's §Closed. The spec is deleted per the ledger. With
+its reviews concluded the block's last slot is done: the branch-side
+block record (pre-draw fields, draw, three rows) merges to main.
+
+## Block SCALAR-B1 landed (2026-09-15)
+
+The branch-side block record — pre-draw fields, the draw (byte 69),
+and the three rows D290 (#201), S393 (#203), VREV (#204) — merges to
+main with this entry, the META row for the sample-number collision
+beside it. Block SCALAR-B2's pre-draw and draw stay on
+`scalar/orchestrator` until its last slot's reviews conclude.
+
+## UNITVEC merged (2026-09-15)
+
+PR 2646, block SCALAR-B2 slot 1, ordinal 4103; dual review, both arms
+APPROVE WITH FIXES. R2 ranked three findings MAJOR — the sweep's
+freshness claim, the mirror ladder's "hands it on", the bare
+`orthonormal_basis` still standing — all three about what the PR body
+and docs CLAIMED rather than what the code computes (no verdict, bit
+or refusal moved), so they are recorded as claim-class and excluded
+from the tally per the instrument; no tally candidate. What landed:
+the item's §Closed. The spec is deleted per the ledger. The `sin_cos`
+mint waits for a customer; the frame doors taking the witness are the
+next unit's (`frame-witness-and-the-tube-door`).
+
+## SENSE-DOORS merged (2026-09-15)
+
+PR 2649, block SCALAR-B2 slot 0, ordinal 4104; dual review, both arms
+APPROVE WITH FIXES, no MAJOR — no tally candidate. What landed: the
+item's §Closed. The spec is deleted per the ledger. Handed on: the
+`blend/arms.rs` `±1` field (second unit), the frame doors (third).
+
+## RATE-PAIR merged; block SCALAR-B2 closes (2026-09-15)
+
+PR 2657, block SCALAR-B2 slot 2, ordinal 4105. The fix pass took all
+twelve items and demonstrated M1 by execution (the frozen head's
+`chart_stretch_sup` answered `SupSpeed(1)` for a cone whose true sup at
+`v = 4` is `2`; the door now refuses and a `v`-arm door mints the exact
+1), so R1's finding **counts** for the OPUS arm under the instrument.
+What landed: the item's §Closed. The spec is deleted per the ledger.
+With its reviews concluded the block's last slot is done: the
+branch-side block record (pre-draw fields, draw, three rows) merges to
+main. Handed on: the angular arms (TRIM), the second D283 unit
+(`exhaustiveness-receipt-carries-its-lane`).
+
+## Block SCALAR-B2 landed (2026-09-15)
+
+The branch-side block record — pre-draw fields, the draw (byte 187),
+and the three rows UNITVEC (#205), SENSE-DOORS (#206), RATE-PAIR
+(#207) — merges to main with this entry. One tally candidate in the
+block, RATE-PAIR's M1, counted for the OPUS arm (unilateral,
+contract-API class, demonstrated by execution in the fix pass); the
+other five arms found no MAJOR. Block SCALAR-B3's pre-draw and draw
+stay on `scalar/orchestrator` until its last slot's reviews conclude.

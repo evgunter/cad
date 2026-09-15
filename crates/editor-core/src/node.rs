@@ -54,7 +54,6 @@ macro_rules! name_free_node {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-#[serde(deny_unknown_fields)]
 pub struct RecipeNodeId(pub u64);
 
 pub use crate::names::{EntityKind, RoleSeg, StableName};
@@ -64,7 +63,6 @@ pub use crate::names::{EntityKind, RoleSeg, StableName};
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-#[serde(deny_unknown_fields)]
 pub enum Axis3 {
     /// The x component.
     X,
@@ -90,7 +88,6 @@ pub use topo::BooleanOp;
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-#[serde(deny_unknown_fields)]
 pub enum StepArg {
     /// An authored on-path point's x (`at`, an arc spec's anchor, the
     /// far-end `to`).
@@ -927,7 +924,6 @@ pub enum PatternKind {
 /// well-typed: a half against a split, an index against a pattern's
 /// instances, and any other pairing refuses at evaluation.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
 pub enum PartSelect {
     /// The named half of a [`Node::Split`] value.
     SplitHalf(SplitHalf),

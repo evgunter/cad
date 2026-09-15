@@ -32,7 +32,9 @@ use pyo3::types::PyString;
 
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
-use crate::tags::mate_fault_tag;
+use crate::tags::{
+    class_admission_tag, cluster_maintenance_tag, mate_fault_tag, mate_primitive_tag, subgroup_tag,
+};
 use pncad::document as d;
 use pncad::tolerance::Tol;
 
@@ -249,10 +251,14 @@ impl MatePrimitive {
     }
 
     /// The primitive's stable tag: `frame_coincidence`, `coaxial`,
-    /// `planar_rest`, `clocking`.
+    /// `planar_rest` or `clocking` — one word per constructor on this
+    /// class, spelled the same way, so the vocabulary is the class's
+    /// own staticmethods.
+    // The map is `crate::tags::mate_primitive_tag`, whose words
+    // `TAG_INVENTORY` pins.
     #[getter]
     fn variant(&self) -> &'static str {
-        primitive_tag(self.0)
+        mate_primitive_tag(self.0)
     }
 
     /// The planar rest's signed standoff, `None` for every other
@@ -277,19 +283,8 @@ impl MatePrimitive {
             d::MatePrimitive::PlanarRest { offset } => {
                 format!("MatePrimitive.planar_rest({offset} m)")
             }
-            other => format!("MatePrimitive.{}()", primitive_tag(other)),
+            other => format!("MatePrimitive.{}()", mate_primitive_tag(other)),
         }
-    }
-}
-
-/// The stable tag for a mate primitive. Exhaustive over the kernel
-/// enum, so a primitive added there stops this build.
-fn primitive_tag(primitive: d::MatePrimitive) -> &'static str {
-    match primitive {
-        d::MatePrimitive::FrameCoincidence => "frame_coincidence",
-        d::MatePrimitive::Coaxial => "coaxial",
-        d::MatePrimitive::PlanarRest { .. } => "planar_rest",
-        d::MatePrimitive::Clocking => "clocking",
     }
 }
 
@@ -384,7 +379,7 @@ impl Alignment {
     fn __repr__(&self) -> String {
         format!(
             "Alignment(primitive={}, sense={:?}, clocking={:?})",
-            primitive_tag(self.0.primitive),
+            mate_primitive_tag(self.0.primitive),
             self.0.sense,
             self.0.clocking
         )
@@ -408,14 +403,13 @@ pub(crate) struct ClassAdmission(d::ClassAdmission);
 
 #[pymethods]
 impl ClassAdmission {
-    /// The stable tag: `mints`, `no_at_rest_record`, `not_admitted`.
+    /// The stable tag: `mints`, `no_at_rest_record` or
+    /// `not_admitted`, the three the stub lists for this attribute.
+    // The map is `crate::tags::class_admission_tag`, whose words
+    // `TAG_INVENTORY` pins.
     #[getter]
     fn variant(&self) -> &'static str {
-        match self.0 {
-            d::ClassAdmission::Mints => "mints",
-            d::ClassAdmission::NoAtRestRecord { .. } => "no_at_rest_record",
-            d::ClassAdmission::NotAdmitted => "not_admitted",
-        }
+        class_admission_tag(&self.0)
     }
 
     /// Whether both doors admit the class: the solve folds it AND the
@@ -508,18 +502,14 @@ pub(crate) struct Subgroup(d::Subgroup);
 #[pymethods]
 impl Subgroup {
     /// The stable tag: `se3`, `planar`, `cylindrical`, `prismatic`,
-    /// `revolute`, `trivial`, `empty`.
+    /// `revolute`, `trivial` or `empty`, the seven the stub lists for
+    /// this attribute. `empty` is the contradictory answer and
+    /// `trivial` the fully located one.
+    // The map is `crate::tags::subgroup_tag`, whose words
+    // `TAG_INVENTORY` pins.
     #[getter]
     fn variant(&self) -> &'static str {
-        match self.0 {
-            d::Subgroup::Se3 => "se3",
-            d::Subgroup::Planar { .. } => "planar",
-            d::Subgroup::Cylindrical { .. } => "cylindrical",
-            d::Subgroup::Prismatic { .. } => "prismatic",
-            d::Subgroup::Revolute { .. } => "revolute",
-            d::Subgroup::Trivial => "trivial",
-            d::Subgroup::Empty => "empty",
-        }
+        subgroup_tag(&self.0)
     }
 
     /// The plane's unit normal, for `planar`.
@@ -1043,16 +1033,14 @@ pub(crate) struct ClusterMaintenance(pub(crate) d::ClusterMaintenance);
 
 #[pymethods]
 impl ClusterMaintenance {
-    /// The stable tag: `join`, `split`, `gauge_rewrite`, `drop`.
+    /// The stable tag: `join`, `split`, `gauge_rewrite` or `drop`,
+    /// the four the stub lists for this attribute. The word decides
+    /// which of the payload attributes below carry.
+    // The map is `crate::tags::cluster_maintenance_tag`, whose words
+    // `TAG_INVENTORY` pins.
     #[getter]
     fn variant(&self) -> &'static str {
-        use d::ClusterMaintenance as M;
-        match self.0 {
-            M::Join { .. } => "join",
-            M::Split { .. } => "split",
-            M::GaugeRewrite { .. } => "gauge_rewrite",
-            M::Drop { .. } => "drop",
-        }
+        cluster_maintenance_tag(&self.0)
     }
 
     /// The gauge that survived a join: the earlier of the two.

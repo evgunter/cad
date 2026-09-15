@@ -31,6 +31,76 @@ use viewer::props::SlotValue;
 use viewer::scene::DisplayTolerance;
 use viewer::session::{DocSession, Landing, Outstanding, SessionOp};
 
+/// The two doors every threaded row below needs, and the only two the
+/// three seam traits share.
+///
+/// [`EvalService`], [`IndexService`] and [`FitService`] have no common
+/// supertrait on purpose — each offers only the doors its own seam can
+/// honestly answer, which is why the index and fit seams have no
+/// `cancel` — so a harness that drives all three names the two doors
+/// they do share and nothing else.
+#[cfg(not(target_family = "wasm"))]
+trait Drainable {
+    /// What one answer is.
+    type Done;
+    /// [`EvalService::poll`] and its two siblings.
+    fn take(&mut self) -> Option<Self::Done>;
+    /// [`EvalService::busy`] and its two siblings.
+    fn working(&self) -> bool;
+}
+
+#[cfg(not(target_family = "wasm"))]
+macro_rules! drainable {
+    ($seam:ty, $done:ty) => {
+        impl Drainable for $seam {
+            type Done = $done;
+            fn take(&mut self) -> Option<$done> {
+                self.poll()
+            }
+            fn working(&self) -> bool {
+                self.busy()
+            }
+        }
+    };
+}
+
+#[cfg(not(target_family = "wasm"))]
+drainable!(viewer::evalseam::ThreadEvaluator, EvalDone);
+#[cfg(not(target_family = "wasm"))]
+drainable!(viewer::evalseam::ThreadIndexer, IndexDone);
+#[cfg(not(target_family = "wasm"))]
+drainable!(viewer::evalseam::ThreadFitter, FitDone);
+
+/// Poll `seam` to a standstill: drain every answer it has, and stop
+/// once it is idle holding at least `at_least` of them.
+///
+/// **Written once for every threaded row in this file**, because a
+/// per-row copy of a spin loop is a per-row chance to spin on the
+/// wrong condition — and because what the loop is FOR is one sentence
+/// that belongs in one place: a threaded seam answers when its worker
+/// does, so a row either waits or asserts about a race.
+///
+/// Ten thousand millisecond naps is a ceiling and not a schedule. It is
+/// long enough that a loaded box does not fail the row, and finite so
+/// that a seam which never answers fails the row instead of hanging the
+/// suite. `at_least` is what separates a row that must see an answer
+/// from one whose seam is allowed to have none: a cancel can leave a
+/// seam idle with nothing to hand back, and `0` says so.
+#[cfg(not(target_family = "wasm"))]
+fn drained<S: Drainable>(seam: &mut S, at_least: usize) -> Vec<S::Done> {
+    let mut results = Vec::new();
+    for _ in 0..10_000 {
+        while let Some(done) = seam.take() {
+            results.push(done);
+        }
+        if !seam.working() && results.len() >= at_least {
+            return results;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    results
+}
+
 #[test]
 fn busy_is_a_value_the_chrome_reads_and_it_clears_when_the_result_lands() {
     let tol = Tol::witness();
@@ -362,15 +432,9 @@ fn the_threaded_seam_answers_the_same_generations() {
         tol,
         resolver: None,
     });
-    let mut done: Option<EvalDone> = None;
-    for _ in 0..10_000 {
-        if let Some(result) = seam.poll() {
-            done = Some(result);
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(1));
-    }
-    let done = done.expect("the worker answered");
+    let mut results = drained(&mut seam, 1);
+    assert_eq!(results.len(), 1, "one submit is answered once");
+    let done = results.remove(0);
     assert_eq!(done.generation, Generation::FIRST);
     assert!(done.completed());
     assert!(!seam.busy());
@@ -406,16 +470,10 @@ fn the_threaded_seam_coalesces_two_submits_into_one_result() {
         resolver: None,
     });
 
-    let mut results = Vec::new();
-    for _ in 0..10_000 {
-        while let Some(done) = seam.poll() {
-            results.push(done.generation);
-        }
-        if !seam.busy() {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(1));
-    }
+    let results: Vec<Generation> = drained(&mut seam, 0)
+        .into_iter()
+        .map(|done| done.generation)
+        .collect();
     assert_eq!(
         results,
         vec![second],
@@ -455,16 +513,9 @@ fn a_cancel_reaches_a_threaded_seams_waiting_job() {
     // The second job is waiting behind the first; cancel names it.
     seam.cancel();
 
-    let mut results = Vec::new();
-    for _ in 0..10_000 {
-        while let Some(done) = seam.poll() {
-            results.push(done);
-        }
-        if !seam.busy() {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(1));
-    }
+    // Zero, not one: a cancel may leave the seam idle with nothing to
+    // hand back, which is one of the two answers this row accepts.
+    let results = drained(&mut seam, 0);
     assert!(!seam.busy());
     for done in &results {
         assert_eq!(
@@ -561,16 +612,7 @@ fn the_threaded_index_seam_answers_only_the_newest_of_two_submits() {
     seam.submit(index_request(&session, first));
     seam.submit(index_request(&session, second));
 
-    let mut results = Vec::new();
-    for _ in 0..10_000 {
-        while let Some(done) = seam.poll() {
-            results.push(done);
-        }
-        if !seam.busy() && !results.is_empty() {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(1));
-    }
+    let results = drained(&mut seam, 1);
     assert!(!seam.busy());
     assert_eq!(
         results.len(),
@@ -638,16 +680,7 @@ fn the_threaded_index_seam_keeps_an_answer_a_waiting_request_asks_for() {
     seam.submit(other);
     seam.submit(index_request(&broken, generation));
 
-    let mut results = Vec::new();
-    for _ in 0..10_000 {
-        while let Some(done) = seam.poll() {
-            results.push(done);
-        }
-        if !seam.busy() && !results.is_empty() {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(1));
-    }
+    let results = drained(&mut seam, 1);
     assert!(!seam.busy());
     assert_eq!(results.len(), 1, "one answer for one picture");
     assert_eq!(results[0].generation, generation);
@@ -785,16 +818,7 @@ fn the_threaded_fit_seam_answers_only_the_newest_of_two_submits() {
             .expect("a landing to price"),
     );
 
-    let mut results: Vec<FitDone> = Vec::new();
-    for _ in 0..10_000 {
-        while let Some(done) = seam.poll() {
-            results.push(done);
-        }
-        if !seam.busy() && !results.is_empty() {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(1));
-    }
+    let results: Vec<FitDone> = drained(&mut seam, 1);
     assert!(!seam.busy());
     assert_eq!(results.len(), 1, "one answer for one ask");
     assert_eq!(

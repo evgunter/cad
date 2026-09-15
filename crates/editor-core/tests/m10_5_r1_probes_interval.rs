@@ -283,14 +283,20 @@ fn l_plate_and_floating_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Reci
 /// (the block's cap corner to the L's inner edge); the two WINDOWS
 /// come within 0.5.
 ///
-/// At `c = 0.52` the truth is `Holds` and the engine reports
-/// `Violated`, with a witness whose plate point lies where the plate
-/// has no material (`x > 1 ∧ y > 1`). Disclosed at the module door
-/// (D3), and this is the disclosure exercised: a defect gate built on
-/// this verdict refuses a sound design. `Holds` at `c = 0.45` stays
-/// sound.
+/// At `c = 0.52` the truth is `Holds`, and it used to be reported
+/// `Violated` with a witness whose plate point lay where the plate has
+/// no material (`x > 1 ∧ y > 1`) — deviation D3, a defect gate
+/// refusing a sound design. **FLIPPED by TRIM-3 PR-2**: the plate
+/// cap's window carries the L's boundary in its own chart, and the
+/// quadrant the plate does not occupy is proven empty of face rather
+/// than classified. Both bounds now read `Holds`, which is the truth
+/// at both.
+///
+/// A box-only description would not do it: the L's bounding box IS
+/// this window, so a `Holds` here is evidence that the POLYGON, not
+/// the box, is what the engine reads.
 #[test]
-fn an_l_shaped_face_is_violated_where_it_has_no_material() {
+fn an_l_shaped_face_holds_where_it_has_no_material() {
     let (doc, plate, block, floated) = l_plate_and_floating_block();
     let top = Selection {
         at: plate,
@@ -312,34 +318,44 @@ fn an_l_shaped_face_is_violated_where_it_has_no_material() {
     );
     assert!(sound.receipt().holds());
 
-    let loose = clearance(&doc, &leaf, &top, &bottom, 0.52, Tol::witness());
-    assert!(loose.receipt().holds(), "{:?}", loose.receipt());
-    let ClearanceVerdict::Violated(v) = loose.verdict() else {
-        panic!(
-            "the carrier windows come within 0.5, so today this is Violated: {}",
-            loose.serialize()
-        );
-    };
-    let d = recomputed_distance(&loose);
-    assert!(
-        (d - v.geometry.distance).abs() <= 1e-12,
-        "{d} vs {}",
-        v.geometry.distance
-    );
-    assert!((0.5 - 1e-9..0.52).contains(&d), "the phantom approach: {d}");
-    let p = v.geometry.a_point;
-    assert!(
-        (p.z - 1.0).abs() <= 1e-9,
-        "the plate witness lies on the cap's plane: {p:?}"
-    );
-    assert!(
-        p.x > 1.0 && p.y > 1.0,
-        "the plate witness lies in the quadrant the L does not occupy — a point on the \
-         carrier window and not on the face: {p:?}"
-    );
+    let tight = clearance(&doc, &leaf, &top, &bottom, 0.52, Tol::witness());
     println!(
-        "[r1] L-plate witness: {:?} -> {:?} d = {d}",
-        p, v.geometry.b_point
+        "[r1] L-plate vs floating block at c = 0.52: windows {:?}, {}",
+        tight.windows(),
+        tight.serialize()
+    );
+    assert!(tight.receipt().holds(), "{:?}", tight.receipt());
+    assert_eq!(
+        tight.verdict(),
+        &ClearanceVerdict::Holds,
+        "the faces are √(0.2² + 0.5²) ≈ 0.539 apart, so 0.52 holds on them: {}",
+        tight.serialize()
+    );
+    // `outside > 0` alone cannot tell "dropped the missing quadrant"
+    // from "dropped everything" — an inverted parity satisfies it too,
+    // by dropping the straddling root pair vacuously. What separates
+    // them is that the sweep subdivided and then discharged at the
+    // funnel, and the measured counts.
+    let r = tight.receipt();
+    assert!(
+        r.outside <= r.discharged,
+        "`outside` is a sub-count of `discharged`: {r:?}"
+    );
+    assert!(
+        r.splits > 0 && r.discharged > r.outside,
+        "the missing quadrant's cells were proven empty of face and the rest was \
+         subdivided and discharged at the funnel: {}",
+        tight.serialize()
+    );
+    assert_eq!(
+        (r.candidates, r.discharged, r.splits, r.outside),
+        (1, 610, 609, 224),
+        "the measured receipt, pinned — and load-bearing beyond this row's own subject: \
+         a drop rule that lets an in-band or poison margin separate, or a description \
+         tightened at the 0.05 scale, changes these counts while leaving every verdict \
+         in the suite alone (measured, TRIM-3 PR-2's fix pass). Stable across the three \
+         eps rows: {}",
+        tight.serialize()
     );
 }
 
@@ -382,14 +398,29 @@ fn bumped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 /// body with one rounded feature. The bump face's window is the whole
 /// cylinder, whose phantom lower half touches the bottom wall's plane,
 /// and the bottom wall shares no vertex with the bump — so the wedge
-/// rule keeps the pair and the engine must classify a separation whose
-/// true value on the WINDOWS is 0. What the strictly-positive question
-/// answers on this body is printed; the row asserts only the receipt
-/// and the arm. (Prediction, from the measured limit: `c = 0⁺` has no
-/// slack, so neither `Violated` nor `Holds` is reachable and the answer
-/// is a budget refusal — a sound rounded body gets no answer.)
+/// rule kept the pair and the engine had to classify a separation
+/// whose true value on the WINDOWS was 0. At `c = 0⁺` there is no
+/// slack, so neither `Violated` nor `Holds` was reachable and a sound
+/// rounded body got a budget refusal for its answer.
+///
+/// **FLIPPED by TRIM-3 PR-2.** The bump's window `u` is the
+/// description's azimuth hull — the half turn the face actually
+/// occupies — and not the whole turn, so the phantom lower half is
+/// gone before the tree is built. The body's real minimum gap is 0.5,
+/// which the proximity prune then excludes outright.
+///
+/// **`candidates == 0` is the assertion, and it is the root cut's only
+/// e2e observable.** The v6 dual measured that the `Holds` alone
+/// proves nothing about the root: forcing the cylinder `u` back to the
+/// whole turn moves `candidates` `0 -> 1` and the row still passes,
+/// because the per-cell drops carry the verdict from there. So what
+/// this row pins is that the phantom lower half never reached the
+/// proximity tree at all — nothing was subdivided, because nothing
+/// came within reach. The band rule itself is decided directly by
+/// `editor_core::clearance`'s `root_rule` unit rows, and its e2e row
+/// is `trim_3_windows_interval::a_negative_band_is_not_intersected_with_the_canonical_turn`.
 #[test]
-fn a_block_with_a_rounded_bump_asks_the_self_intersection_question() {
+fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
     let (doc, solid, _placed) = bumped_block();
     let sel = Selection::body_of(solid);
     let q = ClearanceQuery {
@@ -411,15 +442,31 @@ fn a_block_with_a_rounded_bump_asks_the_self_intersection_question() {
     if let ClearanceVerdict::Refused(ClearanceRefusal::Selection(s)) = report.verdict() {
         panic!("the bumped block did not build at the interval scalar: {s}");
     }
-    assert!(
-        r.candidates >= 1,
-        "the bump's full-turn window reaches the bottom wall, so at least that pair is a \
-         candidate: {r:?}"
+    println!(
+        "[r1] bumped block candidates = {}, windows = {:?}",
+        r.candidates,
+        report.windows()
     );
-    assert_ne!(
+    assert_eq!(
+        r.candidates,
+        0,
+        "the bump's root is its own half turn, so the phantom lower half never comes \
+         within reach of the bottom wall and no pair is subdivided at all — this is the \
+         number a full-turn root moves, and the `Holds` below is not: {}",
+        report.serialize()
+    );
+    assert_eq!(
         report.verdict(),
         &ClearanceVerdict::Holds,
-        "a window at separation zero cannot be certified strictly positive: {}",
+        "the bump's window is its own half turn now, so nothing on this sound body is at \
+         separation zero: {}",
+        report.serialize()
+    );
+    assert_eq!(
+        report.windows().1,
+        0,
+        "every carrier here is a plane or a cylinder, so every window carries a \
+         description: {}",
         report.serialize()
     );
 }
@@ -505,6 +552,13 @@ fn a_partial_revolve_band_reports_its_phantom_turn() {
 /// engine re-charts PLANES only, and `refines` tests one halving, so a
 /// hulled cylinder passes the door and then cannot decide. Both
 /// verdicts are printed; the row asserts only the receipt.
+///
+/// **TRIM-3 PR-2 wanted to turn this into an assertion and could
+/// not**: on this tree NEITHER revolve replays at the interval scalar
+/// over an ε-scaled box, so this fixture and its y-axis sibling both
+/// refuse at the SELECTION door (`node did not build in this leaf's
+/// replay`) and never reach `window_of` at all. The cylinder root cut
+/// is pinned by the bumped block instead, which is an extrude.
 #[test]
 fn a_partial_revolve_about_z_is_the_control_for_the_hulled_band() {
     let mut r = Recorder::new();
@@ -541,6 +595,7 @@ fn a_partial_revolve_about_z_is_the_control_for_the_hulled_band() {
         report.serialize()
     );
     assert!(report.receipt().holds());
+    println!("[r1] z-axis windows = {:?}", report.windows());
     if let ClearanceVerdict::Violated(v) = report.verdict() {
         println!(
             "[r1] z-axis phantom-turn witness d = {}: {:?} -> {:?}",
@@ -816,14 +871,20 @@ fn channel_and_slider(place_half: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeI
 /// **E2E, the ε-box arm.** What a consumer gets when the box is one the
 /// kernel can replay.
 ///
-/// First the WHOLE-BODY question, slider against channel (evidence):
-/// the channel's two caps are U-shaped, their windows are the full
+/// First the WHOLE-BODY question, slider against channel: the
+/// channel's two caps are U-shaped, their windows are the full
 /// `[0,3]×[0,2]` rectangles, and the slider's caps lie IN those
 /// rectangles on the same planes — so the windows are at distance 0
-/// and the whole-body question is `Violated` at every bound, however
-/// generous. That is D3 met on the first realistic document: a part
-/// inside a pocket or channel cannot be asked a whole-body clearance
-/// question at all.
+/// and the whole-body question used to be `Violated` at every bound,
+/// however generous. That was D3 met on the first realistic document:
+/// a part inside a pocket or channel could not be asked a whole-body
+/// clearance question at all.
+///
+/// **FLIPPED by TRIM-3 PR-2**: a coplanar pair whose windows overlap
+/// is exactly the case the boundary description settles, because the
+/// overlap is in cells neither face occupies. The whole-body question
+/// holds at 0.3, which is the truth — the slider clears the channel by
+/// 0.5 on every side.
 ///
 /// Then the question a user would have to learn to ask instead — the
 /// slider against the channel's three INNER faces — where the
@@ -835,12 +896,36 @@ fn e2e_channel_slider_over_an_epsilon_box() {
     let (sc, ss) = (Selection::body_of(channel), Selection::body_of(slider));
     let leaf = box_of("place");
     let whole = clearance(&doc, &leaf, &sc, &ss, 0.3, Tol::witness());
-    println!("[r1 e2e] whole-body c = 0.3: {}", whole.serialize());
+    println!(
+        "[r1 e2e] whole-body c = 0.3: windows {:?}, {}",
+        whole.windows(),
+        whole.serialize()
+    );
     assert!(whole.receipt().holds());
     assert_eq!(
         whole.verdict().label(),
-        "Violated",
-        "the U-shaped caps' windows overlap the slider's caps: {}",
+        "Holds",
+        "the U-shaped caps' windows still overlap the slider's caps, but the cells that \
+         overlap are proven empty of face: {}",
+        whole.serialize()
+    );
+    let r = whole.receipt();
+    assert!(
+        r.outside <= r.discharged,
+        "`outside` is a sub-count of `discharged`: {r:?}"
+    );
+    assert!(
+        r.splits > 0 && r.discharged > r.outside,
+        "the coplanar pair was discharged off the face and the rest was subdivided and \
+         discharged at the funnel — not pruned away, and not all dropped: {}",
+        whole.serialize()
+    );
+    assert_eq!(
+        (r.candidates, r.discharged, r.splits, r.outside),
+        (10, 930, 920, 292),
+        "the measured receipt, pinned; like the L-plate row's it is what catches a drop \
+         rule that changes without changing a verdict. Stable across the three eps \
+         rows: {}",
         whole.serialize()
     );
     let inner = Selection {

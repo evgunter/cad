@@ -544,6 +544,12 @@ impl<T: Real> Vec3<T> {
     /// ORTHOGONAL pair that is not orthonormal. A poisoned input
     /// propagates poison, and the zero vector — which names no
     /// direction — poisons through `0/0`.
+    ///
+    /// A caller holding the unit fact as a TYPE calls
+    /// [`UnitVec3::orthonormal_basis`](super::UnitVec3::orthonormal_basis)
+    /// instead; this bare door remains for the callers that normalize a
+    /// carrier direction under the at-rest rule without deciding its
+    /// length.
     pub fn orthonormal_basis(self) -> (Self, Self) {
         let zero = T::zero();
         let scale = self.norm().min(self.norm_witness());
