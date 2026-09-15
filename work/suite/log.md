@@ -259,3 +259,92 @@ row runs over the same builders. What was missing was anyone saying so,
 so the home now carries an "Editing a fixture here re-authors committed
 bytes" section and the manifest comment stopped claiming an independence
 it did not have.
+
+## editor-core resolver stubs closed (2026-09-15, PR 2628)
+
+Seventeen suites over two crates now read one `PartStore`. The
+migration was the easy half; three things are worth the log.
+
+**A duplication-removal unit found a correctness defect, and only the
+migration could have found it.** Two suites spelled `in_part` naming the
+profile node where every sibling names the extrude, so their "good"
+member names named a face that does not exist — eight of one suite's
+fourteen printed probe lines change once corrected. Nothing failed,
+because `mate6r1_shared` has eleven tests and **zero assertions**. The
+class is what the fix pass measured: a planted `PART_BODY` mutation red
+73 rows before the guard and **224 after**, with three suites at zero
+both before and after until the guard reached them. **A mutation is a
+sweep instrument.** It found a third unguarded consumer that no grep in
+this unit had named.
+
+**The defect was disclosed in prose at a copy site and never read** —
+`docm6_seam_declarations`' header says the `in_part` spellings "have
+already diverged once by a node index". That is the reviewer brief's Q1
+pattern verbatim, and it is why the fix here is a **guard** rather than
+a sentence: `PartStore::insert` now asserts the coupling that sixteen
+local builders were holding by convention.
+
+**Three census misses, three different shapes.** The row's list was
+wrong; this orchestrator's dispatch list was wrong differently (a
+**regex** miss — `impl editor_core::PartResolver for`, path-qualified in
+six files); and all four of the unit's own sweeps pointed at one crate,
+so the seventeenth copy in `crates/viewer` was a **path** miss. The
+pattern that found the real population keyed on the **consumer**
+(`resolver: Some(`) rather than the definition. S392 hit the path shape
+again the same day, in `docs/`. Two of the three misses were the search
+*scope*, not the search *pattern* — and nothing in the discipline docs
+tells a lane to re-derive its scope.
+
+**The unit disclosed the blind spot it creates, in the tree.** Its own
+migration retires the consumer-keyed grep that found the population,
+and the grep now returns only the deliberate stand-downs — so the next
+sweep of that shape comes back **confidently wrong** rather than short.
+That sentence is in `with_resolver`'s docstring, not in a PR body,
+because this unit exists because prose at a copy site went unread.
+
+## S392 closed (2026-09-15, PR 2650)
+
+The last unit. Twenty of twenty-four loft-prism constructions delegate
+to the home S52 built; four do not, each for a reason about what the
+site is for. The population is the story.
+
+**Four censuses, four defeats, and the last one is the new lesson.**
+11 → 18 → 21 → 23 → 24. The row opens by dissecting its own first miss
+(a grep truncated by `head -20`, read as a population) and was then
+missed again by the orchestrator, the lane and the reviewer in turn.
+Three of the four misses were the search **pattern** — a renamed copy,
+a path-qualified `impl`, a trapezoid computed from `let d = 0.375;`.
+The fourth was the search **SCOPE**: `docs/GUIDE.md` lofts the same
+prism and *executes* through the python suite, and the row's sweep, the
+dispatch and the lane's all ran over `crates/ demos/ tools/ scripts/`
+with `docs/` never in the set. Nobody re-derived the list; each of us
+inherited it.
+
+**A wrong scope is worse than a wrong pattern because it looks clean.**
+A bad regex returns odd results; a bad path list returns tidy ones and
+a confident count. `docs/prompts/implementer-discipline.md` §5 tells a
+lane to say what its pattern could not match — it says nothing about
+where the lane looked. Two units hit this on one day (the seventeenth
+`PartStore` lived in `crates/viewer`, outside the one crate all four of
+that unit's sweeps searched). Both sweeps here are now `git grep` over
+every tracked file with **no path argument at all**, which is the only
+form that makes no path claim.
+
+**X4 caught the unit again, and review caught the unit.** It added
+`stacked_at`, a seventh spelling of "translate by z", into the shared
+home — in the commit whose own X4 section credited it for not minting a
+second `quad`. And it wrote a hand-written numeric census into the
+module header thirty lines below the paragraph explaining why this
+module keeps none, with one of its two numbers already wrong. Both
+fixed: seven bodies became one, and the header describes the shape.
+**Every unit of this program that closed a duplication minted or nearly
+minted one, and in every case a reader who did not write the fix is what
+caught it.**
+
+**One conversion cost a suite its subject and was repaired rather than
+reverted.** `lib_u3_sections` asserts the prism is built from
+profile-vocabulary sections; behind a shared name that claim was no
+longer checkable at the site. It now reads the sections back and
+asserts three one-loop quads, every bulge exactly `0.0` — falsified
+before commit with a `0.01` bulge. Better than the revert this
+orchestrator offered.

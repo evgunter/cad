@@ -20,6 +20,7 @@ use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Vec3};
 use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use sweep::test_support::stacked_at;
 use topo::{Body, ChartOverlap, FaceKey, Pcurve, chart_region_overlap};
 
 /// **A FIXED band, deliberately NOT `common::approx::band`.** These
@@ -29,12 +30,6 @@ use topo::{Body, ChartOverlap, FaceKey, Pcurve, chart_region_overlap};
 /// decide against rather than just where the helper lives.
 fn band() -> Band {
     Band::new(1e-9, 1e-8).unwrap()
-}
-
-fn at_z(zs: &[f64]) -> Vec<Affine3<f64>> {
-    zs.iter()
-        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
-        .collect()
 }
 
 /// The first described-NURBS wall face of a lofted body.
@@ -136,7 +131,7 @@ fn a_rational_iso_arc_wall_extracts_and_certifies_positive_area() {
         ])]
     };
     let sections = vec![bulged(), bulged()];
-    let body = sweep::loft_body::<f64>(&sections, &at_z(&[0.0, 1.0]), 1, Tol::witness())
+    let body = sweep::loft_body::<f64>(&sections, &stacked_at(&[0.0, 1.0]), 1, Tol::witness())
         .expect("the bulged prism builds")
         .body;
     // Find the arc wall: the NURBS face whose rims are IsoArc.
