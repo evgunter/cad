@@ -1,6 +1,6 @@
 ---
 id: blend-slit-name-collides-when-two-rims-share-a-meridian
-kind: ruling
+kind: issue
 title: the blend name emitter refuses a roll of two rims whose bands slit ONE seam meridian (RoleSeg::BandSlit has no discriminator)
 status: open
 opened: 2026-09-08
@@ -123,3 +123,74 @@ Unchanged and worth keeping in view: the recourse works today
 (`demos/tour/src/teapot.rs` splits the roll into two `Node::Fillet`
 requests and builds the same three band tori bit for bit), so nothing is
 blocked on the answer — only the single-request spelling is.
+
+## Re-homed to BLEND (2026-09-15), and why the ruling call was withdrawn
+
+Two corrections by the WIRE orchestrator, in the order they were found.
+
+**First: it is not a ruling.** The read above re-kinded this `ruling` on
+the argument that a `RoleSeg` change is a document-format change with a
+migration story. **That premise is false**, and three checks say so:
+
+- `crates/editor-core/src/persist/mod.rs` — ratified at M4 PR 6 — opens
+  *"No schema version, on purpose… Schema breaks are not at all a
+  problem, because this is not released yet: no document exists outside
+  this repository, and every checked-in document is a regenerable
+  artifact."* Versioning is Band-4 work for the day a document ships.
+- `crates/editor-core/src/names/README.md` N1 (Ratified, #74) ratifies
+  the STRUCTURE — `RoleSeg` is one closed enum grouped by op, role
+  arguments are themselves names, no floats, no arena keys — and lists
+  variants illustratively, with ellipses, never enumerating the blend
+  group. A new blend variant or a new field on one is an instance of N1,
+  not an amendment to it.
+- `crates/sweep/README.md` V3 (Ratified, #992) keeps this vocabulary
+  *fillet-named on purpose*: the fence is against renaming it blend-ward,
+  not against growing it.
+
+No serialized document in the tree carries `BandSlit` either — every hit
+is Rust source. So this is an ordinary defect with an ordinary fix, and
+`kind` goes back to `issue`. Ev agreed in chat, 2026-09-15.
+
+**Second, and the reason the file moves: WIRE owns none of it.** DOCM's
+exit sweep re-homed this row here with the boilerplate *"the file it
+names is WIRE's (`names/emit*.rs` … are in WIRE's paths)"*. That glob is
+not WIRE's path list, which names `emit.rs` and `emit_topo.rs`
+explicitly and **no `emit_blend.rs`**. Measured with
+`scripts/work.py territory --files -`, the three files a fix touches are:
+
+| file | owner |
+| --- | --- |
+| `crates/sweep/src/blend/naming.rs` (`rec.slits`) | **BLEND** |
+| `crates/editor-core/src/names/emit_blend.rs` (the emitting arm) | unowned |
+| `crates/editor-core/src/names/role.rs` (`BandSlit`) | **EDIT** |
+
+BLEND, because the kernel half is BLEND's, because the vocabulary is
+blend vocabulary whose fence (V3) lives in BLEND's own ratified README,
+and because BLEND is live on this machinery. If the fix turns out not to
+need the kernel record, it is one announced seam to EDIT — the ordinary
+shape — rather than three fences none of which was WIRE's.
+
+## What the taker inherits, so it is not re-derived
+
+**The fix's precedent is in the adjacent variant.** `BandTrim { edge,
+support: RimSupport }` already carries the discriminator this one lacks;
+`BandSlit(NameRef)` is a bare one-field variant keyed on the source
+meridian alone, which is exactly why two bands slitting one meridian
+collide.
+
+**The open design question, stated rather than guessed.** `rec.slits` is
+`Vec<(EdgeKey, EdgeKey)>` — (the slit edge, the source meridian) — so
+nothing there says WHICH band slit it. Either the kernel record grows the
+band's identity (a `crates/sweep` change, BLEND's), **or** the emitter
+derives it from the band face incident to the slit edge, which it already
+names (`RoleSeg::BandFace(Vec<StableName>)`, the chain's source edges as
+a sorted set). **Which of those two is available was not determined
+here**, and it decides whether this is a one-crate or two-crate change.
+Determine it before estimating.
+
+**Nothing is blocked on it.** The recourse works today:
+`demos/tour/src/teapot.rs` splits the roll into two `Node::Fillet`
+requests and builds the same three band tori bit for bit. Only the
+single-request spelling is unavailable.
+
+Signed (WIRE orchestrator).
