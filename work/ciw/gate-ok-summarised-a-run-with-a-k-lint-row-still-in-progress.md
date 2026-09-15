@@ -34,3 +34,17 @@ The PR was merged on the job-level evidence (every substantive job on
 the sha green and concluded), with a standing-down comment naming this
 run. The `rerun-failed-jobs` API is not reachable from the orchestrator
 integration (403), so the gate could not be re-taken from there.
+
+## A second instance, and a sharper reading (VREV fix pass, 2026-09-15)
+
+Run **34949708108** (PR 2627, head `54648886f`, 09:25 UTC) failed the
+same way over 34 green jobs, with `k-lint (gate, release-default)`
+again the row read as `in_progress`. The lane's reading: the `needs:`
+edge resolves when the runner reports the job done, and `gate ok`'s
+single un-retried read of the jobs API can land before that API
+reports the job `completed` — so the diagnostic is right that a job
+was still "going" from the API's view and wrong that `needs:` did not
+wait. Either way the roll-up owes a bounded re-poll until no job reads
+`in_progress`/`queued`. The lane's own row for this
+(`gate-ok-reads-the-jobs-api-before-it-has-settled`) is folded here —
+one file per item.

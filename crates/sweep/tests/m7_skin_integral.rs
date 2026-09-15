@@ -329,7 +329,7 @@ fn the_swept_bodys_seam_carriers_meter_positively() {
             panic!("a finished body has no null scaffolding");
         };
         if let geom::Curve3::Nurbs(c) = curve.carrier() {
-            let s = c.speed_lower_bound();
+            let s = c.speed_lower_bound().get();
             assert!(
                 s > 0.0,
                 "a seam carrier's speed lower bound is {s} (poison or non-positive) — \
@@ -403,7 +403,7 @@ fn a_rational_section_on_a_curved_path_meters_at_the_span_meter() {
             panic!("a finished body has no null scaffolding");
         };
         if let geom::Curve3::Nurbs(c) = curve.carrier() {
-            let s = c.speed_lower_bound();
+            let s = c.speed_lower_bound().get();
             assert!(
                 s > 0.0,
                 "a rational wall's carrier meters {s} (poison or non-positive) — the \

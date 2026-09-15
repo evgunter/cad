@@ -11600,3 +11600,90 @@ open.
 
 Item **closed**. **VIEW stands at 75 open / 92 closed, nothing waiting
 on Ev.**
+
+## 2026-09-15 — `view/stale-pick`: a click over a stale picture refuses
+
+Ev ruled the product question on 2026-09-15: **refuse**. The pick path
+now asks `drawn_index` — the same picture-side predicate, keyed on
+`(generation, δ)` through `PickIndex::current_for` — and differs from
+the picture-side reads only in what it does on `None`: they skip
+silently, it refuses typed. The claim that the pick might want a
+different predicate did not survive reading it; an id and a pick resolve
+against one alphabet.
+
+The refusal is a **third arm of `pickcache::NotIndexed`**,
+`AnotherPicture`, rather than a vocabulary of its own: that type's
+stated subject is *no index describes the picture on screen*, and an
+index for a picture nobody has seen is the third way the sentence is
+true. `unindexed` takes the index in hand as a parameter; it and
+`indexing` cannot both be set, because `PickCache::sync` drops the held
+index in the step that marks a build outstanding, so they are not a pair
+of flags a caller could swap. The arm is retired by a SCENE rebuild
+where the other two wait on an index build — both seams sit under
+`Subject::Display`, so the subject read off the type is right for all
+three, and the arm's doc names its own event for a later split.
+
+**Reachability: no end-to-end row is arrangeable.**
+`ViewerBehavior::viewport_ui` is a private method over an `egui::Ui`
+painting through a wgpu callback; nothing headless drives it, which is
+the wall `crates/viewer/tests/panel_display.rs` already records for the
+parameter field's widget and the reason the viewport's own probe senses
+only the event translation. Stated rather than approximated with an
+adjacent row. What landed instead: the door's arm in `frame_policy.rs`,
+and the PAIR of predicates the pick path composes — over a real
+session — in `pane/viewport.rs`'s own tests.
+
+`crates/viewer/README.md`'s *A pick id is one index's word* no longer
+says the pick path is deliberately ungated; the re-statement is record
+of what the code does and lands with the change.
+
+## Announced seam from WIRE (2026-09-15)
+
+WIRE's `nobodyroots-classification-has-two-homes` gave the
+empty-document reading of a gather refusal ONE home:
+`ProductErrorKind::means_no_body` in
+`crates/editor-core/src/product.rs` (WIRE's), with the argument moved
+onto it. A predicate with no caller would be the very defect this
+program has an open row for
+(`work/wire/frame-linear-generic-door-has-no-consumers.md`), so the
+consumers that re-derived the partition now cite it. Four did; the three sites below are yours.
+
+**`crates/viewer/src/frame.rs` and `crates/viewer/src/session.rs`
+(CHROME's and VIEW's), two files, three edits.**
+
+- `frame::product_badge`'s filter: the `ProductError::NoBodyRoots`
+  alternative leaves the `matches!` and becomes
+  `fault.kind().means_no_body() || matches!(…)` over the other
+  three. The four declined arms are the same four.
+- `product_badge`'s doc, the first "arms that stay silent" paragraph:
+  the *"EMPTY, not malformed / a fresh document is in that state / one
+  whose last feature was just deleted"* argument becomes a citation of
+  `pncad::document::ProductErrorKind::means_no_body`, **worked examples
+  included** — the paragraph now says only what is the chrome's: the
+  blank viewport is already the picture of this state, so a badge here
+  would make an ordinary state look like a failure. The examples are
+  MOVED, not copied; leaving them on both sides is the defect this unit
+  closes, one size smaller. **The second paragraph is untouched**: the
+  three per-node arms are declined because the Features pane already
+  badges them with a typed cause, which is not the same reason and is
+  not WIRE's to move.
+- `DocSession`'s landing: `matches!(fault, ProductError::NoBodyRoots)`
+  becomes `fault.kind().means_no_body()`, and the comment above it
+  cites the predicate instead of restating *"has no product and no
+  failure either"*.
+
+**No signature moved.** `product_badge`, `run_checks`,
+`DocSession`'s landing and `checks_report` keep their signatures,
+their arms and their behaviour — `means_no_body` is true of exactly
+`NoBodyRoots` and of nothing else, which this lane pins as a census
+test over `product::tests::every_arm`. The doc/comment edits replace a
+re-argument of the shared classification with a citation of it and
+leave every site-specific sentence standing (the viewer's three
+per-node arms stay the viewer's chrome policy, argued where they are).
+
+Filed while sweeping, on FIX's slate:
+`work/fix/subject-refused-accepts-the-one-refusal-that-must-not-go-through-it.md`
+— `Subject::refused` is public and takes the one arm that must not
+reach `Subject::Unavailable`.
+
+Signed (WIRE implementer lane `wire-n1`, PR #2629).

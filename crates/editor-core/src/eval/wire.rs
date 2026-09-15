@@ -52,16 +52,16 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use geom_core::{Affine3, Band, Decide, Mat3, Point2, Point3, Sign, Tol, Vec2, Vec3};
+use geom_core::{
+    Affine3, Band, Decide, Mat3, Point2, Point3, Sign, Tol, UnitVec3, UnitVec3Error, Vec2, Vec3,
+};
 use sweep::blend::BlendKind;
 use sweep::{Revolution, RevolveAxis};
-use topo::query;
 use topo::splitting::SplitPart;
 use topo::transform::transform_rigid;
 use topo::{
     Body, BooleanDeclarations, CarriedContacts, CarriedVf, CarriedVv, ContactClass,
-    DATUM_UNIT_NORM, FacePairDeclaration, GeomSource, UnitVec3, UnitVec3Error, VfContact,
-    VvContact,
+    DATUM_UNIT_NORM, FacePairDeclaration, GeomSource, VfContact, VvContact,
 };
 
 use super::anchor::{self, ProfileNaming, ProfilePre, ProfileValue};
@@ -884,7 +884,7 @@ fn band(tol: Tol) -> Result<Band, NodeErrorKind> {
 /// the mate solve's re-derivation of both from the recipe.
 ///
 /// It reaches the funnel as an argument to
-/// [`topo::query::decide_unit_direction`] rather than as a literal at the
+/// [`geom_core::decide_unit_direction`] rather than as a literal at the
 /// `decide` call, so it is a roster carrier (`docs/K-REPORT.md`, "The
 /// inventory method, restated"), and it is a constant so that the
 /// name the telemetry records and the name an escalation reports
@@ -896,7 +896,7 @@ pub(crate) const EVAL_DIRECTION_NORM: &str = "eval_direction_norm";
 /// indeterminacy escalates.
 ///
 /// **The decision is the kernel's one body**
-/// ([`topo::query::decide_unit_direction`]): finiteness asked first through
+/// ([`geom_core::decide_unit_direction`]): finiteness asked first through
 /// the value channel every scalar has, then whether the length
 /// underflowed out of the format through the same channel, then which
 /// side of zero the length lies on, then normalize or refuse. This function is that
@@ -911,7 +911,7 @@ pub(crate) const EVAL_DIRECTION_NORM: &str = "eval_direction_norm";
 /// decision. This door carries the directions this layer owns; a
 /// datum's normal or axis direction is decided under
 /// [`DATUM_UNIT_NORM`] inside the kernel type that holds it
-/// ([`topo::UnitVec3::new`]), because `DatumValue` has no
+/// ([`UnitVec3::new`]), because `DatumValue` has no
 /// unnormalized spelling and there is nowhere for this door to stand
 /// in that path. Collapsing the two names would erase which layer a
 /// length decision came from; collapsing the two BODIES was the
@@ -930,9 +930,8 @@ pub(crate) fn unit<T: Decide>(
     v: Vec3<T>,
     role: &'static str,
     band: Band,
-) -> Result<Vec3<T>, NodeErrorKind> {
-    query::decide_unit_direction(v, EVAL_DIRECTION_NORM, band)
-        .map_err(|e| refusal(e, role, EVAL_DIRECTION_NORM))
+) -> Result<UnitVec3<T>, NodeErrorKind> {
+    UnitVec3::new(v, EVAL_DIRECTION_NORM, band).map_err(|e| refusal(e, role, EVAL_DIRECTION_NORM))
 }
 
 /// **The kernel refusal in this layer's vocabulary** — the ONE map,
@@ -1048,7 +1047,7 @@ fn datum_unit<T: Decide>(
     role: &'static str,
     band: Band,
 ) -> Result<UnitVec3<T>, DirectionRefusal> {
-    UnitVec3::new(v, band).map_err(|error| DirectionRefusal { role, error })
+    UnitVec3::new(v, DATUM_UNIT_NORM, band).map_err(|error| DirectionRefusal { role, error })
 }
 
 /// **What reading an authored frame's slots produced** — the frame, or
@@ -4189,16 +4188,18 @@ pub(crate) const DATUM_AXIS_ROLE: &str = "datum axis direction";
 /// transform under the gather move a body by the same arithmetic.
 ///
 /// The die convention: rotate about the axis THROUGH THE WORLD
-/// ORIGIN by `angle`, then translate. `axis` is already unit — the
-/// callers normalize it through [`unit()`] under
+/// ORIGIN by `angle`, then translate. `axis` is unit as a property of
+/// its type — the callers mint it through [`unit()`] under
 /// [`TRANSFORM_AXIS_ROLE`], where the degenerate and non-finite cases
-/// refuse.
+/// refuse. [`Mat3::rotation_about`] takes the bare vector and divides
+/// it by its own norm once more; on a unit input that divide changes
+/// no bit the format holds exactly.
 pub(crate) fn transform_map<T: Decide>(
     translation: Vec3<T>,
-    axis: Vec3<T>,
+    axis: UnitVec3<T>,
     angle: T,
 ) -> Affine3<T> {
-    Affine3::from_parts(Mat3::rotation_about(axis, angle), translation)
+    Affine3::from_parts(Mat3::rotation_about(axis.get(), angle), translation)
 }
 
 /// **The transform node**: ONE rigid map, shape-preserving over its
@@ -4242,16 +4243,16 @@ fn wire_transform<T: Decide + geom_brep::PcurveFittedLane>(
 
 /// The resolved operands of a stepped placement rule: what the rule's
 /// math consumes once every slot or expression is evaluated and every
-/// direction is unit. The two rules get there by different roads: a
-/// LINEAR rule's direction is a slot this layer normalizes through
-/// [`unit()`], while a CIRCULAR rule's axis arrives already unit out of
-/// a datum's `UnitVec3` — the kernel type's constructor did it, and
-/// `.get()` only reads it back.
+/// direction is unit as a property of its type. The two rules get there
+/// by different roads: a LINEAR rule's direction is a slot this layer
+/// mints through [`unit()`], while a CIRCULAR rule's axis arrives out
+/// of a datum's `UnitVec3` — the kernel type's constructor did it, and
+/// no door here re-decides it.
 pub(crate) enum SteppedOperands<T: geom_core::Real> {
     /// A linear rule: unit direction, spacing per step.
     Linear {
-        /// The stepping direction, already unit.
-        direction: Vec3<T>,
+        /// The stepping direction.
+        direction: UnitVec3<T>,
         /// The per-step translation distance along it.
         spacing: T,
     },
@@ -4259,9 +4260,8 @@ pub(crate) enum SteppedOperands<T: geom_core::Real> {
     Circular {
         /// A point on the rotation axis.
         origin: Point3<T>,
-        /// The axis direction, unit because it came out of the datum's
-        /// `UnitVec3` — no door here re-decides it.
-        dir: Vec3<T>,
+        /// The axis direction, the datum's own witness.
+        dir: UnitVec3<T>,
         /// The rotation angle per step.
         step: T,
     },
@@ -4282,13 +4282,13 @@ pub(crate) fn stepped_rule_map<T: Decide>(ops: &SteppedOperands<T>, i: i64) -> A
     let step = T::from_f64(i as f64);
     match ops {
         SteppedOperands::Linear { direction, spacing } => {
-            Affine3::translation(*direction * (*spacing * step))
+            Affine3::translation(direction.get() * (*spacing * step))
         }
         SteppedOperands::Circular {
             origin,
             dir,
             step: angle,
-        } => Affine3::rotation_about_axis(*origin, *dir, *angle * step),
+        } => Affine3::rotation_about_axis(*origin, dir.get(), *angle * step),
     }
 }
 
@@ -4320,7 +4320,7 @@ fn stepped_map<T: Decide>(
             })?;
             SteppedOperands::Circular {
                 origin: *origin,
-                dir: dir.get(),
+                dir: *dir,
                 step: need_scalar(vals, SlotId::Step)?,
             }
         }

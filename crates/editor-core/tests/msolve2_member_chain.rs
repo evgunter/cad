@@ -27,9 +27,9 @@ use std::sync::Arc;
 use editor_core::{
     Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, Datum, Dimension,
     DocEdit, DocParam, DocParamValue, DocumentId, EvalOptions, Expr, MateFault, MateFrame,
-    MatePrimitive, MateRole, MateSide, Node, ParamName, PartSelect, PatternKind, ProfileDoc,
-    ProfileProgram, RecipeNodeId, RefusedRef, SitedRef, SplitHalf, StableName, clusters, member_of,
-    product, solve_document,
+    MatePrimitive, MateRole, MateSide, MintRefusal, Node, ParamName, PartSelect, PatternKind,
+    ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, SitedRef, SplitHalf, StableName,
+    clusters, member_of, product, solve_document,
 };
 use fixture::resolver::{PartStore, in_part};
 use fixture::seat::{assert_seated, seat_map};
@@ -848,14 +848,19 @@ fn the_gate_on_a_mate_read_below_the_outer_pattern_names_the_operand() {
         "the product gathers"
     );
     let err = gate(&doc, &ev).expect_err("the gate refuses the unrooted name");
-    let AssemblyError::Reference {
-        mate: at,
-        side,
-        why,
-        ..
-    } = &err
-    else {
+    let AssemblyError::Mint { refusals } = &err else {
         panic!("expected the reference refusal, got {err:?}");
+    };
+    let [
+        MintRefusal::Reference {
+            mate: at,
+            side,
+            why,
+            ..
+        },
+    ] = refusals.as_slice()
+    else {
+        panic!("expected one reference refusal, got {refusals:?}");
     };
     assert_eq!((*at, *side), (mate, MateSide::B));
     // The gate names the operand the mate reads at, not a vanished

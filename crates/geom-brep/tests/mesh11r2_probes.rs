@@ -82,7 +82,7 @@ fn r2_the_floor_is_the_escalation_threshold_from_both_sides() {
         let face = split_half_cap(b, PI / 2.0 - d);
         let door = require_one_chart_branch(&sphere(), &face, bd);
         let shape = require_iso_rectangle(&sphere(), &face, bd);
-        let fc = curved_face(&sphere(), &face, 1.0, bd);
+        let fc = curved_face(&sphere(), &face, true, bd);
         let area_rel = fc
             .as_ref()
             .map(|f| (f.area - exact).abs() / exact)
@@ -222,7 +222,7 @@ fn r2_a_saturated_span_with_the_pole_antipodal_to_its_midpoint() {
             great(0.0, t1, t0 + 4.0 * PI, 1, 0),
         ];
         let door = require_one_chart_branch(&sphere(), &pair, bd);
-        let fc = curved_face(&sphere(), &pair, 1.0, bd).map(|f| f.area);
+        let fc = curved_face(&sphere(), &pair, true, bd).map(|f| f.area);
         let refused = |what: &&'static str| *what == "props_meridian_span_winding";
         if !matches!(&door, Err(PropsError::NotIsoRectangle { what }) if refused(what)) {
             door_wrong.push((delta, verdict(&door)));
@@ -266,8 +266,8 @@ fn r2_the_l_shaped_complement_at_the_predicate() {
     let cap = vec![rim(b, 0.0, PI, 0, 1), great(0.0, PI - b, b, 1, 0)];
     let ell = vec![rim(b, PI, 0.0, 1, 0), great(0.0, b, PI - b, 0, 1)];
     assert_eq!(require_iso_rectangle(&sphere(), &ell, bd), Ok(()));
-    let fc_cap = curved_face(&sphere(), &cap, 1.0, bd).expect("cap");
-    let fc_ell = curved_face(&sphere(), &ell, 1.0, bd).expect("L");
+    let fc_cap = curved_face(&sphere(), &cap, true, bd).expect("cap");
+    let fc_ell = curved_face(&sphere(), &ell, true, bd).expect("L");
     println!(
         "R2-L cap flux={} area={} | L flux={} area={}",
         fc_cap.flux, fc_cap.area, fc_ell.flux, fc_ell.area
@@ -336,7 +336,7 @@ fn r2_the_saturated_span_sign_is_a_rounding_residual() {
             neg += 1;
         }
         let pair = vec![e, great(0.0, t1, t0 + 4.0 * PI, 1, 0)];
-        let area = curved_face(&sphere(), &pair, 1.0, bd).map(|f| f.area);
+        let area = curved_face(&sphere(), &pair, true, bd).map(|f| f.area);
         if !matches!(
             area,
             Err(PropsError::NotIsoRectangle {
