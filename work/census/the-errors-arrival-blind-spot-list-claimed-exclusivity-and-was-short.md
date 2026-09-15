@@ -139,7 +139,53 @@ Landed on `census/arrival-residue`.
    census is immune to only because its subject filter drops it.
 4. **Re-derived.** `held_by` is a list of holders rather than prose;
    every `Holder::Test` is looked up in this file's own source by
-   `the_mint_roster_names_tests_this_file_declares`. What it does not
+   `every_test_this_census_names_is_one_this_file_declares`. What it does not
    close, and says so: a `Holder::Outside` names no Rust check by
    design, and nothing re-derives that a named test holds what the row
    says it holds.
+
+## What the fix pass did with the style review's findings
+
+The review executed sixteen findings against the tree and the fix pass
+re-derived each. **The fifth exclusivity claim was short by two more
+shapes**, which is this program's fourth consecutive one and the fourth
+found by a reader who did not write the fix.
+
+1. **A `trait` body was no scope, and the declaration walk was still
+   keyed on line starts.** The unit had written its own counterexample
+   into its fixture: a `pub trait Declared` whose method was pinned as
+   the bare name `declared`, added for the `impl Trait` argument
+   position with nobody reading the row under it. And
+   `read_minting_items("impl Subject { pub const ALL: &[u8] = &[]; }")`
+   answered `{}` — silent — while the same shape under a rostered row
+   above it charged the const's literal to that row, which is the
+   inflate-then-cancel defect the unit was dispatched to close, in the
+   population key rather than in the attribution rule. Both closed: the
+   scope walk reads `trait` and `fn` as well as `impl` and `mod`, and
+   the declaration walk finds `fn`/`const`/`static` at the keyword
+   under an allow-list of what may precede an item.
+2. **The hard-stop's premise was false and this unit had widened its
+   reach.** *"Rust rejects two such items in one crate"* is not true of
+   `#[cfg(test)] mod pick` beside `#[cfg(not(test))] mod pick`, of two
+   functions each holding a `const` of one name, of a free `fn` beside
+   a trait method of that name, or of two blocks in one function.
+   Making `fn` and `trait` scopes turned three of those into two rows
+   each — and took a method-local `const` off the enclosing `impl`,
+   where it had been a phantom `A::W` carrying `A::m`'s word. What is
+   left is the `cfg` pair and the two blocks, which no qualification
+   can separate: the refusal says so now instead of asking its author
+   for something Rust cannot spell.
+3. **The scope walk's two guards were pinned by nothing**, and so were
+   both of its panic arms. All four are executed now, each with an
+   input that fails differently with that guard alone removed.
+4. **The stub reader's convention had already drifted from the Python
+   one it cites** — a bare `Final` was a class attribute there and an
+   instance attribute here. Closed in Rust and pinned by a fixture row;
+   the pair of readers is `one-stub-convention-has-two-readers-in-two-languages`.
+5. **The known-gap column is a filed row or it is a suppression.** Each
+   entry names the tracker row that schedules it and the test goes
+   looking for that row under `work/`.
+
+Filed rather than taken: `item-body-takes-a-const-generic-brace-for-an-item-body`
+(TINT's — the repair is in `test_utils::source` and the sibling census
+shares the exposure) and `the-mint-reader-hosts-three-lexer-operations-of-its-own`.

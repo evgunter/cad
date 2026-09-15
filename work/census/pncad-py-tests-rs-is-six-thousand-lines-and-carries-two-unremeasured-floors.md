@@ -1,7 +1,7 @@
 ---
 id: pncad-py-tests-rs-is-six-thousand-lines-and-carries-two-unremeasured-floors
 kind: issue
-title: pncad-py tests.rs is 8543 lines and its two vacuity floors are numbers nothing re-measures
+title: pncad-py tests.rs is 9133 lines and its two vacuity floors are numbers nothing re-measures
 status: open
 opened: 2026-09-15
 ---
@@ -13,20 +13,40 @@ it.
 
 ## What is in one file
 
-`crates/pncad-py/src/tests.rs` is **8543 lines**, re-derivable by
+`crates/pncad-py/src/tests.rs` is **9133 lines**, re-derivable by
 `git show <sha>:crates/pncad-py/src/tests.rs | wc -l` and measured at
-the commit that writes this sentence (6317 when this row was written
-at `census/tag-reach`, 6064 before that unit's fix pass added the
-reader's shape rosters, 6798 at the merge base `cc6fb870c`, 7805 on
-`main` at `370bd6f41`). It holds the error-class
+`024f75815`, the commit that writes this sentence (6317 when this row
+was written at `census/tag-reach`, 6064 before that unit's fix pass
+added the reader's shape rosters, 6798 at the merge base `cc6fb870c`,
+7805 on `main` at `370bd6f41`). It holds the error-class
 taxonomy pin, **three** of this crate's vocabulary censuses
-(`TAG_INVENTORY`, `NODE_KIND_ROSTER` and now `ERRORS_MINTING_ITEMS`),
-**two** Rust source recognisers with their fixture guards — the
-~200-line tag-table one (`read_tag_table`, `Cursor`, `ArmShape`,
-`TopForm`) and the ~350-line literal-attribution one
-(`read_minting_items`, `scope_spans`, `declaration_heads`) — some sixty
+(`TAG_INVENTORY`, `NODE_KIND_ROSTER` and `ERRORS_MINTING_ITEMS`),
+**four** source recognisers with their fixture guards, some sixty
 construction pins, and a `#[cfg(test)] mod` of gather-memoization tests
 at the end.
+
+The four recognisers, three over Rust and one over a Python stub:
+
+* the ~200-line tag-table one (`read_tag_table`, `Cursor`, `ArmShape`,
+  `TopForm`);
+* the literal-attribution one (`read_minting_items`, `scope_spans`,
+  `declaration_heads`, `SCOPE_WALK_BLIND_SPOTS` and their helpers),
+  **658 lines** at `024f75815` — lines 6733 to 7390, of which 262 are
+  doc comments;
+* `declares_test`/`attribute_run`, which reads this file's OWN source
+  for a `#[test] fn` of a given name, so that the two committed lists
+  that cite tests by name cite names something looks up;
+* `stub_instance_attributes`, which reads `pncad.pyi` — a Python stub
+  and no Rust at all — by line prefix and triple-quote parity, and is
+  the second reader of a convention `tests/test_stubs.py` parses with
+  `ast` (`one-stub-convention-has-two-readers-in-two-languages`).
+
+**The row said "two recognisers" and "~350 lines" while the file held
+four and 658**, which is this row's own subject at one more remove:
+the count of the things in the file that make it big went
+unre-measured in the row about the file being big. The second and
+third arrived in CENSUS-ERRORS-ARRIVAL and its residue unit, in diffs
+that touched this paragraph without re-reading it.
 
 **CENSUS-ERRORS-ARRIVAL grew it by 997 lines, a 14.7% growth, and is
 why this paragraph has been re-measured.** That unit's whole subject
@@ -55,17 +75,26 @@ reached `main`, this row's title, `plan.md`'s slate and the spec of the
 next unit. What a count in a tracker row is about is the TREE, and a
 merge-only repo moves the tree between the measurement and the landing.
 
-**CENSUS-ARRIVAL-RESIDUE grew it a further 738 lines, 9.5%**
-(8543 at `54454b0a0`, against 7805 on `main` at `370bd6f41`; 867 added
-and 129 removed, of which 367 of the additions are doc comments — and
-this sentence was written saying 8542 and re-measured after one more
-doc edit to the same file, which is the third instance in this row of
-the shape the paragraph above it is about). Its
-subject was the residue of the instrument that grew this file last, so
-it is the same recogniser growing again: a per-entry blind-spot list on
-the scope walk, three tests for the cases that list names, a `held_by`
-column restructured from prose into holders a reader re-derives, and a
-stub reader with its own fixture guard.
+**CENSUS-ARRIVAL-RESIDUE grew it 1328 lines, 17.0%** (9133 at
+`024f75815`, against 7805 on `main` at `370bd6f41`; **1512 added and
+184 removed**, of which 627 of the additions are doc comments —
+`git diff --numstat origin/main -- crates/pncad-py/src/tests.rs`, taken
+after the last edit to the file). Its subject was the residue of the
+instrument that grew this file last, so it is the same recogniser
+growing again: a per-entry blind-spot list on the scope walk, now data
+rather than prose with every probe re-derived; a scope walk over
+`trait` and `fn` as well as `impl` and `mod`; a declaration walk that
+finds its keywords instead of its lines; eight new tests, taking the
+file's own count from 116 to 124, and four new rows in the reader's
+fixture; a `held_by` column restructured from prose into holders a
+reader re-derives; and a stub reader with its own fixture guard.
+
+**Its own count arithmetic was wrong too, and in the direction this row
+warns about.** The unit's first size-row edit said `867 added / 129
+removed`, from `grep -c '^+'`, which counts the `+++` header line: the
+figures were 866 and 128, and `git diff --numstat` says so without the
+off-by-one. A count taken with a command that includes its own header
+is a stale count born stale by a different route.
 
 **No instrument holds this number, and one that pinned it would be
 wrong.** A test comparing a committed line count to `wc -l` reds on
