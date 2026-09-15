@@ -125,3 +125,46 @@ reviewer's premise.
 Residue filed on S-TINT: `orient-module-prose-accumulation.md` (824
 lines, six spellings of one argument across three files, a module
 header that routes items and nothing that routes prose).
+
+## D403 closed (2026-09-15, PR 2626)
+
+The two teapot walls lift into `teapot::wall_probes`, the suite drives
+them, and the CI row's promise is earned. Three things worth the log.
+
+**The class had two members and the unit closed both.** The lane's sweep
+found `torusvessel`'s wall 1 in the same shape and filed a row for it;
+that was the correct §6 reflex and the wrong call here, because a
+two-member class where one is fixed and one is filed is a half-fix, and
+because a row filed onto a slate that is being deleted this session is
+residue rather than schedule. It was folded back into the same PR. The
+general rule this program is working under: **file what you cannot close,
+close what you can, and check which one you are doing.**
+
+**The row's framing was wrong and the correction is the useful part.**
+D403 read as though the walls never executed. They did — `render.yml`
+and the k-lint gate's tour step both ran them. What was missing was a
+driver under the *command the CI row names*, which is what a reader of
+that row believes covers them. A coverage claim is about the command a
+reader will check, not about whether the code ever runs.
+
+**One defect, two programs, ten days.** `work/curved/teapot-walls-have-
+no-suite-row.md` is this row, found independently by CURVED's C5ARMS
+PR-2 dual on 2026-09-05 and filed two days after D403 was filed here.
+Neither lane grepped for an existing row before filing, which is exactly
+what `work/README.md` tells a lane to do. CURVED could have dispatched a
+lane to build what this unit built. Closed against this PR with its
+receipts, so CURVED sees who closed it without opening a PR.
+
+Two residues went to CURVED as their own files rather than dying with
+this directory: the `KERNEL-VERBS.md` teapot paragraph (three false
+claims, one of them a wrong mental model — the paragraph *reasons* from
+"a spout the way a LATHE would make one" to what the teapot still waits
+on, so substituting nouns would leave an argument standing on a premise
+the scene deleted) and `r2-union-wall-probe-only-prints`.
+
+**A ruling this program now carries, from `demos/tour`'s seat.**
+`demos/tour` and `demos/wild` are evidence about the public API from an
+outside consumer's seat, so they never reach into a crate's
+`test_support`. That is why the tour's copies in `S392`'s population are
+deliberately separate spellings and not unconverted duplication. Raised
+by the S52 lane, ratified here for the rest of the program.

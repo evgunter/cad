@@ -511,3 +511,13 @@ Residues on the program from this unit: `clearance-window-cone-sphere-torus`,
 `a-refused-chart-boundary-has-no-reachable-window`. `docs/TRIM-3-SPEC.md`
 is fully delivered (PR-1 #1911, PR-2 #2554) and leaves `docs/` per the
 ledger in the post-merge docs PR.
+
+## Pacing under the weekly budget (2026-09-15)
+
+Block TRIM-B1 concluded at #2554. TRIM-2 PR-1 (#2564, TRIM-B2 slot 0,
+OPUS) waits for its dual until the account's weekly reset (2026-09-18
+17:00Z; window at 83 %). TRIM-B2 slot 1 is the next dispatch after
+that: `loft-seam-carrier-exact-knot-compare` is S-CERT's file (seam or
+exit first), so the slot's leading candidate is TRIM-2 PR-2 (after
+PR-1 merges; the S-MESH seam announced at dispatch) or
+`boundary-iso-doors-panic-before-they-can-refuse` (E, single review).
