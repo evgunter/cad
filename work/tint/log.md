@@ -715,3 +715,54 @@ discovering that two of the four rows were mis-classed, one of them by
 this seat, on the same day. **Probing before speccing found a filing
 error that two reviews would not have**, because no reviewer reads a
 row's premise against the tree; they read a diff.
+
+## TINT-3 landed: fifteen guards, one macro (2026-09-15)
+
+PR #2680, CI green on run 35005522838 — 12 `test (…)`, 5 `k-lint (gate, …)`,
+0 failures. `D382` closed; its own file carries the account.
+
+**The measurement came before the mechanism, for the first time in this
+program, and it held.** `env!("CARGO_MANIFEST_DIR")` and
+`include_str!("all.rs")` inside an exported macro both resolve at the
+INVOCATION site — probe, negative control (definition-site file deleted,
+clean rebuild), spelling control, then re-confirmed independently by the
+review. Had it gone the other way, all fifteen rows would have checked
+`test-utils`' own tree while reporting on fifteen crates, and **nothing
+would have red'd**. That is the failure this program exists to find, and
+it would have shipped green.
+
+**The count was fifteen, and the fifteenth is the row's own rider.**
+`crates/test-utils/tests/all.rs` landed between the re-derivation and the
+fix. The row had asked for `test-utils` to be opted in; it opted itself
+in by growing a copy, which is the class recruiting while the row sat
+still — the pattern the re-derivation pass named in September.
+
+**The unit's real lesson is about what a collapse costs.** The census
+had been detecting each aggregating `all.rs` by a margin of exactly ONE
+literal, supplied by `include_str!("all.rs")`. Collapsing to a macro took
+fourteen of fifteen to zero margin, so detectors had to move — and that
+is indistinguishable, from the outside, from weakening a guard to make
+your own change pass. The review adjudicated it a correction (a
+`||`-needle list widens monotonically; the silencing option of deleting
+fifteen ledger lines was available and not taken) and then found the part
+nobody had said: **fifteen independently-checked facts became one**, and
+the one is exempt from the row that would check it. The fix pass closed
+that in ~25 lines with a row that reds on exactly that mutation and
+nothing else.
+
+So the shape to carry: **a 15→1 collapse is worth it when the fifteen are
+byte-identical, and the honest accounting says what the fifteen were
+buying.** Written at the macro, not only in a PR body.
+
+**Three seats, three corrections, each catching the one before.** The
+lane reported the 33 duplicated helper bodies as "already covered by six
+rows"; the review showed all six are geometry-fixture rows and named
+seven uncovered classes; the fix pass measured past both — `validated`/`vp`
+at **24 copies in 8 distinct bodies**, eight of eleven drifted — and
+corrected the review in turn, finding that two of its seven
+(`fnv`/`digest`, `missing_pairs`) DO have rows on `work/perf/`. **This
+seat repeated the review's claim without checking it.** Filed as
+`cross-crate-test-helper-copies-outside-the-geometry-fixtures`.
+
+**Board**: 8 rows closed. Three units landed, each one's guard proved by
+mutation rather than asserted. TINT-4 is in flight on the roster weld.

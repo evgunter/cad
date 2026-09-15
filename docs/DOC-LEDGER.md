@@ -3072,3 +3072,31 @@ the two rows one unit, and the requirement that the unit state what its
 guard does not enforce — which it did, at its sites and in its PR.
 
 - `TINT-2-SPEC.md` — TINT-2, a stand-down that nobody can hear (#2656)
+
+## Per-merge deletion — TINT-3's spec (2026-09-15)
+
+Recoverable at `git show da1b20f85:docs/TINT-3-SPEC.md` (the fix-pass
+head). **The first S-TINT spec whose mechanism survived contact**, and
+the reason is the section the two before it lacked: it named the
+measurement that would kill the design (does `include_str!` inside an
+exported macro resolve at the invoking file or the defining one) and
+required the lane to take it before writing the fix. It came out the
+spec's way; had it not, all fifteen rows would have checked
+`test-utils`' own tree while reporting on fifteen crates, silently.
+
+What did not survive: the spec's count. It said **fourteen** and the
+tree held **fifteen** — `crates/test-utils/tests/all.rs` landed between
+the re-derivation and the fix, which is also the row's own `test-utils`
+rider resolving itself by growing a copy. The spec also did not
+anticipate the coupling that turned out to be the unit's real subject:
+`crates/test-utils/tests/reader_census.rs` was detecting each aggregating
+`all.rs` by a margin of exactly one `.rs"` literal that
+`include_str!("all.rs")` supplied, so the collapse took fourteen of
+fifteen aggregators to zero margin and forced two detectors to move. No
+spec could have named that; the lane measured it, the review adjudicated
+it a correction rather than a silencing, and the fix pass closed the
+residue it left. Recorded in the PR body and the unit's `## Closed`
+section.
+
+- `TINT-3-SPEC.md` — TINT-3, fourteen byte-identical aggregation guards
+  (#2680)
