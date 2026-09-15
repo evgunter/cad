@@ -423,3 +423,18 @@ mutant's survivors at two more sites unfiled, `sided`'s two siblings in
 the same file, three open rows on other slates citing the retired
 symbol (routed on the PR). Twelve items adjudicated; the fix pass waits
 for disk behind the EXHAUST-LANE fix pass and FRAME-WITNESS.
+
+## FRAME-WITNESS in review; block SCALAR-B3 fully in flight (2026-09-15)
+
+FRAME-WITNESS landed as PR 2675 (ordinal 4108; byte 247 ⇒ R1 FABLE, R2
+OPUS on frozen `c1d8a7ffe`) — `OrthoFrame` with four mints (one more
+than the spec named: `from_aim_and_reference`, argued for the tube's
+arbitrary reference), `Affine3::from_frame` retired, the sketch plane
+and the tube door take the witness, three tube refusals and their
+Python tags retired, two predicate names retired and one joined the
+swept roster, `DatumValue::Frame` carrying the type wider than the
+fence (announced). One golden moved and is named: the tour listing
+digest on twenty lily files at ~1e-16, because the demo authored
+frames from directions unit by intent and the mint normalizes them —
+the reviewers are asked to judge that. The EXHAUST-LANE fix pass is
+running; SENSE-FOLD's waits for disk.
