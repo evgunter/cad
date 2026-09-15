@@ -765,6 +765,28 @@ statement.
 
 - `S415-SPEC.md` — S415, the three boundary residues: one scaffold rule, the Part 21 band disclosed as one rule in two crates, one hand-minted tag derived (#2633)
 
+## Per-merge deletion — PORT-PYOPTS's spec (2026-09-15)
+
+Recoverable at `git show e3649a523:docs/PORT-PYOPTS-SPEC.md` (the PORT
+orchestrator's commit that wrote it; the unit branch merged that commit
+and carried the file to its own merge). The rule above; the unit's
+record is `work/port/python-cannot-set-options-structs.md` and the two
+rows it filed on LIB, plus the 2026-09-15 entry in `work/port/log.md`.
+
+**Two of its statements are corrected by the unit**, and the item file
+is the statement of record for each. The spec said the STL doors
+"already expose `solid_name`/`header` as kwargs" and that "the visible
+work is small" there; in fact both doors defaulted their keyword to the
+EMPTY string, which is not either struct's `Default` — so a Python
+caller writing no arguments got `solid ` and 80 zero bytes where a Rust
+caller got the kernel's part name and producer text. And the spec said
+a `NotBound` roster entry's decay was already checked; the decay half
+read the stub's DECLARED NAMES, which an options keyword never is, so
+an options entry would have stayed green forever. The alphabet is now
+per-roster.
+
+- `PORT-PYOPTS-SPEC.md` — PORT `python-cannot-set-options-structs`, the four options doors bound field by field with a destructure anchor per struct (#PYOPTS_PR)
+
 ## Per-merge deletion — PORT-DOORS-1's spec (2026-09-15)
 
 Recoverable at `git show 58e485ca4:docs/PORT-DOORS-1-SPEC.md` (the PORT
