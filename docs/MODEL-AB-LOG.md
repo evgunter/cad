@@ -6757,3 +6757,17 @@ slot 2 = SYM-6 MERGED (2026-09-14, PR #2604 at 17d46a1b4, residue head `7486223d
 slot 1 = SYM-5 PR-2 MERGED (2026-09-14, PR #2589, fix-pass head `68d31a750`, residue head `d7df4cdf1`, run 34900092062 green; sample #198 — prior highest #197 on main at merge): delta by R1 on the fixed head confirmed the union (the denominator list verified exhaustive; the width row asserts; the ledger pins the order) and named nine residue items, taken in one commit — the sign row reaches the scale step it pins (its pivot at ±1 had hit the fix pass's new no-op fast path, so the mutant was invisible; now red under `s.recip()` and only that row), the ordering comment states the four ledger lines the other order reds (plate frozen 8 → 48), the leaf table is the header's instrument with the pad, bracket AND link over the line disclosed, the spin un-labelled as reach and R1's third reached shape added; one more commit re-baselined SYM-6's new per-document `registered` pin on the pad (86 → 104, the pin's own second cause, measured at both dials). R2's unilateral MAJOR (the width loss) CONFIRMED by the fix pass and counted for FABLE. Slot 1 concluded. ALL THREE SLOTS CONCLUDED: this record merges to main with SYM-5 PR-2's state-sync.
 
 SYM-7 RECORDED AT MERGE (2026-09-15, PR #2609 merged; sample #199 — prior highest #198 on main at merge; block SYM-B2 slot 0 concluded; the block record stays on `sym/b2-block` until the block concludes). No unilateral MAJOR; one disclosure (R1, `pgrep -af` against its own path); R2 interrupted by a container restart and resumed. Tokens per phase: impl ~295k, fix ~437k, reviews 285k (R1) + 246k (R2), delta not separable (R1 resumed after a restart).
+
+## S393 review ordinal fixed at dispatch (2026-09-15)
+
+S393 (SCALAR; PR #2466 open — frozen head `e83f22f41`): **ordinal
+4101** (SCALAR band). Protocol v6 dual: draw = `/dev/urandom` byte
+**170**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**, concurrent on the frozen
+head, read-side isolation (v6 item 5), briefs identical and stored
+before either ran. Pre-draw difficulty **S / numeric** (recorded
+branch-side at the block draw); the lane corrected the row's class M → E
+in the plan table. Impl phase: ~354k tokens (harness), ~2 h wall
+(two re-baselines: the inflecting duct's body and a tess-budget re-cut
+the k-lint gate demanded); impl CI **34720968363** GREEN on the head
+(twelve `test` jobs, five `k-lint (gate, …)`, the render lanes
+reporting). Sample number at merge. Row at merge.
