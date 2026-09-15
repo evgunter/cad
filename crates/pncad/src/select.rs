@@ -72,8 +72,11 @@
 // failure out of prose.
 //
 // **That placement is the general rule and not a one-name
-// exception**, and `EntityKind` and `SplitHalf` below are the rest of
-// it. Both are `document::NodeErrorKind`'s payload as well — and
+// exception**, and `EntityKind`, `SplitHalf` and `RimShare` below are
+// the rest of it. `RimShare` is one level in — the typed discriminant
+// `NamingError::SharedRim` carries instead of prose — and a consumer
+// that cannot name it is back to reading the refusal out of its
+// sentence, which is the thing that payload exists to stop. Both are `document::NodeErrorKind`'s payload as well — and
 // `RefusedRef`'s and `PartSelect`'s — and both are the naming-role
 // vocabulary this module owns, beside `RoleSeg`, `SegTag` and
 // `Denotation`. A payload whose vocabulary one of the curated
@@ -87,7 +90,7 @@ pub use editor_core::{
     CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKind,
     FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError, MeridianEnd,
     NameOrigin, NamePat, NameRef, NameTable, NamingError, OpGroup, ProfileEdgeRef,
-    ProfileVertexRef, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag,
+    ProfileVertexRef, RimShare, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag,
     SelectRefusal, Selector, Side, SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges,
     all_faces, all_vertices, attribute, band, band_pi, band_rim, carried, declare, declare_all,
     declare_node, denotation, edge_carrier_kind, edge_frame, edge_name, face_carrier_kind,

@@ -151,9 +151,12 @@ pub enum NamingError {
     /// A `&'static str` here would be [`Self::Emission`] one level
     /// down.
     SharedRim {
-        /// The face pair whose rim was asked for, in the body that was
-        /// walked.
-        faces: (FaceKey, FaceKey),
+        /// One face of the pair whose rim was asked for, in the body
+        /// that was walked.
+        face: FaceKey,
+        /// The other — `ShellError::WallClearance`'s spelling for the
+        /// same shape, a refusal about a PAIR of faces of one body.
+        other: FaceKey,
         /// What the walk found instead of one edge.
         found: RimShare,
     },
@@ -270,13 +273,10 @@ impl core::fmt::Display for NamingError {
                  edge on each side nor a pair of seam lines, so its parentage is not determined \
                  by the edges around it"
             ),
-            Self::SharedRim {
-                faces: (f0, f1),
-                found,
-            } => write!(
+            Self::SharedRim { face, other, found } => write!(
                 f,
-                "{UNRULED_FRAMING}: faces {f0:?} and {f1:?} share {found} where a rim derived \
-                 from adjacency alone needs exactly one"
+                "{UNRULED_FRAMING}: faces {face:?} and {other:?} share {found} where a rim \
+                 derived from adjacency alone needs exactly one"
             ),
             Self::Band(error) => write!(
                 f,
@@ -632,7 +632,8 @@ pub(crate) fn unique_shared_edge<T: geom_core::Real>(
 ) -> Result<EdgeKey, NamingError> {
     let bug = |what| NamingError::Emission { what };
     let rim = |found| NamingError::SharedRim {
-        faces: (f, g),
+        face: f,
+        other: g,
         found,
     };
     let mut found: Option<EdgeKey> = None;
@@ -1305,7 +1306,8 @@ mod display_tests {
             ),
             (
                 NamingError::SharedRim {
-                    faces: two_faces(),
+                    face: two_faces().0,
+                    other: two_faces().1,
                     found: RimShare::Several,
                 },
                 vec!["more than one edge"],
@@ -1378,8 +1380,12 @@ mod display_tests {
         let prof = profile::Profile::new(plane, vec![square])
             .validate(geom_core::Tol::witness())
             .expect("a unit square validates");
-        let cube = sweep::extrude(&prof, sweep::Extrusion::Distance(1.0_f64), geom_core::Tol::witness())
-            .expect("a unit cube extrudes");
+        let cube = sweep::extrude(
+            &prof,
+            sweep::Extrusion::Distance(1.0_f64),
+            geom_core::Tol::witness(),
+        )
+        .expect("a unit cube extrudes");
         topo::validate_closed(&cube.body).expect("the cube is a sound closed body");
 
         let wall = cube.side_faces[0][0];
@@ -1393,11 +1399,12 @@ mod display_tests {
 
         match unique_shared_edge(&cube.body, cube.top, cube.bottom) {
             Err(NamingError::SharedRim {
-                faces,
+                face,
+                other,
                 found: RimShare::NotAdjacent,
             }) => {
                 assert_eq!(
-                    faces,
+                    (face, other),
                     (cube.top, cube.bottom),
                     "the refusal names the pair it was asked about"
                 );
@@ -1409,11 +1416,15 @@ mod display_tests {
         // reader handed the emission framing here goes and files a
         // kernel bug against a body that just validated.
         let shown = NodeErrorKind::Naming(NamingError::SharedRim {
-            faces: (cube.top, cube.bottom),
+            face: cube.top,
+            other: cube.bottom,
             found: RimShare::NotAdjacent,
         })
         .to_string();
-        assert!(shown.contains(UNRULED_FRAMING), "missing-rule framing: {shown}");
+        assert!(
+            shown.contains(UNRULED_FRAMING),
+            "missing-rule framing: {shown}"
+        );
         assert!(
             !shown.contains(EMISSION_FRAMING),
             "a missing rule must not read as a kernel bug: {shown}"

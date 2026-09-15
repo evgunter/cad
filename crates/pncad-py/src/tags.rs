@@ -128,7 +128,7 @@ use pncad::profile::{
 use pncad::quantity::FmtQuantityError;
 use pncad::select::{
     DanglingRef, EntityKind, HitTestError, InterrogateError, MeshPickError, NamingError,
-    NodePickError, ReadbackError, Resolution, ResolveError, ResolveIndeterminate,
+    NodePickError, ReadbackError, Resolution, ResolveError, ResolveIndeterminate, RimShare,
 };
 use pncad::step_import::{NormalizationKind, PromotedCurveKind, PromotedKind, StepImportError};
 use pncad::sweep::blend::BlendError;
@@ -1308,6 +1308,19 @@ pub fn band_error_tag(err: &BandError) -> &'static str {
     }
 }
 
+/// The stable tag for what a shared-rim derivation found instead of the
+/// one edge it asked for — the inner arm of [`NamingError::SharedRim`].
+///
+/// It crosses the way [`band_error_tag`] does rather than being folded
+/// into one word: the discriminant IS the fact, and a caller that can
+/// read only the sentence cannot branch on it.
+pub fn rim_share_tag(found: &RimShare) -> &'static str {
+    match found {
+        RimShare::NotAdjacent => "shared_rim_not_adjacent",
+        RimShare::Several => "shared_rim_several",
+    }
+}
+
 /// The stable tag for a name-EMISSION refusal — the inner arm of
 /// [`NodeErrorKind::Naming`].
 pub fn naming_error_tag(err: &NamingError) -> &'static str {
@@ -1322,7 +1335,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         // caller branching on this word is deciding whether to report a
         // kernel bug, and these two are not one.
         NamingError::SeamVertexParentage { .. } => "seam_vertex_parentage",
-        NamingError::SharedRim { .. } => "shared_rim",
+        NamingError::SharedRim { found, .. } => rim_share_tag(found),
         NamingError::Band(e) => band_error_tag(e),
         NamingError::Escalated { .. } => "escalated",
     }

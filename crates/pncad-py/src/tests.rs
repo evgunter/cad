@@ -4217,11 +4217,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "fragment_lineage_cycle",
             "missing_upstream",
             "seam_vertex_parentage",
-            "shared_rim",
             "split_lineage_cycle",
             "unnamed",
         ],
-        delegates: &["band_error_tag"],
+        delegates: &["band_error_tag", "rim_share_tag"],
     },
     TagEntry {
         function: "node_error_tag",
@@ -4644,6 +4643,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unreadable",
         ],
         delegates: &["band_error_tag"],
+    },
+    TagEntry {
+        function: "rim_share_tag",
+        values: &["shared_rim_not_adjacent", "shared_rim_several"],
+        delegates: &[],
     },
     TagEntry {
         function: "shell_classify_error_tag",

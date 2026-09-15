@@ -112,9 +112,8 @@ fn a_rim_that_is_not_unique_is_a_missing_rule_not_a_kernel_bug() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, g) = block(doc, (0.7, 0.8), (-1.0, 2.0), 0.5, 3.0);
-    let pairs = move |u: RecipeNodeId| -> Vec<(StableName, StableName)> {
-        flush_pairs(u, (a, a), (b, b))
-    };
+    let pairs =
+        move |u: RecipeNodeId| -> Vec<(StableName, StableName)> { flush_pairs(u, (a, a), (b, b)) };
 
     // The declaration on its own is well formed and fuses.
     let (docx, ab, _) = declared_union(doc.clone(), &[a, b], pairs);
@@ -125,20 +124,22 @@ fn a_rim_that_is_not_unique_is_a_missing_rule_not_a_kernel_bug() {
 
     let (docx, union, _) = declared_union(doc, &[a, b, g], pairs);
     let ev = run(&docx);
-    let shown = failure(&ev, union).map(ToString::to_string).unwrap_or_default();
-    let faces = match failure(&ev, union) {
-        Some(NodeErrorKind::Naming(NamingError::SharedRim { faces, found })) => {
+    let shown = failure(&ev, union)
+        .map(ToString::to_string)
+        .unwrap_or_default();
+    let (face, other) = match failure(&ev, union) {
+        Some(NodeErrorKind::Naming(NamingError::SharedRim { face, other, found })) => {
             assert_eq!(
                 *found,
                 RimShare::Several,
                 "a split merged cap leaves the pair sharing TWO edges, not none"
             );
-            *faces
+            (*face, *other)
         }
         other => panic!("wanted the shared-rim refusal, got {other:?}"),
     };
     assert_ne!(
-        faces.0, faces.1,
+        face, other,
         "the refusal names a PAIR; one face twice would be a different fact"
     );
     assert!(
@@ -146,7 +147,7 @@ fn a_rim_that_is_not_unique_is_a_missing_rule_not_a_kernel_bug() {
         "a legal document was told the kernel is broken: {shown}"
     );
     assert!(
-        shown.contains(&format!("{:?}", faces.0)) && shown.contains(&format!("{:?}", faces.1)),
+        shown.contains(&format!("{face:?}")) && shown.contains(&format!("{other:?}")),
         "both faces of the pair reach the sentence: {shown}"
     );
 }

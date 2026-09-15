@@ -40,8 +40,8 @@ mod table;
 
 pub use attribute::{NameOrigin, attribute};
 pub(crate) use defer::CarriedRows;
-pub use emit::{NamingError, RimShare};
 pub(crate) use emit::name_in_part;
+pub use emit::{NamingError, RimShare};
 pub(crate) use emit::{
     check_total, empty, flat_body_index, name_pattern, name_placed_union, output_body,
 };
