@@ -93,3 +93,55 @@ so it can never appear in an overlap pair, and its announcement surface
 lives entirely in prose that nothing checks.
 
 Nothing on this slate now waits on Ev. `S415` is still the opener.
+
+## 2026-09-15 — PORT-DOORS-1 in review (PR PR_PLACEHOLDER)
+
+Both assembly-door findings landed as one unit, on
+`port/doors-1-refusal-order`.
+
+**Part A, widen.** `AssemblyError`'s two mint channels each carry every
+refusal the gather recorded: `Mint { refusals: Vec<MintRefusal> }`
+replaces the flattened `Reference` / `NoAtRestRecord` arms, and
+`CarriedMintRefusal` takes `Vec<CarriedRefusal>`. Two arms, not one, so
+the carried-before-own precedence the doc-comment calls load-bearing
+stays visible in the type. The shape is `AtRest { findings }`'s, which
+is the argument the row made: one enum answering one question one way.
+The two follow-up comments are deleted.
+
+**Part A's façade.** `MintRefusal` and `CarriedRefusal` left
+`crates/pncad/tests/all.rs`'s `NOT_CARRIED` — they were held out on the
+ground that the gate's answer named no row type, which the widening
+ends — and cross to Python as two frozen classes under
+`AssemblyError.refusals`. The two words a caller branched on
+(`mate_reference_refused`, `no_at_rest_record`) moved one level in, onto
+the rows, under a new `mint_refusal_tag`; the gate's own tag for its own
+mates is `unminted_mates`. Nothing stringified.
+
+**Part B, kind before tie.** `resolve_face` asks the NAME's kind before
+multiplicity, so a tied non-face answers `NotAFace { kind }` exactly as
+`operand_answer` already does, and only a tie AMONG FACES is
+`Ambiguous`. The premise the whole part rests on holds against the
+tree: `NameTable::insert_tied_ref` refuses any candidate whose
+`key.kind()` differs from `name.kind`, and every path to `Entry::Tied`
+(including `project` via `defer::narrow_into`) goes through it.
+
+**What moved.** One of the two msolve5 control assertions, as the
+orchestrator read it: the tied-EDGE row's second assertion, now
+`NotAFace { kind: Edge }` at the pattern as well as below it, with the
+row renamed and its divergence-as-a-rule doc-comment deleted. The
+tied-FACE row is unchanged and its `Ambiguous` still stands.
+`display_contract`'s `Ambiguous` row is a hand-built `RefusedRef`, not a
+`resolve_face` answer, so Part B does not reach it; Part A re-homed
+every `AssemblyError` row in that file onto the arm that now carries it,
+and added one pinning the list rendering of both channels.
+
+**Filed outside the fence:**
+`work/wire/interrogate-read-answers-a-tie-before-the-door-s-kind` — the
+sweep's one hit, `interrogate::read` asking `entity_of` (which refuses
+`Ambiguous` for any tie) before the door's kind question, so a tied edge
+name at `face_frame` answers `Ambiguous` where a unique one answers
+`WrongKind`. WIRE's ground, and a public error-channel change of its
+own.
+
+**Territory announced:** `crates/editor-core/src/assembly.rs` is EDIT's
+and the pncad-py façade is LIB's; PORT claims no paths.
