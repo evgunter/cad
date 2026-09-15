@@ -122,5 +122,29 @@ re-derive, and that a `subject()` on the enum would state once:
    it is worth stating on the enum rather than rediscovered per
    consumer.
 
-No kernel change is proposed here and none was made — this is evidence
-for whoever takes the row.
+No kernel change is proposed here and none was made.
+
+**What this evidence asks of the row, so it is a schedule and not a
+record.** It sharpens the decision the row already says is the open
+one — *"whether two non-citing consumers, one of them already
+exhaustive, is worth a kernel method at all"* — into a question with a
+concrete answer shape, and **MSOLVE is the owner** (`crates/editor-core/
+src/mate.rs`):
+
+*A bare `subject() -> Option<RecipeNodeId>` is now the WRONG signature,
+and adopting it would be a regression rather than a tidy-up.* It
+answers `None` for both subject-less arms and so erases the asymmetry
+in (1) above — one arm a user meets and one that cannot reach a row —
+which is the single fact both consumers' comments exist to carry. Two
+next steps, and whoever takes the row picks one:
+
+- adopt a richer answer that keeps the distinction (an enum over
+  *names a mate* / *names none and reaches rows* / *names none and
+  cannot*), and re-point both consumers at it; **or**
+- close the row with the sentence the row itself already sanctions —
+  a note on `MateFault` naming its two consumers — and state the
+  asymmetry there, so it has one home instead of two comments.
+
+Either way the `Band` half is CHROME's to badge and MSOLVE's to
+describe; `work/chrome/band-refusal-still-badges-every-row.md` is the
+badging half and does not wait on this row.

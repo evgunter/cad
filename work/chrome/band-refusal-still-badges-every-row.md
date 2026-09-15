@@ -88,10 +88,20 @@ features.rs` matches `RowStatus` exhaustively with no wildcard, so a
 variant is a compile error there, and `crates/viewer/src/frame.rs`
 asserts in prose that `RowStatus` *"has exactly three non-`Ok` states"*
 — both VIEW's files while VIEW is live in this crate. Adding a FIELD to
-`RowStatus::Failed` is no cheaper: seventeen `Failed { message }` struct
-patterns across eight `crates/viewer/tests/` suites and one example
-would stop compiling. So this wants a VIEW handoff or a unit whose
-fence spans `pane/` — not a bigger effort, a wider one.
+`RowStatus::Failed` is no cheaper: a struct pattern that omits a field
+is a hard error, and
+`grep -rn 'Failed { message }' crates/viewer/ | grep -v src/tree.rs`
+is **19 sites in 9 files** on this tree — eight test suites plus
+`examples/r1_e2e.rs`. (An earlier draft of this paragraph said 17 in 8.
+That is the count with `tests/tree_badges.rs`'s own two excluded —
+i.e. the file the lane was editing — beside a file count that included
+it. A measurement in prose with nothing re-taking it: the command above
+is written out so the next reader re-takes it rather than trusting the
+number, and it will drift as suites are added.) The direction of the
+error is worth stating: the true cost is HIGHER, so it strengthens the
+decision to decline rather than weakening it. So this wants a VIEW
+handoff or a unit whose fence spans `pane/` — not a bigger effort, a
+wider one.
 
 `crates/viewer/src/tree.rs`'s module header and `blamed_mates` now say
 all of the above at the code: the header's claim that *"every

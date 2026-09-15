@@ -467,7 +467,23 @@ const BAND_PROBE: &str = "TREE_BADGES_BAND_PROBE";
 /// An ε large enough that K·ε overflows at the default K, and still
 /// finite and strictly positive — so `Tolerance::validate` admits it
 /// and `Band::linear` refuses it.
+///
+/// The same value as `wire_band_cause.rs`'s `OVERFLOW_EPS`, which it
+/// was derived from; that both spellings exist is
+/// `work/tint/re-exec-child-harness-is-copied-per-suite-and-greens-when-it-does-not-run`.
 const BANDLESS_EPS: f64 = f64::MAX / 2.0;
+
+/// **What the child prints once it has run every assertion below.**
+///
+/// The parent asserts on THIS, not on the child's exit status:
+/// libtest exits 0 when a filter matches nothing (*"running 0 tests …
+/// test result: ok"*), so a rename of this suite, of the child fn, or
+/// of `all.rs`'s nesting would turn the row into a silent pass while
+/// the child holds every assertion it has. The sentinel is stronger
+/// than a matched-test count as well as cheaper: it is printed after
+/// the last assertion, so it also goes missing if the environment
+/// guard sends the child down its no-op return.
+const BAND_PROBE_DONE: &str = "BAND-PROBE-COMPLETE";
 
 /// **A run-tolerance refusal reaches every mate and every instance in
 /// the DOCUMENT, blames none of them, and points the eye nowhere.**
@@ -629,6 +645,10 @@ fn child_band_refusal_rows() {
         Vec::<RecipeNodeId>::new(),
         "a band refusal blames no mate, so no row may point at one"
     );
+
+    // Last act: the parent reads this to know the assertions above ran
+    // at all.
+    println!("{BAND_PROBE_DONE}");
 }
 
 /// The parent of [`child_band_refusal_rows`].
@@ -642,12 +662,26 @@ fn a_band_refusal_reaches_the_whole_document_and_blames_no_row() {
         Some((_, m)) => format!("{m}::child_band_refusal_rows"),
         None => "child_band_refusal_rows".to_string(),
     };
-    let status = std::process::Command::new(exe)
+    let out = std::process::Command::new(exe)
         .args([probe.as_str(), "--exact", "--nocapture"])
         .env(BAND_PROBE, "1")
         .env_remove("CAD_TOLERANCE_EPS")
         .env_remove("CAD_AMBIGUITY_K")
-        .status()
+        .output()
         .expect("probe spawns");
-    assert!(status.success(), "the band row failed (child output above)");
+    let text = String::from_utf8_lossy(&out.stdout).into_owned();
+    assert!(out.status.success(), "the band row failed:\n{text}");
+    // THE ANTI-VACUITY FLOOR, and it is the whole row's: every
+    // assertion this test makes lives in the child, and a green exit
+    // status is what a child that ran NOTHING also reports. Reading
+    // the child's own stdout for a sentinel is the tree's idiom for
+    // this (`crates/geom-core/tests/ambiguity_k_env.rs`);
+    // `test_utils::vacuity` is the wrong instrument here because its
+    // floors are counted and asserted in-process, which is exactly the
+    // process whose execution is in doubt.
+    assert!(
+        text.contains(BAND_PROBE_DONE),
+        "the child exited 0 without reaching its assertions — a filter that \
+         matches nothing greens. Child output:\n{text}"
+    );
 }

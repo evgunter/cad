@@ -48,6 +48,40 @@ pattern 3's count does not evaluate" can find pattern 3's row, and
 whether the tree should say so structurally rather than only inside the
 payload's sentence.
 
+## Why the class is three of five, and not five
+
+`Under { mate, parent, child }` and `SelfMate { mate, instance }` also
+carry node ids beside the mate, and they are deliberately NOT in the
+list above. The test is not *"does the arm carry a second id"* — it is
+*"does the kernel's own doc call that id the thing an author
+repairs"*. For the three named arms it does, in those words. For these
+two it does not, and the ids are a different kind of thing:
+
+- `Under`'s `parent` and `child` are **the two instances the fold was
+  extending between** — evidence about WHERE the residual survived, not
+  a node to go and edit. What an author changes is the mate's own
+  constraint, or the recourse `UNDER_RECOURSE` names.
+- `SelfMate`'s `instance` is **the instance named twice**, and it is
+  named twice BY the mate. The repair is on the mate's references; the
+  instance is fine and editing it would be editing the wrong node.
+
+So the sweep's stopping point is a judgement about the second id's
+role, not an oversight — stated here because a reader counting arms
+with second ids gets five and should be able to see why two are out.
+Whoever takes this row should re-test that judgement rather than
+inherit it.
+
+## A tension with the tree's own header, for whoever writes the fix
+
+`crates/viewer/src/tree.rs`'s module header says a mate refusal's
+subject *"is a mate node"*. This row argues that for three arms the
+node an author repairs is NOT the mate. Both can be true — the
+*blamed* node and the *repaired* node need not be one — but the header
+does not say so, and that sentence is already on its third generation
+(it has been rewritten once for the `Band` carve-out and once before
+that). If this row is taken up, the header's claim is part of its
+subject, not a neighbour to leave alone.
+
 ## Where to look
 
 `crates/viewer/src/tree.rs` — `blamed_mates` and `downstream_of_mate`.

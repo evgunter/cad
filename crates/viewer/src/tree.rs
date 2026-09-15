@@ -349,10 +349,14 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         // instance in the document rather than one cluster's.
         MateFault::Band { .. } => Vec::new(),
         // A solve read against the wrong document blames the pairing,
-        // not a node. Raised by `SolvedPoses::placement` and never
-        // recorded in a solve's fault map, so no row here can carry it
-        // at all — the empty answer is unreachable rather than a
-        // reading a user meets.
+        // not a node — and it is the mispairing itself, so there is no
+        // node to name. `SolvedPoses::placement` raises it before it
+        // reads the fault map, and `eval` maps that refusal onto the
+        // instance's own `Failed`, so the fault-map route is not what
+        // keeps it off a row. **DI3 is**: the evaluation solves and
+        // evaluates the SAME document, so the pairing this arm reports
+        // never holds and the empty answer here is unreachable rather
+        // than a reading a user meets.
         MateFault::PosesOfAnotherDocument { .. } => Vec::new(),
         // A contradiction is a claim about a PAIR of mates: neither is
         // the wrong one on the fault's own telling, so both read as
@@ -373,7 +377,7 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
 /// `None` — the row keeps its own `Failed` — when the failure is not
 /// a mate refusal, when the fault names this very node, and when it
 /// names no mate at all ([`MateFault::Band`], the module header's
-/// third section).
+/// second section).
 ///
 /// **The blame is read directly**, and [`RowStatus::Poisoned`]'s
 /// walkable-in-one-hop invariant holds because the kernel's answer is
