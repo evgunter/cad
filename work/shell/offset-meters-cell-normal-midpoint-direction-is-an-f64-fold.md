@@ -65,3 +65,16 @@ moves.
 endpoints, used as a divisor.* The three members found are this one,
 `offset_fit::Composite::cell_bound`'s `m_sq`/`y_sq` (fixed at #2469)
 and `ssi::certify`'s `stretch`.
+
+## Still live after RATE-PAIR (2026-09-15)
+
+Re-read at `37dce8287`, after RATE-PAIR typed this file's chart speeds
+(`PatchRegularity::speed_u`/`speed_v` are `SupSpeed<f64>` now) and
+re-worded `CellNormal`'s unit docs. Neither touched assembly B: `dn`
+is still `sqrt_up(dv[0].mul_add(dv[0], dv[1].mul_add(dv[1], dv[2] *
+dv[2])))`, and the finding above stands verbatim.
+
+Worth saying because the rate pair is the natural place a reader would
+look for this: `dn` is NOT a rate. It is the norm of a direction
+vector, so no `SupSpeed` tag applies and the pair's doors do not reach
+it. What it wants is the ring's fold, which this file already owns.

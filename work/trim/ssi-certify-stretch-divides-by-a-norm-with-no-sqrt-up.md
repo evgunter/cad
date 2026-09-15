@@ -69,3 +69,9 @@ first sweep's patterns (`mig(`, `mignitude`, `sqrt_down(`,
 *An upper bound on a norm assembled by an `f64` fold of ring
 endpoints, used as a divisor.* Sibling filed on SHELL's slate as
 `offset-meters-cell-normal-midpoint-direction-is-an-f64-fold`.
+
+## Still live (2026-09-15)
+
+Re-read at `37dce8287`: `crates/geom-brep/src/ssi/certify.rs` is
+unchanged on `main` since this was filed, and `stretch` is still the
+bare `.sqrt()` over three `mag()` products quoted above.
