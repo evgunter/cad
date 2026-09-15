@@ -5142,3 +5142,155 @@ reachable or name it — but if its re-classification moves which refusal
 that shape hits, a row on this slate is waiting on exactly that.
 
 Signed (WIRE orchestrator).
+
+## 2026-09-15 — `wire-t1` — the tie-before-kind unit, in review (PR 2681)
+
+Three rows of one class, closed together on `wire/tie-before-kind`:
+`declare-door-refuses-a-tie-before-it-asks-the-pairs-kinds`,
+`the-declared-pair-refusal-reads-the-authored-kind` and
+`interrogate-read-answers-a-tie-before-the-door-s-kind`.
+
+**The premise holds by construction**, which is the answer the brief
+asked for and the stronger of the two it offered. `NameTable::forward`
+is a private field with exactly two writers — `insert_ref` and
+`insert_tied_ref` — and both refuse a row whose `name.kind` disagrees
+with a candidate's `key.kind()`. `insert` / `insert_tied` are wrappers;
+`project` reaches `Entry::Tied` only through `defer::narrow_into`,
+which is one of those two calls. So it is not "safe today by an
+invariant one module away": the module that holds the invariant is the
+module that holds the only door through which a row can exist.
+
+That decided the authored-kind question with it. The ordering makes the
+kind question precede resolution, a tied name has no single key, so the
+word comes off the NAME — and `the-declared-pair-refusal-…`'s own guess
+("read `k1` and `k2`") is the wrong direction. What the resolved keys
+keep is the fallthrough arm, reachable only on a broken table, under a
+`debug_assert!`: the `resolve_face` split, guard off the name and
+projection answering what the key IS. The same split landed at
+`interrogate::read`.
+
+**Nothing asserted the old behaviour.** All 1239 editor-core rows,
+`pncad` and `viewer` pass unchanged; `m4_pr5_declare`'s existing
+`Ambiguous` row declares a CROSS-operand face pair, which is supported,
+so its tie still refuses. No `.py` row asserts an `ambiguous` outcome at
+either door. No tag string changes — `declare_resolve`,
+`declare_unsupported_pair`, `ambiguous` and `wrong_kind` all exist
+already; what moves is which one a document gets. Two `pncad.pyi`
+docstrings (LIB's path) were re-worded because the change moved what
+they describe.
+
+**The sweep found the fourth instance the brief predicted, and a
+fifth.** The instrument was the caller-side pairing — a multiplicity
+token and a kind token in one non-test `fn` across all of
+`crates/editor-core/src/` — 30 candidates read by hand. Filed:
+`work/wire/the-designation-road-resolves-before-it-asks-the-kind`
+(`named_entity` and the measure reference, one row because all four
+refusals carry `entity_door::Found` and the change is one in
+`entity_door`) and
+`work/shell/clearance-window-selection-asks-how-many-before-what`
+(`clearance::windows_of`, SHELL's ground — a tied face name refuses
+`Unresolved`, and `SelectionRefusal` has no word for a tie at all).
+
+The instrument's own blind spot is stated in the PR and is worth
+carrying forward: **it segments by `fn`, so a resolve in one function
+paired with a kind test in another is invisible to it.** The measure
+site is exactly that shape and was found by reading
+`entity_door::entity`'s call sites instead. A later sweep of this class
+should not reuse the grep alone.
+
+Signed (`wire-t1`).
+
+### Delta after the style review of PR 2681 (`wire-t1`)
+
+No MAJOR, nothing blocked merge; the fix pass is recorded here because
+two of its items correct claims this log itself made.
+
+**The fix minted a fresh instance of its own class, and the review
+caught it.** `DeclareBothOperands` is a multiplicity question raised at
+the door I rewrote, above the kind question, with a 25-line doc comment
+arguing why *rung 3* stays above it and nothing at all about
+both-operands. The argument now written at that site is that
+`DeclareUnsupportedPair` carries `cross_operand`, so the kind refusal
+**cannot be built** over a name that landed in two operands — a field
+of it has no value — where a tie leaves no field empty. That is a
+different shape of reason from "this outranks that", and it is the only
+one available: the kind question there is genuinely unanswerable, not
+merely deferred.
+
+**The disclosure was one quarter of the truth.** I reported one moved
+outcome (`NodeGone` on the second name) and justified it as "the
+ladder's own stated ranking". The ladder ranks within ONE name's walk
+and says nothing about one name's rung 3 against another's rung 2, so
+the justification did not cover the case it was attached to, let alone
+the three it omitted (`Vanished`, both-operands, and `step_diagnosis`'s
+`UnionDeclareStep`). All four change a Python tag. Two are now pinned;
+the rule is restated as this door's own.
+
+**Three "one home" claims that were not.** `declared_pair_supported`
+said "the list, once" beside a `match` that re-enumerated the same
+three shapes; it is now `DeclaredStep`, an enum the door projects from,
+so a fourth shape fails to compile rather than diverging.
+`ladder::vanished`'s "rather than a second spelling" was false while
+`route_declarations` built the same payload inline 1150 lines below;
+that call now goes through it. And two rung-order statements — the
+module header and the ladder's own doc — still described 1, 2, 3 for a
+door that now asks 1, 3, kind, 2.
+
+**For future lanes on this program:** a comment asserting a property the
+code does not have is the shape this program keeps paying for, and a
+one-home unit is exactly where it is least affordable. Writing "once"
+is a claim to check with `rg`, not a summary of intent.
+
+Signed (`wire-t1`).
+
+### Delta round 2 on PR 2681 (`wire-t1`) — the claim, not the code
+
+One MAJOR, on a **sentence**. The delta review ran the experiment my
+prose asserted and it failed: adding a fourth *variant* to
+`DeclaredStep` gave `E0004`, but adding a fourth *pair shape* reusing
+an existing variant compiled clean and silently filed a cross-operand
+vertex-vertex contact under operand 1's list. My PR body and this log
+both stated the property over pair shapes. It held over variants.
+
+**And the paragraph one above it in this log told future lanes that
+"once" is a claim to check with `rg`.** "Fails to compile" is the same
+kind of claim and I wrote a fresh unchecked one directly below the
+warning. That is the finding worth carrying forward, not the enum.
+
+**Why the code allowed it.** `DeclaredStep` carried the SHAPE and none
+of the facts `declared_step` established to pick it, so all three
+orientations were discarded at the return and re-derived at the
+projection from the raw `o1` / `n1.kind` — agreeing with the
+classifier only because both sides happened to read the same inputs.
+Rule 1 one level down, inside the fix for rule 1.
+
+**The bijection was available and is taken.** A private `mod sides`
+holds three witnesses — `SameOperand`, `CrossOperand`, `VertexAndFace`
+— whose fields are unreachable outside it and whose only constructors
+are comparisons of the two sides. `DeclaredStep`'s variants carry
+them; the projection reads orientation off the step and re-derives
+nothing. Experiments, run rather than asserted:
+
+| spelling of the mistake | result |
+| --- | --- |
+| fourth variant, projection untouched | `E0004` non-exhaustive |
+| variant named without its witness | `E0308` mismatched types |
+| reaching past a witness constructor | `E0603` constructor is private |
+| asking the constructor honestly | compiles, returns `None`, refuses |
+| calling a comparison with one side twice | **compiles** — the residue |
+
+The last row is named at the site and in the doc, at that resolution,
+because this door has now shipped one over-stated claim and will not
+ship a second. The other uncaught case — an arm pairing the wrong
+KINDS with a variant — reaches `broke` and fails loud, which is the
+floor and is called the floor.
+
+**A second lesson, cheaper.** My account of why one disclosed outcome
+was unpinnable was wrong, and the tree said so in a doc comment I had
+already cited for something else: `NameTable::project` keeps a
+straddling tie's row verbatim in both halves. I reported a blocker I
+had reasoned to instead of probing. The probe takes four minutes and
+its numbers are on the row now. **Report what you measured, or report
+that you did not measure.**
+
+Signed (`wire-t1`).

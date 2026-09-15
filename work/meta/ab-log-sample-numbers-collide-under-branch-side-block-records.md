@@ -35,6 +35,22 @@ v-reversal door #204) with the merge-order table as the reason. TRIM's
 row is TRIM's to renumber (this program's `keep_out`: every program
 writes its own rows) — announced to TRIM's orchestrator on PR #2554.
 
+**Second instance, 2026-09-15**, the same mechanism from the other
+side — this time SCALAR's row was the branch-side one another program
+could not see:
+
+| main merge | PR | row | number the row claims | number the rule gives |
+| --- | --- | --- | --- | --- |
+| `45af343f1` | #2667 | SCALAR EXHAUST-LANE (branch-side until block close) | #208 | #208 |
+| `69bcd87a1` | #2469 | PROPS mignitude-floor, on main | **#208** ("prior highest #207 on main at merge") | **#209** |
+| `ebbb1598c` | #2675 | SCALAR FRAME-WITNESS (branch-side) | #210 | #210 |
+| `978fcda98` | #2668 | SCALAR SENSE-FOLD (branch-side) | #211 | #211 |
+
+PROPS' row is PROPS' to renumber — announced on PR #2469. SCALAR's
+three landed with the derived numbers at block close (PR for block
+SCALAR-B3). Two instances in one day, in both directions, is the
+measurement that the rule cannot be read by eye.
+
 ## What the rule needs
 
 The rule is raceless only if the number is DERIVED, not read: at block

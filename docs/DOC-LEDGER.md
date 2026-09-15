@@ -743,6 +743,28 @@ sentence; four `work/issues/` items whose `refs` named a SEAT unit id
 now name the unit's PR instead. Prose citations of "VERB-SEAT-DESIGN
 §n" resolve against `crates/verbs/README.md` by clause id.
 
+## Per-merge deletion — S415's spec (2026-09-15)
+
+Recoverable at `git show bce676c75:docs/S415-SPEC.md` (the PORT
+orchestrator's commit that wrote it, which is the last revision where
+it stands alone; the unit branch merged that commit and deleted the
+file in its own first commit). The rule above; the unit's record is
+`work/port/S415.md`, which carries the corrections to the spec's
+premises, and the 2026-09-15 entry in `work/port/log.md`.
+
+**Three of its statements are corrected by the unit** and the item
+file is the statement of record for each: the printable-ASCII band is
+two formats and not three (the spec has this right); `no_minted_id`
+does have a kernel enum behind it (right); and the spec's claim that
+`declare_err` "carries the arm's fields" where `boundary_edit_err`
+does not is **wrong for that arm** — both pass `EditPayload::NONE`
+with no inner variant. The spec's `|p.x| >= 2^53` threshold for the
+vanishing strut offset is also wrong on the negative side and is not
+a threshold on either; `strut_endpoint`'s own docs carry the checked
+statement.
+
+- `S415-SPEC.md` — S415, the three boundary residues: one scaffold rule, the Part 21 band disclosed as one rule in two crates, one hand-minted tag derived (#2633)
+
 ## Per-merge deletion — TINT-4's spec (2026-09-15)
 
 Recoverable at `git show 5494b9927:docs/TINT-4-SPEC.md` (the fix-pass
@@ -780,28 +802,6 @@ in `work/tint/r2-m10-6-header-roster-omits-the-suites-heaviest-row.md`'s
 
 - `TINT-4-SPEC.md` — TINT-4, a header roster welded to the rows it
   names (#2687)
-
-## Per-merge deletion — S415's spec (2026-09-15)
-
-Recoverable at `git show bce676c75:docs/S415-SPEC.md` (the PORT
-orchestrator's commit that wrote it, which is the last revision where
-it stands alone; the unit branch merged that commit and deleted the
-file in its own first commit). The rule above; the unit's record is
-`work/port/S415.md`, which carries the corrections to the spec's
-premises, and the 2026-09-15 entry in `work/port/log.md`.
-
-**Three of its statements are corrected by the unit** and the item
-file is the statement of record for each: the printable-ASCII band is
-two formats and not three (the spec has this right); `no_minted_id`
-does have a kernel enum behind it (right); and the spec's claim that
-`declare_err` "carries the arm's fields" where `boundary_edit_err`
-does not is **wrong for that arm** — both pass `EditPayload::NONE`
-with no inner variant. The spec's `|p.x| >= 2^53` threshold for the
-vanishing strut offset is also wrong on the negative side and is not
-a threshold on either; `strut_endpoint`'s own docs carry the checked
-statement.
-
-- `S415-SPEC.md` — S415, the three boundary residues: one scaffold rule, the Part 21 band disclosed as one rule in two crates, one hand-minted tag derived (#2633)
 
 ## Per-merge deletion — PORT-PYOPTS's spec (2026-09-15)
 
@@ -3261,6 +3261,86 @@ hand the frame through" for the stored placement — it holds any
 `## Closed` section.
 
 - `FRAME-WITNESS-SPEC.md` — FRAME-WITNESS, the frame witness in geom-core, minted by the decided ladders; `from_frame` and the tube door take it (#2675)
+
+## Per-merge deletion — SENSE-FOLD's spec (2026-09-15)
+
+Recoverable at `git show 80ab05d69:docs/SENSE-FOLD-SPEC.md` (the
+fix-pass head). Its sentences that did not survive: "every consumer
+spells `radius * side` as a conditional negation of the radius" — the
+negation has one home, `sided(side, x)` in `blend/battery.rs` beside
+`Convexity` (whose `signed` is that call), and both `arms.rs` siblings
+fold onto it; "consider `Option<OutwardNormal<T>>`" for `outward_of` —
+the helper is deleted and its three callers read the keyed door;
+"keeps a raw-text row tree-wide" — the guard
+`no_source_file_folds_the_bit_by_hand` walks `crates/*/src` in the
+`code_only` view and pins the three D6-sanctioned scalar negations
+(`dihedral.rs` `kappa_rel`, `walk.rs` `area`, `shell.rs` `thickness`)
+rather than zero, with the vector class at zero and its blind spots
+(renamed bit, `copysign`, a `±1` local, `match`, tests/demos/tools/
+benches) stated in-file; "a row on one concave and one convex blend
+where the ball side differs, bits pinned" — the fold's proof is the
+stated differential (`a+b` vs `a-(-b)` identical; `s-rim` vs `-(rim-s)`
+identical except a signed zero at `s == rim` no consumer reads) plus
+the suites and the tour digest, the R2 fillet bit dumps having been
+dropped as assertion-free; the curved reading, unnamed by the spec,
+got a home of its own (`geom_brep::implicit_outward_normal`, the topo
+alias gone). Recorded in the PR body and the unit's `## Closed`
+section.
+
+- `SENSE-FOLD-SPEC.md` — SENSE-FOLD, the hand multiplies of a normal by `sense_sign` fold onto `OutwardNormal`, and `Face::sense_sign` retires (#2668)
+
+## Per-merge deletion — CENSUS-ERRORS-ARRIVAL's spec (2026-09-15)
+
+Recoverable at `git show fa49e26b0:docs/CENSUS-ERRORS-ARRIVAL-SPEC.md`
+(PR #2691's last head before the merge). CENSUS's sixth unit. Its
+sentences that did not survive:
+
+- **the five-map framing.** The spec said the unit was worth running
+  "rather than for the five maps, none of which is unguarded today",
+  and the row's table listed five. The file's literal-minting
+  population is **ten items and 53 literals**, three of the extras
+  Python-visible. The orchestrator had verified each of the five maps'
+  pins and asserted the shape of the population from them — standing
+  finding 10, *verified the example, asserted the class*, applied to
+  the orchestrator's own framing by the lane. The count moved twice
+  inside the unit: the lane first reported nine and 52, and the tenth
+  (`is_bare_camel_token`, one char literal) appeared only when the
+  char-literal hole the style review found was closed.
+- **the three dispositions, presented as the field.** The spec named a
+  looser reader over the file's ITEMS, a population reduction, and a
+  rule that Python-visible words come from `tags.rs` only — and
+  deliberately took none. **The lane took a fourth**, keyed on the
+  file's LITERALS, and the spec's own argument against the first
+  bullet ("it must walk `impl` bodies … itself a hand-maintained thing
+  needing a guard") turned out to describe the shape that was taken
+  rather than to count against it: it does walk `impl` bodies, it is
+  hand-maintained, and it has its own guard and four refusals.
+
+The spec's framing that survived, and that this unit is the evidence
+for: **not pre-deciding the disposition.** Three of the four specs
+before it pre-decided one and two of those were overturned by a probe
+the lane ran; this one declined, and the disposition the lane found is
+one no bullet on that page named.
+
+What did NOT survive contact with the style review, recorded because
+the PR body first asserted it: the reader's central claim that *"there
+is no form a word can arrive in that the reader was not taught,
+because there is no form"*, and that a wrong attribution is always
+loud. **Both were executed as false** — a char literal was read and
+dropped along with the item spelling nothing else, and an attribute
+literal was charged to the rostered item above it, where a deletion in
+the same item cancelled it. Both are closed, not narrowed. That is
+this program's **fourth consecutive** short exclusivity list.
+
+The corrections are on the item file, which survives this deletion,
+and the unit's record is `work/census/log.md`'s CENSUS-ERRORS-ARRIVAL
+entry plus the PR body. Residue filed on `work/census/`:
+`payload-attribute-names-are-spelled-twice-and-held-equal-by-nothing`,
+`dimension-mismatch-sentence-is-spelled-in-two-crates-and-held-equal-by-nothing`,
+`the-field-brace-fingerprint-is-spelled-at-eight-sites-in-six-crates`
+and `the-errors-arrival-blind-spot-list-claimed-exclusivity-and-was-short`.
+
+- `CENSUS-ERRORS-ARRIVAL-SPEC.md` — CENSUS-ERRORS-ARRIVAL, an arrival alarm over `errors.rs` keyed on its literals (#2691)
 
 ## Per-merge deletion — TINT-3's spec (2026-09-15)
 

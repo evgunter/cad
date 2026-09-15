@@ -89,8 +89,7 @@
 use geom::Surface;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign};
 
-use crate::enters::OutwardNormal;
-use crate::implicit::{curvature_lever_arm, implicit_gradient};
+use crate::implicit::{curvature_lever_arm, implicit_gradient, implicit_outward_normal};
 
 /// A definite dihedral classification (the indeterminate outcome is the
 /// typed [`Indeterminate`] error — the sliver escalation, D4 ¶3).
@@ -485,12 +484,12 @@ pub enum MaterialPairing {
 /// signs to multiply by: each selects whether the face's own implicit
 /// gradient already points out of the material or must be negated, so
 /// the door mints each outward normal ITSELF — through
-/// [`OutwardNormal::from_chart`], the crate's one spelling of that
-/// flip — and `n̂₊ · n̂₋` is the sign the wedge turns on: aligned ⇒ π,
+/// [`implicit_outward_normal`], the one home of that fold on a curved
+/// carrier — and `n̂₊ · n̂₋` is the sign the wedge turns on: aligned ⇒ π,
 /// opposed ⇒ 0 or 2π. The parameter is the bit rather than an
-/// [`OutwardNormal`] because the normals are this door's own to
+/// [`crate::enters::OutwardNormal`] because the normals are this door's own to
 /// compute, and rather than a `T` ±1 for the reason
-/// [`OutwardNormal::from_chart`]'s doc gives.
+/// [`crate::enters::OutwardNormal::from_chart`]'s doc gives.
 /// This is the C1 lemma the declared-contact
 /// verifier already decides between bodies (`contact_tangent_opposed`),
 /// read edge-locally between two faces of ONE body — same construction,
@@ -515,11 +514,8 @@ pub fn classify_material_pairing<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<MaterialPairing, Indeterminate> {
-    let outward = |s: &Surface<T>, sense: bool| {
-        OutwardNormal::from_chart(implicit_gradient(s, p).normalize(), sense).vec()
-    };
-    let n_plus = outward(s_plus, sense_plus);
-    let n_minus = outward(s_minus, sense_minus);
+    let n_plus = implicit_outward_normal(s_plus, sense_plus, p).vec();
+    let n_minus = implicit_outward_normal(s_minus, sense_minus, p).vec();
     match decide(
         "material_wedge_side",
         Margin::levered(n_plus.dot(n_minus), arm),
@@ -552,7 +548,7 @@ pub fn classify_material_pairing<T: Decide>(
 ///    where the face's `Face::sense` bit is set and `−n̂` where it is
 ///    not, so measuring the heights along it flips them again on a
 ///    reversed face. `sense_plus` is that BIT, not a sign to multiply
-///    by — [`OutwardNormal::from_chart`]'s doc for why. Selecting the
+///    by — [`crate::enters::OutwardNormal::from_chart`]'s doc for why. Selecting the
 ///    negation is EXACT where multiplying by a `±1` is not: `-x` flips
 ///    the sign of every value including a signed zero and a `NaN`, and
 ///    at `Interval` it is the exact reflection where a `[-1, -1]`

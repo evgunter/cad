@@ -276,11 +276,19 @@ fn a_measure_reference_that_is_no_scope_refuses_naming_what_it_found() {
 /// `found: …Found`, so:
 ///
 /// - **`DeclareUnsupportedPair`**, in the very enum walked below and
-///   built in the very file scanned below (`route_declarations`),
+///   built in the very file scanned below (`resolve_declarations`),
 ///   carries `kinds: (EntityKind, EntityKind)` rather than a `found:`
-///   — and reads them off the authored `StableName`s rather than the
-///   resolved keys. Row:
-///   `work/wire/the-declared-pair-refusal-reads-the-authored-kind.md`.
+///   — and reads them off the authored `StableName`s. That is the
+///   DECIDED answer there, not a residue: the refusal is raised
+///   before either name is resolved, because a pair the vocabulary
+///   has no step for is unsupported however many entities answer to
+///   either name, so no key exists yet to read the word off. The name
+///   table makes the two sources agree (`insert_ref` and
+///   `insert_tied_ref` are its only writers and both refuse a row
+///   whose name's kind is not its key's); the one place they could
+///   differ is a broken table, which that door answers off the KEYS
+///   under a `debug_assert!`. What this row still cannot see is the
+///   site at all.
 /// - **A kind refusal on another error type**: `names::interrogate`'s
 ///   `kind_mismatch`, `assembly.rs`'s `RefusedRef::NotAFace`,
 ///   `clearance.rs`'s `SelectionRefusal::NotAFace`, `mate/member.rs`'s

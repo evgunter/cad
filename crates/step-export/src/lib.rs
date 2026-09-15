@@ -106,8 +106,8 @@
 //!
 //! # Orientation mapping (cites the ratified conventions, adds none)
 //!
-//! - A face's outward normal is `topo::Face::sense_sign()` times its
-//!   stored surface normal (M5 S10; before S10 the stored normal
+//! - A face's outward normal is its stored surface normal with
+//!   `topo::Face::sense` folded in (M5 S10; before S10 the stored normal
 //!   simply WAS the outward normal — the M1 interior-left
 //!   ratification, restated in `geom_brep::enters`). STEP has a field
 //!   that means exactly this, so the mapping is an identity and not a

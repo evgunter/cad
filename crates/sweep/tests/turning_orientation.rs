@@ -11,7 +11,7 @@
 //! side of its walls untested. These rows are that complement.
 //!
 //! The claim is the corpus's, unchanged: a wall's
-//! `sense_sign · (S_u × S_v)` has material against it and void along
+//! `S_u × S_v`, negated where `sense` is `false`, has material against it and void along
 //! it, at every sample of a chart that turns, decided by an oracle
 //! that reads POSITIONS off the shipped charts and never a `sense`, a
 //! winding or a normal ([`common::orient`]).
