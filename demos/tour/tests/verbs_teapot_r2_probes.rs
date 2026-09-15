@@ -864,7 +864,9 @@ fn r2_the_scene_numbers() {
             Some(Surface::Plane { origin, normal, .. }) => Some((
                 origin.y,
                 normal.y,
-                pncad::geom_brep::OutwardNormal::from_chart(*normal, f.sense).vec().y,
+                pncad::geom_brep::OutwardNormal::from_chart(*normal, f.sense)
+                    .vec()
+                    .y,
             )),
             _ => None,
         })
