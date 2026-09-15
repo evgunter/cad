@@ -2031,8 +2031,8 @@ fn inner_arm_tags_are_stable() {
 #[test]
 fn a_carried_frame_direction_refusal_keeps_the_frames_own_tag() {
     use crate::tags::{node_error_tag, node_inner_kind_tag};
-    use pncad::document::{DirectionRefusal, NodeErrorKind, RecipeNodeId, UnitVec3Error};
-    use pncad::geom_core::{Band, Indeterminate, MarginDiag};
+    use pncad::document::{DirectionRefusal, NodeErrorKind, RecipeNodeId};
+    use pncad::geom_core::{Band, Indeterminate, MarginDiag, UnitVec3Error};
 
     let band = Band::new(1.0e-9, 1.0e-6).expect("a valid band");
     let carried = |error| NodeErrorKind::FrameDirection {
@@ -3567,9 +3567,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "at_rest",
             "carried_mint_refusal",
-            "mate_reference_refused",
-            "no_at_rest_record",
             "uncertified",
+            "unminted_mates",
         ],
         delegates: &["product_error_tag"],
     },
@@ -4039,6 +4038,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "meta_version_error_tag",
         values: &["missing_version", "not_a_map", "version_not_int"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "mint_refusal_tag",
+        values: &["mate_reference_refused", "no_at_rest_record"],
         delegates: &[],
     },
     TagEntry {

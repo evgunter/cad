@@ -6823,3 +6823,84 @@ count), ~50 min wall; impl CI **34938321458** GREEN on the head (twelve
 `test` jobs, five `k-lint (gate, …)`). Sample number at merge. Row at
 merge. This is block SCALAR-B1's last slot: the block record merges
 from `scalar/orchestrator` when this dual concludes.
+
+## UNITVEC review ordinal fixed at dispatch (2026-09-15)
+
+`unit-vector-witness-in-geom-core` (UNITVEC; SCALAR; PR #2646 open —
+frozen head `52424f453`): **ordinal 4103** (SCALAR band). Protocol v6
+dual: draw = `/dev/urandom` byte **177**, parity 1 ⇒ **R1 = FABLE, R2 =
+OPUS**, concurrent on the frozen head, read-side isolation (v6 item 5),
+briefs identical and stored before either ran. Pre-draw difficulty
+**M / structural** (recorded branch-side at the block draw). Impl phase:
+~? tokens (harness; the lane did not report a count), ~1 h 10 min wall;
+impl CI **34947092844** GREEN on the head (twelve `test` jobs, five
+`k-lint (gate, …)`). Sample number at merge. Row at merge.
+
+## SENSE-DOORS review ordinal fixed at dispatch (2026-09-15)
+
+`sense-sign-doors-take-the-bit` (SENSE-DOORS; SCALAR; PR #2649 open —
+frozen head `6e8e804c1`): **ordinal 4104** (SCALAR band). Protocol v6
+dual: draw = `/dev/urandom` byte **80**, parity 0 ⇒ **R1 = OPUS, R2 =
+FABLE**, concurrent on the frozen head, read-side isolation (v6 item 5),
+briefs identical and stored before either ran. Pre-draw difficulty
+**M / structural** (recorded branch-side at the block draw). Impl phase:
+~326k tokens (harness), ~1 h 40 min wall (one disk-full recovery on the
+shared box); impl CI **34948471752** GREEN on the head (twelve `test`
+jobs, five `k-lint (gate, …)`, no predicate-count change). Sample
+number at merge. Row at merge.
+
+## RATE-PAIR review ordinal fixed at dispatch (2026-09-15)
+
+`rate-pair-in-geom-core` (RATE-PAIR; SCALAR; PR #2657 open — frozen
+head `711236057`): **ordinal 4105** (SCALAR band). Protocol v6 dual:
+draw = `/dev/urandom` byte **94**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**,
+concurrent on the frozen head, read-side isolation (v6 item 5), briefs
+identical and stored before either ran. Pre-draw difficulty
+**M / numeric** (recorded branch-side at the block draw). Impl phase:
+~371k tokens (harness; the count covers the segment after a usage-limit
+429 interrupted and the lane was resumed in place — the first segment's
+count was lost with the interruption), ~1 h 50 min wall including that
+gap; impl CI **34962229095** GREEN on the head (twelve `test` jobs, five
+`k-lint (gate, …)`, no predicate-count change; the render lane pushed
+no re-baseline). Sample number at merge. Row at merge. This is block
+SCALAR-B2's last slot: the block record merges from `scalar/orchestrator`
+when this dual concludes.
+
+## SCALAR program rows (`work/scalar/`; band 4100–4199; blocks named SCALAR-B<n>)
+
+Protocol v6, implementer ratio 1:2, full dual on every kernel unit;
+a ruling records no row. **Branch-side record**: this section lives on
+`scalar/orchestrator` and merges to main only when the block's LAST
+slot's reviews conclude (the PCURVE redaction shape).
+
+### Block SCALAR-B1 — pre-draw fields (2026-09-12, before the byte)
+
+Slots by dispatch order, the three door rows the plan runs before `H5`:
+
+- slot 0 — `D290` (the knot rescale door; `docs/D290-SPEC.md`) —
+  **S / structural** (an `f64` knot-structure door and two callers; the
+  door's refusals are the existing `clamped` clauses plus a domain
+  check, no new decided predicate).
+- slot 1 — `S393` (the path sweep's start-frame door) — **S / numeric**
+  (the recipe chooses the least-parallel world axis by comparison; the
+  door MOVES that decision behind a named predicate rather than adding
+  one, but a mixed unit takes the class of the part that carries the
+  risk).
+- slot 2 — `sweep-test-rebuilds-validated-net-for-v-reversal` (a
+  v-reversal door on `NurbsSurface`) — **S / structural**.
+
+### Block SCALAR-B1 — the draw (2026-09-12)
+
+Draw: `/dev/urandom` byte **69** (< 252), 69 mod 3 = 0 ⇒ fable position
+0. Slots by dispatch order: **slot 0 D290 = FABLE, slot 1 S393 = OPUS,
+slot 2 v-reversal net = OPUS.** Remote 4-vCPU / 15 GB box, about three
+concurrent lanes, private target dirs, no build mutex script (the box
+is per-session); the same on every arm.
+
+### Block SCALAR-B1 rows (recorded at each merge branch-side; landed at block close, 2026-09-15)
+
+| # | date | task | difficulty (pre-flip) | arm | review findings (MAJ/MIN/NOTE) | silent devs | idiom | tests | docs | fix-pass size | battery | tokens | wall-clock |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| D290 | 2026-09-15 | D290 (PR #2461): the knot rescale is a `KnotVector` door — `KnotVector::on_domain` with the clamp runs ASSIGNED to `lo`/`hi` exactly (the former inline map in `edge_nurbs` landed its end an ulp off), `NurbsCurve2/3::on_domain` through `from_validated_parts`, `on_carrier_domain` rescale-then-lift, `offset_fit::rescaled_knots` deleted onto the primitive; `SplineError::DomainInvalid`; `KnotVector::interior()` one home | S / structural (pre-draw, branch-side) | FABLE (block SCALAR-B1 slot 0) | **DUAL (ordinal 4100; sample #201 at merge — prior highest #200 on main; byte 111 parity 1 ⇒ R1 FABLE + R2 OPUS, concurrent on frozen `aad3c387a`, v6 instrument).** R1 APPROVE 0/2/3, rubric 4/4/4; R2 A-W-F 0/5/2, rubric 4/4/4. No MAJOR either arm — **no tally candidate**. Bilateral: the sweep record's near-miss gap, the width-overflow refusal named for a knot. Unique R2: the `offset_fit` bit-identity claim unguarded (the ends-computed mutant survived all 46 rows), `chart_image`'s schedule twin left computed, the tautological half of the lift row. Unique R1: the m8_4 fixture's association order, the `Decreasing` collapse unexercised, one merge-base correction to the brief. **Pair COUNTS** (neither arm interrupted; R1 parked on a background monitor once and was nudged — no relaxation granted) | R1 counted 1 undisclosed, R2 counted 2 | 4 | 4 | 4 | fourteen items, IMPLEMENTER-INHERITED (a fresh lane on the same arm — the original lane's worktree had been reclaimed; its first dispatch died at once to a usage limit, no work lost); both probe branches adopted `--no-ff`, R1's print-only digest row dropped | impl CI 34717389869 GREEN; fix CI 34938495553 GREEN; merged-head CI 34941331883 GREEN (twelve `test`, five `k-lint`); MERGED #2461 at sample #201 | impl ~222k / fix ~324k / R1 ~213k / R2 ~227k | impl ~46 min / fix ~1.5 h / R1 ~13 min / R2 ~35 min |
+| S393 | 2026-09-15 | S393 (PR #2466): the path sweep's start frame has a door — `geom_core::linalg::frame::path_start_frame` existed, public and Python-bound; five hand copies folded onto it (the sweep suite's, the tour's two sweep cells, its loft cell with the roll composed on the linear part, its S-duct's identity placement, the cert5 fixture) plus `cap_plane` onto `orthonormal_basis`; the one semantic difference (a 0.9 helper cone vs the decided ladder) measured fixture by fixture — the inflecting duct's body moved because the loft's v-parameterization is the first strip's (BLEND's row), the twisted tube's likewise, the tess-budget baseline re-cut twice with the runbook's column reading; class corrected M → E | S / numeric (pre-draw, branch-side) | OPUS (block SCALAR-B1 slot 1) | **DUAL (ordinal 4101; sample #203 at merge — main's first-parent merge order #2535 → #2461 → #2554 → #2466 makes TRIM-3 PR-2 #202, not the #201 its row reads and this row first copied; corrected at block close, see `work/meta/ab-log-sample-numbers-collide-under-branch-side-block-records.md`; byte 170 parity 0 ⇒ R1 OPUS + R2 FABLE, concurrent on frozen `e83f22f41`, v6 instrument).** R1 A-W-F 0/5/6, rubric 4/4/3; R2 A-W-F 0/3/8, rubric 4/4/4. No MAJOR either arm — **no tally candidate**. Bilateral: the branch conflicting with main, the plan cell contradicting itself, the quarter turn's sign (`R_z(−90°)`), the tour pin restating the body it tests, `rotation_about_axis(…, 0)` not bit-identity. Unique R1: the class of hand-rolled world-axis frames widened to nine sites (one in production `src`, one inside the fence), the tess-budget runbook's human column reading owed, the door sentence one hop from the door a user calls, three stale premises incl. `frame.rs`'s own header. Unique R2: an identity start frame in the unit's own file (`s_duct`, 1.3e-3 rad off its tangent), the composed roll drifting the station origin off the spine, the pole band's 180° roll flip. **Pair COUNTS** (neither arm interrupted) | R1 counted 2 undisclosed, R2 counted 2 | 4 | 4 | R1 3 / R2 4 | thirteen items, IMPLEMENTER-INHERITED (a fresh lane on the same arm; the original lane's worktree had been reclaimed); both probe branches adopted `--no-ff` and trimmed into one suite; a second tess-budget re-cut for the fold and the exact-origin composition | impl CI 34720968363 GREEN; fix CI 34938791700 GREEN; merged-head runs 34942210099 GREEN and 34945555248 GREEN; final head 34949109141 green on every job with `gate ok` red by the roll-up race filed as `work/ciw/gate-ok-summarised-a-run-with-a-k-lint-row-still-in-progress.md`; MERGED #2466 at sample #203 | impl ~354k / fix ~344k / R1 ~250k / R2 ~260k | impl ~2 h / fix ~1.4 h / R1 ~22 min / R2 ~14 min |
+| VREV | 2026-09-15 | VREV (PR #2627): a v-reversal door on `NurbsSurface`, exact or refused — `reversed_u` native, `reversed_v` by the module's transposition conjugation; the same point set with one direction reversed, defined only when that direction's knot vector is mirror-symmetric under an EXACT sum test (`geom_core::exact::two_sum`, one home, the tree's third copy folded), refusing `KnotMirrorError` otherwise — so decimal-symmetric pairs (thirds, 0.1/0.9) refuse and the kernel's own loft accepts ≤ 6 equally spaced sections (BLEND's row upstream); `transposed` through `from_validated_parts`; the structural-map count argument one home in `scalar_lift.rs`; the reversed-chart hazard (stale pcurves under a re-attached chart) said at the door and pinned; `seam_on_chart` calls the door | S / structural (pre-draw, branch-side) | OPUS (block SCALAR-B1 slot 2) | **DUAL (ordinal 4102; sample #204 at merge — main's first-parent merge order, see the S393 row and `work/meta/ab-log-sample-numbers-collide-under-branch-side-block-records.md`; byte 125 parity 1 ⇒ R1 FABLE + R2 OPUS, concurrent on frozen `53424215b`, v6 instrument).** R1 A-W-F 0/4/4, rubric 4/3/3; R2 A-W-F 0/8/12, rubric 4/4/4. No MAJOR either arm — **no tally candidate**. Bilateral: the point-set pin grid-lucky (an ulp count on a coordinate crossing zero is noise; R2 also: the `ulps` helper overflows on `(0, −0)`), `ReflectionNotFinite`'s rationale describing the rounded compare the code does not make, the count argument's two drifted copies / the in-`src` `cfg(test)` blind spot of the sweep. Unique R1: the exact test's cost undisclosed (every decimal-symmetric pair a user types refuses; loft k = 7, 8 refuse), the filed sweep row's disposition wrong for single-point perturbations (`map_points` carries no index). Unique R2: `transposed()` bypassing the widened door, the module's conjugation direction inverted, `two_sum` undisclosed as a third copy, the spec left on the branch unscheduled, and the e2e finding — a reversed chart re-attached under its face leaves `DescriptionNotAdjacent` + `Pcurve` on every edge. **Pair COUNTS** (neither arm interrupted) | R1 counted 4 undisclosed, R2 counted 3 | 4 | R1 3 / R2 4 | R1 3 / R2 4 | twelve items, all taken, fresh lane on the same arm (the original lane's worktree had been reclaimed); both probe branches adopted `--no-ff` and trimmed to three shipped rows; two CI obstacles met and filed (a `dirty` PR drawing no run; `gate ok`'s roll-up race) | impl CI 34938321458 GREEN; fix CI 34952844286 GREEN; state-synced head 3cf3876a5 run 34955196320 GREEN and merged-main head 4e67d0943 run 34957371909 GREEN (twelve `test`, five `k-lint`, `gate ok` green); final head 3a8546bcd run 34960439805 green on every job (34 success, 4 skipped) with `gate ok` red by the roll-up race a second time (it read `docs-only ok` as in_progress; the class row `work/ciw/gate-ok-summarised-a-run-with-a-k-lint-row-still-in-progress.md`), commented on the PR and merged on the job-level evidence; MERGED #2627 at sample #204 | impl ~245k / fix ~628k / R1 ~229k / R2 ~228k (harness) | impl ~50 min / fix ~2 h 12 min / R1 ~30 min / R2 ~19 min |

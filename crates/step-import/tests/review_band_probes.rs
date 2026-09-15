@@ -18,7 +18,7 @@ use crate::common;
 
 use std::collections::BTreeMap;
 
-use common::census;
+use common::arena_census;
 use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, import_step};
 
@@ -162,7 +162,7 @@ fn r1_torus_region_selection_is_real() {
                 import_step(&text, &ImportOptions::default(), Tol::witness()).err()
             );
         };
-        assert_eq!(census(&body), cens, "{tag}: census");
+        assert_eq!(arena_census(&body), cens, "{tag}: census");
         let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
         let rel = ((v - v_want) / v_want).abs();
         assert!(
@@ -249,7 +249,7 @@ fn r1_shared_rim_split_order_does_not_starve_the_second_band() {
             .err()
         );
     };
-    assert_eq!(census(&body), (1, 1, 2, 6, 4), "band_a census");
+    assert_eq!(arena_census(&body), (1, 1, 2, 6, 4), "band_a census");
     let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     assert!(
         ((v - v_want) / v_want).abs() < 1e-12,
@@ -283,7 +283,7 @@ fn r1_washer90_imports_the_true_region() {
             .err()
         );
     };
-    assert_eq!(census(&body), (1, 1, 3, 5, 4), "washer90 census");
+    assert_eq!(arena_census(&body), (1, 1, 3, 5, 4), "washer90 census");
     assert_eq!(
         topo::validate_geometric(&body, Tol::witness()),
         Ok(()),

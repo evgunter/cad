@@ -123,16 +123,18 @@ pub fn expect_sidecar(name: &str) -> Expect {
     }
 }
 
-/// The body's census: (solids, shells, faces, edges, vertices) —
-/// plain arena counts, order-free.
-pub fn census(body: &Body<f64>) -> (usize, usize, usize, usize, usize) {
-    (
-        body.solids().count(),
-        body.shells().count(),
-        body.faces().count(),
-        body.edges().count(),
-        body.vertices().count(),
-    )
+/// The body's `(solids, shells, faces, edges, vertices)` — order-free
+/// arena lengths, the five a STEP file states.
+///
+/// **Named for the quantity, not for "the census".** `step-export`'s
+/// suites carry a three-component census of the same body and neither
+/// is the other's tuple; one name over two field sets is the drift
+/// `topo-arena-census-duplicate-spellings` is about. Both read the
+/// kernel's ONE producer of arena lengths rather than re-walking the
+/// arenas, so a transposition here is a transposition of named fields.
+pub fn arena_census(body: &Body<f64>) -> (usize, usize, usize, usize, usize) {
+    let c = topo::test_support::arena_counts(body);
+    (c.solids, c.shells, c.faces, c.edges, c.vertices)
 }
 
 /// Imports a fixture's committed `.step`, panicking on refusal (the

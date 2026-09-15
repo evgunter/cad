@@ -1,7 +1,7 @@
 ---
 id: sweep-boolean-suite-brick-and-prism-copies
 kind: issue
-title: sweep tests: brick/prism copy classes outside the blend family
+title: sweep tests: the prism(pts, h) copy class outside the blend family (the brick half closed by S52)
 status: open
 opened: 2026-09-03
 ---
@@ -142,3 +142,52 @@ here touches that.
 
 **Recommend: keep open, rewrite the prism half and add
 `verbs_shell.rs`'s `brick`.**
+
+## Re-scoped by `S52` (2026-09-15, PR #2639), on top of lane D's re-derivation
+
+Lane D's census above was taken against `main` before #2639 landed and
+is the census of record for the `prism` half. The `brick` half is now
+closed, so only D's `prism` findings are live.
+
+**The `brick` half is closed.** All six sites this row names build
+through `sweep::test_support::brick`, and so does the seventh D added —
+`verbs_shell.rs`'s six-scalar `pub(crate) fn brick`, which is **gone**
+rather than promoted. D nominated it as "the obvious candidate home for
+the six"; that turned out to be the wrong home, because the same box is
+spelled in six other crates and a `sweep/tests/` item cannot serve them.
+
+**Eight more members D's grep could not see.** `boxy` / `boxy_at` is the
+same box under another name in `verbs_shell.rs`, `offd2_r1_probes.rs`,
+`shellfix1_bitdump.rs`, `m5_pr12_battery.rs`, `m5_s13_review_probes.rs`,
+`review_s12_adv.rs`, `m5_pr12_refusals.rs` and `shell5_r1_probes.rs`.
+That is exactly the blind spot D declares — *"a builder doing the same
+job under a third name is still unmatched"* — firing as written, twice
+over, since #2639's own first pass missed it too. All eight are
+converted.
+
+**The home is not `cavity.rs`.** This row's closing paragraph nominates
+it and says a cross-crate home "is LIB-U6's territory, which this tree's
+routing rule says is deliberately not built here". #2639 built the
+cross-crate home: `crates/sweep/src/test_support.rs`, reached from
+another crate's suites through an off-by-default feature on a
+dev-dependency edge. `cavity.rs`'s own builders now delegate to it.
+Anything taking the remainder extends **that** module.
+
+**D's stale-pointer finding is fixed**: `cavity.rs`'s module doc no
+longer restates this census (the two equalities D showed were wrong are
+gone with it) and now points at `work/tint/`, not `work/tcost/`.
+
+**Still open: the `prism` half, as D re-derived it** — nine members of
+`prism(pts, h)` plus the separate lofted-`prism(scale)` pair in
+`m8_4_intersection_iso.rs` / `r1_p2_probes.rs`, which is a different
+fixture and arguably a different row. The home now has the two doors the
+tuple-written ones collapse onto: `sweep::test_support::prism(verts, h,
+tol)` and `sweep::test_support::corners(&[(f64, f64)])`; `crates/mesh/`
+did exactly that conversion in #2639. Re-run D's commands before
+converting, and grep the construction (`Extrusion::Distance`) rather
+than the name, which is the lesson both censuses paid for.
+
+Siblings filed by the same lane: `work/tint/topo-tests-brick-copies.md`,
+`work/tint/tests-common-body-fixtures-triplicated.md`,
+`work/tint/sweep-per-step-differencing-helper-unhomed.md`,
+`work/tint/sweep-test-support-two-wrapper-conventions.md`.

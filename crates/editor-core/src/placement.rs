@@ -157,7 +157,7 @@ impl Frame {
     /// axis carried through un-normalized would take one fewer rounding
     /// step through this door than through that one — for any axis, not
     /// just unit ones. Deciding the direction costs the agreement
-    /// nothing, because [`topo::query::decide_unit_direction`] answers
+    /// nothing, because [`geom_core::decide_unit_direction`] answers
     /// `v.normalize()`, the very expression a bare normalization used.
     ///
     /// **The axis is DECIDED here**, through the evaluation layer's
@@ -188,7 +188,7 @@ impl Frame {
             band,
         )
         .map_err(|e| AxisRefusal(NodeRefusal::from(e)))?;
-        let m = Mat3::rotation_about(dir, angle);
+        let m = Mat3::rotation_about(dir.get(), angle);
         Ok(Self {
             columns: [
                 [m.c0.x, m.c0.y, m.c0.z],

@@ -63,7 +63,7 @@ use pncad::analysis::{
 use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, DimensionError,
     Distribution, DistributionFault, DistributionField, EditError, EvalError, InlineError,
-    LeverRefusal, MateFault, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError,
+    LeverRefusal, MateFault, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError, MintRefusal,
     NodeErrorKind, ParseError, PersistError, PlacementRuleFault, ProgramFault, ProgramRefusal,
     RecordedProgramError, RefusedRef, Relation, RootFault, ShellClassifyError, SlotId,
     SnapshotError, SplitError, UpdateError,
@@ -1382,6 +1382,12 @@ pub fn lever_refusal_tag(refusal: &LeverRefusal) -> &'static str {
 /// `Doc.declare`/`Doc.declare_all` doors over
 /// `editor_core::declare_all`). The `Edit` arm carries the document
 /// layer's own tag through rather than flattening it.
+///
+/// `no_minted_id` is published by a SECOND door too: `Doc.insert`
+/// refuses the same contract violation — an insert that applied and
+/// minted nothing — and takes its word from this map rather than
+/// restating it, so the two doors cannot drift into two spellings of
+/// one refusal. A rename here moves both.
 pub fn declare_error_tag(err: &pncad::select::DeclareError) -> &'static str {
     use pncad::select::DeclareError as E;
     match err {
@@ -1837,14 +1843,34 @@ pub fn refused_ref_tag(why: &RefusedRef) -> &'static str {
 /// and the wrapper adds nothing they can act on. The two namespaces
 /// do not collide — the gather's tags are bare (`no_body_roots`), the
 /// gate's carry their own words.
+///
+/// The two MINT arms each carry a LIST, so neither can delegate: a
+/// document with a stale reference and an unrecordable class refuses
+/// both at once, and one tag cannot be two words. Each arm's tag names
+/// the fact it raises — which mates did not mint, and whose — and the
+/// per-row word is [`mint_refusal_tag`] on the rows themselves.
 pub fn assembly_error_tag(err: &AssemblyError) -> &'static str {
     match err {
         AssemblyError::Product(inner) => product_error_tag(inner),
-        AssemblyError::Reference { .. } => "mate_reference_refused",
-        AssemblyError::NoAtRestRecord { .. } => "no_at_rest_record",
+        AssemblyError::Mint { .. } => "unminted_mates",
         AssemblyError::CarriedMintRefusal { .. } => "carried_mint_refusal",
         AssemblyError::AtRest { .. } => "at_rest",
         AssemblyError::Uncertified { .. } => "uncertified",
+    }
+}
+
+/// **The stable tag for ONE mint refusal** — a row of either mint arm
+/// of [`assembly_error_tag`], this document's own or a part's.
+///
+/// The two words a caller branches on used to sit on the gate's enum,
+/// one arm each, because the gate raised one refusal. They live here
+/// now, on the row, for the reason the arms became lists: a document
+/// can refuse both ways at once, and which repair a mate needs is a
+/// fact about that mate.
+pub fn mint_refusal_tag(refusal: &MintRefusal) -> &'static str {
+    match refusal {
+        MintRefusal::Reference { .. } => "mate_reference_refused",
+        MintRefusal::NoAtRestRecord { .. } => "no_at_rest_record",
     }
 }
 

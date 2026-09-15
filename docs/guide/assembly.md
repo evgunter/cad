@@ -820,9 +820,13 @@ try:
     assemble(doc, evaluate(doc, resolver=store))
     raise AssertionError("expected a typed refusal")
 except AssemblyError as refusal:
-    assert refusal.variant == "no_at_rest_record"
-    assert refusal.mate == mate
-    assert refusal.class_ == ContactClass.Tangent
+    # `refusals` is EVERY mate that did not mint, in document order,
+    # so two broken mates are two repairs from one call.
+    assert refusal.variant == "unminted_mates"
+    (row,) = refusal.refusals
+    assert row.variant == "no_at_rest_record"
+    assert row.mate == mate
+    assert row.class_ == ContactClass.Tangent
 
 # 3. A REFERENCE THAT IS NOT A FACE. A mate declares a FACE PAIR; an
 #    edge is a different statement, refused rather than widened — and
@@ -843,11 +847,13 @@ try:
     assemble(doc, evaluate(doc, resolver=store))
     raise AssertionError("expected a typed refusal")
 except AssemblyError as refusal:
-    assert refusal.variant == "mate_reference_refused"
-    assert refusal.mate == mate and refusal.side == MateSide.A
-    assert refusal.why.variant == "ref_not_a_face"
-    assert refusal.why.kind == "edge"
-    assert refusal.why.width is None      # a tie would carry one
+    assert refusal.variant == "unminted_mates"
+    (row,) = refusal.refusals
+    assert row.variant == "mate_reference_refused"
+    assert row.mate == mate and row.side == MateSide.A
+    assert row.why.variant == "ref_not_a_face"
+    assert row.why.kind == "edge"
+    assert row.why.width is None          # a tie would carry one
 
 # 4. NOTHING TO GATHER. Evaluated with no resolver, the instance
 #    produced no body, so the GATHER refuses before the gate runs —
@@ -859,7 +865,7 @@ try:
     raise AssertionError("expected a typed refusal")
 except AssemblyError as refusal:
     assert refusal.variant == "root_failed"
-    assert refusal.node is not None and refusal.mate is None
+    assert refusal.node is not None and refusal.refusals is None
 try:
     product(doc, evaluate(doc))
     raise AssertionError("expected a typed refusal")
@@ -881,8 +887,13 @@ names the minted declaration it is about, by the two stable names the
 mate was authored in — the recourse is in the error. `uncertified` is the declared
 direction's **frontier**: nothing refuted, nothing undeclared, the
 census simply declined to certify, so nothing was decided either way.
-Everything else — `mate_reference_refused`, `no_at_rest_record`, and
-the gather's own tags — refuses before any verdict exists.
+Everything else refuses before any verdict exists:
+`unminted_mates` (this document's own mates that did not mint),
+`carried_mint_refusal` (the same for mates of documents below it), and
+the gather's own tags. The two mint arms carry `refusals` — **every**
+mate that did not mint, in document order, never just the first — and
+each row carries its own word, `mate_reference_refused` or
+`no_at_rest_record`.
 
 That middle group is worth internalising, because it is the one place
 on this page where a refusal is not a statement about your model. A
