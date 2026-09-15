@@ -1259,11 +1259,11 @@ fn name_boolean_vertices<T: Decide>(
                 put(t, tie, from_tie, name, ent(0, EntityKey::Vertex(v)))?;
                 continue;
             }
-            _ => {
-                return Err(bug(
-                    "seam vertex parentage underdetermined from incident edges",
-                ));
-            }
+            // The catch-all of a case analysis is where a shape
+            // nobody enumerated lands, which is a different thing from
+            // an inconsistent fact: the body is sound and the recipe is
+            // legal, and what is missing is a rule for this parentage.
+            _ => return Err(NamingError::SeamVertexParentage { vertex: v }),
         };
         let slot = groups.entry(pair).or_insert((false, Vec::new()));
         slot.0 |= from_tie;

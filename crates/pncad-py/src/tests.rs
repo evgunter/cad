@@ -4216,6 +4216,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "escalated",
             "fragment_lineage_cycle",
             "missing_upstream",
+            "seam_vertex_parentage",
+            "shared_rim",
             "split_lineage_cycle",
             "unnamed",
         ],

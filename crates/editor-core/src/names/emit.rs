@@ -22,9 +22,19 @@ use super::table::{DuplicateName, EntityKey, EntityRef, NameTable};
 use crate::node::RecipeNodeId;
 
 /// Typed failure of name emission (spec D4's loud assertions, as
-/// in-band errors — this crate has no panic paths). Every variant is
-/// an emission BUG or an honest in-band escalation, never a normal
-/// modeling outcome.
+/// in-band errors — this crate has no panic paths).
+///
+/// **Three kinds of thing live here, and the reader is told which.**
+/// Most variants are an emission BUG — a mint-time fact inconsistent
+/// with the result body — and [`Self::Escalated`] is an honest in-band
+/// escalation. [`Self::SeamVertexParentage`] and [`Self::SharedRim`]
+/// are neither: they are reached from recipes nothing is wrong with,
+/// where the emitter has no rule for a construction the recipe
+/// produced. They read as a MISSING RULE, not as a bug report,
+/// because telling an author to file a kernel bug over their own legal
+/// document fails in the expensive direction. The dividing line is the
+/// one [`Self::Band`] already draws: nothing about the result body is
+/// wrong at those two sites.
 #[derive(Debug)]
 pub enum NamingError {
     /// A would-be duplicate name outside the tie path (the
@@ -96,6 +106,57 @@ pub enum NamingError {
         /// was ASKED about, which is the one a repair starts from.
         face: FaceKey,
     },
+    /// A boolean's seam VERTEX whose parentage no rule determines: it
+    /// has neither one operand-descended edge on each side nor a pair
+    /// of seam lines, so the case analysis over its incident edge
+    /// names has no arm for it.
+    ///
+    /// **Not an emission inconsistency**, and the test is the same one
+    /// [`Self::Band`] applies: nothing about the result body is wrong
+    /// here. Ordinary declared unions reach it — a member stacked on a
+    /// face that a second declared contact has merged puts a seam
+    /// vertex on a merged wall with mixed parentage — and what such an
+    /// author needs is that the emitter has no rule for this shape, not
+    /// an instruction to file a kernel bug.
+    ///
+    /// Carries the vertex, the one thing a sentence cannot supply and
+    /// the key a rule for this shape starts from.
+    SeamVertexParentage {
+        /// The result-body vertex whose parentage is not determined.
+        vertex: VertexKey,
+    },
+    /// Two faces the derivation believes meet along ONE edge do not:
+    /// the rim a combinatorial derivation asks for is not unique.
+    ///
+    /// **Not an emission inconsistency.** Zero shared edges is an
+    /// ordinary property of a sound body (most face pairs of any body
+    /// share none) and two shared edges is an ordinary property of a
+    /// fragmented one, so neither answer is a claim that the body is
+    /// corrupt. What is wrong is the DERIVATION's belief that the pair
+    /// has one rim — a belief a declared union invalidates when a
+    /// later member splits a merged face.
+    ///
+    /// A sibling word of [`Self::SeamVertexParentage`] rather than one
+    /// generalised over [`super::table::EntityKey`], by
+    /// [`Self::FragmentLineage`]'s test: the two name DIFFERENT
+    /// structures to go and read — face adjacency in an operand body
+    /// here, a vertex's incident edge ROLES there — and their subjects
+    /// differ in arity as well as kind, so one word for the class would
+    /// hide which structure the missing rule is about.
+    ///
+    /// The two ways the rim fails to be unique are ONE fact with a
+    /// typed discriminant ([`RimShare`]) rather than two words: the
+    /// question asked is "is the shared rim unique", the subject is the
+    /// same face pair, and the author's move is the same either way.
+    /// A `&'static str` here would be [`Self::Emission`] one level
+    /// down.
+    SharedRim {
+        /// The face pair whose rim was asked for, in the body that was
+        /// walked.
+        faces: (FaceKey, FaceKey),
+        /// What the walk found instead of one edge.
+        found: RimShare,
+    },
     /// The N2 classification band could not be built from the ambient
     /// tolerance, so no discriminator below it can be decided.
     ///
@@ -125,6 +186,32 @@ pub enum NamingError {
 /// — and a reworded copy would let two refusals of one category read as
 /// two categories.
 const EMISSION_FRAMING: &str = "a mint-time emission fact was inconsistent with the result body";
+
+/// **The one sentence every missing-rule refusal opens with**, written
+/// once, and deliberately NOT a reworded copy of [`EMISSION_FRAMING`]:
+/// the two say opposite things about whose fault the failure is, and an
+/// author who reads the wrong one goes and files a kernel bug against a
+/// recipe that is fine.
+const UNRULED_FRAMING: &str = "the emitter has no naming rule for a construction this recipe                                reached — the recipe is well formed and the result body is sound,                                so what is missing is a rule, not a repair";
+
+/// What a shared-rim derivation found instead of the one edge it asked
+/// for — the fact a free-text sentence would have hidden.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RimShare {
+    /// The two faces are not adjacent at all.
+    NotAdjacent,
+    /// They meet along more than one edge, so no single edge is the rim.
+    Several,
+}
+
+impl core::fmt::Display for RimShare {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NotAdjacent => write!(f, "no edge"),
+            Self::Several => write!(f, "more than one edge"),
+        }
+    }
+}
 
 // #380: the refusal must NAME its subject. Every variant above is
 // diagnosed precisely at the emitter — which name collided, which
@@ -173,6 +260,23 @@ impl core::fmt::Display for NamingError {
                 f,
                 "{EMISSION_FRAMING}: fragment lineage of face {face:?} cycles: its \
                  face-fragment rows never reach a root"
+            ),
+            // The framing is the missing-rule one, not the emission
+            // one: what this refusal reports is the absence of a rule,
+            // and the vertex is where a rule would be applied.
+            Self::SeamVertexParentage { vertex } => write!(
+                f,
+                "{UNRULED_FRAMING}: seam vertex {vertex:?} has neither one operand-descended \
+                 edge on each side nor a pair of seam lines, so its parentage is not determined \
+                 by the edges around it"
+            ),
+            Self::SharedRim {
+                faces: (f0, f1),
+                found,
+            } => write!(
+                f,
+                "{UNRULED_FRAMING}: faces {f0:?} and {f1:?} share {found} where a rim derived \
+                 from adjacency alone needs exactly one"
             ),
             Self::Band(error) => write!(
                 f,
@@ -511,14 +615,26 @@ impl Incidence {
 }
 
 /// The unique edge shared by face `f` and face `g` (cap–wall rims:
-/// derived combinatorially from emitted anchors). Errors if absent or
-/// ambiguous — an emission-fact inconsistency.
+/// derived combinatorially from emitted anchors).
+///
+/// **Two different failures, and they are not the same category.** The
+/// walk's three dangling-key arms are structural corruption of `body` —
+/// `topo`'s derived accessors return `None` exactly for a stale key or
+/// a broken edge/half-edge bijection — so they stay
+/// [`NamingError::Emission`]. Finding no shared edge, or two, is not:
+/// both are ordinary properties of a sound body, and what they refute
+/// is the CALLER's belief that this pair has one rim. That refusal is
+/// [`NamingError::SharedRim`], which names the pair.
 pub(crate) fn unique_shared_edge<T: geom_core::Real>(
     body: &Body<T>,
     f: FaceKey,
     g: FaceKey,
 ) -> Result<EdgeKey, NamingError> {
     let bug = |what| NamingError::Emission { what };
+    let rim = |found| NamingError::SharedRim {
+        faces: (f, g),
+        found,
+    };
     let mut found: Option<EdgeKey> = None;
     for he in face_half_edges(body, f)? {
         let mate = body
@@ -534,12 +650,12 @@ pub(crate) fn unique_shared_edge<T: geom_core::Real>(
         if other == g {
             let edge = mate_he.edge;
             if found.is_some_and(|e| e != edge) {
-                return Err(bug("shared-edge walk: two shared edges where one expected"));
+                return Err(rim(RimShare::Several));
             }
             found = Some(edge);
         }
     }
-    found.ok_or_else(|| bug("shared-edge walk: no shared edge"))
+    found.ok_or_else(|| rim(RimShare::NotAdjacent))
 }
 
 /// All half-edges of a face (outer loop + rings), deterministic
@@ -997,6 +1113,19 @@ mod display_tests {
         (a, b)
     }
 
+    /// Two DISTINCT vertex keys, minted the same way.
+    fn two_vertices() -> (VertexKey, VertexKey) {
+        let mut body = topo::Body::<f64>::new();
+        let mut mint = |x: f64| {
+            body.mvfs(geom_core::Point3::new(x, 0.0, 0.0))
+                .expect("mvfs births a solid, shell, face and lone vertex")
+                .vertex
+        };
+        let (a, b) = (mint(0.0), mint(10.0));
+        assert_ne!(a, b, "two DISTINCT keys, or the rows below prove nothing");
+        (a, b)
+    }
+
     /// **The cycling edge survives the conversion and the node
     /// boundary — and it is THIS edge, not a constant.** The node-level
     /// prose is the only route by which an emitter refusal reaches a
@@ -1169,6 +1298,19 @@ mod display_tests {
                 vec!["fragment lineage of face"],
             ),
             (
+                NamingError::SeamVertexParentage {
+                    vertex: two_vertices().0,
+                },
+                vec!["seam vertex"],
+            ),
+            (
+                NamingError::SharedRim {
+                    faces: two_faces(),
+                    found: RimShare::Several,
+                },
+                vec!["more than one edge"],
+            ),
+            (
                 // The band's subject is the pair of thresholds that
                 // could not separate: which end of the axis the ambient
                 // tolerance landed on is what tells the reader whether
@@ -1189,7 +1331,9 @@ mod display_tests {
                 NamingError::Escalated { .. } => 4,
                 NamingError::SplitLineage(_) => 5,
                 NamingError::FragmentLineage { .. } => 6,
-                NamingError::Band(_) => 7,
+                NamingError::SeamVertexParentage { .. } => 7,
+                NamingError::SharedRim { .. } => 8,
+                NamingError::Band(_) => 9,
             }
         };
         let covered: std::collections::BTreeSet<usize> =
@@ -1204,6 +1348,107 @@ mod display_tests {
             for w in wanted {
                 assert!(shown.contains(w), "{err:?} rendered without {w:?}: {shown}");
             }
+        }
+    }
+
+    /// **A body that VALIDATES answers "no shared edge", so that
+    /// answer cannot be a claim that the body is corrupt.**
+    ///
+    /// This is the whole argument for [`NamingError::SharedRim`]. A
+    /// unit cube's two caps are not adjacent — as most face pairs of
+    /// most bodies are not — and asking a sound body for a rim between
+    /// them is a question about the CALLER's belief, not about the
+    /// body. The control is the pair that does share exactly one edge:
+    /// if the walk stopped finding rims at all, the refusal below would
+    /// pass for the wrong reason.
+    #[test]
+    fn a_sound_body_has_face_pairs_with_no_rim_and_face_pairs_with_one() {
+        use geom_core::{Point2, Vec3};
+        use profile::RawLoop;
+        let plane = profile::SketchPlane::from_frame(
+            geom_core::Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        );
+        let square = profile::ProfileLoop::polygon(
+            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+                .into_iter()
+                .map(|(x, y)| Point2::new(x, y)),
+        );
+        let prof = profile::Profile::new(plane, vec![square])
+            .validate(geom_core::Tol::witness())
+            .expect("a unit square validates");
+        let cube = sweep::extrude(&prof, sweep::Extrusion::Distance(1.0_f64), geom_core::Tol::witness())
+            .expect("a unit cube extrudes");
+        topo::validate_closed(&cube.body).expect("the cube is a sound closed body");
+
+        let wall = cube.side_faces[0][0];
+        let rim = unique_shared_edge(&cube.body, cube.top, wall)
+            .expect("a cap and a wall of a box share exactly one rim");
+        assert!(
+            cube.body.get_edge(rim).is_some(),
+            "the control must return a LIVE edge, or the refusal below \
+             passes because the walk finds nothing at all"
+        );
+
+        match unique_shared_edge(&cube.body, cube.top, cube.bottom) {
+            Err(NamingError::SharedRim {
+                faces,
+                found: RimShare::NotAdjacent,
+            }) => {
+                assert_eq!(
+                    faces,
+                    (cube.top, cube.bottom),
+                    "the refusal names the pair it was asked about"
+                );
+            }
+            other => panic!("opposite caps of a box share no rim, got {other:?}"),
+        }
+
+        // The sentence tells the author their document is fine. A
+        // reader handed the emission framing here goes and files a
+        // kernel bug against a body that just validated.
+        let shown = NodeErrorKind::Naming(NamingError::SharedRim {
+            faces: (cube.top, cube.bottom),
+            found: RimShare::NotAdjacent,
+        })
+        .to_string();
+        assert!(shown.contains(UNRULED_FRAMING), "missing-rule framing: {shown}");
+        assert!(
+            !shown.contains(EMISSION_FRAMING),
+            "a missing rule must not read as a kernel bug: {shown}"
+        );
+        assert!(
+            !shown.contains(" { "),
+            "a braced payload panics the Python binding at the arm meant \
+             to refuse gracefully: {shown}"
+        );
+    }
+
+    /// The seam-vertex refusal carries THIS vertex, not a constant, and
+    /// opens with the missing-rule framing rather than the bug one.
+    #[test]
+    fn the_underdetermined_seam_vertex_reaches_the_node_level_prose() {
+        let (a, b) = two_vertices();
+        let carried =
+            |vertex| NodeErrorKind::Naming(NamingError::SeamVertexParentage { vertex }).to_string();
+        let (sa, sb) = (carried(a), carried(b));
+        assert!(sa.contains(&format!("{a:?}")), "no locator: {sa}");
+        assert_ne!(
+            sa, sb,
+            "a refusal that reads the same for two vertices has no locator"
+        );
+        assert!(sa.contains(UNRULED_FRAMING), "missing-rule framing: {sa}");
+        assert!(
+            !sa.contains(EMISSION_FRAMING),
+            "a missing rule must not read as a kernel bug: {sa}"
+        );
+        for s in [&sa, &sb] {
+            assert!(
+                !s.contains(" { "),
+                "a braced payload panics the Python binding at the arm \
+                 meant to refuse gracefully: {s}"
+            );
         }
     }
 

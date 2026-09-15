@@ -4935,3 +4935,48 @@ Two things learned, worth the next lane's attention:
   recorded so nobody re-walks them.
 
 Signed (WIRE orchestrator).
+
+---
+
+## 2026-09-15 — `wire-e2`: two emitter refusals a legal declared union reaches
+
+`work/wire/two-emitter-refusals-a-legal-declared-union-reaches.md` →
+`review`.
+
+**The measurement is the unit.** `NamingError::Emission` says a
+mint-time fact disagreed with the result body — a kernel bug by
+definition. I took the row's five candidate sites (the four `bug(...)`
+arms of `unique_shared_edge` plus `emit_topo`'s seam-vertex catch-all),
+re-took the row's reproducers on `origin/main`, and swept the whole
+workspace test suite with each arm temporarily instrumented. Two sites
+are reached from ordinary declared unions; one is refuted on a body that
+`topo::validate_closed` accepts; three are dangling-key arms nothing in
+the tree reaches.
+
+**Landed vocabulary: two sibling variants**, on
+`FragmentLineage`'s own test (a sibling word when the two name different
+structures to go and read). `SeamVertexParentage { vertex }` and
+`SharedRim { faces, found: RimShare }` — the second's two failure modes
+are ONE fact with a typed discriminant rather than two words, because
+the question asked, the subject and the author's move are the same
+either way. Both open with a framing sentence written once,
+`UNRULED_FRAMING`, which is deliberately not a reworded `EMISSION_FRAMING`:
+they say opposite things about whose fault the failure is.
+
+**What I did not do**: no naming rule. What a member-space declaration
+means for a face that is no longer one face stays with
+`member-space-look-through-stops-at-splits-containment-and-fragmented-merges`,
+and the re-classification is correct under either answer. The
+fragmented-merge shape still refuses at step 2 of the same fold — it now
+refuses as `SharedRim`, not as `Emission`, which is the fact that row is
+waiting on.
+
+**Filed elsewhere**:
+`work/wire/seam-junction-vertex-name-cannot-be-collapsed-by-the-union-fold.md`
+— a third reachable refusal the sweep turned up, and the one that is
+NOT a misclassification: `emit_topo` mints a seam-junction vertex name
+whose path is k ≥ 2 `Seam` segments, and `emit_union::collapse` refuses
+any tail segment that is not a `Fragment`. Two halves of one emitter
+disagreeing about a shape one of them mints. Left `Emission`, correctly.
+
+Signed (`wire-e2`).
