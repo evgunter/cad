@@ -2786,3 +2786,21 @@ fired and the runbook's re-cut reached INSTR's baseline and its census
 pins). Recorded in the PR body and the unit's `## Closed` section.
 
 - `S393-SPEC.md` — S393, the path sweep's start frame has a door (#2466)
+
+## Per-merge deletion — VREV's spec (2026-09-15)
+
+Recoverable at `git show 4122ddacd:docs/VREV-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: the mirror test as the
+rounded compare `fl(k_i + k_{m−i}) == fl(lo + hi)` (landed as an exact
+2Sum compare: the rounded form admits a half-ulp asymmetry that
+ties-to-even); "the same point set … bit for bit where `lo + hi − v` is
+exact" (a magnitude-relative bound on a dense grid: the mirrored basis
+values are not bit-identical at some knot values); the error as a
+`KnotAlgebraError` variant (landed beside the door as
+`KnotMirrorError`); `reversed_v` native with `reversed_u` derived (the
+module's conjugation direction is the other way, and the fix pass
+conformed to it); "keep the `.expect` text" on `set_face_surface` (its
+`Result` cannot check the claim; the message now says what it can).
+Recorded in the PR body and the unit's `## Closed` section.
+
+- `VREV-SPEC.md` — VREV, a v-reversal door on `NurbsSurface`, exact or refused (#2627)
