@@ -54,10 +54,16 @@
 //!   defect one level up from this one. `topo`'s `CensusSubject` is the
 //!   live instance —
 //!   `work/topo/censussubject-eq-answers-false-for-a-new-variant-against-itself.md`.
-//! - **A `Self { … }` struct LITERAL** in such a body would read as a
-//!   destructure. No `fmt` or `eq` in this tree builds one, and the
-//!   shape is pinned in [`the_classifier_answers_each_impl_shape`] so a
-//!   future one is a known false green rather than an unknown.
+//! - **One exhaustive `Self { … }` anywhere in the body answers for the
+//!   whole body.** A struct LITERAL reads as a destructure, and so
+//!   would a body that destructured in one branch and hand-read a field
+//!   in another. Neither shape exists in a `fmt` or an `eq` in this
+//!   tree; the literal is pinned in
+//!   [`the_classifier_answers_each_impl_shape`] so a future one is a
+//!   known false green rather than an unknown.
+//! - **A heterogeneous `impl PartialEq<Other> for T`.** The trait's
+//!   generic arguments are part of the name this reader compares, so
+//!   only the homogeneous spelling matches. None in this tree.
 //! - **An impl whose `Debug`, `PartialEq` or `for` arrives from a macro
 //!   METAVARIABLE.** A `macro_rules!` body is text and is read like any
 //!   other — `crates/geom/src/curves/nurbs.rs`'s `nurbs_curve!` is
@@ -419,13 +425,26 @@ fn sites_in(path: &str, text: &str) -> Vec<Site> {
             // at all (a `impl Trait` return type in a signature the
             // search landed inside); nothing to classify.
             ItemBody::Declaration(_) => continue,
+            // A head that reaches end of input without either
+            // terminator is broken text, not a declaration. It is a
+            // red — a walk that cannot parse a site and shrugs is the
+            // failure a census exists to prevent — but only where the
+            // head names one of THIS census's traits: an unterminated
+            // inherent impl is someone else's broken file, and reding
+            // on it would put a path this census has no subject in
+            // into its own sight anchor. The trait is read over the
+            // rest of the file, since there is no body to stop at.
             ItemBody::Unterminated => {
-                out.push(Site {
-                    path: path.to_string(),
-                    line: test_utils::source::line(&code, at),
-                    trait_name: "Debug",
-                    verdict: Verdict::Unreadable("the impl head reaches end of file unterminated"),
-                });
+                if let Some(trait_name) = trait_of(&code, at, code.len()) {
+                    out.push(Site {
+                        path: path.to_string(),
+                        line: test_utils::source::line(&code, at),
+                        trait_name,
+                        verdict: Verdict::Unreadable(
+                            "the impl head reaches end of file unterminated",
+                        ),
+                    });
+                }
                 continue;
             }
         };
@@ -555,7 +574,7 @@ fn every_known_hand_listed_file_still_holds_one() {
 /// tree.
 #[test]
 fn the_classifier_answers_each_impl_shape() {
-    let cases: [(&str, Verdict, &str); 12] = [
+    let cases: [(&str, Verdict, &str); 13] = [
         (
             "a hand-listed struct walk",
             Verdict::HandListed("self.knots".into()),
@@ -629,6 +648,11 @@ fn the_classifier_answers_each_impl_shape() {
              a == other_a\n    }\n}",
         ),
         (
+            "an unterminated head naming one of this census's traits",
+            Verdict::Unreadable("the impl head reaches end of file unterminated"),
+            "impl core::fmt::Debug for S {\n    fn fmt(&self, f: &mut F) -> R {\n",
+        ),
+        (
             "a `selfish` local, which is not `self`",
             Verdict::NoFieldRead,
             "impl core::fmt::Debug for S {\n    fn fmt(&self, f: &mut F) -> R {\n        \
@@ -648,7 +672,7 @@ fn the_classifier_answers_each_impl_shape() {
 /// leaves a real defect unseen.
 #[test]
 fn the_head_reader_tells_a_trait_impl_from_a_bound() {
-    let cases: [(&str, usize, &str); 6] = [
+    let cases: [(&str, usize, &str); 7] = [
         (
             "an inherent impl whose BOUND names the trait",
             0,
@@ -679,6 +703,11 @@ fn the_head_reader_tells_a_trait_impl_from_a_bound() {
             "a bound whose parentheses carry a `for`-shaped name",
             1,
             "impl<F: Fn(Formatter) -> bool> PartialEq for S<F> {\n    fn eq(&self) {}\n}",
+        ),
+        (
+            "an unterminated head that is an INHERENT impl, which is not this subject",
+            0,
+            "impl<T> Doc<T> {\n    fn f(&self) -> u8 { self.a }\n",
         ),
     ];
     for (what, want, text) in cases {
