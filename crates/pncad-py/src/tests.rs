@@ -3895,11 +3895,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "boundary_edit_tag",
-        values: &["name_serialize"],
-        delegates: &["declare_error_tag", "placement_rule_fault_tag"],
-    },
-    TagEntry {
         function: "boolean_error_tag",
         values: &[
             "arc_loop_containment_unsupported",
@@ -3947,6 +3942,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "zip_correspondence",
         ],
         delegates: &[],
+    },
+    TagEntry {
+        function: "boundary_edit_tag",
+        values: &["name_serialize"],
+        delegates: &["declare_error_tag", "placement_rule_fault_tag"],
     },
     TagEntry {
         function: "census_contact_tag",
@@ -4008,6 +4008,18 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "meridian_closure",
             "meridian_continuation",
             "rim_continuation",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "corner_reason_tag",
+        values: &[
+            "anchor_outside_trimmed_extent",
+            "behind_arrival_anchor",
+            "behind_incoming_ray",
+            "encloses_leg_carrier",
+            "no_corner_side_candidate",
+            "offset_carriers_disjoint",
         ],
         delegates: &[],
     },
@@ -4573,18 +4585,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "corner_reason_tag",
-        values: &[
-            "anchor_outside_trimmed_extent",
-            "behind_arrival_anchor",
-            "behind_incoming_ray",
-            "encloses_leg_carrier",
-            "no_corner_side_candidate",
-            "offset_carriers_disjoint",
-        ],
-        delegates: &[],
-    },
-    TagEntry {
         function: "persist_error_tag",
         values: &[
             "display_unit",
@@ -5076,17 +5076,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "validation_refusal_tag",
-        values: &[
-            "mass_properties_failed",
-            "validate",
-            "validate_closed",
-            "validate_geometric",
-            "validate_pseudomanifold",
-        ],
-        delegates: &[],
-    },
-    TagEntry {
         function: "validation_error_tag",
         values: &[
             "approx_certification",
@@ -5166,6 +5155,17 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "validation_refusal_tag",
+        values: &[
+            "mass_properties_failed",
+            "validate",
+            "validate_closed",
+            "validate_geometric",
+            "validate_pseudomanifold",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "workspace_error_tag",
         values: &[
             "duplicate_id",
@@ -5191,11 +5191,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
 /// mints it — a coincidence between two maps is not a collision, and
 /// pinning every such pair would pin accidents. That claim was
 /// decided over seven WORDS and asserted over the file; this is the
-/// file, measured: 61 words that two or more maps mint, `band` in
-/// sixteen of them.
+/// file, measured — the roster below IS the count, which is why no
+/// number is written into this sentence: the population grows
+/// whenever a map does, and a prose count of it has gone stale twice.
 ///
-/// The row does not say which of the other 54 are one concept and
-/// which are coincidence — nobody has read them, and `work/census/`'s
+/// The row does not say which of the entries below are one concept and
+/// which are coincidence — all but eight are unread, and `work/census/`'s
 /// `sixty-one-tag-words-are-minted-by-two-or-more-maps-and-seven-are-read`
 /// is where that question lives. What it does is make the population
 /// OBSERVED: a word that starts colliding, or stops, or picks up a
@@ -6267,6 +6268,20 @@ fn the_whole_tag_table_matches_its_committed_inventory() {
     // big to enumerate, and `TAG_CONSTS` IS the enumeration — every
     // const is named there, so the loop below reports a missing one by
     // name rather than as a count that drifted.
+
+    // The order [`TAG_INVENTORY`]'s own doc states, CHECKED rather
+    // than restated. It is not a Python-visible fact and nothing below
+    // depends on it — the comparison is keyed by name — but a table
+    // this long is read by scrolling, and three entries had drifted out
+    // of place before this ran. A stated invariant with no check is the
+    // shape this whole page exists to close.
+    let ordered: Vec<&str> = TAG_INVENTORY.iter().map(|entry| entry.function).collect();
+    let mut by_name = ordered.clone();
+    by_name.sort_unstable();
+    assert_eq!(
+        ordered, by_name,
+        "TAG_INVENTORY is not in the order its doc claims — by function name"
+    );
 
     let mut pinned: BTreeMap<&str, &TagEntry> = BTreeMap::new();
     for entry in TAG_INVENTORY {

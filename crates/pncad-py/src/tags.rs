@@ -1707,15 +1707,16 @@ pub fn workspace_error_tag(err: &WorkspaceError) -> &'static str {
 ///
 /// `StepImportError` implements `Display`, so the human message is the
 /// importer's own prose naming the entity id and line; this is the
-/// branchable discriminant. Twenty-two arms. Twenty-one are reachable
-/// through `import_step` on some input, unlike
-/// [`workspace_error_tag`]'s door — a caller distinguishing a
-/// malformed file from an unsupported entity from a tier refusal has
-/// no other way to do it, because the id and line live in prose. The
-/// twenty-second, `vertex_without_point`, announces a corrupt-body
-/// state whose reachability the declaration resolver cannot prove
-/// either way; it exists so that resolver refuses rather than
-/// miscounts.
+/// branchable discriminant. Every arm but one is reachable through
+/// `import_step` on some input, unlike [`workspace_error_tag`]'s door
+/// — a caller distinguishing a malformed file from an unsupported
+/// entity from a tier refusal has no other way to do it, because the
+/// id and line live in prose. The exception is `vertex_without_point`,
+/// which announces a corrupt-body state whose reachability the
+/// declaration resolver cannot prove either way; it exists so that
+/// resolver refuses rather than miscounts. The arm COUNT is not
+/// written here: it is `TAG_INVENTORY`'s row for this function, which
+/// is derived from this file rather than remembered.
 ///
 /// The nested arms keep their own tag rather than carrying the inner
 /// refusal's through: what the caller branches on is which STAGE of
