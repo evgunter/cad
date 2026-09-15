@@ -35,6 +35,7 @@ test_utils::gated_to![
     "crates/editor-core/tests/fixture/",
     "crates/editor-core/tests/m10_3_r1_probes_interval.rs",
     "crates/editor-core/tests/m10_7_plate.rs",
+    "crates/editor-core/tests/m10_derived_frame_tilted_interval.rs",
 ];
 
 use std::time::Instant;
@@ -639,29 +640,6 @@ fn a_drive_memo_refuses_a_leaf_it_was_not_made_for() {
         ),
         "`sqrt_square` is a rule the PLAIN walk never applies, and the guard still refuses it: \
          it compares the whole `SymRules`, which costs a drive its hits and never a decision"
-    );
-}
-
-/// **What the DOOR does with a mismatch**, which is not what `accepts`
-/// answers: `with_session_memo` `debug_assert!`s, so a mismatch is loud
-/// wherever debug assertions are on — dev, test, and this workspace's
-/// release profile, which is every build the project ships or measures.
-/// `geom-core`'s `sym_drive_memo::a_budget_mismatch_is_refused_at_the_door`
-/// is the row that catches the panic (it needs `should_panic`, so it
-/// lives at the tier's own door).
-///
-/// In a build that turns debug assertions OFF the leaf runs with NO
-/// memo instead. That is sound — it is the pre-memo tier — but its
-/// freezes are never published, so the drive's `frozen` column
-/// UNDER-COUNTS in exactly that build. Recorded here because nothing
-/// else in the tree can say it: no configuration this repo builds
-/// reaches it.
-#[test]
-fn the_door_refusal_is_a_debug_assertion() {
-    assert!(
-        cfg!(debug_assertions),
-        "this workspace keeps debug assertions on in every profile it builds, which is what \
-         makes the door's refusal loud rather than a silent fall back to no memo"
     );
 }
 

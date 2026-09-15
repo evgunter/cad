@@ -465,7 +465,7 @@ fn build_closed_forms(arg: &Form, sess: &mut Session) -> Option<Closed> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::sym::{IdMap, IndetMap, SymBudget, SymRules};
+    use crate::sym::{SymBudget, SymRules};
 
     fn budget() -> SymBudget {
         SymBudget {
@@ -477,23 +477,7 @@ mod tests {
     /// A bare session with the atoms `atan(x)` and `atan2(x, x)` in
     /// it, for the reader to look up.
     fn session_with(x: &Form, atan: u128, atan2: u128) -> Session {
-        let mut sess = Session {
-            budget: budget(),
-            rules: SymRules::all(),
-            nodes: IdMap::default(),
-            forms: IdMap::default(),
-            forms_early: IdMap::default(),
-            forms_door: IdMap::default(),
-            params: IndetMap::default(),
-            atoms: IndetMap::default(),
-            registry: IdMap::default(),
-            trig_closed: IndetMap::default(),
-            counts: Default::default(),
-            memo: None,
-            plain_built: Vec::new(),
-            plain_atoms: Vec::new(),
-            plain_frozen: Vec::new(),
-        };
+        let mut sess = Session::new(budget(), SymRules::all(), None);
         for (id, op) in [(atan, SymOp::Atan), (atan2, SymOp::Atan2)] {
             sess.atoms.insert(
                 id,

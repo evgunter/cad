@@ -1521,6 +1521,31 @@ struct Session {
 }
 
 impl Session {
+    /// **The one place a session is built** — every field of it, in one
+    /// literal, so a field added here cannot leave a second literal
+    /// somewhere else half-initialised (the `trig` test module kept one,
+    /// and it is this now).
+    fn new(budget: SymBudget, rules: SymRules, memo: Option<Arc<DriveMemo>>) -> Self {
+        Self {
+            budget,
+            rules,
+            nodes: IdMap::default(),
+            forms: IdMap::default(),
+            forms_early: IdMap::default(),
+            forms_door: IdMap::default(),
+            params: IndetMap::default(),
+            atoms: IndetMap::default(),
+            registry: IdMap::default(),
+            trig_closed: IndetMap::default(),
+            counts: SymCounts::default(),
+            memo,
+            plain_built: Vec::new(),
+            plain_atoms: Vec::new(),
+            plain_frozen: Vec::new(),
+            plain_tainted: IdSet::default(),
+        }
+    }
+
     /// The node `id` denotes, following the registry to its end — `id`
     /// itself when nothing was registered for it.
     ///
@@ -1650,9 +1675,15 @@ pub fn with_session_rules<R>(
 /// **The memo is valid for one `(budget, rules)` pair** and refuses a
 /// leaf that does not match it: a plain form is a function of the node
 /// id and those two, so serving one across a budget change would hand
-/// back a form the leaf would not have built. The mismatch is a
-/// `debug_assert!`; in release the leaf runs with no memo, which is
-/// slow rather than wrong.
+/// back a form the leaf would not have built.
+///
+/// The mismatch is a `debug_assert!`, which is loud in every profile
+/// this workspace builds — `[profile.release]` keeps debug assertions
+/// on. A build that turned them OFF would run the leaf with NO memo
+/// instead: sound (it is the pre-memo tier) but quiet, and its freezes
+/// would never be published, so the drive's `frozen` column would
+/// under-count in exactly that build. No configuration in this repo
+/// reaches it.
 pub fn with_session_memo<R>(
     budget: SymBudget,
     rules: SymRules,
@@ -1686,24 +1717,7 @@ fn with_session_in<R>(
         return (f(), SymCounts::default());
     }
     SESSION.with(|s| {
-        *s.borrow_mut() = Some(Session {
-            budget,
-            rules,
-            nodes: IdMap::default(),
-            forms: IdMap::default(),
-            forms_early: IdMap::default(),
-            forms_door: IdMap::default(),
-            params: IndetMap::default(),
-            atoms: IndetMap::default(),
-            registry: IdMap::default(),
-            trig_closed: IndetMap::default(),
-            counts: SymCounts::default(),
-            memo,
-            plain_built: Vec::new(),
-            plain_atoms: Vec::new(),
-            plain_frozen: Vec::new(),
-            plain_tainted: IdSet::default(),
-        });
+        *s.borrow_mut() = Some(Session::new(budget, rules, memo));
     });
     #[cfg(feature = "sym-profile-testing")]
     profile::session_start();
