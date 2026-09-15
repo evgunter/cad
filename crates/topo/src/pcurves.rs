@@ -1172,7 +1172,7 @@ impl<T: Real> ChartArm<T> {
     }
 
     /// The arm's own magnitude, for the gate that asks whether the arm
-    /// itself is collapsed ([`pcurve_loop_pole_joint`]: *"can any
+    /// itself is collapsed (the `pcurve_loop_pole_joint` gate: *"can any
     /// first-channel displacement move this point at all?"*). That is
     /// a question about the arm and not a crossing, so no door applies
     /// and the tag comes off here, deliberately.
