@@ -1,9 +1,10 @@
 ---
 id: errors-rs-holds-four-python-visible-maps-and-nothing-enumerates-that-file
-kind: issue
+kind: unit
 title: errors.rs holds Python-visible word maps and no instrument enumerates the file
-status: open
+status: spec
 opened: 2026-09-15
+branch: census/errors-arrival
 ---
 
 
