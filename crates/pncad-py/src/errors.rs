@@ -43,14 +43,45 @@ use pncad::document::Dimension;
 /// prose rendering (`Dimension`'s `Display`) and
 /// `dimension_tags_match_the_kernel_prose` pins the two equal, so a
 /// drift is a test failure rather than a quiet divergence. The third
-/// is `py::value::dimension_name`, capitalized for the Python
-/// `Measurement` repr.
+/// is [`measurement_dimension_tag`], capitalized for the Python
+/// `Measurement` repr and pinned to this one by
+/// `the_two_dimension_alphabets_are_one_list_in_two_cases`.
 pub const fn dimension_tag(dim: Dimension) -> &'static str {
     match dim {
         Dimension::Length => "length",
         Dimension::Angle => "angle",
         Dimension::Count => "count",
         Dimension::Scalar => "scalar",
+    }
+}
+
+/// The **capitalized** spelling of a [`Dimension`], which is what
+/// `Measurement.dimension` answers.
+///
+/// It lives here rather than in [`crate::tags`] for the reader's
+/// sake, not for the alphabet's: that file's tag-table reader refuses
+/// a value that is not lower snake case — *"every tag in this file
+/// is, and a reader that accepted anything would be guessing"* — so
+/// moving this map in means weakening the one claim that makes the
+/// reader exact, for four words. Capitalised Python-visible
+/// vocabulary is not rare and this is not the only list of it:
+/// [`ErrorClass::class_name`] mints 35 exception-class names below,
+/// `py::value::Verdict`'s `status` answers `Holds`/`Violated`/
+/// `Unevaluated`, and every fieldless `#[pyclass]` enum under
+/// `src/py/` carries capitalised member names. What is true of this
+/// list alone is that its four words are a second spelling of
+/// [`dimension_tag`]'s four, which is why it belongs beside them —
+/// where a reader sees both spellings at once and
+/// `the_two_dimension_alphabets_are_one_list_in_two_cases` holds them
+/// to one list: each word here is its lower-case sibling
+/// capitalized, over the kernel's own [`Dimension::ALL`] rather than
+/// a roster written down twice.
+pub const fn measurement_dimension_tag(dim: Dimension) -> &'static str {
+    match dim {
+        Dimension::Length => "Length",
+        Dimension::Angle => "Angle",
+        Dimension::Count => "Count",
+        Dimension::Scalar => "Scalar",
     }
 }
 
