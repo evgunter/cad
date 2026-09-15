@@ -604,8 +604,11 @@ the field list comes from the walk's INPUTS rather than from the
 declaration and a new field has no claim on it: `ViewerApp::sync_scene`
 installs a rebuild's eleven outputs, `BlendTool::load_all_edges` seats
 a computed pick set, `PickCache::sync` and `land` install a landing's
-fate, and the three `Drop`s in `evalseam` close a channel and leave the
-language's own drop glue to be exhaustive.
+fate, and `evalseam`'s one `Coalescing::close` closes a channel and
+leaves the language's own drop glue to be exhaustive. **The count above
+is a reading nothing re-takes**, and it does not reproduce:
+`work/view/viewer-readme-multi-field-write-sweep-count-does-not-reproduce`
+holds later readings of the same rule against it.
 `DocSession::clear_for_new_document` is the case the rule matches and
 the design answers: its two statements are `Derived::none()` and
 `display.clear()`, and its doc says so — the census is collapsed into
@@ -811,6 +814,26 @@ Notices — a tool's declined pick, a survival drop, a
 about another value's failure: the failure renders itself, and what the
 chrome adds is its own subject.
 
+**The line is composed at two levels and they are two marks.**
+`frame::NOTICE_SEPARATOR` goes between two of a frame's notices;
+`frame::LIST_SEPARATOR` goes between the items of a list ONE notice
+carries — a `Withdrawal`'s causes, the preferences path's startup
+notices. One spelling served both until a frame could hold two
+notices, and then a reader could not tell a boundary from the notice
+talking, because a notice is free to write the mark inside its own
+sentence and two of them do. The boundary is
+`frame::NOTICE_MARK`, and `frame::Message::new` — the only door, the
+fields being private — takes that mark out of every text that reaches
+it, while the one constructor that writes it takes `Message`s rather
+than strings, so the only way to a boundary mark is to have had two
+notices and `line.split(NOTICE_SEPARATOR)` returns exactly the ones
+that went in. **The enforcement is at the door and not at the join**: "no
+notice contains the separator" is a claim about strings that no
+signature carries, and the door is the one place where making it true
+costs nothing a reader sees — no producer writes a bullet, and a door
+that refused one would be reachable from the keyboard through the δ
+field's echo of what was typed.
+
 ### The app driver, split for size
 
 `app` is a driver, and a driver too large to read is still a driver.
@@ -977,6 +1000,31 @@ happen to be in hand:
   checking something else.
 - A read of the index's **identity alone** — `PickIndex::generation` as
   half the id query's key — resolves nothing and needs neither.
+
+**The pick asks `drawn_index` too, and for a different reason.** The
+sorting above is about currency, and nothing about a pick is false by
+construction across two pictures: a click resolves a ray through the
+index and the evaluation with no id and no mesh in sight, and would
+answer correctly about the document. What it would answer about is
+geometry the screen is not showing, and a selection the user cannot see
+is a worse outcome than a click that says why it did nothing — so **a
+pick over a picture the index in hand did not draw is refused** (Ev,
+2026-09-15). The predicate is the picture-side one, unchanged; what
+differs is what happens on `None`. A picture-side read skips silently,
+because a mark nobody can draw is nothing to say. The pick path refuses
+**typed**, on the status line, because a click is an act the user made
+and got nothing for — `pickcache::NotIndexed::AnotherPicture`, the one
+arm of that vocabulary that is not about an absence, beside the two
+that are. The create pane's all-edges button is NOT covered: it is a
+button in a panel rather than a cursor over the picture, so the ruling's
+premise — an answer about what the screen is not showing — is not made
+there.
+
+**What retires that refusal is a scene rebuild**, where the other two
+arms wait on an index build. Both seams sit under `Subject::Display`,
+so the subject `frame::unindexed_refusal` reads off the type is right
+for all three arms; the arm's own doc says which event it is waiting
+for, so a later split of that subject has the fact it would need.
 
 **The id query's key is the picture AND the index**, which is the same
 rule met from the other side. `frame::IdQueryLog` holds a query open

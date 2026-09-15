@@ -327,3 +327,126 @@ call-site literal deliberately out of scope and pin the one uncovered
 word — is the orchestrator's to make in the spec rather than the lane's,
 because it is a question about the gate's REACH and answering it is the
 unit.
+
+## CENSUS-TAG-REACH merged (2026-09-15)
+
+PR 2660 merged as `6b432a15`, green on run `34976120254`. The spec is
+deleted per the ledger; the item is closed carrying its corrections.
+
+**The probe change worked, and it cost the spec's disposition.** The
+spec ruled each word become a `pub const` and required the lane to test
+by execution what would stop the next one. Against that disposition
+**nothing red**: a fresh site minting a word that had never existed
+passed 85 Rust and 832 Python tests. The word became a type.
+
+**And the trap sprang a THIRD consecutive time.** The type guarded
+`eval_err` — which is not the door; `typed_err` is. Two raise sites
+reached the map by convention, and **the same commit converted them to
+hand-call it**, re-minting the defect while closing another instance of
+it. The false claim shipped in doc comments, not PR prose, and the gap
+was visible inside one sentence: *"`eval_err` takes `EvalReason` … so no
+raise site can spell a word of its own"* — premise about one function,
+conclusion about all of them, argued in eight places.
+
+Closed by moving the wall to the door: `ErrorClass::Evaluation` now
+CARRIES the `EvalReason`, so a raise site cannot name the class without
+naming a variant. Probe executed in a file that did not exist: `E0308`.
+
+**What this unit adds to the program's standing findings** (the four
+points recorded at CENSUS-DEBUG's close still hold; these sharpen them):
+
+5. **Point 1 needs its scope widened.** Naming the trap as a prediction
+   and requiring a probe DID work — the lane caught an instance unaided
+   for the first time, and its probe defeated the orchestrator's own
+   disposition. What it did not catch is the trap one level out: the
+   probe tested the function the spec named, and the defect was that the
+   spec named the wrong unit of guarding. **A probe inherits the spec's
+   fence.** The next spec should require the lane to say what the
+   probe's own blind spot is before running it.
+
+6. **A blind-spot list has now been short three times for three
+   different reasons** — unit 1's by shape, unit 2's by shape, unit 3's
+   because the sweep's PATTERN (a literal beside a key) could not see a
+   getter, a tuple position or an argument. The lesson is not "look
+   harder"; it is that a sweep shaped like the defect you already found
+   finds that defect again.
+
+7. **Filed rows overclaimed on all three units.** They go to other
+   programs' slates and are read by people who did not watch them being
+   written. Unit 3's went out saying "in a door that has no such enum"
+   when two of three ride doors that DO have exhaustive maps, one of
+   which mints the colliding word itself. **A filed row should be
+   re-read against the tree before the PR goes up**, and that is now
+   part of what a fix pass owes.
+
+## Next
+
+The **`pncad-py` block**, five rows, placed in `plan.md` §Order as a
+block rather than by class: their fix shape is proven rather than
+hypothetical after this unit, and two of them record facts with a shelf
+life. `four-censuses-…` stays with the H rows — it asks whether four
+instruments should be fewer, and three of the five change what those
+instruments see.
+
+## CENSUS-PY-GETTERS merged (2026-09-15)
+
+PR 2663 merged as `7a187c74`, green on run `34988487218`. Seven
+discriminant maps moved to where the inventory reads them; the spec is
+deleted per the ledger and the item closed.
+
+**Two lessons, and the first is about this role rather than about a
+lane.**
+
+8. **The orchestrator's verification reproduced the finding's shape
+   instead of testing it.** The row counted "lowercase discriminant
+   words"; the spec's independent re-measurement used a
+   lowercase-anchored regex; both missed `dimension_name`'s four
+   CAPITALISED words, which reach Python as `Measurement.dimension` and
+   are asserted at four sites in the Python suite. The spec then
+   reported the count as verified, and that claim reached Ev. **A check
+   shaped like the claim it checks is not a check** — finding 6 arriving
+   one level up, at the desk that wrote finding 6.
+
+9. **An adjudication can overclaim exactly as a filed row can.** This
+   unit's review reported 27 `#[pyclass]` enums minting Python-visible
+   vocabulary as Rust identifiers, invisible to both sweep arms, and the
+   orchestrator adjudicated it as "the sixth blind spot, bigger than the
+   unit that found it" and directed a row. **The fix pass refused, with
+   a probe**: `tests/test_stubs.py` holds all 114 member names against
+   `pncad.pyi` name-for-name in both directions, and renaming
+   `ArcSweep::Ccw` reds it plus sixteen call sites. Filing would have
+   been this program's fifth overclaiming row, authored by the desk that
+   wrote the rule against them. The count was 24 enums / 114 names, not
+   27. **A lane refusing an orchestrator's instruction with executed
+   evidence is the process working**, and it should be said plainly
+   rather than absorbed.
+
+**The trap sprang a fourth consecutive time**, in the argument again: the
+unit added a scoping rule to `tags.rs`'s header — *"a tag word is scoped
+to the map that mints it"* — decided over seven words and asserted over a
+file that mints **61** words two or more maps speak. 54 pairs were
+blanketed by a rule nobody read them against, which is a hand-written
+prose census shipped by the unit closing hand-written lists. Closed with
+an instrument derived from `TAG_INVENTORY` rather than with a narrowed
+sentence, and the 54 are filed with their measured list.
+
+Also overturned by execution: a stated blind spot ("a map moved wholesale
+out of `tags.rs`") that the inventory's GONE branch catches, reasoned
+rather than run; and the siting argument for `measurement_dimension_tag`,
+which claimed a uniqueness contradicted 370 lines below it in its own
+file.
+
+**What went right and is worth keeping:** the lane's sweep was keyed on
+the WORD rather than on syntax, ran a second arm *because* the first was
+capitalisation-blind, and that second arm is what caught `dimension_name`.
+Its filed rows were re-read against the tree and its own first draft
+corrected before pushing — and the reviewer re-drove those corrections
+and they held. That is standing finding 7 working without a reviewer
+catching it first, for the first time.
+
+## Next
+
+The `pncad-py` block continues, now seven rows: the two opened here join
+it. `sixty-one-tag-words-…` carries the sharper obligation — its
+instrument shipped and what is missing is the READING of 54 pairs, the
+kind of debt that stops looking urgent once the instrument is green.

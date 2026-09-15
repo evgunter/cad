@@ -4390,6 +4390,50 @@ TRIM-3 PR-2 RECORDED AT MERGE (2026-09-15, PR #2554, sample #201 — prior highe
 
 | T3B | 2026-09-15 | TRIM-3 PR-2 (PR #2554; spec docs/TRIM-3-SPEC.md §3–§6, §9 + Amendments): the clearance seam — `Sweep::run` in `editor-core/clearance.rs` reads each face's chart-boundary description (PR-1's `chart_bound`) through `window_of`: the root window is cut to the described hull (the cylinder's periodic `u` kept VERBATIM from the hull — a negative band is a legal band; now the named total `cut_root` with unit rows), and a cell whose SAT + parity answer certifies it off the face is DROPPED and counted (`CellReceipt::outside`, `ClearanceReport::windows`), the witness verifier admitting only stations on the face (`verify_witness`). Opening measurement confirmed: E1 the L-cap notch (`Violated → Holds` at 0.0866 with the description, the merge-base's phantom at depth 0), E2 the U-channel slider, E3 the whole-body self-intersection — three flips to the digit on both arms. `min_separation` stays untightened (deviation 1, the identity). Fix pass from the dual: the deviation-1 MECHANISM corrected in all three texts (the diverging census rows are the loop WALK's, recorded by the interval leaf and never by the f64 witness lane, which returns `None` — a lane split on every box); R2's P6 landed as the e2e row for the cylinder root rule (an extruded `CircleSplit` at phase −π/4 mints a NEGATIVE band; both `[0,τ] ∩ hull` spellings mint a phantom `Holds` against it); E5 pins `candidates == 0`; E1/E2/E3 pin their measured receipts at all three ε; the non-overlap fallback DROPS the description instead of keeping it; `outside ≤ discharged` fails loud; the off-face test memoized per cell; the header's `Holds` definition restated; the residue with the false premise refiled | L / NUMERIC (pre-logged at the spec) | OPUS (block TRIM-B1 slot 2) | **DUAL (ordinal 2502; byte 180 parity 0 ⇒ R1 OPUS + R2 FABLE; CONCURRENT same-head on frozen 8e53655d2; briefs stored with sha256 pre-dispatch; both reviewers disclosed command-line-only build-slot glimpses of the other lane's names, benign; v6 instrument).** R1 MERGEABLE-AFTER-FIXES, rubric 3/3/3/3/5, 3 MAJ + 5 MIN + 4 NOTE — 16 mutant rounds over a `T3MUT` harness; unique finds: three claimed mutant kills that do not execute (E5's full-turn root; E4's drop-on-indeterminate; E4's tight-by-0.05 with the assertion monotone the wrong way); the header's `Holds` definition; `WindowSuperset::recourse`'s stale promise; `outside ≤ discharged` unenforced; a third table of the arms; the per-pair off-face cost; `narrowed`'s silent fallback. R2 MERGEABLE-AFTER-FIXES, rubric 3/4/3/4/5, 2 MAJ + 4 MIN + 5 NOTE — 28-row fast set under 15 mutants plus six probes and the merge base in a second worktree; unique find: MAJOR-1 C3's premise FALSE by construction (an extrude CAN mint a negative cylinder band; the spec's E7 mutant live e2e with a phantom `Holds`) — R1 tested the same claim with four spellings and affirmed it; also `outside > 0` monotone the wrong way, the two spellings of the turn slack, `Window::bound`'s missing `None` cause. CONVERGED: the deviation-1 mechanism (both by `render_reason` at the flip site), E5's kill claim, the header, E8 a tautology (selection-door refusal before `window_of`), the counts, `raw_hull` the identity on this tree, the two style classes. **Tally: R2's MAJOR-1 unilateral but guards/claims-class (the shipped rule is right; no reachable wrong output) — no candidate; every other substantive finding bilateral; both reviewer arms paused once by the usage limit and R2 killed once by a model-side 429 on restart, resumed from transcript — 3(e) excludes the pair; the implementer arm was stopped once after a hung tool call and paused twice.** | 0 silent — every deviation reported before review; deviation 1's MECHANISM was wrong, not silent; the residue's premise was wrong, not silent | 4 | R1 3 / R2 3 | R1 3 / R2 4 | substantial, ADJUDICATED — sixteen union items, fourteen executed and two recorded as the coverage boundary; seven mutants planted/reverted with four kills the pre-fix suite did not have; honest negatives kept (E4 still catches neither of its two mutants — E2/E3's receipts do; the `Err` arm and the loose-window column unreachable on this tree, filed); R2's P6 adopted authorship-preserving | impl CI GREEN (twelve `test` jobs); fix CI 34936046974 GREEN on 9dcd75760 (twelve `test` jobs at step level, five k-lint); merged #2554 at sample #201; seam gate: the SHELL/M10 announcement (#1911 comment 5568210053, 2026-09-07) drew no objection through 2026-09-15 | impl ~314k / fix ~444k / R1 ~311k / R2 ~284k | impl segments over ~11 days wall (a hung tool call, two usage pauses, the week's seam wait) / fix ~1.1 h / R1 ~1.1 h agent time over ~4 h wall (a 2.5 h slot wait, one usage pause) / R2 ~2 h agent time across a usage pause and a 429 death |
 
+## CURVED-SPIRIC PR-1a review ordinal fixed at dispatch (2026-09-15)
+
+CURVED-SPIRIC PR-1a (`work/curved/spiric-rim-carrier.md` on the branch,
+PR #2566 open — frozen head `e9ef3ae3b`, merge base `bbd795efa`):
+**ordinal 2204** (CURVED band). Pre-draw fields at the spec
+(`docs/CURVED-SPIRIC-SPEC.md` §12 ruling 1 / header): difficulty **H**,
+task-class **STRUCTURAL**; implementer arm per block CURVED-B2 slot 1
+(record branch-side on `curved/b1-block`). Protocol v6 dual: draw =
+`/dev/urandom` byte **226**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**.
+Method, recorded before either review runs: CONCURRENT same-head on
+frozen `e9ef3ae3b`, both briefs authored and STORED with sha256 before
+either dispatches (0e975324364f06d9… r1 / 5fcb9bafb59972c8… r2 —
+identical text modulo lane names, verified by diff; template
+422fc71eb75dc973…), neither reviewer sees the other's report, v6 item 5
+isolation in both briefs, PRIVATE `CARGO_TARGET_DIR` per reviewer
+(fresh for both); the implementer's unit log entry is not written until
+the dual concludes. Method note applying to BOTH arms equally: the
+implementer arm ran to a frozen head on 2026-09-14 and its dual was
+HELD ~30 h for the weekly budget (the STOP-1 finding was adjudicated on
+the PR, comment 5662340417, before the hold); the reviewers dispatch
+together after the box's reboot of 2026-09-15.
+
+## TRIM-2 PR-1 review ordinal fixed at dispatch (2026-09-15)
+
+TRIM-2 PR-1 (`work/trim/general-pcurve-face-props-and-tess-refuse.md`,
+PR #2564 open — frozen head `0c7cc6637`, merge base `7b6d3ed2f`):
+**ordinal 2503** (TRIM band). Pre-draw fields at the spec
+(`docs/TRIM-2-SPEC.md` §6): difficulty **M**, task-class **NUMERIC**;
+implementer arm per block TRIM-B2 slot 0 (record branch-side on
+`trim/b1-block`). Protocol v6 dual: draw = `/dev/urandom` byte **136**,
+parity 0 ⇒ **R1 = OPUS, R2 = FABLE**. Method, recorded before either
+review runs: CONCURRENT same-head on frozen `0c7cc6637`, both briefs
+authored and STORED with sha256 before either dispatches
+(ddbd9049669a9ade… r1 / eddb7ab5eb1ec6df… r2 — identical text modulo
+lane names, verified by diff; template 7e3ec9b5749eefb3…), neither
+reviewer sees the other's report, v6 item 5 isolation in both briefs,
+PRIVATE `CARGO_TARGET_DIR` per reviewer (fresh for both); the
+implementer's unit log entry is not written until the dual concludes.
+Method note applying to BOTH arms equally: the implementer arm ran to a
+frozen head on 2026-09-14 and its dual was HELD ~30 h for the weekly
+budget; the reviewers dispatch together after the box's reboot of
+2026-09-15, concurrently with the spiric dual (four reviewer lanes on
+one width-1 build slot — slot waits fall on all four alike).
+
 ## Block TRIM-B1 — CONCLUDED record (folded from `trim/b1-block` at the last slot's merge, per the branch-side shape; 2026-09-15)
 
 ## TRIM program rows (work/trim/; band 2500–2599; blocks named TRIM-B<n>)
@@ -6866,6 +6910,20 @@ no re-baseline). Sample number at merge. Row at merge. This is block
 SCALAR-B2's last slot: the block record merges from `scalar/orchestrator`
 when this dual concludes.
 
+## EXHAUST-LANE review ordinal fixed at dispatch (2026-09-15)
+
+`exhaustiveness-receipt-carries-its-lane` (EXHAUST-LANE; SCALAR; PR
+#2667 open — frozen head `0414760f5`): **ordinal 4106** (SCALAR band).
+Protocol v6 dual: draw = `/dev/urandom` byte **14**, parity 0 ⇒ **R1 =
+OPUS, R2 = FABLE**, concurrent on the frozen head, read-side isolation
+(v6 item 5), briefs identical and stored before either ran. Pre-draw
+difficulty **S / structural** (recorded branch-side at the block draw;
+block SCALAR-B3 slot 2, the first of the block to reach review). Impl
+phase: ~271k tokens (harness), ~1 h 22 min wall; impl CI **34990915062**
+GREEN on the head (twelve `test` jobs, five `k-lint (gate, …)`, no
+predicate-count change, no render re-baseline). Sample number at
+merge. Row at merge.
+
 ## SCALAR program rows (`work/scalar/`; band 4100–4199; blocks named SCALAR-B<n>)
 
 Protocol v6, implementer ratio 1:2, full dual on every kernel unit;
@@ -6896,6 +6954,41 @@ Draw: `/dev/urandom` byte **69** (< 252), 69 mod 3 = 0 ⇒ fable position
 slot 2 v-reversal net = OPUS.** Remote 4-vCPU / 15 GB box, about three
 concurrent lanes, private target dirs, no build mutex script (the box
 is per-session); the same on every arm.
+
+### Block SCALAR-B2 — pre-draw fields (2026-09-15, before the byte)
+
+The three independent units the first `[ev]` sitting ratified
+(`work/scalar/plan.md` §The ratified units), slots by dispatch order:
+
+- slot 0 — `sense-sign-doors-take-the-bit` — **M / structural** (five
+  door signatures take `bool` for a `T` ±1; a conditional negation is
+  exact, so a D9 bit-identity differential is the pin; `sphere`'s mixed
+  sign splits into a bit and a `Sign` — no new decision, an existing
+  one made visible).
+- slot 1 — `unit-vector-witness-in-geom-core` — **M / structural** (a
+  type moves down a crate and gains mints; every consumer signature
+  changes; no numeric decision is added — the ladder's decisions are
+  recorded, not re-made).
+- slot 2 — `rate-pair-in-geom-core` — **M / numeric** (two typed rates
+  with bit-identical operations, `metered` retyped and a sup-side door;
+  structural in intent, but the sites it retypes are predicates' margins
+  and the direction tag is a claim about bounds — a mixed unit takes the
+  class of the part that carries the risk).
+
+### Block SCALAR-B2 — the draw (2026-09-15)
+
+Draw: `/dev/urandom` byte **187** (< 252), 187 mod 3 = 1 ⇒ fable position
+1. Slots by dispatch order: **slot 0 sense-sign doors = OPUS, slot 1
+unit-vector witness = FABLE, slot 2 rate pair = OPUS.** Same remote box
+and posture as B1.
+
+### Block SCALAR-B2 rows (recorded at each merge branch-side; landed at block close, 2026-09-15)
+
+| # | date | task | difficulty (pre-flip) | arm | review findings (MAJ/MIN/NOTE) | silent devs | idiom | tests | docs | fix-pass size | battery | tokens | wall-clock |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| UNITVEC | 2026-09-15 | UNITVEC (PR #2646): the unit-vector witness moves to `geom-core` — `UnitVec3<T>`, `UnitVec3Error`, `decide_unit_direction` in `linalg/unit_vec.rs` (private field, `Copy`, no `PartialEq`), one normalizing mint `new(v, site, band)` plus exact `Neg`, no "already unit" constructor (compile-fail doctests); `frame.rs`'s three ladders mint through `new` under their own funnel names via one total `refused_direction`, the private mints deleted; consumers `frame_from_unit_aim`, `UnitVec3::orthonormal_basis`, `viewer/datums.rs`, WIRE's `wire.rs` `unit()` returning it and `transform_map`/stepped operands carrying it; `topo` no longer re-exports; bit-identity over four suites; the bare `Vec3::orthonormal_basis` stays (its two callers make no decision — filed); the `sin_cos` mint waits for a customer | M / structural (pre-draw, branch-side) | FABLE (block SCALAR-B2 slot 1) | **DUAL (ordinal 4103; sample #205 at merge — main's first-parent merge order; byte 177 parity 1 ⇒ R1 FABLE + R2 OPUS, concurrent on frozen `52424f453`, v6 instrument).** R1 A-W-F 0/3/3, rubric 3/4/3; R2 A-W-F **3**/5/5, rubric 4/4/3 — R2's three MAJORs (a false-positive row filed on TRIM's slate; the sweep's freshness claim false; the declared pattern's own output 26 not 25) are all CLAIM-class (what the PR body and a filed row asserted; no verdict, bit or refusal moved) and are **excluded from the tally** per the instrument — **no tally candidate**. Bilateral: `mirror_across_plane` mints and drops (the "hands it on" sentence false), stale citers (`topo/query.rs` and K-REPORT saying topo passes `DATUM_UNIT_NORM`; `frame.rs:383`). Unique R1: `wire.rs` `unit()` — a decided normalize returning a bare `Vec3`, the ruling's own shape missed by the sweep; `pub(super)` reaching every `linalg` submodule; the site-name guard weakened by design. Unique R2: the false-positive TRIM row, the stale sweep, `frame_from_unit_aim`'s witness take with no runtime pin possible, the prelude's THIRTEEN, `verbs/README.md` §1. **Pair COUNTS** (neither arm interrupted) | R1 counted 4 undisclosed, R2 counted 3 | R1 3 / R2 4 | 4 | 3 | thirteen items, all taken, fresh lane on the same arm (the original lane had reported and been reclaimed); both probe branches adopted `--no-ff`, R1's two façade rows kept in `pncad/tests/all.rs`, lane tooling removed; one intermediate head red on the rustdoc gate only (two intra-doc links), fixed | impl CI 34947092844 GREEN; fix CI 34958431676 GREEN (twelve `test`, five `k-lint`, large-K lint no finding); state-synced head be436f51d run 34961254116 GREEN; merged-main head ae234b8f4 run 34964530300 GREEN (twelve `test`, five `k-lint`, `gate ok` green); MERGED #2646 at sample #205 | impl ~328k / fix ~315k / R1 ~210k / R2 ~235k (harness) | impl ~1 h 10 min / fix ~1 h 36 min / R1 ~55 min / R2 ~45 min |
+| SENSE-DOORS | 2026-09-15 | SENSE-DOORS (PR #2649): the five bare-`T` sense-sign doors take the bit — `classify_material_pairing`, `material_kappa_rel`, `classify_shared_rim`, `curved_face` and its private `sphere` take `sense: bool`, every caller passes `face.sense`; `sphere`'s mixed `s_f` splits into `SphereFluxSide { Sense(bool), Rim(Sign) }` with `linear_rim_side` the one home of "Zero refuses here"; `classify_material_pairing` mints `OutwardNormal::from_chart` internally; the missing-face `T::one()` default in `verify_tangent_declaration` gone (BOOL's row closed) and `face_of` names its two refusals apart; the `face_normal.rs` census loses four per-file zero rows; a differing-senses rim row kills the surviving mutant; an e2e row pins that a one-band-reversed ball measures volume `0.0` silently and is caught only by tier 3 | M / structural (pre-draw, branch-side) | OPUS (block SCALAR-B2 slot 0) | **DUAL (ordinal 4104; sample #206 at merge — main's first-parent merge order; byte 80 parity 0 ⇒ R1 OPUS + R2 FABLE, concurrent on frozen `6e8e804c1`, v6 instrument).** R1 A-W-F 0/4/4, rubric 4/4/3; R2 A-W-F 0/3/6, rubric 4/4/3. No MAJOR either arm — **no tally candidate**. Bilateral: the "bit for bit" receipt false at `material_kappa_rel` (NaN sign, signed zero; R2 also the `Interval` ±1-product padding at tiny magnitudes — head tighter, no verdict moves), stale `sense_sign` prose at the moved sites incl. `crates/topo/README.md`, `blend/arms.rs` `trace` minting a ±1 `side: T` field from a face bit (D6's class through every sweep pattern's blind spot), and the same e2e finding (the reversed band's silent `0.0`, tier 3's `LaminaWedge` name). Unique R1: the sphere guard's unguarded cylinder twin, `SphereFluxSide` beside `MaterialSign`, a `classify_shared_rim` call-site mutant the whole suite survived (killed in the fix pass). Unique R2: `classify_material_pairing` respelling `from_chart` by hand, the census pins uneven, the missing-face row a weak pin. **Pair COUNTS** (neither arm interrupted; R2 parked on a background monitor once and was nudged — no relaxation granted) | R1 counted 0 undisclosed of substance (2 completeness gaps), R2 counted 2 | 4 | 4 | 3 | twelve items, all taken, none declined, fresh lane on the same arm (the original lane had reported and been reclaimed; the fix lane died once to a usage-limit 429 and was resumed in place); R2's probe branch adopted `--no-ff` and trimmed to one asserting e2e row, R1's not merged (printing harnesses); the census baseline moved (`PINNED` 10 → 6) and is named | impl CI 34948471752 GREEN; fix CI 34960427663 GREEN (twelve `test`, five `k-lint`); state-synced head ea959cc48 run 34962872962 superseded (three jobs cancelled by the next push, every job that ran green); merged-main heads a38cf5bc1 run 34964569350 (superseded the same way), 95df7933e run 34966865503 GREEN (twelve `test`, five `k-lint`, `gate ok` green) and 5494bad2f run 34969624826 GREEN (workflow conclusion success); MERGED #2649 at sample #206 | impl ~326k / fix ~316k / R1 ~240k / R2 ~269k (harness) | impl ~1 h 40 min / fix ~2 h 50 min (incl. the 429 gap) / R1 ~65 min / R2 ~40 min |
+| RATE-PAIR | 2026-09-15 | RATE-PAIR (PR #2657): `SupSpeed<T>`/`InfSpeed<T>` beside `Margin` — transparent `Copy` newtypes, no `PartialEq`/`PartialOrd`, one-operation conversions; `Margin::metered` takes the inf, `Margin::metered_sup` (new) the sup; producers typed at the mint (`speed_lower_bound`, `param_rate`, `chart_stretch_sup` — a `Result` refusing the cone whose azimuth stretch grows with `v`, with `chart_stretch_sup_v` for its exact `v` arm — `nurbs_stretch_bounds`, `chart_arms_at`, `curve_rate_bound`, `v_meter`, `split`/`classify`/`chord_join`, `PatchRegularity`, `plane_nurbs_ssi`); the three blurred sup sites, `certify.rs` check 2's circle/ellipse arms and the loop-continuity u channel on plane/spline charts (`ChartArm { Angular, Rate }`) moved onto the typed doors; bit identity by `to_bits` rows, the `Interval` row and the tour digests (1766 files `87be4dd9…`, narration re-taken under a zero-parameter recipe) identical at main and head; k-lint counts unmoved | M / numeric (pre-draw, branch-side) | OPUS (block SCALAR-B2 slot 2) | **DUAL (ordinal 4105; sample #207 at merge — main's first-parent merge order; byte 94 parity 0 ⇒ R1 OPUS + R2 FABLE, concurrent on frozen `711236057`, v6 instrument).** R1 A-W-F **2**/5/5, rubric 4/4/3; R2 A-W-F 0/5/3, rubric 4/4/3. **R1's M1 is a TALLY CANDIDATE that COUNTS for the OPUS arm**: `chart_stretch_sup`'s Cone arm minted `SupSpeed::new(1)` on a `pub` door for a stretch its own comment says no surface-level constant dominates (`|S_u| = v·sin α`) — a typed certification the code denied; unilateral (R2 checked every producer's tag and reported "no mis-tag found"), contract-API class, not a filed row (the placeholder was a known limitation as a bare `T`; the false CERTIFIED claim was new in this PR), fair pair (identical briefs), demonstrated by execution in the fix pass (on the frozen head the door answered `Ok((SupSpeed(1), SupSpeed(1)))` for a cone with `α = π/6` whose true `sup|S_u|` at `v = 4` is `2`; the door now refuses `NoChartSup::ConeAzimuthGrowsWithV`). R1's M2 (the sentence fencing the pair — "an azimuth arm is metres per radian" — false for the plane/spline kinds four lines below it, and the TRIM row closed on it) is bilateral: R2's MINOR-1/MINOR-2 are the same finding from the consumer side (the u channel on spline charts; `certify.rs`'s circle/ellipse arms levered where `param_rate` mints the same numbers as `InfSpeed`). Other bilateral: the committed narration digest not reproducible from its recipe; the direction rule stated four to six times with two copies claiming uniqueness; `thinness()`'s new dimensional sentence wrong on its own premise; class members the census could not see (`clearance.rs` `chart_arms`, `ScaledFace::build`'s arms, `chart_bound`'s `assembled`). Unique R1: `MeterError::NormalFloor`'s untagged public sup, the `Interval` row's missing quotient identity, 13 not 12 converted rows. Unique R2: `InfSpeed::to_param` with no caller and the unsafe direction, `PatchRegularity`'s `Debug` text moved, `SupSpeed`'s doc over-claiming on comparisons. **Pair COUNTS** (neither arm interrupted) | R1 counted 5 undisclosed, R2 counted 3 | 4 | 4 | 3 | twelve items, all taken, none declined outright (one sub-item filed with reason), fresh lane on the same arm (the original lane had reported and been reclaimed); item 2 taken wider than owed (`ChartArm` enum, five u-channel sites, four `certify.rs` arms); neither probe branch adopted (printing harnesses; R1's digest recipe read and its lesson taken); one intermediate head red on the rustdoc gate only | impl CI 34962229095 GREEN; fix CI 34977020790 GREEN (twelve `test`, five `k-lint`, no render re-baseline); state-synced head bb4c7747f run 34981521430 GREEN (workflow conclusion success); MERGED #2657 at sample #207 | impl ~371k (the resumed segment; the first segment's count lost to a usage-limit 429) / fix ~381k / R1 ~286k / R2 ~248k (harness) | impl ~1 h 50 min (incl. the 429 gap) / fix ~2 h 4 min / R1 ~30 min / R2 ~18 min |
 
 ### Block SCALAR-B1 rows (recorded at each merge branch-side; landed at block close, 2026-09-15)
 

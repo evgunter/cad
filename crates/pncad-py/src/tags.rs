@@ -15,6 +15,13 @@
 //! import — `crate::node_kind` is the standing example — and then its
 //! roster is pinned in `src/tests.rs` directly instead.)
 //!
+//! One map keys off neither a kernel refusal nor a kernel value:
+//! [`eval_reason_tag`] keys off [`EvalReason`], this crate's own enum,
+//! because the evaluation door's "the node produced no value" has no
+//! kernel arm behind it. The enum is declared in `crate::errors` —
+//! this file's recogniser, below, admits no `enum` — and its map lives
+//! here with the rest, so the words are inventoried with the rest.
+//!
 //! Typed exceptions carry the structured error, never strings. The
 //! exception's machine payload is a stable **tag** — a discriminant
 //! name a caller can branch on, which no `Display` prose gives it
@@ -40,6 +47,44 @@
 //! with nothing that fires in its place — see that function for what
 //! the crossing does instead.
 //!
+//! **A tag word is scoped to the map that mints it.** Two maps here
+//! may speak one word for two unrelated things and neither has to
+//! remark on it: `band` is minted by sixteen maps and `escalated` by
+//! ten, for refusals with nothing in common but the English word;
+//! `join` is a phase of a boolean, a phase of a split op AND an act
+//! of cluster maintenance; `empty` is a band with no width and the
+//! residual subgroup that no motion satisfies. A caller reads a word
+//! off ONE attribute of one type, never off this file, so a
+//! coincidence between two attributes is not a collision and pinning
+//! every such pair would pin accidents.
+//!
+//! **The scope of that rule, said plainly.** It was decided over the
+//! seven pairs one unit was dispatched at and is asserted over the
+//! rest: a per-function sweep of this file's literals finds **61
+//! words minted by two or more maps**, and nobody has read most of
+//! them. What holds the claim to the tree is not this paragraph but
+//! `src/tests.rs`'s
+//! `every_word_two_tag_maps_share_is_on_the_committed_roster`, which
+//! reds when a word starts or stops colliding. That row does not
+//! decide a new pair — it asks, which is the part prose here could
+//! not do. `work/census/` carries the undispositioned remainder.
+//!
+//! **What does need saying is the opposite case**: two maps a caller
+//! reads ONE fact from, which must therefore agree word for word.
+//! Two are pinned against each other in `src/tests.rs` and each says
+//! which pin holds it — [`entity_kind_tag`] with [`entity_id_tag`]
+//! where both layers speak of one entity, and [`class_admission_tag`]
+//! with [`mint_refusal_tag`], where the first predicts ONE ARM of the
+//! second (see that function for the arm it does not). **That is not
+//! the whole set of pairs that owe a pin**, only the set these maps
+//! have been read for: [`ring_contact_tag`], [`census_contact_tag`]
+//! and [`stale_declaration_tag`] share contact words by prose alone,
+//! and the entity-kind vocabulary has a THIRD Python-visible spelling
+//! outside this file — `py::select::EntityKind`'s member names, held
+//! against `pncad.pyi` by `tests/test_stubs.py` and against these
+//! words by nothing. `work/census/` carries the contact family as a
+//! row.
+//!
 //! **This file is READ as data.** The exhaustive matches guard the
 //! existence of a tag; nothing in the compiler guards its VALUE, and
 //! the values are the Python-facing contract. So
@@ -48,25 +93,30 @@
 //! literals against an inventory committed there — a rename, an
 //! addition, a deletion or a new tag function reds on the default
 //! no-interpreter row. Its reader ENUMERATES rather than approximates:
-//! every top-level line here must be a comment, a `use` item, a
-//! `pub fn NAME(..) -> &'static str {` closed by a `}` in column 0, or
-//! a `pub const NAME: &str = "..";`, and every match arm's body must
-//! be a literal, a nested `match`, a block around one of those, or a
-//! call to another tag function. Anything else fails that test with
+//! every top-level line here must be a comment or blank, a `use`
+//! item, a `pub fn NAME(..) -> &'static str {` or
+//! `pub fn NAME(..) -> Option<&'static str> {` closed by a `}` in
+//! column 0, or a `pub const NAME: &str = "..";`, and every match
+//! arm's body must be a literal, a nested `match`, a block around one
+//! of those, a call to another tag function, or — in the partial maps
+//! — a bare `None` or a `Some(..)` around one of the rest. Anything
+//! else fails that test with
 //! *I do not understand this* rather than being skipped — so an
 //! attribute, a helper, or a cleverer arm added here is a deliberate
 //! diff that teaches the reader too, never a silent hole.
 
+use crate::errors::EvalReason;
 use pncad::analysis::{
     AnalysisPolicyError, McRefusal, MeasureUnavailable, ParamBoxError, SeedError,
 };
 use pncad::document::{
-    AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, DimensionError,
-    Distribution, DistributionFault, DistributionField, EditError, EvalError, InlineError,
-    LeverRefusal, MateFault, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError, MintRefusal,
-    NodeErrorKind, ParseError, PersistError, PlacementRuleFault, ProgramFault, ProgramRefusal,
+    AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission,
+    ClusterMaintenance, DimensionError, Distribution, DistributionFault, DistributionField,
+    EditError, EvalError, InlineError, InterfaceCrossing, LeverRefusal, MateFault, MatePrimitive,
+    MeasureNodeFault, MeasureUnavailableAt, MetaVersionError, MintRefusal, NodeErrorKind,
+    ParseError, PersistError, PlacementRuleFault, ProgramFault, ProgramRefusal,
     RecordedProgramError, RefusedRef, Relation, RootFault, ShellClassifyError, SlotId,
-    SnapshotError, SplitError, UpdateError,
+    SnapshotError, SplitError, Subgroup, UpdateError,
 };
 use pncad::geom_core::{BandError, BandField, FrameError, FrameInput, FrameVector};
 use pncad::mesh::TessellateError;
@@ -77,8 +127,8 @@ use pncad::profile::{
 };
 use pncad::quantity::FmtQuantityError;
 use pncad::select::{
-    DanglingRef, HitTestError, InterrogateError, MeshPickError, NamingError, NodePickError,
-    ReadbackError, Resolution, ResolveError, ResolveIndeterminate,
+    DanglingRef, EntityKind, HitTestError, InterrogateError, MeshPickError, NamingError,
+    NodePickError, ReadbackError, Resolution, ResolveError, ResolveIndeterminate,
 };
 use pncad::step_import::{NormalizationKind, PromotedCurveKind, PromotedKind, StepImportError};
 use pncad::sweep::blend::BlendError;
@@ -1874,6 +1924,34 @@ pub fn mint_refusal_tag(refusal: &MintRefusal) -> &'static str {
     }
 }
 
+/// The stable tag for **how far a contact class gets**: what the
+/// class table answers a tool that asks BEFORE it commits an edit.
+///
+/// `no_at_rest_record` is [`mint_refusal_tag`]'s word on purpose and
+/// must stay it: `ClassAdmission::NoAtRestRecord` says the mint door
+/// will raise `MintRefusal::NoAtRestRecord` for this class, so a
+/// caller that asks ahead and a caller that reads that refusal
+/// afterwards are told one fact.
+/// `the_class_table_predicts_the_mint_refusal_in_its_own_words` holds
+/// those two spellings equal.
+///
+/// **The prediction is one arm's, not the table's.** The mint door
+/// (`editor_core::assembly`) refuses through a wildcard `other =>`
+/// arm, so `NotAdmitted` ALSO arrives at the caller as
+/// `MintRefusal::NoAtRestRecord` — carrying the deferral reason, but
+/// under the other word. A tool matching the word it was told against
+/// the word it later sees is right on the `no_at_rest_record` arm,
+/// silent on `mints` (which refuses nothing) and WRONG on
+/// `not_admitted`. Widening the prediction to the whole table is a
+/// kernel question about that wildcard, not a binding one.
+pub fn class_admission_tag(admission: &ClassAdmission) -> &'static str {
+    match admission {
+        ClassAdmission::Mints => "mints",
+        ClassAdmission::NoAtRestRecord { .. } => "no_at_rest_record",
+        ClassAdmission::NotAdmitted => "not_admitted",
+    }
+}
+
 /// **The stable tag for one at-rest attribution** — what a finding
 /// says about a declaration it names, and whose declaration it is.
 ///
@@ -2007,25 +2085,55 @@ pub fn interrogate_error_tag(err: &InterrogateError) -> &'static str {
     }
 }
 
-/// **The standing ladder's "this run has no result for that node"
-/// word, as a NAME rather than a repeated literal.**
+/// **The stable tag for every `EvaluationError.reason`** — the whole
+/// vocabulary of the evaluation door, in one exhaustive map.
 ///
-/// The read-back and picking doors reach this spelling through a
-/// `match` on a kernel arm ([`interrogate_error_tag`],
-/// [`hit_test_error_tag`]), so a rename there is loud. The EVALUATION
-/// door has no kernel arm to match on — `Evaluation::result` answers
-/// `None` for a node a canceled run never reached, and the reason tag
-/// beside it is this crate's own decision — so it spelled the word by
-/// hand, and a hand-spelled copy of a shared vocabulary is exactly
-/// the divergence `tests::dimension_tags_match_the_kernel_prose`
-/// exists for one file over.
+/// The evaluation door has no kernel enum to match on: every other
+/// map here keys off a refusal the kernel minted, and this one keys
+/// off [`EvalReason`], which is this crate's own decision about what
+/// "the node produced no value" can mean. The enum is declared beside
+/// the error taxonomy in `crate::errors` and its map is here, which
+/// splits one concept across two files — a constraint of the
+/// INSTRUMENT rather than a claim about where the taxonomy belongs.
+/// This file is read as DATA by the tag-table guard, whose recogniser
+/// admits `use` items, `pub fn` tag maps and `pub const` tag words
+/// and refuses everything else, so an `enum` written here stops that
+/// guard dead. A `pub const fn` is refused too, and less legibly: the
+/// reader strips `pub fn ` alone, so such a line is read as a `pub
+/// const` and refused for not being a `&str`. Every map here is a
+/// plain `pub fn` for that reason.
+/// [`crate::errors::EvalReason`] says the rest.
 ///
-/// Naming it here makes the copy a reference, and
-/// `tests::the_evaluation_door_speaks_the_standing_ladder` pins it
-/// against the two doors that DO match, in both directions. (Both
-/// named as text rather than as intra-doc links: `tests` is
-/// `#[cfg(test)]`, so a link to either would not render.)
-pub const NODE_NOT_EVALUATED: &str = "node_not_evaluated";
+/// **This map is the door's only mint.** The reason rides on the
+/// CLASS — `errors::ErrorClass::Evaluation` carries an [`EvalReason`]
+/// — so no raise of that class can be written without naming a
+/// variant of the enum, and `py::typed_err` is what turns it into a
+/// word. That is a property of the DOOR rather than of one function:
+/// the three raise sites in `py/value.rs` and any raise written in a
+/// file that does not exist yet reach this map the same way. What it
+/// does not forbid is a site that ALSO passes a `reason` field of its
+/// own; the minted word is attached last and wins, and a
+/// `debug_assert` in `py::typed_err` names the site. So every word
+/// the door can put on the wire is a literal on this page — where
+/// `tests::the_whole_tag_table_matches_its_committed_inventory` reds
+/// on an addition and on a rename.
+///
+/// [`EvalReason::NodeNotEvaluated`] is the standing ladder's first
+/// rung, spelled identically to the read-back and picking doors'
+/// ([`interrogate_error_tag`], [`hit_test_error_tag`]) and pinned
+/// against both by `tests::the_evaluation_door_speaks_the_standing_ladder`,
+/// in both directions. (Named as text rather than as an intra-doc
+/// link: `tests` is `#[cfg(test)]`, so a link would not render.)
+pub fn eval_reason_tag(reason: EvalReason) -> &'static str {
+    match reason {
+        EvalReason::UnknownNode => "unknown_node",
+        EvalReason::WrongKind => "wrong_kind",
+        EvalReason::EmptyBoolean => "empty_boolean",
+        EvalReason::NodeNotEvaluated => "node_not_evaluated",
+        EvalReason::NodeFailed => "node_failed",
+        EvalReason::Poisoned => "poisoned",
+    }
+}
 
 /// The stable tag for a hit-test refusal — the ray door's own.
 ///
@@ -2421,6 +2529,37 @@ pub fn entity_id_tag(entity: &EntityId) -> &'static str {
     }
 }
 
+/// The stable tag for an entity KIND — what a document-layer name
+/// denotes, one rung above the arena reference [`entity_id_tag`]
+/// spells.
+///
+/// The two maps are two layers' vocabularies, not one map written
+/// twice: this one is total over what a NAME can denote, and the
+/// other over what the arena can hold, so `solid`, `shell`, `loop`
+/// and `half_edge` exist only there and `body` only here. Where both
+/// layers speak of one entity — a face, an edge, a vertex — the word
+/// is the same word, because a caller resolving a name and a caller
+/// reading a census subject are reading one concept.
+/// `the_entity_kind_and_entity_id_maps_agree_where_both_speak` is
+/// what holds that true.
+///
+/// A THIRD spelling of this vocabulary reaches Python, and it is held
+/// somewhere else: `py::select::EntityKind` is a fieldless
+/// `#[pyclass]` mirror whose member names pyo3 mints from Rust
+/// identifiers, so `pncad.EntityKind.Face` is the capitalised twin of
+/// this map's `face` with no literal anywhere. Nothing ties it to
+/// these words — but `tests/test_stubs.py` compares every stub
+/// class's attributes against the compiled class name for name, so a
+/// rename there reds against `pncad.pyi` rather than passing.
+pub fn entity_kind_tag(kind: EntityKind) -> &'static str {
+    match kind {
+        EntityKind::Face => "face",
+        EntityKind::Edge => "edge",
+        EntityKind::Vertex => "vertex",
+        EntityKind::Body => "body",
+    }
+}
+
 /// The stable tag for WHICH coincidence the tier-3′ census found.
 ///
 /// The arms are not one fact and the word is the difference between
@@ -2483,5 +2622,65 @@ pub fn ring_contact_tag(contact: &RingContact) -> &'static str {
         RingContact::Vertex { .. } => "vertex_vertex",
         RingContact::VertexOnEdge { .. } => "vertex_on_edge",
         RingContact::Edge { .. } => "edge_along_edge",
+    }
+}
+
+/// The stable tag for a mate PRIMITIVE — which alignment the authored
+/// mate asks for, before any solve.
+pub fn mate_primitive_tag(primitive: MatePrimitive) -> &'static str {
+    match primitive {
+        MatePrimitive::FrameCoincidence => "frame_coincidence",
+        MatePrimitive::Coaxial => "coaxial",
+        MatePrimitive::PlanarRest { .. } => "planar_rest",
+        MatePrimitive::Clocking => "clocking",
+    }
+}
+
+/// The stable tag for a residual SUBGROUP — which rigid motions a
+/// solved mate leaves free.
+///
+/// `empty` is the contradictory answer, not the free one: no motion
+/// satisfies the constraints at all, where `trivial` is the single
+/// motion that does. A caller branching the two apart is separating
+/// "over-constrained" from "fully located", which is why the
+/// discriminant is worth a word.
+pub fn subgroup_tag(subgroup: &Subgroup) -> &'static str {
+    match subgroup {
+        Subgroup::Se3 => "se3",
+        Subgroup::Planar { .. } => "planar",
+        Subgroup::Cylindrical { .. } => "cylindrical",
+        Subgroup::Prismatic { .. } => "prismatic",
+        Subgroup::Revolute { .. } => "revolute",
+        Subgroup::Trivial => "trivial",
+        Subgroup::Empty => "empty",
+    }
+}
+
+/// The stable tag for one recorded act of cluster-record maintenance
+/// — what an ordinary edit's motion of the mate graph forced on the
+/// placement registry.
+///
+/// The word decides which payload attributes carry: a `join` names
+/// the gauge that survived and the one absorbed, a `split` the two
+/// gauges it left behind, a `gauge_rewrite` the cluster whose gauge
+/// moved, and a `drop` the registry row that went away.
+pub fn cluster_maintenance_tag(maintenance: &ClusterMaintenance) -> &'static str {
+    match maintenance {
+        ClusterMaintenance::Join { .. } => "join",
+        ClusterMaintenance::Split { .. } => "split",
+        ClusterMaintenance::GaugeRewrite { .. } => "gauge_rewrite",
+        ClusterMaintenance::Drop { .. } => "drop",
+    }
+}
+
+/// The stable tag for WHAT crossed a split's cut — which kind of edge
+/// had its two ends land on opposite sides.
+///
+/// One arm today, and the map is what says so: a crossing is whatever
+/// kind of edge can span the cut, and a mate is the only kind there
+/// is. A second kind arriving kernel-side stops this build.
+pub fn interface_crossing_tag(crossing: &InterfaceCrossing) -> &'static str {
+    match crossing {
+        InterfaceCrossing::Mate { .. } => "mate",
     }
 }

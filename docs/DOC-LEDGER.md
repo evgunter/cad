@@ -2944,6 +2944,107 @@ fence (the fix pass reached `props/mod.rs`, `boolean/reduce.rs`, the
 PR body). Recorded in the PR body and the unit's `## Closed` section.
 
 - `SENSE-DOORS-SPEC.md` — SENSE-DOORS, the five bare-T sense-sign doors take the bit (#2649)
+
+## Per-merge deletion — CENSUS-TAG-REACH's spec (2026-09-15)
+
+Recoverable at `git show 246ae018c:docs/CENSUS-TAG-REACH-SPEC.md` (PR
+#2660's last head before the merge). CENSUS's third unit. Its sentences
+that did not survive:
+
+- **the criterion** — the spec said these words reach Python as
+  `.variant`. They reach it as **`reason`**: `eval_err` writes that
+  field and `pncad.pyi` declares `EvaluationError.reason`. A sweep on
+  `variant` finds none of the sites and reports the class clean. The
+  second criterion error in three specs, and the more dangerous kind,
+  because a wrong criterion silently re-scopes the whole unit.
+- **the fence** — "an `eval_err` call site" missed `node_failed` and
+  `poisoned` at direct `typed_err` raises, the same door's vocabulary
+  ten lines away. Ten sites, not seven.
+- **the disposition** — the spec ruled that each word become a
+  `pub const` in `tags.rs`, and required the lane to test by execution
+  what would stop the next word. **Against the spec's own disposition,
+  nothing red**: a fresh site minting a word that had never existed
+  passed 85 Rust and 832 Python tests. The word became a TYPE, and then
+  — after the style review found the wall guarded `eval_err` rather than
+  the door — a type carried by `ErrorClass::Evaluation` itself.
+
+The premise corrections are on the item file, which survives this
+deletion, and the unit's record is `work/census/log.md`'s
+CENSUS-TAG-REACH entry plus the PR body. Residue, all filed on
+`work/census/`: `py-discriminant-getters-under-src-py-are-outside-every-inventory`,
+`py-reason-and-variant-literals-outside-any-enum`,
+`four-censuses-of-python-visible-vocabulary-in-one-crate`,
+`pncad-py-tests-rs-is-six-thousand-lines-and-carries-two-unremeasured-floors`,
+`datum-kind-vocabulary-is-hand-spelled-and-uncensused` and
+`evaluationerror-stub-lists-five-reasons-and-the-door-raises-six`.
+
+- `CENSUS-TAG-REACH-SPEC.md` — CENSUS-TAG-REACH, the refusal word rides the class (#2660)
+
+## Per-merge deletion — RATE-PAIR's spec (2026-09-15)
+
+Recoverable at `git show 9530c9070:docs/RATE-PAIR-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "`Margin::levered` with an
+angular ARM (m per radian …) is NOT a rate per parameter unit and
+stays" — false in the tree for the plane and spline kinds, whose
+u-channel arm is `chart_stretch_sup`'s own `SupSpeed`; the carve-out was
+redrawn for a LEVER that is not the curve's or chart's own parameter
+rate, `azimuth_arm` became `chart_u_arm` returning `ChartArm { Angular,
+Rate(SupSpeed) }`, `certify.rs` check 2's circle/ellipse arms went
+through `metered` with the `InfSpeed` `param_rate` already mints, and
+the remaining angular arms are filed as the class's next member;
+"`chart_stretch_sup` … (`SupSpeed` pairs)" — its Cone arm could not
+honour the tag (`|S_u| = v·sin α`), so the door refuses
+`NoChartSup::ConeAzimuthGrowsWithV` and `chart_stretch_sup_v` mints the
+cone's exact `v` arm; "the two conversions" on `InfSpeed` — `to_param`
+had no caller and the wrong safe side, deleted; "a digest row committed
+before the change" — the committed narration hash was not reproducible
+from its recipe, replaced by a zero-parameter recipe re-taken at
+`origin/main` and at head; "the `Display`/`Debug` of every receipt …
+keeps its text" — `PatchRegularity`'s derived `Debug` prints the tag
+(nothing observable reads it; disclosed). Recorded in the PR body and
+the unit's `## Closed` section.
+
+- `RATE-PAIR-SPEC.md` — RATE-PAIR, SupSpeed and InfSpeed beside Margin; metered takes the inf; a sup door (#2657)
+
+## Per-merge deletion — CENSUS-PY-GETTERS's spec (2026-09-15)
+
+Recoverable at `git show 712d1a071:docs/CENSUS-PY-GETTERS-SPEC.md` (PR
+#2663's last head before the merge). CENSUS's fourth unit, first of the
+`pncad-py` block. Its sentences that did not survive:
+
+- **the count, presented as verified** — the spec said six Python-visible
+  maps and 23 words, and said it had **independently re-measured** them.
+  The row's pattern and that check were both lowercase-anchored scans for
+  `=> "word"`, so both missed `py/value.rs`'s `dimension_name`, whose
+  four words are CAPITALISED and reach Python as `Measurement.dimension`.
+  Nine minting, seven Python-visible, 27 words. **A verification shaped
+  like the finding it checks is not a verification**, and that is the
+  lesson rather than the arithmetic.
+- **the siting argument** — `errors.rs` claimed to hold "the one
+  Python-visible alphabet that is not lower snake case", with a
+  counter-example 370 lines below it in the same file
+  (`ErrorClass::class_name`'s 35 exception-class names). The siting stands
+  on the reader's lower-snake constraint instead.
+- **a stated blind spot** — the unit reported that a rename probe cannot
+  see a map moved wholesale out of `tags.rs`, and built an argument on it.
+  The inventory guard has an explicit GONE branch; one probe dissolves
+  the claim. The entry was reasoned rather than executed.
+
+Not a spec sentence but recorded here because it was the ORCHESTRATOR's
+error: the adjudication of the style review directed a row to be filed
+for the `#[pyclass]` enum vocabulary as an uncensused population. It is
+not — `tests/test_stubs.py` holds all 114 member names against the stub
+name-for-name in both directions, proven by renaming `ArcSweep::Ccw`.
+The fix pass refused the filing with the probe output. Filing it would
+have been this program's fifth overclaiming row.
+
+The corrections are on the item file, which survives this deletion, and
+the unit's record is `work/census/log.md`'s CENSUS-PY-GETTERS entry plus
+the PR body. Residue filed on `work/census/`:
+`sixty-one-tag-words-are-minted-by-two-or-more-maps-and-seven-are-read`
+and `errors-rs-holds-four-python-visible-maps-and-nothing-enumerates-that-file`.
+
+- `CENSUS-PY-GETTERS-SPEC.md` — CENSUS-PY-GETTERS, seven discriminant maps move to the inventory (#2663)
 ## Per-merge deletion — TINT-2's spec (2026-09-15)
 
 Recoverable at `git show befcfe4ae:docs/TINT-2-SPEC.md` (the fix-pass

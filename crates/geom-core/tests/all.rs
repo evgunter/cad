@@ -162,6 +162,8 @@ mod cert4r1_probe_period;
 mod r1_p2_onb_probes;
 #[path = "r2_cert3_probes.rs"]
 mod r2_cert3_probes;
+#[path = "rate_pair_doors.rs"]
+mod rate_pair_doors;
 
 #[path = "cert3_evidence.rs"]
 mod cert3_evidence;
