@@ -1,8 +1,8 @@
 ---
 id: py-discriminant-getters-under-src-py-are-outside-every-inventory
 kind: unit
-title: 23 Python-visible discriminant words are minted by getters under src/py/, outside TAG_INVENTORY
-status: spec
+title: 27 Python-visible discriminant words are minted by getters under src/py/, outside TAG_INVENTORY
+status: review
 opened: 2026-09-15
 branch: census/py-getters
 ---
@@ -17,10 +17,12 @@ different SHAPE, which is why that row's sweep — a literal beside a
 ## The population, measured
 
 `crates/pncad-py/src/py/` holds **30** functions returning
-`&'static str`. **Seven of them mint their words as string literals**
-rather than delegating to `crate::tags`. Six of the seven reach a
-Python caller, and between them they spell **23 distinct lowercase
-discriminant words**:
+`&'static str`. **Nine of them mint their words as string literals**
+rather than delegating to `crate::tags` — the fix pass re-measured
+this and the row said seven. **Seven of the nine reach a Python
+caller** as a discriminant, and between them they spell **27 distinct
+words**. Six of the seven, and 23 of the 27, are the lowercase table
+below:
 
 | site | words |
 | --- | --- |
@@ -31,7 +33,22 @@ discriminant words**:
 | `py/assembly.rs`, `entity_kind_tag` | 4 — `face`, `edge`, `vertex`, `body` |
 | `py/refactor.rs`, the refactor `variant` | 1 — `mate` |
 
-The seventh, `py/doc.rs`'s `_binds_every_kernel_window`, is **not** in
+**The seventh Python-visible map the row missed** is
+`py/value.rs`'s `dimension_name`: four words — `Length`, `Angle`,
+`Count`, `Scalar` — reaching Python as `Measurement.dimension`,
+exhaustive over `d::Dimension`, and asserted by four sites in the
+Python suite. It is **capitalized**, which is why it did not move to
+`src/tags.rs` with the other six: that file's reader refuses a tag
+value that is not lower snake case, and the claim is the file's, not
+the reader's convenience. Its home is `src/errors.rs` beside
+`dimension_tag`, the lower-case spelling of the same four dimensions,
+where a derived pin now holds the two alphabets to one list.
+
+The eighth is `py/path.rs`'s `StartToken::__repr__`, which mints
+`Start`: a repr, not a discriminant a caller branches on, and out of
+scope for that reason rather than by not being found.
+
+The ninth, `py/doc.rs`'s `_binds_every_kernel_window`, is **not** in
 that count and its two words (`arc`, `full`) are not Python-visible:
 the function is a never-called compile-time tripwire over
 `d::TubeWindow`, as its own doc says. The style review that opened
@@ -39,7 +56,11 @@ this row counted it, which is a two-word overstatement corrected here
 rather than repeated.
 
 Every one of the 23 is named in `crates/pncad-py/pncad.pyi`, so every
-one is public Python vocabulary a caller branches on. **Two of the six
+one is public Python vocabulary a caller branches on. **That does not
+extend to the 27**: `Measurement.dimension`'s four are named nowhere
+in the stub, which declares the attribute `-> str` and lists no word.
+
+**Two of the six
 functions are literally named `*_tag` and live outside
 `src/tags.rs`** — `entity_kind_tag` and `primitive_tag` — which is the
 whole of the naming convention that is supposed to say "this word is
@@ -120,3 +141,24 @@ words in prose four lines above the delegation to the map that holds
 them, with nothing tying the two.
 
 `docs/CENSUS-PY-GETTERS-SPEC.md` binds the unit.
+
+## What the fix pass did (2026-09-15)
+
+Six maps moved into `src/tags.rs` as `entity_kind_tag`,
+`mate_primitive_tag`, `class_admission_tag`, `subgroup_tag`,
+`cluster_maintenance_tag` and `interface_crossing_tag`; the seventh
+(`dimension_name`) moved to `src/errors.rs` as
+`measurement_dimension_tag`, for the case reason above. No word
+changed value; `pncad.pyi` is untouched and the 832-test Python suite
+is green.
+
+The seven second spellings were dispositioned **five as coincidence,
+two as one fact in two maps**. `src/tags.rs`'s header now states the
+rule the file had been following silently — a tag word is scoped to
+the map that mints it, so `empty`, `join` and `split` colliding with
+`band_error_tag`, `split_op_error_tag`/`boolean_error_tag` and
+`node_error_tag` needs no remark, exactly as `join`'s two existing
+in-file spellings never did. The two that are one fact are pinned by
+construction in `src/tests.rs`:
+`the_entity_kind_and_entity_id_maps_agree_where_both_speak` and
+`the_class_table_predicts_the_mint_refusal_in_its_own_words`.
