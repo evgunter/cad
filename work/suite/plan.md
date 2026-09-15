@@ -51,6 +51,44 @@ read them settles that.
 | `D403` | **M** | Row's own first question is lift-a-helper vs drive `stops()`; not settled | `demos/tour/src/teapot.rs` (`stops`, walls 2–3) |
 | `S392` | **H** | 18 sites, six crates plus tour, tool and Python; cross-track population, four unconvertible | `crates/sweep/tests/*` (8 sites), `crates/mesh/tests/*` (4), `crates/editor-core/tests/corpus/loft_prism.rs`, `crates/step-export/tests/common/mod.rs` + `tests/fixtures/*.expect`, `crates/step-import/tests/review_probes_m7_3.rs`, `crates/pncad-py/tests/test_north_star.py`, `demos/tour/src/skinned.rs`, `tools/tess-meter/tests/rows.rs`, `crates/sweep/src/skin.rs` |
 
+## Exit criteria
+
+This program opened without a criteria section, which is a defect in its
+own charter: `docs/DOC-LEDGER.md` records that an exit walk quotes its
+plan's criteria verbatim, and a plan with none leaves the walk nothing
+to quote. Written here before the evidence, so the walk can check them
+rather than paraphrase a charter.
+
+- **X1.** Every row on the slate is `closed`, or `deferred` with its
+  ratification cited in the body. No row is left `parked` on a trigger
+  this program could have fired.
+- **X2. A duplication row closes by a shared home, not by a deletion.**
+  For each, the thing that was copied is spelled **once**, and the
+  reviewer's standing question is answered at every call site the unit
+  touched: does the shared helper still make that suite's intent
+  readable, or has the suite become a call into a fixture nobody reads?
+  A row that closes because its copies were deleted without a home is
+  not closed against this criterion.
+- **X3.** Each unit states what its sweep pattern could **not** match.
+  A sweep whose blind spot is unstated is an unverified claim, not a
+  negative result, and this program's own `S392` is the receipt for what
+  that costs — its first count was a truncated grep read as a
+  population.
+- **X4. No unit minted a fresh instance of the defect it closed.** This
+  is the trap `docs/prompts/reviewer-style-lane.md` records for exactly
+  this shape of work, and naming it in a PR body has never prevented it;
+  only a reader who did not write the fix has caught it. The walk names
+  who checked, per unit.
+- **X5.** Every residue a lane disclosed has its **own file**, on this
+  slate or on the owning program's, minted at the moment of disclosure.
+  A residue disclosed only in a `## Closed` section or a PR body is
+  invisible to the re-homing sweep and dies with this directory.
+- **X6. The program claimed no paths, start to finish.** `paths` stays
+  empty in `program.md`, every unit announced to S-TINT (and `D403` to
+  SHELL, whose scenes it touches by courtesy), and no `keep_out` clause
+  anywhere in the tree had to be written to accommodate a claim this
+  program made.
+
 ## Order
 
 `S391` opens — two helpers, one rename, and it is the smallest thing
