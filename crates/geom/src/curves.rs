@@ -1212,6 +1212,69 @@ mod tests {
         }
     }
 
+    /// `ders1` is `eval` and `deriv` bit for bit at the whole-curve
+    /// level — one span selection and one order-1 pass answering both
+    /// — on the knotted fixture at every knot value, span boundary and
+    /// span midpoint. A differential, not a digest: a one-ulp move in
+    /// either half against its own evaluator reds it by name.
+    #[test]
+    fn ders1_is_eval_and_deriv_bit_for_bit() {
+        let c = knotted_curve();
+        for t in knot_and_span_params(&c) {
+            let (p, d) = c.ders1(t);
+            let q = c.eval(t);
+            let e = c.deriv(t);
+            for (name, a, b) in [
+                ("x", p.x, q.x),
+                ("y", p.y, q.y),
+                ("z", p.z, q.z),
+                ("dx", d.x, e.x),
+                ("dy", d.y, e.y),
+                ("dz", d.z, e.z),
+            ] {
+                assert_eq!(a.to_bits(), b.to_bits(), "t = {t}: {name} {a} vs {b}");
+            }
+        }
+    }
+
+    /// The analytic arms' `ders1` is their `eval` and `deriv` bit for
+    /// bit: the line's closed form, the circle's one azimuthal frame
+    /// against the two frames the pair builds, the ellipse's one
+    /// `sin_cos` against the pair's two — on the tilted fixtures, at
+    /// parameters that are not special to any of them.
+    #[test]
+    fn analytic_ders1_is_eval_and_deriv_bit_for_bit() {
+        let line = Curve3::Line {
+            origin: Point3::new(1.0, -2.0, 0.5),
+            dir: Vec3::new(0.3, -0.4, 1.2),
+        };
+        for (kind, c) in [
+            ("line", line),
+            ("circle", tilted_circle()),
+            ("ellipse", tilted_ellipse()),
+        ] {
+            for t in [-7.3, -1.0, 0.0, 0.37, 1.0, FRAC_PI_2, 2.9, TAU, 41.5] {
+                let (p, d) = c.ders1(t);
+                let q = c.eval(t);
+                let e = c.deriv(t);
+                for (name, a, b) in [
+                    ("x", p.x, q.x),
+                    ("y", p.y, q.y),
+                    ("z", p.z, q.z),
+                    ("dx", d.x, e.x),
+                    ("dy", d.y, e.y),
+                    ("dz", d.z, e.z),
+                ] {
+                    assert_eq!(
+                        a.to_bits(),
+                        b.to_bits(),
+                        "{kind} at t = {t}: {name} {a} vs {b}"
+                    );
+                }
+            }
+        }
+    }
+
     /// `ders1_in_span` is `ders_in_span`'s first two components bit for
     /// bit — the order-1 pass and the order-2 pass agree on everything
     /// the order-2 pass does not need its third row for — on the
