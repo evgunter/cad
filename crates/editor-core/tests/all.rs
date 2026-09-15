@@ -391,6 +391,8 @@ mod r2_m10_2_probes;
 mod r2_m10_6_probes_interval;
 #[path = "r2_m10_di_probes.rs"]
 mod r2_m10_di_probes;
+#[path = "scalar_frame_r1_probes.rs"]
+mod scalar_frame_r1_probes;
 #[path = "rev_fix_xsplit_unreachable.rs"]
 mod rev_fix_xsplit_unreachable;
 #[path = "review_gui1_r1.rs"]
