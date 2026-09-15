@@ -18,37 +18,28 @@
 use crate::fixture;
 
 use std::collections::BTreeSet;
-use std::sync::Arc;
 
 use editor_core::{
-    CancelToken, DocEdit, DocParam, DocumentId, EvalOptions, Evaluation, Expr, InlineError, Node,
-    ParamName, ProfileDoc, RecipeNodeId, ResolveFault, RoleSeg, SplitError, StableName,
-    content_pin, evaluate, inline, load, product_named, save, split,
+    DocEdit, DocParam, DocumentId, EvalOptions, Expr, InlineError, Node, ParamName, ProfileDoc,
+    RecipeNodeId, ResolveFault, RoleSeg, SplitError, StableName, content_pin, inline, load,
+    product_named, save, split,
 };
-use fixture::resolver::PartStore;
-use fixture::{desc, insert, len, on_frame, square, step, xy_frame};
+use fixture::resolver::{PartStore, with_resolver};
+use fixture::{desc, insert, len, on_frame, run, square, step, xy_frame};
 use geom_core::Tol;
 
 // ---- Evaluation through the shared part store (no files, full pin gate) ----
 
-fn with_resolver(store: PartStore) -> EvalOptions {
-    EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    }
-}
-
-fn run(doc: &ProfileDoc, opts: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), opts, Tol::witness())
-}
-
 /// A one-solid part document: a `side`-wide square extruded 1 tall,
 /// centered at `cx` (the asm2a fixture).
-/// A `part` document's node order: its sketch frame, the profile drawn
-/// on it, then the extrude that is its body.
-const PART_PLANE: usize = 0;
-const PART_PROFILE: usize = 1;
-const PART_BODY: usize = 2;
+/// **Positions** in a `part` document's node order — its sketch
+/// frame, the profile drawn on it, then the extrude that is its body.
+/// These index `doc.order()`; they are not node ids, which is why
+/// they do not borrow `fixture::resolver::PART_BODY`'s name even
+/// though this suite's parts are the same three-node shape.
+const PLANE_POSITION: usize = 0;
+const PROFILE_POSITION: usize = 1;
+const BODY_POSITION: usize = 2;
 
 fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
@@ -472,9 +463,9 @@ fn row2_appearance_rides_the_bridge_both_ways() {
 #[test]
 fn row3_severing_cut_refuses_naming_the_edge() {
     let doc = part("asm4-r3s", 0.0, 1.0);
-    let plane = doc.order()[PART_PLANE];
-    let profile = doc.order()[PART_PROFILE];
-    let extrude = doc.order()[PART_BODY];
+    let plane = doc.order()[PLANE_POSITION];
+    let profile = doc.order()[PROFILE_POSITION];
+    let extrude = doc.order()[BODY_POSITION];
     // The kept consumer's edge into the cut input… The frame rides
     // along, so the ONE severed edge is the extrude's — a cut that left
     // the profile's plane behind would sever that one first, and this
@@ -665,7 +656,7 @@ fn row3_further_typed_refusals() {
             let part_doc = part("asm4-r3f-part", 0.0, 1.0);
             assert_eq!(
                 root,
-                part_doc.order()[PART_BODY],
+                part_doc.order()[BODY_POSITION],
                 "the plain extrude root is named"
             );
         }
@@ -1038,7 +1029,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
     // NameStraddlesCut: a KEPT Declare's name derives from a kept node
     // AND (through an embedded operand name) from a cut node.
     let doc = part("asm4-min2-straddle-kept", 0.0, 1.0);
-    let kept_e = doc.order()[PART_BODY];
+    let kept_e = doc.order()[BODY_POSITION];
     let (doc, cut_f) = insert(doc, xy_frame());
     let (doc, cut_p) = insert(
         doc,
@@ -1089,7 +1080,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
     // PartNameReachesRemainder: a CUT Declare names a KEPT node's
     // entity — the part document could not express the reference.
     let doc = part("asm4-min2-reach-kept", 0.0, 1.0);
-    let kept_e = doc.order()[PART_BODY];
+    let kept_e = doc.order()[BODY_POSITION];
     let (doc, cut_f) = insert(doc, xy_frame());
     let (doc, cut_p) = insert(
         doc,
@@ -1229,7 +1220,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     // ForeignInstanceName: a host reference DERIVES from the instance
     // but is not the bridge's own wrapped form.
     let host = part("asm4-min2-name-host", 5.0, 1.0);
-    let kept_e = host.order()[PART_BODY];
+    let kept_e = host.order()[BODY_POSITION];
     let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
     let foreign = StableName {
         kind: EntityKind::Face,
@@ -1312,7 +1303,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     };
     let anchor = StableName {
         kind: EntityKind::Edge,
-        node: part_doc.order()[PART_BODY],
+        node: part_doc.order()[BODY_POSITION],
         path: vec![RoleSeg::OutputBody],
     };
     let (part_doc, _) = insert(

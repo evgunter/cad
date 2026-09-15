@@ -1,7 +1,7 @@
 ---
 id: mate6r1-shared-has-eleven-tests-and-no-assertions
 kind: issue
-title: mate6r1_shared's eleven probes assert nothing, and its in_part named the wrong node for its whole life
+title: Three mate/fix suites print unasserted probe answers; mate6r1_shared's eleven assert nothing at all and its in_part named the wrong node for its whole life
 status: open
 opened: 2026-09-15
 ---
@@ -36,6 +36,29 @@ rows still assert nothing, so the printed answers are unguarded and the
 next drift is invisible the same way. What this row owes is a decision
 per row — an assertion over the printed value, or retirement naming the
 row that now owns the claim (S-TCOST's keep-out).
+
+## The class, not the instance
+
+Three suites ride the shared `PART_BODY` with nothing that can see it
+move. Under a planted mutation (`PART_BODY` = `RecipeNodeId(3)`) on the
+tree BEFORE the shared store's guard landed, each went **zero rows red**:
+
+- `mate6r1_shared` — 0 of 11 (no assertions at all)
+- `mate1_r1_probes` — 0 of 8
+- `rev_fix_xsplit_unreachable` — 0 of 6 `in_part` call sites, imported
+  at `:26`, no row red
+
+`crates/editor-core/tests/mate6r2_probes.rs` is `mate6r1_shared`'s twin
+and belongs to the same decision: eight tests, **four of which assert
+nothing**, a header that says the differential property "is spent", and
+one row red under the mutation. Same class, same directory, found by
+the same method.
+
+`PartStore::insert` now refuses a document whose body is not at
+`PART_BODY`, so the mutation above goes red in 224 rows rather than
+none — but that guard checks the CONSTANT against the builders, not
+these suites' printed answers against anything. The rows below are
+still unguarded.
 
 `crates/editor-core/tests/mate1_r1_probes.rs` carried the same
 `RecipeNodeId(1)` spelling and does assert, but only over

@@ -12,29 +12,16 @@
 
 use crate::fixture;
 
-use std::sync::Arc;
-
 use editor_core::{
-    Alignment, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind,
-    EvalOptions, Evaluation, Expr, Frame, MateFrame, MatePrimitive, MateRole, Node, PatternKind,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, clusters, evaluate, solve_document,
+    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind, Expr, Frame,
+    MateFrame, MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg,
+    SitedRef, StableName, clusters, solve_document,
 };
-use fixture::resolver::{PartStore, in_part};
-use fixture::{insert, len, on_frame, scl, step};
+use fixture::resolver::{PartStore, in_part, with_resolver};
+use fixture::{insert, len, on_frame, run, scl, step};
 use geom_core::Tol;
 
 // ---- Substrate (the shared resolver, `fixture::resolver`) ----
-
-fn opts(store: PartStore) -> EvalOptions {
-    EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    }
-}
-
-fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
-}
 
 fn block_part(label: &str, x: (f64, f64), y: (f64, f64), z0: f64, dz: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
@@ -223,7 +210,7 @@ fn r1_conjugation_through_a_non_identity_cluster_frame() {
         world.translation
     );
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     assert!(
         matches!(ev.result(mate), Some(editor_core::NodeResult::Ok(_))),
         "the mate evaluates: {:?}",
@@ -607,7 +594,7 @@ fn r1_which_branch_does_the_consistent_loop_row_take() {
             ),
         },
     );
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let result = editor_core::assemble(&doc, &ev, Tol::witness());
     let branch = match &result {
         Ok(a) => format!("Ok(minted = {})", a.minted.len()),

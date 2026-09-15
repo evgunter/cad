@@ -28,30 +28,17 @@
 
 use crate::fixture;
 
-use std::sync::Arc;
-
 use editor_core::{
-    Alignment, AssemblyError, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocumentId,
-    EntityKey, EntityKind, EntityRef, Entry, EvalOptions, Evaluation, InterfaceCrossing, MateFrame,
-    MatePrimitive, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName,
-    assemble, content_pin, evaluate, inline, product_recorded, split,
+    Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKey,
+    EntityKind, EntityRef, Entry, EvalOptions, InterfaceCrossing, MateFrame, MatePrimitive, Node,
+    NodeErrorKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, assemble, content_pin,
+    inline, product_recorded, split,
 };
-use fixture::resolver::{PART_BODY, PartStore, in_part};
-use fixture::{insert, len, on_frame, relations, step};
+use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
+use fixture::{insert, len, on_frame, relations, run, step};
 use geom_core::Tol;
 
 // ---- Evaluation through the shared part store ----
-
-fn opts(store: PartStore) -> EvalOptions {
-    EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    }
-}
-
-fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
-}
 
 // ---- Documents ----
 
@@ -293,7 +280,7 @@ fn row1_a_parts_declared_contacts_survive_instantiation() {
         ProfileDoc::empty(DocumentId::derive("asm-r2b-row1"), Tol::witness()),
         Node::instantiate_part(doc_ref),
     );
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let product = product_recorded(&doc, &ev, Tol::witness()).expect("the assembly gathers");
 
     assert_eq!(
@@ -328,7 +315,7 @@ fn row1_a_parts_declared_contacts_survive_instantiation() {
 #[test]
 fn row2_a_solved_rest_mate_mints_its_declaration() {
     let (doc, ids, mate, store) = stacked("asm-r2b-row2", 1.0);
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
 
     // The GATHER mints (A3: evaluation carries each mate's declaration
     // into the evaluated body's contact record set), so the record is
@@ -437,7 +424,7 @@ fn row2_b_a_declaring_mate_mints_identically() {
     // frontier — one declaration is genuinely contradicted, and the
     // gate refuses either way. What the row reads out of the refusal
     // is who was ATTRIBUTED, which is the set that got minted.
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let err =
         assemble(&doc, &ev, Tol::witness()).expect_err("the column's declarations do not all hold");
     let AssemblyError::AtRest { findings } = &err else {
@@ -483,7 +470,7 @@ fn row3_a_an_undeclared_touching_pair_is_the_hard_error() {
     // the instances still touch and nothing declares it.
     let (doc, ids, mate, store) = stacked("asm-r2b-row3a", 1.0);
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: mate });
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let result = assemble(&doc, &ev, Tol::witness());
     let errs = findings(&result);
     assert!(
@@ -506,7 +493,7 @@ fn row3_a_an_undeclared_touching_pair_is_the_hard_error() {
 #[test]
 fn row3_b_the_declared_touching_pair_is_not_an_undeclared_contact() {
     let (doc, _, mate, store) = stacked("asm-r2b-row3b", 1.0);
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let result = assemble(&doc, &ev, Tol::witness());
     let errs = findings(&result);
     assert!(
@@ -578,7 +565,7 @@ fn row4_b_an_in_band_authored_gap_escalates_typed_and_predicate_named() {
         band.escalate()
     );
     let (doc, _, mate, store) = stacked("asm-r2b-row4b", 1.0 + gap);
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let result = assemble(&doc, &ev, Tol::witness());
     let errs = findings(&result);
     assert!(
@@ -612,7 +599,7 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
     // offset −1 lifts b a full unit clear: the declared faces are a
     // unit apart, definitely.
     let (doc, ids, mate, store) = stacked("asm-r2b-row4", 2.0);
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let err = assemble(&doc, &ev, Tol::witness()).expect_err("a gapped Rest refuses");
     let AssemblyError::AtRest { findings } = &err else {
         panic!("expected the at-rest verdict, got {err}");
@@ -766,7 +753,7 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
         Node::instantiate_part_with(doc_ref, record),
     );
 
-    let ev = run(&doc, &opts(store.clone()));
+    let ev = run(&doc, &with_resolver(store.clone()));
     assert!(
         ev.node_error(instance).is_none(),
         "the crossing re-verifies against the pinned part: {:?}",
@@ -797,7 +784,7 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
     .expect("the pin moves")
     .doc;
 
-    let err = run(&moved, &opts(store))
+    let err = run(&moved, &with_resolver(store))
         .node_error(instance)
         .expect("the moved pin refuses")
         .to_string();
@@ -969,7 +956,7 @@ fn row5_e_a_pin_move_that_changes_the_contact_geometry_is_caught_at_rest() {
 
     // Pre-move: the declared pair touches, so the ONLY finding is the
     // chart-identity boundary (row3_b's pin) — no contradiction.
-    let ev = run(&doc, &opts(store.clone()));
+    let ev = run(&doc, &with_resolver(store.clone()));
     let before = findings(&assemble(&doc, &ev, Tol::witness()));
     assert!(
         !before.iter().any(|e| e.contains("ContactContradicted")),
@@ -1009,7 +996,7 @@ fn row5_e_a_pin_move_that_changes_the_contact_geometry_is_caught_at_rest() {
     .expect("the pin moves")
     .doc;
 
-    let ev2 = run(&moved, &opts(store));
+    let ev2 = run(&moved, &with_resolver(store));
     let err =
         assemble(&moved, &ev2, Tol::witness()).expect_err("the moved geometry no longer fits");
     let AssemblyError::AtRest { findings } = &err else {
@@ -1072,7 +1059,7 @@ fn row6_a_crossing_record_edit_moves_the_content_key() {
     assert_eq!(id_with, id_without, "same id, same reference, same pin");
 
     let key = |d: &ProfileDoc, id| {
-        run(d, &opts(store.clone()))
+        run(d, &with_resolver(store.clone()))
             .value(id)
             .expect("the instance evaluates")
             .content_key
@@ -1092,8 +1079,8 @@ fn row6_a_crossing_record_edit_moves_the_content_key() {
 #[test]
 fn row7_the_minted_record_set_is_deterministic() {
     let (doc, _, _, store) = stacked("asm-r2b-row7", 1.0);
-    let a = run(&doc, &opts(store.clone()));
-    let b = run(&doc, &opts(store));
+    let a = run(&doc, &with_resolver(store.clone()));
+    let b = run(&doc, &with_resolver(store));
     let pa = product_recorded(&doc, &a, Tol::witness()).expect("gathers");
     let pb = product_recorded(&doc, &b, Tol::witness()).expect("gathers");
     assert_eq!(pa.contacts, pb.contacts, "the carried records replay");
@@ -1156,7 +1143,7 @@ fn a_tangent_mate_solves_and_then_refuses_at_the_mint_door() {
     );
 
     // Door two: the mint refuses it, naming the class.
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     match assemble(&doc, &ev, Tol::witness()) {
         Err(AssemblyError::NoAtRestRecord {
             class,
@@ -1228,7 +1215,7 @@ fn a_mixed_verdict_is_the_at_rest_arm_not_the_frontier() {
     let grazing = grazing.expect("the grazing mate mints");
     let gapped = gapped.expect("the gapped mate mints");
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let err =
         assemble(&doc, &ev, Tol::witness()).expect_err("the gapped declaration does not hold");
     let AssemblyError::AtRest { findings } = &err else {
@@ -1282,7 +1269,7 @@ fn a_coplanar_pair_with_disjoint_trims_is_refuted_as_stale() {
         },
     );
     let stale = stale.expect("the mate mints");
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let err = assemble(&doc, &ev, Tol::witness())
         .expect_err("a declaration whose regions do not meet does not hold");
     let AssemblyError::AtRest { findings } = &err else {
@@ -1335,7 +1322,7 @@ fn the_mint_door_renders_each_class_its_own_reason() {
         }
         let (doc, mate) = step(doc, DocEdit::InsertNode { node });
         let mate = mate.expect("the mate mints");
-        let ev = run(&doc, &opts(store));
+        let ev = run(&doc, &with_resolver(store));
         match assemble(&doc, &ev, Tol::witness()) {
             Err(AssemblyError::NoAtRestRecord {
                 class: refused,
@@ -1425,7 +1412,7 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
         }];
     }
     let (doc, _) = step(doc, DocEdit::InsertNode { node });
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     match assemble(&doc, &ev, Tol::witness()) {
         Err(AssemblyError::Reference { why, .. }) => {
             assert_eq!(why, editor_core::RefusedRef::Vanished);
@@ -1534,7 +1521,7 @@ fn flush_seat(label: &str) -> (ProfileDoc, RecipeNodeId, PartStore) {
 #[test]
 fn a_flush_seat_certifies_at_the_gate() {
     let (doc, mate, store) = flush_seat("asm-r2b-flush");
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let result = assemble(&doc, &ev, Tol::witness());
     let (contacts, residue) = gate_records(&result);
     assert_eq!(
@@ -1569,7 +1556,7 @@ fn a_flush_seat_certifies_at_the_gate() {
 fn the_same_flush_seat_undeclared_is_the_hard_error() {
     let (doc, mate, store) = flush_seat("asm-r2b-flush-bare");
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: mate });
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let errors = findings(&assemble(&doc, &ev, Tol::witness()));
     assert!(
         errors.iter().any(|e| e.contains("VertexOnEdge")),
@@ -1738,7 +1725,7 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
 #[test]
 fn a_mated_assembly_is_silent_and_the_declaration_is_why() {
     let (doc, _ids, _mate, store) = stacked("asm-r2b-separation", 1.0);
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let product = product_recorded(&doc, &ev, Tol::witness()).expect("gathers");
 
     // The geometry alone does NOT certify: the two instances are
@@ -1806,7 +1793,7 @@ fn two_solids_of_one_subject_are_skipped_by_the_guard_not_by_geometry() {
         ProfileDoc::empty(DocumentId::derive("asm-r2b-twinned"), Tol::witness()),
         Node::instantiate_part(doc_ref),
     );
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let product = product_recorded(&doc, &ev, Tol::witness()).expect("gathers");
 
     // ONE subject, TWO solids — the configuration the guard is for.

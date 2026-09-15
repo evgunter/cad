@@ -18,8 +18,8 @@
 use std::collections::BTreeMap;
 
 use editor_core::{
-    CapEnd, DocRef, DocumentId, EntityKind, PartResolver, ProfileDoc, RecipeNodeId, ResolveFailure,
-    ResolveFault, RoleSeg, StableName, content_pin,
+    CapEnd, DocRef, DocumentId, EntityKind, EvalOptions, Node, PartResolver, ProfileDoc,
+    RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, StableName, content_pin,
 };
 use geom_core::Tol;
 
@@ -38,6 +38,7 @@ impl PartStore {
     /// Takes `doc` in, answering the reference an `InstantiatePart`
     /// node names it by: its id, and the pin of the bytes stored.
     pub fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
+        assert_part_body(&doc);
         let pin = content_pin(&doc, tol).expect("the pin computes");
         let id = doc.id();
         self.docs.insert(id, doc);
@@ -82,10 +83,55 @@ impl PartResolver for PartStore {
 }
 
 /// **The body node of a one-block part document** — frame, profile,
-/// extrude, so the extrude is node 2. The part builders below all
-/// author that shape, and a face of the minted instance is named
-/// through it.
+/// extrude, so the extrude is node 2. Each suite authors that shape
+/// in its own builder, and [`in_part`] names a face of the minted
+/// instance through it.
+///
+/// The premise is not restated in sixteen builders: [`PartStore::insert`]
+/// checks it, through [`assert_part_body`], on every document that has
+/// a body at all.
 pub const PART_BODY: RecipeNodeId = RecipeNodeId(2);
+
+/// **The coupling [`PART_BODY`] rests on, checked rather than
+/// written down**: in a document that HAS an extrude, the extrude is
+/// the node [`in_part`] names.
+///
+/// A suite that slips a datum in ahead of its sketch frame goes red
+/// here, at the insert that authored it — not silently, five suites
+/// later, as a member name that resolves to nothing. That is the
+/// failure `mate1_r1_probes` and `mate6r1_shared` carried unseen:
+/// their builders were right and their constant was not, and no
+/// assertion in either suite could tell.
+///
+/// Documents with no extrude — the stands and rows an assembly suite
+/// instantiates, whose nodes are `InstantiatePart` and mates — are
+/// exempt, because `in_part` is not how their faces are named.
+///
+/// # Panics
+///
+/// If `doc` has an extrude and `PART_BODY` is not one.
+fn assert_part_body(doc: &ProfileDoc) {
+    let is_extrude = |id: RecipeNodeId| matches!(doc.node(id), Some(Node::Extrude { .. }));
+    if !doc.order().iter().copied().any(is_extrude) {
+        return;
+    }
+    assert!(
+        is_extrude(PART_BODY),
+        "a part document's body is {PART_BODY:?} — this one's node order is {:?}, \
+         so `in_part` would name a face of {:?}",
+        doc.order(),
+        doc.node(PART_BODY),
+    );
+}
+
+/// **Evaluation options that reach parts through `store`** — the one
+/// thing a suite changes about `EvalOptions` to instantiate at all.
+pub fn with_resolver(store: PartStore) -> EvalOptions {
+    EvalOptions {
+        resolver: Some(std::sync::Arc::new(store)),
+        ..EvalOptions::default()
+    }
+}
 
 /// **A cap face of `instance`'s part product**, in the wrapper the
 /// instantiate node mints: the part's own name for the face, worn

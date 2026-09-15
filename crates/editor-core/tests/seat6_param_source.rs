@@ -28,8 +28,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::sync::Arc;
-
 use crate::corpus;
 use crate::fixture;
 
@@ -39,7 +37,7 @@ use editor_core::{
     CancelToken, Dimension, DocEdit, DocParam, DocumentId, EvalOptions, Evaluation, Expr, Node,
     ParamName, ProfileDoc, RecipeNodeId, SlotId, evaluate,
 };
-use fixture::resolver::PartStore;
+use fixture::resolver::{PartStore, with_resolver};
 use fixture::{
     ang, axis_in_plane, insert, len, on_frame, on_frame_keeping, prism_edges, square, step,
 };
@@ -580,10 +578,7 @@ fn two_documents_r_are_two_parameters() {
     let (part, _) = own_document("seat6-scope-part", R);
     let mut store = PartStore::default();
     let doc_ref = store.insert(part, Tol::witness());
-    let opts = EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    };
+    let opts = with_resolver(store);
     let (host, host_blend) = own_document("seat6-scope-host", 2.0 * R);
     let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
     let ev: Evaluation<f64> = evaluate(&host, None, &CancelToken::new(), &opts, Tol::witness());
@@ -611,10 +606,7 @@ fn two_instances_of_one_part_declare() {
     let (part, _) = own_document("seat6-scope-twice", R);
     let mut store = PartStore::default();
     let doc_ref = store.insert(part, Tol::witness());
-    let opts = EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    };
+    let opts = with_resolver(store);
     let host = ProfileDoc::empty(DocumentId::derive("seat6-scope-twice-host"), Tol::witness());
     let (host, first) = insert(host, Node::instantiate_part(doc_ref));
     let (host, second) = insert(host, Node::instantiate_part(doc_ref));

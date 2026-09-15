@@ -17,15 +17,13 @@
 
 use crate::fixture;
 
-use std::sync::Arc;
-
 use editor_core::{
     Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId,
     EditError, EntityKind, EvalOptions, Evaluation, Expr, MateFault, MateFrame, MatePrimitive,
     MateRole, MateSide, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName,
     load, product, save, solve_document,
 };
-use fixture::resolver::{PartStore, in_part};
+use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::seat::{assert_seated, map_gap, product_face_frame, seat_map};
 use fixture::{gate, in_copy, insert, len, on_frame, run, scl, step, xform};
 use geom_core::Tol;
@@ -167,10 +165,7 @@ fn scene(label: &str, on_base: &[Step], on_top: &[Step]) -> Scene {
         Tol::witness(),
     );
     let top_ref = store.insert(block(&format!("{label}-top"), TOP_HEIGHT), Tol::witness());
-    let opts = EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    };
+    let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
@@ -389,10 +384,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
             Tol::witness(),
         );
         let top_ref = store.insert(block("msolve1-a3a-top", TOP_HEIGHT), Tol::witness());
-        let opts = EvalOptions {
-            resolver: Some(Arc::new(store)),
-            ..EvalOptions::default()
-        };
+        let opts = with_resolver(store);
         let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a3a"), Tol::witness());
         let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
         let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
@@ -454,10 +446,7 @@ fn a3_pattern_of_transform_seats_and_transform_of_pattern_resolves() {
             Tol::witness(),
         );
         let top_ref = store.insert(block("msolve1-a3b-top", TOP_HEIGHT), Tol::witness());
-        let opts = EvalOptions {
-            resolver: Some(Arc::new(store)),
-            ..EvalOptions::default()
-        };
+        let opts = with_resolver(store);
         let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a3b"), Tol::witness());
         let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
         let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
@@ -668,10 +657,7 @@ fn two_operands(label: &str, second: Step) -> (ProfileDoc, EvalOptions, [RecipeN
         Tol::witness(),
     );
     let top_ref = store.insert(block(&format!("{label}-top"), TOP_HEIGHT), Tol::witness());
-    let opts = EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    };
+    let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
@@ -948,10 +934,7 @@ fn a8c_the_content_key_separates_two_operands() {
         let mut store = PartStore::default();
         let base_ref = store.insert(block("msolve1-a8c-base", 1.0), Tol::witness());
         let top_ref = store.insert(block("msolve1-a8c-top", 3.0), Tol::witness());
-        let opts = EvalOptions {
-            resolver: Some(Arc::new(store)),
-            ..EvalOptions::default()
-        };
+        let opts = with_resolver(store);
         let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
         let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
         let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
@@ -1034,10 +1017,7 @@ fn a10_a_nested_pattern_head_is_a_member() {
         Tol::witness(),
     );
     let top_ref = store.insert(block("msolve1-a10-top", TOP_HEIGHT), Tol::witness());
-    let opts = EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    };
+    let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a10"), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
@@ -1402,10 +1382,7 @@ fn a11_a_transform_between_two_patterns_composes_outer_t_inner() {
         Tol::witness(),
     );
     let top_ref = store.insert(block("msolve1-a11-top", TOP_HEIGHT), Tol::witness());
-    let opts = EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    };
+    let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a11"), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
@@ -1502,10 +1479,7 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
         Tol::witness(),
     );
     let top_ref = store.insert(block(&format!("{label}-top"), TOP_HEIGHT), Tol::witness());
-    let opts = EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    };
+    let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(&label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));

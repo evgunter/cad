@@ -3,9 +3,11 @@
 //!
 //! Each prints a `P<n>:`-tagged line; the rows were written to compile
 //! on the MATE-6 head AND on its merge base, so the review could diff
-//! the tagged lines. That property is spent: P8 asserts the outer
-//! gate's carried-mint refusal, an arm neither of those trees had.
-//! What the rows are FOR now is what each one says below.
+//! the tagged lines. **That property is spent** — the branch merged —
+//! and four of the eight rows still assert nothing, so their printed
+//! answers are unguarded;
+//! `work/tint/mate6r1-shared-has-eleven-tests-and-no-assertions.md`
+//! owns that. What the rows are FOR now is what each one says below.
 //!
 //! P1/P2 — refusal precedence and identity with MULTIPLE bad mates
 //!         (claims 2 and 3): first bad mate in document order wins,
@@ -22,27 +24,14 @@
 
 use crate::fixture;
 
-use std::sync::Arc;
-
 use editor_core::{
-    Alignment, AssemblyError, AxisSense, CancelToken, CapEnd, ChecksConfig, ContactClass, DocEdit,
-    DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive, Node,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, assemble, evaluate, run_checks,
+    Alignment, AssemblyError, AxisSense, CapEnd, ChecksConfig, ContactClass, DocEdit, DocRef,
+    DocumentId, EntityKind, Frame, MateFrame, MatePrimitive, Node, ProfileDoc, RecipeNodeId,
+    RoleSeg, SitedRef, StableName, assemble, run_checks,
 };
-use fixture::resolver::{PartStore, in_part};
-use fixture::{insert, len, on_frame, step};
+use fixture::resolver::{PartStore, in_part, with_resolver};
+use fixture::{insert, len, on_frame, run, step};
 use geom_core::Tol;
-
-fn opts(store: PartStore) -> EvalOptions {
-    EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    }
-}
-
-fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
-}
 
 fn block(
     doc: ProfileDoc,
@@ -221,7 +210,7 @@ fn p1_first_bad_mate_wins_badref_before_tangent() {
             ),
         },
     );
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let result = assemble(&doc, &ev, Tol::witness());
     println!("P1: {}", headline(&result));
     assert!(matches!(result, Err(AssemblyError::Reference { .. })));
@@ -256,7 +245,7 @@ fn p2_first_bad_mate_wins_tangent_before_badref() {
             ),
         },
     );
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let result = assemble(&doc, &ev, Tol::witness());
     println!("P2: {}", headline(&result));
     assert!(matches!(result, Err(AssemblyError::NoAtRestRecord { .. })));
@@ -270,7 +259,7 @@ fn p3_checks_over_the_seam_document() {
     let (inner, _, _) = stand("m6r2-p3-stand", part, 1.0);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("m6r2-p3-row", inner_ref, 3, 4.0);
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let report =
         run_checks(&outer, &ev, &ChecksConfig::default(), Tol::witness()).expect("the checks run");
     println!(
@@ -286,7 +275,7 @@ fn p4_checks_over_a_correctly_mated_document() {
     let mut store = PartStore::default();
     let part = store.insert(cube_part("m6r2-p4-cube"), Tol::witness());
     let (doc, _, _) = stand("m6r2-p4-stand", part, 1.0);
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let report =
         run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness()).expect("the checks run");
     println!(
@@ -345,7 +334,7 @@ fn p5_checks_with_a_bad_mate_before_a_good_one() {
             ),
         },
     );
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let report =
         run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness()).expect("the checks run");
     println!(
@@ -364,7 +353,7 @@ fn p6_carried_penetration_is_loud() {
     let (inner, _, _) = stand("m6r2-p6-stand", part, 0.5);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("m6r2-p6-row", inner_ref, 1, 4.0);
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let result = assemble(&outer, &ev, Tol::witness());
     println!("P6: {}", headline(&result));
     assert!(result.is_err(), "penetrating carried geometry must be loud");
@@ -380,7 +369,7 @@ fn p7_seam_gate_by_arm() {
     let (inner, _, _) = stand("m6r2-p7-stand", part, 1.0);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("m6r2-p7-row", inner_ref, 3, 4.0);
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let result = assemble(&outer, &ev, Tol::witness());
     match &result {
         Ok(_) => println!("P7: Ok"),
@@ -429,11 +418,11 @@ fn p8_inner_mint_refusals_reach_the_outer_gate() {
             ),
         },
     );
-    let inner_ev = run(&inner, &opts(store.clone()));
+    let inner_ev = run(&inner, &with_resolver(store.clone()));
     let inner_result = assemble(&inner, &inner_ev, Tol::witness());
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("m6r2-p8-row", inner_ref, 1, 4.0);
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let outer_result = assemble(&outer, &ev, Tol::witness());
     println!(
         "P8: inner={} outer={}",

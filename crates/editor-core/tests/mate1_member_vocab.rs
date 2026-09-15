@@ -16,30 +16,16 @@
 
 use crate::fixture;
 
-use std::sync::Arc;
-
 use editor_core::{
-    Alignment, AssemblyError, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocumentId,
-    EntityKind, EvalOptions, Evaluation, Expr, Frame, MateFrame, MatePrimitive, MateRole, Node,
-    PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, assemble, clusters,
-    evaluate, solve_document,
+    Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind,
+    Expr, Frame, MateFrame, MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, RecipeNodeId,
+    RoleSeg, SitedRef, StableName, assemble, clusters, solve_document,
 };
-use fixture::resolver::{PART_BODY, PartStore, in_part};
-use fixture::{insert, len, on_frame, relations, scl, step};
+use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
+use fixture::{insert, len, on_frame, relations, run, scl, step};
 use geom_core::Tol;
 
 // ---- Substrate (the shared resolver, `fixture::resolver`) ----
-
-fn opts(store: PartStore) -> EvalOptions {
-    EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    }
-}
-
-fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
-}
 
 // ---- Documents ----
 
@@ -223,7 +209,7 @@ fn a_mate_to_a_pattern_copy_places_the_other_member_at_the_derived_pose() {
     );
 
     // End to end: the evaluation runs the same solve; no node refuses.
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     assert!(
         matches!(ev.result(mate), Some(editor_core::NodeResult::Ok(_))),
         "the mate evaluates: {:?}",
@@ -395,7 +381,7 @@ fn a_consistent_sibling_loop_declares_and_verifies() {
         "the sibling seat closes a loop: non-tree, declaring"
     );
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let result = assemble(&doc, &ev, Tol::witness());
     // The branch this fixture takes is `Ok` with both declarations
     // minted — asserted hard, so the row reds if loop verification
@@ -428,7 +414,7 @@ fn an_inconsistent_sibling_loop_dies_at_the_closing_mates_verification() {
     );
     assert_eq!(poses.role(m1), Some(MateRole::Declaring));
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let result = assemble(&doc, &ev, Tol::witness());
     let Err(AssemblyError::AtRest { findings }) = &result else {
         panic!("an inconsistent loop is a finding against the document, got {result:?}");
@@ -461,7 +447,7 @@ fn mates_never_solve_pattern_parameters() {
     assert_eq!(poses.fault(m0), None);
     assert_eq!(poses.fault(m1), None);
 
-    let o = opts(store);
+    let o = with_resolver(store);
     let ev = run(&doc, &o);
     let result = assemble(&doc, &ev, Tol::witness());
     let Err(AssemblyError::AtRest { findings }) = &result else {
@@ -611,7 +597,7 @@ fn the_master_name_spelling_refuses_read_below_a_root() {
     );
     let mate = mate.expect("the mate mints");
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let result = assemble(&doc, &ev, Tol::witness());
     let Err(AssemblyError::Reference {
         mate: named,

@@ -1,40 +1,28 @@
 //! **R1 review probes for MATE-6, the tree-portable half.**
 //!
-//! Every row here compiles and runs on BOTH the merge base and the
-//! MATE-6 branch: it touches only `assemble`, `product_recorded`'s
-//! Ok/Err discrimination, and `run_checks` — never `Product::minted`
-//! or `Product::unminted`, which exist only after the change. That is
-//! deliberate: these rows are the DIFFERENTIAL instrument. Each one
-//! prints a `R1-PROBE:` line, so the two trees' outputs can be diffed
-//! verbatim rather than compared by narration.
+//! Every row touches only `assemble`, `product_recorded`'s Ok/Err
+//! discrimination, and `run_checks`, and every row ends in a
+//! `R1-PROBE:` line and NO assertion. That shape was a differential
+//! instrument while MATE-6 was a branch and its outputs could be
+//! diffed against the merge base's. **The branch merged; there is no
+//! second tree.** So nothing here can go red, and the printed answers
+//! are the whole record —
+//! `work/tint/mate6r1-shared-has-eleven-tests-and-no-assertions.md`
+//! owns deciding, row by row, what assertion replaces the diff.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
 
-use std::sync::Arc;
-
 use editor_core::{
-    Alignment, AssemblyError, AxisSense, CancelToken, CapEnd, ChecksConfig, ContactClass, DocEdit,
-    DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive, Node,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, assemble, evaluate, product_recorded,
-    run_checks,
+    Alignment, AssemblyError, AxisSense, CapEnd, ChecksConfig, ContactClass, DocEdit, DocRef,
+    DocumentId, EntityKind, Frame, MateFrame, MatePrimitive, Node, ProfileDoc, RecipeNodeId,
+    RoleSeg, SitedRef, StableName, assemble, product_recorded, run_checks,
 };
-use fixture::resolver::{PartStore, in_part};
-use fixture::{insert, len, on_frame, step};
+use fixture::resolver::{PartStore, in_part, with_resolver};
+use fixture::{insert, len, on_frame, run, step};
 use geom_core::Tol;
 
 // ---- store / eval plumbing (the shared resolver, `fixture::resolver`) ----
-
-fn opts(store: PartStore) -> EvalOptions {
-    EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    }
-}
-
-fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
-}
 
 fn block(
     doc: ProfileDoc,
@@ -209,7 +197,7 @@ fn r1_two_bad_mates_noatrest_then_reference() {
             ),
         },
     );
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let v = verdict(&assemble(&doc, &ev, Tol::witness()));
     println!(
         "R1-PROBE two_bad_mates_noatrest_then_reference m1={:?} m2={:?} => {v}",
@@ -246,7 +234,7 @@ fn r1_two_bad_mates_reference_then_noatrest() {
             ),
         },
     );
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let v = verdict(&assemble(&doc, &ev, Tol::witness()));
     println!(
         "R1-PROBE two_bad_mates_reference_then_noatrest m1={:?} m2={:?} => {v}",
@@ -288,7 +276,7 @@ fn r1_a_good_mate_after_a_bad_one() {
             ),
         },
     );
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let v = verdict(&assemble(&doc, &ev, Tol::witness()));
     println!(
         "R1-PROBE good_mate_after_bad bad={:?} good={:?} => {v}",
@@ -326,7 +314,7 @@ fn r1_mint_refusal_precedes_the_census() {
             ),
         },
     );
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     // The gather must still ANSWER (record-not-raise), whatever
     // `assemble` does with the refusal.
     let gathers = product_recorded(&doc, &ev, Tol::witness()).is_ok();
@@ -380,7 +368,7 @@ fn r1_false_carried_declaration_at_both_doors() {
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("r1-false-outer", inner_ref, 1, 4.0);
 
-    let ev = run(&outer, &opts(store.clone()));
+    let ev = run(&outer, &with_resolver(store.clone()));
     let gate = verdict(&assemble(&outer, &ev, Tol::witness()));
     let report = run_checks(&outer, &ev, &ChecksConfig::default(), Tol::witness())
         .expect("the registry runs");
@@ -421,7 +409,7 @@ fn r1_true_carried_declaration_at_both_doors() {
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("r1-true-outer", inner_ref, 1, 4.0);
 
-    let ev = run(&outer, &opts(store.clone()));
+    let ev = run(&outer, &with_resolver(store.clone()));
     let gate = verdict(&assemble(&outer, &ev, Tol::witness()));
     let report = run_checks(&outer, &ev, &ChecksConfig::default(), Tol::witness())
         .expect("the registry runs");
@@ -469,7 +457,7 @@ fn r1_declared_pairs_with_a_bad_mate_before_a_good_one() {
             ),
         },
     );
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let report =
         run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness()).expect("the registry runs");
     let sep = report
@@ -490,7 +478,7 @@ fn r1_no_mates_document_digest() {
     let mut store = PartStore::default();
     let part = store.insert(cube_part("r1-bare-cube"), Tol::witness());
     let (doc, _) = row_of("r1-bare", part, 3, 4.0);
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let g = product_recorded(&doc, &ev, Tol::witness()).expect("gathers");
     println!(
         "R1-PROBE no_mates solids={} contacts={:?} roots={} names_empty={}",
@@ -531,7 +519,7 @@ fn r1_three_stands_exact_counts() {
     );
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("r1-x3-outer", inner_ref, 3, 4.0);
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let g = product_recorded(&outer, &ev, Tol::witness()).expect("gathers");
     let gate = verdict(&assemble(&outer, &ev, Tol::witness()));
     println!(
@@ -579,7 +567,7 @@ fn r1_overlapping_false_carried_declaration() {
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("r1-ovl-outer", inner_ref, 1, 4.0);
 
-    let ev = run(&outer, &opts(store.clone()));
+    let ev = run(&outer, &with_resolver(store.clone()));
     let gate = verdict(&assemble(&outer, &ev, Tol::witness()));
     let report = run_checks(&outer, &ev, &ChecksConfig::default(), Tol::witness());
     let sep = match &report {
@@ -624,7 +612,7 @@ fn r1_two_overlapping_false_stands() {
     );
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("r1-ovl2-outer", inner_ref, 2, 4.0);
-    let ev = run(&outer, &opts(store.clone()));
+    let ev = run(&outer, &with_resolver(store.clone()));
     let g = product_recorded(&outer, &ev, Tol::witness()).expect("gathers");
     let report = run_checks(&outer, &ev, &ChecksConfig::default(), Tol::witness());
     let sep = match &report {

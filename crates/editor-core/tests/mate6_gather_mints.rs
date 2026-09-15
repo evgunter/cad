@@ -18,30 +18,16 @@
 
 use crate::fixture;
 
-use std::sync::Arc;
-
 use editor_core::{
-    Alignment, AssemblyError, Attribution, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit,
-    DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive,
-    MintRefusal, Node, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, assemble, evaluate,
-    product_recorded,
+    Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, DocEdit, DocRef,
+    DocumentId, EntityKind, Frame, MateFrame, MatePrimitive, MintRefusal, Node, ProfileDoc,
+    RecipeNodeId, RoleSeg, SitedRef, StableName, assemble, product_recorded,
 };
-use fixture::resolver::{PartStore, in_part};
-use fixture::{insert, len, on_frame, step};
+use fixture::resolver::{PartStore, in_part, with_resolver};
+use fixture::{insert, len, on_frame, run, step};
 use geom_core::Tol;
 
 // ---- Evaluation through the shared part store ----
-
-fn opts(store: PartStore) -> EvalOptions {
-    EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    }
-}
-
-fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
-}
 
 // ---- Documents ----
 
@@ -242,7 +228,7 @@ fn three_identical_stands_in_a_row_carry_their_inner_declarations() {
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, ids) = row_of("mate6-row", inner_ref, 3, 4.0);
 
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let gathered = product_recorded(&outer, &ev, Tol::witness()).expect("the row gathers");
     assert_eq!(
         gathered.body.solids().count(),
@@ -285,7 +271,7 @@ fn the_carry_survives_a_second_nesting_level() {
     let mid_ref = store.insert(mid, Tol::witness());
     let (outer, _) = row_of("mate6-deep-outer", mid_ref, 2, 12.0);
 
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let gathered = product_recorded(&outer, &ev, Tol::witness()).expect("the deep row gathers");
     assert_eq!(gathered.body.solids().count(), 8, "two mids of two stands");
     assert_eq!(
@@ -332,7 +318,7 @@ fn a_carried_declaration_the_outer_geometry_refutes_is_refuted_loudly() {
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, instances) = row_of("mate6-gap-row", inner_ref, 1, 4.0);
 
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let result = assemble(&outer, &ev, Tol::witness());
     let raised = findings(&result);
     // The arm that FIRES is asserted, not "either refuting arm": the
@@ -413,7 +399,7 @@ fn an_outer_mate_the_geometry_refutes_is_refuted_naming_its_mate() {
     );
     let mate = mate.expect("the outer mate mints");
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the pair gathers");
     assert_eq!(
         gathered.minted.iter().map(|m| m.mate).collect::<Vec<_>>(),
@@ -445,7 +431,7 @@ fn assemble_gates_the_gathers_own_record_set_and_mints_nothing() {
     let part = store.insert(cube_part("mate6-once-cube"), Tol::witness());
     let (doc, _, mate) = stand("mate6-once-stand", part, 1.0);
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the stand gathers");
     assert_eq!(
         gathered.contacts.patches.len(),
@@ -476,7 +462,7 @@ fn a_document_with_no_mates_gathers_exactly_what_it_did_before() {
     let part = store.insert(cube_part("mate6-bare-cube"), Tol::witness());
     let (doc, _) = row_of("mate6-bare-row", part, 3, 4.0);
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the bare row gathers");
     assert_eq!(gathered.body.solids().count(), 3);
     assert_eq!(
@@ -522,7 +508,7 @@ fn mint_makes_distinct_face_patches_and_no_curve_records() {
         },
     );
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the gather stands");
     assert_eq!(gathered.minted.len(), 2, "both mates minted");
     assert!(
@@ -565,7 +551,7 @@ fn a_class_with_no_at_rest_record_refuses_at_the_gate_not_at_the_gather() {
     let (doc, tangent) = step(doc, DocEdit::InsertNode { node });
     let tangent = tangent.expect("the tangent mate mints");
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness())
         .expect("the gather answers with the geometry, not a refusal");
     assert_eq!(gathered.body.solids().count(), 2);
@@ -629,7 +615,7 @@ fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
     );
     let good = good.expect("the good mate mints");
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the gather stands");
     assert_eq!(
         gathered.minted.iter().map(|m| m.mate).collect::<Vec<_>>(),
@@ -691,7 +677,7 @@ fn an_unmintable_class_before_a_good_mate_does_not_swallow_it() {
     );
     let good = good.expect("the good mate mints");
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the gather stands");
     assert_eq!(
         gathered.minted.iter().map(|m| m.mate).collect::<Vec<_>>(),
@@ -758,7 +744,7 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
     );
     let second_bad = second_bad.expect("the dangling mate is a node");
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the gather stands");
     assert_eq!(
         gathered.minted.iter().map(|m| m.mate).collect::<Vec<_>>(),

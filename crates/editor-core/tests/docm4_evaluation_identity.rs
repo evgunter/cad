@@ -14,14 +14,12 @@
 
 use crate::fixture;
 
-use std::sync::Arc;
-
 use editor_core::{
     AssemblyError, CancelToken, DocEdit, DocRef, DocumentId, EvalOptions, EvalOutcome, Evaluation,
     Frame, MateFault, Node, NodeResult, ProductError, ProfileDoc, RecipeNodeId, assemble, evaluate,
     product, product_named, product_recorded, solve_document,
 };
-use fixture::resolver::PartStore;
+use fixture::resolver::{PartStore, with_resolver};
 use fixture::{insert, len, on_frame, square};
 use geom_core::Tol;
 
@@ -68,13 +66,6 @@ fn assembly_of(id: DocumentId, part_ref: DocRef) -> (ProfileDoc, Vec<RecipeNodeI
         },
     );
     (doc, vec![a, b])
-}
-
-fn with_resolver(store: PartStore) -> EvalOptions {
-    EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    }
 }
 
 fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>, opts: &EvalOptions) -> Evaluation<f64> {

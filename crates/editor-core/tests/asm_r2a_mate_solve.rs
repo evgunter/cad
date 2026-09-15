@@ -13,16 +13,14 @@
 
 use crate::fixture;
 
-use std::sync::Arc;
-
 use editor_core::{
-    Alignment, AxisSense, CancelToken, ClusterMaintenance, ContactClass, DocEdit, DocumentId,
-    EditError, EntityKind, EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive, MateRole,
-    Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName,
-    apply, clusters, evaluate, load, product, relative_freedom_components, save, solve_document,
+    Alignment, AxisSense, ClusterMaintenance, ContactClass, DocEdit, DocumentId, EditError,
+    EntityKind, Evaluation, Frame, MateFrame, MatePrimitive, MateRole, Node, NodeErrorKind,
+    NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, apply, clusters, load,
+    product, relative_freedom_components, save, solve_document,
 };
-use fixture::resolver::{PART_BODY, PartStore};
-use fixture::{insert, len, on_frame, square, step};
+use fixture::resolver::{PART_BODY, PartStore, with_resolver};
+use fixture::{insert, len, on_frame, run, square, step};
 use geom_core::Tol;
 
 /// `step`, with the minted id unwrapped — every insert in this suite
@@ -131,17 +129,6 @@ fn z_up() -> MateFrame {
     frame([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
 }
 
-fn opts(store: PartStore) -> EvalOptions {
-    EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    }
-}
-
-fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
-}
-
 fn mate_fault(ev: &Evaluation<f64>, node: RecipeNodeId) -> editor_core::MateFault {
     match ev.result(node) {
         Some(NodeResult::Failed(e)) => match &e.kind {
@@ -242,7 +229,7 @@ fn row1_a_coaxial_clocked_rest_pair_is_determined_and_evaluates() {
         "the gauge's own relative pose is the bit-exact identity"
     );
 
-    let o = opts(store);
+    let o = with_resolver(store);
     let ev = run(&doc, &o);
     assert!(matches!(ev.result(ids[1]), Some(NodeResult::Ok(_))));
     let body = product(&doc, &ev, Tol::witness()).expect("the product gathers");
@@ -263,7 +250,7 @@ fn row1_a_coaxial_clocked_rest_pair_is_determined_and_evaluates() {
 #[test]
 fn row1_evaluation_and_save_bytes_are_bit_identical_across_runs() {
     let (doc, ids, store, _) = determined_pair();
-    let o = opts(store);
+    let o = with_resolver(store);
     let first = run(&doc, &o);
     let second = run(&doc, &o);
     let volume = |ev: &Evaluation<f64>| {
@@ -330,7 +317,7 @@ fn row2_a_v_block_refuses_under_naming_prismatic_and_its_direction() {
 
     // The instances refuse too — they have no pose — and the evaluation
     // says so in the mate's own vocabulary.
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     assert!(matches!(
         mate_fault(&ev, ids[1]),
         editor_core::MateFault::Under { .. }
@@ -988,7 +975,7 @@ fn row5b_a_rest_and_two_pins_determine_the_plate() {
         near(relative, Frame::translation([0.0, 0.0, 2.0]), 1e-12),
         "the plate seats at the rest, unturned (both patterns agree): {relative:?}"
     );
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     assert!(matches!(ev.result(ids[1]), Some(NodeResult::Ok(_))));
 }
 
@@ -1053,7 +1040,7 @@ fn row6b_instances_keep_their_roots_across_mate_insert_and_delete() {
 #[test]
 fn row6c_the_gather_ignores_the_mate_root() {
     let (doc, ids, store, _) = determined_pair();
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let mates: Vec<RecipeNodeId> = doc
         .order()
         .iter()
@@ -1110,7 +1097,7 @@ fn row6d_a_dangling_head_contributes_no_edge_and_the_solve_refuses_typed() {
     };
     assert_eq!(*head, ids[1]);
     assert!(fault.to_string().contains("rebind"), "{fault}");
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     assert!(matches!(
         mate_fault(&ev, mate_id),
         editor_core::MateFault::DanglingHead { .. }
@@ -1372,7 +1359,7 @@ fn row6i_the_load_check_refuses_a_mate_head_past_the_mint_counter() {
 #[test]
 fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
     let (doc, ids, store) = assembly("asm-r2a-mate-name-door", 2);
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     assert!(
         editor_core::apply_with_names(
             &doc,
@@ -1624,7 +1611,7 @@ fn row7e_a_mate_solve_escalation_is_on_no_nodes_log_but_visible_in_an_outer_fram
         mates.push(id);
     }
     let outer = geom_core::k_stats::Bracket::open();
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let outside = outer.finish();
     let named = |escalations: &[geom_core::k_stats::Escalation]| {
         escalations

@@ -14,28 +14,15 @@
 
 use crate::fixture;
 
-use std::sync::Arc;
-
 use editor_core::{
-    CancelToken, DocEdit, DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, Node,
-    ProfileDoc, RecipeNodeId, RoleSeg, StableName, content_pin, evaluate, load, product, save,
+    DocEdit, DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, Node, ProfileDoc,
+    RecipeNodeId, RoleSeg, StableName, content_pin, load, product, save,
 };
-use fixture::resolver::PartStore;
-use fixture::{insert, len, on_frame, square, step};
+use fixture::resolver::{PartStore, with_resolver};
+use fixture::{insert, len, on_frame, run, square, step};
 use geom_core::Tol;
 
 // ---- Evaluation through the shared part store ----
-
-fn with_resolver(store: PartStore) -> EvalOptions {
-    EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    }
-}
-
-fn run(doc: &ProfileDoc, opts: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), opts, Tol::witness())
-}
 
 /// A one-solid part: a unit square extruded 1 tall, centered at `cx`.
 fn part(label: &str, cx: f64) -> ProfileDoc {

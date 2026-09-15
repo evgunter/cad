@@ -29,34 +29,20 @@
 
 use crate::fixture;
 
-use std::sync::Arc;
-
 use editor_core::{
-    Alignment, Assembly, AssemblyError, Attribution, AxisSense, CancelToken, CapEnd, ContactClass,
-    DocEdit, DocRef, DocumentId, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, Frame,
-    MateFrame, MatePrimitive, Node, ProfileDoc, RecipeNodeId, Relation, RoleSeg, SitedRef,
-    StableName, assemble, evaluate, product_recorded,
+    Alignment, Assembly, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, DocEdit,
+    DocRef, DocumentId, EntityKey, EntityKind, Entry, Frame, MateFrame, MatePrimitive, Node,
+    ProfileDoc, RecipeNodeId, Relation, RoleSeg, SitedRef, StableName, assemble, product_recorded,
 };
-use fixture::resolver::{PartStore, in_part};
-use fixture::{insert, len, on_frame, step};
+use fixture::resolver::{PartStore, in_part, with_resolver};
+use fixture::{insert, len, on_frame, run, step};
 use geom_core::Tol;
 
-// ---- store / eval plumbing (the mate suites' shape) ----
-
-fn opts(store: PartStore) -> EvalOptions {
-    EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    }
-}
-
-fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
-}
+// ---- This suite's own documents, over the shared store ----
 
 /// A block part: `w` × `d` footprint, extruded `h`. Three nodes — the
 /// sketch frame, the profile, the extrude — so the body's names carry
-/// node 2.
+/// `PART_BODY`, which the store checks on the way in.
 fn block_part(label: &str, w: f64, d: f64, h: f64) -> ProfileDoc {
     let (doc, profile) = on_frame(
         ProfileDoc::empty(DocumentId::derive(label), Tol::witness()),
@@ -287,7 +273,7 @@ fn every_carried_row_is_keyed_to_what_its_own_names_resolve_to() {
     let (inner_ref, inner_id, _, inner_mate) = resting(&mut store, "docm6-a1-stand");
     let (outer, instances) = row_of("docm6-a1-row", inner_ref, 3, 4.0);
 
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let gathered = product_recorded(&outer, &ev, Tol::witness()).expect("the row gathers");
 
     assert_eq!(
@@ -376,7 +362,7 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
     let outer = place(outer, o_m2, [0.0, 100.0, 0.0]);
     let outer_id = outer.id();
 
-    let ev = run(&outer, &opts(store.clone()));
+    let ev = run(&outer, &with_resolver(store.clone()));
     let gathered = product_recorded(&outer, &ev, Tol::witness()).expect("the outer gathers");
     let per_mid = |om: RecipeNodeId| {
         vec![
@@ -400,7 +386,7 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
     let outer_ref = store.insert(outer, Tol::witness());
     let top = ProfileDoc::empty(DocumentId::derive("docm6-deep-top"), Tol::witness());
     let (top, t) = insert(top, Node::instantiate_part(outer_ref));
-    let ev = run(&top, &opts(store));
+    let ev = run(&top, &with_resolver(store));
     let gathered = product_recorded(&top, &ev, Tol::witness()).expect("the top gathers");
     let mut expected = Vec::new();
     for om in [o_m1, o_m2] {
@@ -433,7 +419,7 @@ fn a_refuted_carried_declaration_names_its_mate_and_route() {
     );
     let (outer, instances) = row_of("docm6-a2-row", inner_ref, 1, 4.0);
 
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let result = assemble(&outer, &ev, Tol::witness());
     assert!(
         matches!(&result, Err(AssemblyError::AtRest { .. })),
@@ -485,14 +471,18 @@ fn a_carried_decline_reaches_the_frontier_arm_under_its_own_name() {
         [0.0, 0.0, 1.0],
     );
     let inner = store.doc(inner_id);
-    let inner_result = assemble(&inner, &run(&inner, &opts(store.clone())), Tol::witness());
+    let inner_result = assemble(
+        &inner,
+        &run(&inner, &with_resolver(store.clone())),
+        Tol::witness(),
+    );
     assert!(
         matches!(&inner_result, Err(AssemblyError::Uncertified { .. })),
         "the inner document alone is the frontier: {inner_result:?}"
     );
 
     let (outer, instances) = row_of("docm6-decline-row", inner_ref, 1, 4.0);
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let result = assemble(&outer, &ev, Tol::witness());
     assert!(
         matches!(&result, Err(AssemblyError::Uncertified { .. })),
@@ -555,7 +545,7 @@ fn unattributed_is_only_a_finding_no_declaration_answers_for() {
         (row_of("docm6-a3-touching", gapped, 2, 1.0), true),
     ];
     for ((doc, _), undeclared_expected) in &fixtures {
-        let ev = run(doc, &opts(store.clone()));
+        let ev = run(doc, &with_resolver(store.clone()));
         let result = assemble(doc, &ev, Tol::witness());
         let findings = findings_of(&result);
         assert!(!findings.is_empty(), "{doc:?} refuses: {result:?}");
@@ -628,7 +618,7 @@ fn an_outer_mate_cannot_name_a_pair_inside_one_instance() {
         ),
     );
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let failure = ev
         .node_error(outer_mate)
         .expect("the outer mate does not evaluate");
@@ -656,13 +646,13 @@ fn an_inner_mint_refusal_refuses_the_outer_gate_naming_document_and_mate() {
 
     // The inner document alone: unchanged, its own class refusal.
     let inner = store.doc(inner_id);
-    let inner_ev = run(&inner, &opts(store.clone()));
+    let inner_ev = run(&inner, &with_resolver(store.clone()));
     assert!(matches!(
         assemble(&inner, &inner_ev, Tol::witness()),
         Err(AssemblyError::NoAtRestRecord { mate, .. }) if mate == inner_mate
     ));
 
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let result = assemble(&outer, &ev, Tol::witness());
     let Err(AssemblyError::CarriedMintRefusal { route, refusal }) = &result else {
         panic!("an inner part with an unverified contact is not at rest: {result:?}");
@@ -714,7 +704,7 @@ fn the_carried_refusal_precedes_the_own_unminted_head_and_the_at_rest_gate() {
     // (a) The at-rest gate alone: good parts, no mate of this
     // document's own — the undeclared contact is what refuses.
     let (doc, _) = build("docm6-order-atrest", good);
-    let ev = run(&doc, &opts(store.clone()));
+    let ev = run(&doc, &with_resolver(store.clone()));
     assert!(matches!(
         assemble(&doc, &ev, Tol::witness()),
         Err(AssemblyError::AtRest { .. })
@@ -723,7 +713,7 @@ fn the_carried_refusal_precedes_the_own_unminted_head_and_the_at_rest_gate() {
     // (b) Add this document's own unminted mate: it preempts the gate.
     let (doc, ids) = build("docm6-order-own", good);
     let (doc, own_mate) = with_own_mate(doc, &ids);
-    let ev = run(&doc, &opts(store.clone()));
+    let ev = run(&doc, &with_resolver(store.clone()));
     assert!(matches!(
         assemble(&doc, &ev, Tol::witness()),
         Err(AssemblyError::NoAtRestRecord { mate, .. }) if mate == own_mate
@@ -733,7 +723,7 @@ fn the_carried_refusal_precedes_the_own_unminted_head_and_the_at_rest_gate() {
     // preempts both, because the file to open is the inner one.
     let (doc, ids) = build("docm6-order-carried", broken);
     let (doc, _) = with_own_mate(doc, &ids);
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let result = assemble(&doc, &ev, Tol::witness());
     assert!(
         matches!(&result, Err(AssemblyError::CarriedMintRefusal { route, .. })
@@ -751,7 +741,7 @@ fn a_refusal_two_levels_down_names_its_route() {
     let mid_ref = store.insert(mid, Tol::witness());
     let (outer, outer_instances) = row_of("docm6-route-outer", mid_ref, 1, 12.0);
 
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let result = assemble(&outer, &ev, Tol::witness());
     let Err(AssemblyError::CarriedMintRefusal { route, refusal }) = &result else {
         panic!("the refusal reaches the outermost gate: {result:?}");
@@ -787,7 +777,7 @@ fn the_head_carried_refusal_in_gather_order_is_the_one_raised() {
     let (doc, b) = insert(doc, Node::instantiate_part(second));
     let doc = place(doc, b, [20.0, 0.0, 0.0]);
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("gathers");
     assert_eq!(
         gathered
@@ -826,7 +816,7 @@ fn the_gate_has_no_success_arm_over_a_carried_mint_refusal() {
     let (doc, second) = insert(doc, Node::instantiate_part(broken));
     let doc = place(doc, second, [20.0, 0.0, 0.0]);
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the row gathers");
     assert_eq!(gathered.carried.len(), 1, "the good stand's declaration");
     assert_eq!(
@@ -886,7 +876,7 @@ fn no_carried_declaration_can_reach_a_boolean_operand() {
                 declare: None,
             },
         );
-        let ev = run(&doc, &opts(store));
+        let ev = run(&doc, &with_resolver(store));
         let failure = ev
             .node_error(union)
             .expect("the boolean does not evaluate over a two-solid instance");
@@ -905,7 +895,7 @@ fn a_certified_assembly_names_the_carried_mates_it_certified_over() {
     let mut store = PartStore::default();
     let (inner_ref, inner_id, _, inner_mate) = resting(&mut store, "docm6-ok-stand");
     let (outer, instances) = row_of("docm6-ok-row", inner_ref, 2, 4.0);
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let assembly = assemble(&outer, &ev, Tol::witness()).expect("the row certifies");
     assert!(assembly.minted.is_empty(), "this document has no mates");
     assert_eq!(

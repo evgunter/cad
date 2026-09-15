@@ -29,8 +29,8 @@ use editor_core::{
     EvalScalar, Evaluation, Expr, Frame, LoopProgram, Node, NodeResult, ParamName, ProfileDoc,
     ProfileLift, ProfileProgram, RecipeNodeId, evaluate,
 };
-use fixture::resolver::PartStore;
-use fixture::{frame, insert, len, on_frame, square, step};
+use fixture::resolver::{PartStore, with_resolver};
+use fixture::{frame, insert, len, on_frame, run, square, step};
 use geom_core::Band;
 use geom_core::Tol;
 use geom_core::k_stats::{Bracket, Verdict};
@@ -64,10 +64,6 @@ fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
         ids.push(id);
     }
     (doc, ids)
-}
-
-fn run(doc: &ProfileDoc, opts: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), opts, Tol::witness())
 }
 
 /// The part's one Profile node.
@@ -148,10 +144,7 @@ fn two_instances(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptions) {
     let doc_ref = store.insert(part(&format!("{label}-part"), 0.0, 1.0), Tol::witness());
     let (doc, ids) = assembly(&format!("{label}-asm"), &[doc_ref, doc_ref]);
     let doc = placed(doc, &ids);
-    let opts = EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    };
+    let opts = with_resolver(store);
     (doc, ids, opts)
 }
 
@@ -189,10 +182,7 @@ fn a_part_inside_a_part_keeps_the_outer_log_its_own_under_both_schedules() {
     let mid_ref = store.insert(mid, Tol::witness());
     let (top, top_ids) = assembly("kstats-nest-top", &[mid_ref, mid_ref]);
     let top = placed(top, &top_ids);
-    let opts = EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    };
+    let opts = with_resolver(store);
     let seq = logs(&run(&top, &opts), &top_ids);
     assert_eq!(seq[0], seq[1], "the two outer instances differ: {seq:?}");
     assert_eq!(seq[0], 922, "the outer op's own log over a two-solid part");
