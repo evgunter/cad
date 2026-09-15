@@ -12397,6 +12397,62 @@ is a statement about the response, not about the action.
 
 **VIEW stands at 75 open / 102 closed.**
 
+## 2026-09-15, `view/withdrawal-causes` — the INNER join gets a type
+
+Closes `withdrawal-causes-join-on-a-mark-a-fault-may-contain`, filed
+by #2665 when it fixed the outer level. `Display for Withdrawal` joins
+a withdrawal's causes with `LIST_SEPARATOR`, flat, and
+`DisplayFault::NonRigidFrame` writes one inside a single sentence. It
+was unambiguous only because neither admission test happens to raise
+that arm — a property of two functions' error sets, with no type
+carrying it.
+
+**The fix is the item's own first option: `Withdrawn.cause` narrows.**
+`display::AdmissionFault` holds the four faults the admission tests
+answer, MOVED out of `DisplayFault` rather than copied, and
+`DisplayFault` gains `Admission(AdmissionFault)`. The three check
+functions answer the narrow type; every door still answers
+`DisplayFault` through `From` at the `?`; ~30 call sites moved under
+the compiler.
+
+**Why not the other two.** The mark treatment (`Message::new` /
+`Message::joined` one level in) needs a mark that is never legitimate
+in-band, and one level in from the bullet there is none left — every
+candidate is punctuation a sentence is entitled to, and a rewriting
+door would show a reader words its author did not write, which is the
+objection `frame_status`'s own doc already makes to escaping at a
+join. Re-wording `NonRigidFrame` is a claim about one arm, and it has
+a cost nobody had priced: #2665's
+`a_joined_line_splits_back_into_the_notices_it_was_made_from` is built
+on that sentence as the one REAL fault text carrying the mark, and
+guards itself with an assert that reds if it stops carrying one. That
+row would have had to fall back to prose written for the row, which is
+what its doc says it refuses to do.
+
+**Receipts.** Reverting the field to `DisplayFault` and letting the
+census range over the type it then has: the split returns **nine
+pieces for eight causes**, `NonRigidFrame`'s single sentence cut in
+two. Giving `MateConstrained` a semicolon on the fixed tree: both new
+rows red. Widening `free_move_check` to answer `NonRigidFrame`: E0308.
+
+**Two findings filed from the sweep**, both on this slate.
+`startup-notices-join-on-a-mark-a-prefs-notice-contains` is the same
+class at `LIST_SEPARATOR`'s other consumer and is **live, not latent**
+— three `prefs::Notice` arms carry a `"; "` and two startup notices
+need only a prefs file naming an unknown theme and an unknown preset.
+`seat-line-spells-the-list-mark-as-a-literal` is the mark's second
+spelling.
+
+**Also corrected, both stale before this branch:** `display.rs` and
+`frame.rs` each said *"the remaining three"* `DisplayFault` arms name
+no id, written 2026-09-05 when there were seven arms and falsified on
+2026-09-11 by `WrongFreeMove`; the split states it structurally
+instead. `crates/viewer/README.md` said `rank`'s `Display(_)` is a
+catch-all, which #2053's fix pass made false on 2026-09-06 —
+`git log -S` finds an agent commit and no ratification.
+
+Signed (VIEW implementer lane `withdrawal-causes`, PR #2693).
+
 ## 2026-09-15 — `view/style-installs`: startup's two context-wide installs are held, and the premise was measured before it was built on
 
 `work/view/nothing-holds-startups-two-context-wide-style-installs.md`.
@@ -12516,3 +12572,67 @@ and found `e9824abf3b`, so it is genuinely ratified; it decides what a
 theme IS and says nothing about when it reaches the chrome.
 
 Item **closed**. **VIEW stands at 77 open / 103 closed.**
+
+## 2026-09-15 — #2693 merged; the narrowing closed the population, and found a LIVE instance of the same class next door
+
+**#2693 merged** (`c659225121`), verified from the job list on the
+merged head `22a3b92fcd`: code tier, **39 check runs, 12 `test (…)`,
+5 `k-lint (gate, …)`, `gate ok` success**, six skipped, nothing failed.
+It conflicted on `log.md` against the style-installs entry;
+`crates/viewer/README.md` **auto-merged** despite both lanes editing it.
+
+**The item's latency claim is true, and it was checked by reading
+BODIES rather than `# Errors` prose** — which is the trap I named in the
+dispatch, because a doc section is prose about a function and not a
+census of it. `prune` is the only producer of a `Withdrawn` in `src/`;
+`free_move_check` is `display_check?` plus `MateConstrained`;
+`drawn_targets` calls only infallible things; and `NonRigidFrame` has
+**exactly one construction site in the workspace**, returned to its
+caller. Latent, not live.
+
+**Fix: option 1, the narrowing** — `display::AdmissionFault` carries the
+four admission faults, MOVED rather than copied so no sentence exists
+twice, with `DisplayFault::Admission(_)` beside its own four. The three
+checks answer the narrow type; every door still answers `DisplayFault`
+through `From` at the `?`, so refusal payloads are unchanged.
+
+**The lane said plainly what the fix does NOT buy**, and that is the
+part worth keeping: the type carries the **population**, not the claim
+about strings. The old population was decided in two other functions
+and could change unnoticed; a fifth arm now cannot join without going
+through a census.
+
+**`refusal-rank-wildcards-the-display-fault-payload` is CLOSED** (#2053,
+2026-09-06) — the item calls it "nearby" and does not say so; I
+confirmed the frontmatter. The useful half is not the correction: the
+narrowing **did** collide with it, because a naive `Admission(_)` arm in
+`Refusal::rank` would have re-created that item's own defect one level
+down. `rank` now walks the admission family arm by arm, so a fifth
+admission fault reds there too.
+
+**A LIVE instance of the same class, found on the way out**:
+`startup-notices-join-on-a-mark-a-prefs-notice-contains` — `frame::
+startup_notices` joins with `LIST_SEPARATOR` and three of four
+`prefs::Notice` arms write a `"; "` mid-sentence; a prefs file naming
+an unknown theme AND an unknown preset produces two such notices with
+no error path. **Not latent.** Narrowing cannot reach it — that join
+takes `&[String]` from three types by choice — so the fix lands in
+`prefs.rs`/`app.rs`. Also filed:
+`seat-line-spells-the-list-mark-as-a-literal`.
+
+**Two stale counts corrected as record**, both pre-existing and both
+found rather than inherited: `display.rs` and `frame.rs` each said *"the
+remaining/other **three**"* `DisplayFault` arms name no id — written
+2026-09-05 at seven arms and falsified by `WrongFreeMove` on
+2026-09-11. There are four, and neither sentence carries a number now.
+And the README's claim that `rank`'s `Display(_)` is a catch-all was
+dated by `git log -S` to an agent commit with **no ratification** and
+falsified by #2053 — corrected rather than left for Ev.
+
+**The M1 receipt is the nicest of the three**: reverting the field to
+`DisplayFault` and letting the census range over the type it then has
+made the split return **nine pieces for eight causes** —
+`NonRigidFrame`'s sentence cut in two, which is the defect itself
+rendered as a number.
+
+Item **closed**. **VIEW stands at 78 open / 104 closed.**
