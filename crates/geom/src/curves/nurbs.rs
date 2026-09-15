@@ -57,11 +57,11 @@
 //!   underflow, the reads are in range by construction, and there is no
 //!   pairing to check and no refusal to answer. The two mints are
 //!   [`NurbsCurve3::span`] and [`NurbsCurve3::span_at`], both `&self`.
-//! - **Full evaluators** (`eval`/`deriv`/`deriv2`): span selection via
-//!   the sealed [`SpanLocate`] seam (per-instantiation semantics
-//!   documented in `geom_core::spline::locate`), then the core per
-//!   overlapped span, hulled channel-independently for interval-natured
-//!   scalars.
+//! - **Full evaluators** (`eval`/`deriv`/`deriv2`, and the jets `ders1`
+//!   and `ders`): span selection via the sealed [`SpanLocate`] seam
+//!   (per-instantiation semantics documented in
+//!   `geom_core::spline::locate`), then the core per overlapped span,
+//!   hulled channel-independently for interval-natured scalars.
 //!
 //! # What does not typecheck
 //!
@@ -1483,6 +1483,41 @@ macro_rules! nurbs_curve {
                     acc = $Vector::new($(acc.$c.enclosure_hull(q.$c)),+);
                 }
                 acc
+            }
+
+            /// Point and first derivative at `t` from ONE span
+            /// selection and one order-1 basis pass per overlapped span
+            /// — the order-1 sibling of [`Self::ders`], for a consumer
+            /// that wants a point and a tangent and would otherwise run
+            /// [`Self::eval`] and [`Self::deriv`] as two located walks.
+            ///
+            /// Both halves are what their own evaluators answer, bit
+            /// for bit: per span this is the window's `ders1_in_span`
+            /// (whose point IS `eval_in_span`'s and whose derivative IS
+            /// `deriv_in_span`'s), and the hull across the overlapped
+            /// spans folds the same range in the same order as `eval`
+            /// and `deriv` each fold theirs. The macro mints this door
+            /// on `NurbsCurve2` too.
+            ///
+            /// The return is the tuple `ders1_in_span` and `ders` return
+            /// — every consumer destructures it on the spot, and a named
+            /// jet type would be a third spelling beside two tuples.
+            pub fn ders1(&self, t: T) -> ($Point<T>, $Vector<T>) {
+                let spans = t.locate_spans(&self.knots);
+                // `spans.first` arrives already validated — the locator
+                // is where span validity originates, so there is
+                // nothing to re-check and no `expect` here.
+                let (mut p, mut d1) = self.window_of(spans.first).ders1_in_span(t);
+                for s in (spans.first.index() + 1)..=spans.last.index() {
+                    // Empty-span skip: see `eval`'s note.
+                    // The emptiness check and the span's validation are
+                    // now the same operation.
+                    let Some(span) = self.knots.span(s) else { continue };
+                    let (q, q1) = self.window_of(span).ders1_in_span(t);
+                    p = $Point::new($(p.$c.enclosure_hull(q.$c)),+);
+                    d1 = $Vector::new($(d1.$c.enclosure_hull(q1.$c)),+);
+                }
+                (p, d1)
             }
 
             /// Point, first and second derivative at `t` — the jet a
