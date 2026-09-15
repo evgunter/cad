@@ -29,7 +29,6 @@ use crate::node::{RecipeNodeId, SlotId};
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-#[serde(deny_unknown_fields)]
 pub enum Dimension {
     /// A length, canonically meters (units erase before kernel `T`).
     Length,

@@ -51,9 +51,11 @@ clearance-window description run independently.
    S-MESH's and Track M's ground: announced seams.
 3. `clearance-window-tightening-needs-chart-boundary` — PR-1 (the
    description, `topo` only) DELIVERED #1911 (2026-09-07); PR-2 (the
-   `clearance.rs` seam) is next, after the seam is announced to SHELL
-   and M10 on the away channel; the consumer re-charts every plane and
-   reads the METRED hull (spec §Amendments).
+   `clearance.rs` seam) DELIVERED #2554 (2026-09-15) on a week's
+   silence after the seam announcement; block TRIM-B1 concluded. Six
+   residues stay on the program (the cone/sphere/torus arms, the
+   exact-region cells, the `min_separation` lane split, the revolved
+   bands, the three arms tables, the unreachable `Err` arm).
 4. `loft-seam-carrier-exact-knot-compare` (S-CERT's file today; D→H)
    — a tolerance-structural compare with a soundness story, or an
    exact skin-fit reproduction of the chart's boundary row. Its file is

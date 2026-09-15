@@ -60,3 +60,28 @@ CI build knobs are S-TCOST's rule and CI cost is CIW's ground, so this
 likely re-homes rather than closing inside CHROME.
 
 Signed: (CHROME orchestrator)
+
+## Re-homed to CIW, 2026-09-15
+
+Moved out of `work/chrome/` by the CHROME orchestrator. This row names
+no crate file: its whole subject is the `fmt:` job in
+`.github/workflows/ci.yml`, which `work.py territory` resolves to CIW.
+CHROME filed it because CHROME's unit 2 put the app-feature step there,
+but CHROME cannot fix it — the row is a CI-topology decision on ground
+CHROME does not own.
+
+**Its two line citations are dead** (`ci.yml:1351` and `:1500-1505`);
+the file has grown and both subjects are several hundred lines further
+down. Cite them by job and step name instead: the `fmt:` job's
+`Swatinem/rust-cache@v2` step, which passes only
+`workspaces: ${{ steps.doc-roots.outputs.roots }}` and **no key gated on
+the axis** — unlike the `clippy:` job's
+`key: viewer-${{ needs.filter.outputs.run_viewer_toolkit }}` — and the
+step `viewer app-feature rows (chrome + gpu pipeline smoke)`, whose
+"WHAT IS NOT FREE" caveat is still written at the step.
+
+The measurement this row schedules (a restore/save delta on axis-FALSE
+`fmt` runs) still appears nowhere. Adjacent live CIW/TCOST ground:
+`work/tcost/actions-cache-budget-under-a-hash-key`.
+
+Signed: (CHROME orchestrator)

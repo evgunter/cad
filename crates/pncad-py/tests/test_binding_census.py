@@ -499,10 +499,12 @@ def audit_gap_ids():
 #:   taking a `BooleanOp` — the arm split moved from the verb to an
 #:   argument.
 #: - **A type became the door that reads it.** `DatumValue` is what
-#:   `Value.datum` answers, and `UnitVec3` — the type that makes a
-#:   datum's normal unit, so that an unnormalized one has no spelling
-#:   in Rust either — is what `Datum.direction` answers, as the plain
-#:   triple it always was; its constructor's refusals cross the way
+#:   `Value.datum` answers, and `geom_core::UnitVec3` — the witness
+#:   that makes a datum's normal unit, so that an unnormalized one has
+#:   no spelling in Rust either; not a curated façade name, since it
+#:   is reached through the re-exported `geom_core` crate — is what
+#:   `Datum.direction` answers, as the plain triple it always was; its
+#:   constructor's refusals (`UnitVec3Error`, there too) cross the way
 #:   every other typed refusal does, as tags on `EvaluationError.kind`
 #:   (Python builds datums through
 #:   `Node.datum_plane`/`Node.datum_axis`, never by naming the type).
@@ -549,13 +551,12 @@ BOUND_AS = {
     # `VerbKind`/`Arity` are `NodeErrorKind::VerbArity`'s payload — an
     # internal wiring-bug refusal — and cross exactly as their carrier
     # does: flattened to the `verb_arity` tag `EvaluationError.kind`
-    # answers (the `UnitVec3Error` row's precedent; the typed payload
-    # stays a Rust-side diagnosis surface).
+    # answers (the same flattening the `Datum.direction` bullet above
+    # records for `UnitVec3Error`; the typed payload stays a Rust-side
+    # diagnosis surface).
     "Arity": "EvaluationError.kind",
     "VerbKind": "EvaluationError.kind",
     "UnevaluatedReason": "Verdict.reason",
-    "UnitVec3": "Datum.direction",
-    "UnitVec3Error": "EvaluationError.kind",
     "PI": "pi_rad",
     # `DistributionField` names WHICH offset of a distribution a fault
     # is about, and it crosses as that word on the fault rather than as
@@ -1913,8 +1914,9 @@ NOT_BOUND = {
     # `FramePlacement::Unreadable`'s payload: which axis the kernel's
     # direction door refused and which of its four facts it reported.
     # It crosses as its carrier does, and its carrier does not cross
-    # (the row below) — the same flattening the `UnitVec3Error` and
-    # `Arity`/`VerbKind` rows record, one level in.
+    # (the row below) — the same flattening the `Arity`/`VerbKind`
+    # rows and the `Datum.direction` bullet's `UnitVec3Error` record,
+    # one level in.
     "DirectionRefusal": SHAPE,
     "EdgeKey": SHAPE,
     "EditRecord": SHAPE,

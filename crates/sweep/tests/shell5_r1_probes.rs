@@ -21,7 +21,8 @@ use topo::{
     Body, FaceKey, ShellError, ShellKey, ShellRole, VoidContainment, VoidEvidence, insert_void,
 };
 
-use crate::verbs_shell::{brick, prism, roles_by_solid, v};
+use crate::verbs_shell::{prism, roles_by_solid, v};
+use sweep::test_support::brick;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -33,7 +34,7 @@ fn tol() -> Tol {
 
 /// A `w × d × h` box with its min corner at `(x0, y0, z0)`.
 fn boxy_at(x0: f64, y0: f64, z0: f64, w: f64, d: f64, h: f64) -> Body<f64> {
-    brick(x0, x0 + w, y0, y0 + d, z0, z0 + h)
+    brick((x0, x0 + w), (y0, y0 + d), (z0, z0 + h), Tol::witness())
 }
 
 /// A meridian polyline revolved a full turn about the sketch's `+y`

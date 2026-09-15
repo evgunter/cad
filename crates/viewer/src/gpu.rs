@@ -118,6 +118,10 @@ struct Uniforms {
     base_color: [f32; 4],
     /// `[selected id, hovered id, 0, 0]` — `IdMap::NOTHING` for
     /// "nothing is marked", so the shader needs no absence case.
+    ///
+    /// **The two lanes may hold the SAME id**, when the hover is on
+    /// the selection ([`crate::marks::Highlight`]); `fs_main` below is
+    /// what rules between them, and it is the only thing that does.
     highlight: [u32; 4],
     /// The four highlight marks: tint in `xyz`, mix strength in `w`.
     ///

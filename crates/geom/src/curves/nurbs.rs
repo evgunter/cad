@@ -570,20 +570,17 @@ macro_rules! nurbs_curve {
 
             /// Construction from parts whose invariants are ALREADY
             /// established — the door a structural map takes instead
-            /// of [`Self::new`], and the one place that says why
-            /// `new`'s check is redundant for it.
+            /// of [`Self::new`].
             ///
             /// The invariants are load-bearing for indexing (module
-            /// docs), so skipping the check needs an argument, and it
-            /// is this: `knots` and `weights` are a validated curve's
-            /// own, carried verbatim, and `control` is that curve's net
-            /// mapped POINTWISE — a map over a `Vec` cannot change its
-            /// length — so `control.len()` still equals
-            /// `knots.control_count()`, `weights.len()` still equals
-            /// `control.len()`, and every weight is still the positive
-            /// finite value `new` admitted. The `debug_assert` re-derives
-            /// the count agreement that argument rests on (D2 addendum
-            /// row 5: a bug detectable only by re-derivation).
+            /// docs), so skipping the check needs an argument. That
+            /// argument has ONE home for the whole crate,
+            /// `crate::scalar_lift`'s module docs: what a structural
+            /// map is, why no shape of it changes a count or a weight
+            /// value, and which part of it the `debug_assert` below
+            /// cannot check. `knots` and `weights` here are a
+            /// validated curve's own and `control` is that curve's net
+            /// under such a map.
             fn from_validated_parts(
                 knots: KnotVector,
                 control: Vec<$Point<T>>,
@@ -591,7 +588,7 @@ macro_rules! nurbs_curve {
             ) -> Self {
                 debug_assert!(
                     control.len() == knots.control_count() && weights.len() == control.len(),
-                    "from_validated_parts: a pointwise map changed a count \
+                    "from_validated_parts: a structural map changed a count \
                      (control {}, knots want {}, weights {})",
                     control.len(),
                     knots.control_count(),
@@ -619,6 +616,33 @@ macro_rules! nurbs_curve {
                     self.control.iter().map(|p| p.map(&f)).collect(),
                     self.weights.clone(),
                 )
+            }
+
+            /// The same curve on another parameter domain: the knots
+            /// re-expressed on `[lo, hi]` by [`KnotVector::on_domain`]
+            /// (ends exact, interior affine), the control net and the
+            /// weights carried over verbatim. Construction goes through
+            /// [`Self::from_validated_parts`], which states why no
+            /// re-validation is run.
+            ///
+            /// A reparameterization, not a change of locus: the result
+            /// at `lo + (hi − lo)·s` is this curve at `a + (b − a)·s`,
+            /// to the rounding of the knot map. The domain's own
+            /// validity is the knot door's question, and its `Result`
+            /// is that door's and nothing else.
+            ///
+            /// # Errors
+            ///
+            /// [`KnotVector::on_domain`]'s: the domain is not a finite
+            /// increasing interval, or a rounding collapse tripped a
+            /// clamp clause.
+            pub fn on_domain(&self, lo: f64, hi: f64) -> Result<Self, SplineError> {
+                let knots = self.knots.on_domain(lo, hi)?;
+                Ok(Self::from_validated_parts(
+                    knots,
+                    self.control.clone(),
+                    self.weights.clone(),
+                ))
             }
 
             /// The same curve with every control point carried

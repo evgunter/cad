@@ -2,8 +2,11 @@
 id: indexing-seam-outlives-a-worker-panic
 kind: issue
 title: A panicked seam worker leaves the chrome promising an answer that is not coming
-status: open
+status: closed
 opened: 2026-09-05
+closed: 2026-09-15
+branch: view/seam-panic
+pr: 2637
 ---
 
 
@@ -49,3 +52,41 @@ Unmeasured, and only reachable through a worker panic — which is a
 bug in the build code, not an ordinary state. It is filed because the
 sentence the user is shown is confidently false, not because it is
 frequent.
+
+## Closed
+
+**The census was three seams, not two, and one of the two named was
+already right.** `evalseam` grew a third seam (`FitService`, #2606)
+after this was filed, so the population is evaluation, index and fit —
+and of the three only the index consumer answered from its own
+bookkeeping:
+
+| seam | the consumer | consults the seam? |
+|---|---|---|
+| `EvalService` | `DocSession::running`, folded with `busy` into `Outstanding` | yes |
+| `IndexService` | `PickCache::indexing` | **no — the defect** |
+| `FitService` | `ViewerApp`'s two `FitService::busy` reads | yes |
+
+The claim above about `DocSession::busy` was wrong when it was written,
+not merely stale: no chrome reads `busy` alone. `frame::progress` has
+taken the seam's answer beside it since before this item was filed
+(`(true, false, _) => Canceled` at `bf4e3d16b5`, the head of the day
+before), so a panicked evaluator has always reached the toolbar as
+*canceled — showing an older result* rather than as a permanent
+`evaluating…`. `busy`'s stated reason — it answers *am I showing the
+current document*, which is true of a dead evaluator — is untouched by
+the fix and did not need to be overridden. What answers *is anyone
+working on it* is `running`, and that is the seam's own `busy`.
+
+**The fix**: `PickCache::indexing` is
+`outstanding.is_some() && seam.busy()`. Both halves, because either
+alone is false in one direction — the record alone promises an answer
+nobody will send, and the seam alone lights the indicator for a build
+`forget` has already orphaned (`frame_policy.rs`'s
+`a_build_in_flight_when_the_document_is_replaced_installs_nothing`
+holds that half).
+
+**Residue**, filed rather than disclosed:
+`a-dead-seam-worker-reads-as-an-ordinary-idle-state` — what the chrome
+should say INSTEAD of the withdrawn promise, on all three seams. That
+is a new typed fact and a badge decision, and it wants Ev.

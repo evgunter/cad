@@ -82,6 +82,13 @@
 //! the predicate funnel, so the totality contract above is unchanged
 //! for everything else in this layer.
 //!
+//! The [`UnitVec3`] witness is the one type here that carries a
+//! decided fact: a direction whose length decided positive under a
+//! band and was then normalized. It is minted by its normalizing
+//! constructor, by exact negation, by a `sin_cos` pair, and by
+//! [`frame`]'s deciding ladders; its own docs say what the fact means
+//! at every scalar and which doors take it.
+//!
 //! The [`lsq`] submodule (M5 PR 4) is the one variable-size resident:
 //! `f64`-only structure machinery for the fitting systems (C6's f64
 //! lane), `Vec`-based with shapes validated at entry so every internal
@@ -94,6 +101,7 @@ pub mod lsq;
 mod mat;
 mod point;
 pub mod svd;
+mod unit_vec;
 mod vec;
 
 pub use affine::Affine3;
@@ -101,4 +109,5 @@ pub use frame::{FrameError, FrameInput, FrameVector};
 pub use mat::Mat3;
 pub use point::{Point2, Point3};
 pub use svd::{Svd, Svd2x3, Svd3x4};
+pub use unit_vec::{UnitVec3, UnitVec3Error, decide_unit_direction};
 pub use vec::{Vec2, Vec3};

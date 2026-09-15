@@ -113,8 +113,10 @@ fn both_rim_roles_round_trip() {
 /// — is unreadable by this build, and the refusal names the variant.
 ///
 /// It dies because an externally-tagged enum rejects a variant name it
-/// does not know, unconditionally — `deny_unknown_fields` is inert on
-/// unit-only variants and is not what fires here.
+/// does not know, unconditionally. `RimSupport` carries no
+/// `deny_unknown_fields` and would not be helped by one: that
+/// attribute needs a NAMED field to deny, and this vocabulary is two
+/// unit variants.
 #[test]
 fn the_retired_spelling_is_unreadable_by_this_build() {
     let text = save(&both_roles(), &[], Tol::witness()).expect("the document saves");

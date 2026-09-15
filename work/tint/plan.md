@@ -118,10 +118,19 @@ A unit that moves kernel logic, or that changes what a guard decides in a
 way worth a second opinion on correctness, gets one extra reviewer named
 in its PR with the reason. That is a per-unit judgement, not a default.
 
-Three rows on this slate are **decisions, not work**, and ride `[ev]` PRs:
-`D70` (whether 13 silent stand-downs should be ε-conditional at all),
-`D113` (what an intra-doc link in a `tests/` file is), and any change to
-a `memories/` clause this program finds wrong.
+One thing on this slate is a **decision, not work**, and rides an
+`[ev]` PR: any change to a `memories/` clause this program finds wrong.
+`D70` and `D113` were the other two and are both **closed** (Ev,
+in-chat, 2026-09-15). `D70` asked whether 13 silent stand-downs should
+be ε-conditional at all; the answer is no, the ε-conditionality is two
+kernel defects, and both are filed on the ground that owns them —
+`work/trim/plane-nurbs-certificate-bound-does-not-refine-with-eps` and
+`work/issues/ssi-fit-sample-budget-is-a-constant-compared-against-a-varying-eps`.
+`D113` — Ev ruled on 2026-09-15 that an intra-doc
+link in a `tests/` file is prose checked by nothing, and that no format
+change and no mechanism follow, because a different citation spelling
+would not prevent drift. The reasoning and the measurement behind it are
+in that row.
 
 Hosted CI is the only gate. Implementer dispatches point at
 `docs/prompts/implementer-discipline.md` by path.
@@ -131,17 +140,28 @@ Hosted CI is the only gate. Implementer dispatches point at
 Thirty rows, moved by `git mv` from `work/tcost/` with ids unchanged and
 a `## Moved to S-TINT (2026-09-11)` record in each. Fourteen are the
 Track W units (`C18`, `D70`, `D72`, `D113`, `D380`–`D386`, `H12`,
-`S216`, `S230`); sixteen are the slugs S-TCOST's lanes filed while
-measuring. **No unit order is fixed yet** — the first orchestrator cuts
-one, and the two obvious pairings are recorded so they are not lost:
+`S216`, `S230`, of which `D113` has since closed); sixteen are the slugs
+S-TCOST's lanes filed while measuring. **No unit order is fixed yet** —
+the first orchestrator cuts one, and the pairings worth not losing are
+recorded here:
 
 - `D383` and `S230` are the same class under two names (a certified
   bound with no ceiling) and both want the `test_utils::tightness` home;
   they want one lane.
-- `H12`, `S216`, `C18` and `D113` are one question from four sides
-  (what a doctest in `tests/` is, and whether a `compile_fail` row
-  verifies the reason it names). `S216` is explicitly *not takeable as a
-  doc edit* — it needs machinery — and is the one row here whose fix
+- `H12` and `S216` are one question from TWO sides (what a doctest in
+  `tests/` is, and whether a `compile_fail` row verifies the reason it
+  names). The slate recorded four sides and had two of them wrong.
+  `D113` was a third: its subject was dead LINKS where these are dead
+  PROOFS, and its closure leaves both untouched. **`C18` was a fourth
+  and is not related at all** — a cross-wire, settled 2026-09-15 by
+  reading PR #734, which is *"Track C lane C-d, finding H12: the SSI
+  sweeps' other never-silence doors have no acceptance row"* and says
+  in its own Recording section *"§D gains row C18"*. That `H12` is a
+  Track **C** finding id; `work/tint/H12.md` is the Track **H** unit
+  about never-collected doctests. Two unrelated findings, one id.
+  `C18` is an SSI door-coverage row on `crates/geom-brep/tests/` and
+  belongs beside nothing else on this slate. `S216` is explicitly *not
+  takeable as a doc edit* — it needs machinery — and is the one row here whose fix
   ADDS compute, which the public repo makes cheaper to justify rather
   than harder.
 

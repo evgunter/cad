@@ -2031,8 +2031,8 @@ fn inner_arm_tags_are_stable() {
 #[test]
 fn a_carried_frame_direction_refusal_keeps_the_frames_own_tag() {
     use crate::tags::{node_error_tag, node_inner_kind_tag};
-    use pncad::document::{DirectionRefusal, NodeErrorKind, RecipeNodeId, UnitVec3Error};
-    use pncad::geom_core::{Band, Indeterminate, MarginDiag};
+    use pncad::document::{DirectionRefusal, NodeErrorKind, RecipeNodeId};
+    use pncad::geom_core::{Band, Indeterminate, MarginDiag, UnitVec3Error};
 
     let band = Band::new(1.0e-9, 1.0e-6).expect("a valid band");
     let carried = |error| NodeErrorKind::FrameDirection {

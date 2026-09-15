@@ -359,6 +359,23 @@ population of adjacent same-typed `bool` parameters in this crate;
 `work/view/adjacent-same-typed-arguments-are-the-same-swap.md` carries
 the wider class, where the types are not `bool`.
 
+**Every "is work outstanding" answer consults the seam it asked.**
+There are three seams — evaluation, the pick index and the display fit
+— and each has a consumer that reports whether work is owed.
+`DocSession::running` is `EvalService::busy`; `PickCache::indexing` is
+`IndexService::busy` beside the cache's own record of which picture was
+asked for, so a build already destined to be discarded
+(`IndexLanding::Stale`) does not light the indicator and a build nobody
+is answering stops lighting it; and the fit's two reads in `app` are
+`FitService::busy` directly, with no second record to consult. What the
+rule is for is a worker that has gone: all three handles clear their
+own flags when the channel disconnects, and each says at that arm that
+the indicator must not stay lit for an answer that is not coming. A
+consumer answering from its own bookkeeping instead promises one
+anyway — a spinner for the life of the window, a repaint every frame to
+collect a result nobody will send, and every click refused with *the
+picture is still being indexed*.
+
 ### What the session knows because of the document is one value
 
 `DocSession` holds a `Derived`: what is selected, what is hovered,
@@ -959,7 +976,24 @@ happen to be in hand:
   tessellation, so generations alone would read as co-identity while
   checking something else.
 - A read of the index's **identity alone** — `PickIndex::generation` as
-  a cache key — resolves nothing and needs neither.
+  half the id query's key — resolves nothing and needs neither.
+
+**The id query's key is the picture AND the index**, which is the same
+rule met from the other side. `frame::IdQueryLog` holds a query open
+while its answer still describes the cursor, and that answer is an id
+the GPU read out of one picture, resolved through one index's id map —
+so `frame::IdSubject` carries both halves, `ViewerApp::revision` for the
+picture and the index's generation for the alphabet. **Neither half
+subsumes the other.** `sync_scene` rebuilds on a display-revision or
+focus-set change at a standing generation, so hiding a part draws ids
+the generation cannot distinguish from the ones before it; and a rebuild
+`sync_scene` REFUSES does not bump the revision, so an index that landed
+over one is a new generation beside the picture already on screen. A key
+carrying one half holds a question that should be re-asked, and a held
+query keeps the last answer MATCHED — so `frame::disagreement` finds a
+fresh ray answer against a GPU answer about a different picture and
+reports it as *the two picking paths disagree*, which issue #1097 §4
+tells an operator to read as an `R32Uint` clear fault.
 
 **What produced the rule.** The population is *a site that uses the
 `&PickIndex` a pane was handed*, and there are **eight**: five about the
