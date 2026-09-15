@@ -88,6 +88,23 @@ unchanged (a shell-level orientation check or a second encoding
 channel); what is added here is that the measuring door's silence is
 part of what that design conversation has to answer.
 
+## Residual 2's misnomer, a second instance: a rod with one wall reversed (SENSE-FOLD, 2026-09-15)
+
+A rod (two half-arc profile segments extruded: two half-cylinder walls
+on one chart, two planar caps) with ONE wall's `Face::sense` flipped
+raises three errors for the one defect through `validate_geometric`:
+check 4 names the wall (`CurvedSenseInverted { face }`, the bit read
+directly), and the material-wedge arm raises `LaminaWedge { edge }`
+on each of the two SEAMS the reversed wall shares with its honest
+twin — the same cylinder, osculating jets, opposed material sides,
+read as conformal contact. Unlike the ball's case the bit IS named
+here, so the misnomer is a duplicate rather than a substitute; but a
+user still reads two edges as broken for a face that is. Pinned as
+`crates/sweep/tests/r2_sense_fold_probes.rs::a_reversed_rod_wall_is_named_by_check_4_and_read_as_lamina_at_both_seams`
+(exact error set: the wall once, the two seams, nothing else), so
+the day the wedge arm stops reading a reversed wall as lamina the row
+says so.
+
 ## Home
 
 `work/issues/`: the four residuals span `validate` check 6, the props sense gate and the NURBS vocabulary, and no open program's charter claims the set — VERBS cites only residual 1, as VERBS-CONE's known trap.

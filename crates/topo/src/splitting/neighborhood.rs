@@ -98,7 +98,7 @@ use crate::validate::decide;
 /// call, the sector-shape rungs, the departure trileans — is
 /// sense-invariant GIVEN that value and must not multiply again: those
 /// sites pair it with the STORED orbit order, which `revert` reverses
-/// together with the sense bit, so a second `sense_sign` factor would
+/// together with the sense bit, so a second sense fold would
 /// cancel this one.
 pub(super) fn sector_face<T: Decide>(
     body: &Body<T>,
@@ -252,7 +252,7 @@ pub fn classify_neighborhood<T: Decide>(
                     // The reference side here is the SPLIT PLANE's
                     // normal: an operation input that DEFINES
                     // Above/Below, belonging to no face and with no
-                    // `sense_sign` to fold in. Its type says so —
+                    // `sense` bit to fold in. Its type says so —
                     // `enters_material`'s face slot would not accept
                     // it, and this slot does not accept a bare vector.
                     match geom_brep::enters_material_order2(

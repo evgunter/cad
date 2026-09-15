@@ -96,8 +96,8 @@ impl PlaneIdentity<'_> {
 
 /// One plane's conventional description: a point on it and its unit
 /// **outward** normal — outward for the FACE the description came
-/// from, which since S10 is the surface's chart normal times that
-/// face's `sense_sign`, not the chart normal itself
+/// from, which is the surface's chart normal with that face's
+/// `sense` folded in, not the chart normal itself
 /// (`boolean::reduce::face_plane` is the door that folds the bit in).
 /// The Same±-orientation verdict is a statement about material sides,
 /// so a description built from a raw chart normal would make it a

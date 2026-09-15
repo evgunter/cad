@@ -10,11 +10,12 @@
 //! built; a helper used by one suite stays in that suite. Nothing here
 //! is `pub` that only this module uses.
 //!
-//! A wall's outward normal is `sense_sign · (S_u × S_v)`. Checking it
-//! means asking, of a point just off the wall, which side the material
-//! is on — and the answer has to come from somewhere that never reads a
-//! `sense`, a winding or a normal, or the check is circular. Everything
-//! here reads POSITIONS off the shipped charts and nothing else.
+//! A wall's outward normal is `S_u × S_v`, negated where `sense` is
+//! `false`. Checking it means asking, of a point just off the wall,
+//! which side the material is on — and the answer has to come from
+//! somewhere that never reads a `sense`, a winding or a normal, or the
+//! check is circular. Everything here reads POSITIONS off the shipped
+//! charts and nothing else.
 //!
 //! # Level sets, and the two ways to index them
 //!
@@ -37,6 +38,7 @@
 #![allow(dead_code)]
 
 use geom::{NurbsSurface, Surface};
+use geom_brep::OutwardNormal;
 use geom_core::{Point3, Vec3};
 use sweep::Lofted;
 use topo::boolean::SolidContainment;
@@ -94,7 +96,7 @@ pub fn wall_outward_at(
     let jet = s.ders(u, v);
     (
         s.eval(u, v),
-        jet.du.cross(jet.dv).normalize() * f.sense_sign::<f64>(),
+        OutwardNormal::from_chart(jet.du.cross(jet.dv).normalize(), f.sense).vec(),
     )
 }
 
@@ -219,7 +221,7 @@ pub fn assert_caps_face_out(lofted: &Lofted<f64>, oracle: &Oracle<'_>, delta: f6
         let Some(Surface::Plane { normal, .. }) = lofted.body.get_surface(f.surface) else {
             panic!("{what} cap carries a plane");
         };
-        let outward = *normal * f.sense_sign::<f64>();
+        let outward = OutwardNormal::from_chart(*normal, f.sense).vec();
         let p = ring_centroid(lofted, t);
         assert_eq!(
             probe_sides(oracle, p, outward, delta),
