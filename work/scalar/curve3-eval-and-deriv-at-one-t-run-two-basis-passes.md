@@ -4,6 +4,7 @@ kind: issue
 title: Curve3::eval and Curve3::deriv at one t run two span locations and two basis passes, with no order-1 jet door to collapse them into
 status: open
 opened: 2026-09-11
+branch: scalar/curve3-jet
 ---
 
 ## What
@@ -100,3 +101,14 @@ What neither pass can match:
 - **Anything outside `crates/*/src`** — `demos/`, `tools/` and
   `benches/` were not swept, and `demos/tour` and `demos/wild` are
   ordinary API consumers where the pair would be just as real.
+
+## Unit CURVE3-JET (2026-09-15)
+
+Dispatched as block SCALAR-B4 slot 0 under `docs/CURVE3-JET-SPEC.md`
+(deleted at merge per the ledger). The survey of 2026-09-15 corrected the
+finding on two points the spec carries: the whole-curve order-2 jet
+`NurbsCurve3::ders` already exists (the order-1 door is its sibling,
+`ders1`), and the `revolve/upgrade.rs` pair now lives in
+`geom-brep/src/dihedral.rs`; it added six `NurbsCurve3<f64>` pair sites in
+the tour and the `pncad` example that feed S393's `path_start_frame`.
+
