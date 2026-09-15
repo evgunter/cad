@@ -5,6 +5,7 @@ title: The five bare-T sense-sign doors take the bit, and sphere's mixed sign sp
 status: open
 opened: 2026-09-15
 branch: scalar/sense-sign-doors
+pr: 2649
 ---
 
 
