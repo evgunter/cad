@@ -3154,3 +3154,46 @@ and `dimension-error-op-carries-twelve-words-minted-at-call-sites`; and
 on `work/lib/`, `validationerror-stub-declares-one-of-the-class-two-shapes`.
 
 - `CENSUS-PY-RAISE-LITERALS-SPEC.md` — CENSUS-PY-RAISE-LITERALS, nine raise-site words get homes (#2682)
+
+## Per-merge deletion — EXHAUST-LANE's spec (2026-09-15)
+
+Recoverable at `git show 44a44b8de:docs/EXHAUST-LANE-SPEC.md` (the
+fix-pass head). Its sentences that did not survive: "the one writer
+(`sweep`) builds the receipt from the lane it was handed" — `sweep`
+now counts into a private tally and the two accounting doors attach
+the lane (a seeding path hands back no receipt to state a lane on);
+"`seed_chart_plane` … stays where it is" — it took the accounting
+door's shape (`speed`, metres floor, one crossing) so the chart lane
+crosses the same way twice; "metres by one private function" — the
+method is public on `ExhaustLane` (`meters`, `speed`) and the refusal
+carries a named payload (`ExhaustivenessRefusal`) so its readings
+return `f64`, not `Option`; the sibling-division sentence's "mint the
+`SupSpeed` where the closure reads the box" — the box's sup got one
+home (`Box3::speed_sup`, an `f64`: minting a tag there would pick the
+collapse policy the two chart-rate sites deliberately disagree on,
+which is the filed TRIM row). Recorded in the PR body and the unit's
+`## Closed` section.
+
+- `EXHAUST-LANE-SPEC.md` — EXHAUST-LANE, the exhaustiveness receipt carries its lane (#2667)
+
+## Per-merge deletion — PROPS mignitude-floor's spec (2026-09-15)
+
+Recoverable at `git show f050e2d6f:docs/PROPS-MIGNITUDE-FLOOR-SPEC.md`
+(the unit head, before the state-sync commit that deleted it). Its
+acceptance held as written — `e_lo` within a factor of two of `|d|` at
+the micron row's sup cell (0.56 of it), every certificate tighter or
+unchanged, the fit's bits unmoved — with two sentences the measurement
+did not support. "Every certificate tightens or holds" is true of the
+CELL bound and not of the DOOR bound, which is not monotone in it: one
+of seventy requests rose by 1.8 per cent through the marking schedule,
+which the spec called a MAJOR finding to stop and report, and which the
+unit reported, filed and did not fix (both review lanes judged filing
+right — a marking rule that changes every request's schedule is a unit,
+not a rider). And the spec's "read whether meter 1 has a witness to
+read together" resolves to: it does not need one, because
+`offset_meters::cell_normal` already joins its componentwise assembly
+with two together-readings and takes the largest. The rule above; the
+unit's record is its `## Closed` section, its row in `MODEL-AB-LOG.md`
+(ordinal 2404, sample #208) and the MERGED entry in `work/props/log.md`.
+
+- `PROPS-MIGNITUDE-FLOOR-SPEC.md` — PROPS mignitude-floor, the floor on the residual's norm read through the sign witness instead of componentwise (#2469)
