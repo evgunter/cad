@@ -2698,3 +2698,17 @@ against a ≥ 10 % wall gate, not taken). Recorded in the PR body and
 the unit's log entry.
 
 - `SYM-7-SPEC.md` — SYM-7, the plain form outlives the leaf (#2609)
+
+## Per-merge deletion — D290's spec (2026-09-15)
+
+Recoverable at `git show f91aea516:docs/D290-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: the interior formula as the
+unit-domain `lo + (hi − lo)·k` (landed as the general `[a, b] → [lo, hi]`
+form, bit-identical on a unit source); "add a `KnotVectorIssue` variant
+if none says it" for the domain refusal (landed as a `SplineError` arm —
+a request-shaped refusal, not a vector defect — so `KnotVectorIssue`
+kept `Eq`); the surface-level door left to the implementer's call (not
+landed: no `src` consumer). Recorded in the PR body and the unit's
+`## Closed` section.
+
+- `D290-SPEC.md` — D290, the knot rescale is a `KnotVector` door (#2461)
