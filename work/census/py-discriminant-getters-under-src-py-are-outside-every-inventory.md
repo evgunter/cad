@@ -2,9 +2,10 @@
 id: py-discriminant-getters-under-src-py-are-outside-every-inventory
 kind: unit
 title: 27 Python-visible discriminant words are minted by getters under src/py/, outside TAG_INVENTORY
-status: review
+status: closed
 opened: 2026-09-15
 branch: census/py-getters
+closed: 2026-09-15
 ---
 
 
