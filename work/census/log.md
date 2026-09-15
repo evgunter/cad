@@ -655,6 +655,40 @@ cancelled by the lane's own subsequent push — a concurrency supersede
 that surfaces as a `gate ok` failure event, which is the shape to read
 in the run list rather than in the job logs.
 
+### The slate had drifted from the item files, both directions
+
+Found at close-out by comparing `work/census/*.md`'s statuses against
+the slate table, which is what the Order section reasons over.
+
+**Two OPEN rows had never reached the slate at all** —
+`tag-vocabularies-restated-in-py-doc-comments` and
+`ring-contact-and-census-contact-share-two-words-by-prose-alone`, both
+filed by CENSUS-PY-GETTERS two units ago. So the order for units 5 and
+6 was computed over a set that did not contain them. Both are placed
+now, with the block.
+
+**Four CLOSED rows were still listed as if open**, while two others
+said "Landed" in their description — so the slate marked landing on
+two of six. All six carry an explicit `(closed — UNIT, #PR)` now.
+
+This is the program's own charter turned on the program's own tracker:
+one population, spelled by hand in a second place, drifting in both
+directions with nothing reding. It is the orchestrator's miss, not a
+lane's.
+
+**And the sweep I ran to size it reproduced finding 8 immediately.** I
+measured every program's plan against its item files, got
+25-open-unlisted in `blend` and 44 in `bool`, and was one step from
+filing a repo-wide META row — before reading `work/README.md`, which
+says `plan.md` is a *narrative, present state only* and `STATUS.md` is
+the generated board. A plan is not an index and was never meant to be
+one, so there is no repo-wide defect and no row to file. What is true
+is narrower and local: **CENSUS's plan calls its table "the slate" and
+its Order section reasons over that table**, so for this program an
+absent row is an absent row. The check I demand of every lane —
+measure the claim against the contract before generalising from the
+example — is the check that stopped this, one step before the row.
+
 ## Next
 
 The `pncad-py` block, and the four rows this unit filed, ordered in
