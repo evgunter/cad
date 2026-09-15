@@ -2,7 +2,7 @@
 id: SYM-7
 kind: unit
 title: the plain form outlives the leaf: a drive-scoped memo, shared across the drive's workers, with frozen re-defined as distinct-over-the-drive
-status: dispatched
+status: review
 opened: 2026-09-14
 branch: sym/7-plain-memo
 refs: [symbolic-tier-costs-95-percent-of-the-m10-3-drive, 2581]
