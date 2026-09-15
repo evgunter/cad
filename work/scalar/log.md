@@ -197,3 +197,14 @@ the seam 9, non-rate `levered_inv` uses 3. The recommendation put to
 Ev: `SupSpeed`/`InfSpeed` in `geom-core` beside `Margin`, scoped to the
 linear m-per-parameter crossing; everything in the last bullet stays
 out.
+
+## The first sitting closed; six units cut (2026-09-15)
+
+PR 2457 merged with all three answers: `D6` — bit and product, never a
+±1 type, `sense_sign` retires; the unit vector — a witness in
+`geom-core` minted by the decided ladder, then a frame witness the tube
+door takes; `D283` — route A, the `SupSpeed`/`InfSpeed` pair in
+`geom-core` with the receipt's lane tag riding it (Ev, in-chat,
+2026-09-15: "that plan re D283 sounds good"). The three rows are closed
+and six units are on the slate (plan §The ratified units). `D290` and
+`S393` are in review; the third door row waits on lane capacity.
