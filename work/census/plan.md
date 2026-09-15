@@ -57,6 +57,8 @@ its fence in the PR that lands it and announces it to the owners; the
 | `evaluationerror-stub-lists-five-reasons-and-the-door-raises-six` | **E** | From CENSUS-TAG-REACH. `pncad.pyi` hand-lists a vocabulary that now has a machine census (`EvalReason`); the stub says five and the door raises six. | `crates/pncad-py/pncad.pyi`, `crates/pncad-py/src/errors.rs` |
 | `pncad-py-tests-rs-is-six-thousand-lines-and-carries-two-unremeasured-floors` | **M** | From CENSUS-TAG-REACH. 6317 lines holding the taxonomy pin, four censuses, a 120-line Rust recogniser and its guard; two magic floors (`>= 60` functions, `>= 500` literals) that nothing re-measures. The floors are the row; the split is the file owner's call. | `crates/pncad-py/src/tests.rs` |
 | `four-censuses-of-python-visible-vocabulary-in-one-crate` | **H** | From CENSUS-TAG-REACH. `TAG_INVENTORY`, `NODE_KIND_ROSTER`, `surface_census` and `prose_census` ask one question — can a Python caller reach every member of this vocabulary — over four populations with four devices. Whether four should be fewer is the design call. | `crates/pncad-py/src/{tests.rs,surface_census.rs,prose_census.rs,node_kind.rs}` |
+| `sixty-one-tag-words-are-minted-by-two-or-more-maps-and-seven-are-read` | **M** | From CENSUS-PY-GETTERS (2026-09-15). `tags.rs` mints 61 words that two or more maps speak — `band` in sixteen, `escalated` in ten. Seven were read and dispositioned; **54 are covered by a scoping rule nobody read them against**. The instrument that holds the population to a roster landed with the unit; the judgement on the remainder did not. | `crates/pncad-py/src/tags.rs`, `crates/pncad-py/src/tests.rs` |
+| `errors-rs-holds-four-python-visible-maps-and-nothing-enumerates-that-file` | **E** | From CENSUS-PY-GETTERS. All four maps have pins; the defect is that **nothing enumerates the file**, so a fifth arrives with no "NEW tag function" sentence to catch it. Two fix shapes named: a loose arrival reader, or capitalising at the boundary so the seventh map stops existing. | `crates/pncad-py/src/errors.rs`, `crates/pncad-py/src/tests.rs` |
 | `prose-census-cannot-see-a-bypassed-prose-renderer` | **H** | Instrument rework plus triage of 453 unmeasured sites; verdict key is a design choice | `crates/pncad-py/src/prose_census.rs` (`census()` scan set, `declaration_verdict`), plus sites it reds: `crates/viewer/src/session/refuse.rs`, `crates/editor-core/src/edit.rs`, `crates/pncad-py/src/py/`, `crates/test-utils/` |
 | `the-prose-word-for-a-kind-has-four-spellings-and-only-display-is-censused` | **H** | Two decisions owed, owner undecided, 23+ sites over seven crates and three programs. | `crates/pncad-py/src/prose_census.rs`, `crates/editor-core/src/{expr.rs,node.rs,mate.rs,edit.rs}`, `crates/viewer/src/{session/refuse.rs,tools.rs,sketch.rs,pane/properties.rs}`, 23 `label()`/`name()` sites across `geom-brep`, `sweep`, `topo`, `profile`, `geom-core` |
 
@@ -98,6 +100,13 @@ lane that has read that unit can do all five; a lane arriving cold in a
 month re-derives the argument from scratch, and two of the rows record
 facts with a shelf life (which words have a second spelling, which
 doors have no enum).
+
+`sixty-one-tag-words-…` and `errors-rs-holds-four-…` join the block and
+run with it — both are `tags.rs`/`errors.rs` and both were opened by the
+unit that just landed there, so the same warm context applies. The
+61-word row carries the sharper obligation of the two: its instrument
+ships, and what is missing is the READING of 54 pairs, which is exactly
+the kind of debt that stops looking urgent once the instrument is green.
 
 `four-censuses-of-python-visible-vocabulary-in-one-crate` does **not**
 ride with them and stays with the H rows: it asks whether four
