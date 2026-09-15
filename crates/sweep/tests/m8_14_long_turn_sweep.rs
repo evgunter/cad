@@ -40,7 +40,7 @@ use sweep::sweep_body;
 use crate::common;
 use common::orient::{
     FIXED_AXIS_GUARD_COS, LevelIndex, along_v, assert_caps_face_out, assert_walls_face_out,
-    min_roll_turn, stack_axis,
+    first_wall_chord, min_roll_turn,
 };
 use common::{normal_start_place, quad};
 use geom_core::Tol;
@@ -224,9 +224,13 @@ const PROBE_DELTA: f64 = 0.02;
 ///   optional.
 /// - **no fixed axis orients these level planes**, so the fixed-chord
 ///   index could not have answered and this row is not a restatement of
-///   it. That index needs EVERY level plane's normal within
-///   [`FIXED_AXIS_GUARD_COS`] of the stacking chord and refuses on the
-///   first one that is not, so the quantity to assert on is the
+///   it. What is asserted is the operational form of that: index 1
+///   REFUSES this body. So the reference the assertion measures against
+///   has to be index 1's own — [`first_wall_chord`], one wall's lean,
+///   not the stack — or the row would be about an axis nothing uses.
+///   That index needs EVERY level plane's normal within
+///   [`FIXED_AXIS_GUARD_COS`] of that chord and refuses on the first one
+///   that is not, so the quantity to assert on is the
 ///   MINIMUM over the levels: measured `0.0575` on the whole turn and
 ///   `0.0111` on the half. The maximum is nowhere near it (`0.129` and
 ///   `0.993`) — [`common::orient::LevelIndex`] carries the whole range,
@@ -255,7 +259,7 @@ fn assert_helix_walls_face_out(turns: f64, stations: usize) {
          not rolling and the rows below would pass on a straight tube"
     );
 
-    let axis = stack_axis(&swept);
+    let axis = first_wall_chord(&swept);
     let worst = index
         .planes()
         .iter()
@@ -264,9 +268,9 @@ fn assert_helix_walls_face_out(turns: f64, stations: usize) {
     assert!(
         worst < FIXED_AXIS_GUARD_COS,
         "{turns} turns: the level planes must NOT be orientable against the \
-         stacking chord at their WORST level (cos {worst}), or the fixed-chord \
-         index would answer here and this row restates it instead of reaching \
-         past it"
+         chord index 1 would use at their WORST level (cos {worst}), or the \
+         fixed-chord index would answer here and this row restates it instead \
+         of reaching past it"
     );
 
     let oracle = |q| index.contains(q);

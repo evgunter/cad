@@ -103,9 +103,24 @@ pub fn wall_outward(body: &Body<f64>, face: FaceKey) -> (Point3<f64>, Vec3<f64>)
     wall_outward_at(body, face, 0.5, 0.5)
 }
 
-/// The chord from the bottom level to the top one — the stacking
-/// direction, where the stack has one.
-pub fn stack_axis(lofted: &Lofted<f64>) -> Vec3<f64> {
+/// ONE wall's chord: the first wall, mid-`u`, from `v = 0` to `v = 1`.
+/// It is the fixed reference index 1 orients its level planes against
+/// ([`level_plane`]), and that is the only thing it is.
+///
+/// **It is not the stacking direction**, and no caller may read it as
+/// one. The two agree only when the chart does not roll: on the
+/// authored-roll loft — two copies of one square, stacked along `+z`,
+/// the top one rotated about its own centre — the stack is exactly
+/// `+z` while this chord reads `(-0.999, 0.95, 1)`, about 54° off.
+/// Index 1 accepts that because a CONSISTENT reference is all its
+/// guard needs, not a correct one: if some fixed vector orients every
+/// level plane the same way, a fixed axis exists, which is the
+/// condition [`FIXED_AXIS_GUARD_COS`] is testing for.
+///
+/// A row that wants the STACK differences [`ring_centroid`] at `v = 0`
+/// and `v = 1` — that averages every wall, so it is a fact about where
+/// the level rings sit rather than about which way one wall leans.
+pub fn first_wall_chord(lofted: &Lofted<f64>) -> Vec3<f64> {
     let first = lofted.side_faces[0][0];
     wall_point_at(&lofted.body, first, 0.5, 1.0) - wall_point_at(&lofted.body, first, 0.5, 0.0)
 }
@@ -441,19 +456,21 @@ fn level_set_contains(
 }
 
 // ---------------------------------------------------------------------
-// Index 1: a fixed stacking chord, one monotone height, one bisection
+// Index 1: one fixed reference chord, one monotone height, one bisection
 // ---------------------------------------------------------------------
 
-/// How closely a level plane's normal must sit to a fixed stacking
+/// How closely a level plane's normal must sit to the fixed reference
 /// chord for that chord to orient it. [`level_plane`] needs this at
 /// EVERY level and refuses the body otherwise; a swept body whose path
-/// turns has no such chord, which is the condition [`LevelIndex`]
-/// exists for. Shared, so that a suite asserting this index cannot run
+/// turns admits no such chord at all, which is the condition
+/// [`LevelIndex`] exists for. Shared, so that a suite asserting this index cannot run
 /// on its fixture and the index itself cannot drift apart.
 pub const FIXED_AXIS_GUARD_COS: f64 = 0.1;
 
 /// The plane of the level ring at `v`-fraction `t`, oriented along a
-/// fixed stacking chord.
+/// fixed reference chord — [`first_wall_chord`], which is one wall's
+/// lean and not the stack. Any fixed vector serves: what the index
+/// needs is that ONE of them orients every level the same way.
 ///
 /// Newell's sign follows the ring's traversal, so a plane whose normal
 /// is near-perpendicular to the chord cannot be oriented against it
@@ -465,16 +482,16 @@ fn level_plane(lofted: &Lofted<f64>, axis: Vec3<f64>, t: f64) -> (Point3<f64>, V
     assert!(
         (n.dot(axis) * along) / axis.norm() > FIXED_AXIS_GUARD_COS,
         "the level plane at v-fraction {t} must be orientable against the \
-         stacking chord: cos = {}",
+         fixed reference chord: cos = {}",
         n.dot(axis) * along / axis.norm()
     );
     (origin, n * along)
 }
 
 /// The body's own level set at `v`-fraction `t`, against the plane the
-/// stacking chord orients.
+/// fixed reference chord orients.
 fn level_set(lofted: &Lofted<f64>, t: f64) -> Vec<Vec<Point3<f64>>> {
-    level_ring(lofted, level_plane(lofted, stack_axis(lofted), t), t)
+    level_ring(lofted, level_plane(lofted, first_wall_chord(lofted), t), t)
 }
 
 /// Levels the bisection's premise is checked on. Coarse: it must
@@ -499,7 +516,7 @@ const MONOTONE_SCAN: usize = 64;
 /// The scan is a scan — it certifies at its own resolution, and it
 /// fires rather than lies.
 pub fn loft_contains(lofted: &Lofted<f64>, q: Point3<f64>) -> SolidContainment {
-    let axis = stack_axis(lofted);
+    let axis = first_wall_chord(lofted);
     let height = |t: f64| {
         let (p, n) = level_plane(lofted, axis, t);
         (q - p).dot(n)
@@ -573,7 +590,7 @@ const CONTINUITY_COS: f64 = 0.9;
 /// # Why the loft corpus's index cannot be widened to reach here
 ///
 /// That index orients every level plane against one fixed chord
-/// ([`stack_axis`]) and then finds a query point's level by bisecting a
+/// ([`first_wall_chord`]) and then finds a query point's level by bisecting a
 /// height it requires to be monotone. On a helix BOTH halves fail, and
 /// they fail for different reasons — which is why this is a different
 /// oracle and not a looser bound.
