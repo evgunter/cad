@@ -578,9 +578,11 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // The Python halves differ, and the difference follows the carrier
 // each time. `StepImportError` projects a tag, so `PromotedKind`
 // projects its own beside it (`StepImportError.promoted_kind`);
-// `ImportOptions` does not cross at all — Python's `import_step`
-// takes only the text — so `ImportContact` has nothing to project
-// until that argument does.
+// `ImportOptions` crosses FIELD BY FIELD rather than as a type —
+// Python's `import_step` takes `eps_in=`, and the declaration channel
+// is the field it withholds, because a list keyword whose elements a
+// caller cannot build is a door onto nothing — so `ImportContact`
+// has nothing to project until it gains a value class of its own.
 // **The SUCCESS half crosses under the same clause, and it is the
 // reach one.** `import_step` answers
 // `Result<StepImport, StepImportError>`. The refusal above is

@@ -1261,6 +1261,17 @@ jobs:
         run: |
           scripts/gates/kernel-serde-free.sh --selftest
           scripts/gates/kernel-serde-free.sh
+      # `rust-version` is a floor a consumer's compiler must clear and
+      # `channel` is the compiler this workspace builds with. Held
+      # equal, the channel IS the floor, so every job in this workflow
+      # that builds at all compiles at it — which is the only reason the
+      # floor is a claim rather than a number. Three manifests declare a
+      # floor and the gate holds all three. Its header says what that
+      # costs and when to delete it (Q9).
+      - name: the MSRV floor is the pinned channel
+        run: |
+          scripts/gates/msrv-floor-equals-channel.sh --selftest
+          scripts/gates/msrv-floor-equals-channel.sh
       - name: interval-square powi(2) allowlist (ratified 2026-08-01)
         run: |
           scripts/gates/interval-square-allowlist.sh --selftest

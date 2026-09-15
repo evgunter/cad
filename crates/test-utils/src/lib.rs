@@ -9,6 +9,9 @@
 //!   rather than written down beside the assertion.
 //! - [`fuzz`], the harness every randomized falsification sweep draws
 //!   its RNG, its per-run seed and its EFFORT dial from.
+//! - [`mod@roster`], the weld between a file's `//!` roster of its own
+//!   `#[test]` rows and the rows libtest says the binary holds — one
+//!   ident per row, so a retired name is a compile error.
 //! - [`source`], the SHARED Rust lexer for guards that pin a claim
 //!   about the code against the code — three views of a file (code
 //!   only, code with literals, prose alone) plus the traversals and
@@ -40,6 +43,7 @@ mod panic_capture;
 
 pub mod f6;
 pub mod fuzz;
+pub mod roster;
 pub mod source;
 pub mod tightness;
 pub mod vacuity;

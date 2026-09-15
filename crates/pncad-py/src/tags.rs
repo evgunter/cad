@@ -15,12 +15,25 @@
 //! import — `crate::node_kind` is the standing example — and then its
 //! roster is pinned in `src/tests.rs` directly instead.)
 //!
-//! One map keys off neither a kernel refusal nor a kernel value:
-//! [`eval_reason_tag`] keys off [`EvalReason`], this crate's own enum,
-//! because the evaluation door's "the node produced no value" has no
-//! kernel arm behind it. The enum is declared in `crate::errors` —
-//! this file's recogniser, below, admits no `enum` — and its map lives
-//! here with the rest, so the words are inventoried with the rest.
+//! **Some maps key off neither a kernel refusal nor a kernel value**,
+//! because the word is this crate's own decision and no kernel arm
+//! stands behind it: [`eval_reason_tag`] over [`EvalReason`],
+//! [`validation_refusal_tag`] over [`ValidationRefusal`], and
+//! [`unmirrored_select_tag`] over [`UnmirroredSelect`]. Two more key
+//! off a binding enum that CARRIES the kernel value — [`stl_refusal_tag`]
+//! and [`boundary_edit_tag`] — so the arms with a kernel refusal behind
+//! them forward it to its own map and only the boundary's own word is
+//! minted. Every one of those enums is declared in `crate::errors`,
+//! because this file's recogniser admits no `enum`, and its map lives
+//! here so the words are inventoried with the rest.
+//!
+//! **A map is how a word stops being spellable; a [`STEP_IMPORT_WIREFRAME`]
+//! is not.** Reaching a word through an exhaustive `match` means naming
+//! a variant, so a raise site cannot invent one and a new arm stops the
+//! build until a word is written here. The `pub const` form pins the
+//! TEXT in the inventory and does nothing about the next literal at the
+//! next call site; it is what is left for a word with no enum to hang
+//! off, and the one instance says at its own site why it has none.
 //!
 //! Typed exceptions carry the structured error, never strings. The
 //! exception's machine payload is a stable **tag** — a discriminant
@@ -60,10 +73,13 @@
 //!
 //! **The scope of that rule, said plainly.** It was decided over the
 //! seven pairs one unit was dispatched at and is asserted over the
-//! rest: a per-function sweep of this file's literals finds **61
-//! words minted by two or more maps**, and nobody has read most of
-//! them. What holds the claim to the tree is not this paragraph but
-//! `src/tests.rs`'s
+//! rest: **dozens of this file's words are minted by two or more
+//! maps**, and nobody has read most of them. The number is not
+//! written here, because a count in prose goes stale the first time a
+//! map grows and this one already had; the population is
+//! `src/tests.rs`'s `SHARED_TAG_WORDS`, which is derived from
+//! `TAG_INVENTORY` and is therefore the measurement. What holds the
+//! claim to the tree is not this paragraph but
 //! `every_word_two_tag_maps_share_is_on_the_committed_roster`, which
 //! reds when a word starts or stops colliding. That row does not
 //! decide a new pair — it asks, which is the part prose here could
@@ -105,7 +121,7 @@
 //! attribute, a helper, or a cleverer arm added here is a deliberate
 //! diff that teaches the reader too, never a silent hole.
 
-use crate::errors::EvalReason;
+use crate::errors::{BoundaryEdit, EvalReason, StlRefusal, UnmirroredSelect, ValidationRefusal};
 use pncad::analysis::{
     AnalysisPolicyError, McRefusal, MeasureUnavailable, ParamBoxError, SeedError,
 };
@@ -266,9 +282,114 @@ pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
         R::PairInBand { .. } => "pair_in_band",
         R::BadValue(_) => "bad_value",
         R::Band(e) => band_error_tag(e),
-        _ => "unclassified",
+        _ => unmirrored_select_tag(UnmirroredSelect::Refusal),
     }
 }
+
+/// The word a selection refusal carries when a `#[non_exhaustive]`
+/// kernel enum at that boundary has grown a variant this binding
+/// predates ([`UnmirroredSelect`]).
+///
+/// **One word for both arms, from one place.** Both crossings publish
+/// it as `SelectRefusal.reason`, and a caller reads the same fact off
+/// either: this binding could not classify the refusal. Spelling it
+/// twice is what let the query door's wildcard and the contact-class
+/// crossing drift apart with nothing to red on it.
+///
+/// This map is why the word is inventoried. What it does NOT do is
+/// close the class — a third crossing can still write a literal at its
+/// own raise site, because `SelectRefusal.reason`'s other words come
+/// from [`select_refusal_tag`] over a kernel enum, so there is no type
+/// the class could carry that would not be a second spelling of that
+/// enum's arms.
+pub fn unmirrored_select_tag(which: UnmirroredSelect) -> &'static str {
+    match which {
+        UnmirroredSelect::Refusal => "unclassified",
+        UnmirroredSelect::ContactClass => "unclassified",
+    }
+}
+
+/// The word the `ValidationError` class carries, over the
+/// [`ValidationRefusal`] [`crate::errors::ErrorClass::Validation`]
+/// holds.
+///
+/// Exhaustive over the binding's own enum, so the four door words and
+/// the measurement's reason are one list in one place and a raise site
+/// cannot spell a fifth: `crate::py::raise_typed` writes the word onto
+/// the attribute [`ValidationRefusal::attribute`] names, and a site
+/// that has no refusal value cannot name the class at all.
+///
+/// [`ValidationRefusal::Validate`]'s word is also
+/// [`program_refusal_tag`]'s `Validate` arm's, and the two are
+/// unrelated — a profile program that failed its own validator against
+/// a Python method name. Coincidence, held by
+/// `tests::every_word_two_tag_maps_share_is_on_the_committed_roster`
+/// rather than by a pin between the maps.
+pub fn validation_refusal_tag(refusal: ValidationRefusal) -> &'static str {
+    match refusal {
+        ValidationRefusal::Validate => "validate",
+        ValidationRefusal::Closed => "validate_closed",
+        ValidationRefusal::Geometric => "validate_geometric",
+        ValidationRefusal::Pseudomanifold => "validate_pseudomanifold",
+        ValidationRefusal::MassProperties => "mass_properties_failed",
+    }
+}
+
+/// The `EditError.variant` of a refusal the boundary built, over the
+/// [`BoundaryEdit`] its raise takes.
+///
+/// Exhaustive over that enum, so the boundary's set of refusals is
+/// closed: a fourth needs a variant there and an arm here before it can
+/// be raised. Two arms FORWARD the kernel value whole rather than
+/// restating its word, so the delegation is the real one the inventory
+/// reads — the whole of each delegate's vocabulary is reachable
+/// through this map, because the refusal a caller meets through the
+/// other door is the same value.
+pub fn boundary_edit_tag(refusal: BoundaryEdit<'_>) -> &'static str {
+    match refusal {
+        BoundaryEdit::NameSerialize => "name_serialize",
+        BoundaryEdit::Declare(err) => declare_error_tag(err),
+        BoundaryEdit::PlacementRule(fault) => placement_rule_fault_tag(fault),
+    }
+}
+
+/// The `StlError.variant` of everything that can refuse a `to_stl_*`
+/// call, over the [`StlRefusal`] its raise takes.
+///
+/// Three arms forward a kernel refusal to its own map; the fourth is
+/// the boundary's own residue and is the one word this map mints. The
+/// export door has a single raise site and it takes a [`StlRefusal`],
+/// so every word that reaches `StlError.variant` passes through here.
+pub fn stl_refusal_tag(refusal: StlRefusal<'_>) -> &'static str {
+    match refusal {
+        StlRefusal::Write(err) => stl_error_tag(err),
+        StlRefusal::Name(err) => solid_name_error_tag(err),
+        StlRefusal::Header(err) => binary_header_error_tag(err),
+        StlRefusal::NotUtf8(_) => "not_utf8",
+    }
+}
+
+/// `StepImportError.variant` for a STEP file that parsed to the
+/// WIREFRAME arm, which `Evaluation.import_step` does not adopt.
+///
+/// **A word, not a map, and the difference is the whole of what this
+/// buys.** The import SUCCEEDED here: the refusal is that the door has
+/// no body to hand back, so the word names an arm of
+/// `pncad::step_import::StepImport` rather than one of
+/// [`step_import_error_tag`]'s refusals, and it shares that map's
+/// namespace without being one of its words. There is no enum the
+/// class could carry, because every OTHER word on this attribute is
+/// the kernel refusal's — that map is the sole other source of
+/// `StepImportError.variant` — and a binding mirror of its arms would
+/// be a second spelling of them.
+///
+/// So this pins the TEXT and does not close the class: it puts the word
+/// where the inventory reads it, and a raise site can still spell a new
+/// one. What stands against a third arm of that kernel enum arriving
+/// untagged is the compiler — the enum is not `#[non_exhaustive]` and
+/// the import door matches it exhaustively — which forces a decision,
+/// not a word in this file.
+pub const STEP_IMPORT_WIREFRAME: &str = "wireframe";
 
 /// The stable tag for a NAMED expression slot — `EditError.slot`, the
 /// address a refusal is about.
@@ -1610,15 +1731,16 @@ pub fn workspace_error_tag(err: &WorkspaceError) -> &'static str {
 ///
 /// `StepImportError` implements `Display`, so the human message is the
 /// importer's own prose naming the entity id and line; this is the
-/// branchable discriminant. Twenty-two arms. Twenty-one are reachable
-/// through `import_step` on some input, unlike
-/// [`workspace_error_tag`]'s door — a caller distinguishing a
-/// malformed file from an unsupported entity from a tier refusal has
-/// no other way to do it, because the id and line live in prose. The
-/// twenty-second, `vertex_without_point`, announces a corrupt-body
-/// state whose reachability the declaration resolver cannot prove
-/// either way; it exists so that resolver refuses rather than
-/// miscounts.
+/// branchable discriminant. Every arm but one is reachable through
+/// `import_step` on some input, unlike [`workspace_error_tag`]'s door
+/// — a caller distinguishing a malformed file from an unsupported
+/// entity from a tier refusal has no other way to do it, because the
+/// id and line live in prose. The exception is `vertex_without_point`,
+/// which announces a corrupt-body state whose reachability the
+/// declaration resolver cannot prove either way; it exists so that
+/// resolver refuses rather than miscounts. The arm COUNT is not
+/// written here: it is `TAG_INVENTORY`'s row for this function, which
+/// is derived from this file rather than remembered.
 ///
 /// The nested arms keep their own tag rather than carrying the inner
 /// refusal's through: what the caller branches on is which STAGE of

@@ -887,6 +887,7 @@ mod tests {
     /// march over this system can refuse on is the speed, and the
     /// refusal it produces is the speed guard's own.
     struct FixedSpeedR3 {
+        /// Meters per unit of the march parameter.
         speed: f64,
     }
 
