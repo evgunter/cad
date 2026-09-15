@@ -168,3 +168,50 @@ outside consumer's seat, so they never reach into a crate's
 `test_support`. That is why the tour's copies in `S392`'s population are
 deliberately separate spellings and not unconverted duplication. Raised
 by the S52 lane, ratified here for the rest of the program.
+
+## S52 and its passenger closed (2026-09-15, PR 2639)
+
+The shared home exists: a scalar-generic fixture family in
+`crates/sweep/src/test_support.rs`, reached across crates by an
+off-by-default feature on a dev edge. The passenger closed with it. Four
+things worth the log.
+
+**The two rows were M; the class behind them is H.** S52's open
+remainder was "a generic `cube` plus three crates' body builders". What
+the home actually had to serve is ~60 live copies of the box fixture
+across seven crates — `topo`'s 24 `fn brick` alone are the largest
+remaining population — and a reviewer's type-shaped sweep (753
+body-returning declarations) suggests that is still low. Five rows on
+S-TINT carry it. **A row's stated remainder is a sample, not a census**,
+and this program has now hit that on four rows of eight.
+
+**The unit committed the defect it was closing, in the sweep section
+that names it.** The first pass wrote that name-based greps miss copies
+that renamed — citing how a `Probe` cube stayed invisible to #668's
+count — and then deleted `verbs_shell::brick` while leaving
+`verbs_shell::boxy` twenty lines above it, shipping a `use` block that
+named both spellings. Nine `boxy` sites. The second pass greps the
+**construction** (`Extrusion::Distance`) in every touched file and reads
+every hit, which is what found `boxy` ×8, `die` ×2 and five raw
+`extrude` calls inside the home itself. Grep the construction, not the
+name.
+
+**A third cross-program collision, and the sharpest one.** `main` landed
+another lane's full re-derivation of the same `cavity.rs` row while this
+unit was in flight — the branch went dirty on it. That lane nominated
+`verbs_shell`'s six-scalar `brick` as "the obvious candidate home",
+which is the wrong home (the same box is spelled in six other crates)
+and is now deleted; and **its own declared blind spot — "a builder doing
+the same job under a third name" — is exactly `boxy`.** Two independent
+censuses of one class, on one day, both declaring the same blind spot
+and both defeated by it. Merged rather than overwritten, with the two
+sections reconciled and the row re-scoped.
+
+**A coupling accepted rather than reverted, and stated.** The
+`examples/` programs that regenerate the committed STEP corpus now build
+their bodies from the shared fixture. Reverting would restore the copy
+the unit removes; the coupling is not silent, because a per-PR byte-golden
+row runs over the same builders. What was missing was anyone saying so,
+so the home now carries an "Editing a fixture here re-authors committed
+bytes" section and the manifest comment stopped claiming an independence
+it did not have.
