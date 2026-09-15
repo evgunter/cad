@@ -2844,35 +2844,6 @@ section.
 - `TINT-1-SPEC.md` — TINT-1, the `assert_f6` ban lists stop being
   hand-written mirrors (#2648)
 
-<<<<<<< HEAD
-## Per-merge deletion — TINT-2's spec (2026-09-15)
-
-Recoverable at `git show befcfe4ae:docs/TINT-2-SPEC.md` (the fix-pass
-head). **Its central recommendation was impossible**, which is why this
-entry is longer than the deletion warrants: the spec offered a fork and
-leaned to option (A), *"make a stand-down a fact the suite can floor —
-`vacuity::Exposure` already has that shape in the same module"*. The
-lane refused it and the review verified the refusal behaviourally: under
-the pinned `cargo-nextest 0.9.140` a two-row probe reports pids 12156
-and 12157 with a `static AtomicUsize` reading 0 in both, so **nextest is
-process-per-test** and nothing a `stood_down` call records can be read by
-any other row. Option (A) had no mechanism inside the unit's fence. What
-landed is (B) on both halves plus `test_utils::loud_skip_marker!` as one
-home — which the spec did not propose, because it also asserted, wrongly,
-that the unit should weigh only tallying against stripping.
-
-Other sentences that did not survive: the spec's claim that the marker
-population's hand-kept enumeration lived only in the `println!` bodies
-(two marker NAMES were enumerations too, and the name is the half that
-reaches the PASS list); and its framing of `crates/viewer/src/lib.rs` as
-simply out of fence (true, but it is also the tree's worked example of
-the fix shape, which the spec did not say). What DID survive and was the
-spec's real contribution: the working-half/broken-half framing that made
-the two rows one unit, and the requirement that the unit state what its
-guard does not enforce — which it did, at its sites and in its PR.
-
-- `TINT-2-SPEC.md` — TINT-2, a stand-down that nobody can hear (#2656)
-=======
 ## Per-merge deletion — VREV's spec (2026-09-15)
 
 Recoverable at `git show 4122ddacd:docs/VREV-SPEC.md` (the fix-pass
@@ -2952,4 +2923,30 @@ CENSUS-DEBUG entry plus the PR body. Residue, all filed:
 and `work/mesh/memo-dumps-hide-the-closed-bit-the-counters-depend-on.md`.
 
 - `CENSUS-DEBUG-SPEC.md` — CENSUS-DEBUG, a hand-listed `Debug` under a completeness claim (#2655)
->>>>>>> origin/main
+## Per-merge deletion — TINT-2's spec (2026-09-15)
+
+Recoverable at `git show befcfe4ae:docs/TINT-2-SPEC.md` (the fix-pass
+head). **Its central recommendation was impossible**, which is why this
+entry is longer than the deletion warrants: the spec offered a fork and
+leaned to option (A), *"make a stand-down a fact the suite can floor —
+`vacuity::Exposure` already has that shape in the same module"*. The
+lane refused it and the review verified the refusal behaviourally: under
+the pinned `cargo-nextest 0.9.140` a two-row probe reports pids 12156
+and 12157 with a `static AtomicUsize` reading 0 in both, so **nextest is
+process-per-test** and nothing a `stood_down` call records can be read by
+any other row. Option (A) had no mechanism inside the unit's fence. What
+landed is (B) on both halves plus `test_utils::loud_skip_marker!` as one
+home — which the spec did not propose, because it also asserted, wrongly,
+that the unit should weigh only tallying against stripping.
+
+Other sentences that did not survive: the spec's claim that the marker
+population's hand-kept enumeration lived only in the `println!` bodies
+(two marker NAMES were enumerations too, and the name is the half that
+reaches the PASS list); and its framing of `crates/viewer/src/lib.rs` as
+simply out of fence (true, but it is also the tree's worked example of
+the fix shape, which the spec did not say). What DID survive and was the
+spec's real contribution: the working-half/broken-half framing that made
+the two rows one unit, and the requirement that the unit state what its
+guard does not enforce — which it did, at its sites and in its PR.
+
+- `TINT-2-SPEC.md` — TINT-2, a stand-down that nobody can hear (#2656)
