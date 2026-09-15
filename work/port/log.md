@@ -94,7 +94,7 @@ lives entirely in prose that nothing checks.
 
 Nothing on this slate now waits on Ev. `S415` is still the opener.
 
-## 2026-09-15 — PORT-DOORS-1 in review (PR PR_PLACEHOLDER)
+## 2026-09-15 — PORT-DOORS-1 in review (PR 2635)
 
 Both assembly-door findings landed as one unit, on
 `port/doors-1-refusal-order`.

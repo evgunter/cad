@@ -5,6 +5,7 @@ title: The gate answers Ambiguous for a tied non-face in the product's own rows 
 status: review
 opened: 2026-09-06
 parent: PORT-DOORS-1
+pr: 2635
 ---
 
 
