@@ -2786,3 +2786,60 @@ fired and the runbook's re-cut reached INSTR's baseline and its census
 pins). Recorded in the PR body and the unit's `## Closed` section.
 
 - `S393-SPEC.md` — S393, the path sweep's start frame has a door (#2466)
+
+## Per-merge deletion — CENSUS-INERT-DENY's spec (2026-09-15)
+
+Recoverable at `git show 6cf25b356:docs/CENSUS-INERT-DENY-SPEC.md` (PR
+#2634's last head before the merge). CENSUS's first unit. Its sentences
+that did not survive, all three refuted by the lane re-taking the
+measurements the spec itself flagged as a hypothesis: "13 prose sites"
+(14 in `.rs`, and 16 counting the two in markdown the spec's `.rs`-only
+count could not see); "the fourteenth non-attribute is `doc.rs`'s
+multi-line `#[serde(bound(…))]`" (no `deny_unknown_fields` appears in a
+`serde(bound)` — that site is an ordinary attribute above an interleaved
+comment); and the prose placing `Qualifier` and `RoleSeg` on the inert
+side of the named-field rule (`Qualifier::OrderAlong { rank, of }` is a
+struct variant and `RoleSeg` has fourteen — both govern, and the spec's
+own total of 22 inert sites was unaffected, the error being in its
+prose rather than its measurement). Also not landed as written: the
+spec's allowance for keeping an inert attribute with a one-sentence
+"habit-guard" reason (zero keeps taken — a kept site needs an exemption
+in the instrument, and an exemption list is the hand-written list this
+program exists to remove), and its "one style review, no correctness
+lane" leaving the guard's blind-spot list unchecked (the style lane
+refuted the list's exclusivity claim with four executed counterexamples
+and the fix pass found a fifth).
+
+The three premise corrections are recorded on the item file, which
+survives this deletion, and the unit's record is
+`work/census/log.md`'s CENSUS-INERT-DENY entry plus the PR body.
+Residue, both filed rather than left in prose:
+`work/census/census-sees-an-inert-attribute-but-not-a-missing-one.md`
+(the census is one-directional) and
+`work/msolve/mate-primitive-accepts-a-stray-field-the-module-docs-say-refuses.md`
+(its one confirmed instance).
+
+- `CENSUS-INERT-DENY-SPEC.md` — CENSUS-INERT-DENY, an attribute with nothing to deny (#2634)
+## Per-merge deletion — TINT-1's spec (2026-09-15)
+
+Recoverable at `git show d61ee4256:docs/TINT-1-SPEC.md` (the state-sync
+head). Its sentences that did not survive, and the reason matters more
+than usual because the spec was **wrong** rather than merely superseded:
+*"Use the compiler"*, *"a variant added tomorrow makes this file fail to
+COMPILE"*, and the instruction to derive the ban list from an exhaustive
+`match` from a value **to its variant identifier**. rustc checks a
+match's PATTERNS and never its strings, so arms returning hand-typed
+identifiers left a RENAME silent — the style review demonstrated it on
+the first implementation, which was green while banning a dead
+identifier and leaving the live one unbanned. What landed reads the
+identifier off each value's own derived `Debug`
+(`test_utils::f6::variant_identifier`) and keeps the match as a bare
+exhaustiveness token that forces the author to open the file and
+nothing more. Also not landed: the spec's guess that `SelectRefusal::Band`
+lacked a case (only its ban entry was missing), and its framing of the
+`fields` roster as derivable (tried, false-positives on a door's own
+prose prefix). Recorded in the PR body and the unit's `## Closed`
+section.
+
+- `TINT-1-SPEC.md` — TINT-1, the `assert_f6` ban lists stop being
+  hand-written mirrors (#2648)
