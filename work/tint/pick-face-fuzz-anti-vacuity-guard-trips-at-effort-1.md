@@ -77,3 +77,56 @@ Moved from `work/docm/` to `work/tint/` at DOCM's exit sweep (`docs/DOC-LEDGER.m
 sweep 14): a probabilistic or once-flaky test guard is S-TINT's (test-suite integrity). Id, body and header are unchanged; the directory is the
 claim (`work/README.md`). Any `## Home` section above is superseded by
 this line and is kept as the record of why the file was where it was.
+
+## Re-derived (2026-09-15, lane B)
+
+**VERDICT: REPRODUCES** — the searched guard, its message, and the comment
+that contradicts it are all intact and unedited. No test was run.
+
+Re-derived by name in `crates/editor-core/tests/review_gui1_r1.rs`,
+`random_integer_rays_match_the_exact_oracle`:
+
+- the draw is still `let total = fuzz::scaled(120);` over
+  `let mut rng = fuzz::start("review r1: pick_face exact-oracle sweep");`
+  — 120 at the floor of the dial, as filed;
+- origins are still `rng.below(7) as i128 - 3`, i.e. integers in [-3, 3]³;
+- the guard is still
+
+```
+    // Anti-vacuity is structural, not searched (the battery row covers
+    // guaranteed hits); still, a sweep where nothing ever hit would be
+    // a broken generator worth hearing about.
+    assert!(
+        hits_seen > 0,
+        "no draw hit the cube — generator shape broke; {}",
+        fuzz::replay()
+    );
+```
+
+So the row still states the rule and then breaks it in the next statement,
+and the failure message the two CI reds quote is unchanged verbatim.
+
+**The written convention the row lands on is also unchanged.**
+`crates/test-utils/src/vacuity.rs`'s module doc still says an anti-vacuity
+claim under `CAD_FUZZ_EFFORT=1` is *"stated against the floor of the dial,
+never"* above it. Nothing has been added at the `review_gui1_r1.rs` site to
+reconcile with it.
+
+**What did NOT move.** The fix the row proposes — either deletion of the
+searched assertion, or a first draw that is a known hit — has not landed in
+either shape. `hits_seen` is incremented at exactly one place, inside the
+sweep loop; there is no seeded structural hit before it.
+
+**Sibling row.** `work/tint/random-integer-rays-search-trips-at-eps-1e-6-on-one-run.md`
+is about the same `#[test]`. This lane could not establish whether that
+flake was THIS assertion — see that row's own re-derivation — so the two
+should not be merged on a reading alone.
+
+**Blind spot.** Reproduction is established by reading the source, not by
+re-running the two seeds. Whether `0x2870e278e5a1ef24` and
+`0x1a9e0f26198e881b` still falsify the guard on today's tree is unverified;
+the generator's shape is byte-identical to the filing, so they very likely
+do, but nothing here measures it.
+
+**Recommendation:** do not close; this is the cheapest live row on the
+slate and it has now reddened two programs' gates on unrelated diffs.

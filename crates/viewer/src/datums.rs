@@ -89,7 +89,7 @@
 use pncad::document::{
     DatumValue, Doc, Evaluation, Node, ProfileProgram, RecipeNodeId, ValuePayload,
 };
-use pncad::geom_core::{Point3, Vec3};
+use pncad::geom_core::{Point3, UnitVec3, Vec3};
 
 use crate::camera::Camera;
 use crate::input::ViewportSize;
@@ -458,12 +458,12 @@ fn draw_one(node: RecipeNodeId, datum: &DatumValue<f64>, view: View) -> DatumDra
         DatumValue::Plane { origin, normal } => DatumDraw {
             node,
             kind: DatumKind::Plane,
-            segments: plane_segments(*origin, normal.get(), view),
+            segments: plane_segments(*origin, *normal, view),
         },
         DatumValue::Axis { origin, dir } => DatumDraw {
             node,
             kind: DatumKind::Axis,
-            segments: axis_segments(*origin, dir.get(), view),
+            segments: axis_segments(*origin, *dir, view),
         },
         DatumValue::Point { position } => DatumDraw {
             node,
@@ -482,7 +482,7 @@ fn draw_one(node: RecipeNodeId, datum: &DatumValue<f64>, view: View) -> DatumDra
         DatumValue::AxisInPlane { origin, dir, .. } => DatumDraw {
             node,
             kind: DatumKind::Axis,
-            segments: axis_segments(*origin, dir.get(), view),
+            segments: axis_segments(*origin, *dir, view),
         },
     }
 }
@@ -496,9 +496,9 @@ fn draw_one(node: RecipeNodeId, datum: &DatumValue<f64>, view: View) -> DatumDra
 /// a line passes through the origin and no line moves when the eye
 /// does. The two together are what makes this a grid over an infinite
 /// plane rather than a rectangle somebody placed.
-fn plane_segments(origin: Point3<f64>, normal: Vec3<f64>, view: View) -> Vec<[f64; 3]> {
+fn plane_segments(origin: Point3<f64>, normal: UnitVec3<f64>, view: View) -> Vec<[f64; 3]> {
     let (u, v) = basis(normal);
-    grid(origin, u, v, normal, view)
+    grid(origin, u, v, normal.get(), view)
 }
 
 /// **A frame's grid, ruled along the frame's OWN axes**, plus an
@@ -722,7 +722,8 @@ fn rule_patch(
 /// **One segment along the axis, reaching past the window**, with a
 /// screen-sized tick across each end so the length drawn reads as a
 /// drawing decision rather than as the axis's own.
-fn axis_segments(origin: Point3<f64>, dir: Vec3<f64>, view: View) -> Vec<[f64; 3]> {
+fn axis_segments(origin: Point3<f64>, axis: UnitVec3<f64>, view: View) -> Vec<[f64; 3]> {
+    let dir = axis.get();
     // Centred and sized at the point of the axis the camera is
     // pointed at, for `plane_segments`' reason.
     let to_target = Vec3::new(
@@ -741,7 +742,7 @@ fn axis_segments(origin: Point3<f64>, dir: Vec3<f64>, view: View) -> Vec<[f64; 3
     let Some(half) = view.half_patch_at(centre, AXIS_COVER) else {
         return Vec::new();
     };
-    let (u, _) = basis(dir);
+    let (u, _) = basis(axis);
     let at = |t: f64| {
         [
             origin.x + dir.x * t,
@@ -796,13 +797,13 @@ fn dot(a: Vec3<f64>, b: Vec3<f64>) -> f64 {
 
 /// **Two unit vectors spanning the plane `n` is normal to.**
 ///
-/// `n` arrives normalized — it comes out of a `UnitVec3`, which has no
-/// unnormalized spelling — so this only has to choose a direction, not
-/// rescue one. The seed is whichever world axis `n` is least aligned
-/// with, which is what keeps the cross product away from zero: a
-/// vector cannot be nearly parallel to the axis it has its smallest
-/// component along.
-fn basis(n: Vec3<f64>) -> (Vec3<f64>, Vec3<f64>) {
+/// `n` is unit as a property of its type, so this only has to choose
+/// a direction, not rescue one. The seed is whichever world axis `n`
+/// is least aligned with, which is what keeps the cross product away
+/// from zero: a vector cannot be nearly parallel to the axis it has
+/// its smallest component along.
+fn basis(n: UnitVec3<f64>) -> (Vec3<f64>, Vec3<f64>) {
+    let n = n.get();
     let seed = if n.x.abs() <= n.y.abs() && n.x.abs() <= n.z.abs() {
         Vec3::new(1.0, 0.0, 0.0)
     } else if n.y.abs() <= n.z.abs() {

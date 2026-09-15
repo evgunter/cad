@@ -273,3 +273,28 @@ the post-merge docs PR. Filed by the unit:
 this session changed at Ev's re-login (2026-09-15); the weekly window
 on the new account sits at ~80% with its reset 2026-09-18 17:00Z, so
 the held duals (spiric PR-1a, TRIM-2 PR-1) stay held until that reset.
+
+## Pacing under the weekly budget (2026-09-15)
+
+Both of this orchestrator's first blocks are concluded (CURVED-B1 at
+#2105, TRIM-B1 at #2554); CURVED-B2 slot 0 concluded at #2535. Open
+against the budget: the spiric PR-1a dual (#2566, CURVED-B2 slot 1,
+FABLE) and the TRIM-2 PR-1 dual (#2564, TRIM-B2 slot 0). The account's
+weekly window sits at 83 % with its reset at 2026-09-18 17:00Z; both
+duals stay HELD until that reset, then dispatch together (each dual
+plus fix pass has cost 0.6–1.0 M tokens on this program). No new
+implementer dispatch before the reset; CURVED-B2 slot 2's unit is
+chosen at dispatch from the plan's lanes (leading candidates:
+`equator-seam-reauthor-refuses-the-hollowed-elbow`, then spiric
+PR-1b once 1a merges). Idle lanes: none; every finished lane and
+target reclaimed (44 G free).
+
+## Spiric PR-1a dual dispatched (2026-09-15)
+
+Ev, in-chat after the box's reboot: finish the open duals and get all
+state on main before the usage limit. The hold is lifted: ordinal 2204
+claimed (PR #2669); byte 226, parity 0 ⇒ R1 Opus, R2 Fable; frozen
+head `e9ef3ae3b`; briefs stored with sha256; both reviewers dispatched
+together with TRIM-2 PR-1's pair (four lanes on the width-1 slot).
+Session monitors re-armed after the crash; nothing of this program's
+was running when the box went down.

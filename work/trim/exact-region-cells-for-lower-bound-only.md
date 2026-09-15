@@ -17,7 +17,7 @@ that RETIRES `UnevaluatedReason::WindowSuperset` — the refusal an
 assertion gets when its verdict would be read off the endpoint
 `min_clearance` certifies for the carrier rather than for the faces.
 The parent does not retire it, and TRIM-3's survey measured why
-(spec `docs/TRIM-3-SPEC.md`, refutation 8). PR-2 corrected the
+(spec `docs/TRIM-3-SPEC.md`, refutation 8 — deleted at PR-2's merge, recoverable at the SHA `docs/DOC-LEDGER.md` names). PR-2 corrected the
 const's doc to promise only what it delivers; this is the recourse it
 stopped promising.
 

@@ -621,6 +621,17 @@ pyo3::create_exception!(
 /// built wheel. A Debug dump reaching a user is a binding bug, and
 /// D9's converse says a detectable bug state panics; what the check
 /// cannot see is a door no test reaches.
+///
+/// **The second thing enforced in one place: a class that carries a
+/// discriminant mints it here.** [`ErrorClass::Evaluation`] holds a
+/// [`crate::errors::EvalReason`], and `EvaluationError.reason` is
+/// written from it by [`raise_typed`] — not by the raise site, which
+/// cannot name the class without naming the reason and therefore
+/// cannot spell a word of its own. A site that passes a `reason`
+/// field anyway is overwritten by the minted word and named by the
+/// assertion below; that is the one gap the type cannot close, since
+/// the payload is a list of `(&str, Py<PyAny>)` pairs and any name is
+/// spellable in it.
 pub(crate) fn typed_err(
     py: Python<'_>,
     class: ErrorClass,
@@ -633,6 +644,14 @@ pub(crate) fn typed_err(
         "{} was raised with a `Debug` rendering where its human \
          message belongs: {message}",
         class.class_name()
+    );
+    debug_assert!(
+        !matches!(class, ErrorClass::Evaluation(_))
+            || !fields.iter().any(|(name, _)| *name == "reason"),
+        "the evaluation door's `reason` is minted from the \
+         `EvalReason` its class carries; a raise site that passes one \
+         too is spelling a Python-visible word where no inventory \
+         reads it"
     );
     raise_typed(py, class, message, fields)
 }
@@ -653,7 +672,7 @@ fn raise_typed(
 ) -> PyErr {
     let err = match class {
         ErrorClass::Edit => EditError::new_err(message),
-        ErrorClass::Evaluation => EvaluationError::new_err(message),
+        ErrorClass::Evaluation(_) => EvaluationError::new_err(message),
         ErrorClass::Validation => ValidationError::new_err(message),
         ErrorClass::Dimension => DimensionError::new_err(message),
         ErrorClass::FmtQuantity => FmtQuantityError::new_err(message),
@@ -696,6 +715,18 @@ fn raise_typed(
         if let Err(set_failed) = value.setattr(*name, field.bind(py)) {
             return set_failed;
         }
+    }
+    // The class's OWN discriminant, after the raise site's fields so
+    // that the word the class carries is the word Python reads even
+    // where a site spelled one beside it (`typed_err` asserts that it
+    // did not).
+    if let ErrorClass::Evaluation(reason) = class
+        && let Err(set_failed) = value.setattr(
+            "reason",
+            pyo3::types::PyString::new(py, crate::tags::eval_reason_tag(reason)),
+        )
+    {
+        return set_failed;
     }
     PyErr::from_value(value.clone().into_any())
 }

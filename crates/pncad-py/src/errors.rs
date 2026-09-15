@@ -1,7 +1,8 @@
 //! The binding error taxonomy.
 //!
 //! Failures reach Python as **typed exceptions carrying the
-//! structured error, never strings**. That splits in two:
+//! structured error, never strings**. Four items say what that means
+//! here:
 //!
 //! * [`QuantityOpMismatch`] — the boundary refusal a Python user can
 //!   provoke that the Rust surface refuses at COMPILE time
@@ -13,7 +14,13 @@
 //!   layer's ten-arm refusal; the two are unrelated types and this
 //!   one is deliberately not named after it.
 //! * [`ErrorClass`] — which typed Python exception a kernel refusal
-//!   becomes.
+//!   becomes, and for the one class whose discriminant is this
+//!   crate's own decision, WHICH refusal inside it.
+//! * [`EvalReason`] — that discriminant: the complete vocabulary of
+//!   `EvaluationError.reason`, carried by [`ErrorClass::Evaluation`]
+//!   so that naming the class means naming the reason.
+//! * [`reads_as_prose`] — the predicate every raise is checked
+//!   against, so a `Debug` dump never reaches a Python user's screen.
 //!
 //! The dimension tag is the curated surface's own
 //! [`pncad::document::Dimension`], not a private copy, so the Python
@@ -36,14 +43,45 @@ use pncad::document::Dimension;
 /// prose rendering (`Dimension`'s `Display`) and
 /// `dimension_tags_match_the_kernel_prose` pins the two equal, so a
 /// drift is a test failure rather than a quiet divergence. The third
-/// is `py::value::dimension_name`, capitalized for the Python
-/// `Measurement` repr.
+/// is [`measurement_dimension_tag`], capitalized for the Python
+/// `Measurement` repr and pinned to this one by
+/// `the_two_dimension_alphabets_are_one_list_in_two_cases`.
 pub const fn dimension_tag(dim: Dimension) -> &'static str {
     match dim {
         Dimension::Length => "length",
         Dimension::Angle => "angle",
         Dimension::Count => "count",
         Dimension::Scalar => "scalar",
+    }
+}
+
+/// The **capitalized** spelling of a [`Dimension`], which is what
+/// `Measurement.dimension` answers.
+///
+/// It lives here rather than in [`crate::tags`] for the reader's
+/// sake, not for the alphabet's: that file's tag-table reader refuses
+/// a value that is not lower snake case — *"every tag in this file
+/// is, and a reader that accepted anything would be guessing"* — so
+/// moving this map in means weakening the one claim that makes the
+/// reader exact, for four words. Capitalised Python-visible
+/// vocabulary is not rare and this is not the only list of it:
+/// [`ErrorClass::class_name`] mints 35 exception-class names below,
+/// `py::value::Verdict`'s `status` answers `Holds`/`Violated`/
+/// `Unevaluated`, and every fieldless `#[pyclass]` enum under
+/// `src/py/` carries capitalised member names. What is true of this
+/// list alone is that its four words are a second spelling of
+/// [`dimension_tag`]'s four, which is why it belongs beside them —
+/// where a reader sees both spellings at once and
+/// `the_two_dimension_alphabets_are_one_list_in_two_cases` holds them
+/// to one list: each word here is its lower-case sibling
+/// capitalized, over the kernel's own [`Dimension::ALL`] rather than
+/// a roster written down twice.
+pub const fn measurement_dimension_tag(dim: Dimension) -> &'static str {
+    match dim {
+        Dimension::Length => "Length",
+        Dimension::Angle => "Angle",
+        Dimension::Count => "Count",
+        Dimension::Scalar => "Scalar",
     }
 }
 
@@ -117,7 +155,19 @@ pub enum ErrorClass {
     Edit,
     /// A node whose evaluation failed with a typed geometry refusal,
     /// or that was poisoned by an upstream failure.
-    Evaluation,
+    ///
+    /// **The one class that carries its own discriminant.** Every
+    /// other variant here answers "which exception", and its payload
+    /// is whatever the raise site hands over; this one answers "which
+    /// exception AND which reason", because `EvaluationError.reason`
+    /// is not a kernel refusal's tag — it is this crate's own
+    /// decision about what "the node produced no value" can mean
+    /// ([`EvalReason`]). Carrying it here is what makes the word
+    /// unspellable at a raise site: a site cannot name this class
+    /// without naming a variant of that enum, and
+    /// `crate::py::typed_err` mints the word from it rather than
+    /// reading one off the field list.
+    Evaluation(EvalReason),
     /// A body that failed a topological or geometric validator.
     Validation,
     /// An operator applied to two quantities whose dimensions do not
@@ -399,7 +449,7 @@ impl ErrorClass {
     pub const fn class_name(self) -> &'static str {
         match self {
             Self::Edit => "EditError",
-            Self::Evaluation => "EvaluationError",
+            Self::Evaluation(_) => "EvaluationError",
             Self::Validation => "ValidationError",
             Self::Dimension => "DimensionError",
             Self::FmtQuantity => "FmtQuantityError",
@@ -435,6 +485,69 @@ impl ErrorClass {
             Self::Mc => "McRefusal",
         }
     }
+}
+
+/// **The complete vocabulary of `EvaluationError.reason`** — the word
+/// a Python caller branches on when a node produced no value.
+///
+/// **A reason is a TYPE so that its word cannot be minted anywhere
+/// else, and the type is on the CLASS so that the wall guards the
+/// door rather than one function.** [`ErrorClass::Evaluation`]
+/// carries this enum, so no raise of that class can be written
+/// without naming a variant of it — not `crate::py::value::eval_err`,
+/// not the two direct `crate::py::typed_err` raises beside it, and
+/// not a raise in a file that does not exist yet. The word itself is
+/// minted in `typed_err` from [`crate::tags::eval_reason_tag`], whose
+/// `match` is exhaustive over this enum, so an arm added here stops
+/// the build until a word is written into `src/tags.rs`; and that
+/// file is what
+/// `tests::the_whole_tag_table_matches_its_committed_inventory`
+/// reads, so the word reds against the committed inventory when it
+/// lands. The alternative — a word spelled at a construction site
+/// under `src/py/` — is public Python vocabulary no inventory reads.
+///
+/// **What the wall does not cover, measured rather than assumed.**
+/// A raise site may still pass a field of its own named `reason`.
+/// Nothing type-level forbids it, because `typed_err`'s payload is a
+/// list of `(&str, Py<PyAny>)` pairs; what happens instead is that
+/// the minted word is attached LAST and wins, and a `debug_assert`
+/// (live in release in this workspace) names the site. The word a
+/// caller reads is therefore always this enum's, and the hand-spelled
+/// one is loud rather than silent.
+///
+/// **Why the type is here and its map is in `crate::tags`.** Not
+/// because the taxonomy belongs on this side of the line: a reason
+/// and its word are one concept and would sit together in an empty
+/// tree. The constraint is the INSTRUMENT. `src/tags.rs` is read as
+/// data by the tag-table guard, whose recogniser admits `use` items,
+/// `pub fn` tag maps and `pub const` tag words and refuses everything
+/// else, so an `enum` declared there stops the guard dead. Teaching
+/// the recogniser a form in order to move a declaration is a cost
+/// paid against a reader that already needs a guard of its own, and
+/// `E0004` over an exhaustive `match` is a real wall between the two
+/// halves whichever files they sit in. `crate::node_kind` is the same
+/// arrangement for the same reason.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EvalReason {
+    /// The document holds no node under that id.
+    UnknownNode,
+    /// The node evaluated to a value of a kind this door cannot read.
+    WrongKind,
+    /// A Boolean that succeeded and produced nothing to hand back.
+    EmptyBoolean,
+    /// The run was canceled before it reached the node, so this
+    /// evaluation holds the completed prefix only. The same rung the
+    /// read-back and picking doors speak
+    /// ([`crate::tags::hit_test_error_tag`],
+    /// [`crate::tags::interrogate_error_tag`]), spelled identically on
+    /// purpose and pinned against both by
+    /// `tests::the_evaluation_door_speaks_the_standing_ladder`.
+    NodeNotEvaluated,
+    /// The node ITSELF failed; `kind` carries the refusal's own tag.
+    NodeFailed,
+    /// An ancestor failed, so the node never ran; `through` names the
+    /// nearest failed one.
+    Poisoned,
 }
 
 /// Whether a refusal message reads as prose rather than a `Debug`

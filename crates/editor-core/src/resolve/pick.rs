@@ -652,18 +652,41 @@ struct TableEntry {
     picture: u64,
 }
 
+/// **The dump is held to the declaration**: `Self` is destructured
+/// exhaustively, so a field added to [`PickMemo`] is an E0027
+/// unbound-pattern error rather than a value silently absent from every
+/// dump. `nodes` and `tables` are carried as their COUNTS — the fact a
+/// dump is asked for, where the maps themselves are every patch's
+/// corners, boxes and trees.
+///
+/// `closed` is not carried, so this ends in `finish_non_exhaustive`:
+/// `finish` claims every field is shown. It is the bit the four
+/// counters beside it are qualified by, and a dump that named it would
+/// be the better dump — `work/mesh/memo-dumps-hide-the-closed-bit-the-counters-depend-on.md`,
+/// which holds [`PatchMemo`]'s identical omission with this one.
 impl core::fmt::Debug for PickMemo {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            nodes,
+            patches,
+            tables,
+            picture,
+            closed: _,
+            node_hits,
+            node_misses,
+            table_hits,
+            table_misses,
+        } = self;
         f.debug_struct("PickMemo")
-            .field("nodes", &self.nodes.len())
-            .field("patches", &self.patches)
-            .field("tables", &self.tables.len())
-            .field("picture", &self.picture)
-            .field("node_hits", &self.node_hits)
-            .field("node_misses", &self.node_misses)
-            .field("table_hits", &self.table_hits)
-            .field("table_misses", &self.table_misses)
-            .finish()
+            .field("nodes", &nodes.len())
+            .field("patches", patches)
+            .field("tables", &tables.len())
+            .field("picture", picture)
+            .field("node_hits", node_hits)
+            .field("node_misses", node_misses)
+            .field("table_hits", table_hits)
+            .field("table_misses", table_misses)
+            .finish_non_exhaustive()
     }
 }
 

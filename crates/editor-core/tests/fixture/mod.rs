@@ -36,6 +36,10 @@ pub mod resolver;
 /// The whole-frame product oracle a mate suite measures a seat with.
 pub mod seat;
 
+/// The value-channel digest a cross-scalar differential reads — the one
+/// feed behind every "bit-identical to the `f64` run" claim in this tree.
+pub mod value_channel;
+
 use editor_core::{
     AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKind,
     EvalOptions, Evaluation, Expr, LoopProgram, Node, ParamName, ProfileDoc, ProfileEdgeRef,

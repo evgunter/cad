@@ -511,3 +511,24 @@ Residues on the program from this unit: `clearance-window-cone-sphere-torus`,
 `a-refused-chart-boundary-has-no-reachable-window`. `docs/TRIM-3-SPEC.md`
 is fully delivered (PR-1 #1911, PR-2 #2554) and leaves `docs/` per the
 ledger in the post-merge docs PR.
+
+## Pacing under the weekly budget (2026-09-15)
+
+Block TRIM-B1 concluded at #2554. TRIM-2 PR-1 (#2564, TRIM-B2 slot 0,
+OPUS) waits for its dual until the account's weekly reset (2026-09-18
+17:00Z; window at 83 %). TRIM-B2 slot 1 is the next dispatch after
+that: `loft-seam-carrier-exact-knot-compare` is S-CERT's file (seam or
+exit first), so the slot's leading candidate is TRIM-2 PR-2 (after
+PR-1 merges; the S-MESH seam announced at dispatch) or
+`boundary-iso-doors-panic-before-they-can-refuse` (E, single review).
+
+## TRIM-2 PR-1 dual dispatched; PROPS seam announced late (2026-09-15)
+
+Ev, in-chat: finish the open duals before the usage limit. Ordinal 2503
+claimed (PR #2669); byte 136, parity 0 ⇒ R1 Opus, R2 Fable; frozen head
+`0c7cc6637`; briefs stored with sha256; dispatched with the spiric pair.
+**Gate**: `docs/TRIM-2-SPEC.md` §4 makes PROPS's acknowledgement of the
+`quad.rs` / `props.rs::nurbs_face` seam a merge condition. The
+announcement was owed at PR open (2026-09-14) and was not made — the
+orchestrator's miss; posted now on #2564 (comment 5683759668) and on the
+sign-off watchlist. PR-1 does not merge without the ack or Ev's ruling.

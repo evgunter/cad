@@ -1,6 +1,6 @@
 ---
 id: product-refuses-naming-when-one-instance-is-placed-under-two-roots
-kind: issue
+kind: ruling
 title: product refuses Naming when one instance's names appear under two transform roots, so a document the solve accepts cannot gather
 status: open
 opened: 2026-09-05
@@ -34,3 +34,27 @@ Moved from `work/docm/` to `work/wire/` at DOCM's exit sweep (`docs/DOC-LEDGER.m
 sweep 14): the file it names is WIRE's (`names/emit*.rs`, `eval/wire.rs`, `product.rs` are in WIRE's paths). Id, body and header are unchanged; the directory is the
 claim (`work/README.md`). Any `## Home` section above is superseded by
 this line and is kept as the record of why the file was where it was.
+
+## Read against the tree (2026-09-15) — live, re-kinded `ruling`
+
+Read by the WIRE orchestrator before dispatch. The refusal site is live
+in `crates/editor-core/src/product.rs` — the tie-row narrowing's
+`tie_rows.finish(&mut names).map_err(|e| ProductError::Naming { node:
+e.name.node, name: e.name })`, after the last source — and the code's own
+comment confirms the row's reading of why the refusal is late and
+mis-addressed: *"A refusal here names the node that MINTED the colliding
+name rather than a root: the collision is between rows that arrived from
+different sources, so no one root is its author."*
+
+**Re-kinded from `issue` to `ruling`.** The row poses two answers and
+they are not a lane's to choose between: qualifying a pass-through root's
+names by the root (the `FromMember` precedent) changes what every
+multi-root document's names ARE, and refusing earlier in the recipe's
+vocabulary adds a refusal arm to the recipe layer. Either is a decision
+about what a document means. What is NOT in doubt, and is worth stating
+because it is the reason the row matters: **the solve accepts a document
+the gather cannot represent**, so the two layers disagree today whichever
+way the ruling goes.
+
+`product.rs` is WIRE's, so the implementing unit lands here once the
+ruling does; the shape it lands in is what is being asked.

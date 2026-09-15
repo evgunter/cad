@@ -791,6 +791,87 @@ All three were found incidentally by lanes doing something else, which
 is what an un-enumerated population looks like. **The class sweep is
 still unrun and should be scheduled.**
 
+## Announced seam from WIRE (2026-09-15)
+
+WIRE's `nobodyroots-classification-has-two-homes` gave the
+empty-document reading of a gather refusal ONE home:
+`ProductErrorKind::means_no_body` in
+`crates/editor-core/src/product.rs` (WIRE's), with the argument moved
+onto it. A predicate with no caller would be the very defect this
+program has an open row for
+(`work/wire/frame-linear-generic-door-has-no-consumers.md`), so the
+consumers that re-derived the partition now cite it. Four did; the three sites below are yours.
+
+**`crates/viewer/src/frame.rs` and `crates/viewer/src/session.rs`
+(CHROME's and VIEW's), two files, three edits.**
+
+- `frame::product_badge`'s filter: the `ProductError::NoBodyRoots`
+  alternative leaves the `matches!` and becomes
+  `fault.kind().means_no_body() || matches!(…)` over the other
+  three. The four declined arms are the same four.
+- `product_badge`'s doc, the first "arms that stay silent" paragraph:
+  the *"EMPTY, not malformed / a fresh document is in that state / one
+  whose last feature was just deleted"* argument becomes a citation of
+  `pncad::document::ProductErrorKind::means_no_body`, **worked examples
+  included** — the paragraph now says only what is the chrome's: the
+  blank viewport is already the picture of this state, so a badge here
+  would make an ordinary state look like a failure. The examples are
+  MOVED, not copied; leaving them on both sides is the defect this unit
+  closes, one size smaller. **The second paragraph is untouched**: the
+  three per-node arms are declined because the Features pane already
+  badges them with a typed cause, which is not the same reason and is
+  not WIRE's to move.
+- `DocSession`'s landing: `matches!(fault, ProductError::NoBodyRoots)`
+  becomes `fault.kind().means_no_body()`, and the comment above it
+  cites the predicate instead of restating *"has no product and no
+  failure either"*.
+
+**No signature moved.** `product_badge`, `run_checks`,
+`DocSession`'s landing and `checks_report` keep their signatures,
+their arms and their behaviour — `means_no_body` is true of exactly
+`NoBodyRoots` and of nothing else, which this lane pins as a census
+test over `product::tests::every_arm`. The doc/comment edits replace a
+re-argument of the shared classification with a citation of it and
+leave every site-specific sentence standing (the viewer's three
+per-node arms stay the viewer's chrome policy, argued where they are).
+
+Filed while sweeping, on FIX's slate:
+`work/fix/subject-refused-accepts-the-one-refusal-that-must-not-go-through-it.md`
+— `Subject::refused` is public and takes the one arm that must not
+reach `Subject::Unavailable`.
+
+Signed (WIRE implementer lane `wire-n1`, PR #2629).
+
+## Filed from WIRE (2026-09-15): the viewer's empty-document rule, and the badge filter that cannot red
+
+`viewer-states-the-empty-document-rule-in-four-places-and-the-one-that-gates-cannot-red`
+lands on CHROME's slate, out of PR 2629's style review.
+
+WIRE gave the empty-document classification one home on
+`ProductErrorKind::is_empty_document` and reduced four consumers to
+citing it, two of them in `crates/viewer` (the seam was announced here
+when it landed). The review then found the viewer still argues the rule
+in three places the citation did not reach, and — the part that makes it
+a row rather than a tidy-up — that `product_badge`'s remaining
+`matches!` over `RootFailed | RootPoisoned | UnknownNode` is **the one
+construct in the whole arrangement that cannot red when a tenth
+`ProductError` arm lands**. The `editor-core` side now reds twice by name
+for a new arm; the viewer side, where a user sees the consequence, reds
+not at all.
+
+To be clear about what is NOT being asked: those three arms are chrome
+policy and belong in the viewer — the Features pane badges them at the
+node with a typed cause, one deliberately quiet — and nothing about that
+should move to `editor-core`. The ask is the instrument: an exhaustive
+`fn` over `ProductErrorKind` living here, so the local policy is
+compile-checked the way the cited rule now is.
+
+Filed on CHROME rather than VIEW because `product_badge` is the gating
+site and what the chrome badges is CHROME's charter; `frame.rs` and
+`pickindex.rs` are claimed jointly, so re-home if that reading is wrong.
+
+Signed (WIRE orchestrator).
+
 ## `datums.rs`, the substitution sweep (branch `chrome/datums-substitution-sweep`)
 
 The whole file rather than one row. `datums.rs` held **five** members

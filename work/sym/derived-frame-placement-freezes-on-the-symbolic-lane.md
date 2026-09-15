@@ -51,7 +51,7 @@ levels are not decisive, the degree comes from the stored vectors.
 
 The kernel's symbolic lane — `geom_core::sym` (a `Sqrt` of a
 value-exact norm minted as a degree-resetting atom, or normalisation
-simplified before squaring) or `topo::UnitVec3` / the extrude's
+simplified before squaring) or `geom_core::UnitVec3` / the extrude's
 certification — outside DOCM's fence and inside M10's (E12, the
 symbolic identity lane; the program stays open "until certification
 is parameter-aware", and this is a case where it is not). DOCM-1

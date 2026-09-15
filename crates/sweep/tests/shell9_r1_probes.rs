@@ -15,15 +15,16 @@
 
 use core::f64::consts::{FRAC_PI_2, PI};
 
-use geom_core::{Point2, Vec2, Vec3};
+use geom_core::{Point2, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use sweep::test_support::block;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ShellError, ShellRole};
 
 use super::common::latitude_seam::{collinear_cap_drum, door_cavity};
 use super::shell7_common::{face_of_he, point, polyline, tol, tube_torus, tube_torus_hollow};
 use super::shell8_common::{beside, cap, outer_and_void_of};
-use super::verbs_shell::{boxy, hollow_box, two_void_box, vessel};
+use super::verbs_shell::{hollow_box, two_void_box, vessel};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -197,12 +198,16 @@ fn r1_rows_corpus() {
         &cap_at_y(&frustum, 2.0),
     );
     // SHELL-8's multi-solid bodies.
-    let pair = beside(&boxy(2.0, 3.0, 4.0), &vessel(1.0, 2.0), 10.0);
+    let pair = beside(
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        &vessel(1.0, 2.0),
+        10.0,
+    );
     dump_shelled("box beside vessel sealed", &pair, 0.1, &[]);
     let hollow_vessel = topo::shell(&vessel(1.0, 2.0), 0.1, tol())
         .expect("hollows")
         .body;
-    let pair_h = beside(&boxy(2.0, 3.0, 4.0), &hollow_vessel, 10.0);
+    let pair_h = beside(&block(2.0, 3.0, 4.0, Tol::witness()), &hollow_vessel, 10.0);
     dump_rows("operand box beside hollow vessel", &pair_h);
     let vessel_solid = pair_h
         .solids()
@@ -376,7 +381,7 @@ fn r1_end_to_end() {
     let hv = topo::shell(&vessel(1.0, 2.0), 0.1, tol())
         .expect("the vessel hollows")
         .body;
-    let pair = beside(&boxy(2.0, 3.0, 4.0), &hv, 10.0);
+    let pair = beside(&block(2.0, 3.0, 4.0, Tol::witness()), &hv, 10.0);
     let vessel_solid = pair
         .solids()
         .find(|(k, _)| pair.get_solid(*k).unwrap().shells.len() == 2)

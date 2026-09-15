@@ -1148,3 +1148,36 @@ builders in `crates/sweep/src/*`, passed from the nearest holder and
 never minted (`witness-not-ambient.sh` is the gate). The parameter and
 nothing else; what each registrant states is unchanged. Ev's D1 = (1)
 on `[ev]` #2552.
+
+## Re-homed from WIRE (2026-09-15): the band-slit name collision
+
+`blend-slit-name-collides-when-two-rims-share-a-meridian` moves onto
+BLEND's slate. It reached WIRE at DOCM's exit sweep (2026-09-13) on the
+boilerplate *"the file it names is WIRE's (`names/emit*.rs` … are in
+WIRE's paths)"* — a glob, where WIRE's path list names `emit.rs` and
+`emit_topo.rs` explicitly and no `emit_blend.rs`. WIRE owns none of the
+three files a fix touches; BLEND owns the kernel half
+(`crates/sweep/src/blend/naming.rs`, `rec.slits`), `emit_blend.rs` is
+unowned, and `role.rs` is EDIT's.
+
+**The finding, in one line:** `RoleSeg::BandSlit(NameRef)` is keyed on
+the source meridian alone, a band slits exactly one of its two supports'
+seam meridians, so two bands that slit the SAME meridian mint the same
+name and the document refuses `Naming(Duplicate)`. On the teapot lid the
+colliding pairs are `{1,2}` and `{5,0}`; `fillet_edges` rolls all three
+rims fine, the same three through `Node::Fillet` refuse.
+
+The row carries the full read: the precedent (`BandTrim`'s
+`RimSupport`), the withdrawn ruling call with the three ratified texts
+that withdraw it (`persist/mod.rs`'s no-schema-version ruling, N1's
+structural scope, V3's fillet-naming fence), and the one open design
+question — whether the band's identity has to come from the kernel
+record or can be derived from the `BandFace` row the emitter already
+mints. That question decides one crate or two and is deliberately left
+undetermined rather than guessed.
+
+Not urgent: the recourse (two `Node::Fillet` requests) builds the same
+three band tori bit for bit, so only the single-request spelling is
+unavailable.
+
+Signed (WIRE orchestrator).

@@ -356,6 +356,8 @@ mod revolve_washer;
 mod ring_r1_probes;
 #[path = "s16_box_soundness.rs"]
 mod s16_box_soundness;
+#[path = "s393_start_frame_door.rs"]
+mod s393_start_frame_door;
 #[path = "s49_census_jurisdiction.rs"]
 mod s49_census_jurisdiction;
 #[path = "seat6_germ_channel.rs"]
@@ -485,6 +487,10 @@ mod review_ring_clearance_r1_probes;
 mod review_ring_clearance_r2_probes;
 #[path = "ring_clearance_forms.rs"]
 mod ring_clearance_forms;
+#[path = "vrev_acceptance_set.rs"]
+mod vrev_acceptance_set;
+#[path = "vrev_reversed_chart_hazard.rs"]
+mod vrev_reversed_chart_hazard;
 
 #[path = "r1_probes_m9_3.rs"]
 mod r1_probes_m9_3;

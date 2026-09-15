@@ -13,6 +13,7 @@ use mesh::tessellate;
 use mesh::validate::{check_mesh, signed_volume, triangle_count};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
+use sweep::test_support::{corners, prism, prism_on};
 use sweep::{Extrusion, extrude};
 use topo::Body;
 
@@ -28,20 +29,6 @@ fn validated(plane: SketchPlane<f64>, loops: Vec<ProfileLoop<f64>>) -> Validated
     Profile::new(plane, loops)
         .validate(Tol::witness())
         .expect("profile validation")
-}
-
-fn prism_on(plane: SketchPlane<f64>, poly: &[(f64, f64)], h: f64) -> Body<f64> {
-    extrude(
-        &validated(plane, vec![lp(poly)]),
-        Extrusion::Distance(h),
-        Tol::witness(),
-    )
-    .expect("extrude")
-    .body
-}
-
-fn prism(poly: &[(f64, f64)], h: f64) -> Body<f64> {
-    prism_on(SketchPlane::xy(), poly, h)
 }
 
 fn dump(m: &mesh::Mesh) -> String {
@@ -93,7 +80,7 @@ fn probe_a_anchor_antipodal_to_far() {
             (t.cos(), t.sin())
         })
         .collect();
-    let body = prism(&poly, 1.0);
+    let body = prism(corners(&poly), 1.0, Tol::witness());
     let m = tessellate_or_typed(&body, 1e-2, "antipodal").expect("must tessellate");
     // Area of the regular 17-gon: n/2 sin(2pi/n); volume = area * 1.
     #[allow(clippy::cast_precision_loss)]
@@ -119,7 +106,7 @@ fn probe_b_far_tie_determinism() {
         (-1.0, 0.0),
     ];
     for (label, poly) in [("tie", &tie[..]), ("nudged", &nudged[..])] {
-        let body = prism(poly, 1.0);
+        let body = prism(corners(poly), 1.0, Tol::witness());
         let m1 = tessellate_or_typed(&body, 1e-2, label).expect("must tessellate");
         let m2 = tessellate(&body, 1e-2, Tol::witness()).unwrap();
         assert_eq!(dump(&m1), dump(&m2), "{label}: rebuild not byte-identical");
@@ -140,6 +127,9 @@ fn probe_c_needle_extent_ratio() {
         ("long-1e9", 1.0e9),
     ] {
         let poly = [(0.0, 0.0), (len, 0.0), (len, 1.0), (0.0, 1.0)];
+        // Not [`prism_on`]: this row's subject is the TYPED refusal, and a
+        // fixture that panics on one cannot report it. The construction is
+        // that door's, spelled out because the `Result` is the measurement.
         let profile = Profile::new(SketchPlane::xy(), vec![lp(&poly)]);
         let Ok(vp) = profile.validate(Tol::witness()) else {
             eprintln!("{label}: profile validation refuses (typed, upstream)");
@@ -167,7 +157,7 @@ fn probe_d_huge_offset_tiny_face() {
         Vec3::new(0.0, 1.0, 0.0),
     );
     let poly = [(0.0, 0.0), (1.0e-3, 0.0), (1.0e-3, 1.0e-3), (0.0, 1.0e-3)];
-    let body = prism_on(plane, &poly, 1.0e-3);
+    let body = prism_on(plane, corners(&poly), 1.0e-3, Tol::witness());
     let m = tessellate_or_typed(&body, 1e-6, "huge-offset").expect("must tessellate");
     // `signed_volume` recentres on the mesh's bbox centre, so its
     // fold operands scale with the body, not the placement — it is
@@ -203,7 +193,7 @@ fn probe_e_noise_scale_sweep() {
             Vec3::new(0.0, 1.0, 0.0),
         );
         let poly = [(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)];
-        let body = prism_on(plane, &poly, 1.0);
+        let body = prism_on(plane, corners(&poly), 1.0, Tol::witness());
         let label = format!("noise-1e{exp}");
         if let Some(m) = tessellate_or_typed(&body, 1e-2, &label) {
             let v = signed_volume(&m);
@@ -235,7 +225,7 @@ fn position_noise_subfloor_class_is_closed() {
             Vec3::new(0.0, 1.0, 0.0),
         );
         let poly = [(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)];
-        prism_on(plane, &poly, 1.0)
+        prism_on(plane, corners(&poly), 1.0, Tol::witness())
     };
     // The former refusal band (~ν² sub-floor) AND the scales that
     // always cleared the floor: one contract across both now.
@@ -273,7 +263,7 @@ fn probe_e2_collinear_midpoint_on_diagonal() {
             (0.0, 1.0),
             (0.0, 0.5),
         ];
-        let body = prism_on(plane, &poly, 1.0);
+        let body = prism_on(plane, corners(&poly), 1.0, Tol::witness());
         let label = format!("collinear-1e{exp}");
         if let Some(m) = tessellate_or_typed(&body, 1e-2, &label) {
             // Area: shoelace of the hexagon = 1.5.

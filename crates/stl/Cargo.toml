@@ -40,7 +40,11 @@ geom-core = { path = "../geom-core" }
 # trait's docs carry the argument); dev-only, so no shipped build of
 # this crate reaches it.
 profile = { path = "../profile", features = ["test-support"] }
-sweep = { path = "../sweep" }
+# `test-support` ON: the acceptance bricks this crate exports are built
+# by `sweep`'s fixture door rather than re-spelled here (S52). Off by
+# default and named only from this table, so no shipped build of this
+# crate or of `sweep` reaches the module.
+sweep = { path = "../sweep", features = ["test-support"] }
 topo = { path = "../topo" }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test

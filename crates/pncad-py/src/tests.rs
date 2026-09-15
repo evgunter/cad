@@ -19,11 +19,12 @@ use crate::tags::{
 use pncad::document::Dimension;
 use pncad::tolerance::Tol;
 use pncad::topo::{FaceKey, VertexKey};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 // The shared Rust-source lexer: `src/tags.rs` is READ by the tag-table
-// guard below, and this is the tree's one answer to "is this text code,
-// prose or a literal". `crates/test-utils/tests/reader_census.rs`
+// guard below, and a synthetic fixture beside it is read by the
+// guard's own guard. This is the tree's one answer to "is this text
+// code, prose or a literal"; `crates/test-utils/tests/reader_census.rs`
 // carries the line that says so.
 use test_utils::source::{balanced_end, code_and_literals, code_only};
 
@@ -65,6 +66,33 @@ fn canonical_units_match_the_gq5_ratification() {
     assert_eq!(canonical_unit(Dimension::Scalar), None);
 }
 
+/// **The two dimension alphabets are one list in two cases.**
+///
+/// `Measurement.dimension` answers the capitalized spelling and every
+/// other door answers the lower-case one, so two Python attributes
+/// with the same name carry two spellings of one four-word list. That
+/// is allowed and is not free: the day one list gains a word or
+/// renames one, the other has to move with it, and nothing but this
+/// says so.
+///
+/// Over the kernel's own [`Dimension::ALL`], so a dimension added to
+/// the lattice is pinned without an edit here.
+#[test]
+fn the_two_dimension_alphabets_are_one_list_in_two_cases() {
+    use crate::errors::measurement_dimension_tag;
+
+    for dim in Dimension::ALL {
+        let mut capitalized = dimension_tag(dim).to_owned();
+        capitalized[..1].make_ascii_uppercase();
+        assert_eq!(
+            measurement_dimension_tag(dim),
+            capitalized,
+            "the measurement spelling of a dimension is no longer the FFI tag \
+             capitalized"
+        );
+    }
+}
+
 #[test]
 fn a_quantity_operator_mismatch_carries_structure_not_prose() {
     let err = QuantityOpMismatch::new("+", Dimension::Length, Dimension::Angle);
@@ -85,7 +113,7 @@ fn error_classes_name_the_python_hierarchy() {
     fn expected(class: ErrorClass) -> &'static str {
         match class {
             ErrorClass::Edit => "EditError",
-            ErrorClass::Evaluation => "EvaluationError",
+            ErrorClass::Evaluation(_) => "EvaluationError",
             ErrorClass::Validation => "ValidationError",
             ErrorClass::Dimension => "DimensionError",
             ErrorClass::FmtQuantity => "FmtQuantityError",
@@ -123,7 +151,10 @@ fn error_classes_name_the_python_hierarchy() {
     }
     for class in [
         ErrorClass::Edit,
-        ErrorClass::Evaluation,
+        // The one class with a payload: its word is the same for
+        // every reason, and `eval_reason_tag` is what pins the
+        // reasons themselves.
+        ErrorClass::Evaluation(crate::errors::EvalReason::NodeFailed),
         ErrorClass::Validation,
         ErrorClass::Dimension,
         ErrorClass::FmtQuantity,
@@ -1022,34 +1053,31 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
 /// `HitTestError` report. Those two reach the word through a `match`
 /// on a kernel arm; the evaluation door cannot, because
 /// `Evaluation::result` answers a bare `None` and the reason tag is
-/// this crate's own. So the word is a CONST and this is the pin that
-/// keeps the copy honest.
+/// this crate's own — [`crate::errors::EvalReason`], mapped by
+/// [`crate::tags::eval_reason_tag`]. Three maps, one word between
+/// them, and this is the pin that keeps them saying it.
 ///
 /// It runs in BOTH directions on purpose: renaming the kernel arms'
-/// tag fails here, and so does editing the const away from them. That
-/// is the property `picking_refusal_tags_are_stable` protects for the
-/// pick, one door further out.
+/// tag fails here, and so does editing this door's arm away from
+/// them. That is the property `picking_refusal_tags_are_stable`
+/// protects for the pick, one door further out.
 #[test]
 fn the_evaluation_door_speaks_the_standing_ladder() {
-    use crate::tags::{NODE_NOT_EVALUATED, hit_test_error_tag, interrogate_error_tag};
+    use crate::errors::EvalReason;
+    use crate::tags::{eval_reason_tag, hit_test_error_tag, interrogate_error_tag};
     use pncad::document::RecipeNodeId;
     use pncad::select::{HitTestError as H, InterrogateError as I};
 
     let node = RecipeNodeId(0);
-    assert_eq!(
-        NODE_NOT_EVALUATED,
-        hit_test_error_tag(&H::NodeNotEvaluated { node })
-    );
-    assert_eq!(
-        NODE_NOT_EVALUATED,
-        interrogate_error_tag(&I::NodeNotEvaluated { node })
-    );
+    let rung = eval_reason_tag(EvalReason::NodeNotEvaluated);
+    assert_eq!(rung, hit_test_error_tag(&H::NodeNotEvaluated { node }));
+    assert_eq!(rung, interrogate_error_tag(&I::NodeNotEvaluated { node }));
 
     // And it is NOT the other no-entry fact. "The document has no such
     // node" and "this run never reached it" are two states the door
     // kept collapsed while only one of them could arise, and the whole
     // of what B-CANCEL changed at this door is that both now can.
-    assert_ne!(NODE_NOT_EVALUATED, "unknown_node");
+    assert_ne!(rung, eval_reason_tag(EvalReason::UnknownNode));
 }
 
 /// LIB-B-RESOLVE: the three resolution states, pinned word by word —
@@ -2031,8 +2059,8 @@ fn inner_arm_tags_are_stable() {
 #[test]
 fn a_carried_frame_direction_refusal_keeps_the_frames_own_tag() {
     use crate::tags::{node_error_tag, node_inner_kind_tag};
-    use pncad::document::{DirectionRefusal, NodeErrorKind, RecipeNodeId, UnitVec3Error};
-    use pncad::geom_core::{Band, Indeterminate, MarginDiag};
+    use pncad::document::{DirectionRefusal, NodeErrorKind, RecipeNodeId};
+    use pncad::geom_core::{Band, Indeterminate, MarginDiag, UnitVec3Error};
 
     let band = Band::new(1.0e-9, 1.0e-6).expect("a valid band");
     let carried = |error| NodeErrorKind::FrameDirection {
@@ -3527,6 +3555,104 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
     }
 }
 
+/// **Two layers spell one entity the same way.**
+///
+/// [`crate::tags::entity_kind_tag`] is total over what a document
+/// NAME can denote; [`crate::tags::entity_id_tag`] is total over what
+/// the arena can hold. They are two vocabularies and neither
+/// contains the other — but where both speak of one entity, a caller
+/// resolving a name and a caller reading a census subject are reading
+/// one concept, and learning two spellings for it would be a fact
+/// about this crate rather than about the model.
+///
+/// The three shared words are pinned by CONSTRUCTION, which pins the
+/// mapping and not just the vocabulary; the fourth is pinned as a
+/// divergence, because `body` is a document node and `solid` is an
+/// arena lump, and the day a kind is added to either side this row
+/// asks whether the other gained one too.
+#[test]
+fn the_entity_kind_and_entity_id_maps_agree_where_both_speak() {
+    use crate::tags::{entity_id_tag, entity_kind_tag};
+    use pncad::select::EntityKind;
+    use pncad::topo::{EdgeKey, EntityId};
+
+    for (kind, entity) in [
+        (EntityKind::Face, EntityId::Face(FaceKey::default())),
+        (EntityKind::Edge, EntityId::Edge(EdgeKey::default())),
+        (EntityKind::Vertex, EntityId::Vertex(VertexKey::default())),
+    ] {
+        assert_eq!(
+            entity_kind_tag(kind),
+            entity_id_tag(&entity),
+            "the name layer and the arena layer have drifted apart on one entity"
+        );
+    }
+
+    // Derived from the committed rows rather than from a roster
+    // written here: whatever the two maps mint, `body` is the only
+    // word the kind side speaks that the arena side does not.
+    let kinds = TAG_INVENTORY
+        .iter()
+        .find(|entry| entry.function == "entity_kind_tag")
+        .expect("the inventory carries the entity-kind alphabet");
+    let ids = TAG_INVENTORY
+        .iter()
+        .find(|entry| entry.function == "entity_id_tag")
+        .expect("the inventory carries the entity-id alphabet");
+    let unshared: Vec<&str> = kinds
+        .values
+        .iter()
+        .copied()
+        .filter(|word| !ids.values.contains(word))
+        .collect();
+    assert_eq!(
+        unshared,
+        ["body"],
+        "the two entity alphabets diverge somewhere new — a document `body` is not \
+         an arena `solid`, and any other difference is a spelling to settle"
+    );
+}
+
+/// **The class table's `no_at_rest_record` arm predicts the mint
+/// door's refusal in the mint door's own word.**
+///
+/// `ClassAdmission::NoAtRestRecord` exists to answer, before a tool
+/// commits an edit, the question `MintRefusal::NoAtRestRecord`
+/// answers after one — the kernel says so at the arm itself. So a
+/// caller that asks ahead and then reads that refusal is reading one
+/// fact, and it stays one fact only while the two maps agree word for
+/// word. That is what this row holds.
+///
+/// **What it does not hold, stated so the row is not read wider than
+/// it is.** The prediction is the arm's, not the table's: the mint
+/// door (`editor_core::assembly::mint`) refuses through
+/// a wildcard `other =>`, so `ClassAdmission::NotAdmitted` ALSO
+/// reaches the caller as `MintRefusal::NoAtRestRecord` — under a word
+/// the table did not answer. A tool matching the answer it got
+/// against the refusal it later sees is right here, silent on `mints`
+/// (which refuses nothing) and wrong on `not_admitted`. Whether that
+/// wildcard should split is a kernel question, not one this crate can
+/// pin.
+#[test]
+fn the_class_table_predicts_the_mint_refusal_in_its_own_words() {
+    use crate::tags::{class_admission_tag, mint_refusal_tag};
+    use pncad::document::{ClassAdmission, MintRefusal, RecipeNodeId};
+    use pncad::topo::ContactClass;
+
+    assert_eq!(
+        class_admission_tag(&ClassAdmission::NoAtRestRecord {
+            why: "the table's own reason"
+        }),
+        mint_refusal_tag(&MintRefusal::NoAtRestRecord {
+            mate: RecipeNodeId(0),
+            class: ContactClass::Tangent,
+            why: "the table's own reason",
+        }),
+        "the class table and the mint door have drifted apart on the refusal one \
+         exists to predict"
+    );
+}
+
 /// One row of [`TAG_INVENTORY`]: a tag function in `src/tags.rs`, and
 /// the exact vocabulary it can put on the wire.
 struct TagEntry {
@@ -3567,9 +3693,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "at_rest",
             "carried_mint_refusal",
-            "mate_reference_refused",
-            "no_at_rest_record",
             "uncertified",
+            "unminted_mates",
         ],
         delegates: &["product_error_tag"],
     },
@@ -3727,6 +3852,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "class_admission_tag",
+        values: &["mints", "no_at_rest_record", "not_admitted"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "cluster_maintenance_tag",
+        values: &["drop", "gauge_rewrite", "join", "split"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "coherence_condition_tag",
         values: &[
             "meridian_closure",
@@ -3848,6 +3983,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "entity_kind_tag",
+        values: &["body", "edge", "face", "vertex"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "eval_error_tag",
         values: &[
             "continuous_expr_in_count_eval",
@@ -3857,6 +3997,18 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_finite_result",
             "param_dimension_mismatch",
             "unknown_param",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "eval_reason_tag",
+        values: &[
+            "empty_boolean",
+            "node_failed",
+            "node_not_evaluated",
+            "poisoned",
+            "unknown_node",
+            "wrong_kind",
         ],
         delegates: &[],
     },
@@ -3957,6 +4109,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &["resolve_fault_tag"],
     },
     TagEntry {
+        function: "interface_crossing_tag",
+        values: &["mate"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "interrogate_error_tag",
         values: &[
             "ambiguous",
@@ -4012,6 +4169,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "mate_primitive_tag",
+        values: &["clocking", "coaxial", "frame_coincidence", "planar_rest"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "mc_refusal_tag",
         values: &["no_samples", "nominal_does_not_build"],
         delegates: &["measure_unavailable_tag"],
@@ -4039,6 +4201,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "meta_version_error_tag",
         values: &["missing_version", "not_a_map", "version_not_int"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "mint_refusal_tag",
+        values: &["mate_reference_refused", "no_at_rest_record"],
         delegates: &[],
     },
     TagEntry {
@@ -4676,6 +4843,19 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "subgroup_tag",
+        values: &[
+            "cylindrical",
+            "empty",
+            "planar",
+            "prismatic",
+            "revolute",
+            "se3",
+            "trivial",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "tessellate_error_tag",
         values: &[
             "certificate_exceeded",
@@ -4838,22 +5018,162 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
 ];
 
+/// **Every word that two tag maps both mint, and how many mint it.**
+///
+/// `src/tags.rs`'s header claims a tag word is scoped to the map that
+/// mints it — a coincidence between two maps is not a collision, and
+/// pinning every such pair would pin accidents. That claim was
+/// decided over seven WORDS and asserted over the file; this is the
+/// file, measured: 61 words that two or more maps mint, `band` in
+/// sixteen of them.
+///
+/// The row does not say which of the other 54 are one concept and
+/// which are coincidence — nobody has read them, and `work/census/`'s
+/// `sixty-one-tag-words-are-minted-by-two-or-more-maps-and-seven-are-read`
+/// is where that question lives. What it does is make the population
+/// OBSERVED: a word that starts colliding, or stops, or picks up a
+/// third map, arrives as a failure naming itself instead of as
+/// silence under a rule nobody re-derived.
+///
+/// Derived from [`TAG_INVENTORY`] rather than from the source, so it
+/// inherits that table's own guard and cannot drift from `tags.rs`
+/// without `the_whole_tag_table_matches_its_committed_inventory`
+/// reding first. Its own hand-written half is the roster below, and
+/// the guard on THAT is this row's two directions: an entry no longer
+/// shared fails exactly as a new sharing does.
+const SHARED_TAG_WORDS: &[(&str, usize)] = &[
+    ("ambiguous", 2),
+    ("approx_lane_unsupported", 2),
+    ("assertion_dimension", 2),
+    ("band", 16),
+    ("cap_plane", 3),
+    ("certify", 2),
+    ("contact_contradicted", 2),
+    ("corrupt", 3),
+    ("cosurface_escalated", 2),
+    ("dangling_geometry", 2),
+    ("dimension", 2),
+    ("edge", 2),
+    ("empty", 2),
+    ("empty_boolean", 2),
+    ("empty_placement_list", 2),
+    ("escalated", 10),
+    ("euler", 2),
+    ("evaluation_of_another_document", 2),
+    ("face", 3),
+    ("improper_placement", 2),
+    ("indeterminate", 2),
+    ("instance", 2),
+    ("io", 2),
+    ("join", 3),
+    ("measure_malformed", 2),
+    ("no_at_rest_record", 2),
+    ("no_such_body", 2),
+    ("node_failed", 4),
+    ("node_not_evaluated", 3),
+    ("node_poisoned", 2),
+    ("non_finite", 4),
+    ("non_finite_direction", 2),
+    ("non_finite_placement", 2),
+    ("not_a_body", 2),
+    ("null_scaffold_edge", 2),
+    ("op", 3),
+    ("pcurve", 5),
+    ("pcurves", 3),
+    ("placement_rule_mismatch", 2),
+    ("poisoned", 2),
+    ("profile", 2),
+    ("revolve", 2),
+    ("shell", 2),
+    ("skin", 2),
+    ("sliver_join", 2),
+    ("sliver_rim", 2),
+    ("split", 2),
+    ("structure", 3),
+    ("tolerance_conflict", 2),
+    ("transition", 2),
+    ("undeclared_contact", 2),
+    ("underflowed_direction", 2),
+    ("unknown_node", 5),
+    ("unknown_param", 4),
+    ("unnamed", 2),
+    ("unreadable", 2),
+    ("vertex", 2),
+    ("vertex_on_edge", 2),
+    ("vertex_on_face", 2),
+    ("vertex_vertex", 3),
+    ("wrong_kind", 2),
+];
+
+#[test]
+fn every_word_two_tag_maps_share_is_on_the_committed_roster() {
+    let mut minters: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+    for entry in TAG_INVENTORY {
+        for value in entry.values {
+            minters.entry(value).or_default().insert(entry.function);
+        }
+    }
+    let shared: Vec<(&str, usize)> = minters
+        .iter()
+        .filter(|(_, functions)| functions.len() > 1)
+        .map(|(word, functions)| (*word, functions.len()))
+        .collect();
+    let pinned: Vec<(&str, usize)> = SHARED_TAG_WORDS.to_vec();
+    if shared != pinned {
+        let detail: Vec<String> = minters
+            .iter()
+            .filter(|(_, functions)| functions.len() > 1)
+            .map(|(word, functions)| {
+                format!(
+                    "{word} ({}): {}",
+                    functions.len(),
+                    functions.iter().copied().collect::<Vec<_>>().join(", ")
+                )
+            })
+            .collect();
+        panic!(
+            "the set of tag words minted by two or more maps has moved.\n\n\
+             A word two maps share is either ONE FACT the two must keep \
+             spelling the same way — which owes a pin in this file — or a \
+             coincidence between two unrelated vocabularies, which owes \
+             nothing but a decision that it is one. Decide which, then \
+             update SHARED_TAG_WORDS from the list below.\n\n  {}",
+            detail.join("\n  ")
+        );
+    }
+}
+
 /// The committed inventory of `src/tags.rs`'s `pub const` tag words —
 /// the tags that are not behind a `match` at all.
 ///
-/// One entry today. It exists because the evaluation door has no
-/// kernel arm to match on and spelled the standing ladder's first rung
-/// by hand; `the_evaluation_door_speaks_the_standing_ladder` pins the
-/// COPY against the two doors that do match, and this row pins the
-/// word itself, so the three cannot drift together in silence.
-const TAG_CONSTS: &[(&str, &str)] = &[("NODE_NOT_EVALUATED", "node_not_evaluated")];
+/// **Empty, and that is a fact about the file rather than a gap in the
+/// pin.** Every tag in `src/tags.rs` is behind an exhaustive `match`
+/// today, which is the arrangement that makes a new one stop the
+/// build. The row that used to sit here was the evaluation door's
+/// standing-ladder rung, spelled by hand because that door had no enum
+/// to match on; it has one now ([`crate::errors::EvalReason`]) and the
+/// word comes from [`crate::tags::eval_reason_tag`] with the rest of
+/// that door's vocabulary.
+///
+/// The half of the guard that reads the `pub const` form still runs —
+/// against a fixture, in
+/// [`the_tag_table_reader_recognises_every_form_it_claims`] — so a
+/// `pub const` added to `src/tags.rs` still reds here as a NEW word.
+const TAG_CONSTS: &[(&str, &str)] = &[];
 
-/// Everything [`read_tag_table`] recognised in `src/tags.rs`.
+/// Everything [`read_tag_table`] recognised in the source it read.
 struct TagTable {
     /// Function name -> (its own literals, sorted; its delegates, sorted).
     functions: BTreeMap<String, (Vec<String>, Vec<String>)>,
     /// `pub const` name -> its literal.
     constants: BTreeMap<String, String>,
+    /// Which arm shapes the reader dispatched on, and which top-level
+    /// forms it matched — the reader reporting on ITSELF, which is
+    /// what [`the_tag_table_reader_recognises_every_form_it_claims`]
+    /// compares against the two rosters.
+    shapes: BTreeSet<ArmShape>,
+    /// Which top-level forms were matched.
+    forms: BTreeSet<TopForm>,
 }
 
 /// The contents of the string literal at `at`, and the offset one past
@@ -4882,6 +5202,84 @@ fn string_literal<'a>(text: &'a str, code: &str, at: usize) -> Option<(&'a str, 
     Some((value, at + literal.len()))
 }
 
+/// One shape of match-arm body [`Cursor::parse_arm_body`] recognises.
+///
+/// **The reader dispatches on this enum rather than on a chain of
+/// `if`s over the text, and that is what ties the fixture in
+/// [`the_tag_table_reader_recognises_every_form_it_claims`] to the
+/// reader.** Three steps close the loop: recognition is
+/// [`Self::matches`], an exhaustive `match`, so a seventh form needs
+/// a seventh variant; the classifier walks [`Self::ALL`], so a
+/// variant left out of that list is never returned and its form is
+/// refused as unreadable the first time anything spells it; and the
+/// fixture test asserts that every shape in `ALL` was dispatched on,
+/// so a variant added to the list reds until the fixture holds an
+/// instance. A form the reader can read is therefore a form that test
+/// has seen.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+enum ArmShape {
+    /// A bare string literal: the word itself.
+    Literal,
+    /// A nested `match`, whose own arms are read in turn.
+    NestedMatch,
+    /// A `{ ... }` block around one of the others.
+    Block,
+    /// A bare `None`, which contributes no word.
+    NoneArm,
+    /// A `Some(..)` wrapper around one of the others.
+    SomeArm,
+    /// A call to another tag function, whose words are that
+    /// function's.
+    Delegation,
+}
+
+impl ArmShape {
+    /// Every shape, **in the order they are tested** — this list IS
+    /// the classifier's loop, so a shape left out of it is not
+    /// recognised at all rather than recognised and unwatched.
+    ///
+    /// The order is load-bearing in one place: `None` and `Some(..)`
+    /// come before [`Self::Delegation`], which would otherwise read
+    /// the wrapper as the called map and skip what it wraps.
+    const ALL: &'static [Self] = &[
+        Self::Literal,
+        Self::NestedMatch,
+        Self::Block,
+        Self::NoneArm,
+        Self::SomeArm,
+        Self::Delegation,
+    ];
+
+    /// Whether an arm body starting `rest` is this shape. Decides
+    /// nothing else: recognition is separated from parsing so that
+    /// the first half is a list the compiler holds.
+    fn matches(self, rest: &str) -> bool {
+        match self {
+            Self::Literal => rest.starts_with('"'),
+            Self::NestedMatch => rest
+                .strip_prefix("match")
+                .is_some_and(|after| after.starts_with(|c: char| c.is_whitespace())),
+            Self::Block => rest.starts_with('{'),
+            Self::NoneArm => rest.strip_prefix("None").is_some_and(|after| {
+                !after.starts_with(|c: char| c.is_ascii_alphanumeric() || c == '_')
+            }),
+            Self::SomeArm => rest.starts_with("Some("),
+            Self::Delegation => {
+                let name = delegation_name(rest);
+                !name.is_empty() && rest[name.len()..].trim_start().starts_with('(')
+            }
+        }
+    }
+}
+
+/// The identifier a delegation arm opens with — empty where the arm
+/// does not open with one.
+fn delegation_name(rest: &str) -> String {
+    rest.chars()
+        .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+        .collect()
+}
+
 /// A cursor over ONE tag function's body, in the two views the shared
 /// lexer supplies.
 ///
@@ -4903,6 +5301,9 @@ struct Cursor<'a> {
     end: usize,
     /// The function the body belongs to — messages name it.
     what: &'a str,
+    /// Every arm shape this cursor has dispatched on, for
+    /// [`the_tag_table_reader_recognises_every_form_it_claims`].
+    shapes: BTreeSet<ArmShape>,
 }
 
 impl<'a> Cursor<'a> {
@@ -5034,6 +5435,31 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    /// Which of [`ArmShape`]'s forms the arm body at the cursor is —
+    /// decided without consuming anything, so that recognition and
+    /// parsing are two steps and the first one is enumerable.
+    ///
+    /// Anything else — a `format!`, an `if`, a `const` reference, a
+    /// method chain — fails here by name rather than being skipped,
+    /// because a tag arrived at by a route this reader cannot follow
+    /// is a tag the inventory silently stops covering.
+    fn arm_shape(&self) -> ArmShape {
+        let rest = self.rest();
+        ArmShape::ALL
+            .iter()
+            .copied()
+            .find(|shape| shape.matches(rest))
+            .unwrap_or_else(|| {
+                panic!(
+                    "tags.rs: in `{}`, I do not understand this match arm's body: {:?}. \
+                     Teach this reader in the same diff — a shape it cannot follow is a \
+                     tag value the inventory stops covering, silently.",
+                    self.what,
+                    rest.chars().take(60).collect::<String>()
+                )
+            })
+    }
+
     /// Parse the RIGHT of one arm's `=>`.
     ///
     /// Exactly six shapes are recognised, which is the enumerating
@@ -5041,11 +5467,10 @@ impl<'a> Cursor<'a> {
     /// `match`, a `{ ... }` block around one of those, a call to
     /// another tag function, and — for the maps that answer
     /// `Option<&'static str>` — a bare `None` or a `Some(..)` around
-    /// one of the others. Anything else — a `format!`, a `if`, a
-    /// `const` reference, a method chain — fails here by name rather
-    /// than being skipped, because a tag arrived at by a route this
-    /// reader cannot follow is a tag the inventory silently stops
-    /// covering.
+    /// one of the others. They are [`ArmShape`]'s variants, and the
+    /// dispatch below is a `match` over that enum rather than a chain
+    /// of tests, so the six are a list the compiler holds rather than
+    /// one this comment holds.
     ///
     /// `None` contributes NOTHING: an arm that projects no word is a
     /// decision the reader records by the absence of a value, exactly
@@ -5054,93 +5479,215 @@ impl<'a> Cursor<'a> {
     /// inventory.
     fn parse_arm_body(&mut self, values: &mut Vec<String>, delegates: &mut Vec<String>) {
         self.skip_ws();
-        let rest = self.rest();
-        if rest.starts_with('"') {
-            let value = self.take_string();
-            assert!(
-                !value.is_empty()
-                    && value
-                        .bytes()
-                        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_'),
-                "tags.rs: in `{}`, the tag {value:?} is not lower snake case — \
-                 every tag in this file is, and a reader that accepted \
-                 anything would be guessing",
-                self.what
-            );
-            values.push(value.to_owned());
-            return;
+        let shape = self.arm_shape();
+        self.shapes.insert(shape);
+        match shape {
+            ArmShape::Literal => {
+                let value = self.take_string();
+                assert!(
+                    !value.is_empty()
+                        && value
+                            .bytes()
+                            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_'),
+                    "tags.rs: in `{}`, the tag {value:?} is not lower snake case — \
+                     every tag in this file is, and a reader that accepted \
+                     anything would be guessing",
+                    self.what
+                );
+                values.push(value.to_owned());
+            }
+            ArmShape::NestedMatch => self.parse_match(values, delegates),
+            ArmShape::Block => {
+                self.expect("{");
+                self.parse_arm_body(values, delegates);
+                self.expect("}");
+            }
+            ArmShape::NoneArm => self.expect("None"),
+            ArmShape::SomeArm => {
+                self.expect("Some");
+                self.expect("(");
+                self.parse_arm_body(values, delegates);
+                self.expect(")");
+            }
+            ArmShape::Delegation => {
+                let name = delegation_name(self.rest());
+                self.at += name.len();
+                self.skip_ws();
+                let open = self.at;
+                let close = balanced_end(self.code, open).unwrap_or_else(|| {
+                    panic!("tags.rs: in `{}`, a call that never closes", self.what)
+                });
+                assert!(
+                    !self.text[open..=close].contains('"'),
+                    "tags.rs: in `{}`, a string literal inside a delegation's \
+                     arguments — I do not understand this",
+                    self.what
+                );
+                self.at = close + 1;
+                delegates.push(name);
+            }
         }
-        if let Some(after) = rest.strip_prefix("match")
-            && after.starts_with(|c: char| c.is_whitespace())
-        {
-            self.parse_match(values, delegates);
-            return;
-        }
-        if rest.starts_with('{') {
-            self.expect("{");
-            self.parse_arm_body(values, delegates);
-            self.expect("}");
-            return;
-        }
-        // `None` and `Some(..)`, in that order: `Some` must be tested
-        // before the delegation shape below, which would otherwise
-        // read the wrapper as the called map and skip what it wraps.
-        if let Some(after) = rest.strip_prefix("None")
-            && !after.starts_with(|c: char| c.is_ascii_alphanumeric() || c == '_')
-        {
-            self.expect("None");
-            return;
-        }
-        if rest.starts_with("Some(") {
-            self.expect("Some");
-            self.expect("(");
-            self.parse_arm_body(values, delegates);
-            self.expect(")");
-            return;
-        }
-        let name: String = rest
-            .chars()
-            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
-            .collect();
-        if !name.is_empty() && rest[name.len()..].trim_start().starts_with('(') {
-            self.at += name.len();
-            self.skip_ws();
-            let open = self.at;
-            let close = balanced_end(self.code, open)
-                .unwrap_or_else(|| panic!("tags.rs: in `{}`, a call that never closes", self.what));
-            assert!(
-                !self.text[open..=close].contains('"'),
-                "tags.rs: in `{}`, a string literal inside a delegation's \
-                 arguments — I do not understand this",
-                self.what
-            );
-            self.at = close + 1;
-            delegates.push(name);
-            return;
-        }
-        panic!(
-            "tags.rs: in `{}`, I do not understand this match arm's body: {:?}. \
-             Teach this reader in the same diff — a shape it cannot follow is a \
-             tag value the inventory stops covering, silently.",
-            self.what,
-            rest.chars().take(60).collect::<String>()
-        );
     }
 }
 
-/// One tag function's body, read into (values, delegates).
+/// **The tag-table reader's own guard.**
+///
+/// [`read_tag_table`] is a source-text reader, and a reader that stops
+/// recognising a form does not fail — it reports agreement over the
+/// set it can still see. Every other check on this page exercises it
+/// against `src/tags.rs`, which covers only the forms that file
+/// happens to hold: it declares no `pub const` tag word at all, and no
+/// `Option<&'static str>` map with a bare `None` arm sits where an
+/// eye would notice it going unread.
+///
+/// So this drives the reader over a source written to hold ONE of
+/// every top-level form and arm shape its header claims, and pins what
+/// each contributes. A branch that stops matching reds here by name
+/// rather than going quiet.
+///
+/// **The roster below is not a hand census of the reader's branches,
+/// and that is the whole point of [`ArmShape`] and [`TopForm`].** The
+/// reader classifies before it parses, over those two enums, and each
+/// enum's `ALL` IS its classifier's loop. So a form the reader can
+/// read is a variant in `ALL` — a variant outside it is never
+/// returned and its form is refused as unreadable — and every variant
+/// in `ALL` must be exercised here or the assertions at the end of
+/// this test red by name. A seventh form added to the reader without
+/// an instance in the fixture below cannot be green — which is a
+/// property of the dispatch shape and not of anyone remembering to
+/// extend a list.
+#[test]
+fn the_tag_table_reader_recognises_every_form_it_claims() {
+    // Not `src/tags.rs`: the subject is the reader, and a fixture it
+    // cannot drift away from is the only way to assert a form the real
+    // file does not currently spell.
+    let source = r#"//! A module header.
+
+// A line comment, and a blank line above it.
+use crate::errors::EvalReason;
+use pncad::document::{
+    EvalError,
+};
+
+/// A doc comment carrying a "quoted" word the reader must not read.
+pub fn first_tag(reason: EvalReason) -> &'static str {
+    match reason {
+        EvalReason::UnknownNode => "unknown_node",
+        // A delegation inside a block and a bare one, so the two are
+        // told apart rather than conflated; and two bracketed
+        // patterns, which is what drives the pattern skipper's
+        // balanced-bracket branch.
+        EvalReason::WrongKind => { second_tag(reason) }
+        EvalReason::NodeFailed(_) => third_tag(reason),
+        EvalReason::Poisoned { through: _ } => "poisoned",
+        EvalReason::EmptyBoolean => match reason.parts() {
+            [_, ..] => "empty_boolean",
+            [] => "no_parts",
+        },
+    }
+}
+
+pub fn second_tag(reason: EvalReason) -> &'static str {
+    match reason {
+        _ => "second",
+    }
+}
+
+pub fn third_tag(reason: EvalReason) -> &'static str {
+    match reason {
+        _ => "third",
+    }
+}
+
+pub fn maybe_tag(reason: EvalReason) -> Option<&'static str> {
+    match reason {
+        EvalReason::Poisoned => None,
+        _ => Some("maybe"),
+    }
+}
+
+pub const SAMPLE_WORD: &str = "sample_word";
+"#;
+    let table = read_tag_table(source);
+
+    let names: Vec<&str> = table.functions.keys().map(String::as_str).collect();
+    assert_eq!(names, ["first_tag", "maybe_tag", "second_tag", "third_tag"]);
+
+    let (values, delegates) = &table.functions["first_tag"];
+    // Sorted, so the literal, the nested `match`'s two words and the
+    // two delegations all land where the inventory compares them —
+    // and the doc comment's quoted word does NOT.
+    assert_eq!(
+        values,
+        &["empty_boolean", "no_parts", "poisoned", "unknown_node"]
+    );
+    assert_eq!(delegates, &["second_tag", "third_tag"]);
+
+    // The delegates' own words, which is the half a name-only
+    // assertion leaves open: a reader that stopped collecting from a
+    // wildcard-only `match` would still report both functions.
+    assert_eq!(table.functions["second_tag"].0, ["second"]);
+    assert_eq!(table.functions["third_tag"].0, ["third"]);
+
+    // `None` contributes nothing; `Some` is the wrapper, not a
+    // delegation, so what it wraps is what reaches the inventory.
+    let (values, delegates) = &table.functions["maybe_tag"];
+    assert_eq!(values, &["maybe"]);
+    assert!(delegates.is_empty());
+
+    // The form `src/tags.rs` no longer supplies an instance of.
+    assert_eq!(
+        table.constants,
+        BTreeMap::from([("SAMPLE_WORD".to_owned(), "sample_word".to_owned())])
+    );
+
+    // And the reader's report on ITSELF: every shape and every form it
+    // can dispatch on was dispatched on above. This is the assertion
+    // that makes the fixture a census rather than a sample — a form
+    // added to the reader reds here until the source above holds one.
+    assert_eq!(
+        table.shapes.iter().copied().collect::<Vec<_>>(),
+        ArmShape::ALL,
+        "the fixture no longer exercises every arm shape the reader dispatches on"
+    );
+    assert_eq!(
+        table.forms.iter().copied().collect::<Vec<_>>(),
+        TopForm::ALL,
+        "the fixture no longer exercises every top-level form the reader matches"
+    );
+}
+
+/// The pattern skipper's refusal, which no well-formed source reaches.
+///
+/// [`Cursor::skip_pattern`] panics on a bracket that closes before its
+/// arm's `=>`, and the fixture above cannot hold an instance: a source
+/// that provokes it is not a source the rest of the reader can read.
+/// So it gets its own two-line source, and the branch is exercised
+/// rather than asserted about.
+#[test]
+#[should_panic(expected = "a match arm closed before its `=>`")]
+fn the_tag_table_reader_refuses_a_pattern_that_closes_before_its_arrow() {
+    read_tag_table(
+        "pub fn broken_tag(reason: EvalReason) -> &'static str {\n    \
+         match reason {\n        ) => \"never\",\n    }\n}\n",
+    );
+}
+
+/// One tag function's body, read into (values, delegates) — and the
+/// arm shapes the reader dispatched on getting there.
 fn parse_tag_body(
     name: &str,
     text: &str,
     code: &str,
     body: std::ops::Range<usize>,
-) -> (Vec<String>, Vec<String>) {
+) -> ((Vec<String>, Vec<String>), BTreeSet<ArmShape>) {
     let mut cursor = Cursor {
         text,
         code,
         at: body.start,
         end: body.end,
         what: name,
+        shapes: BTreeSet::new(),
     };
     // The `use ... as R;` shorthands some functions open with.
     loop {
@@ -5165,7 +5712,98 @@ fn parse_tag_body(
     );
     values.sort();
     delegates.sort();
-    (values, delegates)
+    ((values, delegates), cursor.shapes)
+}
+
+/// One top-level form [`read_tag_table`] recognises.
+///
+/// [`ArmShape`]'s argument one level out, and the same device: the
+/// reader classifies a line into this enum first and dispatches on it
+/// second, so a seventh top-level form cannot be read without a
+/// seventh variant, and
+/// [`the_tag_table_reader_recognises_every_form_it_claims`] requires
+/// the fixture to hold an instance of each.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+enum TopForm {
+    /// A blank line, or one that is nothing but comment — one case,
+    /// because the shared lexer has already blanked the second.
+    BlankOrComment,
+    /// A one-line `use` item.
+    UseItem,
+    /// A `use` item that opens a `{` block, closed by `};`.
+    UseBlock,
+    /// A tag map: `pub fn NAME(..) -> &'static str {`.
+    TagFn,
+    /// A partial tag map: `pub fn NAME(..) -> Option<&'static str> {`.
+    OptionTagFn,
+    /// A `pub const NAME: &str = "..";` tag word.
+    Const,
+}
+
+impl TopForm {
+    /// Every form, **in the order they are tested** — this list IS
+    /// the classifier's loop, exactly as [`ArmShape::ALL`] is, so a
+    /// form left out of it is not recognised at all.
+    const ALL: &'static [Self] = &[
+        Self::BlankOrComment,
+        Self::UseItem,
+        Self::UseBlock,
+        Self::TagFn,
+        Self::OptionTagFn,
+        Self::Const,
+    ];
+
+    /// Whether a top-level line (in the CODE view, so comments are
+    /// already blank) is this form, and what follows its keyword.
+    fn matches(self, code_line: &str) -> Option<&str> {
+        let after = |keyword: &str| code_line.strip_prefix(keyword);
+        match self {
+            Self::BlankOrComment => code_line.trim().is_empty().then_some(""),
+            Self::UseItem => after("use ").filter(|rest| rest.ends_with(';')),
+            Self::UseBlock => after("use ").filter(|rest| rest.ends_with('{')),
+            Self::TagFn => after("pub fn ").filter(|rest| rest.ends_with(") -> &'static str {")),
+            Self::OptionTagFn => {
+                after("pub fn ").filter(|rest| rest.ends_with(") -> Option<&'static str> {"))
+            }
+            Self::Const => after("pub const "),
+        }
+    }
+}
+
+/// Which [`TopForm`] a top-level line is, and what follows its
+/// keyword — decided in one place, so the loop below dispatches on an
+/// enum rather than on a second chain of prefixes.
+///
+/// Fails loud on anything else, which is the enumerating claim: a
+/// construct this reader cannot place stops the table being read past
+/// it rather than being skipped.
+fn top_form<'a>(code_line: &'a str, line: &str, number: usize) -> (TopForm, &'a str) {
+    if let Some((form, rest)) = TopForm::ALL
+        .iter()
+        .find_map(|&form| form.matches(code_line).map(|rest| (form, rest)))
+    {
+        return (form, rest);
+    }
+    // A line that opens with a keyword this reader knows and then does
+    // something it does not: the diagnostic ladder, so the refusal
+    // names the part that was not understood rather than the line.
+    assert!(
+        !code_line.starts_with("use "),
+        "tags.rs:{number}: a `use` item that neither ends in `;` nor \
+         opens a block — I do not understand this: {line}"
+    );
+    assert!(
+        !code_line.starts_with("pub fn "),
+        "tags.rs:{number}: a `pub fn` in the tag module whose signature is \
+         neither `(..) -> &'static str {{` nor \
+         `(..) -> Option<&'static str> {{` on one line — I do not \
+         understand this, and cannot say what it puts on the wire: {line}"
+    );
+    panic!(
+        "tags.rs:{number}: I do not understand this top-level line, so the tag \
+         table cannot be enumerated past it. Teach this reader in the same diff \
+         that adds the construct: {line}"
+    );
 }
 
 /// **Read `src/tags.rs` and enumerate its tag table.**
@@ -5209,20 +5847,21 @@ fn read_tag_table(source: &str) -> TagTable {
         .collect();
     let mut functions: BTreeMap<String, (Vec<String>, Vec<String>)> = BTreeMap::new();
     let mut constants: BTreeMap<String, String> = BTreeMap::new();
+    let mut shapes: BTreeSet<ArmShape> = BTreeSet::new();
+    let mut forms: BTreeSet<TopForm> = BTreeSet::new();
     let mut i = 0;
     while i < lines.len() {
         // Matched on the code view; REPORTED as the file spells it.
         let line = lines[i];
         let code_line = code_lines[i];
         let number = i + 1;
-        // A blank line and a line that is nothing but comment are one
-        // case here, because the lexer has already blanked the second.
-        if code_line.trim().is_empty() {
-            i += 1;
-            continue;
-        }
-        if let Some(rest) = code_line.strip_prefix("use ") {
-            if rest.ends_with('{') {
+        let (form, rest) = top_form(code_line, line, number);
+        forms.insert(form);
+        match form {
+            TopForm::BlankOrComment | TopForm::UseItem => {
+                i += 1;
+            }
+            TopForm::UseBlock => {
                 i += 1;
                 while i < lines.len() && code_lines[i] != "};" {
                     i += 1;
@@ -5232,91 +5871,73 @@ fn read_tag_table(source: &str) -> TagTable {
                     "tags.rs:{number}: a `use` block that never closes with `}};` — \
                      I do not understand this file"
                 );
-            } else {
+                i += 1;
+            }
+            TopForm::TagFn | TopForm::OptionTagFn => {
+                let (name, _) = rest.split_once('(').unwrap_or_else(|| {
+                    panic!("tags.rs:{number}: a `pub fn` with no argument list: {line}")
+                });
                 assert!(
-                    rest.ends_with(';'),
-                    "tags.rs:{number}: a `use` item that neither ends in `;` nor \
-                     opens a block — I do not understand this: {line}"
+                    !name.is_empty()
+                        && name
+                            .bytes()
+                            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_'),
+                    "tags.rs:{number}: {name:?} is not a lower snake-case name: {line}"
                 );
+                let mut j = i + 1;
+                while j < lines.len() && code_lines[j] != "}" {
+                    j += 1;
+                }
+                assert!(
+                    j < lines.len(),
+                    "tags.rs:{number}: `{name}` has no closing `}}` in column 0 — \
+                     I do not understand where its body ends"
+                );
+                let body = starts[i + 1]..starts[j];
+                let (read, arm_shapes) = parse_tag_body(name, &text, &code, body);
+                shapes.extend(arm_shapes);
+                let previous = functions.insert(name.to_owned(), read);
+                assert!(
+                    previous.is_none(),
+                    "tags.rs:{number}: `{name}` is defined twice"
+                );
+                i = j + 1;
             }
-            i += 1;
-            continue;
-        }
-        if let Some(rest) = code_line.strip_prefix("pub fn ") {
-            let (name, tail) = rest.split_once('(').unwrap_or_else(|| {
-                panic!("tags.rs:{number}: a `pub fn` with no argument list: {line}")
-            });
-            assert!(
-                tail.ends_with(") -> &'static str {")
-                    || tail.ends_with(") -> Option<&'static str> {"),
-                "tags.rs:{number}: a `pub fn` in the tag module whose signature is \
-                 neither `(..) -> &'static str {{` nor \
-                 `(..) -> Option<&'static str> {{` on one line — I do not \
-                 understand this, and cannot say what it puts on the wire: {line}"
-            );
-            assert!(
-                !name.is_empty()
-                    && name
-                        .bytes()
-                        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_'),
-                "tags.rs:{number}: {name:?} is not a lower snake-case name: {line}"
-            );
-            let mut j = i + 1;
-            while j < lines.len() && code_lines[j] != "}" {
-                j += 1;
-            }
-            assert!(
-                j < lines.len(),
-                "tags.rs:{number}: `{name}` has no closing `}}` in column 0 — \
-                 I do not understand where its body ends"
-            );
-            let body = starts[i + 1]..starts[j];
-            let previous =
-                functions.insert(name.to_owned(), parse_tag_body(name, &text, &code, body));
-            assert!(
-                previous.is_none(),
-                "tags.rs:{number}: `{name}` is defined twice"
-            );
-            i = j + 1;
-            continue;
-        }
-        if let Some(rest) = code_line.strip_prefix("pub const ") {
-            let (name, tail) = rest.split_once(": &str = ").unwrap_or_else(|| {
-                panic!(
-                    "tags.rs:{number}: a `pub const` in the tag module that is not a \
-                     `&str` — I do not understand this: {line}"
-                )
-            });
-            // The value is blanked in the code view, so it is located
-            // by the structure around it and read from `text`.
-            let at = starts[i] + code_line.len() - tail.len();
-            let end_of_line = starts[i] + code_line.len();
-            let value = string_literal(&text, &code, at)
-                .filter(|&(_, after)| text[after..end_of_line].trim() == ";")
-                .map(|(value, _)| value)
-                .unwrap_or_else(|| {
+            TopForm::Const => {
+                let (name, tail) = rest.split_once(": &str = ").unwrap_or_else(|| {
                     panic!(
-                        "tags.rs:{number}: a `&str` const whose value is not a bare \
-                         literal — I do not understand this: {line}"
+                        "tags.rs:{number}: a `pub const` in the tag module that is not a \
+                         `&str` — I do not understand this: {line}"
                     )
                 });
-            let previous = constants.insert(name.to_owned(), value.to_owned());
-            assert!(
-                previous.is_none(),
-                "tags.rs:{number}: `{name}` is defined twice"
-            );
-            i += 1;
-            continue;
+                // The value is blanked in the code view, so it is
+                // located by the structure around it and read from
+                // `text`.
+                let at = starts[i] + code_line.len() - tail.len();
+                let end_of_line = starts[i] + code_line.len();
+                let value = string_literal(&text, &code, at)
+                    .filter(|&(_, after)| text[after..end_of_line].trim() == ";")
+                    .map(|(value, _)| value)
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "tags.rs:{number}: a `&str` const whose value is not a bare \
+                             literal — I do not understand this: {line}"
+                        )
+                    });
+                let previous = constants.insert(name.to_owned(), value.to_owned());
+                assert!(
+                    previous.is_none(),
+                    "tags.rs:{number}: `{name}` is defined twice"
+                );
+                i += 1;
+            }
         }
-        panic!(
-            "tags.rs:{number}: I do not understand this top-level line, so the tag \
-             table cannot be enumerated past it. Teach this reader in the same diff \
-             that adds the construct: {line}"
-        );
     }
     TagTable {
         functions,
         constants,
+        shapes,
+        forms,
     }
 }
 
@@ -5390,15 +6011,47 @@ fn read_tag_table(source: &str) -> TagTable {
 /// `select_refusal_tags_are_stable`), so nothing on this page pins
 /// them. `work/lib/` carries that as its own row.
 ///
-/// **A second family is outside it too**: the `reason` words minted as
-/// bare literals in `py/value.rs` rather than as a tag function here —
-/// `"wrong_kind"` (five sites), `"empty_boolean"`, `"unknown_node"`,
-/// `"poisoned"`, `"node_failed"` and `"mass_properties_failed"` — which
-/// cross as an exception's `reason` attribute and so are as
-/// Python-visible as anything in `tags.rs`. `pncad.pyi` documents the
-/// first three and `node_failed`/`poisoned`; `"mass_properties_failed"`
-/// is pinned nowhere in the tree. This inventory reads `src/tags.rs`
-/// and nothing else, so none of them is covered by it.
+/// **The `reason` words are a second family, and the EVALUATION
+/// door's half is now inside.** A `reason` attribute is as
+/// Python-visible as a `variant`, and `py/value.rs` used to mint its
+/// words at ten sites — nine of them bare literals — where an
+/// inventory that reads `src/tags.rs` alone could not see them. The
+/// evaluation door's six (`wrong_kind`, `empty_boolean`,
+/// `unknown_node`, `node_not_evaluated`, `node_failed`, `poisoned`)
+/// now come from [`crate::tags::eval_reason_tag`] over
+/// [`crate::errors::EvalReason`], so they are pinned above and a
+/// seventh cannot be minted at a raise site: the reason rides on the
+/// CLASS (`errors::ErrorClass::Evaluation` carries the enum), so no
+/// raise of that class — in this file or in one that does not exist
+/// yet — can be written without naming a variant of it.
+///
+/// **What is still outside**, each a literal `reason` or `variant` at
+/// a construction site under `src/py/` — and only one of the three is
+/// a door with no vocabulary of its own:
+///
+/// * `"mass_properties_failed"` (`py/value.rs`'s `measurement_err`) —
+///   a `ValidationError`, not this door, and a door whose `reason` has
+///   no enum anywhere.
+/// * `"unclassified"` (`py/flush.rs`'s unknown-`ContactClass`
+///   refusal) — a `SelectRefusal`, whose `reason` everywhere else
+///   comes from [`crate::tags::select_refusal_tag`], **which mints
+///   this same word at its own wildcard arm**. A second spelling of
+///   one word on one attribute of one class, not an unenumerated
+///   door.
+/// * `"wireframe"` (`py/value.rs`'s STEP-import success arm this door
+///   does not adopt) — a `StepImportError`, whose `variant` otherwise
+///   comes from the inventoried `step_import_error_tag`; the site's
+///   own comment says the word shares that namespace.
+///
+/// Each is covered only by accident — `pncad.pyi` or a Python test
+/// names it — and nothing reds if one is renamed or a fourth is
+/// added. **Three is what a sweep for a literal beside a
+/// `reason`/`variant` key finds, not the population**: the same
+/// words minted in tuple position (`py/mesh.rs`'s `not_utf8`), passed
+/// as a `&'static str` argument (`py/doc.rs`'s `name_serialize`, the
+/// four `ValidationError.door` words) or returned from a getter under
+/// `src/py/` are the same class and are invisible to it.
+/// `work/census/` carries the measured population as two rows.
 #[test]
 fn the_whole_tag_table_matches_its_committed_inventory() {
     // `crate_dir`, not the baked path alone: a nextest ARCHIVE replayed
@@ -5430,11 +6083,12 @@ fn the_whole_tag_table_matches_its_committed_inventory() {
          it is matching almost nothing, so this guard was about to pass \
          vacuously"
     );
-    assert!(
-        !table.constants.is_empty(),
-        "the reader found no `pub const` tag word, and there is at least \
-         one (`NODE_NOT_EVALUATED`)"
-    );
+    // No floor on `constants`: `src/tags.rs` declares no `pub const`
+    // tag word today, so a floor here would assert a shape the file
+    // does not have. The branch that reads that form is exercised by
+    // `the_tag_table_reader_recognises_every_form_it_claims` instead,
+    // which is where an unexercised reader branch belongs once the
+    // file stops supplying an instance of it.
 
     let mut pinned: BTreeMap<&str, &TagEntry> = BTreeMap::new();
     for entry in TAG_INVENTORY {

@@ -83,8 +83,8 @@
 //! ([`ee_cross_backed`]): whether a declared pair may back an
 //! `EdgeEdgeCross` is a question about which way the material lies —
 //! opposite sides of the shared carrier is a legal overhang, one side
-//! is interpenetration — and it reads `Face::sense_sign` through the
-//! one sense algebra the kernel already carries
+//! is interpenetration — and it hands each face's `Face::sense` bit to
+//! the one sense algebra the kernel already carries
 //! (`geom_brep::classify_material_pairing`, the tier-3 wedge pass's
 //! family), never a hand-rolled sign.
 //!
@@ -1820,7 +1820,8 @@ enum CrossingBacking {
 ///    ([`geom_brep::classify_dihedral`] at the crossing, the same
 ///    all-smooth gate the tier-3 wedge pass and the rim-wedge screen
 ///    run), then the material pairing decided by that one sense
-///    algebra (outward normals via `Face::sense_sign`, levered by
+///    algebra (which mints both outward normals itself from the
+///    faces' `Face::sense` bits, levered by
 ///    [`geom_brep::folded_lever_arm`] over the shorter edge — the
 ///    same arm the parallel gate meters). No new numerics; and
 /// 3. the pair itself is VERIFIED — [`pair_region_verified`], the
@@ -1916,22 +1917,15 @@ fn ee_cross_backed<T: Decide + crate::chart_region::ChartRegionLane>(
             }
         }
         let arm = geom_brep::folded_lever_arm(sa, sb, q, arm_extent);
-        let side = match geom_brep::classify_material_pairing(
-            sa,
-            da.sense_sign::<T>(),
-            sb,
-            db.sense_sign::<T>(),
-            q,
-            arm,
-            band,
-        ) {
-            Ok(geom_brep::MaterialPairing::Opposed) => CrossingSideVerdict::OppositeSides,
-            Ok(geom_brep::MaterialPairing::Aligned) => CrossingSideVerdict::SameSide,
-            Err(cause) => {
-                undecided.push(cause);
-                continue;
-            }
-        };
+        let side =
+            match geom_brep::classify_material_pairing(sa, da.sense, sb, db.sense, q, arm, band) {
+                Ok(geom_brep::MaterialPairing::Opposed) => CrossingSideVerdict::OppositeSides,
+                Ok(geom_brep::MaterialPairing::Aligned) => CrossingSideVerdict::SameSide,
+                Err(cause) => {
+                    undecided.push(cause);
+                    continue;
+                }
+            };
         if side == CrossingSideVerdict::OppositeSides {
             if pair_region_verified(body, fa, fb, band) || pair_region_verified(body, fb, fa, band)
             {
