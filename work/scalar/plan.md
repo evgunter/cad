@@ -22,7 +22,9 @@ the plan:
   proposed `docs/DESIGN.md` Q1 revision, and certificates that re-pin
   when it lands. It is the largest single unit the cut placed anywhere.
 - **Doors a caller reaches around** — `D290`'s knot rescale, `S393`'s
-  frame door, and the validated-net door a sweep test rebuilds by hand.
+  frame door, the validated-net door a sweep test rebuilds by hand, and
+  the whole-curve order-1 jet door DOOR re-homed here on 2026-09-12
+  (same file and same class as `S393`).
 
 ## Territory — none, and why
 
@@ -40,11 +42,30 @@ been drawn**, and the PR that reaches the path draws it.
 | --- | --- | --- | --- |
 | `D290` | **M** | Fix is stated but needs a new KnotVector rescale op in geom-core | `crates/geom-brep/src/edge_nurbs.rs` (`on_carrier_domain`), `crates/geom-core/src/spline.rs` (KnotVector rescale door) |
 | `S393` | **M** | Small diff once the door's home, name and roll question are decided | new door in `crates/geom/src/curves/nurbs.rs` or beside `crates/sweep/src/skin.rs`; callers `crates/sweep/tests/common/mod.rs`, `demos/tour/src/skinned.rs` |
+| `curve3-eval-and-deriv-at-one-t-run-two-basis-passes` | **M** | Whole-curve order-1 jet door: `Curve3::eval` + `deriv` at one `t` run two span locations and two basis passes on the `Nurbs` arm; no `ders1` exists above the span level | new door on `NurbsCurve3` in `crates/geom/src/curves/nurbs.rs` and an exhaustive arm set on `Curve3` in `crates/geom/src/curves.rs`; seven production pair sites listed in the row |
 | `sweep-test-rebuilds-validated-net-for-v-reversal` | **M** | Fixing the test needs a new geom door or a validated-parts admission decided | `crates/sweep/tests/review_probes_m8_4.rs`, plus a new v-reversal or `from_validated_parts` door in `crates/geom/src/surfaces/nurbs.rs` |
 | `D6` | **H** | Ruling schedules a newtype sweep; `sense_sign` spans ~100 sites, many crates | — |
 | `D283` | **H** | Ev must rule whether ε-typing reaches `Exhaustiveness::floor`; sets `cell_width` precedent | — |
 | `unit-vector-invariants-carried-as-prose` | **H** | Stated design question; a validating newtype is new policy surface needing Ev, plus generic-scalar fallout. | `crates/geom-core/src/linalg/frame.rs:238`, `crates/geom-core/src/linalg/vec.rs`, `crates/profile/src/lib.rs:353` (new `UnitVec3<T>`) |
 | `H5` | **H** | 535 refs, 15 files; open representation questions; Q1 revision; certificates re-pinned | `crates/geom-core/src/{real,ring_interval,interval,dual}.rs`, `interval-transcendentals/`, `crates/topo/src/{props.rs,chart_region.rs}`, `crates/geom-brep/src/{pcurve_cache.rs,ssi/enclose.rs,props/quad.rs}`, `crates/mesh/src/nurbs_cert.rs`, `crates/geom-core/src/spline/compose*`, `docs/DESIGN.md` (Q1), ~6600 lines of ring tests, `docs/tess-budget-data/` |
+
+## The ratified units (2026-09-15)
+
+The first `[ev]` sitting (PR 2457) answered `D6`, `D283` and the
+unit-vector question; the three rows are closed and their work is six
+units, in this order:
+
+| unit | from | order |
+| --- | --- | --- |
+| `sense-sign-doors-take-the-bit` | `D6` | 1 |
+| `sense-sign-multiplies-fold-onto-outward-normal` | `D6` | 2, after 1 |
+| `unit-vector-witness-in-geom-core` | the unit-vector row | 1 |
+| `frame-witness-and-the-tube-door` | the unit-vector row | 2, after the witness |
+| `rate-pair-in-geom-core` | `D283` | 1 |
+| `exhaustiveness-receipt-carries-its-lane` | `D283` | 2, after the pair |
+
+The three "1"s are independent of each other and of the door rows;
+each is a full v6 dual on other programs' ground, announced.
 
 ## Order
 
@@ -58,7 +79,8 @@ re-litigations. `H5`'s own gates are partly the same conversation —
 The three door rows can run before any of that and do not depend on it:
 `D290` mints a `KnotVector` rescale, `S393` decides a frame door's home
 and name, and the sweep test's hand-rebuilt net wants a v-reversal or
-`from_validated_parts` door in `crates/geom`. All three are "the caller
+`from_validated_parts` door in `crates/geom`, and the Curve3 jet row wants
+a whole-curve `ders1` beside the span-level one. All four are "the caller
 reaches around a missing door" and share a reviewer's question: is the
 door the right shape for the OTHER callers?
 

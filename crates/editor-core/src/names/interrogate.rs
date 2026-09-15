@@ -23,19 +23,22 @@
 //!
 //! `topo::readback`'s [`Pose`] — the carrier's own stored frame,
 //! copied out, with the face's orientation sense beside it — and a
-//! face's carrier KIND, the stored [`SurfaceKind`] tag. The rules that
+//! carrier KIND on either side: a face's stored [`SurfaceKind`] tag,
+//! an edge's stored [`CurveKind`] tag. The rules that
 //! module states hold verbatim here: values never verdicts (no door
 //! answers a NUMERIC predicate — "is this at z ≈ 1" stays deferred;
 //! "is this face planar" is a comparison of the tag [`face_carrier_kind`]
-//! hands out, decided by nothing here), definitional re-reads carry no
-//! pad, and no convention is invented where the geometry fixes none.
+//! hands out, and "is this edge straight" the same comparison on the
+//! tag [`edge_carrier_kind`] hands out, decided by nothing here),
+//! definitional re-reads carry no pad, and no convention is invented
+//! where the geometry fixes none.
 //! This layer adds only the name resolution and the typed refusals
 //! that go with it.
 
 use geom_brep::SurfaceKind;
 use geom_core::Decide;
-use topo::Body;
 use topo::readback::{self, Pose, ReadbackError};
+use topo::{Body, CurveKind};
 
 use crate::eval::{BooleanValue, Evaluation, NodeResult, SplitSide, ValuePayload};
 use crate::names::{EntityKey, EntityKind, Entry, SplitHalf, StableName};
@@ -240,11 +243,7 @@ pub fn face_frame<T: Decide>(
     node: RecipeNodeId,
     name: &StableName,
 ) -> Result<Pose<T>, InterrogateError> {
-    let (body, key) = entity_of(ev, node, name)?;
-    match key {
-        EntityKey::Face(f) => Ok(readback::face_pose(body, f)?),
-        other => Err(kind_mismatch(EntityKind::Face, other)),
-    }
+    read(ev, node, name, readback::face_pose)
 }
 
 /// **What kind of carrier is the face I selected?** — the named
@@ -267,11 +266,7 @@ pub fn face_carrier_kind<T: Decide>(
     node: RecipeNodeId,
     name: &StableName,
 ) -> Result<SurfaceKind, InterrogateError> {
-    let (body, key) = entity_of(ev, node, name)?;
-    match key {
-        EntityKey::Face(f) => Ok(readback::face_carrier_kind(body, f)?),
-        other => Err(kind_mismatch(EntityKind::Face, other)),
-    }
+    read(ev, node, name, readback::face_carrier_kind)
 }
 
 /// **Where is the edge I selected?** — the named edge's certified
@@ -286,11 +281,33 @@ pub fn edge_frame<T: Decide>(
     node: RecipeNodeId,
     name: &StableName,
 ) -> Result<Pose<T>, InterrogateError> {
-    let (body, key) = entity_of(ev, node, name)?;
-    match key {
-        EntityKey::Edge(e) => Ok(readback::edge_pose(body, e)?),
-        other => Err(kind_mismatch(EntityKind::Edge, other)),
-    }
+    read(ev, node, name, readback::edge_pose)
+}
+
+/// **What kind of carrier is the edge I selected?** — the named
+/// edge's [`CurveKind`] tag, as of THIS evaluation, through the same
+/// node ladder [`edge_frame`] walks, and [`face_carrier_kind`]'s
+/// edge-side twin.
+///
+/// A tag read, never a verdict: "is this edge straight" is
+/// `edge_carrier_kind(..)? == CurveKind::Line`, the exact comparison
+/// `select_where`'s curve-kind filter already makes, with no number
+/// consulted. It answers where [`edge_frame`] cannot — a NURBS
+/// carrier fixes no frame and still has a kind — and the kernel
+/// refusals are a dangling key and null-edge scaffolding (see
+/// [`readback::edge_carrier_kind`]).
+///
+/// # Errors
+///
+/// As [`face_frame`]: the node ladder, `NoSuchName`, `Ambiguous`,
+/// `WrongKind` for a non-edge name, and the wrapped
+/// [`ReadbackError`].
+pub fn edge_carrier_kind<T: Decide>(
+    ev: &Evaluation<T>,
+    node: RecipeNodeId,
+    name: &StableName,
+) -> Result<CurveKind, InterrogateError> {
+    read(ev, node, name, readback::edge_carrier_kind)
 }
 
 /// **Where is the vertex I selected?** — the named vertex's stored
@@ -304,11 +321,7 @@ pub fn vertex_position<T: Decide>(
     node: RecipeNodeId,
     name: &StableName,
 ) -> Result<geom_core::Point3<T>, InterrogateError> {
-    let (body, key) = entity_of(ev, node, name)?;
-    match key {
-        EntityKey::Vertex(v) => Ok(readback::vertex_point(body, v)?),
-        other => Err(kind_mismatch(EntityKind::Vertex, other)),
-    }
+    read(ev, node, name, readback::vertex_point)
 }
 
 /// **Where an entity IS**, in ONE point, for any entity kind — the
@@ -341,6 +354,81 @@ pub(crate) fn entity_point<T: Decide>(
         EntityKey::Edge(e) => Ok(readback::edge_pose(body, e)?.origin),
         EntityKey::Face(f) => Ok(readback::face_pose(body, f)?.origin),
         EntityKey::Body => Err(InterrogateError::WholeBody),
+    }
+}
+
+/// **Name → the one kernel read** — the body every door above is,
+/// with the door's own kernel function as its only argument.
+///
+/// The five public names each resolve a name, check that what it
+/// denotes is the kind that door reads, and hand the arena key to one
+/// `topo::readback` function. That is one shape, and it is written
+/// here once: a sixth read door is a delegate line, not a sixth copy
+/// of the ladder, and the `WrongKind` refusal cannot drift between
+/// doors because there is one site that builds it.
+///
+/// # Errors
+///
+/// The node ladder and `NoSuchName`/`Ambiguous` through
+/// [`entity_of`], [`InterrogateError::WrongKind`] (or
+/// [`InterrogateError::WholeBody`]) where the name denotes another
+/// kind, and the wrapped [`ReadbackError`] the kernel door refuses
+/// with.
+fn read<T: Decide, K: Denoted, R>(
+    ev: &Evaluation<T>,
+    node: RecipeNodeId,
+    name: &StableName,
+    door: fn(&Body<T>, K) -> Result<R, ReadbackError>,
+) -> Result<R, InterrogateError> {
+    let (body, key) = entity_of(ev, node, name)?;
+    match K::of(key) {
+        Some(k) => Ok(door(body, k)?),
+        None => Err(kind_mismatch(K::KIND, key)),
+    }
+}
+
+/// **An arena key kind a read door takes**, and the two facts [`read`]
+/// needs about it: which [`EntityKind`] a name must denote to reach
+/// that door, and the key itself where a resolved [`EntityKey`] holds
+/// one.
+///
+/// The projections are exhaustive with no wildcard arm, so a fifth
+/// entity kind fails to compile here rather than resolving to `None`
+/// and refusing at run time.
+trait Denoted: Copy {
+    /// The kind a door reading this key asks for.
+    const KIND: EntityKind;
+    /// This kind's key, where the resolved entity is of this kind.
+    fn of(key: EntityKey) -> Option<Self>;
+}
+
+impl Denoted for topo::FaceKey {
+    const KIND: EntityKind = EntityKind::Face;
+    fn of(key: EntityKey) -> Option<Self> {
+        match key {
+            EntityKey::Face(f) => Some(f),
+            EntityKey::Body | EntityKey::Edge(_) | EntityKey::Vertex(_) => None,
+        }
+    }
+}
+
+impl Denoted for topo::EdgeKey {
+    const KIND: EntityKind = EntityKind::Edge;
+    fn of(key: EntityKey) -> Option<Self> {
+        match key {
+            EntityKey::Edge(e) => Some(e),
+            EntityKey::Body | EntityKey::Face(_) | EntityKey::Vertex(_) => None,
+        }
+    }
+}
+
+impl Denoted for topo::VertexKey {
+    const KIND: EntityKind = EntityKind::Vertex;
+    fn of(key: EntityKey) -> Option<Self> {
+        match key {
+            EntityKey::Vertex(v) => Some(v),
+            EntityKey::Body | EntityKey::Face(_) | EntityKey::Edge(_) => None,
+        }
     }
 }
 
@@ -435,14 +523,18 @@ pub(crate) fn output_body<T: Decide>(
             }
         }
         ValuePayload::Instances(v) => v.get(index as usize).map(AsRef::as_ref).ok_or_else(missing),
-        ValuePayload::Datum(_) => none("datum"),
-        ValuePayload::Profile(_) => none("profile"),
-        ValuePayload::Declarations(_) => none("declarations"),
-        // A12: a mate denotes no body. Interrogating one for geometry
-        // is the same category error as interrogating a declaration —
-        // and so is interrogating a measurement or its verdict.
-        ValuePayload::Mate(_) => none("mate"),
-        ValuePayload::Measure { .. } | ValuePayload::MeasureUnavailable { .. } => none("measure"),
-        ValuePayload::Assertion(_) => none("assertion"),
+        // The families that denote no body at all. A12: a mate denotes
+        // none, and interrogating one for geometry is the same category
+        // error as interrogating a declaration — as is interrogating a
+        // measurement or its verdict. The word is the payload's own
+        // family word, so this arm cannot drift from the vocabulary
+        // `ValuePayload::kind_name` speaks.
+        ValuePayload::Datum(_)
+        | ValuePayload::Profile(_)
+        | ValuePayload::Declarations(_)
+        | ValuePayload::Mate(_)
+        | ValuePayload::Measure { .. }
+        | ValuePayload::MeasureUnavailable { .. }
+        | ValuePayload::Assertion(_) => none(payload.kind_name()),
     }
 }

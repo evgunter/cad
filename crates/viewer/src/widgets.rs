@@ -24,8 +24,110 @@ use pncad::quantity::{AngleUnit, LengthUnit, UnitDef};
 
 use crate::forms::{ANGLE_DRAG_SPEED, ArcMode, FIELD_DRAG_SPEED, PathVerb, UNIT_DRAG_SPEED};
 use crate::props;
+use crate::readout;
 use crate::session::{DocSession, SessionOp};
 use crate::sketch::{ArcSpec, PathStep, PathTarget};
+
+/// **The text a numeric field shows**, and the one rule every field in
+/// this chrome obeys: *the text reads back as the value the field
+/// holds*.
+///
+/// An `egui::DragValue` with no `max_decimals` derives its precision
+/// from its DRAG SPEED and the display scaling, and from nothing about
+/// the value — `auto_decimals` is `ceil(log10(aim_radius / speed))` and
+/// the range handed to a formatter is `auto_decimals ..= auto_decimals
+/// + 2`. A length field at [`FIELD_DRAG_SPEED`] shown in millimetres is
+/// handed `1..=3` at one point per pixel, so its coarsest spelling is
+/// `{:.3}` over millimetres.
+///
+/// Inside that range the widget already picks the shortest spelling
+/// that reads back, which is this rule. What it does when NONE of them
+/// does is return the widest one anyway —
+/// `emath::format_with_decimals_in_range`, under a comment saying
+/// *"show the full value"*. That is where a field holding 1.6 µm reads
+/// `0.002` and one holding 40 nm reads `0.000`.
+///
+/// **And a field's text is a commit path, not only a render.** The
+/// widget seeds its keyboard edit with the text it last showed and
+/// writes the parse back on losing focus, so clicking into a field and
+/// clicking away again commits what the field said —
+/// `crate::pane::properties`'s `slot_value_ui` says exactly that where
+/// it refuses to charge that click for an undo step. A text that
+/// misreads the value therefore DESTROYS it, and a field holding 40 nm
+/// becomes a field holding zero.
+///
+/// So the widget's own spelling is kept wherever it reads back and
+/// [`crate::readout::number`] carries the rest. **Keeping it is not
+/// deference**: it is what makes this change invisible to a DRAG.
+/// A drag commits `round_to_decimals(value, auto_decimals)`
+/// (`egui::DragValue::ui`), so every value a drag produces is spelled
+/// exactly by the bottom of the widget's own range — the text a drag
+/// steps through is the text it steps through today, and the question
+/// of what a gesture means when its number stops matching its tick is
+/// one this rule never asks.
+pub(crate) fn number_text(value: f64, decimals: core::ops::RangeInclusive<usize>) -> String {
+    let spelling = egui::emath::format_with_decimals_in_range(value, decimals);
+    if readout::reads_back(&spelling, value) {
+        spelling
+    } else {
+        readout::number(value)
+    }
+}
+
+/// **Every numeric field in the chrome**, dragged at `speed` per pixel.
+///
+/// One constructor rather than an `egui::DragValue::new` at each site,
+/// because [`number_text`] is one decision about all of them rather than
+/// a patch to the length ones. The property is that a field's text
+/// names the value it holds, and that property has no dimension in it:
+/// a dimensionless field reading `0.00` over 1.6e-5 and an angle field
+/// reading `0.000` over a microradian make the same false claim a
+/// length field does, and each is one click away from committing it.
+///
+/// **An INTEGER field passes through unchanged, and provably rather
+/// than by exclusion**: `egui::DragValue::new` gives one
+/// `max_decimals(0)`, so the range is `0..=0`, the only spelling is
+/// `{:.0}`, and a whole number reads back as itself. Nothing here has
+/// to know which fields those are.
+pub(crate) fn number_field<Num: egui::emath::Numeric>(
+    value: &mut Num,
+    speed: f64,
+) -> egui::DragValue<'_> {
+    egui::DragValue::new(value)
+        .speed(speed)
+        .custom_formatter(number_text)
+}
+
+/// **The floor under [`number_field`]: the same rule, as the
+/// context's own default.**
+///
+/// [`number_field`] states the rule where a reader can see it, and
+/// that is why it exists — but a constructor can only bind the sites
+/// that call it. A twelfth field written as a bare
+/// `egui::DragValue::new`, a helper that wraps the widget instead of
+/// this door, or an `egui::Slider` (which renders its value through a
+/// `DragValue` of its own) each gets `egui`'s precision rule back, and
+/// nothing at the call site says so.
+///
+/// Setting [`egui::Style::number_formatter`] answers that as a
+/// DEFAULT rather than as a detection: a site that does not
+/// deliberately spell its own `custom_formatter` is already right, so
+/// there is no arrival to notice. A site that DOES spell one is
+/// making a statement — a hex or a clock field — and is left alone.
+///
+/// **`all_styles_mut` rather than `style_mut`, and that is
+/// load-bearing.** `egui` keeps one `Style` per theme and
+/// `crate::app`'s `apply_polarity` states a theme PREFERENCE rather
+/// than freezing visuals, so the user can move between them at any
+/// time; a formatter written onto only the theme in force at startup
+/// would be dropped by the first switch, in the direction nobody
+/// looks. `field_tests::a_bare_field_survives_a_theme_switch` is the
+/// assertion that would break.
+pub(crate) fn install_number_formatter(ctx: &egui::Context) {
+    ctx.all_styles_mut(|style| {
+        style.number_formatter = egui::style::NumberFormatter::new(number_text);
+    });
+}
 
 /// **One gesture vocabulary**: the four operations a drag on one field
 /// emits, in the words that field's own doors speak.
@@ -204,9 +306,9 @@ pub(crate) fn vec3_row_ops(
     ops: &mut Vec<SessionOp>,
 ) {
     let [x, y, z] = components;
-    let row = ui.add(egui::DragValue::new(x).speed(speed))
-        | ui.add(egui::DragValue::new(y).speed(speed))
-        | ui.add(egui::DragValue::new(z).speed(speed));
+    let row = ui.add(number_field(x, speed))
+        | ui.add(number_field(y, speed))
+        | ui.add(number_field(z, speed));
     drag_ops(&row, *components, gesture, typed, ops);
 }
 
@@ -223,7 +325,7 @@ pub(crate) fn vec3_row(ui: &mut egui::Ui, label: &str, speed: f64, value: &mut [
     ui.horizontal(|ui| {
         ui.label(label);
         for component in value {
-            ui.add(egui::DragValue::new(component).speed(speed));
+            ui.add(number_field(component, speed));
         }
     });
 }
@@ -272,7 +374,7 @@ pub(crate) fn named_field(
     canonical: &mut f64,
 ) {
     let mut written = props::in_written(*canonical, unit);
-    let mut field = egui::DragValue::new(&mut written).speed(props::in_written(speed, unit));
+    let mut field = number_field(&mut written, props::in_written(speed, unit));
     if !name.is_empty() {
         field = field.prefix(format!("{name} "));
     }
@@ -289,11 +391,7 @@ pub(crate) fn named_field(
 /// twin of [`named_field`], for the components and bulges that carry
 /// no unit at all.
 pub(crate) fn named_scalar(ui: &mut egui::Ui, name: &str, speed: f64, value: &mut f64) {
-    ui.add(
-        egui::DragValue::new(value)
-            .speed(speed)
-            .prefix(format!("{name} ")),
-    );
+    ui.add(number_field(value, speed).prefix(format!("{name} ")));
 }
 
 /// The vector twin of [`unit_field`] — one label, three components,
@@ -647,7 +745,7 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use super::{GestureVocabulary, drag_gesture_ops, vec3_row_ops};
+    use super::{GestureVocabulary, drag_gesture_ops, number_field, vec3_row_ops};
     use crate::session::SessionOp;
     use eframe::egui;
     use pncad::document::{Axis3, Frame, RecipeNodeId, SlotId};
@@ -766,7 +864,7 @@ mod tests {
                         // (`gesture_table.rs`'s
                         // `a_drag_on_another_field_cannot_steer_the_open_one`).
                         for (axis, component) in mm.iter_mut().enumerate() {
-                            let widget = ui.add(egui::DragValue::new(component).speed(0.5));
+                            let widget = ui.add(number_field(component, 0.5));
                             let slot = SlotId::Origin(Axis3::ALL[axis]);
                             drag_gesture_ops(
                                 &widget,
@@ -1021,6 +1119,318 @@ mod tests {
                 ["commit"],
                 "a released drag lands what it previewed"
             );
+        }
+    }
+}
+
+/// **What a numeric field says, and what saying it commits.**
+///
+/// [`super::number_text`] is a render, so the rows over it are a table;
+/// the row that matters is not, because the defect is that the render
+/// is ALSO the text a click-in and a click-away hands back to the
+/// document, and only driving the real widget says whether it is.
+#[cfg(test)]
+mod field_tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+
+    use super::{install_number_formatter, number_field, number_text};
+    use eframe::egui;
+
+    /// The decimal range a length field shown in millimetres is handed:
+    /// `FIELD_DRAG_SPEED` written in millimetres is 0.5, one point per
+    /// pixel makes `auto_decimals` `ceil(log10(1.0 / 0.5))`, and egui
+    /// adds two. Derived here rather than asserted off the widget
+    /// because these rows are about the RULE over a range, and the
+    /// widget's own arithmetic is pinned by
+    /// [`a_field_shows_what_the_widget_shows_wherever_that_reads_back`].
+    const MM: core::ops::RangeInclusive<usize> = 1..=3;
+
+    /// **A value the widget's own spelling names is spelled its way.**
+    ///
+    /// This half is what keeps the change invisible to a drag, so it is
+    /// asserted as sameness rather than as a table of strings: for
+    /// every value a drag can commit, the two renders agree. The
+    /// population is the drag's, not a grid of pretty numbers — egui
+    /// rounds what a drag commits to `auto_decimals`, so a value a drag
+    /// produces is `{:.1}`-exact in millimetres by construction.
+    #[test]
+    fn a_field_shows_what_the_widget_shows_wherever_that_reads_back() {
+        let mut tenths = -200_000_i64;
+        while tenths <= 200_000 {
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "the grid is the drag's own landing set, \
+                          and every member is exact in f64"
+            )]
+            let value = tenths as f64 / 10.0;
+            assert_eq!(
+                number_text(value, MM),
+                egui::emath::format_with_decimals_in_range(value, MM),
+                "a drag lands on {value}, where this rule must say nothing new"
+            );
+            tenths += 1;
+        }
+    }
+
+    /// **And nothing at or above one display unit renders differently
+    /// either**, which is the bound on how much of the chrome this
+    /// rule can reach at all.
+    ///
+    /// Derived rather than chosen: the widest spelling the millimetre
+    /// range offers is `{:.3}`, whose error is at most 5·10⁻⁴ in
+    /// ABSOLUTE terms, so it clears `crate::readout::REL_TOLERANCE` —
+    /// which is 5·10⁻⁴ RELATIVE — for every value of magnitude at
+    /// least one. A field showing millimetres therefore keeps egui's
+    /// text for every length from a millimetre up, and the band this
+    /// changes is the sub-millimetre one the item was filed about.
+    #[test]
+    fn nothing_at_or_above_one_display_unit_renders_differently() {
+        let mut value = 1.0_f64;
+        while value < 1.0e9 {
+            for signed in [value, -value] {
+                assert_eq!(
+                    number_text(signed, MM),
+                    egui::emath::format_with_decimals_in_range(signed, MM),
+                    "{signed} is at or above one millimetre, where the widest \
+                     spelling in the range already reads back"
+                );
+            }
+            value *= 1.000_7;
+        }
+    }
+
+    /// **A value no spelling in the range names is spelled truthfully
+    /// instead**, which is the defect: the widget returns its widest
+    /// spelling anyway, and the widest spelling of 40 nm in millimetres
+    /// is `0.000`.
+    #[test]
+    fn a_value_the_range_cannot_name_gets_a_text_that_names_it() {
+        for (value, text) in [
+            (1.6e-3_f64, "0.0016"),
+            (4.0e-5, "0.00004"),
+            (-4.0e-5, "-0.00004"),
+            (0.0625, "0.0625"),
+            (1.0e-9, "1.000e-9"),
+        ] {
+            assert_eq!(number_text(value, MM), text, "the field's text for {value}");
+            assert_ne!(
+                text,
+                egui::emath::format_with_decimals_in_range(value, MM),
+                "{value} is only a row here because the widget misreads it"
+            );
+        }
+    }
+
+    /// **Zero is a number a field really holds**, and the rule that
+    /// refuses a rendered zero must not refuse a real one.
+    #[test]
+    fn a_field_holding_zero_says_zero() {
+        assert_eq!(number_text(0.0, MM), "0.0");
+    }
+
+    /// **An integer field is untouched, and by construction.**
+    /// `DragValue::new` gives an integral value one `max_decimals(0)`,
+    /// so the range is `0..=0` and the only spelling is the exact one.
+    #[test]
+    fn an_integer_field_is_spelled_the_way_it_always_was() {
+        for value in [3.0_f64, -12.0, 0.0, 1.0e9] {
+            assert_eq!(number_text(value, 0..=0), format!("{value:.0}"));
+        }
+    }
+
+    /// Which constructor the harness builds its field with.
+    ///
+    /// [`Built::Bare`] is the twelfth site: an `egui::DragValue` that
+    /// has never seen [`number_field`], written the way a lane that
+    /// does not know the door exists would write it — and therefore
+    /// the only widget in this file that reads the rule off the
+    /// CONTEXT rather than off its own builder.
+    #[derive(Clone, Copy)]
+    enum Built {
+        Door,
+        Bare,
+    }
+
+    /// One field, laid out and driven by events, so the rule below is
+    /// read off the widget rather than off the function under it.
+    struct Field {
+        ctx: egui::Context,
+        value: f64,
+        rect: egui::Rect,
+        built: Built,
+    }
+
+    impl Field {
+        fn new(value: f64) -> Self {
+            Self::with(value, Built::Door)
+        }
+
+        /// A bare field on a context the rule has been installed on —
+        /// production's arrangement, minus the door.
+        fn bare(value: f64) -> Self {
+            let field = Self::with(value, Built::Bare);
+            install_number_formatter(&field.ctx);
+            field
+        }
+
+        /// The same bare field on a context nothing has been installed
+        /// on, which is what the twelfth site gets today.
+        fn bare_without_the_rule(value: f64) -> Self {
+            Self::with(value, Built::Bare)
+        }
+
+        fn with(value: f64, built: Built) -> Self {
+            Self {
+                ctx: egui::Context::default(),
+                value,
+                rect: egui::Rect::NOTHING,
+                built,
+            }
+        }
+
+        fn frame(&mut self, events: Vec<egui::Event>) {
+            let ctx = self.ctx.clone();
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(800.0, 600.0),
+                )),
+                events,
+                ..Default::default()
+            };
+            let value = &mut self.value;
+            let rect = &mut self.rect;
+            let built = self.built;
+            let mut output = ctx.run_ui(input, |ui| {
+                *rect = match built {
+                    Built::Door => ui.add(number_field(value, 0.5)).rect,
+                    Built::Bare => ui.add(egui::DragValue::new(value).speed(0.5)).rect,
+                };
+            });
+            output.textures_delta.clear();
+        }
+
+        /// Lay the field out, click into it, click somewhere else, and
+        /// settle — the gesture that makes a field's render its commit
+        /// path. Two frames before the first click because egui
+        /// interacts against the PREVIOUS frame's widget rects.
+        fn click_in_and_away(&mut self) {
+            self.frame(Vec::new());
+            self.frame(Vec::new());
+            let target = self.rect.center();
+            self.click(target);
+            self.frame(Vec::new());
+            self.click(egui::pos2(700.0, 500.0));
+            self.frame(Vec::new());
+            self.frame(Vec::new());
+        }
+
+        fn click(&mut self, at: egui::Pos2) {
+            self.frame(vec![
+                egui::Event::PointerMoved(at),
+                egui::Event::PointerButton {
+                    pos: at,
+                    button: egui::PointerButton::Primary,
+                    pressed: true,
+                    modifiers: egui::Modifiers::NONE,
+                },
+                egui::Event::PointerButton {
+                    pos: at,
+                    button: egui::PointerButton::Primary,
+                    pressed: false,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ]);
+        }
+    }
+
+    /// **The rule this whole door exists for.** A `DragValue` seeds its
+    /// keyboard edit with the text it last showed and writes the parse
+    /// back when it loses focus, so a field's render is what clicking
+    /// into it and clicking away again COMMITS. Held over the values
+    /// the widget's own spelling cannot name, because those are the
+    /// ones it used to commit as something else — 40 nm as zero.
+    #[test]
+    fn clicking_into_a_field_and_away_again_leaves_the_value_alone() {
+        for start in ROUND_TRIP {
+            let mut field = Field::new(start);
+            field.click_in_and_away();
+            assert_eq!(
+                field.value, start,
+                "clicking into a field holding {start} and away again committed \
+                 {} — the text it showed was not the value it held",
+                field.value
+            );
+        }
+    }
+
+    /// The values the gesture rows are held over: three the widget's
+    /// own spelling cannot name, and three it can.
+    const ROUND_TRIP: [f64; 6] = [4.0e-5, 1.6e-3, 12.0, -4.0e-5, 0.0, 1024.5];
+
+    /// **The twelfth site is held by the CONTEXT, not by the door.**
+    ///
+    /// A bare `egui::DragValue` — what a lane that has not met
+    /// [`number_field`] writes, and what a new helper wrapping the
+    /// widget produces — round-trips once
+    /// [`install_number_formatter`] has run, because the rule is that
+    /// context's default rather than a property of one constructor.
+    #[test]
+    fn a_bare_field_keeps_its_value_once_the_rule_is_installed() {
+        for start in ROUND_TRIP {
+            let mut field = Field::bare(start);
+            field.click_in_and_away();
+            assert_eq!(
+                field.value, start,
+                "a field built without the door, on a context the rule is \
+                 installed on, committed {} over {start}",
+                field.value
+            );
+        }
+    }
+
+    /// **And installing it is what does that**, held over the same
+    /// widget on a context nothing has been installed on. Without this
+    /// row the one above passes on every value `egui` already spells
+    /// correctly and says nothing about the rule: these three are
+    /// exactly the ones it does not.
+    #[test]
+    fn a_bare_field_without_the_rule_destroys_the_value() {
+        for start in [4.0e-5_f64, -4.0e-5, 1.6e-3] {
+            let mut field = Field::bare_without_the_rule(start);
+            field.click_in_and_away();
+            assert_ne!(
+                field.value, start,
+                "a bare field over {start} kept it with no rule installed — \
+                 then the row above is proving nothing"
+            );
+        }
+    }
+
+    /// **`all_styles_mut` rather than `style_mut`.**
+    ///
+    /// `egui` keeps one `Style` per theme and `crate::app`'s
+    /// `apply_polarity` states a PREFERENCE, so the user moves between
+    /// them while the chrome runs. A formatter written onto only the
+    /// theme in force at install time is dropped by the first switch —
+    /// silently, and in the direction nobody watches. Both directions,
+    /// because a bare context's theme is whichever one it defaults to
+    /// and this row must not depend on which.
+    #[test]
+    fn a_bare_field_survives_a_theme_switch() {
+        for theme in [egui::ThemePreference::Light, egui::ThemePreference::Dark] {
+            for start in [4.0e-5_f64, 1.6e-3] {
+                let mut field = Field::bare(start);
+                field.ctx.set_theme(theme);
+                field.click_in_and_away();
+                assert_eq!(
+                    field.value, start,
+                    "after switching to {theme:?} a bare field committed {} \
+                     over {start} — the rule reached only one style",
+                    field.value
+                );
+            }
         }
     }
 }

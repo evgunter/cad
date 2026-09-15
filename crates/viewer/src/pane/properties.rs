@@ -12,7 +12,9 @@ use crate::display::free_move_check;
 use crate::forms::{FIELD_DRAG_SPEED, FieldWriting};
 use crate::props::{self, ParamRow, SlotDriver, SlotGroup, SlotRow, SlotValue};
 use crate::session::{BoundsTarget, Refusal, Selection, SessionOp, Standing};
-use crate::widgets::{GestureVocabulary, delete_button, drag_gesture_ops, drag_ops, vec3_row_ops};
+use crate::widgets::{
+    GestureVocabulary, delete_button, drag_gesture_ops, drag_ops, number_field, vec3_row_ops,
+};
 
 impl ViewerBehavior<'_> {
     /// The property panel.
@@ -77,7 +79,7 @@ impl ViewerBehavior<'_> {
                     let field = FieldWriting::of(row.dimension, row.unit);
                     let mut value = field.shown(row.value.as_f64());
                     ui.horizontal(|ui| {
-                        let widget = ui.add(egui::DragValue::new(&mut value).speed(field.tick));
+                        let widget = ui.add(number_field(&mut value, field.tick));
                         // **A LABEL, where a slot row has a picker.**
                         // Not "the way a slot row says it": a slot's
                         // unit is said by a `ComboBox` that CHANGES it
@@ -193,7 +195,7 @@ impl ViewerBehavior<'_> {
                 .map_or(FIELD_DRAG_SPEED, |dimension| {
                     FieldWriting::of(dimension, None).tick
                 });
-            ui.add(egui::DragValue::new(&mut self.drafts.new_param_value).speed(speed));
+            ui.add(number_field(&mut self.drafts.new_param_value, speed));
         });
         let name = self.drafts.new_param_name.trim();
         let existing = if name.is_empty() {
@@ -547,8 +549,7 @@ impl ViewerBehavior<'_> {
         // The parser runs inside `ui.add`, so what it read comes back
         // out through a cell rather than a return value.
         let typed: core::cell::RefCell<Option<props::FieldEdit>> = core::cell::RefCell::new(None);
-        let mut widget = egui::DragValue::new(&mut number)
-            .speed(field.tick)
+        let mut widget = number_field(&mut number, field.tick)
             .update_while_editing(false)
             .custom_parser(|text| match props::field_edit(text) {
                 props::FieldEdit::Number(value) => {

@@ -164,13 +164,11 @@ REGISTER=(
   "crates/topo/src/boolean/surface_group.rs|surface_group||1|unaudited"
   "crates/topo/src/boolean/vtxfac.rs|classify_vertex_on_face||1|unaudited"
   "crates/topo/src/boolean/zip.rs|zip_seam||1|unaudited"
-  "crates/topo/src/census.rs|snapshot||1|unaudited"
-  # The hull closure decides nothing about emptiness: its two callers
-  # want opposite things from it and each answers at its own call site.
-  "crates/topo/src/census.rs|sweep_cross_solid_backstop|else { continue|1|audited: the arm above face_points — a loop this cannot walk contributes nothing, and both callers answer emptiness themselves"
-  # The planar x planar skip's premise: only a face whose whole boundary
-  # is admitted is in front of the exact sweeps.
-  "crates/topo/src/census.rs|sweep_cross_solid_backstop|else { return|1|audited: the arm above line_bounded — anything unresolvable is not a line, so the face stays with the containment arm"
+  # The census's one loop walk: an unwalkable loop is handed back as
+  # `Err(loop)` and every caller answers it at its own site — snapshot
+  # and the hull closures take no vertex from it, `line_bounded` reads
+  # it as "not a line", the reach walks propagate it as `None`.
+  "crates/topo/src/census.rs|face_cycles|else { return|1|audited: the walk decides nothing — it returns the loop it could not walk, and each of its five callers says what that means"
   "crates/topo/src/chart_region.rs|face_boundary_points||1|unaudited"
   "crates/topo/src/chart_region.rs|loop_uv_polygon||1|unaudited"
   "crates/topo/src/chord_join.rs|face_azimuth_window||1|unaudited"
@@ -188,10 +186,15 @@ REGISTER=(
   "crates/topo/src/movefac.rs|movefac||1|unaudited"
   "crates/topo/src/offset_nappe.rs|corner_stations||1|unaudited"
   "crates/topo/src/pcurves.rs|clear_face_caches||1|unaudited"
-  "crates/topo/src/pcurves.rs|validate_pcurves||2|unaudited"
+  # The ONE per-loop rows walk: which half-edges of a loop a pcurve row
+  # can be keyed on. The tier-3 pcurve pass, `split_edge`'s row carry
+  # and the loop-re-parenting doors' drop all read it, and none of them
+  # discards a boundary of its own.
+  "crates/topo/src/pcurves.rs|loop_rows||1|audited: the discarded variant is named and answered — a loop whose boundary is not a cycle returns the NoCycle answer, distinct from Corrupt, and it holds no half-edge, so it holds no pcurve row"
   "crates/topo/src/pcurves.rs|walk_loop||1|unaudited"
   "crates/topo/src/props.rs|loop_edges||1|unaudited"
   "crates/topo/src/replace_face.rs|boundary_edges_into||1|unaudited"
+  "crates/topo/src/revert.rs|revert||1|audited: the discarded variant is a lone vertex — no half-edge, no cycle, so no anchor for the reversal to move; the same map leaves that vertex's emanating anchor untouched (it is None on an empty loop, the validated invariant), so the loop travels unchanged, as the module docs say every loop's membership does"
   "crates/topo/src/review_m1_pr4.rs|some_single_op_reaches||1|unaudited"
   "crates/topo/src/seqgen.rs|first_empty_ring_site||2|unaudited"
   "crates/topo/src/seqgen.rs|mef_chords_candidates||1|unaudited"
@@ -646,7 +649,7 @@ gate_selftest() {
   gate_selftest_case "matched 2" plant_extra_site \
     crates/editor-core/src/names/emit.rs face_half_edges oneline
   gate_selftest_case "matched 2" plant_extra_site \
-    crates/topo/src/census.rs sweep_cross_solid_backstop wrapped-continue
+    crates/topo/src/census.rs face_cycles wrapped-return
   gate_selftest_malformed_register
   gate_selftest_passes "a let-else and a match arm discarding some OTHER enum" plant_other_enum_discard
   gate_selftest_passes "a LoopBoundary value BOUND and used, not discarded" plant_bound_and_used

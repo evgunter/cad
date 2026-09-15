@@ -100,6 +100,7 @@ use geom_core::{
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::null::CurveGeom;
+use crate::readback::{CarrierAbsence, DanglingRef};
 
 /// Which [`Curve3`] variant a carrier is: the fieldless mirror of the
 /// curve enum, and the edge-side twin of [`SurfaceKind`].
@@ -109,10 +110,19 @@ use crate::null::CurveGeom;
 /// to compile here rather than silently classifying as something else
 /// — the same fail-loud tripwire the role-segment mirrors use.
 ///
-/// (Placement: the mirror lives where it is used — [`SurfaceKind`]
-/// beside the certify machinery in `geom-brep`, this one beside the
-/// query predicates that read it. `SurfaceKind` stays the workspace's
-/// ONE fieldless surface mirror; no second is minted here.)
+/// (Placement, as this crate keeps it: the mirror lives where it is
+/// used — [`SurfaceKind`] beside the certify machinery in `geom-brep`,
+/// this one beside the query predicates that read it, [`CurveKindSet`]
+/// and its bit numbering included. The typed door that copies the tag
+/// out, [`crate::readback::edge_carrier_kind`], imports it from here,
+/// the way that module imports [`SurfaceKind`] from `geom-brep` for
+/// the face twin: a door names its answer type wherever the mirror is
+/// authored. `SurfaceKind` stays the workspace's ONE fieldless surface
+/// mirror; no second is minted here. Whether this is where the mirror
+/// BELONGS is open and not this crate's to settle — the ratified verb-seat
+/// design says it moves down beside [`Curve3`], and has said so since
+/// before SEAT-2 put it here; the question is
+/// `curve-kind-placement-disagrees-with-the-ratified-seat-clause`.)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum CurveKind {
     /// [`Curve3::Line`].
@@ -197,8 +207,11 @@ impl CurveKindSet {
 /// The [`SurfaceKind`] bit position in a [`SurfaceKindSet`].
 ///
 /// EXHAUSTIVE with no wildcard arm: a new `SurfaceKind` variant fails
-/// to compile here (and `ALL_SURFACE_KINDS` below is pinned against
-/// this function by a unit test, so the pair cannot drift apart).
+/// to compile here, so the numbering cannot silently omit a kind. It
+/// does not pin `ALL_SURFACE_KINDS` below against the enum, and does
+/// not see a numbering that REPEATS a bit — the `census!` invocation
+/// and `kind_bits_are_distinct` in this file's test module are what
+/// hold those two.
 const fn surface_bit(kind: SurfaceKind) -> u8 {
     match kind {
         SurfaceKind::Plane => 0,
@@ -213,6 +226,10 @@ const fn surface_bit(kind: SurfaceKind) -> u8 {
 
 /// Every [`SurfaceKind`], in declaration order — the iteration order of
 /// a [`SurfaceKindSet`].
+///
+/// Held against the enum, seat by seat, by the `census!` invocation in
+/// this file's test module: adding a variant reds there until this
+/// list carries it.
 pub const ALL_SURFACE_KINDS: [SurfaceKind; 7] = [
     SurfaceKind::Plane,
     SurfaceKind::Cylinder,
@@ -292,12 +309,14 @@ pub fn all_faces<T: Real>(body: &Body<T>) -> Vec<FaceKey> {
 /// The certified carrier kind of an edge, or `None` for a dangling key
 /// or an uncertified (null-scaffold) carrier — for the EXACT
 /// predicates, "no carrier" is an honest no, not a refusal.
+///
+/// The flattening of the typed readback door
+/// [`crate::readback::edge_carrier_kind`], which is the one reading of
+/// an edge's carrier tag: the three lookups run once, there, and what
+/// is dropped here is only WHICH of them came back empty.
 #[must_use]
 pub fn edge_carrier_kind<T: Real>(body: &Body<T>, e: EdgeKey) -> Option<CurveKind> {
-    let curve = body.get_edge(e)?.curve;
-    body.get_curve_geom(curve)
-        .and_then(CurveGeom::certified)
-        .map(|c| CurveKind::of(c.carrier()))
+    crate::readback::edge_carrier_kind(body, e).ok()
 }
 
 /// The surface kind of a face, or `None` for a dangling key or an
@@ -1079,15 +1098,25 @@ fn same_pair(a: (SurfaceKey, SurfaceKey), b: (SurfaceKey, SurfaceKey)) -> bool {
 /// chain, [`RimError::NotIntact`] on a dangling key or an unreadable
 /// reference.
 pub fn rim_of<T: Bounds>(body: &Body<T>, edge: EdgeKey) -> Result<Vec<EdgeKey>, RimError> {
-    let seed_edge = body
-        .get_edge(edge)
-        .ok_or(RimError::NotIntact(EntityId::Edge(edge)))?;
-    let seed_carrier = match body
-        .get_curve_geom(seed_edge.curve)
-        .and_then(CurveGeom::certified)
-    {
-        Some(c) => c.carrier().clone(),
-        None => return Err(RimError::NotAnArc { edge, kind: None }),
+    // The seed's carrier comes through the crate's one walk to it
+    // (`readback::edge_carrier_ref`), renamed here: this door's
+    // vocabulary is `RimError`, and the rename is exhaustive so a
+    // fourth way for that walk to come back empty cannot arrive
+    // silently.
+    let seed_carrier = match crate::readback::edge_carrier_ref(body, edge) {
+        Ok(carrier) => carrier.clone(),
+        Err(CarrierAbsence::Dangling(DanglingRef::Entity(id))) => {
+            return Err(RimError::NotIntact(id));
+        }
+        // A curve key a live edge names and the arena does not hold is
+        // NOT a null scaffold, and this door says the same thing about
+        // both: `NotIntact` carries an `EntityId`, and a curve key is
+        // not one. Telling them apart changes what a `RimError` arm
+        // means — the open issue is
+        // `rim-of-flattens-a-dangling-curve-key`.
+        Err(CarrierAbsence::Dangling(DanglingRef::Geometry(_)) | CarrierAbsence::NoCarrier) => {
+            return Err(RimError::NotAnArc { edge, kind: None });
+        }
     };
     let Some(seed_circle) = circle_id(&seed_carrier) else {
         return Err(RimError::NotAnArc {
@@ -1627,6 +1656,101 @@ mod tests {
                     "dv={dv}"
                 );
             }
+        }
+    }
+
+    // -----------------------------------------------------------
+    // The two mirrors' censuses, beside the lists they pin.
+    // -----------------------------------------------------------
+
+    /// **A hand-written list IS the enum, checked by the compiler.**
+    ///
+    /// Takes the enum, its list, and a roster of variants, and expands
+    /// to two halves that between them force the LIST to grow — not
+    /// merely a visit to this file:
+    ///
+    /// - `roster_covers_the_enum` is a match over the enum with one arm
+    ///   per ROSTER entry and no wildcard. A variant added to the enum
+    ///   has no arm, so `E0004` reds here and names it. The only way to
+    ///   silence it is to add that variant to the roster.
+    ///
+    /// - one `assert!` per roster entry, in a `const` block, saying the
+    ///   list holds that variant at that seat. Adding the roster entry
+    ///   the first half demanded therefore asserts `list[n]` for a seat
+    ///   the old list does not have — a const-eval error, out of bounds,
+    ///   until the list itself grows.
+    ///
+    /// So the two halves close on each other: the edit the compiler
+    /// forces is the same edit that reds against a list of the old
+    /// length. This is deliberately NOT the shared-total census idiom
+    /// used elsewhere in the tree (`all_is_the_whole_vocabulary` and
+    /// its two siblings), which reds when an entry is REMOVED but not
+    /// when a variant is ADDED: there, every arm names the same total,
+    /// only the scrutinee's arm is ever produced, and an author who
+    /// writes the honest new total in the one arm the compiler pointed
+    /// at leaves the other arms — and the assertion — reading the old
+    /// one. Measured, and filed on
+    /// `work/door/all-census-idiom-forces-the-visit-not-the-update`
+    /// with this macro offered as the instrument that closes it.
+    ///
+    /// The remaining ways to defeat this are edits that state something
+    /// false rather than copy something stale: deleting an arm's
+    /// assertion, or reordering the roster and the list together.
+    macro_rules! census {
+        ($ty:ident, $list:expr, [$($variant:ident),+ $(,)?]) => {
+            const _: () = {
+                #[allow(dead_code)]
+                fn roster_covers_the_enum(kind: $ty) {
+                    match kind {
+                        $($ty::$variant => (),)+
+                    }
+                }
+                let mut seat = 0;
+                $(
+                    assert!(
+                        matches!($list[seat], $ty::$variant),
+                        "the list has drifted from the enum: this seat \
+                         does not hold the kind the roster puts here"
+                    );
+                    seat += 1;
+                )+
+                assert!(
+                    seat == $list.len(),
+                    "the list is longer than the enum's roster"
+                );
+            };
+        };
+    }
+
+    census!(
+        SurfaceKind,
+        ALL_SURFACE_KINDS,
+        [Plane, Cylinder, Cone, Sphere, Torus, Nurbs, Approx]
+    );
+
+    census!(CurveKind, CurveKind::ALL, [Line, Circle, Ellipse, Nurbs]);
+
+    /// **No two kinds share a bit position**, on either mirror: a
+    /// duplicated `surface_bit` / `CurveKind::bit` arm would make two
+    /// kinds indistinguishable inside a set, and the exhaustive match
+    /// that forces the arm to exist cannot see that its value collides.
+    /// A singleton set that iterates back to a DIFFERENT kind is what
+    /// that collision looks like from outside.
+    #[test]
+    fn kind_bits_are_distinct() {
+        for kind in ALL_SURFACE_KINDS {
+            assert_eq!(
+                SurfaceKindSet::just(kind).iter().next(),
+                Some(kind),
+                "{kind:?} shares a bit with an earlier surface kind"
+            );
+        }
+        for kind in CurveKind::ALL {
+            assert_eq!(
+                CurveKindSet::just(kind).iter().next(),
+                Some(kind),
+                "{kind:?} shares a bit with an earlier curve kind"
+            );
         }
     }
 }

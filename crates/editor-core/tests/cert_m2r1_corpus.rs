@@ -10,7 +10,7 @@ use editor_core::product_recorded;
 use geom_core::{Decide, Tol};
 use topo::{AtRestPolicy, Body, PropsQuadLane};
 
-fn dump<T: Decide + PropsQuadLane + AtRestPolicy + core::fmt::Debug>(
+fn dump<T: Decide + PropsQuadLane + AtRestPolicy + geom_core::Bounds + core::fmt::Debug>(
     scalar: &str,
     name: &str,
     body: &Body<T>,

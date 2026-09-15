@@ -99,36 +99,131 @@ The three share no file, so they can run at once.
 
 ## Order
 
-The opener is **`S330`** — tier-3 check 1 has no arm for a described
-Nurbs surface, so a poisoned net falls to `_ => {}` and is refused only
-by accident through check 2. It is small, it is a wrong answer rather
-than a tidy, it is in `validate.rs` where the H item and half the track
-also sit, and it puts this program's first read on the file everything
-else here depends on. `S94` (the two hand-kept `VARIANTS` ladders)
-rides with it, per the code-quality plan's fold-in rule.
+The first block (TOPO-B1) is concluded: `S330`+`S94`, `D261`+`D264`,
+`D50`+`D260`, the two-homes ruling, `D265`, `S69` and the census door
+are closed, and the slate is now mostly what other programs placed
+here while those ran — SHELL's six diagnoses on TOPO's files, plus the
+rows that carried over (`S93`, `D107`, `D263`, `D262`, `D20`, the H
+item and the residues).
 
-(`S331`, the plan's original opener, is on TRIM's slate: its mechanism
-is `crates/topo/src/pcurves.rs`, TRIM's file, beside TRIM's `D36`.)
+**Block TOPO-B2** is concluded (2026-09-14): the ring-nesting decide,
+`split_edge`'s carried pcurve rows and `revert`'s mirrored chart
+images, three duals, no tally candidate.
 
-Then, in parallel across the three sub-lanes: `D261`+`D264` (the reader
-collapse, which owes the shared `UNCONVERTED_TODAY` re-derivation) and
-`D260`+`D50` (the `live.rs` pair, where `D260` is one sentence and
-`D50` is the guard that sentence is about; `D50` follows `D261` because
-the guard reads source through the shared lexer).
+**Block TOPO-B3** is concluded (2026-09-14): the loop-re-parenting
+rows, D263's placeholder regime and S93's `mev` half; three duals, one
+doc-class tally candidate; `S93` stays open on its `kev` half.
 
-`face-kind-read-has-two-homes` is the one D and runs on its own clock:
-it is a ruling plus a one-door delegation, and its gating cost is
-SEAT's agreement rather than a lane.
+**Block TOPO-B4** takes three kernel answers on this program's own
+files, in this slot order (fixed before the block byte is drawn):
 
-`validate-tier3-curved-boundary-containment` is the H unit and does not
-open first: it is a marker for genuinely unbuilt work, it wants the
-tier-3 file read end to end, and `S330` is that read.
+- slot 0 — `geom-source-absence-conflates-four-origins`: a bare
+  `None` from `surface_source` covers imported, hand-built,
+  kernel-derived and a failed re-stamp, so Ev's question "how do we
+  know when there is no provenance" has no answer. The unit makes
+  absence typed on the identity channel (`source.rs`), with the
+  cleared-and-not-re-stamped case distinguishable from never-stamped.
+- slot 1 — `revert-leaves-a-periodic-charts-loop-wrap-mid-chain`:
+  `revert` re-states plane rows with their frames but a periodic
+  chart's one-period wrap, parked at the forward loop's closure, sits
+  mid-chain once the loop runs the other way. The unit re-parks the
+  wrap (a `shift_branch` per row, no re-certification) or re-mints,
+  phase 1 deciding with the involution as the test.
+- slot 2 — `edge-carrier-kind-has-no-readback-door`: the two-homes
+  ruling gave faces a `readback` twin and left edges with only the
+  query-side door; the unit adds the readback door for the edge side
+  in the ratified shape.
 
-Two rows carry a stated dependency and are not takeable early:
-`D262` (whose twelve silent sites overlap the `decide_flagged` F2
-family the register in `work/meta/` tracks) and `D20` (which closes on
-an attribution measured off hosted CI, so it queues on the lane
-budget rather than on a reviewer).
+**Block TOPO-B4** is concluded on slots 0 and 1 (2026-09-14: the typed
+provenance absence and the revert wrap re-park, ordinals 2710 and
+2709, one code-class tally candidate) with slot 2 (the edge-side
+readback door, ordinal 2711) in its fix pass; `D107` merged non-dual.
+
+**Block TOPO-B5** takes three kernel answers on this program's own
+files, in this slot order (fixed before the block byte is drawn):
+
+- slot 0 — `set-face-surface-leaves-a-complete-face-certified-against-the-chart-it-left`:
+  `set_face_surface` swaps a face onto a chart that mints nothing and
+  leaves its complete row set stated in the chart it left, which the
+  tier-3 pass then skips. The unit gives the setter the loop doors'
+  answer — drop the rows on a chart change through `same_chart`,
+  deriving nothing — and makes its `DECLARED` posture note true.
+- slot 1 — `mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows`:
+  the loop-re-parenting fix one level down — `mef`'s chord surgery and
+  `kef`'s unsplice move a RUN of half-edges between two faces' loops
+  and leave the run's rows on the chart they left. `mef` is the
+  two-line carry-or-drop on the run it already holds; `kef` has to
+  resolve the surviving face inside a kill operator's precondition
+  order, which phase 1 decides.
+- slot 2 — `a-null-edge-can-be-re-based-onto-a-distinct-point`, taken
+  together with `the-re-basing-gate-refuses-m7-8-where-nothing-moves`
+  (two rows wanting one answer): the fan `mev`'s re-basing gate skips
+  null scaffolding unconditionally, so a null edge can be left
+  spanning two distinct points, and refuses the plane × NURBS class
+  even where nothing moves — because the exact "is `p_new` the point
+  `p_old`" question has no door at `T: Real`. The unit answers
+  structurally (a moved run refuses a null edge; a no-move `mev` is
+  spelled as the copy `mev_null` already is) or says which shape and
+  why.
+
+**Ruled on PR 2527 (2026-09-14), cut at the next block** — three
+kernel answers now units on this slate:
+
+- `a-chart-spans-solids-after-move-shells-to-new-solid` — (A): the
+  mover re-mints the moved shell's shared surface keys, the invariant
+  stated at `Body` and checked in tier 1, SHELL-8's arm retired by
+  announced seam.
+- `kevs-fan-merge-needs-a-re-describing-kill-door` — (c) as two doors:
+  `kev(he)` refusing typed where a merged carrier would go stale, and
+  `kev_describing(he, specs, tol)` for the callers that re-describe;
+  `S93` closes with it.
+- `half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete`
+  — the operator mints the row at the mint site; phase 1 is whether
+  the closed-form derivation splits from the fitted lane under
+  `Decide`; the closing-mint convention retires.
+
+`attach-postconditions-validate-the-whole-body-and-panic` closed on
+the D9 reading.
+
+**Not in TOPO-B5**, and why: `check-9-nesting-is-line-bounded-only`'s
+disc third is S-BOOL's `disc_side` to open and its arc third waits on
+#1076; `split-edge-cannot-carry-a-fitted-or-general-pcurve-row` and
+`two-provenance-free-keys-holding-one-surface-read-as-two-charts` are
+the bound ripples on Ev's `[ev]` PR; `euler-characteristic-has-three-carriers`
+is the next block's structural slot.
+
+Beside the block, non-dual: `D107` (a `kemr` fixture past its plan
+phase for `review_d18`'s hammer — test support, style review only).
+
+The `kev` half of `S93` (three landing shapes on its row, each
+constrained by the generator's kills) and the half-edge-minting
+operators' pcurve posture (a bound ripple or a declared primitive
+posture) are Ev's questions, added to the open `[ev]` PR.
+
+**Not in the block**, and why:
+
+- `a-chart-spans-solids-after-move-shells-to-new-solid` is a design
+  choice (is "a chart lives in one solid" a `Body` invariant the mover
+  re-mints for, or is the shell doors' grouping per (solid, surface)?)
+  with S-BOOL holding the disconnecting-subtract half — an `[ev]`
+  ruling proposal, written by the orchestrator.
+- `tier-3-does-not-check-shell-roles-per-solid` is the right check
+  and lands red today: the boolean's hollow-operand subtraction files
+  two `Outer` shells under one solid
+  (`work/bool/subtract-of-a-hollow-operand-files-the-island-under-one-solid`,
+  open). It waits on that row, announced on S-BOOL's log.
+- `attach-postconditions-validate-the-whole-body-and-panic`: its cost
+  half is answered — PERF-4 (Ev's ruling on
+  `work/perf/d1-per-op-tier1-sweep-price`, PR 2305) made the setters'
+  tier-1 sweep once per public door through the surgery scope. What
+  remains is the panic half, and it is D1's question, not the
+  setters': a postcondition asserting "kernel bug" fires on a body
+  that was torn BEFORE the write. That goes to Ev with the chart
+  ruling, not to a lane.
+- `S93`, `D107`, `D263`, `D262`, `D20`, the H item and the residues
+  keep their earlier placement: `D262` waits on `work/meta`'s
+  `decide_flagged` register, `D20` on the lane budget, the H item on a
+  tier-3 read that check 9's unit now provides.
 
 ## Review posture
 

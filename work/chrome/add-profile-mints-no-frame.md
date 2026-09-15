@@ -4,7 +4,7 @@ kind: issue
 title: The add-profile form cannot mint the frame it needs, and names the ones it finds by node number
 status: open
 opened: 2026-09-03
-refs: [sketch-frame-from-face]
+refs: [1829]
 ---
 
 ## What
@@ -53,3 +53,5 @@ thrown away if that fork goes the derived way.
 
 `gauth` and `gui` are both closed; this is unowned residue until a
 program claims it.
+
+(At DOCM's exit sweep, `refs` names the PRs `sketch-frame-from-face` stood for: `sketch-frame-from-face` = #1829 — the unit rows left the tracker with `work/docm/`; `docs/DOC-LEDGER.md` sweep 14.)

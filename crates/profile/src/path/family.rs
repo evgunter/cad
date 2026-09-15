@@ -363,7 +363,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
             tol,
         )?;
     }
-    Ok(core.clone().build())
+    core.clone().build(tol)
 }
 
 // ------------------------------------------------------------------

@@ -289,7 +289,8 @@ a discipline, accepted deliberately with drift as the alternative.
 **P1 — the channel is lowered *expression* identity, per stored field,
 in opt-in side records.** A `ParamSource` (`topo/src/param_source.rs`)
 sits beside the geometry arenas for the stored scalar fields of minted
-descriptions, keyed per kind like the `surface_sources` table. To the
+descriptions, keyed per kind like the `surface_origins` table (which
+carries `GeomSource` on its `Recipe` arm). To the
 kernel it is a fully opaque token: `Eq`/`Ord`/`Hash` and nothing else —
 no readable payload, no constructor that builds one out of another, no
 arithmetic, and a `Debug` printing the length alone, so a body dump is

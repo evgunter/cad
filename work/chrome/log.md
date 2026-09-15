@@ -324,8 +324,9 @@ silent feature-skip this program's unit 2 existed to close.
 ## Hand-off from DOCM (2026-09-04)
 
 Five items re-homed here by header-preserving `git mv` (ids unchanged),
-each a viewer build of a ruling in `docs/DOCM-REFERENCES-DESIGN.md` or
-`docs/DOCM-IDENTITY-DESIGN.md`: `add-profile-mints-no-frame` and
+each a viewer build of a ruling in `crates/editor-core/REFERENCES.md`
+or `crates/editor-core/IDENTITY.md` (both `docs/DOCM-*-DESIGN.md` at
+the time): `add-profile-mints-no-frame` and
 `add-profile-placement-on-picked-face-frame` (DM1/DM2; the kernel half
 is `DOCM-1`), `save-a-copy-duplicate-id-bricks-store` (DI4),
 `no-persistent-setplacement-session-op` (DI5: the gesture's release IS
@@ -532,3 +533,27 @@ and this directory holds nine parked on VIEW's split plus the open
 residue. The exit walk is Ev's to ratify and the re-homing depends on
 what the split leaves standing, so the honest state is a program whose
 slate is complete and whose residue is scheduled.
+
+## The ninth unit closes; the slate is complete (2026-09-04)
+
+`viewer-first-light-on-real-hardware` merged as PR 1771 with Ev's
+hardware readings on it. Closed here, and `needs_ev` cleared: the
+question it carried has been answered, so the flag would otherwise
+leave the board saying CHROME waits on Ev for something Ev has already
+done — the most misleading state a tracker can hold, and the one a
+VIEW orchestrator would read first.
+
+This is the closure gap PR 1778 set out, arriving one last time and in
+its sharpest form. A unit's state-sync rides that unit's own PR, so the
+last status a unit can write about itself is `review`; closing is a
+post-merge act with no unit PR left to ride. For the eight code units
+the cost of missing it was a stale count. For this one it would have
+been a false claim about Ev.
+
+**All nine units are answered.** CHROME does not close with them:
+twelve items are open here and nine are parked on VIEW's split, and a
+closed program may hold only closed items. The exit walk is Ev's to
+ratify, and what the residue re-homes to depends on what the split
+leaves standing — so the honest end state of this session is a program
+whose slate is complete and whose remainder is scheduled against a
+named trigger.

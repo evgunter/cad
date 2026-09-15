@@ -39,7 +39,7 @@ and `session.rs:1126-1128` ("Same rule as a no-move commit").
 ## Why it is worth a file
 
 **The chrome already unified and the state machines did not follow.**
-`crate::widgets::drag_ops` (`widgets.rs:30-52`) is one mapping over
+`crate::widgets::drag_ops` (`widgets.rs:101-123`) is one mapping over
 both vocabularies, and its own doc says why: *"the same file once had
 two copies of it and one of them was wrong"* — the typed-input arm was
 silently dropped by a hand-written copy. That is the same failure
@@ -63,7 +63,7 @@ flight, preview replaces, a gesture that never previewed commits
 nothing — can be held once, the way `drag_ops` holds the widget mapping
 once, with the vocabularies as parameters.
 
-Note DI5 (`docs/DOCM-IDENTITY-DESIGN.md`, ratified) moves the free-move
+Note DI5 (`crates/editor-core/IDENTITY.md`, ratified) moves the free-move
 commit onto the document as a `DocEdit::SetPlacement`, which brings the
 two machines CLOSER, not further apart: after it, both commits land a
 document edit. Sequencing this after

@@ -177,7 +177,7 @@ use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
 use crate::session::{AtRestBadge, Outstanding, Refusal, SessionOp};
-use crate::vocab::vocabulary;
+use crate::vocab::{partial_mirror, vocabulary};
 
 /// **What something the chrome shows is ABOUT** — carried by a
 /// [`Message`] on the line and by a [`Badge`] on the toolbar alike.
@@ -286,7 +286,39 @@ pub enum Subject {
 /// because they name three different events, and the alternative
 /// (one name for "swept only by `Clear`") would have to be renamed
 /// three ways the first time any of them grew an issuer.
+///
+/// **Deliberately partial, and told when [`Subject`] grows.** Nothing
+/// forces this list to be complete — completeness is what it does not
+/// claim, and the three above belong out of it. What the
+/// `partial_mirror!` invocation below forces
+/// (`crates/viewer/src/vocab.rs` declares the macro) is that every
+/// subject is either offered at a seat of this list or named there as
+/// deliberately absent with its reason. A sixth subject WITH an issuer
+/// would otherwise miss the list with no row going red, and its
+/// messages would then be swept only by [`StatusUpdate::Clear`],
+/// silently. The
+/// suite's own row over this list holds a different direction — that
+/// the two named here are the two the policies it calls actually
+/// issue — and cannot see a policy it does not call.
 pub const SUBJECTS_WITH_AN_EXPIRY_ISSUER: [Subject; 2] = [Subject::Camera, Subject::Cursor];
+
+partial_mirror! {
+    Subject, bare SUBJECTS_WITH_AN_EXPIRY_ISSUER,
+    offered [Camera, Cursor],
+    absent [
+        Document => "its event is the next act the document ACCEPTS, \
+                     which nothing marks yet; what sweeps it today is \
+                     the subject-blind `StatusUpdate::Clear`",
+        Display => "its event is the next rebuild of the thing the \
+                    message is about, which nothing marks yet; the \
+                    held facts about the picture badge instead, and \
+                    the news that does wear this subject is swept only \
+                    by `StatusUpdate::Clear`",
+        Preferences => "its event is the next write of the preferences \
+                        file, which nothing marks yet; swept only by \
+                        `StatusUpdate::Clear`, for `Display`'s reason",
+    ],
+}
 
 /// **One frame's news**: what it is about, and its own words.
 ///
@@ -1585,10 +1617,11 @@ pub enum Progress {
     /// running** — what a cancel leaves behind. A spinner over that
     /// alone would be a lie about work nobody is doing.
     ///
-    /// `indexing` is whether the OTHER seam is nonetheless busy, and
-    /// it is carried here rather than answered by a second indicator
-    /// because this is the one state where the two seams disagree
-    /// about whether anything is happening: an index build submitted
+    /// `indexing` is whether a seam BELOW the evaluation is
+    /// nonetheless busy — an index build, or the display fit the index
+    /// waits on — and it is carried here rather than answered by a
+    /// second indicator because this is the one state where the seams
+    /// disagree about whether anything is happening: a build submitted
     /// before the cancel is still running, and it will change the
     /// picture. The rule the payload buys is **the spinner follows the
     /// work, never the name** — so a canceled evaluation with a live
@@ -1924,6 +1957,42 @@ pub enum IdStep {
     Void,
 }
 
+/// **What an id query is asked ABOUT**, beside the cursor: the picture
+/// on screen and the index whose alphabet its ids are words of.
+///
+/// **Both halves, because neither is a subset of the other.** The
+/// query's answer is an id the GPU read out of the picture identified
+/// by `revision`, and it is resolved through the id map of the index
+/// identified by `generation` — so a change to either makes the
+/// outstanding answer describe something nobody is asking about:
+///
+/// - **A new picture at the same generation.** Hiding a part rebuilds
+///   the scene from the index already in hand
+///   ([`crate::app::ViewerApp::sync_scene`] rebuilds on a display
+///   revision or a focus-set change too), so the drawn ids lose the
+///   hidden part's patches while the generation holds still. Keyed on
+///   the generation alone the query holds, the GPU's answer for the
+///   picture that still had the part stays matched, and the ray path's
+///   fresh *nothing* is reported as *the two picking paths disagree* —
+///   the sentence issue #1097 §4 tells an operator to read as an
+///   `R32Uint` clear fault.
+/// - **A new generation at the same picture.** A rebuild that REFUSES
+///   does not bump the revision (`sync_scene` marks the pair current
+///   only on success), so an index that landed over a refused rebuild
+///   is a new generation beside the picture already on screen. Keyed on
+///   the revision alone the query holds, and the hover the pick path
+///   skips on a [`IdStep::Hold`] is a question about the DOCUMENT,
+///   which has moved.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct IdSubject {
+    /// [`crate::app::ViewerApp`]'s scene revision: the identity of the
+    /// mesh the id pass renders, bumped on every successful rebuild.
+    pub revision: u64,
+    /// The generation of the index in hand, `None` while one is being
+    /// built.
+    pub generation: Option<Generation>,
+}
+
 /// The id pass's query bookkeeping: which query is outstanding, and
 /// what it was asked about.
 ///
@@ -1939,9 +2008,9 @@ pub enum IdStep {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct IdQueryLog {
     serial: u32,
-    /// The cursor and the picture the outstanding query was asked
+    /// The cursor and the subject the outstanding query was asked
     /// about. `None` when nothing is outstanding.
-    asked: Option<([f64; 2], Option<Generation>)>,
+    asked: Option<([f64; 2], IdSubject)>,
 }
 
 impl IdQueryLog {
@@ -1959,25 +2028,26 @@ impl IdQueryLog {
         self.asked.map(|_| self.serial)
     }
 
-    /// Advance the log for this frame's cursor and picture.
+    /// Advance the log for this frame's cursor and subject.
     ///
     /// `cursor` is `None` when the pointer is outside the pane.
-    /// `generation` is the evaluation the index describes: a query is
-    /// re-asked when the picture changes under a still cursor, because
-    /// the answer is about the picture and not only about the pointer.
-    pub fn step(&mut self, cursor: Option<[f64; 2]>, generation: Option<Generation>) -> IdStep {
+    /// `subject` is what the query is about beside the pointer — the
+    /// picture and the index ([`IdSubject`], which carries the argument
+    /// for asking both) — so a query is re-asked when either changes
+    /// under a still cursor.
+    pub fn step(&mut self, cursor: Option<[f64; 2]>, subject: IdSubject) -> IdStep {
         let Some(cursor) = cursor else {
             self.asked = None;
             return IdStep::Void;
         };
-        if self.asked == Some((cursor, generation)) {
+        if self.asked == Some((cursor, subject)) {
             return IdStep::Hold;
         }
         // Saturating past zero: zero is the "nothing was ever asked"
         // serial the answer channel is initialised to, so a wrap must
         // not land on it.
         self.serial = self.serial.wrapping_add(1).max(1);
-        self.asked = Some((cursor, generation));
+        self.asked = Some((cursor, subject));
         IdStep::Ask {
             serial: self.serial,
         }

@@ -2,7 +2,8 @@
 //! sketch drawn ON A FACE, spelled the way a user spells it.
 //!
 //! A box; a frame DERIVED from the box's top face
-//! (`Datum::FaceFrame`, DOCM-REFERENCES-DESIGN DM1) named through the
+//! (`Datum::FaceFrame`, `crates/editor-core/REFERENCES.md` DM1) named
+//! through the
 //! naming vocabulary rather than transcribed as nine numbers; a
 //! profile on that frame; an extrude of it. The boss therefore sits
 //! on the box's top face BECAUSE it names that face: raise the box
