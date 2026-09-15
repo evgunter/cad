@@ -1599,3 +1599,65 @@ pub fn walked_chains(
         .unwrap_or_else(|e| panic!("every requested edge resolves to a link, got {e}"));
     walk_chains(links)
 }
+
+// ---------------------------------------------------------------------
+// R1 review END-TO-END exercise (scalar-sense-r1). NOT for merge.
+//
+// A user-shaped run: build a sphere-walled solid through the public
+// revolve door, measure it, validate it, then reverse ONE face's sense
+// through the public `set_face_sense` and do both again. The reversed
+// twin is what puts `sense == false` through `curved_face`/`sphere`
+// (props) and through `classify_material_pairing` (validate check 4).
+// ---------------------------------------------------------------------
+#[cfg(test)]
+#[allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::print_stdout,
+    clippy::float_arithmetic
+)]
+mod r1_e2e {
+    use geom_core::{Tol, Vec3};
+    use topo::Body;
+
+    fn report(tag: &str, body: &Body<f64>, tol: Tol) {
+        match topo::props::mass_properties(body, tol) {
+            Ok(mp) => println!(
+                "R1E {tag} mass OK volume={:#018x} ({})",
+                mp.volume.to_bits(),
+                mp.volume
+            ),
+            Err(e) => println!("R1E {tag} mass ERR {e:?}"),
+        }
+        match topo::validate::validate_geometric(body, tol) {
+            Ok(()) => println!("R1E {tag} validate OK"),
+            Err(errs) => {
+                println!("R1E {tag} validate ERR n={}", errs.len());
+                for e in errs.iter().take(6) {
+                    println!("R1E {tag}   {e:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn r1e_ball_and_its_reversed_twin() {
+        let tol = Tol::witness();
+        let ball = crate::test_support::ball_poled_z(0.010, Vec3::new(0.0, 0.0, 0.0), tol);
+        println!(
+            "R1E faces={} shells={}",
+            ball.faces().count(),
+            ball.shells().count()
+        );
+        report("ball", &ball, tol);
+
+        // Reverse the FIRST face's sense through the public door.
+        let fk = ball.faces().next().expect("a ball has faces").0;
+        let mut flipped = ball.clone();
+        flipped
+            .set_face_sense(fk, false)
+            .expect("set_face_sense is the public door");
+        println!("R1E flipped face {fk:?}");
+        report("ball-rev", &flipped, tol);
+    }
+}

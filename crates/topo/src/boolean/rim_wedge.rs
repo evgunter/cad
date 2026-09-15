@@ -757,3 +757,89 @@ mod r2_probes {
         );
     }
 }
+
+// ---------------------------------------------------------------------
+// R1 review probes (scalar-sense-r1). NOT for merge.
+// ---------------------------------------------------------------------
+#[cfg(test)]
+#[allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::print_stdout,
+    clippy::float_arithmetic
+)]
+mod r1probe_rim {
+    use super::*;
+    use geom_core::{Point3, Real, Tol, Vec3};
+
+    fn band_() -> Band {
+        Band::linear(Tol::witness()).expect("band")
+    }
+
+    fn sph<T: Real>() -> geom::Surface<T> {
+        geom::Surface::Sphere {
+            center: Point3::new(T::zero(), T::zero(), T::zero()),
+            radius: T::one(),
+            axis: Vec3::new(T::zero(), T::zero(), T::one()),
+            u_ref: Vec3::new(T::one(), T::zero(), T::zero()),
+        }
+    }
+
+    fn cyl<T: Real>() -> geom::Surface<T> {
+        geom::Surface::Cylinder {
+            origin: Point3::new(T::zero(), T::zero(), T::zero()),
+            axis: Vec3::new(T::zero(), T::zero(), T::one()),
+            radius: T::one(),
+            u_ref: Vec3::new(T::one(), T::zero(), T::zero()),
+        }
+    }
+
+    fn equator<T: Real>() -> Rim<T> {
+        Rim {
+            center: Point3::new(T::zero(), T::zero(), T::zero()),
+            axis: Vec3::new(T::zero(), T::zero(), T::one()),
+            radius: T::one(),
+            u_ref: Vec3::new(T::one(), T::zero(), T::zero()),
+        }
+    }
+
+    #[test]
+    fn r1_shared_rim_differential_f64() {
+        let b = band_();
+        for (ta, a) in [("T", true), ("F", false)] {
+            for (tb, c) in [("T", true), ("F", false)] {
+                let got = classify_shared_rim(
+                    &sph::<f64>(),
+                    a,
+                    &cyl::<f64>(),
+                    c,
+                    equator::<f64>(),
+                    2.0_f64,
+                    b,
+                );
+                println!("R1 rim/{ta}{tb} {got:?}");
+            }
+        }
+    }
+
+    #[cfg(feature = "interval")]
+    #[test]
+    fn r1_shared_rim_differential_interval() {
+        use geom_core::Interval;
+        let b = band_();
+        for (ta, a) in [("T", true), ("F", false)] {
+            for (tb, c) in [("T", true), ("F", false)] {
+                let got = classify_shared_rim(
+                    &sph::<Interval>(),
+                    a,
+                    &cyl::<Interval>(),
+                    c,
+                    equator::<Interval>(),
+                    Interval::from_f64(2.0),
+                    b,
+                );
+                println!("R1 i/rim/{ta}{tb} {got:?}");
+            }
+        }
+    }
+}
