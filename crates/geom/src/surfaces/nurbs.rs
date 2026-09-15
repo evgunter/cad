@@ -497,6 +497,113 @@ pub struct NurbsSurface<T: Real> {
     weights: Vec<f64>,
 }
 
+/// Why [`NurbsSurface::reversed_v`] and [`NurbsSurface::reversed_u`]
+/// refuse: the reversed direction's knot vector is not its own
+/// reflection, so reversing the net while carrying the knots verbatim
+/// would build a DIFFERENT surface rather than this one traversed the
+/// other way. [`NurbsSurface::reversed_v`] carries the argument, the
+/// exactness of the test, and why the clamp runs never trip it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum KnotMirrorError {
+    /// The reflection `lo + hi` overflows to an infinity, so it names
+    /// no reflection at all and every pair whose sum overflows with it
+    /// would match it vacuously. Refused rather than decided.
+    ReflectionNotFinite {
+        /// The domain's start.
+        lo: f64,
+        /// The domain's end.
+        hi: f64,
+    },
+    /// Knots `index` and `mirror_index` do not sum to `lo + hi`, so the
+    /// vector is not its own reflection.
+    AsymmetricPair {
+        /// The lower index of the offending pair.
+        index: usize,
+        /// Its partner, `m − index`, where `m` is the last knot index.
+        mirror_index: usize,
+        /// The knot at `index`.
+        knot: f64,
+        /// The knot at `mirror_index`.
+        mirror_knot: f64,
+        /// The domain's start.
+        lo: f64,
+        /// The domain's end.
+        hi: f64,
+    },
+}
+
+impl core::fmt::Display for KnotMirrorError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            KnotMirrorError::ReflectionNotFinite { lo, hi } => write!(
+                f,
+                "knot mirror: the domain [{lo}, {hi}] has no finite reflection sum"
+            ),
+            KnotMirrorError::AsymmetricPair {
+                index,
+                mirror_index,
+                knot,
+                mirror_knot,
+                lo,
+                hi,
+            } => write!(
+                f,
+                "knot mirror: knots {index} and {mirror_index} ({knot}, {mirror_knot}) \
+                 do not sum to {lo} + {hi} exactly"
+            ),
+        }
+    }
+}
+
+impl core::error::Error for KnotMirrorError {}
+
+/// Knuth's 2Sum: the exact sum of two `f64`s as the unevaluated pair
+/// `(s, e)` with `s = fl(a + b)` and `s + e = a + b` **in ℝ**, exact
+/// whenever `a`, `b` and `s` are finite. Six IEEE-754 binary64
+/// operations, each correctly rounded and none of them contractible
+/// into an FMA, so the pair is a function of the operands' bits alone.
+///
+/// Two such pairs agree componentwise exactly when the two real sums
+/// agree: rounding is a function of the real value, so equal sums give
+/// equal heads, and the residual is then determined by the head and
+/// that sum.
+fn two_sum(a: f64, b: f64) -> (f64, f64) {
+    let s = a + b;
+    let a_head = s - b;
+    let b_head = s - a_head;
+    (s, (a - a_head) + (b - b_head))
+}
+
+/// Refuses unless `knots` is its own reflection about its domain —
+/// `k_i + k_{m−i} = lo + hi` in ℝ for every `i`. The argument is
+/// [`NurbsSurface::reversed_v`]'s.
+fn mirror_symmetric(knots: &KnotVector) -> Result<(), KnotMirrorError> {
+    let (lo, hi) = knots.domain();
+    let reflection = two_sum(lo, hi);
+    if !reflection.0.is_finite() {
+        return Err(KnotMirrorError::ReflectionNotFinite { lo, hi });
+    }
+    let k = knots.knots();
+    let m = k.len() - 1;
+    for index in 0..=m / 2 {
+        let mirror_index = m - index;
+        // Indexing justified: index ≤ m/2 ≤ m and mirror_index ≤ m,
+        // over a knot vector construction leaves nonempty.
+        let (knot, mirror_knot) = (k[index], k[mirror_index]);
+        if two_sum(knot, mirror_knot) != reflection {
+            return Err(KnotMirrorError::AsymmetricPair {
+                index,
+                mirror_index,
+                knot,
+                mirror_knot,
+                lo,
+                hi,
+            });
+        }
+    }
+    Ok(())
+}
+
 impl<T: Real> NurbsSurface<T> {
     /// Validated construction: `control.len()` must equal
     /// `knots_u.control_count() · knots_v.control_count()` (row-major
@@ -598,13 +705,16 @@ impl<T: Real> NurbsSurface<T> {
     /// Construction from parts whose invariants are ALREADY
     /// established — the door a structural map takes instead of
     /// [`Self::new`], and the one place that says why `new`'s check is
-    /// redundant for it: both knot vectors and the weights are a
-    /// validated surface's own, carried verbatim, and `control` is that
-    /// surface's net mapped POINTWISE, which cannot change its length —
-    /// so `control.len()` still equals `nu · nv`, `weights.len()` still
-    /// equals `control.len()`, and every weight is still the positive
-    /// finite value `new` admitted. The `debug_assert` re-derives the
-    /// count agreement (D2 addendum row 5).
+    /// redundant for it: both knot vectors are a validated surface's
+    /// own, carried verbatim, and `control`/`weights` are that
+    /// surface's net and weight vector under ONE STRUCTURAL MAP — each
+    /// point carried through a function, the grid PERMUTED, or both,
+    /// with the weights under the same permutation as the points. No
+    /// such map changes a length, so `control.len()` still equals
+    /// `nu · nv` and `weights.len()` still equals `control.len()`; and
+    /// none of them changes a weight VALUE, so every weight is still
+    /// the positive finite number `new` admitted. The `debug_assert`
+    /// re-derives the count agreement (D2 addendum row 5).
     fn from_validated_parts(
         knots_u: KnotVector,
         knots_v: KnotVector,
@@ -614,7 +724,7 @@ impl<T: Real> NurbsSurface<T> {
         debug_assert!(
             control.len() == knots_u.control_count() * knots_v.control_count()
                 && weights.len() == control.len(),
-            "from_validated_parts: a pointwise map changed a count \
+            "from_validated_parts: a structural map changed a count \
              (control {}, knots want {}, weights {})",
             control.len(),
             knots_u.control_count() * knots_v.control_count(),
@@ -747,6 +857,100 @@ impl<T: Real> NurbsSurface<T> {
             control,
             weights,
         }
+    }
+
+    /// The same surface with its `v` orientation reversed —
+    /// `S′(u, v) = S(u, lo + hi − v)` on the same domain: the same
+    /// point set, walked the other way in `v`.
+    ///
+    /// The net's rows are reversed (`iv ↦ nv − 1 − iv`), the weights go
+    /// by the same permutation, and BOTH knot vectors are carried
+    /// verbatim — no arithmetic touches this surface's structure, so
+    /// the result's knots are its source's bits. Construction goes
+    /// through [`Self::from_validated_parts`], which states why no
+    /// re-validation is run.
+    ///
+    /// # Errors
+    ///
+    /// [`KnotMirrorError`] naming the pair of `knots_v` that breaks the
+    /// symmetry below: this door is DEFINED only on a `knots_v` that is
+    /// its own reflection.
+    ///
+    /// # When the reversed net is the same point set
+    ///
+    /// Reversing the net while keeping `knots_v` gives
+    /// `S(u, lo + hi − v)` exactly when `knots_v` is its own
+    /// reflection — `k_i + k_{m−i} = lo + hi` for every `i`, with `m`
+    /// the last knot index. Reflecting a knot vector (`k ↦ lo + hi − k`
+    /// with the order reversed) carries each v-basis function to its
+    /// mirror partner, `N^{K*}_{j,p}(v) = N^{K}_{nv−1−j,p}(lo + hi − v)`;
+    /// so when `K* = K` the reversed net reads the ORIGINAL's basis
+    /// backwards, and the two evaluations are the same rational
+    /// combination of the same points. On an asymmetric `knots_v` the
+    /// recipe is a different surface rather than a reparameterization
+    /// of this one, and that is what the refusal protects.
+    ///
+    /// Reflecting the knots instead would make every vector
+    /// reversible, and is deliberately not offered: `lo + hi − k` is
+    /// not exact in `f64`, so such a door would mint structure an ulp
+    /// away from a surface whose structure is exact.
+    ///
+    /// # Why the test is exact, and why the clamp runs never trip it
+    ///
+    /// The condition is an identity between REAL numbers, and
+    /// `fl(k_i + k_{m−i}) == fl(lo + hi)` does not decide it: on
+    /// `lo = 0`, `hi = 1` the pair `(½, ½ + 2⁻⁵³)` rounds to `1.0` and
+    /// would pass while reflecting an ulp away from its partner. So the
+    /// two sums are compared AS EXACT SUMS — each held as a rounded
+    /// head plus its exact residual (Knuth's 2Sum) and both components
+    /// compared bit for bit, which is equality of the real sums and
+    /// nothing weaker. Every operand is finite
+    /// ([`KnotVector::clamped`] admits no other kind) and every step is
+    /// one correctly-rounded binary64 operation, so the verdict is a
+    /// function of the knots' bits alone: the same answer on every
+    /// target and at every optimization level. The one case the
+    /// arithmetic cannot decide is a `lo + hi` that overflows, and that
+    /// is refused rather than answered.
+    ///
+    /// The clamped ends never trip it. `domain()` reads `lo` and `hi`
+    /// off `knots[p]` and `knots[m − p]`, and a clamped vector's end
+    /// runs are exact — `k_0 = … = k_p` and `k_{m−p} = … = k_m`, held
+    /// as one value each rather than as p+1 nearby ones — so for every
+    /// `i ≤ p` the pair `(k_i, k_{m−i})` IS the pair `(lo, hi)`, bit
+    /// for bit, and the test compares a value against itself. Only the
+    /// interior can refuse.
+    pub fn reversed_v(&self) -> Result<Self, KnotMirrorError> {
+        mirror_symmetric(&self.knots_v)?;
+        let (nu, nv) = self.control_counts();
+        let mut control = Vec::with_capacity(self.control.len());
+        let mut weights = Vec::with_capacity(self.weights.len());
+        for iu in 0..nu {
+            for iv in (0..nv).rev() {
+                // Indexing justified: iu < nu, iv < nv (construction).
+                control.push(self.control[iu * nv + iv]);
+                weights.push(self.weights[iu * nv + iv]);
+            }
+        }
+        Ok(Self::from_validated_parts(
+            self.knots_u.clone(),
+            self.knots_v.clone(),
+            control,
+            weights,
+        ))
+    }
+
+    /// The same surface with its `u` orientation reversed, by the
+    /// conjugation the module docs name: [`Self::transposed`] swaps the
+    /// two directions, so a u-reversal is [`Self::reversed_v`] between
+    /// two transposes and the reversal has one implementation. The
+    /// symmetry obligation and the refusal's indices are `knots_u`'s.
+    ///
+    /// # Errors
+    ///
+    /// [`KnotMirrorError`], exactly as [`Self::reversed_v`], read
+    /// against `knots_u`.
+    pub fn reversed_u(&self) -> Result<Self, KnotMirrorError> {
+        Ok(self.transposed().reversed_v()?.transposed())
     }
 
     /// Extracts v-column `iv` as a (points, weights) pair — a curve in
@@ -1082,4 +1286,287 @@ fn hull_vec<T: SpanLocate>(a: Vec3<T>, b: Vec3<T>) -> Vec3<T> {
         a.y.enclosure_hull(b.y),
         a.z.enclosure_hull(b.z),
     )
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod reversal_tests {
+    use super::*;
+
+    /// A 3×5 net whose rows and columns share no symmetry of their own,
+    /// so a reversal that silently did nothing would fail every row
+    /// below.
+    const NET: [(f64, f64, f64); 15] = [
+        (0.0, 0.0, 0.0),
+        (1.0, 2.0, -1.0),
+        (2.0, -1.0, 3.0),
+        (3.0, 1.0, -2.0),
+        (4.0, 0.5, 1.0),
+        (0.5, 3.0, 1.0),
+        (1.5, -2.0, 2.0),
+        (2.5, 2.0, 0.0),
+        (3.5, 0.0, 3.0),
+        (4.5, 1.0, -1.0),
+        (1.0, -1.5, 2.5),
+        (2.0, 0.0, -3.0),
+        (3.0, 2.5, 1.5),
+        (4.0, -1.0, 0.0),
+        (5.0, 1.5, 2.0),
+    ];
+    const WEIGHTS: [f64; 15] = [
+        1.0, 2.0, 0.5, 4.0, 1.5, 0.25, 3.0, 1.0, 2.5, 0.75, 1.25, 0.5, 2.0, 1.0, 3.5,
+    ];
+
+    fn net() -> Vec<Point3<f64>> {
+        NET.iter()
+            .map(|(x, y, z)| Point3::new(*x, *y, *z))
+            .collect()
+    }
+
+    /// `knots_u = {0,0,½,1,1}` (degree 1, `nu = 3`) and
+    /// `knots_v = {0,0,0,¼,¾,1,1,1}` (degree 2, `nv = 5`): both
+    /// NON-UNIFORM — each has an interior knot the clamp runs do not
+    /// cover — and both their own reflection, so the reversal doors are
+    /// defined in either direction.
+    fn symmetric() -> NurbsSurface<f64> {
+        NurbsSurface::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.25, 0.75, 1.0, 1.0, 1.0], 2).unwrap(),
+            net(),
+            WEIGHTS.to_vec(),
+        )
+        .unwrap()
+    }
+
+    /// The same net on `knots_v = {0,0,0,¼,1,1,1}` (degree 2,
+    /// `nv = 4`), whose lone interior knot sits off the midline — the
+    /// vector the door refuses.
+    fn asymmetric_v() -> NurbsSurface<f64> {
+        NurbsSurface::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.25, 1.0, 1.0, 1.0], 2).unwrap(),
+            net()[..12].to_vec(),
+            WEIGHTS[..12].to_vec(),
+        )
+        .unwrap()
+    }
+
+    fn same_structure(got: &NurbsSurface<f64>, want: &NurbsSurface<f64>, what: &str) {
+        assert_eq!(
+            got.knots_u().knots(),
+            want.knots_u().knots(),
+            "{what}: knots_u carried verbatim"
+        );
+        assert_eq!(
+            got.knots_v().knots(),
+            want.knots_v().knots(),
+            "{what}: knots_v carried verbatim"
+        );
+        assert_eq!(
+            got.control()
+                .iter()
+                .map(|p| (p.x, p.y, p.z))
+                .collect::<Vec<_>>(),
+            want.control()
+                .iter()
+                .map(|p| (p.x, p.y, p.z))
+                .collect::<Vec<_>>(),
+            "{what}: control net, bit for bit"
+        );
+        assert_eq!(
+            got.weights(),
+            want.weights(),
+            "{what}: weights, bit for bit"
+        );
+    }
+
+    /// The whole contract of the v door on a symmetric non-uniform
+    /// vector, in one process: the structure it carries verbatim, the
+    /// permutation it applies, the point set it preserves, and its
+    /// involution. (One fixture, one build — `memories/test-suite-cost`;
+    /// every assertion is labelled so the failing property is readable
+    /// from the message.)
+    #[test]
+    fn reversed_v_is_the_same_point_set_and_an_involution() {
+        let s = symmetric();
+        let r = s.reversed_v().expect("a symmetric knots_v is reversible");
+        let (nu, nv) = s.control_counts();
+
+        assert_eq!(s.knots_v().knots(), r.knots_v().knots(), "knots_v verbatim");
+        assert_eq!(s.knots_u().knots(), r.knots_u().knots(), "knots_u verbatim");
+        for iu in 0..nu {
+            for iv in 0..nv {
+                let (a, b) = (
+                    r.control()[iu * nv + iv],
+                    s.control()[iu * nv + nv - 1 - iv],
+                );
+                assert_eq!(
+                    (a.x, a.y, a.z),
+                    (b.x, b.y, b.z),
+                    "row {iu} slot {iv} permuted"
+                );
+                assert_eq!(
+                    r.weights()[iu * nv + iv],
+                    s.weights()[iu * nv + nv - 1 - iv],
+                    "row {iu} slot {iv}: the weight rides the same permutation"
+                );
+            }
+        }
+        assert_ne!(
+            r.control()[0].x,
+            s.control()[0].x,
+            "the fixture's net is not already v-symmetric, so the reversal moved it"
+        );
+
+        // S′(u, v) = S(u, lo + hi − v). Every parameter here is dyadic
+        // and lo + hi = 1, so `1.0 - v` is exact and the two sides are
+        // the same real evaluation — but not the same floating-point
+        // one: `eval_in_span` accumulates its window in ASCENDING `j`,
+        // and the reversal carries ascending `j` to descending, so the
+        // two sides add the same products in opposite order. Addition
+        // is not associative, so the point set is preserved to
+        // rounding, not to bits; 2 ulps is the worst this grid sees and
+        // the bound is that with headroom.
+        let ulps = |a: f64, b: f64| ((a.to_bits() as i64) - (b.to_bits() as i64)).abs();
+        for &u in &[0.0, 0.25, 0.5, 0.75, 1.0] {
+            for &v in &[0.0, 0.125, 0.25, 0.5, 0.75, 0.875, 1.0] {
+                let got = r.eval(u, v);
+                let want = s.eval(u, 1.0 - v);
+                let gap = ulps(got.x, want.x)
+                    .max(ulps(got.y, want.y))
+                    .max(ulps(got.z, want.z));
+                assert!(
+                    gap <= 4,
+                    "S′({u}, {v}) is S({u}, {}): got {got:?}, want {want:?} ({gap} ulps)",
+                    1.0 - v
+                );
+            }
+        }
+        let back = r.reversed_v().expect("the reversal is reversible");
+        same_structure(&back, &s, "reversed_v twice");
+    }
+
+    /// `reversed_u` is the conjugation the module docs name, and it
+    /// agrees with a direct row permutation bit for bit.
+    #[test]
+    fn reversed_u_agrees_with_a_direct_row_permutation() {
+        let s = symmetric();
+        let (nu, nv) = s.control_counts();
+        let mut control = Vec::with_capacity(nu * nv);
+        let mut weights = Vec::with_capacity(nu * nv);
+        for iu in (0..nu).rev() {
+            for iv in 0..nv {
+                control.push(s.control()[iu * nv + iv]);
+                weights.push(s.weights()[iu * nv + iv]);
+            }
+        }
+        let direct =
+            NurbsSurface::new(s.knots_u().clone(), s.knots_v().clone(), control, weights).unwrap();
+        let got = s.reversed_u().expect("a symmetric knots_u is reversible");
+        same_structure(&got, &direct, "reversed_u");
+        assert_ne!(
+            got.control()[0].y,
+            s.control()[0].y,
+            "the fixture's net is not already u-symmetric, so the reversal moved it"
+        );
+    }
+
+    /// An asymmetric `knots_v` refuses, naming the pair — and the row
+    /// shows what the refusal is protecting: the net permuted onto
+    /// those verbatim knots is a DIFFERENT surface, not this one read
+    /// backwards.
+    #[test]
+    fn an_asymmetric_knots_v_refuses_and_the_refusal_protects_something() {
+        let s = asymmetric_v();
+        assert_eq!(
+            s.reversed_v().unwrap_err(),
+            KnotMirrorError::AsymmetricPair {
+                index: 3,
+                mirror_index: 3,
+                knot: 0.25,
+                mirror_knot: 0.25,
+                lo: 0.0,
+                hi: 1.0,
+            },
+            "the lone interior knot is its own mirror partner and misses the midline"
+        );
+
+        let (nu, nv) = s.control_counts();
+        let mut control = Vec::with_capacity(nu * nv);
+        let mut weights = Vec::with_capacity(nu * nv);
+        for iu in 0..nu {
+            for iv in (0..nv).rev() {
+                control.push(s.control()[iu * nv + iv]);
+                weights.push(s.weights()[iu * nv + iv]);
+            }
+        }
+        let hand_built =
+            NurbsSurface::new(s.knots_u().clone(), s.knots_v().clone(), control, weights).unwrap();
+        let (u, v) = (0.5, 0.25);
+        let got = hand_built.eval(u, v);
+        let want = s.eval(u, 1.0 - v);
+        let gap =
+            ((got.x - want.x).powi(2) + (got.y - want.y).powi(2) + (got.z - want.z).powi(2)).sqrt();
+        assert!(
+            gap > 1e-3,
+            "the hand-permuted net on an asymmetric knots_v is a different surface: \
+             at ({u}, {v}) it gives {got:?} where S(u, 1 − v) is {want:?} (gap {gap:e})"
+        );
+    }
+
+    /// The test decides the REAL identity, not the rounded one. This
+    /// vector's interior pair sums to `1 + 2⁻⁵³`, which rounds to
+    /// exactly `lo + hi` — a comparison of rounded sums would admit it
+    /// and mint a surface reflecting an ulp away from its partner.
+    #[test]
+    fn a_pair_whose_rounded_sum_hits_the_midline_still_refuses() {
+        let half_up = f64::from_bits(0.5f64.to_bits() + 1);
+        assert_eq!(
+            0.5 + half_up,
+            0.0 + 1.0,
+            "the rounded sums agree, so only an exact test can tell these apart"
+        );
+        assert_ne!(half_up, 0.5, "the partner really is an ulp off the midline");
+
+        let s = NurbsSurface::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, half_up, 1.0, 1.0, 1.0], 2).unwrap(),
+            net(),
+            WEIGHTS.to_vec(),
+        )
+        .unwrap();
+        assert_eq!(
+            s.reversed_v().unwrap_err(),
+            KnotMirrorError::AsymmetricPair {
+                index: 3,
+                mirror_index: 4,
+                knot: 0.5,
+                mirror_knot: half_up,
+                lo: 0.0,
+                hi: 1.0,
+            },
+            "an exact-sum test refuses what a rounded-sum test would admit"
+        );
+    }
+
+    /// A domain whose reflection overflows is refused rather than
+    /// answered: every pair sum overflows with it, so a comparison
+    /// against `lo + hi` would pass vacuously.
+    #[test]
+    fn a_domain_with_no_finite_reflection_refuses() {
+        let (lo, hi): (f64, f64) = (1e308, 1.5e308);
+        assert!(!(lo + hi).is_finite(), "the fixture's reflection overflows");
+        let s = NurbsSurface::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
+            KnotVector::clamped(vec![lo, lo, lo, hi, hi, hi], 2).unwrap(),
+            net()[..9].to_vec(),
+            WEIGHTS[..9].to_vec(),
+        )
+        .unwrap();
+        assert_eq!(
+            s.reversed_v().unwrap_err(),
+            KnotMirrorError::ReflectionNotFinite { lo, hi },
+            "the door refuses a reflection it cannot compute"
+        );
+    }
 }
