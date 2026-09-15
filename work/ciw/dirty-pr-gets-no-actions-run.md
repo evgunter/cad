@@ -56,3 +56,76 @@ by construction.
 PROPS' ask (1) is kept and is the cheaper half of the fix above: one line in
 `docs/prompts/implementer-discipline.md`'s verification section saying a push
 with no run is a conflict to merge out, not a queue to wait on.
+
+## Fourth occurrence, and the first whose base is not `main` (2026-09-15, SUITE/S392)
+
+The three occurrences above share a shape this one breaks: each was a PR
+based on `main`, made dirty by a tail-append conflict when `main` moved.
+**A stacked PR needs no conflict at all to reach the same state** — its
+base is another lane's branch, and that branch advances whenever its own
+lane pushes. `#2650` (`suite/s392`, based on `suite/s52`) went dirty at
+`03e8733ba` because `suite/s52` moved from `666e34242` to `0621a31b7`
+under it. Merging `origin/suite/s52` forward produced a run within two
+minutes, exactly as merging `main` did the other three times.
+
+This matters for scheduling rather than for wiring: under merge-only
+rules a base branch advancing is not an accident, it is the normal life
+of a lane, so **every stacked PR is expected to go runless at least once
+per push its base makes**. The three-in-one-day population above is
+therefore a floor for how often this fires, not a measure of it, and the
+frequency rises with every stacked unit an orchestrator dispatches.
+
+**The discriminator, stated the way this slate's sibling row states its
+own.** `red-run-whose-jobs-never-started-reads-as-a-broken-tree` (filed
+the same day, by SUITE/D114) is the other half of one family — *the CI
+surface reporting something a reading agent will take as a fact about
+the tree*. There the misreading is a red that means "no runner"; here it
+is a silence that means "no merge ref". Both are settled by one cheap
+read before the expensive one:
+
+- **zero steps on a red job ⇒ the job never ran** (that row's tell);
+- **no run at all ⇒ read `mergeable_state` before you conclude
+  anything about CI**:
+
+```sh
+curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+  "https://api.github.com/repos/<owner>/<repo>/pulls/<n>" \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["mergeable_state"])'
+```
+
+`dirty` there means no `refs/pull/N/merge` exists, so **no
+`pull_request` run was ever going to be created**. That is a merge-state
+fact, not a CI outage, not a queue and not a narrowed matrix — and it is
+invisible from the runs API, which is the only surface a polling lane
+looks at. Neither row's tell subsumes the other: a dirty PR has no run
+to inspect the steps of, and a never-acquired job's PR is perfectly
+clean.
+
+**Cost, measured.** ~45 minutes of one lane's turn, which is consistent
+with the ~40 the row already records. It went on: polling for a run at
+the new head; polling repo-wide to establish that runs were being
+created for other branches (they were, which *excluded* the outage
+hypothesis and left no other); closing and reopening the PR to force a
+`reopened` event, which is in the workflow's `types` list and still
+produced nothing; and re-reading `ci.yml`'s `on:` block for a branch
+filter that does not exist. Every one of those is a reasonable next step
+from the runs API alone, and the one cheap read that would have ended it
+at the first minute is not reachable from there.
+
+**Whose cost it was.** SUITE's orchestrator stacked this unit on
+`suite/s52` deliberately, so the lane could start before `#2639` merged,
+and the dispatch did not say that the base advancing would silently stop
+the lane's runs — because the orchestrator did not know it either. The
+trade was probably still right: the unit needed S52's shared home and
+waiting would have idled it. But the row should carry it, so the next
+orchestrator can weigh a stack against a known cost rather than an
+unknown one, and so that the fix below is understood to be worth more
+than three occurrences suggest.
+
+**What this adds to the fix, not a new ask.** The cheap half the plan
+already schedules — one line in
+`docs/prompts/implementer-discipline.md`'s verification section — should
+say the base, not `main`: *a push with no run is a conflict with the
+PR's own base to merge out, not a queue to wait on.* A lane told to
+merge `main` out, on a PR based on a lane branch, would merge the wrong
+thing and stay runless.
