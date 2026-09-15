@@ -169,7 +169,7 @@ use pncad::prelude::StableName;
 
 use crate::camera::CameraError;
 use crate::camera::Folded;
-use crate::display::{DisplayFault, PruneReport, Withdrawn};
+use crate::display::{AdmissionFault, PruneReport, Withdrawn};
 use crate::generation::Generation;
 use crate::pickcache::NotIndexed;
 use crate::pickindex::{IdMap, PickError, PickIndex, PickIndexError};
@@ -705,7 +705,9 @@ pub const NOTICE_MARK: char = '\u{2022}';
 /// — a [`Withdrawal`] joins its own causes with the same string, and
 /// `DisplayFault::NonRigidFrame` writes one inside a single sentence,
 /// so a reader met a separator that might be a boundary or might be
-/// the notice talking.
+/// the notice talking. The inner level is answered by its element
+/// type rather than by a second mark
+/// ([`crate::display::AdmissionFault`]).
 pub const NOTICE_SEPARATOR: &str = " \u{2022} ";
 
 /// **What ONE notice puts between the items of a list of its own** —
@@ -724,7 +726,7 @@ pub const LIST_SEPARATOR: &str = "; ";
 ///
 /// A supersession, a dropped hide and a killed gesture are the same
 /// class of fact — display state an accepted edit took away, each
-/// carrying the [`DisplayFault`] the prune withdrew it on — and the
+/// carrying the [`AdmissionFault`] the prune withdrew it on — and the
 /// first two were free functions composing prose that differed in four
 /// format literals.
 /// They are a typed value with a `Display` here, which is the shape
@@ -767,8 +769,8 @@ pub const LIST_SEPARATOR: &str = "; ";
 /// # The cause is the fault's own sentence
 ///
 /// **Nothing here composes prose about why a placement or a hide
-/// went.** Each entry carries the [`DisplayFault`] the prune discarded
-/// on, and this renders it through its own `Display` — the rule the
+/// went.** Each entry carries the [`AdmissionFault`] the prune
+/// discarded on, and this renders it through its own `Display` — the rule the
 /// rest of the crate follows. So the commonest arm names the mates and
 /// the remedy (`MateConstrained`: *delete the mate(s) if free relative
 /// motion is intended*), a fuse names the product and the instances
@@ -778,19 +780,18 @@ pub const LIST_SEPARATOR: &str = "; ";
 /// is why.
 ///
 /// The frame around the faults counts where there is anything to count,
-/// and never names: every fault
-/// [`crate::display::DisplayState::prune`] can put here names its own
-/// SUBJECT — the four arms `free_move_check` and `display_check`
-/// answer with — so naming the id again in the preamble would say it
-/// twice. It does not promise a vocabulary for that subject: three of
-/// those four say "instance N" and the absent-node arm says "node N",
-/// which is `DisplayFault`'s own rule and the only honest wording
-/// there.
+/// and never names: every [`AdmissionFault`] names its own SUBJECT, so
+/// naming the id again in the preamble would say it twice. It does not
+/// promise a vocabulary for that subject: three of the four say
+/// "instance N" and the absent-node arm says "node N", which is that
+/// enum's own rule and the only honest wording there.
 ///
-/// The other three `DisplayFault` arms name no id at all. They are
-/// about a gesture or a frame rather than a node, no prune path
-/// produces one, and nothing in a type says so — the invariant is
-/// established at `prune` and stated here.
+/// [`crate::display::DisplayFault`]'s own arms name no id at all — they are about a
+/// gesture or a frame rather than a node — and a `Withdrawn` cannot
+/// carry one: the admission tests answer [`AdmissionFault`] and
+/// `Withdrawn::cause` is typed as what they answer. That used to be a
+/// property of two functions' error sets with nothing in a type
+/// saying so.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Withdrawal<'a> {
     /// Which of the three this is.
@@ -955,7 +956,7 @@ impl core::fmt::Display for Withdrawal<'_> {
             kind: which,
             withdrawn,
         } = self;
-        let fused = |w: &Withdrawn| matches!(w.cause, DisplayFault::FusedGeometry { .. });
+        let fused = |w: &Withdrawn| matches!(w.cause, AdmissionFault::FusedGeometry { .. });
         // The two kinds that are over a SET word themselves by
         // counting it. The third is over the one gesture that can be
         // in flight, so it has no plural and is NOT given one: a
@@ -1000,16 +1001,15 @@ impl core::fmt::Display for Withdrawal<'_> {
         // [`frame_status`] puts [`NOTICE_SEPARATOR`] around it, so
         // these marks cannot be read as boundaries between notices.
         //
-        // The join is flat, so a fault whose own text contains
-        // [`LIST_SEPARATOR`] nests inside it and a reader cannot see
-        // where one cause ends. `DisplayFault::NonRigidFrame` is such
-        // a text and no prune path produces it — `prune` fills every
-        // cause from `free_move_check` or `display_check`, whose
-        // `# Errors` sections name four faults and not that one. That
-        // is a property of two functions' error sets and no type
-        // carries it, which is
-        // `work/view/withdrawal-causes-join-on-a-mark-a-fault-may-
-        // contain.md`.
+        // The join is flat, so a cause whose own text contains
+        // [`LIST_SEPARATOR`] would nest inside it and a reader could
+        // not see where one cause ends. What keeps that from being a
+        // hope about wording is the element type: this joins
+        // [`AdmissionFault`]s, whose four sentences are the whole
+        // population the claim ranges over and which cannot gain a
+        // fifth without an arm there. `DisplayFault::NonRigidFrame`
+        // writes the mark inside one sentence and is outside that
+        // enum, so this join cannot reach it.
         for (position, entry) in withdrawn.iter().enumerate() {
             if position > 0 {
                 f.write_str(LIST_SEPARATOR)?;
@@ -2299,7 +2299,7 @@ mod tests {
     use pncad::prelude::EntityKind;
 
     use crate::camera::{Camera, CameraOp, CameraOpError};
-    use crate::display::DisplayFault;
+    use crate::display::AdmissionFault;
 
     /// A camera — any camera. Nothing here reads it: [`fold_status`]
     /// judges what a fold REFUSED, and [`Folded`] has to carry one.
@@ -2640,7 +2640,7 @@ mod tests {
     fn constrained(instance: u64, mates: &[u64]) -> Withdrawn {
         Withdrawn {
             instance: RecipeNodeId(instance),
-            cause: DisplayFault::MateConstrained {
+            cause: AdmissionFault::MateConstrained {
                 instance: RecipeNodeId(instance),
                 mates: mates.iter().copied().map(RecipeNodeId).collect(),
             },
@@ -2659,7 +2659,7 @@ mod tests {
             notice.contains("instance 7"),
             "the notice names which of the user's placements went — here in \
              the part-instance vocabulary, because the MateConstrained arm's \
-             subject is an instance. That is `DisplayFault`'s per-arm rule \
+             subject is an instance. That is `AdmissionFault`'s per-arm rule \
              and not a promise the notice makes across all of them; the \
              absent-node arm says `node N` and is right to: {notice}"
         );
@@ -2694,8 +2694,8 @@ mod tests {
     fn a_supersession_says_the_cause_in_the_faults_own_words() {
         // The whole point of carrying the fault rather than the id: the
         // sentence names the mates AND the remedy, and neither string
-        // is written here — both come from `DisplayFault`'s `Display`.
-        let cause = DisplayFault::MateConstrained {
+        // is written here — both come from `AdmissionFault`'s `Display`.
+        let cause = AdmissionFault::MateConstrained {
             instance: RecipeNodeId(3),
             mates: vec![RecipeNodeId(5)],
         };
@@ -2714,7 +2714,7 @@ mod tests {
         // named as if the tree still drew it.
         let gone = superseded_text(&[Withdrawn {
             instance: RecipeNodeId(4),
-            cause: DisplayFault::NoSuchNode {
+            cause: AdmissionFault::NoSuchNode {
                 node: RecipeNodeId(4),
             },
         }])
@@ -2734,7 +2734,7 @@ mod tests {
         // of the two things happened to the picture.
         let fused = Withdrawn {
             instance: RecipeNodeId(3),
-            cause: DisplayFault::FusedGeometry {
+            cause: AdmissionFault::FusedGeometry {
                 instance: RecipeNodeId(3),
                 root: RecipeNodeId(8),
                 others: vec![RecipeNodeId(5)],
@@ -2784,7 +2784,7 @@ mod tests {
         // instances withdraws both hides in one prune.
         let fused = |instance: u64, other: u64| Withdrawn {
             instance: RecipeNodeId(instance),
-            cause: DisplayFault::FusedGeometry {
+            cause: AdmissionFault::FusedGeometry {
                 instance: RecipeNodeId(instance),
                 root: RecipeNodeId(8),
                 others: vec![RecipeNodeId(other)],
@@ -2792,7 +2792,7 @@ mod tests {
         };
         let gone = Withdrawn {
             instance: RecipeNodeId(4),
-            cause: DisplayFault::NoSuchNode {
+            cause: AdmissionFault::NoSuchNode {
                 node: RecipeNodeId(4),
             },
         };

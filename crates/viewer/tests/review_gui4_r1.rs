@@ -48,7 +48,7 @@ use pncad::document::{
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{ContactClass, Ray, face_frame};
 use pncad::workspace::Workspace;
-use viewer::display::DisplayFault;
+use viewer::display::{AdmissionFault, DisplayFault};
 use viewer::matetool::{MateChoice, MateTool, admitted_classes};
 use viewer::scene::SceneMesh;
 use viewer::session::{DocSession, FaceSelection, Refusal, SessionOp};
@@ -468,7 +468,7 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     assert!(
         matches!(
             &superseded.cause,
-            DisplayFault::MateConstrained { instance, mates }
+            AdmissionFault::MateConstrained { instance, mates }
                 if *instance == bench.post_b && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \
@@ -509,7 +509,10 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
             })
             .refusal
         {
-            Some(Refusal::Display(DisplayFault::MateConstrained { instance, mates })) => {
+            Some(Refusal::Display(DisplayFault::Admission(AdmissionFault::MateConstrained {
+                instance,
+                mates,
+            }))) => {
                 assert_eq!(instance, constrained);
                 assert!(!mates.is_empty(), "the refusal names its mates");
             }
@@ -869,7 +872,7 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     assert!(
         matches!(
             killed.cause,
-            DisplayFault::MateConstrained { instance, ref mates }
+            AdmissionFault::MateConstrained { instance, ref mates }
                 if instance == bench.post_b && mates.len() == 1
         ),
         "the cause is the landing mate, carried from the predicate that \
@@ -1112,7 +1115,9 @@ fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
                     hidden: true,
                 })
                 .refusal,
-            Some(Refusal::Display(DisplayFault::NotAnInstance { .. }))
+            Some(Refusal::Display(DisplayFault::Admission(
+                AdmissionFault::NotAnInstance { .. }
+            )))
         ),
         "so the drawn thing has no display identity at all"
     );
