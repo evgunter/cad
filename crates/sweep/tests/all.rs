@@ -148,6 +148,8 @@ mod blend4_r1_probes;
 mod blend6_verb_vocab;
 #[path = "blend_ball_side_bits.rs"]
 mod blend_ball_side_bits;
+#[path = "r2_sense_fold_probes.rs"]
+mod r2_sense_fold_probes;
 #[path = "blend_margin_payload_interval.rs"]
 mod blend_margin_payload_interval;
 #[path = "blend_seam_split_rim.rs"]
