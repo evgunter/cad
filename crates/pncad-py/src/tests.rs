@@ -6446,8 +6446,8 @@ struct MintingItem {
 /// leaves it pointing at nothing and the census stays green, because
 /// the census is about the item's EXISTENCE and not about what holds
 /// its words. Naming the holders as data rather than as a sentence is
-/// what lets `the_mint_roster_names_tests_this_file_declares` go and
-/// look.
+/// what lets [`every_test_this_census_names_is_one_this_file_declares`]
+/// go and look.
 enum Holder {
     /// A test in this file, by name, and what it holds. The name is
     /// re-derived against this file's own source; nothing re-derives
@@ -6838,11 +6838,12 @@ fn read_minting_items(source: &str) -> BTreeMap<String, Vec<String>> {
 /// and what that probe does not reach.
 ///
 /// **Prose here was a claim nothing re-derived**, in a file whose
-/// subject is exactly that: the entry naming
-/// `the_errors_mint_reader_reads_what_it_claims` named a test that has
-/// never existed under that spelling, and the doc gate is green over a
-/// name in prose. A name in this column is looked up in this file's
-/// own source instead.
+/// subject is exactly that. The entry for `impl` in type position
+/// named a test that has never existed under the spelling it used —
+/// the real one reads `recognises` where the entry read `reads` — and
+/// the doc gate is green over a name in prose, link or no link,
+/// because rustdoc does not build a `cfg(test)` module at all. A name
+/// in this column is looked up in this file's own source instead.
 struct BlindSpot {
     /// What the walk does not see, or sees wrongly.
     cannot_see: &'static str,
@@ -6979,8 +6980,8 @@ const SCOPE_WALK_BLIND_SPOTS: &[BlindSpot] = &[
 /// **What this walk cannot see is [`SCOPE_WALK_BLIND_SPOTS`]**, which
 /// is data rather than prose for the reason the `held_by` column is:
 /// every entry names the probe that executes it, and
-/// [`the_mint_roster_names_tests_this_file_declares`] looks each one
-/// up in this file's source. A list like this one has claimed
+/// [`every_test_this_census_names_is_one_this_file_declares`] looks
+/// each one up in this file's source. A list like this one has claimed
 /// exclusivity and been short four times in this program, so it claims
 /// none — these are the ones that have been run, and the walk is a
 /// text walk, so there are others.
@@ -7919,8 +7920,8 @@ fn the_test_lookup_recognises_what_it_claims() {
 /// to it.** This reads [`code_only`], in which a doc comment is
 /// whitespace, so a test cited in a sentence can never be looked up —
 /// and the unit that turned the `held_by` column from prose into data
-/// then wrote `the_errors_mint_reader_reads_what_it_claims` into a doc
-/// comment three screens away, naming a test that does not exist.
+/// then named a test three screens away, in a doc comment, under a
+/// spelling this file does not declare.
 ///
 /// **The two directions this does not close**, disclosed rather than
 /// claimed away. A row whose holders are all [`Holder::Outside`]
