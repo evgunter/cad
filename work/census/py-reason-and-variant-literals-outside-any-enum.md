@@ -2,9 +2,10 @@
 id: py-reason-and-variant-literals-outside-any-enum
 kind: unit
 title: Python-visible discriminant words are minted as literals at raise sites under src/py/, one of them a second spelling of a word an inventoried map already mints
-status: review
+status: closed
 opened: 2026-09-15
 branch: census/py-raise-literals
+closed: 2026-09-15
 ---
 
 

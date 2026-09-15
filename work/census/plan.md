@@ -59,6 +59,9 @@ its fence in the PR that lands it and announces it to the owners; the
 | `four-censuses-of-python-visible-vocabulary-in-one-crate` | **H** | From CENSUS-TAG-REACH. `TAG_INVENTORY`, `NODE_KIND_ROSTER`, `surface_census` and `prose_census` ask one question — can a Python caller reach every member of this vocabulary — over four populations with four devices. Whether four should be fewer is the design call. | `crates/pncad-py/src/{tests.rs,surface_census.rs,prose_census.rs,node_kind.rs}` |
 | `sixty-one-tag-words-are-minted-by-two-or-more-maps-and-seven-are-read` | **M** | From CENSUS-PY-GETTERS (2026-09-15). `tags.rs` mints 61 words that two or more maps speak — `band` in sixteen, `escalated` in ten. Seven were read and dispositioned; **54 are covered by a scoping rule nobody read them against**. The instrument that holds the population to a roster landed with the unit; the judgement on the remainder did not. | `crates/pncad-py/src/tags.rs`, `crates/pncad-py/src/tests.rs` |
 | `errors-rs-holds-four-python-visible-maps-and-nothing-enumerates-that-file` | **E** | From CENSUS-PY-GETTERS. All four maps have pins; the defect is that **nothing enumerates the file**, so a fifth arrives with no "NEW tag function" sentence to catch it. Two fix shapes named: a loose arrival reader, or capitalising at the boundary so the seventh map stops existing. | `crates/pncad-py/src/errors.rs`, `crates/pncad-py/src/tests.rs` |
+| `prose-counts-of-a-populations-size-in-pncad-py-doc-comments` | **M** | From CENSUS-PY-RAISE-LITERALS (2026-09-15). A doc comment stating how many arms, words or maps a population has, with nothing re-deriving it. 195 raw hits, seven repaired in the unit, ten named unverified — and one (`step_import_error_tag`'s "twenty-two arms") was **never right**, `git log -S` putting the sentence at a commit where the map already had 23. | `crates/pncad-py/src/**` |
+| `both-unclassified-crossings-are-unreachable-and-so-is-the-repair-on-one` | **E** | From CENSUS-PY-RAISE-LITERALS. `SelectRefusal`'s eight arms are all matched above the forced wildcard and `ContactClass` has exactly two, both matched — so `unclassified` is the only inventoried word nothing can make the binding emit, **and the `AttributeError` repair sits on that same dead path**, so it cannot go red either. | `crates/pncad-py/src/py/{flush.rs,select.rs}`, `crates/pncad-py/src/tags.rs` |
+| `dimension-error-op-carries-twelve-words-minted-at-call-sites` | **M** | From CENSUS-PY-RAISE-LITERALS. Twelve `DimensionError.op` words minted at call sites of two `&'static str` parameters; six asserted, six not. `MeasureUnavailableAt.door` takes one from a kernel struct-field literal in `editor-core`. | `crates/pncad-py/src/py/{quantity.rs,analysis.rs,doc.rs,measure.rs}` |
 | `prose-census-cannot-see-a-bypassed-prose-renderer` | **H** | Instrument rework plus triage of 453 unmeasured sites; verdict key is a design choice | `crates/pncad-py/src/prose_census.rs` (`census()` scan set, `declaration_verdict`), plus sites it reds: `crates/viewer/src/session/refuse.rs`, `crates/editor-core/src/edit.rs`, `crates/pncad-py/src/py/`, `crates/test-utils/` |
 | `the-prose-word-for-a-kind-has-four-spellings-and-only-display-is-censused` | **H** | Two decisions owed, owner undecided, 23+ sites over seven crates and three programs. | `crates/pncad-py/src/prose_census.rs`, `crates/editor-core/src/{expr.rs,node.rs,mate.rs,edit.rs}`, `crates/viewer/src/{session/refuse.rs,tools.rs,sketch.rs,pane/properties.rs}`, 23 `label()`/`name()` sites across `geom-brep`, `sweep`, `topo`, `profile`, `geom-core` |
 
@@ -100,6 +103,13 @@ lane that has read that unit can do all five; a lane arriving cold in a
 month re-derives the argument from scratch, and two of the rows record
 facts with a shelf life (which words have a second spelling, which
 doors have no enum).
+
+The three rows CENSUS-PY-RAISE-LITERALS filed join the block too, and
+one of them is ordered by a fact with a shelf life:
+`prose-counts-of-a-populations-size-…` holds **ten named unverified
+counts**, several of them over kernel enums, which means they go stale
+on someone else's change rather than on this program's — a row that
+decays while nobody touches it.
 
 `sixty-one-tag-words-…` and `errors-rs-holds-four-…` join the block and
 run with it — both are `tags.rs`/`errors.rs` and both were opened by the

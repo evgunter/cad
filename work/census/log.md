@@ -479,3 +479,71 @@ mechanically in `plan.md` (a unit carries it if it lands, changes,
 removes or relies on an instrument, **including one it creates itself**)
 so the first half stops depending on judgement, and finding 5 already
 governs the second.
+
+## CENSUS-PY-RAISE-LITERALS merged (2026-09-15)
+
+PR 2682 merged as `0ac65a9e`, green on run `35006650306`. Nine raise-site
+words given homes in three shapes; the spec is deleted per the ledger
+and the item closed.
+
+**The trap sprang a fifth consecutive time, and this one was predicted in
+writing on this program's own slate.** `ValidationRefusal::attribute` is
+a fifth `-> &'static str` map in `errors.rs` minting the Python-visible
+words `"door"` and `"reason"` — and
+`errors-rs-holds-four-python-visible-maps-and-nothing-enumerates-that-file`,
+opened by the PREVIOUS unit, says in terms that a fifth such map arrives
+with no pin and nothing saying so. The diff added exactly that, unpinned,
+and left the row's table of four stale. **A row predicting the next
+instance did not stop the next instance**, because nothing reads a row at
+the moment a lane writes code; that is worth more than another
+restatement of the trap.
+
+It also produced the sharpest counter-example the row needed: its
+proposed loose reader would walk `pub fn`s, and both this map and
+`ErrorClass::class_name` are inherent methods inside `impl` blocks.
+
+10. **Lesson: "verified the example, asserted the class."** The
+    orchestrator checked `unclassified` — correct — and carried the row's
+    generalisation over `wireframe` and `not_utf8`, which return nothing
+    from `tags.rs`. Same shape as CENSUS-PY-GETTERS' lowercase-anchored
+    check, different mechanism: there the pattern matched the claim's
+    shape, here a sample of one stood for three. **The check must cover
+    the claim's whole population, not its strongest member.**
+
+11. **A stale count can be born stale.** `step_import_error_tag`'s
+    "Twenty-two arms" was never right: `git log -S` puts the sentence at
+    a commit where the map already had 23. The program has been treating
+    prose counts as things that DRIFT; this one never matched. The filed
+    row (`prose-counts-of-a-populations-size-…`) carries the class, and
+    its sweep shape is the reusable part — doc-comment BLOCKS joined
+    across lines, which is what hid a second stale `61` from a line grep.
+
+### What went right
+
+The fix pass closed F1 **class-wide** rather than narrowing the claim to
+fit: `class_discriminant` now carries the class's whole attribute set,
+`ValidationRefusal::ATTRIBUTES` is held to the image of `attribute()`
+over `ALL` in both directions, and the chain was executed link by link —
+each of four instruments shown reding in turn. The reviewer's own probe,
+green before, panics now. It also made `class_discriminant` exhaustive,
+so the next carrying class stops the build rather than falling into
+`None`.
+
+And the sweep that found the half-finished doc corrections found three
+the brief had not listed, one of them a count that was never true.
+
+### A process hazard worth recording
+
+The fix pass reported using `git checkout <file>` twice to revert a probe
+and losing uncommitted edits in that file both times, re-applying from
+its own scripts and re-verifying. Nothing was lost from the pushed tree.
+Worth knowing for any lane that reverts a probe on a file it is also
+editing: stash or copy first, because `checkout` takes the whole file.
+
+## Next
+
+The `pncad-py` block, now nine rows with the three filed here. The block
+remains coherent and its fix shapes are proven; the two rows carrying
+facts with a shelf life (`prose-counts-…`'s ten unverified counts,
+`sixty-one-tag-words-…`'s 54 unread pairs) are the ones that decay while
+nobody touches them.
