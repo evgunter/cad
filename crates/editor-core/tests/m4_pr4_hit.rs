@@ -5,6 +5,7 @@
 //! The GUI never sees an arena key: every mesh back-ref inverts.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::display_contract::assert_f6_every_variant;
 use crate::fixture;
 
 use editor_core::{
@@ -305,6 +306,25 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
     );
 }
 
+/// `HitTestError`'s exhaustiveness token: the `match` has no wildcard
+/// arm, so a variant added to the enum — or renamed — leaves it
+/// non-exhaustive and this file stops compiling. It returns nothing on
+/// purpose; the identifiers come off each value's own `Debug`, never
+/// off a string typed beside a pattern.
+fn hit_test_error_is_exhaustive(e: &HitTestError) {
+    match e {
+        HitTestError::NodeNotEvaluated { .. }
+        | HitTestError::NodeFailed { .. }
+        | HitTestError::NodePoisoned { .. }
+        | HitTestError::Unnamed { .. } => (),
+    }
+}
+
+/// The identifier roster, welded to the cases by the set difference in
+/// [`assert_f6_every_variant`].
+const HIT_TEST_ERROR_VARIANTS: &[&str] =
+    &["NodeNotEvaluated", "NodeFailed", "NodePoisoned", "Unnamed"];
+
 /// The Display contract (#1111): a consumer renders a `HitTestError`
 /// through the payload's own words, so every arm must state what
 /// happened in prose — the node it is about, the kind of entity where
@@ -313,6 +333,12 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
 /// field-name punctuation are the dump's fingerprints; asserting their
 /// ABSENCE is what keeps a future `write!(f, "{self:?}")` from passing
 /// this test.
+///
+/// The shape itself is [`test_utils::f6::assert_f6`] through the
+/// binary's one wrapper, not a copy of it here: this row held the
+/// partial third spelling that
+/// `work/view/f6-display-predicate-is-spelled-three-times-with-no-home`
+/// cites, and its roster had drifted from the other one.
 #[test]
 fn hit_test_error_display_names_its_content_not_its_struct() {
     let node = RecipeNodeId(7);
@@ -340,24 +366,10 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
             vec!["node 7", "face", "body 2", "kernel bug"],
         ),
     ];
-    for (err, wants) in cases {
-        let shown = err.to_string();
-        for want in wants {
-            assert!(
-                shown.contains(want),
-                "{err:?} renders as {shown:?}, missing {want:?}"
-            );
-        }
-        for dump in ["NodeNotEvaluated", "NodeFailed", "NodePoisoned", "Unnamed"] {
-            assert!(
-                !shown.contains(dump),
-                "{err:?} renders as {shown:?} — that is the variant name, i.e. a struct dump"
-            );
-        }
-        assert!(
-            !shown.contains('{') && !shown.contains("node:"),
-            "{err:?} renders as {shown:?} — that is Debug punctuation, not a sentence"
-        );
-        assert_ne!(shown, format!("{err:?}"));
-    }
+    assert_f6_every_variant(
+        &cases,
+        hit_test_error_is_exhaustive,
+        HIT_TEST_ERROR_VARIANTS,
+        &[],
+    );
 }
