@@ -2,10 +2,11 @@
 id: unit-vector-invariants-carried-as-prose
 kind: issue
 title: Investigate — unit-vector invariants carried as prose across function boundaries
-status: open
+status: closed
 opened: 2026-08-13
 github: 457
 refs: [447]
+closed: 2026-09-15
 ---
 
 ## From GitHub issue 457
@@ -146,3 +147,8 @@ consumed by `Affine3::from_frame` and the tube door, whose three frame
 refusals (`NonUnitAxis`, `NonUnitURef`, `FrameNotOrthogonal`) all
 retire; the wire's private `AxisFrame` becomes that type. `Affine3`
 stays the general affine map; the witness converts into one.
+
+## Closed (2026-09-15)
+
+Ratified on PR 2457 (the `RATIFIED` section above); the work is the
+units it schedules on this slate, named in `work/scalar/plan.md`.
