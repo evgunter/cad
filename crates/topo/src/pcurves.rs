@@ -1444,7 +1444,9 @@ fn loop_closes<T: Decide>(
     let tau = u_period.unwrap_or_else(T::zero);
     let zero = |name: &'static str, m: Margin<T>| matches!(decide(name, m, band), Ok(Sign::Zero));
     let wraps = |m: T, a: ChartArm<T>, name: &'static str| {
-        [m, m - tau, m + tau].into_iter().any(|c| zero(name, a.meter(c)))
+        [m, m - tau, m + tau]
+            .into_iter()
+            .any(|c| zero(name, a.meter(c)))
     };
     let du = end.x - start.x;
     let dv = end.y - start.y;
@@ -3046,7 +3048,11 @@ mod stretch_meter {
             matches!(arm, ChartArm::Rate(_)),
             "a spline chart's u gap is a parameter span, so the arm is a rate"
         );
-        assert_eq!(arm.magnitude(), 100.0, "the chart's own metre stretch, not 1");
+        assert_eq!(
+            arm.magnitude(),
+            100.0,
+            "the chart's own metre stretch, not 1"
+        );
         let gap = 1e-10;
         assert_eq!(
             decide("pcurve_loop_continuity", arm.meter(gap), band()),

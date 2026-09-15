@@ -86,15 +86,7 @@ fn probe(name: &str, surface: &Surface<f64>) {
     println!(
         "{name}: inf=({:.6},{:.6}) sup=({:.6},{:.6}) area_inf={:.6} rho={:.6} \
          arms=({:.6},{:.6}) unit-square mean width={:.6}",
-        inf.inf_u,
-        inf.inf_v,
-        sup_u,
-        sup_v,
-        inf.area_inf,
-        rho,
-        arm_u,
-        arm_v,
-        mw
+        inf.inf_u, inf.inf_v, sup_u, sup_v, inf.area_inf, rho, arm_u, arm_v, mw
     );
     let (mu, mv, ma, worst) = sample(surface, arm_u, arm_v);
     println!(

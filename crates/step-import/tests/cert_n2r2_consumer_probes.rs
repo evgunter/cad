@@ -142,7 +142,8 @@ fn n2r2_class3_chart_stretch_sup_inf_interval() {
     let mi: NurbsSurface<Interval> = masq.map_scalar(Interval::from_f64);
     assert!(!mi.is_placeholder());
     let s = Surface::Nurbs(Arc::new(mi));
-    let sup = geom_brep::chart_stretch_sup(&s);
+    // Spline charts, not cones: the door answers a pair here.
+    let sup = geom_brep::chart_stretch_sup(&s).unwrap();
     let inf = geom_brep::chart_stretch_inf(&s);
     let show = |x: Interval| {
         format!(
@@ -167,7 +168,7 @@ fn n2r2_class3_chart_stretch_sup_inf_interval() {
     );
     // Placeholder at Interval for comparison.
     let ph = Surface::<Interval>::nurbs_placeholder();
-    let sp = geom_brep::chart_stretch_sup(&ph);
+    let sp = geom_brep::chart_stretch_sup(&ph).unwrap();
     eprintln!(
         "[class 3 Interval placeholder] sup_u={} sup_v={}",
         show(sp.0.get()),

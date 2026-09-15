@@ -18,10 +18,22 @@
 //! sample are that claim.
 //!
 //! The `Interval` row is the certified lane's: there the doors are the
-//! interval product and quotient, so the pin is the enclosure
-//! property — the answer brackets the real product/quotient of points
-//! drawn from the operands — rather than a bit comparison against an
-//! `f64` operator that does not apply.
+//! interval product and quotient, so it pins TWO things — the
+//! enclosure property (the answer brackets the real product/quotient
+//! of points drawn from the operands), which a widened but still
+//! enclosing door would also pass, and the `repr_bits` identity with
+//! the bare `*` and `/`, which is the half that catches a widening. A
+//! bit comparison against an `f64` operator is not the claim there and
+//! is not made.
+//!
+//! **What no row here can see, stated because it looks like a gap.**
+//! Commuting a door's product to `rate * span` reds nothing, at either
+//! scalar: IEEE multiplication is commutative on every value in the
+//! sample, signed zeros and NaN included, so the two spellings are
+//! bit-equal by the standard and no sample can tell them apart. "One
+//! operation" is what these rows pin; "this operand order" is not a
+//! property they can carry, and adding a sample would not give them
+//! one.
 
 #![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
 
@@ -111,20 +123,6 @@ fn sup_to_param_is_the_bare_quotient() {
     }
 }
 
-#[test]
-fn inf_to_param_is_the_bare_quotient() {
-    for &meters in &sample() {
-        for &rate in &sample() {
-            let door = InfSpeed::new(rate).to_param(meters);
-            assert!(
-                same_bits(door, meters / rate),
-                "InfSpeed::to_param({meters:e}, {rate:e}) = {door:e}, bare = {:e}",
-                meters / rate
-            );
-        }
-    }
-}
-
 /// The tag is not a witness: a rate of zero, of infinity or of poison
 /// goes in and comes out, so each site's own guard sees what it always
 /// saw. Named separately from the bit rows above because it is a
@@ -147,14 +145,16 @@ fn a_poisoned_or_collapsed_rate_passes_straight_through() {
 }
 
 /// The certified lane: the doors are the interval product and
-/// quotient, so what a row can pin is the ENCLOSURE property — the
-/// answer contains the real product (quotient) of any point of the
-/// span and any point of the rate. A bit comparison against an `f64`
-/// operator is not the claim there and is not made.
+/// quotient, so this row pins the ENCLOSURE property — the answer
+/// contains the real product (quotient) of any point of the span and
+/// any point of the rate — AND the `repr_bits` identity with the bare
+/// ops, which is what a widened-but-enclosing door would fail. The
+/// zero, straddling and poison rates at the end are the certified
+/// lane's half of the pass-through claim.
 #[cfg(feature = "interval")]
 #[test]
 fn the_doors_are_the_interval_ops() {
-    use geom_core::{Bounds, Interval};
+    use geom_core::{Bounds, Interval, Real};
 
     let spans = [(-1.0, 2.0), (0.5, 0.5), (0.0, 1e-9), (-3.0, -1.0)];
     let rates = [(1.0, 4.0), (0.25, 0.25), (1e6, 2e6)];
@@ -163,7 +163,7 @@ fn the_doors_are_the_interval_ops() {
             let span = Interval::from_bounds(slo, shi);
             let rate = Interval::from_bounds(rlo, rhi);
             let meters = SupSpeed::new(rate).to_meters(span);
-            let back = InfSpeed::new(rate).to_param(span);
+            let back = SupSpeed::new(rate).to_param(span);
             for s in [slo, shi, f64::midpoint(slo, shi)] {
                 for r in [rlo, rhi, f64::midpoint(rlo, rhi)] {
                     assert!(
@@ -189,6 +189,37 @@ fn the_doors_are_the_interval_ops() {
                     .repr_bits(),
                 (span * rate).repr_bits()
             );
+            // The parameter side is the bare quotient in the same
+            // sense — the same representation, not merely an
+            // enclosure that happens to contain it.
+            assert_eq!(
+                SupSpeed::new(rate).to_param(span).repr_bits(),
+                (span / rate).repr_bits()
+            );
         }
+    }
+
+    // A collapsed or poisoned rate reaches the site's own guard at the
+    // certified scalar too: an interval straddling zero, one pinned at
+    // zero and a poisoned one all pass through both doors as the bare
+    // operation's own answer.
+    let span = Interval::from_bounds(1.0, 2.0);
+    for rate in [
+        Interval::from_bounds(-1.0, 1.0),
+        Interval::from_f64(0.0),
+        // `from_f64` maps a non-real to NaI, which is the certified
+        // lane's poison.
+        Interval::from_f64(f64::NAN),
+    ] {
+        assert_eq!(
+            Margin::metered_sup(span, SupSpeed::new(rate))
+                .value()
+                .repr_bits(),
+            (span * rate).repr_bits()
+        );
+        assert_eq!(
+            SupSpeed::new(rate).to_param(span).repr_bits(),
+            (span / rate).repr_bits()
+        );
     }
 }

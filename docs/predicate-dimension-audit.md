@@ -102,12 +102,10 @@ metres per parameter unit, transparent newtypes beside `Margin` in
 `param_rate`, `chart_stretch_sup`, `nurbs_stretch_bounds`, `v_meter`,
 the split and conic meters, `PatchRegularity`'s speeds,
 `plane_nurbs_ssi`'s local chart speed). The direction is the semantic
-content: **inf** where the claim is *definitely apart* (a certified
-lower bound under-states the length, so it cannot certify a sliver),
-**sup** where it is an overshoot or an escape (a certified upper bound
-over-states the displacement, so it can only refuse). Before the pair,
-three shipped sites passed a certified sup through a door whose doc
-promised an inf — correct in each case, argued in prose, checked by
+content, and the rule that says which a site needs has one home —
+`crates/geom-core/src/predicate.rs`'s module docs, *The rate pair,
+beside the doors*. Before the pair, three shipped sites passed a
+certified sup through a door whose doc promised an inf — correct in each case, argued in prose, checked by
 nothing; the rows below now cite the door that matches the tag. The
 conversions are one operation each (`span * s`, `m / s`), so no
 margin's bits moved when the sites were typed.

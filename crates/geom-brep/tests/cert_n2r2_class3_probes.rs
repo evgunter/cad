@@ -103,7 +103,9 @@ fn n2r2_class3_interval() {
         ("placeholder", Surface::<Interval>::nurbs_placeholder()),
     ];
     for (name, s) in &cases {
-        let (su, sv) = geom_brep::chart_stretch_sup(s);
+        // None of these fixtures is a cone, the one kind the door
+        // refuses; a refusal here would be the finding, not noise.
+        let (su, sv) = geom_brep::chart_stretch_sup(s).unwrap();
         let (su, sv) = (su.get(), sv.get());
         let inf = geom_brep::chart_stretch_inf(s);
         eprintln!(

@@ -90,7 +90,9 @@
 //! [`SupSpeed`] and [`InfSpeed`] — metres per parameter unit — carry
 //! the direction in the type, so the two metric doors
 //! ([`Margin::metered`], [`Margin::metered_sup`]) are told apart by
-//! the compiler rather than by a paragraph. The rule, once:
+//! the compiler rather than by a paragraph. **This is the rule's one
+//! home**; every door, type and conversion below points here rather
+//! than restating it:
 //!
 //! - **inf** for a "definitely apart" claim, where a certified LOWER
 //!   bound under-states the length and so cannot certify a sliver;
@@ -565,12 +567,10 @@ impl<T: crate::real::Real> Margin<T> {
     /// (iii)'s (parameter space crosses to model space only through a
     /// per-kind metric door), not a dimensionless-times-length one.
     ///
-    /// The rate is an [`InfSpeed`] **by signature**: this door serves
-    /// the "definitely apart" direction — a forward span, an interior
-    /// split parameter, a root clear of its endpoints — where a
-    /// certified LOWER bound under-states the length and so cannot
-    /// certify a sliver as definitely positive. An overshoot or an
-    /// escape wants the other direction and takes
+    /// The rate is an [`InfSpeed`] **by signature**: this is the
+    /// "definitely apart" door (module docs, *The rate pair*) — a
+    /// forward span, an interior split parameter, a root clear of its
+    /// endpoints. An overshoot or an escape takes
     /// [`Margin::metered_sup`]. One operation, bit-identical to the
     /// bare `span * rate`.
     pub fn metered(span: T, rate: InfSpeed<T>) -> Self {
@@ -582,16 +582,12 @@ impl<T: crate::real::Real> Margin<T> {
     /// computes `span * rate`, the same single operation as
     /// [`Margin::metered`] over the other bound direction.
     ///
-    /// The dimensional argument is [`Margin::metered`]'s; the
-    /// direction argument is stated once, here. A [`SupSpeed`]
-    /// over-states the metre displacement a chart-space overshoot
-    /// subtends, so a claim of the form *"this displacement does not
-    /// move the point out of the band"* — trim containment, an iso
-    /// row's snap and drift slack, a loop-continuity gap — is made
-    /// HARDER by the error, never easier: the direction refuses, it
-    /// never falsely certifies. Reading the same product as a
-    /// positive-extent claim would be unsound, which is why that
-    /// direction has its own door and its own type.
+    /// The dimensional argument is [`Margin::metered`]'s and the
+    /// direction argument is the module docs' (*The rate pair*): this
+    /// is the overshoot-and-escape door — trim containment, an iso
+    /// row's snap and drift slack, a loop-continuity gap. Reading the
+    /// same product as a positive-extent claim would be unsound, which
+    /// is why that direction has its own door and its own type.
     pub fn metered_sup(span: T, rate: SupSpeed<T>) -> Self {
         Self(rate.to_meters(span))
     }
@@ -668,24 +664,11 @@ impl Margin<f64> {
 ///
 /// # Which bound a site needs
 ///
-/// The direction is the semantic content, and it is decided by what
-/// the claim would be if the rate were wrong:
-///
-/// - **Inf for "definitely apart"** — a positive-extent claim. A span
-///   times a certified LOWER bound under-states the model-space length
-///   it subtends, so a span this rate proves clear of the band is
-///   truly clear. An over-stated rate here would certify a
-///   model-space sliver as definitely positive.
-/// - **Sup for overshoot and escape** — a containment claim. A
-///   chart-space displacement times a certified UPPER bound
-///   over-states the metre displacement, which can only make an
-///   in-band verdict HARDER to obtain: the error direction refuses, it
-///   never falsely certifies. An under-stated rate here admits an
-///   escape the model can see.
-///
-/// [`Margin::metered`] takes the inf and [`Margin::metered_sup`] the
-/// sup, so a site that reaches for the wrong one does not compile.
-/// The direction is a type fact, and these two rows are what say so.
+/// Which direction a site needs is the module docs' rule (*The rate
+/// pair*), stated there and not again here. What this type adds is
+/// that the answer is a TYPE fact: [`Margin::metered`] takes the inf
+/// and [`Margin::metered_sup`] the sup, so a site that reaches for the
+/// wrong one does not compile, and these two rows are what say so.
 ///
 /// A sup handed to the inf door — an over-stated rate read as a
 /// "definitely apart" claim, the unsound direction:
@@ -726,7 +709,11 @@ impl Margin<f64> {
 ///
 /// Neither type carries `PartialEq` or `PartialOrd`, so a rate cannot
 /// be compared without saying `get()` — the [`Real`](crate::real::Real)
-/// surface's rule, which keeps every comparison at the classify seam:
+/// surface's rule. The rule it enforces is that **a tagged rate is
+/// never `==`'d or `<`'d**, not that no ordering happens: a fold that
+/// picks the larger of two sups ([`SupSpeed`] producers do this —
+/// `speed_lever`, `nurbs_stretch_bounds`) orders the bare payloads and
+/// mints the tag on the result, which is where such a fold belongs.
 ///
 /// ```compile_fail,E0369
 /// use geom_core::SupSpeed;
@@ -753,8 +740,9 @@ pub struct SupSpeed<T>(T);
 ///
 /// The inf half of the rate pair; see [`SupSpeed`] for the direction
 /// rule, the tag-not-a-witness contract and the one-operation
-/// conversions, which are this type's in every respect but the
-/// direction. An **exact** closed-form rate (a line's `1`, a circle's
+/// conversion. This half has ONE conversion and not two: `m / inf`
+/// over-states a parameter reach, so the parameter side of the pair is
+/// [`SupSpeed::to_param`]'s alone. An **exact** closed-form rate (a line's `1`, a circle's
 /// radius, an ellipse's minor semi-axis) is an inf bound by being
 /// exact, and is minted through this door.
 #[repr(transparent)]
@@ -786,6 +774,11 @@ impl<T: crate::real::Real> SupSpeed<T> {
     /// SUP under-states the parameter reach, which is the safe side of
     /// a floor or a tube pad: a smaller chart-space region is claimed
     /// than the metre statement licenses.
+    ///
+    /// This is the pair's ONLY parameter-side conversion, and
+    /// deliberately: `m / inf` over-states the reach, which is the
+    /// unsafe side of every claim the pair serves, so [`InfSpeed`] has
+    /// no `to_param` for a site to reach for.
     pub fn to_param(self, meters: T) -> T {
         meters / self.0
     }
@@ -807,14 +800,11 @@ impl<T: crate::real::Real> InfSpeed<T> {
     /// operation, bit-identical to the bare product. Multiplying by
     /// the INF under-states the length, which is what a
     /// definitely-apart claim needs.
+    ///
+    /// The inf half has no parameter-side conversion: see
+    /// [`SupSpeed::to_param`], which is the whole pair's.
     pub fn to_meters(self, span: T) -> T {
         span * self.0
-    }
-
-    /// A model-space length crossed to parameter units: `m / s`, one
-    /// operation, bit-identical to the bare quotient.
-    pub fn to_param(self, meters: T) -> T {
-        meters / self.0
     }
 }
 

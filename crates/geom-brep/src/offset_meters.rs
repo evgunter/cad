@@ -311,11 +311,12 @@ fn norm_sup(v: &[RingInterval; 3]) -> f64 {
 pub struct CellNormal {
     /// Componentwise enclosure of `m = S_u × S_v` on the cell.
     pub m: [RingInterval; 3],
-    /// Certified LOWER bound on `‖m‖` over the cell (m²) — the
-    /// regularity floor. Exactly `0.0` when neither assembly could
-    /// separate the cell's normal from zero.
+    /// Certified LOWER bound on `‖m‖` over the cell, in
+    /// [`PatchRegularity::floor`]'s units (m² per unit parameter
+    /// area) — the regularity floor. Exactly `0.0` when neither
+    /// assembly could separate the cell's normal from zero.
     pub floor: f64,
-    /// Certified UPPER bound on `‖m‖` over the cell (m²).
+    /// Certified UPPER bound on `‖m‖` over the cell, same units.
     pub sup: f64,
 }
 
@@ -378,9 +379,12 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
 /// (module docs).
 #[derive(Clone, Copy, Debug)]
 pub struct PatchRegularity {
-    /// `inf ‖S_u × S_v‖` from below, over the whole patch (m²).
+    /// `inf ‖S_u × S_v‖` from below, over the whole patch — an AREA
+    /// RATE, m² per unit parameter area, which is `‖S_u × S_v‖`'s own
+    /// unit and the module docs' one spelling of it.
     pub floor: f64,
-    /// `sup ‖S_u × S_v‖` from above (m²).
+    /// `sup ‖S_u × S_v‖` from above, in [`PatchRegularity::floor`]'s
+    /// units.
     pub sup: f64,
     /// `sup ‖S_u‖` (m per unit parameter) — a [`SupSpeed`] by
     /// signature: every consumer of it meters an overshoot (the
@@ -417,12 +421,18 @@ impl PatchRegularity {
     /// number on every input: a zero lever leaves `0/0`, which
     /// escalates rather than certifying, and an infinite one leaves a
     /// zero margin, which refuses. Both are the loud answer.
-    /// The rate pair's [`to_param`](SupSpeed::to_param) door does not
-    /// serve this quotient and the tag comes off here: `floor` is an
-    /// AREA rate (m² per unit parameter area), not a model-space
-    /// length, so dividing it by a linear rate leaves metres rather
-    /// than parameter units. The door's dimensional argument would be
-    /// a false one.
+    /// **Why the tag comes off here.** The rate pair's
+    /// [`to_param`](SupSpeed::to_param) door crosses a model-space
+    /// LENGTH to parameter units, and `floor` is not one: it is an
+    /// area rate (m² per unit parameter area), so `floor / lever` is
+    /// m per unit parameter — itself a rate, and an inf-side one
+    /// (`≤ min(‖S_u‖, ‖S_v‖)·sin∠`, under-stated by the sup in the
+    /// denominator). What makes it the metres the predicate
+    /// classifies is the module's own unit-parameter-cell convention
+    /// (module docs, *The margin and its lever*), which is
+    /// [`Margin::over_lever`]'s argument and not the rate pair's. So
+    /// the quotient leaves this door untyped rather than reaching for
+    /// one whose dimensional argument does not cover it.
     pub fn thinness(&self) -> f64 {
         self.floor / self.speed_lever().get()
     }
