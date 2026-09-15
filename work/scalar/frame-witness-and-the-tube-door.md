@@ -4,6 +4,7 @@ kind: unit
 title: A frame witness (origin plus a right-handed orthonormal pair) minted by the Gram-Schmidt ladders; from_frame and the tube door take it
 status: open
 opened: 2026-09-15
+branch: scalar/frame-witness
 ---
 
 
