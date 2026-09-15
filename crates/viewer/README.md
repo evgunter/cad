@@ -359,6 +359,23 @@ population of adjacent same-typed `bool` parameters in this crate;
 `work/view/adjacent-same-typed-arguments-are-the-same-swap.md` carries
 the wider class, where the types are not `bool`.
 
+**Every "is work outstanding" answer consults the seam it asked.**
+There are three seams — evaluation, the pick index and the display fit
+— and each has a consumer that reports whether work is owed.
+`DocSession::running` is `EvalService::busy`; `PickCache::indexing` is
+`IndexService::busy` beside the cache's own record of which picture was
+asked for, so a build already destined to be discarded
+(`IndexLanding::Stale`) does not light the indicator and a build nobody
+is answering stops lighting it; and the fit's two reads in `app` are
+`FitService::busy` directly, with no second record to consult. What the
+rule is for is a worker that has gone: all three handles clear their
+own flags when the channel disconnects, and each says at that arm that
+the indicator must not stay lit for an answer that is not coming. A
+consumer answering from its own bookkeeping instead promises one
+anyway — a spinner for the life of the window, a repaint every frame to
+collect a result nobody will send, and every click refused with *the
+picture is still being indexed*.
+
 ### What the session knows because of the document is one value
 
 `DocSession` holds a `Derived`: what is selected, what is hovered,

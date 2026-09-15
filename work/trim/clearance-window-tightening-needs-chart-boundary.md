@@ -2,10 +2,11 @@
 id: clearance-window-tightening-needs-chart-boundary
 kind: unit
 title: Clearance windows are bounding rectangles: tightening needs the face boundary in chart coordinates
-status: dispatched
+status: closed
 opened: 2026-09-03
 branch: trim/3-chart-bound
-pr: 1911
+pr: 2554
+closed: 2026-09-15
 ---
 
 ## What
@@ -70,3 +71,48 @@ PR #1911 landed the `topo` half: `chart_boundary`, `ChartBound`,
 rows, and 18 real-body rows from the dual. The item stays `dispatched`
 for PR-2 (the `clearance.rs` seam, branch `trim/3-window-seam`), which
 opens after the seam is announced to SHELL and M10.
+
+
+## PR-2 open (2026-09-13)
+
+The `clearance.rs` seam, branch `trim/3-window-seam`. `window_of` cuts
+a plane's and a cylinder's root to the metred hull; `Sweep::run`
+discharges a cell pair the description certifies empty of face
+(`CellReceipt::outside`); `verify_witness` admits only stations on the
+face; `ClearanceReport::windows` counts tightened against loose. Both
+shapes this item measured flip: the L cap no longer reports the block
+in its notch, and the U-channel's coplanar caps no longer report the
+slider.
+
+Six residues filed with it:
+`clearance-window-cone-sphere-torus`,
+`exact-region-cells-for-lower-bound-only`,
+`min-separation-tightening-crosses-the-drive` (the half of spec §3(b)
+that did not land), `revolved-bands-reach-no-clearance-row`,
+`three-tables-of-the-chart-arms`, and
+`a-refused-chart-boundary-has-no-reachable-window`.
+
+## PR-2's fix pass (2026-09-14)
+
+The v6 dual on `8e53655d2` returned MERGEABLE-AFTER-FIXES on both arms
+with sixteen items; the adjudication is comment 5675317215 on #2554.
+Nothing about the shipped seam's soundness moved — neither arm could
+manufacture an unsound `Holds` — and what changed is the verification
+record: three claimed mutant kills that did not execute, the
+deviation-1 mechanism (wrong on both arms' measurement, corrected in
+all three places), a residue file whose structural premise was false
+(refiled as `revolved-bands-reach-no-clearance-row`), the cylinder root
+rule lifted into a named `cut_root` with unit rows and a live e2e row
+for the `[0, τ] ∩ hull` mistake, and the drop's non-overlap fallback
+turned from "keep the description" into "drop it".
+
+## Closed (2026-09-15)
+
+PR #2554 merged (ordinal 2502, sample #201; block TRIM-B1 slot 2 —
+the block concludes): the clearance sweep reads each face's
+chart-boundary description, cuts the root window to the described
+hull and drops the cells certified off the face; the three measured
+shapes flip. The unit's record is MODEL-AB-LOG row T3B; the spec's
+§Rulings and Amendments are the ruling. Six residues stay open on this
+program (listed above); `min_separation` stays untightened as the
+identity with its mechanism now stated correctly.
