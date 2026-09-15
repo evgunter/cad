@@ -11956,3 +11956,107 @@ because the push would have re-triggered CI on the head I was watching**.
 That is the right trade and the right instinct about what a push costs.
 
 Item **closed**. **VIEW stands at 74 open / 97 closed.**
+
+## 2026-09-15 — `view/stale-pick`: a click over a stale picture refuses
+
+Ev ruled the product question on 2026-09-15: **refuse**. The pick path
+now asks `drawn_index` — the same picture-side predicate, keyed on
+`(generation, δ)` through `PickIndex::current_for` — and differs from
+the picture-side reads only in what it does on `None`: they skip
+silently, it refuses typed. The claim that the pick might want a
+different predicate did not survive reading it; an id and a pick resolve
+against one alphabet.
+
+The refusal is a **third arm of `pickcache::NotIndexed`**,
+`AnotherPicture`, rather than a vocabulary of its own: that type's
+stated subject is *no index describes the picture on screen*, and an
+index for a picture nobody has seen is the third way the sentence is
+true. `unindexed` takes the index in hand as a parameter; it and
+`indexing` cannot both be set, because `PickCache::sync` drops the held
+index in the step that marks a build outstanding, so they are not a pair
+of flags a caller could swap. The arm is retired by a SCENE rebuild
+where the other two wait on an index build — both seams sit under
+`Subject::Display`, so the subject read off the type is right for all
+three, and the arm's doc names its own event for a later split.
+
+**Reachability: no end-to-end row is arrangeable.**
+`ViewerBehavior::viewport_ui` is a private method over an `egui::Ui`
+painting through a wgpu callback; nothing headless drives it, which is
+the wall `crates/viewer/tests/panel_display.rs` already records for the
+parameter field's widget and the reason the viewport's own probe senses
+only the event translation. Stated rather than approximated with an
+adjacent row. What landed instead: the door's arm in `frame_policy.rs`,
+and the PAIR of predicates the pick path composes — over a real
+session — in `pane/viewport.rs`'s own tests.
+
+`crates/viewer/README.md`'s *A pick id is one index's word* no longer
+says the pick path is deliberately ungated; the re-statement is record
+of what the code does and lands with the change.
+
+## 2026-09-15 — #2662 merged; Ev's ruling landed as a third arm, and the wall was stated rather than papered over
+
+**#2662 merged** (`31e1bcadd9`), verified from the job list: code tier,
+**39 check runs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok`
+success**, all four render-lane rows success, six skipped, nothing
+failed or neutral. The lane's own log entry is above; this records the
+verification.
+
+**Ev's ruling (refuse) is implemented, and the vocabulary question was
+decided by the vocabulary's own stated subject.** The refusal is a
+THIRD ARM, `NotIndexed::AnotherPicture`, not a new type — because
+`pickcache`'s module doc already says `NotIndexed` is *"the typed
+refusal a pick stream earns while no index describes the picture on
+screen"*. I checked that quote and it is verbatim at
+`pickcache.rs:21-22`. The subject was always the PICTURE; the two
+existing arms are the two ways that holds when no index exists, and an
+index in hand for a picture nobody has seen is the third.
+
+**My proposed predicate held**, and the lane looked for a reason it
+should not before accepting it: the id path and the ray path resolve
+against the same index, `current_for` is the one door that answers
+whether that index is the picture's, and **the only difference is what
+`None` means** — picture-side reads skip silently, the pick path
+refuses typed. `on_screen` is hoisted so there is still exactly one
+currency read per frame.
+
+**The reachability wall is STATED, with both arms named.** No
+end-to-end row is arrangeable, for two independent reasons: the pane's
+`viewport_ui` is a private method over an `egui::Ui` painting through a
+wgpu callback (a wall `tests/panel_display.rs` already records), and a
+refused `scene_focused` over a landed index needs `MispairedIds` or
+zero visible triangles out of an index `PickIndex::build` already
+tessellated. The two rows that did land pin the door's third arm and
+the pair of predicates the pick path composes — and **their own test
+docs say the wiring is held by its call site being one line, not by a
+row**. That is the honest shape: a stated impossibility with its
+location, not an assertion about something adjacent.
+
+**`held: Option<&PickIndex>` is not #2055's swappable bool pair**, and
+the lane argued why rather than asserting it: `held` and `indexing`
+cannot both be set, because `PickCache::sync` drops the held index in
+the same step that marks a build outstanding (`pickcache.rs:324`,
+*"dropped before the answer, not after it"* — which I had already
+verified on a previous unit). Its cost is disclosed: the door cannot
+itself check that precondition, because the scene's `(generation, δ)`
+is the pane's, not `pickcache`'s.
+
+**The create pane's all-edges button is explicitly NOT covered, said
+out loud** in both the README and the PR: it is a button in a panel,
+not a cursor over the picture, so the ruling's premise is not made
+there. Declining to widen, in writing, beats widening quietly.
+
+Item **closed**. **VIEW stands at 73 open / 98 closed, nothing waiting
+on Ev.**
+
+### A refinement of the split-span trap, from my own verification
+
+Collapsing newlines is **not enough** when the wrapped continuation
+carries a comment marker. Verifying the module-doc quote above,
+`tr '\n' ' '` still returned nothing, because the joined text reads
+`typed refusal a pick //! stream earns…` — the `//!` prefix lands in
+the middle of the sentence. What worked was collapsing newlines AND
+squeezing spaces, then grepping a short fragment rather than the whole
+quoted phrase. Recorded in `plan.md`: **a rustdoc or module-doc
+sentence that wraps is broken by its own comment markers, not only by
+the newline**, so the standard newline-collapse still produces a false
+negative.

@@ -978,6 +978,31 @@ happen to be in hand:
 - A read of the index's **identity alone** — `PickIndex::generation` as
   half the id query's key — resolves nothing and needs neither.
 
+**The pick asks `drawn_index` too, and for a different reason.** The
+sorting above is about currency, and nothing about a pick is false by
+construction across two pictures: a click resolves a ray through the
+index and the evaluation with no id and no mesh in sight, and would
+answer correctly about the document. What it would answer about is
+geometry the screen is not showing, and a selection the user cannot see
+is a worse outcome than a click that says why it did nothing — so **a
+pick over a picture the index in hand did not draw is refused** (Ev,
+2026-09-15). The predicate is the picture-side one, unchanged; what
+differs is what happens on `None`. A picture-side read skips silently,
+because a mark nobody can draw is nothing to say. The pick path refuses
+**typed**, on the status line, because a click is an act the user made
+and got nothing for — `pickcache::NotIndexed::AnotherPicture`, the one
+arm of that vocabulary that is not about an absence, beside the two
+that are. The create pane's all-edges button is NOT covered: it is a
+button in a panel rather than a cursor over the picture, so the ruling's
+premise — an answer about what the screen is not showing — is not made
+there.
+
+**What retires that refusal is a scene rebuild**, where the other two
+arms wait on an index build. Both seams sit under `Subject::Display`,
+so the subject `frame::unindexed_refusal` reads off the type is right
+for all three arms; the arm's own doc says which event it is waiting
+for, so a later split of that subject has the fact it would need.
+
 **The id query's key is the picture AND the index**, which is the same
 rule met from the other side. `frame::IdQueryLog` holds a query open
 while its answer still describes the cursor, and that answer is an id

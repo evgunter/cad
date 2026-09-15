@@ -1142,6 +1142,20 @@ drift is a STEP inside the render-lane jobs — so a checklist asking for
 a drift ROW is asking for something that does not exist on every tier,
 and a lane that cannot find it will either invent a pass or stall.
 
+**The split-span trap has a second layer in doc comments: collapsing
+newlines is not enough, because the continuation carries its own comment
+marker.** Verifying a quoted module-doc sentence, `tr '\n' ' '` over
+`pickcache.rs` still returned nothing — the joined text reads
+`typed refusal a pick //! stream earns while no index describes…`, with
+the `//!` sitting inside the sentence. The same holds for `///` and for
+`*` in a block comment. So the newline-collapse that this register
+already prescribes produces a FALSE NEGATIVE on exactly the text lanes
+most often need to verify: a rustdoc claim. What works is collapsing
+newlines, squeezing whitespace, and grepping a SHORT fragment rather
+than the whole quoted phrase — or stripping the marker first. Caught by
+the orchestrator checking a lane's citation, which was verbatim and real;
+a weaker check would have called a true quote fabricated.
+
 ## Exit shape
 
 The README states the module map and every item above has landed or
