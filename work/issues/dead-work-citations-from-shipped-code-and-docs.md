@@ -60,3 +60,37 @@ compose: adopt (2), and gate (1) against new citations only.
 
 No obvious single owner — the five instances span four crates — so this
 sits in `work/issues/` per `work/README.md`'s last-resort rule.
+
+## A sixth instance, and a correction to the fifth (2026-09-15, CHROME's `chrome/citation-repoint`)
+
+**Sixth instance.** `crates/viewer/src/pane/properties.rs` — the
+comment on the parameter row's unit LABEL, explaining why there is no
+picker beside it — cites
+`work/issues/doc-param-unit-edit-has-no-door.md`. Same dead path as the
+`props.rs` row in the table above, same cited item, a different file.
+The two were presumably split apart by
+`viewer-session-god-module-split` (#1830) with the citation copied
+along.
+
+**Correction to the fifth row.** The table reads *"still there? no"*
+for `work/issues/doc-param-unit-edit-has-no-door.md`, which is true of
+the PATH and misleading about the item: it was **claimed by EDIT**, not
+resolved and not deleted. It is open at
+`work/edit/doc-param-unit-edit-has-no-door.md`. That makes these two
+instances a different sub-case from the other four, and a cheaper one:
+the other four cite items that died with their programs and need shape
+(2)'s rewrite-the-reading treatment, while these two need a one-word
+path edit — or nothing, if shape (2) is adopted and the sentence is
+rewritten to state the reading anyway.
+
+It also sharpens the argument for a gate: this class has a **second**
+fuse nobody has named, the `work/README.md` rule that *claiming an
+issue MOVES the file*. A citation can rot without any program closing
+and without the finding going anywhere, just because its owner was
+identified.
+
+Both tracker-side citations of the same item — in
+`work/chrome/parameter-row-field-has-no-text-door.md` and
+`work/chrome/add-parameter-form-authors-canonical-only.md` — were
+re-pointed to `work/edit/…` by that pass. The two source files are
+outside its fence and are recorded here instead.

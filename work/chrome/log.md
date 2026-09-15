@@ -557,3 +557,48 @@ ratify, and what the residue re-homes to depends on what the split
 leaves standing — so the honest end state of this session is a program
 whose slate is complete and whose remainder is scheduled against a
 named trigger.
+
+## Four rows re-pointed by subject; the two reports that found the rot are closed (2026-09-15)
+
+`chrome/citation-repoint`. Six rows, no source file touched.
+
+Four rows carried citations that rotted when
+`viewer-session-god-module-split` (#1830) took `app.rs` and
+`session.rs` apart. All four are re-pointed **by symbol name and
+file**, with no line number written anywhere —
+`docs/prompts/implementer-discipline.md` §7, and the shape
+`work/view/citation-repoint-shifted-a-number-the-lane-knew-was-wrong`
+set after a sibling lane shifted a number it had just declared wrong:
+
+- `drag-tick-has-three-homes` — the finding was intact and every
+  address dead. Its three homes are `forms.rs` (the rule and the four
+  constants), `pane/properties.rs` (the two converted panel fields)
+  and the hand-picking spread across `pane/create.rs`, `widgets.rs`
+  and `pane/properties.rs`. Population re-derived: 45 grep lines, **38
+  real call sites**, and the grep's blind spot named in the row.
+- `parameter-row-field-has-no-text-door` — four bands past the end of
+  `app.rs`; all four subjects are in `pane/properties.rs`. Still
+  `parked`; its blocker moved to `work/edit/` and is open.
+- `add-parameter-form-authors-canonical-only` — re-pointed, and **one
+  supporting bullet struck rather than re-pointed**: the form's tick is
+  no longer a hand-named constant, `add_param_ui` derives it from
+  `FieldWriting::of`. The head claim (canonical-only DECLARATION) is
+  untouched and still true.
+- `add-profile-placement-on-picked-face-frame` — **premise re-cut, row
+  kept open.** `SessionOp::AddProfile` takes a picked frame node, not
+  world XY; `sketch::frames` already admits `Datum::FaceFrame`; and
+  `names::interrogate::face_carrier_kind` answers the planarity
+  question the row said nothing answered. What is actually missing is
+  one seat: `DatumSpec` (`session/author.rs`) has no `FaceFrame`
+  variant, so no chrome can mint the node every other layer accepts.
+
+Closed with them: `drag-tick-row-cites-app-rs-for-a-finding-that-lives-in-forms-rs`
+and `parameter-row-field-cites-a-pre-split-app-rs`, the two VIEW-filed
+reports that existed only to say the rows had rotted. Both were
+accurate on every point they checked.
+
+Filed on the way: `add-profile-ui-doc-comment-states-a-premise-the-tree-falsified`
+(the same two falsehoods, still standing in `pane/create.rs`'s own doc
+comment, which the fence of this unit put out of reach), and a sixth
+instance plus a correction added to
+`work/issues/dead-work-citations-from-shipped-code-and-docs.md`.
