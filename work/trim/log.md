@@ -459,6 +459,34 @@ closing mint; they now say how the reversal re-states it and point at
 the anchor bullet in `revert`'s module docs for the argument. Signed
 (TOPO, the revert-wrap lane).
 
+## TRIM-3 PR-2 dual adjudicated; the seam gate is satisfied (2026-09-15)
+
+PR #2554 (ordinal 2502, frozen head 8e53655d2): both arms
+MERGEABLE-AFTER-FIXES (R1 Opus 3 MAJOR/5 MINOR/4 NOTE, rubric
+3/3/3/3/5; R2 Fable 2 MAJOR/4 MINOR/5 NOTE, rubric 3/4/3/4/5).
+Neither could make a `Holds` unsound through the shipped seam. Both
+measured deviation 1's stated mechanism wrong (the diverging census
+rows are the chart-boundary loop walk's, recorded by the interval
+leaf and never by the f64 witness lane, which returns `None` — a
+lane-split artifact on every box, not a box-dependent count); the
+decision to leave `min_separation` untightened stands as the identity.
+R2 alone refuted C3 by construction: an extruded `CircleSplit` with
+phase −π/4 mints a NEGATIVE cylinder band (the walk pins from a
+principal azimuth), and under either `[0,τ] ∩ hull` spelling the root
+collapses to a sliver and a `Violated` placement reads `Holds` — the
+spec's E7 mutant is live e2e; the shipped rule (`hu` verbatim) is
+right and the residue file's premise is false. Three claimed mutant
+kills (E5 full-turn root; E4 drop-on-indeterminate; E4 tight-by-0.05)
+do not execute. Adjudication on the PR (comment 5675317215); sixteen
+items, fix pass dispatched to the implementer on `trim/3-window-seam`.
+Tally: R2's MAJOR-1 unilateral but guards/claims-class (no reachable
+wrong output) — no candidate; both reviewer arms paused once by the
+usage limit (3(e)). **Seam gate**: the announcement to SHELL/M10
+(#1911 comment 5568210053, 2026-09-07) drew no objection through
+2026-09-15 — a week's silence; PR-2 may merge after the fix pass.
+Recorded, not fixed: `raw_hull` is the identity until a Fitted/General
+pcurve reaches a window; `window_of`'s `Err` arm has no e2e fixture.
+
 ## TRIM-3 PR-2 merged (2026-09-15) — block TRIM-B1 concludes
 
 PR #2554, ordinal 2502, sample #201; block TRIM-B1's last slot ({OPUS,

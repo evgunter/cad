@@ -81,7 +81,7 @@ gate the lanes that overlapped no live PR ran under §Early lanes.
   (D→E: a D9 scope sentence, an `[ev]` line if it narrows a ratified
   clause).
 - **Props hygiene, continued** (after sphere-pole-side lands, on the
-  same file): `rim-stores-its-traversal-direction-twice` (E),
+  same file):
   `rim-level-rule-manufactures-its-error-by-feeding-nan-into-classify`
   (E→H: the `unreachable_zero` NaN tuple in live flux arithmetic),
   `quadrature-budget-prints-its-two-lengths-alike` (E).
@@ -90,6 +90,20 @@ gate the lanes that overlapped no live PR ran under §Early lanes.
   the family — private fields and one minting door per certificate
   type, the same shape across `topo::props`, `pcurve`, `certify`,
   `ssi`, `offset_fit`).
+- **Filed by other programs, 2026-09-13/14** (unslotted until the two
+  open units land; read at the next plan pass):
+  `a-widened-derived-placement-normalises-a-straddling-newell-sum`,
+  `certified-hull-padding-is-the-leaf-width-not-the-lane`,
+  `coincidence-zone-priced-budget-at-the-floor` (M10's inheritance),
+  `mc-lanes-draws-are-not-reproducible-from-outside-the-crate`,
+  `min-clearance-refusal-stringly-twin`,
+  `parametric-polygon-loop-certifies-nothing`,
+  `register-equals-witness-limits-citation-names-no-file` (a one-line
+  doc fix, takeable by any lane in `real.rs`),
+  `the-scalar-lift-convention-mints-doors-faster-than-consumers`.
+  `rim-side-and-rim-dir-group-signs-are-facts-about-cycle-order` and
+  `rim-stores-its-traversal-direction-twice` went into the sphere lane
+  instead (the spec's 2026-09-14 amendment).
 - **Singles**: `m6-sense-gate-recorded-residuals` (four H gate
   extensions; residual 2 carries a design choice),
   `span-carries-its-knot-vector` (an `[ev]` ruling, then an L sweep if
