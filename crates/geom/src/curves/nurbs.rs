@@ -207,11 +207,10 @@ macro_rules! nurbs_curve {
         /// about *that* control net, and a curve is not [`Eq`] — its
         /// knots and weights are `f64`.
         ///
-        /// **Both walks below destructure `Self` exhaustively**, so a
-        /// field added to the declaration is an E0027 unbound-pattern
-        /// error rather than a value silently outside equality and
-        /// outside the dump. Expanded once per invocation, so the
-        /// error names the window it belongs to.
+        /// **This walk and the `Debug` beside it destructure `Self`
+        /// exhaustively**, so a field added to the declaration is an
+        /// E0027 unbound-pattern error rather than a value silently
+        /// outside equality and outside the dump.
         impl<T: Real> PartialEq for $Window<'_, T> {
             fn eq(&self, other: &Self) -> bool {
                 let Self { curve, span } = self;
