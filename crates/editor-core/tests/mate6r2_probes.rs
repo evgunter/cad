@@ -229,12 +229,18 @@ fn row_of(
 fn headline(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> String {
     match result {
         Ok(_) => "Ok".to_string(),
-        Err(AssemblyError::Reference {
-            mate, side, why, ..
-        }) => format!("Reference mate={mate:?} side={side:?} why={why:?}"),
-        Err(AssemblyError::NoAtRestRecord { mate, class, .. }) => {
-            format!("NoAtRestRecord mate={mate:?} class={class:?}")
-        }
+        Err(AssemblyError::Mint { refusals }) => refusals
+            .iter()
+            .map(|r| match r {
+                editor_core::MintRefusal::Reference {
+                    mate, side, why, ..
+                } => format!("Reference mate={mate:?} side={side:?} why={why:?}"),
+                editor_core::MintRefusal::NoAtRestRecord { mate, class, .. } => {
+                    format!("NoAtRestRecord mate={mate:?} class={class:?}")
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" + "),
         Err(AssemblyError::AtRest { findings }) => {
             format!("AtRest findings={}", findings.len())
         }
@@ -244,8 +250,9 @@ fn headline(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> Strin
 
 /// P1: a stand whose declaration is FALSE (seat 1.5 — would refuse at
 /// the declared gate), plus a bad-reference mate, plus a Tangent mate,
-/// in that document order. The refusal must be the bad reference —
-/// first bad mate in document order — on both trees.
+/// in that document order. Both bad mates are refused, and the bad
+/// reference — first in document order — heads the list, on both
+/// trees.
 #[test]
 fn p1_first_bad_mate_wins_badref_before_tangent() {
     let mut store = StubStore::default();
@@ -276,11 +283,22 @@ fn p1_first_bad_mate_wins_badref_before_tangent() {
     let ev = run(&doc, &opts(store));
     let result = assemble(&doc, &ev, Tol::witness());
     println!("P1: {}", headline(&result));
-    assert!(matches!(result, Err(AssemblyError::Reference { .. })));
+    assert!(matches!(
+        &result,
+        Err(AssemblyError::Mint { refusals })
+            if matches!(
+                refusals.as_slice(),
+                [
+                    editor_core::MintRefusal::Reference { .. },
+                    editor_core::MintRefusal::NoAtRestRecord { .. },
+                ]
+            )
+    ));
 }
 
 /// P2: same document, the two bad mates in the OPPOSITE order. The
-/// refusal must be the Tangent's `NoAtRestRecord` on both trees.
+/// same two refusals, with the Tangent's `NoAtRestRecord` at the head,
+/// on both trees — the list is the DOCUMENT's order, not the walk's.
 #[test]
 fn p2_first_bad_mate_wins_tangent_before_badref() {
     let mut store = StubStore::default();
@@ -311,7 +329,17 @@ fn p2_first_bad_mate_wins_tangent_before_badref() {
     let ev = run(&doc, &opts(store));
     let result = assemble(&doc, &ev, Tol::witness());
     println!("P2: {}", headline(&result));
-    assert!(matches!(result, Err(AssemblyError::NoAtRestRecord { .. })));
+    assert!(matches!(
+        &result,
+        Err(AssemblyError::Mint { refusals })
+            if matches!(
+                refusals.as_slice(),
+                [
+                    editor_core::MintRefusal::NoAtRestRecord { .. },
+                    editor_core::MintRefusal::Reference { .. },
+                ]
+            )
+    ));
 }
 
 /// P3: the checks resident over the seam document (×3 stands).

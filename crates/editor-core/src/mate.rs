@@ -53,7 +53,7 @@
 //! never be admitted at one and refused at the other without saying
 //! so: `Rest` clears both, `Tangent` solves and then refuses typed at
 //! the mint door (an at-rest contact has no witness edge for its
-//! `CurveContact` — [`crate::AssemblyError::NoAtRestRecord`]), and
+//! `CurveContact` — [`crate::MintRefusal::NoAtRestRecord`]), and
 //! every later class — `Fit { gap }` when it lands — refuses at the
 //! solve door, because a declared clearance changes what "coincide"
 //! means and this unit solves coincidence only.
@@ -422,9 +422,9 @@ pub const CONTRADICTORY_RECOURSE: &str = "delete the mate that was not meant, or
 pub const CLASS_DEFERRAL: &str = "v1 mates SOLVE Rest and Tangent and ASSEMBLE Rest alone; the \
                                   cross-document detail of a designed clearance is undischarged";
 
-/// **The recourse a [`crate::AssemblyError::NoAtRestRecord`] ends
-/// on**: what an author does about a class that solves and has no
-/// record to be verified by at rest.
+/// **The recourse a [`crate::MintRefusal::NoAtRestRecord`] ends on**:
+/// what an author does about a class that solves and has no record to
+/// be verified by at rest.
 ///
 /// The arm already quotes the table's reason for THIS class; this is
 /// the repair, and it names the rung the way [`CLASS_DEFERRAL`] does —
@@ -454,8 +454,8 @@ pub enum ClassAdmission {
     /// census's verdict, not this table's.
     Mints,
     /// The solve door only. No kernel record carries this class at
-    /// rest, so [`crate::assemble`] refuses
-    /// [`crate::AssemblyError::NoAtRestRecord`] naming the mate — a
+    /// rest, so [`crate::assemble`] refuses with a
+    /// [`crate::MintRefusal::NoAtRestRecord`] row naming the mate — a
     /// solved placement that cannot be verified at rest, never a
     /// record minted with an invented witness.
     NoAtRestRecord {

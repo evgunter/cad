@@ -330,15 +330,19 @@ pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission};
 // what a finding says about a declaration it names — this document's
 // own or a part's — and `CarriedDeclarations` is what an instantiated
 // value carries up. `AssemblyError::CarriedMintRefusal` is the
-// outermost gate's refusal over an inner mate that could not be minted
-// at all. `NO_AT_REST_RECORD_RECOURSE` is the recourse sentence the
-// `NoAtRestRecord` arm ends on, carried for the reason
-// `UNDER_RECOURSE` is: a caller asserting that a refusal reaches its
-// recourse must not do it by re-typing the sentence.
+// outermost gate's refusal over inner mates that could not be minted
+// at all, and `CarriedRefusal` is one of its rows; `MintRefusal` is one
+// row of the gate's refusal over this document's own mates. Both arms
+// raise EVERY row they hold, so the row types are what the gate's
+// answer is made of and a consumer matching that answer must name
+// them. `NO_AT_REST_RECORD_RECOURSE` is the recourse sentence a
+// `NoAtRestRecord` row ends on, carried for the reason `UNDER_RECOURSE`
+// is: a caller asserting that a refusal reaches its recourse must not
+// do it by re-typing the sentence.
 pub use editor_core::{
     Assembly, AssemblyError, AtRestFinding, Attribution, CarriedDeclaration, CarriedDeclarations,
-    MintedDeclaration, NO_AT_REST_RECORD_RECOURSE, RefusedRef, Relation, Route, assemble,
-    assemble_gathered,
+    CarriedRefusal, MintRefusal, MintedDeclaration, NO_AT_REST_RECORD_RECOURSE, RefusedRef,
+    Relation, Route, assemble, assemble_gathered,
 };
 
 // Split and inline: the first-class

@@ -76,9 +76,10 @@ use pncad::document::{
     Alignment, Assembly, AssemblyError, Attribution, AxisSense, CONTRADICTORY_RECOURSE,
     CancelToken, Datum, Dimension, DocEdit, DocParam, DocParamValue, DocRef, DocumentId,
     EvalOptions, Evaluation, Expr, Frame, InlineError, LoopProgram, MateFault, MateFrame,
-    MatePrimitive, NO_AT_REST_RECORD_RECOURSE, Node, ParamName, PatternKind, ProfileDoc,
-    ProfileProgram, RecipeNodeId, SitedRef, UNDER_RECOURSE, apply, assemble, content_pin, evaluate,
-    inline, load, mixed_pins, parse_expr, product_named, save, solve_document, split,
+    MatePrimitive, MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node, ParamName, PatternKind,
+    ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, UNDER_RECOURSE, apply, assemble,
+    content_pin, evaluate, inline, load, mixed_pins, parse_expr, product_named, save,
+    solve_document, split,
 };
 use pncad::geom_core::{Band, Tol};
 use pncad::prelude::StableName;
@@ -974,7 +975,8 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     let ev = run(&swapped, &with_store(ws), tol);
     let err = assemble(&swapped, &ev, tol).expect_err("a Tangent mate has no at-rest record");
     assert!(
-        matches!(err, AssemblyError::NoAtRestRecord { .. }),
+        matches!(&err, AssemblyError::Mint { refusals }
+            if refusals.iter().all(|r| matches!(r, MintRefusal::NoAtRestRecord { .. }))),
         "the class table's mint half is what refuses, got {err}"
     );
     assert!(

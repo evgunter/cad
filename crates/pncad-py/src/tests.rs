@@ -3567,9 +3567,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "at_rest",
             "carried_mint_refusal",
-            "mate_reference_refused",
-            "no_at_rest_record",
             "uncertified",
+            "unminted_mates",
         ],
         delegates: &["product_error_tag"],
     },
@@ -4039,6 +4038,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "meta_version_error_tag",
         values: &["missing_version", "not_a_map", "version_not_int"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "mint_refusal_tag",
+        values: &["mate_reference_refused", "no_at_rest_record"],
         delegates: &[],
     },
     TagEntry {

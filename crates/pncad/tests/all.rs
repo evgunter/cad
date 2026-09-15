@@ -4208,17 +4208,15 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   cannot serve that one — a caller who cannot name `Product`
 ///   cannot hold one.
 ///
-///   **`MintRefusal` is not part of that carry**, and the split is
-///   the point: it is the GATHER's row for a mate whose declaration
-///   could not be minted, reached through `Product`, which is itself
-///   interior. What a façade consumer asks is what the A5 gate
-///   ANSWERED, and they get that whole — `AssemblyError::Reference`
-///   and `AssemblyError::NoAtRestRecord` are exactly these two
-///   refusals, raised by the door that is carried.
-///   **`CarriedRefusal` is out for the same reason and reads the
-///   same way**: it is the gather's row for a mate a document BELOW
-///   this one could not mint, and `AssemblyError::CarriedMintRefusal`
-///   is that fact raised whole by the gate. `CarriedDeclaration`,
+///   **`MintRefusal` and `CarriedRefusal` came with them**, and the
+///   reason is what the gate's two mint arms now answer with: each
+///   raises EVERY row it holds, so `AssemblyError::Mint` is a
+///   `Vec<MintRefusal>` and `AssemblyError::CarriedMintRefusal` a
+///   `Vec<CarriedRefusal>`. They were held out while each arm was one
+///   refusal flattened into the enum's own fields — the gate's answer
+///   then named no row type, and a consumer matching it never had to
+///   — and a consumer who cannot name a row cannot read the answer.
+///   `CarriedDeclaration`,
 ///   `CarriedDeclarations`, `Route` and `Relation` ARE carried,
 ///   because nothing else states them: the first is what
 ///   `Product::carried` and `Assembly::carried` hold, and the last two
@@ -4304,7 +4302,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `work/lib/certified-range-has-no-python-door`, and carrying this
 ///   family is part of what it schedules; a promise made only in this
 ///   comment would be gone the moment someone edited it.
-const NOT_CARRIED: [&str; 91] = [
+const NOT_CARRIED: [&str; 89] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4317,7 +4315,6 @@ const NOT_CARRIED: [&str; 91] = [
     "BracketEnd",
     "BranchCertification",
     "BranchMarginEvidence",
-    "CarriedRefusal",
     "CertifiedRange",
     "ContentKey",
     "Coset",
@@ -4339,7 +4336,6 @@ const NOT_CARRIED: [&str; 91] = [
     "MetaValue",
     "MinClearanceLane",
     "MinClearanceOperand",
-    "MintRefusal",
     "NamingKey",
     "NodeChange",
     "NodeVerdictDelta",
