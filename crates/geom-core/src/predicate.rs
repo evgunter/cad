@@ -685,6 +685,58 @@ impl Margin<f64> {
 ///
 /// [`Margin::metered`] takes the inf and [`Margin::metered_sup`] the
 /// sup, so a site that reaches for the wrong one does not compile.
+/// The direction is a type fact, and these two rows are what say so.
+///
+/// A sup handed to the inf door — an over-stated rate read as a
+/// "definitely apart" claim, the unsound direction:
+///
+/// ```compile_fail,E0308
+/// use geom_core::{Margin, SupSpeed};
+/// let _ = Margin::metered(1.0_f64, SupSpeed::new(2.0_f64));
+/// ```
+///
+/// Its twin differs in one respect — the door matches the tag — and
+/// compiles:
+///
+/// ```
+/// use geom_core::{Margin, SupSpeed};
+/// let _ = Margin::metered_sup(1.0_f64, SupSpeed::new(2.0_f64));
+/// ```
+///
+/// And the mirror, an inf handed to the sup door — an under-stated
+/// escape, the other unsound direction:
+///
+/// ```compile_fail,E0308
+/// use geom_core::{InfSpeed, Margin};
+/// let _ = Margin::metered_sup(1.0_f64, InfSpeed::new(2.0_f64));
+/// ```
+///
+/// with the twin that compiles:
+///
+/// ```
+/// use geom_core::{InfSpeed, Margin};
+/// let _ = Margin::metered(1.0_f64, InfSpeed::new(2.0_f64));
+/// ```
+///
+/// Stable rustdoc checks only that a `compile_fail` block fails to
+/// build; the `,E0308` beside it is not verified there, which is what
+/// each twin is for — a typo shared by both would redden the twin.
+/// The code was read off `rustc` on these snippets at the pinned
+/// toolchain (1.97.0).
+///
+/// Neither type carries `PartialEq` or `PartialOrd`, so a rate cannot
+/// be compared without saying `get()` — the [`Real`](crate::real::Real)
+/// surface's rule, which keeps every comparison at the classify seam:
+///
+/// ```compile_fail,E0369
+/// use geom_core::SupSpeed;
+/// let _ = SupSpeed::new(1.0_f64) == SupSpeed::new(1.0_f64);
+/// ```
+///
+/// ```
+/// use geom_core::SupSpeed;
+/// let _ = SupSpeed::new(1.0_f64).get() == SupSpeed::new(1.0_f64).get();
+/// ```
 ///
 /// # The two conversions
 ///
