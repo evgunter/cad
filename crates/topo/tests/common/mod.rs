@@ -576,7 +576,7 @@ pub fn cube_into(body: &mut Body<f64>, map: impl Fn(f64, f64, f64) -> Point3<f64
     describe_as_intersections(body);
 }
 
-/// Test-authoring convenience: the [`BooleanDeclarations`] declaring
+/// Test-authoring convenience: the [`topo::BooleanDeclarations`] declaring
 /// every flush face pair of `(a, b)`, on any carrier the `Rest`
 /// ladder verifies — the test author's
 /// stand-in for a recipe `Declare` (the author built the contact
