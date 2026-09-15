@@ -2,10 +2,11 @@
 id: assembly-door-raises-only-the-head-of-each-refusal-list
 kind: issue
 title: assemble_gathered raises only the head of unminted and of carried_unminted; the widening it names as a follow-up is not filed
-status: review
+status: closed
 opened: 2026-09-06
 parent: PORT-DOORS-1
 pr: 2635
+closed: 2026-09-15
 ---
 
 

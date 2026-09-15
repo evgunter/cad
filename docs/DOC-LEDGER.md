@@ -765,6 +765,50 @@ statement.
 
 - `S415-SPEC.md` — S415, the three boundary residues: one scaffold rule, the Part 21 band disclosed as one rule in two crates, one hand-minted tag derived (#2633)
 
+## Per-merge deletion — PORT-PYOPTS's spec (2026-09-15)
+
+Recoverable at `git show e3649a523:docs/PORT-PYOPTS-SPEC.md` (the PORT
+orchestrator's commit that wrote it; the unit branch merged that commit
+and carried the file to its own merge). The rule above; the unit's
+record is `work/port/python-cannot-set-options-structs.md` and the two
+rows it filed on LIB, plus the 2026-09-15 entry in `work/port/log.md`.
+
+**Two of its statements are corrected by the unit**, and the item file
+is the statement of record for each. The spec said the STL doors
+"already expose `solid_name`/`header` as kwargs" and that "the visible
+work is small" there; in fact both doors defaulted their keyword to the
+EMPTY string, which is not either struct's `Default` — so a Python
+caller writing no arguments got `solid ` and 80 zero bytes where a Rust
+caller got the kernel's part name and producer text. And the spec said
+a `NotBound` roster entry's decay was already checked; the decay half
+read the stub's DECLARED NAMES, which an options keyword never is, so
+an options entry would have stayed green forever. The alphabet is now
+per-roster.
+
+- `PORT-PYOPTS-SPEC.md` — PORT `python-cannot-set-options-structs`, the four options doors bound field by field with a destructure anchor per struct (#2678)
+
+## Per-merge deletion — PORT-DOORS-1's spec (2026-09-15)
+
+Recoverable at `git show 58e485ca4:docs/PORT-DOORS-1-SPEC.md` (the PORT
+orchestrator's commit that wrote it, the last revision where it stands
+alone; the unit branch merged that commit and carried the file to its
+own merge). The rule above; the unit's record is
+`work/port/PORT-DOORS-1.md` and the two findings it carries, plus the
+2026-09-15 entries in `work/port/log.md`.
+
+**Two of its statements are corrected by the unit**, and the item files
+are the statement of record for each. The spec read the widening as a
+shape change on two existing arms; it is a **vocabulary** change — the
+flattened `AssemblyError::Reference` and `NoAtRestRecord` cannot hold a
+mixed list and retire into one `Mint` arm, which is why the unit's class
+is `H` and not the `M` the spec's own plan row estimated. And the spec
+said "the two control assertions" in
+`crates/editor-core/tests/msolve5_read_below_a_root.rs` move under
+kind-first; **only one does** — a tie among faces is still `Ambiguous`,
+so the tied-face row is untouched.
+
+- `PORT-DOORS-1-SPEC.md` — PORT-DOORS-1, one order and one list at the assembly doors: the mint refusals widened to carry every row, kind asked before tie in `resolve_face` (#2635)
+
 ## Per-merge deletion — M10's merged-unit specs (2026-09-03)
 
 Recoverable at `git show 08931277cf23c29d35daa41a15a4cecc6495022e:docs/<NAME>`
@@ -3072,6 +3116,44 @@ the two rows one unit, and the requirement that the unit state what its
 guard does not enforce — which it did, at its sites and in its PR.
 
 - `TINT-2-SPEC.md` — TINT-2, a stand-down that nobody can hear (#2656)
+
+## Per-merge deletion — CENSUS-PY-RAISE-LITERALS's spec (2026-09-15)
+
+Recoverable at `git show d1d3c1b3c:docs/CENSUS-PY-RAISE-LITERALS-SPEC.md`
+(PR #2682's last head before the merge). CENSUS's fifth unit. Its
+sentences that did not survive:
+
+- **the second-mint claim** — the spec repeated the item's statement that
+  `unclassified`, `wireframe` and `not_utf8` each duplicate a word their
+  own door's inventoried map mints. **Only `unclassified` does**; the
+  other two return nothing from `tags.rs` and are new words on an
+  attribute an inventoried map otherwise fills. The orchestrator had
+  verified `unclassified` and carried the generalisation over the other
+  two — **verified the example, asserted the class**, which is the same
+  shape as CENSUS-PY-GETTERS' lowercase-anchored check by a different
+  mechanism.
+- **the const-in-a-match-arm proposal**, inherited from the item — a
+  `pub const` that `select_refusal_tag`'s wildcard and the `flush.rs`
+  site both read. True of a top-level const, **false of a match ARM
+  reading one**: the tag reader's `ArmShape` admits a literal, a nested
+  match, a block, `None`, `Some(..)` and a delegation, and nothing else.
+  A one-arm map was taken instead, because a delegation is a shape the
+  reader already admits.
+
+The spec's framing that survived and was the unit's spine: **a `pub
+const` pins a word's text and does not close its class**, so each shape
+is asked whether its door's attribute can carry a type — proven by
+CENSUS-TAG-REACH and re-driven here.
+
+The corrections are on the item file, which survives this deletion, and
+the unit's record is `work/census/log.md`'s CENSUS-PY-RAISE-LITERALS
+entry plus the PR body. Residue filed on `work/census/`:
+`prose-counts-of-a-populations-size-in-pncad-py-doc-comments`,
+`both-unclassified-crossings-are-unreachable-and-so-is-the-repair-on-one`
+and `dimension-error-op-carries-twelve-words-minted-at-call-sites`; and
+on `work/lib/`, `validationerror-stub-declares-one-of-the-class-two-shapes`.
+
+- `CENSUS-PY-RAISE-LITERALS-SPEC.md` — CENSUS-PY-RAISE-LITERALS, nine raise-site words get homes (#2682)
 
 ## Per-merge deletion — EXHAUST-LANE's spec (2026-09-15)
 
