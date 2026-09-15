@@ -6421,13 +6421,17 @@ fn the_whole_tag_table_matches_its_committed_inventory() {
     );
 }
 
-/// **One item in `src/errors.rs` that spells a literal**, and the
-/// check that holds the words it spells.
+/// **One item `src/errors.rs` declares**, and the check that holds
+/// whatever words it puts on a Python wire.
 struct MintingItem {
     /// The item, qualified by the `impl` block that holds it where it
     /// has one: `Type::name`, or `<Type as Trait>::name`.
     owner: &'static str,
     /// How many literals it spells, character literals included.
+    /// Zero for an item that spells none — a map forwarding another
+    /// file's word, a constructor taking a word from its caller, a
+    /// roster of variants — which is a row here like any other,
+    /// because what this census watches is ARRIVALS.
     literals: usize,
     /// What holds those WORDS. This roster holds the item's
     /// EXISTENCE; values are each row's own pin, named here so that a
@@ -6466,8 +6470,8 @@ enum Holder {
     Outside(&'static str),
 }
 
-/// **The committed roster of everything in `src/errors.rs` that
-/// spells a literal** — the file's arrival alarm.
+/// **The committed roster of everything `src/errors.rs` declares** —
+/// the file's arrival alarm.
 ///
 /// `src/tags.rs` is safe to add to because `TAG_INVENTORY` reads it:
 /// a new map there is *"a new set of public Python words that no
@@ -6476,18 +6480,29 @@ enum Holder {
 /// further `-> &'static str` map arrived here unpinned, in a diff that
 /// left the tracker row predicting it untouched.
 ///
-/// **The population is the shared lexer's, not a grammar of this
-/// reader's own, and that is the whole design.** Every previous
-/// instrument over this crate's vocabulary was keyed on a FORM — a
-/// top-level `pub fn`, a literal beside a key, a lowercase word — and
-/// each went blind to the arrival that did not wear it: this file's
-/// `-> &'static str` maps include inherent methods inside `impl`
-/// blocks, which a top-level-keyed reader does not walk, and every one
-/// of them is a `pub const fn`, which the tag reader's `pub fn ` forms
-/// do not admit. [`read_minting_items`] asks [`test_utils::source`] which
-/// bytes of the file are literals and attributes each to the item
-/// that spells it, so a word cannot arrive in a form the reader was
-/// not taught: there is no form.
+/// **Which bytes are literals is the shared lexer's answer, not a
+/// grammar of this reader's own, and that is the whole design.** Every
+/// previous instrument over this crate's vocabulary was keyed on a
+/// FORM — a top-level `pub fn`, a literal beside a key, a lowercase
+/// word — and each went blind to the arrival that did not wear it:
+/// this file's `-> &'static str` maps include inherent methods inside
+/// `impl` blocks, which a top-level-keyed reader does not walk, and
+/// every one of them is a `pub const fn`, which the tag reader's
+/// `pub fn ` forms do not admit. [`read_minting_items`] asks
+/// [`test_utils::source`] which bytes of the file are literals and
+/// attributes each to the item that spells it, so a word cannot
+/// arrive in a form the reader was not taught: there is no form.
+///
+/// **The rows are the file's DECLARATIONS and the literals are what
+/// each one contributes.** Keying the roster on the literals instead
+/// left an item spelling none outside the alarm entirely, which is an
+/// arrival alarm blind to an arrival: three items here spell no
+/// literal (`EvalReason::ATTRIBUTES`, `QuantityOpMismatch::new`,
+/// `ValidationRefusal::ALL`), and the first of them is Python-visible
+/// vocabulary — an attribute NAME. A map forwarding `crate::tags`'
+/// word is the same shape and
+/// `the_errors_mint_census_reds_by_name_on_a_map_that_spells_no_literal`
+/// executes it.
 ///
 /// **The key is `(self type, trait, item name)`, which is the sibling
 /// census's key** — `crates/test-utils/tests/hand_written_impl_census.rs`
@@ -6503,13 +6518,24 @@ enum Holder {
 /// `literals` count moves when a word is added to or dropped from a
 /// rostered item, so growth is loud; a word RENAMED in place, or
 /// swapped for another inside one item, leaves the count alone and is
-/// the `held_by` column's business. **An item that spells no literal
-/// at all is outside this alarm entirely** — a map forwarding
-/// `crate::tags`', a word built from a kernel `Display` — and
-/// `the_errors_mint_census_cannot_see_a_word_that_is_not_a_literal`
-/// executes that case rather than asserting it. That is the one
-/// exception to the header's claim in `src/errors.rs`, and the header
-/// states it.
+/// the `held_by` column's business.
+///
+/// **Its population is the file's `fn`, `const` and `static`
+/// declarations, and what is outside that is a word channel that is
+/// not one of them.** `QuantityOpMismatch::op` is a struct FIELD: a
+/// `&'static str` this file carries and does not spell, reaching
+/// Python as `DimensionError.op` and interpolated into that class's
+/// message. **Twelve words arrive that way today** (measured
+/// 2026-09-15 over every literal passed to the two `&'static str` door
+/// parameters under `src/py/`), every one minted at a call site and
+/// read by no instrument —
+/// `work/census/dimension-error-op-carries-twelve-words-minted-at-call-sites.md`
+/// is that row, and it is not this one. A SECOND such field arrives
+/// with this census silent, which
+/// `the_errors_mint_census_cannot_see_a_word_channel_that_is_not_a_declaration`
+/// executes rather than asserts. Widening this reader to name a field
+/// would see the channel and still not see the words, which are in
+/// another file.
 ///
 /// **Why this census is in this file, weighed.** Against: this
 /// program's other two instruments —
@@ -6570,6 +6596,33 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
             },
             Holder::Outside("the Python suite, which reads `EvaluationError.reason`"),
         ],
+    },
+    MintingItem {
+        owner: "EvalReason::ATTRIBUTES",
+        literals: 0,
+        held_by: &[Holder::Test {
+            name: "the_discriminant_attribute_names_are_declared_in_the_stub",
+            holds: "the one word it carries — `ATTRIBUTE`'s, spelled once and \
+                    derived here",
+        }],
+    },
+    MintingItem {
+        owner: "QuantityOpMismatch::new",
+        literals: 0,
+        held_by: &[Holder::Outside(
+            "nothing: its `op` parameter's twelve words are minted at call sites \
+             under `src/py/` and no instrument reads them, which is \
+             `work/census/dimension-error-op-carries-twelve-words-minted-at-call-sites.md`",
+        )],
+    },
+    MintingItem {
+        owner: "ValidationRefusal::ALL",
+        literals: 0,
+        held_by: &[Holder::Test {
+            name: "validation_refusals_are_the_roster_the_inventory_reads",
+            holds: "the roster against `crate::tags::validation_refusal_tag`'s words \
+                    as `TAG_INVENTORY` reads them, so a sixth refusal reds",
+        }],
     },
     MintingItem {
         owner: "ValidationRefusal::ATTRIBUTES",
@@ -6651,7 +6704,7 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
     },
 ];
 
-/// Every literal `source` spells, by the item that spells it.
+/// Every item `source` declares, with the literals it spells.
 ///
 /// **Which bytes are literals is [`test_utils::source`]'s answer, not
 /// this function's**, taken from three of its views at once: `code`
@@ -6685,18 +6738,23 @@ fn read_minting_items(source: &str) -> BTreeMap<String, Vec<String>> {
     let comments = comments_only(source);
     let scopes = scope_spans(&code);
     let decls = declaration_heads(&code);
-    let mut named: BTreeSet<String> = BTreeSet::new();
+    // Every item the file declares, literal or not. The population is
+    // the DECLARATIONS and the literals are what each one contributes:
+    // keying the map on the literals instead would leave an item that
+    // spells none out of the census entirely, and an arrival alarm
+    // that cannot see an arrival which happens to spell no word is
+    // not an arrival alarm.
+    let mut found: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for &(start, ref name) in &decls.heads {
         let owner = qualified(&scopes, start, name);
         assert!(
-            named.insert(owner.clone()),
+            found.insert(owner.clone(), Vec::new()).is_none(),
             "errors.rs: two items answer to `{owner}` — this reader keys on the item \
-             name qualified by its `impl` block, trait and all, so two spellings of \
-             one key merge into one roster row silently. Rust rejects two such items \
-             in one crate, so this is a reader that has mis-read one of them."
+             name qualified by every scope that holds it, trait and all, so two \
+             spellings of one key merge into one roster row silently. Rust rejects two \
+             such items in one crate, so this is a reader that has mis-read one of them."
         );
     }
-    let mut found: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let bytes = text.as_bytes();
     let blanked = code.as_bytes();
     let prose = comments.as_bytes();
@@ -7202,6 +7260,14 @@ fn minting_complaints(found: &BTreeMap<String, Vec<String>>) -> Vec<String> {
     }
     for (owner, literals) in found {
         match pinned.get(owner.as_str()) {
+            None if literals.is_empty() => complaints.push(format!(
+                "NEW item `{owner}`, which no roster has looked at. It spells no \
+                 literal, so nothing here says whether it puts a word on a Python \
+                 wire — a map forwarding `crate::tags`' word does not, and a \
+                 `&'static str` this file hands on does. Add a row to \
+                 ERRORS_MINTING_ITEMS naming what holds its words, and if nothing \
+                 does, that is the finding."
+            )),
             None => complaints.push(format!(
                 "NEW item `{owner}` spells {} literal(s) — {literals:?} — that no \
                  roster has looked at. If any of them reaches Python, it is public \
@@ -7223,9 +7289,9 @@ fn minting_complaints(found: &BTreeMap<String, Vec<String>>) -> Vec<String> {
     for item in ERRORS_MINTING_ITEMS {
         if !found.contains_key(item.owner) {
             complaints.push(format!(
-                "ERRORS_MINTING_ITEMS names `{}`, and the reader found no literal in \
-                 it. Either it is gone — drop the row — or the reader stopped seeing \
-                 it, which is this guard going blind and is the serious case.",
+                "ERRORS_MINTING_ITEMS names `{}`, and the reader did not find it. \
+                 Either it is gone — drop the row — or the reader stopped seeing it, \
+                 which is this guard going blind and is the serious case.",
                 item.owner
             ));
         }
@@ -7439,10 +7505,12 @@ pub fn after_the_attribute() -> &'static str {
         ("Taxonomy::ATTRIBUTE", vec!["attribute"]),
         ("Taxonomy::inherent", vec!["one", "two"]),
         ("after_the_attribute", vec!["after", "an attribute literal"]),
+        ("declared", vec![]),
         ("foreign", vec!["C", "foreign"]),
         ("nested::Taxonomy::in_a_module", vec!["nested"]),
         ("plain::IN_PLAIN", vec!["plain"]),
         ("restricted", vec!["restricted"]),
+        ("returns_impl", vec![]),
         ("top_level_map", vec!["angle", "length"]),
     ];
     let read: Vec<(&str, Vec<&str>)> = found
@@ -7854,21 +7922,55 @@ fn the_errors_mint_reader_reads_a_macro_body_as_text_and_says_so() {
     );
 }
 
-/// **What this census cannot see, executed.**
+/// **A map that forwards another file's word is an arrival like any
+/// other**, executed against the real file.
 ///
-/// Its population is the file's string LITERALS. A Python-visible word
-/// that reaches the wire from here without being spelled here — a map
-/// forwarding `crate::tags`', a word built from a kernel `Display` —
-/// adds no literal and no row, and this passes green. The alarm is for
-/// vocabulary MINTED in this file; vocabulary forwarded through it is
-/// the inventory's at the file that mints it.
+/// It spells no literal, and while the census's population was its
+/// LITERALS such a map added nothing for the reader to see and landed
+/// silent. The population is the file's DECLARATIONS now and the
+/// literals are what each one contributes, so the item reds by name
+/// and its author is asked the question the roster exists to ask.
 #[test]
-fn the_errors_mint_census_cannot_see_a_word_that_is_not_a_literal() {
+fn the_errors_mint_census_reds_by_name_on_a_map_that_spells_no_literal() {
     let arrival = format!(
         "{}\nimpl ValidationRefusal {{\n    pub const fn forwarded(self) -> &'static str \
          {{\n        crate::tags::validation_refusal_tag(self)\n    }}\n}}\n",
         errors_source()
     );
+    let complaints = minting_complaints(&read_minting_items(&arrival));
+    assert!(
+        complaints
+            .iter()
+            .any(|c| c.contains("NEW item `ValidationRefusal::forwarded`")),
+        "a map forwarding another file's word did not red by name: {complaints:?}"
+    );
+}
+
+/// **What this census cannot see, executed: a word channel that is
+/// not a declaration.**
+///
+/// The population is every `fn`, `const` and `static` the file
+/// declares. A struct FIELD is none of those, and
+/// `QuantityOpMismatch::op` is one — a `&'static str` this file
+/// carries and does not spell, reaching Python as `DimensionError.op`
+/// and interpolated into the class's message. Twelve words arrive that
+/// way today, every one of them minted at a call site under `src/py/`
+/// and read by no instrument
+/// (`work/census/dimension-error-op-carries-twelve-words-minted-at-call-sites.md`,
+/// measured 2026-09-15). A SECOND such field would arrive with this
+/// census silent, and that is what this executes.
+///
+/// Widening the reader to name a field is not the repair it looks
+/// like: the words are not in this file, so seeing the channel would
+/// not see them, and what holds them is a question about `src/py/`.
+#[test]
+fn the_errors_mint_census_cannot_see_a_word_channel_that_is_not_a_declaration() {
+    let arrival = errors_source().replace(
+        "    pub op: &'static str,",
+        "    pub op: &'static str,\n    /// A second word this file carries and does \
+         not spell.\n    pub unit: &'static str,",
+    );
+    assert_ne!(arrival, errors_source(), "the field splice did not land");
     // Equal AND empty. Equality alone passes over two equal non-empty
     // sides, which is what this reads as whenever the census above is
     // red for some unrelated reason — a guard that goes quiet exactly
@@ -7877,7 +7979,7 @@ fn the_errors_mint_census_cannot_see_a_word_that_is_not_a_literal() {
     assert!(
         baseline.is_empty(),
         "this file disagrees with its roster already, so nothing here is about the \
-         forwarded map: {baseline:?}"
+         spliced field: {baseline:?}"
     );
     assert_eq!(
         minting_complaints(&read_minting_items(&arrival)),
