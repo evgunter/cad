@@ -2,10 +2,11 @@
 id: rate-pair-in-geom-core
 kind: unit
 title: SupSpeed and InfSpeed beside Margin: metered takes the inf, a sup door for overshoot metering, the three blurred sites typed
-status: open
+status: closed
 opened: 2026-09-15
 branch: scalar/rate-pair
 pr: 2657
+closed: 2026-09-15
 ---
 
 
@@ -79,3 +80,30 @@ which is what sent this recipe back. The listing itself is a one-shot
 comparison artefact and is not committed
 (`memories/test-suite-cost.md`): the two aggregate hashes are what a
 second run has to reproduce.
+
+## Closed (2026-09-15) — PR 2657
+
+`SupSpeed<T>`/`InfSpeed<T>` in `crates/geom-core/src/predicate.rs`
+beside `Margin`: transparent `Copy` newtypes, no `PartialEq`/`PartialOrd`,
+`new`/`get`, `to_meters` (both) and `to_param` (`SupSpeed` only — the
+inf quotient over-states a reach and had no caller). `Margin::metered`
+takes `InfSpeed`; `Margin::metered_sup` takes `SupSpeed`; the direction
+rule has one home (the module doc). Producers typed at the mint
+(`speed_lower_bound`, `param_rate`, `chart_stretch_sup` — now a `Result`
+refusing the cone, with `chart_stretch_sup_v` for its exact `v` arm —
+`nurbs_stretch_bounds`, `chart_arms_at`, `curve_rate_bound`, `v_meter`,
+`split`/`classify`/`chord_join`, `PatchRegularity` speeds,
+`plane_nurbs_ssi`'s local speed). Consumers: the three blurred sup
+sites, `certify.rs` check 2's circle/ellipse arms, the loop-continuity
+u channel on plane/spline charts through `ChartArm`, `chart_bound`'s
+arm. Bit identity: `to_bits` differential rows, the `Interval` row, the
+tour listing digest (1766 files, `87be4dd9…`) and a reproducible
+narration digest identical at `origin/main` and head; k-lint counts
+unmoved. Reviews: dual, both APPROVE WITH FIXES; R1's M1 (the cone arm's
+false `SupSpeed` on a `pub` door — a tally candidate, demonstrated: the
+frozen head answered `1` where the true sup at `v = 4` is `2`) and M2
+(the pair's stated boundary false for plane/spline charts); twelve
+fix-pass items taken. Rows: PROPS' and TRIM's closed; TRIM
+`angular-arms-are-an-untagged-lever-beside-a-typed-rate`,
+`placeholder-chart-sup-arms-are-not-a-bound` filed;
+`certified-arms-are-an-untagged-inf-rate-beside-a-typed-pair` widened.
