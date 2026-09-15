@@ -5,29 +5,46 @@
 //! written into the geometry by hand, and no row reads a number the
 //! unit's own suites produced.
 //!
-//! What each row is for:
-//!
-//! 1. `the_certifying_filter_changes_a_pre_m10_6_documents_drive` — the
-//!    unit's claim 1 is "zero impact for documents without a
-//!    `min_clearance` measure". `drive::certifying_vector` drops
-//!    `Assertion` rows from the certification comparison, which is a
-//!    change to `drive` for EVERY assertion-carrying document, and this
-//!    row exhibits one whose leaves certify only because of it.
-//! 2. `min_separation_brackets_a_curved_pair_at_every_budget` — the
-//!    enclosure on carriers the unit's own fixture does not use
-//!    (cylinders), at starved budgets.
-//! 3. `min_clearance_between_two_separated_bodies_reads_zero` — the
-//!    carrier-WINDOW superset, carried into the measure layer: two
-//!    solids 0.1 m apart whose `min_clearance` is `[0, 0]`, and the
-//!    assertion over it that reads `Violated`.
-//! 4. `report_key_is_blind_to_the_dials_that_move_a_report` — the cache
-//!    seam's key function takes (kind, slice, box, ε, K) and no report
-//!    config, so two MC reports that differ share one key.
-//! 5. `the_mc_stream_is_re_derived_bit_for_bit` — the PRNG, re-stated
-//!    here from the algorithm's own definition, against the lane's
-//!    draws through `sample_offset`.
+//! **What each row is for is in the `roster!{}` block below**, not in
+//! this header: the block's entries are the rows' own idents, so a row
+//! renamed or retired is a compile error and a row added without an
+//! entry is a red run. The sentence beside each name is still
+//! hand-written and still unchecked — the weld is on NAMES, never on
+//! prose.
+
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+test_utils::roster! {
+    the_certifying_filter_changes_a_pre_m10_6_documents_drive:
+        "the unit's claim 1 is \"zero impact for documents without a `min_clearance` \
+         measure\"; `drive::certifying_vector` drops `Assertion` rows for EVERY \
+         assertion-carrying document, and this row exhibits one whose leaves certify \
+         only because of it",
+    min_separation_brackets_a_curved_pair_at_every_budget:
+        "the enclosure on carriers the unit's own fixture does not use (cylinders), at \
+         starved budgets",
+    min_clearance_between_two_separated_bodies_reads_zero:
+        "the carrier-WINDOW superset carried into the measure layer: two solids 0.1 m \
+         apart whose `min_clearance` is `[0, 0]`, and the assertion over it that reads \
+         `Violated`",
+    report_key_tells_the_dials_that_move_a_report_apart:
+        "the cache seam's key. D5 left the report dials out of the (kind, slice, box, \
+         eps, K) tuple, so two MC runs a consumer would never confuse hashed to one \
+         key; the dials are in the key now and this row pins the DISCRIMINATION it was \
+         written to pin the absence of",
+    the_mc_stream_is_re_derived_bit_for_bit:
+        "the PRNG, re-stated here from the algorithm's own definition, against the \
+         lane's draws through `sample_offset`",
+    the_typed_absence_names_its_verb_scalar_and_door:
+        "the payload sentence a Python caller is handed when a `min_clearance` measure \
+         is read at `f64`: it must name the verb, the scalar and the door that CAN \
+         answer, because the binding that formats it is not in this crate",
+    a_tolerance_study_end_to_end_through_the_public_doors:
+        "the whole consumer walk in one row — box, drive, stackup, histogram, budget, \
+         MC, cache. THE SUITE'S CRITICAL PATH: S-TCOST measured it at 346-660 s on \
+         2026-09-12, 85-96 % of the CI leg that finishes last",
+}
 
 use crate::fixture;
 
