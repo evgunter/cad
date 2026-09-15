@@ -2554,3 +2554,145 @@ mod rim_level_review_probe {
         );
     }
 }
+
+// ---------------------------------------------------------------------
+// R1 review probes (scalar-sense-r1). NOT for merge: a printing
+// differential harness, run at this head and at the merge base.
+// ---------------------------------------------------------------------
+#[cfg(test)]
+#[allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::print_stdout,
+    clippy::float_arithmetic
+)]
+mod r1probe {
+    use super::*;
+    use geom_core::Tol;
+
+    fn band_() -> Band {
+        Band::linear(Tol::witness()).expect("band")
+    }
+
+    fn hemi<T: Real>() -> (Surface<T>, Vec<LoopEdge<T>>) {
+        let rs = T::from_f64(0.010);
+        let p3 =
+            |x: f64, y: f64, z: f64| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
+        let v3 = |x: f64, y: f64, z: f64| Vec3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
+        let s = Surface::Sphere {
+            center: p3(0.0, 0.0, 0.0),
+            radius: rs,
+            axis: v3(0.0, 0.0, 1.0),
+            u_ref: v3(1.0, 0.0, 0.0),
+        };
+        let great = |u: f64, v0: f64, v1: f64, a: u32, b: u32| LoopEdge {
+            carrier_id: None,
+            carrier: Curve3::Circle {
+                center: p3(0.0, 0.0, 0.0),
+                axis: v3(u.sin(), -u.cos(), 0.0),
+                radius: rs,
+                u_ref: v3(u.cos(), u.sin(), 0.0),
+            },
+            t0: T::from_f64(v0),
+            t1: T::from_f64(v1),
+            start: a,
+            end: b,
+            forward: true,
+        };
+        let h = core::f64::consts::FRAC_PI_2;
+        (s, vec![great(0.0, -h, h, 0, 1), great(0.0, h, 3.0 * h, 1, 0)])
+    }
+
+    /// Rim-BEARING sphere face: a polar cap bounded by one rim at
+    /// z = 0.6R, so `sphere` takes the `Rim` arm.
+    fn cap<T: Real>() -> (Surface<T>, Vec<LoopEdge<T>>) {
+        let rs = T::from_f64(1.0);
+        let p3 =
+            |x: f64, y: f64, z: f64| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
+        let v3 = |x: f64, y: f64, z: f64| Vec3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
+        let s = Surface::Sphere {
+            center: p3(0.0, 0.0, 0.0),
+            radius: rs,
+            axis: v3(0.0, 0.0, 1.0),
+            u_ref: v3(1.0, 0.0, 0.0),
+        };
+        let mk = |zc: f64, fwd: bool, a: u32, b: u32| {
+            let rc = (1.0 - zc * zc).sqrt();
+            LoopEdge {
+                carrier_id: None,
+                carrier: Curve3::Circle {
+                    center: p3(0.0, 0.0, zc),
+                    axis: v3(0.0, 0.0, 1.0),
+                    radius: T::from_f64(rc),
+                    u_ref: v3(1.0, 0.0, 0.0),
+                },
+                t0: T::zero(),
+                t1: T::from_f64(core::f64::consts::TAU),
+                start: a,
+                end: b,
+                forward: fwd,
+            }
+        };
+        (s, vec![mk(0.6, true, 0, 0), mk(0.3, false, 1, 1)])
+    }
+
+    #[test]
+    fn r1_curved_face_differential_f64() {
+        let b = band_();
+        let (s, e) = hemi::<f64>();
+        for (tag, sense) in [("hemi/T", true), ("hemi/F", false)] {
+            match curved_face(&s, &e, sense, b) {
+                Ok(fc) => println!(
+                    "R1 {tag} OK flux={:#018x} area={:#018x}",
+                    fc.flux.to_bits(),
+                    fc.area.to_bits()
+                ),
+                Err(err) => println!("R1 {tag} ERR {err:?}"),
+            }
+        }
+        let (s, e) = cap::<f64>();
+        for (tag, sense) in [("cap/T", true), ("cap/F", false)] {
+            match curved_face(&s, &e, sense, b) {
+                Ok(fc) => println!(
+                    "R1 {tag} OK flux={:#018x} area={:#018x}",
+                    fc.flux.to_bits(),
+                    fc.area.to_bits()
+                ),
+                Err(err) => println!("R1 {tag} ERR {err:?}"),
+            }
+        }
+    }
+
+    #[cfg(feature = "interval")]
+    #[test]
+    fn r1_curved_face_differential_interval() {
+        use geom_core::{Bounds, Interval};
+        let b = band_();
+        let (s, e) = hemi::<Interval>();
+        for (tag, sense) in [("i/hemi/T", true), ("i/hemi/F", false)] {
+            match curved_face(&s, &e, sense, b) {
+                Ok(fc) => println!(
+                    "R1 {tag} OK flux=[{:#018x},{:#018x}] area=[{:#018x},{:#018x}]",
+                    fc.flux.lo().to_bits(),
+                    fc.flux.hi().to_bits(),
+                    fc.area.lo().to_bits(),
+                    fc.area.hi().to_bits()
+                ),
+                Err(err) => println!("R1 {tag} ERR {err:?}"),
+            }
+        }
+        let (s, e) = cap::<Interval>();
+        for (tag, sense) in [("i/cap/T", true), ("i/cap/F", false)] {
+            match curved_face(&s, &e, sense, b) {
+                Ok(fc) => println!(
+                    "R1 {tag} OK flux=[{:#018x},{:#018x}] area=[{:#018x},{:#018x}]",
+                    fc.flux.lo().to_bits(),
+                    fc.flux.hi().to_bits(),
+                    fc.area.lo().to_bits(),
+                    fc.area.hi().to_bits()
+                ),
+                Err(err) => println!("R1 {tag} ERR {err:?}"),
+            }
+        }
+    }
+}

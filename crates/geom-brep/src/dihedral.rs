@@ -788,3 +788,103 @@ mod tests {
         assert_eq!(err.margin, geom_core::MarginDiag::Invalid);
     }
 }
+
+// ---------------------------------------------------------------------
+// R1 review probes (scalar-sense-r1). NOT for merge.
+// ---------------------------------------------------------------------
+#[cfg(test)]
+#[allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::print_stdout,
+    clippy::float_arithmetic
+)]
+mod r1probe_dihedral {
+    use super::*;
+    use geom_core::{Point3, Tol, Vec3};
+
+    fn band_() -> Band {
+        Band::linear(Tol::witness()).expect("band")
+    }
+
+    fn plane_<T: Real>(n: (f64, f64, f64), u: (f64, f64, f64)) -> Surface<T> {
+        Surface::Plane {
+            origin: Point3::new(T::zero(), T::zero(), T::zero()),
+            normal: Vec3::new(T::from_f64(n.0), T::from_f64(n.1), T::from_f64(n.2)),
+            u_ref: Vec3::new(T::from_f64(u.0), T::from_f64(u.1), T::from_f64(u.2)),
+        }
+    }
+
+    #[test]
+    fn r1_pairing_differential_f64() {
+        let b = band_();
+        let s1 = plane_::<f64>((0.0, 0.0, 1.0), (1.0, 0.0, 0.0));
+        let s2 = plane_::<f64>((0.0, 0.0, 1.0), (0.0, 1.0, 0.0));
+        let p = Point3::new(0.0_f64, 0.0, 0.0);
+        for (ta, a) in [("T", true), ("F", false)] {
+            for (tb, c) in [("T", true), ("F", false)] {
+                let got = classify_material_pairing(&s1, a, &s2, c, p, 1.0_f64, b);
+                println!("R1 pair/{ta}{tb} {got:?}");
+            }
+        }
+        // `material_kappa_rel` over a ladder of magnitudes and special
+        // values: every bit of the result is printed.
+        for k in [
+            0.0_f64,
+            -0.0_f64,
+            1.0,
+            -1.0,
+            f64::MIN_POSITIVE,
+            5e-324,
+            1e308,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NAN,
+            0.1,
+            -1234.5678,
+        ] {
+            let pos = material_kappa_rel(k, true);
+            let neg = material_kappa_rel(k, false);
+            println!(
+                "R1 kappa in={:#018x} T={:#018x} F={:#018x}",
+                k.to_bits(),
+                pos.to_bits(),
+                neg.to_bits()
+            );
+        }
+    }
+
+    #[cfg(feature = "interval")]
+    #[test]
+    fn r1_pairing_differential_interval() {
+        use geom_core::{Bounds, Interval};
+        let b = band_();
+        let s1 = plane_::<Interval>((0.0, 0.0, 1.0), (1.0, 0.0, 0.0));
+        let s2 = plane_::<Interval>((0.0, 0.0, 1.0), (0.0, 1.0, 0.0));
+        let p = Point3::new(
+            Interval::from_f64(0.0),
+            Interval::from_f64(0.0),
+            Interval::from_f64(0.0),
+        );
+        for (ta, a) in [("T", true), ("F", false)] {
+            for (tb, c) in [("T", true), ("F", false)] {
+                let got =
+                    classify_material_pairing(&s1, a, &s2, c, p, Interval::from_f64(1.0), b);
+                println!("R1 i/pair/{ta}{tb} {got:?}");
+            }
+        }
+        for k in [0.0_f64, -0.0, 1.0, -1.0, 0.1, -1234.5678, 1e308] {
+            let ki = Interval::from_f64(k);
+            let pos = material_kappa_rel(ki, true);
+            let neg = material_kappa_rel(ki, false);
+            println!(
+                "R1 i/kappa in={:#018x} T=[{:#018x},{:#018x}] F=[{:#018x},{:#018x}]",
+                k.to_bits(),
+                pos.lo().to_bits(),
+                pos.hi().to_bits(),
+                neg.lo().to_bits(),
+                neg.hi().to_bits()
+            );
+        }
+    }
+}
