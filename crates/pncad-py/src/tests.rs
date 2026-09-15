@@ -5067,7 +5067,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("empty", 2),
     ("empty_boolean", 2),
     ("empty_placement_list", 2),
-    ("escalated", 10),
+    ("escalated", 11),
     ("euler", 2),
     ("evaluation_of_another_document", 2),
     ("face", 3),
