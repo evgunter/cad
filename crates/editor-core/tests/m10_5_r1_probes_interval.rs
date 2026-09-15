@@ -331,9 +331,30 @@ fn an_l_shaped_face_holds_where_it_has_no_material() {
         "the faces are √(0.2² + 0.5²) ≈ 0.539 apart, so 0.52 holds on them: {}",
         tight.serialize()
     );
+    // `outside > 0` alone cannot tell "dropped the missing quadrant"
+    // from "dropped everything" — an inverted parity satisfies it too,
+    // by dropping the straddling root pair vacuously. What separates
+    // them is that the sweep subdivided and then discharged at the
+    // funnel, and the measured counts.
+    let r = tight.receipt();
     assert!(
-        tight.receipt().outside > 0,
-        "and it holds because the missing quadrant's cells were proven empty of face: {}",
+        r.outside <= r.discharged,
+        "`outside` is a sub-count of `discharged`: {r:?}"
+    );
+    assert!(
+        r.splits > 0 && r.discharged > r.outside,
+        "the missing quadrant's cells were proven empty of face and the rest was \
+         subdivided and discharged at the funnel: {}",
+        tight.serialize()
+    );
+    assert_eq!(
+        (r.candidates, r.discharged, r.splits, r.outside),
+        (1, 610, 609, 224),
+        "the measured receipt, pinned — and load-bearing beyond this row's own subject: \
+         a drop rule that lets an in-band or poison margin separate, or a description \
+         tightened at the 0.05 scale, changes these counts while leaving every verdict \
+         in the suite alone (measured, TRIM-3 PR-2's fix pass). Stable across the three \
+         eps rows: {}",
         tight.serialize()
     );
 }
@@ -386,9 +407,18 @@ fn bumped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 /// description's azimuth hull — the half turn the face actually
 /// occupies — and not the whole turn, so the phantom lower half is
 /// gone before the tree is built. The body's real minimum gap is 0.5,
-/// which the proximity prune excludes outright, and the row records
-/// that `candidates` may now be 0: a full-turn root is exactly what
-/// this `Holds` proves absent.
+/// which the proximity prune then excludes outright.
+///
+/// **`candidates == 0` is the assertion, and it is the root cut's only
+/// e2e observable.** The v6 dual measured that the `Holds` alone
+/// proves nothing about the root: forcing the cylinder `u` back to the
+/// whole turn moves `candidates` `0 -> 1` and the row still passes,
+/// because the per-cell drops carry the verdict from there. So what
+/// this row pins is that the phantom lower half never reached the
+/// proximity tree at all — nothing was subdivided, because nothing
+/// came within reach. The band rule itself is decided directly by
+/// `editor_core::clearance`'s `root_rule` unit rows, and its e2e row
+/// is `trim_3_windows_interval::a_negative_band_is_not_intersected_with_the_canonical_turn`.
 #[test]
 fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
     let (doc, solid, _placed) = bumped_block();
@@ -416,6 +446,14 @@ fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
         "[r1] bumped block candidates = {}, windows = {:?}",
         r.candidates,
         report.windows()
+    );
+    assert_eq!(
+        r.candidates,
+        0,
+        "the bump's root is its own half turn, so the phantom lower half never comes \
+         within reach of the bottom wall and no pair is subdivided at all — this is the \
+         number a full-turn root moves, and the `Holds` below is not: {}",
+        report.serialize()
     );
     assert_eq!(
         report.verdict(),
@@ -871,10 +909,23 @@ fn e2e_channel_slider_over_an_epsilon_box() {
          overlap are proven empty of face: {}",
         whole.serialize()
     );
+    let r = whole.receipt();
     assert!(
-        whole.receipt().outside > 0,
-        "and that is why it holds — the coplanar pair was discharged off the face, not \
-         pruned away: {}",
+        r.outside <= r.discharged,
+        "`outside` is a sub-count of `discharged`: {r:?}"
+    );
+    assert!(
+        r.splits > 0 && r.discharged > r.outside,
+        "the coplanar pair was discharged off the face and the rest was subdivided and \
+         discharged at the funnel — not pruned away, and not all dropped: {}",
+        whole.serialize()
+    );
+    assert_eq!(
+        (r.candidates, r.discharged, r.splits, r.outside),
+        (10, 930, 920, 292),
+        "the measured receipt, pinned; like the L-plate row's it is what catches a drop \
+         rule that changes without changing a verdict. Stable across the three eps \
+         rows: {}",
         whole.serialize()
     );
     let inner = Selection {

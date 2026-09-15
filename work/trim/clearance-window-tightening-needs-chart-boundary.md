@@ -83,8 +83,24 @@ shapes this item measured flip: the L cap no longer reports the block
 in its notch, and the U-channel's coplanar caps no longer report the
 slider.
 
-Three residues filed with it:
+Six residues filed with it:
 `clearance-window-cone-sphere-torus`,
 `exact-region-cells-for-lower-bound-only`,
 `min-separation-tightening-crosses-the-drive` (the half of spec §3(b)
-that did not land), `negative-revolve-band-has-no-e2e-row`.
+that did not land), `revolved-bands-reach-no-clearance-row`,
+`three-tables-of-the-chart-arms`, and
+`a-refused-chart-boundary-has-no-reachable-window`.
+
+## PR-2's fix pass (2026-09-14)
+
+The v6 dual on `8e53655d2` returned MERGEABLE-AFTER-FIXES on both arms
+with sixteen items; the adjudication is comment 5675317215 on #2554.
+Nothing about the shipped seam's soundness moved — neither arm could
+manufacture an unsound `Holds` — and what changed is the verification
+record: three claimed mutant kills that did not execute, the
+deviation-1 mechanism (wrong on both arms' measurement, corrected in
+all three places), a residue file whose structural premise was false
+(refiled as `revolved-bands-reach-no-clearance-row`), the cylinder root
+rule lifted into a named `cut_root` with unit rows and a live e2e row
+for the `[0, τ] ∩ hull` mistake, and the drop's non-overlap fallback
+turned from "keep the description" into "drop it".

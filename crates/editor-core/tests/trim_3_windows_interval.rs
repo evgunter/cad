@@ -205,15 +205,31 @@ fn ell_with_a_planted_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 /// block straddles the cap's plane, so the true face-to-face distance
 /// is 0.05. A bound of 0.3 is violated, and it must still be reported.
 ///
-/// Three mutants die here, and the row is written so each dies
-/// separately. **Parity inverted** — the description would certify the
-/// MATERIAL outside and drop the cells that hold the real approach,
-/// leaving `Holds`. **Drop on indeterminate** — any reading that drops
-/// a cell the boundary does not definitely exclude takes the notch
-/// wall's own cells with it, same `Holds`. **A description tight by
-/// `≥ 0.05`** — a boundary placed inside the face by that much moves
-/// the witness off the wall, which the `a_point.x` assertion catches;
-/// the ε scale is T4's row, not this one.
+/// **What this row kills, measured.** An inverted parity: the
+/// description would certify the MATERIAL outside, drop the cells that
+/// hold the real approach, and leave `Holds`. That is the one mutant
+/// the v6 dual reproduced here, on both arms.
+///
+/// **What it does NOT kill, also measured**, and stated because the
+/// PR that landed it claimed otherwise. *Drop-on-indeterminate* — a
+/// separating-axis test that lets `Zero`, an in-band margin or poison
+/// count as separating — leaves this row green; so does *a
+/// description tight by `≥ 0.05`* (cells eroded by that much). The
+/// one-sided assertion that used to be credited with catching the
+/// second was monotone the wrong way, since a tighter description
+/// pushes the cap witness to SMALLER x, and the two-sided pin below
+/// replaces it — but the honest result of re-running both mutants
+/// against it is that **this row still does not catch either**.
+///
+/// What catches them, measured in the same pass: `topo`'s own T4/T6/T10
+/// rows on hand-built descriptions, and — e2e, newly — the pinned
+/// receipts on
+/// `m10_5_r1_probes_interval::an_l_shaped_face_holds_where_it_has_no_material`
+/// and `::e2e_channel_slider_over_an_epsilon_box`, whose discharge and
+/// split counts move when the drop rule changes at all. A description
+/// that moves the cap witness still reds the pin below; a description
+/// that changes which cells are dropped without moving it reds those
+/// two.
 #[test]
 fn a_planted_approach_to_the_notch_wall_is_still_violated() {
     let (doc, ell, block_node) = ell_with_a_planted_block();
@@ -251,11 +267,22 @@ fn a_planted_approach_to_the_notch_wall_is_still_violated() {
         "the reported approach is the real one, not a phantom: {d}"
     );
     // The witness on the cap sits on the notch wall, which is the
-    // material's own edge — not out in the notch where the window is.
+    // material's own edge — not out in the notch where the window is,
+    // and not pulled back off it either. The lattice station the
+    // search lands on is `x = 0.375`: the cell corner one split inside
+    // the wall, which is where the nine-point lattice of the cell that
+    // survives the description puts its nearest point. Pinned on both
+    // sides at the funnel's own width, so a description that moved the
+    // boundary by a hair in EITHER direction reds this row.
     let p = v.geometry.a_point;
     assert!(
         p.x <= 0.4 + k_eps(),
         "the cap witness is on the face, at or behind the notch wall x = 0.4: {p:?}"
+    );
+    assert!(
+        (p.x - 0.375).abs() <= k_eps(),
+        "and it is the measured station x = 0.375, not merely somewhere behind the wall — \
+         a description tightened or loosened at this scale moves it: {p:?}"
     );
     println!(
         "[E4] witness {:?} -> {:?} d = {d}, windows {:?}",
@@ -333,17 +360,14 @@ fn scalloped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 /// 0.12, on the arc and not on the coplanar caps, with every window in
 /// the query described.
 ///
-/// **What it does NOT kill is the mutant the spec wrote it for**, the
-/// natural spelling `[0, τ] ∩ hull`. That spelling empties only a band
-/// that runs NEGATIVE, and a negative band is minted by exactly one
-/// head constructor — a negative-angle revolve. Measured on this tree:
-/// no revolve replays at the interval scalar over an ε-scaled box, so
-/// no revolved band ever reaches `window_of`; and an extruded arc's
-/// cylinder is minted with `u_ref` at the arc's start, so its band is
-/// `[0, θ]` and `[0, τ] ∩ hull` is the identity on it (this fixture
-/// measures `u = π/2` at the scallop's lowest point, `v = -1`, so the
-/// axis is `-ẑ` and the band is the positive half turn). The gap owes
-/// a file: `work/trim/negative-revolve-band-has-no-e2e-row.md`.
+/// **What it does not kill is the `[0, τ] ∩ hull` mutant**, because
+/// this fixture's band is positive: the scallop is minted with `u_ref`
+/// at the arc's start, so the band is `[0, θ]` (measured: `u = π/2` at
+/// the scallop's lowest point, `v = -1`, so the axis is `-ẑ` and the
+/// band is the positive half turn) and the intersection is the
+/// identity on it. The row below,
+/// [`a_negative_band_is_not_intersected_with_the_canonical_turn`],
+/// is the one that kills it, on a band that does run negative.
 #[test]
 fn a_cylinder_band_answers_through_a_cut_root() {
     let (doc, solid, probe) = scalloped_block();
@@ -393,32 +417,178 @@ fn a_cylinder_band_answers_through_a_cut_root() {
     );
 }
 
+// ------------------------- E7b: a band that really does run negative
+
+/// **A peg whose walls are arcs of ONE carrier, split `n` ways with the
+/// first vertex at `phase`.** `CircleSplit` mints every wall on the
+/// same cylinder, so each wall's loop is walked on its own branch,
+/// pinned from its first half-edge's PRINCIPAL azimuth — a value in
+/// `(-π, π]`. A wall whose arc starts past `π` therefore gets a
+/// NEGATIVE band: at `n = 4`, `phase = -π/4`, wall 2 measures
+/// `u ∈ [-π/2, 0]` straight out of `window_of`.
+///
+/// The construction is R2's, from the v6 dual's probe P6
+/// (`t3s-r2` lane, `t3s_probes_interval.rs::p6_block_mid_way_along_the_negative_band_wall`),
+/// adopted here with its measurement.
+fn split_peg(r: &mut Recorder, n: u32, phase: f64) -> RecipeNodeId {
+    let plane = xy_frame(r);
+    let p = r.insert(Node::Profile(ProfileProgram {
+        plane,
+        loops: vec![LoopProgram::CircleSplit {
+            centre: [len(0.0), len(0.0)],
+            radius: len(0.5),
+            n,
+            phase: ang(phase),
+        }],
+    }));
+    r.insert(Node::Extrude {
+        profile: p,
+        distance: len(1.0),
+    })
+}
+
+/// A 0.1 × 0.1 block whose near face stands `gap` off the peg's surface
+/// at world azimuth `theta`, spanning `z ∈ [0.3, 0.7]` so it sits
+/// mid-way up the wall rather than against either cap.
+fn block_at_azimuth(r: &mut Recorder, theta: f64, gap: f64) -> RecipeNodeId {
+    let (c, s) = (theta.cos(), theta.sin());
+    let (r0, r1) = (0.5 + gap, 0.5 + gap + 0.1);
+    let (tx, ty) = (-s * 0.05, c * 0.05);
+    let pts = [
+        (r0 * c - tx, r0 * s - ty),
+        (r1 * c - tx, r1 * s - ty),
+        (r1 * c + tx, r1 * s + ty),
+        (r0 * c + tx, r0 * s + ty),
+    ];
+    let b = extruded(r, &pts, 0.4);
+    r.insert(translated(
+        b,
+        [
+            len(0.0),
+            len(0.0),
+            Expr::add(len(0.3), Expr::param(name("place"), Dimension::Length)).expect("a length"),
+        ],
+    ))
+}
+
+/// **E7b — the periodic root rule, on a band that runs the wrong side
+/// of zero.** This is the row the spec's E7 wanted and the row TRIM-3
+/// PR-2 first filed as unreachable.
+///
+/// Wall 2 of a four-way split peg phased at `-π/4` has the band
+/// `[-π/2, 0]`. The block stands 0.1 off that wall at world azimuth
+/// `+7π/8` — mid-band, because the wall's own material runs from
+/// `+3π/4` round through `π` to `-3π/4` in world terms while its chart
+/// azimuth runs `-π/2` to `0`. At `c = 0.3` the approach is real and
+/// the answer is `Violated`, with a witness whose chart `u` is
+/// NEGATIVE: the band was never folded.
+///
+/// **The two mistakes this forbids, and what each leaves behind.**
+/// Both spellings of "intersect the band with the canonical turn" —
+/// `narrowed(full_turn(), hull)` and the bare
+/// `(0.0.max(hu.0), τ.min(hu.1))` — leave the sliver
+/// `[-5e-324, 3.5e-14]`, because the hull's outward rounding puts the
+/// band's top end a hair ABOVE zero and the non-overlap fallback
+/// therefore never fires. The sweep then subdivides a sliver that
+/// holds none of the wall, every cell of it is far from the block, and
+/// the query answers **`Holds`** — a phantom certificate over a face
+/// whose material is 0.1 from the block. Planted, both spellings, both
+/// red this row; `clearance::root_rule` decides the same rule directly.
+#[test]
+fn a_negative_band_is_not_intersected_with_the_canonical_turn() {
+    let mut r = Recorder::new();
+    declare(&mut r, "place", 0.0);
+    let peg = split_peg(&mut r, 4, -core::f64::consts::FRAC_PI_4);
+    let block = block_at_azimuth(&mut r, 7.0 * core::f64::consts::FRAC_PI_8, 0.1);
+    let wall = named(peg, vec![fixture::fname(peg, fixture::wall(2))]);
+    let report = clearance(
+        &r.doc,
+        &box_of("place"),
+        &wall,
+        &Selection::body_of(block),
+        0.3,
+        Tol::witness(),
+    );
+    println!(
+        "[E7b] split peg wall 2 vs a block at +7π/8, c = 0.3: windows {:?}, {}",
+        report.windows(),
+        report.serialize()
+    );
+    assert!(report.receipt().holds(), "{:?}", report.receipt());
+    if let ClearanceVerdict::Refused(ClearanceRefusal::Selection(s)) = report.verdict() {
+        panic!("the split peg did not build at the interval scalar: {s}");
+    }
+    assert_eq!(
+        report.windows().1,
+        0,
+        "the wall and the block's faces are all planes and cylinders, so every window \
+         describes: {}",
+        report.serialize()
+    );
+    let ClearanceVerdict::Violated(v) = report.verdict() else {
+        panic!(
+            "the block stands 0.1 off this wall's material; a `Holds` here is the band \
+             intersected away to a sliver at the origin: {}",
+            report.serialize()
+        );
+    };
+    let d = witness_distance(&report);
+    assert!(
+        (0.1 - k_eps()..0.3).contains(&d),
+        "the reported approach is the built 0.1, found on the wall's own lattice: {d}"
+    );
+    assert!(
+        v.geometry.a_chart_axis.is_none(),
+        "the first side is the cylinder, so its `u` is an azimuth: {:?}",
+        v.geometry.a_chart_axis
+    );
+    assert!(
+        v.geometry.a_uv.0 < 0.0,
+        "and the azimuth is on the walk's own branch, the wrong side of zero — a root \
+         intersected with `[0, τ]` could not carry this witness: {:?}",
+        v.geometry.a_uv
+    );
+    println!(
+        "[E7b] witness uv = {:?} {:?} -> {:?} d = {d}",
+        v.geometry.a_uv, v.geometry.a_point, v.geometry.b_point
+    );
+}
+
 // -------------------------------------------- E8: a refusal is the identity
 
-/// **E8 — a description that refuses changes nothing.** The M10-5 R1
-/// y-axis quarter annulus: revolved about ŷ, whose stored `u_ref`
-/// comes from `orthonormal_basis` on an axis with `n.z = 0` and is the
-/// two-sided sign hull. The engine re-charts PLANES only, so this band
-/// keeps its hulled chart, and a boundary walk over it cannot certify
-/// an azimuth.
+/// **E8 — the query that never reaches a description at all, and the
+/// coverage boundary that is.**
 ///
-/// Whether the walk refuses typed or returns azimuths too wide to
-/// certify is not this row's business and is not asserted — what IS
-/// asserted is that NO window in this query was tightened, and that is
-/// the whole identity claim: with no description in hand,
-/// `certified_off_the_face` is false at every cell and every station,
-/// no root was cut, and the sweep is the one M10-5 shipped, verdict
-/// and receipt alike. The mutant it kills is a description refusal
-/// turned into a `ClearanceRefusal::Unsupported` at the door.
+/// The spec wrote this row as "a description that refuses is the
+/// identity", on the M10-5 R1 y-axis quarter annulus: revolved about
+/// ŷ, whose stored `u_ref` is the two-sided sign hull, and which the
+/// engine re-charts not at all because it re-charts PLANES only. The
+/// row does not certify that, and the honest thing is to say what it
+/// does certify instead.
 ///
-/// **Measured on this tree, the answer is a THIRD one the spec did
-/// not list**: the revolve does not replay at the interval scalar over
-/// an ε-scaled box at all, so the query refuses at the SELECTION door
-/// and no face of it is ever windowed. The printed report says which,
-/// and the identity claim is the same either way — `(0, …)` tightened
-/// windows means nothing this PR added ran.
+/// **Measured**: the revolve does not replay at the interval scalar
+/// over an ε-scaled box, so this query refuses at the SELECTION door
+/// (`node did not build in this leaf's replay`) and
+/// `ClearanceReport::refused` mints `windows = (0, 0)` and a default
+/// receipt **before `window_of` runs**. Both numbers below are that
+/// constant. They pin something real — a refusal at the door reports
+/// no windows, which is what a reader of `windows()` must be able to
+/// rely on — and they are not the identity claim.
+///
+/// **The identity claim is unexercised**, and cannot be exercised on
+/// this tree: no fixture reaches `chart_boundary`'s `Err` arm from
+/// `window_of`, because the three ways it refuses are a loop that
+/// wraps a period (no constructor makes one), a singular joint (whose
+/// carriers `chart_arms` declines before the walk is called) and a
+/// `General` carrier (which `EdgeCurve::certify` refuses at build
+/// time). Filed as
+/// `work/trim/a-refused-chart-boundary-has-no-reachable-window.md`;
+/// `work/trim/revolved-bands-reach-no-clearance-row.md` is why this
+/// fixture in particular stops at the door. A mutant that turns the
+/// `Err` arm into a `ClearanceRefusal::Unsupported` survives the whole
+/// suite, and no row in this file claims otherwise.
 #[test]
-fn a_refused_description_leaves_the_query_exactly_as_it_was() {
+fn a_selection_door_refusal_reports_no_windows_at_all() {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
     let plane = xy_frame(&mut r);
@@ -457,17 +627,25 @@ fn a_refused_description_leaves_the_query_exactly_as_it_was() {
         report.serialize()
     );
     assert!(report.receipt().holds(), "{:?}", report.receipt());
+    let ClearanceVerdict::Refused(ClearanceRefusal::Selection(_)) = report.verdict() else {
+        panic!(
+            "this row's subject is the SELECTION door's refusal; if the revolve has started \
+             replaying at the interval scalar this fixture now reaches `window_of` and the \
+             row must be rewritten to say what it finds there: {}",
+            report.serialize()
+        );
+    };
     assert_eq!(
-        report.windows().0,
-        0,
-        "no window of this query carries a chart-boundary description, which is what makes \
-         the rest of the report identical to the one M10-5 shipped: {}",
+        report.windows(),
+        (0, 0),
+        "a refusal at the door reports no windows in either column — it did not look at \
+         one: {}",
         report.serialize()
     );
     assert_eq!(
-        report.receipt().outside,
-        0,
-        "and with no description, no cell pair is discharged off the face: {}",
+        report.receipt(),
+        editor_core::clearance::CellReceipt::default(),
+        "and nothing was classified: {}",
         report.serialize()
     );
 }

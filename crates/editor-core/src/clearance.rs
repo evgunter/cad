@@ -19,9 +19,15 @@
 //! [`ClearanceVerdict::Holds`] is a certificate over the leaf's whole
 //! parameter box AND the whole of both selections: at every parameter
 //! point in the box and every pair of points on the two carrier
-//! windows, the separation satisfies the bound. Nothing samples,
-//! nothing averages, and no probability enters — mass accounting
-//! applies to LEAVES (E6), never inside one.
+//! windows **minus the cells the faces' own chart-boundary
+//! descriptions certify empty of face**, the separation satisfies the
+//! bound. That set still CONTAINS both trimmed faces — a cell is
+//! dropped only on a definite sign at `K · ε` against a certified
+//! outer bound of the face — so the certificate about the faces is
+//! exactly what it was before the windows were cut; what changed is
+//! that fewer places neither face occupies are covered by it. Nothing
+//! samples, nothing averages, and no probability enters — mass
+//! accounting applies to LEAVES (E6), never inside one.
 //!
 //! [`ClearanceVerdict::Violated`] carries a concrete parameter point
 //! and a concrete pair of surface points, and their distance is
@@ -56,12 +62,23 @@
 //!
 //! The engine answers `separation ≥ c` as a trichotomy, and — since
 //! M10-6 — "what IS the minimum separation" as a certified BRACKET
-//! ([`min_separation`]). Same windows, same cells, same split rule; the
-//! difference is what the sweep does with a cell pair. The bound
-//! question DECIDES each pair at a funnel site; the minimum question
-//! decides nothing at all — it takes minima of enclosure endpoints, so
-//! it funnels no predicate and consults no tolerance. That door's own
-//! header carries the argument.
+//! ([`min_separation`]). Same split rule, and the difference is what
+//! the sweep does with a cell pair: the bound question DECIDES each
+//! pair at a funnel site; the minimum question decides nothing at all
+//! — it takes minima of enclosure endpoints, so it funnels no
+//! predicate and consults no tolerance. That door's own header carries
+//! the argument.
+//!
+//! **The windows and the cells are no longer the same, either**, and
+//! for that same reason. The bound question's windows are cut to the
+//! faces' chart boundaries and its sweep drops the cells that boundary
+//! certifies empty of face; `min_separation`'s are the untightened
+//! carrier rectangles M10-5 shipped, because a drop is a decision and
+//! that door may take none (its own header, and
+//! `work/trim/min-separation-tightening-crosses-the-drive.md`). So
+//! `window_hi` is a minimum over strictly more of the carrier than a
+//! `Holds` covers, and the asymmetry is in the direction its own docs
+//! already state.
 //!
 //! **The sweep stops at the first VERIFIED violation.** A witness is
 //! the deliverable, and continuing past one buys a bigger receipt and
@@ -782,11 +799,18 @@ pub struct CellReceipt {
     /// Cell pairs that were split.
     pub splits: usize,
     /// **A sub-count of `discharged`, not a bucket of its own**: cell
-    /// pairs discharged VACUOUSLY, because one side's chart-boundary
-    /// description certified its cell empty of face. Nothing was
-    /// measured and nothing decided at the clearance site, so the pair
-    /// contributes no discharge width; `outside <= discharged` and the
-    /// receipt identity is untouched.
+    /// PAIRS discharged VACUOUSLY, because one side's chart-boundary
+    /// description certified that side's cell empty of face. Nothing
+    /// was measured and nothing decided at the clearance site, so the
+    /// pair contributes no discharge width; `outside <= discharged`
+    /// ([`CellReceipt::check_outside_is_a_sub_count`], enforced) and
+    /// the receipt identity is untouched.
+    ///
+    /// **Pairs, not cells.** The question the description answers is
+    /// per (window, cell) and the sweep asks it per pair, so one cell
+    /// proven empty is counted once for every partner it was paired
+    /// with. The sweep memoizes the ANSWER so it is computed once, but
+    /// the count is a receipt count and receipts count cell pairs.
     pub outside: usize,
     /// Cell pairs the sweep never classified because it had already
     /// verified a violation and stopped.
@@ -800,10 +824,36 @@ impl CellReceipt {
             == self.splits + self.candidates
     }
 
+    /// **`outside <= discharged`, checked rather than described.**
+    ///
+    /// A vacuous discharge that was not also counted a discharge is a
+    /// bug in the sweep, not a verdict about geometry: it breaks the
+    /// forest identity's meaning silently, because
+    /// [`CellReceipt::holds`] does not read `outside` and cannot. So
+    /// the relation is asserted at every site that mints or folds a
+    /// receipt, and a receipt that violates it fails loud instead of
+    /// riding a report.
+    ///
+    /// # Panics
+    ///
+    /// When `outside > discharged`.
+    fn check_outside_is_a_sub_count(&self) {
+        assert!(
+            self.outside <= self.discharged,
+            "a receipt's `outside` is a SUB-COUNT of `discharged` and this one has \
+             outside = {} against discharged = {}: a cell pair discharged off the face \
+             that was not counted a discharge is a bug in the sweep, not a verdict",
+            self.outside,
+            self.discharged
+        );
+    }
+
     /// Folds another query's receipt in — the driver-level fold's
     /// currency. The identity is additive: a sum of forests is a
     /// forest.
     fn add(&mut self, other: Self) {
+        self.check_outside_is_a_sub_count();
+        other.check_outside_is_a_sub_count();
         self.candidates += other.candidates;
         self.discharged += other.discharged;
         self.violated += other.violated;
@@ -891,8 +941,15 @@ impl ClearanceReport {
 
     /// **How many of the query's carrier windows carry a chart-boundary
     /// description, and how many do not** — `(tightened, loose)`, one
-    /// count per window the sweep ran over, both sides, so a query
+    /// count per window HANDED to the sweep, both sides, so a query
     /// against itself counts each face twice.
+    ///
+    /// Handed to, not run over: the windows are described in
+    /// `window_of` before the proximity tree has excluded anything, so
+    /// a query whose every pair the tree prunes still reports the full
+    /// pair of counts against `candidates = 0` (E5 reports `(16, 0)`
+    /// over zero candidates, and that is the honest reading — sixteen
+    /// faces were described, none was subdivided).
     ///
     /// A loose window is the whole carrier rectangle M10-5 shipped: a
     /// cone, a sphere or a torus, whose region side this engine does
@@ -1664,21 +1721,18 @@ pub fn min_separation(
     if a.faces.is_empty() || b.faces.is_empty() {
         return Err(ClearanceRefusal::EmptyScope);
     }
-    // **This door asks for no chart-boundary description, and the
-    // reason is the paragraph above read one level out.** Nothing here
-    // decides — and this door is called from INSIDE an evaluation, by
-    // the `min_clearance` measure primitive, so a decision taken here
-    // lands in the drive's own predicate census. The description's
-    // drops are decisions (a definite sign at `K · eps`), and their
-    // COUNT is a function of how far the subdivision ran, which is a
-    // function of the parameter box — so every leaf of a drive over a
-    // document carrying this measure crosses a divergence and refuses
-    // `flip_crossing`. Measured: six M10-6 drive rows lose their
-    // certified leaf outright.
-    //
-    // So the windows here stay the loose carrier rectangles M10-5
-    // shipped, `MinSeparation`'s two ends keep the meanings its own
-    // docs give them, and the tightening this door could have had is
+    // **No chart-boundary description here.** Asking for one costs
+    // every drive over a `min_clearance` document its certified leaves:
+    // this door is called from inside an evaluation, so MINTING the
+    // description records the boundary walk's own funnel rows
+    // (`pcurve_loop_closure`, `_height`, `_continuity`, `_pole_joint`)
+    // in the leaf's census, while the `f64` witness build never walks
+    // at all — `MinClearanceLane for f64` answers `None` — so the two
+    // builds differ `0 -> N` on every box and the leaf refuses
+    // `flip_crossing`. Measured: seven M10-6/R2 drive rows lose their
+    // certified leaf, and the diverging rows are the WALK's, never a
+    // `chart_bound_*` drop. Details, and the fix shape that would
+    // actually reach it, in
     // `work/trim/min-separation-tightening-crosses-the-drive.md`.
     let band: Option<Band> = None;
     let windows = |s: &MinSepSelection<'_>| -> Result<Vec<Window>, ClearanceRefusal> {
@@ -2058,10 +2112,15 @@ struct Window {
     /// **The face's trimmed region, bounded in this window's own
     /// chart** — the description the root above was cut to, kept so
     /// every cell the subdivision reaches can be asked the same
-    /// question. `None` where there is none: a carrier this engine does
-    /// not describe, or a boundary walk that refused. A cell it
-    /// certifies outside holds no point of the FACE, so classifying
-    /// that cell would classify a place the body does not occupy.
+    /// question. `None` in four cases, and only the last of them says
+    /// anything about the geometry: a door that passed no band and so
+    /// asked for no description at all ([`min_separation`]); a carrier
+    /// this engine does not describe (cone, sphere, torus); a boundary
+    /// walk that refused; and a description whose hull does not agree
+    /// with the carrier window it was supposed to describe, which
+    /// [`cut_root`] drops rather than keep. A cell it certifies
+    /// outside holds no point of the FACE, so classifying that cell
+    /// would classify a place the body does not occupy.
     bound: Option<MetredBound<Interval>>,
     /// The face's boundary vertices — the wedge rule's currency, read
     /// off topology and never off geometry.
@@ -2078,6 +2137,19 @@ struct Window {
 /// whose arc length is `r · u`. Metring is what makes every margin the
 /// outside test decides a LENGTH — the quantity the linear band
 /// governs — rather than a mixture of metres and radians.
+///
+/// **This is a COPY, and the reason it is one is that the original is
+/// not reachable.** `topo::chart_region`'s `certified_arms` is the one
+/// home for these two derivations — `docs/TRIM-3-SPEC.md` §2 cites it
+/// as the authority for why exactly these two need no bound, and it
+/// spells them character for character — but it is private to that
+/// module and `chart_region.rs` is Track Q's ground, read-only for
+/// this unit (`docs/TRIM-3-SPEC.md` §5). A third answer,
+/// `geom_brep::chart_arms_at`, is one word off in the name and answers
+/// the sup rather than the inf direction. So the hazard here is DRIFT,
+/// not disagreement: a carrier that gains a certified arm over there
+/// gains nothing here, and the two tables have to be moved together.
+/// Filed as `work/trim/three-tables-of-the-chart-arms.md`.
 fn chart_arms(surface: &Surface<Interval>) -> Option<(Interval, Interval)> {
     let one = Interval::from_f64(1.0);
     match surface {
@@ -2113,6 +2185,52 @@ fn certified_off_the_face(w: &Window, u: (f64, f64), v: (f64, f64), band: Band) 
         return false;
     };
     bound.certifies_outside(metred_rect(arms, u, v), band)
+}
+
+/// **The off-face question is per (WINDOW, CELL); the sweep asks it per
+/// PAIR.** This is the memo that makes the difference not cost
+/// anything.
+///
+/// A cell of window `i` is paired with every admitted cell of the
+/// other side, and each pairing used to re-run the whole separating-axis
+/// test plus the ray-parity walk over every loop — the same question,
+/// the same answer, once per partner. The answer depends only on the
+/// window and the cell, so it is computed once and looked up after.
+///
+/// The KEY is the cell's `f64` bits, not its value: cell corners are
+/// the split rule's own arithmetic, so two cells are the same cell
+/// exactly when their four bounds are bit-identical, and a bitwise key
+/// is total where a float comparison would have to decide something.
+/// [`CellReceipt::outside`] still counts pairs — a receipt counts cell
+/// pairs — so the memo changes the cost and not one number in any
+/// report.
+#[derive(Default)]
+struct OffFaceMemo {
+    seen: BTreeMap<(bool, usize, u64, u64, u64, u64), bool>,
+}
+
+impl OffFaceMemo {
+    fn ask(&mut self, side_b: bool, index: usize, w: &Window, c: Cell, band: Band) -> bool {
+        // A window with no description answers `false` for every cell;
+        // there is nothing to memoize and nothing to compute.
+        if w.bound.is_none() {
+            return false;
+        }
+        let key = (
+            side_b,
+            index,
+            c.u.0.to_bits(),
+            c.u.1.to_bits(),
+            c.v.0.to_bits(),
+            c.v.1.to_bits(),
+        );
+        if let Some(&answer) = self.seen.get(&key) {
+            return answer;
+        }
+        let answer = certified_off_the_face(w, c.u, c.v, band);
+        self.seen.insert(key, answer);
+        answer
+    }
 }
 
 /// Reads a selection's faces out of the leaf's replay, one window each.
@@ -2162,8 +2280,23 @@ fn windows_of(
 /// window. An ulp guard is not a tolerance — the same idiom
 /// [`bvh::Aabb::padded`] uses, for the same reason.
 fn full_turn() -> (f64, f64) {
-    (0.0f64.next_down(), core::f64::consts::TAU.next_up())
+    (0.0f64.next_down(), TURN_CEILING)
 }
+
+/// **The widest azimuth extent a periodic window may carry**: one whole
+/// turn, one ulp wider, so the rounding of `TAU` itself can never make
+/// a band that really is a turn read as more than one.
+///
+/// One spelling, used by [`full_turn`] and by [`cut_root`]'s periodic
+/// branch, because they are the same guard asked twice — "is this band
+/// still inside one period?" — and two spellings of one ulp guard is
+/// one spelling too many.
+const TURN_CEILING: f64 = {
+    // `next_up` is not const on this toolchain; the bit pattern above
+    // `TAU` is, and it is the same number `f64::next_up` returns for a
+    // positive finite value.
+    f64::from_bits(core::f64::consts::TAU.to_bits() + 1)
+};
 
 /// The canonical latitude range, widened the same way. Evaluating a
 /// hair past a pole lands on the sphere's far side, which is still on
@@ -2293,18 +2426,22 @@ fn window_of(
                 // looser than the description.
                 let hu = ((hull.u_min / arms.0).lo(), (hull.u_max / arms.0).hi());
                 let hv = ((hull.v_min / arms.1).lo(), (hull.v_max / arms.1).hi());
-                v = narrowed(v, hv);
-                u = match &charted {
-                    Surface::Cylinder { .. } => {
-                        if hu.1 - hu.0 <= core::f64::consts::TAU.next_up() {
-                            hu
-                        } else {
-                            full_turn()
-                        }
+                let periodic_u = matches!(charted, Surface::Cylinder { .. });
+                match cut_root(periodic_u, (u, v), (hu, hv)) {
+                    Some((cut_u, cut_v)) => {
+                        u = cut_u;
+                        v = cut_v;
+                        bound = Some(metred);
                     }
-                    _ => narrowed(u, hu),
-                };
-                bound = Some(metred);
+                    None => {
+                        // A description that does not agree with the
+                        // window it was supposed to describe is thrown
+                        // away WITH the root it would have cut — see
+                        // `cut_root`. Today's window stands and the
+                        // report counts this window loose, which is
+                        // where the disagreement is recorded.
+                    }
+                }
             }
             Err(_) => {
                 // A description the walk could not certify is no
@@ -2335,19 +2472,78 @@ fn window_of(
     })
 }
 
-/// One axis of a window, cut to a second certified superset of the same
-/// extent — and left where it was when the two do not overlap in a
-/// usable range.
+/// **The root a description buys, or nothing at all.**
 ///
-/// Two supersets of one set intersect in a superset of it, so the cut
-/// is sound whenever it is a range at all. It is not a range when the
-/// description is degenerate on that axis (a face whose chart image is
-/// a segment) or when rounding has crossed the two ends, and there the
-/// window the engine already had is the answer: keeping a wider window
-/// classifies more cells, never fewer.
-fn narrowed(window: (f64, f64), hull: (f64, f64)) -> (f64, f64) {
-    let cut = (window.0.max(hull.0), window.1.min(hull.1));
-    if cut.0 < cut.1 { cut } else { window }
+/// `window` is the carrier rectangle this module has always derived —
+/// a certified superset of the face's region in the chart's own
+/// coordinates. `hull` is the face's chart-boundary hull, metred and
+/// divided back into chart units with every division rounded outward,
+/// which is a second certified superset of the same region. The answer
+/// is the root the sweep subdivides, and `None` means **the
+/// description is dropped too**: the caller keeps today's window and
+/// records the window loose.
+///
+/// Lifted out of `window_of` and named because it is the one rule in
+/// this seam a natural spelling gets wrong, and because a rule with
+/// two branches and a periodicity argument should be decidable by a
+/// test without a document behind it (`tests::cut_root_*`).
+///
+/// # The two branches
+///
+/// **`v`, and a NON-periodic `u`**, are affine coordinates in one
+/// chart, so two supersets intersect in a superset and the cut is the
+/// intersection.
+///
+/// **A periodic `u`** is an azimuth ON THE WALK'S BRANCH: a real
+/// number, never folded into `[0, τ)`. A face swept the negative way
+/// — a negative-angle revolve, or any arc of a shared carrier whose
+/// first half-edge has a principal azimuth past `π` — has a band like
+/// `[-π/2, 0]`, and the carrier window it is being cut against is the
+/// canonical full turn. **Intersecting those two is meaningless and
+/// unsound**: it leaves a sliver at the origin, the sweep subdivides
+/// that sliver, every real approach through the band's middle is
+/// outside it, and the query mints a phantom `Holds`
+/// (`trim_3_windows_interval::a_negative_band_is_not_intersected_with_the_canonical_turn`
+/// is the row; both spellings of the mistake are in its doc). So the
+/// hull is taken VERBATIM when it still fits inside one period, and
+/// the canonical whole turn stands when it does not.
+///
+/// # When it answers `None`
+///
+/// When the two supersets do not agree: an intersection that is not a
+/// range on `v` or on an affine `u`, or a periodic hull that is not a
+/// range at all. Two certified supersets of a nonempty region always
+/// overlap, so a disagreement means one of them is not describing the
+/// region the other is — and then the DESCRIPTION is the one to drop,
+/// because keeping it beside an uncut window would let it certify
+/// every cell of that window empty and mint a vacuous `Holds`. Keeping
+/// the window and dropping the description is the identity; the
+/// reverse is not sound.
+fn cut_root(
+    periodic_u: bool,
+    window: ((f64, f64), (f64, f64)),
+    hull: ((f64, f64), (f64, f64)),
+) -> Option<((f64, f64), (f64, f64))> {
+    let (window_u, window_v) = window;
+    let (hull_u, hull_v) = hull;
+    let intersect = |w: (f64, f64), h: (f64, f64)| -> Option<(f64, f64)> {
+        let cut = (w.0.max(h.0), w.1.min(h.1));
+        (cut.0 < cut.1).then_some(cut)
+    };
+    let v = intersect(window_v, hull_v)?;
+    let u = if periodic_u {
+        if hull_u.0 >= hull_u.1 || !hull_u.0.is_finite() || !hull_u.1.is_finite() {
+            return None;
+        }
+        if hull_u.1 - hull_u.0 <= TURN_CEILING {
+            hull_u
+        } else {
+            full_turn()
+        }
+    } else {
+        intersect(window_u, hull_u)?
+    };
+    Some((u, v))
 }
 
 /// **A certified in-plane direction, minted here rather than read off
@@ -2645,6 +2841,7 @@ impl Sweep {
             ..CellReceipt::default()
         };
         let mut widths = DischargeWidths::empty();
+        let mut off_face = OffFaceMemo::default();
         let mut first_refusal: Option<ClearanceRefusal> = None;
         let mut violation: Option<GeometryWitness> = None;
 
@@ -2702,8 +2899,8 @@ impl Sweep {
                 // the sweep ends with is unchanged in what it is about
                 // — the two roots minus cells proven empty of face
                 // still contain the two faces.
-                if certified_off_the_face(x, pair.a.u, pair.a.v, self.band)
-                    || certified_off_the_face(y, pair.b.u, pair.b.v, self.band)
+                if off_face.ask(false, task.i, x, pair.a, self.band)
+                    || off_face.ask(true, task.j, y, pair.b, self.band)
                 {
                     receipt.discharged += 1;
                     receipt.outside += 1;
@@ -2875,6 +3072,7 @@ impl Sweep {
             (None, Some(refusal)) => ClearanceVerdict::Refused(refusal),
             (None, None) => ClearanceVerdict::Holds,
         };
+        receipt.check_outside_is_a_sub_count();
         ClearanceReport {
             verdict,
             receipt,
@@ -3087,20 +3285,30 @@ fn verify_witness(
     // interval pass proved violating whose face material, if any, sits
     // between stations: the violation is real about the WINDOW and
     // there is no point of the FACE to exhibit it at.
+    //
+    // Each side's nine stations are admitted ONCE, before the pairing:
+    // the question is per (window, station) and the loop below is over
+    // pairs, so asking it inside would ask the second side's nine
+    // questions once per admitted station of the first.
     let stations = |span: (f64, f64)| [span.0, mid_of(span), span.1];
-    let admits = |w: &Window, u: f64, v: f64| !certified_off_the_face(w, (u, u), (v, v), band);
-    let mut best: Option<Station> = None;
-    for au in stations(ca.u) {
-        for av in stations(ca.v) {
-            if !admits(x, au, av) {
-                continue;
+    let admitted = |w: &Window, c: Cell| -> Vec<(f64, f64)> {
+        let mut out = Vec::with_capacity(9);
+        for u in stations(c.u) {
+            for v in stations(c.v) {
+                if !certified_off_the_face(w, (u, u), (v, v), band) {
+                    out.push((u, v));
+                }
             }
+        }
+        out
+    };
+    let (lattice_a, lattice_b) = (admitted(x, ca), admitted(y, cb));
+    let mut best: Option<Station> = None;
+    for &(au, av) in &lattice_a {
+        {
             let pa = sa.eval(au, av);
-            for bu in stations(cb.u) {
-                for bv in stations(cb.v) {
-                    if !admits(y, bu, bv) {
-                        continue;
-                    }
+            for &(bu, bv) in &lattice_b {
+                {
                     let pb = sb.eval(bu, bv);
                     let d = separation_f64(&pa, &pb);
                     if best
@@ -3187,4 +3395,120 @@ fn mid_of(span: (f64, f64)) -> f64 {
 fn separation_f64(a: &Point3<f64>, b: &Point3<f64>) -> f64 {
     let d = *a - *b;
     (d.x.powi(2) + d.y.powi(2) + d.z.powi(2)).sqrt()
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod root_rule {
+    //! **[`cut_root`]'s two branches and its two refusals**, decided
+    //! directly rather than through a document.
+    //!
+    //! The residue file that asked for this
+    //! (`work/trim/negative-revolve-band-has-no-e2e-row.md`, since
+    //! rewritten) asked for exactly one thing: a root rule with a
+    //! periodicity argument should be addressable by a test that does
+    //! not have to build a body to reach it. The e2e half — that the
+    //! mistake these rows forbid mints a phantom `Holds` on a real
+    //! document — is
+    //! `trim_3_windows_interval::a_negative_band_is_not_intersected_with_the_canonical_turn`.
+
+    use super::{CellReceipt, TURN_CEILING, cut_root, full_turn};
+
+    const TAU: f64 = core::f64::consts::TAU;
+
+    /// An affine axis is cut to the intersection of the two supersets.
+    #[test]
+    fn an_affine_axis_is_cut_to_the_intersection() {
+        let cut = cut_root(false, ((0.0, 2.0), (0.0, 2.0)), ((0.5, 3.0), (-1.0, 1.5)))
+            .expect("two overlapping supersets agree");
+        assert_eq!(cut, ((0.5, 2.0), (0.0, 1.5)));
+    }
+
+    /// **A negative band survives verbatim.** This is the rule the
+    /// natural spelling gets wrong: a face swept the negative way has
+    /// an azimuth band like `[-π/2, 0]` on the walk's own branch, and
+    /// the carrier window it is cut against is the canonical full
+    /// turn. The row asserts the shipped answer and then spells out
+    /// both mistakes and what each leaves behind, so a reader can see
+    /// that neither is a near miss.
+    #[test]
+    fn a_negative_periodic_band_is_taken_verbatim() {
+        let band = (-core::f64::consts::FRAC_PI_2, 3.5e-14);
+        let (u, v) = cut_root(true, (full_turn(), (0.0, 1.0)), (band, (0.0, 1.0)))
+            .expect("a band inside one period is a root");
+        assert_eq!(u, band, "the hull is the root, not a residue mod τ");
+        assert_eq!(v, (0.0, 1.0));
+
+        // Mistake 1, `narrowed(full_turn(), hull)`: the fallback does
+        // NOT fire, because the hull's outward rounding leaves the top
+        // end just above zero.
+        let full = full_turn();
+        let intersected = (full.0.max(band.0), full.1.min(band.1));
+        assert!(
+            intersected.0 < intersected.1 && intersected.1 - intersected.0 < 1e-13,
+            "the intersection is a sliver at the origin, not empty: {intersected:?}"
+        );
+        // Mistake 2, the bare `(0.max(hu.0), τ.min(hu.1))`: the same
+        // sliver, by a different route.
+        let clamped = (0.0f64.max(band.0), TAU.min(band.1));
+        assert!(
+            clamped.1 - clamped.0 < 1e-13,
+            "the clamp is the same sliver: {clamped:?}"
+        );
+        // Both leave a root that holds none of the band's middle,
+        // which is where a real approach through this face lives.
+        let middle = -core::f64::consts::FRAC_PI_4;
+        assert!(u.0 <= middle && middle <= u.1);
+        assert!(!(intersected.0 <= middle && middle <= intersected.1));
+        assert!(!(clamped.0 <= middle && middle <= clamped.1));
+    }
+
+    /// A band wider than one period cannot be a root: the canonical
+    /// whole turn stands.
+    #[test]
+    fn a_band_past_one_period_falls_back_to_the_whole_turn() {
+        let (u, _) = cut_root(true, (full_turn(), (0.0, 1.0)), ((-0.1, TAU), (0.0, 1.0)))
+            .expect("a root exists");
+        assert_eq!(u, full_turn(), "more than a turn is no better than a turn");
+        // And one that is a turn exactly, plus the ulp guard, is kept.
+        let exact = (0.0, TURN_CEILING);
+        let (kept, _) =
+            cut_root(true, (full_turn(), (0.0, 1.0)), (exact, (0.0, 1.0))).expect("a root exists");
+        assert_eq!(kept, exact, "the ulp guard is on the inside of the test");
+    }
+
+    /// **A description that does not agree with its window is dropped,
+    /// not kept.** Keeping it would leave a description free to certify
+    /// every cell of an uncut window empty of face and mint a vacuous
+    /// `Holds`; dropping it is the identity.
+    #[test]
+    fn a_description_that_misses_its_window_is_dropped() {
+        // Disjoint on v.
+        assert!(cut_root(false, ((0.0, 1.0), (0.0, 1.0)), ((0.0, 1.0), (5.0, 6.0))).is_none());
+        // Disjoint on an affine u.
+        assert!(cut_root(false, ((0.0, 1.0), (0.0, 1.0)), ((5.0, 6.0), (0.0, 1.0))).is_none());
+        // Touching at a point is not a range either.
+        assert!(cut_root(false, ((0.0, 1.0), (0.0, 1.0)), ((1.0, 2.0), (0.0, 1.0))).is_none());
+        // A periodic hull that is not a range at all.
+        assert!(cut_root(true, (full_turn(), (0.0, 1.0)), ((1.0, 0.5), (0.0, 1.0))).is_none());
+        // A periodic band still has to agree on the AXIAL coordinate.
+        assert!(cut_root(true, (full_turn(), (0.0, 1.0)), ((-1.0, 0.0), (5.0, 6.0))).is_none());
+    }
+
+    /// **`outside <= discharged` fails loud.** A sweep that counted a
+    /// vacuous discharge without counting the discharge would break the
+    /// receipt's meaning while `holds()` — which cannot read `outside`
+    /// — went on answering `true`.
+    #[test]
+    #[should_panic(expected = "SUB-COUNT")]
+    fn a_receipt_whose_outside_exceeds_discharged_fails_loud() {
+        let bad = CellReceipt {
+            candidates: 1,
+            discharged: 1,
+            outside: 2,
+            ..CellReceipt::default()
+        };
+        assert!(bad.holds(), "the identity itself cannot see the defect");
+        bad.check_outside_is_a_sub_count();
+    }
 }

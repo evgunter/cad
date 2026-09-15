@@ -638,9 +638,9 @@ fn self_intersection_over_a_sound_body_examines_nothing_r2_finding() {
 /// the WINDOW — no longer breaks a bound of 0.3, which is what the two
 /// faces always satisfied. The finding this row pinned (a witness
 /// whose `(u, v)` lands where the body has no material) was fixed by
-/// TRIM-3 PR-2; `outside > 0` is the row's grip on WHY, because a
-/// `Holds` bought by a smaller budget or a pruned candidate would look
-/// the same.
+/// TRIM-3 PR-2; the receipt pinned below is the row's grip on WHY,
+/// because a `Holds` bought by a smaller budget, a pruned candidate or
+/// a description that dropped the whole window would look the same.
 #[test]
 fn a_violation_witness_cannot_land_where_the_face_is_not() {
     let (doc, ell, block_node) = ell_with_a_block_in_the_notch();
@@ -665,9 +665,31 @@ fn a_violation_witness_cannot_land_where_the_face_is_not() {
         report.serialize()
     );
     assert!(report.receipt().holds());
+    // **`outside > 0` was the wrong pin and this is why.** It is
+    // monotone the wrong way: a description with its parity inverted
+    // certifies the MATERIAL outside, drops the straddling root pair
+    // vacuously, and reports `candidates=6 discharged=6 outside=6
+    // splits=0` — also `Holds`, also `outside > 0`. What separates
+    // "dropped the notch" from "dropped everything" is that the sweep
+    // went on to SUBDIVIDE and then discharge pairs at the funnel:
+    // `discharged` strictly above `outside`, and splits on the board.
+    let r = report.receipt();
     assert!(
-        report.receipt().outside > 0,
-        "and it holds because the notch cells were proven empty of face, not because          nothing was examined: {}",
+        r.outside <= r.discharged,
+        "`outside` is a sub-count of `discharged`: {r:?}"
+    );
+    assert!(
+        r.splits > 0 && r.discharged > r.outside,
+        "the notch cells were proven empty of face and the REST was subdivided and \
+         discharged at the funnel — a description that dropped everything would report \
+         splits = 0 and discharged == outside: {}",
+        report.serialize()
+    );
+    assert_eq!(
+        (r.candidates, r.discharged, r.splits, r.outside),
+        (6, 18, 12, 6),
+        "the measured receipt, pinned so a description that drops more or fewer cells \
+         than the notch's says so: {}",
         report.serialize()
     );
     assert_eq!(
