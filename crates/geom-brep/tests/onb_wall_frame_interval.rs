@@ -2,8 +2,8 @@
 //! the acceptance row for the orthonormal basis's world-axis choice.
 //!
 //! `Vec3::orthonormal_basis` crosses the normal with `e_z` when
-//! `|n.z| ≤ max(|n.x|, |n.y|)` and with `e_y` otherwise, and
-//! normalizes. A vertical
+//! `|n.z| ≤ max(|n.x|, |n.y|)/2` and with `e_y` otherwise, and divides
+//! by the candidate's own length. A vertical
 //! wall (`n.z = 0`, the whole equator) is therefore as far from the
 //! comparison's seam as a direction can be: the choice DECIDES over any
 //! enclosure a wall's normal comes in, no sign is transferred anywhere,
@@ -119,8 +119,8 @@ fn cell_z_width(surface: &Surface<Interval>, u: (f64, f64), v: (f64, f64)) -> f6
 ///
 /// **All twelve walls decide**, including the two whose `n.x` and `n.z`
 /// are noise around zero: the comparison is
-/// `|n.z| ≤ max(|n.x|, |n.y|)`, and a wall has one component at 1 while
-/// the noise is at `1e-16`. An order over all three components would
+/// `|n.z| ≤ max(|n.x|, |n.y|)/2`, and a wall has one component at 1
+/// while the noise is at `1e-16`. An order over all three components would
 /// have been undecided on exactly those two, because which of two
 /// enclosures that both contain zero is the smaller has no answer.
 #[test]
@@ -178,7 +178,8 @@ fn every_wall_of_the_twelve_gon_prism_stores_a_frame_as_exact_as_its_normal() {
             // three components could not have decided between.
             let straddles = |e: Interval| e.lo() <= 0.0 && 0.0 <= e.hi();
             let noisy = straddles(normal.x) && straddles(normal.z) && width(normal.x) > 0.0;
-            let d = normal.z.abs() - normal.x.abs().max(normal.y.abs());
+            let d = normal.z.abs()
+                - normal.x.abs().max(normal.y.abs()) * Interval::from_f64(0.5);
             let decided = d.hi() <= 0.0 || d.lo() > 0.0;
             assert!(
                 decided,
