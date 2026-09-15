@@ -32,39 +32,50 @@ chords), pointwise jet speeds (the march, Newton acceptance),
 `work/scalar/log.md`, "The rate census". PROPS' and TRIM's ground;
 announce. Full v6 dual.
 
-## Digest receipt (taken before the change)
+## Digest receipt: the D9 pin for "nothing's bits move"
 
-The D9 pin for "nothing's bits move". Taken on this branch at the
-merge with `origin/main`, with the tree still at the pre-change state,
-so the hashes are in history before a line of the change was written.
+The receipt is a DIFFERENTIAL between two trees, so the recipe has to
+be executable by a second party on either of them. This one has no
+free parameters: no cargo preamble, no absolute path, no line cut, no
+rewrite rule.
 
-`cd demos/tour && cargo run --release -- <out>` (release, default
-features, default eps), then
-`find . -type f | LC_ALL=C sort | xargs sha256sum`:
+```sh
+# once per tree, from that tree's demos/tour
+CARGO_TARGET_DIR=<target> cargo build --release
+# then, from an empty directory
+rm -rf tour-out && <target>/release/demo-tour tour-out > narration.log 2>&1
+(cd tour-out && find . -type f | LC_ALL=C sort | xargs sha256sum) > listing.txt
+sha256sum listing.txt narration.log
+```
+
+The binary is run DIRECTLY rather than through `cargo run`, so its
+output is the kernel's words and nothing else; the outdir is the
+literal relative name `tour-out`, so the path the narration prints is
+the same string on both trees; and both streams are digested whole.
+
+Taken at `origin/main` (`4f71edaea`) and at this branch's head, with
+the same target directory rebuilt in place between them:
 
 - **1766 emitted files** (`*.pncad`, `*.stl`, `*.step`, `uv/*.svg`,
   `uv.json`, `scenes.json`); digest of the sorted per-file digest
-  listing: `87be4dd9df4cc3af9bd44593a6b981608c8e73721c746413a00322ff61e4a892`
-- the tour's own **narration** (the census, genus, validation tiers and
-  exact-vs-meshed mass properties it prints per stop), from the first
-  scene line to the end:
-  `0450e8ba80a473c12adfb9efc768e6cc0b09bcebf31c0149156487b93824a33e`
+  listing:
+  `87be4dd9df4cc3af9bd44593a6b981608c8e73721c746413a00322ff61e4a892`
+- the tour's own **narration** (the census, genus, validation tiers
+  and exact-vs-meshed mass properties it prints per stop), 729 lines:
+  `e930abf542c371677b2c0d87b02c2bf84eb15fbaf62ded6389f48c899ef14d49`
 
-The same two hashes are re-taken after the change in the PR body. The
-listing itself is a one-shot comparison artefact and is not committed
-(`memories/test-suite-cost.md`): the aggregate hash is what a second
-run has to reproduce.
+Both values are the same at base and at head, and `diff` on both files
+is empty. The listing digest is also the one the pre-change receipt
+recorded on this branch (`afd28b980`), unchanged across the 128-file
+main merge in between.
 
-**Correction to the narration recipe, at the re-take.** The narration
-hash above was cut at a fixed line number and kept the absolute output
-path, so it digests the run's own `cargo` preamble and its outdir name
-as well as the kernel's words — neither of which is a statement about
-the kernel, and both of which differ between two runs whatever the
-code does. The recipe that reproduces is: take the log from the line
-after cargo's `Running` line, drop the harness's own trailing lines,
-and rewrite the outdir name to a constant. The **pre-change log, the
-one captured above and unmodified**, re-digests under that recipe to
-**728 lines**,
-`8522886427381545d312aafd1ff6a1a6757ea4d6500c47278036c2d847ab6712` —
-and so does the post-change run. The file-listing hash needed no
-correction and is unchanged.
+Neither of the two narration numbers that receipt carried is
+reproducible and neither is kept: the first digested cargo's preamble
+and an absolute outdir, and the correction that replaced it specified
+neither the constant it rewrote the outdir to nor the trailing lines
+it dropped. Two independent reviewers reproduced the listing digest
+exactly at both trees and could reproduce neither narration number,
+which is what sent this recipe back. The listing itself is a one-shot
+comparison artefact and is not committed
+(`memories/test-suite-cost.md`): the two aggregate hashes are what a
+second run has to reproduce.
