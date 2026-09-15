@@ -1,9 +1,20 @@
-//! S393 R2 end-to-end: a user sweeps a section along a path, getting
-//! the start frame from the kernel's door through the façade, then
-//! lofts the same section with a composed roll.
+//! **Sweeping and rolling through the façade**: a section carried
+//! along a path from the start frame the kernel hands out, then the
+//! same section lofted with a roll composed about the tangent — the
+//! answer to "is a caller wanting a different roll owed a second
+//! door", written as a program rather than as prose.
+//!
+//! It also walks the door's refusals, and the band around the
+//! reference ladder's first rung, which is where the frame's roll
+//! flips by half a turn.
+//!
+//! Run: `cargo run -p pncad --example sweep_start_frame_and_roll`
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use pncad::authoring::polygon;
 use pncad::geom_core::linalg::frame::path_start_frame;
-use pncad::geom_core::{Affine3, Point3, Tol, Vec3};
+use pncad::geom_core::{Affine3, Mat3, Point3, Tol, Vec3};
 
 const TURNS: f64 = 0.4;
 fn main() {
@@ -70,7 +81,13 @@ fn main() {
             let t = (t1 - t0).mul_add(u, t0);
             let (p, d) = (path.eval(t), path.deriv(t));
             let plane = path_start_frame(p, d, tol).expect("station frame");
-            Affine3::rotation_about_axis(p, d, 0.8 * u) * plane
+            // The roll turns the AXES and leaves the origin the
+            // station point: composing the affine rotation instead
+            // rebuilds the translation and drifts off the spine.
+            Affine3::from_parts(
+                Mat3::rotation_about(d, 0.8 * u) * plane.linear,
+                plane.translation,
+            )
         })
         .collect();
     let sections: Vec<_> = (0..stations).map(|_| section.clone()).collect();
