@@ -40,21 +40,34 @@ than papering over it; this row is the repair.
 (`python3 scripts/work.py territory --files -` answers
 "owned by wire"). The fix is a unit test BESIDE the enum, inside
 `editor-core`, where `#[non_exhaustive]` does not apply to a local
-`match` and rustc does enforce exhaustiveness:
+`match` and rustc does enforce exhaustiveness.
 
-- a `#[cfg(test)] mod` in `geompred.rs` with a wildcard-free `match`
-  over `SelectRefusal` (a variant added to the enum then fails the
-  crate's own build), and
-- an assertion that the identifier set it names is the set
-  `display_contract.rs`'s `SELECT_REFUSAL_VARIANTS` holds — or, more
-  cheaply, a `pub(crate)`/`#[doc(hidden)]`-free in-crate census whose
-  identifiers the contract test can compare itself against.
+It has to be SELF-CONTAINED. The identifier roster in
+`editor-core/tests/display_contract.rs` is a private item in a separate
+integration-test binary and is invisible from `src/`, so nothing in
+`geompred.rs` can compare itself against it. What the in-crate test owes
+instead is the same two halves, both local:
 
-Either shape moves the census to the one place the attribute cannot
-defeat it. Do NOT weaken the other six to match the exception, and do
-not drop `#[non_exhaustive]` from the enum to make the test crate's
-`match` exhaustive — the attribute is a deliberate API decision and this
-is a test-siting problem, not an API one.
+- a `#[cfg(test)] mod` in `geompred.rs` holding a wildcard-free `match`
+  over `SelectRefusal`. Inside the crate rustc DOES check it, so a
+  variant added to the enum fails the crate's own build — the guarantee
+  the test crate cannot have.
+- one sample value per variant, and an assertion that the identifiers
+  read off their `Debug` (the first token, as
+  `test_utils::f6::variant_identifier` does it) are pairwise distinct
+  and as many as the `match` has arms. That makes the sample list a
+  roster the compile error sends an author to, rather than a list
+  nothing checks.
+
+That moves the census to the one place the attribute cannot defeat it.
+The contract test in `display_contract.rs` stays as it is — it is about
+RENDERINGS, and its own roster is welded to its cases by a set
+difference, so the two do not need to see each other.
+
+Do NOT weaken the other six enums in `display_contract.rs` to match this
+exception, and do not drop `#[non_exhaustive]` from the enum to make the
+test crate's `match` exhaustive — the attribute is a deliberate API
+decision and this is a test-siting problem, not an API one.
 
 ## Where it came from
 

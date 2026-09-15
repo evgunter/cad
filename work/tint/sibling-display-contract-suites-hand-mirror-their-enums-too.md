@@ -46,13 +46,17 @@ TINT-1 found three of in editor-core:
 
 ## The fix
 
-The shape TINT-1 landed, applied per suite: a wildcard-free `match` from
-a value to its variant identifier, the ban list derived from it, and a
-coverage assertion that every identifier has a case. See
-`crates/editor-core/tests/display_contract.rs`'s
-`assert_f6_every_variant` and its per-enum `*_variant` / `*_VARIANTS`
-pairs. Adding `TessellateError::Band` to mesh's list is the smaller half;
-the census is what stops the next one.
+The shape TINT-1 landed, applied per suite: `test_utils::f6::assert_f6`
+instead of a local copy of the predicate, a wildcard-free `match` used
+as an exhaustiveness TOKEN (returning `()`, naming no identifiers), the
+identifier roster written out once, and a set difference that welds the
+roster to the cases — with the covered identifiers read off each value's
+own `Debug` (`test_utils::f6::variant_identifier`) rather than typed
+beside a pattern, because rustc checks the pattern and never the string.
+See `crates/editor-core/tests/display_contract.rs`'s
+`assert_f6_every_variant` and its per-enum `*_is_exhaustive` /
+`*_VARIANTS` pairs. Adding `TessellateError::Band` to mesh's list is the
+smaller half; the weld is what stops the next one.
 
 `topo::ContactRefusal` and `topo::readback::ReadbackError` are ordinary
 enums, so the compiler can be the census there with no exception of the
@@ -77,3 +81,12 @@ a list named something other than `dumps`, or a ban list held in a
 `const` and passed positionally. `crates/viewer/tests/error_display.rs`'s
 lone `assert!(!duplicate.contains("PatchId"))` is that shape at N=1 and
 is not an enum mirror.
+
+**And TINT-1 added two instances of that blind spot itself**:
+`display_contract.rs`'s `*_VARIANTS` consts and `m4_pr4_hit.rs`'s
+`HIT_TEST_ERROR_VARIANTS` are exactly "a ban list held in a `const` and
+passed positionally", so a `dumps = [` / `for dump in` sweep will not
+find them. They are welded to their cases by a set difference, which is
+why they are not the defect this row is about — but a sweep for the
+CLASS has to look for the const shape as well as the inline one, and
+this is the note that says so.
