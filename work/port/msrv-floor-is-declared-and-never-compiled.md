@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-11
 refs: [seal-oracle-toolchain-read-first-match, 2327]
 branch: port/msrv-floor-equality-gate
+pr: 2676
 ---
 
 Filed in `work/issues/` because no program obviously owns it: the subject is

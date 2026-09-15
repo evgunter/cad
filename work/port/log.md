@@ -400,3 +400,41 @@ that this lane could not have caused either: `s_duct` and
 branch's only change under `demos/` is an import line and one
 assertion in `demos/tour/src/assembly.rs`, which renders no cell. The
 run on the merge-forward posts NO drift check on either lane.
+
+## 2026-09-15 — `msrv-floor-is-declared-and-never-compiled` → review (PR 2676)
+
+Ev's answer of 2026-09-15 landed as `scripts/gates/msrv-floor-equals-channel.sh`:
+`Cargo.toml`'s `[workspace.package] rust-version` and
+`rust-toolchain.toml`'s `[toolchain] channel` must be the same string. Both
+read `1.97.0` today, so the gate is green from its first run and has nothing
+to say until a PR moves one of them — which is the moment it exists for.
+
+**Shape as the item proposed it, not as Ev spelled it.** Ev said "unit test";
+this is a `scripts/gates/` row, because the subject is two root manifests
+rather than a crate's behaviour and `gate-roster.sh` proves a gate in that
+directory is wired into both halves of CI. The deviation is disclosed in the
+item and again in the PR body, and the row moves if Ev wants a Rust test.
+
+**The cost is in the gate's header, where a future lane will read it.** The
+gate forbids the floor from ever lagging the channel, so the day this
+repository wants "we build with 1.99 and still support 1.97" — real once **Q9**
+lands and something is published — the gate is wrong and must be deleted
+deliberately. The header names Q9 and says so, and the non-version-channel
+arm (`channel = "stable"`) refuses with the same pointer.
+
+**Equality is exact.** `1.97` against `1.97.0` fires. The declaration is a
+copy of the pin, character for character; a tolerance is a second rule to
+maintain, and the only way the spellings diverge is an edit to one file made
+without reading the other.
+
+`local-scripts/ci-local.sh` needed **no edit** — verified, not assumed: its
+`discipline()` loops `scripts/gates/*.sh` and self-tests each gate before
+running it, so the new file is picked up by existing code. `gate-roster.sh`
+went from 21 gates to 22 and is green.
+
+Territory: `.github/workflows/ci.yml` is **CIW's** and `scripts/gates/` is
+**GUARD's** (the item and the dispatch brief both guessed META; `work.py
+territory` says `guard`). Both announced in the PR; either may take the row.
+`Cargo.toml` and `rust-toolchain.toml` are unchanged.
+
+Class **E** confirmed. No rows filed — nothing turned up outside the fence.
