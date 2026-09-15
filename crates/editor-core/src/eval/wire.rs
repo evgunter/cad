@@ -1355,15 +1355,15 @@ pub(crate) fn frame_axes<T: Decide>(
     v_raw: Vec3<T>,
     band: Band,
 ) -> Result<OrthoFrame<T>, DirectionRefusal> {
-    OrthoFrame::gram_schmidt(origin, u_raw, v_raw, DATUM_UNIT_NORM, band).map_err(
-        |e| DirectionRefusal {
+    OrthoFrame::gram_schmidt(origin, u_raw, v_raw, DATUM_UNIT_NORM, band).map_err(|e| {
+        DirectionRefusal {
             role: match e.axis {
                 OrthoAxis::U => FRAME_X_ROLE,
                 OrthoAxis::V => FRAME_Y_ROLE,
             },
             error: e.error,
-        },
-    )
+        }
+    })
 }
 
 /// **A frame node's landed value** — the one destructure of

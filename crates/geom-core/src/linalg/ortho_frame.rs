@@ -513,7 +513,11 @@ mod tests {
             let f = OrthoFrame::gram_schmidt(o, u_raw, v_raw, SITE, band()).unwrap();
             let (u, v) = (f.u().get(), f.v().get());
             let hand = Affine3::from_parts(Mat3::from_cols(u, v, u.cross(v)), o - Point3::origin());
-            assert_eq!(bits12(&f.to_affine()), bits12(&hand), "gram_schmidt at {o:?}");
+            assert_eq!(
+                bits12(&f.to_affine()),
+                bits12(&hand),
+                "gram_schmidt at {o:?}"
+            );
         }
         for (o, axis_raw, ref_raw) in decided_corpus() {
             let f =
@@ -622,8 +626,7 @@ mod tests {
         let o = Point3::origin();
         for v_raw in [Vec3::new(2.0, 0.0, 0.0), Vec3::new(-0.5, 0.0, 0.0)] {
             assert_eq!(
-                OrthoFrame::gram_schmidt(o, Vec3::unit_x(), v_raw, SITE, band())
-                    .unwrap_err(),
+                OrthoFrame::gram_schmidt(o, Vec3::unit_x(), v_raw, SITE, band()).unwrap_err(),
                 OrthoFrameError {
                     axis: OrthoAxis::V,
                     error: UnitVec3Error::Degenerate,
@@ -632,14 +635,8 @@ mod tests {
             );
         }
         assert_eq!(
-            OrthoFrame::gram_schmidt(
-                o,
-                Vec3::new(0.0, 0.0, 0.0),
-                Vec3::unit_y(),
-                SITE,
-                band()
-            )
-            .unwrap_err(),
+            OrthoFrame::gram_schmidt(o, Vec3::new(0.0, 0.0, 0.0), Vec3::unit_y(), SITE, band())
+                .unwrap_err(),
             OrthoFrameError {
                 axis: OrthoAxis::U,
                 error: UnitVec3Error::Degenerate,
@@ -663,8 +660,14 @@ mod tests {
             [x, aim.get().cross(x), aim.get()].map(|c| [c.x, c.y, c.z].map(f64::to_bits))
         );
         assert_eq!(
-            OrthoFrame::from_aim(Point3::origin(), aim, Vec3::new(0.0, 0.0, 0.0), SITE, band())
-                .unwrap_err(),
+            OrthoFrame::from_aim(
+                Point3::origin(),
+                aim,
+                Vec3::new(0.0, 0.0, 0.0),
+                SITE,
+                band()
+            )
+            .unwrap_err(),
             OrthoFrameError {
                 axis: OrthoAxis::V,
                 error: UnitVec3Error::Degenerate,
@@ -692,8 +695,14 @@ mod tests {
             }
         );
         assert_eq!(
-            OrthoFrame::from_axis_and_reference(o, Vec3::new(0.0, 0.0, 0.0), Vec3::unit_x(), SITE, band())
-                .unwrap_err(),
+            OrthoFrame::from_axis_and_reference(
+                o,
+                Vec3::new(0.0, 0.0, 0.0),
+                Vec3::unit_x(),
+                SITE,
+                band()
+            )
+            .unwrap_err(),
             OrthoFrameError {
                 axis: OrthoAxis::U,
                 error: UnitVec3Error::Degenerate,
@@ -701,8 +710,9 @@ mod tests {
         );
         // The axis is kept as `w` and the reference yields, which is
         // the role swap the Gram-Schmidt door does not do.
-        let f = OrthoFrame::from_axis_and_reference(o, axis, Vec3::new(2.0, 0.0, 7.0), SITE, band())
-            .unwrap();
+        let f =
+            OrthoFrame::from_axis_and_reference(o, axis, Vec3::new(2.0, 0.0, 7.0), SITE, band())
+                .unwrap();
         let bits = |v: Vec3<f64>| [v.x, v.y, v.z].map(f64::to_bits);
         assert_eq!(bits(f.w().get()), bits(Vec3::unit_z()));
         assert_eq!(bits(f.u().get()), bits(Vec3::unit_x()));

@@ -44,21 +44,42 @@ Both match the values PR 2657 recorded at `origin/main` (`4f71edaea`).
 
 ## Digest receipt at the head
 
-Same recipe, same tree shape: **1766 files**, the same paths, and the
-tour's **narration is IDENTICAL** —
-`e930abf542c371677b2c0d87b02c2bf84eb15fbaf62ded6389f48c899ef14d49`, all
-729 lines, so every census, genus, validation tier and exact-vs-meshed
-mass property the tour prints is what it printed at the base.
+Same recipe, same tree shape: **1766 files**, the same paths.
 
-The listing digest MOVED, to
-`1389dbb20bb6c0a9efca999a587a7b5db2930b82d0ac29ed32c3643b0310d50a`, in
-**20 of the 1766 files, every one of them `lily_*`**
-(`lily_{bud_c,lantern,leaf_a,pedicel,sepal_a,sepal_b,sepal_c}.step`,
-`lily_{lantern,pedicel}.stl` and eleven `uv/lily_*.svg`). The cause is
-the unit's own subject: the lily authors its frames from directions
-that are UNIT BY INTENT but not bit-exactly unit — the turtle's radial
-is `(p − centre) / ring` and the blade axes come out of rotations — and
-the frame mint normalizes what it is given. The moves are last-bit:
-`DIRECTION('', (0.17364817766693041, ...))` becomes
-`(0.17364817766693047, ...)`, ~1e-16 relative, 15 changed lines in the
-largest of the twenty diffs.
+Taken at this branch's merge base with `origin/main` (`c645194c8`) and
+at the branch head. The base reading reproduces the value the receipt
+above records, so nothing main landed in between moved the tour:
+
+| | files | listing digest | narration |
+|---|---|---|---|
+| base `c645194c8` | 1766 | `87be4dd9…` | `e930abf5…`, 729 lines |
+| head | 1766 | `c678b143…` | `65da9dd7…`, 729 lines |
+
+The listing moved in **25 of the 1766 files, every one of them
+`lily_*`** — ten `.step` (`bud_a`, `bud_b`, `bud_c`, `lantern`,
+`leaf_a`, `leaf_c`, `pedicel`, `sepal_a`, `sepal_b`, `sepal_c`), five
+`.stl` (`lantern`, `leaf_a`, `leaf_c`, `pedicel`, `sepal_c`) and ten
+`uv/lily_*.svg`.
+
+The cause is the unit's own subject, in two layers. The lily authors
+its frames from directions that are UNIT BY INTENT but not bit-exactly
+unit — the turtle's radial is `(p − centre) / ring` and the blade axes
+come out of rotations — and the frame mint normalizes what it is given:
+that is the first twenty files. The fix pass then retired the scene's
+OWN Gram–Schmidt ladders (`blade_frame`'s `dir.normalize()` +
+`up.reject_from(d).normalize()`, and the bud segment's
+`(dir·ct + l·st).normalize()` + `start.reject_from(a).normalize()`)
+onto the mint, which spells the residual as `r − a(r·a)` where
+`reject_from` spells it as `(a × r) × a / |a|²` — a different
+arithmetic route to the same direction. That is the remaining five
+files. The moves are last-bit:
+`DIRECTION('', (…, -0.20787730316411107, …))` becomes
+`(…, -0.2078773031641111, …)`, ~1e-16 relative, 137 changed lines in
+the largest of the twenty-five diffs.
+
+**The narration moved on ONE line of 729** — `lily_leaf_c`'s certified
+enclosure WIDTH, `± 9.8e-16` → `± 1.0e-15`. The volume itself
+(0.001265 m³), the area, the triangle count and the mesh-vs-exact
+percentage are unchanged, as is every other line of the narration:
+every census, genus, validation tier and mass property the tour prints
+is what it printed at the base.

@@ -707,11 +707,13 @@ fn a_tube_is_minted_and_built_from_prelude_names_alone() {
     // The axis is kept as the frame's `w` and the reference yields to
     // it: the raw `(0, 0, 3)` comes back as exactly the unit z axis,
     // and the raw reference's on-axis component is gone.
-    assert_eq!(frame.w().get(), Vec3::new(0.0, 0.0, 1.0));
-    assert_eq!(frame.u().get(), Vec3::new(1.0, 0.0, 0.0));
+    let xyz = |v: Vec3<f64>| [v.x, v.y, v.z];
+    assert_eq!(xyz(frame.w().get()), [0.0, 0.0, 1.0]);
+    assert_eq!(xyz(frame.u().get()), [1.0, 0.0, 0.0]);
     let major = 1.0;
     let minor = 0.25;
-    let built = tube_along_arc(frame, major, TubeWindow::Full, minor, tol).expect("the tube builds");
+    let built =
+        tube_along_arc(frame, major, TubeWindow::Full, minor, tol).expect("the tube builds");
     let props = mass_properties(&built.body, tol).expect("mass properties");
     // Pappus: V = 2 pi^2 R r^2.
     let want = 2.0 * core::f64::consts::PI * core::f64::consts::PI * major * minor * minor;

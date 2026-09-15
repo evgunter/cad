@@ -130,7 +130,11 @@ fn a_tube_from_a_minted_frame_stores_the_frames_axes_verbatim() {
         for (_, f) in body.faces() {
             if let Some(Surface::Torus { axis: a, u_ref, .. }) = body.get_surface(f.surface) {
                 tori += 1;
-                assert_eq!(bits3(*a), bits3(frame.w().get()), "{what}: the torus axis is w");
+                assert_eq!(
+                    bits3(*a),
+                    bits3(frame.w().get()),
+                    "{what}: the torus axis is w"
+                );
                 // `u_ref` for the full ring is the frame's `u`
                 // verbatim; a window rotates it by `t0` first.
                 if what == "solid" {
