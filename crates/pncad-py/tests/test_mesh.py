@@ -367,9 +367,27 @@ class TestStlExport(unittest.TestCase):
         self.assertEqual(declared, self.mesh.triangle_count)
         self.assertTrue(data[:80].startswith(b"pncad, exported from Python"))
 
-    def test_both_writers_have_a_default(self):
-        self.assertTrue(self.mesh.to_stl_ascii().startswith("solid "))
-        self.assertEqual(len(self.mesh.to_stl_binary()[:80]), 80)
+    def test_both_writers_default_to_the_kernels_own_options(self):
+        """An omitted keyword is the RUST default, not an empty
+        spelling of one.
+
+        The distinction is the whole of it: an empty name and an empty
+        header are both legal values the doors used to pass, so
+        `solid <name>` read back as a bare `solid ` and the binary
+        header field came out 80 zero bytes — neither of them what
+        `AsciiOptions::default()` or `BinaryOptions::default()` says,
+        and neither of them what a Rust caller writing the same file
+        gets. Asserted as "not the empty value" rather than by
+        re-typing the kernel's two constants, which is the thing the
+        doors stopped doing."""
+        first_line = self.mesh.to_stl_ascii().splitlines()[0]
+        self.assertTrue(first_line.startswith("solid "))
+        self.assertNotEqual(first_line, "solid ")
+        self.assertEqual(self.mesh.to_stl_ascii().count("facet normal"),
+                         self.mesh.triangle_count)
+        header = self.mesh.to_stl_binary()[:80]
+        self.assertEqual(len(header), 80)
+        self.assertNotEqual(header, b"\x00" * 80)
 
     def test_an_unwritable_solid_name_refuses_at_the_call(self):
         """Validated, not sanitized: a newline would make

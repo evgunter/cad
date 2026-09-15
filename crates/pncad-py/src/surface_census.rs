@@ -1,13 +1,13 @@
 //! **The census over kernel vocabularies that Python re-spells.**
 //!
-//! Three surfaces here are hand-written copies of a vocabulary the
+//! The surfaces here are hand-written copies of a vocabulary the
 //! kernel declares once: the PATHS verbs, the arc-spec modes that
-//! travel inside them, and `StepOptions`' fields at the export door.
-//! Each copy compiles green while short — a verb the transition table
-//! gains, a mode `arc_modes!` gains, a field `StepOptions` gains, all
-//! reach `pncad-py` through methods that were never exhaustive over
-//! them — so a Python user simply cannot write the thing, and nothing
-//! says so.
+//! travel inside them, and the fields of every kernel OPTIONS STRUCT
+//! that reaches a Python door. Each copy compiles green while short —
+//! a verb the transition table gains, a mode `arc_modes!` gains, a
+//! field an options struct gains, all reach `pncad-py` through
+//! methods that were never exhaustive over them — so a Python user
+//! simply cannot write the thing, and nothing says so.
 //!
 //! The mechanism is the one `editor-core`'s
 //! `switch_program_vocabulary` suite uses one crate over: **the
@@ -16,9 +16,10 @@
 //! [`mode_class`] below, so it does not fail an assertion here — it
 //! fails to COMPILE, and the arm someone then writes is a decision
 //! recorded in one of two shapes: a Python spelling, or a
-//! [`Spelling::NotBound`] carrying the reason. `StepOptions` is a
+//! [`Spelling::NotBound`] carrying the reason. An options struct is a
 //! struct rather than an enum, so its anchor is the same device in
-//! pattern form: an exhaustive destructure with no `..`.
+//! pattern form: an exhaustive destructure with no `..`, one per
+//! struct in [`options_doors`].
 //!
 //! # Which Python side this reads
 //!
@@ -46,8 +47,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
+use pncad::document::EvalOptions;
 use pncad::profile::{ArcMode, Verb};
 use pncad::step_export::StepOptions;
+use pncad::step_import::ImportOptions;
+use pncad::stl::{AsciiOptions, BinaryOptions};
 
 // ------------------------------------------------------------------
 // The Python side: `pncad.pyi` as text
@@ -448,16 +452,38 @@ fn mode_class(mode: ArcMode) -> &'static str {
     }
 }
 
-/// **The export-options roster**: one entry per `StepOptions` field,
-/// naming the `Evaluation.step_string` keyword that sets it.
+/// One kernel options struct and the Python door it configures.
 ///
-/// The destructure above the list is the anchor, and it has no `..`:
-/// a field the kernel struct gains does not compile until it is
-/// dispositioned here — and the door itself builds its options with a
-/// struct literal, which breaks in the same commit for the same
-/// reason.
-fn step_option_keywords() -> Vec<(&'static str, Spelling)> {
-    let options = StepOptions::default();
+/// **The alphabet for these rosters is the door's KEYWORDS**, not the
+/// stub's declared names: an options field is reachable by becoming a
+/// parameter of one `def`, so both the forward census and the decay
+/// check below read [`Stub::parameters`] for these — where the verb
+/// roster reads [`Stub::declares`].
+struct OptionsDoor {
+    /// The kernel struct, for the failure messages.
+    struct_name: &'static str,
+    /// The stub `def` whose parameter list is the alphabet.
+    door: &'static str,
+    /// One entry per field of the struct, in the struct's own order.
+    fields: Vec<(&'static str, Spelling)>,
+}
+
+/// **The options rosters**: every kernel options struct that reaches
+/// a Python door, one entry per field, naming the keyword that sets
+/// it.
+///
+/// Each destructure is the anchor, and none has a `..`: a field the
+/// kernel struct gains does not compile until it is dispositioned
+/// here — and every one of these doors builds its options with a
+/// struct literal that names each field, which breaks in the same
+/// commit for the same reason. The two halves are deliberately
+/// redundant: the literal is what makes the DOOR decide, the roster
+/// is what makes the decision legible and keeps it falsifiable
+/// against the stub.
+fn options_doors() -> Vec<OptionsDoor> {
+    use Spelling::Bound;
+
+    let step = StepOptions::default();
     let StepOptions {
         product_name: _,
         timestamp: _,
@@ -465,18 +491,140 @@ fn step_option_keywords() -> Vec<(&'static str, Spelling)> {
         organization: _,
         originating_system: _,
         uncertainty_m: _,
-    } = &options;
-    use Spelling::Bound;
+    } = &step;
+
+    let import = ImportOptions::default();
+    let ImportOptions {
+        eps_in: _,
+        declared_contacts: _,
+    } = &import;
+
+    let ascii = AsciiOptions::default();
+    let AsciiOptions { solid_name: _ } = &ascii;
+
+    let binary = BinaryOptions::default();
+    let BinaryOptions { header: _ } = &binary;
+
+    let eval = EvalOptions::default();
+    let EvalOptions {
+        epoch: _,
+        parallel: _,
+        boolean_sweep: _,
+        resolver: _,
+        profile_lift: _,
+        param_box: _,
+        seed: _,
+    } = &eval;
+
     vec![
-        ("product_name", Bound(&["product_name"])),
-        ("timestamp", Bound(&["timestamp"])),
-        ("author", Bound(&["author"])),
-        ("organization", Bound(&["organization"])),
-        ("originating_system", Bound(&["originating_system"])),
-        // The Rust field is a bare `f64` in metres and says so in its
-        // name; the Python keyword takes a `Length`, so the suffix
-        // would be a second spelling of what the type already says.
-        ("uncertainty_m", Bound(&["uncertainty"])),
+        OptionsDoor {
+            struct_name: "StepOptions",
+            door: "Evaluation.step_string",
+            fields: vec![
+                ("product_name", Bound(&["product_name"])),
+                ("timestamp", Bound(&["timestamp"])),
+                ("author", Bound(&["author"])),
+                ("organization", Bound(&["organization"])),
+                ("originating_system", Bound(&["originating_system"])),
+                // The Rust field is a bare `f64` in metres and says so
+                // in its name; the Python keyword takes a `Length`, so
+                // the suffix would be a second spelling of what the
+                // type already says.
+                ("uncertainty_m", Bound(&["uncertainty"])),
+            ],
+        },
+        OptionsDoor {
+            struct_name: "ImportOptions",
+            door: "import_step",
+            fields: vec![
+                ("eps_in", Bound(&["eps_in"])),
+                // The import-side declaration channel is a list of
+                // `ImportContact`, and that element type has no Python
+                // spelling: binding the field means minting a value
+                // class for the position anchor, which is its own
+                // surface work and its own row. Recorded here as
+                // ABSENT rather than left to be discovered, and the
+                // decay check below is what stops the reason
+                // outliving the fact.
+                (
+                    "declared_contacts",
+                    Spelling::NotBound {
+                        would_be: &["declared_contacts"],
+                        reason: "its element type `ImportContact` has no Python spelling, so \
+                                 the keyword would take a list of nothing a caller can build",
+                    },
+                ),
+            ],
+        },
+        OptionsDoor {
+            struct_name: "AsciiOptions",
+            door: "Mesh.to_stl_ascii",
+            fields: vec![("solid_name", Bound(&["solid_name"]))],
+        },
+        OptionsDoor {
+            struct_name: "BinaryOptions",
+            door: "Mesh.to_stl_binary",
+            fields: vec![("header", Bound(&["header"]))],
+        },
+        OptionsDoor {
+            struct_name: "EvalOptions",
+            door: "evaluate",
+            fields: vec![
+                (
+                    "epoch",
+                    Spelling::NotBound {
+                        would_be: &["epoch"],
+                        reason: "minted per run — an evaluation's identity is not a caller's \
+                                 choice",
+                    },
+                ),
+                (
+                    "parallel",
+                    Spelling::NotBound {
+                        would_be: &["parallel"],
+                        reason: "an ANSWER-PRESERVING runtime switch the kernel documents as \
+                                 test-facing (D9's determinism cross-check compares both \
+                                 schedules in one run); a performance door would be its own \
+                                 unit and its own entry",
+                    },
+                ),
+                (
+                    "boolean_sweep",
+                    Spelling::NotBound {
+                        would_be: &["boolean_sweep"],
+                        reason: "answer-preserving in the same way — the BVH differential \
+                                 suite pins the two candidate paths bit-identical, so no \
+                                 answer is unreachable through it",
+                    },
+                ),
+                ("resolver", Bound(&["resolver"])),
+                (
+                    "profile_lift",
+                    Spelling::NotBound {
+                        would_be: &["profile_lift"],
+                        reason: "Python evaluates at f64 ALONE, and at f64 the lift is a \
+                                 no-op by construction; it gains a spelling in the unit that \
+                                 brings Python a non-f64 evaluation",
+                    },
+                ),
+                (
+                    "param_box",
+                    Spelling::NotBound {
+                        would_be: &["param_box"],
+                        reason: "the analysis box has its own Python door (`AnalyzedBox`) and \
+                                 no evaluation behind it at a scalar that could carry one",
+                    },
+                ),
+                (
+                    "seed",
+                    Spelling::NotBound {
+                        would_be: &["seed"],
+                        reason: "the E4 tangent seed is the box's twin and unreachable for \
+                                 its reason: an f64 evaluation carries no tangent",
+                    },
+                ),
+            ],
+        },
     ]
 }
 
@@ -496,51 +644,65 @@ fn absent(stub: &Stub, spelling: &Spelling) -> Vec<String> {
     }
 }
 
-/// Every roster entry in the file, as `(member, spelling)` — the two
-/// rosters that use [`Spelling`], read together so a decay check
-/// cannot cover one and quietly skip the other.
-fn every_roster_entry() -> Vec<(String, Spelling)> {
-    Verb::ALL
-        .iter()
-        .map(|verb| (format!("Verb::{verb:?}"), verb_spelling(*verb)))
-        .chain(
-            step_option_keywords()
-                .into_iter()
-                .map(|(field, spelling)| (format!("StepOptions::{field}"), spelling)),
-        )
-        .collect()
+/// A [`Spelling::NotBound`] entry whose spelling is present in the
+/// alphabet `has` answers over, rendered for the failure message.
+///
+/// The alphabet differs by roster — declared names for the verbs,
+/// one door's keywords for an options struct — and passing it in is
+/// what keeps that difference at the call site rather than buried in
+/// a check that reads the wrong one and stays green forever.
+fn stale_entry(
+    member: &str,
+    spelling: &Spelling,
+    has: &dyn Fn(&str) -> bool,
+    at: &str,
+) -> Option<String> {
+    match spelling {
+        Spelling::NotBound { would_be, reason } => {
+            let found: Vec<&str> = would_be.iter().copied().filter(|n| has(n)).collect();
+            (!found.is_empty())
+                .then(|| format!("{member} is bound at {at} as {found:?}, but says: {reason}"))
+        }
+        Spelling::Bound(_) => None,
+    }
 }
 
-/// **The roster decays.** A member listed as deliberately unbound
-/// whose spelling the stub NOW declares is a stale entry: someone
-/// bound it and left a reason standing that says they did not.
+/// **The rosters decay.** A member listed as deliberately unbound
+/// whose spelling Python NOW offers is a stale entry: someone bound it
+/// and left a reason standing that says they did not.
 ///
 /// This is the half that makes [`Spelling::NotBound`] an assertion
-/// rather than a comment. Nothing is unbound today, so it asserts over
-/// an empty set — which is the point of writing it now: the first
-/// member to be declined arrives with its decay already checked,
-/// rather than depending on whoever declines it to think of this.
+/// rather than a comment. Both rosters are read here — the verbs and
+/// every options door — so a decay check cannot cover one and quietly
+/// skip the other.
 #[test]
 fn the_not_bound_roster_decays() {
     let stub = stub();
-    let stale: Vec<String> = every_roster_entry()
-        .into_iter()
-        .filter_map(|(member, spelling)| match spelling {
-            Spelling::NotBound { would_be, reason } => {
-                let found: Vec<&str> = would_be
-                    .iter()
-                    .copied()
-                    .filter(|name| stub.declares(name))
-                    .collect();
-                (!found.is_empty())
-                    .then(|| format!("{member} is bound at {found:?}, but says: {reason}"))
-            }
-            Spelling::Bound(_) => None,
+    let mut stale: Vec<String> = Verb::ALL
+        .iter()
+        .filter_map(|verb| {
+            stale_entry(
+                &format!("Verb::{verb:?}"),
+                &verb_spelling(*verb),
+                &|name| stub.declares(name),
+                "pncad.pyi",
+            )
         })
         .collect();
+    for door in options_doors() {
+        let parameters = stub.parameters(door.door);
+        stale.extend(door.fields.iter().filter_map(|(field, spelling)| {
+            stale_entry(
+                &format!("{}::{field}", door.struct_name),
+                spelling,
+                &|kw| parameters.contains(kw),
+                door.door,
+            )
+        }));
+    }
     assert!(
         stale.is_empty(),
-        "these members are listed as not bound and the stub binds them: {stale:?}"
+        "these members are listed as not bound and Python offers them: {stale:?}"
     );
 }
 
@@ -566,9 +728,15 @@ fn the_census_is_not_vacuous() {
         "no top-level alias was read, so the mode reachability clause resolves nothing"
     );
     assert!(!Verb::ALL.is_empty() && !ArcMode::ALL.is_empty());
+    let unfound: Vec<&str> = options_doors()
+        .iter()
+        .map(|door| door.door)
+        .filter(|door| !stub.defs.contains_key(*door))
+        .collect();
     assert!(
-        stub.defs.contains_key("Evaluation.step_string"),
-        "the export door's signature was not found, so its keyword census reads nothing"
+        unfound.is_empty(),
+        "these options doors' signatures were not found in the stub, so their keyword \
+         censuses read nothing: {unfound:?}"
     );
 }
 
@@ -619,30 +787,35 @@ fn every_arc_mode_has_a_python_spelling() {
     );
 }
 
-/// **The export-options census.** Every `StepOptions` field is a
-/// keyword of the Python door, or recorded as deliberately withheld.
+/// **The options census.** Every field of every kernel options struct
+/// that reaches a Python door is a keyword of that door, or recorded
+/// as deliberately withheld.
 #[test]
-fn every_step_option_reaches_the_python_door() {
+fn every_option_field_reaches_the_python_door() {
     let stub = stub();
-    let parameters = stub.parameters("Evaluation.step_string");
-    let missing: Vec<String> = step_option_keywords()
-        .into_iter()
-        .flat_map(|(field, spelling)| {
-            let names = match spelling {
-                Spelling::Bound(names) => names,
-                Spelling::NotBound { .. } => &[][..],
+    let mut missing: Vec<String> = Vec::new();
+    for door in options_doors() {
+        let parameters = stub.parameters(door.door);
+        for (field, spelling) in &door.fields {
+            let Spelling::Bound(names) = spelling else {
+                continue;
             };
-            names
-                .iter()
-                .filter(|kw| !parameters.contains(**kw))
-                .map(move |kw| format!("{field} -> {kw}"))
-                .collect::<Vec<_>>()
-        })
-        .collect();
+            missing.extend(
+                names
+                    .iter()
+                    .filter(|kw| !parameters.contains(**kw))
+                    .map(|kw| {
+                        format!(
+                            "{}::{field} -> {} takes no {kw} (it takes {parameters:?})",
+                            door.struct_name, door.door
+                        )
+                    }),
+            );
+        }
+    }
     assert!(
         missing.is_empty(),
-        "the export door's Python signature is short of StepOptions: {missing:?}; \
-         it declares {parameters:?}"
+        "these Python doors are short of the options struct they configure: {missing:?}"
     );
 }
 

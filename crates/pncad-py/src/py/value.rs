@@ -2017,11 +2017,33 @@ impl ImportReport {
 /// quadrature to decide the body's orientation invariant, so
 /// `enclosure` is that measurement handed back and
 /// `body.mass_properties()` is a second one over the same body.
+///
+/// `eps_in` overrides the file's declared
+/// `UNCERTAINTY_MEASURE_WITH_UNIT` as the import's input tolerance —
+/// the reading end of the ε `Evaluation.step_string`'s `uncertainty`
+/// writes. Omitted, the file's own declaration is read, which is what
+/// the Rust default says; a value that is not finite and strictly
+/// positive is the importer's own `invalid_eps_override` refusal, not
+/// a check restated here.
+///
+/// The options struct is built by a literal that names every
+/// `ImportOptions` field, so a field the kernel gains does not
+/// compile until this door decides about it; that decision is
+/// recorded, either way, in the surface census.
 #[pyfunction]
-pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<ImportReport> {
+#[pyo3(signature = (text, *, eps_in = None))]
+pub(crate) fn import_step(
+    py: Python<'_>,
+    text: &str,
+    eps_in: Option<Length>,
+) -> PyResult<ImportReport> {
     let tol = Tol::witness();
-    match pncad::step_import::import_step(text, &pncad::step_import::ImportOptions::default(), tol)
-    {
+    let defaults = pncad::step_import::ImportOptions::default();
+    let options = pncad::step_import::ImportOptions {
+        eps_in: eps_in.map(|e| e.0.meters()).or(defaults.eps_in),
+        declared_contacts: defaults.declared_contacts,
+    };
+    match pncad::step_import::import_step(text, &options, tol) {
         Ok(pncad::step_import::StepImport::Solid {
             body,
             enclosure,
@@ -2248,6 +2270,13 @@ impl CancelToken {
 /// pyo3's own `RuntimeError("Already borrowed")` instead of editing
 /// a recipe out from under a running evaluation. Measured, not
 /// reasoned: `tests/test_cancellation.py` executes it.
+///
+/// `resolver` is the one `EvalOptions` field that changes an ANSWER,
+/// and it is the one keyword here. The options struct is nevertheless
+/// built by a literal that names every field — not a `..default()`
+/// tail — so a field the kernel gains does not compile until this
+/// door decides about it; that decision is recorded, either way, in
+/// the surface census.
 #[pyfunction]
 #[pyo3(signature = (doc, *, resolver=None, prior=None, cancel=None))]
 pub(crate) fn evaluate(
@@ -2258,9 +2287,17 @@ pub(crate) fn evaluate(
     cancel: Option<&CancelToken>,
 ) -> Evaluation {
     let tol = Tol::witness();
+    let defaults = d::EvalOptions::default();
     let opts = d::EvalOptions {
-        resolver: resolver.map(super::store::Workspace::resolver),
-        ..d::EvalOptions::default()
+        epoch: defaults.epoch,
+        parallel: defaults.parallel,
+        boolean_sweep: defaults.boolean_sweep,
+        resolver: resolver
+            .map(super::store::Workspace::resolver)
+            .or(defaults.resolver),
+        profile_lift: defaults.profile_lift,
+        param_box: defaults.param_box,
+        seed: defaults.seed,
     };
     let token = cancel.map_or_else(d::CancelToken::new, CancelToken::token);
     let recipe = &doc.inner;
