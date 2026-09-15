@@ -1,7 +1,7 @@
 ---
 id: pncad-py-tests-rs-is-six-thousand-lines-and-carries-two-unremeasured-floors
 kind: issue
-title: pncad-py tests.rs is 8542 lines and its two vacuity floors are numbers nothing re-measures
+title: pncad-py tests.rs is 8543 lines and its two vacuity floors are numbers nothing re-measures
 status: open
 opened: 2026-09-15
 ---
@@ -13,7 +13,7 @@ it.
 
 ## What is in one file
 
-`crates/pncad-py/src/tests.rs` is **8542 lines**, re-derivable by
+`crates/pncad-py/src/tests.rs` is **8543 lines**, re-derivable by
 `git show <sha>:crates/pncad-py/src/tests.rs | wc -l` and measured at
 the commit that writes this sentence (6317 when this row was written
 at `census/tag-reach`, 6064 before that unit's fix pass added the
@@ -55,9 +55,12 @@ reached `main`, this row's title, `plan.md`'s slate and the spec of the
 next unit. What a count in a tracker row is about is the TREE, and a
 merge-only repo moves the tree between the measurement and the landing.
 
-**CENSUS-ARRIVAL-RESIDUE grew it a further 737 lines, 9.4%**
-(8542 at `961e26ac5`, against 7805 on `main` at `370bd6f41`; 866 added
-and 129 removed, of which 366 of the additions are doc comments). Its
+**CENSUS-ARRIVAL-RESIDUE grew it a further 738 lines, 9.5%**
+(8543 at `54454b0a0`, against 7805 on `main` at `370bd6f41`; 867 added
+and 129 removed, of which 367 of the additions are doc comments — and
+this sentence was written saying 8542 and re-measured after one more
+doc edit to the same file, which is the third instance in this row of
+the shape the paragraph above it is about). Its
 subject was the residue of the instrument that grew this file last, so
 it is the same recogniser growing again: a per-entry blind-spot list on
 the scope walk, three tests for the cases that list names, a `held_by`
