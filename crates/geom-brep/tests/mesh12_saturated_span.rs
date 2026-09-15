@@ -518,7 +518,7 @@ fn the_span_decide_holds_at_the_interval_scalar() {
     let fc = curved_face(
         &sphere::<Interval>(),
         &three_pi,
-        Interval::from_f64(1.0),
+        true,
         bd,
     );
     assert!(is_winding_refusal(&fc), "{fc:?}");

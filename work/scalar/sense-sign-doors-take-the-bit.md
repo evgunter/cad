@@ -4,6 +4,7 @@ kind: unit
 title: The five bare-T sense-sign doors take the bit, and sphere's mixed sign splits into a bit and a Sign
 status: open
 opened: 2026-09-15
+branch: scalar/sense-sign-doors
 ---
 
 

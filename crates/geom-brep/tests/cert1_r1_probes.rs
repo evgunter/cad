@@ -145,7 +145,7 @@ fn probe_interval_pole_anchored_hemisphere_certifies() {
     let fc = curved_face(
         &sphere::<Interval>(),
         &edges,
-        Interval::from_f64(1.0),
+        true,
         band(),
     )
     .expect("pole-anchored hemisphere must certify at interval");
@@ -173,7 +173,7 @@ fn probe_interval_half_cap_certifies() {
     let fc = curved_face(
         &sphere::<Interval>(),
         &edges,
-        Interval::from_f64(1.0),
+        true,
         band(),
     )
     .expect("split half-cap must certify at interval");
