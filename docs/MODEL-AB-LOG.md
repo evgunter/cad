@@ -6955,7 +6955,7 @@ and posture as B1/B2 (about three concurrent lanes, private target
 dirs, disk the limiting factor — the third lane waits for disk when the
 first two are building).
 
-### Block SCALAR-B2 rows (recorded at each merge; the section merges to main at block close)
+### Block SCALAR-B2 rows (recorded at each merge branch-side; landed at block close, 2026-09-15)
 
 | # | date | task | difficulty (pre-flip) | arm | review findings (MAJ/MIN/NOTE) | silent devs | idiom | tests | docs | fix-pass size | battery | tokens | wall-clock |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
