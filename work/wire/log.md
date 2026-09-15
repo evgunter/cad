@@ -5004,3 +5004,62 @@ than a pair. Noted rather than acted on; the read comes before the
 grouping, as it did for DOCM's rows.
 
 Signed (WIRE orchestrator).
+
+## 2026-09-15 — Dispatched in parallel: `wire/tie-before-kind` (lane `wire-t1`), three rows as one class
+
+Three rows, one unit, **no file overlap with `wire-e2`** — that lane holds
+`names/emit.rs` and `names/emit_topo.rs`; this one holds
+`eval/wire.rs` and `names/interrogate.rs`. The brief fences each lane off
+the other's files by name.
+
+**The class, in PORT's words:** *a site that asks how many entities
+answer to a name before it asks what the name denotes.* A caller whose
+reference happens to be TIED is told to narrow it, when narrowing could
+not have helped, because what they actually did wrong is answerable
+without resolving at all.
+
+- `declare-door-refuses-a-tie-before-it-asks-the-pairs-kinds` — ordering
+  in `resolve_declarations`.
+- `the-declared-pair-refusal-reads-the-authored-kind` — **the same two
+  lines**; authored kind or resolved key.
+- `interrogate-read-answers-a-tie-before-the-door-s-kind` — the one body
+  five public read doors delegate to.
+
+**Taken together because PORT says they must be, and it checked the
+interaction rather than leaving it.** If the "found" word must come off
+the resolved key, a tied name has no single key, so the kind-first answer
+has to come off the NAME — which is what `resolve_face` took. The brief
+says to land that consistently and not re-litigate it.
+
+**The precedent is merged, so the shape is copied rather than invented:**
+PORT-DOORS-1, PR #2635 (`0f2667888`), closed this defect in
+`assembly.rs`'s `resolve_face`. `eval/wire.rs`'s own `face_name` is a
+second counter-example in the file being edited.
+
+**Posture: light style review with one named correctness claim to
+falsify** — the premise that every candidate of an `Entry::Tied` carries
+the name's kind. Not raised to full: the premise is already verified by
+another program against the same table, the fix shape is landed one door
+over, and no variant changes shape — only which variant a document gets.
+That is a narrower blast radius than
+`names-flush-and-select-discard-a-refusal-with-map-err-underscore`, which
+was raised to full because two public enum variants **gained a field**.
+The brief still requires the lane to re-verify the premise itself and to
+stop if it holds only by an invariant a module away.
+
+Named in the brief: PORT's **first** instrument missed two of these three
+(the `Entry::Tied`-adjacent grep could not see them), so the lane owes a
+sweep shaped for the caller-side pairing and a stated blind spot. A
+fourth instance is likely.
+
+### Not dispatched, deliberately
+
+`select-refusal-coverage-is-not-compiler-enforced-from-the-test-crate`
+(S-TINT's TINT-1 residue, `names/geompred.rs`, WIRE's ground) is real and
+takeable and does not collide with either live lane. Held anyway: three
+concurrent PRs on a tree moving ~12,000 commits in three days means the
+session spends itself on merge conflicts rather than on work — the last
+unit took three conflict rounds to land, none of them in code. Two lanes
+is the level this tree supports. It is next in the queue, not deferred.
+
+Signed (WIRE orchestrator).
