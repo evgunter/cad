@@ -17,33 +17,41 @@
 
 test_utils::roster! {
     the_certifying_filter_changes_a_pre_m10_6_documents_drive:
-        "the unit's claim 1 is \"zero impact for documents without a `min_clearance` \
-         measure\"; `drive::certifying_vector` drops `Assertion` rows for EVERY \
-         assertion-carrying document, and this row exhibits one whose leaves certify \
-         only because of it",
+        "M10-6's claim 1 falsified for assertion-carrying documents. \
+         `drive::certifying_vector` drops `Assertion` rows for EVERY such document — \
+         deviation D10 — and this row exhibits one whose leaves certify only because \
+         of it",
     min_separation_brackets_a_curved_pair_at_every_budget:
-        "the enclosure on carriers the unit's own fixture does not use (cylinders), at \
-         starved budgets",
+        "the enclosure over carriers the unit's own fixture never uses — two CYLINDERS \
+         — at four budgets from starved to the shipped one, containing the \
+         hand-derived truth at every one and narrowing monotonically",
     min_clearance_between_two_separated_bodies_reads_zero:
         "the carrier-WINDOW superset carried into the measure layer: two solids 0.1 m \
-         apart whose `min_clearance` is `[0, 0]`, and the assertion over it that reads \
-         `Violated`",
+         apart whose certified `min_clearance` lower bound reads 0 against that true \
+         0.1, and the requirement `min_clearance >= 0.05` — met by them twice over — that gets no \
+         `Holds` out of it",
     report_key_tells_the_dials_that_move_a_report_apart:
-        "the cache seam's key. D5 left the report dials out of the (kind, slice, box, \
-         eps, K) tuple, so two MC runs a consumer would never confuse hashed to one \
-         key; the dials are in the key now and this row pins the DISCRIMINATION it was \
-         written to pin the absence of",
+        "the cache seam's key. The run dials were missing from the (kind, slice, box, \
+         eps, K) tuple, unnoticed rather than decided, so two MC runs a consumer would \
+         never confuse hashed to one key; M10-6's review put them in as `report::Dials` \
+         (deviation D11, and `editor_core::report::report_key` is where that is written \
+         down), and this row pins the DISCRIMINATION it was written to pin the absence \
+         of",
     the_mc_stream_is_re_derived_bit_for_bit:
-        "the PRNG, re-stated here from the algorithm's own definition, against the \
-         lane's draws through `sample_offset`",
+        "the two halves of the MC lane a report that is not a per-sample dump lets a \
+         row check: `sample_offset` is the inverse transform of the same mass function \
+         the accounting integrates, driven by a stream re-stated here from the \
+         algorithms; and the report is bit-identical across rayon schedules while \
+         moving with the seed",
     the_typed_absence_names_its_verb_scalar_and_door:
-        "the payload sentence a Python caller is handed when a `min_clearance` measure \
-         is read at `f64`: it must name the verb, the scalar and the door that CAN \
-         answer, because the binding that formats it is not in this crate",
+        "the PAYLOAD's own sentence when a `min_clearance` measure is read at `f64`: it \
+         must name the verb, the scalar and the door that CAN answer, because the \
+         binding that formats it for a Python caller is not in this crate",
     a_tolerance_study_end_to_end_through_the_public_doors:
         "the whole consumer walk in one row — box, drive, stackup, histogram, budget, \
-         MC, cache. THE SUITE'S CRITICAL PATH: S-TCOST measured it at 346-660 s on \
-         2026-09-12, 85-96 % of the CI leg that finishes last",
+         MC, cache. THE SUITE'S CRITICAL PATH: its duration, the leg it carries and \
+         its share of that leg have one home, and it is \
+         `work/tcost/one-test-is-the-whole-ci-critical-path.md`",
 }
 
 use crate::fixture;
@@ -190,12 +198,11 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
 
 /// **Claim 1, falsified for assertion-carrying documents.**
 ///
-/// `drive` compares each leaf's verdict vector against the witness's.
-/// Before this unit that comparison was `VerdictVector::of`; this unit
-/// silently narrows it to `drive::certifying_vector`, which drops
-/// `Assertion` rows. The narrowing is not disclosed in the PR's
-/// deviation table, and it moves the drive of any document carrying an
-/// assertion — a class that contains no `min_clearance` at all.
+/// `drive` compares each leaf's verdict vector against the witness's
+/// through `drive::certifying_vector`, which drops `Assertion` rows.
+/// That moves the drive of any document carrying an assertion — a class
+/// that contains no `min_clearance` at all — and is M10-6's deviation
+/// D10.
 ///
 /// The row exhibits the difference two ways: the two vectors are not
 /// equal over this document's witness, and a leaf certifies while its

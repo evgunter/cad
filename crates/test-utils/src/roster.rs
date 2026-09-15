@@ -4,6 +4,13 @@
 //! rows, and a generated row that compares it against libtest's own
 //! `--list`.
 //!
+//! "Roster" names this macro's block here and nothing else. The word
+//! has two other referents in this tree — `probe-suite-census.sh`'s
+//! "rostered as executed" (`:535`), and the row enumerations in `work/`
+//! item headers — and neither is this. The macro is not renamed away
+//! from the collision because 192 files under `work/` use the word and
+//! the item this module closes is one of them.
+//!
 //! # Why a roster needs a weld at all
 //!
 //! A doc comment that enumerates its file's rows is a list nobody
@@ -28,6 +35,25 @@
 //! tree already re-execs its own test binary at eighteen sites to *run*
 //! a child row, which is strictly more than this.
 //!
+//! **That argument is not novel here, and this module is not the first
+//! site to make it.** `scripts/gates/probe-suite-census.sh` already
+//! parses `cargo test --test all -- --list` for module names (`:657`) —
+//! the mirror of `row_prefix`'s split — and its own `--selftest`
+//! refuses to pass on an empty listing (`:1067`-`:1072`), which is this
+//! module's vacuity floor written independently in bash.
+//! `.github/workflows/ci.yml` (`:4837`) is what produces that listing
+//! for it, and `scripts/check-ci-mirror-parity.py` (`:1584`) reads the
+//! `listing=$(cargo test … --list)` assignment as a live row rather
+//! than dropping it — the two neighbouring readers of the same output.
+//!
+//! Nothing is shared between those three and this module, and nothing
+//! can be. They are shell and Python reading a listing produced by a
+//! `cargo test` invocation they spell themselves; this is Rust inside
+//! the binary being listed, which is the only seat from which
+//! `module_path!()` answers for the invoking module. The shell/Rust
+//! boundary is the whole reason for the second implementation. What
+//! travels is the argument, so each end now names the other.
+//!
 //! # What it welds, and what it will never weld
 //!
 //! **NAMES, and never PROSE.** Each entry carries a hand-written
@@ -48,15 +74,33 @@
 //! exactly as bad as it was before. What changed is that the *names*
 //! beside it can no longer be wrong.
 //!
+//! It has exactly one consumer, and that consumer constrains its TYPE
+//! and not its content: the macro binds every sentence into a
+//! `const _: &[&str]`, so `the_row: 42` is a compile error rather than
+//! a silently accepted column. Nothing reads the sentence, and no
+//! addition to this crate will make a sentence checkable against an
+//! assertion.
+//!
 //! **Nothing requires a file to HAVE a roster.** A suite that grows a
 //! header enumeration and never invokes the macro is silent, exactly as
 //! it was before this module existed.
 //!
-//! **A roster covers its module's DIRECT rows only.** A `#[test]` in a
-//! module nested inside the file lists as `<file>::<inner>::<row>` and
-//! is neither demanded nor accepted, because a roster entry is an ident
-//! and cannot name a path. The file this was written for has no nested
-//! test module; one added later would be unrostered and unremarked.
+//! **A roster names its module's DIRECT rows, and a nested `#[test]`
+//! is a violation rather than a blind spot.** A `#[test]` in a module
+//! nested inside the file lists as `<file>::<inner>::<row>`, and a
+//! roster entry is an ident that cannot name a path. Passing over one
+//! silently would leave a row in the PASS list that the roster does
+//! not name, under a guard whose name says it names every row in the
+//! file — so the guard names it instead and says to hoist it to the
+//! file's own level.
+//!
+//! The cost is real and deliberate: a file whose rows live in nested
+//! `mod`s cannot adopt this macro until they are hoisted, and the
+//! guard says so in the message rather than leaving the author to
+//! infer it. The alternative — narrowing the guard's NAME to what a
+//! path-blind comparison can see — was refused, because the name is
+//! what reaches the PASS list, `--filter` expressions and every future
+//! citation of this row.
 //!
 //! # Why this is a function plus a thin macro
 //!
@@ -105,6 +149,18 @@ pub fn listed_rows() -> Vec<String> {
         String::from_utf8_lossy(&out.stderr)
     );
     let stdout = String::from_utf8(out.stdout).expect("libtest's --list output is UTF-8");
+    rows_of_listing(&stdout)
+}
+
+/// The `--list --format=terse` parse, over text supplied by the caller
+/// — separated from [`listed_rows`] so that the thing it has to get
+/// right (every line whose kind is not `test` is dropped, and so is the
+/// trailing summary) is stated as a listing in this module's own rows.
+/// Read from the running binary it cannot be: no binary in this tree
+/// carries a `#[bench]`, so the kind filter would be exercised by
+/// nothing and a row asserting over it could not go red.
+#[must_use]
+fn rows_of_listing(stdout: &str) -> Vec<String> {
     stdout
         .lines()
         .filter_map(|line| line.strip_suffix(": test"))
@@ -152,8 +208,8 @@ pub fn roster_violations(module_path: &str, guard_row: &str, rostered: &[&str]) 
 /// The comparison itself, over a listing supplied by the caller —
 /// separated from [`listed_rows`] so that the cases it has to get right
 /// (a sibling module whose name EXTENDS this one, a nested module, a
-/// prefix that matches nothing) are stated as listings in this module's
-/// own rows rather than depending on what binary is running.
+/// module with no direct rows left) are stated as listings in this
+/// module's own rows rather than depending on what binary is running.
 #[must_use]
 fn violations_against(
     listed: &[String],
@@ -162,27 +218,44 @@ fn violations_against(
     rostered: &[&str],
 ) -> Vec<String> {
     let prefix = row_prefix(module_path);
-    let mine: Vec<&str> = listed
+    let under_prefix: Vec<&str> = listed
         .iter()
         .filter_map(|row| row.strip_prefix(&prefix))
-        // Direct rows of this module only: a nested module's rows
-        // list as `<inner>::<row>` and cannot be named by an ident.
-        .filter(|row| !row.contains("::") && *row != guard_row)
         .collect();
+    // A nested module's rows list as `<inner>::<row>`, which no ident
+    // can name. They are a violation, not a blind spot: see `nested`.
+    let (nested, direct): (Vec<&str>, Vec<&str>) =
+        under_prefix.iter().partition(|row| row.contains("::"));
+    let mine: Vec<&str> = direct.into_iter().filter(|row| *row != guard_row).collect();
 
     let mut violations = Vec::new();
 
-    // The vacuity floor. A prefix that matches nothing is a guard that
-    // cannot see its subject, and without this it would be the same
-    // green as a roster that agrees.
+    // The vacuity floor. The comparison below is vacuous on an empty
+    // `mine`, and without this it would be the same green as a roster
+    // that agrees. The reachable cause is NOT a mis-derived prefix —
+    // in a real build both sides of it come from the compiler — it is
+    // that this module has no direct rows left. So the message leads
+    // with that, and the `absent` violation below still runs and names
+    // the rostered rows that are gone.
     if mine.is_empty() {
         violations.push(format!(
-            "no row of the {} rows in this binary is named `{prefix}<row>`, so this roster \
-             compared itself against nothing. The module prefix is derived from \
-             module_path!() = {module_path:?}.",
+            "this roster compared itself against nothing: of the {} rows in this binary, \
+             none other than this guard is a #[test] listed directly under `{prefix}`. \
+             Either every row this module had is gone — deleted, or moved into a \
+             module nested inside it — or `{module_path}` is not the path libtest lists \
+             this module's rows under. The names still in the roster are reported below.",
             listed.len()
         ));
-        return violations;
+    }
+
+    if !nested.is_empty() {
+        violations.push(format!(
+            "these #[test] rows are in modules NESTED inside this one, where a roster \
+             entry — an ident — cannot name them: {nested:?}. Hoist each one to this \
+             file's own level so the roster can name it, or drop the roster!{{}} from \
+             this file. This guard's name says it names every row in the file; a nested \
+             row passed over silently is what would make that name false."
+        ));
     }
 
     let unrostered: Vec<&&str> = mine.iter().filter(|row| !rostered.contains(row)).collect();
@@ -243,19 +316,46 @@ fn violations_against(
 ///
 /// **Names, never prose.** The sentence beside each name is
 /// hand-written and unchecked — it can describe a row in the opposite
-/// sense to what the row asserts, and nothing here will say so. See
-/// this module's docs.
+/// sense to what the row asserts, and nothing here will say so. The
+/// generated row's one use of it is `const _: &[&str]`, which makes a
+/// non-string column (`row: 42`) a compile error and says nothing
+/// whatever about what the string means. See this module's docs.
 ///
 /// **Nothing requires a file to have a roster**, so a header
-/// enumeration that never adopts this macro is silent; and a roster
-/// covers the invoking module's DIRECT rows only, never those of a
-/// module nested inside the file.
+/// enumeration that never adopts this macro is silent.
+///
+/// **Only what libtest LISTS is in reach.** A `#[bench]` in the module
+/// lists with kind `benchmark`, is dropped by the parse, and is
+/// therefore neither demanded nor accepted — unrostered and unremarked.
+/// No `#[bench]` exists in this tree today. The same holds for a target
+/// that runs no libtest harness at all: `benches/Cargo.toml` sets
+/// `harness = false`, and that root is outside the workspace and holds
+/// no roster.
+///
+/// **A row in another file of the same binary is not this roster's**,
+/// which is the prefix doing its job rather than a hole: an aggregated
+/// `all` binary holds every suite of its crate, and each file answers
+/// for its own module path.
 ///
 /// # What the generated row costs
 ///
-/// One `--list` re-exec of the test binary. Measured at 5.2-5.8 ms on
-/// `editor-core`'s aggregated `all` binary with `--features interval`
-/// (450 MB, 1629 rows), which is the largest in the tree.
+/// One `--list` re-exec of the test binary, in single-digit
+/// milliseconds. Measured at 6.6-7.9 ms over eight runs on
+/// `editor-core`'s aggregated `all` binary under `--features interval`
+/// — the largest in the tree, ~450 MB and 1630 listed rows, of which
+/// this file contributes eight.
+///
+/// Nothing goes red when those figures stop being true, and they get
+/// neither a guard nor a scheduled re-measure. A guard would have to
+/// re-take the measurement on every run, which is to pay the cost in
+/// order to assert it is small; the size and the row count move with
+/// every commit that adds a test, and the millisecond figure moves with
+/// the machine. What the number is for is the decision a reader is
+/// asked to accept — that one re-exec per adopting file is affordable —
+/// and the order of magnitude is what that decision turns on, which is
+/// why an exact byte count is not written down here. This is the third
+/// case in `work/guard/measurements-have-no-mechanical-guard.md`:
+/// unguardable, with the reason written down.
 ///
 /// # Where the row's name comes from
 ///
@@ -263,10 +363,20 @@ fn violations_against(
 /// string the comparison excludes itself by is `stringify!` of that
 /// same token — the copy this macro exists to end is not one this macro
 /// makes.
+///
+/// `macro_rules!` has no private rules, so the `@weld` rule below is
+/// reachable from any crate and will name the guard whatever it is
+/// given; the one-name property holds for the door above it, not
+/// against a caller who walks around it.
 #[macro_export]
 macro_rules! roster {
     ($($row:ident : $what_it_is_for:literal),+ $(,)?) => {
         $crate::roster!(@weld the_header_roster_names_every_row_in_this_file, $($row),+);
+        // The prose column's ONLY consumer. It constrains the TYPE —
+        // a column that is not a string literal is a compile error —
+        // and reads nothing: the sentence stays unchecked against the
+        // row, and no line here will ever check it.
+        const _: &[&str] = &[$($what_it_is_for),+];
     };
     (@weld $guard:ident, $($row:ident),+) => {
         /// This file's `roster!{}` block against libtest's own `--list`
@@ -291,7 +401,7 @@ macro_rules! roster {
 
 #[cfg(test)]
 mod tests {
-    use super::{listed_rows, row_prefix, violations_against};
+    use super::{listed_rows, row_prefix, rows_of_listing, violations_against};
 
     /// The listing a suite of this shape would produce: one module with
     /// two rows, a SIBLING WHOSE NAME EXTENDS IT, and a nested module.
@@ -325,15 +435,45 @@ mod tests {
     }
 
     /// The set compared is the module's DIRECT rows: not the neighbour
-    /// whose name extends it, not a nested module's rows, not the
-    /// generated guard.
+    /// whose name extends it, not the generated guard, and not a row
+    /// that belongs to some other module of the same binary.
     #[test]
-    fn the_compared_set_excludes_the_prefix_sibling_the_nested_mod_and_the_guard() {
-        assert!(against(&["alpha", "beta"]).is_empty());
-        for intruder in ["gamma", "nested", "guard", "unrelated"] {
-            let v = against(&["alpha", "beta", intruder]);
+    fn the_compared_set_excludes_the_prefix_sibling_and_the_guard() {
+        // `inner::nested` is under this prefix, so it reds on its own
+        // account — the flat listing is what isolates the exclusions.
+        let flat = [
+            "probes::alpha",
+            "probes::beta",
+            "probes::guard",
+            "other::unrelated",
+        ]
+        .iter()
+        .map(|s| (*s).to_owned())
+        .collect::<Vec<_>>();
+        let against_flat = |rostered: &[&str]| {
+            violations_against(&flat, "all::probes", "guard", rostered).join("\n")
+        };
+        assert!(against_flat(&["alpha", "beta"]).is_empty());
+        for intruder in ["gamma", "guard", "unrelated"] {
+            let v = against_flat(&["alpha", "beta", intruder]);
             assert!(v.contains(intruder), "rostering {intruder} must red: {v}");
         }
+    }
+
+    /// A `#[test]` under a nested `mod` is a VIOLATION, naming the row
+    /// and saying what to do — the guard's name claims every row in the
+    /// file and this is what makes that claim true.
+    #[test]
+    fn a_row_under_a_nested_mod_is_a_violation_no_roster_can_answer() {
+        let v = against(&["alpha", "beta"]);
+        assert!(v.contains("inner::nested"), "{v}");
+        assert!(v.contains("NESTED"), "{v}");
+        assert!(v.contains("Hoist"), "{v}");
+        // And rostering it does not help: an ident cannot name a path,
+        // so the entry lands in `absent` while the row still reds.
+        let v = against(&["alpha", "beta", "nested"]);
+        assert!(v.contains("inner::nested"), "{v}");
+        assert!(v.contains("A roster names rows, not"), "{v}");
     }
 
     #[test]
@@ -350,14 +490,41 @@ mod tests {
         assert!(v.contains("A roster names rows, not"), "{v}");
     }
 
-    /// The floor. Without it a derivation that matched nothing would be
-    /// the same green as a roster that agreed.
+    /// The floor, at its REACHABLE trigger: the module's rows are all
+    /// gone. In a real build both sides of the prefix come from the
+    /// compiler, so a mis-derived prefix is near-unreachable; what
+    /// happens is that the rows are deleted, or moved into a `mod`
+    /// nested inside the file, and neither is left. The floor
+    /// fires AND the rostered names that are gone are still named,
+    /// which is the report the author needs.
     #[test]
-    fn a_prefix_that_matches_nothing_is_a_violation_not_a_green() {
+    fn a_module_with_no_direct_rows_left_is_a_violation_not_a_green() {
+        let emptied = [
+            "other::unrelated",
+            "probes::guard",
+            "probes_extended::gamma",
+        ]
+        .iter()
+        .map(|s| (*s).to_owned())
+        .collect::<Vec<_>>();
+        let v = violations_against(&emptied, "all::probes", "guard", &["alpha", "beta"]).join("\n");
+        assert!(v.contains("compared itself against nothing"), "{v}");
+        assert!(v.contains("every row this module had is gone"), "{v}");
+        // And the rostered names that are gone: the floor reports
+        // them rather than being the only thing reported.
+        assert!(v.contains("\"alpha\""), "{v}");
+        assert!(v.contains("\"beta\""), "{v}");
+        assert!(v.contains("A roster names rows, not"), "{v}");
+    }
+
+    /// The other, near-unreachable half: the prefix itself is wrong.
+    /// Same floor, and the message names the path it derived.
+    #[test]
+    fn a_prefix_that_matches_nothing_names_the_module_path_it_derived() {
         let v = violations_against(&listing(), "all::no_such_module", "guard", &["anything"])
             .join("\n");
         assert!(v.contains("compared itself against nothing"), "{v}");
-        assert!(v.contains("no_such_module"), "{v}");
+        assert!(v.contains("all::no_such_module"), "{v}");
     }
 
     /// The re-exec answers about the RUNNING binary — the half the
@@ -370,8 +537,19 @@ mod tests {
                 .any(|r| r.ends_with("roster::tests::the_binary_lists_this_very_row")),
             "the listing must contain the row asking for it: {rows:?}"
         );
-        // The `: <kind>` suffix libtest prints is stripped, and only
-        // `test` kinds survive.
-        assert!(!rows.iter().any(|r| r.contains(": ")), "{rows:?}");
+    }
+
+    /// The parse: every line whose kind is not `test` is dropped, and
+    /// so is the trailing summary. The running binary cannot check
+    /// this — no `#[bench]` exists in this tree, so the filter would be
+    /// exercised by nothing — and a supplied listing can.
+    #[test]
+    fn the_listing_parse_keeps_test_rows_and_drops_every_other_kind() {
+        let stdout = "probes::alpha: test\n\
+                      probes::measure_it: benchmark\n\
+                      probes::beta: test\n\
+                      \n\
+                      2 tests, 1 benchmark\n";
+        assert_eq!(rows_of_listing(stdout), ["probes::alpha", "probes::beta"]);
     }
 }
