@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-04
 refs: [1782]
 branch: scalar/vrev-surface-door
+pr: 2627
 ---
 
 ## Finding
