@@ -110,12 +110,24 @@ pub struct NameTable {
 // SCHEDULE-dependent bit — which reader reached it first — so it must
 // not be printable into a message, a digest or a golden, and this impl
 // is what keeps it off every one of them.
+//
+// `Self` is destructured exhaustively, so a field added to the
+// declaration is an E0027 unbound-pattern error rather than a value
+// silently absent from every dump; `sealed` binds to `_`, which is what
+// makes the omission a decision a reader can see and the compiler still
+// forces. `finish_non_exhaustive` is what that `_` arm stands for —
+// `finish` would claim the schedule-dependent bit is shown.
 impl core::fmt::Debug for NameTable {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            forward,
+            reverse,
+            sealed: _,
+        } = self;
         f.debug_struct("NameTable")
-            .field("forward", &self.forward)
-            .field("reverse", &self.reverse)
-            .finish()
+            .field("forward", forward)
+            .field("reverse", reverse)
+            .finish_non_exhaustive()
     }
 }
 

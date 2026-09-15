@@ -920,7 +920,14 @@ pub fn fit_offset_at(
         // set is "the round whose schedule came from a both-directions
         // marking", and that is a fact about `next`, not about the
         // order of two statements.
-        let mut next = refine_schedule(&us, &vs, &report, reg.speed_u, reg.speed_v, verdict);
+        let mut next = refine_schedule(
+            &us,
+            &vs,
+            &report,
+            reg.speed_u.get(),
+            reg.speed_v.get(),
+            verdict,
+        );
         // A directional marking can fail to grow the schedule even
         // though it marked intervals: `bisect` drops a midpoint that
         // is not strictly between its endpoints, which is what an
@@ -932,8 +939,8 @@ pub fn fit_offset_at(
                 &us,
                 &vs,
                 &report,
-                reg.speed_u,
-                reg.speed_v,
+                reg.speed_u.get(),
+                reg.speed_v.get(),
                 Refine::BothDirections,
             );
         }
@@ -1388,32 +1395,6 @@ fn normalized(params: &[f64], lo: f64, hi: f64) -> Vec<f64> {
     out
 }
 
-/// A clamped knot vector affinely rescaled from `0 → 1` onto
-/// `[lo, hi]`, with the clamp runs pinned exactly — so the fitted
-/// surface lives on the base's own chart rectangle and the
-/// certificate's pointwise claim is about the same parameters on both
-/// sides.
-fn rescaled_knots(kv: &KnotVector, lo: f64, hi: f64) -> Result<KnotVector, SplineError> {
-    let span = hi - lo;
-    let n = kv.knots().len();
-    let p = kv.degree();
-    let scaled: Vec<f64> = kv
-        .knots()
-        .iter()
-        .enumerate()
-        .map(|(i, t)| {
-            if i <= p {
-                lo
-            } else if i + p + 1 >= n {
-                hi
-            } else {
-                lo + span * *t
-            }
-        })
-        .collect();
-    KnotVector::clamped(scaled, p)
-}
-
 /// **A9.4**, at the base's chart parameters (module docs): sample the
 /// exact offset on the `(us, vs)` grid, then two passes of curve
 /// interpolation on Eq. 9.8's averaged knot vectors.
@@ -1465,8 +1446,12 @@ fn interpolate_offset_grid(
             control.push(Point3::new(row[i * 3], row[i * 3 + 1], row[i * 3 + 2]));
         }
     }
-    let ku = rescaled_knots(&ku, ulo, uhi).map_err(OffsetFitError::Structure)?;
-    let kv = rescaled_knots(&kv, vlo, vhi).map_err(OffsetFitError::Structure)?;
+    // The interpolation's `0 → 1` knots onto the base's own chart
+    // rectangle, ends exact — so the fitted surface lives on the same
+    // parameters and the certificate's pointwise claim is about the
+    // same `(u, v)` on both sides.
+    let ku = ku.on_domain(ulo, uhi).map_err(OffsetFitError::Structure)?;
+    let kv = kv.on_domain(vlo, vhi).map_err(OffsetFitError::Structure)?;
     NurbsSurface::new(ku, kv, control, vec![1.0; cu * cv]).map_err(OffsetFitError::Structure)
 }
 
@@ -1689,6 +1674,11 @@ fn refine_schedule(
 /// parameters — which is what makes it invariant to how the two
 /// directions happen to be parameterized. Ties go to `u`, on
 /// structure (D9: deterministic, never data-dependent tuning).
+///
+/// The speeds arrive as bare `f64`: this is a **structure selection**,
+/// not a classification, so no margin crosses the decide seam here and
+/// the rate pair's tag comes off at the caller rather than riding into
+/// a comparison the band never sees.
 fn directional_mark(
     us: &[f64],
     vs: &[f64],

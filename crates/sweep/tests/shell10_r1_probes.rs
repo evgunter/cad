@@ -6,12 +6,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point3, Vec3};
+use geom_core::{Point3, Tol, Vec3};
+use sweep::test_support::block;
 use topo::{Body, FaceKey, HalfEdgeKey, SolidKey};
 
 use crate::common::approx::band;
 use crate::shell8_common::{beside, cap, deep_dump, faces_of, outer_and_void_of, tol, volume};
-use crate::verbs_shell::{boxy, vessel};
+use crate::verbs_shell::vessel;
 
 fn y() -> Vec3<f64> {
     Vec3::new(0.0, 1.0, 0.0)
@@ -115,7 +116,11 @@ fn r1_the_subset_pass_leaves_rows_on_half_edges_its_caller_killed() {
 /// compared deep against the sealed arm — the SHELL-8 oracle.
 #[test]
 fn r1_e2e_box_beside_a_hollow_vessel_opened_on_its_void_ceiling() {
-    let pair = beside(&boxy(2.0, 3.0, 4.0), &vessel(1.0, 2.0), 10.0);
+    let pair = beside(
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        &vessel(1.0, 2.0),
+        10.0,
+    );
     let pi = core::f64::consts::PI;
     assert!(
         (volume(&pair) - (24.0 + pi * 2.0)).abs() < 1e-9,
@@ -187,7 +192,7 @@ fn r1_e2e_box_beside_a_hollow_vessel_opened_on_its_void_ceiling() {
 /// arm.
 #[test]
 fn r1_e2e_four_solids_hollowed_then_one_opened() {
-    let unit = boxy(2.0, 2.0, 2.0);
+    let unit = block(2.0, 2.0, 2.0, Tol::witness());
     let mut four = unit.clone();
     for i in 1..4 {
         four = beside(&four, &unit, 10.0 * f64::from(i));
@@ -241,7 +246,11 @@ fn r1_e2e_four_solids_hollowed_then_one_opened() {
 /// neighbour's chart) and green at the head.
 #[test]
 fn r1_e2e_direct_door_over_one_of_two_with_an_unmintable_neighbour() {
-    let mut pair = beside(&vessel(1.0, 2.0), &boxy(2.0, 3.0, 4.0), 10.0);
+    let mut pair = beside(
+        &vessel(1.0, 2.0),
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        10.0,
+    );
     let solids: Vec<SolidKey> = pair.solids().map(|(k, _)| k).collect();
     let (ves, bx) = (solids[0], solids[1]);
 
@@ -383,9 +392,13 @@ fn r1_cost() {
     });
 
     // And the planar door, 1 of 4 boxes.
-    let mut fourb = boxy(2.0, 3.0, 4.0);
+    let mut fourb = block(2.0, 3.0, 4.0, Tol::witness());
     for i in 1..4 {
-        fourb = beside(&fourb, &boxy(2.0, 3.0, 4.0), 10.0 * f64::from(i));
+        fourb = beside(
+            &fourb,
+            &block(2.0, 3.0, 4.0, Tol::witness()),
+            10.0 * f64::from(i),
+        );
     }
     let bx4 = fourb.solids().next().unwrap().0;
     let mvb = moves_of(&fourb, bx4, -0.05);

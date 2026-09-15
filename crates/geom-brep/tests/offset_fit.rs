@@ -36,6 +36,7 @@ use geom_brep::offset_fit::{
 use geom_brep::offset_meters::{MeterError, OFFSET_METER_LADDER, patch_collapse, patch_regularity};
 use geom_brep::patch_bound::patch_cells_refined;
 use geom_core::Point3;
+use geom_core::spline::KnotVector;
 
 use crate::shared::fixture::{bumpy_patch, kv1, kv2, quarter_cylinder, sphere_band};
 use crate::shared::sample::{grid, worst_offset_residual};
@@ -155,6 +156,48 @@ fn cylinder_fit_matches_the_closed_form_both_signs() {
             );
         }
     }
+}
+
+/// The fit lives on the base's own chart rectangle BIT FOR BIT: its
+/// interpolation runs on `[0, 1]²` and is re-expressed onto the base's
+/// `(u, v)` window with the ends assigned, so the certificate's
+/// pointwise claim is about the same parameters on both sides. The
+/// base is built by hand on a `u` window whose computed end misses —
+/// `0.3 + (0.9 − 0.3)` is an ulp above `0.9` — so a fit whose ends
+/// were mapped rather than assigned would sit an ulp past the chart.
+/// Pins the domain only, not the interpolation's interior schedule.
+#[test]
+fn the_fit_lives_on_the_base_chart_window_bit_for_bit() {
+    let (ulo, uhi, vlo, vhi) = (0.3_f64, 0.9_f64, 0.2_f64, 1.7_f64);
+    assert_eq!(
+        (ulo + (uhi - ulo)).to_bits(),
+        uhi.to_bits() + 1,
+        "the u window no longer documents the pin"
+    );
+    let unit = quarter_cylinder(1.25, 0.75);
+    let base = NurbsSurface::new(
+        KnotVector::clamped(vec![ulo, ulo, ulo, uhi, uhi, uhi], 2).unwrap(),
+        KnotVector::clamped(vec![vlo, vlo, vhi, vhi], 1).unwrap(),
+        unit.control().to_vec(),
+        unit.weights().to_vec(),
+    )
+    .unwrap();
+    let (fit, cert) = fit_offset_at(&base, 0.3, 3e-4, band())
+        .unwrap_or_else(|e| panic!("fit_offset refused the re-charted cylinder: {e}"));
+    assert!(cert.hull_sup <= 3e-4, "certified sup {}", cert.hull_sup);
+    let bits = |(a, b): (f64, f64)| (a.to_bits(), b.to_bits());
+    assert_eq!(
+        bits(fit.knots_u().domain()),
+        (ulo.to_bits(), uhi.to_bits()),
+        "u domain: {:?}",
+        fit.knots_u().domain()
+    );
+    assert_eq!(
+        bits(fit.knots_v().domain()),
+        (vlo.to_bits(), vhi.to_bits()),
+        "v domain: {:?}",
+        fit.knots_v().domain()
+    );
 }
 
 #[test]

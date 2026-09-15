@@ -523,7 +523,8 @@ impl std::error::Error for PropsError {}
 /// reference (Mäntylä's far-from-origin conditioning remedy).
 ///
 /// **Sense-invariant by derivation** (M5 S10). This function takes no
-/// `sense_sign` and deliberately must not: `A⃗` is a boundary integral
+/// sense at all — not the bit its curved sibling takes — and
+/// deliberately must not: `A⃗` is a boundary integral
 /// in the face's STORED traversal order, and the interior-left rule
 /// already points it along the *outward* normal, whichever side that
 /// is. A planar face's entire flux is `origin·A⃗` (the anchored term

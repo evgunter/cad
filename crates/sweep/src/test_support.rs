@@ -25,10 +25,19 @@
 //!   The feature is off by default and turned on only from
 //!   **`[dev-dependencies]`** — this crate's self dev-dependency
 //!   (`sweep = { path = ".", features = ["test-support"] }`), and the
-//!   same spelling in `mesh` and `step-export`, whose suites meter the
-//!   [`swept_elbow`] this crate builds. So it is on exactly when some
-//!   crate's TESTS compile the library, and off for every non-test
-//!   build of every dependent.
+//!   same spelling wherever another crate's suites want a body this
+//!   one already owns. So it is on exactly when some crate's TESTS
+//!   compile the library, and off for every non-test build of every
+//!   dependent. A crate joins by adding that one line; there is
+//!   nothing else to wire.
+//!
+//!   **No list of those crates is kept here**, deliberately: the set
+//!   changes whenever a suite wants a fixture, nothing recomputes a
+//!   sentence, and a hand-written census that has gone stale is the
+//!   defect this module exists to remove rather than a description of
+//!   it. `scripts/gates/test-features-dev-only.sh` reads the manifests
+//!   and is the authority on where the edge is; `cargo tree -e dev -i
+//!   sweep` answers the same question locally.
 //!
 //!   A fixture only earns a place here once a consumer OUTSIDE this
 //!   crate needs it or a second suite inside it does; the narrower
@@ -37,6 +46,56 @@
 //!   crate-PRIVATE seams a suite reads through — [`ring_clearance`]
 //!   and [`walked_chains`] — which are not fixtures but the only way a
 //!   `tests/` crate can observe a `pub(crate)` phase.
+//!
+//! # The extrusion family
+//!
+//! [`extruded`] is the primitive — loops on a plane, pushed along its
+//! normal — and [`prism_on`], [`prism`], [`prism_at`], [`brick`] and
+//! [`cube`] are its named specializations. All of them are generic in
+//! the scalar, because the `Interval` and `Probe` lanes build the same
+//! bodies as the `f64` one and the only alternative is a second copy at
+//! each scalar: a per-scalar copy per suite is what this family was
+//! before it was one. A shape that is not here yet joins by naming the
+//! primitive and its own loops — it needs no new door, no new gate and
+//! no new manifest edge beyond the one its crate already has.
+//!
+//! # The loft family
+//!
+//! The skinned bodies are `f64` only, and not by omission:
+//! [`Section`](crate::Section) is `Vec<ProfileLoop<f64>>`, so
+//! `loft_body` has one scalar and so does everything built on it.
+//! [`loft_prism_sections`] is that family's primitive — the three
+//! sections — and [`loft_prism_at`] and [`loft_prism`] are its named
+//! placements.
+//!
+//! **The sections door is not a convenience over the body door**, and
+//! the split is not arbitrary: a suite reaches for the sections when
+//! the body is not what it is measuring. Two kinds do. One varies the
+//! PLACEMENT — stacking against the base normal, re-spacing 1 : 2,
+//! carrying the stack through a rotation — where the placement is the
+//! subject and belongs on the line that reads it. The other needs the
+//! PRE-BODY artifact the solid has already discarded: the [`Lofted`]
+//! handoff's wall and cap keys, the geometry `loft_geometry` returns,
+//! or the `(sections, places)` pair a row compares against a second
+//! section set. Neither kind can be served by handing it a `Body`.
+//!
+//! # Editing a fixture here re-authors committed bytes
+//!
+//! `step-export`'s `examples/export_fixtures` regenerates that crate's
+//! committed `.step` corpus from its `tests/common` module, and that
+//! module's boxes are this module's, and so is its [`loft_prism`]. So
+//! a change to [`brick`], [`block`], [`cube`], [`extruded`],
+//! [`loft_prism`] or [`pocket_die`] changes files that are checked in,
+//! and is not the tests-only edit the gate on this module might
+//! suggest.
+//!
+//! That is a coupling accepted rather than overlooked, and it is
+//! guarded: `step-export`'s `committed_fixtures_are_byte_golden` runs
+//! on every PR over the same builders, so the change that would move
+//! the bytes reddens the branch that makes it rather than surfacing at
+//! the next regeneration. Per the repo's baseline rule the answer is
+//! then to decide whether the new body is right and re-baseline
+//! saying what moved -- never to restore the old bytes.
 //!
 //! Existence and visibility coincide here, so one gate states both:
 //! nothing in this module has a non-test consumer, unlike `topo`'s
@@ -72,17 +131,95 @@ pub const R: f64 = 0.1;
 
 /// An axis-aligned cube of side `l` with a corner at the origin:
 /// eight trivalent corners, every one of them geometrically CONVEX.
-pub fn cube(l: f64, tol: Tol) -> Body<f64> {
-    prism(square(l), l, tol)
+pub fn cube<T: Decide>(l: T, tol: Tol) -> Body<T> {
+    block(l, l, l, tol)
+}
+
+/// An axis-aligned box of extents `w` x `d` x `h` with its low corner
+/// at the origin.
+///
+/// **The second view of [`brick`], not a second body**: the suites are
+/// written in two vocabularies for one box — by bounds (`brick`) and
+/// by extent from the origin (this, and [`cube`] with one extent) —
+/// and both reach the same four-corner loop through the same door. The
+/// alternative was seven private copies of the construction under one
+/// more name, which is what this replaced.
+pub fn block<T: Decide>(w: T, d: T, h: T, tol: Tol) -> Body<T> {
+    brick((T::zero(), w), (T::zero(), d), (T::zero(), h), tol)
+}
+
+/// **The pocketed die's two operands**: the unit block at
+/// `(x0, y0, z0)` and the centred `0.5` cutter that opens through its
+/// top face, overshooting above so the pocket is a through-mouth
+/// rather than a coplanar kiss.
+///
+/// Handed back as a pair, not as a finished body, because the two
+/// suites that build this die do different things with the boolean:
+/// one wants the body, the other measures the RESULT — its contact
+/// lists — and a door that returns only a `Body` cannot serve the
+/// second. The geometry is the shared thing; the boolean is the
+/// caller's row.
+pub fn pocket_die_parts(x0: f64, y0: f64, z0: f64, tol: Tol) -> (Body<f64>, Body<f64>) {
+    (
+        brick((x0, x0 + 1.0), (y0, y0 + 1.0), (z0, z0 + 1.0), tol),
+        brick(
+            (x0 + 0.25, x0 + 0.75),
+            (y0 + 0.25, y0 + 0.75),
+            (z0 + 0.5, z0 + 1.5),
+            tol,
+        ),
+    )
+}
+
+/// **The pocketed die**: [`pocket_die_parts`] subtracted. Exact volume
+/// `0.875`; the top face carries a ring, the pocket mouth.
+///
+/// `f64` only, for the reason [`rod_with_flat`] gives: the boolean
+/// door's scalar bound is a compound this file is not ratified to
+/// spell.
+pub fn pocket_die(x0: f64, y0: f64, z0: f64, tol: Tol) -> Body<f64> {
+    let (block, cutter) = pocket_die_parts(x0, y0, z0, tol);
+    topo::subtract(&block, &cutter, tol)
+        .expect("the die's pocket cuts")
+        .body()
+        .expect("the die is a body")
+        .body
+        .clone()
+}
+
+/// An axis-aligned box spanning `x` x `y` x `z`, as the half-open
+/// intervals `(lo, hi)` — the plainest body in the kernel and the one
+/// its acceptance suites reach for first.
+pub fn brick<T: Decide>(x: (T, T), y: (T, T), z: (T, T), tol: Tol) -> Body<T> {
+    prism_at(rect(x, y), z.0, z.1 - z.0, tol)
 }
 
 /// The square of side `l` with a corner at the origin, as profile
-/// vertices — the one spelling of the block every block fixture here
-/// extrudes.
-fn square(l: f64) -> Vec<ProfileVertex<f64>> {
-    [(0.0, 0.0), (l, 0.0), (l, l), (0.0, l)]
+/// vertices — the one spelling of the block outline the fixtures here
+/// build on when they need the loop rather than the body.
+fn square<T: Decide>(l: T) -> Vec<ProfileVertex<T>> {
+    rect((T::zero(), l), (T::zero(), l))
+}
+
+/// Profile vertices from xy pairs, every bulge zero — the straight
+/// polygon vocabulary the suites' own copies of these builders are
+/// written in.
+///
+/// Takes `f64` pairs at every scalar, like [`waisted_at`]: a fixture's
+/// outline is a set of chosen constants, and a chosen constant is an
+/// `f64` whatever the lane's arithmetic is.
+pub fn corners<T: Decide>(pts: &[(f64, f64)]) -> Vec<ProfileVertex<T>> {
+    pts.iter()
+        .map(|&(x, y)| ProfileVertex::new(Point2::new(T::from_f64(x), T::from_f64(y)), T::zero()))
+        .collect()
+}
+
+/// The axis-aligned rectangle `x` x `y`, counter-clockwise from its
+/// low corner, as profile vertices.
+fn rect<T: Decide>(x: (T, T), y: (T, T)) -> Vec<ProfileVertex<T>> {
+    [(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]
         .into_iter()
-        .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
+        .map(|(u, v)| ProfileVertex::new(Point2::new(u, v), T::zero()))
         .collect()
 }
 
@@ -409,32 +546,70 @@ pub fn spool(rev: crate::Revolution<f64>, tol: Tol) -> Body<f64> {
     )
 }
 
+/// **The extrusion door**: the closed `loops` on `plane`, extruded
+/// `h` along the plane normal.
+///
+/// This is the whole family's primitive, and the reason it is spelled
+/// here rather than inside one of them. Every body fixture in this
+/// repo that is "a sketch pushed along its normal" — the cube, the
+/// brick, the L-prism, the holed plate, the skewed block, the turned
+/// box — is these six lines with a different loop set, and they were
+/// copied rather than called because the six lines are shorter than
+/// the reach to a home. A fixture joins by naming this door and its
+/// own loops; nothing about it is specific to a shape, a scalar or a
+/// crate, so a shape that is not in this module today needs no
+/// redesign to move here, only a name.
+pub fn extruded<T: Decide>(
+    plane: SketchPlane<T>,
+    loops: Vec<ProfileLoop<T>>,
+    h: T,
+    tol: Tol,
+) -> Body<T> {
+    let pf = Profile::new(plane, loops)
+        .validate(tol)
+        .expect("the fixture's profile is a valid loop set");
+    extrude(&pf, Extrusion::Distance(h), tol)
+        .expect("the fixture's profile extrudes")
+        .body
+}
+
+/// The world xy sketch plane lifted to station `z0`, the placement
+/// every axis-aligned fixture here extrudes from.
+pub fn sketch_at<T: Decide>(z0: T) -> SketchPlane<T> {
+    SketchPlane::new(Affine3::from_frame(
+        Point3::new(T::zero(), T::zero(), z0),
+        Vec3::new(T::one(), T::zero(), T::zero()),
+        Vec3::new(T::zero(), T::one(), T::zero()),
+    ))
+}
+
+/// **A prism on an arbitrary sketch plane**: one closed loop of
+/// `verts`, extruded `h` along that plane's normal.
+pub fn prism_on<T: Decide>(
+    plane: SketchPlane<T>,
+    verts: Vec<ProfileVertex<T>>,
+    h: T,
+    tol: Tol,
+) -> Body<T> {
+    extruded(plane, vec![ProfileLoop::new(verts)], h, tol)
+}
+
 /// **A prism**: one closed profile loop extruded `h` along `+z`.
 ///
 /// The twelfth copy of this four-line helper in the crate's suites was
 /// what got it homed. Takes the vertices rather than a shape so the
 /// L-prism, the arc-sided prism and the turned box are all one door;
 /// panics on an invalid loop, which is a fixture bug, not an outcome.
-pub fn prism(verts: Vec<ProfileVertex<f64>>, h: f64, tol: Tol) -> Body<f64> {
-    prism_at(verts, 0.0, h, tol)
+pub fn prism<T: Decide>(verts: Vec<ProfileVertex<T>>, h: T, tol: Tol) -> Body<T> {
+    prism_at(verts, T::zero(), h, tol)
 }
 
 /// [`prism`] with its sketch plane lifted to station `z0`: the loop
 /// is extruded from `z0` up by `h`. The one home of the lifted
 /// extrusion, so a fixture that stacks a prism on or into another body
 /// does not re-spell the plane.
-pub fn prism_at(verts: Vec<ProfileVertex<f64>>, z0: f64, h: f64, tol: Tol) -> Body<f64> {
-    let plane = SketchPlane::new(Affine3::from_frame(
-        Point3::new(0.0, 0.0, z0),
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-    ));
-    let pf = Profile::new(plane, vec![ProfileLoop::new(verts)])
-        .validate(tol)
-        .expect("the fixture's profile is a valid loop");
-    extrude(&pf, Extrusion::Distance(h), tol)
-        .expect("the fixture's profile extrudes")
-        .body
+pub fn prism_at<T: Decide>(verts: Vec<ProfileVertex<T>>, z0: T, h: T, tol: Tol) -> Body<T> {
+    prism_on(sketch_at(z0), verts, h, tol)
 }
 
 /// **The #935 zone**: a sphere zone off the equator — sphere `R = 2`
@@ -577,6 +752,106 @@ pub fn swept_elbow_lofted(tol: Tol) -> Lofted<f64> {
 /// [`swept_elbow_lofted`]'s body alone.
 pub fn swept_elbow(tol: Tol) -> Body<f64> {
     swept_elbow_lofted(tol).body
+}
+
+// ---------------------------------------------------------------------
+// The loft prism — the corpus's one NON-AFFINE skinned body.
+// ---------------------------------------------------------------------
+
+/// The prism loft's end section: the square `[−1, 1]²`.
+pub const PRISM_SQUARE: [(f64, f64); 4] = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+
+/// Its middle section: the trapezoid whose two bottom corners flare by
+/// ±d, d = 0.375.
+///
+/// The flare is the whole fixture. It makes the middle section a
+/// NON-AFFINE image of the ends, so the four walls are genuinely
+/// curved degree-2 nets in v rather than ruled strips — which is why
+/// this body, and not a box, is what the NURBS-wall suites measure.
+/// `d` is dyadic, so every corner is exact and the ±1.375 spelling and
+/// the `±(1 + d)` one are the same bits.
+pub const PRISM_TRAPEZOID: [(f64, f64); 4] =
+    [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+
+/// The v-degree the prism's three sections are interpolated at: one
+/// quadratic Bézier span through all three, which is the lowest degree
+/// that can bend.
+pub const PRISM_V_DEGREE: usize = 2;
+
+/// The heights [`loft_prism`] places its sections at: unit spacing.
+pub const PRISM_Z: [f64; 3] = [0.0, 1.0, 2.0];
+
+/// A closed four-line quad section (one loop) — the plainest INTEGRAL
+/// profile: unit weights, no arc anywhere.
+fn quad_section(pts: [(f64, f64); 4]) -> Section {
+    vec![ProfileLoop::polygon(
+        pts.iter().map(|&(x, y)| Point2::new(x, y)),
+    )]
+}
+
+/// **The prism's three sections**, bottom to top: square, trapezoid,
+/// square.
+///
+/// The door for the suites that keep their own PLACEMENTS, which is
+/// the suites for which the finished solid is not the subject.
+///
+/// Two kinds ask for them. One varies the PLACEMENT and is measuring
+/// that: the reversed-stacking probe stacks these down the base
+/// normal, the STEP fold re-places them at 1 : 2 spacing. The other
+/// keeps the standard [`PRISM_Z`] placement but needs what
+/// [`loft_prism`] has already thrown away — the [`Lofted`] handoff's
+/// wall and cap keys, the geometry `loft_geometry` returns, or the
+/// `(sections, places)` pair a row carries beside a second section
+/// set to compare the two. A `Body` cannot serve either.
+pub fn loft_prism_sections() -> Vec<Section> {
+    vec![
+        quad_section(PRISM_SQUARE),
+        quad_section(PRISM_TRAPEZOID),
+        quad_section(PRISM_SQUARE),
+    ]
+}
+
+/// **Placements: `zs` as pure `+z` translations** — the one home for
+/// the four lines every stacked fixture would otherwise re-spell.
+///
+/// It sits here rather than in a suite because it was seven spellings
+/// when this door was written: `sweep/tests/common`'s `stacked`, which
+/// now delegates here, and a private `at_z` in each of five `tests/`
+/// suites, byte-identical to one another. Only a `src/` home is
+/// reachable from all of them — a `tests/` module is a different crate
+/// to every other crate's suites, and the fixtures here are placed by
+/// `mesh`, `step-export` and `tools/tess-meter` as well.
+///
+/// Not specific to the loft: [`prism_at`] and [`brick`] place their
+/// own sketch planes, and a fixture that stacks anything joins by
+/// naming this.
+pub fn stacked_at(zs: &[f64]) -> Vec<Affine3<f64>> {
+    zs.iter()
+        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+        .collect()
+}
+
+/// [`loft_prism`] with its sections placed at `zs` instead of
+/// [`PRISM_Z`]. The spacing is the only thing the fold varies, so it
+/// is the only thing this door takes.
+pub fn loft_prism_at(zs: &[f64], tol: Tol) -> Body<f64> {
+    crate::loft_body::<f64>(&loft_prism_sections(), &stacked_at(zs), PRISM_V_DEGREE, tol)
+        .expect("the prism's sections skin")
+        .body
+}
+
+/// **The loft prism**: [`loft_prism_sections`] stacked at [`PRISM_Z`]
+/// and skinned at [`PRISM_V_DEGREE`] — 4 described non-rational NURBS
+/// walls, 2 planar caps, NURBS seam carriers on the 4 wall–wall edges,
+/// V = 9 m³ exactly (derived in `sweep/tests/m6_loft_body.rs`).
+///
+/// The corpus's first NURBS-walled body, and the one every downstream
+/// suite reaches for when it needs curved walls without an arc: the
+/// mesher's goldens and budget rows, the STEP fixture, the editor's
+/// corpus document and the tessellation meter are all measuring THIS
+/// solid, and were each rebuilding it.
+pub fn loft_prism(tol: Tol) -> Body<f64> {
+    loft_prism_at(&PRISM_Z, tol)
 }
 
 // ------------------------------------------------------------------
@@ -1186,12 +1461,7 @@ pub fn bored_cylinder(a: f64, d: f64, outer_phi: f64, tol: Tol) -> Body<f64> {
         v(-outer_phi.cos(), -outer_phi.sin(), 1.0),
     ]);
     let inner = ProfileLoop::new(vec![v(d + a, 0.0, -1.0), v(d - a, 0.0, -1.0)]);
-    let pf = Profile::new(SketchPlane::xy(), vec![outer, inner])
-        .validate(tol)
-        .expect("a bored disc validates");
-    extrude(&pf, Extrusion::Distance(1.0), tol)
-        .expect("the bored disc extrudes")
-        .body
+    extruded(SketchPlane::xy(), vec![outer, inner], 1.0, tol)
 }
 
 /// The whole rim at radius `r` in the plane `z = z0` of a `z`-extruded
@@ -1244,25 +1514,14 @@ pub const ROD_FILLET: f64 = 0.1;
 pub fn rod_with_flat(tol: Tol) -> Body<f64> {
     let disc =
         profile::circle(Point2::new(0.0, 0.0), ROD_R, tol).expect("the rod's disc is a valid loop");
-    let rod = Profile::new(SketchPlane::xy(), vec![disc.into()])
-        .validate(tol)
-        .expect("the rod's profile validates");
-    let rod = extrude(&rod, Extrusion::Distance(ROD_L), tol)
-        .expect("the rod extrudes")
-        .body;
+    let rod = extruded(SketchPlane::xy(), vec![disc.into()], ROD_L, tol);
     let square = ProfileLoop::new(
         [(ROD_FLAT, -1.0), (1.0, -1.0), (1.0, 1.0), (ROD_FLAT, 1.0)]
             .into_iter()
             .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
             .collect(),
     );
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -0.5)));
-    let cutter = Profile::new(plane, vec![square])
-        .validate(tol)
-        .expect("the cutter's profile validates");
-    let cutter = extrude(&cutter, Extrusion::Distance(ROD_L + 1.0), tol)
-        .expect("the cutter extrudes")
-        .body;
+    let cutter = extruded(sketch_at(-0.5), vec![square], ROD_L + 1.0, tol);
     topo::subtract(&rod, &cutter, tol)
         .expect("the flat mills")
         .body()
@@ -1294,12 +1553,7 @@ pub fn rod_d_profile_of_length_at<T: Decide + PcurveFittedLane>(len: f64, tol: T
         ProfileVertex::new(Point2::new(f(ROD_FLAT), f(y)), f(bulge)),
         ProfileVertex::new(Point2::new(f(ROD_FLAT), f(-y)), f(0.0)),
     ]);
-    let profile = Profile::new(SketchPlane::<T>::xy(), vec![lp])
-        .validate(tol)
-        .expect("the D validates");
-    extrude(&profile, Extrusion::Distance(f(len)), tol)
-        .expect("the D extrudes")
-        .body
+    extruded(SketchPlane::<T>::xy(), vec![lp], f(len), tol)
 }
 
 /// **The creases of a rod with a flat**: every straight edge whose two
@@ -1423,12 +1677,7 @@ pub fn bored_block_of_arcs(n: usize, l: f64, h: f64, r: f64, tol: Tol) -> Body<f
     assert!(2.0 * r < l, "the bore must clear the block's sides");
     let outer = ProfileLoop::new(square(l));
     let hole = ProfileLoop::new(arc_polygon(n, r, Point2::new(l / 2.0, l / 2.0)));
-    let profile = Profile::new(SketchPlane::xy(), vec![outer, hole])
-        .validate(tol)
-        .expect("the bored block's profile is a valid pair of loops");
-    extrude(&profile, Extrusion::Distance(h), tol)
-        .expect("the bored block extrudes")
-        .body
+    extruded(SketchPlane::xy(), vec![outer, hole], h, tol)
 }
 
 /// **A boss on a block**: the cube of side `l` at the origin, unioned

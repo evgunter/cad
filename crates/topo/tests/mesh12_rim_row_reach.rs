@@ -257,7 +257,7 @@ fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_refuses_it() {
             assert_eq!(outer.len(), 2, "a rim-only loop: two arcs, no meridian");
             assert_eq!(require_iso_rectangle(surface, &outer, band), Ok(()));
             assert_eq!(require_one_chart_branch(surface, &outer, band), Ok(()));
-            let flux = curved_face(surface, &outer, face.sense_sign(), band);
+            let flux = curved_face(surface, &outer, face.sense, band);
             if degenerate {
                 assert!(matches!(flux, Err(PropsError::DegenerateFace)), "{flux:?}");
             } else {

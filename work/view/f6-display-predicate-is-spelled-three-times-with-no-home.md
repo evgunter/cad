@@ -42,3 +42,38 @@ crates as it stands; giving the predicate a home means a shared
 test-support item (`crates/test-utils`, which viewer already depends
 on) rather than a further copy. That is the decision, and it is not
 this finding's to make.
+
+## The home now exists (2026-09-15, S-TINT's TINT-1)
+
+`crates/test-utils/src/f6.rs` — `test_utils::f6::assert_f6(err, wants,
+dumps, fields)`, plus `variant_identifier`, which reads a value's
+variant name off its own derived `Debug`. TINT-1 needed the predicate
+for its own work and `crates/test-utils` was inside its fence, so it
+made the decision this row says is not the finding's to make, in the
+place this row names.
+
+**Two of the three copies are gone.** `display_contract.rs`'s
+`assert_f6` is now a three-line wrapper that supplies the binary's field
+roster and delegates; `m4_pr4_hit.rs`'s partial copy is deleted and that
+row calls the same wrapper. **The divergence this row predicted had
+already happened**: `m4_pr4_hit.rs` banned `"node:"` while
+`display_contract.rs` banned `"node:"` and `"name:"`, so one of the two
+spellings of one rule was a clause short. It is now one spelling.
+
+**What remains, and it is this row's:** `crates/viewer/tests/panel_edits.rs`
+still carries the third spelling, and still approximates `dumps` as one
+identifier per arm rather than the enum's roster — the half this row
+already describes, and the half that actually differs in what it
+catches. `viewer` already dev-depends on `test-utils`, so the
+conversion is a call-site change. Two more copies of the same predicate
+live outside this row's scope, inlined in
+`crates/topo/tests/display_contract.rs` and `crates/mesh/tests/errors.rs`,
+each with its own field roster; they are carried on
+`work/tint/sibling-display-contract-suites-hand-mirror-their-enums-too`.
+
+**One thing the new home did NOT do**: derive `fields` from the
+payload's `Debug`. It was tried and false-positives on a door whose
+prose PREFIX is a field name (`MeshPickError::PositionOutOfRange`
+renders "pick index: triangle 5 …" and has an `index` field), so the
+roster is still the caller's. The reasoning is at the module doc rather
+than only here.

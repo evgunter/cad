@@ -4,7 +4,7 @@ kind: issue
 title: A member-space declaration resolves through merges only: a face consumed by a split, by containment, or inside a fragmented merged row is still order-shaped
 status: open
 opened: 2026-09-07
-refs: [2073, 2073]
+refs: [2073, does-n3-retire-loudly-generalise-to-the-folds-other-compositions]
 ---
 
 ## What
@@ -70,3 +70,81 @@ claim (`work/README.md`). Any `## Home` section above is superseded by
 this line and is kept as the record of why the file was where it was.
 
 (At DOCM's exit sweep, `refs` names the PRs `DOCM-8` stood for: `DOCM-8` = #2073 — the unit rows left the tracker with `work/docm/`; `docs/DOC-LEDGER.md` sweep 14.)
+
+## Read against the tree (2026-09-15) — verbatim still true, and re-kinded `ruling`
+
+Read by the WIRE orchestrator before dispatch. `look_through_merges`
+(`crates/editor-core/src/eval/wire.rs`) is unchanged in the respect this
+row is about: its search is
+
+```rust
+[RoleSeg::Merged(set)] if names::merged::covers(set, name) => Some(row)
+```
+
+over the accumulation table — **bare `Merged` rows only**, with an
+explicit guard above it rejecting anything whose path is not exactly
+`[FromMember { .. }]`. A `[Merged(set), Fragment(q)]` row matches
+neither, exactly as the row says. The two-matches arm refuses
+`MEMBER_FACE_IN_TWO_MERGES`, which is a fourth shape the row does not
+mention and which a taker should fold into the same question.
+
+**Re-kinded from `issue` to `ruling`.** The row already contains the
+argument for it and states the conclusion in its own last sentence:
+*"Any of the three is a design ruling on what a member-space declaration
+means for a face that is no longer one face."* It also proves no lane
+can close it — a membership test cannot answer which fragment a member
+face's material ended in, and the geometric re-measurement that could is
+the one DM4's routing step forbids. A row a lane cannot close is not a
+unit, and leaving it `kind: issue` on the slate made it look dispatchable
+to anyone reading the board.
+
+**Not blocked on it:** the emitter's misclassification of these shapes as
+`Emission` (a kernel bug by definition) is separable and takeable now —
+see `two-emitter-refusals-a-legal-declared-union-reaches`. That unit runs
+first regardless of how this ruling lands, and the fragmented-merge case
+is unreachable until it does.
+
+## RULED (Ev, PR 2677, 2026-09-15) — re-kinded `ruling` → `issue`
+
+The framing question this row was parked behind is answered:
+`does-n3-retire-loudly-generalise-to-the-folds-other-compositions`.
+
+**The rule:** a composition that breaks *one name denotes one entity*
+**refuses**; it **offers** a replacement where a **unique best** offer
+exists, and refuses with no offer where one does not. Ev's context is
+the half that decides this row: N3's rejected alternative was *"not even
+refusing, just silently taking the merged descendant"* — so the value
+protected is **never silently re-point**, and the absence of a computable
+offer is not a reason to fall back to silence.
+
+**So all three of this row's cases resolve the same way: refuse, with no
+offer.**
+
+- **Split** — which fragment the declaration meant is geometric, and
+  DM4's routing step forbids re-measuring there, so no *unique best*
+  offer exists. (`ResolutionFailure::offers` is a `Vec<StableName>`
+  documented *"Empty when nothing structural offers itself"*, so this
+  needs no new mechanism.)
+- **Containment** — no replacement exists at all.
+- **Fragmented merged row** — the split's reasoning. Still unreachable
+  until `two-emitter-refusals-a-legal-declared-union-reaches` lands.
+
+**What this row is now**: make all three refuse, typed, with the refusal
+saying which composition consumed the entity — not `Vanished` where the
+author cannot tell a split from a containment. It is no longer a
+decision; it is the application of one.
+
+**The residue, stated so a taker does not re-derive it.** N3's own offer
+is plural (*"the merged name vanishes with its constituents offered"*),
+so a reading exists under which a split offers its fragment SET. The
+ruling row takes the narrower reading and says why: N3's plural case is
+an exact decomposition of what the merged name covered, whereas a
+split's fragments are candidates for what the reference meant, and
+offering candidates is one step from the silent pick the rule exists to
+prevent. Disagree in a PR, not in silence.
+
+Two things this row already establishes and a taker should not
+re-measure: the `ContactContradicted` arm in four of the containment
+orders (the wall IS a row at the step the pair is fed to), and that the
+base refused six of six before the merge look-through, so that
+look-through is a strict improvement and is not what is being undone.

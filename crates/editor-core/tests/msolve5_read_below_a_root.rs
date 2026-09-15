@@ -20,16 +20,14 @@
 
 use crate::fixture;
 
-use std::sync::Arc;
-
 use editor_core::{
     Alignment, AssemblyError, AxisSense, BooleanOp, CapEnd, ContactClass, Datum, DocEdit,
     DocumentId, EntityKind, Entry, EvalOptions, Evaluation, Expr, MateFrame, MatePrimitive,
-    MateRole, MateSide, NameTable, Node, NodeResult, PartSelect, PatternKind, ProductError,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, RoleSeg, SitedRef, StableName,
-    ValuePayload, product, solve_document,
+    MateRole, MateSide, MintRefusal, NameTable, Node, NodeResult, PartSelect, PatternKind,
+    ProductError, ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, RoleSeg, SitedRef,
+    StableName, ValuePayload, product, solve_document,
 };
-use fixture::resolver::{PART_BODY, PartStore, in_part};
+use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
 use fixture::{gate, in_copy, insert, len, on_frame, run, scl, step, xform};
 use geom_core::Tol;
 
@@ -166,10 +164,7 @@ fn lifted(label: &str, top_part: ProfileDoc) -> Scene {
         Tol::witness(),
     );
     let top_ref = store.insert(top_part, Tol::witness());
-    let opts = EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    };
+    let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
@@ -271,11 +266,16 @@ fn mated(doc: ProfileDoc, mate: Node<ProfileProgram>) -> (ProfileDoc, RecipeNode
 /// The `Reference` refusal's three fields, or a panic naming what the
 /// gate said instead.
 fn reference_refusal(err: &AssemblyError) -> (RecipeNodeId, MateSide, &RefusedRef) {
-    let AssemblyError::Reference {
-        mate, side, why, ..
-    } = err
-    else {
+    let AssemblyError::Mint { refusals } = err else {
         panic!("expected the reference refusal, got {err:?}");
+    };
+    let [
+        MintRefusal::Reference {
+            mate, side, why, ..
+        },
+    ] = refusals.as_slice()
+    else {
+        panic!("expected one reference refusal, got {refusals:?}");
     };
     (*mate, *side, why)
 }
@@ -491,10 +491,10 @@ fn a_body_read_below_a_root_refuses_not_a_face_before_the_root_question() {
 // ---- ties: unique or tied, the kind question comes first ----
 
 /// A TIED face read at `T` below the pattern refuses `ReadBelowARoot
-/// { at: T }` — a tie among faces below a root is still read below a
-/// root. The same tie read AT the pattern with the instance spelling
-/// is the product's own row, and the product decides its own ties:
-/// `Ambiguous { width: 2 }`.
+/// { at: T }` — the kind question passes (these ARE faces), and a tie
+/// among faces below a root is still read below a root. The same tie
+/// read AT the pattern with the instance spelling is the product's own
+/// row, and the product decides its own ties: `Ambiguous { width: 2 }`.
 #[test]
 fn a_tied_face_below_a_root_refuses_read_below_a_root_and_at_the_root_ambiguous() {
     let s = scene_with("msolve5-tied-face", slotted_part("msolve5-tied-face-top"));
@@ -525,18 +525,27 @@ fn a_tied_face_below_a_root_refuses_read_below_a_root_and_at_the_root_ambiguous(
     assert_eq!(*why, RefusedRef::Ambiguous { width });
 }
 
-/// A TIED EDGE read at `T` below the pattern refuses `NotAFace {
-/// kind: Edge }`: the kind question is asked before the root question
-/// for a tied entry exactly as for a unique one — the name's kind is
-/// every candidate's kind. The same tie AT the pattern is the
-/// product's own row and answers `Ambiguous`, as every tie the
-/// product holds does.
+/// A TIED EDGE refuses `NotAFace { kind: Edge }` wherever it is read:
+/// the kind question is asked before the root question and before the
+/// tie, for a tied entry exactly as for a unique one — the name's kind
+/// is every candidate's kind, so a tie answers it as readily. Read
+/// below the pattern the operand's table answers; read AT the pattern
+/// the product's own table does; an edge is not a face in either, so
+/// the word does not depend on which table was asked.
+///
+/// The contrast is the tied-FACE row above: there the kind question
+/// passes and the tie is the refusal, so a tie AMONG FACES at the
+/// pattern is `Ambiguous { width }`.
 #[test]
-fn a_tied_edge_below_a_root_refuses_not_a_face() {
+fn a_tied_edge_refuses_not_a_face_at_the_root_and_below_it() {
     let s = scene_with("msolve5-tied-edge", u_split_part("msolve5-tied-edge-top"));
     let ev0 = run(&s.doc, &s.opts);
     let (tied, width) = tied_row(&ev0, s.xf, EntityKind::Edge);
+    assert_eq!(width, 2, "the row is a TIE, which is what it is here to be");
     let a = SitedRef::at_mint(in_part(s.base, CapEnd::End));
+    let not_a_face = RefusedRef::NotAFace {
+        kind: EntityKind::Edge,
+    };
 
     let b = SitedRef::new(s.xf, tied.clone());
     let (doc, mate) = mated(s.doc.clone(), seat(a.clone(), b));
@@ -544,20 +553,18 @@ fn a_tied_edge_below_a_root_refuses_not_a_face() {
     let err = gate(&doc, &ev).expect_err("an edge never mints");
     let (named, side, why) = reference_refusal(&err);
     assert_eq!((named, side), (mate, MateSide::B));
-    assert_eq!(
-        *why,
-        RefusedRef::NotAFace {
-            kind: EntityKind::Edge
-        }
-    );
+    assert_eq!(*why, not_a_face);
 
     let b = SitedRef::new(s.pattern, in_copy(s.pattern, 0, tied));
     let (doc, mate) = mated(s.doc, seat(a, b));
     let ev = run(&doc, &s.opts);
-    let err = gate(&doc, &ev).expect_err("a tie is never broken by picking");
+    let err = gate(&doc, &ev).expect_err("an edge never mints");
     let (named, side, why) = reference_refusal(&err);
     assert_eq!((named, side), (mate, MateSide::B));
-    assert_eq!(*why, RefusedRef::Ambiguous { width });
+    assert_eq!(
+        *why, not_a_face,
+        "the product's own rows ask kind before the tie, as the operand's do"
+    );
 }
 
 // ---- the claim is about the root list, not about the product's rows ----
@@ -634,10 +641,7 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         box_part("msolve5-poisoned-top", 1.0, TOP_HEIGHT),
         Tol::witness(),
     );
-    let opts = EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    };
+    let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("msolve5-poisoned"), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));

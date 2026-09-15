@@ -357,7 +357,7 @@ pub use provenance::{Provenance, SplitLineageCycle};
 pub use param_source::{ParamAttachError, ParamSource, SurfaceField, field_source_evidence};
 pub use query::{
     ALL_SURFACE_KINDS, CurveKind, CurveKindSet, DATUM_UNIT_NORM, DatumValue, RimError,
-    SEL_DATUM_DISTANCE, SurfaceKindSet, UnitVec3, UnitVec3Error,
+    SEL_DATUM_DISTANCE, SurfaceKindSet,
 };
 pub use readback::{DanglingRef, EulerCounts, EulerParityError, Pose, ReadbackError};
 pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offset};

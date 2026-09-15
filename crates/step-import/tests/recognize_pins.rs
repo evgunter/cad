@@ -129,8 +129,8 @@ fn quasi_uniform_vocabulary_reads_the_same_surface() {
     let (base, base_promos) = solid(&orig, "stated knots");
     let (body, promos) = solid(&mutated, "quasi-uniform");
     assert_eq!(
-        common::census(&base),
-        common::census(&body),
+        common::arena_census(&base),
+        common::arena_census(&body),
         "census identical across the vocabulary"
     );
     assert_eq!(

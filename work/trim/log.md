@@ -486,3 +486,49 @@ usage limit (3(e)). **Seam gate**: the announcement to SHELL/M10
 2026-09-15 — a week's silence; PR-2 may merge after the fix pass.
 Recorded, not fixed: `raw_hull` is the identity until a Fitted/General
 pcurve reaches a window; `window_of`'s `Err` arm has no e2e fixture.
+
+## TRIM-3 PR-2 merged (2026-09-15) — block TRIM-B1 concludes
+
+PR #2554, ordinal 2502, sample #201; block TRIM-B1's last slot ({OPUS,
+FABLE, OPUS} all executed; the block record folds to main with this
+merge). Fix pass from the dual: all fourteen executable items taken,
+two recorded as the coverage boundary; the headline row is R2's P6 —
+an extruded `CircleSplit` at phase −π/4 mints a negative cylinder band
+and both `[0,τ] ∩ hull` spellings mint a phantom `Holds` against it —
+with the cylinder root rule lifted into `cut_root`. Honest negatives
+kept in the PR body: E4 catches neither of the two mutants it used to
+claim (E2/E3's pinned receipts do); `window_of`'s `Err` arm and the
+loose-window column are unreachable on this tree (filed). **Seam
+record**: the seam into `editor-core/clearance.rs` (SHELL/M10's file)
+was announced on #1911 (comment 5568210053, 2026-09-07) with the
+diff's shape; no objection or acknowledgement arrived through
+2026-09-15; the merge proceeded on the week's silence per the plan's
+gate — this entry is the on-repo record R2's NOTE-11 asked for.
+Residues on the program from this unit: `clearance-window-cone-sphere-torus`,
+`exact-region-cells-for-lower-bound-only`,
+`min-separation-tightening-crosses-the-drive`,
+`revolved-bands-reach-no-clearance-row`, `three-tables-of-the-chart-arms`,
+`a-refused-chart-boundary-has-no-reachable-window`. `docs/TRIM-3-SPEC.md`
+is fully delivered (PR-1 #1911, PR-2 #2554) and leaves `docs/` per the
+ledger in the post-merge docs PR.
+
+## Pacing under the weekly budget (2026-09-15)
+
+Block TRIM-B1 concluded at #2554. TRIM-2 PR-1 (#2564, TRIM-B2 slot 0,
+OPUS) waits for its dual until the account's weekly reset (2026-09-18
+17:00Z; window at 83 %). TRIM-B2 slot 1 is the next dispatch after
+that: `loft-seam-carrier-exact-knot-compare` is S-CERT's file (seam or
+exit first), so the slot's leading candidate is TRIM-2 PR-2 (after
+PR-1 merges; the S-MESH seam announced at dispatch) or
+`boundary-iso-doors-panic-before-they-can-refuse` (E, single review).
+
+## TRIM-2 PR-1 dual dispatched; PROPS seam announced late (2026-09-15)
+
+Ev, in-chat: finish the open duals before the usage limit. Ordinal 2503
+claimed (PR #2669); byte 136, parity 0 ⇒ R1 Opus, R2 Fable; frozen head
+`0c7cc6637`; briefs stored with sha256; dispatched with the spiric pair.
+**Gate**: `docs/TRIM-2-SPEC.md` §4 makes PROPS's acknowledgement of the
+`quad.rs` / `props.rs::nurbs_face` seam a merge condition. The
+announcement was owed at PR open (2026-09-14) and was not made — the
+orchestrator's miss; posted now on #2564 (comment 5683759668) and on the
+sign-off watchlist. PR-1 does not merge without the ack or Ev's ruling.
