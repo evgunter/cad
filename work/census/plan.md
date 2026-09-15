@@ -50,6 +50,7 @@ its fence in the PR that lands it and announces it to the owners; the
 | `pncad-py-eval-err-variants-outside-the-tag-inventory` | **E** | Arrived from M10 (2026-09-13). Eight `eval_err` call sites mint four refusal words as string literals the inventory cannot lex; the disposition between the row's two closes is the orchestrator's, not the lane's. | `crates/pncad-py/src/tests.rs` (`TAG_INVENTORY`'s reader and its stated scope), `crates/pncad-py/src/py/value.rs` and its sibling `py/` modules, `crates/pncad-py/pncad.pyi` |
 | `a-document-vocabulary-declared-outside-the-macro-is-uncensused` | **M** | Arrived from DOCM (2026-09-13). The three live instances are dispositioned by hand at the site; what is open is the general case, and every door to it is a walk over source TEXT — the exact instrument PR 2501 removed as unsound. | `crates/editor-core/src/program.rs` (the `document_vocabulary!` invocation and its `DOCUMENT_VOCABULARIES` doc) |
 | `census-sees-an-inert-attribute-but-not-a-missing-one` | **H** | Arrived from `inert-deny-unknown-fields-on-unit-enums` (2026-09-15); class estimated by that lane, order not yet placed. The census sees the inert attribute and is blind to the missing one. The walk is the easy half; the verdict key is a design call (which `Deserialize` types OWE the attribute) and the one confirmed instance changes what a document accepts. | `crates/test-utils/tests/deny_unknown_fields_census.rs`, `crates/editor-core/src/persist/mod.rs`, and the msolve instance `crates/editor-core/src/mate.rs` |
+| `hand-listed-partialeq-siblings-outside-the-census-debug-fence` | **M** | Arrived from `hand-listed-debug-censuses-…` (2026-09-15) with its class estimated by that lane; order not yet placed. Six hand-listed `PartialEq`/`Debug` walks the CENSUS-DEBUG unit checked and filed rather than swept. Four are one destructure each and are held in the meantime by `KNOWN_HAND_LISTED`; the other two — `SketchPlane`'s hand-list behind a delegation and `NameRef`'s behind a tuple index — are **invisible to the arrival census** and held by the row alone, so landing the four destructures does not close it. It also records that `expr.rs` and `topo/src/props.rs` are claimed by no open program, which is why the row is on this slate at all. | `crates/editor-core/src/{expr.rs,mate/coset.rs,program.rs,names/role.rs}`, `crates/topo/src/props.rs`, `crates/profile/src/lib.rs`; `crates/editor-core/src/clearance.rs` is shell's under its own row |
 | `prose-census-cannot-see-a-bypassed-prose-renderer` | **H** | Instrument rework plus triage of 453 unmeasured sites; verdict key is a design choice | `crates/pncad-py/src/prose_census.rs` (`census()` scan set, `declaration_verdict`), plus sites it reds: `crates/viewer/src/session/refuse.rs`, `crates/editor-core/src/edit.rs`, `crates/pncad-py/src/py/`, `crates/test-utils/` |
 | `the-prose-word-for-a-kind-has-four-spellings-and-only-display-is-censused` | **H** | Two decisions owed, owner undecided, 23+ sites over seven crates and three programs. | `crates/pncad-py/src/prose_census.rs`, `crates/editor-core/src/{expr.rs,node.rs,mate.rs,edit.rs}`, `crates/viewer/src/{session/refuse.rs,tools.rs,sketch.rs,pane/properties.rs}`, 23 `label()`/`name()` sites across `geom-brep`, `sweep`, `topo`, `profile`, `geom-core` |
 
@@ -78,6 +79,18 @@ the variant it existed to catch. A lane taking this owes the reader's
 own guard before the reader, or the reasoned decision to ship the third
 door (accept and say so at the site) — which is what ships today and may
 well be the right answer.
+
+`hand-listed-partialeq-siblings-outside-the-census-debug-fence` fifth,
+and **early for its class rather than late**, which is a deliberate
+departure from the order's axis. Most of its six sites are other
+programs' — `expr.rs` and `role.rs` are EDIT's, `coset.rs` MSOLVE's,
+`profile/src/lib.rs` S-BOOL's — so the bulk of the row is routing, and
+routing decays: the row already records that `expr.rs` and
+`topo/src/props.rs` are claimed by NO open program, which is a fact with
+a shelf life, and every program that closes between now and then moves
+an owner. The two sites the census cannot see (`SketchPlane` behind a
+delegation, `NameRef` through a tuple index) are the harder half and
+are what keeps it **M** rather than E.
 
 Then `S113` and `S133`, which are prose and duplication counts that
 several staffed lanes already ride.

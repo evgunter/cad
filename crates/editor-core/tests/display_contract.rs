@@ -14,15 +14,25 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
-    AssemblyError, CapEnd, ContactClass, DeclareError, Diagnosis, Dimension, DimensionError,
-    DocParamValue, EditError, EntityKind, EvalError, HitTestError, InterrogateError, MateFault,
-    MateSide, MeshPickError, NodeErrorKind, NodePickError, ParamName, ParseError, ProgramFault,
-    RecipeNodeId, RefusedRef, ResolveFault, ResolveIndeterminate, RoleSeg, SelectRefusal, SlotId,
-    SnapshotError, StableName, StepArg,
+    AssemblyError, CapEnd, CarriedRefusal, ContactClass, DeclareError, Diagnosis, Dimension,
+    DimensionError, DocParamValue, EditError, EntityKind, EvalError, HitTestError,
+    InterrogateError, MateFault, MateSide, MeshPickError, MintRefusal, NodeErrorKind,
+    NodePickError, ParamName, ParseError, ProgramFault, RecipeNodeId, RefusedRef, ResolveFault,
+    ResolveIndeterminate, RoleSeg, Route, SelectRefusal, SlotId, SnapshotError, StableName,
+    StepArg,
 };
 use geom_core::BandError;
 
 use test_utils::f6::variant_identifier;
+
+/// The gate's refusal over ONE of this document's own mates: the arm
+/// carries every row the gather recorded, and a row read here is read
+/// through the door that raises it.
+fn mint(refusal: MintRefusal) -> AssemblyError {
+    AssemblyError::Mint {
+        refusals: vec![refusal],
+    }
+}
 
 /// [`test_utils::f6::assert_f6`] with this binary's field-punctuation
 /// roster: the `Debug` field names editor-core's refusal payloads
@@ -917,12 +927,12 @@ fn a_predicate_flip_names_its_signs_as_words() {
 fn refusals_that_name_a_stable_name_forward_its_display() {
     let phrase = face_name().to_string();
 
-    let reference = AssemblyError::Reference {
+    let reference = mint(MintRefusal::Reference {
         mate: RecipeNodeId(2),
         side: MateSide::A,
         name: Box::new(face_name()),
         why: RefusedRef::Vanished,
-    };
+    });
     let shown = reference.to_string();
     assert!(
         shown.contains(&format!("(a {phrase})")),
@@ -952,14 +962,14 @@ fn refusals_that_name_a_stable_name_forward_its_display() {
 /// compares against the impl, so this is their one home.
 #[test]
 fn a_mate_reference_refusal_says_what_the_gate_checked() {
-    let below = AssemblyError::Reference {
+    let below = mint(MintRefusal::Reference {
         mate: RecipeNodeId(2),
         side: MateSide::B,
         name: Box::new(face_name()),
         why: RefusedRef::ReadBelowARoot {
             at: RecipeNodeId(5),
         },
-    };
+    });
     assert_f6(
         &below,
         &[
@@ -971,12 +981,12 @@ fn a_mate_reference_refusal_says_what_the_gate_checked() {
         &["ReadBelowARoot", "Reference"],
     );
 
-    let tied = AssemblyError::Reference {
+    let tied = mint(MintRefusal::Reference {
         mate: RecipeNodeId(2),
         side: MateSide::A,
         name: Box::new(face_name()),
         why: RefusedRef::Ambiguous { width: 2 },
-    };
+    });
     assert_f6(
         &tied,
         &[
@@ -1002,28 +1012,28 @@ fn an_entity_kind_carries_the_article_that_agrees_with_it() {
         path: vec![RoleSeg::Cap(CapEnd::End)],
     };
 
-    let reference = AssemblyError::Reference {
+    let reference = mint(MintRefusal::Reference {
         mate: RecipeNodeId(2),
         side: MateSide::A,
         name: Box::new(edge_name.clone()),
         why: RefusedRef::NotAFace {
             kind: EntityKind::Edge,
         },
-    };
+    });
     let shown = reference.to_string();
     assert!(
         shown.contains(&format!("(an {edge_name})")) && shown.contains("it names an edge"),
         "an edge-kind mate reference reads as \"a edge\": {shown:?}"
     );
 
-    let face = AssemblyError::Reference {
+    let face = mint(MintRefusal::Reference {
         mate: RecipeNodeId(2),
         side: MateSide::A,
         name: Box::new(face_name()),
         why: RefusedRef::NotAFace {
             kind: EntityKind::Vertex,
         },
-    };
+    });
     let shown = face.to_string();
     assert!(
         shown.contains(&format!("(a {})", face_name())) && shown.contains("it names a vertex"),
@@ -1032,21 +1042,21 @@ fn an_entity_kind_carries_the_article_that_agrees_with_it() {
 }
 
 /// The mint door's at-rest refusal ends on
-/// [`editor_core::NO_AT_REST_RECORD_RECOURSE`] — and so does the
-/// `MintRefusal` row it is raised from, because one function renders
-/// the sentence for both. A recourse reached by only one of the two
-/// carriers is a user who sees the repair or not depending on how deep
-/// the mate was declared.
+/// [`editor_core::NO_AT_REST_RECORD_RECOURSE`] — read as the row's
+/// own sentence and read through the gate arm that carries it, because
+/// the gate FORWARDS the row rather than restating it. A recourse
+/// reached by only one of the two carriers is a user who sees the
+/// repair or not depending on how deep the mate was declared.
 #[test]
 fn the_mint_doors_at_rest_refusal_ends_on_its_recourse_from_both_carriers() {
     let why = editor_core::class_admission(ContactClass::Tangent).no_record_reason();
-    let raised = AssemblyError::NoAtRestRecord {
+    let row = MintRefusal::NoAtRestRecord {
         mate: RecipeNodeId(5),
         class: ContactClass::Tangent,
         why,
     };
     assert_f6(
-        &raised,
+        &row,
         &[
             "mate 5's class Tangent has no at-rest kernel record",
             why,
@@ -1054,16 +1064,116 @@ fn the_mint_doors_at_rest_refusal_ends_on_its_recourse_from_both_carriers() {
         ],
         &["NoAtRestRecord"],
     );
-
-    let row = editor_core::MintRefusal::NoAtRestRecord {
-        mate: RecipeNodeId(5),
-        class: ContactClass::Tangent,
-        why,
-    };
     assert_f6(
-        &row,
-        &[why, editor_core::NO_AT_REST_RECORD_RECOURSE],
+        &mint(row),
+        &[
+            "mate 5's class Tangent has no at-rest kernel record",
+            why,
+            editor_core::NO_AT_REST_RECORD_RECOURSE,
+        ],
         &["NoAtRestRecord"],
+    );
+}
+
+/// **Every refusal the gate holds is rendered**, each on its own
+/// indented line under a header that counts them — the two mint arms
+/// answer with the whole list the gather recorded, so an author with
+/// two broken mates reads two repairs rather than the first.
+///
+/// The count is built from the FIXTURE's own length rather than
+/// written as a word, so a header that reports a constant, or reports
+/// a count off by one, reds here. It is not a guard on the header
+/// tracking the body: those are one expression over one slice and
+/// cannot drift. What each arm's rows carry — each mate's own
+/// sentence, and for the carried arm the route and the ONE recourse in
+/// the header — is the rest of it.
+#[test]
+fn the_mint_arms_render_every_refusal_they_hold() {
+    let why = editor_core::class_admission(ContactClass::Tangent).no_record_reason();
+    let raised = AssemblyError::Mint {
+        refusals: vec![
+            MintRefusal::Reference {
+                mate: RecipeNodeId(2),
+                side: MateSide::A,
+                name: Box::new(face_name()),
+                why: RefusedRef::Vanished,
+            },
+            MintRefusal::NoAtRestRecord {
+                mate: RecipeNodeId(5),
+                class: ContactClass::Tangent,
+                why,
+            },
+        ],
+    };
+    let AssemblyError::Mint { refusals } = &raised else {
+        panic!("built as the mint arm");
+    };
+    let counted = format!(
+        "this document did not mint {} of its own mate(s)",
+        refusals.len()
+    );
+    assert_f6(
+        &raised,
+        &[
+            &counted,
+            "mate 2's a reference",
+            "mate 5's class Tangent has no at-rest kernel record",
+        ],
+        &["Reference", "NoAtRestRecord"],
+    );
+
+    let route = Route {
+        through: RecipeNodeId(1),
+        of: editor_core::DocumentId::derive("display-contract-carried"),
+        via: vec![],
+    };
+    let carried = AssemblyError::CarriedMintRefusal {
+        refusals: vec![
+            CarriedRefusal {
+                route: route.clone(),
+                refusal: MintRefusal::Reference {
+                    mate: RecipeNodeId(2),
+                    side: MateSide::A,
+                    name: Box::new(face_name()),
+                    why: RefusedRef::Vanished,
+                },
+            },
+            CarriedRefusal {
+                route,
+                refusal: MintRefusal::NoAtRestRecord {
+                    mate: RecipeNodeId(5),
+                    class: ContactClass::Tangent,
+                    why,
+                },
+            },
+        ],
+    };
+    let AssemblyError::CarriedMintRefusal { refusals } = &carried else {
+        panic!("built as the carried arm");
+    };
+    let counted = format!(
+        "{} mate(s) of documents below this one did not mint",
+        refusals.len()
+    );
+    let shown = carried.to_string();
+    assert_f6(
+        &carried,
+        &[
+            &counted,
+            "mate 2's a reference",
+            "mate 5's class Tangent has no at-rest kernel record",
+        ],
+        &["CarriedMintRefusal", "CarriedRefusal"],
+    );
+    // ONE recourse for the list, in the header: the repair is the same
+    // sentence for every row, and a per-row copy is the generic tail
+    // the finding sink exists to forbid.
+    assert_eq!(
+        shown
+            .matches("open those documents and repair the mates there")
+            .count(),
+        1,
+        "the carried repair is stated once, not once per row: {shown:?}"
     );
 }
 

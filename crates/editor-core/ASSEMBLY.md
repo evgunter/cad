@@ -92,7 +92,7 @@ mate's declaration into the product's `ContactRecords`, the same
 currency as the boolean wrapper's; declarations are verified, never
 trusted. `class_admission` is the one table the solve and the mint door
 both read: `Rest` solves and mints; `Tangent` solves and refuses at the
-mint door (`AssemblyError::NoAtRestRecord`, no witness edge at rest,
+mint door (`MintRefusal::NoAtRestRecord`, no witness edge at rest,
 recourse `NO_AT_REST_RECORD_RECOURSE`);
 anything else, including the reserved and unbuilt `Fit { gap }`,
 refuses at the solve door.
@@ -203,10 +203,10 @@ path a record can take without its row (a boolean over a source) is
 one no instance carrying a declaration can reach: such an instance is
 a multi-solid product, which the pair boolean refuses. An inner mate
 that could not be minted refuses the outer gate
-(`AssemblyError::CarriedMintRefusal`), on the head row in gather order,
-before this document's own unminted head and before the at-rest gate —
-an outer assembly is unusable while an inner part's contact is
-unverified. Nothing is re-verified or re-minted across the seam:
+(`AssemblyError::CarriedMintRefusal`), carrying every such row in
+gather order, before this document's own unminted rows and before the
+at-rest gate — an outer assembly is unusable while an inner part's
+contact is unverified. Nothing is re-verified or re-minted across the seam:
 verification runs once, at the outermost gate. Interference fits
 through recorded gate-skips are not implemented.
 
