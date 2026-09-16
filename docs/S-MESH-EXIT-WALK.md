@@ -56,8 +56,10 @@ transitive floor). No tally candidate in eleven duals.
   body-side, non-gating; the MESH-4 digest as the cross-program D9
   instrument.
 - **Residue re-homed at this exit, by file** (`work/README.md`'s
-  closing rule): thirteen mesh findings, the parked MESH-9 with its
-  trigger item, and seven Track R rows to the successor **TESS**
+  closing rule): fourteen mesh findings (one of them the trigger item
+  of the parked MESH-9, one VIEW's rider on the degenerate-normal row,
+  filed into `work/mesh/` after this walk was cut and moved beside its
+  parent), MESH-9 itself, and seven Track R rows to the successor **TESS**
   (`work/tess/`, band 5100–5199, opened in this PR); the stored-span
   reads (issue 1618) and the two `props/quad.rs` rows (C3, D30) to
   PROPS; the seed-varying cert10 gate and the grep-only sentinel

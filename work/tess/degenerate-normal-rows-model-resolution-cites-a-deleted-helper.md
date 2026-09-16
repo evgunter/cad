@@ -39,3 +39,7 @@ contract) and against its analogy.
 the "Two candidate resolutions" section.
 
 **Confidence**: sure.
+
+## Re-homed at S-MESH's exit (2026-09-16)
+
+Filed into `work/mesh/` by VIEW after the exit walk was cut; moved from `work/mesh/` to TESS (opened at this exit as S-MESH's successor for the tessellation kernel) beside the row it rides with, `degenerate-triangle-normal-is-substituted`, which moved in the same exit; the item's content, id and history are unchanged.

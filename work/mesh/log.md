@@ -500,7 +500,9 @@ Ev, in chat 2026-09-16: roll the residue over to a new program where
 it coheres — "might make sense for mesh too". `docs/S-MESH-EXIT-WALK.md`
 is proposed in the same PR that opens `work/tess/` (TESS — the
 tessellation kernel, band 5100–5199) and moves every open item off
-this slate by file: thirteen mesh findings, MESH-9 (parked, trigger
+this slate by file: fourteen mesh findings (the fourteenth VIEW's
+rider on the degenerate-normal row, filed here after the walk was cut
+and moved beside its parent), MESH-9 (parked, trigger
 intact) and the seven Track R rows to TESS; the stored-span reads and
 the two `props/quad.rs` rows to PROPS; the cert10 seed gate and the
 sentinel markers to S-TINT. MESH-R closed as dissolved. This directory

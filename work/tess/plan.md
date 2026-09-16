@@ -48,7 +48,10 @@ trigger; MESH-9 stays PARKED on it);
 `approx-face-mesh-certifies-against-fit` (issue 1018, with PROPS at
 the certificate's bound);
 `dist-line-triangle-takes-an-unchecked-unit-direction`;
-`degenerate-triangle-normal-is-substituted`;
+`degenerate-triangle-normal-is-substituted`, with
+`degenerate-normal-rows-model-resolution-cites-a-deleted-helper` riding
+on it (VIEW's report that the row's cited model, `datums::unit`, is
+deleted);
 `tessellation-chart-frame-is-a-hand-rolled-undecided-triple`;
 `chart-azimuth-and-bbox-anchor-idioms` (issue 1402);
 `memo-dumps-hide-the-closed-bit-the-counters-depend-on`;
