@@ -1424,3 +1424,47 @@ doors have no consumer outside the ladder itself, which adds two
 members to an open row's population without citing it. Eleven items
 dispatched, including the reviewer's respelling oracle adopted as an
 ordinary row.
+
+**Sphere-pole-side dual adjudicated (2026-09-16).** Both arms
+APPROVE-WITH-FIXES on `53a9bee9e`. R1 (opus) 1/4/3 plus seven style,
+rubric 4/4/3; R2 (fable) 0/4/5, rubric 4/4/4. The construction survived
+both: each re-derived σ from the chart's orientation independently,
+neither could make it name the wrong side on any face it could mint,
+the cap's numbers and the public-door volumes hold to 4e-16 at both
+poles and both traversals, the anchoring invariance holds on measuring
+faces, and `Rim`'s retirement leaves no reader.
+
+**The headline is bilateral by execution with a severity divergence,
+so no tally candidate: tally +0.** The rim-only arm declares a pole
+interior without ever deciding that its rims CLOSE a circle. R1 called
+it MAJOR, R2 a NOTE with door reach unsure; both measured the same
+thing — a lone half rim accepts at half the cap's area, a quarter rim
+at a quarter, the same full rim stated twice at 2×, a full rim plus an
+extra half arc at 1.5×, where all four refused `DegenerateFace` on the
+merge base. So the unit turns four typed refusals into wrong numbers at
+a public door, which is the D2 shape it names itself. **The spec
+asserted that premise rather than requiring a decide, and the unit
+inherited the assertion — the orchestrator's defect first.**
+
+Bilateral too: the material-sign gate CAN take a sense-free form of the
+predicate (unanimity over the rims' boundary-encoded sides), which
+reads no sense bit and is not the tautology the unit's deviation
+argued; both executed an anchor-relative definite ANSWER out of the
+gate, and R2 built the face where it bites — a staircase the old flux
+lane answered **57% low** with a zero pad, which this unit already
+refuses without claiming it. And one comparand under two names.
+
+Unilateral R1: the recorded verdict population is anchor-dependent on a
+REFUSING face (the early return), a narrow fresh instance of the class
+the spec's amendment exists for; a die row whose doc contradicts the
+unit's own measurement; the D2 row disclosed but not filed where the
+spec said to file it; and the public shape door now asking one of the
+two rectangle predicates while `curved_face` asks both. Unilateral R2,
+and the one place an arm was simply right where the other was wrong:
+"the recourse is the certified-quadrature lane" is FALSE — the dispatch
+is structural, so a circle-bounded face refused by `curved_face` has no
+lane at all, and R1 asserted the opposite without checking. Also R2:
+the cone filing overstates its obstacle, the cap's closed form is
+ill-conditioned near a pole with the oracle sharing the cancellation,
+a two-variant enum the predicate has erased, and a dead arm. Fix pass
+dispatched with fourteen items.
