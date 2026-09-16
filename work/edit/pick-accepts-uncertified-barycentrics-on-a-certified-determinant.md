@@ -154,6 +154,7 @@ are parked on the ruling row
 `what-t-the-pick-door-answers-and-with-what-width`, which is the one
 question all three name from different sides.
 
-Verified by CI run `35069024406` on head `7d6222b4c` (the ruling) and
-by the fix pass's own run on this branch's head: code-tier, twelve
-`test (…)` jobs and five `k-lint (gate, …)` jobs, green.
+Verified by CI run `35076081918` on head `23fe58c8b` (the fix pass):
+code-tier, twelve `test (…)` jobs and five `k-lint (gate, …)` jobs,
+33 green and 6 skipped by the change filter, none failed. The
+re-ruling's own run was `35069024406` on `7d6222b4c`.
