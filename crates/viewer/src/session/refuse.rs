@@ -202,13 +202,14 @@ pub enum Refusal {
     /// one being dragged.
     ///
     /// **Separate from [`Refusal::GestureInFlight`] because it answers
-    /// a different question.** That one is the table's — whether an
-    /// operation is available at all while a drag is open
-    /// ([`super::SessionOp::permitted_during_value_gesture`]) — and
-    /// the driving operations are all available. This one is about
-    /// this operation's own payload against this session's own
-    /// gesture, and folding the two into one refusal would make the
-    /// table's answer unreadable from the outcome.
+    /// a different question.** That one says a drag is open at all —
+    /// either because the operation is unavailable while one is
+    /// ([`super::SessionOp::permitted_during_value_gesture`]) or
+    /// because it would open a second ([`crate::g1::Slot::begin`]) —
+    /// and the driving operations are neither. This one is about this
+    /// operation's own payload against this session's own gesture, and
+    /// folding the two into one refusal would make the table's answer
+    /// unreadable from the outcome.
     ///
     /// It carries no payload and ranks with the bookkeeping refusals
     /// for one reason: it arrives in a batch behind the

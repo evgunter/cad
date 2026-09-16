@@ -89,7 +89,10 @@ is where all thirteen of these are. The same two-part form applies.
 `grep -rn "work/meter/" tools/` at `f8fbf916e`, then every named row
 resolved with `find work -name '<id>.md'` against `origin/main` rather
 than against the merge base — which is how the `work/props/` move
-above was caught.
+above was caught. **Re-run after merging `origin/main`** (which is the
+merge that brought the `work/props/` rename into this tree): the
+thirteen and their five files are unchanged, and the `work/props/`
+destination is now the local tree's answer rather than the remote's.
 
 **What the pattern could not match**: a citation that names a row by
 id without its `work/<program>/` prefix; one that paraphrases the row

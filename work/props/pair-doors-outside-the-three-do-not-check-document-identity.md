@@ -2,10 +2,9 @@
 id: pair-doors-outside-the-three-do-not-check-document-identity
 kind: unit
 title: Beyond product/assemble/placement, (document, evaluation) doors do not check the pairing, and the three that do spell the predicate three ways
-status: spec
+status: open
 opened: 2026-09-04
 refs: [1808]
-branch: edit/pair-apply-names
 ---
 
 
@@ -114,3 +113,90 @@ its ground and re-homes the rest.
    saying EDIT's door landed and what remains is PROPS's, keeping the
    id; one-file-one-item says the move is how a finding reaches its
    owner (`work/README.md`). Say in the PR that PROPS was not asked.
+
+## Built (2026-09-16)
+
+`resolve::apply_with_names` is the fourth pairing door. It runs
+`ident::mispaired(doc.id(), eval.document)` before it reads the edit at
+all and refuses `EditError::EvaluationOfAnotherDocument { expected,
+found }` — its own arm over the one predicate, the pattern
+`ProductError`, `MateFault` and `ChecksError` set. `Display` is F6's
+prose with no category prefix (this enum's own rule), and the
+`pncad-py` tag, inner-variant and payload rows follow it; the two ids
+take no payload attribute, the message states both, which is the
+`ProductError` arm's precedent one door over.
+
+The rows are `crates/editor-core/tests/edit_pair_apply_names.rs`, one
+claim each over a `Twins` fixture — two documents of one recipe
+differing in ONE thing the tables can see (a square prism has a fourth
+rim edge, a triangular one does not), so BOTH wrong answers are
+reachable:
+
+- `a_name_only_the_twin_carries_is_not_admitted` — the false
+  admission; review lane R2's DOCM-4 probe, adopted and widened.
+- `a_name_this_document_carries_is_not_refused_for_the_twins_tables` —
+  the spurious `NameUnresolvedInEvaluation`, its mirror.
+- `an_edit_carrying_no_name_is_refused_on_the_pairing_too` — the check
+  is the door's, not the name loop's.
+- `a_document_against_its_own_evaluation_answers_as_it_always_did` —
+  the premise, and what the check leaves untouched.
+
+Measured red: with the door's four lines disabled, the first three
+fail and the fourth passes.
+
+Two more rows come from the review lane `pair-rv`, adopted with their
+authorship: `the_pairing_is_identity_and_survives_a_new_version_of_
+the_document` (DI3 declines a version pin, so a stale-but-own
+evaluation still pairs) and
+`nodepick_patch_names_answers_out_of_a_twins_tables`, a MEASUREMENT
+row pinning today's wrong answer at the door its own filed row
+carries.
+
+The prose that enumerated the doors moved with it: `ASSEMBLY.md`'s A2a
+is the one list (it was already a door behind — DOCM-5's `run_checks`
+door landed without it), and `IDENTITY.md`'s DI3, `ident.rs`'s
+`Mispaired`, `Evaluation::document` and `pncad`'s `Mispaired`
+re-export note now point there instead of carrying a fifth copy of a
+count that rots. A2a names its tracker rows by **id** with no
+directory, for the same reason.
+
+One thing the door dragged with it, disclosed because it is a public
+shape change: two `DocumentId`s are two `u128`s, so the new arm gives
+`EditError` 16-byte alignment and rounded it from 104 to 112 bytes —
+enough to push `PersistError`, the viewer's `ReplayError` and the
+`DocIoError` over them to 128 and fire `clippy::result_large_err`,
+which this tree runs at `-D warnings` with one `allow` in it. What the
+lint was pointing at is real and older than this door:
+`EditError::ProfileProgramRefused` held a 96-byte `ProgramRefusal`
+inline, the enum's widest payload by some margin, in an enum every
+edit door returns BY VALUE. It rides behind a `Box` now
+(`AssemblyError::Product` carries `ProductError` the same way), which
+takes `EditError` to 96 and every carrier back under the line. Three
+test patterns that destructured through the field are two-step now,
+box patterns being unstable.
+
+Not built: `stackup::sensitivities`, `stackup::stackup` (whose
+`pair_record` ties `paired` by node set and content key, both satisfied
+by a twin) and `drive::certifying_vector`. They are PROPS's, below.
+
+## Re-homed (2026-09-16)
+
+Moved from `work/edit/` to `work/props/` in the PR that built EDIT's
+door. What remains is the three doors above, all of them on PROPS's
+paths (`work.py territory`: `crates/editor-core/src/stackup.rs` and
+`crates/editor-core/src/drive.rs`). The id, the finding and the
+`## Spec` above are unchanged; the directory is the claim
+(`work/README.md`). PROPS was not asked — a lane does not need the
+owner's permission to put a finding where it belongs.
+
+The header is **PROPS's open work**, not EDIT's review: `status: open`
+with no `pr` and no `branch`, because the door EDIT owed is built and
+the three that remain have no spec and no lane. EDIT's half is the
+`## Built` section above, and PR 2723 carries it — which PR that was
+is one `git log` away, and a `pr` field pointing at a merged PR would
+put a finished unit on PROPS's board.
+
+The `## Spec` above is EDIT's and is spent. PROPS writes its own for
+the `stackup` and `drive` doors; the shape it should follow is the
+one this row records — one arm per door over `ident::mispaired`, in
+that door's own error vocabulary.

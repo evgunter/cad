@@ -137,6 +137,32 @@ program could not edit, and nothing in CI said so. The gate needed to
 catch them is the weak one — assert that a cited path resolves — because
 all nine paths are simply absent.
 
+### Repaired on EDIT's own paths (2026-09-16, `edit/pair-apply-names`)
+
+Four of the ten, each a path edit to the item's live directory, done
+in the PR that was editing three of the four files anyway:
+
+| citing file | cited item | now |
+| --- | --- | --- |
+| `crates/editor-core/src/node.rs` | `member-space-look-through-stops-at-splits-containment-and-fragmented-merges` | `work/wire/` |
+| `crates/editor-core/src/names/role.rs` | `the-pair-verbs-declared-merge-is-asymmetric-in-its-operands` | `work/wire/` |
+| `crates/editor-core/src/program.rs` | `a-document-vocabulary-declared-outside-the-macro-is-uncensused` | `work/census/` |
+| `crates/editor-core/src/eval/mod.rs` | `pair-doors-outside-the-three-do-not-check-document-identity` | citation removed; the field points at `ASSEMBLY.md`'s A2a, which is the one place the list of pairing doors is written |
+
+`crates/editor-core/ASSEMBLY.md` is repaired the other way, and it is
+this row's shape (2): A2a now names the tracker rows by **id**, with no
+directory, so the claim that moves a row cannot rot the design page.
+
+**A tenth citation the 2026-09-16 census missed**: `node.rs` is not in
+the table above it. `rg 'work/docm/' crates/` finds it, so the miss was
+in the transcription rather than the search — one more reason the gate
+(shape 1) is the only version of this that stays true.
+
+What is left after this pass, and why it is left: `eval/wire.rs` is
+WIRE's, `index_memo.rs` is the viewer's, and `docm7_union_declare.rs`
+and `wire_operand_door.rs` are the test programs' — four citations in
+four files, none of them on EDIT's paths.
+
 ## The `work/meter/…` family, and the first sweep of `crates/` outside `docm` (2026-09-16, INSTR unit 0)
 
 **A third family has fired.** METER closed on 2026-09-08 and its
