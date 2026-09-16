@@ -70,3 +70,27 @@ Moved from `work/meter/` to `work/instr/` by `git mv` when METER's exit
 walk opened the successor (`docs/METER-EXIT-WALK.md` §4, ratified by Ev on
 2026-09-08 at PR #2212). Id, header and body unchanged; the directory is
 the claim. This row is one of the twenty on INSTR's opening slate.
+
+## Moved to PROPS (2026-09-16)
+
+Moved from `work/instr/` by `git mv`, id unchanged; the directory is the
+claim. **Both shapes this row proposes are edits under `crates/`** —
+a `#[test]` inside `geom-brep` over its own minted names, or the better
+one, a `const` slice exported from `geom_core::k_stats` — and both sit
+on PROPS' seam (`work/instr/program.md`'s `keep_out` names
+`crates/geom-brep/src/props/*` and `crates/geom-core/src/k_stats.rs` as
+PROPS'). INSTR held it only because METER's fence chose the instrument,
+which is the finding itself.
+
+INSTR owns the consequence, not the fix:
+`work/instr/k-lint-eps-coupled-criterion-unwritten` is now `parked` on
+this row, and closes when `tools/k-lint/tests/predicate_roster.rs`
+trades its hand-rolled parser for an import and gains its ADDED
+direction. **Nothing here waits on INSTR** — this row is dispatchable
+on PROPS' own schedule, and the roughly 200 lines of source-parsing
+machinery in `predicate_roster.rs` is what it buys back.
+
+The move is authorised by Ev on 2026-09-16 (*"if the item would be
+better sited in props itself then you can just move it there"*), and
+the move is the notification: the row reaches PROPS' board through
+`work/STATUS.md` rather than through a message.

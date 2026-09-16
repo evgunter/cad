@@ -97,3 +97,187 @@ four pairs of its laterals are indistinguishable by every
 sentence in `program.md` and `plan.md` saying it *"waits on a corpus
 change no lane here makes"* was false on the tree and is rewritten in
 this commit. It is lane D, with the full review.
+
+## The PROPS pair splits, and one half leaves the slate (2026-09-16)
+
+Ev's handover ruling gave two options for the pair INSTR had held since
+opening — a message carried to PROPS, or a move — and the two rows
+turned out to want different ones.
+
+`k-lint-roster-wants-a-kernel-side-vocabulary` **moved to
+`work/props/`**. Its whole content is a kernel-side ask: a `#[test]`
+inside `geom-brep` over its own minted names, or the better shape, a
+`const` slice exported from `geom_core::k_stats`. Both are edits under
+`crates/`, both on PROPS' seam, and neither is INSTR's to make. The row
+was here because METER's fence chose the instrument — which is the
+finding the row exists to record, not a reason for it to live here. A
+message would have described the ask from a slate that cannot act on
+it; the move puts it where it is dispatchable, and reaches PROPS'
+board through `STATUS.md` rather than through anyone's inbox.
+
+`k-lint-eps-coupled-criterion-unwritten` **stays, now `parked` on it.**
+Its title is already the instrument's half — *"so k-lint's roster cannot
+be pinned against the kernel in the ADDED direction"* — and the pin is
+`tools/k-lint`'s, this program's ground. So the pair did not need a
+third row for the follow-up: this row IS the follow-up, and it was
+mis-shelved as `open` rather than parked while its trigger sat on the
+wrong slate.
+
+Net: unit 17 stops being two rows describing one PROPS unit, and
+becomes one row waiting on one. The plan's unit 17 is rewritten to say
+so.
+
+## Unit 4 lands its review; two corrections travel further than the unit (2026-09-16)
+
+**The unit.** `baseline_census`'s `constant.len() + discriminating.len()
+== IDENTITY_COLUMNS.len()` is deleted rather than replaced. The item
+offered a replacement — *"that `distinct` has no zero entry"* — and the
+lane established on the code that the same `assert!(!sized.is_empty())`
+guard makes BOTH unfailable, so the replacement would have been the
+defect with a new message. Style review upheld both claims `sure`.
+
+**The review caught the trap in the assertion the unit KEPT.** Given
+`distinct[i] >= 1`, once the `constant` assert passes the
+`discriminating` one is forced — `IDENTITY_COLUMNS` minus those five, in
+order — so no re-cut can red it alone. It stays reachable under a source
+edit adding an eighth column, so it is not dead; what it owed was the
+disclosure this file already gives three times over for exactly this
+shape. The PR body's *"say strictly more"* was half-false. This is the
+precise shape `docs/REVIEW-STYLE-DISPATCH.md` §2 names and the reviewer
+brief says only a non-author has ever caught, and it was worth the
+review on its own.
+
+**Two findings reach past this unit.**
+
+`cut_line_pin.rs`'s Class-section precedent is half wrong, and the
+review verified the correction independently: PR 2151's deletion is
+real, but a DIFFERENT `TABLE.iter().any(…)` survives today in
+`the_committed_baselines_own_cut_line_is_a_row_of_the_table`, reading
+`BASELINE`'s first line at runtime and failable on a re-cut. **Unit 9
+is briefed on this as fact** — reading the precedent as "none survives
+there" would have deleted a live guard in the file unit 9 edits.
+
+The item's stated sweep pattern cannot match the item's own instance:
+two passes written faithfully to *"operands are `const` items or derived
+from them alone"* returned the defect not at all, because
+`constant`/`discriminating` descend from `parse(BASELINE)` at runtime
+and the defect is a tautology rather than a compile-time constant. A
+lane running the stated pattern gets a clean result over the very defect
+it was dispatched for, and a clean sweep reads as a negative result
+rather than as a wrong instrument. Filed on META's slate as
+`an-items-stated-sweep-pattern-may-not-match-its-own-instance`, because
+`docs/prompts/*` is META's and the two fixes that would close it are
+`[ev]` conversations.
+
+**Unit 12's plan entry was wrong and is corrected here.** It called the
+row *"one name … the cheapest evidence that the roster's ADDED direction
+is unpinned"*. It is not: the omission is already loud via
+`NOT_ROSTERED` plus a guard, and what is left is a ruling whose sample
+branch has no corpus — `props_quad_last_round` emits zero rows in all
+nine committed baselines, measured before dispatch. The lane was
+briefed on the corrected shape rather than the plan's.
+
+## Unit 0 closes; the sweep found more than the row it closed (2026-09-16)
+
+`baseline-sizing-census-pointers-stale` is CLOSED. Four of its seven
+cited mentions had resolved **by deletion** — every `work/meter/` row
+went with METER's closing sweep — so the live list was three, and the
+lane re-swept rather than trusting the row. The headline count is kept
+as the figure the row reported on the day it reported it, with a dated
+re-sweep section carrying the live list; the repair for the four is a
+`docs/DOC-LEDGER.md` sweep-10 citation plus the SHA the ledger
+publishes, so the line numbers resolve at the tree they were taken from
+instead of nowhere.
+
+**The review found the unit breaking its own rule.** The lane edited
+one dated record's body on the doctrine *"the FIGURES are frozen; the
+PATHS are not"* and left five of that same record's pointers dangling,
+one of them pointing at the lane's own row. Fixed on the rule rather
+than around it.
+
+**Three things outlived the unit.**
+
+`docs/TESS-BUDGET.md`'s four sizing figures are not merely a second
+copy — they are WRONG. The baseline was re-cut on 2026-09-15 and the
+prose did not follow. Summed from the committed CSV at adjudication:
+`grid_cells` 88,036, `patch_cells` 147,960, `opt_cells` 127,966,
+`span_opt_cells` 76,599, 1605 rows, 362,154 triangles, against the
+document's 46,019 / 110,811 / 93,066 / 44,162 / 1353. This is the
+failure `baseline-sizing-census-second-copy` PREDICTED in as many words
+— *"the alarm fires and the document stays wrong"* — and that row does
+not know it has happened; the row is also stale about itself, naming
+the superseded sums and greping for them. **Unit 1 goes next and carries
+the verified figures rather than the item's.**
+
+The dangling-`work/meter/` class is live in `tools/` **code doc**, not
+just in the tracker: thirteen citations across five files, one of them
+inside an assertion string. Filed as
+`tools-doc-prose-cites-thirteen-dead-work-meter-paths`. The crates-side
+half went as evidence onto the existing
+`work/issues/dead-work-citations-from-shipped-code-and-docs` rather than
+a new row, and carries two things that row needed — its proposed gate
+is scoped to `crates/**`, so it would have caught none of the thirteen,
+and `tools` is `exclude`d from the workspace, so a gate written as a
+workspace test cannot see them even with the glob widened.
+
+A `mergeable_state: dirty` PR gets **no Actions run at all** — no
+failing check, no error, twenty minutes of polling a silence. CIW
+already owns it (`dirty-pr-gets-no-actions-run`); evidence added there
+rather than as a fourth row, and the duplicate open row CIW opened the
+same day is named on it for its owner to judge.
+
+**Two corrections to the orchestrator, both upheld.** The tools/ file
+count was five, not the four I briefed (`tools/README.md` missed), and
+the crates-side finding belonged on an existing row rather than the new
+one I asked for — the discipline's grep-first rule pointed at a row
+open since 2026-09-13 with a live design argument the evidence bears on.
+
+## Unit 4 closes; the review caught the fix reproducing its own defect twice (2026-09-16)
+
+`baseline-census-partition-assert-cannot-fail` is CLOSED. The
+partition assert is DELETED rather than replaced: the item offered
+*"assert that `distinct` has no zero entry"*, and the same
+`!sized.is_empty()` guard three lines above makes both unfailable, so
+the replacement would have been the defect with a new message.
+
+**The style review earned its dispatch twice over, and both times on
+the assertion or the prose the unit KEPT rather than on what it wrote.**
+
+First: given `distinct[i] >= 1`, once the `constant` assert passes the
+`discriminating` one is forced to be the rest of `IDENTITY_COLUMNS` in
+order, so **no re-cut of the baseline can red it alone** — the pair is
+one assertion against a change in the DATA, not two. The PR body's
+*"say strictly more"* was half-false for exactly the reason the deleted
+assert said nothing. It stays (a source edit adding or removing a
+column still reds it), and it now carries the disclosure this file
+already gives at three other sites.
+
+Second, and this is the one worth remembering: the fix pass's FIRST
+reword of the doc comment moved the partition claim from the assert
+into prose — *"between them they name the whole of `IDENTITY_COLUMNS`"*
+— a static claim about two literals that no code computes, in a file
+whose own module docs say *"a number transcribed into prose is a number
+nothing can check"*. The lane did not catch that re-reading its own
+diff. `docs/REVIEW-STYLE-DISPATCH.md` §2 predicts exactly this and the
+reviewer brief says only a non-author has ever caught it; both held.
+
+**Six rows filed, one of them a correction to this orchestrator's
+adjudication.** I told the lane to add the `C15.md` evidence to
+`tess-budget-doc-identity-column-list` rather than open a row; the lane
+flagged that the subjects differ (membership of the identity list
+versus the split among sized rows) and asked me to re-check. It was
+right, and for a reason neither of us had named at first: **that row is
+unit 2's and closes when unit 2 lands**, unit 2 will never touch
+`C15.md`, and `work/README.md` holds that a residue inside a closed
+item's prose *"reads as a record of work done, not as an open thread …
+and dies with the directory"*. Split into
+`c15-transcribes-the-sized-row-identity-split`, with a pointer left on
+the membership row.
+
+The lane also corrected a count I had passed through from the review
+without checking: the scene-set derivation has THREE sites, not five —
+`by_totals` derives recoverable-`SceneTotals` scenes and `scenes`
+derives every scene, different sets in the same idiom. Filing my
+framing verbatim would have put a wrong count in the tracker. The
+dispatcher's own exposure, exactly as `docs/REVIEW-STYLE-DISPATCH.md`
+§3 states it.

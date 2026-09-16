@@ -124,6 +124,8 @@ mod dsc_checks;
 mod e4_dual_door;
 #[path = "edit_blend_canonical.rs"]
 mod edit_blend_canonical;
+#[path = "edit_pair_apply_names.rs"]
+mod edit_pair_apply_names;
 #[path = "eval10_section_reads_the_nominal.rs"]
 mod eval10_section_reads_the_nominal;
 #[path = "eval4_accept_funnel.rs"]
@@ -411,6 +413,8 @@ mod review_m5_pr1_e2e_interval;
 mod review_m5_pr9_doc_probe;
 #[path = "review_m6_5_pr2_probes.rs"]
 mod review_m6_5_pr2_probes;
+#[path = "review_pick_r2_probes.rs"]
+mod review_pick_r2_probes;
 #[path = "ring_r1_names_probe.rs"]
 mod ring_r1_names_probe;
 #[path = "scalar_frame_r1_probes.rs"]
@@ -526,3 +530,7 @@ mod wire_legal_union_refusals;
 mod wire_operand_door;
 #[path = "wire_product_gather_tie.rs"]
 mod wire_product_gather_tie;
+#[path = "wire_rv_bytes.rs"]
+mod wire_rv_bytes;
+#[path = "wire_rv_unknown.rs"]
+mod wire_rv_unknown;

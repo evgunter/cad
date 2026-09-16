@@ -160,8 +160,18 @@ point at it or at figures it used to own.
    The `CHART_TAGS` precedent METER used for the cut prefix applies.
 12. `k-lint-last-round-is-eps-coupled-but-unrostered` — `props_quad_last_round`
    is eps-coupled by the criterion the roster pin already applies and is
-   not on the roster. One name; it is the cheapest evidence that the
-   roster's ADDED direction is unpinned.
+   not on the roster. **Not the one-liner this entry used to call it.**
+   METER's roster-pin unit already made the omission loud:
+   `tools/k-lint/tests/predicate_roster.rs`'s `NOT_ROSTERED` excuses the
+   predicate explicitly and `every_target_len_mint_is_rostered_or_excused`
+   reds if anyone changes that, so no silent omission survives to fix.
+   What remains is a decision with two branches, and the first has no
+   corpus: `props_quad_last_round` emits **zero rows in all nine
+   committed baselines** under `docs/k-report-data/`, against
+   `props_quad_converged`'s 8/32/56 at m5 and 12/36/60 at m7, measured
+   2026-09-16. So the live branch is the ruling — and its interesting
+   half is Q6, not the sentence: a ruling resting on "it has no
+   distribution" owes whatever reds the day that stops being true.
 13. `k-lint-gate-described-as-diffing-the-committed-baselines` +
    `k-report-bit-identity-claim-has-no-citation` — one document lane
    against `docs/K-REPORT.md`: two sites say the gate diffs the fresh
@@ -188,13 +198,18 @@ point at it or at figures it used to own.
    material at all — is a question about the roster's MEMBERSHIP RULE
    and goes to Ev on an `[ev]` PR; the honest-coverage half of the fix
    lands either way and does not wait on the answer.
-17. `k-lint-eps-coupled-criterion-unwritten` + `k-lint-roster-wants-a-kernel-side-vocabulary`
-   — **the PROPS pair.** Writing the criterion is what lets the roster
-   be pinned in the ADDED direction, and a `const` slice from
-   `geom_core::k_stats` would retire the hand-rolled parser entirely.
-   What this program owes is the criterion in prose and the ask, not the
-   kernel edit; where the ask belongs on PROPS' slate rather than this
-   one, it moves there.
+17. `k-lint-eps-coupled-criterion-unwritten` — **the instrument half of
+   the PROPS pair, and the only half still here.** Its partner,
+   `k-lint-roster-wants-a-kernel-side-vocabulary`, moved to
+   `work/props/` on 2026-09-16: both shapes it proposes are edits under
+   `crates/`, so the ask was better sited on PROPS' own slate than
+   described from this one, and the move is the notification. This row
+   is `parked` on it. It closes on the instrument's side, when
+   `tools/k-lint/tests/predicate_roster.rs` trades roughly 200 lines of
+   hand-rolled source parsing for an import from `geom_core::k_stats`
+   and the roster's ADDED direction becomes checkable for the first
+   time. Nothing here is dispatchable until PROPS lands the
+   declaration, and nothing on PROPS' side waits on INSTR.
 
 **Lane D — `C15`.**
 

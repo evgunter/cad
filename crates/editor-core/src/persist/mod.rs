@@ -127,7 +127,7 @@ pub mod hexbytes;
 pub(crate) mod kernel_wire;
 pub(crate) mod pairs;
 pub(crate) mod strict;
-mod wire;
+pub(crate) mod wire;
 
 use geom_core::tolerance::{Tolerance, ToleranceError};
 
