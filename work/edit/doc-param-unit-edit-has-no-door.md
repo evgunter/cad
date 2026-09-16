@@ -141,17 +141,21 @@ each is half of one door:
 
 Both shapes the spec named, as one door:
 
-- `DocParam::with_display_unit(&self, UnitSym) -> Option<Self>`
+- `DocParam::with_display_unit(&self, UnitSym)`
   (`crates/editor-core/src/doc.rs`), `with_value`'s mirror over the
   other field: dimension, exact value and distribution ride through
-  untouched. Exhaustive on both arms. `None` for a `Count` and for a
-  unit that does not measure the declared `dim`.
+  untouched. Exhaustive on both arms. It refuses a `Count` and a unit
+  that does not measure the declared `dim`. (Shipped as `Option<Self>`;
+  the fix pass below made the refusal TYPED —
+  `Result<Self, DisplayUnitRefusal>` — so both reasons are decided at
+  the door and `apply` only routes them.)
 - `DocEdit::SetDocParamUnit { name, unit }`
   (`crates/editor-core/src/edit.rs`), routed through it in `apply`
   exactly as the value edit routes through `with_value`. Three
   refusals: `EditError::DocParamNotDeclared` REUSED (the fault is the
-  missing declaration, which neither carry-forward door is about; its
-  prose now says "a carry-forward edit" where it said "a value edit"),
+  missing declaration, which neither carry-forward door is about; the
+  fix pass below gave the arm a `door` field so its sentence names the
+  edit the caller submitted rather than "a carry-forward edit"),
   and two new arms — `DocParamCountHasNoUnit` and
   `DocParamUnitMismatch { name, unit, declared }`, the latter converged
   on `PersistError::DisplayUnit`'s sentence.
