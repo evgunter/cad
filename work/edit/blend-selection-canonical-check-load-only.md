@@ -2,10 +2,11 @@
 id: blend-selection-canonical-check-load-only
 kind: unit
 title: A blend's non-canonical selection is refused at load only: the insert door accepts a hand-built Fillet/Chamfer variant the load door then refuses
-status: review
+status: closed
 opened: 2026-09-08
 branch: edit/blend-canonical
 pr: 2724
+closed: 2026-09-16
 ---
 
 `Node::Fillet` and `Node::Chamfer` are public variants; `Node::fillet`
@@ -172,3 +173,11 @@ assertion-bound citation at the inline block in `check_node_slots`
 Not taken, ruled pre-existing classes: the `as u32` narrowing in
 `input_fault`, and the phantom `RecipeNodeId(next_id)` that reaches
 Python as `EditPayload.node` on an `InsertNode` refusal.
+
+## Closed (2026-09-16, EDIT orchestrator)
+
+Merged as PR #2724 after one opus style review with a correctness arm
+(MERGEABLE, two MINORs, every finding built at the fix pass) and the
+orchestrator's read. Residue in its own files:
+`three-door-predicates-are-hand-copied-not-shared`,
+`load-shaped-doors-outside-check-rs-may-duplicate-edit-predicates`.
