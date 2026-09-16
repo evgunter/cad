@@ -128,9 +128,9 @@ use pncad::analysis::{
 use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission,
     ClusterMaintenance, DimensionError, Distribution, DistributionFault, DistributionField,
-    EditError, EvalError, InlineError, InterfaceCrossing, LeverRefusal, MateFault, MatePrimitive,
-    MeasureNodeFault, MeasureUnavailableAt, MetaVersionError, MintRefusal, NodeErrorKind,
-    ParseError, PersistError, PlacementRuleFault, ProgramFault, ProgramRefusal,
+    EditError, EvalError, InlineError, InterfaceCrossing, LeverRefusal, Maintenance, MateFault,
+    MatePrimitive, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError, MintRefusal,
+    NodeErrorKind, ParseError, PersistError, PlacementRuleFault, ProgramFault, ProgramRefusal,
     RecordedProgramError, RefusedRef, Relation, RootFault, ShellClassifyError, SlotId,
     SnapshotError, SplitError, Subgroup, UpdateError,
 };
@@ -511,6 +511,8 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::ContinuousParamCannotBeCount { .. } => "continuous_param_cannot_be_count",
         EditError::DocParamNotDeclared { .. } => "doc_param_not_declared",
         EditError::DocParamValueKindMismatch { .. } => "doc_param_value_kind_mismatch",
+        EditError::DocParamCountHasNoUnit { .. } => "doc_param_count_has_no_unit",
+        EditError::DocParamUnitMismatch { .. } => "doc_param_unit_mismatch",
         EditError::PathOffTree { .. } => "path_off_tree",
         EditError::Dimension { .. } => "dimension",
         EditError::DeclareNamesMissingNode { .. } => "declare_names_missing_node",
@@ -1098,6 +1100,8 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::ContinuousParamCannotBeCount { .. } => None,
         EditError::DocParamNotDeclared { .. } => None,
         EditError::DocParamValueKindMismatch { .. } => None,
+        EditError::DocParamCountHasNoUnit { .. } => None,
+        EditError::DocParamUnitMismatch { .. } => None,
         EditError::PathOffTree { .. } => None,
         EditError::DeclareNamesMissingNode { .. } => None,
         EditError::ReadSiteMissingNode { .. } => None,
@@ -1438,8 +1442,8 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::Pcurve(_) => "pcurve",
         LoftError::SeamStructure { .. } => "seam_structure",
         LoftError::SectionStructure => "section_structure",
-        LoftError::ReversedStacking => "reversed_stacking",
-        LoftError::DegenerateStacking => "degenerate_stacking",
+        LoftError::ReversedStacking { .. } => "reversed_stacking",
+        LoftError::DegenerateStacking { .. } => "degenerate_stacking",
         LoftError::StackingEscalated { .. } => "stacking_escalated",
     }
 }
@@ -2821,20 +2825,23 @@ pub fn subgroup_tag(subgroup: &Subgroup) -> &'static str {
     }
 }
 
-/// The stable tag for one recorded act of cluster-record maintenance
-/// — what an ordinary edit's motion of the mate graph forced on the
-/// placement registry.
+/// The stable tag for one act of maintenance an accepted edit
+/// performed — what the mate graph's motion forced on the placement
+/// registry, or a payload name the edit stranded.
 ///
 /// The word decides which payload attributes carry: a `join` names
 /// the gauge that survived and the one absorbed, a `split` the two
 /// gauges it left behind, a `gauge_rewrite` the cluster whose gauge
-/// moved, and a `drop` the registry row that went away.
-pub fn cluster_maintenance_tag(maintenance: &ClusterMaintenance) -> &'static str {
+/// moved, a `drop` the registry row that went away, and a `strand`
+/// the surviving node and the name whose minting node the edit
+/// deleted.
+pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
     match maintenance {
-        ClusterMaintenance::Join { .. } => "join",
-        ClusterMaintenance::Split { .. } => "split",
-        ClusterMaintenance::GaugeRewrite { .. } => "gauge_rewrite",
-        ClusterMaintenance::Drop { .. } => "drop",
+        Maintenance::Cluster(ClusterMaintenance::Join { .. }) => "join",
+        Maintenance::Cluster(ClusterMaintenance::Split { .. }) => "split",
+        Maintenance::Cluster(ClusterMaintenance::GaugeRewrite { .. }) => "gauge_rewrite",
+        Maintenance::Cluster(ClusterMaintenance::Drop { .. }) => "drop",
+        Maintenance::Strand { .. } => "strand",
     }
 }
 

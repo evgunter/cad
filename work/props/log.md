@@ -1468,3 +1468,84 @@ the cone filing overstates its obstacle, the cap's closed form is
 ill-conditioned near a pole with the oracle sharing the cancellation,
 a two-variant enum the predicate has erased, and a dead arm. Fix pass
 dispatched with fourteen items.
+**Band-doors MERGED (2026-09-16).** PR #2729, an E rider. Both items
+closed, spec into the ledger. The unit's shape is worth keeping: a lane
+that re-derived a filed measurement instead of quoting it and found the
+filing off by one tie case; a lane that refuted the orchestrator's
+ruling with evidence; a review that confirmed the refutation and found
+a second reason for it the lane had missed; and a fix pass that took
+the review's harder reading — the derivation gets ONE home with links
+from four citing sites, the private helper the door had made
+byte-identical is retired, and the pathological pairs go through the
+real validator in their own processes rather than through a local copy
+of its conditions.
+
+**Affine-try-map MERGED (2026-09-16).** PR #2743, an E rider, both
+items closed and the spec into the ledger. All eleven review items
+taken, none deviated, and three of them improved on what was asked:
+the reviewer's adopted oracle went into the module's own test block so
+it reuses the existing readout instead of minting a third; the
+hand-written readouts went DOWN from seven to seven rather than up to
+eight, by deleting one and comparing through the door that already is
+that reading; and one of the reviewer's three adopted rows was DROPPED
+with its reason — it asserts nothing a bug could break, which
+discipline §2 calls documentation — with its census content moved into
+a row that can fail. The transposed-column mutation now reds eleven
+rows where it red eight. The lane also recorded how its earlier clippy
+errors reached CI: a `tail` on the output truncated one crate's errors
+behind another's.
+
+**Sphere-pole-side MERGED (2026-09-16).** PR #2741, ordinal 2406,
+sample #214, tally +0. Three items closed, the fourth half closed with
+its measurement, spec into the ledger. The unit fixes two things a user
+would call bugs — a ball cut by one plane refusing as degenerate, and a
+sphere split into two faces measuring zero volume — and the dual caught
+that its first landing had traded those for a third: a pole folded
+against a rim that does not close, which answered a half rim at half
+the cap's area where it had refused. The spec asserted that premise
+instead of requiring a decide, so the orchestrator authored it; the fix
+pass decides it now, metering the arc the rim fails to close by.
+
+Two lessons for the next unit on this file. The spec's amendment — the
+one that told the lane in advance not to let a new predicate's recorded
+sign depend on cycle order — did its job: the predicate is a face fact
+under re-anchoring, and the dual only had to find the narrower case of
+a REFUSING face, which the fix pass closed too. And an arm was simply
+right where the other was wrong: the sentence about the
+certified-quadrature lane being the recourse is false, because the
+dispatch is structural, and only one reviewer read the dispatch rather
+than repeating the sentence.
+
+**Sphere-pole-side MERGED for real (2026-09-16).** The landing took one
+more pass than the fix pass: BOOL-5 landed a rim-free spherical wedge
+arm INSIDE `fn sphere` and routed the interior direction through the
+`OutwardNormal` door while this unit was in review, so the orchestrator
+aborted its own merge rather than pick a hunk and handed the semantic
+merge back to the lane. That was the right call — a textual merge would
+have shipped a real defect: git auto-merged this unit's RIM-BEARING
+premise into BOOL-5's "Established" bullet list, whose preamble scopes
+it to the RIMLESS branch, so the merged text would have claimed the
+premise for a branch that does not carry it. The lane lifted it back
+out.
+
+Three things the lane established rather than inherited, all now in the
+file's docs. The two units' arms have DISJOINT guards (rim count is the
+only arbiter), so their order is not a priority question at all; what
+the order does express is each arm's relation to the extent — the pole
+fold must run BEFORE `require_extent` because it is the only step that
+mutates the level list, and the rimless arms must run after it because
+they settle a Δu the extent says nothing about. σ and BOOL-5's wedge
+azimuth are the SAME rule, `interior = N × T`, taken down two
+collapses; the door returns what σ assumed and the derivation is
+written out at the site citing the sibling. And `props_band_opposite`
+and `props_rim_only_closed` can never both fire, being the same kind of
+premise — "the loop goes round once" — reached independently on the two
+branches, each catching what its own branch's other premises are blind
+to. 125 rows green including all of BOOL-5's own; none of theirs red,
+so nothing was owed to their orchestrator.
+
+Two hazards re-confirmed for the record: a CONFLICTING PR silently gets
+no CI run and none retroactively (the first merge commit got none), and
+`cargo check` does not run clippy, so a doc-only edit still needs a
+clippy pass — one lazy-list-continuation in a lifted paragraph failed
+six jobs.

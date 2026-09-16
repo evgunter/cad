@@ -116,14 +116,17 @@ pub use checks::{
 };
 pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};
-pub use doc::{Doc, DocParam, DocParamValue, ParamName};
+pub use doc::{DisplayUnitRefusal, Doc, DocParam, DocParamValue, ParamName};
 #[cfg(feature = "interval")]
 pub use drive::{
     BudgetKind, CertifiedLeaf, DEFAULT_MAX_DEPTH, DEFAULT_MAX_LEAVES, DriveConfig, DriveRefusal,
     FlipEvidence, LeafResults, MeasureAccounting, ParamBoxVerdict, ReasonClass, Receipt,
     RefusalReason, RefusedLeaf, StructureFlip, drive,
 };
-pub use edit::{Applied, DocEdit, EditError, EditRecord, apply, cascade_delete_order};
+pub use edit::{
+    Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, Maintenance, apply,
+    cascade_delete_order,
+};
 pub use eval::{
     Arity, BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch,
     EvalOptions, EvalOutcome, EvalScalar, Evaluation, FramePlacement, NamingKey, NodeError,

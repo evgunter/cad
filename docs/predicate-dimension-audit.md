@@ -26,9 +26,9 @@ not the workspace's predicate-name roster** — that is
 `docs/K-REPORT.md` § *"The inventory method, restated"*, whose seven
 orphans are all outside these two crates by construction (`profile`
 ×2, `sweep` ×2, `demos/tour` ×3), a fact *about* this bound and not a
-hole in it. **(2) Not complete inside them.** Of **246** funnel-reaching
-names in the two crates the tables and their prose reach **223**, carry
-an individual `dim` verdict for **121**, and miss **23** entirely; the
+hole in it. **(2) Not complete inside them.** Of **248** funnel-reaching
+names in the two crates the tables and their prose reach **225**, carry
+an individual `dim` verdict for **123**, and miss **23** entirely; the
 23 are listed under *Uncovered names* below the tables and are §D's
 **D46**. The word *every* was this document's for a year and it was
 never true of the second bound; it is retired here rather than
@@ -174,7 +174,7 @@ the call site*. In these two crates that is ten spellings — `decide`,
 `classify` / `classify_len` / `require_zero` / `require_extent` /
 `gap_is_zero` / `signed_is_zero` wrappers.
 
-**Names — the deliverable.** **246** distinct predicate names: **210**
+**Names — the deliverable.** **248** distinct predicate names: **212**
 written as a literal at one of those spellings, and **36 carried** by a
 module-private `const`, a struct field or a local table
 (`sector_shape.rs`'s three consts, `ray_parity::ParityRows` twice over,
@@ -184,22 +184,22 @@ module-private `const`, a struct field or a local table
 
 | the document's relation to a name | count |
 |---|---|
-| carries an individual row with a `dim` verdict | **121** |
+| carries an individual row with a `dim` verdict | **123** |
 | named only in prose, no `dim` column | 3 |
 | reached only through a family cell or slash-list | 99 |
-| **reached, on the most generous reading** | **223** |
+| **reached, on the most generous reading** | **225** |
 | **recorded nowhere, under any reading** | **23** |
 
 **Reach is not verdict, and the asymmetry runs one way.** The 99 family
 matches are a judgement: glosses like *"pm_census vv/ve/vf/ef gaps,
 spans, residuals"* and *"sphere/torus meridian checks"* were read as
 covering every name they plausibly reach, which is the reading most
-favourable to this document. So **223 is a ceiling on REACH**, **23 a
+favourable to this document. So **225 is a ceiling on REACH**, **23 a
 floor on the hole** — a stricter reader moves names out of the 99 and
 into the 23, and nothing can move one out of the 23, because those
 names appear nowhere above this section in any form. And **reach is not
 a dimensional verdict**: the number of names this document has actually
-dimensioned, one row and one `dim` cell each, is **121**. The other 102
+dimensioned, one row and one `dim` cell each, is **123**. The other 102
 are covered by a family gloss or a sentence, which is a claim about a
 family and not a check on a comparand.
 
@@ -231,7 +231,10 @@ convention and the site count is not.
 roster alone** (K-REPORT's framing; it reproduces here). A code scan
 misses names not written at a funnel site — the 36 carried ones, 15% of
 the roster. A corpus column misses names the corpus never exercises —
-**80** of the 246 do not appear in the committed M7 baseline at all,
+**83** of the 248 do not appear in the committed M7 baseline at all
+(`props_rim_interior_side`, `props_rim_only_extent` and
+`props_rim_only_closed` are new here and post-date it;
+`props_rim_dir_group`, which it does carry, is retired),
 and that baseline in turn still carries six spellings the tree has
 retired (`bool_sector_*` / `split_sector_*`, unified to `sector_*` by
 #652). Re-deriving:
@@ -261,7 +264,7 @@ file's own first paragraph. That residue is this table's standing cost,
 disclosed rather than discovered.
 
 **Eight names carry the K vocabulary and never reach the funnel**, so
-they are correctly outside the 246 and a reader who greps for one
+they are correctly outside the 248 and a reader who greps for one
 should know why. They live only in an `Indeterminate.predicate` —
 seven through `predicate: Some("…")` (`carrier_kind`,
 `contact_tangent_independent`, `contact_rest_senses_opposed`,
@@ -281,7 +284,7 @@ user, inside an `Indeterminate` claiming a predicate by that name had
 been posed and come back poisoned. The census now carries the door's
 own typed refusal instead, and the tag is gone from the tree.
 
-**Why no gate on 121 / 223 / 246 / 302 — the third answer to Q6.**
+**Why no gate on 123 / 225 / 248 / 302 — the third answer to Q6.**
 Not "it is guarded" and not "dating it is enough": a gate would have to
 fix the family-matching convention in code, and that convention is the
 judgement this section is careful to expose rather than freeze. A green
@@ -344,8 +347,10 @@ which is what actually moves the number.
 | props/curved.rs (`require_rim_incidence`) | props_rim_axis_parallel / props_rim_center_on_axis | sin×r_c; perpendicular offset | m | OK |
 | props/curved.rs (`level_coincides`, `props_rim_level_group` call) | props_rim_level_group (Length) | level difference BARE (v is arc length) | m | FIXED (#89's unit) |
 | props/curved.rs (`level_coincides`, `props_rim_level_group` call) | props_rim_level_group (Unit) | rooted (sin,cos) CHORD × `RimArms::level` (sphere ×R, torus ×minor) | m | **FIXED — N1 RETIRED** (S81: one rule, one arm. Was Δ(sin,cos) componentwise × `major` on the torus) |
-| props/curved.rs (`du_of_rims`) | props_rim_dir_group | (±1 diff) × `RimArms::azimuth` ∈ {0, ±2·arm} | m | OK (note N2) |
 | props/curved.rs (`du_of_rims`) | props_du_consistent | Δu (rad) × `RimArms::azimuth` | m | OK |
+| props/curved.rs (`require_rim_interior_sides`) | props_rim_interior_side | `rim_offset_margin` pointed by σ: the same per-kind comparand as `props_rim_side`, bare (Length) / × `RimArms::level` (Unit), multiplied by an exact ±1 | m | OK (note N2; σ is a product of two discrete signs and reads no margin of its own) |
+| props/curved.rs (`sphere_rim_only_pole_level`, and `boundary_material_sign`'s sphere arm) | props_rim_only_extent | `sphere_extent_margin` — `(hi − lo)·R`, `require_extent`'s own sphere comparand asked one step earlier, from the one helper both read | m | OK (note N9: ONE comparand under TWO names, so a meridian-free rim-bearing sphere face records both; note N8 applies verbatim — the sine extent shrinks by `cos v̄` near the poles, in the FOLDING direction here, which is the direction that serves the cap) |
+| props/curved.rs (`require_rim_only_closed`) | props_rim_only_closed | `(Δu − τ)` × `RimArms::azimuth` — the arc a folded-pole rim fails to close by | m | OK (the azimuthal arm `props_du_consistent` already meters) |
 | props/curved.rs (`linear_rim_side`'s nested `side`) | props_rim_side | per-kind: bare (Length) / × `RimArms::level` (Unit) | m | FIXED (#89's unit); note N8 open — the sphere margin reads the PRIMARY component (`lo + hi − 2·sin v`), an axial quantity that shrinks by `cos v̄` near the poles, refusing direction |
 | props/curved.rs (`cylinder_boundary`'s line arm / `cone_boundary`'s line arm) | props_meridian_axial / props_meridian_generator | sin (or cos-diff) × parameter span (m for lines) | m | OK |
 | props/curved.rs (the four `*_boundary` parses) | props_meridian_on_surface / props_rim_fit (all kinds) | residuals; sphere/torus fits ROOTED before compare | m | OK |
@@ -354,6 +359,8 @@ which is what actually moves the number.
 | props/curved.rs (`cone_boundary`'s line arm) | props_meridian_apex | apex-line distance | m | OK |
 | props/curved.rs (`cone`'s single-nappe check) | props_cone_nappe | slant levels (m) bare | m | OK |
 | props/curved.rs (`sphere_boundary`'s meridian arm, `torus_boundary`, `torus_meridian_orient`) | props_meridian_great / props_band_coplanar / props_meridian_orient | lengths / sin×R / cos×minor | m | OK |
+| props/curved.rs (`require_band_opposite`, the rimless arm's coplanar branch, after `props_band_coplanar` has put every meridian on one great circle) | props_band_opposite | at each junction of the loop, the chord between the unit traversal tangent arriving (arc i's traversal end) and the one departing (arc i+1's traversal start), × R — the distance between the two arcs' departure points scaled to the sphere radius | m | OK (added by the BOOL-5 fix pass, issue 542 / S-BOOL. Lever R, the run's linear band. Zero at every junction ⇒ the loop runs its great circle once, the two-band face, `Δu = π`; Positive ⇒ the loop reverses there — two arcs on one half-plane, a slit of no width or the ball less a slit — typed refusal; in-band escalates. Coplanarity alone cannot tell opposite half-planes from coincident ones, and the coincident pair is reachable through `revolve` because its angle door levers at the profile's `r_max` while the coplanar decide levers at the face's R. Stated at the junction rather than as the chord between the two arcs' departure directions so that a great circle split at ordinary points or into more than two arcs — CERT-1's rows — keeps measuring; for two pole-to-pole arcs the two readings coincide) |
+| props/curved.rs (`sphere_wedge_azimuth`, the rimless arm's wedge branch, reached when `props_band_coplanar` is definitely nonzero) | props_wedge_azimuth | the signed azimuth `φ = atan2(d_B·I_A, d_B·d_A)` (rad) from meridian A's half-plane into the face's interior direction `I_A = ν·f_A·n_A` (sense bit × forward bit × carrier axis) to meridian B's half-plane, × R — the equatorial arc between the two meridian planes on the face's side, signed by whether it is the short one | m | OK (added with the rim-free spherical wedge arm, issue 542 / S-BOOL. Lever R, the run's linear band. Positive ⇒ `Δu = φ`, Negative ⇒ `Δu = φ + 2π`, Zero ⇒ `DegenerateFace` (coincident meridians), in-band escalates. The Zero/in-band outcomes are the arm's D2 floor rather than a door, unreachable by the factor K: the arm is entered only on `R·|sin φ| ≥ escalate = K·zero` under `props_band_coplanar` at the same band and lever, and `|φ| ≥ |sin φ|`, so `R·|φ|` is at least K coincidence widths above the Zero edge — a typed refusal kept because the inventory states every outcome, not a rounding window. The `atan2` is safe here where the pole helper forbids it: its branch cut is the opposite-half-plane pair, which the coplanar decide has just excluded by at least the escalate width at R) |
 | props/curved.rs (`sphere_meridian_pole_margins`, decided by `sphere_meridian_span_levels` AND by `require_one_chart_branch`) | props_meridian_pole | chord from the pole's span-relative direction to the nearer span endpoint, carrying the membership sign (`copysign` of a midpoint dot test) × R — the point deviation of moving the pole onto the span boundary | m | OK (added with the span-derived sphere extent, issue 723 / S-CERT. ONE margin, TWO dispositions since issue 1571, which is why the arithmetic has its own home: the EXTENT FOLD takes everything but a definite Negative — **Positive, Zero and the indeterminate band alike fold the pole latitude** — while the BRANCH DOOR refuses only a definite Positive, so the gap between them is exactly the arc that ENDS at the pole, which both admit. Neither disposition escalates, so the note below holds for both. Near a span end the endpoint latitude is within band² of the pole's, so the fold choices agree far inside tolerance, the folded extent is continuous across the decision, and an in-band margin carries no information a refusal could report — refusing there flipped certify-exactly into an import escalation for a split vertex 1e-6 rad off the pole. The site still RECORDS through `decide` like any classify site; it just never escalates, so its in-band population is expected (issue 1251 schedules the K-baseline fold-in). **Stated for a span of at most one period, and decided so first** (issue 1601): the membership edge is the unclamped `cos(dt/2)`, whose zero set is the two span endpoints only while `dt ≤ 2π`; the helper itself decides `props_meridian_span_forward` and `props_meridian_span_winding` (next two rows) before this margin is formed, so an admitted span is forward and exceeds τ by at most `zero/R`, where the edge cosine is within `(zero/2R)²/2` of its half-turn value and can reclassify only a pole within `zero/2R` of the span endpoint — in-band on both dispositions. The retired half-turn clamp had a zero set at the direction antipodal to the span midpoint, an interior point of any longer span, where a rounding residual folded 36 of 400 `2π + 2δ` spans short. Direction arithmetic throughout — no `atan2`, no mod-2π `floor`: either is wide at its cut/step for an interval enclosure of an arc anchored at a pole, forcing an escalation the scalar lane does not have, live on the die-fillet corpus) |
 | props/curved.rs (`require_meridian_span_within_period`, run by `sphere_meridian_pole_margins` before it forms a margin — so by `sphere_boundary`'s fold AND by `require_one_chart_branch`'s sphere arm) | props_meridian_span_forward | `Δt·R` — the stored span itself, levered at the sphere radius: certification's `interval_span_forward` re-decided at the parse | m | OK (added with the reversed-span refusal, issue 1601 / S-MESH fix pass. Same margin, band and lever as certification's, hence the same dispositions: only a definite `Positive` span admits; `Zero` refuses `NotIsoRectangle { what: "props_meridian_span_forward" }` as certification's `IntervalNotForward` does, definitely negative (a span stored reversed, `t1 < t0`) refuses the same way, the ambiguity band escalates. Decided before the winding headroom (next row), which cannot see a reversed span — its headroom `τ − Δt` is Positive for any `Δt < 0`. The torus decides the same half for a reconstructed span as `props_meridian_pieces_forward`. Reachable only from hand-built `LoopEdge`s, as the winding half is) |
 | props/curved.rs (`require_meridian_span_within_period`, run by `sphere_meridian_pole_margins` before it forms a margin — so by `sphere_boundary`'s fold AND by `require_one_chart_branch`'s sphere arm) | props_meridian_span_winding | `(τ − Δt)·R` — the stored span's headroom to one period, levered at the sphere radius: certification's `interval_span_winding` re-decided at the parse | m | OK (added with the saturated-span refusal, issue 1601 / S-MESH. Same margin, band and lever as certification's, hence the same dispositions: Zero and Positive headroom admit — a span inside the coincidence band above τ is one certification admits too — the ambiguity band escalates, definitely negative headroom refuses `NotIsoRectangle { what: "props_meridian_span_winding" }` on every consumer of the sphere parse and at the branch door, which does not run the parse but reaches the pole helper, where the decide lives. The torus decides the same invariant for a reconstructed span as `props_meridian_pieces_winding`; the sphere has no fold and decides it per edge. Reachable only from hand-built `LoopEdge`s: every certified door hands the parse a span within the bound, and the import door normalises into `(0, τ]`) |
@@ -508,7 +515,7 @@ and the other five are named files whose rows predate these names.
 `comparand`, `dim` and `status` filled the way every other row is —
 plus a disposition entry in *Findings* for any that come back FLAG, and
 its `F`-number. A name leaves this section only by acquiring that row;
-the section is empty when the two counts above meet at 246.
+the section is empty when the two counts above meet at 248.
 
 | home | names |
 |---|---|
@@ -916,10 +923,29 @@ Notes (verified honest, kept for the design conversation):
   land" is what left the two spellings 90 lines apart for eight months;
   typed margins will still find one rule here rather than two.
 
-- **N2** `props_rim_dir_group` compares a structural ±1 through the
-  numeric funnel (margin 0 or ±2·arm). Guarded upstream: a rim with
-  arm ≲ K·ε cannot reach it (`props_circle_axis_class` escalates
-  first, cos·r_c in-band).
+- **N2** `props_rim_dir_group` compared a structural ±1 through the
+  numeric funnel (margin 0 or ±2·arm), guarded upstream by
+  `props_circle_axis_class`. **RETIRED**: the traversal direction has
+  one representation now (`Rim::d_u_sign`, a discrete `Sign`) and
+  `du_of_rims` compares it as a sign, so no margin is formed and the
+  name reaches no funnel site. What the note guarded against is the
+  live shape at `props_rim_interior_side`, one row up, and it is
+  guarded differently: σ there is a product of two DISCRETE signs and
+  never becomes a comparand — the margin it points is
+  `props_rim_side`'s own `lo + hi − 2v`, at `props_rim_side`'s lever,
+  so the structural sign steers a length rather than being banded as
+  one.
+- **N9** `props_rim_only_extent` and `props_face_extent` are ONE
+  comparand under two names on the sphere —
+  `sphere_extent_margin(lo, hi, R)`, from one helper both call — asked
+  at two moments about two level lists: before a pole is folded in and
+  after. A meridian-free rim-bearing sphere face therefore records both,
+  which is intended and is what tells "the levels alone carry no
+  extent" apart from "the face has none". Two names over one comparand
+  is the thing the head matter warns about in the other direction (one
+  name over two comparands); it is safe here only because the helper is
+  shared, and a second spelling of either margin is the defect to watch
+  for.
 - **N3** The cone's `du_of_rims` arm is the FIRST rim's radius
   |v|·sinα (bounded below ≳ K·ε by the same axis-class guard). The
   `T::one()` fallback is REACHED — both callers compute the arm before

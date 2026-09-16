@@ -221,3 +221,53 @@ one was written at default ε and failed at the other two rows when
 adopted, because `load` reconciles the file's recorded ε — the full
 matrix caught it. Filed: a CHROME row on `viewer/src/sketch.rs`'s false
 compile-break claim; evidence on LIB's short-vocabulary row.
+
+## 2026-09-16 — doc-param unit door merged (middle tier, PR #2732)
+
+`DocParam::with_display_unit` and `DocEdit::SetDocParamUnit`: a
+notation change is not a redeclaration because `bit_eq` already
+excludes the display unit, stated once and executed. The unit→dimension
+reading has one home, `UnitSym::measures()`, which the review found
+still copied in the parser (a claim of "one place" that was false);
+`SetDocParam` now refuses a mismatched pairing at the edit door too.
+Process: the lane pushed an empty commit and closed/reopened the PR
+to re-arm CI on a conflicting head — both forbidden and both recorded
+on the item and in the PR; the real cause was a conflicting PR, which
+GitHub does not run. The lane then reproduced the Python suite locally
+and caught a stale census row before pushing. Two residue rows filed.
+
+## 2026-09-16 — DM7 built: the delete door reports what it strands (middle tier, PR #2753)
+
+`Applied::maintenance` is one column, `Maintenance::{Cluster, Strand}`,
+strands leading; `DeleteNode` reports every surviving payload name whose
+minting node it removed, computed after the removal by the one
+`Node::payload_names` walk. The review found the count definition this
+unit wrote into CHROME's row disagreeing with the door on DOCM-7's own
+cascade (the door reports per edit, transients included; the affordance
+counts survivors) — both now written down and pinned; the carrier
+census in the test is derived by an exhaustive match, and the
+"after the removal" choice has the one row that can see it. One
+clause-scope residue filed for Ev: stranded appearance keys are the
+same shape one door over and DM7's letter does not reach them. The
+lane hit a push that produced no run and re-rolled the right way
+(merge main, real commit); the Python `Maintenance` union class is
+filed as LIB's question.
+
+## 2026-09-16 — EDIT-PICK2 merged (kernel unit, v6 dual, PR #2746); the t-width question goes to Ev
+
+The orchestrator's ruling (MEET ∧ INFORM) was measured false by the
+implementer before any review — the second false central premise on
+this door in two specs — and re-ruled to the closed comparison ∧
+INFORM. Under that rule no admitted barycentric carries an
+uninformative interval, order independence holds, and one door
+(`crossing`) serves the exact test and every corpus row. The dual
+converged on every finding (a false "costs no graze" sentence — a
+corner graze's verdict now depends on the tessellator's corner
+labelling, filed; a conditioning figure wrong by five orders, fixed
+and pinned; two mutants the unit rows could not see, now pinned) with
+no unilateral MAJOR: tally +0. The residual — what `t` the door
+answers for an admitted candidate and with what width — is filed as a
+`ruling` row with `needs_ev` and three rows parked on it: having
+ruled wrongly twice on this door's numerics, the orchestrator puts it
+to Ev on the next `[ev]` PR, together with DM7's scope question on
+stranded appearance keys.

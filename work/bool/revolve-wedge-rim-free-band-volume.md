@@ -2,10 +2,12 @@
 id: revolve-wedge-rim-free-band-volume
 kind: issue
 title: Revolve wedge mass-props — a rim-free band with non-coplanar meridians is VolumeUncomputable (the natural ball's wedge)
-status: open
+status: closed
 opened: 2026-08-16
 github: 542
-refs: [530, BOOL-5]
+refs: [530, BOOL-5, 2748]
+pr: 2748
+closed: 2026-09-16
 ---
 
 ## From GitHub issue 542
