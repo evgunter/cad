@@ -161,3 +161,10 @@ Closed-vs-MEET is the unit's to measure under the acceptance written
 above. This row is now the unit (kernel unit, v6 dual, block EDIT-B1
 slot 2); the three rows parked on it unpark at its merge; the
 corner-labelling row stays its own.
+
+## Unit (2026-09-16, EDIT orchestrator)
+
+Built by `pick-door-answers-a-t-interval` (kernel unit, v6 dual,
+block EDIT-B1 slot 2; spec `docs/EDIT-PICK3-SPEC.md`). This ruling row
+closes at that unit's merge, which is when the three rows parked on it
+unpark.
