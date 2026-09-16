@@ -464,6 +464,20 @@ fn a_nested_source_under_a_payload_arm_survives_into_the_message() {
             "the wrappers must still name what failed: {rendered:?}"
         );
     }
+
+    // The escalation arm carries a SLAB beside its source, and the
+    // pair it names is the other half of what the node message has to
+    // survive: a forwarding that kept the source and dropped the pair
+    // would leave the reader with an escalation and no site.
+    let with_slab = K::Loft(sweep::LoftError::StackingEscalated {
+        slab: 1,
+        source: escalation,
+    })
+    .to_string();
+    assert!(
+        with_slab.contains("sections 1 and 2"),
+        "the slab's pair did not reach the node message: {with_slab:?}"
+    );
 }
 
 /// **The document layer's own payload types render their own story**

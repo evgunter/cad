@@ -35,20 +35,13 @@
 //! # Orientation (the canonical stacking arm)
 //!
 //! Sections must stack ALONG the plane normal of the section they
-//! stack off — a PER-SLAB statement, folded over the adjacent pairs
-//! ([`fn@stacking_fold`]): slab `k` is the pair `(k, k + 1)`, its
-//! margin is the mean displacement of the outer loop's vertices
-//! against SECTION `k`'s normal, and the loft's margin is the MINIMUM
-//! over slabs. The statement is local because the property is: it says
-//! the body advances between each pair of authored sections, which is
-//! what the caps and the walls are oriented by. A spine that turns
-//! past a half circle advances at every slab and lofts; the wall left
-//! is per-slab turn π, so it is a statement about how coarsely the
-//! sections sample the spine.
+//! stack off. That is a PER-SLAB statement and [`fn@stacking_fold`] is
+//! where it is made and where its shape is stated; a refusal names the
+//! pair it stopped at.
 //!
-//! Given that, the caps orient exactly as extrude's (bottom reversed,
-//! top forward) and every wall's chart normal `S_u × S_v` points out
-//! of the material — the u direction follows the material-left profile
+//! The caps then orient exactly as extrude's (bottom reversed, top
+//! forward) and every wall's chart normal `S_u × S_v` points out of
+//! the material — the u direction follows the material-left profile
 //! traversal and v the stacking, so `t̂ × v̂` is material-right —
 //! giving `sense = true` on every wall, holes and concave arcs
 //! included (unlike a cylinder chart, the skinned chart's normal
@@ -58,13 +51,6 @@
 //! far rims read the LAST slab's top, section `k − 1`'s**; no other
 //! reading of the stacking enters the assembly, and the fold's margin
 //! is not read again once it has been decided.
-//!
-//! A definitely-reversed slab refuses typed
-//! ([`LoftError::ReversedStacking`]) NAMING the pair, because the
-//! reorder recourse is sound for a wholly reversed list and not for
-//! one pair inside a forward one; a sliver slab refuses
-//! ([`LoftError::DegenerateStacking`]) naming the pair, and an
-//! ambiguous one escalates carrying it.
 //!
 //! # Scalar posture (C6)
 //!
@@ -164,33 +150,45 @@ pub enum LoftError {
         /// The iso-extraction refusal, carried rather than discarded.
         source: SplineError,
     },
-    /// The end sections' loop/segment structure disagrees with the
-    /// skinned geometry's — unreachable when both come from the same
-    /// inputs; surfaced rather than swallowed.
+    /// A section's loop/segment structure disagrees with the skinned
+    /// geometry's, or two sections disagree with each other —
+    /// unreachable when they all come from the same inputs; surfaced
+    /// rather than swallowed.
     SectionStructure,
     /// One SLAB definitely stacks AGAINST its own base section's plane
     /// normal. The canonical assembly orients caps and walls by the
     /// forward stacking (module docs) and does not guess: the named
     /// pair is where the stack turns back on itself.
     ReversedStacking {
-        /// The slab: sections `slab` and `slab + 1`, the first pair in
-        /// section order that is not definitely forward.
+        /// The slab — the pair [`SlabPair`] names — and the first one
+        /// in section order that is not definitely forward.
         slab: usize,
     },
     /// One SLAB's stacking displacement is coincident with zero at
     /// tolerance: a sliver-thin (or in-plane) pair of sections.
     DegenerateStacking {
-        /// The slab: sections `slab` and `slab + 1`.
+        /// The slab — the pair [`SlabPair`] names.
         slab: usize,
     },
     /// One SLAB's stacking classification escalated (named predicate
     /// on the diagnostic).
     StackingEscalated {
-        /// The slab: sections `slab` and `slab + 1`.
+        /// The slab — the pair [`SlabPair`] names.
         slab: usize,
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
+}
+
+/// **The two sections a slab spans**, and the one place this crate
+/// spells that arithmetic: slab `k` is the pair `(k, k + 1)`, and
+/// every stacking refusal names its pair through this.
+struct SlabPair(usize);
+
+impl fmt::Display for SlabPair {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "sections {} and {}", self.0, self.0 + 1)
+    }
 }
 
 impl fmt::Display for LoftError {
@@ -208,31 +206,31 @@ impl fmt::Display for LoftError {
             ),
             Self::SectionStructure => write!(
                 f,
-                "loft assembly: end-section loop/segment structure disagrees with the \
-                 skinned geometry (kernel bug, not an input fault)"
+                "loft assembly: a section's loop/segment structure disagrees with the \
+                 skinned geometry, or two sections disagree with each other (kernel \
+                 bug, not an input fault)"
             ),
             Self::ReversedStacking { slab } => write!(
                 f,
-                "loft sections {slab} and {} definitely stack AGAINST section {slab}'s \
-                 plane normal — the builder orients caps and walls by forward stacking \
-                 and does not guess. If the WHOLE list runs backwards, reorder it (the \
-                 reversed list lofts the same solid); if only this pair does, it is the \
-                 pair to re-place",
-                slab + 1
+                "loft {} definitely stack AGAINST section {slab}'s plane normal — the \
+                 builder orients caps and walls by forward stacking and does not guess. \
+                 The fold stopped at this pair and did not examine any later slab, so \
+                 it cannot say whether the rest of the list runs backwards too: inspect \
+                 the named pair. A wholly reversed list is named at slab 0, and \
+                 reordering it lofts the same solid",
+                SlabPair(*slab)
             ),
             Self::DegenerateStacking { slab } => write!(
                 f,
-                "loft sections {slab} and {} have a stacking displacement coincident \
-                 with zero at tolerance — a sliver-thin or in-plane slab has no \
-                 orientable assembly",
-                slab + 1
+                "loft {} have a stacking displacement coincident with zero at tolerance \
+                 — a sliver-thin or in-plane slab has no orientable assembly",
+                SlabPair(*slab)
             ),
             Self::StackingEscalated { slab, source } => {
                 write!(
                     f,
-                    "loft stacking classification escalated at sections {slab} and {}: \
-                     {source}",
-                    slab + 1
+                    "loft stacking classification escalated at {}: {source}",
+                    SlabPair(*slab)
                 )
             }
         }
@@ -304,43 +302,57 @@ fn outer_world<T: Real>(
     )
 }
 
-/// **The stacking fold** (module docs, the canonical stacking arm).
+/// **The stacking fold** — the loft's one stacking statement.
 ///
-/// Slab `k` is the pair `(k, k + 1)`, and its margin is the mean
+/// Slab `k` is the pair `(k, k + 1)`. Its margin is the mean
 /// displacement of the outer loop's vertices between the two sections
-/// against SECTION `k`'s OWN plane normal. Each slab is decided under
-/// `loft_stacking` in slab order and the fold refuses at the first
-/// slab that is not definitely positive, naming it.
+/// against SECTION `k`'s own plane normal, and the fold decides slab
+/// after slab under `loft_stacking` in slab order, **refusing at the
+/// first slab whose verdict is not `Positive`**. No minimum is formed:
+/// that is the ruling's "the min over slabs is Positive", because
+/// `Positive` is monotone in the margin, and stopping at the first
+/// non-`Positive` slab is what keeps an ambiguous slab from being
+/// answered for by a definite one later in the list.
 ///
-/// **The fold's margin is the MIN over slabs**, and the accept side
-/// says exactly that: `min ≥ K·ε` holds precisely when every slab
-/// does, so "every slab is definitely positive" and "the minimum slab
-/// margin is definitely positive" are the same acceptance. What
-/// deciding the MINIMUM would additionally do is let a definitely
-/// reversed slab stand in for an AMBIGUOUS one somewhere else in the
-/// list, and an ambiguous margin is the one thing the D4 band exists
-/// to surface rather than resolve — so the fold decides slab by slab
-/// and an escalation anywhere is reported as an escalation.
+/// The margin is a sum of per-vertex differences over a full zip of
+/// two equal-length loops, so it is the displacement of the vertex
+/// CENTROID: the by-index pairing carries no information and rotating
+/// one section's traversal cannot change the verdict.
 ///
-/// A two-section loft is the fold's degenerate case: one slab whose
-/// base section is the first section, over the same vertices in the
-/// same order, which is the end-to-end statement this fold replaces.
+/// A two-section loft is the fold's degenerate case — one slab whose
+/// base section is the first section, over the vertices `assemble`
+/// already walked, in that walk's order.
 ///
 /// The fold reads nothing but the two sections of the slab it is
-/// deciding — their authored placements and their canonical loops.
+/// deciding: their authored placements and their canonical loops.
+///
+/// # Preconditions, and why its guards are dead through `loft_body`
+///
+/// The caller has already refused a `places`/`canonical` length
+/// disagreement and a section count below two, and hands the first and
+/// last sections' outer world loops in the traversal order it walked
+/// them. What is left here — a section with no loops, and two sections
+/// whose outer loops differ in vertex count — is this function's own
+/// precondition, kept as a refusal rather than an assumption. Neither
+/// is reachable through [`loft_body`] today: the skin refuses
+/// mismatched sections first (`SkinError::SectionShapeMismatch`), and
+/// a loopless section never leaves profile validation.
 fn stacking_fold<T: Decide>(
     places: &[Affine3<f64>],
     geometry: &LoftGeometry,
     band: Band,
+    first_outer: &[Point3<T>],
+    last_outer: &[Point3<T>],
 ) -> Result<(), LoftError> {
-    if places.len() < 2 || places.len() != geometry.canonical.len() {
-        return Err(LoftError::SectionStructure);
-    }
-    let mut base =
-        outer_world::<T>(&geometry.canonical[0], &places[0]).ok_or(LoftError::SectionStructure)?;
-    for slab in 0..places.len() - 1 {
-        let next = outer_world::<T>(&geometry.canonical[slab + 1], &places[slab + 1])
-            .ok_or(LoftError::SectionStructure)?;
+    let last = places.len() - 1;
+    let mut base: Vec<Point3<T>> = first_outer.to_vec();
+    for slab in 0..last {
+        let next: Vec<Point3<T>> = if slab + 1 == last {
+            last_outer.to_vec()
+        } else {
+            outer_world::<T>(&geometry.canonical[slab + 1], &places[slab + 1])
+                .ok_or(LoftError::SectionStructure)?
+        };
         if base.is_empty() || next.len() != base.len() {
             return Err(LoftError::SectionStructure);
         }
@@ -369,7 +381,6 @@ fn stacking_fold<T: Decide>(
 /// # Errors
 ///
 /// [`LoftError`] — every door named on the enum.
-#[allow(clippy::too_many_lines)] // one construction, kept whole like extrude's
 fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
     places: &[Affine3<f64>],
     geometry: &LoftGeometry,
@@ -402,7 +413,9 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
         .iter()
         .map(|lp| swept_segments(lp, false))
         .collect();
-    if bloops.len() != tloops.len()
+    if places.len() < 2
+        || places.len() != geometry.canonical.len()
+        || bloops.len() != tloops.len()
         || bloops.len() != geometry.walls.len()
         || bloops
             .iter()
@@ -421,10 +434,11 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
         .map(|segs| segs.iter().map(|s| world(&tplace, s.a)).collect())
         .collect();
 
-    // ---- The stacking fold (module docs): every adjacent section
-    // pair decided against ITS OWN base section's normal, in slab
-    // order. ----
-    stacking_fold::<T>(places, geometry, band)?;
+    // ---- The stacking fold: every adjacent section pair decided
+    // against ITS OWN base section's normal, in slab order. The end
+    // sections' outer world loops are the ones walked just above, so
+    // each section is traversed once for the whole assembly. ----
+    stacking_fold::<T>(places, geometry, band, &bq[0], &tq[0])?;
 
     // ---- Lifted walls, kept once: face surfaces AND seam carriers
     // read the same lifted structure (D9 — one lift, shared bits). ----
