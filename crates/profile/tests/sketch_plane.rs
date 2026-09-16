@@ -299,8 +299,16 @@ fn try_map_returns_the_first_refusal_and_builds_no_plane() {
             calls.set(i + 1);
             if i < k { Ok(x) } else { Err(i) }
         });
-        assert_eq!(got.err(), Some(k), "the first refusal is the {k}th component's");
-        assert_eq!(calls.get(), k + 1, "nothing after component {k} is consulted");
+        assert_eq!(
+            got.err(),
+            Some(k),
+            "the first refusal is the {k}th component's"
+        );
+        assert_eq!(
+            calls.get(),
+            k + 1,
+            "nothing after component {k} is consulted"
+        );
     }
     // And with no refusal anywhere, all twelve are visited once.
     let calls = Cell::new(0usize);

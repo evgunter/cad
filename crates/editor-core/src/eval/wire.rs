@@ -5036,9 +5036,11 @@ mod pinned_plane_tests {
     #[test]
     fn an_analysis_scalar_refuses_however_ordinary_its_components_are() {
         let lane: SketchPlane<Dual64> = distinct().map(Dual64::from_f64);
-        assert!(bits(&lane, |x| x.deriv.to_bits())
-            .iter()
-            .all(|b| *b == 0.0_f64.to_bits()));
+        assert!(
+            bits(&lane, |x| x.deriv.to_bits())
+                .iter()
+                .all(|b| *b == 0.0_f64.to_bits())
+        );
         assert!(pinned_plane(&lane).is_none());
     }
 }
