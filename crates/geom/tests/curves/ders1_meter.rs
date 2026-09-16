@@ -52,9 +52,7 @@ fn ders1_meter() {
         return;
     }
     const REPS: usize = 200_000;
-    println!(
-        "degree/interior  NurbsCurve3 eval+deriv  ders1  |  Curve3::Nurbs eval+deriv  ders1"
-    );
+    println!("degree/interior  NurbsCurve3 eval+deriv  ders1  |  Curve3::Nurbs eval+deriv  ders1");
     for (p, interior) in [(2usize, 3usize), (3, 8), (5, 8), (7, 8)] {
         let n = curve(p, interior);
         let c = Curve3::Nurbs(Arc::new(n.clone()));
