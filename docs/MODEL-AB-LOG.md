@@ -3326,6 +3326,20 @@ fixed, disclosed), R2 isolated from R1, briefs symmetric, no
 relaxations granted. Implementer difficulty M (pre-logged at the spec,
 pre-draw). Sample number at merge; row in the docs PR after the merge.
 
+BOOL-6 (PR #2752) ordinal FIXED AT DISPATCH (2026-09-16):
+**ordinal 1110** (S-BOOL band 1100–1199). v6 dual: parity byte **190**,
+parity 0 ⇒ **R1 OPUS + R2 FABLE**; CONCURRENT on frozen `9f7ae4954`
+(run 35072398484 verified at dispatch: head SHA matches, 39 checks —
+36 success + 3 skipped, 0 neutral; not narrowed), R2 isolated from R1,
+briefs symmetric (HARD RULES written fresh for this unit), no
+relaxations granted. Implementer difficulty M (pre-logged at the spec,
+pre-draw); implementer arm OPUS (block BOOL-B4 slot 1, byte 189 —
+quoted from the private draw file before the arm was named). Sample
+number at merge; the row rides the unit branch as its last commit.
+Filed at dispatch from the unit's forward list:
+`work/blend/skin-coincident-section-check-is-an-unbanded-f64-compare.md`,
+`work/issues/klein-scene-should-adopt-the-one-body-loop-sweep.md`.
+
 BOOL-5 (PR #2748) ordinal FIXED AT DISPATCH (2026-09-16):
 **ordinal 1109** (S-BOOL band 1100–1199). v6 dual: parity byte **111**,
 parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `2fbec9f0a`
