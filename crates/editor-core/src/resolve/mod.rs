@@ -1291,7 +1291,7 @@ fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&
                 vertex: a,
                 support: b,
             }
-            | RoleSeg::CornerArc {
+            | RoleSeg::EndArc {
                 vertex: a,
                 edge: b,
             } => {

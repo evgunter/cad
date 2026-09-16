@@ -795,7 +795,7 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
             vertex: x,
             support: y,
         }
-        | RoleSeg::CornerArc { vertex: x, edge: y } => vec![x.as_ref(), y.as_ref()],
+        | RoleSeg::EndArc { vertex: x, edge: y } => vec![x.as_ref(), y.as_ref()],
         RoleSeg::Merged(v) | RoleSeg::BandFace(v) => v.iter().collect(),
         RoleSeg::Fragment(Qualifier::SideOf(v)) => v.iter().map(|(p, _)| p).collect(),
         RoleSeg::Fragment(Qualifier::OrderAlong { .. })
