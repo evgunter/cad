@@ -2,23 +2,19 @@
 //!
 //! An assertion's bound against the measure it constrains, a mate's
 //! alignment datum, an A11 placement row, a witness row's key, the
-//! recorded ε, and a document parameter's declaration: each rule is
-//! stated once — `Node::assertion_bound_fault`,
+//! recorded ε, a document parameter's declaration and its floats: each
+//! rule is stated once — `Node::assertion_bound_fault`,
 //! `Node::has_non_finite_alignment`, `doc::placement_fault`,
 //! `doc::witness_site_fault`, `doc::epsilon_admissible`,
-//! `DocParam::is_continuous_count` — and the edit door and the
-//! persistence door each render the one answer in their own
-//! vocabulary.
+//! `DocParam::is_continuous_count`, `DocParam::first_non_finite` — and
+//! the edit door and the persistence door each render the one answer
+//! in their own vocabulary.
 //!
 //! **What that buys, stated exactly**: for each rule below, the two
 //! doors cannot come to disagree about it, because there is one
-//! decision and two renderings of its answer. It is NOT the claim that
-//! a file which loads is a file the edit door could have produced —
-//! the load door still decides a slot's dimension for profile nodes
-//! only, so a retyped extrude distance loads clean and the edit door
-//! refuses it. That gap is filed as
-//! `work/edit/load-door-checks-slot-dimensions-for-profile-nodes-only`
-//! and measured by `load_door_slot_dimension` in this binary.
+//! decision and two renderings of its answer. A slot's dimension is
+//! the same shape one file over (`load_door_slot_dimension` in this
+//! binary), over `Node::slot_dimension_fault`.
 //!
 //! One row per FACT, naming both doors' refusals for it: the pairing
 //! is the property a shared predicate buys, and a row that asked only
@@ -643,6 +639,80 @@ fn a_non_positive_epsilon_is_refused_at_both_doors() {
     }
 }
 
+// ---- A document parameter's floats ----
+
+/// **A continuous parameter carrying a float that is not a number —
+/// both doors, naming WHICH float.**
+///
+/// `DocParam::first_non_finite` is the one rule and both doors ask it:
+/// the nominal first, then the annotation's offsets. The edit door
+/// names its answer `EditError::NonFiniteDocParam` and the load door
+/// `NonFiniteSite::DocParam`, and each carries the field the predicate
+/// identified — a door that dropped it would be answering a coarser
+/// question than the one that was asked.
+///
+/// The load door is reached through an UNAPPLIED edit log rather than
+/// a doctored snapshot: JSON carries no non-finite token, so a log —
+/// which is data, and has not necessarily been through `apply` — is
+/// the only way a NaN reaches `validate_document` at all.
+#[test]
+fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
+    use editor_core::{Distribution, DistributionField, DocParamField, persist::NonFiniteSite};
+
+    let (doc, _) = with_measure();
+    let name = ParamName::new("wall");
+    let annotated = |sigma: f64| {
+        let mut value = DocParam::continuous(Dimension::Length, 1.0);
+        if let DocParam::Continuous { distribution, .. } = &mut value {
+            *distribution = Some(Distribution::Normal { sigma });
+        }
+        value
+    };
+    let cases = [
+        (
+            DocParam::continuous(Dimension::Length, f64::NAN),
+            DocParamField::Nominal,
+        ),
+        (
+            annotated(f64::INFINITY),
+            DocParamField::Offset(DistributionField::Sigma),
+        ),
+    ];
+    for (value, expected) in cases {
+        match apply(
+            &doc,
+            &DocEdit::SetDocParam {
+                name: name.clone(),
+                value: value.clone(),
+            },
+            Tol::witness(),
+        ) {
+            Err(EditError::NonFiniteDocParam { name: n, field }) => {
+                assert_eq!(n, name);
+                assert_eq!(field, expected, "the edit door names the offending float");
+            }
+            other => panic!("a non-finite parameter must refuse typed, got {other:?}"),
+        }
+
+        let edit = DocEdit::SetDocParam {
+            name: name.clone(),
+            value,
+        };
+        match save(&doc, &[edit], Tol::witness()) {
+            Err(PersistError::NonFinite {
+                site: NonFiniteSite::Edit { index: 0, inner },
+            }) => match *inner {
+                NonFiniteSite::DocParam { name: ref n, field } => {
+                    assert_eq!(*n, name);
+                    assert_eq!(field, expected, "the load door names the same float");
+                }
+                ref other => panic!("expected a doc-param site, got {other:?}"),
+            },
+            other => panic!("a non-finite parameter must refuse at the wire, got {other:?}"),
+        }
+    }
+}
+
 // ---- A document parameter's declaration ----
 
 /// **A continuous parameter declared with the count dimension — the
@@ -652,16 +722,17 @@ fn a_non_positive_epsilon_is_refused_at_both_doors() {
 /// it; this row pins the edit door's answer
 /// (`ContinuousParamCannotBeCount`).
 ///
-/// At the load door the same document refuses EARLIER and by another
-/// name: the display-unit walk runs before the snapshot walk, and no
-/// unit in the table measures a count (`UnitSym::measures` answers
-/// Length, Angle or Scalar), so a `Continuous` parameter declared
-/// `Count` fails that walk whatever notation it carries.
-/// `SnapshotError::CountContinuous` is therefore unreachable through
-/// `validate_document` — measured here, and filed as
-/// `work/edit/count-continuous-arm-is-shadowed-by-the-display-unit-walk`.
+/// At the load door the same document refuses by another name, and
+/// that is what this row asserts: no unit in the table measures a
+/// count (`UnitSym::measures` answers Length, Angle or Scalar), so a
+/// `Continuous` parameter declared `Count` fails the display-unit walk
+/// whatever notation it carries. The divide has no second arm in the
+/// load door's vocabulary — a `SnapshotError` that nothing could
+/// reach was documentation, and deleting it was its repair — so the
+/// two doors' answers differ in WORD and agree in verdict, which is
+/// the property a caller comparing them relies on.
 #[test]
-fn a_continuous_parameter_declared_count_is_refused_at_both_doors() {
+fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_words() {
     let (doc, _) = with_measure();
     let name = ParamName::new("n");
     match apply(

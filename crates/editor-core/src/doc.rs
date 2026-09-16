@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 use geom_core::Real;
 
 use crate::appearance::{AppearanceMap, AppearanceRecord};
-use crate::distribution::{Distribution, DistributionFault};
+use crate::distribution::{Distribution, DistributionFault, DistributionField};
 use crate::expr::{Dimension, Expr, ExprPath, ParamEnv, ParamValue};
 use crate::ident::DocumentId;
 use crate::names::StableName;
@@ -214,18 +214,111 @@ impl core::fmt::Display for DistributionRefusal {
 
 impl core::error::Error for DistributionRefusal {}
 
+/// WHICH float of a continuous document parameter a refusal is about
+/// ([`DocParam::first_non_finite`]).
+///
+/// One name for the answer at both doors: the nominal, or the
+/// distribution offset [`DistributionField`] names. An `Option<
+/// DistributionField>` would say the same thing with absence standing
+/// for the nominal, and a reader would have to know which absence it
+/// was.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DocParamField {
+    /// The parameter's own value.
+    Nominal,
+    /// An offset of the E1/E2 annotation beside it.
+    Offset(DistributionField),
+}
+
+// The field's prose, forwarded by every door that renders it. The
+// offset arm defers to `DistributionField`'s own word rather than
+// minting a second spelling of it.
+impl core::fmt::Display for DocParamField {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Nominal => f.write_str("the nominal"),
+            Self::Offset(field) => write!(f, "distribution field {field}"),
+        }
+    }
+}
+
+/// **What makes an expression's document-parameter references
+/// unusable** ([`Doc::param_ref_fault`], spec D6) — one vocabulary for
+/// the edit doors and the load door.
+///
+/// The rule is the param TABLE's: a reference names a declared
+/// parameter, and reads it at the dimension it was declared with. An
+/// expression carries the dimension it read at, so a (re)declaration
+/// that moves a parameter's dimension breaks every expression
+/// referencing it — which is why the edit door re-asks this of every
+/// slot after a declaration lands, and why a file can carry a pairing
+/// no edit door would have written.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ParamRefFault {
+    /// The expression names a parameter the document does not declare.
+    Unknown {
+        /// The name it reads.
+        name: ParamName,
+    },
+    /// The parameter is declared, at another dimension than the
+    /// expression reads it at.
+    Dimension {
+        /// The name it reads.
+        name: ParamName,
+        /// The dimension the declaration carries.
+        declared: Dimension,
+        /// The dimension the expression reads it at.
+        referenced: Dimension,
+    },
+}
+
 impl DocParam {
+    /// **The parameter's first float that is not a number** (the ruled
+    /// non-finite policy, D2), or `None` — the nominal first, then the
+    /// annotation's offsets in [`Distribution::first_non_finite`]'s
+    /// order.
+    ///
+    /// One predicate with one home, asked by the create-or-replace
+    /// edit door ([`crate::DocEdit::SetDocParam`]) and by the
+    /// save/load validator's float walk, each naming the answer in
+    /// its own vocabulary. It answers WHICH field rather than a bare
+    /// yes: the walk has to identify one to decide there is a defect
+    /// at all, and a diagnostic that names `sigma` beats one that
+    /// names only the parameter.
+    ///
+    /// A [`DocParam::Count`] carries no float and no annotation, so it
+    /// has nothing this can find.
+    pub(crate) fn first_non_finite(&self) -> Option<DocParamField> {
+        let Self::Continuous {
+            value,
+            distribution,
+            ..
+        } = self
+        else {
+            return None;
+        };
+        if !value.is_finite() {
+            return Some(DocParamField::Nominal);
+        }
+        distribution
+            .as_ref()?
+            .first_non_finite()
+            .map(DocParamField::Offset)
+    }
+
     /// **A declaration the document cannot hold, stated once**: the
     /// `Continuous` arm carries a continuous dimension, so declaring it
     /// with `Count` is the structural/continuous divide spelled two
     /// ways at once (spec D3).
     ///
-    /// One predicate with one home, asked by the create-or-replace
-    /// edit door ([`crate::DocEdit::SetDocParam`]) and by the
-    /// save/load validator's snapshot walk, each naming the answer in
-    /// its own vocabulary. The `pub` payload is what makes the state
-    /// reachable at all, which is why the question exists twice and
-    /// must be decided once.
+    /// The create-or-replace edit door ([`crate::DocEdit::SetDocParam`])
+    /// is the one that asks it, and the one where it can fire: the
+    /// `pub` payload is what makes the state reachable at all. The
+    /// save/load validator does not, because the same declaration
+    /// refuses one walk earlier there — `UnitSym::measures` answers
+    /// Length, Angle or Scalar and never Count, so a continuous
+    /// parameter declared `Count` fails the notation walk whatever
+    /// notation it carries.
     pub(crate) fn is_continuous_count(&self) -> bool {
         matches!(
             self,
@@ -752,6 +845,28 @@ impl<P> Doc<P> {
     /// Whether the document has no live nodes.
     pub fn is_empty(&self) -> bool {
         self.order.is_empty()
+    }
+
+    /// **The param-table rule, asked of one expression** — the first
+    /// reference it makes that the table cannot answer, or `None`.
+    ///
+    /// One home for the question (spec D6), read by the edit doors
+    /// over a node's slots and its payload expressions alike and by
+    /// the load door's slot walk, each naming the answer in its own
+    /// vocabulary.
+    pub(crate) fn param_ref_fault(&self, expr: &Expr) -> Option<ParamRefFault> {
+        let mut refs = Vec::new();
+        expr.param_refs(&mut refs);
+        refs.into_iter()
+            .find_map(|(name, referenced)| match self.params.get(&name) {
+                None => Some(ParamRefFault::Unknown { name }),
+                Some(p) if p.dim() != referenced => Some(ParamRefFault::Dimension {
+                    declared: p.dim(),
+                    name,
+                    referenced,
+                }),
+                Some(_) => None,
+            })
     }
 
     /// The document-level named parameters.

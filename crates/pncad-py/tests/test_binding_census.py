@@ -1314,6 +1314,30 @@ FAMILIES: dict[str, str] = {
         "entry, and one Python row asking a reversed loop for a step's "
         "edges and naming the wall each addresses."
     ),
+    # THE FIFTH ARRIVED WITH ITS DOOR TOO, and it is the one whose
+    # PYTHON half is the measurement. EDIT's
+    # `recorded-program-arguments-carry-no-notation` landed the kernel
+    # side: a recorded path program is bare `f64`s, so
+    # `LoopProgram::from_recorded_with_notation` is where a caller says
+    # what each argument was written in. The measurement that opened it
+    # is a Python one — a polygon vertex reads back `25 mm` and the same
+    # vertex authored through the paths vocabulary reads back `0.025 m`
+    # — and the binding did not move with the door because
+    # `crates/pncad-py/*` is LIB's ground.
+    # `work/lib/path-legs-erase-the-authored-notation-one-layer-down`
+    # carries the finding and unparks on the kernel door.
+    "B-PATH-NOTATION": (
+        "the notation a Python path leg was authored in — "
+        "`RecordedNotation`, which `from_recorded_with_notation` reads "
+        "to mint each literal in the unit its author wrote. Closing it "
+        "needs the path builder to record a `(step, StepArg)` entry "
+        "for every typed quantity it lowers to a `Point2<f64>` "
+        "(`py/path.rs`), `loop_program` to hand the notation to the "
+        "lifting door instead of dropping it, and one Python row "
+        "asserting that a leg authored `25 * mm` reads back `mm` off "
+        "the document slot — the disagreement with `Node.polygon` that "
+        "opened the family, inverted."
+    ),
 }
 
 #: Curated names with no Python spelling at all, by family.
@@ -2004,6 +2028,14 @@ NOT_BOUND = {
     # `doc_param_count_has_no_distribution` and to the distribution
     # fault's own tags, and those are the words a caller branches on.
     "DistributionRefusal": SHAPE,
+    # `DocParam::first_non_finite`'s answer: WHICH float of a
+    # continuous parameter is not a number — the nominal, or the
+    # offset `DistributionField` names. It is `DistributionRefusal`'s
+    # row one concept over and flattened for its reason: no Python
+    # door answers in it. Both refusals that carry it cross as their
+    # own tags (`non_finite_doc_param`, `PersistError.site`'s
+    # sentence), and those are the words a caller branches on.
+    "DocParamField": SHAPE,
     "EdgeKey": SHAPE,
     "EditRecord": SHAPE,
     "EvalOptions": SHAPE,
@@ -2143,6 +2175,7 @@ NOT_BOUND = {
     "ProfileLift": SHAPE,
     "REGENERATE_RECOURSE": SHAPE,
     "Real": SHAPE,
+    "RecordedNotation": f"{GAP}: B-PATH-NOTATION the notation a recorded path leg was authored in",
     "RecordedProgramError": SHAPE,
     "ResolveFailure": SHAPE,
     "RevolveAxis": SHAPE,
