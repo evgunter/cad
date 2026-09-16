@@ -214,18 +214,17 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
         },
         Tol::witness(),
     ) {
-        Err(EditError::ProfileProgramRefused {
-            node,
-            refusal:
+        Err(EditError::ProfileProgramRefused { node, refusal }) => {
+            assert_eq!(node, PROFILE);
+            match *refusal {
                 ProgramRefusal::Geometry {
                     loop_: 0,
                     step: 0,
                     kind,
                     ..
-                },
-        }) => {
-            assert_eq!(node, PROFILE);
-            assert_eq!(kind, profile::PathErrorKind::NonpositiveCircleRadius);
+                } => assert_eq!(kind, profile::PathErrorKind::NonpositiveCircleRadius),
+                other => panic!("r = 0 refuses at the circle's own step, got {other:?}"),
+            }
         }
         other => panic!("r = 0 must refuse at the edit door, got {other:?}"),
     }
@@ -504,16 +503,15 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
             },
             Tol::witness(),
         ) {
-            Err(EditError::ProfileProgramRefused {
-                refusal:
-                    ProgramRefusal::Transition {
-                        loop_: 0,
-                        step: 1,
-                        verb,
-                        ..
-                    },
-                ..
-            }) => assert_eq!(verb, Some(profile::Verb::ArcFilletArc)),
+            Err(EditError::ProfileProgramRefused { refusal, .. }) => match *refusal {
+                ProgramRefusal::Transition {
+                    loop_: 0,
+                    step: 1,
+                    verb,
+                    ..
+                } => assert_eq!(verb, Some(profile::Verb::ArcFilletArc)),
+                other => panic!("the refusal names the arriving transition, got {other:?}"),
+            },
             other => {
                 panic!("a {arrival:?}-carrying program must refuse at the VQ9 door, got {other:?}")
             }
