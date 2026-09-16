@@ -489,9 +489,10 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
 ///
 /// The split is DERIVED, column by column, from
 /// [`tess_lint::identity_readings`] rather than spot-checked: the
-/// constant set and the discriminating set are both named in full and
-/// must partition [`IDENTITY_COLUMNS`], so a column that changes side
-/// and an eighth column both land here rather than going uncounted.
+/// constant set and the discriminating set are both named in full, and
+/// between them they name the whole of [`IDENTITY_COLUMNS`], so a
+/// column that changes side and an eighth column both land here rather
+/// than going uncounted.
 #[test]
 fn five_of_the_seven_identity_entries_discriminate_nothing_among_the_sized_rows() {
     let rows = parse(BASELINE).expect("the committed baseline parses");
@@ -536,14 +537,6 @@ fn five_of_the_seven_identity_entries_discriminate_nothing_among_the_sized_rows(
         "the identity entries that do the separating among the sized \
          rows; readings per column {distinct:?}"
     );
-    // The arithmetic the prose states, so the prose cannot drift from
-    // it: five constant plus the live pair is the whole list.
-    assert_eq!(
-        constant.len() + discriminating.len(),
-        IDENTITY_COLUMNS.len(),
-        "every identity entry is either constant or discriminating"
-    );
-
     // What the two constant halves ARE, which is why they are
     // constant.  `chart` is the trivial member: `parse` admits the
     // sizing block only under the charts that owe it, so every sized

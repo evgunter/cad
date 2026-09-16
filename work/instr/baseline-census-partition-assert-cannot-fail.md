@@ -9,7 +9,8 @@ opened: 2026-09-08
 
 ## Finding
 
-`tools/tess-lint/tests/baseline_census.rs:228-233`:
+`tools/tess-lint/tests/baseline_census.rs`, in
+`five_of_the_seven_identity_entries_discriminate_nothing_among_the_sized_rows`:
 
 ```rust
 assert_eq!(
@@ -19,18 +20,19 @@ assert_eq!(
 );
 ```
 
-`constant` is `IDENTITY_COLUMNS` filtered on `distinct == 1` and
-`discriminating` on `distinct > 1` (`:202-213`). `distinct` is a
-`dedup`ed length over the sized rows, and `:187` already refuses an
-empty `sized`, so every entry is at least 1 and the two filters
-partition the list **by construction**. The sum is
+`constant` is `IDENTITY_COLUMNS` filtered on `**d == 1` and
+`discriminating` on `**d > 1`, over the same `distinct` vector.
+`distinct` is a `dedup`ed length over the sized rows, and the same
+test's `assert!(!sized.is_empty(), "the census needs sized rows to be
+over")` already refuses an empty `sized`, so every entry is at least 1
+and the two filters partition the list **by construction**. The sum is
 `IDENTITY_COLUMNS.len()` for every possible corpus, so the assertion
 cannot fail for the reason it states.
 
-It is subsumed twice over besides: `:216` and `:223` assert `constant`
-and `discriminating` against their exact five- and two-element lists,
-so a column changing side, or an eighth column, reds there first with
-a message naming the column.
+It is subsumed twice over besides: the two assertions above it pin
+`constant` against `["chart", "u0", "u1", "v0", "v1"]` and
+`discriminating` against `["nu", "nv"]`, so a column changing side, or
+an eighth column, reds there first with a message naming the column.
 
 ## Class
 
