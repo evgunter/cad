@@ -180,23 +180,71 @@ impl From<StableName> for NameRef {
     }
 }
 
+// The five walks below read `Held` rather than `NameRef`, and each
+// binds every one of its fields: a third field on `Held` is an E0027
+// at all five and has to be given a rendering, a comparison or a
+// stated reason to sit outside one. Without the patterns it would land
+// outside every one of them with no error anywhere, which is what this
+// buys — the handle's own field is the `Arc`, and reading THROUGH it
+// ties these impls to nothing.
+//
+// **No census sees this and none can.** The arrival census keys on the
+// impl's own self type, and every read here goes through `self.0` — a
+// tuple index into a private inner type it does not resolve. It
+// reports these impls as reading no field at all, and its own
+// blind-spot list says so
+// (`crates/test-utils/tests/hand_written_impl_census.rs`, which names
+// this file as the standing example; whether that verdict should
+// change is
+// `work/tint/census-answers-no-field-read-for-a-walk-that-reads-a-field.md`).
+// `Deref`, `AsRef` and `Borrow` are not in the group: each hands back
+// `&StableName`, so its return TYPE names the one field it projects
+// and there is no list that could be short.
+//
+// `Serialize` is not in the group either and NOT for that reason — a
+// style review caught this sentence claiming it was. It returns
+// `Result<S::Ok, S::Error>`, which names nothing, and it projects
+// `self.0.name` in its body: the same shape this group is about. It
+// sits outside because the handle has no wire form at all, which the
+// note above its impl states; that reason is about serialization, not
+// about return types.
+//
+// `NameRef::name()` and `stamped_for_tests()` read `Held`'s fields too
+// and are covered by nothing here. The group's scope is the impls
+// BELOW it, which is itself a hand-written list of impls no
+// declaration holds — a sixth walk added under `Ord` would inherit
+// this claim without being in it. Recorded rather than closed; the
+// closing instrument would be a per-impl population, which is
+// `work/tint/the-per-impl-sight-anchor-is-a-suppression-list-that-shrinks.md`.
+
 // The rendering a `NameRef` gave: the name, with no wrapper of
 // its own. Name digests are taken over this text.
 impl core::fmt::Debug for NameRef {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.0.name.fmt(f)
+        // The stamp is a cache of an order, never part of the value
+        // (D9), so it is outside the text a digest is taken over.
+        let Held { name, stamp: _ } = &*self.0;
+        name.fmt(f)
     }
 }
 
 impl core::fmt::Display for NameRef {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.0.name.fmt(f)
+        let Held { name, stamp: _ } = &*self.0;
+        name.fmt(f)
     }
 }
 
 impl PartialEq for NameRef {
     fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.0, &other.0) || self.0.name == other.0.name
+        // Stamp outside equality by D9: two names that differ only in
+        // whether a walk stamped them are the same name.
+        let Held { name, stamp: _ } = &*self.0;
+        let Held {
+            name: other_name,
+            stamp: _,
+        } = &*other.0;
+        Arc::ptr_eq(&self.0, &other.0) || name == other_name
     }
 }
 
@@ -204,7 +252,10 @@ impl Eq for NameRef {}
 
 impl core::hash::Hash for NameRef {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
-        self.0.name.hash(state);
+        // Agrees with `PartialEq` above, so the stamp is outside this
+        // for the same reason and must stay outside it.
+        let Held { name, stamp: _ } = &*self.0;
+        name.hash(state);
     }
 }
 
@@ -213,9 +264,16 @@ impl Ord for NameRef {
         if Arc::ptr_eq(&self.0, &other.0) {
             return core::cmp::Ordering::Equal;
         }
+        // Both fields are read here — the stamp as the O(1) cache of
+        // the structural order, the name as the answer it caches.
+        let Held { name, stamp } = &*self.0;
+        let Held {
+            name: other_name,
+            stamp: other_stamp,
+        } = &*other.0;
         let (a, b) = (
-            self.0.stamp.load(Ordering::Relaxed),
-            other.0.stamp.load(Ordering::Relaxed),
+            stamp.load(Ordering::Relaxed),
+            other_stamp.load(Ordering::Relaxed),
         );
         // One walk stamped both, so their positions ARE their
         // structural order. A zero stamp has epoch 0, which no walk
@@ -223,7 +281,7 @@ impl Ord for NameRef {
         if a != 0 && (a >> 32) == (b >> 32) {
             return (a as u32).cmp(&(b as u32));
         }
-        self.0.name.cmp(&other.0.name)
+        name.cmp(other_name)
     }
 }
 

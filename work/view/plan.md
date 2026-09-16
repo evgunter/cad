@@ -334,7 +334,7 @@ at ~7.33 points per digit — about **six and a half characters**, so it
 could not display `0.001667` even before any render change. A fix to a
 render that leaves the width alone is delivered clipped, and a clipped
 render reads as a different value, which is the defect again. The field
-is now 88 points with `the_field_shows_the_longest_render` measuring
+is now 88 points with `the_field_shows_every_render_the_bound_covers` measuring
 both numbers through egui's own font metrics (the crate sets no text
 styles, so headless metrics are the app's) and going red at 56.
 
