@@ -51,3 +51,53 @@ sweep the same day (`3a8dd05fe`) by putting the closing PR's number in the
 citing row. The five ids map to PRs 2167, 2151, 2115, 2140 and 2179, derived
 twice; the row carries the mapping and the derivation. The sweep makes the
 substitutions in its own commit, as GATES' did across three programs' rows.
+
+## Unit 4 closes; the review caught the fix reproducing its own defect twice (2026-09-16)
+
+`baseline-census-partition-assert-cannot-fail` is CLOSED. The
+partition assert is DELETED rather than replaced: the item offered
+*"assert that `distinct` has no zero entry"*, and the same
+`!sized.is_empty()` guard three lines above makes both unfailable, so
+the replacement would have been the defect with a new message.
+
+**The style review earned its dispatch twice over, and both times on
+the assertion or the prose the unit KEPT rather than on what it wrote.**
+
+First: given `distinct[i] >= 1`, once the `constant` assert passes the
+`discriminating` one is forced to be the rest of `IDENTITY_COLUMNS` in
+order, so **no re-cut of the baseline can red it alone** — the pair is
+one assertion against a change in the DATA, not two. The PR body's
+*"say strictly more"* was half-false for exactly the reason the deleted
+assert said nothing. It stays (a source edit adding or removing a
+column still reds it), and it now carries the disclosure this file
+already gives at three other sites.
+
+Second, and this is the one worth remembering: the fix pass's FIRST
+reword of the doc comment moved the partition claim from the assert
+into prose — *"between them they name the whole of `IDENTITY_COLUMNS`"*
+— a static claim about two literals that no code computes, in a file
+whose own module docs say *"a number transcribed into prose is a number
+nothing can check"*. The lane did not catch that re-reading its own
+diff. `docs/REVIEW-STYLE-DISPATCH.md` §2 predicts exactly this and the
+reviewer brief says only a non-author has ever caught it; both held.
+
+**Six rows filed, one of them a correction to this orchestrator's
+adjudication.** I told the lane to add the `C15.md` evidence to
+`tess-budget-doc-identity-column-list` rather than open a row; the lane
+flagged that the subjects differ (membership of the identity list
+versus the split among sized rows) and asked me to re-check. It was
+right, and for a reason neither of us had named at first: **that row is
+unit 2's and closes when unit 2 lands**, unit 2 will never touch
+`C15.md`, and `work/README.md` holds that a residue inside a closed
+item's prose *"reads as a record of work done, not as an open thread …
+and dies with the directory"*. Split into
+`c15-transcribes-the-sized-row-identity-split`, with a pointer left on
+the membership row.
+
+The lane also corrected a count I had passed through from the review
+without checking: the scene-set derivation has THREE sites, not five —
+`by_totals` derives recoverable-`SceneTotals` scenes and `scenes`
+derives every scene, different sets in the same idiom. Filing my
+framing verbatim would have put a wrong count in the tracker. The
+dispatcher's own exposure, exactly as `docs/REVIEW-STYLE-DISPATCH.md`
+§3 states it.

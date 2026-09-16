@@ -2,8 +2,9 @@
 id: baseline-census-partition-assert-cannot-fail
 kind: issue
 title: baseline_census's constant-plus-discriminating sum is a fact about the two filters, not about the corpus
-status: open
+status: closed
 opened: 2026-09-08
+closed: 2026-09-16
 ---
 
 
