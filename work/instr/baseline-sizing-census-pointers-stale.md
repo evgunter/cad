@@ -2,8 +2,9 @@
 id: baseline-sizing-census-pointers-stale
 kind: issue
 title: Seven mentions of tools/tess-lint/tests/baseline_sizing_census.rs survive the file, one of them in code; and one line citation had already moved
-status: open
+status: closed
 opened: 2026-09-08
+closed: 2026-09-16
 ---
 
 
