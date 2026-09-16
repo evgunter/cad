@@ -1320,14 +1320,21 @@ pub enum ValidationError {
     /// a cross-solid candidate pair the census can neither examine
     /// nor definitely clear — refused loudly as UNDECIDABLE instead
     /// of silently not looked at (A5's letter: decide or refuse,
-    /// never silently not-examine). Two classes fire it today: a
+    /// never silently not-examine). Two arms fire it: arm 1, on a
     /// cross-solid curved face pair within reach of each other (the
     /// C9-ring conformal-rest/proximity class — the exclusion ring
-    /// is the certified excluder this backstop stands in for), and
-    /// one instance's vertex hull inside another's REACH box (C6's
-    /// interference class — representable only through recorded
-    /// gate-skips, which do not exist yet; the containing side must be
-    /// a superset of its locus or a nested body clears silently).
+    /// is the certified excluder this backstop stands in for); and
+    /// arm 2, the instance-containment arm, on what its MATERIAL test
+    /// could not answer. Arm 2's box test is the gate, not the
+    /// verdict: a pair no extent margin definitely separates goes to
+    /// the material test (the contained instance's vertices against
+    /// the container's material through the per-solid point-in-solid
+    /// door), and this variant carries only its residue — a standing
+    /// crossing or unexamined finding on the pair, a witness the door
+    /// refused, a container whose extent no sound box claims, or an
+    /// instance whose every vertex lies on the container's boundary.
+    /// A decided interference is
+    /// [`ValidationError::InstanceInterference`], never this.
     CensusUndecidable {
         /// One side of the pair the census cannot clear.
         a: EntityId,
@@ -1335,6 +1342,27 @@ pub enum ValidationError {
         b: EntityId,
         /// The not-yet-supported class, named.
         what: &'static str,
+    },
+    /// Tier 3′ (the census's instance-containment arm): one instance's
+    /// material contains a vertex of another's — an interference fit,
+    /// DECIDED by the material test and not undecidable. A vertex
+    /// strictly inside another instance's material is an overlap of
+    /// the two materials by itself (`census.rs` arm 2 states what the
+    /// arm probes and why). Recorded gate-skips — the declaration that
+    /// would admit a deliberate interference — do not exist, so no
+    /// record can answer for this finding.
+    InstanceInterference {
+        /// The instance whose material holds the witness. Nothing about
+        /// size or nesting is implied: the arm probes both instances'
+        /// vertices against the other's material, and a container's
+        /// own vertex inside the part it surrounds is reported with the
+        /// part as `outer`.
+        outer: SolidKey,
+        /// The instance that owns the witness.
+        inner: SolidKey,
+        /// `inner`'s first vertex in arena order found strictly inside
+        /// `outer`'s material.
+        witness: VertexKey,
     },
     /// An entity holds a topology key that does not resolve in its arena.
     /// Reported once per occurrence (a parent listing the same dangling
@@ -2078,6 +2106,19 @@ impl fmt::Display for ValidationError {
                  than silently not looked at; separate the bodies, or wait for the \
                  named lane (the exclusion ring for curved proximity; the \
                  recorded gate-skips for declared interference)"
+            ),
+            Self::InstanceInterference {
+                outer,
+                inner,
+                witness,
+            } => write!(
+                f,
+                "tier-3′ census: solid {outer:?}'s material contains vertex {witness:?} of \
+                 solid {inner:?} — an interference fit, decided by the material test (the two \
+                 instances' boundaries do not cross, so one vertex strictly inside places the \
+                 contained instance's whole interior inside); recorded gate-skips do not \
+                 exist, so no declaration admits an interference — separate the instances, \
+                 or make the overlap a boolean's working state"
             ),
             Self::DanglingTopology { from, to } => {
                 write!(f, "{from} references {to}, which does not resolve")
@@ -5317,7 +5358,7 @@ fn pseudomanifold_certificate_via<T: crate::props::PropsQuadLane + geom_core::Bo
         .collect();
     let (mut errors, certificate) = tier3_local_checks(body, &declarations, band, tol, nurbs_lane);
     if errors.is_empty() {
-        errors.extend(crate::census::census_and_certify(body, contacts, band));
+        errors.extend(crate::census::census_and_certify(body, contacts, band, tol));
     }
     if errors.is_empty() {
         Ok(certificate_of_a_clean_verdict(certificate))
@@ -7218,6 +7259,11 @@ mod tests {
                 a: EntityId::Face(t.face_a),
                 b: EntityId::Face(t.face_a),
                 what: "what",
+            },
+            ValidationError::InstanceInterference {
+                outer: t.solid,
+                inner: t.solid,
+                witness: crate::entity::VertexKey::default(),
             },
             ValidationError::NullScaffoldShared {
                 curve: CurveKey::default(),

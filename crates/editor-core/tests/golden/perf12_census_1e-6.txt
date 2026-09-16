@@ -110,11 +110,11 @@ UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(68v1), b: EdgeKey(131v
 UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(69v1), b: EdgeKey(130v1) }, witness: "(1.6875, 0.5, 1.0)" }
 UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(71v1), b: EdgeKey(127v1) }, witness: "(1.6875, 0.875, 0.625)" }
 UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(72v1), b: EdgeKey(128v1) }, witness: "(1.5, 0.875, 0.625)" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(2v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(3v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(4v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(5v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(6v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(2v1), witness: VertexKey(49v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(3v1), witness: VertexKey(57v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(4v1), witness: VertexKey(65v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(5v1), witness: VertexKey(73v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(6v1), witness: VertexKey(81v1) }
 ## crossing_slots
 solids=1 faces=18 edges=48 vertices=32
 assemble: Ok
@@ -204,7 +204,7 @@ CensusUndecidable { a: Face(FaceKey(19v1)), b: Face(FaceKey(48v1)), what: "cross
 CensusUndecidable { a: Face(FaceKey(21v1)), b: Face(FaceKey(48v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
 CensusUndecidable { a: Face(FaceKey(22v1)), b: Face(FaceKey(48v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
 CensusUndecidable { a: Face(FaceKey(24v1)), b: Face(FaceKey(48v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
-CensusUndecidable { a: Solid(SolidKey(4v1)), b: Solid(SolidKey(1v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
+CensusUndecidable { a: Solid(SolidKey(4v1)), b: Solid(SolidKey(1v1)), what: "every vertex of the contained instance lies on the containing instance's boundary — a placement its vertices do not decide" }
 ## cut_cylinder
 solids=2 faces=8 edges=12 vertices=8
 assemble: Err(AtRest)
@@ -412,15 +412,15 @@ UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(68v1), b: EdgeKey(131v
 UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(69v1), b: EdgeKey(130v1) }, witness: "(1.6875, 0.5, 1.0)" }
 UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(71v1), b: EdgeKey(127v1) }, witness: "(1.6875, 0.875, 0.625)" }
 UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(72v1), b: EdgeKey(128v1) }, witness: "(1.5, 0.875, 0.625)" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(2v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(3v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(4v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(5v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(6v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(7v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(8v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(9v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(10v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(2v1), witness: VertexKey(49v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(3v1), witness: VertexKey(57v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(4v1), witness: VertexKey(65v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(5v1), witness: VertexKey(73v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(6v1), witness: VertexKey(81v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(7v1), witness: VertexKey(89v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(8v1), witness: VertexKey(97v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(9v1), witness: VertexKey(105v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(10v1), witness: VertexKey(113v1) }
 ## heat_sink@40
 solids=41 faces=271 edges=552 vertices=368
 assemble: Err(AtRest)
@@ -541,15 +541,15 @@ UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(68v1), b: EdgeKey(131v
 UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(69v1), b: EdgeKey(130v1) }, witness: "(1.6875, 0.5, 1.0)" }
 UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(71v1), b: EdgeKey(127v1) }, witness: "(1.6875, 0.875, 0.625)" }
 UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(72v1), b: EdgeKey(128v1) }, witness: "(1.5, 0.875, 0.625)" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(2v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(3v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(4v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(5v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(6v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(7v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(8v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(9v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(10v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(2v1), witness: VertexKey(49v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(3v1), witness: VertexKey(57v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(4v1), witness: VertexKey(65v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(5v1), witness: VertexKey(73v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(6v1), witness: VertexKey(81v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(7v1), witness: VertexKey(89v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(8v1), witness: VertexKey(97v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(9v1), witness: VertexKey(105v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(10v1), witness: VertexKey(113v1) }
 ## heat_sink@160
 solids=161 faces=991 edges=1992 vertices=1328
 assemble: Err(AtRest)
@@ -670,12 +670,12 @@ UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(68v1), b: EdgeKey(131v
 UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(69v1), b: EdgeKey(130v1) }, witness: "(1.6875, 0.5, 1.0)" }
 UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(71v1), b: EdgeKey(127v1) }, witness: "(1.6875, 0.875, 0.625)" }
 UndeclaredContact { contact: EdgeEdgeOverlap { a: EdgeKey(72v1), b: EdgeKey(128v1) }, witness: "(1.5, 0.875, 0.625)" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(2v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(3v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(4v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(5v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(6v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(7v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(8v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(9v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
-CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(10v1)), what: "instance extent boxes not definitely separable from containment — the same interference class, in band" }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(2v1), witness: VertexKey(49v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(3v1), witness: VertexKey(57v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(4v1), witness: VertexKey(65v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(5v1), witness: VertexKey(73v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(6v1), witness: VertexKey(81v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(7v1), witness: VertexKey(89v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(8v1), witness: VertexKey(97v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(9v1), witness: VertexKey(105v1) }
+InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(10v1), witness: VertexKey(113v1) }

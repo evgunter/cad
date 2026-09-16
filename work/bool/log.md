@@ -656,3 +656,38 @@ limits — the OrderAlong half on WIRE's slate
 collapse half filed here
 (`side-of-vanish-by-fragment-group-collapse-stays-at-the-evidence-free-rungs`).
 Lane reclaimed. Window tally: BOOL-5 +0, BOOL-6 +0, BOOL-7 +1 (fable).
+
+## BOOL-4 merged (2026-09-16) — the last unit
+
+PR #2767 merged at the fix-pass head eeda139a0 plus one landing merge
+of main (BOOL-7's editor-core changes; CI re-run on the merged head).
+A/B row BOOL4, ordinal 1112, sample #217, no tally candidate (both
+MAJORs falsified the same claim — the single-witness invariant — by
+different constructions: a crossing degraded to vertex-on-face
+touches; a container's void shell inside the part). The fix pass
+redesigned the arm's soundness conditions (every vertex, both
+orderings always, rest-only touches under a local side analysis, the
+honest argument) and withdrew the forward-binding design-page clause
+the first head had added. Items closed: BOOL-4 and issue 750
+(`containment-examination-is-extent-box-coarse`). Filed forward on
+CURVED: `partial-overlap-with-touch-only-boundaries-clears-at-the-census-gate`,
+`touch-kinds-without-a-local-side-analysis-block-the-material-test`;
+on TOPO: `an-inside-out-part-passes-tier-3-because-only-the-body-total-volume-is-pinned`.
+Lane reclaimed. Every unit on the slate is merged; the exit walk
+follows (`docs/S-BOOL-EXIT-WALK.md`).
+
+## Exit walk proposed; residue re-homed; PATHS opened (2026-09-16)
+
+Ev, in chat 2026-09-16: finish the units, close the program, and roll
+the residue over to a new program where it coheres. Every unit is
+merged (thirteen, ordinals 1100–1112; window tally BOOL-9 +1 fable,
+BOOL-10 +1 opus, BOOL-7 +1 fable). `docs/S-BOOL-EXIT-WALK.md` is
+proposed in the same PR that opens `work/paths/` (PATHS — the profile
+lattice, band 5000–5099) and moves every open item off this slate by
+file: the eight lattice items to PATHS; 23 boolean, containment, join
+and declaration items and six Track Q rows to CURVED; four to TOPO;
+six to BLEND (with `crates/sweep/src/loft.rs` passing to BLEND's
+`paths`); one each to GUARD, LIB and WIRE; three Track Q ledger rows
+to PRED, two to S-TINT, one to PROPS; the two heat-sink demo items to
+`work/issues/`. BOOL-Q closed as dissolved. This directory is deleted
+at the walk's ratification, per `work/README.md`.
