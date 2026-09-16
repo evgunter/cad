@@ -763,3 +763,97 @@ fn opposite_fragments_get_opposite_answers() {
         "and they name it with opposite signs"
     );
 }
+
+#[test]
+fn a_partner_behind_a_pattern_and_a_part_is_probed_at_the_operand() {
+    // The second pass-through kind, after `Transform`
+    // (`bool7r1_probes::a_partner_behind_a_transform_is_probed_against_which_body`
+    // is the first): the bar reaches the boolean through THREE
+    // name-preserving placers — a transform, a linear pattern, and a
+    // `Part` selecting one instance out of it. The partner names are
+    // still the bar's own extrude-node names, carried unchanged the
+    // whole way, so a table scan finds them on the unplaced extrude
+    // and reads a carrier the boolean never saw.
+    //
+    // Walking the minting node's inputs lands on the `Part`, whatever
+    // the chain above it is, which is the body the boolean consumed.
+    let doc = ProfileDoc::empty_derived("bool7-part", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
+    let (doc, bar) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
+    let (doc, tr) = insert(
+        doc,
+        Node::Transform {
+            input: bar,
+            translation: [len(0.0), len(0.0), len(0.0)],
+            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+            rotation_angle: ang(0.0),
+        },
+    );
+    let (doc, pat) = insert(
+        doc,
+        Node::Pattern {
+            input: tr,
+            count: editor_core::Expr::count(2),
+            kind: editor_core::PatternKind::Linear {
+                direction: [scl(0.0), scl(1.0), scl(0.0)],
+                spacing: len(20.0),
+            },
+        },
+    );
+    let (doc, part) = insert(
+        doc,
+        Node::Part {
+            of: pat,
+            select: editor_core::PartSelect::Instance(editor_core::Expr::count(0)),
+        },
+    );
+    let (doc, cut) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Subtract,
+            a,
+            b: part,
+            declare: None,
+        },
+    );
+    let ev1 = run(&doc, None);
+    let frags = side_of_fragments(&ev1, cut);
+    assert_eq!(frags.len(), 2, "the bar still splits the cap");
+    let doc2 = step(
+        doc.clone(),
+        DocEdit::SetParam {
+            node: tr,
+            slot: SlotId::Translation(Axis3::X),
+            expr: len(-5.0),
+        },
+    )
+    .0;
+    let ev2 = run(&doc2, Some(&ev1));
+    let res = resolve_with_prior(
+        RunCtx {
+            doc: &doc2,
+            eval: &ev2,
+        },
+        RunCtx {
+            doc: &doc,
+            eval: &ev1,
+        },
+        &frags[0],
+        Tol::witness(),
+    );
+    let Diagnosis::PredicateFlip {
+        from,
+        to,
+        source: FlipSource::ShadowExec { partner },
+        ..
+    } = vanished(&res)
+    else {
+        panic!("expected the recovered flip, got {:?}", vanished(&res));
+    };
+    assert_ne!(from, to);
+    assert_eq!(
+        Some(*from),
+        recorded_verdict(&frags[0], partner).map(sign_of),
+        "and it calibrates against the qualifier through three placers"
+    );
+}
