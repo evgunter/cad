@@ -4,6 +4,7 @@ kind: unit
 title: EDIT-PICK3: the pick door answers a t interval, orders by it, breaks a certified tie by width
 status: review
 branch: edit/pick-t-interval
+pr: 2786
 opened: 2026-09-16
 ---
 
