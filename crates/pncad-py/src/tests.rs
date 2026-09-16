@@ -4740,7 +4740,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "recorded_program_error_tag",
-        values: &["carrier_in_chain", "subdivision_count"],
+        values: &[
+            "carrier_in_chain",
+            "notation_off_program",
+            "subdivision_count",
+        ],
         delegates: &["expr_dimension_error_tag"],
     },
     TagEntry {

@@ -23,6 +23,7 @@
 test_utils::gated_to![
     "crates/editor-core/src/program.rs",
     "crates/editor-core/src/node.rs",
+    "crates/editor-core/tests/fixture/",
 ];
 
 use crate::fixture;
