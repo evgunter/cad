@@ -231,7 +231,7 @@ fn probe_two_full_circle_meridians_on_two_planes() {
 /// (Δu = π) — the blind spot the PR files forward — the ambiguity band
 /// escalates, and past `escalate` the wedge arm reads the slit's own
 /// width.
-fn ladder<T: Real>(label: &str) -> Vec<(f64, Result<T, PropsError>)> {
+fn ladder<T: Real + geom_core::Decide>(label: &str) -> Vec<(f64, Result<T, PropsError>)> {
     let band = band();
     let zero_over_r = eps() / RS;
     let mut out = Vec::new();
