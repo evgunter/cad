@@ -5565,4 +5565,7 @@ and `work/wire/three-emission-bugs-do-not-speak-the-framing-written-once-for-the
 (`EMISSION_FRAMING` claims "every emission-inconsistency refusal opens
 with" it; three of six do not).
 
+Verified green on hosted run `35039975831` (39 jobs, 33 success, 6 skipped,
+twelve `test (…)`, five `k-lint (gate, …)`, python suite green).
+
 Signed (`wire-e2`).
