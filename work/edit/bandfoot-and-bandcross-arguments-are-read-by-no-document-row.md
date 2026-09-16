@@ -1,7 +1,7 @@
 ---
 id: bandfoot-and-bandcross-arguments-are-read-by-no-document-row
 kind: issue
-title: No document row reads a BandFoot's or BandCross's argument — the ladder rim phase's other two mints ride check_total alone
+title: No document row reads a BandFoot's, BandCross's, BandFace's or BandSlit's argument — four blend mints ride check_total and a count alone
 status: open
 opened: 2026-09-16
 ---
@@ -36,10 +36,39 @@ leaves a total, duplicate-free table and is caught only by the row that
 reads the argument.
 
 Every other hit in `crates/editor-core/tests/*.rs` for these two roles
-is an exhaustive `match` arm that classifies a role into a word
-(`m6_composed_node.rs`, `m6_5_downstream.rs`) or a covariance walk over
-whatever `NameRef`s a segment wraps (`m4_pr4_resolve.rs`). None of them
-says what argument the role should carry.
+is one of three shapes, and none of them says what argument the role
+should carry:
+
+- an exhaustive `match` arm that classifies a role into a word
+  (`m6_composed_node.rs`, `m6_5_downstream.rs`);
+- a covariance walk over whatever `NameRef`s a segment wraps
+  (`m4_pr4_resolve.rs`);
+- a COUNT filtered on the role —
+  `blend5_r1_probes.rs`'s
+  `a_cone_on_cone_rim_mints_a_band_foot_though_it_has_no_planar_support`
+  filters the table on `Some(RoleSeg::BandFoot(_))` and asserts the
+  count is positive. That row's subject is the doc comment's "planar
+  support" wording, and the count is the right instrument for it: it
+  says a band foot is minted on a rim with no planar support. But a
+  count reads no argument — it discards the `NameRef` with the
+  wildcard, so it is green under any permutation of the source rim
+  vertices, which is exactly the mutant this row is about.
+
+## Two more, measured in the fix pass (2026-09-16)
+
+`RoleSeg::BandFace` (`rec.bands`) and `RoleSeg::BandSlit` (`rec.slits`)
+are in the same state, by the same test.
+`blend5_rim_support.rs`'s `a_closed_rim_carve_names_its_whole_output`
+asserts `count(BandFace(_)) == 1` and `count(BandSlit(_)) == 1` — the
+right instrument for what that row says (one band face rounds the rim,
+one slit keeps it ring-free), and no reading of either argument.
+`BandFace` carries the SET of source rim edge names and `BandSlit` the
+meridian it was slit along; permuting either across the mints leaves
+both counts and `check_total` green.
+
+`BandTrim` is not in this group: the same suite's `trims` helper reads
+its `support` argument against the surface the named edge actually lies
+on.
 
 ## What a taker owes
 

@@ -1560,6 +1560,47 @@ pub const ROD_L: f64 = 1.0;
 /// rod's four numbers.
 pub const ROD_FILLET: f64 = 0.1;
 
+/// **The chord a flat cuts on the [`ROD_R`] circle, and the two arcs it
+/// leaves** — see [`rod_chord_at`].
+#[derive(Debug, Clone, Copy)]
+pub struct RodChord {
+    /// Half the chord's length: the flat's half-width, and the offset
+    /// of each of its two ends from the foot of the perpendicular.
+    pub half: f64,
+    /// The bulge of the arc the flat LEAVES STANDING — the D-profile
+    /// rod's cylindrical wall — traversed counter-clockwise about the
+    /// circle's centre, from the chord end at `+half` to the one at
+    /// `−half`.
+    pub wall_bulge: f64,
+    /// The bulge of the arc the flat CUTS AWAY — the section that
+    /// stands on a block's top edge, or sinks into it — traversed
+    /// counter-clockwise, the other way round the same two ends.
+    pub section_bulge: f64,
+}
+
+/// **The chord a plane `flat` from the axis cuts on the [`ROD_R`]
+/// circle.** One home for the D-profile's arithmetic: `half` is
+/// `sqrt(ROD_R² − flat²)`, and each arc's bulge is `tan(sweep / 4)` of
+/// the angle it subtends at the centre, the two sweeps summing to a
+/// turn.
+///
+/// Every ruled fixture in the tree is this chord at some `flat`: the
+/// D-profile rod ([`rod_d_profile_of_length_at`]) extrudes the wall
+/// arc, and a rod's section standing on — or sunk into — a block's top
+/// edge extrudes the section arc. `flat` may be negative (a flat past
+/// the axis), and the two fields keep their meanings there: the wall
+/// arc is then the shorter of the two.
+#[must_use]
+pub fn rod_chord_at(flat: f64) -> RodChord {
+    let half = (ROD_R * ROD_R - flat * flat).sqrt();
+    let wall = 2.0 * (core::f64::consts::PI - half.atan2(flat));
+    RodChord {
+        half,
+        wall_bulge: (wall / 4.0).tan(),
+        section_bulge: ((core::f64::consts::TAU - wall) / 4.0).tan(),
+    }
+}
+
 /// **The rod with a flat milled along it** — the `CylinderPlaneCylinder`
 /// consumer: a cylinder of radius [`ROD_R`] about `z` over
 /// `z ∈ [0, ROD_L]`, minus a box whose face at `x = ROD_FLAT` planes the
@@ -1607,12 +1648,10 @@ pub fn rod_d_profile_at<T: Decide + PcurveFittedLane>(tol: Tol) -> Body<T> {
 /// the cap lever are pinned on.
 pub fn rod_d_profile_of_length_at<T: Decide + PcurveFittedLane>(len: f64, tol: Tol) -> Body<T> {
     let f = T::from_f64;
-    let y = (ROD_R * ROD_R - ROD_FLAT * ROD_FLAT).sqrt();
-    let theta = 2.0 * (core::f64::consts::PI - y.atan2(ROD_FLAT));
-    let bulge = (theta / 4.0).tan();
+    let c = rod_chord_at(ROD_FLAT);
     let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(f(ROD_FLAT), f(y)), f(bulge)),
-        ProfileVertex::new(Point2::new(f(ROD_FLAT), f(-y)), f(0.0)),
+        ProfileVertex::new(Point2::new(f(ROD_FLAT), f(c.half)), f(c.wall_bulge)),
+        ProfileVertex::new(Point2::new(f(ROD_FLAT), f(-c.half)), f(0.0)),
     ]);
     extruded(SketchPlane::<T>::xy(), vec![lp], f(len), tol)
 }

@@ -1,10 +1,13 @@
 //! **A ruled carve's band ends, named at the document layer** — a rod
-//! with a flat driven through `Node::Fillet`, and the three roles a
-//! transverse cap mints read off the fillet node's name table:
-//! [`RoleSeg::EndArc`] (the cut-off arc), [`RoleSeg::FootVertex`] (the
-//! two cap feet) and [`RoleSeg::BandCut`] (the surviving rim piece).
+//! with a flat driven through `Node::Fillet`, and the five roles a
+//! transverse cap's carve mints, read off the fillet node's name table
+//! by six rows: [`RoleSeg::EndArc`] (the cut-off arc),
+//! [`RoleSeg::FootVertex`] (the two cap feet), [`RoleSeg::TrimEdge`]
+//! (the trimline along each support), [`RoleSeg::BandCut`] (the
+//! surviving rim piece) and [`RoleSeg::FromTarget`] (the source cap
+//! vertex a survivor still reaches).
 //!
-//! **What is first here is the RULED band, not the roles.** All three
+//! **What is first here is the RULED band, not the roles.** All five
 //! roles already reach `names::emit_fillet` from the registry — the
 //! corpus's `die_fillet` mints feet and end arcs at every corner of its
 //! cube, and `blend5_rim_support` drives a closed rim. What no document
@@ -45,11 +48,19 @@
 //! Two documents, the pair the ruled header pins through the extrude
 //! door: the D-profile rod (convex creases, the band REMOVES material)
 //! and a rod's section standing on a block's top edge (concave creases,
-//! the band ADDS it, and the cap gains the region under the arc). The
-//! names are the same set, which is the claim — the emitter reads no
-//! convexity. The concave twin also carries a rim that only ONE crease
-//! cuts, so one of its `BandCut` pieces runs from a foot to a surviving
-//! source vertex rather than from foot to foot.
+//! the band ADDS it, and the cap gains the region under the arc). Both
+//! are the same chord on the same [`ROD_R`] circle at the same
+//! [`ROD_FLAT`] standoff (`sweep::test_support::rod_chord_at`): the
+//! rod extrudes the arc the flat leaves standing, the sunk rod the arc
+//! it cuts away. The sign is not assumed — it is asserted, one
+//! comparison each, by
+//! [`a_convex_band_removes_material_and_a_concave_one_adds_it`], which
+//! is what makes "both material sides" a claim rather than a label.
+//!
+//! The names are the same set, which is the second claim — the emitter
+//! reads no convexity. The concave twin also carries a rim that only
+//! ONE crease cuts, so one of its `BandCut` pieces runs from a foot to
+//! a surviving source vertex rather than from foot to foot.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -63,23 +74,34 @@ use editor_core::{
 };
 use fixture::{len, scl};
 use geom_core::{Point3, Tol};
-use sweep::test_support::{ROD_FILLET, ROD_FLAT, ROD_L, ROD_R};
-use topo::{Body, EdgeKey, VertexKey};
+use sweep::test_support::{ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, rod_chord_at};
+use topo::{Body, EdgeKey, FaceKey, LoopBoundary, VertexKey};
 
-/// The concave twin's cylinder radius, its axis depth below the block's
-/// top plane and the block's length along the ruling — the three
-/// numbers `sweep`'s `review_fillet_h7_r1_probes` builds its sunk rod
-/// from, which it holds as private constants.
-const RC: f64 = 0.5;
-const S: f64 = 0.3;
-const BLOCK_L: f64 = 1.0;
+/// **The closest pair any row here has to tell apart**: a foot and the
+/// source cap vertex it was retracted from, measured across both
+/// fixtures by
+/// [`the_closest_pair_a_row_must_tell_apart_is_a_foot_and_its_source_vertex`],
+/// which is also what pins this number.
+///
+/// It is NOT `ROD_FILLET`: the retraction runs along the support, not
+/// along the crease, so it is shorter than the fillet radius — and on
+/// the sunk rod's cylinder shorter still, because the concave band's
+/// foot sits where the ball rests in the void.
+const FOOT_TO_SOURCE: f64 = 0.043_099_918_793_752_2;
 
-/// Both fixtures' points are metres of order 1 and every quantity below
-/// is a distance, so one absolute window serves them all. It is far
-/// above `f64` rounding of these arithmetics and far below any
-/// difference the rows are asked to tell apart (the closest pair is a
-/// foot and the source vertex it was retracted from, `ROD_FILLET` apart).
-const NEAR: f64 = 1e-9;
+/// **The window for the rows that need one**, derived: a seven-decade
+/// margin below [`FOOT_TO_SOURCE`]. Both fixtures' points are metres of
+/// order 1 and every quantity compared through it is a distance, so one
+/// absolute window serves them all, and it sits far above `f64` rounding
+/// of these arithmetics (~1e-16) and far below the nearest difference a
+/// row is asked to see.
+///
+/// It is used ONLY where the compared value is computed — a distance
+/// from a surface, a separation. Where the comparison is against a
+/// coordinate the source body STORES, the rows compare exactly; a
+/// window there would report agreement the carve does not actually
+/// deliver.
+const NEAR: f64 = FOOT_TO_SOURCE * 1e-7;
 
 fn tol() -> Tol {
     Tol::witness()
@@ -98,6 +120,17 @@ enum RimEnd {
     Source(u32),
 }
 
+/// Which way a fixture's bands move material — the fixture's material
+/// side, asserted by
+/// [`a_convex_band_removes_material_and_a_concave_one_adds_it`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Side {
+    /// Convex creases: the band is carved out of the solid.
+    Removes,
+    /// Concave creases: the band fills the notch in.
+    Adds,
+}
+
 /// One ruled-carve fixture: the document, its extrude and fillet nodes,
 /// and the structure the rows walk.
 struct Ruled {
@@ -105,21 +138,25 @@ struct Ruled {
     doc: ProfileDoc,
     rod: RecipeNodeId,
     fillet: RecipeNodeId,
+    /// Which way the carve moves material on this fixture.
+    side: Side,
     /// Per crease: the profile vertex its lateral edge stands at, and
     /// the two profile segments whose walls support it.
     creases: &'static [(u32, [u32; 2])],
     /// Per cap: the rim segments the carve cut, and what each
     /// survivor's two ends are.
     rims: &'static [(u32, [RimEnd; 2])],
-    /// How far `p` is from the surface of segment `seg`'s wall — zero
-    /// on it. The row that reads a foot's `support` argument checks the
-    /// foot against THIS.
+    /// How far `p` is from the SURFACE segment `seg`'s wall is a region
+    /// of — zero on it, and zero on every other face of the same
+    /// surface, which is why it is only half of what the foot row
+    /// checks (see [`support_face`]).
     residual: fn(u32, Point3<f64>) -> f64,
 }
 
 /// A one-loop extruded document with its ruling creases filleted.
 fn carve(
     what: &'static str,
+    side: Side,
     lp: LoopProgram,
     height: f64,
     creases: &'static [(u32, [u32; 2])],
@@ -159,6 +196,7 @@ fn carve(
         doc,
         rod,
         fillet,
+        side,
         creases,
         rims,
         residual,
@@ -174,18 +212,18 @@ fn carve(
 /// walls of segments `j − 1` and `j`, so both of them are
 /// cylinder-meets-plane creases along the ruling.
 fn d_rod() -> Ruled {
-    let y = (ROD_R * ROD_R - ROD_FLAT * ROD_FLAT).sqrt();
-    let theta = 2.0 * (core::f64::consts::PI - y.atan2(ROD_FLAT));
+    let c = rod_chord_at(ROD_FLAT);
     let lp = LoopProgram::Chain(vec![
-        ProgramStep::At([len(ROD_FLAT), len(y)]),
+        ProgramStep::At([len(ROD_FLAT), len(c.half)]),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
-            target: ProgramTarget::Point([len(ROD_FLAT), len(-y)]),
-            b: scl((theta / 4.0).tan()),
+            target: ProgramTarget::Point([len(ROD_FLAT), len(-c.half)]),
+            b: scl(c.wall_bulge),
         }),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     carve(
         "d_rod",
+        Side::Removes,
         lp,
         ROD_L,
         &[(0, [1, 0]), (1, [0, 1])],
@@ -201,9 +239,11 @@ fn d_rod() -> Ruled {
     )
 }
 
-/// **A rod's section standing on a block's top edge**: the minor arc of
-/// the `RC` circle about `(0, −S)` rising above `y = 0`, on a block
-/// whose top plane it interrupts. Its two creases are CONCAVE — the
+/// **A rod's section standing on a block's top edge**: the SECTION arc
+/// of the [`ROD_R`] circle about `(0, −ROD_FLAT)` — the piece the rod's
+/// own flat cuts away — rising above `y = 0`, on a block whose top
+/// plane it interrupts. Same circle, same standoff, same chord as
+/// [`d_rod`]; the other arc of it. Its two creases are CONCAVE — the
 /// band ADDS material and the cap GAINS the region under the arc.
 ///
 /// The arc is segment 3; the top plane is TWO faces (segments 2 and 4),
@@ -211,8 +251,8 @@ fn d_rod() -> Ruled {
 /// plane supports. Segment 3's cap rim is cut by both creases,
 /// segments 2's and 4's by one each.
 fn sunk_rod() -> Ruled {
-    let xv = (RC * RC - S * S).sqrt();
-    let minor = 2.0 * (xv / RC).asin();
+    let c = rod_chord_at(ROD_FLAT);
+    let xv = c.half;
     let pt = |x: f64, y: f64| [len(x), len(y)];
     let lp = LoopProgram::Chain(vec![
         ProgramStep::At(pt(-1.0, -1.0)),
@@ -221,15 +261,16 @@ fn sunk_rod() -> Ruled {
         ProgramStep::LineTo(ProgramTarget::Point(pt(xv, 0.0))),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
             target: ProgramTarget::Point(pt(-xv, 0.0)),
-            b: scl((minor / 4.0).tan()),
+            b: scl(c.section_bulge),
         }),
         ProgramStep::LineTo(ProgramTarget::Point(pt(-1.0, 0.0))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     carve(
         "sunk_rod",
+        Side::Adds,
         lp,
-        BLOCK_L,
+        ROD_L,
         &[(3, [2, 3]), (4, [3, 4])],
         &[
             (2, [RimEnd::Source(2), RimEnd::Foot(3)]),
@@ -238,7 +279,7 @@ fn sunk_rod() -> Ruled {
         ],
         |seg, p| match seg {
             2 | 4 => p.y,
-            3 => (p.x * p.x + (p.y + S) * (p.y + S)).sqrt() - RC,
+            3 => (p.x * p.x + (p.y + ROD_FLAT) * (p.y + ROD_FLAT)).sqrt() - ROD_R,
             other => panic!("the sunk rod has no ruled wall {other}"),
         },
     )
@@ -349,6 +390,31 @@ fn vertex_of(t: &NameTable, what: &str, n: &StableName) -> VertexKey {
     }
 }
 
+fn face_of(t: &NameTable, what: &str, n: &StableName) -> FaceKey {
+    match key_of(t, what, n) {
+        EntityKey::Face(k) => k,
+        other => panic!("{what}: {n:?} names {other:?}, not a face"),
+    }
+}
+
+/// Every vertex on `f`'s boundary — the face's own EXTENT, read out of
+/// the body rather than inferred from the surface it is a region of.
+fn face_vertices(body: &Body<f64>, f: FaceKey) -> Vec<VertexKey> {
+    let face = body.get_face(f).expect("a live face");
+    let mut out = Vec::new();
+    for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        match body.get_loop(lk).expect("a live loop").boundary {
+            LoopBoundary::Empty { vertex } => out.push(vertex),
+            LoopBoundary::Cycle { first } => {
+                for he in body.loop_cycle(first).expect("a closed cycle") {
+                    out.push(body.get_half_edge(he).expect("a live half-edge").start);
+                }
+            }
+        }
+    }
+    out
+}
+
 /// An edge's two end vertices.
 fn ends(body: &Body<f64>, e: EdgeKey) -> [VertexKey; 2] {
     let edge = body.get_edge(e).expect("a live edge");
@@ -385,6 +451,24 @@ fn foot_name(f: &Ruled, end: CapEnd, crease: u32, support: u32) -> StableName {
     )
 }
 
+/// The carve's own survivor of the wall a `support` argument names —
+/// the face the foot has to be a vertex OF, not merely on the surface
+/// of. A shrunk support survives as [`RoleSeg::FromTarget`] of its
+/// extrude name.
+fn support_face(f: &Ruled, support: u32) -> StableName {
+    minted(
+        EntityKind::Face,
+        f.fillet,
+        RoleSeg::FromTarget(NameRef::new(wall(f.rod, support))),
+    )
+}
+
+fn volume(body: &Body<f64>) -> f64 {
+    topo::mass_properties(body, tol())
+        .expect("closed-form mass properties")
+        .volume
+}
+
 // ---------------------------------------------------------------- //
 // The rows
 // ---------------------------------------------------------------- //
@@ -399,6 +483,15 @@ fn foot_name(f: &Ruled, end: CapEnd, crease: u32, support: u32) -> StableName {
 /// ends of the arc edge. An `EndArc` minted for the wrong cap vertex,
 /// for the other crease, or across anything but its own two feet fails
 /// here, as does an arc the walk did not mint at all.
+///
+/// **What does NOT red it: a swapped `support`.** The two feet of one
+/// cap vertex are the same SET whichever wall each of them is named on,
+/// and this row reads the set. Permuting the `support` argument across
+/// them leaves this row green — measured, not assumed. That is a
+/// statement of what this row covers;
+/// [`a_cap_foot_lies_in_the_cap_and_on_the_support_its_name_carries`]
+/// and [`a_trimline_runs_between_the_two_feet_on_its_own_support`] are
+/// where the `support` argument is load-bearing.
 #[test]
 fn a_cut_off_arc_runs_between_the_two_feet_of_the_cap_it_closes_at() {
     for f in fixtures() {
@@ -435,15 +528,26 @@ fn a_cut_off_arc_runs_between_the_two_feet_of_the_cap_it_closes_at() {
 
 /// **A foot lies in the cap it is named at, on the support it is named
 /// on.** [`RoleSeg::FootVertex`] carries two arguments and this row
-/// reads both against geometry: the foot's height is the height of the
-/// source cap vertex its `vertex` argument names, and its distance from
-/// the wall its `support` argument names is zero.
+/// reads both against the body: the foot's height IS the height of the
+/// source cap vertex its `vertex` argument names — exactly, the cap
+/// plane being stored, not recomputed — and it is a vertex of the
+/// carve's own survivor of the wall its `support` argument names, at
+/// distance zero from that wall's surface.
 ///
-/// The runtime values that make it false: the foot's own coordinates. A
-/// foot minted against the other cap lands a rod-length away; one minted
-/// against the other of its two supports lands off that surface by the
-/// band's bite. Both fixtures' walls are told apart by [`Ruled::residual`],
-/// so this is the row a swapped `support` argument reds.
+/// The runtime values that make it false: the foot's own coordinates,
+/// and the vertex list of the support face. A foot minted against the
+/// other cap lands a rod-length away; one minted against the other of
+/// its two supports lands off that surface by the band's bite.
+///
+/// **The surface alone is not enough, which is why the face is read.**
+/// [`Ruled::residual`] measures distance from the SURFACE a wall is a
+/// region of, and on `sunk_rod` walls 2 and 4 are two regions of ONE
+/// plane (`residual` is `p.y` for both), so a foot naming the far wall
+/// of the block's top would sit at residual zero on it. The extent —
+/// the face's own vertex list — is what tells them apart, and
+/// [`a_coplanar_wall_is_told_from_its_twin_by_the_support_face`]
+/// measures exactly that: the crossed foot passing the plane-and-
+/// residual pair, and failing the face.
 #[test]
 fn a_cap_foot_lies_in_the_cap_and_on_the_support_its_name_carries() {
     for f in fixtures() {
@@ -461,19 +565,23 @@ fn a_cap_foot_lies_in_the_cap_and_on_the_support_its_name_carries() {
                 )
                 .z;
                 for support in supports {
-                    let p = point(
-                        body,
-                        vertex_of(t, &what, &foot_name(&f, end, crease, support)),
-                    );
-                    assert!(
-                        (p.z - z).abs() < NEAR,
+                    let foot = vertex_of(t, &what, &foot_name(&f, end, crease, support));
+                    let p = point(body, foot);
+                    assert_eq!(
+                        p.z, z,
                         "{what}: the foot on wall {support} sits at z = {}, not in its cap at {z}",
                         p.z
                     );
                     let d = (f.residual)(support, p);
                     assert!(
                         d.abs() < NEAR,
-                        "{what}: the foot named on wall {support} is {d} off it"
+                        "{what}: the foot named on wall {support} is {d} off its surface"
+                    );
+                    let face = face_of(t, &what, &support_face(&f, support));
+                    assert!(
+                        face_vertices(body, face).contains(&foot),
+                        "{what}: the foot named on wall {support} is not a vertex of that \
+                         wall's face — it is on the surface but off the face's extent"
                     );
                 }
             }
@@ -522,6 +630,13 @@ fn a_trimline_runs_between_the_two_feet_on_its_own_support() {
                 );
             }
         }
+        assert_eq!(
+            count(t, |s| matches!(s, RoleSeg::TrimEdge { .. })),
+            2 * f.creases.len(),
+            "{}: one trimline per (crease, support) — both ends of one band share it — \
+             and no other",
+            f.what
+        );
     }
 }
 
@@ -581,20 +696,58 @@ fn a_surviving_rim_piece_carries_the_rim_it_was_cut_from() {
 }
 
 // ---------------------------------------------------------------- //
-// REVIEW PROBES (lane carve-rv, PR #2778). Each records a measured
-// blind spot of the rows above; none of them is a row.
+// The rows the review measured
 // ---------------------------------------------------------------- //
 
-/// **Row 2 cannot tell the sunk rod's two coplanar walls apart.** The
-/// doc on `a_cap_foot_lies_in_the_cap_and_on_the_support_its_name_carries`
-/// says "both fixtures' walls are told apart by `Ruled::residual`". On
-/// `sunk_rod` walls 2 and 4 are two faces of ONE plane (`residual` is
-/// `p.y` for both), so a `FootVertex` whose `support` argument named the
-/// far wall of the block's top would pass BOTH of that row's checks:
-/// the crossed foot is in the same cap plane and has residual zero on
-/// the wall it is not on. Rows 3 and 4 are what catch it.
+/// **A convex band removes material; a concave one adds it.** The two
+/// documents are the same chord on the same circle — the D-rod extrudes
+/// the arc the flat leaves standing, the sunk rod the arc it cuts away
+/// — so nothing but this row says which side of the material each
+/// carve is on, and the module header's "both material sides" would
+/// hold of two copies of one fixture without it.
+///
+/// The runtime value that makes it false: the sign of `ΔV`, the
+/// filleted body's volume less the extrude's, both read off the
+/// evaluated bodies. The magnitude is not pinned here — the closed form
+/// is `sweep`'s, and `review_fillet_h7_r1_probes` holds it against the
+/// section oracle at both senses. Swapping `sunk_rod`'s bulge for the
+/// [`d_rod`]'s reds this row and nothing else in the suite.
 #[test]
-fn probe_rv_row2_is_blind_across_the_sunk_rod_s_two_coplanar_walls() {
+fn a_convex_band_removes_material_and_a_concave_one_adds_it() {
+    for f in fixtures() {
+        let ev = run(&f.doc);
+        let dv = volume(corpus::body_of(&ev, f.fillet)) - volume(corpus::body_of(&ev, f.rod));
+        match f.side {
+            Side::Removes => assert!(
+                dv < 0.0,
+                "{}: a convex band removes material, ΔV = {dv}",
+                f.what
+            ),
+            Side::Adds => assert!(
+                dv > 0.0,
+                "{}: a concave band adds material, ΔV = {dv}",
+                f.what
+            ),
+        }
+    }
+}
+
+/// **Two coplanar walls are told apart by the support FACE, not by its
+/// plane.** `sunk_rod`'s walls 2 and 4 are two regions of the one plane
+/// `y = 0`, so the pair of checks a `FootVertex`'s arguments invite —
+/// the cap plane the `vertex` argument fixes, and the distance from the
+/// surface the `support` argument names — accepts a foot from the far
+/// wall. This row measures both halves of that: the crossed foot
+/// SATISFIES the plane-and-residual pair, and is NOT a vertex of the
+/// face it would have to be named on.
+///
+/// The runtime values that make it false: the crossed foot's own
+/// coordinates and the vertex list of wall 2's face. It is what makes
+/// [`a_cap_foot_lies_in_the_cap_and_on_the_support_its_name_carries`]'s
+/// third check load-bearing rather than redundant — drop that check and
+/// this fixture's rows go green under a swapped `support`.
+#[test]
+fn a_coplanar_wall_is_told_from_its_twin_by_the_support_face() {
     let f = sunk_rod();
     let ev = run(&f.doc);
     let (t, source) = (table(&ev, f.fillet), table(&ev, f.rod));
@@ -603,25 +756,37 @@ fn probe_rv_row2_is_blind_across_the_sunk_rod_s_two_coplanar_walls() {
         let what = format!("{}: cap {end:?}", f.what);
         // The foot of crease 4 on wall 4, offered where the foot of
         // crease 3 on wall 2 belongs.
-        let crossed = point(body, vertex_of(t, &what, &foot_name(&f, end, 4, 4)));
+        let crossed = vertex_of(t, &what, &foot_name(&f, end, 4, 4));
+        let p = point(body, crossed);
         let z = point(rod, vertex_of(source, &what, &cap_vertex(f.rod, end, 3))).z;
         assert!(
-            (crossed.z - z).abs() < NEAR && (f.residual)(2, crossed).abs() < NEAR,
-            "{what}: the crossed foot {crossed:?} was expected to satisfy row 2's \
-             two checks against (crease 3, wall 2); z want {z}, residual {}",
-            (f.residual)(2, crossed)
+            p.z == z && (f.residual)(2, p).abs() < NEAR,
+            "{what}: the crossed foot {p:?} was expected to satisfy the plane and residual \
+             checks against (crease 3, wall 2); z want {z}, residual {}",
+            (f.residual)(2, p)
+        );
+        let far = face_of(t, &what, &support_face(&f, 2));
+        assert!(
+            !face_vertices(body, far).contains(&crossed),
+            "{what}: the crossed foot IS a vertex of wall 2's face, so the extent check \
+             cannot tell the block's top's two faces apart either"
         );
     }
 }
 
-/// **The `NEAR` comment's closest pair is not the one the fixtures
-/// produce.** It says the closest pair the rows must tell apart is "a
-/// foot and the source vertex it was retracted from, `ROD_FILLET`
-/// apart". Measured, the separations run 0.0431 … 0.0599 m, not
-/// `ROD_FILLET` = 0.1 m — the window is still four orders clear of the
-/// true minimum, but the stated number is not it.
+/// **The closest pair a row must tell apart is a foot and the source
+/// cap vertex it was retracted from**, and it measures
+/// [`FOOT_TO_SOURCE`] — not [`ROD_FILLET`], which is the radius the
+/// crease is carved at and bounds nothing here: the retraction runs
+/// along the support, not along the crease.
+///
+/// The runtime value that makes it false: the minimum separation over
+/// both fixtures, every cap, every crease and both supports. This row
+/// is what licenses [`NEAR`]: it is that minimum's 1e-7, so a row
+/// comparing through the window cannot be confusing a foot for its
+/// source.
 #[test]
-fn probe_rv_the_foot_to_source_separation_is_not_rod_fillet() {
+fn the_closest_pair_a_row_must_tell_apart_is_a_foot_and_its_source_vertex() {
     let mut min = f64::INFINITY;
     for f in fixtures() {
         let ev = run(&f.doc);
@@ -647,7 +812,13 @@ fn probe_rv_the_foot_to_source_separation_is_not_rod_fillet() {
         }
     }
     assert!(
-        (min - 0.043_099_918_793_752_2).abs() < 1e-12 && min < ROD_FILLET,
-        "the closest foot-to-source separation measures {min}, not ROD_FILLET = {ROD_FILLET}"
+        (min - FOOT_TO_SOURCE).abs() < 1e-12,
+        "the closest foot-to-source separation measures {min}, not FOOT_TO_SOURCE = \
+         {FOOT_TO_SOURCE}"
+    );
+    assert!(
+        NEAR < min / 1e6,
+        "NEAR = {NEAR} is not a decade-clear margin below the separation {min} it is \
+         derived from"
     );
 }
