@@ -2,10 +2,11 @@
 id: pick-grazing-ray-answer-depends-on-candidate-order
 kind: unit
 title: a grazing ray's pick answer is decided by the candidate order, not the geometry
-status: review
+status: closed
 opened: 2026-09-12
 branch: edit/pick-grazing
 pr: 2721
+closed: 2026-09-16
 ---
 
 
@@ -119,3 +120,14 @@ mechanism's class, best conditioning refused 4.8e-16) and
 (a certified-but-small determinant with uncertified `u`, `v`: 44
 winners on the tie aim, 203 on the wide aim — a ruling on the
 closed-boundary contract before a unit).
+
+## Closed (2026-09-16, EDIT orchestrator)
+
+Merged as PR #2721 after the v6 dual (ordinal 4800, sample #213; one
+bilateral MAJOR — the spec's own guard, withdrawn at the fix pass) and
+the union fix pass. The answer is a function of the per-triangle tests
+alone on every landing of the corpus; the residue is three rows on this
+slate (`pick-closed-acceptance-loses-a-graze-to-rounding`,
+`pick-refuses-a-crossing-within-rounding-of-a-plane`,
+`pick-accepts-uncertified-barycentrics-on-a-certified-determinant`),
+the last of which asks for a ruling before a unit.

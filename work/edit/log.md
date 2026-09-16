@@ -150,3 +150,23 @@ here, `node-error-kind-renders-the-slot-id-through-debug` on WIRE's
 slate); LIB's row parked on the residue row unparked since its trigger
 fired. A closed FIX row's "no `Dimension` reaches a user through
 `Debug`" claim was found false at one door and the door repaired.
+
+## 2026-09-16 — EDIT-PICK merged (kernel unit, v6 dual, PR #2721)
+
+The program's first kernel unit, and the spec was wrong at its centre:
+the box-entry guard the orchestrator recommended is unsound in `f64`,
+and both reviewers proved it by execution (R1 on a fan-triangulated cap,
+R2 on `cut_cylinder`, where the service answered a wall above the rim).
+A bilateral MAJOR, so the pair adds nothing to the v6 tally. The fix
+pass withdrew the guard for a certified determinant with a derived
+bound — and found that alone insufficient for the item's own ring case,
+where the determinant is certified, the barycentrics are exactly zero,
+and the quotient for `t` cancels; `t` now comes from the hit point's
+projection onto the ray, a disclosed and measured deviation. The answer
+is now `Pruned == Every` on every landing. Residue: three rows on the
+slate, one asking for a ruling on how far the acceptance certifies its
+barycentrics. Lesson for the orchestrator's next spec: a guard that
+compares a rounded value against a certified bound needs the value's
+own error accounted for, and the reviewers' differently-aimed sweeps
+(interior hits, vertex grazes across the whole corpus) are the
+instruments the spec should have demanded.
