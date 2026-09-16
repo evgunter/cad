@@ -5,6 +5,7 @@ title: a grazing ray's pick answer is decided by the candidate order, not the ge
 status: review
 opened: 2026-09-12
 branch: edit/pick-grazing
+pr: 2721
 ---
 
 
