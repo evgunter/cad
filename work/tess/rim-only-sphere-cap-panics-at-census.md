@@ -5,7 +5,7 @@ title: "mesh: tessellate panics at the issue-897 census on a rim-only sphere cap
 status: open
 opened: 2026-09-03
 github: 1615
-refs: [897, 1571, rim-continuation-witness-fixture-needed]
+refs: [897, 1571]
 ---
 
 ## From GitHub issue 1615
