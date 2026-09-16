@@ -2,10 +2,11 @@
 id: doc-param-unit-edit-has-no-door
 kind: unit
 title: No editor-core door changes a document parameter's display unit — SetDocParam would drop the distribution
-status: spec
+status: review
 opened: 2026-09-04
 refs: [1776]
 branch: edit/doc-param-unit
+pr: 2732
 ---
 
 
@@ -135,3 +136,61 @@ each is half of one door:
    refusal by name; `bit_eq` unchanged across the edit; replay and
    save/load round-trip the edit; the `SessionOp` side is CHROME's
    and is filed on their slate, not built.
+
+## Built (2026-09-16) — PR 2732, branch `edit/doc-param-unit`
+
+Both shapes the spec named, as one door:
+
+- `DocParam::with_display_unit(&self, UnitSym) -> Option<Self>`
+  (`crates/editor-core/src/doc.rs`), `with_value`'s mirror over the
+  other field: dimension, exact value and distribution ride through
+  untouched. Exhaustive on both arms. `None` for a `Count` and for a
+  unit that does not measure the declared `dim`.
+- `DocEdit::SetDocParamUnit { name, unit }`
+  (`crates/editor-core/src/edit.rs`), routed through it in `apply`
+  exactly as the value edit routes through `with_value`. Three
+  refusals: `EditError::DocParamNotDeclared` REUSED (the fault is the
+  missing declaration, which neither carry-forward door is about; its
+  prose now says "a carry-forward edit" where it said "a value edit"),
+  and two new arms — `DocParamCountHasNoUnit` and
+  `DocParamUnitMismatch { name, unit, declared }`, the latter converged
+  on `PersistError::DisplayUnit`'s sentence.
+- The reading is stated in the door's rustdoc, the edit's rustdoc, the
+  suite's module docs and the PR body: a KIND change is a
+  redeclaration, a NOTATION change is not, because `DocParam::bit_eq`
+  already excludes `display_unit` as presentation metadata.
+  `bit_eq_is_blind_to_the_notation_edit` executes it.
+- The unit→dimension predicate is now `UnitSym::measures()`
+  (`crates/editor-core/src/expr.rs`), asked by all three callers
+  (`Expr::literal_with_unit`, `persist::check`, the new door) instead
+  of restated a third time.
+
+Six rows in `crates/editor-core/tests/edit_doc_param_unit.rs`, written
+red first: the create-or-replace trap, the door's carry-forward, the
+`with_display_unit` refusals, each typed refusal by name, the `bit_eq`
+blindness, and save/replay/load round-trip with the symmetric refusal.
+
+What did NOT land, and why:
+
+- **No `persist/wire.rs` arm.** The spec's premise was wrong: `wire.rs`
+  carries mirrors only for `Expr` and `ProfileProgram`. `DocEdit`
+  persists through its own derive and `UnitSym` already serializes as
+  its table symbol with a strict-vocabulary `Deserialize`. Nothing was
+  added there.
+- **The `SessionOp` side** stays CHROME's, as the spec says. It was
+  already filed —
+  `work/chrome/parameter-row-field-has-no-text-door.md`, parked on THIS
+  row — so evidence was added there rather than a second row opened.
+- **One corpus re-baseline.** `kitchen_sink` gains the edit (it is the
+  every-`DocEdit`-kind exhibit), moving one stored number: its
+  persisted-text hash in `perf2_name_keying_differential::PINNED`. Its
+  name-table hash is unchanged, which is the correct signal.
+- **Outside EDIT's fence**: `crates/pncad-py/` (LIB's) gains the façade
+  door, the two tag arms, the payload arms, the `TAG_INVENTORY` rows
+  and the `.pyi` stub — mechanical, said in the PR;
+  `crates/viewer/Cargo.toml` (VIEW/CHROME's) gains a `quantity`
+  dev-dependency because the mounted corpus symlink now names `MM`.
+- **Sweep hit filed**: `work/edit/doc-param-distribution-edit-has-no-door`
+  — `distribution` is the third field of the same declaration and has
+  no carry-forward door either, and `DocParam::continuous_with` reverts
+  the notation to canonical. Same trap, mirrored.

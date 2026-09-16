@@ -114,3 +114,20 @@ click nobody meant as one. The no-op guard this row asks for is
 therefore still owed, with a smaller stake.
 `work/view/a-fields-text-commits-within-the-renders-own-tolerance` is
 the same residue read from the other side and is open.
+
+## The unit half's blocker is built (2026-09-16, EDIT)
+
+`doc-param-unit-edit-has-no-door` landed the kernel door this row's
+unit half waits on: `DocEdit::SetDocParamUnit { name, unit }`, routed
+through `DocParam::with_display_unit` (`crates/editor-core/src/edit.rs`,
+`doc.rs`), refusing typed on an undeclared name, on a `Count` and on a
+unit that does not measure the declared dimension. PR 2732, branch
+`edit/doc-param-unit`.
+
+Evidence added rather than a second row opened: this file already owns
+the panel half. Still `parked` — the blocker is `review`, not closed,
+and `work/README.md` reads a fired trigger off a CLOSED blocker. Once
+it closes, the unit half here is unblocked and the `SessionOp` mirroring
+`SetSlotUnit` is buildable: the kernel edit takes a `UnitSym`, so
+`props`' `slot_unit_edit` shape transfers to a parameter row without the
+rebuild-from-parts problem that shape had before the door existed.
