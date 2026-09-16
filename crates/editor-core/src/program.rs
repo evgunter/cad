@@ -36,6 +36,7 @@
 
 use geom_core::{Decide, Point2};
 use profile::{ArcSweep, Step, Target};
+use serde::{Deserialize, Serialize};
 
 use crate::doc::ParamName;
 use crate::expr::{Dimension, DimensionError, EvalError, Expr, ParamEnv, eval};
@@ -173,7 +174,8 @@ document_vocabulary! {
 /// [`profile::Target`], so a form added here alone can be resolved into
 /// an existing kernel form and never be seen. [`Self::ALL_NAMES`] is
 /// what forces it to reach a witness instead.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum ProgramTarget {
     /// An authored absolute point in the profile frame.
     Point([Expr; 2]),
@@ -192,7 +194,12 @@ pub enum ProgramTarget {
 ///
 /// It is a second spelling of a vocabulary `profile` declares once,
 /// and it has to be: a step here carries `Expr`s and serializes, and
-/// G1 layering keeps both out of the kernel crate.
+/// G1 layering keeps both out of the kernel crate. It is the SECOND
+/// and last: this type is also the persisted form, so a verb added
+/// here is a FORMAT change and the persisted spelling of every verb
+/// is pinned as literals in `tests/switch_program_vocabulary.rs` —
+/// the one thing on this wire that renaming a variant does not move
+/// with itself.
 /// [`LoopProgram::from_recorded`] below
 /// is exhaustive on [`profile::Step`], so a verb the transition table
 /// gains breaks this file at compile, and
@@ -209,7 +216,8 @@ pub enum ProgramTarget {
 /// THIS vocabulary and constructs [`profile::Step`], so a verb added
 /// here alone can be resolved into an existing kernel verb, leaving
 /// `Verb::ALL` fully witnessed and the document verb unexercised.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum ProgramStep {
     /// `.at(p)`.
     At([Expr; 2]),
@@ -282,8 +290,8 @@ pub enum ProgramStep {
 /// gains does break this crate at compile — `spec_lit` and the two
 /// content-key hashers are exhaustive on `profile::ArcData` — but
 /// each of those breaks can be discharged where it stands, with a
-/// refusal arm and a tag, while this enum, the wire and the
-/// expression-slot roles stay short: the hop that would need them,
+/// refusal arm and a tag, while this enum — which is the wire — and
+/// the expression-slot roles stay short: the hop that would need them,
 /// `res_spec`, matches THIS type and CONSTRUCTS the kernel one, so it
 /// keeps compiling. What forces arrival is the mode census in
 /// `tests/switch_program_vocabulary.rs`, keyed on
@@ -294,13 +302,15 @@ pub enum ProgramStep {
 /// a mode added HERE alone — `res_spec` would resolve it into an
 /// existing kernel mode and every clause keyed on `ArcMode::ALL` would
 /// stay green. [`Self::ALL_NAMES`] is that direction's anchor.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum ProgramArcData {
     /// `Radius { r, side }` — arrival mode, centre derived.
     Radius {
         /// The carrier radius.
         r: Expr,
         /// Which side of the tangent the centre sits on (structural).
+        #[serde(with = "crate::persist::wire::arc_side")]
         side: profile::ArcSide,
     },
     /// `Bulge { p, b }` — the bulge is AUTHORED data.
@@ -322,6 +332,7 @@ pub enum ProgramArcData {
         /// The carrier centre.
         c: [Expr; 2],
         /// Travel sense (structural).
+        #[serde(with = "crate::persist::wire::arc_sweep")]
         winding: ArcSweep,
         /// The authored anchor/endpoint (`Start` closes).
         target: ProgramTarget,
@@ -331,6 +342,7 @@ pub enum ProgramArcData {
         /// The carrier radius.
         r: Expr,
         /// Which side the centre sits on (structural).
+        #[serde(with = "crate::persist::wire::arc_side")]
         side: profile::ArcSide,
         /// The swept central angle.
         angle: Expr,
@@ -340,6 +352,7 @@ pub enum ProgramArcData {
         /// The carrier radius.
         r: Expr,
         /// Which side the centre sits on (structural).
+        #[serde(with = "crate::persist::wire::arc_side")]
         side: profile::ArcSide,
         /// The arc length.
         len: Expr,
@@ -358,7 +371,8 @@ pub enum ProgramArcData {
 /// alone can be resolved into an existing kernel step and never be
 /// seen. That is [`ProgramStep`]'s hazard one level out, and
 /// [`Self::ALL_NAMES`] is its anchor for the same reason.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum LoopProgram {
     /// A chain-vocabulary step list (must end in a `Start`-targeting
     /// verb — checked by replay, not representation).
