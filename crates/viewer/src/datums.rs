@@ -91,7 +91,7 @@ use pncad::document::{
 };
 use pncad::geom_core::{Point3, UnitVec3, Vec3};
 
-use crate::camera::Camera;
+use crate::camera::{Camera, CameraError};
 use crate::input::ViewportSize;
 
 /// **Where the eye is and how much world a pixel spans** — everything
@@ -125,20 +125,21 @@ pub struct View {
     ///
     /// From the camera as `2 * tan(fov_y / 2) / viewport_height_px`.
     ///
-    /// **Not promised to be a length.** A window with no height has no
-    /// such scale, and this field carries that rather than repairing
-    /// it: the division above hands back `inf` for a zero height and
-    /// `NaN` for one that is not a number ([`datum_view`]).
-    /// [`View::metres_per_pixel_at`] is where a value that is not a
-    /// scale is refused, once, for every mark.
+    /// **Not promised to be a length**, because this struct's fields
+    /// are the caller's: the suite builds a [`View`] directly, and a
+    /// number written here is whatever was written. [`datum_view`]
+    /// refuses the window that would produce a non-length rather than
+    /// carrying one, and [`View::metres_per_pixel_at`] is where a
+    /// value that is not a scale is refused anyway, once, for every
+    /// mark — the field's promise and the door's check are separate
+    /// claims and the door owes its own.
     pub metres_per_pixel_at_one_metre: f64,
     /// The window's larger side, in pixels — what a patch has to
     /// overflow to be un-pannable-off.
     ///
     /// **Not promised to be a pixel count**, for the reason above and
-    /// with the same disposal: a window that is not a number of pixels
-    /// arrives here as `NaN` and [`View::half_patch_at`] draws no
-    /// patch for it.
+    /// with the same disposal: a number that is not a count of pixels
+    /// reaches [`View::half_patch_at`], which draws no patch for it.
     pub viewport_px: f64,
 }
 
@@ -421,6 +422,52 @@ pub struct DatumDraw {
     pub segments: Vec<[f64; 3]>,
 }
 
+/// **What a view made of the document's datums**: the wireframes, and
+/// how many datums it drew nothing of.
+///
+/// A value rather than a bare `Vec` so that the second fact travels
+/// with the first. Every mark in this module refuses on its own scale
+/// and a datum whose every mark refuses contributes an EMPTY segment
+/// list — a correct answer that reaches a caller looking exactly like
+/// a document with no datums in it. A caller holding this cannot show
+/// the drawings without having been handed the count as well.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct DatumDraws {
+    /// One per datum node the evaluation holds a value for, in
+    /// document order.
+    pub drawn: Vec<DatumDraw>,
+}
+
+impl DatumDraws {
+    /// **How many of these datums came out with nothing drawn at
+    /// all** — the fact a reader cannot get from the picture, because
+    /// what it looks like is a document that has no datums.
+    ///
+    /// A method rather than a field: it is a reading of [`Self::drawn`]
+    /// and a second copy of a count is a copy that can disagree with
+    /// the thing it counts.
+    ///
+    /// **The property is "drew nothing", not "has no scale"**, and
+    /// the two are not the same set. A drawing is empty when every
+    /// mark of that datum refused — [`View::screen_metres_at`] or
+    /// [`grid_pitch`] declining the point it is scaled at — and ALSO
+    /// when a mark was scaled and its geometry came out no geometry,
+    /// which is the ruling whose extent is lost to the datum's own
+    /// magnitude ([`rule_patch`]). Both are a datum that is in the
+    /// document and is not on the screen, which is what a reader is
+    /// owed; neither is separable from the picture.
+    ///
+    /// **What it is NOT.** A datum whose ruling refused while its
+    /// normal tick drew is not counted: something of it is on screen,
+    /// and a count of partial drawings would be a different fact.
+    pub fn vanished(&self) -> usize {
+        self.drawn
+            .iter()
+            .filter(|draw| draw.segments.is_empty())
+            .count()
+    }
+}
+
 /// **Every datum the landed evaluation holds a value for**, drawn for
 /// `view`.
 ///
@@ -429,7 +476,7 @@ pub struct DatumDraw {
 /// node whose evaluation FAILED contributes nothing — there is no
 /// value to draw and the tree's own badge already says why — and so
 /// does a node this evaluation never reached.
-pub fn draws(doc: &Doc<ProfileProgram>, eval: &Evaluation<f64>, view: View) -> Vec<DatumDraw> {
+pub fn draws(doc: &Doc<ProfileProgram>, eval: &Evaluation<f64>, view: View) -> DatumDraws {
     let mut out = Vec::new();
     for &node in doc.order() {
         // The NODE says it is a datum and the EVALUATION says what it
@@ -449,7 +496,7 @@ pub fn draws(doc: &Doc<ProfileProgram>, eval: &Evaluation<f64>, view: View) -> V
         };
         out.push(draw_one(node, datum, view));
     }
-    out
+    DatumDraws { drawn: out }
 }
 
 /// One datum value's wireframe.
@@ -820,34 +867,59 @@ fn basis(n: UnitVec3<f64>) -> (Vec3<f64>, Vec3<f64>) {
 /// field of view over the vertical pixel count — one pixel's angular
 /// share — which at one metre from the eye is that many metres.
 ///
-/// **A window that is not a number of pixels is carried as one.**
-/// Neither side is floored at a pixel: the height divides the field
-/// of view, so a zero height lends an infinite metres-per-pixel and a
-/// `NaN` height a `NaN` one, and every door below refuses both. A
-/// floor would hand back the scale of a one-pixel window instead,
-/// which is a number this camera and this pane did not produce. The
-/// larger side is picked with `f64::max` spelled out for the same
-/// reason: `max` answers with the OTHER operand against a `NaN`, so
-/// `width.max(height)` would report a width that is not a number as
-/// the HEIGHT.
+/// **A window that is not a number of pixels is REFUSED, by name.**
+/// Neither side is floored at a pixel and neither is carried: the
+/// height divides the field of view, so a zero height would lend an
+/// infinite metres-per-pixel and a `NaN` height a `NaN` one, and a
+/// [`View`] carrying either is a value a caller cannot tell from a
+/// working one without reading its fields. A floor would be worse
+/// still — it hands back the scale of a one-pixel window, a number
+/// this camera and this pane did not produce.
 ///
-/// The app's own caller never asks — `pane::viewport` returns before
-/// this when [`ViewportSize::aspect`] refuses a pane with no area,
-/// which is the frame a pane is first laid out and every frame a
-/// splitter is dragged shut. This is a public door and owes the
-/// answer on its own account anyway.
-pub fn datum_view(camera: &Camera, viewport: ViewportSize) -> View {
+/// **The refusal is the camera's own**, on the same two quantities
+/// and in the same words: [`Camera::ray_through`] answers
+/// [`CameraError::NotFinite`] for a viewport dimension that is not
+/// finite, naming the dimension and carrying the value, and
+/// [`CameraError::UnusableBounds`] for a viewport with no area. This
+/// is the sibling door on the same inputs, so it reads alike rather
+/// than answering in a second vocabulary of its own.
+///
+/// # Errors
+///
+/// [`CameraError::NotFinite`] for a width or a height that is not
+/// finite, and [`CameraError::UnusableBounds`] for a viewport with no
+/// area.
+///
+/// **The app's own caller reaches only one of those**, and not the
+/// one the guard above it looks like it covers: `pane::viewport`
+/// returns before this when [`ViewportSize::aspect`] refuses a pane
+/// with no area — which is the frame a pane is first laid out and
+/// every frame a splitter is dragged shut, and which also catches a
+/// dimension that is `NaN`. It does NOT catch an INFINITE one:
+/// `aspect` asks whether both sides are above zero, and `inf` is,
+/// so a pane of infinite extent has an aspect and reaches here. That
+/// arm is this door's alone.
+pub fn datum_view(camera: &Camera, viewport: ViewportSize) -> Result<View, CameraError> {
     let (width, height) = (viewport.width_px, viewport.height_px);
-    View {
+    // Named one at a time, so the message says WHICH side was not a
+    // number of pixels — the fact a caller needs and the one a single
+    // "the viewport is unusable" would spend.
+    for (what, value) in [("viewport width", width), ("viewport height", height)] {
+        if !value.is_finite() {
+            return Err(CameraError::NotFinite { what, value });
+        }
+    }
+    if viewport.aspect().is_none() {
+        return Err(CameraError::UnusableBounds);
+    }
+    Ok(View {
         eye: camera.eye(),
         look_at: camera.target(),
         metres_per_pixel_at_one_metre: 2.0 * (camera.fov_y() * 0.5).tan() / height,
         // The LARGER side: a patch that covered the height of a wide
-        // window would still be pannable off sideways.
-        viewport_px: if width.is_nan() || height.is_nan() {
-            f64::NAN
-        } else {
-            width.max(height)
-        },
-    }
+        // window would still be pannable off sideways. Both sides are
+        // finite and above zero by the refusals above, so `max` has no
+        // `NaN` to prefer the other operand over.
+        viewport_px: width.max(height),
+    })
 }

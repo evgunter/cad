@@ -534,7 +534,34 @@ impl ViewerBehavior<'_> {
         // opens into a hole the moment the camera is closer than a
         // grid cell is wide.
         if let Some((doc, evaluation)) = self.session.landed_pair().filter(|_| *self.show_datums) {
-            for drawn in datums::draws(doc, evaluation, datum_view(self.camera, viewport)) {
+            // **A window this camera has no view of is the projection
+            // refusal, said one step earlier and by name.** The door
+            // refuses exactly the two quantities `view_projection`
+            // refuses below — a viewport dimension that is not finite,
+            // or a viewport with no area — so every input that gets
+            // here is one the matrix would decline a hundred lines
+            // down, with `UnusableBounds`'s "the framing request names
+            // no view" where this says which side was not a number of
+            // pixels. Held in the same field for the same reason: it
+            // is true of this camera and this pane on every frame
+            // until one of them changes, which is what a badge reads.
+            let view = match datum_view(self.camera, viewport) {
+                Ok(view) => view,
+                Err(error) => {
+                    *self.projection_fault = Some(error);
+                    return;
+                }
+            };
+            let drawn = datums::draws(doc, evaluation, view);
+            // **Counted every frame, never latched.** The count is
+            // recomputed here from this frame's drawings and written
+            // back by `ViewerApp::update` whether or not this pane
+            // drew — so a viewport tabbed away reports none rather
+            // than leaving yesterday's count standing, which is the
+            // hole `work/view/projection-fault-has-no-sweeper.md`
+            // records in the field above.
+            *self.datums_vanished = drawn.vanished();
+            for drawn in drawn.drawn {
                 for point in drawn.segments {
                     edges
                         .datums

@@ -2,8 +2,9 @@
 id: a-datum-the-view-cannot-scale-vanishes-without-a-word
 kind: issue
 title: A datum the view cannot scale draws nothing and says so nowhere
-status: open
+status: closed
 opened: 2026-09-15
+closed: 2026-09-16
 ---
 
 
@@ -92,3 +93,52 @@ row is not "a pre-existing defect someone should get to"; it grew on
 2026-09-15 and the growth is recorded on the row above.
 
 Signed: (CHROME orchestrator)
+
+## Closed, 2026-09-16
+
+`datums::draws` answers a `DatumDraws` — the wireframes, plus
+`DatumDraws::vanished()`, how many of them came out with nothing drawn
+at all. The type change is what carries the fact: the count travels
+with the drawings and no caller can push the segments without having
+been handed it.
+
+**The property is "drew nothing", not "has no scale"**, and the row's
+own two live cases are why. An empty drawing is a datum whose every
+mark refused (the eye exactly on it) AND a datum whose marks were
+scaled and whose geometry came out no geometry (a ruling whose extent
+is lost to the datum's own magnitude). Both are a datum that is in the
+document and is not on the screen. A count named for the scale would
+have been a proxy for one of the two.
+
+**The shape pinned is the DIFFERENCE**, because "the segment list is
+empty" is true of a document with no datums as well.
+`how_many_datums_this_view_drew_nothing_of_is_a_fact_the_caller_is_handed`
+measures four cases under one view: four datums at `f64::MAX` (four
+vanished), the same four with the eye exactly on them (four vanished),
+the same four from an ordinary place (**none** — without which the
+first two are satisfied by a module that never draws), and a document
+holding no datums at all (none, and an empty drawing list). The last
+pair is the whole of the row.
+`a_datum_that_drew_some_of_itself_has_not_vanished` holds the other
+boundary: a plane whose ruling went and whose normal tick stayed is
+something a reader can see, and is not counted.
+
+**It is shown as a badge and it holds nothing.** `frame::datums_badge`
+reads a count and says *"datums: 4 datums this view draws nothing of"*
+— `Subject::Camera`, `Tone::Actionable`, silent at zero.
+
+**No second latch was minted, and this is the part the sibling row
+gates.** `work/view/projection-fault-has-no-sweeper.md` is open
+because `projection_fault` is written only where the viewport draws,
+so a pane tabbed away leaves the last value standing forever. The
+count is not written that way: `ViewerApp::update` zeroes a local
+before the panes draw and assigns it back **unconditionally** after,
+whether or not the viewport was among them — `profile_form_drawn`'s
+discipline, which that row names as the pattern the fault still lacks.
+A frame the viewport does not draw therefore reports none, and there
+is no sweeper to be missing. What is NOT covered is a headless row
+over that discipline, for the reason §2 of the sibling row gives: it
+is two assignments in an `app`-gated draw path and there is nowhere
+headless to put one.
+
+Landed with `datum-view-propagates-rather-than-refusing-by-name`.
