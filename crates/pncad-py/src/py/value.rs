@@ -1498,10 +1498,14 @@ impl Evaluation {
     /// triangle position)`, so a ray down a shared edge answers the
     /// same face every time.
     ///
-    /// Raises `HitTestError`, typed: the standing ladder up front for
-    /// a target whose node this evaluation has no value for
-    /// (`node_not_evaluated`, `node_failed`, `node_poisoned`), and the
-    /// loud `unnamed` bug arm if the winning face inverts to no name.
+    /// Raises `HitTestError`, typed: the pairing refusal
+    /// (`evaluation_of_another_document`) for a target built from an
+    /// evaluation of another document, checked before any target's
+    /// standing because a twin recipe mints the same node ids; then
+    /// the standing ladder for a target whose node this evaluation has
+    /// no value for (`node_not_evaluated`, `node_failed`,
+    /// `node_poisoned`); then the loud `unnamed` bug arm if the
+    /// winning face inverts to no name.
     fn pick_face(
         &self,
         py: Python<'_>,

@@ -749,7 +749,17 @@ class HitTestError(PncadError):
     not produce cannot belong to it, so the pick refuses up front
     rather than inverting against a table that is not there.
 
-    The fourth, `unnamed`, is a KERNEL BUG report — the node evaluated
+    `evaluation_of_another_document` is the pairing refusal, the same
+    word `Doc.product`, the checks and the name-level edit door already
+    answer with: the index and the evaluation handed to it are of two
+    documents. Node ids are minted per document, so a twin recipe's
+    evaluation answers every lookup — confidently, about other
+    geometry — which is why `NodePick.patch_names`,
+    `NodePick.boundary_names` and `Evaluation.pick_face` all check it
+    before reading anything. It names two documents, which the fields
+    below cannot carry and the message states.
+
+    The fifth, `unnamed`, is a KERNEL BUG report — the node evaluated
     and the entity has no name in its table — and it carries the
     entity's `kind` and `body`, never its arena key. It is also the one
     arm that appears as a VALUE rather than a raise:
@@ -758,7 +768,7 @@ class HitTestError(PncadError):
     the names of every other patch it is drawing.
 
     Every field is present on every arm, `None` where that arm does not
-    carry it."""
+    carry it — and the pairing arm carries none of them."""
 
     variant: str
     node: Optional[NodeId]
@@ -4371,7 +4381,18 @@ class NodePick:
         in ITS OWN SLOT, because one such bug must not cost a consumer
         the names of every other patch it is drawing. Branch with
         `isinstance(entry, str)`; the exception in a slot is a value,
-        not something raised."""
+        not something raised.
+
+        `evaluation` must be an evaluation OF the document this index
+        was built from. One of another document RAISES `HitTestError`
+        with variant `evaluation_of_another_document`, before a single
+        name is read: node ids are minted per document, so a twin
+        recipe's evaluation would answer every slot out of its own
+        tables — other geometry's names, in patch order, with nothing
+        marked. That is one thing wrong with the arguments, so it is
+        raised rather than written into every slot. A LATER evaluation
+        of the same document is admitted; a pairing is about identity,
+        never about a version."""
 
     def boundary_names(self, evaluation: Evaluation) -> list[str | HitTestError]:
         """The stable name of every boundary polyline of `mesh`, in
@@ -4382,7 +4403,11 @@ class NodePick:
         indices is arena keys), so what this is FOR is a consumer that
         hit-tests against drawn edges by POSITION — a display
         coordinate valid for one tessellation — and reads the name out
-        of here."""
+        of here.
+
+        It pairs the way `patch_names` does, raising `HitTestError`
+        with variant `evaluation_of_another_document` for an
+        evaluation of another document."""
 
 class CancelToken:
     """The cooperative stop for a running evaluation — a handle onto
@@ -4570,10 +4595,13 @@ class Evaluation:
         `(t, position in targets, triangle position)` — so a ray down a
         shared edge answers the same face every time.
 
-        Raises `HitTestError`, typed: the standing ladder up front for
-        a target whose node this evaluation has no value for, and the
-        loud `unnamed` bug arm if the winning face inverts to no
-        name."""
+        Raises `HitTestError`, typed: the pairing refusal
+        (`evaluation_of_another_document`) for a target built from an
+        evaluation of another document, which is checked before any
+        target's standing because a twin recipe mints the same node
+        ids; then the standing ladder for a target whose node this
+        evaluation has no value for; then the loud `unnamed` bug arm
+        if the winning face inverts to no name."""
 
     def find_flush_candidates(self, a: NodeId, b: NodeId) -> list[FlushFinding]:
         """The cross-body flush candidates between `a`'s and `b`'s

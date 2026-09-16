@@ -11,8 +11,7 @@ use crate::fixture;
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, DocumentId, EntityKey, EntityRef, EvalOptions,
     Evaluation, HitTestError, Node, ProfileDoc, RecipeNodeId, Resolution, RunCtx, SplitSide,
-    ValuePayload,
-    body_name, entity_name, evaluate, resolve,
+    ValuePayload, body_name, entity_name, evaluate, resolve,
 };
 use fixture::{ang, die, insert, len, on_frame, scl};
 use geom_core::Tol;

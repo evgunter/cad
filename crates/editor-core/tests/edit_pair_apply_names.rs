@@ -401,8 +401,8 @@ fn a_later_evaluation_of_the_same_document_is_admitted() {
     let tol = Tol::witness();
     let (doc, ext) = prism("edit-pair-pick-later", 4);
     let before = run(&doc);
-    let pick = editor_core::NodePick::build(&before, ext, 0, 0.1, tol)
-        .expect("the prism tessellates");
+    let pick =
+        editor_core::NodePick::build(&before, ext, 0, 0.1, tol).expect("the prism tessellates");
     let patches_before = pick
         .patch_names(&before)
         .expect("the building evaluation pairs")
@@ -446,10 +446,14 @@ fn a_later_evaluation_of_the_same_document_is_admitted() {
         "the edge door draws the same line"
     );
     assert!(
-        editor_core::pick_face(&after, &[pick.target()], &editor_core::Ray {
-            origin: geom_core::Point3::new(0.0, 0.0, 5.0),
-            dir: geom_core::Vec3::new(0.0, 0.0, -1.0),
-        })
+        editor_core::pick_face(
+            &after,
+            &[pick.target()],
+            &editor_core::Ray {
+                origin: geom_core::Point3::new(0.0, 0.0, 5.0),
+                dir: geom_core::Vec3::new(0.0, 0.0, -1.0),
+            }
+        )
         .is_ok(),
         "and so does the ray door"
     );

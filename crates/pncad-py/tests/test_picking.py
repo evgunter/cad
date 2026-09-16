@@ -565,6 +565,81 @@ class TestThePickRefusesTyped(unittest.TestCase):
         self.assertTrue(issubclass(NodePickError, PncadError))
 
 
+class TestThePickIndexPairsWithItsDocument(unittest.TestCase):
+    """An index is built from ONE evaluation and then handed a SECOND
+    at every name door. Node ids are minted per document, so a twin
+    recipe's evaluation answers every lookup out of its own tables —
+    other geometry's names, in patch order, with nothing marked. The
+    doors refuse it instead, under the word the gather, the checks and
+    the name-level edit door already answer with.
+
+    A LATER evaluation of the SAME document is admitted: a pairing is
+    about identity, never about a version."""
+
+    def setUp(self):
+        self.doc = Doc()
+        self.cube = unit_cube(self.doc)
+        self.ev = evaluate(self.doc)
+        self.pick = NodePick.build(self.ev, self.cube, 0, DELTA)
+        # The twin: the same recipe under a second identity, so it
+        # mints the same node ids and answers the same lookups.
+        self.twin = Doc()
+        twin_cube = unit_cube(self.twin)
+        self.assertEqual(twin_cube, self.cube, "the twins mint one id")
+        self.assertNotEqual(self.twin.id, self.doc.id, "two documents")
+        self.twin_ev = evaluate(self.twin)
+
+    def test_the_twins_tables_would_have_answered(self):
+        # The premise, so the refusals below are the only thing between
+        # a consumer and another document's names.
+        own = self.pick.patch_names(self.ev)
+        self.assertTrue(all(isinstance(n, str) for n in own))
+        self.assertEqual(
+            set(own), set(self.twin_ev.all_faces(self.cube)),
+            "the twin's tables carry names for the very same lookups",
+        )
+
+    def test_patch_names_refuses_a_twins_evaluation(self):
+        with self.assertRaises(HitTestError) as caught:
+            self.pick.patch_names(self.twin_ev)
+        self.assertEqual(
+            caught.exception.variant, "evaluation_of_another_document"
+        )
+
+    def test_boundary_names_refuses_a_twins_evaluation(self):
+        with self.assertRaises(HitTestError) as caught:
+            self.pick.boundary_names(self.twin_ev)
+        self.assertEqual(
+            caught.exception.variant, "evaluation_of_another_document"
+        )
+
+    def test_pick_face_refuses_a_target_of_another_document(self):
+        # The standing ladder would NOT have caught this: the twin has
+        # an Ok value for the same node id, so the ray would have
+        # resolved to a name out of the twin's table.
+        self.assertIsNotNone(self.twin_ev.value(self.cube))
+        self.assertIsNotNone(self.ev.pick_face([self.pick], straight_down()))
+        with self.assertRaises(HitTestError) as caught:
+            self.twin_ev.pick_face([self.pick], straight_down())
+        self.assertEqual(
+            caught.exception.variant, "evaluation_of_another_document"
+        )
+
+    def test_a_later_evaluation_of_the_same_document_is_admitted(self):
+        # The document is EDITED — a second solid inserted — so this is
+        # a different run of the same identity, which is what the
+        # pairing admits.
+        unit_cube(self.doc, at=(5.0, 0.0))
+        later = evaluate(self.doc)
+        self.assertEqual(
+            self.pick.patch_names(later), self.pick.patch_names(self.ev)
+        )
+        self.assertEqual(
+            self.pick.boundary_names(later), self.pick.boundary_names(self.ev)
+        )
+        self.assertIsNotNone(later.pick_face([self.pick], straight_down()))
+
+
 class TestThePickedNameIsUsable(unittest.TestCase):
     """A pick is a selection: the text goes straight back into the
     document layer, unread."""
