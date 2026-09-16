@@ -146,6 +146,21 @@ door landed without it), and `ident.rs`'s `Mispaired` and
 `Evaluation::document` now point there instead of carrying a second
 copy that rots.
 
+One thing the door dragged with it, disclosed because it is a public
+shape change: two `DocumentId`s are two `u128`s, so the new arm gives
+`EditError` 16-byte alignment and rounded it from 104 to 112 bytes —
+enough to push `PersistError`, the viewer's `ReplayError` and the
+`DocIoError` over them to 128 and fire `clippy::result_large_err`,
+which this tree runs at `-D warnings` with one `allow` in it. What the
+lint was pointing at is real and older than this door:
+`EditError::ProfileProgramRefused` held a 96-byte `ProgramRefusal`
+inline, the enum's widest payload by some margin, in an enum every
+edit door returns BY VALUE. It rides behind a `Box` now
+(`AssemblyError::Product` carries `ProductError` the same way), which
+takes `EditError` to 96 and every carrier back under the line. Three
+test patterns that destructured through the field are two-step now,
+box patterns being unstable.
+
 Not built: `stackup::sensitivities`, `stackup::stackup` (whose
 `pair_record` ties `paired` by node set and content key, both satisfied
 by a twin) and `drive::certifying_vector`. They are PROPS's, below.
