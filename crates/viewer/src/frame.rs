@@ -776,17 +776,54 @@ pub const LIST_SEPARATOR: &str = "; ";
 /// landed on their probed instance, the delete that took it, the redo
 /// that stepped forward over the mate again.
 ///
-/// Its subject is [`Subject::Document`], so the event that retires it
-/// is the next act the document accepts — which the line already
-/// spells [`StatusUpdate::Clear`]. **That is a weaker lifetime than
-/// the argument above wants**, and the difference is stated rather
-/// than papered over: the fact is true of nothing after its own frame,
-/// while the sentence about it survives navigation and is retired by
-/// the next accepted edit. A one-frame sentence would be unreadable at
-/// sixty frames a second, so the frame is not a subject a reader can
-/// use; what the vocabulary buys here is that the lifetime is now
-/// STATED and implemented, and the residue is
-/// `work/view/a-supersession-outlives-its-own-frame.md`.
+/// Its subject is [`Subject::Document`], so what retires it is
+/// [`StatusUpdate::Clear`] — and [`acts`] makes that the next thing
+/// the user DOES other than hovering, which is narrower than "the next
+/// act the document accepts". Three legs, each with a row:
+///
+/// - **A hover leaves it standing.** [`batch_status`] answers
+///   [`StatusUpdate::Keep`] for a batch of nothing but
+///   [`SessionOp::Hover`], so the pointer drifting over the viewport
+///   does not take the sentence
+///   (`a_hover_only_batch_leaves_the_status_line_alone`).
+/// - **Navigation leaves it standing.** A camera fold is not a
+///   [`SessionOp`] at all — [`crate::camera::CameraOp`] is its own
+///   vocabulary — so it never reaches [`batch_status`], and the
+///   retirement it does issue names [`Subject::Camera`] and passes a
+///   `Document` message by (`a_clean_fold_keeps_a_message_it_did_not_write`,
+///   and `landing_a_clean_fold_does_not_clear_a_message_it_did_not_write`
+///   on the live path).
+/// - **The next non-hover operation takes the line off it**, whatever
+///   that operation's own verdict is: [`StatusUpdate::Clear`] where the
+///   document accepted it, the refusal's own sentence where it did not
+///   (`a_supersession_survives_the_accepted_edit_that_caused_it`,
+///   `an_acting_frame_sweeps_the_line_a_seam_refusal_would_have_been_on`).
+///
+/// **That is the lifetime this fact should have, and it is TIGHTER
+/// than the per-subject alternative a reader reaches for.** A
+/// supersession reports something COMPLETED — an accepted edit
+/// discarded a committed hand placement — so it cannot become false
+/// with age, only stale, and the question is never whether it is still
+/// true but whether the reader has moved on. The earliest honest
+/// evidence of that is the user doing something that is not moving the
+/// pointer, and that is exactly what `Clear` reads.
+///
+/// Making the subject the withdrawn INSTANCE instead, retired by that
+/// instance's own next event, runs the wrong way: a sentence about
+/// instance A would survive a selection of B, a hide of C and an edit
+/// elsewhere, so the news would live longest exactly where the reader
+/// has visibly left it. It would also INTRODUCE the one failure this
+/// lifetime does not have — the line contradicting the picture while
+/// the user re-places A by hand — because re-placing A is a non-hover
+/// operation and `Clear` has already taken the sentence, where a
+/// per-instance rule would have to get "A's own event" right to do the
+/// same.
+///
+/// Retiring on the frame boundary instead is tighter still and is not
+/// available: a sentence that lives one frame at sixty frames a second
+/// is one nobody reads, so the frame is not a subject a reader can use
+/// — which is why the fact being true of nothing after its own frame
+/// does not make the frame its subject.
 ///
 /// It reaches the line through the frame's NOTICES rather than by
 /// assignment, for the reason [`frame_status`] states: the transition
