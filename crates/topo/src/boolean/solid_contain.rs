@@ -197,10 +197,10 @@ pub enum PointInSolidError {
     /// Consulted only when a schedule ray crosses NO boundary at all —
     /// `q` then sits on the at-infinity side, and which side that IS
     /// depends on the body's orientation. A body whose volume the props
-    /// lane cannot certify (a rimless sphere band whose meridians lie
-    /// on two DIFFERENT great circles is the standing one: that arm
-    /// hardcodes `Δu = π`) leaves that question unanswerable, and this
-    /// says so rather than reporting a HEALTHY body as broken.
+    /// lane cannot certify (a curved face outside its closed-form
+    /// inventory — the shapes `topo::ValidationError::VolumeUncomputable`
+    /// breaks down by source) leaves that question unanswerable, and
+    /// this says so rather than reporting a HEALTHY body as broken.
     VolumeUncertified,
     /// A `Sphere` face that is neither closed on its own surface nor
     /// expressible as a chart RECTANGLE.
@@ -310,11 +310,10 @@ impl core::fmt::Display for PointInSolidError {
                 "point_in_solid: a schedule ray crossed no boundary at all, so the verdict is \
                  the AT-INFINITY side — and that side is read off the body's signed volume, \
                  which the closed-form props lane refused to certify. The body is HEALTHY and \
-                 this door's own arms answered; what is missing is a volume. The standing case \
-                 is a rimless sphere band whose two meridian boundaries lie on DIFFERENT great \
-                 circles (a lune narrower or wider than a hemisphere): that props arm hardcodes \
-                 the azimuthal width at π. Recourse: pose the query where a ray meets the \
-                 boundary, or wait on the props arm that reads the width from the boundary"
+                 this door's own arms answered; what is missing is a volume: a curved face \
+                 outside the closed-form inventory (the props refusal names the face and the \
+                 premise). Recourse: pose the query where a ray meets the boundary, or wait \
+                 on the props arm that measures that face"
             ),
             Self::PartialSphereFace { face } => {
                 write!(

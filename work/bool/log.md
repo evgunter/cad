@@ -610,3 +610,16 @@ The adjacent `declared.faces` observation is filed as its own item
 (`work/bool/declared-faces-has-no-cross-solid-check.md`). Block BOOL-B5
 drawn per the private draw file; BOOL-4 dispatches when a wave-1 lane
 frees its disk. Then the exit walk.
+## BOOL-5 merged (2026-09-16)
+
+PR #2748 merged at the fix-pass head ea55a2c44 (run 35080152715
+green); A/B row BOOL5, ordinal 1109, sample #214, no tally candidate
+(no MAJOR either arm; the revolve-reachable coplanar blind spot was
+found by both arms and closed in the fix pass through
+`props_band_opposite`). Items closed: BOOL-5, issue 542
+(`revolve-wedge-rim-free-band-volume`), and
+`coplanar-sphere-arm-cannot-tell-opposite-from-coincident-meridians`
+(moved here from PROPS's slate at the close, since S-BOOL's unit closed
+it). Re-scoped: `work/props/sphere-flux-arm-refuses-partial-bands.md`
+(part 1 closed). Filed forward on PROPS: the sphere wedge arm's
+missing lineage fold; the file's two D9 readings. Lane reclaimed.

@@ -2,11 +2,12 @@
 id: BOOL-5
 kind: unit
 title: issue 542 — the rim-free spherical-wedge props arm
-status: review
+status: closed
 opened: 2026-08-31
 refs: [542]
 branch: bool/5-wedge-props-arm
 pr: 2748
+closed: 2026-09-16
 ---
 
 `sphere()`'s spherical-wedge arm integrates over the meridian pair directly
