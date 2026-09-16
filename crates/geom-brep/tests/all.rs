@@ -58,6 +58,8 @@ mod approx_surface;
 mod arc_eval_anchor;
 #[path = "bool5_wedge_arm.rs"]
 mod bool5_wedge_arm;
+#[path = "bool5r1_probes.rs"]
+mod bool5r1_probes;
 #[path = "budget_faces.rs"]
 mod budget_faces;
 #[path = "cert1_r1_probes.rs"]
