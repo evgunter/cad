@@ -3459,7 +3459,7 @@ class SegTag:
     CornerFace: Final[SegTag]
     TrimEdge: Final[SegTag]
     FootVertex: Final[SegTag]
-    CornerArc: Final[SegTag]
+    EndArc: Final[SegTag]
     BandFace: Final[SegTag]
     BandTrim: Final[SegTag]
     BandFoot: Final[SegTag]

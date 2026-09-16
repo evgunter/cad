@@ -4906,7 +4906,7 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::CornerFace => 30,
         S::TrimEdge => 31,
         S::FootVertex => 32,
-        S::CornerArc => 33,
+        S::EndArc => 33,
         S::BandFace => 34,
         S::BandTrim => 35,
         S::BandFoot => 36,
@@ -5091,7 +5091,7 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
             feed_stable_name(h, vertex);
             feed_stable_name(h, support);
         }
-        RoleSeg::CornerArc { vertex, edge } => {
+        RoleSeg::EndArc { vertex, edge } => {
             feed_stable_name(h, vertex);
             feed_stable_name(h, edge);
         }

@@ -75,7 +75,7 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 ///
 /// Two more rows are worth a reader's second look, and neither is a bug.
 ///
-/// `die` is `0xd77331053f8a87fe` — the same number
+/// `die` is `0xfdf3_d13d_4782_a4e5` — the same number
 /// `m4_pr3_names_ci::DIE_TABLE_DIGEST` carries, because it is the same
 /// digest of the same tables. The two pins agreeing is a cross-check,
 /// not a duplication: that one covers the die FIXTURE through its own
@@ -139,8 +139,8 @@ const PINNED: &[(&str, u64)] = &[
     ("cut_cylinder", 0x50ce_47ef_bede_96f7),
     ("measured_web", 0x57a8_bd3d_9ee5_80c8),
     ("boss_union", 0xd2f8_79b5_6cd2_0efa),
-    ("die_fillet", 0x34ae_aabf_d65b_e042),
-    ("die_chamfer", 0x34ae_aabf_d65b_e042),
+    ("die_fillet", 0x0b3d_4e2d_c53a_dff6),
+    ("die_chamfer", 0x0b3d_4e2d_c53a_dff6),
     ("die_pips", 0xc1d7_f994_65ee_de1d),
     ("heat_sink_fins", 0x774b_b1fa_e9c3_ea5a),
     ("die_tool", 0x8842_6c6d_a225_7e5c),
@@ -151,8 +151,8 @@ const PINNED: &[(&str, u64)] = &[
     // arrival moved no other row.
     ("part_select", 0xef49_6789_be45_f431),
     ("loft_prism", 0x28f4_e9c8_5810_f1a9),
-    ("die_composed", 0xf533_e226_f499_6617),
-    ("die_composed_tour", 0x10a8_8610_60a2_49eb),
+    ("die_composed", 0x7b0f_2152_5b1d_6487),
+    ("die_composed_tour", 0x5cff_0463_6827_a96f),
     ("plate_param", 0xf74f_e1b0_968d_d6e8),
     ("kiss_carry", 0x4c48_320f_0668_6632),
     // LIB-TUBE. Both tables are minted by `name_revolve` — the

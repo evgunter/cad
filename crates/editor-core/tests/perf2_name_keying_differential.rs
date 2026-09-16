@@ -150,8 +150,8 @@ const PINNED: &[(&str, u64, u64)] = &[
     ("cut_cylinder", 0xe0d5_2931_ec58_c9b1, 0xa4f1_a604_21f6_2494),
     ("measured_web", 0x8f05_d4ee_185c_a667, 0x9620_7fc9_b6fc_5050),
     ("boss_union", 0xd970_c774_1a5d_58dd, 0xf0b7_3067_97fb_9e6a),
-    ("die_fillet", 0x147d_a6c2_0018_91ff, 0xf9cb_f3b8_9f20_15be),
-    ("die_chamfer", 0x147d_a6c2_0018_91ff, 0x6dea_76ae_1356_c167),
+    ("die_fillet", 0x0c71_d910_5626_b94b, 0xf9cb_f3b8_9f20_15be),
+    ("die_chamfer", 0x0c71_d910_5626_b94b, 0x6dea_76ae_1356_c167),
     ("die_pips", 0x3d27_f3a0_918b_8c3d, 0x95ca_004d_9b43_7b93),
     (
         "heat_sink_fins",
@@ -162,10 +162,10 @@ const PINNED: &[(&str, u64, u64)] = &[
     ("face_sketch", 0x200b_b0eb_0e7e_e54e, 0xbd64_499b_ba26_f923),
     ("part_select", 0x114a_9d82_a993_9e00, 0x5c7c_d17b_9981_28e3),
     ("loft_prism", 0xc6db_7be2_9eb6_dfc8, 0xe546_02da_c16f_fa75),
-    ("die_composed", 0x81ca_737b_5ccc_97c7, 0xd7b4_ab3e_23ae_56ec),
+    ("die_composed", 0x0ef4_5011_166e_d3bb, 0xd7b4_ab3e_23ae_56ec),
     (
         "die_composed_tour",
-        0xb5b2_4244_d25d_310b,
+        0xad42_480f_3efe_b3d7,
         0xeb72_eb6d_b988_d8d8,
     ),
     ("plate_param", 0xc650_c981_5207_32b4, 0xcc04_5e8e_2d92_2a98),
