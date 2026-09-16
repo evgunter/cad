@@ -484,13 +484,30 @@ fn row4c_deleting_the_gauge_rewrites_the_key_and_holds_world_poses() {
     let before = doc.clone();
     let applied = apply(&doc, &DocEdit::DeleteNode { id: ids[0] }, Tol::witness())
         .expect("the gauge deletes");
+    // The mate names the dead instance with an instance-qualified
+    // head, which is a payload NAME and not a DAG edge: the delete
+    // stands and DM7's report rides beside the registry act, read at
+    // the door before the registry reconciles.
+    let mate_node = applied
+        .doc
+        .order()
+        .iter()
+        .copied()
+        .find(|&id| matches!(applied.doc.node(id), Some(Node::Mate { .. })))
+        .expect("the mate survives its member");
     assert_eq!(
         applied.maintenance,
-        vec![Maintenance::Cluster(ClusterMaintenance::GaugeRewrite {
-            from: ids[0],
-            to: ids[1],
-            frame: Some(Frame::translation([0.0, 0.0, 5.0])),
-        })],
+        vec![
+            Maintenance::Strand {
+                node: mate_node,
+                name: in_part(ids[0], PART_BODY),
+            },
+            Maintenance::Cluster(ClusterMaintenance::GaugeRewrite {
+                from: ids[0],
+                to: ids[1],
+                frame: Some(Frame::translation([0.0, 0.0, 5.0])),
+            }),
+        ],
         "the key moves to the next representative, composed with the \
          already-solved relative pose, so the survivor's world pose \
          does not move"

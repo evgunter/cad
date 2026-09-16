@@ -1073,9 +1073,7 @@ impl Maintenance {
     #[getter]
     fn name(&self, py: Python<'_>) -> PyResult<Option<String>> {
         match &self.0 {
-            d::Maintenance::Strand { name, .. } => {
-                super::doc::name_text(py, name).map(Some)
-            }
+            d::Maintenance::Strand { name, .. } => super::doc::name_text(py, name).map(Some),
             d::Maintenance::Cluster(_) => Ok(None),
         }
     }

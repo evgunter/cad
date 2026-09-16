@@ -4020,11 +4020,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "maintenance_tag",
-        values: &["drop", "gauge_rewrite", "join", "split", "strand"],
-        delegates: &[],
-    },
-    TagEntry {
         function: "coherence_condition_tag",
         values: &[
             "meridian_closure",
@@ -4324,6 +4319,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "skin",
             "stacking_escalated",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "maintenance_tag",
+        values: &["drop", "gauge_rewrite", "join", "split", "strand"],
         delegates: &[],
     },
     TagEntry {

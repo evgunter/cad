@@ -128,10 +128,9 @@ use pncad::analysis::{
 use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission,
     ClusterMaintenance, DimensionError, Distribution, DistributionFault, DistributionField,
-    Maintenance,
-    EditError, EvalError, InlineError, InterfaceCrossing, LeverRefusal, MateFault, MatePrimitive,
-    MeasureNodeFault, MeasureUnavailableAt, MetaVersionError, MintRefusal, NodeErrorKind,
-    ParseError, PersistError, PlacementRuleFault, ProgramFault, ProgramRefusal,
+    EditError, EvalError, InlineError, InterfaceCrossing, LeverRefusal, Maintenance, MateFault,
+    MatePrimitive, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError, MintRefusal,
+    NodeErrorKind, ParseError, PersistError, PlacementRuleFault, ProgramFault, ProgramRefusal,
     RecordedProgramError, RefusedRef, Relation, RootFault, ShellClassifyError, SlotId,
     SnapshotError, SplitError, Subgroup, UpdateError,
 };
