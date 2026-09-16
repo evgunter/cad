@@ -195,6 +195,8 @@ mod lib_sel2_flush;
 mod lib_u5_interrogate;
 #[path = "lib_u7_select.rs"]
 mod lib_u7_select;
+#[path = "load_door_payload_param_ref.rs"]
+mod load_door_payload_param_ref;
 #[path = "load_door_slot_dimension.rs"]
 mod load_door_slot_dimension;
 #[path = "m10_1_analysis.rs"]

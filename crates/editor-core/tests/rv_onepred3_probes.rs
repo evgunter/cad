@@ -1,25 +1,25 @@
-//! **The slot walks' third node kind, the payload-expression residue,
-//! and the walk ORDER** — written by the review lane `onepred3-rv` to
-//! falsify the unit's claims, and adopted by it: each row measures
-//! something no other row in the suite does.
+//! **The slot walks' third node kind and the walk ORDER** — written by
+//! the review lane `onepred3-rv` to falsify the unit's claims, and
+//! adopted by it: each row measures something no other row in the
+//! suite does.
 //!
 //! - A Count-dimensioned STRUCTURAL slot on a third node kind, refused
 //!   at both doors.
-//! - The residue `work/edit/load-door-does-not-check-payload-expression-param-refs`
-//!   names, MEASURED: the row is green because the load door admits
-//!   what the edit door refuses, and it reds — as a compile-clean
-//!   failure naming this sentence — on the day that row is built.
 //! - The walk ORDER as a contract: a file broken twice reads the
 //!   EARLIER walk's refusal, which is what makes a re-ordering a
 //!   change to every such file's diagnosis.
+//!
+//! The payload-expression half of the param-table rule was measured
+//! here as a GAP and is a contract now: its rows, reading both doors'
+//! answers over one fixture, are `load_door_payload_param_ref`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
 
 use editor_core::{
-    Dimension, DocEdit, EditError, Expr, MeasureExpr, Node, PatternKind, PersistError, ProfileDoc,
-    RecipeNodeId, SlotId, SnapshotError, apply, load, save,
+    Dimension, DocEdit, EditError, Expr, Node, PatternKind, PersistError, ProfileDoc, RecipeNodeId,
+    SlotId, SnapshotError, apply, load, save,
 };
 use fixture::{insert, len, on_frame_keeping, scl, square};
 use geom_core::Tol;
@@ -119,82 +119,6 @@ fn rv_a_retyped_pattern_count_is_refused_at_both_doors() {
         ),
         other => panic!("the load door must refuse a length count, got {other:?}"),
     }
-}
-
-/// PROBE 2 — the residue the unit filed
-/// (`load-door-does-not-check-payload-expression-param-refs`),
-/// MEASURED: a measure's expression reading an undeclared parameter
-/// loads clean while the edit door refuses the same node.
-#[test]
-fn rv_a_measure_expression_reading_an_undeclared_parameter_still_loads() {
-    let name = editor_core::ParamName::new("depth");
-    let (doc, _, profile) = on_frame_keeping(
-        ProfileDoc::empty(
-            editor_core::DocumentId::derive("rv-onepred3-payload"),
-            Tol::witness(),
-        ),
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![square(0.0, 0.0, 0.5)],
-    );
-    let (doc, _) = insert(
-        doc,
-        Node::Extrude {
-            profile,
-            distance: len(1.0),
-        },
-    );
-    let doc = apply(
-        &doc,
-        &DocEdit::SetDocParam {
-            name: name.clone(),
-            value: editor_core::DocParam::continuous(Dimension::Length, 1.0),
-        },
-        Tol::witness(),
-    )
-    .expect("a well-formed length parameter declares")
-    .doc;
-    let (doc, measure) = insert(
-        doc,
-        Node::Measure {
-            expr: MeasureExpr::value(Expr::param(name.clone(), Dimension::Length)),
-            refs: Vec::new(),
-        },
-    );
-
-    // The edit door refuses the same node when the name is undeclared.
-    let missing = editor_core::ParamName::new("nowhere");
-    match apply(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Node::Measure {
-                expr: MeasureExpr::value(Expr::param(missing.clone(), Dimension::Length)),
-                refs: Vec::new(),
-            },
-        },
-        Tol::witness(),
-    ) {
-        Err(EditError::UnknownPayloadParam { name: n, .. }) => assert_eq!(n, missing),
-        other => panic!("the edit door must refuse an undeclared payload param, got {other:?}"),
-    }
-
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
-    load(&text, Tol::witness()).expect("the fixture loads");
-    let corrupt = doctored(&text, |wire| {
-        let params = wire["snapshot"]["params"]
-            .as_object_mut()
-            .expect("the params are a map");
-        assert!(params.remove(&name.0).is_some());
-    });
-    let verdict = load(&corrupt, Tol::witness());
-    assert!(
-        verdict.is_ok(),
-        "MEASURED: the residue is real — the load door admits measure node {measure:?}, whose \
-         expression reads an undeclared parameter, and the edit door refuses the same node. \
-         This row reds when `load-door-does-not-check-payload-expression-param-refs` is built, \
-         and that is what it is for. Got {verdict:?}"
-    );
 }
 
 /// **The walk order is a contract**: a document broken in two ways at
