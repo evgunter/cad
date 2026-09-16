@@ -1397,3 +1397,30 @@ the boundary's encoding against the sense bit and σ reads that bit, so
 the comparison would become a tautology. That argument is the first
 thing both reviewers are told to adjudicate, and it is the one place
 the spec is not treated as settled.
+
+**Affine-try-map review adjudicated (2026-09-16).** Single style
+review: APPROVE-WITH-FIXES, 1 MAJOR / 5 MINOR / 7 NOTE, rubric 4/5/3 —
+**the first 5 on test quality this program has recorded**. The
+reviewer earned it by attacking the suite rather than the code: five
+mutations of its own (two column swaps, a translation-versus-column
+swap, a transposition INSIDE a column, and a short-circuit removal that
+reds exactly one row and nothing else, which is the sharpest evidence a
+suite can give that its rows are independent), plus a reproduction of
+the lane's self-caught near-miss in both directions — reverting the
+readout fix and re-applying the swap makes the row pass again, 3 red
+where 4 are owed. No mutation escaped. The respelling of `map` over
+`Infallible` is bit-identical over twelve shifted corpora, three
+distinct NaN payloads and an impure closure whose call order and count
+are unchanged. Zero spec deviations, silent or reported.
+
+The MAJOR is a doc comment attached to the wrong module: the new test
+module was inserted BETWEEN an existing module's doc comment and that
+module, so one module lost its header and the new one carries a header
+describing something else — in a diff whose whole subject is that a
+hand-written walk must have one honest statement. The sharpest NOTE is
+that the crate's own naming-convention sentence ("one name, `map` on
+every leaf") is now false and untouched, and that two of the four new
+doors have no consumer outside the ladder itself, which adds two
+members to an open row's population without citing it. Eleven items
+dispatched, including the reviewer's respelling oracle adopted as an
+ordinary row.
