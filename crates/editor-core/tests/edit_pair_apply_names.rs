@@ -143,7 +143,8 @@ fn apply_with_names_refuses_an_evaluation_of_another_document() {
         "the premise: the square's own tables carry the fourth rim edge"
     );
     assert_eq!(
-        apply_with_names(&triangle, &edit, &ev_triangle, tol).unwrap_err(),
+        apply_with_names(&triangle, &edit, &ev_triangle, tol)
+            .expect_err("the triangle has no fourth outer segment"),
         EditError::NameUnresolvedInEvaluation {
             name: fourth.clone()
         },

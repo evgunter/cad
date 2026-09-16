@@ -1136,8 +1136,17 @@ pub fn rebind_suggestions<T: Decide>(eval: &Evaluation<T>, name: &StableName) ->
 /// `Rebind`'s SOURCE is deliberately unchecked too: it is the
 /// stranded name being repaired.
 ///
+/// `eval` must be an evaluation OF `doc`: the tables this door reads
+/// are the evaluation's, and node ids are minted per document, so an
+/// evaluation of a twin recipe satisfies the carve-out on every name
+/// and answers out of the wrong tables. The pairing goes through
+/// [`crate::ident::mispaired`], the one predicate the pair doors
+/// share, before any name is read.
+///
 /// # Errors
 ///
+/// [`crate::edit::EditError::EvaluationOfAnotherDocument`] for a
+/// mispaired `eval`;
 /// [`crate::edit::EditError::NameUnresolvedInEvaluation`] on a
 /// checkable-but-absent name; otherwise whatever [`crate::edit::apply`]
 /// returns.
@@ -1148,6 +1157,15 @@ pub fn apply_with_names<T: Decide>(
     tol: Tol,
 ) -> Result<crate::edit::Applied<ProfileProgram>, crate::edit::EditError> {
     use crate::edit::{DocEdit, EditError};
+    // DI3, before any name is read: node ids are minted by a
+    // per-document counter, so an evaluation of a twin answers every
+    // lookup below and the carve-out never fires.
+    if let Some(m) = crate::ident::mispaired(doc.id(), eval.document) {
+        return Err(EditError::EvaluationOfAnotherDocument {
+            expected: m.expected,
+            found: m.found,
+        });
+    }
     let mut names: Vec<&StableName> = Vec::new();
     // EXHAUSTIVE on purpose (the `walk_names` rule): the three groups
     // below are the doc's checked/unchecked split, and a future

@@ -2203,7 +2203,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     use crate::edit_payload::edit_payload;
     use pncad::document::{
         AttrKind, Axis3, ContentPin, Dimension, DimensionError, Distribution, DocParamValue,
-        EditError as E, ExprPath, Frame, MeasureNodeFault, MetaVersionError, ParamName,
+        DocumentId, EditError as E, ExprPath, Frame, MeasureNodeFault, MetaVersionError, ParamName,
         RecipeNodeId, RootFault, SlotId,
     };
     use pncad::prelude::StableName;
@@ -2572,6 +2572,16 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         .expect_err("a zero axis has no definite direction");
     carries(&E::from(axis), &[]);
     carries(&E::EmptyWitnessBulk, &[]);
+    // Two DOCUMENTS, which no attribute of this record carries — the
+    // `ProductError` arm's precedent one door over: the message states
+    // both ids.
+    carries(
+        &E::EvaluationOfAnotherDocument {
+            expected: DocumentId::derive("edited"),
+            found: DocumentId::derive("handed"),
+        },
+        &[],
+    );
 }
 
 /// The workspace tags `Doc()` publishes. `randomness_unavailable` is
@@ -4073,6 +4083,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "duplicate_witness_entry",
             "empty_placement_list",
             "empty_witness_bulk",
+            "evaluation_of_another_document",
             "improper_placement",
             "invalid_distribution",
             "invalid_tolerance",

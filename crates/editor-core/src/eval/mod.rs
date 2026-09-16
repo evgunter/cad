@@ -72,22 +72,16 @@ pub struct Evaluation<T: Decide> {
     /// reuse, so the version half would cost a canonicalization per
     /// run for a check the keys already make.
     ///
-    /// THREE doors read this field to refuse a mispairing typed,
-    /// before reading anything of the value: [`product`](fn@crate::product)
-    /// (with its `_named` and `_recorded` siblings), [`crate::assemble`]
-    /// through them, and — for the solve's own twin of this stamp —
-    /// [`crate::mate::SolvedPoses::placement`]. The memo is the fourth
-    /// reader and refuses differently, below. Node ids alone could not
-    /// decide any of it: they are minted by a per-document counter, so
-    /// two documents built from one recipe carry the SAME ids for the
-    /// same nodes, and every lookup would hit.
+    /// The pairing doors read this field to refuse a mispairing typed,
+    /// before reading anything of the value; the memo reads it too and
+    /// refuses differently, below. Node ids alone could not decide any
+    /// of it: they are minted by a per-document counter, so two
+    /// documents built from one recipe carry the SAME ids for the same
+    /// nodes, and every lookup would hit.
     ///
-    /// Other doors taking such a pair — `run_checks`,
-    /// `resolve::apply_with_names`, `stackup` and `sensitivities`,
-    /// `drive::certifying` — do NOT read it today (`assembly::mint` is
-    /// covered downstream by `product_recorded`); that gap is tracked
-    /// at
-    /// `work/docm/pair-doors-outside-the-three-do-not-check-document-identity`.
+    /// Which doors those are, and which doors taking such a pair do
+    /// not check it yet, is `crates/editor-core/ASSEMBLY.md`'s A2a —
+    /// one place for a set that grows as each door is built.
     ///
     /// The field is `pub` like every other field of this struct, so a
     /// caller CAN restamp it. That is a deliberate act, not a slip, and
