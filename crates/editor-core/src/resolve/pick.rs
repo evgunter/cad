@@ -1847,6 +1847,131 @@ mod tests {
         );
     }
 
+    /// REVIEW PROBE (lane pick2-r2). **INFORM on `u + v` alone refuses
+    /// a candidate whose `u` and `v` each inform.** The
+    /// [`near_tangent`] shape with the origin moved so the exact hit
+    /// has barycentrics near `(0.25, 0.125)`, at `k = 18`: `u` and `v`
+    /// each pass [`admits`] (their intervals reach below `1`), the sum
+    /// is inside `[0, 1]` and its interval covers it. Green on the
+    /// head; red under a door that applies INFORM to `u` and `v` but
+    /// not to their sum — the mutant no row of this module catches.
+    #[test]
+    fn review_probe_inform_on_the_sum_alone_refuses() {
+        let zeta = 2f64.powi(-20);
+        let xi = 18.0 * zeta * f64::EPSILON;
+        let tri = [
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, zeta + xi),
+            Point3::new(0.0, 1.0, 0.0),
+        ];
+        let dir = Vec3::new(1.0, 1.0, zeta);
+        let e1: Vec3<f64> = tri[1] - tri[0];
+        let e2: Vec3<f64> = tri[2] - tri[0];
+        let target = tri[0] + e1 * 0.25 + e2 * 0.125;
+        let ray = Ray {
+            origin: target - dir,
+            dir,
+        };
+        let [(u, err_u), (v, err_v), (sum, err_sum)] =
+            barycentric_intervals(&ray, &tri).expect("a certified determinant");
+        assert!(super::admits(u, err_u), "u = {u} ± {err_u} is admitted on its own");
+        assert!(super::admits(v, err_v), "v = {v} ± {err_v} is admitted on its own");
+        assert!((0.0..=1.0).contains(&sum), "u + v = {sum} is inside the closed range");
+        assert!(
+            sum - err_sum <= 0.0 && sum + err_sum >= 1.0,
+            "u + v = {sum} ± {err_sum} covers the admissible range"
+        );
+        assert_eq!(
+            ray_triangle(&ray, &tri),
+            None,
+            "the door refuses on the sum's interval alone"
+        );
+    }
+
+    /// REVIEW PROBE (lane pick2-r2). **INFORM's "costs no graze" is
+    /// corner-labelling dependent.** `ray_triangle`'s doc says a
+    /// graze's `u` and `v` are `0` "against a numerator bound that
+    /// vanishes with them"; the numerator bound is
+    /// `triple_bound(s, d, e2)`, a function of `|s|`, `|d|`, `|e2|`
+    /// and not of the numerator's value, so it vanishes only when `s`
+    /// does. On the [`near_tangent`] triangle at `k = 32` a ray
+    /// through corner `b` is admitted with the corners labelled
+    /// `(a, b, c)` and REFUSED with the same triangle labelled
+    /// `(b, c, a)` — the same geometric graze, the same certified
+    /// determinant magnitude, two verdicts. At `k = 8` every corner
+    /// graze is refused. The corpus instance is `cut_cylinder`, `+z`
+    /// through `(-0.4843, 0.1243, 0.0595)`: `main` answers the aimed
+    /// vertex at `t = reach`, the head answers `0.5356` further up the
+    /// ruling (`review_pick2_r2`).
+    #[test]
+    fn review_probe_a_corner_graze_is_admitted_or_refused_by_its_label() {
+        let zeta = 2f64.powi(-20);
+        let xi = 32.0 * zeta * f64::EPSILON;
+        let a = Point3::new(0.0, 0.0, 0.0);
+        let b = Point3::new(1.0, 0.0, zeta + xi);
+        let c = Point3::new(0.0, 1.0, 0.0);
+        let dir = Vec3::new(1.0, 1.0, zeta);
+        let ray = Ray {
+            origin: b - dir,
+            dir,
+        };
+        let abc = [a, b, c];
+        let bca = [b, c, a];
+        let det_abc = certified_determinant(&ray, &abc).expect("certified");
+        let det_bca = certified_determinant(&ray, &bca).expect("certified");
+        assert_eq!(det_abc.to_bits(), det_bca.to_bits(), "one determinant, two labellings");
+        let [(u, _), (v, _), _] = barycentric_intervals(&ray, &abc).expect("certified");
+        assert_eq!((u, v), (1.0, 0.0), "the graze is corner b: u = 1, v = 0 exactly");
+        let [(u2, _), (v2, _), _] = barycentric_intervals(&ray, &bca).expect("certified");
+        assert_eq!((u2, v2), (0.0, 0.0), "relabelled, the graze is corner a: u = v = 0 exactly");
+        assert_eq!(
+            ray_triangle(&ray, &abc),
+            Some(1.0),
+            "labelled (a, b, c), the graze is admitted at t = 1"
+        );
+        assert_eq!(
+            ray_triangle(&ray, &bca),
+            None,
+            "labelled (b, c, a), the same graze is refused at INFORM"
+        );
+        // And at k = 8 no labelling admits a graze at any corner.
+        let xi = 8.0 * zeta * f64::EPSILON;
+        let b8 = Point3::new(1.0, 0.0, zeta + xi);
+        for (label, tri, corner) in [
+            ("a", [a, b8, c], a),
+            ("b", [a, b8, c], b8),
+            ("c", [a, b8, c], c),
+        ] {
+            let ray = Ray {
+                origin: corner - dir,
+                dir,
+            };
+            assert!(certified_determinant(&ray, &tri).is_some());
+            assert_eq!(
+                ray_triangle(&ray, &tri),
+                None,
+                "k = 8: the graze at corner {label} is refused"
+            );
+        }
+    }
+
+    /// REVIEW PROBE (lane pick2-r2). The acceptance's bits at the ends:
+    /// `x = 0, err = 1` and `x = 1, err = 1` refuse; `err` one ULP
+    /// below `1` admits at both ends; NaN and `+∞` bounds refuse.
+    #[test]
+    fn review_probe_admits_at_the_ends() {
+        assert!(!super::admits(0.0, 1.0));
+        assert!(!super::admits(1.0, 1.0));
+        assert!(!super::admits(0.5, 1.0));
+        assert!(super::admits(0.0, 1.0f64.next_down()));
+        assert!(super::admits(1.0, 1.0f64.next_down()));
+        assert!(!super::admits(0.5, f64::NAN));
+        assert!(!super::admits(0.5, f64::INFINITY));
+        assert!(!super::admits(f64::NAN, 0.0));
+        assert!(!super::admits((-0.0f64).next_down(), 0.0));
+        assert!(super::admits(-0.0, 0.0));
+    }
+
     /// **A well-conditioned interior hit is accepted, general
     /// position.** Random triangles; a ray aimed at an interior
     /// point (`u, v ∈ [0.15, 0.6]`, `u + v ≤ 0.85`) with an
