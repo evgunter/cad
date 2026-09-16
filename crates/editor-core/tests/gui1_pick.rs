@@ -112,6 +112,7 @@ fn picks_every_face_of_a_box() {
     let mesh = mesh_of(&ev, ext);
     let pick = MeshPick::build(&mesh).expect("well-formed mesh");
     let targets = [PickTarget {
+        document: ev.document,
         node: ext,
         body: 0,
         pick: &pick,
@@ -164,6 +165,7 @@ fn edge_ray_between_two_faces_resolves_deterministically() {
     let mesh = mesh_of(&ev, ext);
     let pick = MeshPick::build(&mesh).expect("well-formed mesh");
     let targets = [PickTarget {
+        document: ev.document,
         node: ext,
         body: 0,
         pick: &pick,
@@ -216,6 +218,7 @@ fn miss_is_a_typed_miss() {
     let mesh = mesh_of(&ev, ext);
     let pick = MeshPick::build(&mesh).expect("well-formed mesh");
     let targets = [PickTarget {
+        document: ev.document,
         node: ext,
         body: 0,
         pick: &pick,
@@ -267,6 +270,7 @@ fn unusable_nodes_surface_typed_errors() {
 
     let t = |node| {
         [PickTarget {
+            document: ev.document,
             node,
             body: 0,
             pick: &pick,
@@ -291,11 +295,13 @@ fn unusable_nodes_surface_typed_errors() {
     // A good target FIRST does not mask a bad one later in the slice.
     let both = [
         PickTarget {
+            document: ev.document,
             node: good,
             body: 0,
             pick: &pick,
         },
         PickTarget {
+            document: ev.document,
             node: bad,
             body: 0,
             pick: &pick,
@@ -320,11 +326,13 @@ fn occlusion_orders_by_t_across_bodies() {
     let pick_near = MeshPick::build(&mesh_near).expect("well-formed mesh");
     let pick_far = MeshPick::build(&mesh_far).expect("well-formed mesh");
     let tn = PickTarget {
+        document: ev.document,
         node: near,
         body: 0,
         pick: &pick_near,
     };
     let tf = PickTarget {
+        document: ev.document,
         node: far,
         body: 0,
         pick: &pick_far,
@@ -385,7 +393,9 @@ fn boundary_names_are_total_distinct_and_the_polylines_own() {
     let ev = run(&doc);
     let np = editor_core::NodePick::build(&ev, ext, 0, DELTA, Tol::witness())
         .expect("the box tessellates and indexes");
-    let names = np.boundary_names(&ev);
+    let names = np
+        .boundary_names(&ev)
+        .expect("the index and the evaluation are the same document's");
     assert_eq!(
         names.len(),
         np.mesh().boundaries.len(),
@@ -461,6 +471,7 @@ fn node_pick_door_is_prepaired_and_typed() {
     let mesh = mesh_of(&ev, ext);
     let pick = MeshPick::build(&mesh).expect("well-formed mesh");
     let raw = [PickTarget {
+        document: ev.document,
         node: ext,
         body: 0,
         pick: &pick,

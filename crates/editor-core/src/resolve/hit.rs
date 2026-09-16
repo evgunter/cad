@@ -39,6 +39,18 @@ pub enum HitTestError {
         /// The nearest failed ancestor.
         through: RecipeNodeId,
     },
+    /// The handed evaluation is of another document (DI3, A2a): the
+    /// door is a statement about a value of `expected`, and an
+    /// evaluation of `found` answers out of another document's name
+    /// tables. Node ids are minted per document, so a twin recipe's
+    /// evaluation answers every lookup — confidently, about other
+    /// geometry — and the refusal comes before any table is read.
+    EvaluationOfAnotherDocument {
+        /// The document the door is a statement about.
+        expected: crate::ident::DocumentId,
+        /// The document the handed evaluation is of.
+        found: crate::ident::DocumentId,
+    },
     /// THE BUG (spec D4): the node evaluated, but the entity has no
     /// name in its table — a naming-emission totality violation,
     /// surfaced loudly.
@@ -81,6 +93,12 @@ impl core::fmt::Display for HitTestError {
                  {}, so it has no name table to invert — the repair is \
                  upstream, at node {}",
                 node.0, through.0, through.0
+            ),
+            Self::EvaluationOfAnotherDocument { expected, found } => write!(
+                f,
+                "hit test: the evaluation is of document {found}, not \
+                 of document {expected} — the index and the tables it \
+                 is read against are of two documents"
             ),
             Self::Unnamed { node, entity } => write!(
                 f,

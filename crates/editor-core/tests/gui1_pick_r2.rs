@@ -189,11 +189,13 @@ fn pick_face_agrees_with_an_independent_brute_force_nearest_hit() {
     );
     let targets = [
         PickTarget {
+            document: ev.document,
             node: a,
             body: 0,
             pick: &pa,
         },
         PickTarget {
+            document: ev.document,
             node: b,
             body: 0,
             pick: &pb,
@@ -346,6 +348,7 @@ fn a_ray_through_a_shared_corner_hits_and_is_repeatable() {
     let m = mesh_of(&ev, n);
     let p = MeshPick::build(&m).expect("mesh indexes");
     let targets = [PickTarget {
+        document: ev.document,
         node: n,
         body: 0,
         pick: &p,
@@ -385,6 +388,7 @@ fn a_ray_in_a_face_plane_answers_from_the_transverse_faces() {
     let m = mesh_of(&ev, n);
     let p = MeshPick::build(&m).expect("mesh indexes");
     let targets = [PickTarget {
+        document: ev.document,
         node: n,
         body: 0,
         pick: &p,
@@ -422,6 +426,7 @@ fn three_body_occlusion_peels_in_t_order() {
         .map(|m| MeshPick::build(m).expect("mesh indexes"))
         .collect();
     let mk = |i: usize, node| PickTarget {
+        document: ev.document,
         node,
         body: 0,
         pick: &ps[i],
@@ -467,6 +472,7 @@ fn a_degenerate_triangle_is_unhittable_and_harmless() {
 
     let p = MeshPick::build(&m).expect("degenerate geometry still indexes");
     let targets = [PickTarget {
+        document: ev.document,
         node: n,
         body: 0,
         pick: &p,
@@ -526,11 +532,13 @@ fn a_mesh_paired_with_the_wrong_node_does_not_answer_a_name() {
     // Body A's index, presented as node B's target — the mistake a
     // consumer holding a cache keyed by the wrong node id makes.
     let wrong = [PickTarget {
+        document: ev.document,
         node: b,
         body: 0,
         pick: &pa,
     }];
     let right = [PickTarget {
+        document: ev.document,
         node: a,
         body: 0,
         pick: &pa,
@@ -563,6 +571,7 @@ fn degenerate_rays_are_typed_misses() {
     let m = mesh_of(&ev, n);
     let p = MeshPick::build(&m).expect("mesh indexes");
     let targets = [PickTarget {
+        document: ev.document,
         node: n,
         body: 0,
         pick: &p,

@@ -637,7 +637,7 @@ fn assert_flat_reference(
     let names: Vec<Vec<Result<StableName, HitTestError>>> = index
         .parts()
         .iter()
-        .map(|part: &NodePick| part.patch_names(eval))
+        .map(|part: &NodePick| part.patch_names(eval).expect("the parts are of this evaluation"))
         .collect();
     let mut ties = 0;
     for (i, ray) in rays.iter().enumerate() {

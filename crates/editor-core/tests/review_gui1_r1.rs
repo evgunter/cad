@@ -311,6 +311,7 @@ fn dyadic_battery_pins_faces_edges_corners_and_tiebreak() {
     let scaled_meshes = [(0usize, &scaled)];
     let scaled_pick = MeshPick::build(&scaled).expect("scaled mesh builds");
     let scaled_targets = [PickTarget {
+        document: ev.document,
         node: ext,
         body: 0,
         pick: &scaled_pick,
@@ -367,11 +368,13 @@ fn coplanar_cross_target_tie_resolves_by_target_position() {
     let pick_a = MeshPick::build(&mesh_a).expect("mesh a");
     let pick_b = MeshPick::build(&mesh_b).expect("mesh b");
     let ta = PickTarget {
+        document: ev.document,
         node: a,
         body: 0,
         pick: &pick_a,
     };
     let tb = PickTarget {
+        document: ev.document,
         node: b,
         body: 0,
         pick: &pick_b,
@@ -424,6 +427,7 @@ fn random_integer_rays_match_the_exact_oracle() {
     let mesh = mesh_of(&ev, ext);
     let pick = MeshPick::build(&mesh).expect("well-formed mesh");
     let targets = [PickTarget {
+        document: ev.document,
         node: ext,
         body: 0,
         pick: &pick,

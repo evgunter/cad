@@ -12,12 +12,19 @@
 //! rather than the name loop's, an edit carrying no name being refused
 //! just the same.
 //!
-//! Two rows are review lanes' probes, adopted: the foreign-evaluation
+//! **Beside them, the pick index's own pairing** (A2a's `NodePick`
+//! doors): an index built from one evaluation refuses a twin's at
+//! `patch_names`, `boundary_names` and `pick_face`, and admits a
+//! later evaluation of its own document, which is where DI3's line
+//! between identity and version falls.
+//!
+//! Three rows are review lanes' probes, adopted: the foreign-evaluation
 //! shape is R2's DOCM-4 probe
 //! `red_apply_with_names_admits_a_foreign_evaluation`
 //! (`docm/4-review-r2`), widened here to both directions; the
-//! version-survives-pairing row and the `NodePick` measurement row are
-//! lane `pair-rv`'s (`review/pair-rv`) and keep their own headers.
+//! version-survives-pairing row and the `NodePick` row are lane
+//! `pair-rv`'s (`review/pair-rv`) and keep their own headers — the
+//! second measured the wrong answers the refusal now replaces.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -26,8 +33,8 @@
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, CapEnd, DocEdit, DocumentId, EditError, EvalOptions, Evaluation, Node, ProfileDoc,
-    ProfileEdgeRef, RecipeNodeId, RoleSeg, apply_with_names, evaluate,
+    CancelToken, CapEnd, DocEdit, DocumentId, EditError, EvalOptions, Evaluation, HitTestError,
+    Node, ProfileDoc, ProfileEdgeRef, RecipeNodeId, RoleSeg, SlotId, apply_with_names, evaluate,
 };
 use fixture::{ename, insert, len, on_frame};
 use geom_core::Tol;
@@ -263,16 +270,26 @@ fn the_pairing_is_identity_and_survives_a_new_version_of_the_document() {
     );
 }
 
-/// REVIEW PROBE (lane `pair-rv`, claim 5): a door the PR's sweep
-/// pattern could not match and did not go looking for by hand.
-/// `NodePick` is built FROM one evaluation and then handed ANOTHER at
-/// [`NodePick::patch_names`] / `boundary_names`; the index carries no
-/// `DocumentId`, so nothing can run `ident::mispaired` there. Against
-/// a twin's evaluation the door answers with the TWIN's names — no
-/// refusal, no `Unnamed`, just other geometry's names in patch order.
-/// Kept as a documentation row: it asserts what happens today.
+/// **The index's name doors refuse a twin's evaluation** — adopted
+/// from lane `pair-rv`'s probe (claim 5), which measured this same
+/// pairing when nothing checked it: a square prism's index, handed a
+/// triangular prism's evaluation, answered five of its six patches out
+/// of the twin's tables and differed from the truth on three, with no
+/// `Unnamed` and no refusal.
+///
+/// A `NodePick` is BUILT from one evaluation and then handed ANOTHER
+/// at [`NodePick::patch_names`] / `boundary_names`. The index now
+/// carries the building evaluation's `DocumentId`, so those doors run
+/// the pairing predicate before a table is read, and the measurement
+/// above is what the refusal replaces.
+///
+/// The refusal is of the CALL: one fact about the arguments, outside
+/// the vector, not `n` copies of it inside one. The row asserts that
+/// shape as well as the arm — a per-slot spelling would still be
+/// `Err` in every slot and would pass a test that only asked "is
+/// anything wrong".
 #[test]
-fn nodepick_patch_names_answers_out_of_a_twins_tables() {
+fn the_name_doors_refuse_a_twins_evaluation() {
     let tol = Tol::witness();
     let (square, sq) = prism("edit-pair-pick-square", 4);
     let (triangle, _tri) = prism("edit-pair-pick-triangle", 3);
@@ -281,28 +298,159 @@ fn nodepick_patch_names_answers_out_of_a_twins_tables() {
 
     let pick = editor_core::NodePick::build(&ev_square, sq, 0, 0.1, tol)
         .expect("the square prism tessellates");
-    let own = pick.patch_names(&ev_square);
-    let foreign = pick.patch_names(&ev_triangle);
 
-    assert_eq!(own.len(), foreign.len(), "same index, same patch order");
+    // The premise the probe measured: the twin's tables DO answer
+    // these lookups, so the refusal is the only thing standing
+    // between a consumer and other geometry's names.
+    let own = pick
+        .patch_names(&ev_square)
+        .expect("the index's own evaluation pairs");
     assert!(
         own.iter().all(Result::is_ok),
         "the premise: every patch of the square is named by its own run"
     );
-    let named_by_the_twin = foreign.iter().filter(|r| r.is_ok()).count();
-    let differs = own
-        .iter()
-        .zip(foreign.iter())
-        .filter(|(a, b)| a != b)
-        .count();
-    assert_ne!(
-        differs, 0,
-        "the finding: a foreign evaluation changes the answer, silently"
+    assert!(
+        own.len() > 1,
+        "the premise: more than one patch, so a per-slot refusal would \
+         be distinguishable from a refusal of the call"
     );
-    println!(
-        "PROBE NodePick::patch_names: {} patches, {} named by the twin, {} answers differ",
-        own.len(),
-        named_by_the_twin,
-        differs
+
+    let expected = HitTestError::EvaluationOfAnotherDocument {
+        expected: square.id(),
+        found: triangle.id(),
+    };
+    assert_eq!(
+        pick.patch_names(&ev_triangle),
+        Err(expected),
+        "the finding: a foreign evaluation used to answer out of the \
+         twin's tables, in patch order"
+    );
+    assert_eq!(
+        pick.boundary_names(&ev_triangle),
+        Err(expected),
+        "the edge twin refuses the same way"
+    );
+
+    // The pick's OWN evaluation still answers, so the refusal is the
+    // pairing and not a door that stopped working.
+    assert!(
+        pick.boundary_names(&ev_square).is_ok(),
+        "the index's own evaluation still pairs at the edge door"
+    );
+}
+
+/// **`pick_face` refuses a target of another document**, before it
+/// reads a triangle or a node's standing.
+///
+/// The door's own targets carry the stamp ([`NodePick::target`]), and
+/// the standing loop would not have caught this: the twin mints the
+/// same node ids, so every target's node has an `Ok` value in the
+/// twin's evaluation and the ray would have resolved to a name out of
+/// the twin's table.
+#[test]
+fn pick_face_refuses_a_target_of_another_document() {
+    let tol = Tol::witness();
+    let (square, sq) = prism("edit-pair-face-square", 4);
+    let (triangle, tri) = prism("edit-pair-face-triangle", 3);
+    let ev_square = run(&square);
+    let ev_triangle = run(&triangle);
+    assert!(
+        ev_triangle.value(tri).is_some(),
+        "the premise: the twin has an Ok value for the SAME node id, so \
+         the standing loop admits the target"
+    );
+
+    let pick = editor_core::NodePick::build(&ev_square, sq, 0, 0.1, tol)
+        .expect("the square prism tessellates");
+    let targets = [pick.target()];
+    // Straight down the prism's axis, through the end cap.
+    let ray = editor_core::Ray {
+        origin: geom_core::Point3::new(0.0, 0.0, 5.0),
+        dir: geom_core::Vec3::new(0.0, 0.0, -1.0),
+    };
+    assert!(
+        editor_core::pick_face(&ev_square, &targets, &ray)
+            .expect("the index's own evaluation pairs")
+            .is_some(),
+        "the premise: the ray hits, so a mispairing would have answered \
+         a name rather than a miss"
+    );
+    assert_eq!(
+        editor_core::pick_face(&ev_triangle, &targets, &ray)
+            .expect_err("a target of another document is refused, not resolved"),
+        HitTestError::EvaluationOfAnotherDocument {
+            expected: square.id(),
+            found: triangle.id(),
+        },
+        "the refusal is the pairing arm, in the ray door's own vocabulary"
+    );
+}
+
+/// **A LATER evaluation of the SAME document is admitted** — the
+/// boundary DI3 draws, pinned rather than implied.
+///
+/// A pairing is about IDENTITY. The prism's own extrusion distance is
+/// EDITED between the two runs, so the later run recomputes and
+/// re-tessellates the very node the index was built for and the
+/// index's mesh is a picture behind — and the doors still answer.
+/// What may be reused across such a run is the content keys' business
+/// (`PickMemo`), not the pairing's, and a door that refused here would
+/// be stamping a version half DI3 deliberately does not stamp.
+#[test]
+fn a_later_evaluation_of_the_same_document_is_admitted() {
+    let tol = Tol::witness();
+    let (doc, ext) = prism("edit-pair-pick-later", 4);
+    let before = run(&doc);
+    let pick = editor_core::NodePick::build(&before, ext, 0, 0.1, tol)
+        .expect("the prism tessellates");
+    let patches_before = pick
+        .patch_names(&before)
+        .expect("the building evaluation pairs")
+        .len();
+
+    // The node ITSELF is edited, so the later run recomputes and
+    // re-tessellates it: the index's mesh is a picture behind the
+    // evaluation it is about to be handed.
+    let edited = doc
+        .apply(
+            &DocEdit::SetParam {
+                node: ext,
+                slot: SlotId::Distance,
+                expr: len(2.0),
+            },
+            tol,
+        )
+        .expect("a length goes into the extrusion distance")
+        .doc;
+    assert_eq!(edited.id(), doc.id(), "an edit never forks identity (DI4)");
+    let after = run(&edited);
+    assert_ne!(
+        before.value(ext).expect("the prism evaluated").content_key,
+        after.value(ext).expect("the prism evaluated").content_key,
+        "the premise: the node's own value moved, so this is not a \
+         re-run that happens to be identical"
+    );
+
+    let names = pick
+        .patch_names(&after)
+        .expect("a later evaluation of the same document is admitted");
+    assert_eq!(
+        names.len(),
+        patches_before,
+        "the index is the one that was built, so its patch order is \
+         unchanged — what the later run may have re-tessellated is the \
+         content keys' business, not the pairing's"
+    );
+    assert!(
+        pick.boundary_names(&after).is_ok(),
+        "the edge door draws the same line"
+    );
+    assert!(
+        editor_core::pick_face(&after, &[pick.target()], &editor_core::Ray {
+            origin: geom_core::Point3::new(0.0, 0.0, 5.0),
+            dir: geom_core::Vec3::new(0.0, 0.0, -1.0),
+        })
+        .is_ok(),
+        "and so does the ray door"
     );
 }

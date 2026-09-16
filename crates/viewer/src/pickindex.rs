@@ -345,6 +345,14 @@ pub enum PickIndexError {
         /// The output body drawn twice.
         body: u32,
     },
+    /// A part's name doors refused the evaluation this index is being
+    /// built against — the pairing refusal, forwarded. Every part here
+    /// is built from that same evaluation, so this is unreachable; it
+    /// is a refusal rather than an assumption for
+    /// [`PickIndexError::DrawnTwice`]'s reason, and because a future
+    /// caller that assembled parts elsewhere would otherwise get the
+    /// wrong document's names in window order.
+    Names(HitTestError),
 }
 
 impl core::fmt::Display for IdMapError {
@@ -386,6 +394,7 @@ impl core::fmt::Display for PickIndexError {
                 "body {} of node {} is drawn by two parts; one drawn body is one part",
                 body, node.0
             ),
+            Self::Names(error) => write!(f, "{error}"),
         }
     }
 }
@@ -418,7 +427,15 @@ trait DrawnKind {
     /// what say how long it is. Pairing the kind with its own name
     /// source here is also what stops a caller handing patch names to
     /// the edge window.
-    fn names_of(part: &NodePick, eval: &Evaluation<f64>) -> Vec<Result<StableName, HitTestError>>;
+    ///
+    /// # Errors
+    ///
+    /// [`HitTestError`] when the part is not of `eval`'s document —
+    /// the door's own pairing refusal, verbatim.
+    fn names_of(
+        part: &NodePick,
+        eval: &Evaluation<f64>,
+    ) -> Result<Vec<Result<StableName, HitTestError>>, HitTestError>;
 
     /// The address of the entity at `position` in the part drawing
     /// `(node, body)`, which is at `flat` in the whole index.
@@ -433,7 +450,10 @@ struct Patches;
 impl DrawnKind for Patches {
     type Id = u32;
 
-    fn names_of(part: &NodePick, eval: &Evaluation<f64>) -> Vec<Result<StableName, HitTestError>> {
+    fn names_of(
+        part: &NodePick,
+        eval: &Evaluation<f64>,
+    ) -> Result<Vec<Result<StableName, HitTestError>>, HitTestError> {
         part.patch_names(eval)
     }
 
@@ -455,7 +475,10 @@ struct Edges;
 impl DrawnKind for Edges {
     type Id = EdgeId;
 
-    fn names_of(part: &NodePick, eval: &Evaluation<f64>) -> Vec<Result<StableName, HitTestError>> {
+    fn names_of(
+        part: &NodePick,
+        eval: &Evaluation<f64>,
+    ) -> Result<Vec<Result<StableName, HitTestError>>, HitTestError> {
         part.boundary_names(eval)
     }
 
@@ -553,9 +576,11 @@ impl<K: DrawnKind> PartWindows<K> {
     /// # Errors
     ///
     /// [`PickIndexError::DrawnTwice`] when a part for that
-    /// (node, body) is already here.
+    /// (node, body) is already here; [`PickIndexError::Names`] when
+    /// the part is not of `eval`'s document.
     fn push(&mut self, part: &NodePick, eval: &Evaluation<f64>) -> Result<(), PickIndexError> {
-        self.push_names(part.node(), part.body(), K::names_of(part, eval))
+        let names = K::names_of(part, eval).map_err(PickIndexError::Names)?;
+        self.push_names(part.node(), part.body(), names)
     }
 
     /// [`Self::push`] over a name list directly — the seam a row can
