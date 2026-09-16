@@ -1,10 +1,11 @@
 ---
 id: authored-step-to-canonical-segment-map-has-no-home
 kind: issue
-title: "The authored-step to canonical-segment map has no home: its two halves are DOCM's and BOOL's, and neither owner can site it alone"
+title: The authored-step to canonical-segment map has no home: its two halves are DOCM's and BOOL's, and neither owner can site it alone
 status: open
 opened: 2026-09-04
 refs: [focus-marking-is-per-node-not-per-segment]
+needs_ev: true
 ---
 
 The announce VIEW's plan item 4 has owed since 2026-09-03, written as
@@ -86,3 +87,47 @@ Moved from `work/docm/` to `work/edit/` at DOCM's exit sweep (`docs/DOC-LEDGER.m
 sweep 14): EDIT is DOCM's successor on the document-model ground (persist, the edit vocabulary, the node and resolver doors). Id, body and header are unchanged; the directory is the
 claim (`work/README.md`). Any `## Home` section above is superseded by
 this line and is kept as the record of why the file was where it was.
+
+## Question for Ev (2026-09-16, EDIT orchestrator) — with a recommendation
+
+**The question.** Where does the map from an authored profile step
+(`SlotId::Profile { loop_, step, arg }`) to the canonical segments it
+became (`ProfileEdgeRef { loop_index, segment }`) live, and who
+computes it? VIEW's focus marking is the consumer; the row's three
+sub-questions are which side computes it, whether it survives the
+lowering or is re-derived, and whether a second consumer exists.
+
+**Recommendation: both producers record what they already know, and
+`editor-core` composes.** The map is two facts in sequence, each
+known exactly by the code that makes it:
+
+1. the replay turns each step into `k` segments in step order
+   (`crates/profile`'s verb table; a fillet leg or `circle_split`
+   is where `k ≠ 1`). `ReplayStructure` already records the replay's
+   structural decisions (its fillet resolutions) and gains the
+   per-step segment span — the same kind of record, one field.
+2. canonicalization permutes that chain by `reversed` and `start`,
+   both already recorded on `LoopCanonical`.
+
+So the door is a function in `crates/editor-core/src/program.rs`
+composing the two records into "step → set of canonical segments",
+refusing rather than guessing for a loop whose record is absent. It
+is derived from the structure record the evaluation itself produced,
+so it cannot disagree with the geometry; it is not persisted. The
+`program.rs` doc on `LoopProgram`'s radius door already says the
+replay owns this map and left it unbuilt for want of a consumer.
+
+**Second consumer, answering sub-question 3.** That same doc: pairing
+a chain loop's per-step radii with swept walls needs this map, and
+today the radius door answers `None` for chains because of it. So the
+map has a consumer inside `editor-core` before VIEW's.
+
+**Rejected: the viewer re-deriving it** from both endpoints — a
+second derivation that can disagree with the one that produced the
+geometry, the shape the project treats as a defect. **Rejected: the
+profile crate owning the whole map** — it has no vocabulary for an
+authored step and would grow one for a consumer two layers up.
+
+**Cost and seam.** Item 1 is one field in BOOL's crate, announced to
+S-BOOL and built by whichever side lands first; item 2 and the door
+are EDIT's. VIEW's row unparks when the door merges.
