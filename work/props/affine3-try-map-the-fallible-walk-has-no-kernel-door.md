@@ -2,8 +2,10 @@
 id: affine3-try-map-the-fallible-walk-has-no-kernel-door
 kind: issue
 title: Affine3::try_map: the fallible per-coordinate walk over an Affine3 has no kernel door, so editor-core keeps a private one
-status: open
+status: review
 opened: 2026-09-08
+pr: 2743
+branch: props/affine-try-map
 ---
 
 The per-coordinate walk over an `Affine3` — twelve components through

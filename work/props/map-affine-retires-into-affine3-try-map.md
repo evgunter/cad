@@ -2,8 +2,10 @@
 id: map-affine-retires-into-affine3-try-map
 kind: issue
 title: anchor::map_affine retires into Affine3::try_map in the PR that adopts it
-status: parked
+status: review
 opened: 2026-09-08
+pr: 2743
+branch: props/affine-try-map
 blocked_on: [affine3-try-map-the-fallible-walk-has-no-kernel-door]
 refs: [2139]
 ---
