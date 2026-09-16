@@ -399,6 +399,8 @@ mod review_gui1_r1;
 mod review_m4_pr1;
 #[path = "review_m4_pr1_die.rs"]
 mod review_m4_pr1_die;
+#[path = "review_pick_r2_probes.rs"]
+mod review_pick_r2_probes;
 #[path = "review_m4_pr2.rs"]
 mod review_m4_pr2;
 #[path = "review_m5_pr10_sweep_node.rs"]
