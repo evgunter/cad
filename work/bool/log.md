@@ -596,3 +596,17 @@ shadow-exec rung — `resolve/vdiff.rs`, M10 keep-outs hard). Arms from
 block BOOL-B4 per the private draw file, quoted before the arms were
 named. Wave 2 is BOOL-4 (L); wave 3 the BOOL-Q rows as two lanes;
 then the exit walk.
+
+## BOOL-5 merged (2026-09-16)
+
+PR #2748 merged at the fix-pass head ea55a2c44 (run 35080152715
+green); A/B row BOOL5, ordinal 1109, sample #214, no tally candidate
+(no MAJOR either arm; the revolve-reachable coplanar blind spot was
+found by both arms and closed in the fix pass through
+`props_band_opposite`). Items closed: BOOL-5, issue 542
+(`revolve-wedge-rim-free-band-volume`), and
+`coplanar-sphere-arm-cannot-tell-opposite-from-coincident-meridians`
+(moved here from PROPS's slate at the close, since S-BOOL's unit closed
+it). Re-scoped: `work/props/sphere-flux-arm-refuses-partial-bands.md`
+(part 1 closed). Filed forward on PROPS: the sphere wedge arm's
+missing lineage fold; the file's two D9 readings. Lane reclaimed.
