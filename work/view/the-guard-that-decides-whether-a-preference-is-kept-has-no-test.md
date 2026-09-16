@@ -33,7 +33,7 @@ either line and every gate this repo runs would stay green.
 ## What one harness would and would not close
 
 `hover-route-for-an-absent-chooser-has-no-test` names the same boundary
-for `frame::NO_CHOOSER_BACKEND`'s tooltip, and its shape (2) — *whether
+for `platform::NO_CHOOSER_BACKEND`'s tooltip, and its shape (2) — *whether
 `egui`'s test harness can build a context, draw the toolbar and read a
 control* — is the same uncosted question.
 

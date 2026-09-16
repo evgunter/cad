@@ -190,7 +190,7 @@ fn an_absent_store_reports_rather_than_pretends() {
 /// is the SECOND member of that class, and the browser is not its
 /// subject.
 ///
-/// `frame::prefs_path` answers `None` there, `FileStore::new` keeps it,
+/// `platform::prefs_path` answers `None` there, `FileStore::new` keeps it,
 /// and everything the chrome does about it keys on this read rather
 /// than on `target_family` — which is why one fix covers both. A
 /// `FileStore` reached only through `FileStore::at` cannot be built

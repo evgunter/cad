@@ -1024,14 +1024,14 @@ impl OpOutcome {
 /// absence is what made the refusal dishonest.
 ///
 /// **A door that cannot act says so rather than vanishing**, which is
-/// the posture `frame::ChooserBackend`'s two dialog controls take: the
+/// the posture `platform::ChooserBackend`'s two dialog controls take: the
 /// door is drawn whatever the selection, the standing and the
 /// evaluation are, and disabled rather than absent when it can do
 /// nothing.
 ///
 /// **How it says so is the OTHER precedent**, and the two part company
 /// exactly here: the dialog controls hand
-/// `frame::NO_CHOOSER_BACKEND` — a `&'static str` composed at each
+/// `platform::NO_CHOOSER_BACKEND` — a `&'static str` composed at each
 /// button — to `on_disabled_hover_text`, which is the shape
 /// `work/view/environmental-facts-answer-usable-as-a-bool-with-the-
 /// reason-elsewhere.md` is open about. The one this follows is
