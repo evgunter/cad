@@ -7189,3 +7189,36 @@ implementer's unit log entry is not written until the dual concludes.
 EDIT-PICK2 RECORDED AT MERGE (2026-09-16, PR #2746, sample #214 — prior highest #213 on main at merge; block EDIT-B1 slot 1 concluded, the block record staying on `edit/b1-block` until the block concludes):
 
 | EDIT-PICK2 | 2026-09-16 | EDIT-PICK2 (PR #2746; spec docs/EDIT-PICK2-SPEC.md, amended once by the implementer's measurement and once at the fix pass, deleted at merge; closes `pick-accepts-uncertified-barycentrics-on-a-certified-determinant`): the exact test admits a barycentric iff the computed value lies in the closed range AND its derived error interval does not COVER that range (`admits`, spelled once) — so no admitted barycentric, and no winner, carries a bound ≥ 1, which was the defect (44 winners on the tie aim, 203 on the wide aim, now zero by construction and asserted per ray over both aims); the bound derived at the site (`triple_bound` for all three triple products, `QUOTIENT_ERROR_UNITS`, `SUM_ERROR_UNITS`, no tuned number); ONE door `crossing(ray, tri) -> Crossing { det, bound_det, barycentrics }` that `ray_triangle` and every corpus row read once per candidate, `conditioning` a method on it; INFORM pins on a parameterised near-tangent fixture killing drop-INFORM, halve, double and sum-only; the residue ruling filed as `what-t-the-pick-door-answers-and-with-what-width` (kind ruling) with three residue rows parked on it; no stop clause fired. **The spec's ruling (MEET ∧ INFORM) was measured false by the implementer before any review** — MEET admits an out-of-range barycentric, the hit point leaves the triangle and the early-out's premise breaks — and the orchestrator re-ruled to closed ∧ INFORM (the item's third shape, which the spec had rejected); the spec's example ray was also mis-stated (informative, not uninformative, under this unit's bound) | M / NUMERIC-GUARD (pre-draw at the block record, after the block byte — disclosed) | OPUS (block EDIT-B1 slot 1; byte 69 → fable at slot 0) | **DUAL (ordinal 4801, v6 byte 232 parity 0: R1 opus, R2 fable, concurrent same-head on frozen 55c2da48a)**: R1 2/3/4 APPROVE-WITH-FIXES, rubric 4/3/2 — MAJOR: the doc's "costs no graze" false (133 rays answer farther than main, 3 aimed-vertex grazes on `cut_cylinder` answer 0.536 farther; the tally's +12 a net of +15/−3); MAJOR: the residue row's conditioning figure wrong by five orders (2.7e-11 vs 7.19e-16, at the certification's noise floor); MINOR: the bound pinned only from the tight side (double-bound mutant survives every unit row), INFORM-without-the-sum survives, the headline wide-aim count asserted nowhere; NOTE: subtraction roundings outside the bound with 2.4× headroom, a NaN-blind fold, plan/log citing the withdrawn ruling. R2 0/4/5 APPROVE-WITH-FIXES, rubric 4/3/3 — MINOR: the same false graze sentence with the mechanism (the bound is a function of `|s|`, so a corner graze's verdict depends on the tessellator's corner labelling — same geometry admitted labelled (a,b,c), refused labelled (b,c,a)), the same +15/−3 net, the same two surviving mutants (with the unit-level probe the module lacked), the same wrong conditioning figure; NOTE: the acceptance exact on the bits, the bound valid under a 240 000-draw exact-rational oracle (worst 0.317), order independence holds. Convergent on every substantive finding; R1 rated two of them MAJOR that R2 rated MINOR (calibration datum). Adjudicated: **0 bilateral MAJOR + 0 unilateral MAJOR — v6 tally after this pair: +0 candidates.** Rulings: the sentence corrected and the graze cost appended to the graze-loss row; the labelling dependence filed as its own row; the figure corrected at three sites and pinned; unit-level pins for both surviving mutants; one door; the residue ruling scheduled as a row. Pair FAIR (R1 two name-only glimpses — a branch list and an `ls` — disclosed, no content; both complete; private target dirs). Spec flaws disclosed by both and owned by the orchestrator: the second false central premise on this door in two specs. | 5 reported / 2 silent by R1's count (the wide-aim cost; acceptance 5's assertion moved to the narrower aim), 4 by R2's (the net, the figure, the sentence, the stale plan and spec header) | R1 4 / R2 4 | R1 3 / R2 3 | R1 2 / R2 3 | substantial, IMPLEMENTER-INHERITED: every ruling built — the doc says the opposite of "costs no graze" and why; the figure 7.19e-16 pinned as `RING_WIDE_CANDIDATE_CONDITIONING`; two new fixtures (double-bound at `near_tangent(64)`, sum-deciding at `k = 18`); `crossing` the one door; `Door::bound` feeding the real `admits`; the ruling row filed and the three residues parked on it; both reviewer probe sets adopted authorship-preserving (R2's viewer suite argued not adopted: R1's walk with no further claim); a clippy-rejected NaN-shape fixed in the gate's own form | impl CI green (run 35069024406, full matrix; one earlier docs-tier head disclosed); fix CI green (run 35079027101, full matrix) | impl ~584k across two turns (harness: 246k stopped at the false premise + 338k resumed) / fix ~460k (harness) / R1 ~219k + R2 ~221k (harness) | impl ~141 min across two turns (harness) / fix ~89 min (harness) / R1 ~29 min + R2 ~23 min concurrent (harness) |
+
+## EDIT-PICK3 review ordinals fixed at dispatch (2026-09-16)
+
+EDIT-PICK3 (`pick-door-answers-a-t-interval`, PR #2786 open — frozen
+head `31cbee19f7a55c0f82e6e3e06a40bf7d986199e9`): **ordinals 4802
+(R1) and 4803 (R2)** (EDIT band; after 4801). Pre-draw fields at the
+spec (`docs/EDIT-PICK3-SPEC.md`, written after block EDIT-B1's byte was
+drawn — disclosed; the covariate is contaminated for this row as for
+every non-first slot): difficulty **M**, task-class **NUMERIC-GUARD**
+(the pick door's `t` made an interval derived at one site, the order a
+rule over certified ties, the hit point clamped, the early-out on the
+interval's upper end; the block record on `edit/b1-block` gains the slot
+2 line when the block concludes); implementer arm per block EDIT-B1 slot
+2 = OPUS (byte 69 → fable at slot 0). Protocol v6 dual: draw =
+`/dev/urandom` byte **200**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**.
+Method, recorded before either review runs: CONCURRENT same-head on
+frozen `31cbee19f`, both briefs authored and STORED with sha256 before
+either dispatches (9 591 bytes each; sha256 `eb6a5b48a0fbfc2a…` r1 /
+`fa29b0b81e53d8b4…` r2 — identical text modulo lane names and lane
+paths, verified by diff: five lines), neither reviewer sees the other's
+report, v6 item 5 isolation in both briefs, PRIVATE `CARGO_TARGET_DIR`
+per reviewer (both EMPTY — cold and symmetric), both lanes on one
+4-core remote box beside one other lane (a method note applying to both
+arms equally). Disclosed for the dual to adjudicate, and in the briefs:
+the spec's headline fixture (the gallery ring's row answering `1.48`)
+was measured unreachable by the implementer — the noise-floor
+candidate's certified interval lies wholly before the aimed vertex, so
+it PRECEDES and no tie-break runs — and the class was pinned on
+`tube_arc` instead; the ruling's pairwise order was measured to have
+3-cycles and was built as a rule over the set of candidates no other
+precedes; GUI-1 R1's two exact-tie rows re-baselined (width now decides
+before position). The implementer's unit log entry is not written until
+the dual concludes.

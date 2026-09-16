@@ -5,7 +5,7 @@ title: "props: two more stored spans read raw past the winding bound (torus sing
 status: open
 opened: 2026-09-03
 github: 1618
-refs: [1617, saturated-sphere-span-folds-short, MESH-12, MESH-R]
+refs: [1617]
 ---
 
 ## From GitHub issue 1618
