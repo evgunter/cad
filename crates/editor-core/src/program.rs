@@ -615,11 +615,13 @@ impl core::error::Error for ProgramRefusal {}
 /// step's profile edges.
 ///
 /// Every arm is a question the door cannot answer, not a geometry that
-/// refused: an address this program does not have, a record that does
-/// not describe this program, or two records that describe it
-/// differently. There is no arm for "probably these" — a map that
-/// guessed would be exactly the second derivation the door exists to
-/// replace.
+/// refused: an address this program does not have, or a record that
+/// does not describe this program. There is no arm for "probably
+/// these" — a map that guessed would be exactly the second derivation
+/// the door exists to replace. There is no arm either for the
+/// evaluation's two records of one permutation disagreeing: one
+/// evaluation produces both, so a disagreement is the kernel
+/// contradicting itself and the door asserts (DM8).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StepSegmentsError {
     /// The program has no such loop.
@@ -656,13 +658,6 @@ pub enum StepSegmentsError {
     /// The naming anchor carries no entry for this program loop, so
     /// nothing says which refs its walls were named with.
     NoAnchor {
-        /// The program loop asked about.
-        loop_: u32,
-    },
-    /// Canonicalization's recorded permutation and the naming anchor's
-    /// bit-matched one are not the same permutation. One of the two
-    /// does not describe this loop, and the door cannot tell which.
-    RecordsDisagree {
         /// The program loop asked about.
         loop_: u32,
     },
@@ -708,16 +703,6 @@ impl core::fmt::Display for StepSegmentsError {
                 concat!(
                     "the naming anchor does not describe loop {}, so nothing ",
                     "says which refs its entities were named with"
-                ),
-                loop_
-            ),
-            Self::RecordsDisagree { loop_ } => write!(
-                f,
-                concat!(
-                    "loop {}'s canonicalization record and its naming anchor ",
-                    "are two different permutations, so the segments a step ",
-                    "produced and the refs its entities carry cannot be the ",
-                    "same answer"
                 ),
                 loop_
             ),
@@ -1400,26 +1385,32 @@ impl ProfileProgram {
     ///
     /// The map from a document slot's `(loop_, step)` — the coordinates
     /// of `SlotId::Profile` — to the [`ProfileEdgeRef`]s that name the
-    /// entities those segments swept. Composed from two records the
-    /// evaluation already produced, never re-derived from the geometry:
-    /// a second derivation can disagree with the one the geometry came
-    /// from, which is the defect this door exists to not be.
+    /// entities those segments swept. It READS two records the
+    /// evaluation already produced and never re-derives them from the
+    /// geometry — a second derivation can disagree with the one the
+    /// geometry came from, which is the defect this door exists to not
+    /// be. The two do not carry equal weight, which is DM8's amended
+    /// sentence: the span GIVES the answer, in the program's own step
+    /// order — the numbering the published names carry — and
+    /// canonicalization's permutation is CHECKED against the naming
+    /// anchor's record of the same permutation, never applied.
     ///
     /// The name says what it answers: [`ProfileEdgeRef`]s, the published
     /// coordinate a consumer holds. It does NOT answer canonical
     /// segments — see the anchoring section below — so a name saying
     /// "canonical" would be the one word in it that is false.
     ///
-    /// # What it composes
+    /// # What it reads
     ///
-    /// 1. **The replay's per-step segment span**
+    /// 1. **The replay's per-step segment span** — the answer
     ///    (`profile::ReplayStructure::steps`): which segments of the
     ///    PROGRAM-ORDER chain this step emitted. A step is not one
     ///    segment — an entry verb emits none, a fillet arrival emits
     ///    its straight leg and its arc, and a carrier form's single
     ///    step emits the whole loop, which is how `circle` and
     ///    `circle_split` answer here with no arm of their own.
-    /// 2. **The permutation canonicalization applied**
+    /// 2. **The permutation canonicalization applied** — the check,
+    ///    not a factor of the answer
     ///    (`profile::LoopCanonical`'s `reversed` and `start`): the
     ///    reversal that turns program vertex `i` of `n` into oriented
     ///    vertex `n-i`, then the rotation that makes oriented vertex
@@ -1436,14 +1427,24 @@ impl ProfileProgram {
     /// segments a step produced ARE the refs its walls carry.
     ///
     /// That is a statement about two records, so it is checked rather
-    /// than assumed. The permutation is derived here from `(2)`, the
-    /// decision canonicalization recorded; the anchor is derived
+    /// than assumed — DM8 rules that the permutation is CHECKED here
+    /// and never applied. The permutation is derived here from `(2)`,
+    /// the decision canonicalization recorded; the anchor is derived
     /// independently, by bit-matching the canonical loop against the
-    /// replayed one. Two derivations of one permutation that disagree
-    /// mean the geometry a name points at is not the geometry this map
-    /// describes, so the door refuses
-    /// [`StepSegmentsError::RecordsDisagree`] instead of answering from
-    /// whichever it happened to read.
+    /// replayed one.
+    ///
+    /// # Why a disagreement ASSERTS rather than refusing typed
+    ///
+    /// One evaluation produces both records, so two derivations of one
+    /// permutation that disagree are the evaluation contradicting
+    /// itself — a kernel bug, and kernel bugs panic (DM8). The one
+    /// cost is a caller that hands this door a `structure` and a
+    /// `naming` from two DIFFERENT evaluations: that mispairing panics
+    /// where it could have refused. It is a caller bug, no façade
+    /// caller can make it today, and it disappears by construction
+    /// once the structure record rides on the evaluation's own value
+    /// rather than arriving as a second argument
+    /// (`work/wire/section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made.md`).
     ///
     /// Not persisted, and not a cache: it is rebuilt from the records
     /// beside the geometry they describe.
@@ -1468,9 +1469,13 @@ impl ProfileProgram {
     /// # Errors
     ///
     /// [`StepSegmentsError`] — a loop or step this program does not
-    /// have, a record that does not describe it, or two records that
-    /// describe it differently. It refuses rather than guessing at any
-    /// of them.
+    /// have, or a record that does not describe it. It refuses rather
+    /// than guessing at either.
+    ///
+    /// # Panics
+    ///
+    /// If the two records describe different permutations of the loop
+    /// (the section above).
     pub fn profile_edges_of(
         &self,
         structure: &profile::ProfileStructure,
@@ -1533,9 +1538,24 @@ impl ProfileProgram {
                 } else {
                     canonical.start
                 };
-        if !same {
-            return Err(StepSegmentsError::RecordsDisagree { loop_ });
-        }
+        assert!(
+            same,
+            concat!(
+                "the evaluation's two records of loop {}'s permutation ",
+                "disagree: canonicalization recorded reversed={} start={} ",
+                "over {} segments, the naming anchor recorded reversed={} ",
+                "offset={} over {} vertices. One evaluation produces both, ",
+                "so they describe one permutation or the kernel has ",
+                "contradicted itself"
+            ),
+            loop_,
+            canonical.reversed,
+            canonical.start,
+            n,
+            anchor.reversed,
+            anchor.offset,
+            anchor.len
+        );
         if span.end() > n {
             return Err(StepSegmentsError::SpanOffTheLoop {
                 step,
