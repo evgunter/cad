@@ -336,14 +336,29 @@ what this document exists to record.
 
 **The tell, and exactly what it proves. It is a comparison between two
 NAMED cuts, and it is frozen as one.** Its second operand is the
-committed baseline as that file stood at the cut `3f55f361b22e`
-(2026-09-08) — the last cut whose sized rows were still this block's
-64 faces — and every figure below that is not the block's own is that
-cut's. It is not re-taken against the file as it stands: the corpus
-has grown sized faces since, so a comparison against today's columns
-would carry that growth as well as the two fixes, and separate
-nothing. What the committed file reads NOW is the census's, under "The
-census today".
+baseline at **cut `3f55f361b22e`** (2026-09-08), whose sized rows were
+still this block's 64 faces; every figure below that is not the
+block's own is that cut's.
+
+**How to re-sum it, because the cut's name is not where its rows
+live.** A `# tess-budget-cut:` line names the tree the sweep READ, so
+the baseline committed AT `3f55f361b22e` is the PREVIOUS one — it
+predates the `name` column and carries `opt_cells` 94,154 and
+`span_opt_cells` 44,446, the pre-retune pair. The rows this passage
+reads were committed at `715977e6a`, and
+
+```sh
+git show 715977e6a:docs/tess-budget-data/tess-budget-baseline.csv
+```
+
+is what to sum: 1353 rows, 64 of them sized. Follow the cut's own SHA
+instead and the check fails against the wrong file.
+
+It is not re-taken against the baseline as it stands: the corpus has
+grown sized faces since — 64 there, 80 now — so a comparison against
+today's columns would carry that growth as well as the two fixes, and
+separate nothing. What the committed file reads NOW is the census's,
+under "The census today".
 
 At that cut: the two columns that are pure OPTIMA over the certified
 ellipse — `opt_cells` and `span_opt_cells` — are schedule-INDEPENDENT,

@@ -237,9 +237,12 @@
 //! **The numeric form of that argument is a comparison between two
 //! NAMED cuts, it lives in `docs/TESS-BUDGET.md` under "The finding",
 //! and it is frozen there rather than restated here.** Its second
-//! operand is the committed baseline as that file stood at one cut in
-//! 2026-09, which the document names; what the committed file reads
-//! NOW is asserted below and nowhere else.
+//! operand is the baseline at one cut in 2026-09, which the document
+//! names along with the commit its rows were committed at — a
+//! `# tess-budget-cut:` line names the tree the sweep READ, not a
+//! tree holding the rows it produced, so the two differ and a
+//! re-summer needs both. What the committed file reads NOW is
+//! asserted below and nowhere else.
 //!
 //! **Past tense throughout, because the premise has expired.** The
 //! optima half rested on the sized rows still being the block's 64
@@ -254,8 +257,10 @@
 //! thing, and the first instance is the one worth naming.** Through
 //! the run of re-cuts after TESS-SPLIT's the corpus grew only
 //! analytically — rows and triangles and no cells — so `grid_cells`
-//! held at 46,102 until CERT-10's re-cut (`a4eb03ae`) moved four
-//! faces' certified bounds and 83 cells with them:
+//! held at 46,102 until CERT-10's re-cut moved four faces' certified
+//! bounds and 83 cells with them, to 46,019. `a4eb03ae` is the commit
+//! carrying the moved rows, so both figures sum off it and its
+//! parent. The four faces:
 //! `lily/lily_sepal_a` faces 3 and 7 and the two
 //! `twisted_duct_shadow_*` face 4s. Neither growth nor a schedule
 //! change. **That is a dated record of one event and not a
@@ -270,11 +275,15 @@
 //! the cheapest grid the same certificates admit, so raising
 //! `tess_meter::SPLIT_SCAN_SAMPLES` lowers both columns over a corpus
 //! that did not move. **On the re-cut that did it — a dated record of
-//! one event, and the four figures are that cut's, not this file's —**
-//! 94,154 to 93,066 and 44,446 to 44,162 over the whole sweep, with
-//! `grid_cells`, `patch_cells` and every triangle count identical. A
-//! re-cut whose only movers are those two columns is that event and is
-//! never a schedule regression.
+//! one event, and the four figures are those two cuts', not this
+//! file's —** 94,154 to 93,066 and 44,446 to 44,162 over the whole
+//! sweep, with `grid_cells` (46,019), `patch_cells` (110,811) and
+//! every triangle count identical on both sides. That is cut
+//! `aba2625f8f84` to cut `3f55f361b22e`, whose rows were committed at
+//! `83479438d` and `715977e6a` — sum off those two, not off the cut
+//! SHAs, for the reason given above. A re-cut whose only movers are
+//! those two columns is that event and is never a schedule
+//! regression.
 //!
 //! **"Only movers" is a condition this census cannot check, and that
 //! re-cut did not meet it.** Nine columns moved on it, not two: `muv`, `mvv`, `mu1`, `mv1`,

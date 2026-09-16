@@ -42,11 +42,22 @@ census re-pinned with it; no prose followed. What
 | sized rows | 80 | 64 |
 
 The document's four were not a second copy of a live figure; they were
-a coherent reading of ONE superseded cut — `3f55f361b22e`
-(2026-09-08), whose sums are exactly 46,019 / 110,811 / 93,066 /
-44,162 over 1353 rows and 64 sized rows. Every derived factor in the
+a coherent reading of ONE superseded cut — **cut `3f55f361b22e`
+(2026-09-08), rows committed at `715977e6a`** — whose sums are exactly
+46,019 / 110,811 / 93,066 / 44,162 over 1353 rows, 64 sized and 286
+named. No other blob in the file's `--full-history` matches all six:
+the next cut along carries 316 named rows. Every derived factor in the
 document (3.52x, 3.35x, 1.042x, 8.5x, 1.19x, and the 2.2% / 0.7%
-"tell") was computed from those operands. **The alarm fired, the test
+"tell") was computed from those operands.
+
+**A cut's SHA is not where its rows live, and that trap is now
+disarmed at each label.** A `# tess-budget-cut:` line names the tree
+the sweep READ, so the baseline committed AT `3f55f361b22e` is the
+PREVIOUS one — no `name` column, `opt_cells` 94,154, `span_opt_cells`
+44,446. A reviewer who summed that file read the label as wrong when
+it was the label that was ambiguous. Every cut citation this unit
+added now names the cut AND the commit whose blob a reader should
+sum. **The alarm fired, the test
 was re-pinned five times, and the document stayed wrong for a week.**
 
 **The second site is the census file's own header**, and it is the
@@ -160,9 +171,10 @@ reads.** No live figure from either census is restated outside
 
 - `docs/TESS-BUDGET.md` — the comparison under "The finding" is now
   declared, at its own head, as a comparison between the pre-fix block
-  and the committed baseline AT the named cut `3f55f361b22e`
-  (2026-09-08), with every "today" reading of that section put in the
-  past tense against that cut. The document's own frozen-exception
+  and the baseline at cut `3f55f361b22e` (2026-09-08), rows committed
+  at `715977e6a`, with the re-sum command beside it and a warning that
+  the cut's own SHA holds the previous file; every "today" reading of
+  that section is in the past tense against that cut. The document's own frozen-exception
   enumeration counts three passages instead of two. The `name` column
   bullet's four figures are gone: it now cites
   `no_scene_carrying_a_sized_row_carries_a_name` and
