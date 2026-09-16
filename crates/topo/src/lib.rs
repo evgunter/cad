@@ -287,7 +287,8 @@ pub use boolean::{
     VoidEvidence, VoidInsertError, VoidInserted, VvContact, boolean_op_with, boolean_reduce,
     boolean_reduce_declared, carrier_eq, contfp, curved_face_containment, face_carrier,
     flush_pair_relation, insert_void, insert_voids, intersect, intersect_with, oriented_plane_eq,
-    point_in_solid, subtract, subtract_with, tangent_locus, tangent_pair_relation, union,
+    point_in_solid, point_in_solid_of, subtract, subtract_with, tangent_locus,
+    tangent_pair_relation, union,
     union_with,
 };
 pub use surgery::Surgery;

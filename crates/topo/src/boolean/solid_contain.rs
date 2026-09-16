@@ -112,7 +112,7 @@
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
-use crate::entity::{FaceKey, LoopBoundary};
+use crate::entity::{FaceKey, LoopBoundary, SolidKey};
 use crate::face_normal::plane_outward_normal;
 use crate::splitting::containment::{LoopContainment, PointInLoopError, SCHEDULE, point_in_loop};
 use crate::validate::decide;
@@ -257,6 +257,33 @@ pub enum PointInSolidError {
         /// The torus face neither class expresses.
         face: FaceKey,
     },
+    /// [`point_in_solid_of`] was asked about a solid the body does not
+    /// hold — an arena claim, like [`Self::CorruptFace`].
+    NoSuchSolid {
+        /// The key that did not resolve.
+        solid: SolidKey,
+    },
+    /// [`point_in_solid_of`] found a face of the named solid whose
+    /// surface KEY is also carried by a face of another solid, on a
+    /// kind the door reads through a surface GROUP (cone, sphere,
+    /// torus).
+    ///
+    /// The group's representative is chosen over the whole body by
+    /// key, and every non-representative member is skipped at the
+    /// pre-pass and the ray sweep; with the group split across the
+    /// selection boundary the representative may lie outside the
+    /// selection, and the solid's own members would then drop out of
+    /// the sweep silently. Refused instead. Tier 1 does not forbid the
+    /// state; the assembly door cannot produce it, because instance
+    /// placement mints a fresh surface key per placed face
+    /// (`instance.rs`: distinct keys, equal values), so a body reaching
+    /// the census through it never carries one. A hand-built body can.
+    SurfaceSharedOutsideSolid {
+        /// The selected face.
+        face: FaceKey,
+        /// A face of another solid on the same surface key.
+        other: FaceKey,
+    },
 }
 
 impl From<PointInLoopError> for PointInSolidError {
@@ -375,6 +402,20 @@ impl core::fmt::Display for PointInSolidError {
                      with parallels and meridians, or let its group cover the chart"
                 )
             }
+            Self::NoSuchSolid { solid } => write!(
+                f,
+                "point_in_solid: solid {solid:?} does not resolve in the body — an arena \
+                 claim about the query, not about a surface kind"
+            ),
+            Self::SurfaceSharedOutsideSolid { face, other } => write!(
+                f,
+                "point_in_solid: face {face:?} of the queried solid shares its surface key \
+                 with face {other:?} of another solid, on a kind the door reads through a \
+                 surface group whose representative is chosen over the whole body — the \
+                 solid's own members could drop out of the sweep, so the query is refused. \
+                 Recourse: give each solid its own surface keys (instance placement \
+                 already does)"
+            ),
         }
     }
 }
@@ -2248,6 +2289,10 @@ pub(super) fn point_in_face<T: Decide>(
 /// Every face of every shell participates (multi-shell bodies and
 /// complements answer correctly by the closest-hit rule).
 ///
+/// One of the door's two entries over the one closest-hit core
+/// ([`point_in_faces`]): this one hands the core every face of the
+/// body in arena order; [`point_in_solid_of`] hands it one solid's.
+///
 /// # Errors
 ///
 /// [`PointInSolidError`] — escalation, ray exhaustion, or a
@@ -2260,9 +2305,87 @@ pub fn point_in_solid<T: Decide>(
 ) -> Result<SolidContainment, PointInSolidError> {
     // Deterministic face sweep order (arena order).
     let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+    point_in_faces(body, &faces, q, band, tol)
+}
+
+/// Trilean containment of `q` in the material of ONE solid of a
+/// multi-solid body: the faces of `solid`'s shells, in face-arena
+/// order, through the same closest-hit core as [`point_in_solid`] —
+/// the census's instance-containment arm asks this of a container
+/// while the other instances of the arena are not part of the
+/// question. The at-infinity side is read off THIS solid's closed-form
+/// signed volume (the selection's faces), not the body's.
+///
+/// # Errors
+///
+/// [`PointInSolidError`] — the core's, plus
+/// [`PointInSolidError::NoSuchSolid`] for a key the body does not hold,
+/// [`PointInSolidError::ZeroVolumeBody`] for a solid with no faces, and
+/// [`PointInSolidError::SurfaceSharedOutsideSolid`] where a
+/// group-read kind's surface key crosses the selection boundary (the
+/// variant's doc carries why that is refused rather than served).
+pub fn point_in_solid_of<T: Decide>(
+    body: &Body<T>,
+    solid: SolidKey,
+    q: Point3<T>,
+    band: Band,
+    tol: Tol,
+) -> Result<SolidContainment, PointInSolidError> {
+    if body.get_solid(solid).is_none() {
+        return Err(PointInSolidError::NoSuchSolid { solid });
+    }
+    let owner = |f: FaceKey| -> Option<SolidKey> {
+        body.get_face(f)
+            .and_then(|d| body.get_shell(d.shell))
+            .map(|s| s.solid)
+    };
+    let faces: Vec<FaceKey> = body
+        .faces()
+        .filter(|&(k, _)| owner(k) == Some(solid))
+        .map(|(k, _)| k)
+        .collect();
+    // A group-read kind whose surface key is carried on both sides of
+    // the selection boundary (the variant's doc). One pass over the
+    // arena: every key's first face outside the selection, if any.
+    let mut foreign: std::collections::BTreeMap<crate::geometry::SurfaceKey, FaceKey> =
+        std::collections::BTreeMap::new();
+    for (k, d) in body.faces() {
+        if owner(k) != Some(solid) {
+            foreign.entry(d.surface).or_insert(k);
+        }
+    }
+    for &face in &faces {
+        let d = body
+            .get_face(face)
+            .ok_or(PointInSolidError::CorruptFace { face })?;
+        let grouped = matches!(
+            body.get_surface(d.surface),
+            Some(Surface::Cone { .. } | Surface::Sphere { .. } | Surface::Torus { .. })
+        );
+        if grouped && let Some(&other) = foreign.get(&d.surface) {
+            return Err(PointInSolidError::SurfaceSharedOutsideSolid { face, other });
+        }
+    }
+    point_in_faces(body, &faces, q, band, tol)
+}
+
+/// The one closest-hit core behind both entries: the boundary
+/// pre-pass and the schedule sweep over exactly `faces` (module docs).
+/// An empty selection bounds no material and answers
+/// [`PointInSolidError::ZeroVolumeBody`] before any predicate runs.
+fn point_in_faces<T: Decide>(
+    body: &Body<T>,
+    faces: &[FaceKey],
+    q: Point3<T>,
+    band: Band,
+    tol: Tol,
+) -> Result<SolidContainment, PointInSolidError> {
+    if faces.is_empty() {
+        return Err(PointInSolidError::ZeroVolumeBody);
+    }
 
     // ---- Boundary pre-pass: q on any face ⇒ OnBoundary. ----
-    for &face in &faces {
+    for &face in faces {
         let escalate = |diag| PointInSolidError::Escalated { face, diag };
         match face_geo(body, face, band)? {
             FaceGeo::Plane(origin, normal) => {
@@ -2446,7 +2569,7 @@ pub fn point_in_solid<T: Decide>(
     // ---- Closest-hit ray sweep over the fixed schedule. ----
     for r in &SCHEDULE {
         let d = Vec3::new(T::from_f64(r[0]), T::from_f64(r[1]), T::from_f64(r[2])).normalize();
-        if let Some(verdict) = cast_ray(body, &faces, q, d, band, tol)? {
+        if let Some(verdict) = cast_ray(body, faces, q, d, band, tol)? {
             return Ok(verdict);
         }
         // graze: next schedule member
@@ -3424,13 +3547,20 @@ fn cast_ray<T: Decide>(
     }
 }
 
-/// The at-infinity material side, from the body's EXACT signed
-/// volume (the divergence-theorem props — carrier-aware since the
-/// M5 PR 9 fix pass: the old vertex-fan triangulation read a two-arc
-/// disc cylinder as (near-)zero volume, a structural degeneracy of
-/// the chord approximation, and refused `ZeroVolumeBody` on a
-/// perfectly solid operand). Margin is scaled to a mean thickness
-/// (V / surface area, meters), as before.
+/// The at-infinity material side, from the EXACT signed volume the
+/// entry's own `faces` enclose (the divergence-theorem props —
+/// carrier-aware since the M5 PR 9 fix pass: the old vertex-fan
+/// triangulation read a two-arc disc cylinder as (near-)zero volume, a
+/// structural degeneracy of the chord approximation, and refused
+/// `ZeroVolumeBody` on a perfectly solid operand). Margin is scaled to
+/// a mean thickness (V / surface area, meters), as before.
+///
+/// The volume is the SELECTION's, not the body's: for
+/// [`point_in_solid`] the two coincide (the arena list), and for
+/// [`point_in_solid_of`] a no-hit ray's side is the queried solid's
+/// orientation — the body's total would read the other instances'
+/// volumes into this solid's side, and would refuse this solid for a
+/// neighbour's uncertifiable face.
 fn at_infinity_side<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
@@ -3446,7 +3576,7 @@ fn at_infinity_side<T: Decide>(
     // ill-conditioned operand at this ε (with a predicate name and a
     // band the caller can act on), and the corruption-shaped arms are
     // arena claims about a BROKEN body. Each keeps its own door.
-    let props = crate::props::mass_properties_closed_form(body, band, tol).map_err(|e| {
+    let props = crate::props::mass_properties_closed_form_of(body, faces, band, tol).map_err(|e| {
         match e {
             // An escalation stays an escalation, carrying its
             // diagnostics and the face it happened on.

@@ -55,10 +55,12 @@
 //!   ball's certified extent CLEARS the face's box, so a bigger box
 //!   turns a separated cyl×sphere pair into
 //!   `FallbackExtentUnsupported`.
-//! - `census`'s arm 2 clears an instance pair only on a definitely
-//!   negative margin against a CONTAINING box, so a bigger box turns
-//!   a genuinely-outside instance into `CensusUndecidable` — the
-//!   interference class.
+//! - `census`'s arm 2 clears an instance pair on a definitely
+//!   negative margin against a CONTAINING box and sends every other
+//!   pair to the material test, so a bigger box costs a
+//!   genuinely-outside instance a point-in-solid probe of its
+//!   vertices — work, and a possible witness escalation — where a
+//!   tight box cleared it for free.
 //!
 //! So nothing here may say "loose is free" about a BOX. It is a claim
 //! about a door, and the door has to be named. The six are not
@@ -2845,8 +2847,10 @@ mod tests {
     ///   changes nothing about what looseness costs.
     /// - `census.rs` — `reach_box` and `edge_reach`, this module's
     ///   extents entered at the census's own scalar. **Refuses**:
-    ///   arm 2 clears only on a definitely negative margin against a
-    ///   CONTAINING box, so over-width is a false `CensusUndecidable`.
+    ///   arm 2 clears for free only on a definitely negative margin
+    ///   against a CONTAINING box, so over-width sends a separated
+    ///   pair to the material test — a probe per vertex, and a
+    ///   witness that can escalate — instead of clearing it.
     ///
     /// `boolean/boxes.rs` is excluded by path: it is the definition
     /// site, every call in it is this suite's own or one arm calling

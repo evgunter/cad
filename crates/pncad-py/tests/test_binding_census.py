@@ -3224,6 +3224,7 @@ MEMBERS_BOUND_AS = {
     "ValidationError::CensusUnsupported": "ValidationFinding.variant",
     "ValidationError::CensusLaneUnsupported": "ValidationFinding.variant",
     "ValidationError::CensusUndecidable": "ValidationFinding.variant",
+    "ValidationError::InstanceInterference": "ValidationFinding.variant",
     "ValidationError::DanglingTopology": "ValidationFinding.variant",
     "ValidationError::DanglingGeometry": "ValidationFinding.variant",
     "ValidationError::NextPrevMismatch": "ValidationFinding.variant",

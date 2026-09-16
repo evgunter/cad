@@ -54,6 +54,8 @@
 mod common;
 mod fixture;
 
+#[path = "bool4_material_containment.rs"]
+mod bool4_material_containment;
 #[path = "box_with_hole.rs"]
 mod box_with_hole;
 #[path = "census_g2_carrier.rs"]

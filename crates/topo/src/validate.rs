@@ -1328,6 +1328,14 @@ pub enum ValidationError {
     /// interference class — representable only through recorded
     /// gate-skips, which do not exist yet; the containing side must be
     /// a superset of its locus or a nested body clears silently).
+    ///
+    /// Arm 2's box test is the GATE, not the verdict: a pair no margin
+    /// definitely separates goes to the material test, and what this
+    /// variant carries from that arm is only what the material test
+    /// could not answer — a standing crossing or unexamined finding on
+    /// the pair, a witness the point-in-solid door refused, or an
+    /// instance whose every vertex lies on the container's boundary. A
+    /// decided interference is [`ValidationError::InstanceInterference`].
     CensusUndecidable {
         /// One side of the pair the census cannot clear.
         a: EntityId,
@@ -1335,6 +1343,25 @@ pub enum ValidationError {
         b: EntityId,
         /// The not-yet-supported class, named.
         what: &'static str,
+    },
+    /// Tier 3′ (the census's instance-containment arm): one instance's
+    /// material contains a vertex of another's — an interference fit,
+    /// DECIDED by the material test and not undecidable. The two
+    /// instances' boundaries carry no crossing (the exact sweeps and
+    /// the proximity backstop pushed none against either), so a vertex
+    /// strictly inside the container's material places the whole of
+    /// the contained instance's interior there (`census.rs` arm 2
+    /// states the argument). Recorded gate-skips — the declaration that
+    /// would admit a deliberate interference — do not exist, so no
+    /// record can answer for this finding.
+    InstanceInterference {
+        /// The containing instance.
+        outer: SolidKey,
+        /// The contained instance.
+        inner: SolidKey,
+        /// The contained instance's vertex found strictly inside the
+        /// container's material — the first in arena order.
+        witness: VertexKey,
     },
     /// An entity holds a topology key that does not resolve in its arena.
     /// Reported once per occurrence (a parent listing the same dangling
@@ -2078,6 +2105,19 @@ impl fmt::Display for ValidationError {
                  than silently not looked at; separate the bodies, or wait for the \
                  named lane (the exclusion ring for curved proximity; the \
                  recorded gate-skips for declared interference)"
+            ),
+            Self::InstanceInterference {
+                outer,
+                inner,
+                witness,
+            } => write!(
+                f,
+                "tier-3′ census: solid {outer:?}'s material contains vertex {witness:?} of \
+                 solid {inner:?} — an interference fit, decided by the material test (the two \
+                 instances' boundaries do not cross, so one vertex strictly inside places the \
+                 contained instance's whole interior inside); recorded gate-skips do not \
+                 exist, so no declaration admits an interference — separate the instances, \
+                 or make the overlap a boolean's working state"
             ),
             Self::DanglingTopology { from, to } => {
                 write!(f, "{from} references {to}, which does not resolve")
@@ -5317,7 +5357,7 @@ fn pseudomanifold_certificate_via<T: crate::props::PropsQuadLane + geom_core::Bo
         .collect();
     let (mut errors, certificate) = tier3_local_checks(body, &declarations, band, tol, nurbs_lane);
     if errors.is_empty() {
-        errors.extend(crate::census::census_and_certify(body, contacts, band));
+        errors.extend(crate::census::census_and_certify(body, contacts, band, tol));
     }
     if errors.is_empty() {
         Ok(certificate_of_a_clean_verdict(certificate))

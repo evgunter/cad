@@ -227,8 +227,13 @@ that could not be minted refuses the outer gate
 gather order, before this document's own unminted rows and before the
 at-rest gate — an outer assembly is unusable while an inner part's
 contact is unverified. Nothing is re-verified or re-minted across the seam:
-verification runs once, at the outermost gate. Interference fits
-through recorded gate-skips are not implemented.
+verification runs once, at the outermost gate. An interference fit —
+one instance's material containing a vertex of another's — is DECIDED
+by the census's material test and refused typed
+(`ValidationError::InstanceInterference`); recorded gate-skips, the
+declaration that would admit a deliberate one, are not implemented,
+and the unit that adds them keys the census's deferral on the
+gate-skip, never on a contact record (`census.rs`, arm 2).
 
 ## Mirror
 

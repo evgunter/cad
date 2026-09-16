@@ -127,7 +127,7 @@ pub use rest::{
     TangentLocus, TangentLocusError, carrier_pair_relation, carrier_pair_verdict, face_carrier,
     flush_pair_relation, tangent_locus,
 };
-pub use solid_contain::{PointInSolidError, SolidContainment, point_in_solid};
+pub use solid_contain::{PointInSolidError, SolidContainment, point_in_solid, point_in_solid_of};
 pub use voids::{
     VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, insert_void, insert_voids,
 };
