@@ -1,9 +1,10 @@
 # EDIT-PICK2 — the exact test accepts only barycentrics that carry information (spec)
 
 Binds one unit. Item:
-`work/edit/pick-accepts-uncertified-barycentrics-on-a-certified-determinant.md`,
-which also closes `pick-closed-acceptance-loses-a-graze-to-rounding`.
-Branch: `edit/pick-barycentrics`. Deleted post-merge with a
+`work/edit/pick-accepts-uncertified-barycentrics-on-a-certified-determinant.md`.
+(The header originally said the unit also closes
+`pick-closed-acceptance-loses-a-graze-to-rounding`; it does not — see
+the amendment.) Branch: `edit/pick-barycentrics`. Deleted post-merge with a
 `docs/DOC-LEDGER.md` entry citing the merge SHA.
 
 Read the item first (it carries the measurement and three shapes

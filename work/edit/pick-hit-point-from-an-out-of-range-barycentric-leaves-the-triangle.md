@@ -2,8 +2,9 @@
 id: pick-hit-point-from-an-out-of-range-barycentric-leaves-the-triangle
 kind: issue
 title: a hit point placed from a barycentric outside [0, 1] leaves the closed triangle, so its t can precede the candidate's box entry
-status: open
+status: parked
 opened: 2026-09-16
+blocked_on: [what-t-the-pick-door-answers-and-with-what-width]
 ---
 
 

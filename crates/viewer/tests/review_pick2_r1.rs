@@ -96,7 +96,9 @@ fn main_ray_triangle(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<f64> {
         + e1.y.abs() * (ray.dir.z.abs() * e2.x.abs() + ray.dir.x.abs() * e2.z.abs())
         + e1.z.abs() * (ray.dir.x.abs() * e2.y.abs() + ray.dir.y.abs() * e2.x.abs());
     let bound = 3.0 * f64::EPSILON * m;
-    if !(det.abs() > bound) {
+    // `main` spelled this `(det.abs() > bound).then_some(det)?`; the
+    // affirmative form is the same test and a NaN fails it either way.
+    if det.abs() <= bound || det.is_nan() {
         return None;
     }
     let inv = 1.0 / det;

@@ -237,9 +237,10 @@ fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
                         if (t - reach).abs() < 1e-9 {
                             tally.grazes += 1;
                         }
-                        // `!(b < 1.0)` rather than `b >= 1.0`: a NaN
-                        // bound is not a bound and must red this.
-                        if bounds.iter().any(|&b| !(b < 1.0)) {
+                        // A NaN bound is not a bound and must red
+                        // this row, not slip through a comparison it
+                        // fails.
+                        if bounds.iter().any(|&b| b.is_nan() || b >= 1.0) {
                             tally.wide_winners.push(format!(
                                 "{name} after {step}: {dir:?} through {v:?} at reach {reach}: \
                                  winner at t {t} with bounds {bounds:?}"

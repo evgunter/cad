@@ -1547,9 +1547,7 @@ mod tests {
     use test_utils::fuzz;
     use topo::Body;
 
-    use super::{
-        MeshPick, MeshPickError, PickMemo, PickTable, crossing, ray_triangle,
-    };
+    use super::{MeshPick, MeshPickError, PickMemo, PickTable, crossing, ray_triangle};
 
     fn unit_prism() -> Body<f64> {
         let square = ProfileLoop::polygon([
@@ -1853,11 +1851,11 @@ mod tests {
     /// refused, though every one of them is inside the closed range.**
     /// At `k = 8` the [`near_tangent`] fixture computes
     /// `u = v = 0.5` with intervals `±4.5` and `±7.5` and
-    /// `u + v = 1 ± 12`: each is consistent with every point of the
-    /// triangle AND with every point outside it, and the ray misses
-    /// the triangle's plane by `2e-21` while its origin sits a unit
-    /// away, so the numbers are the quotient of that cancellation and
-    /// nothing else. The closed comparison admits all three, so
+    /// `u + v = 1 ± 12`: each covers the admissible range several
+    /// times over. The ray misses the triangle's plane by `2e-21`
+    /// while its origin sits a unit away, so the values are the
+    /// quotient of that cancellation and nothing else. The closed
+    /// comparison admits all three, so
     /// **this is the pin a door that dropped INFORM cannot survive**:
     /// that door takes the candidate and answers a `t` near `1.5`
     /// from numbers that say nothing.

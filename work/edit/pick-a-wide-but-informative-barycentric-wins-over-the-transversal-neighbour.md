@@ -2,14 +2,16 @@
 id: pick-a-wide-but-informative-barycentric-wins-over-the-transversal-neighbour
 kind: issue
 title: a near-coplanar candidate whose barycentrics are informative but wide wins on t over the transversal neighbour at the aimed vertex
-status: open
+status: parked
 opened: 2026-09-16
+blocked_on: [what-t-the-pick-door-answers-and-with-what-width]
 ---
 
 
 ## The finding
 
-**A ruling before it is a unit.** `ray_triangle`
+**A ruling before it is a unit**, and the ruling is filed:
+`what-t-the-pick-door-answers-and-with-what-width`, which this row is parked on. `ray_triangle`
 (`crates/editor-core/src/resolve/pick.rs`) now refuses a barycentric
 whose interval covers `[0, 1]`, which removes every candidate whose
 `u` or `v` says nothing at all. It does not remove a candidate whose
@@ -23,9 +25,11 @@ The row's own numbers, pinned by
 bump, the `−y` ray through the tube vertex
 `(0.24519632010080758, 0, 0.04877258050403218)` at `reach = 1.48`:
 
-- the winner is a flat face of the ring with `det = 1.66e-19` and
-  conditioning `2.7e-11` — the ray lies in that triangle's plane to
-  eleven digits. Its intervals are `u = 0.367 ± 0.466`,
+- the winner is a flat face of the ring with `det = 1.66e-19`,
+  conditioning `7.19e-16` and `|det| / bound_det = 5.72` — the
+  candidate sits ON the certification's own noise floor, a few times
+  its bound rather than a decade above it. Its intervals are
+  `u = 0.367 ± 0.466`,
   `v = 0.459 ± 0.218`, `u + v = 0.827 ± 0.684`: all inside the closed
   range, none covering it, so the acceptance takes it. It answers
   `t = 1.4487652724897624`, `0.031` short of the vertex;
@@ -40,7 +44,19 @@ nothing closed either, and the acceptance change is why it is worth
 stating now — it is what is LEFT once the uninformative candidates are
 gone.
 
-## The two shapes, neither ruled
+**This row is the EDGE of
+`pick-refuses-a-crossing-within-rounding-of-a-plane`, not a separate
+country.** That row records what the certification refuses: a ray
+within rounding of the plane gets no answer at all. This one records
+what happens one step to the admitted side of the same line —
+`|det| / bound_det = 5.72`, a handful of times the bound rather than
+below it — where the determinant's sign is vouched for, nothing else
+is, and the door answers anyway because the barycentrics land in range
+with intervals under `1`. The two rows should be ruled with one eye:
+moving the certification's line moves this row's population, and
+giving `t` a width moves it the other way.
+
+## The three shapes, none ruled
 
 - **An interval on `t`, with the tie-break deciding overlap.** The
   barycentric bounds already give one: the hit point moves by up to
@@ -57,7 +73,18 @@ gone.
   DID take a box entry parameter is the one EDIT-PICK withdrew
   (`docs/DOC-LEDGER.md`, "Per-merge deletion — EDIT-PICK's spec"), so
   the second shape owes that history an answer.
+- **Refuse where the interval covers at a DOUBLED bound** (review lane
+  pick2-r2). It removes this winner — the sum's `0.827 ± 0.684`
+  covers `[0, 1]` at `±1.368` — and keeps the candidate one behind it
+  on the same ray, item 45 at `t = 1.5112`, whose sum is
+  `0.633 ± 0.252` and still informs at `±0.504`. One line, and it
+  answers this ray. What it is NOT is derived: a factor of two chosen
+  because it separates these two candidates is the tuned constant the
+  door's whole derivation exists to avoid, and `admits` would then
+  read a bound nothing counts. It earns its place only if the doubling
+  IS derived — the obvious candidate being the mesh's own coordinate
+  error, which `crossing`'s bound explicitly does not cover.
 
-Either changes the answers `index_memo`'s differential pins and
+Each changes the answers `index_memo`'s differential pins and
 `review_pick_r2`'s tally counts, and the first changes what the
 tie-break is FOR, which is ratified ground. Ruling first.

@@ -607,10 +607,10 @@ fn reference_answers(
                     .expect("a winner's determinant is certified")
                     .barycentrics
                     .map(|(_, err)| err);
-                // `!(b < 1.0)` rather than `b >= 1.0`: a NaN bound is
-                // not a bound and must red this row, not pass it.
+                // A NaN bound is not a bound and must red this row,
+                // not slip through a `b >= 1.0` that a NaN fails.
                 assert!(
-                    !bounds.iter().any(|&b| !(b < 1.0)),
+                    !bounds.iter().any(|&b| b.is_nan() || b >= 1.0),
                     "{name} after {step}: ray {i} ({ray:?}) is answered by {hit:?} whose widest \
                      barycentric bounds are {bounds:?} — an interval that wide covers [0, 1] and \
                      the exact test refuses it"
