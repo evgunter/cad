@@ -2229,9 +2229,10 @@ pub struct Core<T: Real> {
     program: Vec<Step<T>>,
     /// The chain length each recorded step found, parallel to
     /// `program`: `step_starts[j]` is `verts.len()` at the moment step
-    /// `j` was recorded, which is BEFORE its own emission (every row
-    /// records, then constructs). Two consecutive entries bracket the
-    /// vertices one step pushed, and so the segments it produced —
+    /// `j` was recorded, which is BEFORE its own emission — every row
+    /// records, then constructs, the ENTRY rows included
+    /// ([`Core::record`]). Two consecutive entries bracket the vertices
+    /// one step pushed, and so the segments it produced —
     /// [`Core::step_spans`] does that arithmetic once, at the close.
     step_starts: Vec<usize>,
     /// How this lowering treats the discrete decisions inside it:
@@ -2280,6 +2281,13 @@ impl<T: Real> Core<T> {
     /// Records one authoring verb (record-as-you-lower), with the
     /// chain length it starts from — the left end of the span it is
     /// about to produce.
+    ///
+    /// **Every row records BEFORE it constructs, the entry rows
+    /// included.** An entry verb has no core to record into until its
+    /// kernel mints one, so the kernel takes the step and records it
+    /// there ([`Open::at_kernel`], [`Open::director`]) rather than the
+    /// row recording into the path it just built. The uniformity is
+    /// what makes `step_starts[j]` mean one thing for every `j`.
     fn record(&mut self, step: Step<T>) {
         self.program.push(step);
         self.step_starts.push(self.verts.len());
@@ -2287,26 +2295,31 @@ impl<T: Real> Core<T> {
 
     /// Which segments each recorded step produced, in program order.
     ///
-    /// Segment `k` leaves vertex `k`, so pushing vertex `v` completes
-    /// segment `v - 1`: a step that ran while the chain grew from `a`
-    /// to `b` vertices produced segments `a-1 .. b-1`. The CLOSING step
-    /// produces one more — the seam segment, which leaves the chain's
-    /// last vertex and needs no vertex of its own — so the final span
-    /// ends at the vertex count rather than one below it. An entry verb
-    /// starts from an empty chain and produces nothing; `saturating_sub`
-    /// is that case and not a guess.
+    /// Segment `k` leaves vertex `k`, so a chain of `a` vertices has
+    /// completed `a - 1` of them — none at all while it is empty or
+    /// holds only its seed, which is what `completed` below says and
+    /// why it saturates. A step that ran while the chain grew from `a`
+    /// to `b` vertices therefore produced `completed(a)..completed(b)`.
+    /// The CLOSING step produces one more — the seam segment, which
+    /// leaves the chain's last vertex and needs no vertex of its own —
+    /// so the final span ends at the vertex count itself.
+    ///
+    /// `completed` is monotone and `step_starts` is non-decreasing (a
+    /// chain only grows), so `start <= end` holds for every span by
+    /// construction; [`StepSpan::new`] asserts it rather than this
+    /// clamping it back into range.
     fn step_spans(&self) -> Vec<crate::structure::StepSpan> {
+        let completed = |verts: usize| verts.saturating_sub(1);
         let closed = self.verts.len();
         self.step_starts
             .iter()
             .enumerate()
             .map(|(j, &a)| {
                 let end = match self.step_starts.get(j + 1) {
-                    Some(&b) => b.saturating_sub(1),
+                    Some(&b) => completed(b),
                     None => closed,
                 };
-                let start = a.saturating_sub(1);
-                crate::structure::StepSpan::new(start, end.max(start))
+                crate::structure::StepSpan::new(completed(a), end)
             })
             .collect()
     }
@@ -3320,10 +3333,20 @@ fn leg_end_tip<T: Real>(at: Point2<T>, ang: Dir<T>, arm: T, carrier: Option<ArcD
 }
 
 impl Open {
-    /// The kernel behind the table's `Open → Point` row: seeds the
-    /// chain at `p` (recording is the row's, not the kernel's).
-    fn at_kernel<T: Real>(self, p: Point2<T>) -> PartialPath<T, HasPos<Plain>, NoAng> {
+    /// The kernel behind the table's `Open → Point` row: records the
+    /// entry verb, then seeds the chain at `p`.
+    ///
+    /// The step is the kernel's argument rather than the row's because
+    /// the core a row would record into does not exist until this
+    /// function makes it, and [`Core::record`] runs BEFORE the emission
+    /// it brackets everywhere ([`Core::step_spans`]).
+    fn at_kernel<T: Real>(
+        self,
+        step: Step<T>,
+        p: Point2<T>,
+    ) -> PartialPath<T, HasPos<Plain>, NoAng> {
         let mut core = Core::empty();
+        core.record(step);
         core.seed(p);
         in_state(
             core,
@@ -3338,9 +3361,14 @@ impl Open {
         )
     }
 
-    fn director<T: Real>(self, dir: Dir<T>) -> PartialPath<T, NoPos, HasAng> {
+    /// The kernel behind the table's `Open → Angle` rows: records the
+    /// entry verb, then binds the direction. The step is the kernel's
+    /// argument for the reason [`Open::at_kernel`] states.
+    fn director<T: Real>(self, step: Step<T>, dir: Dir<T>) -> PartialPath<T, NoPos, HasAng> {
+        let mut core = Core::empty();
+        core.record(step);
         in_state(
-            Core::empty(),
+            core,
             Tip {
                 pos: None,
                 ang: Some(dir),

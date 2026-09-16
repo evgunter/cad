@@ -586,9 +586,7 @@ transition_table! {
             /// the seam).
             on [] Open;
             fn at [<T: Real>(self, p: Point2<T>) -> PartialPath<T, HasPos<Plain>, NoAng>] {
-                let mut path = self.at_kernel(p);
-                path.core.record(Step::At(p));
-                path
+                self.at_kernel(Step::At(p), p)
             }
             arms {
                 DynTip::Entry => {
@@ -650,9 +648,7 @@ transition_table! {
             /// the sketch plane; position pending).
             on [] Open;
             fn angle [<T: Real>(self, theta: T) -> PartialPath<T, NoPos, HasAng>] {
-                let mut path = self.director(super::Dir::from_angle(theta));
-                path.core.record(Step::Angle(theta));
-                path
+                self.director(Step::Angle(theta), super::Dir::from_angle(theta))
             }
             arms {
                 DynTip::Entry => {
@@ -756,9 +752,8 @@ transition_table! {
                 dy: T,
                 tol: Tol,
             ) -> Result<PartialPath<T, NoPos, HasAng>, PathError<T>>] {
-                let mut path = self.director(super::unit_from_components(dx, dy, tol)?);
-                path.core.record(Step::Toward { dx, dy });
-                Ok(path)
+                let dir = super::unit_from_components(dx, dy, tol)?;
+                Ok(self.director(Step::Toward { dx, dy }, dir))
             }
             arms {
                 DynTip::Entry => {

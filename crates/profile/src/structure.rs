@@ -114,32 +114,62 @@ pub struct FilletDecision {
 /// leaves vertex `k`, so a step produces exactly the segments whose
 /// end vertices it pushed, plus the seam segment when it is the
 /// closing step.
+///
+/// `start <= end` always: the fields are private and
+/// [`StepSpan::new`] is the only constructor, so a backwards span
+/// cannot be built at all rather than being papered over where it is
+/// read.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct StepSpan {
     /// The first segment index this step produced.
-    pub start: usize,
+    start: usize,
     /// One past the last — equal to `start` where the step produced no
     /// segment at all.
-    pub end: usize,
+    end: usize,
 }
 
 impl StepSpan {
     /// The span `start..end`.
+    ///
+    /// # Panics
+    ///
+    /// If `end < start`. A backwards span is not a shape this type
+    /// admits: every reader below then takes `end - start` and
+    /// `start..end` at face value, and a caller that could produce one
+    /// has a broken derivation rather than an empty step. The fields
+    /// are private so this is the only way in.
     #[must_use]
     pub fn new(start: usize, end: usize) -> Self {
+        assert!(
+            start <= end,
+            "a step's segment span runs forwards: {start}..{end} does not"
+        );
         Self { start, end }
+    }
+
+    /// The first segment index this step produced.
+    #[must_use]
+    pub fn start(&self) -> usize {
+        self.start
+    }
+
+    /// One past the last — equal to [`StepSpan::start`] where the step
+    /// produced no segment.
+    #[must_use]
+    pub fn end(&self) -> usize {
+        self.end
     }
 
     /// How many segments the step produced.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.end.saturating_sub(self.start)
+        self.end - self.start
     }
 
     /// Whether the step produced no segment.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.end <= self.start
+        self.end == self.start
     }
 
     /// The segment indices, ascending.

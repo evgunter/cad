@@ -350,12 +350,23 @@ pub fn pinned(closed: ClosedLoop<f64>) -> ProfileLoop<f64> {
 ///
 /// Rides the same blanket funnel as the differential above, so it holds
 /// over every typed chain the suites author rather than a sampled few.
-/// Each clause names a way a span can be wrong that the loop itself
-/// cannot show: a step whose emission was attributed to its neighbour
-/// shifts a boundary, a span recorded after its own emission shifts
-/// every boundary by one step, a fillet arrival that forgot its
-/// straight leg drops a segment out of the cover, and a closing verb
-/// that did not claim the seam leaves the last one uncovered.
+///
+/// **What it can and cannot catch, measured.** On a CHAIN the three
+/// clauses are what `Core::step_spans` makes true by construction: it
+/// derives every boundary from one non-decreasing `step_starts` vector
+/// and ends the last span at the closed chain's own length, so
+/// contiguity, the cover and the count hold however wrong the
+/// boundaries themselves are. A mutant that shifts every boundary one
+/// step later — a step credited with its NEIGHBOUR's segments — passes
+/// all three, and the row that reds on it is
+/// `editor-core/tests/edit_step_segments.rs`'s attribution section,
+/// which reads each step's own authored endpoint. What this DOES catch
+/// is a span minted outside that arithmetic against a loop it does not
+/// describe: `ReplayStructure::carrier(n)` is built from the carrier
+/// kernel's own vertex count at a different site from the loop this
+/// compares against, and a re-shaped `step_spans` that broke the
+/// partition would land here on the whole corpus rather than on
+/// whichever suite noticed.
 pub fn assert_spans_partition(closed: &ClosedLoop<f64>) {
     let spans = &closed.structure.steps;
     assert_eq!(
@@ -366,17 +377,13 @@ pub fn assert_spans_partition(closed: &ClosedLoop<f64>) {
     let n = closed.loop_.vertices().len();
     let mut next = 0;
     for (j, span) in spans.iter().enumerate() {
-        assert!(
-            span.start <= span.end,
-            "step {j}'s span runs backwards: {span}"
-        );
         assert_eq!(
-            span.start,
+            span.start(),
             next,
             "step {j}'s span starts where step {} left off",
             j.wrapping_sub(1)
         );
-        next = span.end;
+        next = span.end();
     }
     assert_eq!(
         next, n,

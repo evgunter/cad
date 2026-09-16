@@ -499,7 +499,7 @@ fn a_lying_step_span_refuses_typed_naming_the_step() {
         .expect("some step of the lens produced a segment");
     let mut lie = structure.clone();
     lie.steps[step] =
-        profile::StepSpan::new(structure.steps[step].start, structure.steps[step].end + 1);
+        profile::StepSpan::new(structure.steps[step].start(), structure.steps[step].end() + 1);
     let err = replay_guided(&program, &lie, tol()).expect_err("the span is contradicted");
     let ReplayErrorKind::Path(PathError::Structure(refusal)) = err.kind else {
         panic!("expected a structure refusal, got {:?}", err.kind);
@@ -526,6 +526,46 @@ fn a_lying_step_span_refuses_typed_naming_the_step() {
         !rendered.contains("StepSpan"),
         "the Debug spelling leaked into the sentence: {rendered}"
     );
+}
+
+/// **A lying span on a `circle_split` record refuses typed, naming the
+/// step** — the CARRIER case, which is why the comparison sits at
+/// `replay_guided` rather than inside the guide.
+///
+/// The row above is authored on a chain, and a chain reaches the guide.
+/// A complete-loop carrier form never takes a guide at all: it mints
+/// its `ClosedLoop` and its `ReplayStructure::carrier(n)` directly, so
+/// a record and an elaboration that disagreed about the subdivision
+/// count would pass unread if the check lived one level in.
+#[test]
+fn a_lying_step_span_on_a_carrier_form_refuses_typed() {
+    let program = vec![profile::Step::CircleSplit {
+        centre: p2(0.0, 0.0),
+        radius: 1.0,
+        n: 4,
+        phase: 0.0,
+    }];
+    let (loop_, structure) = replay_recording(&program, tol()).expect("the carrier replays");
+    assert_eq!(structure.steps.len(), 1, "one authored step");
+    assert_eq!(
+        structure.steps[0],
+        profile::StepSpan::new(0, loop_.vertices().len()),
+        "the carrier's one step reaches every segment"
+    );
+    let mut lie = structure.clone();
+    lie.steps[0] = profile::StepSpan::new(0, loop_.vertices().len() - 1);
+    let err = replay_guided(&program, &lie, tol()).expect_err("the span is contradicted");
+    let ReplayErrorKind::Path(PathError::Structure(refusal)) = err.kind else {
+        panic!("expected a structure refusal, got {:?}", err.kind);
+    };
+    assert_eq!(refusal.decision, Decision::StepSpan { step: 0 });
+    assert!(matches!(
+        refusal.kind,
+        StructureRefusalKind::Flipped {
+            recorded: DecisionValue::Span(_),
+            found: DecisionValue::Span(_),
+        }
+    ));
 }
 
 /// A record from a DIFFERENT program is refused at its own shape: no
