@@ -1,10 +1,11 @@
 ---
 id: doc-param-unit-edit-has-no-door
-kind: issue
+kind: unit
 title: No editor-core door changes a document parameter's display unit — SetDocParam would drop the distribution
-status: open
+status: spec
 opened: 2026-09-04
 refs: [1776]
+branch: edit/doc-param-unit
 ---
 
 
@@ -97,3 +98,40 @@ Moved from `work/docm/` to `work/edit/` at DOCM's exit sweep (`docs/DOC-LEDGER.m
 sweep 14): EDIT is DOCM's successor on the document-model ground (persist, the edit vocabulary, the node and resolver doors). Id, body and header are unchanged; the directory is the
 claim (`work/README.md`). Any `## Home` section above is superseded by
 this line and is kept as the record of why the file was where it was.
+
+## Spec (2026-09-16, EDIT orchestrator) — middle tier: one opus style review with a correctness arm, no A/B row
+
+Ev (in chat, 2026-09-16) agreed this is a unit, not a design fork.
+Branch `edit/doc-param-unit`. Both shapes the row offers, because
+each is half of one door:
+
+1. `DocParam::with_display_unit(&self, unit) -> Option<Self>` beside
+   `with_value` (`crates/editor-core/src/doc.rs`): the carry-forward
+   mirror over the other field — value and distribution ride through
+   untouched; `None` for a `Count` (a count names no notation) and for
+   a unit that does not measure the declared `dim` (the pairing
+   `persist::check` validates and `written_length`/`written_angle`
+   make unreachable by construction — reuse that predicate, do not
+   restate it). Exhaustive on both arms as `with_value` is.
+2. `DocEdit::SetDocParamUnit { name, unit }`: refuses typed on an
+   undeclared name, on a `Count`, and on a dimension mismatch — each
+   its own `EditError` arm or a reuse of an existing one where the
+   sentence is the same; `apply` routes it through (1) exactly as the
+   value-only edit routes through `with_value`. Persisted and replayed
+   like every `DocEdit` (`persist/wire.rs` gains its arm; the format
+   has no schema version and the corpus regenerates if anything
+   committed carries an edit log — say what moved). The `pncad-py`
+   façade enumerates `DocEdit` (`py/doc.rs`): add the door there too,
+   LIB's file, mechanical, said in the PR.
+3. **State the reading, in the door's doc and the PR body**: changing
+   a parameter's KIND is a redeclaration (`with_value`'s argument);
+   changing its NOTATION is not, because `DocParam::bit_eq` already
+   excludes `display_unit` as presentation metadata, the same ruling
+   `Expr::bit_eq` makes. A unit edit therefore changes nothing
+   `bit_eq` sees — and a row pins that.
+4. Rows that go red: the distribution survives a unit edit (RED
+   today through `SetDocParam` with `DocParam::continuous` — write
+   that trap as the first row, then the door that avoids it); each
+   refusal by name; `bit_eq` unchanged across the edit; replay and
+   save/load round-trip the edit; the `SessionOp` side is CHROME's
+   and is filed on their slate, not built.

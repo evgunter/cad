@@ -40,7 +40,7 @@ use viewer::generation::Generation;
 use viewer::input::{self, InputMap, ViewportSize};
 use viewer::pickcache::{self, CacheStep, IndexLanding, PickCache};
 use viewer::pickindex::{self, IdMap, PickIndex, PictureKey};
-use viewer::prefs::{Absent, PrefsStore};
+use viewer::prefs::{Absent, Prefs, PrefsStore};
 use viewer::props::SlotValue;
 use viewer::scene::{self, DisplayTolerance, FittedDelta, PLATE_EXTENT};
 use viewer::session::{
@@ -459,6 +459,91 @@ fn a_withdrawals_cause_list_splits_back_into_its_causes() {
             .collect::<Vec<_>>(),
         "the join is invertible: each piece is one cause's own rendering, \
          whole, and there are as many pieces as there were causes"
+    );
+}
+
+/// **A startup line carrying two notices splits back into those two.**
+///
+/// The live case and not a constructed one: a preferences file naming
+/// a theme the registry does not hold AND an input preset it does not
+/// hold parses cleanly, both names resolve to `None`, and both arms
+/// report — which `prefs`'s module docs call the ordinary recovery.
+/// Three of `prefs::Notice`'s four arms write a `frame::LIST_SEPARATOR`
+/// inside one sentence, so a flat join on that mark made a two-notice
+/// line read as four items.
+///
+/// The boundary is `frame::NOTICE_SEPARATOR` because these are several
+/// notices, not the items of a list ONE notice carries: nothing counts
+/// them and no preamble introduces them.
+#[test]
+fn a_startup_line_splits_back_into_the_preferences_notices_it_was_made_from() {
+    let (prefs, parsed) =
+        Prefs::from_toml("[appearance]\ntheme = \"aurora\"\n\n[keys]\npreset = \"modal\"\n")
+            .expect("a file this well-formed parses");
+    assert!(
+        parsed.is_empty(),
+        "the file is understood; what is unknown is the two NAMES: {parsed:?}"
+    );
+    let (_, theme_notice) = prefs.resolve_theme();
+    let (_, keys_notice) = prefs.resolve_keys();
+    let notices: Vec<String> = [theme_notice, keys_notice]
+        .into_iter()
+        .flatten()
+        .map(|notice| notice.to_string())
+        .collect();
+    assert_eq!(
+        notices.len(),
+        2,
+        "two unknown names are two notices: {notices:?}"
+    );
+    assert!(
+        notices
+            .iter()
+            .all(|notice| notice.contains(frame::LIST_SEPARATOR)),
+        "and each of them writes the list mark inside its own sentence, \
+         which is what a flat join on that mark cannot survive: {notices:?}"
+    );
+
+    let line = frame::startup_notices(&notices).expect("two notices are news");
+    assert_eq!(
+        line.text()
+            .split(frame::NOTICE_SEPARATOR)
+            .collect::<Vec<_>>(),
+        notices.iter().map(String::as_str).collect::<Vec<_>>(),
+        "the join is invertible: each piece is one notice's own rendering, \
+         whole, and there are as many pieces as there were notices"
+    );
+}
+
+/// **The mark cannot be held by any claim about the sentences here,
+/// because two of the four arms echo text out of the user's file.**
+///
+/// A TOML quoted key may hold anything, [`prefs::Notice::UnknownKey`]
+/// prints it back, and so a preferences notice can carry any character
+/// a boundary might be spelled with — the bullet included. What holds
+/// the line is `frame::Message::new`, which rewrites the boundary mark
+/// out of every text that reaches it, and that is why the startup path
+/// builds one message per notice rather than one string.
+#[test]
+fn a_startup_notice_echoing_a_key_that_holds_the_boundary_mark_still_splits_back() {
+    let key = format!("a{}b", frame::NOTICE_MARK);
+    let (_, parsed) = Prefs::from_toml(&format!("\"{key}\" = 1\n\"{key}2\" = 1\n"))
+        .expect("a quoted key is well-formed TOML");
+    let notices: Vec<String> = parsed.iter().map(ToString::to_string).collect();
+    assert_eq!(notices.len(), 2, "two unknown keys are two notices");
+    assert!(
+        notices
+            .iter()
+            .all(|notice| notice.contains(frame::NOTICE_MARK)),
+        "each echoes the user's key, boundary mark and all: {notices:?}"
+    );
+
+    let line = frame::startup_notices(&notices).expect("two notices are news");
+    assert_eq!(
+        line.text().matches(frame::NOTICE_SEPARATOR).count(),
+        1,
+        "one boundary in a line of two notices, whatever the file said: {}",
+        line.text()
     );
 }
 
