@@ -92,3 +92,34 @@ free.
 Over the TIE-BREAK aim the count is unchanged at 149, and the review
 lane checked that it is the same SET, not just the same number: no
 aimed ray swapped sides (`newly_beyond_or_miss: 0`, `newly_aimed: 0`).
+
+## Measured (EDIT-PICK3, 2026-09-16): stays
+
+The `t` ruling this row waited on landed, and with it the clamp that
+made MEET affordable in the column that killed it. EDIT-PICK3 ran the
+three-rule table and the wide aim for BOTH acceptances under the
+interval order (`crates/viewer/tests/pick3_acceptance.rs`, over every
+landing of the corpus and the gallery ring):
+
+| | closed ∧ INFORM | MEET ∧ INFORM |
+| --- | --- | --- |
+| tie-break aim, beyond-or-miss (19 296 rays) | 149 | 129 |
+| tie-break aim, `Pruned ≠ Every` | 0 | **0** |
+| tie-break aim, winners with a bound ≥ 1 | 0 | 0 |
+| wide aim, aimed vertices lost against `main` (441 126 rays) | 0 | **513** |
+| wide aim, aimed vertices gained | 3 | 0 |
+
+**The clamp did what it was for**: MEET's 2 order-dependent rays are
+gone, because an admitted candidate's hit point is now a point OF its
+triangle and so inside its own box. **And MEET still cannot be taken**,
+for a reason EDIT-PICK2 could not see past the first column: the clamp
+places an out-of-range candidate's answer on the NEAREST point of its
+triangle, which is a real point of the mesh at a smaller `t` than the
+vertex the ray was aimed at — so the ray answers a face it passes
+BESIDE instead of the one it passes through. 513 aimed vertices of the
+wide aim go that way, against the 20 grazes MEET recovers.
+
+The ruling's rule was "MEET only at `0 Pruned ≠ Every` and no lost
+aim". The second half fails, so the closed comparison stays and these
+149 grazes remain the stated class at `ray_triangle`'s door. This row is
+measured, not fixed; it closes with EDIT-PICK3's merge.
