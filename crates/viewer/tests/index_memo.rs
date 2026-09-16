@@ -1298,8 +1298,9 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
     let hit = hit.expect("the ray meets the ring");
     assert_eq!(
         hit.t.to_bits(),
-        RING_WIDE_CANDIDATE_T.to_bits(),
-        "the measured answer moved: {hit:?}"
+        reach.to_bits(),
+        "the aimed vertex is the answer, not the wide candidate's {RING_WIDE_CANDIDATE_T}: \
+         {hit:?}"
     );
     // The winner's own numbers, which are why the acceptance takes it.
     let winner = &reference.parts[hit.part].corners[hit.item];
@@ -1367,9 +1368,11 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
     );
 }
 
-/// The measured answer to the ring's wide-candidate probe. Re-derive
-/// from the probe's failure message; a move here is a change in the
-/// class the row above carries, not a baseline to restore.
+/// The wide candidate's own rounded answer: `0.031` short of the
+/// aimed vertex, and the smaller of the two rounded values, so it is
+/// what a door comparing rounded `t` answers. Re-derive from the
+/// probe's failure message; a move here is a change in the class the
+/// row above carries, not a baseline to restore.
 const RING_WIDE_CANDIDATE_T: f64 = 1.448_765_272_489_762_4;
 
 /// The winner's conditioning `|det| / (|e1|·|e2|·|d|)`, as
