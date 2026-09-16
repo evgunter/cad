@@ -12032,3 +12032,74 @@ the fixed tree: `cargo nextest run --workspace --no-fail-fast`, 7,570
 run, 7,570 passed, 38 skipped.
 
 Signed (VIEW implementer lane `view/frame-split`).
+
+---
+
+## 2026-09-16 — a dead seam worker is a typed fact, badged, and the fit seam refuses
+
+`a-dead-seam-worker-reads-as-an-ordinary-idle-state` closed on Ev's
+in-chat ruling of the same day: loud rather than silent, a badge on the
+item's own provenance rule, `Tone::Actionable` with the restart in the
+badge's own text, and the fit seam REFUSING the index build rather than
+taking the un-budgeted one.
+
+**What the item was wrong about, and what it left out.** Its three
+bullets held against the tree, re-derived by subject. What did not hold
+is a sentence in the file the unit had to edit anyway:
+`crates/viewer/src/frame.rs`'s module header says *"The members are …"*
+and enumerates **seven** badges over a family of **eight** —
+`prefs_badge` is missing, and has been since the family was a
+vocabulary. The README's own enumeration has all eight and the count is
+guarded by `the_readme_counts_its_two_populations_correctly`; the
+header's is guarded by nothing, which is why it drifted. It now states
+the sweep rule (*every function in this module returning
+`Option<Badge>`*) beside the members rather than a bare list, and points
+at the row that counts them.
+
+**The shape of the fix, and why `busy()` could not carry it.** The
+worker-gone reset clears exactly the two fields `busy()` is computed
+from — deliberately, because an indicator must not stay lit for an
+answer that is not coming, which is the parent item's own ruling. That
+makes a dead seam report precisely what an idle one reports. So the
+fact is a second QUESTION rather than a third value of the first:
+`worker_gone()` on all three seam traits, `None` on every inline
+implementation, recorded by `Coalescing::forget_worker` at both arms
+that notice a death. `Worker` moved out of the `cfg(not(wasm))`
+`threaded` module to the crate's unconditional half, so the chrome has
+a vocabulary to match on where the failure cannot happen too.
+
+**The base-tree red is a 32-error compile failure**, and that is the
+honest one: every error names a door `origin/main` does not have
+(`WorkerGone`, `worker_gone` on three traits, `settled_delta`,
+`dead_seam_badge`, `eval_worker_gone`). There is no spelling of *this
+seam is dead* anywhere above the seam on the base tree, which is the
+item restated as a measurement. What certifies the repair is four
+mutations on the fixed tree, each redding a different row: dropping the
+`worker_gone` conjunct from `settled_delta`; `forget_worker` not
+recording; `Tone::Advisory`; and the fit sentence naming only the
+fitter.
+
+**One row had to be rewritten after it failed.** The failed-send arm of
+`Coalescing::dispatch` is not reached by submitting again after a
+worker dies — a submit while `running` only replaces `waiting`, so the
+handle finds out through `poll`. The arm's producers are a worker that
+dies between answering and a redispatch, and a closed channel; the row
+reaches it through `close()` and says so rather than pretending to a
+live race.
+
+**The sweep** ranged over every `.busy()` read and every `.submit(`
+into a seam in `crates/viewer/src`. Four `busy()` readers: `settled_delta`
+(fixed here), `PickCache::indexing` and `app`'s `progress` argument
+(correct as they are — not-busy is the right answer for a spinner), and
+`DocSession::running` (honest; its residue is the *canceled* label,
+filed). Three submits: the fit and index submits, whose consequences
+the badges carry, and `DocSession::request_eval`, reached by every
+editing control there is. Only **Re-evaluate** is disabled, and the
+classification rule is written down: disable a control whose whole
+effect is the submit, badge the rest — Undo, a tool commit and a
+parameter edit all still do what they always did, and what stops is the
+picture following.
+
+Residue filed: `the-canceled-label-names-a-cause-a-dead-worker-did-not-have`.
+
+Signed (VIEW implementer lane `view/dead-seam-badge`).

@@ -2,9 +2,11 @@
 id: a-dead-seam-worker-reads-as-an-ordinary-idle-state
 kind: issue
 title: A seam whose worker has died is indistinguishable, in the chrome, from one with nothing to do
-status: open
+status: closed
 opened: 2026-09-15
 refs: [2637]
+closed: 2026-09-16
+branch: view/dead-seam-badge
 ---
 
 
@@ -62,3 +64,26 @@ the record/design line, and it wants Ev.
 Nothing is known about how often a seam worker dies — the parent item
 says the same, and it is still true: this is filed because the state is
 silent and permanent, not because it is frequent.
+
+## Closed
+
+Taken as ruled. The seams publish `worker_gone()` beside `busy()` —
+a second QUESTION rather than a third value of the first, because the
+worker-gone reset clears exactly the fields `busy()` is computed from
+and that is right for the indicator. `Coalescing` records the fact at
+both arms that notice a worker has gone; the three consumers pass it
+through (`DocSession::eval_worker_gone`, `PickCache::worker_gone`, the
+fit handle directly).
+
+Three badges, one door (`frame::dead_seam_badge`), `Tone::Actionable`,
+the restart in each badge's own text; the fit badge names the picking
+it costs as well as the budget. `evalseam::settled_delta` refuses the
+index build for a dead fitter rather than taking the un-budgeted δ. The
+Re-evaluate control is disabled by the fact and says the seam's own
+words, the `CancelDoor` posture.
+
+Residue, filed rather than left in this prose:
+`the-canceled-label-names-a-cause-a-dead-worker-did-not-have` — the
+toolbar still draws the literal *canceled — showing an older result*
+over a state no cancel produced, and making that honest is a
+`frame::Progress` vocabulary decision rather than a wording change.
