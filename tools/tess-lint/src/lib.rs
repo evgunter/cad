@@ -235,6 +235,35 @@
 //! and 5 say the same thing one level up: a comparison that stopped
 //! HAPPENING — or never started — is not growth of any size.
 //!
+//! **Every column of `EXPECTED_HEADER` is read at that boundary, and
+//! most of them are read only there.** Which is three different things,
+//! and the difference is what a reader of a green gate needs:
+//!
+//! * **Compared by a rule** — `scene`/`face` (the join), `chart` and
+//!   the identity block (rule 4), `triangles` (rule 1), `grid_cells`
+//!   and `span_opt_cells` (rule 2, through `Row::recoverable`), and
+//!   whether the sized block is present at all. This list is what the
+//!   gate CLAIMS.
+//! * **Reaching a reader, compared against nothing** — `delta` and
+//!   `worst_dev` (the report's `total` factor), `patch_cells` and
+//!   `opt_cells` (the cell totals the CLI prints), and the indicator
+//!   block (the constraint-activity line). Each is printed on the run
+//!   that reads it and compared with no other run, so a movement in
+//!   one is folded into the baseline by the next re-cut with nothing
+//!   holding the two cuts against each other.
+//! * **Read to be refused, and nothing else** — the certified bound
+//!   (`BOUND_COLUMNS`), the analysis-cell count (`CELLS`),
+//!   `worst_cert`, and `dev_samples`, which is read to settle which of
+//!   `worst_dev`'s two `NaN`s a row carries.
+//!
+//! `name` is in none of the three: `parse` stores it, no rule reads
+//! it, and there is no in-band value for an admission to refuse.
+//!
+//! **None of this is a threshold waiting to be written.** A certified
+//! bound is geometry and this meter never gates on geometry; what the
+//! second and third lists lack is a comparison ACROSS cuts, which is a
+//! report and not a rule.
+//!
 //! **A SCHEMA move is not a measurement at all**, and is refused
 //! before any column is read as one. Three constants pin the shape of
 //! the file: [`EXPECTED_HEADER`] the column order, [`CHART_TAGS`] the
@@ -516,6 +545,17 @@ enum Admissible {
     /// A certificate: finite and non-negative (zero is a face whose
     /// triangles are exact).
     Certificate,
+    /// A certified sup of a norm over the patch: finite and
+    /// non-negative, because a sup of norms is.
+    ///
+    /// **Zero is a reading and is admitted deliberately** — a ruled
+    /// direction's `sup ‖S_uu‖` is zero, and `tess_meter::split_scan`
+    /// reads that as a certified-flat bound that constrains nothing
+    /// rather than as drift. What this refuses is the other side: a
+    /// negative sup is a sign error and a non-finite one is arithmetic
+    /// that did not happen, which is what the producer's own
+    /// `split_scan` asserts before it optimizes over the bound.
+    Sup,
     /// A sampled deviation: finite and non-negative, or `NaN` — which
     /// is settled against `dev_samples` after this pass, since only
     /// one of its two meanings is a reading.
@@ -548,6 +588,7 @@ impl Admissible {
             Self::CellCount => v.is_finite() && v >= 1.0,
             Self::Target => v.is_finite() && v > 0.0,
             Self::Certificate => v.is_finite() && v >= 0.0,
+            Self::Sup => v.is_finite() && v >= 0.0,
             Self::OptionalDeviation => v.is_nan() || (v.is_finite() && v >= 0.0),
             Self::Count => v.is_finite() && v >= 0.0,
             Self::Aspect => v.is_finite() && v > 0.0,
@@ -561,6 +602,7 @@ impl Admissible {
             Self::CellCount => "a cell count, finite and at least one",
             Self::Target => "a tessellation target, finite and above zero",
             Self::Certificate => "a certificate, finite and non-negative",
+            Self::Sup => "a certified sup of a norm, finite and non-negative",
             Self::OptionalDeviation => {
                 "a deviation, finite and non-negative, or NaN for an unresampled sweep"
             }
@@ -609,6 +651,59 @@ const IDENTITY_MEASURES: [(&str, Admissible); 6] = [
     ("nu", Admissible::CellCount),
     ("nv", Admissible::CellCount),
 ];
+
+/// Where the certified-bound block starts in [`EXPECTED_HEADER`] —
+/// the first column after the identity block.
+const BOUND_FIRST: usize = 12;
+
+/// The certified bound the lane's sizing read, in
+/// [`EXPECTED_HEADER`]'s order: the whole-patch Hessian sups and the
+/// two first-fundamental-form sups the aspect cap samples.
+///
+/// **No rule in this crate reads any of them, and they are policed
+/// anyway.** What decides that is not whether a value is read but
+/// whether a reading is made of it: the all-or-none partition over the
+/// measured columns already reads these six as PRESENT, and refuses a
+/// row for their absence, so the boundary is already making a
+/// statement about them — and `muu` reads `sup ‖S_uu‖` or it reads
+/// nothing. Left unpoliced, the value beside that presence is whatever
+/// the file happened to say, and a row carrying `muu=banana` parsed
+/// clean and reached the verdict. The check belongs here because here
+/// is the one place a reading of this file is made
+/// (`tools/README.md`'s `CC1`); the value is dropped after it is
+/// admitted, because storing a number no rule reads is the other half
+/// of this row's defect and not a cure for it.
+///
+/// Every entry is one [`Admissible::Sup`] — five sups of norms under
+/// one policy — and the table is written out per column rather than as
+/// a range, so a column that arrives between `nv` and `cells` cannot
+/// be absorbed into a count.
+const BOUND_COLUMNS: [(&str, Admissible); 5] = [
+    ("muu", Admissible::Sup),
+    ("muv", Admissible::Sup),
+    ("mvv", Admissible::Sup),
+    ("mu1", Admissible::Sup),
+    ("mv1", Admissible::Sup),
+];
+
+/// Where the analysis-cell count sits in [`EXPECTED_HEADER`] — between
+/// the certified bound and the sizing block, and in neither.
+///
+/// A COUNT, not a measurement, so it goes through the same `usize`
+/// read `face`, `triangles` and [`DEV_SAMPLES`] do rather than through
+/// [`Admissible`]: the producer writes `m.cells.len()`, so a negative
+/// or fractional cell count cannot be spelled at all.
+///
+/// **Zero is not refused, and that is chosen rather than defaulted.**
+/// `tess_meter` writes the length of a `Vec` it may build empty, so a
+/// zero here is a state the producer can reach and the file can carry
+/// honestly; refusing it would be an admission refusing what the
+/// instrument exists to measure (`tools/README.md`'s `CC5`). The
+/// argument that it CANNOT be zero runs through `span_opt_cells`,
+/// whose accumulator sums over these same cells — which is a fact
+/// about the producer's code and not about this row, and `CC4` is why
+/// that may not be leant on either way.
+const CELLS: usize = 17;
 
 /// Where the sizing block starts in [`EXPECTED_HEADER`].
 const SIZING_FIRST: usize = 18;
@@ -989,6 +1084,15 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
                 ident[k] = admit(IDENTITY_FIRST + k, name, *kind)?;
             }
             let [u0, u1, v0, v1, nu, nv] = ident;
+            // The certified bound and the analysis-cell count, read in
+            // the header's order with the blocks around them and
+            // DROPPED: no rule reads either, and what the boundary owes
+            // them is a refusal, not a value ([`BOUND_COLUMNS`],
+            // [`CELLS`]).
+            for (k, (name, kind)) in BOUND_COLUMNS.iter().enumerate() {
+                admit(BOUND_FIRST + k, name, *kind)?;
+            }
+            idx(CELLS, "cells")?;
             let mut read = [0.0f64; SIZING_COLUMNS.len()];
             for (k, (name, kind)) in SIZING_COLUMNS.iter().enumerate() {
                 read[k] = admit(SIZING_FIRST + k, name, *kind)?;
@@ -2230,11 +2334,28 @@ mod tests {
             assert_eq!(cols[IDENTITY_FIRST + k], *name, "identity column {k}");
         }
         assert_eq!(
-            cols[IDENTITY_FIRST + IDENTITY_MEASURES.len()],
-            "muu",
-            "the identity block ends too late"
+            IDENTITY_FIRST + IDENTITY_MEASURES.len(),
+            BOUND_FIRST,
+            "a column arrived between the identity block and the certified bound"
         );
-        assert_eq!(cols[SIZING_FIRST - 1], "cells", "the block starts too late");
+        // The certified bound, bracketed the same way and for a
+        // sharper reason: no rule reads any of these, so a column
+        // sliding under the wrong entry here moves nothing a
+        // comparison would notice. The bracket IS the notice.
+        for (k, (name, _)) in BOUND_COLUMNS.iter().enumerate() {
+            assert_eq!(cols[BOUND_FIRST + k], *name, "bound column {k}");
+        }
+        assert_eq!(
+            CELLS,
+            BOUND_FIRST + BOUND_COLUMNS.len(),
+            "a column arrived between the certified bound and the cell count"
+        );
+        assert_eq!(cols[CELLS], "cells", "the analysis-cell count moved");
+        assert_eq!(
+            SIZING_FIRST,
+            CELLS + 1,
+            "a column arrived between the cell count and the sizing block"
+        );
         for (k, (name, _)) in SIZING_COLUMNS.iter().enumerate() {
             assert_eq!(cols[SIZING_FIRST + k], *name, "column {k}");
         }
@@ -2266,6 +2387,125 @@ mod tests {
             cols.len(),
             INDICATOR_FIRST + INDICATOR_COLUMNS.len(),
             "the indicator block ends before the header does"
+        );
+    }
+
+    /// Every column [`EXPECTED_HEADER`] declares is claimed by exactly
+    /// one site — no overlap, and no gap.
+    ///
+    /// **The gap is what this test is for.** A block bracketed on both
+    /// sides says its neighbour is where it expects it to be, which is
+    /// exactly as true with a run of columns between two blocks that
+    /// no table matches and no index reads: such a run is present on
+    /// every row, is refused when it is ABSENT, and can say anything
+    /// at all when it is there. The bracket assertions cannot see
+    /// that; a cover of the header can.
+    ///
+    /// **What it does not check** is that `parse` reads each column it
+    /// claims — a constant naming an index proves an intention, not a
+    /// read. The per-block admission tests are that half, and they run
+    /// values through `parse` itself.
+    #[test]
+    fn every_header_column_is_claimed_by_exactly_one_site() {
+        let cols: Vec<&str> = EXPECTED_HEADER.split(',').collect();
+        let mut by: Vec<Option<&str>> = vec![None; cols.len()];
+        let mut claim = |col: usize, site: &'static str| {
+            assert!(
+                by[col].is_none(),
+                "column {:?} is claimed by both {} and {site}",
+                cols[col],
+                by[col].unwrap_or_default()
+            );
+            by[col] = Some(site);
+        };
+        for (col, site) in [
+            (0, "scene"),
+            (1, "face"),
+            (NAME, "NAME"),
+            (CHART, "CHART"),
+            (DELTA, "DELTA"),
+            (TRIANGLES, "TRIANGLES"),
+            (CELLS, "CELLS"),
+            (DEV_SAMPLES, "DEV_SAMPLES"),
+        ] {
+            claim(col, site);
+        }
+        for k in 0..IDENTITY_MEASURES.len() {
+            claim(IDENTITY_FIRST + k, "IDENTITY_MEASURES");
+        }
+        for k in 0..BOUND_COLUMNS.len() {
+            claim(BOUND_FIRST + k, "BOUND_COLUMNS");
+        }
+        for k in 0..SIZING_COLUMNS.len() {
+            claim(SIZING_FIRST + k, "SIZING_COLUMNS");
+        }
+        for k in 0..INDICATOR_COLUMNS.len() {
+            claim(INDICATOR_FIRST + k, "INDICATOR_COLUMNS");
+        }
+        for (col, site) in by.iter().enumerate() {
+            assert!(
+                site.is_some(),
+                "column {:?} is claimed by no site in `parse`: it reaches the gate \
+                 carrying whatever the file says",
+                cols[col]
+            );
+        }
+    }
+
+    /// The certified bound's policing, in the same shape as the other
+    /// blocks': written out, not derived from the table it checks.
+    ///
+    /// One policy across all five, which is why the rows are
+    /// identical; the array's width is the guard against the next
+    /// column.
+    #[test]
+    fn every_certified_bound_column_refuses_the_values_that_reach_no_reader() {
+        const BAD: [&str; 5] = ["0e0", "-1e0", "inf", "NaN", "5e-1"];
+        // Zero is a reading — a ruled direction certifies flat — and a
+        // sup of a norm is neither negative nor non-finite.
+        const ADMITTED: [(&str, [bool; 5]); BOUND_COLUMNS.len()] = [
+            ("muu", [true, false, false, false, true]),
+            ("muv", [true, false, false, false, true]),
+            ("mvv", [true, false, false, false, true]),
+            ("mu1", [true, false, false, false, true]),
+            ("mv1", [true, false, false, false, true]),
+        ];
+        for (k, (name, admitted)) in ADMITTED.iter().enumerate() {
+            assert_eq!(*name, BOUND_COLUMNS[k].0, "column {k} of the table");
+            for (b, bad) in BAD.iter().enumerate() {
+                let got = parse(&with_field(&scene(100, 2.5e1), BOUND_FIRST + k, bad)).is_ok();
+                assert_eq!(got, admitted[b], "{name} = {bad}: admitted = {got}");
+            }
+        }
+    }
+
+    /// A column no rule reads can carry something that is not a number
+    /// at all, and every rule downstream is indifferent to it — so the
+    /// boundary is the only place that can say so.
+    #[test]
+    fn a_certified_sup_that_is_not_a_number_is_harness_breakage() {
+        let e = parse(&with_field(&scene(100, 2.5e1), BOUND_FIRST, "banana")).unwrap_err();
+        assert!(e.text.starts_with("muu: "), "{}", e.text);
+    }
+
+    /// The analysis-cell count is read as a COUNT: the producer writes
+    /// the length of a `Vec`, so anything that is not a `usize` is
+    /// drift.
+    ///
+    /// **Zero is admitted, and the assertion is here rather than the
+    /// refusal.** That length can be zero, so the file can carry a
+    /// zero honestly; refusing it would be this table refusing what
+    /// the instrument exists to measure.
+    #[test]
+    fn the_analysis_cell_count_is_read_as_a_count() {
+        for bad in ["banana", "-1", "1.5", "5e-1", "inf", "NaN"] {
+            let e = parse(&with_field(&scene(100, 2.5e1), CELLS, bad)).unwrap_err();
+            assert!(e.text.starts_with("cells: "), "{bad}: {}", e.text);
+        }
+        assert!(
+            parse(&with_field(&scene(100, 2.5e1), CELLS, "0")).is_ok(),
+            "a face whose per-cell bound reported no analysis cells is a state the \
+             producer can write"
         );
     }
 
