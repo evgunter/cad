@@ -186,5 +186,11 @@ reads.** No live figure from either census is restated outside
 - A citation-by-name is guarded rather than trusted:
   `the_sites_that_cite_this_census_cite_names_it_has` names each cited
   test as a path expression — so a rename is a COMPILE error in the
-  census file — and asserts the citing text still spells it. Both
-  halves executed red-then-green.
+  census file — and asserts the citing PROSE still spells it. Both
+  halves executed red-then-green. The prose side covers
+  `docs/TESS-BUDGET.md` only: reading `tools/tess-lint/src/lib.rs`
+  would make the census a site that reads Rust source as text, which
+  `crates/test-utils`' reader-census ledger governs and which this
+  dependency-free cargo root could only do with a hand-rolled reader.
+  `lib.rs` cites the file path beside the name, and a dead path greps
+  distinctively.

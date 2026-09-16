@@ -1015,15 +1015,24 @@ fn the_committed_baseline_meets_the_split_bound_on_this_many_rows() {
 /// spells. Rename a test and this file does not build; edit the name
 /// out of a citing document and this test reds naming it.
 ///
-/// **What it does not check** is that the citation still says
-/// something true about the test it names, or that a NEW citation was
-/// added to this list — a site may cite a test correctly and describe
-/// it wrongly, and a site added tomorrow is not here until someone
-/// adds it. It guards the name, which is the half that rots silently.
+/// **`sites` holds prose OUTSIDE this crate's source, and that is
+/// deliberate.** `tools/tess-lint/src/lib.rs` cites the split-bound
+/// row by name too and is not listed: reading it here would make this
+/// file a site that reads Rust source as text, which
+/// `crates/test-utils`' reader census ledgers and which this
+/// dependency-free cargo root could only do with a hand-rolled reader.
+/// That citation carries the FILE path beside the name, and a dead
+/// path greps distinctively; the name half of it is covered by the
+/// compile-time arm below like every other.
+///
+/// **What it does not check** is that a citation still says something
+/// true about the test it names, or that a NEW citation was added to
+/// this list — a site may cite a test correctly and describe it
+/// wrongly, and a site added tomorrow is not here until someone adds
+/// it. It guards the name, which is the half that rots silently.
 #[test]
 fn the_sites_that_cite_this_census_cite_names_it_has() {
     const BUDGET_DOC: &str = include_str!("../../../docs/TESS-BUDGET.md");
-    const TESS_LINT: &str = include_str!("../src/lib.rs");
 
     /// One cited test: the path expression is the compile-time half,
     /// the name is what the citing text has to still spell.
@@ -1052,7 +1061,7 @@ fn the_sites_that_cite_this_census_cite_names_it_has() {
         Citation {
             test: the_committed_baseline_meets_the_split_bound_on_this_many_rows,
             name: "the_committed_baseline_meets_the_split_bound_on_this_many_rows",
-            sites: &[("tools/tess-lint/src/lib.rs", TESS_LINT)],
+            sites: &[],
         },
     ];
 
