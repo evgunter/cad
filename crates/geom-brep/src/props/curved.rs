@@ -113,11 +113,21 @@ pub enum MaterialSign {
     /// definite `classify` outcome or a stored traversal bool — the
     /// `Zero` arms refuse typed before a sign is minted.
     Encoded(Sign),
-    /// The boundary does not encode the side: the **rimless sphere
-    /// band** (M2 PR 5's axis-touching full revolve), the one analytic
-    /// face whose flux sign the boundary cannot supply — its `s_f` IS
-    /// `Face::sense`, a single encoding with nothing to cross-check
-    /// against (the documented residual of the curved sense gate).
+    /// The boundary does not encode the side: the two sphere faces
+    /// whose flux sign the boundary cannot supply, each a single
+    /// encoding with nothing to cross-check against (the documented
+    /// residual of the curved sense gate).
+    ///
+    /// * The **rimless sphere band** (M2 PR 5's axis-touching full
+    ///   revolve): no rim, so no traversal to read a side off.
+    /// * The **rim-only polar cap**: one latitude in the levels and no
+    ///   meridian, so the extent the side would be read against is the
+    ///   very thing the face's sense bit settles. The rim of a ball cut
+    ///   by one plane bounds the cap when the chart normal is outward
+    ///   and the ball-minus-cap when it is inward, with the same
+    ///   traversal either way — two valid bodies the boundary alone
+    ///   cannot tell apart, so an `Encoded` answer here would be a
+    ///   guess the check-6 gate would read as disagreement.
     Unencoded,
 }
 
@@ -195,11 +205,27 @@ pub fn boundary_material_sign<T: Decide>(
             axis,
             ..
         } => {
-            let (b, _meridian_axes) = sphere_boundary(center, radius, axis, outer, band)?;
+            let (b, meridian_axes) = sphere_boundary(center, radius, axis, outer, band)?;
             if b.rims.is_empty() {
                 return Ok(MaterialSign::Unencoded);
             }
             let (lo, hi) = min_max(&b.levels)?;
+            // The rim-only cap: the levels carry no extent, so "which
+            // extreme is this rim at" has no answer and the side the
+            // boundary encodes is not a side at all — the SAME rim
+            // traversed the SAME way bounds the cap under one sense bit
+            // and the ball-minus-cap under the other. The second
+            // `Unencoded` face, decided on the predicate the flux lane
+            // folds the pole on ([`sphere_rim_only_pole_level`]).
+            if meridian_axes.is_empty()
+                && classify(
+                    "props_rim_only_extent",
+                    Margin::levered(hi - lo, radius),
+                    band,
+                )? == Sign::Zero
+            {
+                return Ok(MaterialSign::Unencoded);
+            }
             Ok(MaterialSign::Encoded(linear_rim_side(&b, (lo, hi), band)?))
         }
         Surface::Torus {
@@ -807,19 +833,19 @@ enum RimLevel<T: Real> {
     Unit(T, T),
 }
 
-/// A classified rim: signed `u`-traversal direction (`d_u`), parameter
+/// A classified rim: `u`-traversal direction (`d_u_sign`), parameter
 /// span (`dt`, the face's `Δu` candidate), and its iso-level payload.
 struct Rim<T: Real> {
-    /// ±1: traversal direction in `u` = sign(carrier axis · surface
-    /// axis) × traversal direction. The scalar image of `d_u_sign`
-    /// (`t_sign`), kept as `T` for the margin arithmetic it feeds
-    /// (the `du_of_rims` group keys).
-    d_u: T,
-    /// The same traversal direction as a **discrete** definite sign —
-    /// the combinatorial channel [`boundary_material_sign`] reads, so
-    /// the material-side cross-check compares two exact ±1s without
-    /// comparing scalars (both factors are discrete at origin: a
-    /// definite `classify` outcome × the stored traversal bool).
+    /// The traversal direction in `u` as a **discrete** definite sign:
+    /// sign(carrier axis · surface axis) × the stored traversal bool,
+    /// both discrete at origin (a definite `classify` outcome and a
+    /// bool), so every consumer of it compares exact ±1s rather than
+    /// scalars — [`boundary_material_sign`]'s material-side
+    /// cross-check, [`rim_interior_side`]'s σ and [`du_of_rims`]'
+    /// group key alike. The direction has ONE representation here: a
+    /// `T` copy beside it fed a `Margin` over two values that are ±1
+    /// by construction, which is a discrete comparison wearing a
+    /// tolerance's costume.
     d_u_sign: Sign,
     /// Carrier parameter span `t1 − t0` (angle-true; `Δu`).
     dt: T,
@@ -837,11 +863,10 @@ struct Rim<T: Real> {
 /// A `RimLevel::Unit` difference is a difference of DIRECTIONS; the
 /// point deviation it induces is that difference at the radius the
 /// direction turns about, which is the **level** arm (the sphere's `R`,
-/// the torus's `minor`). A Δu angle or a ±1 traversal-direction
-/// difference is azimuthal, and the point deviation it induces is at
-/// the **azimuthal** arm (the sphere's `R`, the torus's `major`). The
-/// two coincide on every kind but the torus, which is why one scalar
-/// was enough until it was not.
+/// the torus's `minor`). A Δu angle difference is azimuthal, and the
+/// point deviation it induces is at the **azimuthal** arm (the
+/// sphere's `R`, the torus's `major`). The two coincide on every kind
+/// but the torus, which is why one scalar was enough until it was not.
 #[derive(Clone, Copy)]
 struct RimArms<T> {
     /// The lever a [`RimLevel::Unit`] difference turns about.
@@ -849,8 +874,7 @@ struct RimArms<T> {
     /// slant level difference is already the point deviation and
     /// reaches the funnel bare.
     level: T,
-    /// The lever an azimuthal difference (Δu, ±1 traversal direction)
-    /// turns about.
+    /// The lever an azimuthal difference (Δu) turns about.
     azimuth: T,
 }
 
@@ -1066,11 +1090,14 @@ fn require_rims_at_extremes<T: Decide>(
 
 /// Check all rims agree on `Δu`; returns the face's `Δu`.
 ///
-/// Three margins are metered here and they do not share a lever
+/// Two margins are metered here and they do not share a lever
 /// ([`RimArms`]): the rim LEVEL difference that keys the grouping
-/// turns about `arms.level`, the ±1 traversal-direction difference and
-/// the `Δu` angle difference about `arms.azimuth`. On the torus those
-/// are `minor` and `major`.
+/// turns about `arms.level`, the `Δu` angle difference about
+/// `arms.azimuth`. On the torus those are `minor` and `major`. The
+/// third half of the group key — the traversal direction — is
+/// [`Rim::d_u_sign`], a discrete definite sign compared AS a sign: it
+/// is `±1` by construction on both sides, so a band around their
+/// difference decides nothing a `==` does not.
 ///
 /// **This is the Δu VALUE, not the shape test.** Every caller runs
 /// [`require_rims_at_extremes`] first, which is what makes the domain
@@ -1105,24 +1132,19 @@ fn du_of_rims<T: Decide>(rims: &[Rim<T>], arms: RimArms<T>, band: Band) -> Resul
     // undercounted multi-arc rims. Direction joins the key so the
     // degenerate zero-extent patch (both rims one level, opposite
     // traversal) keeps its M2 verdict downstream.
-    let mut groups: Vec<(RimLevel<T>, T, T)> = Vec::new(); // (level, d_u, dt sum)
+    let mut groups: Vec<(RimLevel<T>, Sign, T)> = Vec::new(); // (level, direction, dt sum)
     for rim in rims {
         let mut placed = false;
         for g in &mut groups {
             let same = level_coincides("props_rim_level_group", rim.level, g.0, None, arms, band)?;
-            let same_dir = classify(
-                "props_rim_dir_group",
-                Margin::levered(rim.d_u - g.1, arms.azimuth),
-                band,
-            )? == Sign::Zero;
-            if same && same_dir {
+            if same && rim.d_u_sign == g.1 {
                 g.2 = g.2 + rim.dt;
                 placed = true;
                 break;
             }
         }
         if !placed {
-            groups.push((rim.level, rim.d_u, rim.dt));
+            groups.push((rim.level, rim.d_u_sign, rim.dt));
         }
     }
     let total = groups[0].2;
@@ -1215,11 +1237,11 @@ fn linear_rim_side<T: Decide>(
         arms: RimArms<T>,
         band: Band,
     ) -> Result<Sign, PropsError> {
-        let margin = match rim.level {
-            RimLevel::Length(v) => Margin::of(lo + hi - v - v),
-            RimLevel::Unit(s, _) => Margin::levered(lo + hi - s - s, arms.level),
-        };
-        match classify("props_rim_side", margin, band)? {
+        match classify(
+            "props_rim_side",
+            rim_offset_margin(rim.level, lo, hi, arms, Sign::Positive),
+            band,
+        )? {
             Sign::Positive => Ok(rim.d_u_sign),
             Sign::Negative => Ok(rim.d_u_sign.flip()),
             Sign::Zero => Err(PropsError::DegenerateFace),
@@ -1236,6 +1258,121 @@ fn linear_rim_side<T: Decide>(
         "linear_rim_side answers a definite rim traversal direction"
     );
     Ok(s)
+}
+
+/// **Where a rim sits in its face's level range, as a margin** — the
+/// signed offset `lo + hi − 2v`, positive when the rim sits at `lo`,
+/// pointed by `toward`.
+///
+/// Metered by the level's own dimension ([`RimLevel`]): bare for
+/// `Length` (meters already), `× arms.level` for the dimensionless
+/// `Unit` primary component. `toward` multiplies the offset by an
+/// exact ±1 before the margin is formed, so
+/// [`require_rim_interior_sides`] asks "does the interior side point
+/// INTO the range" with the same comparand, lever and band that
+/// [`linear_rim_side`] asks "which extreme is this rim at" with — one
+/// margin, two questions, no second dimension analysis.
+///
+/// The offset reads ONE rim and the face's own extent. Nothing about
+/// which rim a loop walk hands over first reaches it.
+fn rim_offset_margin<T: Real>(
+    level: RimLevel<T>,
+    lo: T,
+    hi: T,
+    arms: RimArms<T>,
+    toward: Sign,
+) -> Margin<T> {
+    let d = t_sign::<T>(toward);
+    match level {
+        RimLevel::Length(v) => Margin::of(d * (lo + hi - v - v)),
+        RimLevel::Unit(s, _) => Margin::levered(d * (lo + hi - s - s), arms.level),
+    }
+}
+
+/// **σ — which side of its rim the face's interior lies on**, read
+/// off stored data alone: `Positive` ⇔ the interior lies toward `+v`
+/// (the `+axis` pole on a sphere).
+///
+/// The boundary is traversed with the material on its LEFT as seen
+/// along the face's outward normal, and the outward normal is
+/// `n_chart` when the face's sense bit is set and `−n_chart` when it
+/// is not ([`crate::enters::OutwardNormal::from_chart`] is where that
+/// bit is folded in for every other consumer). With `n_chart = ∂u × ∂v`, "left of a
+/// `+u` traversal" is `+v` in the first case and `−v` in the second,
+/// so σ is the rim's own traversal direction, flipped where the sense
+/// bit says the chart normal points inward.
+///
+/// **This is a per-rim, per-face fact and must stay one.** Every
+/// factor is this rim's stored direction or the face's own bit: no
+/// other rim is read, so the same body under two loop anchorings
+/// yields the same σ on the same rim, and the verdict
+/// [`require_rim_interior_sides`] records with it is a fact about the
+/// face rather than about where a cycle happens to start. The two
+/// predicates that are NOT — `props_rim_side` (whichever rim
+/// [`linear_rim_side`] meets first) and, until it was retired,
+/// `props_rim_dir_group` — are why that sentence is here: a margin
+/// for this sign taken against a reference rim would mint a third.
+fn rim_interior_side<T: Real>(rim: &Rim<T>, sense: bool) -> Sign {
+    sign_mul(
+        rim.d_u_sign,
+        if sense {
+            Sign::Positive
+        } else {
+            Sign::Negative
+        },
+    )
+}
+
+/// **Every rim's interior side points INTO the face's level range.**
+///
+/// The extent `[lo, hi]` says where the face's levels reach; σ
+/// ([`rim_interior_side`]) says, per rim, which way the material lies
+/// from that rim. On an iso-rectangle the two agree by construction —
+/// a rim at `lo` has its interior above it, a rim at `hi` below — and
+/// where they disagree the rectangle premise is not established: the
+/// face's material extends PAST the extent the levels folded, so the
+/// closed form would integrate over a domain the face does not have.
+/// That is the L-shaped complement of a half-cap, whose rim sits at
+/// `lo` while its traversal says the interior lies below: it shares
+/// both edges with the half-cap, parses to the same levels, and its
+/// flux cancelled the half-cap's on a closed sphere.
+///
+/// Decided per rim through the funnel, on
+/// [`rim_offset_margin`]'s comparand pointed by σ — so `Positive` is
+/// agreement, `Negative` is the refusal, and `Zero` is a rim in the
+/// middle of its own extent, which is [`linear_rim_side`]'s
+/// `DegenerateFace` under a different name for the same face.
+///
+/// Called only after [`linear_rim_side`], so the rims are already
+/// known to sit at the extremes: a face that fails the shape premise
+/// refuses by `props_rim_level`, which names the defect better.
+fn require_rim_interior_sides<T: Decide>(
+    b: &LinearBoundary<T>,
+    (lo, hi): (T, T),
+    sense: bool,
+    band: Band,
+) -> Result<(), PropsError> {
+    for rim in &b.rims {
+        let sigma = rim_interior_side(rim, sense);
+        debug_assert!(
+            sigma != Sign::Zero,
+            "a rim's interior side is definite wherever its traversal direction is"
+        );
+        match classify(
+            "props_rim_interior_side",
+            rim_offset_margin(rim.level, lo, hi, b.arms, sigma),
+            band,
+        )? {
+            Sign::Positive => {}
+            Sign::Negative => {
+                return Err(PropsError::NotIsoRectangle {
+                    what: "props_rim_interior_side",
+                });
+            }
+            Sign::Zero => return Err(PropsError::DegenerateFace),
+        }
+    }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------
@@ -1323,7 +1460,6 @@ fn cylinder_boundary<T: Decide>(
                 require_rim_incidence(center - origin, n_c, r_c, axis, band)?;
                 let v = (center - origin).dot(axis);
                 rims.push(Rim {
-                    d_u: t_sign::<T>(rim_dir(s, e.forward)),
                     d_u_sign: rim_dir(s, e.forward),
                     dt: e.t1 - e.t0,
                     // The axial arc length itself — meters.
@@ -1475,7 +1611,6 @@ fn cone_boundary<T: Decide>(
                 require_zero("props_rim_fit", Margin::of(r_c - v.abs() * sin_a), band)?;
                 require_rim_incidence(center - apex, n_c, r_c, axis, band)?;
                 rims.push(Rim {
-                    d_u: t_sign::<T>(rim_dir(s, e.forward)),
                     d_u_sign: rim_dir(s, e.forward),
                     dt: e.t1 - e.t0,
                     // The signed slant arc length itself — meters.
@@ -1565,6 +1700,25 @@ fn cone_arm<T: Real>(rims: &[Rim<T>], sin_a: T) -> T {
 ///   its poles still folds to `[−1, 1]`. The extent derivation is a
 ///   fact about the levels, not about this exemption — do not read
 ///   the exemption as "the domain is verified a rectangle".
+/// * **Established by the rims' TRAVERSAL, on the rim-bearing arm: the
+///   extent is the face's own.** A level says a latitude the boundary
+///   touches; it never says which side of that latitude the material
+///   is on, and the two faces a rim separates touch the same levels.
+///   That side is σ ([`rim_interior_side`]), the rim's own traversal
+///   direction under the face's sense bit, and the arm decides it
+///   against the folded extent per rim
+///   ([`require_rim_interior_sides`]): a rim whose interior side
+///   points OUT of `[lo, hi]` bounds a face the rectangle does not
+///   describe — the L-shaped complement of a half-cap, refused
+///   `props_rim_interior_side`. Where the levels are silent
+///   altogether the traversal is the only speaker and supplies the
+///   missing extreme ([`sphere_rim_only_pole_level`]): a rim-only
+///   polar cap measures `[v₀, +1]` or `[−1, v₀]`. **What is still not
+///   established** is that the domain has no notch away from the
+///   rims: two meridians on one great circle plus rims at the
+///   extremes is what the arm reads, and a notch cut by an interior
+///   vertex chain is `require_rims_at_extremes`' question, not this
+///   one.
 ///
 /// **The flux side is the one thing the two branches below do not
 /// share.** The rimless band's is the **face's sense bit** — the only
@@ -1588,7 +1742,14 @@ fn sphere<T: Decide>(
     sense: bool,
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
-    let (b, meridian_axes) = sphere_boundary(center, radius, axis, edges, band)?;
+    let (mut b, meridian_axes) = sphere_boundary(center, radius, axis, edges, band)?;
+    // A boundary of rims alone can carry no extent of its own: every
+    // level it touches is a rim latitude, and where those coincide the
+    // face's missing extreme is the POLE its rims' traversals point
+    // at ([`sphere_rim_only_pole_level`]).
+    if !b.rims.is_empty() && meridian_axes.is_empty() {
+        sphere_rim_only_pole_level(&mut b, sense, radius, band)?;
+    }
     let (du, side);
     let (lo, hi) = min_max(&b.levels)?;
     require_extent(Margin::levered(hi - lo, radius), band)?;
@@ -1616,7 +1777,12 @@ fn sphere<T: Decide>(
         // `(sin v, cos v)` direction pair, so the scalar extremes are
         // lifted into the same representation (`as_level`) and metered
         // at the sphere radius.
-        side = SphereFluxSide::Rim(linear_rim_side(&b, (lo, hi), band)?);
+        let s_f = linear_rim_side(&b, (lo, hi), band)?;
+        // The premise the levels alone cannot state: every rim's
+        // interior side points INTO `[lo, hi]`, so the extent the
+        // levels folded is the face's own and not its complement's.
+        require_rim_interior_sides(&b, (lo, hi), sense, band)?;
+        side = SphereFluxSide::Rim(s_f);
         du = du_of_rims(&b.rims, b.arms, band)?;
     }
     let area = radius.powi(2) * du * (hi - lo);
@@ -1866,6 +2032,61 @@ fn sphere_meridian_span_levels<T: Decide>(
     Ok(())
 }
 
+/// **The pole a rim-only boundary contains, pushed into its levels.**
+///
+/// A sphere face bounded by rims and nothing else touches exactly the
+/// latitudes its rims sit at. Where those are one latitude the levels
+/// hold no extent — one entry, `lo == hi`, [`require_extent`]'s
+/// `DegenerateFace` — for a face that is not degenerate: a ball cut by
+/// one plane is bounded by one rim circle and the pole is interior to
+/// it. The extreme the levels are missing is that pole, and the fact
+/// that names it is the one a rim's TRAVERSAL carries on its own,
+/// which no level does: σ, the side of the rim the material lies on
+/// ([`rim_interior_side`]). `σ·1` is the latitude sine of the pole on
+/// that side, so the cap's extent folds to `[v₀, +1]` or `[−1, v₀]`
+/// and `R²·Δu·(sin v_hi − sin v_lo)` measures it, with `Δu = 2π` from
+/// the rim spans [`du_of_rims`] already sums.
+///
+/// **Three inputs keep their old answers, and each is a different
+/// shape.** A boundary whose rim levels DO span an extent — the
+/// spherical zone between two rim circles — is left alone, which is
+/// what `props_rim_only_extent` decides. A boundary with a meridian is
+/// never offered here: its levels speak for themselves, arc spans
+/// folded in. And rims at ONE level whose traversals disagree point at
+/// two opposite poles, which is no pole at all: the levels stay
+/// silent and `require_extent` refuses `DegenerateFace` exactly as
+/// before — the zero-extent patch M2 pinned, two rims at one level
+/// joined by zero-length meridians, keeps its verdict.
+///
+/// Unanimity is a property of the SET of σ, not of an order: equality
+/// is symmetric, so "every rim agrees with some rim" is the same
+/// statement whichever rim the loop walk hands over first, and no
+/// verdict is recorded for it.
+fn sphere_rim_only_pole_level<T: Decide>(
+    b: &mut LinearBoundary<T>,
+    sense: bool,
+    radius: T,
+    band: Band,
+) -> Result<(), PropsError> {
+    let (lo, hi) = min_max(&b.levels)?;
+    if classify(
+        "props_rim_only_extent",
+        Margin::levered(hi - lo, radius),
+        band,
+    )? != Sign::Zero
+    {
+        return Ok(());
+    }
+    let mut sides = b.rims.iter().map(|rim| rim_interior_side(rim, sense));
+    let Some(sigma) = sides.next() else {
+        return Ok(());
+    };
+    if sides.all(|s| s == sigma) {
+        b.levels.push(t_sign::<T>(sigma));
+    }
+    Ok(())
+}
+
 /// Classify a sphere face's boundary into (rims, meridian great-circle
 /// axes, latitude-sine levels) — the shared parse consumed by both the
 /// flux closed form and [`boundary_material_sign`].
@@ -1916,7 +2137,6 @@ fn sphere_boundary<T: Decide>(
                 let sin_v = w.dot(axis) / radius;
                 let cos_v = r_c / radius;
                 rims.push(Rim {
-                    d_u: t_sign::<T>(rim_dir(s, e.forward)),
                     d_u_sign: rim_dir(s, e.forward),
                     dt: e.t1 - e.t0,
                     // Dimensionless latitude DIRECTION pair, both
@@ -2154,7 +2374,6 @@ fn torus_boundary<T: Decide>(
                 )?;
                 require_rim_incidence(c_c - center, n_c, r_c, axis, band)?;
                 classified.push(TorusEdge::Rim(Rim {
-                    d_u: t_sign::<T>(rim_dir(s, e.forward)),
                     d_u_sign: rim_dir(s, e.forward),
                     dt: e.t1 - e.t0,
                     // Dimensionless minor-angle direction pair.
@@ -2458,7 +2677,6 @@ mod rim_level_review_probe {
     fn mixed_representation_rim_and_ends_never_measure() {
         let band = Band::linear(Tol::witness()).expect("band");
         let rim = Rim {
-            d_u: 1.0_f64,
             d_u_sign: Sign::Positive,
             dt: 1.0,
             level: RimLevel::Unit(0.5, 0.5),
@@ -2525,7 +2743,6 @@ mod rim_level_review_probe {
             "components inside the band but the chord outside it is not one level: {got:?}"
         );
         let rim = Rim {
-            d_u: 1.0,
             d_u_sign: Sign::Positive,
             dt: 1.0,
             level: RimLevel::Unit(d, d),

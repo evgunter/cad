@@ -327,6 +327,34 @@ fn the_pips_cut_in_one_group_operation_on_all_six_faces() {
     mesh::validate::check_mesh(&mesh).expect("watertight");
 }
 
+/// **The pip caps measure through the CLOSED FORM** — the lane that
+/// answers for a rim-only spherical cap, read at the die.
+///
+/// Each pip leaves one sphere face bounded by one circular rim and
+/// nothing else, with the pole interior to it. That face's levels hold
+/// one latitude, so before the interior-side fold the closed form
+/// refused it `DegenerateFace` and whatever served the body served it
+/// with an enclosure. What this row pins is which lane answers now:
+/// every pad is exactly zero, so the 21 caps are measured by
+/// `R²·Δu·(sin v_hi − sin v_lo)` and the volume is a closed form end
+/// to end, not a bracket whose midpoint happens to land.
+#[test]
+fn the_pip_caps_measure_through_the_closed_form() {
+    let pipped = subtract(&cube(DIE_L, Tol::witness()), &pip_tool());
+    let props = topo::mass_properties(&pipped, Tol::witness()).unwrap();
+    println!(
+        "PROBE pipped: volume={} volume_pad={} area={} area_pad={}",
+        props.volume, props.volume_pad, props.surface_area, props.area_pad
+    );
+    let want = DIE_L.powi(3) - 21.0 * cap(PIP_R, PIP_H);
+    assert_eq!(
+        props.volume_pad, 0.0,
+        "a rim-only spherical cap is a closed-form face; got volume {} vs {want}",
+        props.volume
+    );
+    assert_eq!(props.area_pad, 0.0, "and its area is one too");
+}
+
 /// **DEVIATION 1, now FLIPPED at both doors** (kept, per the S9
 /// pattern, as the record of the two frontiers it used to pin; its M5
 /// name was `deviation_1_the_blank_and_the_pips_do_not_compose_yet`,
