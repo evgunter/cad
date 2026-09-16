@@ -304,3 +304,62 @@ fn dump_admitted_spans_for_the_exact_enclosure_check() {
     }
     eprintln!("dumped {lines} admitted crossings");
 }
+
+/// **The clamp is not the nearest point of the closed triangle**, as
+/// `ray_triangle`'s comment, `t_span`'s doc and the spec's premise 4
+/// all say it is. It is the SEQUENTIAL per-coordinate projection —
+/// `u` into `[0, 1]`, then `v` into `[0, 1 - u]` — which is a
+/// retraction onto the simplex that fixes the simplex (all the width
+/// derivation needs) but is not the metric projection onto it, in the
+/// `(u, v)` plane or in the triangle's own.
+///
+/// The claim only bites under MEET, where the door admits a
+/// barycentric outside the range — which is the acceptance
+/// `pick3_acceptance` measures and the docs describe ("under MEET it
+/// is what keeps the hit on the triangle"). This row is the
+/// counterexample, on the unit triangle where the parameter plane IS
+/// the isometry: `(u, v) = (1, 1)` clamps to the corner `(1, 0)` at
+/// distance `1`, while the nearest point of the closed triangle is
+/// `(0.5, 0.5)` at distance `0.707`.
+#[test]
+fn the_clamp_is_a_retraction_onto_the_simplex_and_not_the_nearest_point() {
+    // `ray_triangle`'s two lines, verbatim.
+    let clamp = |u: f64, v: f64| {
+        let u = u.clamp(0.0, 1.0);
+        let v = v.clamp(0.0, 1.0 - u);
+        (u, v)
+    };
+    // The unit right triangle in the z = 0 plane: e1 and e2 are the
+    // orthonormal axes, so distance in (u, v) IS distance in space.
+    let tri = [
+        Point3::new(0.0, 0.0, 0.0),
+        Point3::new(1.0, 0.0, 0.0),
+        Point3::new(0.0, 1.0, 0.0),
+    ];
+    let e1: Vec3<f64> = tri[1] - tri[0];
+    let e2: Vec3<f64> = tri[2] - tri[0];
+    let at = |u: f64, v: f64| tri[0] + e1 * u + e2 * v;
+    let far = (1.0, 1.0);
+    let (cu, cv) = clamp(far.0, far.1);
+    let clamped = at(cu, cv);
+    let nearest = at(0.5, 0.5);
+    let outside = at(far.0, far.1);
+    let dist = |p: Point3<f64>, q: Point3<f64>| (p - q).norm();
+    eprintln!(
+        "admitted ({}, {}) -> clamp ({cu}, {cv}) at {:.6} from it; \
+         the nearest point of the closed triangle is (0.5, 0.5) at {:.6}",
+        far.0,
+        far.1,
+        dist(clamped, outside),
+        dist(nearest, outside)
+    );
+    assert!(
+        (0.0..=1.0).contains(&cu) && (0.0..=1.0).contains(&cv) && cu + cv <= 1.0,
+        "the clamp does land on the closed triangle, which is what the width derivation needs"
+    );
+    assert!(
+        dist(nearest, outside) < dist(clamped, outside),
+        "RED: the clamped point IS the nearest point of the closed triangle, so the docs' word \
+         is right after all"
+    );
+}
