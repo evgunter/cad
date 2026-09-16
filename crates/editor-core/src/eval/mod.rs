@@ -72,22 +72,16 @@ pub struct Evaluation<T: Decide> {
     /// reuse, so the version half would cost a canonicalization per
     /// run for a check the keys already make.
     ///
-    /// THREE doors read this field to refuse a mispairing typed,
-    /// before reading anything of the value: [`product`](fn@crate::product)
-    /// (with its `_named` and `_recorded` siblings), [`crate::assemble`]
-    /// through them, and — for the solve's own twin of this stamp —
-    /// [`crate::mate::SolvedPoses::placement`]. The memo is the fourth
-    /// reader and refuses differently, below. Node ids alone could not
-    /// decide any of it: they are minted by a per-document counter, so
-    /// two documents built from one recipe carry the SAME ids for the
-    /// same nodes, and every lookup would hit.
+    /// The pairing doors read this field to refuse a mispairing typed,
+    /// before reading anything of the value; the memo reads it too and
+    /// refuses differently, below. Node ids alone could not decide any
+    /// of it: they are minted by a per-document counter, so two
+    /// documents built from one recipe carry the SAME ids for the same
+    /// nodes, and every lookup would hit.
     ///
-    /// Other doors taking such a pair — `run_checks`,
-    /// `resolve::apply_with_names`, `stackup` and `sensitivities`,
-    /// `drive::certifying` — do NOT read it today (`assembly::mint` is
-    /// covered downstream by `product_recorded`); that gap is tracked
-    /// at
-    /// `work/docm/pair-doors-outside-the-three-do-not-check-document-identity`.
+    /// Which doors those are, and which doors taking such a pair do
+    /// not check it yet, is `crates/editor-core/ASSEMBLY.md`'s A2a —
+    /// one place for a set that grows as each door is built.
     ///
     /// The field is `pub` like every other field of this struct, so a
     /// caller CAN restamp it. That is a deliberate act, not a slip, and
@@ -3893,8 +3887,8 @@ where
     // the compile breaks. It cannot default to "tag plus slots" and
     // hash identically to a node that differs in that payload — a memo
     // hit would then serve another node's geometry, which is not
-    // hypothetical (see S4: `Step::AtToward`'s content-key tag collided
-    // with `ArcContinue`'s and was caught by a reviewer, not a type).
+    // hypothetical (see S4: two steps once shared a content-key tag,
+    // and a reviewer caught it rather than a type).
     // The tag match above is exhaustive for the same reason; the two
     // halves of one key had different answers to that until now.
     match node {
@@ -4381,7 +4375,6 @@ fn verb_tag(verb: profile::Verb) -> u8 {
         V::CloseTo => 24,
         V::Circle => 26,
         V::CircleSplit => 27,
-        V::ArcContinue => 28,
         V::FilletArc => 38,
         V::ArcFillet => 39,
         V::ArcFilletArc => 40,
@@ -4396,6 +4389,7 @@ const RETIRED_VERB_TAGS: &[(u8, &str)] = &[
     (19, "ArcVia"),
     (20, "ArcCenter"),
     (25, "CloseToOn"),
+    (28, "ArcContinue"),
     (29, "AtToward"),
 ];
 
@@ -4525,7 +4519,7 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
     }
     h.write_tag(verb_tag(step.verb()));
     match step {
-        Step::At(p) | Step::ArcContinue(p) | Step::FarEndTo(p) => {
+        Step::At(p) | Step::FarEndTo(p) => {
             f(h, p.x);
             f(h, p.y);
         }
@@ -4640,7 +4634,7 @@ fn feed_lane_step<T: ContentBits>(h: &mut KeyHasher, step: &profile::Step<T>) {
         }
     }
     match step {
-        Step::At(p) | Step::ArcContinue(p) | Step::FarEndTo(p) => pt(h, p),
+        Step::At(p) | Step::FarEndTo(p) => pt(h, p),
         Step::Angle(v) | Step::Turn(v) | Step::Line(v) => f(h, v),
         Step::Toward { dx, dy } => {
             f(h, dx);
@@ -4906,7 +4900,7 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::CornerFace => 30,
         S::TrimEdge => 31,
         S::FootVertex => 32,
-        S::CornerArc => 33,
+        S::EndArc => 33,
         S::BandFace => 34,
         S::BandTrim => 35,
         S::BandFoot => 36,
@@ -5091,7 +5085,7 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
             feed_stable_name(h, vertex);
             feed_stable_name(h, support);
         }
-        RoleSeg::CornerArc { vertex, edge } => {
+        RoleSeg::EndArc { vertex, edge } => {
             feed_stable_name(h, vertex);
             feed_stable_name(h, edge);
         }
@@ -5290,8 +5284,8 @@ mod tag_vocabulary_tests {
     /// it would stay green while a new inline node claimed 17 or 24 —
     /// which is precisely the accident that moving two tags out of the
     /// match created the room for, and precisely the accident the S4
-    /// lesson (`Step::AtToward` colliding with `ArcContinue`, caught by
-    /// a reviewer rather than a type) says costs a memo hit serving
+    /// lesson (two steps sharing one content-key tag, caught by a
+    /// reviewer rather than a type) says costs a memo hit serving
     /// another node's geometry.
     ///
     /// **It is a source census, and that is the honest shape here.** The

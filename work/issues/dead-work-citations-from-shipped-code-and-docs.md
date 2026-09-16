@@ -96,3 +96,69 @@ Both tracker-side citations of the same item — in
 `work/chrome/add-parameter-form-authors-canonical-only.md` — were
 re-pointed to `work/edit/…` by that pass. The two source files are
 outside its fence and are recorded here instead.
+
+## The `work/docm/…` family, now dead (2026-09-16, EDIT's `edit/error-prose`)
+
+The second fuse this row names — a program closing — has fired.
+DOCM closed on 2026-09-13 (`docs/DOC-LEDGER.md`, sweep 14) and its
+directory was deleted, so every shipped `work/docm/…` citation is now a
+path that does not resolve. `rg -n 'work/docm/' crates/` at this SHA:
+
+| citing file | cited item |
+| --- | --- |
+| `crates/pncad-py/src/prose_census.rs` (two roster reasons) | `debug-in-prose-residue-after-finding-sink` |
+| `crates/viewer/tests/index_memo.rs` | `pick-grazing-ray-answer-depends-on-candidate-order` |
+| `crates/editor-core/tests/docm7_union_declare.rs` | `the-pair-verbs-declared-merge-is-asymmetric-in-its-operands` |
+| `crates/editor-core/tests/wire_operand_door.rs` | `the-third-datum-axis-phrase-lives-in-mate-member` |
+| `crates/editor-core/ASSEMBLY.md` | `pair-doors-outside-the-three-do-not-check-document-identity` |
+| `crates/editor-core/src/program.rs` | `a-document-vocabulary-declared-outside-the-macro-is-uncensused` |
+| `crates/editor-core/src/eval/mod.rs` | `pair-doors-outside-the-three-do-not-check-document-identity` |
+| `crates/editor-core/src/eval/wire.rs` | `member-space-look-through-stops-at-splits-containment-and-fragmented-merges` |
+| `crates/editor-core/src/names/role.rs` | `the-pair-verbs-declared-merge-is-asymmetric-in-its-operands` |
+
+Ten citations in nine files. Every one is the CHEAP sub-case the
+2026-09-15 correction identified: the items were claimed, not resolved,
+and all seven distinct items live today under `work/edit/`,
+`work/wire/`, `work/door/` or `work/census/`. Nothing was deleted; only
+the directory moved.
+
+A repair is still not mechanical on the program name. DOCM's rows went
+to four different successors — `the-third-datum-axis-phrase-lives-in-mate-member`
+is DOOR's, not EDIT's or WIRE's — so each citation has to be resolved
+against the tracker rather than rewritten by pattern.
+
+The two in `prose_census.rs` are repaired in `edit/error-prose`, which
+was editing that file anyway. The other eight span three programs'
+fences and are left here.
+
+This is a sharper argument for the gate (shape 1) than the row had
+before: ten dead citations appeared at one commit, on files the closing
+program could not edit, and nothing in CI said so. The gate needed to
+catch them is the weak one — assert that a cited path resolves — because
+all nine paths are simply absent.
+
+### Repaired on EDIT's own paths (2026-09-16, `edit/pair-apply-names`)
+
+Four of the ten, each a path edit to the item's live directory, done
+in the PR that was editing three of the four files anyway:
+
+| citing file | cited item | now |
+| --- | --- | --- |
+| `crates/editor-core/src/node.rs` | `member-space-look-through-stops-at-splits-containment-and-fragmented-merges` | `work/wire/` |
+| `crates/editor-core/src/names/role.rs` | `the-pair-verbs-declared-merge-is-asymmetric-in-its-operands` | `work/wire/` |
+| `crates/editor-core/src/program.rs` | `a-document-vocabulary-declared-outside-the-macro-is-uncensused` | `work/census/` |
+| `crates/editor-core/src/eval/mod.rs` | `pair-doors-outside-the-three-do-not-check-document-identity` | citation removed; the field points at `ASSEMBLY.md`'s A2a, which is the one place the list of pairing doors is written |
+
+`crates/editor-core/ASSEMBLY.md` is repaired the other way, and it is
+this row's shape (2): A2a now names the tracker rows by **id**, with no
+directory, so the claim that moves a row cannot rot the design page.
+
+**A tenth citation the 2026-09-16 census missed**: `node.rs` is not in
+the table above it. `rg 'work/docm/' crates/` finds it, so the miss was
+in the transcription rather than the search — one more reason the gate
+(shape 1) is the only version of this that stays true.
+
+What is left after this pass, and why it is left: `eval/wire.rs` is
+WIRE's, `index_memo.rs` is the viewer's, and `docm7_union_declare.rs`
+and `wire_operand_door.rs` are the test programs' — four citations in
+four files, none of them on EDIT's paths.

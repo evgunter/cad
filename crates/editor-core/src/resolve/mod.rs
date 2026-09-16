@@ -60,7 +60,8 @@ mod vdiff;
 
 pub use hit::{HitTestError, body_name, edge_name, entity_name, face_name, vertex_name};
 pub use pick::{
-    MeshPick, MeshPickError, NodePick, NodePickError, PickHit, PickMemo, PickTarget, pick_face,
+    MeshPick, MeshPickError, NodePick, NodePickError, PickHit, PickMemo, PickTarget,
+    certified_determinant, pick_face, ray_triangle,
 };
 pub use vdiff::{
     FlipSet, NodeVerdictDelta, NodeVerdicts, PredicateDivergence, RunStatus, SummaryDelta,
@@ -321,8 +322,9 @@ impl core::fmt::Display for Diagnosis {
             Self::StructuralParam { node, param } => write!(
                 f,
                 "a structural parameter changed on the derivation path (node {}, slot \
-                 {param:?})",
-                node.0
+                 {})",
+                node.0,
+                param.label()
             ),
             // A SITE of difference, not a claim that an edit happened
             // (module docs: the total fallback arm reaches this on a
@@ -1135,8 +1137,17 @@ pub fn rebind_suggestions<T: Decide>(eval: &Evaluation<T>, name: &StableName) ->
 /// `Rebind`'s SOURCE is deliberately unchecked too: it is the
 /// stranded name being repaired.
 ///
+/// `eval` must be an evaluation OF `doc`: the tables this door reads
+/// are the evaluation's, and node ids are minted per document, so an
+/// evaluation of a twin recipe satisfies the carve-out on every name
+/// and answers out of the wrong tables. The pairing goes through
+/// [`crate::ident::mispaired`], the one predicate the pair doors
+/// share, before any name is read.
+///
 /// # Errors
 ///
+/// [`crate::edit::EditError::EvaluationOfAnotherDocument`] for a
+/// mispaired `eval`;
 /// [`crate::edit::EditError::NameUnresolvedInEvaluation`] on a
 /// checkable-but-absent name; otherwise whatever [`crate::edit::apply`]
 /// returns.
@@ -1147,6 +1158,13 @@ pub fn apply_with_names<T: Decide>(
     tol: Tol,
 ) -> Result<crate::edit::Applied<ProfileProgram>, crate::edit::EditError> {
     use crate::edit::{DocEdit, EditError};
+    // The pairing, before any name is read (why: this fn's docs).
+    if let Some(m) = crate::ident::mispaired(doc.id(), eval.document) {
+        return Err(EditError::EvaluationOfAnotherDocument {
+            expected: m.expected,
+            found: m.found,
+        });
+    }
     let mut names: Vec<&StableName> = Vec::new();
     // EXHAUSTIVE on purpose (the `walk_names` rule): the three groups
     // below are the doc's checked/unchecked split, and a future
@@ -1291,7 +1309,7 @@ fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&
                 vertex: a,
                 support: b,
             }
-            | RoleSeg::CornerArc {
+            | RoleSeg::EndArc {
                 vertex: a,
                 edge: b,
             } => {

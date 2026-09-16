@@ -118,7 +118,7 @@ fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
         | RoleSeg::CornerFace(_)
         | RoleSeg::TrimEdge { .. }
         | RoleSeg::FootVertex { .. }
-        | RoleSeg::CornerArc { .. }
+        | RoleSeg::EndArc { .. }
         | RoleSeg::BandFace(_)
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)

@@ -916,7 +916,7 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
             vertex: x,
             support: y,
         }
-        | RoleSeg::CornerArc { vertex: x, edge: y } => under(x) || under(y),
+        | RoleSeg::EndArc { vertex: x, edge: y } => under(x) || under(y),
         // A set.
         RoleSeg::Merged(v) | RoleSeg::BandFace(v) => v.iter().any(under),
         // ANOTHER document's id space: a local name and a part-local

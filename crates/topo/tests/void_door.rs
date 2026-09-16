@@ -18,16 +18,12 @@
 
 use crate::common;
 
-use common::prism_z;
+use common::brick;
 use geom_core::{Sign, Tol};
 use topo::{
     Body, BooleanResult, BooleanResultKind, SolidContainment, VoidContainment, VoidEvidence,
     VoidInsertError, insert_void, mass_properties, subtract, validate, validate_closed,
 };
-
-fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    prism_z::<f64>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
-}
 
 fn outer_and_cavity() -> (Body<f64>, Body<f64>) {
     (

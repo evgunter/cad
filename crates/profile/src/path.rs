@@ -1192,25 +1192,6 @@ pub enum PathError<T: Real> {
         /// The number of vertices given.
         given: usize,
     },
-    /// An [`arc_continue`](PartialPath::arc_continue) reached with no
-    /// incoming ARC carrier: the declared-subdivision step splits the
-    /// carrier the chain is already running on, so a straight incoming
-    /// leg (or a tip with no incoming leg data) has nothing to split.
-    /// The straight case is not missing vocabulary and never needed a
-    /// verb of its own: `line(len)` off the directed point IS the
-    /// straight continuation, because the binding bits determine a line
-    /// carrier completely — subdivide a straight run by chaining it.
-    /// (Nothing about a line has to be learned from the incoming leg,
-    /// which is exactly the asymmetry with an arc.)
-    ArcContinueNeedsArcCarrier,
-    /// An [`arc_continue`](PartialPath::arc_continue) target that does
-    /// not lie on the incoming carrier (|target − centre| − r decided
-    /// nonzero): the authored data contradicts itself — refused, never
-    /// re-projected (an authored point never moves, §4 item 3).
-    ArcContinueOffCarrier {
-        /// The classified radial offset, meters.
-        offset: T,
-    },
     /// A director spelled as components named no direction: the norm of
     /// `(dx, dy)` is within ε_input of zero
     /// ([`PartialPath::toward`]). Only the components' ratio is read,
@@ -1427,10 +1408,6 @@ pub enum PathErrorKind {
     CircleSplitCount,
     /// [`PathError::PolygonTooFewVertices`].
     PolygonTooFewVertices,
-    /// [`PathError::ArcContinueNeedsArcCarrier`].
-    ArcContinueNeedsArcCarrier,
-    /// [`PathError::ArcContinueOffCarrier`].
-    ArcContinueOffCarrier,
     /// [`PathError::ZeroDirection`].
     ZeroDirection,
     /// [`PathError::NonFiniteDirection`].
@@ -1487,8 +1464,6 @@ impl<T: Real> PathError<T> {
             Self::DegenerateArcSpec { .. } => PathErrorKind::DegenerateArcSpec,
             Self::CircleSplitCount { .. } => PathErrorKind::CircleSplitCount,
             Self::PolygonTooFewVertices { .. } => PathErrorKind::PolygonTooFewVertices,
-            Self::ArcContinueNeedsArcCarrier => PathErrorKind::ArcContinueNeedsArcCarrier,
-            Self::ArcContinueOffCarrier { .. } => PathErrorKind::ArcContinueOffCarrier,
             Self::ZeroDirection { .. } => PathErrorKind::ZeroDirection,
             Self::NonFiniteDirection { .. } => PathErrorKind::NonFiniteDirection,
             Self::UnderflowedDirection { .. } => PathErrorKind::UnderflowedDirection,
@@ -1825,19 +1800,6 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 "a polygon needs at least 3 vertices (got {given}): a closed chain of \
                  straight legs bounds nothing with fewer corners — author the missing \
                  vertices"
-            ),
-            Self::ArcContinueNeedsArcCarrier => write!(
-                f,
-                "arc_continue subdivides the incoming ARC carrier; the incoming leg here is \
-                 straight (or absent), so there is no carrier to split — author the geometry \
-                 as its own legs instead"
-            ),
-            Self::ArcContinueOffCarrier { offset } => write!(
-                f,
-                "the arc_continue target does not lie on the incoming carrier (radial offset \
-                 {offset} m): a subdivision vertex is ON the carrier by definition — fix the \
-                 authored point rather than expecting a re-projection",
-                offset = num(offset)
             ),
             Self::ZeroDirection { dx, dy } => write!(
                 f,
@@ -2256,8 +2218,6 @@ pub struct Core<T: Real> {
     pending: Option<verbs::Pending<T>>,
     /// Chain-side knife-edge bookkeeping for `pending` (same lifetime).
     pending_meta: Option<PendingMeta<T>>,
-    /// The carrier of the last emitted segment when it is an arc.
-    last_arc: Option<ArcData<T>>,
     /// Every fillet arc emitted into the chain, as the index of the
     /// vertex it LEAVES paired with the radius that was asked for —
     /// what [`Core::fillets_carry_their_tangency`] re-reads at the
@@ -2285,7 +2245,6 @@ impl<T: Real> Core<T> {
             first_seg: FirstSeg::NotYet,
             pending: None,
             pending_meta: None,
-            last_arc: None,
             fillet_arcs: Vec::new(),
             program: Vec::new(),
             guide: crate::structure::Guide::recording(),
@@ -2350,24 +2309,18 @@ impl<T: Real> Core<T> {
             pos: p,
             bulge: T::zero(),
         });
-        self.last_arc = None;
         Ok(())
     }
 
     /// Appends an arc segment to `p` with `bulge` (the raw
-    /// `arc_to`), remembering the carrier for identity checks.
-    fn push_arc(
-        &mut self,
-        p: Point2<T>,
-        bulge: T,
-        carrier: ArcData<T>,
-    ) -> Result<(), PathError<T>> {
+    /// `arc_to`). The carrier is not kept: the chain remembers nothing
+    /// about an emitted arc beyond the tip's own incoming data.
+    fn push_arc(&mut self, p: Point2<T>, bulge: T) -> Result<(), PathError<T>> {
         self.set_leaving(bulge, FirstSeg::Arc)?;
         self.verts.push(ProfileVertex {
             pos: p,
             bulge: T::zero(),
         });
-        self.last_arc = Some(carrier);
         Ok(())
     }
 
@@ -3165,7 +3118,7 @@ impl<T: Decide> Core<T> {
             self.tangent.push(0);
             debug_assert_eq!(leaving, self.verts.len() - 1, "{PAIRED}");
         } else {
-            self.push_arc(trims.t2, trims.bulge, arc)?;
+            self.push_arc(trims.t2, trims.bulge)?;
             debug_assert_eq!(leaving, self.verts.len() - 2, "{PAIRED}");
             // The outgoing joint is declared only when something
             // tangent actually follows it (see [`ArrivalKind`]): a
@@ -3204,15 +3157,7 @@ impl<T: Decide> Core<T> {
                 Some((centre, sweep)) => {
                     let head = self.head()?;
                     let bulge = bulge_from_center(head, t.t1, centre, sweep);
-                    let radius = (t.t1 - centre).norm_squared().sqrt();
-                    self.push_arc(
-                        t.t1,
-                        bulge,
-                        ArcData {
-                            center: centre,
-                            radius,
-                        },
-                    )?;
+                    self.push_arc(t.t1, bulge)?;
                 }
             }
             if !(t.in_arc.is_none() && merge) {
@@ -3268,11 +3213,6 @@ impl<T: Decide> Core<T> {
         let bulge = bulge_from_center(from, t1, centre, sweep);
         self.verts[n - 2].bulge = bulge;
         self.verts[n - 1].pos = t1;
-        let radius = (t1 - centre).norm_squared().sqrt();
-        self.last_arc = Some(ArcData {
-            center: centre,
-            radius,
-        });
         Ok(())
     }
 
@@ -3285,7 +3225,7 @@ impl<T: Decide> Core<T> {
         declare: bool,
     ) -> Result<(), PathError<T>> {
         let leaving = self.record_fillet_arc(t.arc.radius)?;
-        self.push_arc(t.t2, t.bulge, t.arc)?;
+        self.push_arc(t.t2, t.bulge)?;
         debug_assert_eq!(leaving, self.verts.len() - 2, "{PAIRED}");
         if declare {
             self.declare_last();
@@ -3694,9 +3634,6 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
     /// was being answered, so collapsing them would lose the
     /// distinction that makes the funnel worth having. What was missing
     /// was the cross-reference, not the sharing.
-    ///
-    /// `arc_continue_kernel` is the third member of the family; it
-    /// retires with BOOL-10.
     fn on_ray_extent(
         at: Point2<T>,
         ang: Dir<T>,
@@ -3865,59 +3802,6 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         self.core.set_leaving(T::zero(), FirstSeg::Line)?;
         self.core.build(tol)
     }
-
-    /// The kernel behind the table's declared-subdivision row (recording
-    /// is the row's, not the kernel's).
-    fn arc_continue_kernel(
-        mut self,
-        target: Point2<T>,
-        tol: Tol,
-    ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
-        let pos = self.tip.pos.as_ref().ok_or(PathError::UnderdeterminedLeg {
-            site: "arc_continue on a tip without a position",
-        })?;
-        let at = pos.at;
-        let inc = pos.incoming.ok_or(PathError::UnderdeterminedLeg {
-            site: "arc_continue on a tip without incoming data",
-        })?;
-        let carrier = inc.carrier.ok_or(PathError::ArcContinueNeedsArcCarrier)?;
-        let band = linear_band(tol)?;
-        // The target must LIE on the carrier: |target − c| − r decided
-        // coincident (in-band Zero); a definite offset is contradictory
-        // authored data.
-        let offset = (target - carrier.center).norm_squared().sqrt() - carrier.radius;
-        match decide("path_arc_continue_on_carrier", Margin::of(offset), band) {
-            Ok(Sign::Zero) => {}
-            Ok(_) => return Err(PathError::ArcContinueOffCarrier { offset }),
-            Err(source) => return Err(PathError::Escalated { source }),
-        }
-        let chord_v = target - at;
-        let chord = chord_v.norm_squared().sqrt();
-        match decide("path_arc_chord", Margin::of(chord), band) {
-            Ok(Sign::Positive) => {}
-            Ok(_) => return Err(PathError::DegenerateArcChord { chord }),
-            Err(source) => return Err(PathError::Escalated { source }),
-        }
-        // The continuation departs ALONG the incoming tangent (same
-        // carrier, same sense — that is what continuing means), so the
-        // bulge is the tangent-chord relation, exactly
-        // `tangent_arc_geom`'s derivation: δ = atan2(across, along),
-        // b = tan(δ/2), end tangent = departure + 2δ. The travel sense
-        // falls out of the signed δ — no sign is ever read or
-        // classified here.
-        let u = inc.ang.unit;
-        let along = u.dot(chord_v);
-        let across = u.perp_dot(chord_v);
-        let delta = across.atan2(along);
-        let bulge = (delta / T::from_f64(2.0)).tan();
-        let end_ang = Dir::from_angle(inc.ang.ang + delta + delta);
-        self.core.push_arc(target, bulge, carrier)?;
-        let arm = arc_arm(&carrier, chord);
-        Ok(in_state(
-            self.core,
-            leg_end_tip(target, end_ang, arm, Some(carrier)),
-        ))
-    }
 }
 
 // ------------------------------------------------------------------
@@ -4046,7 +3930,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         tol: Tol,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
         let g = self.tangent_arc_geom(p, tol)?;
-        self.core.push_arc(p, g.bulge, g.carrier)?;
+        self.core.push_arc(p, g.bulge)?;
         let arm = arc_arm(&g.carrier, g.chord);
         Ok(in_state(
             self.core,
@@ -4292,7 +4176,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
             self.core.start_ang = Some(start_t);
         }
         let carrier = arc_carrier(at, p, bulge);
-        self.core.push_arc(p, bulge, carrier)?;
+        self.core.push_arc(p, bulge)?;
         let arm = arc_arm(&carrier, chord);
         Ok(in_state(
             self.core,

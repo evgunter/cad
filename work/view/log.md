@@ -11826,3 +11826,82 @@ about when it reaches the chrome, so this unit touches no clause it
 decides.
 
 Signed (VIEW implementer lane `view/style-installs`).
+
+## 2026-09-16 — `view/scientific-arm`: the render's last resort is truth
+
+`readout::number`'s scientific fallback was the one arm not held to the
+module's own rule, and it rounds. It now falls through to the exact
+spelling exactly where the four-figure one does not read back — which
+measurement says is only the band `[1.7975000000000001e308, f64::MAX]`,
+about 9.7·10¹¹ `f64` values each sign. Over `1.0e-320`..`1.0e300`
+stepped by 1.05, **no render changes**.
+
+`the-scientific-arm-rounds-out-of-the-type` **closed**. Its three
+producer claims were measured and all three fail as bounds: every
+producer's guard is `is_finite()` and every one then multiplies toward
+the top of the type (δ by `1.0e3`, a camera distance by `1.0e5`, a
+probed bound by up to `1.0e3`), so the headroom is three to five decades
+rather than the three hundred the carve-out claimed. A δ in
+`[1.7975e305, 1.7976931348623156e305]` is accepted by
+`DisplayTolerance::new` and lands *inside* the band.
+
+Not an Ev question: `git log -S` on every sentence of the carve-out and
+of `MAX_CHARS`'s bound returns four agent commits of 2026-09-12, and
+`docs/DESIGN.md`, `crates/viewer/GUI-DESIGN.md` and
+`crates/viewer/README.md` name `readout` nowhere at all.
+
+Two residues filed, both on this slate:
+`render-mm-overflows-to-inf-for-a-delta-the-door-accepts` (the δ door's
+millimetre product overflows for a δ the door accepts, and
+`no_delta_renders_as_a_number_a_delta_cannot_be`'s sweep stops at a
+kilometre so it cannot see it) and
+`the-fields-door-has-no-width-bound-at-all` (`number_text` returns the
+widget's own spelling at any width — 311 characters at the top of the
+type, and a twelve-character text that an existing row already asserts).
+
+`the_field_shows_the_longest_render` renamed to
+`the_field_shows_every_render_the_bound_covers`: it measures the bound,
+not the render's worst case, and those stopped being the same thing.
+Its two citations outside `log.md` were repointed.
+
+Signed (VIEW implementer lane `view/scientific-arm`).
+
+## 2026-09-16 — `view/startup-notices`: the third consumer was the second level misread
+
+`startup-notices-join-on-a-mark-a-prefs-notice-contains` closed (#2710). Unlike
+its two siblings the defect was live, so the red is on the base tree
+rather than a post-hoc mutation: a preferences file naming a theme and
+an input preset the registries do not hold renders
+``preferences: no theme called `aurora`; using `dark-neutral`;
+preferences: no input preset called `modal`; using the default`` — four
+`"; "`-delimited pieces for two notices, no error path involved.
+
+None of the item's three candidate fixes was taken and the reason is
+one fact: two of `prefs::Notice`'s four arms echo a TOML key out of the
+user's own file, so there is no mark out of band here and no type that
+bounds the sentences. `withdrawal-causes-…` rejected its own option 2
+because one level in there is no mark that is never legitimate in band;
+the objection is stronger at this level, not weaker.
+
+What was wrong was the classification. A `Withdrawal`'s causes are the
+items a counted preamble introduces; the startup notices have no
+preamble and nothing counts them, so they are several notices and take
+the boundary mark. `startup_notices` now builds one `Message` per
+element and joins with `Message::joined`, which puts the startup line
+under the hold `frame_status`'s line already has.
+
+The door's own doc claimed three types and named the wrong three:
+`resolve_theme` and `resolve_keys` return `Option<Notice>`, the same
+type `from_toml` yields; the unnamed third is `prefs::StoreError`.
+Corrected at the door and in the README, whose *"NOT held this way"*
+paragraph this change falsified and replaces.
+
+Two findings filed outside the fence, both the same class:
+`work/exch/step-import-joins-rendered-refusals-on-a-mark-they-may-contain`
+and
+`work/props/stackup-report-joins-rendered-blockers-on-a-mark-they-may-contain`.
+`seat-line-spells-the-list-mark-as-a-literal` is NOT subsumed and stays
+open: its argument is about a constant spelled twice, not about a mark
+an element may carry.
+
+Signed (VIEW implementer lane `view/startup-notices`).

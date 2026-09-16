@@ -149,7 +149,7 @@ macro_rules! document_vocabulary {
         /// Closing the general case needs a walk over the file's
         /// declarations, which is a text scan, which is what this macro
         /// replaced and for a reason. Filed:
-        /// `work/docm/a-document-vocabulary-declared-outside-the-macro-is-uncensused.md`.
+        /// `work/census/a-document-vocabulary-declared-outside-the-macro-is-uncensused.md`.
         ///
         /// **Cost, stated:** rustfmt does not format the body of a macro
         /// invocation, so every declaration below is outside its reach
@@ -241,9 +241,6 @@ pub enum ProgramStep {
     ArcTo(ProgramArcData),
     /// `tangent_arc_to(target)`.
     TangentArcTo(ProgramTarget),
-    /// `arc_continue(target)` — the declared-subdivision step
-    /// (LIB-SWITCH §5-1): a STRUCTURAL vertex on the incoming carrier.
-    ArcContinue([Expr; 2]),
     /// `.fillet(r)` — line incoming, line arrival.
     Fillet(Expr),
     /// **§2c** `fillet_arc(r, spec)` — line incoming, arc arrival.
@@ -559,7 +556,11 @@ impl core::fmt::Display for ProgramRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Resolve { slot, .. } => {
-                write!(f, "a program expression failed to resolve at slot {slot:?}")
+                write!(
+                    f,
+                    "a program expression failed to resolve at slot {}",
+                    slot.label()
+                )
             }
             Self::Transition { loop_, step, .. } => write!(
                 f,
@@ -664,7 +665,6 @@ fn step_slots(step: &ProgramStep, out: &mut Vec<StepArg>) {
         P::Turn(_) => out.push(A::TurnVal),
         P::Line(_) => out.push(A::Length),
         P::LineTo(t) | P::ContinueTo(t) | P::TangentArcTo(t) => target_slots(t, out),
-        P::ArcContinue(_) => out.extend([A::TargetX, A::TargetY]),
         P::ArcTo(spec) => spec_slots(spec, false, out),
         P::Fillet(_) => out.push(A::Radius),
         P::FilletArc { spec, .. } => {
@@ -758,8 +758,6 @@ macro_rules! step_arg_access {
         match ($step, $arg) {
             (P::At(p), A::PointX) | (P::FarEndTo(p), A::PointX) => Some($($ref_kw)* p[0]),
             (P::At(p), A::PointY) | (P::FarEndTo(p), A::PointY) => Some($($ref_kw)* p[1]),
-            (P::ArcContinue(p), A::TargetX) => Some($($ref_kw)* p[0]),
-            (P::ArcContinue(p), A::TargetY) => Some($($ref_kw)* p[1]),
             (P::Angle(e), A::AngleVal) => Some(e),
             (P::Toward { dx, .. }, A::DirX) => Some(dx),
             (P::Toward { dy, .. }, A::DirY) => Some(dy),
@@ -1027,7 +1025,6 @@ fn res_step<T: Decide>(
         ProgramStep::TangentArcTo(t) => {
             Step::TangentArcTo(res_target(t, env, loop_, i, A::TargetX, A::TargetY)?)
         }
-        ProgramStep::ArcContinue(p) => Step::ArcContinue(pt(p, A::TargetX, A::TargetY)?),
         ProgramStep::Fillet(e) => Step::Fillet {
             radius: res(e, env, loop_, i, A::Radius)?,
         },
@@ -1277,12 +1274,22 @@ impl PartialEq for ProfileProgram {
     /// BIT equality (struct docs): the frame by node identity,
     /// expressions by [`Expr::bit_eq`], structure structurally.
     fn eq(&self, other: &Self) -> bool {
-        self.plane == other.plane
-            && self.loops.len() == other.loops.len()
-            && self
-                .loops
+        // A field added to `ProfileProgram` is an E0027 at the two
+        // patterns below. The vocabulary underneath is held the same
+        // way and by the compiler alone: `loop_bit_eq` and the three
+        // functions below it match every variant by name and bind
+        // every field of each, so a new loop shape is an E0004 and a
+        // new field on an existing one an E0027, at each of them.
+        let Self { plane, loops } = self;
+        let Self {
+            plane: other_plane,
+            loops: other_loops,
+        } = other;
+        plane == other_plane
+            && loops.len() == other_loops.len()
+            && loops
                 .iter()
-                .zip(&other.loops)
+                .zip(other_loops)
                 .all(|(a, b)| loop_bit_eq(a, b))
     }
 }
@@ -1418,7 +1425,6 @@ fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
         (P::LineTo(x), P::LineTo(y))
         | (P::ContinueTo(x), P::ContinueTo(y))
         | (P::TangentArcTo(x), P::TangentArcTo(y)) => target_bit_eq(x, y),
-        (P::ArcContinue(x), P::ArcContinue(y)) => pair_bit_eq(x, y),
         (P::ArcTo(x), P::ArcTo(y)) => spec_bit_eq(x, y),
         (
             P::FilletArc {
@@ -1464,7 +1470,6 @@ fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
             | P::ContinueTo(_)
             | P::ArcTo(_)
             | P::TangentArcTo(_)
-            | P::ArcContinue(_)
             | P::Fillet(_)
             | P::FilletArc { .. }
             | P::ArcFillet { .. }
@@ -1737,7 +1742,6 @@ impl LoopProgram {
                 Step::ContinueTo(t) => ProgramStep::ContinueTo(target_lit(t)?),
                 Step::ArcTo(spec) => ProgramStep::ArcTo(spec_lit(spec)?),
                 Step::TangentArcTo(t) => ProgramStep::TangentArcTo(target_lit(t)?),
-                Step::ArcContinue(p) => ProgramStep::ArcContinue(pt_lit(p)?),
                 Step::Fillet { radius } => ProgramStep::Fillet(len_lit(*radius)?),
                 Step::FilletArc { radius, spec } => ProgramStep::FilletArc {
                     radius: len_lit(*radius)?,

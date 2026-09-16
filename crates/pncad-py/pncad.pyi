@@ -121,6 +121,17 @@ class EditError(PncadError):
     - `count` is how many entries a short list would have had. It is
       NOT `found`: a count and a dimension are two types, and one
       attribute carries one.
+    - `first` and `again` are POSITIONS in a node's name designation,
+      and `variant` decides what `first` means. On
+      `repeated_designation` (a shell's ordered `open` list) the two
+      are the entry's first occurrence and the position it is named
+      again. On `selection_not_canonical` (a blend's sorted selection)
+      `first` alone is the entry that does not sort strictly before
+      the one after it, and `again` is `None` — the break is between
+      that entry and its successor, so the second position is the
+      first plus one and is not carried. One position is one
+      attribute: a second int would be a second spelling of the same
+      thing, which the variant already distinguishes.
     - `slot` is the named expression slot (`distance`, `count`,
       `origin_x`); a slot is a NAME, never an index. `param` is a
       document parameter's name and `name` a stable name's text.
@@ -1442,7 +1453,6 @@ class PathDirectedPoint:
     def tangent(self) -> PathDirected: ...
     def cusp(self) -> PathDirected: ...
     def turn(self, delta: Angle) -> PathDirected: ...
-    def arc_continue(self, target: tuple[Length, Length]) -> PathDirectedPoint: ...
     def fillet(self, radius: Length) -> PathOpen: ...
     @overload
     def fillet_arc(self, radius: Length, spec: Center[_Pt]) -> PathDirectedPoint: ...
@@ -3459,7 +3469,7 @@ class SegTag:
     CornerFace: Final[SegTag]
     TrimEdge: Final[SegTag]
     FootVertex: Final[SegTag]
-    CornerArc: Final[SegTag]
+    EndArc: Final[SegTag]
     BandFace: Final[SegTag]
     BandTrim: Final[SegTag]
     BandFoot: Final[SegTag]

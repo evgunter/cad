@@ -360,13 +360,6 @@ pub enum SnapshotError {
     /// `order` and the node map disagree (missing, extra, or
     /// duplicated ids).
     OrderMismatch,
-    /// A blend node's selection is not in canonical form (sorted
-    /// and deduplicated) — a corrupt file, refused rather than
-    /// repaired (M6-5).
-    BlendSelectionNotCanonical {
-        /// The offending fillet or chamfer node.
-        node: RecipeNodeId,
-    },
     /// An id at or beyond the mint counter appears in the document.
     IdBeyondCounter {
         /// The offending id.
@@ -472,8 +465,11 @@ pub enum SnapshotError {
         /// What is wrong with it.
         fault: crate::node::MeasureNodeFault,
     },
-    /// A node whose inputs are not pairwise distinct, or whose LIST
-    /// input holds fewer than two entries (DM5). Both edit doors
+    /// A node whose structural content is invalid (DM5): inputs that
+    /// are not pairwise distinct, a LIST input holding fewer than two
+    /// entries, or a name designation outside the canonical form its
+    /// construction door establishes — a shell's repeated `open` entry,
+    /// a blend's unsorted or repeating `selection`. Both edit doors
     /// refuse them, so a file carrying one is corrupt — refused,
     /// never repaired.
     InputList {
@@ -522,12 +518,6 @@ impl core::fmt::Display for SnapshotError {
             Self::OrderMismatch => f.write_str(
                 "the `order` list and the node map disagree — an id is missing, extra or \
                  duplicated",
-            ),
-            Self::BlendSelectionNotCanonical { node } => write!(
-                f,
-                "blend node {}'s selection is not sorted and deduplicated — a corrupt \
-                 selection is refused, never repaired",
-                node.0
             ),
             Self::IdBeyondCounter { id, next_id } => write!(
                 f,
@@ -697,17 +687,6 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         for at in node.payload_read_sites() {
             check_id(at)?;
         }
-        // A blend's selection carries one check of its own (M6-5): the
-        // canonical form. `Node::fillet`/`Node::chamfer` are the only
-        // construction doors and they canonicalize, so a non-canonical
-        // selection on the wire is a CORRUPT file — refused, never
-        // quietly re-sorted (a repair would change the node's content
-        // key behind the caller's back).
-        if let Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } = node
-            && selection.windows(2).any(|w| w[0] >= w[1])
-        {
-            return Err(SnapshotError::BlendSelectionNotCanonical { node: id });
-        }
         // The placement RULE (GROUP-BOOLEAN-DESIGN), re-checked for the
         // same reason the A11 registry is below: a saved file is DATA,
         // and every rule on the wire must be one the edit door would
@@ -722,6 +701,11 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         // log replays through the doors and is covered by them; the
         // snapshot beside it is not, so the rule is asked here, of the
         // same function, in this door's vocabulary.
+        //
+        // That covers the name designations too — a shell's `open`, a
+        // blend's `selection`. A payload has ONE canonical form, held by
+        // every door that admits a node, so the question is asked in one
+        // place and this door only names the answer.
         if let Some(fault) = node.input_fault() {
             return Err(SnapshotError::InputList { node: id, fault });
         }
@@ -853,8 +837,10 @@ pub enum ProgramFault {
 // could not follow it, keeping their `Debug` spellings for the reason
 // `profile`'s `ReplayError` rendering states: the pair is the
 // transition table's coordinate. The dimensions beside them are
-// quantity kinds, so they render as words (`Dimension`'s `Display`).
-// The typed variant remains the machine contract.
+// quantity kinds, so they render as words (`Dimension`'s `Display`),
+// and the slot and the step argument render through their own prose
+// spellings ([`SlotId::label`], [`crate::StepArg::label`]). The typed
+// variant remains the machine contract.
 impl core::fmt::Display for ProgramFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -868,8 +854,9 @@ impl core::fmt::Display for ProgramFault {
                 found,
             } => write!(
                 f,
-                "loop {loop_} step {step}'s {arg:?} argument needs {} {expected} \
+                "loop {loop_} step {step}'s {} argument needs {} {expected} \
                  expression, got {} {found}",
+                arg.label(),
                 expected.article(),
                 found.article()
             ),
@@ -879,7 +866,8 @@ impl core::fmt::Display for ProgramFault {
                 found,
             } => write!(
                 f,
-                "slot {slot:?} needs {} {expected} expression, got {} {found}",
+                "slot {} needs {} {expected} expression, got {} {found}",
+                slot.label(),
                 expected.article(),
                 found.article()
             ),

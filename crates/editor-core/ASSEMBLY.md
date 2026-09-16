@@ -18,7 +18,7 @@ walk is `docs/guide/assembly.md`.
 | Decisions | Modules |
 |---|---|
 | A2 evaluation seam, memo | `src/part.rs` (`PartResolver`, `ResolveFault`), `src/eval/parts.rs` (`PartCache`, `PartFault`); `transform_rigid`, `graft_disjoint_all_keyed` in `crates/topo/src/instance.rs` |
-| A2a pairing doors | `mispaired`, `Mispaired` in `src/ident.rs`; the three doors in `src/product.rs`, `src/assembly.rs`, `src/mate/solve.rs`; the memo's drop in `src/eval/mod.rs` |
+| A2a pairing doors | `mispaired`, `Mispaired` in `src/ident.rs`; the doors in `src/product.rs`, `src/assembly.rs`, `src/mate/solve.rs`, `src/checks.rs`, `src/resolve/mod.rs`; the memo's drop in `src/eval/mod.rs` |
 | A3, A11, A12 mates, solve | `src/mate.rs` (`class_admission`, `MateFault`), `src/mate/coset.rs`, `src/mate/solve.rs` |
 | A4, A13 identity, pins, update | `src/ident.rs`, `src/update.rs`, `DocEdit::UpdateReference` in `src/edit.rs` |
 | A4 split and inline | `src/refactor.rs`; `InterfaceRecord` in `src/node.rs` |
@@ -54,26 +54,46 @@ cross-instance boolean node, never implied. A resolved document whose
 recorded ε disagrees refuses `ResolveFault::EpsilonSeam`.
 
 **A2a — The pairing doors.** A4's identity stamp is what these read.
-THREE doors refuse a mismatched (document, evaluation) pair typed,
-before reading anything of the value: `product` (with `product_named`
-and `product_recorded`, `ProductError::EvaluationOfAnotherDocument`),
-`assemble` (the same refusal, through `AssemblyError::Product`), and
-`SolvedPoses::placement` (`MateFault::PosesOfAnotherDocument`), which
-pairs a document with a solve rather than an evaluation and states the
-same rule. The memo is the fourth reader and refuses differently, since
-`evaluate` returns no `Result`: a prior of another document is dropped
-whole before the schedule is built, and the run records the drop as
+A door that takes a document plus a value that must be OF that
+document refuses a mismatch typed, before reading anything of the
+value. The comparison is the one predicate `ident::mispaired`, and
+each door carries its own arm over it, in its own error vocabulary.
+The doors that do so:
+
+- `product` (with `product_named` and `product_recorded`,
+  `ProductError::EvaluationOfAnotherDocument`), and `assemble`
+  through them (the same refusal, wrapped as `AssemblyError::Product`);
+- `SolvedPoses::placement` (`MateFault::PosesOfAnotherDocument`),
+  which pairs a document with a SOLVE rather than an evaluation and
+  states the same rule;
+- `run_checks_on`, and `run_checks` as its wrapper
+  (`ChecksError::EvaluationOfAnotherDocument`), which checks the
+  evaluation AND the document a `Subject::Product` carries, because a
+  resident reading `doc.roots()` against a foreign evaluation finds a
+  value for every root;
+- `resolve::apply_with_names`
+  (`EditError::EvaluationOfAnotherDocument`), which reads the handed
+  evaluation's name tables, so a foreign one admits a name the edited
+  document does not carry or refuses one it does.
+
+The memo reads the stamp too and refuses differently, since `evaluate`
+returns no `Result`: a prior of another document is dropped whole
+before the schedule is built, and the run records the drop as
 `Evaluation::prior_refused` while recomputing everything. Node ids
 alone could not decide any of this — they are minted by a per-document
 counter, so two documents built from one recipe carry the SAME ids for
 the same nodes, and a gather over the wrong one would succeed, in
 full, about other geometry.
 
-Other doors that take such a pair — `run_checks`, `apply_with_names`,
-`stackup` and `sensitivities`, `drive::certifying` — do NOT check it
-today; `assembly::mint` is covered downstream by `product_recorded`.
-That gap is tracked at
-`work/docm/pair-doors-outside-the-three-do-not-check-document-identity`.
+Other doors that take such a pair — `stackup` and `sensitivities`,
+`drive::certifying` — do NOT check it today; `assembly::mint` is
+covered downstream by `product_recorded`. That gap is the tracker row
+`pair-doors-outside-the-three-do-not-check-document-identity`, and a
+door built FROM one evaluation that is later handed another — the
+`NodePick` name doors — is the row
+`nodepick-name-doors-take-a-second-evaluation-unpaired`. Ids, not
+paths: a row moves between programs and a path written here rots at
+the move.
 
 ## Nodes and mates
 
