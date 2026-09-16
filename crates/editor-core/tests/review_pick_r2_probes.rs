@@ -14,7 +14,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use bvh::Ray;
-use editor_core::resolve::{certified_determinant, ray_triangle};
+use editor_core::resolve::{crossing, ray_triangle};
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, extrude};
@@ -114,7 +114,7 @@ fn no_genuine_determinant_is_refused_on_a_cylinders_vertex_grazes() {
                         };
                         for tri in &tris {
                             let (det, cond) = det_and_conditioning(&ray, tri);
-                            let certified = certified_determinant(&ray, tri).is_some();
+                            let certified = crossing(&ray, tri).is_some();
                             if !certified && det != 0.0 {
                                 refused_at_det += 1;
                             }

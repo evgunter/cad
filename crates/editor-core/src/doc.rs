@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 use geom_core::Real;
 
 use crate::appearance::{AppearanceMap, AppearanceRecord};
-use crate::distribution::Distribution;
+use crate::distribution::{Distribution, DistributionFault, DistributionField};
 use crate::expr::{Dimension, Expr, ExprPath, ParamEnv, ParamValue};
 use crate::ident::DocumentId;
 use crate::names::StableName;
@@ -79,9 +79,9 @@ pub enum DocParam {
     },
     /// An integer Count parameter (structural material, spec D3).
     ///
-    /// Carries NO distribution, and cannot: structural parameters are
-    /// fixed under any error analysis (E11.3), which comes out
-    /// UNREPRESENTABLE here rather than as a refusal — there is no
+    /// Carries NO distribution, and cannot — the argument is
+    /// [`Self::with_distribution`]'s rustdoc (E11.3). It comes out
+    /// UNREPRESENTABLE here rather than as a refusal: there is no
     /// spelling to refuse.
     Count {
         /// The exact value.
@@ -170,7 +170,165 @@ impl core::fmt::Display for DisplayUnitRefusal {
 
 impl core::error::Error for DisplayUnitRefusal {}
 
+/// Why an E1/E2 annotation cannot be written onto a declaration
+/// ([`DocParam::with_distribution`]).
+///
+/// [`DisplayUnitRefusal`]'s shape at the third field, and for its
+/// reason: the two ways the annotation door can refuse, decided in ONE
+/// place — the door — so that its callers only route them. The edit
+/// vocabulary maps these to
+/// [`crate::EditError::DocParamCountHasNoDistribution`] and to the
+/// fault's own refusals ([`crate::EditError::NonFiniteDocParam`],
+/// [`crate::EditError::InvalidDistribution`]); nothing re-derives
+/// which applies.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DistributionRefusal {
+    /// The parameter is a [`DocParam::Count`], which takes no
+    /// annotation and carries no field to write one into — the
+    /// argument is [`DocParam::with_distribution`]'s rustdoc (E11.3).
+    CountHasNoAnnotation,
+    /// The offered distribution breaks an E2 invariant — the same
+    /// [`Distribution::check`] the persistence doors run, so an
+    /// annotation a file could not carry cannot be written by an edit
+    /// either.
+    Invalid {
+        /// The invariant that failed.
+        fault: DistributionFault,
+    },
+}
+
+// The refusal's own prose, for a caller holding the door's `Err`
+// without an `EditError` around it — [`DisplayUnitRefusal`]'s
+// convention. The fault half defers to `DistributionFault`'s sentence
+// rather than minting a second spelling of the same invariant.
+impl core::fmt::Display for DistributionRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::CountHasNoAnnotation => f.write_str(
+                "a count is a structural parameter, fixed under any error analysis, so it takes no distribution",
+            ),
+            Self::Invalid { fault } => write!(f, "{fault}"),
+        }
+    }
+}
+
+impl core::error::Error for DistributionRefusal {}
+
+/// WHICH float of a continuous document parameter a refusal is about
+/// ([`DocParam::first_non_finite`]).
+///
+/// One name for the answer at both doors: the nominal, or the
+/// distribution offset [`DistributionField`] names. An `Option<
+/// DistributionField>` would say the same thing with absence standing
+/// for the nominal, and a reader would have to know which absence it
+/// was.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DocParamField {
+    /// The parameter's own value.
+    Nominal,
+    /// An offset of the E1/E2 annotation beside it.
+    Offset(DistributionField),
+}
+
+// The field's prose, forwarded by every door that renders it. The
+// offset arm defers to `DistributionField`'s own word rather than
+// minting a second spelling of it.
+impl core::fmt::Display for DocParamField {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Nominal => f.write_str("the nominal"),
+            Self::Offset(field) => write!(f, "distribution field {field}"),
+        }
+    }
+}
+
+/// **What makes an expression's document-parameter references
+/// unusable** ([`Doc::param_ref_fault`], spec D6) — one vocabulary for
+/// the edit doors and the load door.
+///
+/// The rule is the param TABLE's: a reference names a declared
+/// parameter, and reads it at the dimension it was declared with. An
+/// expression carries the dimension it read at, so a (re)declaration
+/// that moves a parameter's dimension breaks every expression
+/// referencing it — which is why the edit door re-asks this of every
+/// slot after a declaration lands, and why a file can carry a pairing
+/// no edit door would have written.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ParamRefFault {
+    /// The expression names a parameter the document does not declare.
+    Unknown {
+        /// The name it reads.
+        name: ParamName,
+    },
+    /// The parameter is declared, at another dimension than the
+    /// expression reads it at.
+    Dimension {
+        /// The name it reads.
+        name: ParamName,
+        /// The dimension the declaration carries.
+        declared: Dimension,
+        /// The dimension the expression reads it at.
+        referenced: Dimension,
+    },
+}
+
 impl DocParam {
+    /// **The parameter's first float that is not a number** (the ruled
+    /// non-finite policy, D2), or `None` — the nominal first, then the
+    /// annotation's offsets in [`Distribution::first_non_finite`]'s
+    /// order.
+    ///
+    /// One predicate with one home, asked by the create-or-replace
+    /// edit door ([`crate::DocEdit::SetDocParam`]) and by the
+    /// save/load validator's float walk, each naming the answer in
+    /// its own vocabulary. It answers WHICH field rather than a bare
+    /// yes: the walk has to identify one to decide there is a defect
+    /// at all, and a diagnostic that names `sigma` beats one that
+    /// names only the parameter.
+    ///
+    /// A [`DocParam::Count`] carries no float and no annotation, so it
+    /// has nothing this can find.
+    pub(crate) fn first_non_finite(&self) -> Option<DocParamField> {
+        let Self::Continuous {
+            value,
+            distribution,
+            ..
+        } = self
+        else {
+            return None;
+        };
+        if !value.is_finite() {
+            return Some(DocParamField::Nominal);
+        }
+        distribution
+            .as_ref()?
+            .first_non_finite()
+            .map(DocParamField::Offset)
+    }
+
+    /// **A declaration the document cannot hold, stated once**: the
+    /// `Continuous` arm carries a continuous dimension, so declaring it
+    /// with `Count` is the structural/continuous divide spelled two
+    /// ways at once (spec D3).
+    ///
+    /// The create-or-replace edit door ([`crate::DocEdit::SetDocParam`])
+    /// is the one that asks it, and the one where it can fire: the
+    /// `pub` payload is what makes the state reachable at all. The
+    /// save/load validator does not, because the same declaration
+    /// refuses one walk earlier there — `UnitSym::measures` answers
+    /// Length, Angle or Scalar and never Count, so a continuous
+    /// parameter declared `Count` fails the notation walk whatever
+    /// notation it carries.
+    pub(crate) fn is_continuous_count(&self) -> bool {
+        matches!(
+            self,
+            Self::Continuous {
+                dim: Dimension::Count,
+                ..
+            }
+        )
+    }
+
     /// The parameter's dimension.
     pub fn dim(&self) -> Dimension {
         match self {
@@ -354,6 +512,99 @@ impl DocParam {
                 })
             }
             Self::Count { .. } => Err(DisplayUnitRefusal::CountHasNoNotation),
+        }
+    }
+
+    /// This parameter carrying `distribution`, keeping the whole rest
+    /// of the DECLARATION — the dimension, the exact value and the
+    /// authored display unit — untouched. [`Self::with_value`]'s and
+    /// [`Self::with_display_unit`]'s mirror over the third field, and
+    /// the ANNOTATION carry-forward in one place: every door that
+    /// writes an E1/E2 annotation goes through here rather than
+    /// rebuilding a parameter from parts, so no door can drop a field
+    /// it never mentioned. [`Self::continuous_with`], the authoring
+    /// spelling, writes the CANONICAL notation, so annotating through
+    /// create-or-replace re-spells a parameter authored in
+    /// millimetres; there is nothing to restate here.
+    ///
+    /// # `None` clears, and clearing is this door
+    ///
+    /// There is ONE annotation door, not a set/clear pair. The field
+    /// is an `Option<Distribution>` and "no annotation" is a VALUE of
+    /// the declaration — E1/E2's reading that an absent distribution
+    /// means no error analysis applies to the parameter — so writing
+    /// `None` is the same carry-forward edit as writing `Some`.
+    /// [`crate::DocEdit::SetAppearanceMeta`]/`ClearAppearanceMeta` are
+    /// two arms because a meta entry is a ROW IN A MAP, where clearing
+    /// removes the row rather than writing a value; that is a
+    /// different shape, and this is the one sentence that says so.
+    ///
+    /// # A COUNT takes no annotation (E11.3)
+    ///
+    /// **This is the home of that argument**; everywhere else that
+    /// needs it cites this paragraph rather than restating it, the
+    /// convention [`Self::with_display_unit`] follows for its own.
+    ///
+    /// A count is a STRUCTURAL parameter — it says how many of a
+    /// thing there are — and an error analysis prices the spread of a
+    /// continuous quantity, so a count is fixed under any of them.
+    /// That is why [`Self::Count`] carries no field to hang a
+    /// distribution on, which makes the rule UNREPRESENTABLE in the
+    /// declaration rather than refused at it; and it is why every door
+    /// that can be handed a count and an annotation TOGETHER refuses
+    /// instead of ignoring one of them.
+    ///
+    /// # Errors
+    ///
+    /// A TYPED reason rather than a bare `None`, for
+    /// [`Self::with_display_unit`]'s reason: there are two of them and
+    /// the edit door reports them as different refusals.
+    /// [`DistributionRefusal::CountHasNoAnnotation`] for a
+    /// [`Self::Count`] (the section above) and
+    /// [`DistributionRefusal::Invalid`] for an
+    /// offered distribution [`Distribution::check`] refuses, the SAME
+    /// check the persistence doors run.
+    ///
+    /// [`crate::DocEdit::SetDocParam`] reaches that same
+    /// [`Distribution::check`] without this door, so the shared write
+    /// path runs it again rather than trusting this one; neither copy
+    /// is the other's fallback, and a door that leaned on the tail
+    /// would hand a caller OUTSIDE `apply` a parameter no file could
+    /// carry. [`Self::with_display_unit`] and the pairing check are
+    /// doubled the same way, for the same reason.
+    ///
+    /// Clearing a `Count`'s annotation is refused too, rather than
+    /// accepted as a no-op: a caller aiming an annotation edit at a
+    /// count has the wrong parameter, and a door that answered `Ok`
+    /// because the field happened to be absent would hide that.
+    ///
+    /// EXHAUSTIVE on both arms as its two siblings are: a new
+    /// `DocParam` variant must say how an annotation edit reaches it,
+    /// or the compile breaks.
+    pub fn with_distribution(
+        &self,
+        distribution: Option<Distribution>,
+    ) -> Result<Self, DistributionRefusal> {
+        match self {
+            Self::Continuous {
+                dim,
+                value,
+                display_unit,
+                distribution: _,
+            } => {
+                if let Some(d) = &distribution
+                    && let Err(fault) = d.check()
+                {
+                    return Err(DistributionRefusal::Invalid { fault });
+                }
+                Ok(Self::Continuous {
+                    dim: *dim,
+                    value: *value,
+                    display_unit: *display_unit,
+                    distribution,
+                })
+            }
+            Self::Count { .. } => Err(DistributionRefusal::CountHasNoAnnotation),
         }
     }
 
@@ -596,6 +847,28 @@ impl<P> Doc<P> {
         self.order.is_empty()
     }
 
+    /// **The param-table rule, asked of one expression** — the first
+    /// reference it makes that the table cannot answer, or `None`.
+    ///
+    /// One home for the question (spec D6), read by the edit doors
+    /// over a node's slots and its payload expressions alike and by
+    /// the load door's slot walk, each naming the answer in its own
+    /// vocabulary.
+    pub(crate) fn param_ref_fault(&self, expr: &Expr) -> Option<ParamRefFault> {
+        let mut refs = Vec::new();
+        expr.param_refs(&mut refs);
+        refs.into_iter()
+            .find_map(|(name, referenced)| match self.params.get(&name) {
+                None => Some(ParamRefFault::Unknown { name }),
+                Some(p) if p.dim() != referenced => Some(ParamRefFault::Dimension {
+                    declared: p.dim(),
+                    name,
+                    referenced,
+                }),
+                Some(_) => None,
+            })
+    }
+
     /// The document-level named parameters.
     pub fn params(&self) -> &BTreeMap<ParamName, DocParam> {
         &self.params
@@ -719,4 +992,121 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
                     .is_some_and(|theirs| p.bit_eq(theirs))
             })
     }
+}
+
+// ---------------------------------------------------------------
+// The document's REGISTRY KEYS, and what a key may name.
+//
+// `Doc` carries two maps keyed by node id — the A11 placement registry
+// and the witness store — and each holds its key to a NODE KIND: a
+// placement names an instance, a witness names a sketch. Both rules are
+// asked twice, by the edit door that writes the row and by the
+// save/load validator that re-reads it, so both live here, beside the
+// maps they are about and where a `Doc` is in scope. A predicate that
+// needs only the node is a `Node` method instead (`Node::input_fault`
+// and its siblings); these need the document to resolve the key at all.
+// ---------------------------------------------------------------
+
+/// What makes an A11 placement row inadmissible
+/// ([`placement_fault`]) — one vocabulary for the edit door and the
+/// load door's re-check of the registry.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum PlacementFault {
+    /// The key names no live [`Node::InstantiatePart`]. A11 puts the
+    /// frame on an instance's cluster, so nothing else has one.
+    NotAnInstance,
+    /// The frame carries a non-finite coordinate: no predicate can
+    /// decide anything about where it puts the material.
+    NonFiniteFrame,
+    /// The frame is IMPROPER — determinant ≤ 0, i.e. a mirror (A6).
+    /// Admitting one is gated on the equivariance audit R4 owns.
+    ImproperFrame {
+        /// The linear part's determinant.
+        determinant: f64,
+    },
+}
+
+/// **A11's admission rule for one placement row, stated once**: the
+/// key instantiates a part, and the frame is finite and proper.
+///
+/// One predicate with one home, asked by every door that admits a row
+/// — [`crate::DocEdit::SetPlacement`] and the load door's walk over the
+/// registry — each naming the answer in its own vocabulary. The
+/// question is asked in one place, so the two doors cannot disagree
+/// about which rows exist.
+///
+/// What is NOT here is the GAUGE rule (`SnapshotError::PlacementNotGauge`),
+/// and that asymmetry is the invariant rather than an omission:
+/// `SetPlacement` does not refuse a non-gauge key, it KEYS THE ROW ON
+/// THE GAUGE, and the cluster maintenance re-keys the whole registry
+/// whenever the mate graph moves ([`crate::mate::solve::reconcile`]).
+/// A non-gauge row is therefore unrepresentable through the edit doors
+/// and needs no refusal there; it is reachable only in a file, which is
+/// the door that asks.
+pub(crate) fn placement_fault<P>(
+    doc: &Doc<P>,
+    node: RecipeNodeId,
+    frame: &crate::placement::Frame,
+) -> Option<PlacementFault> {
+    if !matches!(doc.nodes.get(&node), Some(Node::InstantiatePart { .. })) {
+        return Some(PlacementFault::NotAnInstance);
+    }
+    // The frame half is the frame's own rule
+    // ([`crate::placement::Frame::admission_fault`]), so a cluster
+    // frame and a placement rule's listed frames are held to one
+    // standard rather than to two spellings of one.
+    Some(match frame.admission_fault()? {
+        crate::placement::FrameFault::NonFinite => PlacementFault::NonFiniteFrame,
+        crate::placement::FrameFault::Improper { determinant } => {
+            PlacementFault::ImproperFrame { determinant }
+        }
+    })
+}
+
+/// What makes a witness row's KEY inadmissible ([`witness_site_fault`])
+/// — one vocabulary for the witness edit doors and the load door's
+/// re-check of the store.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum WitnessSiteFault {
+    /// The key names no live node at all.
+    NoSuchNode,
+    /// The key names a live node that bears no sketch, so there is no
+    /// branch for a witness to record a choice about.
+    NotSketchBearing,
+}
+
+/// **The witness store's key rule, stated once**: a witness is
+/// attached to a live node that bears a sketch ([`Node::Profile`] —
+/// the v1 sketch node kind; mates extend this at their milestone).
+///
+/// One predicate with one home, asked by every door that writes a row
+/// — [`crate::DocEdit::ReWitness`] and
+/// [`crate::DocEdit::ReWitnessBulk`] — and by the load door's walk over
+/// the store, each naming the answer in its own vocabulary. It is the
+/// same shape as [`placement_fault`]'s first arm, and for the same
+/// reason: a registry key names a node of a required kind, and the two
+/// doors must agree on which keys exist.
+pub(crate) fn witness_site_fault<P>(doc: &Doc<P>, node: RecipeNodeId) -> Option<WitnessSiteFault> {
+    match doc.nodes.get(&node) {
+        None => Some(WitnessSiteFault::NoSuchNode),
+        Some(Node::Profile(_)) => None,
+        Some(_) => Some(WitnessSiteFault::NotSketchBearing),
+    }
+}
+
+/// **The recorded ε's admission rule, stated once**: finite and
+/// strictly positive.
+///
+/// One predicate with one home, asked by the edit door that records an
+/// ε ([`crate::DocEdit::SetTolerance`]) and by the save/load
+/// validator's snapshot walk, each naming the answer in its own
+/// vocabulary. ε parameterizes every predicate band in the document, so
+/// a value the two doors disagreed about would be a document whose
+/// every geometric answer depends on which door it came through.
+///
+/// A free function beside the field rather than a `Doc` method: the
+/// edit door decides the value BEFORE it is a document's ε, and a
+/// method would have nothing to be called on there.
+pub(crate) fn epsilon_admissible(eps: f64) -> bool {
+    eps.is_finite() && eps > 0.0
 }

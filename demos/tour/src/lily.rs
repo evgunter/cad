@@ -1059,13 +1059,19 @@ impl Plan {
 /// `len` turning through `curl` toward `up`, sampled at `stations`
 /// exact points. Two live walls bound what this can be asked for: the
 /// tip may not close to a point (a zero-width section is a degenerate
-/// segment), and the spine may not turn past π — the loft's stacking
-/// trilean is an END-TO-END statement, `cos(curl/2)` for a planar arc
-/// spine, so past a half turn of total position stacking it refuses
-/// `ReversedStacking` (its own filed frontier, #368).
+/// segment), and each SLAB — each adjacent pair of stations — may not
+/// turn past π, because the loft's stacking statement is a fold over
+/// those pairs and a slab that turns further stacks against its own
+/// base section's normal and refuses `ReversedStacking` naming itself.
+/// So the bound is on `curl / (stations − 1)`, not on `curl`: a blade
+/// may coil as far as its sampling supports.
+///
+/// `review_probes::the_spine_curl_wall_re_measured` pins both sides of
+/// that wall (13.0 rad coils at 17 stations; 10.0 rad refuses at 4).
+/// Past a full turn the spine returns through its own body and the
+/// kernel has no gate that says so — see the sweep crate's
+/// `bool6_per_slab_stacking::a_curl_past_a_full_turn_builds_a_spine_that_revisits_itself`.
 #[allow(clippy::too_many_arguments)] // the 8th is the run-tolerance witness
-/// `review_probes::the_spine_curl_wall_re_measured` pins both sides
-/// of the curl wall (3.0 builds, 3.5 refuses typed).
 fn lofted_blade<S: Scalar>(
     base: Point3<f64>,
     dir: Vec3<f64>,
@@ -3691,56 +3697,75 @@ mod review_probes {
         s.atan2(c)
     }
 
-    /// **The spine curl wall, pinned from both sides.** Through π the
-    /// loft builds; past spine turn π it refuses `ReversedStacking`,
-    /// because the stacking trilean is an END-TO-END statement (mean
-    /// last-section displacement against the first section's normal —
-    /// for a planar arc spine that is `cos(curl/2)`, negative past π),
-    /// not a per-slab one. That wall is filed as its own frontier
-    /// (#368); if either side of this pin moves, re-derive the
-    /// `lofted_blade` prose with it.
+    /// **The spine curl wall, re-measured against the per-slab
+    /// stacking fold.** The wall is no longer at spine turn π and is
+    /// no longer about how far the spine goes. The loft's stacking
+    /// statement is a fold over adjacent section pairs, each decided
+    /// against its own base section's normal, so a blade whose spine
+    /// turns a full circle and more builds as long as each of its
+    /// slabs advances — and at [`LOFT_STATIONS`] stations each slab
+    /// carries 1/16 of the turn.
+    ///
+    /// What remains is a SAMPLING wall, at per-slab turn π, i.e. total
+    /// curl `(stations − 1)·π`. This probe pins it from both sides in
+    /// the scene's own vocabulary by lofting the same blade at four
+    /// stations, where the wall is at `3π ≈ 9.42` rad, and the
+    /// refusal NAMES the slab that walls. At [`LOFT_STATIONS`] the
+    /// blade coils past two full turns and still builds, so the
+    /// refusal side is pinned at four stations instead.
     #[test]
     fn the_spine_curl_wall_re_measured() {
-        // Through π the blade builds.
-        for curl in [0.45, 1.0, 2.0, 2.5, 2.8, 3.0] {
-            let out = try_lofted_blade::<f64>(
+        let blade = |curl: f64, stations: usize| {
+            try_lofted_blade::<f64>(
                 LEAF_A_BASE,
                 LEAF_A_DIR,
                 LEAF_A_UP,
                 LEAF_A_LEN,
                 -curl,
                 leaf_a_plan(),
-                LOFT_STATIONS,
+                stations,
                 Tol::witness(),
-            );
+            )
+        };
+        // Through π and far past it: every one of these refused
+        // `ReversedStacking` above 3.0 rad under the end-to-end
+        // statement, on a summary none of their slabs disagreed with.
+        for curl in [0.45, 1.0, 2.0, 2.5, 2.8, 3.0, 3.5, 4.7, 6.0, 9.0, 13.0] {
+            let out = blade(curl, LOFT_STATIONS);
             assert!(
                 out.is_ok(),
-                "curl {curl} rad refused ({:?}) — the span-meter wall is BACK; \
+                "curl {curl} rad over {LOFT_STATIONS} stations refused ({:?}) — \
+                 each slab turns {:.4} rad, nowhere near the per-slab wall at π; \
                  re-derive this probe and the lofted_blade prose",
-                out.err()
+                out.err(),
+                curl / ((LOFT_STATIONS - 1) as f64),
             );
         }
-        // The standing wall: past π, the end-to-end stacking trilean
-        // reverses — TYPED, and pinned by variant so it fails loud if
-        // the loft's stacking statement ever changes shape.
-        for curl in [3.5, 4.7, 6.0] {
-            let out = try_lofted_blade::<f64>(
-                LEAF_A_BASE,
-                LEAF_A_DIR,
-                LEAF_A_UP,
-                LEAF_A_LEN,
-                -curl,
-                leaf_a_plan(),
-                LOFT_STATIONS,
-                Tol::witness(),
-            );
-            assert!(
-                matches!(out, Err(pncad::sweep::LoftError::ReversedStacking)),
-                "curl {curl} rad: expected the end-to-end ReversedStacking wall, \
-                 got {out:?} — the stacking wall moved; re-derive this probe, \
-                 the lofted_blade prose, and the filed frontier together"
-            );
-        }
+        // The wall that remains is per-slab, and at THIS scene's
+        // sampling it is out of reach: 13.0 rad over 17 stations is
+        // 0.81 rad per slab and still builds. Coarsen the sampling and
+        // it comes into range — 10.0 rad over FOUR stations is 3.33
+        // rad per slab, past π, and the refusal names the slab.
+        //
+        // Measured while re-deriving this probe, and worth knowing
+        // before anyone reads the four-station row as the whole story:
+        // at four, five, six and eight stations the blade meets a
+        // DIFFERENT wall first — `nurbs_span_meter` escalating inside
+        // the Euler assembly (#222's meter) — from 3.0 rad upward, so
+        // the build side of the per-slab wall is not reachable at the
+        // same station count as its refusal side in this scene. Both
+        // sides ARE executed together, on a bare arc spine, in
+        // `crates/sweep/tests/bool6_per_slab_stacking.rs`.
+        let out = blade(10.0, 4);
+        assert!(
+            matches!(
+                out,
+                Err(pncad::sweep::LoftError::ReversedStacking { slab: 0 })
+            ),
+            "10.0 rad over 4 stations is 3.33 rad per slab: expected the per-slab \
+             wall, naming slab 0, got {out:?} — the stacking wall moved; re-derive \
+             this probe, the lofted_blade prose, and KERNEL-VERBS together"
+        );
     }
 
     /// **The wall list, run by the test suite and not only by the

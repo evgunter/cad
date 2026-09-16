@@ -19,7 +19,7 @@ use common::{inserted, len3, scl3, square};
 use pncad::document::{
     CancelToken, Datum, Doc, DocumentId, EvalOptions, Node, ProfileProgram, evaluate,
 };
-use pncad::geom_core::{Point3, Tol};
+use pncad::geom_core::{Point3, Tol, Vec3};
 use viewer::camera::Camera;
 use viewer::datums::{self, DatumKind, View, datum_view, grid_pitch};
 use viewer::input::ViewportSize;
@@ -1133,6 +1133,245 @@ fn datum_view_does_not_repair_a_viewport_that_is_not_pixels() {
                 "a height that is not a number lent a scale of {}",
                 view.metres_per_pixel_at_one_metre,
             );
+        }
+    }
+}
+
+// ---------------------------------------------------------------
+// Which in-plane directions a datum is drawn along
+// ---------------------------------------------------------------
+
+/// The normals the three rows below are measured over.
+///
+/// Not a random spread: each member is a case one of the two
+/// constructions singles out. The six world axes are where the local
+/// seed rule and the kernel's door happen to agree up to a quarter
+/// turn; the equator (`n.z == 0`) is the seam the kernel's door
+/// documents, taken from both sides of the signed zero and from just
+/// off it; `(1, 1, 1)` and `(1, 1, 0)` sit on the ties the local
+/// rule's `<=` chain breaks, which is where a seed rule chosen by
+/// comparison changes answer discontinuously; and the near-pole pair
+/// is where the naive `1/(1 + n.z)` spelling the kernel's door
+/// replaced would have cancelled.
+const NORMALS: &[[f64; 3]] = &[
+    [1.0, 0.0, 0.0],
+    [-1.0, 0.0, 0.0],
+    [0.0, 1.0, 0.0],
+    [0.0, -1.0, 0.0],
+    [0.0, 0.0, 1.0],
+    [0.0, 0.0, -1.0],
+    [1.0, 1.0, 0.0],
+    [1.0, 1.0, -0.0],
+    [1.0, 1.0, 1.0],
+    [0.3, 0.5, 0.81],
+    [1.0e-9, -1.0e-9, -1.0],
+    [0.6, 0.8, 1.0e-12],
+    [0.6, 0.8, -1.0e-12],
+];
+
+/// `v`, normalized the way the document's own evaluation normalizes a
+/// datum's direction, and the kernel's basis for it.
+///
+/// The normal is re-derived rather than written down because the
+/// expected basis has to be the basis OF THE VECTOR THE DRAWING SAW:
+/// a literal and its normalization differ in the last bits, and a
+/// direction compared at 1e-12 would not notice, but the seed the
+/// equator members are chosen for is decided on `n.z`'s sign, which a
+/// re-spelling can move.
+fn kernel_basis(v: [f64; 3]) -> (Vec3<f64>, Vec3<f64>, Vec3<f64>) {
+    let n = Vec3::new(v[0], v[1], v[2]).normalize();
+    let (b1, b2) = n.orthonormal_basis();
+    (n, b1, b2)
+}
+
+/// Every segment's direction, unit, with the zero-length ones refused
+/// rather than normalized — a drawing that is not a set of lines is a
+/// different failure and `no_datum_draws_a_point_as_a_line` owns it.
+fn directions(segments: &[[f64; 3]]) -> Vec<Vec3<f64>> {
+    segments
+        .chunks_exact(2)
+        .map(|pair| {
+            let d = Vec3::new(
+                pair[1][0] - pair[0][0],
+                pair[1][1] - pair[0][1],
+                pair[1][2] - pair[0][2],
+            );
+            let len = d.norm();
+            assert!(len > 0.0 && len.is_finite(), "a segment of length {len}");
+            Vec3::new(d.x / len, d.y / len, d.z / len)
+        })
+        .collect()
+}
+
+/// `a` and `b` name the same line, either way round.
+fn parallel(a: Vec3<f64>, b: Vec3<f64>) -> bool {
+    (a.dot(b).abs() - 1.0).abs() <= 1.0e-12
+}
+
+/// **A plane's ruling runs along the kernel's orthonormal basis.**
+///
+/// A plane datum carries a normal and nothing else, so the two
+/// in-plane directions it is ruled along are invented — and this is
+/// the row that says WHERE they are invented. They are
+/// `UnitVec3::orthonormal_basis`'s, the same door the kernel builds a
+/// frame from a normal with, rather than a recipe spelled in the
+/// viewer: the viewer does not decide how a normal is completed to a
+/// frame, and a second construction here is a second answer to a
+/// question with one.
+///
+/// Falsifiable because the two constructions genuinely differ: at
+/// `(1, 1, 0)` the local least-aligned-axis seed gives a pair turned
+/// 45° from this one about the normal, which is exactly the offset a
+/// square grid is NOT symmetric under.
+#[test]
+fn a_planes_ruling_runs_along_the_kernels_orthonormal_basis() {
+    for v in NORMALS {
+        let (n, b1, b2) = kernel_basis(*v);
+        let (doc, tol) = evaluated(vec![plane([0.0, 0.0, 0.0], *v)]);
+        let drawn = draws(&doc, tol, [0.05, -0.15, 0.1]);
+        assert_eq!(drawn.len(), 1);
+        let dirs = directions(&drawn[0].segments);
+        assert!(dirs.len() >= 3, "{v:?} drew {} segments", dirs.len());
+        let mut ruled = 0;
+        for d in &dirs {
+            if parallel(*d, n) {
+                continue;
+            }
+            assert!(
+                parallel(*d, b1) || parallel(*d, b2),
+                "a plane with normal {v:?} ruled a line along \
+                 ({:e}, {:e}, {:e}), which is neither of the kernel's \
+                 basis axes ({:e}, {:e}, {:e}) and ({:e}, {:e}, {:e})",
+                d.x,
+                d.y,
+                d.z,
+                b1.x,
+                b1.y,
+                b1.z,
+                b2.x,
+                b2.y,
+                b2.z,
+            );
+            ruled += 1;
+        }
+        assert!(ruled >= 2, "{v:?} ruled {ruled} lines");
+    }
+}
+
+/// **An axis datum's end ticks run across it along the kernel's first
+/// basis axis.**
+///
+/// The same claim one dimension down: an axis carries a direction and
+/// the tick's own direction is invented, so it comes from the same
+/// door as the plane's ruling rather than from a second recipe.
+#[test]
+fn an_axis_datums_ticks_run_along_the_kernels_first_basis_axis() {
+    for v in NORMALS {
+        let (n, b1, _) = kernel_basis(*v);
+        let (doc, tol) = evaluated(vec![axis([0.0, 0.0, 0.0], *v)]);
+        let drawn = draws(&doc, tol, [0.05, -0.15, 0.1]);
+        assert_eq!(drawn.len(), 1);
+        let dirs = directions(&drawn[0].segments);
+        let mut ticks = 0;
+        for d in &dirs {
+            if parallel(*d, n) {
+                continue;
+            }
+            assert!(
+                parallel(*d, b1),
+                "an axis along {v:?} ticked along ({:e}, {:e}, {:e}), \
+                 not along the kernel's ({:e}, {:e}, {:e})",
+                d.x,
+                d.y,
+                d.z,
+                b1.x,
+                b1.y,
+                b1.z,
+            );
+            ticks += 1;
+        }
+        assert_eq!(ticks, 2, "an axis draws a tick at each end");
+    }
+}
+
+/// **A world-axis plane is still ruled along the other two world
+/// axes.**
+///
+/// The three default planes are the datums a reader sees most, and
+/// what they look like is not a free choice this module may make
+/// twice. It is a weaker claim than the row above — a square grid is
+/// symmetric under a quarter turn, so this holds for any construction
+/// whose seed is a world axis — and that is the point: it is the
+/// picture rather than the pair, so it says what a READER can see and
+/// a change to the pair that a reader cannot see leaves it green.
+#[test]
+fn a_world_axis_planes_ruling_stays_on_the_other_two_world_axes() {
+    let world = [
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+    ];
+    for (axis_index, v) in [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+        .into_iter()
+        .enumerate()
+    {
+        let (doc, tol) = evaluated(vec![plane([0.0, 0.0, 0.0], v)]);
+        let drawn = draws(&doc, tol, [0.05, -0.15, 0.1]);
+        for d in directions(&drawn[0].segments) {
+            let along = world
+                .iter()
+                .position(|w| parallel(d, *w))
+                .unwrap_or_else(|| {
+                    panic!("the {v:?} plane ruled along ({}, {}, {})", d.x, d.y, d.z)
+                });
+            if along == axis_index {
+                // The normal tick, which is the one mark that is
+                // allowed to leave the plane.
+                continue;
+            }
+            assert_ne!(along, axis_index);
+        }
+    }
+}
+
+/// **No normal makes a datum draw something that is not a drawing.**
+///
+/// The standing guard under the two rows above, and it is green
+/// whichever construction supplies the pair — its job is to hold the
+/// NEXT one. Every position is a number, every segment is a line
+/// rather than a point, and the ruling stays in the plane the normal
+/// names.
+#[test]
+fn no_normal_makes_a_datum_draw_something_that_is_not_a_drawing() {
+    for v in NORMALS {
+        let (n, _, _) = kernel_basis(*v);
+        let (doc, tol) = evaluated(vec![plane([0.0, 0.0, 0.0], *v), axis([0.0, 0.0, 0.0], *v)]);
+        let drawn = draws(&doc, tol, [0.05, -0.15, 0.1]);
+        assert_eq!(drawn.len(), 2);
+        for d in &drawn {
+            assert!(!d.segments.is_empty(), "{v:?} drew no {}", d.kind.label());
+            for p in &d.segments {
+                assert!(
+                    p.iter().all(|c| c.is_finite()),
+                    "{v:?} drew {p:?} for a {}",
+                    d.kind.label(),
+                );
+            }
+            // `directions` refuses a zero-length or non-finite
+            // segment, so calling it IS the line-not-a-point
+            // assertion; what is read back is the in-plane claim.
+            for dir in directions(&d.segments) {
+                let on_n = dir.dot(n).abs();
+                assert!(
+                    on_n <= 1.0e-12 || (on_n - 1.0).abs() <= 1.0e-12,
+                    "{v:?} drew a {} segment ({}, {}, {}) that is neither \
+                     in the plane nor along the normal",
+                    d.kind.label(),
+                    dir.x,
+                    dir.y,
+                    dir.z,
+                );
+            }
         }
     }
 }

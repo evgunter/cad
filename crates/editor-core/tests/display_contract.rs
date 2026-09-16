@@ -14,12 +14,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
-    AssemblyError, CapEnd, CarriedRefusal, ContactClass, DeclareError, Diagnosis, Dimension,
-    DimensionError, DocParamValue, EditError, EntityKind, EvalError, HitTestError,
-    InterrogateError, MateFault, MateSide, MeshPickError, MintRefusal, NamingError, NodeErrorKind,
-    NodePickError, ParamName, ParseError, ProgramFault, RecipeNodeId, RefusedRef, ResolveFault,
-    ResolveIndeterminate, RimShare, RoleSeg, Route, SelectRefusal, SlotId, SnapshotError,
-    StableName, StepArg,
+    AssemblyError, CapEnd, CarriedRefusal, ClusterMaintenance, ContactClass, DeclareError,
+    Diagnosis, Dimension, DimensionError, DocParamValue, EditError, EntityKind, EvalError,
+    HitTestError, InputFault, InterrogateError, Maintenance, MateFault, MateSide, MeasureNodeFault,
+    MeshPickError, MetaVersionError, MintRefusal, NamingError, NodeErrorKind, NodePickError,
+    ParamName, ParseError, PlacementRuleFault, ProgramFault, RecipeNodeId, RefusedRef,
+    ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId,
+    SnapshotError, StableName, StepArg, StepSegmentsError,
 };
 use geom_core::BandError;
 
@@ -666,6 +667,11 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
         &["is declared length"],
         &dumps,
     );
+    assert_f6(
+        &EditError::DocParamCountHasNoDistribution { name: name.clone() },
+        &["is a count", "structural parameter", "no distribution"],
+        &dumps,
+    );
 
     // The construction-time dimension checker.
     assert_f6(
@@ -743,10 +749,11 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
         &dumps,
     );
 
-    // The load door's checker. Its program-slot arm spells the slot
-    // address out, so only the dimensions are at issue there.
+    // The load door's checker. Its slot arm spells the slot address
+    // out, so only the dimensions are at issue there.
     assert_f6(
-        &ProgramFault::SlotDimension {
+        &SnapshotError::SlotDimension {
+            node: RecipeNodeId(5),
             slot: SlotId::Profile {
                 loop_: 0,
                 step: 2,
@@ -759,7 +766,8 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
         &dumps,
     );
     assert_f6(
-        &ProgramFault::SlotDimension {
+        &SnapshotError::SlotDimension {
+            node: RecipeNodeId(5),
             slot: SlotId::Radius,
             expected: Dimension::Length,
             found: Dimension::Angle,
@@ -771,22 +779,228 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
         &SnapshotError::AssertionBound {
             node: RecipeNodeId(5),
             measure: RecipeNodeId(4),
-            measured: Some(Dimension::Length),
+            measured: Dimension::Length,
             bound: Dimension::Angle,
         },
         &["bounds a length measure", "with an angle expression"],
         &dumps,
     );
     assert_f6(
-        &SnapshotError::AssertionBound {
+        &SnapshotError::AssertionTarget {
             node: RecipeNodeId(5),
             measure: RecipeNodeId(4),
-            measured: None,
             bound: Dimension::Count,
         },
         &["carries a count bound", "which is not a measure"],
         &dumps,
     );
+}
+
+test_utils::f6_variants! {
+    /// `SnapshotError`'s census — see [`NODE_PICK_ERROR`]. This is the
+    /// load door's whole persisted-refusal vocabulary, so a new
+    /// invariant that earns an arm earns a rendered case with it.
+    const SNAPSHOT_ERROR: SnapshotError = [
+        OrderMismatch,
+        IdBeyondCounter,
+        DanglingInput,
+        ForwardInput,
+        DeclareInput,
+        WitnessSite,
+        WitnessOnMissingNode,
+        SlotDimension,
+        SlotUnknownDocParam,
+        SlotDocParamDimension,
+        EpsilonInvalid,
+        Roots,
+        PlacementSite,
+        PlacementNonFinite,
+        PlacementImproper,
+        PlacementNotGauge,
+        MateAlignment,
+        PlacementRule,
+        MeasureRefs,
+        InputList,
+        AssertionTarget,
+        AssertionBound,
+        MetadataUnversioned,
+    ];
+}
+
+/// Every arm of the persistence door's snapshot vocabulary states what
+/// is wrong with the document and where, and none of them reads as the
+/// `Debug` dump.
+///
+/// The payload-carrying arms forward their payload's own `Display`
+/// (`RootFault`, `PlacementRuleFault`, `MeasureNodeFault`,
+/// `InputFault`, `MetaVersionError`) rather than restating it, and the
+/// two placement-frame arms forward the frame rule's clause — so each
+/// case below asks for the payload's words, which is what proves the
+/// forwarding happened.
+#[test]
+fn snapshot_error_display_names_its_content_not_its_struct() {
+    let node = RecipeNodeId(5);
+    let cases = [
+        (
+            SnapshotError::OrderMismatch,
+            vec!["`order` list", "disagree"],
+        ),
+        (
+            SnapshotError::IdBeyondCounter {
+                id: node,
+                next_id: 4,
+            },
+            vec!["node id 5", "mint counter 4"],
+        ),
+        (
+            SnapshotError::DanglingInput {
+                node,
+                input: RecipeNodeId(9),
+            },
+            vec!["node 5", "node 9", "not live"],
+        ),
+        (
+            SnapshotError::ForwardInput {
+                node,
+                input: RecipeNodeId(9),
+            },
+            vec!["node 5", "does not precede it"],
+        ),
+        (
+            SnapshotError::DeclareInput {
+                node,
+                input: RecipeNodeId(9),
+            },
+            vec!["declare input", "not a declaration"],
+        ),
+        (
+            SnapshotError::WitnessSite { node },
+            vec!["a witness is attached to node 5", "bears no sketch"],
+        ),
+        (
+            SnapshotError::WitnessOnMissingNode { node },
+            vec!["a witness is attached to node 5", "not live"],
+        ),
+        (
+            SnapshotError::SlotDimension {
+                node,
+                slot: SlotId::Distance,
+                expected: Dimension::Length,
+                found: Dimension::Angle,
+            },
+            vec!["node 5", "slot distance", "needs a length expression"],
+        ),
+        (
+            SnapshotError::SlotUnknownDocParam {
+                node,
+                slot: SlotId::Radius,
+                name: ParamName::new("fillet"),
+            },
+            vec!["slot radius", "fillet", "does not declare"],
+        ),
+        (
+            SnapshotError::SlotDocParamDimension {
+                node,
+                slot: SlotId::Distance,
+                name: ParamName::new("depth"),
+                declared: Dimension::Angle,
+                referenced: Dimension::Length,
+            },
+            vec!["depth", "as a length", "declared angle"],
+        ),
+        (
+            SnapshotError::EpsilonInvalid { value: 0.0 },
+            vec!["recorded ε", "finite and strictly positive"],
+        ),
+        (
+            SnapshotError::Roots(RootFault::Ancestor {
+                ancestor: RecipeNodeId(1),
+                descendant: RecipeNodeId(2),
+            }),
+            vec!["product root"],
+        ),
+        (
+            SnapshotError::PlacementSite { node },
+            vec!["keyed by node 5", "does not instantiate a part"],
+        ),
+        (
+            SnapshotError::PlacementNonFinite { node },
+            vec!["placement frame on node 5", "non-finite coordinate"],
+        ),
+        (
+            SnapshotError::PlacementImproper {
+                node,
+                determinant: -1.0,
+            },
+            vec!["placement frame on node 5", "improper (mirroring)"],
+        ),
+        (
+            SnapshotError::PlacementNotGauge {
+                node,
+                gauge: RecipeNodeId(2),
+            },
+            vec!["cluster's gauge, node 2"],
+        ),
+        (
+            SnapshotError::MateAlignment { node },
+            vec!["mate node 5", "alignment datum", "non-finite coordinate"],
+        ),
+        (
+            SnapshotError::PlacementRule {
+                node,
+                fault: PlacementRuleFault::NoPlacements,
+            },
+            vec!["placement-rule node 5", "placement list is empty"],
+        ),
+        (
+            SnapshotError::MeasureRefs {
+                node,
+                fault: MeasureNodeFault::RefIndexOutOfRange {
+                    verb: "distance",
+                    index: 3,
+                    refs: 2,
+                },
+            },
+            vec!["measure node 5", "reads reference 3"],
+        ),
+        (
+            SnapshotError::InputList {
+                node,
+                fault: InputFault::TooFew { found: 1 },
+            },
+            vec!["node 5"],
+        ),
+        (
+            SnapshotError::AssertionTarget {
+                node,
+                measure: RecipeNodeId(4),
+                bound: Dimension::Count,
+            },
+            vec!["carries a count bound", "which is not a measure"],
+        ),
+        (
+            SnapshotError::AssertionBound {
+                node,
+                measure: RecipeNodeId(4),
+                measured: Dimension::Length,
+                bound: Dimension::Angle,
+            },
+            vec!["bounds a length measure", "with an angle expression"],
+        ),
+        (
+            SnapshotError::MetadataUnversioned {
+                name: StableName {
+                    kind: EntityKind::Face,
+                    node,
+                    path: vec![RoleSeg::Cap(CapEnd::Start)],
+                },
+                key: "swatch".to_string(),
+                error: MetaVersionError::MissingVersion,
+            },
+            vec!["metadata", "swatch", "\"v\" version field"],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &SNAPSHOT_ERROR, &[]);
 }
 
 /// A predicate flip names the two signs as words: `Sign` has a
@@ -801,6 +1015,7 @@ fn a_predicate_flip_names_its_signs_as_words() {
             predicate: "name_frag_side_of",
             from: geom_core::predicate::Sign::Positive,
             to: geom_core::predicate::Sign::Negative,
+            source: editor_core::FlipSource::VerdictLog,
         },
         &["name_frag_side_of", "flipped from positive to negative"],
         // Every `Sign`, not the two this row happens to construct: a
@@ -808,6 +1023,65 @@ fn a_predicate_flip_names_its_signs_as_words() {
         // `PredicateFlip` is `Diagnosis`'s own identifier, and this row
         // renders that one arm.
         &[sign_words.as_slice(), &["PredicateFlip"]].concat(),
+    );
+}
+
+/// The RECOVERED flip says so, and names the partner through the
+/// stable name's own `Display` — the two halves a reader needs to know
+/// that this flip is in no log they could go and check, and which pair
+/// it is about.
+#[test]
+fn a_recovered_predicate_flip_names_its_partner_and_says_it_was_recovered() {
+    let sign_debug: Vec<String> = all_signs().iter().map(|s| format!("{s:?}")).collect();
+    let sign_words = as_strs(&sign_debug);
+    assert_f6(
+        &Diagnosis::PredicateFlip {
+            predicate: "name_frag_side_of",
+            from: geom_core::predicate::Sign::Positive,
+            to: geom_core::predicate::Sign::Negative,
+            source: editor_core::FlipSource::ShadowExec {
+                partner: Box::new(face_name()),
+            },
+        },
+        &[
+            "name_frag_side_of",
+            "flipped from positive to negative",
+            &face_name().to_string(),
+            "recovered by re-running the pair at diagnosis time",
+        ],
+        &[
+            sign_words.as_slice(),
+            &["PredicateFlip", "ShadowExec", "FlipSource"],
+        ]
+        .concat(),
+    );
+}
+
+/// The shadow rung's REFUSAL states what stood between the diagnosis
+/// and evidence that exists — both arms, because a refusal a reader
+/// cannot act on is the fall-through it was written to replace.
+#[test]
+fn the_shadow_exec_refusal_states_which_wall_it_hit() {
+    assert_f6(
+        &Diagnosis::ShadowExecDeclined {
+            node: RecipeNodeId(7),
+            reason: editor_core::ShadowExecRefusal::PairTooWide {
+                pairs: 33,
+                ceiling: 32,
+            },
+        },
+        &["no verdict", "33", "32", "re-execute"],
+        &["ShadowExecDeclined", "PairTooWide", "ShadowExecRefusal"],
+    );
+    assert_f6(
+        &Diagnosis::ShadowExecDeclined {
+            node: RecipeNodeId(7),
+            reason: editor_core::ShadowExecRefusal::ProbeRefused {
+                probe: "a probe's own sentence".to_owned(),
+            },
+        },
+        &["a probe refused", "a probe's own sentence"],
+        &["ShadowExecDeclined", "ProbeRefused", "ShadowExecRefusal"],
     );
 }
 
@@ -1373,35 +1647,34 @@ fn naming_error_display_names_its_content_not_its_struct() {
 
 test_utils::f6_variants! {
     /// `ProgramFault`'s census — see [`NODE_PICK_ERROR`]. The load
-    /// door's own refusal over a persisted profile program, whose
-    /// payload is a slot ADDRESS: the fingerprint that reaches a reader
-    /// here is one level down, in [`SlotId`] and [`StepArg`], so the
-    /// case list below bans those two vocabularies' identifiers on top
-    /// of this enum's own.
-    const PROGRAM_FAULT: ProgramFault = [SlotDimension, Lattice];
+    /// door's own refusal over a persisted profile program. A step
+    /// argument's DIMENSION is not here: a program slot is a slot like
+    /// any other, refused by the document-wide slot walk
+    /// ([`SnapshotError::SlotDimension`]), so what is left is the
+    /// replay probe's lattice coordinate.
+    const PROGRAM_FAULT: ProgramFault = [Lattice];
 }
 
-/// A program fault addresses its slot in the slot vocabulary's own
-/// words ([`SlotId::label`], [`StepArg::label`]), not in the enum's.
+/// **A slot refusal addresses its slot in the slot vocabulary's own
+/// words** ([`SlotId::label`], [`StepArg::label`]), not in the enum's
+/// — for every slot address alike, because one predicate decides them
+/// (`Node::slot_dimension_fault`) and one arm renders them.
 ///
-/// **What the ban list holds.** `assert_f6_every_variant` bans
-/// `ProgramFault`'s own two identifiers and the universal brace; the
-/// renderings at risk here carry neither, because what a reverted arm
-/// would leak is a `SlotId` or a `StepArg` identifier. Those are added
-/// through `also_banned`, read off the very values the cases carry
-/// ([`test_utils::f6::variant_identifier`]) so a variant renamed in
-/// `src/` cannot leave this list saying the old name. `SlotId::Profile`
-/// carries a brace in its `Debug` as well, so that arm is held twice.
+/// **And the sentence is ONE clause.** The rule's own answer carries
+/// its `Display` (`SlotDimensionFault`), and each door forwards it
+/// into its own subject, so the last case below reads the load door's
+/// rendering as the edit door's under "node 7: ". A door that
+/// restated the sentence — as the two of them did, three times over,
+/// with a program slot spelled two ways — reds there.
 ///
-/// **What it deliberately does not ban.** The `Lattice` arm renders its
-/// tip state and verb through `Debug`: the pair is the transition
-/// table's own coordinate, which `profile`'s `ReplayError` and this
-/// arm's comment both say, and `Verb`'s `Display` — the authoring
-/// spelling — is a different sentence from the coordinate. Banning
-/// those identifiers here would be this suite deciding a question
-/// settled the other way beside the code.
+/// **What the ban list holds.** What a reverted arm would leak is a
+/// `SlotId` or a `StepArg` identifier. Those are read off the very
+/// values the cases carry ([`test_utils::f6::variant_identifier`]) so
+/// a variant renamed in `src/` cannot leave this list saying the old
+/// name. `SlotId::Profile` carries a brace in its `Debug` as well, so
+/// that arm is held twice.
 #[test]
-fn a_program_fault_addresses_its_slot_in_the_slot_vocabulary() {
+fn a_slot_refusal_addresses_its_slot_in_the_slot_vocabulary() {
     let profile_slot = SlotId::Profile {
         loop_: 1,
         step: 3,
@@ -1414,51 +1687,224 @@ fn a_program_fault_addresses_its_slot_in_the_slot_vocabulary() {
         test_utils::f6::variant_identifier(&StepArg::CenterX),
         test_utils::f6::variant_identifier(&scalar_slot),
         test_utils::f6::variant_identifier(&component_slot),
+        "{".to_string(),
     ];
     let also_banned = as_strs(&banned);
+    let node = RecipeNodeId(7);
 
+    assert_f6(
+        &SnapshotError::SlotDimension {
+            node,
+            slot: profile_slot,
+            expected: Dimension::Length,
+            found: Dimension::Angle,
+        },
+        &[
+            "node 7",
+            "loop 1 step 3 · centre x",
+            "needs a length expression",
+            "got an angle",
+        ],
+        &also_banned,
+    );
+    assert_f6(
+        &SnapshotError::SlotDimension {
+            node,
+            slot: scalar_slot,
+            expected: Dimension::Length,
+            found: Dimension::Count,
+        },
+        &["slot radius", "needs a length expression", "got a count"],
+        &also_banned,
+    );
+    assert_f6(
+        &SnapshotError::SlotDimension {
+            node,
+            slot: component_slot,
+            expected: Dimension::Length,
+            found: Dimension::Scalar,
+        },
+        &["slot origin x", "got a scalar"],
+        &also_banned,
+    );
+    // One clause, two subjects: whatever the sentence says, the two
+    // doors say it in the same words about the same address.
+    for slot in [profile_slot, scalar_slot, component_slot] {
+        let at_load = SnapshotError::SlotDimension {
+            node,
+            slot,
+            expected: Dimension::Length,
+            found: Dimension::Angle,
+        };
+        let at_edit = EditError::SlotDimensionMismatch {
+            slot,
+            expected: Dimension::Length,
+            found: Dimension::Angle,
+        };
+        assert_eq!(at_load.to_string(), format!("node 7: {at_edit}"));
+    }
+}
+
+/// A program fault states the transition table's coordinate, not its
+/// struct.
+///
+/// **What it deliberately does not ban.** The `Lattice` arm renders its
+/// tip state and verb through `Debug`: the pair is the transition
+/// table's own coordinate, which `profile`'s `ReplayError` and this
+/// arm's comment both say, and `Verb`'s `Display` — the authoring
+/// spelling — is a different sentence from the coordinate. Banning
+/// those identifiers here would be this suite deciding a question
+/// settled the other way beside the code.
+#[test]
+fn a_program_fault_states_its_lattice_coordinate() {
+    let cases = [(
+        ProgramFault::Lattice {
+            loop_: 0,
+            step: 2,
+            state: profile::TipState::Entry,
+            verb: None,
+        },
+        vec![
+            "loop 0 step 2",
+            "not a legal chain-lattice walk",
+            "unclosed",
+        ],
+    )];
+    assert_f6_every_variant(&cases, &PROGRAM_FAULT, &[]);
+}
+
+test_utils::f6_variants! {
+    /// `ClusterMaintenance`'s census — see [`NODE_PICK_ERROR`]. The
+    /// four registry acts render beside their own type, so this is the
+    /// list that guards them; `Maintenance` delegates and carries only
+    /// its own two arms.
+    const CLUSTER_MAINTENANCE: ClusterMaintenance = [Join, Split, GaugeRewrite, Drop];
+}
+
+test_utils::f6_variants! {
+    /// `Maintenance`'s census — see [`NODE_PICK_ERROR`].
+    const MAINTENANCE: Maintenance = [Cluster, Strand];
+}
+
+/// **Each registry act says what it did to the placement registry.**
+/// The maintenance column is rendered to a person, so these are prose
+/// and not the `Debug` dump of a frame.
+#[test]
+fn cluster_maintenance_display_names_the_act_not_its_struct() {
+    let gauge = RecipeNodeId(3);
+    let other = RecipeNodeId(5);
     let cases = [
         (
-            ProgramFault::SlotDimension {
-                slot: profile_slot,
-                expected: Dimension::Length,
-                found: Dimension::Angle,
+            ClusterMaintenance::Join {
+                survived: gauge,
+                absorbed: other,
+                absorbed_frame: None,
+            },
+            vec!["cluster gauged by node 5", "absorbed into", "node 3"],
+        ),
+        (
+            ClusterMaintenance::Split {
+                from: gauge,
+                to: other,
+                frame: None,
+            },
+            vec!["separated from", "node 3", "now gauged by node 5"],
+        ),
+        (
+            ClusterMaintenance::GaugeRewrite {
+                from: gauge,
+                to: other,
+                frame: None,
+            },
+            vec!["node 3", "lost that instance", "now gauged by node 5"],
+        ),
+        (
+            ClusterMaintenance::Drop { gauge, frame: None },
+            vec!["node 3", "lost its last instance", "placement record"],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &CLUSTER_MAINTENANCE, &[]);
+}
+
+/// **What an accepted edit DID reads as prose too** — the strand count
+/// beside the cascade count is rendered from these sentences.
+///
+/// The cluster arm FORWARDS its carried act's own words (the
+/// `NodePickError::Standing` shape one row up), which is why its case
+/// here asserts the delegated sentence rather than a paraphrase of it.
+/// The strand sentence's relative clause binds to the NODE: the name
+/// is what survives a strand, so a sentence reading "a name, which
+/// this edit deleted" would name the wrong casualty.
+#[test]
+fn maintenance_display_says_what_the_edit_did() {
+    let gauge = RecipeNodeId(3);
+    let other = RecipeNodeId(5);
+    let cases = [
+        (
+            Maintenance::Cluster(ClusterMaintenance::Join {
+                survived: gauge,
+                absorbed: other,
+                absorbed_frame: None,
+            }),
+            vec!["cluster gauged by node 5", "absorbed into", "node 3"],
+        ),
+        (
+            Maintenance::Strand {
+                node: other,
+                name: face_name(),
             },
             vec![
-                "loop 1 step 3's centre x argument",
-                "needs a length expression",
-                "got an angle",
-            ],
-        ),
-        (
-            ProgramFault::SlotDimension {
-                slot: scalar_slot,
-                expected: Dimension::Length,
-                found: Dimension::Count,
-            },
-            vec!["slot radius", "needs a length expression", "got a count"],
-        ),
-        (
-            ProgramFault::SlotDimension {
-                slot: component_slot,
-                expected: Dimension::Length,
-                found: Dimension::Scalar,
-            },
-            vec!["slot origin x", "got a scalar"],
-        ),
-        (
-            ProgramFault::Lattice {
-                loop_: 0,
-                step: 2,
-                state: profile::TipState::Entry,
-                verb: None,
-            },
-            vec![
-                "loop 0 step 2",
-                "not a legal chain-lattice walk",
-                "unclosed",
+                "node 5 carries a face name minted by node 7",
+                "this edit deleted node 7",
+                "resolves to nothing until it is rebound",
             ],
         ),
     ];
-    assert_f6_every_variant(&cases, &PROGRAM_FAULT, &also_banned);
+    assert_f6_every_variant(&cases, &MAINTENANCE, &[]);
+}
+
+test_utils::f6_variants! {
+    /// `StepSegmentsError`'s census — see [`NODE_PICK_ERROR`]. The
+    /// step→profile-edge door's refusals (DM8): every arm is a question
+    /// the door could not answer, so every arm must say which question
+    /// in words a consumer can act on.
+    const STEP_SEGMENTS_ERROR: StepSegmentsError =
+        [NoSuchLoop, NoSuchStep, NoRecord, RecordShape, NoAnchor, RecordsDisagree, SpanOffTheLoop];
+}
+
+#[test]
+fn step_segments_error_display_names_its_content_not_its_struct() {
+    let cases = [
+        (StepSegmentsError::NoSuchLoop { loops: 2 }, vec!["2 loops"]),
+        (StepSegmentsError::NoSuchStep { steps: 5 }, vec!["5 steps"]),
+        (
+            StepSegmentsError::NoRecord { loop_: 1 },
+            vec!["structure record", "loop 1"],
+        ),
+        (
+            StepSegmentsError::RecordShape {
+                loop_: 1,
+                authored: 5,
+                recorded: 4,
+            },
+            vec!["loop 1", "authors 5 steps", "describes 4"],
+        ),
+        (
+            StepSegmentsError::NoAnchor { loop_: 0 },
+            vec!["naming anchor", "loop 0"],
+        ),
+        (
+            StepSegmentsError::RecordsDisagree { loop_: 3 },
+            vec!["loop 3", "two different permutations"],
+        ),
+        (
+            StepSegmentsError::SpanOffTheLoop {
+                step: 2,
+                end: 9,
+                segments: 4,
+            },
+            vec!["step 2", "up to 9", "4 of them"],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &STEP_SEGMENTS_ERROR, &[]);
 }

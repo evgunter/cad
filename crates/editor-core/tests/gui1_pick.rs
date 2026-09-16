@@ -111,11 +111,7 @@ fn picks_every_face_of_a_box() {
     let ev = run(&doc);
     let mesh = mesh_of(&ev, ext);
     let pick = MeshPick::build(&mesh).expect("well-formed mesh");
-    let targets = [PickTarget {
-        node: ext,
-        body: 0,
-        pick: &pick,
-    }];
+    let targets = [PickTarget::new(&ev, ext, 0, &pick)];
 
     // (ray, axis, plane): each ray shoots at a face center from
     // outside, 2 units out, so every expected t is exactly 2.
@@ -163,11 +159,7 @@ fn edge_ray_between_two_faces_resolves_deterministically() {
     let ev = run(&doc);
     let mesh = mesh_of(&ev, ext);
     let pick = MeshPick::build(&mesh).expect("well-formed mesh");
-    let targets = [PickTarget {
-        node: ext,
-        body: 0,
-        pick: &pick,
-    }];
+    let targets = [PickTarget::new(&ev, ext, 0, &pick)];
 
     // Through (1, 0.5, 1) at t = 1: on the boundary of BOTH the top
     // (z = 1) and the +x (x = 1) faces. All coordinates dyadic, so
@@ -215,11 +207,7 @@ fn miss_is_a_typed_miss() {
     let ev = run(&doc);
     let mesh = mesh_of(&ev, ext);
     let pick = MeshPick::build(&mesh).expect("well-formed mesh");
-    let targets = [PickTarget {
-        node: ext,
-        body: 0,
-        pick: &pick,
-    }];
+    let targets = [PickTarget::new(&ev, ext, 0, &pick)];
     // Points away from the box entirely.
     let r = ray([0.5, 0.5, -2.0], [0.0, 0.0, -1.0]);
     assert!(pick_face(&ev, &targets, &r).expect("no error").is_none());
@@ -265,13 +253,7 @@ fn unusable_nodes_surface_typed_errors() {
     // before any geometry.
     let r = ray([0.5, 0.5, -2.0], [0.0, 0.0, 1.0]);
 
-    let t = |node| {
-        [PickTarget {
-            node,
-            body: 0,
-            pick: &pick,
-        }]
-    };
+    let t = |node| [PickTarget::new(&ev, node, 0, &pick)];
     assert_eq!(
         pick_face(&ev, &t(bad), &r).expect_err("failed node is an error"),
         HitTestError::NodeFailed { node: bad }
@@ -290,16 +272,8 @@ fn unusable_nodes_surface_typed_errors() {
     );
     // A good target FIRST does not mask a bad one later in the slice.
     let both = [
-        PickTarget {
-            node: good,
-            body: 0,
-            pick: &pick,
-        },
-        PickTarget {
-            node: bad,
-            body: 0,
-            pick: &pick,
-        },
+        PickTarget::new(&ev, good, 0, &pick),
+        PickTarget::new(&ev, bad, 0, &pick),
     ];
     assert_eq!(
         pick_face(&ev, &both, &r).expect_err("bad target still surfaces"),
@@ -319,16 +293,8 @@ fn occlusion_orders_by_t_across_bodies() {
     let mesh_far = mesh_of(&ev, far);
     let pick_near = MeshPick::build(&mesh_near).expect("well-formed mesh");
     let pick_far = MeshPick::build(&mesh_far).expect("well-formed mesh");
-    let tn = PickTarget {
-        node: near,
-        body: 0,
-        pick: &pick_near,
-    };
-    let tf = PickTarget {
-        node: far,
-        body: 0,
-        pick: &pick_far,
-    };
+    let tn = PickTarget::new(&ev, near, 0, &pick_near);
+    let tf = PickTarget::new(&ev, far, 0, &pick_far);
 
     let forward = ray([-1.0, 0.5, 0.5], [1.0, 0.0, 0.0]);
     for targets in [[tn, tf], [tf, tn]] {
@@ -385,7 +351,9 @@ fn boundary_names_are_total_distinct_and_the_polylines_own() {
     let ev = run(&doc);
     let np = editor_core::NodePick::build(&ev, ext, 0, DELTA, Tol::witness())
         .expect("the box tessellates and indexes");
-    let names = np.boundary_names(&ev);
+    let names = np
+        .boundary_names(&ev)
+        .expect("the index and the evaluation are the same document's");
     assert_eq!(
         names.len(),
         np.mesh().boundaries.len(),
@@ -460,11 +428,7 @@ fn node_pick_door_is_prepaired_and_typed() {
     // The door's target answers exactly the raw, correctly-paired path.
     let mesh = mesh_of(&ev, ext);
     let pick = MeshPick::build(&mesh).expect("well-formed mesh");
-    let raw = [PickTarget {
-        node: ext,
-        body: 0,
-        pick: &pick,
-    }];
+    let raw = [PickTarget::new(&ev, ext, 0, &pick)];
     let r = ray([0.5, 0.5, -2.0], [0.0, 0.0, 1.0]);
     let via_door = pick_face(&ev, &[np.target()], &r)
         .expect("no error")
