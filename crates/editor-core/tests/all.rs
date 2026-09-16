@@ -92,6 +92,8 @@ mod bool13r2_probes;
 mod bool7_shadow_exec;
 #[path = "bool7r1_probes.rs"]
 mod bool7r1_probes;
+#[path = "bool7r2_probes.rs"]
+mod bool7r2_probes;
 #[path = "boolean_op_wire.rs"]
 mod boolean_op_wire;
 #[path = "cascade_delete.rs"]
