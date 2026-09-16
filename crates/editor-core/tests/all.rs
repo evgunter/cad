@@ -124,6 +124,8 @@ mod dsc_checks;
 mod e4_dual_door;
 #[path = "edit_blend_canonical.rs"]
 mod edit_blend_canonical;
+#[path = "edit_doc_param_unit.rs"]
+mod edit_doc_param_unit;
 #[path = "edit_pair_apply_names.rs"]
 mod edit_pair_apply_names;
 #[path = "eval10_section_reads_the_nominal.rs"]

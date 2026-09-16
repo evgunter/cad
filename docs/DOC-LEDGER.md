@@ -3519,3 +3519,39 @@ barycentrics and a cancelled quotient for `t`), which the fix pass
 closed by taking `t` from the hit point's projection — the amendment
 section records it, and the residual it leaves is
 `work/edit/pick-accepts-uncertified-barycentrics-on-a-certified-determinant`.
+
+## Per-merge deletion — PROPS band-doors' spec (2026-09-16)
+
+Recoverable at `git show 96618224e:docs/PROPS-BAND-DOORS-SPEC.md` (the merge
+of main into the unit head, before the state-sync commit that deleted
+it). Two of its sentences did not survive contact. It ruled a named
+constructor for the six sites it counted; one of those six takes the
+ambiguity constant as a deliberate parameter, so the ruling was
+withdrawn for it on the lane's evidence and the review lane's sharper
+second reason. And it asked for the rows to rest "on the validator's
+invariants" without saying where, which the lane first read as a local
+restatement of a private validator — a premise that rots silently — and
+the review turned into rows through the real `Tolerance::init`, one
+process each. The rule above; the unit's record is the two items'
+`## Closed` sections and the MERGED entry in `work/props/log.md`. An E
+rider: single style review, no A/B row.
+
+- `PROPS-BAND-DOORS-SPEC.md` — PROPS band-doors, the error documentation made true and the constructor five suites hand-rolled (#2729)
+
+## Per-merge deletion — PROPS affine-try-map's spec (2026-09-16)
+
+Recoverable at `git show c6a8bc33d:docs/PROPS-AFFINE-TRY-MAP-SPEC.md` (the
+merge of main into the unit head, before the state-sync commit that
+deleted it). It held as written, including the seam it named: the
+unmerged unit that rewrites `orthonormal_basis` in the same file merges
+textually, executed rather than assumed. Its one open call — how `map`
+is spelled once `try_map` exists — was left to the unit and the unit
+argued it in the PR. What the spec did not anticipate is where the
+evidence would come from: it asked that a transposed column be shown
+red, and the mutation that proves it also caught a row of the unit's
+own that could not fail for the reason it was named after. The rule
+above; the unit's record is the two items' `## Closed` sections and the
+MERGED entry in `work/props/log.md`. An E rider: single style review,
+no A/B row.
+
+- `PROPS-AFFINE-TRY-MAP-SPEC.md` — PROPS affine-try-map, the kernel owns the fallible per-coordinate walk too (#2743)

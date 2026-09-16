@@ -1240,6 +1240,33 @@ producers, and all three failed because each guard was `is_finite()`
 followed by a multiplication UP. A guard that admits everything finite
 is not a bound.
 
+**An item that asks for a test may be asking for traceability, not
+coverage — and mutation is how you tell.** The register already says a
+suggested assertion's cheapest failure is being GREEN on the broken
+tree. `a-supersession-outlives-its-own-frame` adds the reason one can
+be: **the tree cannot be broken past it.** The lane built four
+falsifications of `frame.rs` — `apply`'s `Keep` arm clearing, `acts`
+returning `true`, `apply`'s `Expire` going subject-blind,
+`batch_status`'s acting arm keeping — and in every direction three to
+five EXISTING rows red first. The row the item proposed could not have
+been the first failure of any of them, so writing it would have added a
+name, not a guard. What was actually missing was a reader's route from
+the stated lifetime to the rows that hold it, which the doc now gives
+by naming them. So before writing an item's suggested row, **mutate the
+code the row would guard and read which rows red** — if the suite
+already reds three deep in every direction, the deliverable is a
+citation and not an assertion, and saying so is a finding rather than a
+skipped chore.
+
+**And check the orchestrator's arithmetic too.** The ruling that item
+carried asserted `Subject::Document` lacks an `Expire` issuer *"where
+three other subjects do"*. `frame::SUBJECTS_WITH_AN_EXPIRY_ISSUER` is
+`[Subject; 2]`, and `vocab.rs` says *"names two of five"* in as many
+words — so the asymmetry the ruling narrowed the item to did not exist
+in the direction it named. The conclusion survived on its other leg,
+which is luck, not method. A ruling is evidence with a name on it, and
+the name is not the evidence.
+
 ## Exit shape
 
 The README states the module map and every item above has landed or
