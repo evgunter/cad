@@ -35,22 +35,35 @@
 //!   makes the pairing at construction and the load side re-runs it);
 //!   a `DocParam` does, because its payload is `pub` and its dimension
 //!   is data. Snapshot only, for the reason above.
-//! - [`first_program_fault`] — profile PROGRAM structure: per-slot
-//!   dimension agreement (V2's role table) and a REPLAY PROBE under
-//!   the document's params whose LATTICE violations refuse (the
-//!   corrupt-file class — no authoring surface produces them);
+//! - [`first_slot_fault`] — every node's SLOT expressions carry the
+//!   dimension their addresses fix (spec D6), by the same
+//!   `Node::slot_dimension_fault` the edit doors ask. EVERY node kind:
+//!   a walk that asked profile programs alone admitted a retyped
+//!   extrude distance the edit door refuses. Snapshot only, for the
+//!   reason above.
+//! - [`first_slot_param_ref_fault`] — every slot expression's
+//!   document-parameter references against the param table, by the
+//!   same `Doc::param_ref_fault` the edit doors ask. An undeclared
+//!   name and a dimension the declaration contradicts are facts about
+//!   the document; a reference that merely fails to EVALUATE is V1
+//!   class 2 and passes. Snapshot only, for the reason above.
+//! - [`first_program_fault`] — profile PROGRAM structure: a REPLAY
+//!   PROBE under the document's params whose LATTICE violations refuse
+//!   (the corrupt-file class — no authoring surface produces them);
 //!   resolve failures and geometry refusals PASS this door (V1
 //!   class 2: refusing programs may exist at rest — they surface as
-//!   typed node errors at evaluation). The retired stored-joint walk
-//!   died with stored joints: programs persist no derived values.
+//!   typed node errors at evaluation). A step argument's dimension is
+//!   the slot walk's above, not a second spelling here. The retired
+//!   stored-joint walk died with stored joints: programs persist no
+//!   derived values.
 //! - [`validate_snapshot`] — the document invariants `apply`
 //!   maintains, re-checked structurally (a parsed snapshot is not
 //!   trusted; an in-memory one can be corrupted through the `pub`
 //!   payload or an in-crate bug). Every rule an edit door also decides
 //!   is DELEGATED to the one predicate both doors ask, and this walk
 //!   only names the answer in the load door's vocabulary:
-//!   `doc::epsilon_admissible`, `DocParam::is_continuous_count`,
-//!   `doc::witness_site_fault`, `doc::placement_fault`,
+//!   `doc::epsilon_admissible`, `doc::witness_site_fault`,
+//!   `doc::placement_fault`,
 //!   `Node::placement_rule_fault`, `Node::input_fault`,
 //!   `Node::measure_fault`, `Node::bad_declare_input`,
 //!   `Node::assertion_bound_fault`, `Node::has_non_finite_alignment`,
@@ -70,13 +83,13 @@
 //! [`crate::edit::apply`].
 
 use crate::appearance::AppearanceRecord;
-use crate::distribution::{DistributionFault, DistributionField};
-use crate::doc::{DocParam, ParamName, PlacementFault, WitnessSiteFault};
+use crate::distribution::DistributionFault;
+use crate::doc::{DocParam, DocParamField, ParamName, PlacementFault, WitnessSiteFault};
 use crate::edit::DocEdit;
 use crate::meta::MetaVersionError;
 use crate::names::StableName;
 use crate::node::SlotId;
-use crate::node::{AssertionBoundFault, Node, RecipeNodeId};
+use crate::node::{AssertionBoundFault, Node, RecipeNodeId, SlotDimensionFault};
 use crate::program::{ProfileDoc, ProfileProgram, ProgramRefusal};
 use crate::resolve::derivation_nodes;
 use geom_core::Tol;
@@ -90,12 +103,11 @@ pub enum NonFiniteSite {
     DocParam {
         /// The parameter.
         name: ParamName,
-        /// Which distribution offset is not finite, when the defect
-        /// is in the ANNOTATION rather than in the nominal; `None`
-        /// when it is the nominal itself. The walk has to identify
-        /// the field to decide there is a defect at all, so it says
-        /// which one rather than discarding the answer.
-        field: Option<DistributionField>,
+        /// Which float of the parameter it is — the nominal, or the
+        /// annotation's offset. The walk has to identify the field to
+        /// decide there is a defect at all, so it says which one
+        /// rather than discarding the answer.
+        field: DocParamField,
     },
     /// A float inside an appearance record's metadata (snapshot).
     Metadata {
@@ -123,17 +135,13 @@ impl core::fmt::Display for NonFiniteSite {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Epsilon => f.write_str("the recorded ε"),
-            Self::DocParam { name, field: None } => {
-                write!(f, "document parameter {:?}", name.0)
-            }
             Self::DocParam {
                 name,
-                field: Some(field),
-            } => write!(
-                f,
-                "document parameter {:?}, distribution field {field}",
-                name.0
-            ),
+                field: DocParamField::Nominal,
+            } => write!(f, "document parameter {:?}", name.0),
+            Self::DocParam { name, field } => {
+                write!(f, "document parameter {:?}, {field}", name.0)
+            }
             Self::Metadata { name, key, path } => {
                 write!(f, "metadata {key:?} on the {name}, at {path}")
             }
@@ -144,9 +152,15 @@ impl core::fmt::Display for NonFiniteSite {
 
 /// The shared validator (module docs): every direction-independent
 /// document check, in one place, invoked by both doors. Check order
-/// is float walk → distribution walk → program walk → structural
+/// is float walk → distribution walk → display-unit walk → SLOT walks
+/// (dimension, then param refs) → program walk → structural
 /// invariants (the save door's historical precedence, pinned by the
 /// refusal suite).
+///
+/// The slot walk runs before the program walk because the program
+/// walk PROBES the replay: a step whose argument is an angle where the
+/// role fixes a length is not a walk worth probing, and "your loop is
+/// not a legal lattice walk" is the wrong sentence for it.
 pub(crate) fn validate_document(
     snapshot: &ProfileDoc,
     edits: &[DocEdit<ProfileProgram>],
@@ -164,6 +178,41 @@ pub(crate) fn validate_document(
             unit,
             declared,
         });
+    }
+    if let Some((node, fault)) = first_slot_fault(snapshot) {
+        return Err(super::PersistError::Snapshot(match fault {
+            SlotDimensionFault::MissingExpression { slot } => {
+                SnapshotError::SlotExpressionMissing { node, slot }
+            }
+            SlotDimensionFault::Mismatch {
+                slot,
+                expected,
+                found,
+            } => SnapshotError::SlotDimension {
+                node,
+                slot,
+                expected,
+                found,
+            },
+        }));
+    }
+    if let Some((node, slot, fault)) = first_slot_param_ref_fault(snapshot) {
+        return Err(super::PersistError::Snapshot(match fault {
+            crate::doc::ParamRefFault::Unknown { name } => {
+                SnapshotError::SlotUnknownDocParam { node, slot, name }
+            }
+            crate::doc::ParamRefFault::Dimension {
+                name,
+                declared,
+                referenced,
+            } => SnapshotError::SlotDocParamDimension {
+                node,
+                slot,
+                name,
+                declared,
+                referenced,
+            },
+        }));
     }
     if let Some((node, fault)) = first_program_fault(snapshot, tol) {
         return Err(super::PersistError::ProfileProgram { node, fault });
@@ -200,6 +249,42 @@ fn first_display_unit_fault(
             (measured != *dim).then(|| (name.clone(), measured, *dim))
         }
         DocParam::Count { .. } => None,
+    })
+}
+
+/// The first node whose slots break spec D6's rule, by the ONE
+/// predicate the edit doors ask ([`Node::slot_dimension_fault`]) — so
+/// a file can carry no slot expression an edit door would have
+/// refused, whatever the node kind.
+///
+/// EVERY node kind, which is the whole point: a walk that asked only
+/// profile programs admitted a retyped extrude distance, a fillet
+/// radius that counts and a dimensionless datum origin.
+fn first_slot_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotDimensionFault)> {
+    snapshot
+        .nodes
+        .iter()
+        .find_map(|(&id, node)| Some((id, node.slot_dimension_fault()?)))
+}
+
+/// The first slot expression whose document-parameter references the
+/// param table cannot answer, by the ONE predicate the edit doors ask
+/// ([`crate::Doc::param_ref_fault`]).
+///
+/// Runs after the dimension walk above, so a slot broken both ways is
+/// diagnosed at its own address first. A reference that does not
+/// RESOLVE is not the same class as one the table refuses: a legal
+/// reference whose value fails to evaluate is V1 class 2 and passes
+/// every door here, while an undeclared name and a dimension the
+/// declaration contradicts are both facts about the document itself.
+fn first_slot_param_ref_fault(
+    snapshot: &ProfileDoc,
+) -> Option<(RecipeNodeId, SlotId, crate::doc::ParamRefFault)> {
+    snapshot.nodes.iter().find_map(|(&id, node)| {
+        node.slots().into_iter().find_map(|slot| {
+            let fault = snapshot.param_ref_fault(node.expr(slot)?)?;
+            Some((id, slot, fault))
+        })
     })
 }
 
@@ -250,30 +335,16 @@ fn first_non_finite(
     None
 }
 
+/// The parameter's non-finite float as THIS door names it: the one
+/// predicate `DocParam::first_non_finite` decides, rendered as the
+/// site vocabulary a document author reads. The distribution's offsets
+/// belong to this walk rather than to a second spelling of the same
+/// defect — the shape invariants are `first_distribution_fault`'s.
 fn param_site(name: &ParamName, p: &DocParam) -> Option<NonFiniteSite> {
-    let site = |field| NonFiniteSite::DocParam {
+    Some(NonFiniteSite::DocParam {
         name: name.clone(),
-        field,
-    };
-    match p {
-        DocParam::Continuous { value, .. } if !value.is_finite() => Some(site(None)),
-        // The distribution's offsets are floats the format writes, so
-        // they belong to THIS walk rather than to a second spelling of
-        // the same defect; the shape invariants are
-        // `first_distribution_fault`'s. The offending field rides
-        // along: the walk computes it to answer at all, and a
-        // diagnostic that names `sigma` beats one that names only the
-        // parameter.
-        DocParam::Continuous {
-            distribution: Some(d),
-            ..
-        } if d.first_non_finite().is_some() => Some(site(d.first_non_finite())),
-        // EXHAUSTIVE on purpose: a guarded arm does not count towards
-        // exhaustiveness, so the finite `Continuous` case is spelled
-        // out alongside the float-free ones rather than swept up by a
-        // wildcard that would also swallow a future float carrier.
-        DocParam::Continuous { .. } | DocParam::Count { .. } => None,
-    }
+        field: p.first_non_finite()?,
+    })
 }
 
 /// The first document parameter whose distribution breaks an E2
@@ -314,7 +385,7 @@ fn edit_non_finite(edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
             value: crate::doc::DocParamValue::Continuous(v),
         } if !v.is_finite() => Some(NonFiniteSite::DocParam {
             name: name.clone(),
-            field: None,
+            field: DocParamField::Nominal,
         }),
         // The annotation door's whole payload is a distribution, so
         // its offsets are floats the format writes and they belong to
@@ -323,9 +394,9 @@ fn edit_non_finite(edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
         DocEdit::SetDocParamDistribution {
             name,
             distribution: Some(d),
-        } if d.first_non_finite().is_some() => Some(NonFiniteSite::DocParam {
+        } => Some(NonFiniteSite::DocParam {
             name: name.clone(),
-            field: d.first_non_finite(),
+            field: DocParamField::Offset(d.first_non_finite()?),
         }),
         DocEdit::SetAppearanceMeta { name, key, value } => {
             value
@@ -359,8 +430,8 @@ fn edit_non_finite(edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
         DocEdit::SetDocParamValue { .. }
         // A notation is a table code, not a float.
         | DocEdit::SetDocParamUnit { .. }
-        // The guarded arm above, unguarded: a cleared annotation
-        // carries no float, and a finite one has nothing to report.
+        // The partial arm above, completed: a CLEARED annotation
+        // carries no float at all.
         | DocEdit::SetDocParamDistribution { .. }
         | DocEdit::InsertNode { .. }
         // A list of node ids carries no float.
@@ -433,12 +504,6 @@ pub enum SnapshotError {
         /// The offending node id.
         node: RecipeNodeId,
     },
-    /// A continuous parameter declared with the Count dimension
-    /// (`apply` refuses this; a file must not smuggle it).
-    CountContinuous {
-        /// The parameter.
-        name: ParamName,
-    },
     /// The recorded ε is not finite and strictly positive.
     EpsilonInvalid {
         /// The recorded value.
@@ -498,6 +563,64 @@ pub enum SnapshotError {
         node: RecipeNodeId,
         /// What is wrong with it.
         fault: crate::node::PlacementRuleFault,
+    },
+    /// A node whose SLOT expression is of another dimension than the
+    /// slot address fixes (spec D6, [`crate::SlotId::dimension`]), for
+    /// any node kind — a profile step's argument, an extrude's
+    /// distance, a datum's coordinate. The edit doors refuse it
+    /// through the same predicate (`Node::slot_dimension_fault`), so a
+    /// file carrying one is data the edit doors could not have
+    /// produced.
+    SlotDimension {
+        /// The offending node.
+        node: RecipeNodeId,
+        /// The offending slot.
+        slot: SlotId,
+        /// The dimension the address fixes.
+        expected: crate::expr::Dimension,
+        /// The expression's dimension.
+        found: crate::expr::Dimension,
+    },
+    /// A node whose SLOT expression reads a document parameter the
+    /// document does not declare. The edit door refuses it through the
+    /// same predicate (`Doc::param_ref_fault`), and re-asks it of
+    /// every slot whenever a declaration lands, so a file carrying one
+    /// is data the edit doors could not have produced.
+    SlotUnknownDocParam {
+        /// The offending node.
+        node: RecipeNodeId,
+        /// The slot whose expression reads it.
+        slot: SlotId,
+        /// The name it reads.
+        name: ParamName,
+    },
+    /// A node whose SLOT expression reads a declared parameter at
+    /// another dimension than it was declared with — the pairing a
+    /// (re)declaration can break, refused rather than resolved to
+    /// whichever of the two the reader happens to trust.
+    SlotDocParamDimension {
+        /// The offending node.
+        node: RecipeNodeId,
+        /// The slot whose expression reads it.
+        slot: SlotId,
+        /// The name it reads.
+        name: ParamName,
+        /// The dimension the declaration carries.
+        declared: crate::expr::Dimension,
+        /// The dimension the expression reads it at.
+        referenced: crate::expr::Dimension,
+    },
+    /// A node that names a slot it cannot answer for. `Node::slots`
+    /// and `Node::expr` agree by construction, so this is a vocabulary
+    /// bug in the node layer rather than a property of the file —
+    /// surfaced rather than skipped, at this door as at the edit door
+    /// ([`crate::EditError::UnknownSlot`]), because a slot that cannot
+    /// be read is a slot no rule above can decide.
+    SlotExpressionMissing {
+        /// The offending node.
+        node: RecipeNodeId,
+        /// The slot with no expression behind it.
+        slot: SlotId,
     },
     /// A measure node whose expression reads a reference the node does
     /// not carry (E3). The expression indexes the reference list
@@ -607,11 +730,6 @@ impl core::fmt::Display for SnapshotError {
                 "a witness is attached to node {}, which is not live",
                 node.0
             ),
-            Self::CountContinuous { name } => write!(
-                f,
-                "continuous parameter {:?} is declared with the count dimension",
-                name.0
-            ),
             Self::EpsilonInvalid { value } => write!(
                 f,
                 "the recorded ε {value:e} is not finite and strictly positive"
@@ -653,6 +771,65 @@ impl core::fmt::Display for SnapshotError {
             Self::PlacementRule { node, fault } => {
                 write!(f, "placement-rule node {}: {fault}", node.0)
             }
+            // A PROGRAM slot's address is spelled out rather than
+            // dumped: `SlotId::Profile`'s three fields are the
+            // location, and a derived rendering would put the struct's
+            // own braces in a user's message.
+            Self::SlotDimension {
+                node,
+                slot: SlotId::Profile { loop_, step, arg },
+                expected,
+                found,
+            } => write!(
+                f,
+                "node {}: loop {loop_} step {step}'s {} argument needs {} {expected} \
+                 expression, got {} {found}",
+                node.0,
+                arg.label(),
+                expected.article(),
+                found.article()
+            ),
+            Self::SlotDimension {
+                node,
+                slot,
+                expected,
+                found,
+            } => write!(
+                f,
+                "node {}: slot {} needs {} {expected} expression, got {} {found}",
+                node.0,
+                slot.label(),
+                expected.article(),
+                found.article()
+            ),
+            Self::SlotUnknownDocParam { node, slot, name } => write!(
+                f,
+                "node {}: slot {} reads the parameter {:?}, which the document does not declare",
+                node.0,
+                slot.label(),
+                name.0
+            ),
+            Self::SlotDocParamDimension {
+                node,
+                slot,
+                name,
+                declared,
+                referenced,
+            } => write!(
+                f,
+                "node {}: slot {} reads the parameter {:?} as {} {referenced}, and it is \
+                 declared {declared}",
+                node.0,
+                slot.label(),
+                name.0,
+                referenced.article()
+            ),
+            Self::SlotExpressionMissing { node, slot } => write!(
+                f,
+                "node {} names the slot {} and carries no expression for it",
+                node.0,
+                slot.label()
+            ),
             Self::MeasureRefs { node, fault } => {
                 write!(f, "measure node {}: {fault}", node.0)
             }
@@ -710,14 +887,6 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
     // door asks before it records one.
     if !crate::doc::epsilon_admissible(doc.epsilon) {
         return Err(SnapshotError::EpsilonInvalid { value: doc.epsilon });
-    }
-    // The structural/continuous divide, by the same
-    // `DocParam::is_continuous_count` the create-or-replace edit door
-    // asks of a declaration it is handed.
-    for (name, p) in &doc.params {
-        if p.is_continuous_count() {
-            return Err(SnapshotError::CountContinuous { name: name.clone() });
-        }
     }
     // Every id in the document stays below the mint counter — replay
     // after load must never re-mint a referenced id.
@@ -906,22 +1075,18 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
 }
 
 /// A profile PROGRAM structure fault (the retired stored-joint walk's
-/// successor at the program layer): a wrong-dimension argument, or a
-/// lattice-violating step order. Both are the corrupt-file class — the
-/// payload is `pub`, so an in-crate bug can also build one; both doors
-/// refuse with the same diagnostics.
+/// successor at the program layer): a lattice-violating step order.
+/// It is the corrupt-file class — the payload is `pub`, so an in-crate
+/// bug can also build one; both doors refuse with the same
+/// diagnostics.
+///
+/// A wrong-dimension ARGUMENT is not here. A program slot is a slot
+/// like any other, so it is decided by the document-wide slot walk
+/// ([`SnapshotError::SlotDimension`], `Node::slot_dimension_fault`)
+/// that the edit doors ask too, rather than by a second spelling that
+/// reached profile nodes alone.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramFault {
-    /// A program slot's expression has the wrong dimension for its
-    /// role (V2's table, [`crate::StepArg::dimension`]).
-    SlotDimension {
-        /// The offending slot.
-        slot: SlotId,
-        /// The role's required dimension.
-        expected: crate::expr::Dimension,
-        /// The expression's dimension.
-        found: crate::expr::Dimension,
-    },
     /// The program is not a legal lattice walk (LIB-SWITCH §4h: the
     /// replay PROBE under the document's params refused with the
     /// Transition class — no authoring surface can record this).
@@ -947,41 +1112,11 @@ pub enum ProgramFault {
 // the probe raised — and then names the tip state and the verb that
 // could not follow it, keeping their `Debug` spellings for the reason
 // `profile`'s `ReplayError` rendering states: the pair is the
-// transition table's coordinate. The dimensions beside them are
-// quantity kinds, so they render as words (`Dimension`'s `Display`),
-// and the slot and the step argument render through their own prose
-// spellings ([`SlotId::label`], [`crate::StepArg::label`]). The typed
-// variant remains the machine contract.
+// transition table's coordinate. The typed variant remains the
+// machine contract.
 impl core::fmt::Display for ProgramFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            // A program fault's slot is a program slot, whose address
-            // is spelled out rather than dumped: `SlotId::Profile`'s
-            // three fields are the location, and a derived rendering
-            // would put the struct's own braces in a user's message.
-            Self::SlotDimension {
-                slot: SlotId::Profile { loop_, step, arg },
-                expected,
-                found,
-            } => write!(
-                f,
-                "loop {loop_} step {step}'s {} argument needs {} {expected} \
-                 expression, got {} {found}",
-                arg.label(),
-                expected.article(),
-                found.article()
-            ),
-            Self::SlotDimension {
-                slot,
-                expected,
-                found,
-            } => write!(
-                f,
-                "slot {} needs {} {expected} expression, got {} {found}",
-                slot.label(),
-                expected.article(),
-                found.article()
-            ),
             Self::Lattice {
                 loop_,
                 step,
@@ -1003,7 +1138,7 @@ impl core::fmt::Display for ProgramFault {
 
 /// The first program fault in the SNAPSHOT's profile nodes (module
 /// docs). The edit log needs no twin: logged edits replay through
-/// `apply`, whose own doors (slot dimension checks + the VQ9
+/// `apply`, whose own doors (the shared slot rule + the VQ9
 /// authoring-time check) refuse the same faults at the same load.
 ///
 /// A program whose Exprs fail to RESOLVE under the document's params
@@ -1013,27 +1148,11 @@ impl core::fmt::Display for ProgramFault {
 /// surface as the node's typed evaluation error; no silent acceptance
 /// exists (review NOTE-1).
 fn first_program_fault(snapshot: &ProfileDoc, tol: Tol) -> Option<(RecipeNodeId, ProgramFault)> {
-    use crate::program::ProfilePayload as _;
     let env = snapshot.param_env::<f64>();
     for (&id, node) in &snapshot.nodes {
         let Node::Profile(program) = node else {
             continue;
         };
-        for slot in program.slots() {
-            let Some(expr) = crate::program::ProfilePayload::expr(program, slot) else {
-                continue;
-            };
-            if expr.dim() != slot.dimension() {
-                return Some((
-                    id,
-                    ProgramFault::SlotDimension {
-                        slot,
-                        expected: slot.dimension(),
-                        found: expr.dim(),
-                    },
-                ));
-            }
-        }
         if let Err(ProgramRefusal::Transition {
             loop_,
             step,

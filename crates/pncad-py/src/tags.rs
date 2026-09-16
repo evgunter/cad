@@ -1656,7 +1656,6 @@ pub fn part_fault_tag(fault: &pncad::document::PartFault) -> &'static str {
 /// message; what crosses here is the word a caller branches on.
 pub fn program_fault_tag(fault: &ProgramFault) -> &'static str {
     match fault {
-        ProgramFault::SlotDimension { .. } => "slot_dimension",
         ProgramFault::Lattice { .. } => "lattice",
     }
 }
@@ -1677,7 +1676,10 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::DeclareInput { .. } => "declare_input",
         SnapshotError::WitnessSite { .. } => "witness_site",
         SnapshotError::WitnessOnMissingNode { .. } => "witness_on_missing_node",
-        SnapshotError::CountContinuous { .. } => "count_continuous",
+        SnapshotError::SlotDimension { .. } => "slot_dimension",
+        SnapshotError::SlotExpressionMissing { .. } => "slot_expression_missing",
+        SnapshotError::SlotUnknownDocParam { .. } => "slot_unknown_doc_param",
+        SnapshotError::SlotDocParamDimension { .. } => "slot_doc_param_dimension",
         SnapshotError::EpsilonInvalid { .. } => "epsilon_invalid",
         // The product-root list's own invariant vocabulary, carried
         // through: a root fault is the same fact here as at the edit

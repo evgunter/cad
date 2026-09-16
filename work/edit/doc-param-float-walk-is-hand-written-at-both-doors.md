@@ -2,7 +2,9 @@
 id: doc-param-float-walk-is-hand-written-at-both-doors
 kind: issue
 title: A doc param's finiteness is spelled twice: param_site at the load door, SetDocParam at the edit door
-status: dispatched
+status: review
+pr: PRNUM
+branch: edit/one-predicate-round-three
 opened: 2026-09-16
 refs: [three-door-predicates-are-hand-copied-not-shared]
 ---
@@ -53,3 +55,26 @@ this a unit rather than a follow-through.
 Built by the unit `edit/one-predicate-round-three`, whose spec is the
 `## Spec` section of `load-door-checks-slot-dimensions-for-profile-nodes-only`;
 this row's decision is ruled there.
+
+## Built (2026-09-16, `edit/one-predicate-round-three`)
+
+One predicate beside `DocParam`: `DocParam::first_non_finite() ->
+Option<DocParamField>` — the nominal, or which distribution offset —
+asked by `write_doc_param` (every parameter door's shared tail) and by
+the load door's `param_site`.
+
+The move is toward the richer answer, as this row said: the edit
+door's refusal carries the field too
+(`EditError::NonFiniteDocParam { name, field }`), and so does the load
+door's site, which now spells the nominal as `DocParamField::Nominal`
+rather than as an absent `DistributionField`. `DocParamField` is the
+one word for that answer at both doors; the F6 row and the existing
+rows that read either refusal now pin WHICH float.
+
+`edit_one_predicate::a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field`
+is the both-doors row, over the nominal and over a sigma.
+
+Outside EDIT's fence, mechanical: `crates/pncad/src/document.rs`
+carries `DocParamField`, `crates/pncad-py/src/edit_payload.rs` names
+the new field as uncrossed, and the binding census lists it as
+flattened. LIB's files.

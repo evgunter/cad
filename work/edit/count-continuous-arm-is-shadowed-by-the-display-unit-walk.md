@@ -2,7 +2,9 @@
 id: count-continuous-arm-is-shadowed-by-the-display-unit-walk
 kind: issue
 title: SnapshotError::CountContinuous is unreachable: the display-unit walk refuses first
-status: dispatched
+status: review
+pr: PRNUM
+branch: edit/one-predicate-round-three
 opened: 2026-09-16
 refs: [three-door-predicates-are-hand-copied-not-shared]
 ---
@@ -59,3 +61,23 @@ that refusal is reachable and pinned.
 Built by the unit `edit/one-predicate-round-three`, whose spec is the
 `## Spec` section of `load-door-checks-slot-dimensions-for-profile-nodes-only`;
 this row's decision is ruled there.
+
+## Built (2026-09-16, `edit/one-predicate-round-three`)
+
+`SnapshotError::CountContinuous` and the `validate_snapshot` walk that
+raised it are deleted, and the `count_continuous` tag is retired —
+the first of the three readings this row listed, ruled by the
+implementer discipline's own rule that a guard nothing can reach is
+documentation whose repair is deletion.
+
+The row that measured the shadow
+(`edit_one_predicate::a_continuous_parameter_declared_count_is_refused_at_both_doors`)
+keeps asserting what the load door actually answers, `PersistError::
+DisplayUnit { declared: Count, .. }`, and its doc now states the
+divide's one home rather than pointing at a filed gap. The edit door's
+half is untouched and still reachable: `DocParam::is_continuous_count`
+is asked by `SetDocParam`, and its rustdoc says why that is the only
+door where it can fire.
+
+Outside EDIT's fence, mechanical: `crates/pncad-py/src/tags.rs` and
+`src/tests.rs` lose the tag word. LIB's files.

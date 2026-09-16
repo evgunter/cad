@@ -300,21 +300,26 @@ refusal the function can produce, whether the predicate behind it is
 DELEGATED (one function both doors call) or HAND-WRITTEN at this door,
 and what its edit-door twin is.
 
-`validate_document` calls five walks, in this order. A refusal from an
+`validate_document` calls six walks, in this order. A refusal from an
 earlier walk shadows a later one for the same document — which is
 itself a census entry below, not a footnote.
+
+**Re-read at `edit/one-predicate-round-three`'s head**, which moved
+entries 2, 7 and 9; the rest of the table is the reading above,
+unchanged.
 
 | # | Walk | Refusal | Predicate | Edit-door twin |
 | --- | --- | --- | --- | --- |
 | 1 | `first_non_finite` | `PersistError::NonFinite { site: Epsilon }` | hand-written (`!epsilon.is_finite()`) | `SetTolerance`'s `InvalidTolerance`, whose rule is `doc::epsilon_admissible` — **this walk asks the finiteness half a second time**, and shadows entry 8 for a non-finite ε. Kept: the two report different facts (WHICH float the format cannot write, against WHICH rule the ε breaks), and the float walk is the D2 round-trip class. |
-| 2 | `first_non_finite` | `NonFinite { site: DocParam }` | hand-written (`param_site`) | `SetDocParam`'s `NonFiniteDocParam` — the same `is_finite` over the nominal and the distribution offsets, in two walks. A predicate over one `DocParam` would have one home; not moved here, and named as residue below. |
+| 2 | `first_non_finite` | `NonFinite { site: DocParam }` | **delegated** — `DocParam::first_non_finite` | `SetDocParam`'s `NonFiniteDocParam`, same function, and it carries the field the predicate names. Moved by round three. |
 | 3 | `first_non_finite` | `NonFinite { site: Metadata }` | **delegated** — `MetaValue::first_non_finite` | `SetAppearanceMeta`'s `MetaNonFinite`, same function. |
 | 4 | `first_non_finite` | `NonFinite { site: Edit }` | **delegated** — the same `edit_non_finite` over the log | None, and there cannot be: the edit door sees one edit, not a log. |
 | 5 | `first_distribution_fault` | `PersistError::Distribution` | **delegated** — `Distribution::check` | `SetDocParam`'s `InvalidDistribution`, same function. |
 | 6 | `first_display_unit_fault` | `PersistError::DisplayUnit` | **delegated** — `UnitSym::measures` | `SetDocParamUnit`'s `DocParamUnitMismatch`, same function. |
-| 7 | `first_program_fault` | `ProgramFault::SlotDimension`, `ProgramRefusal::Transition` | **HIT (open)** for the slot walk — `edit.rs`'s `check_node_slots` spells the same rule over every node kind; **delegated** for the replay probe (`ProfileProgram::check`, which `InsertNode`'s VQ9 door also calls) | `EditError::SlotDimensionMismatch`. Filed as `load-door-checks-slot-dimensions-for-profile-nodes-only` and measured by the `load_door_slot_dimension` suite; a unit rather than a follow-through, for the three questions that row names. |
+| 6a | `first_slot_fault` | `SnapshotError::SlotDimension` / `SlotExpressionMissing` | **delegated** — `Node::slot_dimension_fault`, over `Node::slots()` for EVERY node kind | `check_node_slots`'s `SlotDimensionMismatch` / `UnknownSlot`. Moved by round three: the walk was `first_program_fault`'s and reached profile nodes only, so a retyped extrude distance loaded clean. |
+| 7 | `first_program_fault` | `ProgramRefusal::Transition` | **delegated** — `ProfileProgram::check`, which `InsertNode`'s VQ9 door also calls | `EditError::ProfileProgramRefused`. The slot half left this walk for entry 6a; `ProgramFault::SlotDimension` is gone with it. |
 | 8 | `validate_snapshot` | `EpsilonInvalid` | **delegated** — `doc::epsilon_admissible` | `SetTolerance`'s `InvalidTolerance`. Moved by this unit. |
-| 9 | `validate_snapshot` | `CountContinuous` | **delegated** — `DocParam::is_continuous_count` | `SetDocParam`'s `ContinuousParamCannotBeCount`. Moved by this unit. The arm is UNREACHABLE through `validate_document`, because entry 6 runs first and no unit measures a count — filed as `count-continuous-arm-is-shadowed-by-the-display-unit-walk`. |
+| 9 | — | (was `CountContinuous`) | — | The arm was UNREACHABLE through `validate_document`, because entry 6 runs first and no unit measures a count. Round three deleted it and retired its tag; the structural/continuous divide is `SetDocParam`'s `ContinuousParamCannotBeCount`, and the load door's answer for the same document is entry 6. |
 | 10 | `validate_snapshot` | `OrderMismatch` | hand-written | **No twin.** `order` against the node map is a file's fact; `apply` maintains the two together by construction. |
 | 11 | `validate_snapshot` | `IdBeyondCounter` | hand-written (`check_id`, one closure, six call sites) | **No twin.** The mint counter is `apply`'s own monotone state. |
 | 12 | `validate_snapshot` | `DanglingInput` | hand-written | `InsertNode`/`SetMembers`'s `UnresolvedInput`. **Irreducible**: the rule IS `doc.nodes.contains_key`, which both sites already call — there is no predicate between them to extract, only a different subject. Said at both sites. |
@@ -341,10 +346,13 @@ instantiate seats, the workspace store's scan, and
 `ProfileProgram::from_recorded`.
 
 **Residue disclosed by this census, filed rather than left here**:
-entry 2 (the doc-param float walk, hand-written at both doors) is
-`doc-param-float-walk-is-hand-written-at-both-doors`; entry 9's shadow
-is `count-continuous-arm-is-shadowed-by-the-display-unit-walk`; entry
-7 remains `load-door-checks-slot-dimensions-for-profile-nodes-only`.
+entry 2 was `doc-param-float-walk-is-hand-written-at-both-doors`,
+entry 9's shadow was
+`count-continuous-arm-is-shadowed-by-the-display-unit-walk`, entry 7's
+narrowing was
+`load-door-checks-slot-dimensions-for-profile-nodes-only`. All three
+are built and closed on this census by
+`edit/one-predicate-round-three`; no entry above is an open hit.
 
 ## Closed (2026-09-16, EDIT orchestrator)
 

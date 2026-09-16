@@ -1175,6 +1175,39 @@ impl core::fmt::Display for MeasureNodeFault {
 
 impl core::error::Error for MeasureNodeFault {}
 
+/// **What makes a node's SLOT unusable** ([`Node::slot_dimension_fault`];
+/// spec D6) — one vocabulary for the edit doors and the load door, so
+/// the rule "a slot's expression carries the dimension the slot
+/// address fixes" has one definition rather than one per door.
+///
+/// The domain is [`Node::slots`], which is EVERY node kind: a profile
+/// program's step arguments, an extrude's distance, a datum's
+/// coordinates and a pattern's count are the same question asked of
+/// different addresses, and a door that asks it of one kind admits
+/// files the other doors could not have produced.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SlotDimensionFault {
+    /// [`Node::slots`] names a slot [`Node::expr`] does not answer
+    /// for. The two agree by construction, so this is a vocabulary
+    /// bug in the node layer rather than a property of the document —
+    /// surfaced at both doors rather than skipped, because a slot that
+    /// cannot be read is a slot nothing checks.
+    MissingExpression {
+        /// The slot with no expression behind it.
+        slot: SlotId,
+    },
+    /// The slot's expression is of another dimension than the slot
+    /// address fixes ([`SlotId::dimension`]).
+    Mismatch {
+        /// The offending slot.
+        slot: SlotId,
+        /// The dimension the address fixes.
+        expected: Dimension,
+        /// The expression's dimension.
+        found: Dimension,
+    },
+}
+
 /// What makes a [`Node::Assertion`]'s bound unusable
 /// ([`Node::assertion_bound_fault`]) — one vocabulary for the edit
 /// door and the load door's re-check.
@@ -3118,6 +3151,37 @@ impl<P> Node<P> {
             Some(fault) => Err(fault),
             None => Ok(node),
         }
+    }
+
+    /// **The slot-dimension rule, asked of this node** (spec D6):
+    /// every slot [`Node::slots`] names answers an expression, and
+    /// that expression carries the dimension [`SlotId::dimension`]
+    /// fixes for the address. `None` when the node carries no slot at
+    /// all, which is most of the assembly vocabulary.
+    ///
+    /// One home for the question, read by the edit doors
+    /// (`check_node_slots`) and by the load door's walk, each naming
+    /// the answer in its own vocabulary. The `pub` payloads are what
+    /// make a violation reachable: a hand-built node and a corrupt
+    /// file can both state one, and neither may reach a document the
+    /// edit doors could not have produced.
+    pub(crate) fn slot_dimension_fault(&self) -> Option<SlotDimensionFault>
+    where
+        P: crate::ProfilePayload,
+    {
+        self.slots()
+            .into_iter()
+            .find_map(|slot| match self.expr(slot) {
+                None => Some(SlotDimensionFault::MissingExpression { slot }),
+                Some(expr) if expr.dim() != slot.dimension() => {
+                    Some(SlotDimensionFault::Mismatch {
+                        slot,
+                        expected: slot.dimension(),
+                        found: expr.dim(),
+                    })
+                }
+                Some(_) => None,
+            })
     }
 
     /// What is wrong with this node's measured expression, if anything

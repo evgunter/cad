@@ -2,7 +2,9 @@
 id: load-door-checks-slot-dimensions-for-profile-nodes-only
 kind: issue
 title: The load door re-spells the slot-dimension predicate and asks it of profile nodes only
-status: dispatched
+status: review
+pr: PRNUM
+branch: edit/one-predicate-round-three
 opened: 2026-09-16
 ---
 
@@ -111,3 +113,43 @@ is documentation whose repair is deletion
    the `validate_document` census on `three-door-predicates-are-hand-copied-not-shared`
    at your head and update it in place (the census is that row's
    `## Census`); the three rows close on it.
+
+## Built (2026-09-16, `edit/one-predicate-round-three`)
+
+One predicate, one home: `Node::slot_dimension_fault` walks
+`Node::slots()` for EVERY node kind and answers `SlotDimensionFault`
+(`Mismatch`, or `MissingExpression` — the edit door's `UnknownSlot`
+reading, a fault at both doors rather than a `continue`). Both doors
+name that answer: `check_node_slots` as `EditError::SlotDimensionMismatch`
+/ `UnknownSlot`, and `validate_document`'s new `first_slot_fault` walk
+as `SnapshotError::SlotDimension { node, slot, expected, found }` /
+`SlotExpressionMissing { node, slot }`, with their tags and their F6
+rows.
+
+The walk runs BEFORE the program walk, because the program walk probes
+the replay and a step whose argument is the wrong quantity is not a
+walk worth probing. Measured there: `ProgramFault::SlotDimension` is
+then unreachable, so it is deleted and its tag retired — a program
+slot is a slot like any other, and the profile-only spelling was the
+narrowing this row named.
+
+The load door also asks the PARAM TABLE's half, as this row's spec
+rules: `Doc::param_ref_fault` is a second predicate given one home — a
+slot expression names a declared parameter and reads it at the
+declared dimension — asked by `check_param_refs`, by the payload-expr
+walk beside it (a third spelling, folded in) and by the load door's
+`first_slot_param_ref_fault`, which answers
+`SnapshotError::SlotUnknownDocParam` / `SlotDocParamDimension`. What
+does NOT follow is a reference that fails to EVALUATE: that is V1
+class 2 and still passes every door here.
+
+The PAYLOAD expressions' half of the param-table rule (a measure's
+expression, an assertion's bound) stays edit-door-only and is filed as
+`load-door-does-not-check-payload-expression-param-refs`.
+
+The measured file — a saved one-extrude document whose distance
+literal is retyped from `Length`/`m` to `Angle`/`rad` on the wire — is
+now refused at both doors, and `load_door_slot_dimension` is the
+red-then-green row for it, with a frame datum's origin component
+beside it as a second node kind. `m4_pr6_refusal`'s program row reads
+the new refusal.

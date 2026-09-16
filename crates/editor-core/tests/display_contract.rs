@@ -749,10 +749,11 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
         &dumps,
     );
 
-    // The load door's checker. Its program-slot arm spells the slot
-    // address out, so only the dimensions are at issue there.
+    // The load door's checker. Its slot arm spells the slot address
+    // out, so only the dimensions are at issue there.
     assert_f6(
-        &ProgramFault::SlotDimension {
+        &SnapshotError::SlotDimension {
+            node: RecipeNodeId(5),
             slot: SlotId::Profile {
                 loop_: 0,
                 step: 2,
@@ -765,7 +766,8 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
         &dumps,
     );
     assert_f6(
-        &ProgramFault::SlotDimension {
+        &SnapshotError::SlotDimension {
+            node: RecipeNodeId(5),
             slot: SlotId::Radius,
             expected: Dimension::Length,
             found: Dimension::Angle,
@@ -806,7 +808,10 @@ test_utils::f6_variants! {
         DeclareInput,
         WitnessSite,
         WitnessOnMissingNode,
-        CountContinuous,
+        SlotDimension,
+        SlotExpressionMissing,
+        SlotUnknownDocParam,
+        SlotDocParamDimension,
         EpsilonInvalid,
         Roots,
         PlacementSite,
@@ -878,10 +883,38 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             vec!["a witness is attached to node 5", "not live"],
         ),
         (
-            SnapshotError::CountContinuous {
-                name: ParamName::new("rows"),
+            SnapshotError::SlotDimension {
+                node,
+                slot: SlotId::Distance,
+                expected: Dimension::Length,
+                found: Dimension::Angle,
             },
-            vec!["continuous parameter", "rows", "count dimension"],
+            vec!["node 5", "slot distance", "needs a length expression"],
+        ),
+        (
+            SnapshotError::SlotExpressionMissing {
+                node,
+                slot: SlotId::Radius,
+            },
+            vec!["node 5", "slot radius", "carries no expression"],
+        ),
+        (
+            SnapshotError::SlotUnknownDocParam {
+                node,
+                slot: SlotId::Radius,
+                name: ParamName::new("fillet"),
+            },
+            vec!["slot radius", "fillet", "does not declare"],
+        ),
+        (
+            SnapshotError::SlotDocParamDimension {
+                node,
+                slot: SlotId::Distance,
+                name: ParamName::new("depth"),
+                declared: Dimension::Angle,
+                referenced: Dimension::Length,
+            },
+            vec!["depth", "as a length", "declared angle"],
         ),
         (
             SnapshotError::EpsilonInvalid { value: 0.0 },
@@ -1622,35 +1655,27 @@ fn naming_error_display_names_its_content_not_its_struct() {
 
 test_utils::f6_variants! {
     /// `ProgramFault`'s census — see [`NODE_PICK_ERROR`]. The load
-    /// door's own refusal over a persisted profile program, whose
-    /// payload is a slot ADDRESS: the fingerprint that reaches a reader
-    /// here is one level down, in [`SlotId`] and [`StepArg`], so the
-    /// case list below bans those two vocabularies' identifiers on top
-    /// of this enum's own.
-    const PROGRAM_FAULT: ProgramFault = [SlotDimension, Lattice];
+    /// door's own refusal over a persisted profile program. A step
+    /// argument's DIMENSION is not here: a program slot is a slot like
+    /// any other, refused by the document-wide slot walk
+    /// ([`SnapshotError::SlotDimension`]), so what is left is the
+    /// replay probe's lattice coordinate.
+    const PROGRAM_FAULT: ProgramFault = [Lattice];
 }
 
-/// A program fault addresses its slot in the slot vocabulary's own
-/// words ([`SlotId::label`], [`StepArg::label`]), not in the enum's.
+/// **A slot refusal addresses its slot in the slot vocabulary's own
+/// words** ([`SlotId::label`], [`StepArg::label`]), not in the enum's
+/// — for every slot address alike, because one predicate decides them
+/// (`Node::slot_dimension_fault`) and one arm renders them.
 ///
-/// **What the ban list holds.** `assert_f6_every_variant` bans
-/// `ProgramFault`'s own two identifiers and the universal brace; the
-/// renderings at risk here carry neither, because what a reverted arm
-/// would leak is a `SlotId` or a `StepArg` identifier. Those are added
-/// through `also_banned`, read off the very values the cases carry
-/// ([`test_utils::f6::variant_identifier`]) so a variant renamed in
-/// `src/` cannot leave this list saying the old name. `SlotId::Profile`
-/// carries a brace in its `Debug` as well, so that arm is held twice.
-///
-/// **What it deliberately does not ban.** The `Lattice` arm renders its
-/// tip state and verb through `Debug`: the pair is the transition
-/// table's own coordinate, which `profile`'s `ReplayError` and this
-/// arm's comment both say, and `Verb`'s `Display` — the authoring
-/// spelling — is a different sentence from the coordinate. Banning
-/// those identifiers here would be this suite deciding a question
-/// settled the other way beside the code.
+/// **What the ban list holds.** What a reverted arm would leak is a
+/// `SlotId` or a `StepArg` identifier. Those are read off the very
+/// values the cases carry ([`test_utils::f6::variant_identifier`]) so
+/// a variant renamed in `src/` cannot leave this list saying the old
+/// name. `SlotId::Profile` carries a brace in its `Debug` as well, so
+/// that arm is held twice.
 #[test]
-fn a_program_fault_addresses_its_slot_in_the_slot_vocabulary() {
+fn a_slot_refusal_addresses_its_slot_in_the_slot_vocabulary() {
     let profile_slot = SlotId::Profile {
         loop_: 1,
         step: 3,
@@ -1663,53 +1688,86 @@ fn a_program_fault_addresses_its_slot_in_the_slot_vocabulary() {
         test_utils::f6::variant_identifier(&StepArg::CenterX),
         test_utils::f6::variant_identifier(&scalar_slot),
         test_utils::f6::variant_identifier(&component_slot),
+        "{".to_string(),
     ];
     let also_banned = as_strs(&banned);
+    let node = RecipeNodeId(7);
 
-    let cases = [
-        (
-            ProgramFault::SlotDimension {
-                slot: profile_slot,
-                expected: Dimension::Length,
-                found: Dimension::Angle,
-            },
-            vec![
-                "loop 1 step 3's centre x argument",
-                "needs a length expression",
-                "got an angle",
-            ],
-        ),
-        (
-            ProgramFault::SlotDimension {
-                slot: scalar_slot,
-                expected: Dimension::Length,
-                found: Dimension::Count,
-            },
-            vec!["slot radius", "needs a length expression", "got a count"],
-        ),
-        (
-            ProgramFault::SlotDimension {
-                slot: component_slot,
-                expected: Dimension::Length,
-                found: Dimension::Scalar,
-            },
-            vec!["slot origin x", "got a scalar"],
-        ),
-        (
-            ProgramFault::Lattice {
-                loop_: 0,
-                step: 2,
-                state: profile::TipState::Entry,
-                verb: None,
-            },
-            vec![
-                "loop 0 step 2",
-                "not a legal chain-lattice walk",
-                "unclosed",
-            ],
-        ),
-    ];
-    assert_f6_every_variant(&cases, &PROGRAM_FAULT, &also_banned);
+    assert_f6(
+        &SnapshotError::SlotDimension {
+            node,
+            slot: profile_slot,
+            expected: Dimension::Length,
+            found: Dimension::Angle,
+        },
+        &[
+            "node 7",
+            "loop 1 step 3's centre x argument",
+            "needs a length expression",
+            "got an angle",
+        ],
+        &also_banned,
+    );
+    assert_f6(
+        &SnapshotError::SlotDimension {
+            node,
+            slot: scalar_slot,
+            expected: Dimension::Length,
+            found: Dimension::Count,
+        },
+        &["slot radius", "needs a length expression", "got a count"],
+        &also_banned,
+    );
+    assert_f6(
+        &SnapshotError::SlotDimension {
+            node,
+            slot: component_slot,
+            expected: Dimension::Length,
+            found: Dimension::Scalar,
+        },
+        &["slot origin x", "got a scalar"],
+        &also_banned,
+    );
+    assert_f6(
+        &SnapshotError::SlotExpressionMissing {
+            node,
+            slot: profile_slot,
+        },
+        &[
+            "node 7",
+            "loop 1 step 3 · centre x",
+            "carries no expression",
+        ],
+        &also_banned,
+    );
+}
+
+/// A program fault states the transition table's coordinate, not its
+/// struct.
+///
+/// **What it deliberately does not ban.** The `Lattice` arm renders its
+/// tip state and verb through `Debug`: the pair is the transition
+/// table's own coordinate, which `profile`'s `ReplayError` and this
+/// arm's comment both say, and `Verb`'s `Display` — the authoring
+/// spelling — is a different sentence from the coordinate. Banning
+/// those identifiers here would be this suite deciding a question
+/// settled the other way beside the code.
+#[test]
+fn a_program_fault_states_its_lattice_coordinate() {
+    let cases = [(
+        ProgramFault::Lattice {
+            loop_: 0,
+            step: 2,
+            state: profile::TipState::Entry,
+            verb: None,
+        },
+        vec![
+            "loop 0 step 2",
+            "not a legal chain-lattice walk",
+            "unclosed",
+        ],
+    )];
+    assert_f6_every_variant(&cases, &PROGRAM_FAULT, &[]);
 }
 
 test_utils::f6_variants! {
