@@ -40,7 +40,7 @@ claims one by `git mv`, per `work/README.md`'s one-file-one-item rule.
 
 | row | the class, as measured |
 | --- | --- |
-| `topo-tests-brick-copies` | **claimed 2026-09-16.** 24 `fn brick` across 23 `crates/topo/tests/` files, every one a line over `common::prism_z`. Its stated blocker — a `topo`→`sweep` dev-dependency — was not one: the copies already build the body the row said they could not, and `topo`'s manifest already carries three edges of that kind. Split; the residue is the row below |
+| `topo-tests-brick-copies` | **claimed 2026-09-16.** 23 `fn brick` across 23 `crates/topo/tests/` files (the row's 24 counted `brick_with_torus_face_at`, a different fixture), every one a line over `common::prism_z`, plus 11 renamed or inline box spellings the name-shaped census could not see. Its stated blocker — a `topo`→`sweep` dev-dependency — was not one: the copies already build the body the row said they could not, and `topo`'s manifest already carries three edges of that kind. Split; the residue is the row below |
 | `tests-common-body-fixtures-triplicated` | `ball`, `donut`, `l_prism` byte-identical across three `tests/common` trees; `cone`, `washer`, `holed_prism` **already drifted**, so it reconciles rather than merges |
 | `mass-properties-bit-comparison-has-thirty-spellings` | ~110 occurrences over 31 files, and the spellings **disagree about whether the pads are in the comparison** — which is what gives the class teeth |
 | `run-with-a-prior-evaluation-has-seven-private-copies` | seven files, of which three are byte-identical pairs: one function and three option presets, written out seven times |

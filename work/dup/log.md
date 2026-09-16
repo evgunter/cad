@@ -72,3 +72,43 @@ Method note for the program: **this is the third time in two programs
 that a row's stated blocker was not its real one.** SUITE's lesson was
 that a row's COUNT is a candidate list; this sitting adds that a row's
 REASON is one too.
+
+### Unit A landed green — and the census was defeated twice more
+
+PR #2720, CI run 35047764757 `success` over the full code-tier matrix
+(12 `test (…)`, 5 `k-lint (gate, …)`; the four skips are the
+interval-transcendentals rows the change filter does not buy for a
+tests-only diff). 34 files, +212/−262.
+
+**The count, third and fourth revisions.** The row said 24 across 22
+suites. The orchestrator's re-take said 24 across 23 files. The truth
+is **23 across 23**: the 24th hit is `brick_with_torus_face_at`, a
+different fixture that calls `brick`, and it survives
+`git grep "fn brick"` but not `git grep -E '\bfn brick\b'`. The
+dispatch carried the unbounded figure and the lane caught it.
+
+**And in the other direction, the class was larger than every count of
+it.** Beyond the 23 named copies the lane converted **11 renamed or
+inline box spellings** — `distant_brick`, two byte-identical `bx`
+twins, `box_at`, `corner_table`'s `top` and `leg`, two `bx` closures
+and six inline pairs. **34 spellings removed.** Every one of them was
+invisible to a name-shaped census and visible to a `prism_z` one:
+method item 2 paying for itself on the program's first unit.
+
+So both halves of method item 1 fired on one row: the count was wrong
+**low** on the population and wrong **high** on the pattern, and
+neither error was the one the row warned about.
+
+**X4 answered rather than assumed.** `brick((0,1),(0,1),(0,1))` is NOT
+a fifth copy of `common::geometric_cube()`, and the lane established it
+by running both rather than by reading: same topology (`v8 e12 f6 s6`)
+and the same operator sequence, but `prism_z` ends with
+`describe_as_intersections` so a brick's transverse edges carry
+`Intersection{..}/Derived`, while `geometric_cube` stops before that
+step and keeps `Scaffold(ExtrudedPoint ..)/Declared` — which is exactly
+what its own rows assert on. The answer is written into `brick`'s doc,
+not left in a PR body.
+
+**Operational note**: `work.py territory --base main` fails with "no
+merge base" inside a fresh agent worktree; `--base origin/main` is what
+to pass there.

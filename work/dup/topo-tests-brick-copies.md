@@ -62,10 +62,16 @@ open against the same home.
 **Census re-taken at `95bb4ba0`** (`git grep -n "fn brick"`, no path
 argument — the only form that makes no path claim):
 
-- **24 declarations across 23 files** in `crates/topo/tests/`. The
-  finding above says 22 suites; the file count is 23, because
-  `review_m3_pr4.rs` declares `brick` and `brick_with_torus_face_at`
-  and was counted once.
+- **23 declarations across 23 files** in `crates/topo/tests/`, one per
+  file. The finding above says 24 across 22 suites, and both halves are
+  wrong in different directions: the file count is 23, and the 24th
+  "declaration" is `review_m3_pr4.rs`'s `brick_with_torus_face_at`,
+  which is a different fixture (a brick with one face relabelled a
+  torus) that *calls* `brick`. It survives an unbounded
+  `git grep "fn brick"` and not a `git grep -E '\bfn brick\b'`; the
+  orchestrator's dispatch carried the unbounded figure and the lane
+  caught it. **Corrected 2026-09-16 from the lane's count, verified at
+  the merge base.**
 - Four more live in `crates/sweep/tests/`
   (`common/cavity.rs`, `blend3_r2_probes.rs` at the two-`Point3`
   signature, and two `use sweep::test_support::brick` importers) — the
@@ -98,10 +104,16 @@ today and option 1 would make it.
 
 ## What this row now is
 
-**Move A only: 24 → 1 inside `topo`, at the home the builder already
-sits in.** One generic `pub fn brick` in
-`crates/topo/tests/common/mod.rs` beside `prism_z`; the 24 copies
-deleted.
+**Move A only: the named copies → 1 inside `topo`, at the home the
+builder already sits in.** One generic `pub fn brick<T: Decide>` in
+`crates/topo/tests/common/mod.rs` beside `prism_z`; the copies deleted.
+
+The class turned out larger than the row again, in the other direction
+from the count: 23 named `fn brick` **plus 11 renamed or inline box
+spellings** the name-shaped census could not see (`distant_brick`,
+two `bx` twins, `box_at`, `corner_table`'s `top`/`leg`, two `bx`
+closures, and six inline pairs). **34 spellings removed.** Method item
+2 — grep the construction, not the name — is what found them.
 
 The remaining half — whether `topo`'s Euler-built brick and `sweep`'s
 extrude-built one are one fixture or two, and where the shared one
