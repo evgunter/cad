@@ -12051,9 +12051,9 @@ number in the row predates it. `batch_status` is at `571-582` and
 reads as the ruling describes.
 
 **The "survives navigation" clause is true, and for two independent
-reasons rather than the one the item gives.** `SessionOp` has 29
-variants and none of them is a camera move — `camera::CameraOp` is its
-own vocabulary — so a fold never reaches `batch_status` at all; and
+reasons rather than the one the item gives.** No `SessionOp` variant is
+a camera move — `camera::CameraOp` is its own vocabulary — so a fold
+never reaches `batch_status` at all; and
 the retirement a clean fold does issue is `Expire(Subject::Camera)`,
 which `apply` drops only against a message whose subject matches.
 Either alone is enough.
