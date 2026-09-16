@@ -12871,6 +12871,46 @@ its sweep ends at a kilometre"*) and
 `the-fields-door-has-no-width-bound-at-all`.
 
 **VIEW stands at 78 open / 106 closed.**
+## 2026-09-16 — the δ door gets an upper bound (`view/render-mm-inf`)
+
+`render-mm-overflows-to-inf-for-a-delta-the-door-accepts` closed.
+`DisplayTolerance::new` accepted any finite δ > 0 and `render_mm` is
+`readout::number(δ * 1.0e3)`, so a δ the door accepted rendered as
+`"inf"`. The item's table was re-measured rather than believed and
+holds in every row; the bisection adds the edge it did not name, which
+is `f64::MAX * 1.0e-3` — the coarsest δ whose millimetre product is
+finite, and also, exactly, the coarsest δ the field's `mm * 1.0e-3`
+commit path can name.
+
+Answered at the door rather than in the render, because past that edge
+the millimetre value is not an `f64` and no text of it reads back as
+one: answering in `render_mm` means a second carve-out at the top of
+the type, which is what the previous unit had just removed a level
+down. `MM_PER_METRE` is now the one factor the door and the render
+both read, and
+`SceneError::DisplayToleranceOverflowsMillimetres` is the typed
+refusal — its own arm because the δ it names IS finite and strictly
+positive and `mesh::tessellate` would take it.
+
+The row over it owed an end regardless and has one: the sweep reaches
+the top of the type, the character bound moved out of the property (the
+band above `1.7975e305` is spelled exactly, at twenty-two characters),
+and past the bound the row asks the door's own answer, so it reds on a
+tree whose door has none. **Base-tree red on both new rows at
+`bfc577bbdd`**, green with the fix — stronger than a planted mutation
+and taken because the defect was live.
+
+Sweep residue filed:
+`renders-that-multiply-a-finite-guarded-length-spell-the-product-inf`
+— the camera readout, `Bounds::wording` and `props::field_text`, all
+three the same *finite guard, multiplication up, render of the
+product* shape and none of them with a door of its own to narrow.
+
+`readout` and `DisplayTolerance` are named in no README roster table
+and in neither design doc; checked rather than assumed, so nothing was
+owed there.
+
+Signed (VIEW implementer lane `view/render-mm-inf`).
 
 ## 2026-09-16 — `view/two-spellings`: rule 1 moves down for the value drag
 
@@ -12985,3 +13025,53 @@ three-layer split and preview-vs-commit, not which layer raises a
 second begin's refusal.
 
 Item **closed**. **VIEW stands at 77 open / 107 closed.**
+## 2026-09-16 — `frame.rs` split in three (lane `view/frame-split`)
+
+`frame-module-has-eight-concerns-and-no-holds-row` is closed. The
+orchestrator's rule was the module's own first sentence — *"the
+per-frame policies the viewport runs, as values, so they are
+replayable"* — and it removes two things: the environment probes, which
+take the machine as their argument and cannot be replayed from any
+value a test builds (`platform.rs`), and the id pass's query
+bookkeeping, which is state carried ACROSS frames because a query and
+its answer sit on different ones (`idpass.rs`). 2,996 lines became
+2,583 + 257 + 254. A move: no test assertion changed, and the only test
+edits are import paths.
+
+**The membership was checked against the ruling rather than taken from
+it, and five things moved that neither list names** — `Zenity`,
+`SessionBus`, `PREFS_DIR`, `PREFS_FILE` and `NO_CHOOSER_BACKEND`, the
+last of which the item files under concern 4 and the ruling omits. The
+item's own span, `frame.rs:1671-1878`, was wrong at the merge base and
+not merely stale: the probes are at `1856-2076`, so the range's start
+was two hundred lines short and its end landed inside
+`ChooserBackend`'s variants. Recorded in the item's closing section
+with the rest.
+
+`scripts/gates/no-ambient-env.sh`'s allowlist entry moved with the
+code. `git log -S` on *"ONE file on purpose: every ambient read the
+viewer performs"* over that path returns exactly one commit,
+`cf2164600f`, the merge of **#1717** from `m10/m10-7-spec` — an agent
+program branch, and every commit in this repo carries `evgunter`'s
+signature, so authorship is not evidence either way. No ratification by
+Ev turns up, and `work/README.md` says Ev does not edit files. The
+entry moved and the sentence was re-worded to name `platform.rs`; what
+the gate DECIDES is untouched. Territory names `scripts/gates/*` as
+GUARD's, the same warning VIEW already carries for
+`viewer-vocab-declared-once.sh`.
+
+**One roster elsewhere had to register the move**, and the local viewer
+suite was structurally incapable of seeing it — #2293's shape again.
+`crates/pncad-py/src/prose_census.rs`'s `UNDECIDED` table names
+`Disagreement`'s positional `{:?}` site by PATH, so the row said
+`crates/viewer/src/frame.rs` and the file is now `idpass.rs`. Caught by
+hosted CI: six `test (…, 1/2)` shards red on
+`prose_census::tests::every_site_this_census_cannot_decide_is_named_with_its_reason`,
+one test, deterministic across all six lane/eps points. The path was
+corrected in place — a census that exists so a site registers itself,
+which is the registration half rather than the audit half, announced
+here because `prose_census.rs` is LIB's ground by territory. Receipt on
+the fixed tree: `cargo nextest run --workspace --no-fail-fast`, 7,570
+run, 7,570 passed, 38 skipped.
+
+Signed (VIEW implementer lane `view/frame-split`).

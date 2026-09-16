@@ -59,9 +59,14 @@ posture under §Process.
    `debug-in-prose-residue-after-finding-sink` and
    `assembly-mint-spells-the-entity-kind-refusal-a-seventh-way`.
 6. **The Track V mirrors DOCM inherited** — `C6`'s `WireStep` member
-   is unblocked (BOOL-12 closed) and is an E-class unit; the rest of
-   `C6` and `D366` stay as visibility rows, their live work being in
-   `pncad-py` (LIB's) or behind blockers that are not items.
+   is **built** (PR #2738, dispatched middle tier rather than the
+   E-class this line first guessed: the collapse crossed the persisted
+   format and earned a style review with a correctness arm).
+   `editor-core`'s document step vocabulary is now its persisted one.
+   The rest of `C6` stands — the `SegTag` member behind the
+   workspace's first proc-macro crate, the "no usable value" core —
+   and `C6` and `D366` stay as visibility rows for it, their live work
+   being in `pncad-py` (LIB's) or behind blockers that are not items.
 
 ## Process
 

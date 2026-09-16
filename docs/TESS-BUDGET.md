@@ -259,23 +259,24 @@ of them folded through the same `SceneTotals` the gate uses.
 
 **The command and the test are not the same census, and it is worth
 knowing which covers what.** The executable home is
-`tools/tess-lint/tests/baseline_sizing_census.rs`, which reads the same
+`the_committed_baseline_sizes_this_much`, in
+`tools/tess-lint/tests/baseline_census.rs`, which reads the same
 committed file on each `cargo test` and fails naming what a re-cut
 moved. It asserts the sweep's triangles and NURBS triangles, all four
 cell sums and the two factors, every one of which the command prints
 too. The command prints MORE: the face counts, the two percentages,
 and the constraint-activity line, which neither census asserts.
 
-**The two percentages come from different files, and that is the part
-worth getting right.** `% of the mesh` is NURBS triangles against
+**The two percentages come from different censuses, and that is the
+part worth getting right.** `% of the mesh` is NURBS triangles against
 total triangles, and both are asserted in the sizing census itself —
 it is a quotient of two of the figures above. `% of faces` is sized
 faces against all faces, and neither operand is there; that pair is
-the neighbouring `baseline_census.rs`'s (rows, sized rows, the scenes
-holding them). So what separates the command from the tests is not
-which quantities they cover but what each DOES with them — the
-command is a reading you ask for, the two test files together are a
-guard that runs unasked. A census has one home and every other site
+the face-identity census's (rows, sized rows, the scenes holding
+them), which sits in the same file. So what separates the command from
+the tests is not which quantities they cover but what each DOES with
+them — the command is a reading you ask for, the two censuses together
+are a guard that runs unasked. A census has one home and every other site
 points at it; this document is one of the sites, and the block below
 is not a second copy of that census — it is a different measurement
 of a different tree.
@@ -516,20 +517,22 @@ every total it used to appear in.
 
 **A re-cut that moves what the censuses assert fails them, and that is
 the alarm working — but they do not assert everything a re-cut moves.**
-`tools/tess-lint/tests/baseline_census.rs` (the face-identity census)
-and `tools/tess-lint/tests/baseline_sizing_census.rs` (the sizing
-census) each read the committed file and name what moved. Between them
-they pin the row and sized-row counts, the scenes carrying a sized face,
-the indistinguishable-pair structure, the chart and trim box of every
-sized row, the sweep's triangles and NURBS triangles, the four cell sums
-and the two factors. **What neither reads is every other column**:
-`cells`, `bands`, `cap_bands`, `snap_bands`, `realized_aspect`,
-`worst_cert`, `worst_dev`, `dev_samples`, and the per-face
+`tools/tess-lint/tests/baseline_census.rs` holds both — the
+face-identity census and `the_committed_baseline_sizes_this_much` (the
+sizing census) — and each reads the committed file and names what
+moved. Between them they pin the row and sized-row counts, the scenes
+carrying a sized face, the indistinguishable-pair structure, the chart
+and trim box of every sized row, the sweep's triangles and NURBS
+triangles, the four cell sums and the two factors. **What neither
+reads is every other column**: `cells`, `bands`, `cap_bands`,
+`snap_bands`, `realized_aspect`, `worst_cert`, `worst_dev`,
+`dev_samples`, and the per-face
 `nu`/`nv`/`muu`/`muv`/`mvv`/`mu1`/`mv1` values (`nu`/`nv` are read only
 for whether they separate rows, never for what they are). A re-sweep
-that moves those alone passes both tests silently — `79420738f` records
-exactly such a move, four `nonuniform_loft` rows shifting in their last
-ulps, and it was caught by a human reading the diff, not by a test.
+that moves those alone passes both censuses silently — `79420738f`
+records exactly such a move, four `nonuniform_loft` rows shifting in
+their last ulps, and it was caught by a human reading the diff, not by
+a test.
 Neither number is a target to preserve: read the new one, decide whether
 the new corpus is what you meant, and write it in with the re-cut. They
 exist so that no prose can go on describing a file it no longer
