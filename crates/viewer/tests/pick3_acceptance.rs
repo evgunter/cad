@@ -280,6 +280,7 @@ struct WideTable {
     aim_lost: usize,
     aim_gained: usize,
     aim_lost_examples: Vec<String>,
+    aim_gained_examples: Vec<String>,
 }
 
 fn tie_rays_for(index: &PickIndex) -> Vec<(Ray, f64)> {
@@ -411,6 +412,14 @@ fn wide_sweep(name: &str, step: &str, index: &PickIndex, tables: &mut [WideTable
                         table.aimed_interval += usize::from(ah);
                         table.aim_lost += usize::from(am && !ah);
                         table.aim_gained += usize::from(ah && !am);
+                        if ah && !am && table.aim_gained_examples.len() < 8 {
+                            table.aim_gained_examples.push(format!(
+                                "{name}/{step}: AIM GAINED {dir:?} through {v:?} reach {reach}: \
+                                 main {:?} interval {:?}",
+                                main.map(|s| s.span.t),
+                                here.map(|s| s.span.t)
+                            ));
+                        }
                         if am && !ah && table.aim_lost_examples.len() < 8 {
                             table.aim_lost_examples.push(format!(
                                 "{name}/{step}: AIM LOST {dir:?} through {v:?} reach {reach}: \

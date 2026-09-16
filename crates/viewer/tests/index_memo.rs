@@ -1254,14 +1254,25 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
 /// triangles that cross the ray transversally (`|det| ≈ 2.8e-5`) answer
 /// AT the vertex, `t = 1.48` to the bit.
 ///
-/// **The door answers a `t` INTERVAL, so those two candidates are not
-/// ordered by their rounded `t` at all**: the wide one's interval
-/// swallows the narrow one's, which is a certified tie, and the tie
-/// falls to the narrower claim — the vertex. The row pins both halves,
-/// because only the pair is evidence: the rounded values still put the
-/// wide candidate first (`RING_WIDE_CANDIDATE_T`, asserted), so a door
-/// that compared rounded `t` would still answer `1.4488` and this row
-/// would red.
+/// **The door answers a `t` INTERVAL, and on this ray the interval
+/// ORDERS them**: the wide candidate's own width is
+/// `err_u·|e1| + err_v·|e2|` projected on the ray, and the ring's
+/// triangles are `0.016` on a side, so an interval that says almost
+/// nothing about WHERE on the triangle the ray crossed still says the
+/// crossing is within `0.015` of `1.4488` — wholly before the vertex
+/// `0.031` further on. The wide candidate PRECEDES the narrow one, the
+/// tie-break never runs, and the answer is `1.4488` as before.
+///
+/// **That is what this row now records, and it is not what the `t`
+/// ruling predicted for it.** The certified width is relative to the
+/// TRIANGLE, not to the scene: a candidate at the certification's
+/// noise floor over a small triangle is still certified to a small
+/// piece of the ray. So the class the row above names — a
+/// near-coplanar candidate beating the transversal neighbour that
+/// answers the aimed vertex — survives the interval order wherever the
+/// two crossings are further apart than the near-coplanar triangle is
+/// large. `a_wide_candidates_interval_reaches_the_aimed_vertex_and_the_tie_break_takes_it`
+/// is the other side of the same line, where they are not.
 #[test]
 fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
     let tol = Tol::witness();
@@ -1358,12 +1369,11 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
     }
     assert!(
         wide.t < reach,
-        "the premise the rounded order would act on: the wide candidate's own t {} is still \
-         SHORT of the aimed vertex at {reach}",
+        "the wide candidate's own t {} is SHORT of the aimed vertex at {reach}",
         wide.t
     );
-    // The transversal neighbours that answer at the vertex, and whose
-    // intervals the wide one's swallows.
+    // The transversal neighbours that answer at the vertex, and that
+    // the wide candidate's interval nonetheless precedes.
     let at_vertex: Vec<TSpan> = admitted
         .iter()
         .filter(|(tri, _)| crossing(&ray, tri).is_some_and(|c| c.det.abs() > 1e-6))
@@ -1375,24 +1385,31 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
         .copied()
         .expect("a transversally crossing candidate answers the aimed vertex at t = reach exactly");
     assert!(
-        !wide.precedes(&narrow) && !narrow.precedes(&wide),
-        "neither interval lies wholly below the other, so the geometry does not order them: \
-         wide {wide:?}, narrow {narrow:?}"
-    );
-    assert!(
         narrow.width() < wide.width(),
         "the transversal neighbour is the better-certified claim: {} against {}",
         narrow.width(),
         wide.width()
     );
-    // The row: the certified tie falls to the narrower interval, so
-    // both the reference and the service answer the vertex.
+    assert!(
+        wide.precedes(&narrow),
+        "and the wide candidate's whole interval is still in front of it, so the geometry \
+         ORDERS them and the tie-break never runs: wide {wide:?}, narrow {narrow:?}"
+    );
+    assert!(
+        wide.width() < reach - wide.t,
+        "the number that makes that true: the wide candidate's interval is {} across while the \
+         aimed vertex is {} further on",
+        wide.width(),
+        reach - wide.t
+    );
+    // The row: the certified order takes the nearer claim, so both the
+    // reference and the service answer the wide candidate.
     let (hit, _) = reference.pick(&ray);
     let hit = hit.expect("the ray meets the ring");
     assert_eq!(
         hit.t().to_bits(),
-        reach.to_bits(),
-        "the tie-break answers the aimed vertex at t = {reach}: {hit:?}"
+        RING_WIDE_CANDIDATE_T.to_bits(),
+        "the certified order answers the wide candidate at t = {RING_WIDE_CANDIDATE_T}: {hit:?}"
     );
     let (_, eval) = session.landed_pair().expect("a landed pair");
     let picked = index
@@ -1411,12 +1428,128 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
     );
 }
 
-/// The wide candidate's own rounded answer: `0.031` short of the
-/// aimed vertex, and still the smaller of the two rounded values, so
-/// it is what a door comparing rounded `t` would answer. Re-derive
-/// from the probe's failure message; a move here is a change in the
-/// class the row above carries, not a baseline to restore.
+/// The wide candidate's own rounded answer, `0.031` short of the aimed
+/// vertex, and the door's answer on this ray. Re-derive from the
+/// probe's failure message; a move here is a change in the class the
+/// row above carries, not a baseline to restore.
 const RING_WIDE_CANDIDATE_T: f64 = 1.448_765_272_489_762_4;
+
+/// **The other side of the line: a wide candidate whose interval DOES
+/// reach the aimed vertex, and the tie-break takes the vertex.** The
+/// `tube_arc` corpus document at open, a `+y` ray through the mesh
+/// vertex `(1.2534, 0.3843, −1.9521)`. `main` answers
+/// `1.475_904_852_772_309_5` — `0.0041` short of the vertex, a
+/// near-coplanar candidate whose rounded `t` is the smallest on the
+/// ray. Its `t` interval is wider than that gap, so it does not
+/// precede the transversal candidate that answers the vertex; the two
+/// are a CERTIFIED TIE, and the tie-break takes the narrower claim.
+///
+/// This is the class `work/edit/pick-a-wide-but-informative-barycentric-wins-over-the-transversal-neighbour`
+/// names, resolved: three rays of the wide aim's 441 126 change their
+/// answer this way and every one of them GAINS its aimed vertex
+/// (`pick3_acceptance`'s `aim_gained`). The gallery ring's own ray is
+/// the class that does NOT resolve, for the reason the row beside this
+/// one states. A door comparing rounded `t` reds here; a tie-break
+/// preferring the wider interval reds here.
+#[test]
+fn a_wide_candidates_interval_reaches_the_aimed_vertex_and_the_tie_break_takes_it() {
+    let tol = Tol::witness();
+    let c = corpus::documents()
+        .into_iter()
+        .find(|c| c.name == "tube_arc")
+        .expect("tube_arc is a corpus document");
+    let mut session = DocSession::inline(c.doc.clone(), tol);
+    session.pump();
+    let index = fresh_index(&session).expect("tube_arc indexes");
+    let vertex = Point3::new(
+        1.253_413_016_011_234,
+        0.384_323_569_889_266_14,
+        -1.952_075_113_318_894_5,
+    );
+    let reach = 1.48;
+    let ray = Ray {
+        origin: Point3::new(vertex.x, vertex.y - reach, vertex.z),
+        dir: Vec3::new(0.0, 1.0, 0.0),
+    };
+    assert!(
+        index.parts().iter().any(|part| {
+            part.mesh().positions.iter().any(|p| {
+                (p.x.to_bits(), p.y.to_bits(), p.z.to_bits())
+                    == (vertex.x.to_bits(), vertex.y.to_bits(), vertex.z.to_bits())
+            })
+        }),
+        "the probe's premise: the aimed point is a vertex of tube_arc's mesh"
+    );
+    let reference = FlatReference::of(&index);
+    let admitted: Vec<TSpan> = reference
+        .parts
+        .iter()
+        .flat_map(|flat| {
+            flat.tree
+                .ray(&ray)
+                .into_iter()
+                .filter_map(move |cand| ray_triangle(&ray, &flat.corners[cand.item]))
+        })
+        .collect();
+    let wide = admitted
+        .iter()
+        .find(|span| span.t.to_bits() == TUBE_ARC_WIDE_CANDIDATE_T.to_bits())
+        .copied()
+        .expect("the near-coplanar candidate still answers short of the vertex");
+    let narrow = admitted
+        .iter()
+        .find(|span| span.t.to_bits() == reach.to_bits())
+        .copied()
+        .expect("a transversal candidate answers the aimed vertex at t = reach exactly");
+    assert!(
+        wide.t < narrow.t,
+        "the premise a rounded order acts on: {} is before {}",
+        wide.t,
+        narrow.t
+    );
+    assert!(
+        !wide.precedes(&narrow) && !narrow.precedes(&wide),
+        "the two intervals overlap, so the geometry does not order them: wide {wide:?}, narrow \
+         {narrow:?}"
+    );
+    assert!(
+        narrow.width() < wide.width(),
+        "the vertex is the better-certified claim: {} against {}",
+        narrow.width(),
+        wide.width()
+    );
+    let (hit, tied) = reference.pick(&ray);
+    let hit = hit.expect("the ray meets the tube");
+    assert!(
+        tied >= 2,
+        "the certified tie has both candidates in it: {tied}"
+    );
+    assert_eq!(
+        hit.t().to_bits(),
+        reach.to_bits(),
+        "the tie-break answers the aimed vertex at t = {reach}: {hit:?}"
+    );
+    let (_, eval) = session.landed_pair().expect("a landed pair");
+    let picked = index
+        .pick(eval, &ray)
+        .expect("the pick resolves")
+        .expect("the service meets the tube");
+    assert_eq!(
+        picked.t.to_bits(),
+        hit.t().to_bits(),
+        "the service answers the reference's t: {picked:?} against {hit:?}"
+    );
+    assert_eq!(
+        (picked.t_lo.to_bits(), picked.t_hi.to_bits()),
+        (hit.span.t_lo.to_bits(), hit.span.t_hi.to_bits()),
+        "and the interval the winner was chosen on rides out on the hit: {picked:?}"
+    );
+}
+
+/// What `main`'s rounded-`t` order answers on `tube_arc`'s ray:
+/// `0.0041` short of the aimed vertex. Re-derive from the probe's
+/// failure message.
+const TUBE_ARC_WIDE_CANDIDATE_T: f64 = 1.475_904_852_772_309_5;
 
 /// The wide candidate's conditioning `|det| / (|e1|·|e2|·|d|)`, as
 /// [`Crossing::conditioning`] computes it. The number the row is named
