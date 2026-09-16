@@ -1092,8 +1092,8 @@ fn the_gallery_ring_indexes_the_same_through_the_seam_across_edits() {
 /// corner, while its `u` and `v` are exactly `0`: in exact arithmetic
 /// over the mesh's rounded corners the ray passes through that
 /// triangle's own corner `a` — the chord point — and its true `t` is
-/// `1.480`. The exact test now takes `t` from the hit point `a + u·e1
-/// + v·e2` projected onto the ray, so the answer is the corner,
+/// `1.480`. The exact test now takes `t` from the hit point
+/// `a + u·e1 + v·e2` projected onto the ray, so the answer is the corner,
 /// `t = 1.480` to the bit, from the reference and the service alike.
 /// Two premise rows keep the probe honest against a retessellation:
 /// the chord point is still a mesh vertex (so the ray is still a
