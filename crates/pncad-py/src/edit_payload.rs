@@ -83,9 +83,15 @@ pub struct EditPayload<'a> {
     pub to_kind: Option<EntityKind>,
     /// How many entries a short list would have had.
     pub count: Option<usize>,
-    /// A repeated designation's FIRST position.
+    /// The position a DESIGNATION fault is reported at. The VARIANT
+    /// decides which position it is: `RepeatedDesignation`'s first
+    /// occurrence of a repeated entry, or `SelectionNotCanonical`'s
+    /// entry that does not sort strictly before the one after it.
+    /// Both are one index into one payload list, so they share the
+    /// attribute rather than minting a second word for it.
     pub first: Option<u32>,
-    /// The position at which it is named AGAIN.
+    /// The position at which a repeat is named AGAIN — carried only by
+    /// `RepeatedDesignation`, the one fault that names two entries.
     pub again: Option<u32>,
     /// A refused scalar the door names in its own right — a
     /// tolerance's ε.
@@ -268,6 +274,17 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             again: Some(*again),
             ..none
         },
+        // One position, not two: a selection's canonical form breaks
+        // between an entry and its successor, so the successor's index
+        // is the entry's plus one and publishing it would be arithmetic
+        // dressed as data. `again` staying `None` is what tells a
+        // reader which of the two designation faults this is, beside
+        // the variant word itself.
+        EditError::SelectionNotCanonical { node, at } => EditPayload {
+            node: Some(*node),
+            first: Some(*at),
+            ..none
+        },
         // `found` here is a COUNT, not a dimension, so it takes the
         // `count` attribute: one attribute never carries two types.
         EditError::TooFewMembers { node, found } => EditPayload {
@@ -341,7 +358,8 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             ..none
         },
         EditError::ContinuousParamCannotBeCount { name }
-        | EditError::DocParamNotDeclared { name }
+        | EditError::DocParamNotDeclared { name, door: _ }
+        | EditError::DocParamCountHasNoUnit { name }
         | EditError::NonFiniteDocParam { name }
         | EditError::InvalidDistribution { name, fault: _ } => EditPayload {
             param: Some(name),
@@ -357,6 +375,20 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             offered: Some(*offered),
             ..none
         },
+        // The notation door's dimension fault: `expected` is the
+        // declaration's dimension and `found` what the offered unit
+        // measures — the pair `doc_param_dimension_mismatch` already
+        // spells, over a unit rather than over a reference.
+        EditError::DocParamUnitMismatch {
+            name,
+            unit,
+            declared,
+        } => EditPayload {
+            param: Some(name),
+            expected: Some(dim(*declared)),
+            found: Some(dim(*unit)),
+            ..none
+        },
         // The expression address decomposes into the two attributes
         // that already name its halves, plus the child indices below
         // the slot.
@@ -367,6 +399,11 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             ..none
         },
         EditError::Dimension(_) => none,
+        // The document-mismatch arm names two DOCUMENTS, which no
+        // attribute of this record carries; the message states both
+        // (the `ProductError` arm's precedent, same refusal one door
+        // over).
+        EditError::EvaluationOfAnotherDocument { .. } => none,
         EditError::DeclareNamesMissingNode { name }
         | EditError::RebindTargetMissingNode { name }
         | EditError::RebindUnknownName { name }

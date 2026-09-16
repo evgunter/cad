@@ -121,6 +121,17 @@ class EditError(PncadError):
     - `count` is how many entries a short list would have had. It is
       NOT `found`: a count and a dimension are two types, and one
       attribute carries one.
+    - `first` and `again` are POSITIONS in a node's name designation,
+      and `variant` decides what `first` means. On
+      `repeated_designation` (a shell's ordered `open` list) the two
+      are the entry's first occurrence and the position it is named
+      again. On `selection_not_canonical` (a blend's sorted selection)
+      `first` alone is the entry that does not sort strictly before
+      the one after it, and `again` is `None` — the break is between
+      that entry and its successor, so the second position is the
+      first plus one and is not carried. One position is one
+      attribute: a second int would be a second spelling of the same
+      thing, which the variant already distinguishes.
     - `slot` is the named expression slot (`distance`, `count`,
       `origin_x`); a slot is a NAME, never an index. `param` is a
       document parameter's name and `name` a stable name's text.
@@ -2906,6 +2917,24 @@ class DocEdit:
         parameter carried, with no refusal. Refuses typed on an
         undeclared name (`doc_param_not_declared`) and on a kind
         mismatch (`doc_param_value_kind_mismatch`)."""
+    @staticmethod
+    def set_doc_param_unit(name: ParamName, unit: LengthUnit | AngleUnit) -> DocEdit:
+        """Write a new NOTATION onto an already-declared parameter,
+        keeping its declaration — dimension, exact value and
+        distribution alike.
+
+        `set_doc_param_value`'s mirror over the other field of the same
+        declaration, and preferable over `set_doc_param` for the same
+        reason. A notation change is not a redeclaration — the display
+        unit is presentation metadata, excluded from `DocParam.bit_eq`.
+
+        The unit is one of the typed unit objects (`mm`, `deg`, ...),
+        so an off-table notation is a `TypeError` here rather than a
+        kernel refusal; a `Scalar` parameter has only the dimensionless
+        row and needs no door. Refuses typed on an undeclared name
+        (`doc_param_not_declared`), on a `Count`
+        (`doc_param_count_has_no_unit`) and on a unit that does not
+        measure the declared dimension (`doc_param_unit_mismatch`)."""
     @staticmethod
     def set_roots(roots: list[NodeId]) -> DocEdit:
         """Set the document's ordered PRODUCT ROOTS outright.

@@ -2203,7 +2203,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     use crate::edit_payload::edit_payload;
     use pncad::document::{
         AttrKind, Axis3, ContentPin, Dimension, DimensionError, Distribution, DocParamValue,
-        EditError as E, ExprPath, Frame, MeasureNodeFault, MetaVersionError, ParamName,
+        DocumentId, EditError as E, ExprPath, Frame, MeasureNodeFault, MetaVersionError, ParamName,
         RecipeNodeId, RootFault, SlotId,
     };
     use pncad::prelude::StableName;
@@ -2367,7 +2367,13 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::ContinuousParamCannotBeCount { name: param() },
         &["param"],
     );
-    carries(&E::DocParamNotDeclared { name: param() }, &["param"]);
+    carries(
+        &E::DocParamNotDeclared {
+            name: param(),
+            door: pncad::document::CarryForwardDoor::Value,
+        },
+        &["param"],
+    );
     carries(&E::NonFiniteDocParam { name: param() }, &["param"]);
     carries(
         &E::DocParamValueKindMismatch {
@@ -2393,6 +2399,12 @@ fn every_edit_arm_projects_the_payload_it_carries() {
             again: 3,
         },
         &["node", "first", "again"],
+    );
+    // The sorted designation's fault reports ONE position, so it
+    // carries `first` and not `again`.
+    carries(
+        &E::SelectionNotCanonical { node: id(1), at: 2 },
+        &["node", "first"],
     );
     // `found` on a short list is a COUNT and takes the `count`
     // attribute, so it never lands where a dimension word would.
@@ -2533,9 +2545,9 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::ProfileProgramRefused {
             node: id(1),
-            refusal: pncad::document::ProgramRefusal::Validate(
+            refusal: Box::new(pncad::document::ProgramRefusal::Validate(
                 pncad::profile::ProfileError::EmptyProfile,
-            ),
+            )),
         },
         &["node"],
     );
@@ -2572,6 +2584,16 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         .expect_err("a zero axis has no definite direction");
     carries(&E::from(axis), &[]);
     carries(&E::EmptyWitnessBulk, &[]);
+    // Two DOCUMENTS, which no attribute of this record carries — the
+    // `ProductError` arm's precedent one door over: the message states
+    // both ids.
+    carries(
+        &E::EvaluationOfAnotherDocument {
+            expected: DocumentId::derive("edited"),
+            found: DocumentId::derive("handed"),
+        },
+        &[],
+    );
 }
 
 /// The workspace tags `Doc()` publishes. `randomness_unavailable` is
@@ -4066,13 +4088,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "declare_names_missing_node",
             "delete_would_dangle",
             "dimension",
+            "doc_param_count_has_no_unit",
             "doc_param_dimension_mismatch",
             "doc_param_not_declared",
+            "doc_param_unit_mismatch",
             "doc_param_value_kind_mismatch",
             "duplicate_input",
             "duplicate_witness_entry",
             "empty_placement_list",
             "empty_witness_bulk",
+            "evaluation_of_another_document",
             "improper_placement",
             "invalid_distribution",
             "invalid_tolerance",
@@ -4101,6 +4126,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rebind_target_missing_node",
             "rebind_unknown_name",
             "repeated_designation",
+            "selection_not_canonical",
             "set_members_on_non_list",
             "slot_dimension_mismatch",
             "structural_slot_needs_structural_edit",
@@ -4907,7 +4933,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "snapshot_error_tag",
         values: &[
             "assertion_bound",
-            "blend_selection_not_canonical",
             "count_continuous",
             "dangling_input",
             "declare_input",
@@ -5247,7 +5272,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("empty_placement_list", 2),
     ("escalated", 11),
     ("euler", 2),
-    ("evaluation_of_another_document", 2),
+    ("evaluation_of_another_document", 3),
     ("face", 3),
     ("improper_placement", 2),
     ("indeterminate", 2),

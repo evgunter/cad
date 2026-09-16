@@ -3496,3 +3496,44 @@ entry plus the PR body. Residue filed on `work/census/`:
 and `census-answers-no-field-read-for-a-walk-that-reads-a-field`.
 
 - `CENSUS-HAND-LISTED-SIBLINGS-SPEC.md` — CENSUS-HAND-LISTED-SIBLINGS, six hand-listed walks get a tie to their declaration (#2712)
+
+## Per-merge deletion — EDIT-PICK's spec (2026-09-16)
+
+Recoverable at `git show dde873c04:docs/EDIT-PICK-SPEC.md` (PR
+#2721's fix-pass head, carrying the spec's own amendment section).
+EDIT's first kernel unit under the v6 dual. The sentence that did not
+survive, and it was the spec's central one: **"the box-entry guard
+removes only answers already proven wrong."** True in exact arithmetic,
+false in `f64` — the guard compared a rounded `t` against a bound
+widened for the box's rounding and not the test's, so on any
+axis-planar triangle (whose box is degenerate along one axis and whose
+entry parameter therefore IS the hit's parameter everywhere) genuine
+well-conditioned hits fell below it by ULPs and were refused. Both
+reviewers found it independently, one on a corpus document where the
+service then answered the wrong face. The spec's framing that survived:
+the derived determinant bound as the mechanism for the noise class, and
+the demand that every "measured over every landing" claim be a row. What
+the spec did not foresee: the certified determinant alone leaves the
+ring case wrong (a certified-but-small determinant with exact zero
+barycentrics and a cancelled quotient for `t`), which the fix pass
+closed by taking `t` from the hit point's projection — the amendment
+section records it, and the residual it leaves is
+`work/edit/pick-accepts-uncertified-barycentrics-on-a-certified-determinant`.
+
+## Per-merge deletion — PROPS band-doors' spec (2026-09-16)
+
+Recoverable at `git show 96618224e:docs/PROPS-BAND-DOORS-SPEC.md` (the merge
+of main into the unit head, before the state-sync commit that deleted
+it). Two of its sentences did not survive contact. It ruled a named
+constructor for the six sites it counted; one of those six takes the
+ambiguity constant as a deliberate parameter, so the ruling was
+withdrawn for it on the lane's evidence and the review lane's sharper
+second reason. And it asked for the rows to rest "on the validator's
+invariants" without saying where, which the lane first read as a local
+restatement of a private validator — a premise that rots silently — and
+the review turned into rows through the real `Tolerance::init`, one
+process each. The rule above; the unit's record is the two items'
+`## Closed` sections and the MERGED entry in `work/props/log.md`. An E
+rider: single style review, no A/B row.
+
+- `PROPS-BAND-DOORS-SPEC.md` — PROPS band-doors, the error documentation made true and the constructor five suites hand-rolled (#2729)

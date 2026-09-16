@@ -6,7 +6,7 @@
 
 use crate::appearance::{Attr, AttrKind};
 use crate::distribution::DistributionFault;
-use crate::doc::{Doc, DocParam, DocParamValue, ParamName};
+use crate::doc::{DisplayUnitRefusal, Doc, DocParam, DocParamValue, ParamName};
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
 use crate::meta::{MetaValue, MetaVersionError};
 use crate::names::EntityKind;
@@ -130,6 +130,39 @@ pub enum DocEdit<P> {
         name: ParamName,
         /// The replacement value.
         value: DocParamValue,
+    },
+    /// Write a new NOTATION onto an already-declared document
+    /// parameter, keeping its declaration: its dimension, its exact
+    /// value and its optional distribution ride through untouched
+    /// ([`DocParam::with_display_unit`]).
+    ///
+    /// [`Self::SetDocParamValue`]'s mirror over the other field of the
+    /// declaration, and it exists for the same reason. A parameter's
+    /// display unit sits on the DECLARATION, beside `dim` and
+    /// `distribution`, so the only other way to re-spell it is
+    /// [`Self::SetDocParam`] — create-or-replace — with a `DocParam`
+    /// the caller assembled, and the natural spelling
+    /// ([`DocParam::continuous`] plus the notation) names no
+    /// distribution and therefore deletes any the parameter carried.
+    /// There is nothing to omit here.
+    ///
+    /// A notation change is not a redeclaration — the argument, in
+    /// full, is [`DocParam::with_display_unit`]'s rustdoc.
+    ///
+    /// Refuses typed on a name the document does not declare
+    /// ([`EditError::DocParamNotDeclared`] — there is no declaration to
+    /// carry forward), on a `Count`
+    /// ([`EditError::DocParamCountHasNoUnit`] — a count is an integer
+    /// and names no notation) and on a unit that does not measure the
+    /// declared dimension ([`EditError::DocParamUnitMismatch`] — the
+    /// pairing the save/load validator refuses a document for).
+    SetDocParamUnit {
+        /// The parameter name — must already be declared, and must not
+        /// be a `Count`.
+        name: ParamName,
+        /// The notation to write, which must MEASURE the declared
+        /// dimension.
+        unit: crate::expr::UnitSym,
     },
     /// The explicit name repair (N5, spec D3): rewrite every document
     /// site that references `from` EXACTLY (Declare pairs and
@@ -294,6 +327,33 @@ pub enum DocEdit<P> {
     },
 }
 
+/// Which of the two CARRY-FORWARD doors an edit came through — the
+/// edits that write one field of a standing declaration and carry the
+/// rest untouched.
+///
+/// It exists so a refusal both doors share can name the one the caller
+/// actually used ([`EditError::DocParamNotDeclared`]). A third door
+/// over a third field adds an arm here and the compile names every
+/// sentence that has to learn the word.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CarryForwardDoor {
+    /// [`DocEdit::SetDocParamValue`] — the number.
+    Value,
+    /// [`DocEdit::SetDocParamUnit`] — the notation.
+    Notation,
+}
+
+// The door as it appears inside a refusal's sentence, in the user's
+// vocabulary rather than the enum's: "a value edit", not "Value".
+impl core::fmt::Display for CarryForwardDoor {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Value => "a value edit",
+            Self::Notation => "a notation edit",
+        })
+    }
+}
+
 /// Typed, specific edit refusal (spec D6: no stringly errors).
 #[derive(Debug, Clone, PartialEq)]
 pub enum EditError {
@@ -314,8 +374,13 @@ pub enum EditError {
     ProfileProgramRefused {
         /// The profile node (for `InsertNode`, the id being minted).
         node: RecipeNodeId,
-        /// The typed refusal.
-        refusal: crate::program::ProgramRefusal,
+        /// The typed refusal, behind a pointer: it is this enum's
+        /// widest payload, and every edit door returns the enum BY
+        /// VALUE, so held inline it sets the width of every `Result`
+        /// in the edit vocabulary and of the persist and replay
+        /// refusals that wrap one. `AssemblyError::Product` carries
+        /// `ProductError` the same way for the same reason.
+        refusal: Box<crate::program::ProgramRefusal>,
     },
     /// An inserted node's input ref does not resolve to a live node
     /// (spec D3: `apply` rejects unresolvable refs).
@@ -357,6 +422,21 @@ pub enum EditError {
         first: u32,
         /// The position at which it is named again.
         again: u32,
+    },
+    /// The node this edit writes carries a blend selection that is not
+    /// canonical — sorted and deduplicated
+    /// ([`crate::node::InputFault::SelectionNotCanonical`]): a
+    /// hand-built `Node::Fillet` or `Node::Chamfer` that bypassed
+    /// [`Node::fillet`]/[`Node::chamfer`], which sort and dedup.
+    /// Refused rather than repaired, at this door as at the load door,
+    /// because re-sorting would move the node's content key behind the
+    /// caller's back.
+    SelectionNotCanonical {
+        /// The node whose selection is out of canonical form.
+        node: RecipeNodeId,
+        /// The position of the entry that does not sort strictly
+        /// before the one after it.
+        at: u32,
     },
     /// `SetMembers` aimed at a node that has no list input
     /// ([`Node::list_input`]) — a boolean's operands are named slots,
@@ -506,13 +586,63 @@ pub enum EditError {
         /// The parameter.
         name: ParamName,
     },
-    /// A value-only edit ([`DocEdit::SetDocParamValue`]) named a
-    /// parameter this document does not declare. The value door
-    /// carries an existing declaration forward, so there has to be
-    /// one; declaring a parameter is [`DocEdit::SetDocParam`]'s job.
+    /// A carry-forward edit — [`DocEdit::SetDocParamValue`] or
+    /// [`DocEdit::SetDocParamUnit`] — named a parameter this document
+    /// does not declare. Both doors carry an existing declaration
+    /// forward, so there has to be one; declaring a parameter is
+    /// [`DocEdit::SetDocParam`]'s job.
+    ///
+    /// ONE arm for both doors because the FAULT is one — the missing
+    /// declaration, which neither door is about — and so is the
+    /// recourse. What differs is which edit the user submitted, and
+    /// that rides along in `door` so the sentence can say it: a
+    /// refusal that read "a carry-forward edit" would make a reader
+    /// work out which of their two edits it was talking about.
     DocParamNotDeclared {
         /// The undeclared parameter.
         name: ParamName,
+        /// Which carry-forward edit was refused.
+        door: CarryForwardDoor,
+    },
+    /// A notation edit ([`DocEdit::SetDocParamUnit`]) named a `Count`
+    /// parameter. A count is an exact integer, not a quantity: it
+    /// names no notation and carries no field to write one into.
+    ///
+    /// Distinct from [`Self::DocParamValueKindMismatch`], which is a
+    /// value offered at the wrong kind and would be a redeclaration.
+    /// Nothing is being redeclared here — there is no notation for a
+    /// count under ANY declaration.
+    DocParamCountHasNoUnit {
+        /// The count parameter.
+        name: ParamName,
+    },
+    /// A notation edit ([`DocEdit::SetDocParamUnit`]) offered a unit
+    /// that does not MEASURE the parameter's declared dimension —
+    /// millimetres for an angle, degrees for a length.
+    ///
+    /// The same pairing the shared save/load validator refuses a
+    /// document for (`PersistError::DisplayUnit`) and the authoring
+    /// doors ([`DocParam::written_length`], [`DocParam::written_angle`])
+    /// make unreachable by construction; this is that fault refused at
+    /// the edit door, before it can reach a document at all.
+    ///
+    /// Raised by BOTH doors that write a declaration — this one and
+    /// [`DocEdit::SetDocParam`], the create-or-replace door, whose
+    /// payload is `pub` and can pair any unit with any dimension.
+    ///
+    /// Its sentence is `PersistError::DisplayUnit`'s shape — *declared
+    /// X but the unit measures Y* — with ONE word of difference,
+    /// deliberately: the validator says "its display unit", because
+    /// there the unit is a fact already stored on the document, and
+    /// this says "the display unit offered", because here it is an
+    /// argument that never reached one.
+    DocParamUnitMismatch {
+        /// The parameter.
+        name: ParamName,
+        /// The dimension the offered unit measures.
+        unit: Dimension,
+        /// The dimension the document declares.
+        declared: Dimension,
     },
     /// A value-only edit offered a value of the wrong kind — a count
     /// for a continuous parameter or a continuous value for a count.
@@ -636,6 +766,19 @@ pub enum EditError {
     NameUnresolvedInEvaluation {
         /// The name no table carries.
         name: StableName,
+    },
+    /// The supplied evaluation is of ANOTHER document (DI3, A2a).
+    ///
+    /// Raised by [`crate::resolve::apply_with_names`], whose docs say
+    /// why that door checks; this arm is the edit vocabulary's word
+    /// for the answer, as `ProductError`, `MateFault` and
+    /// `ChecksError` each carry their own over the one predicate
+    /// [`crate::ident::mispaired`].
+    EvaluationOfAnotherDocument {
+        /// The document the edit is being applied to.
+        expected: crate::ident::DocumentId,
+        /// The document the supplied evaluation is of.
+        found: crate::ident::DocumentId,
     },
     /// A `Rebind` whose appearance-key rewrite would land two
     /// attributes of the same kind on the target name (`from`'s
@@ -917,6 +1060,12 @@ impl core::fmt::Display for EditError {
                     again: *again,
                 }
             ),
+            Self::SelectionNotCanonical { at, .. } => write!(
+                f,
+                "the node this edit writes would be invalid: {}. Build it through \
+                 `Node::fillet` or `Node::chamfer`, which sort and deduplicate.",
+                crate::node::InputFault::SelectionNotCanonical { at: *at }
+            ),
             Self::DeleteWouldDangle { id, referenced_by } => write!(
                 f,
                 "node {} is still an input to node {} — delete node {} first, \
@@ -1023,10 +1172,26 @@ impl core::fmt::Display for EditError {
             // that lookup by dragging, and the two are converged on the
             // RECOURSE rather than on the sentence. A viewer test holds
             // them in step (`panel_edits::refusals_render_as_sentences`).
-            Self::DocParamNotDeclared { name } => write!(
+            Self::DocParamNotDeclared { name, door } => write!(
                 f,
-                "parameter {} is not declared, so a value edit has no declaration to carry \
+                "parameter {} is not declared, so {door} has no declaration to carry \
                  forward — declare it first",
+                name.0
+            ),
+            Self::DocParamCountHasNoUnit { name } => write!(
+                f,
+                "parameter {} is a count, and a count is an integer rather than a quantity — \
+                 it has no display unit to change",
+                name.0
+            ),
+            Self::DocParamUnitMismatch {
+                name,
+                unit,
+                declared,
+            } => write!(
+                f,
+                "parameter {} is declared {declared} but the display unit offered measures \
+                 {unit}",
                 name.0
             ),
             Self::DocParamValueKindMismatch {
@@ -1096,6 +1261,12 @@ impl core::fmt::Display for EditError {
                 f,
                 "the {name} does not resolve in the supplied evaluation — recording the \
                  reference would strand it"
+            ),
+            Self::EvaluationOfAnotherDocument { expected, found } => write!(
+                f,
+                "the supplied evaluation is of document {found}, not of document \
+                 {expected} — its names would be checked against another document's \
+                 tables"
             ),
             Self::RebindAppearanceCollision { name, kind } => write!(
                 f,
@@ -1304,6 +1475,27 @@ fn write_doc_param<P: Clone + crate::ProfilePayload>(
     {
         return Err(EditError::ContinuousParamCannotBeCount { name: name.clone() });
     }
+    // The unit/dimension pairing, at EVERY door that writes a
+    // declaration rather than only at the one that writes a notation.
+    // This is the create-or-replace door, whose `DocParam` a caller
+    // assembles out of a `pub` payload, so it is the one door that can
+    // state a mismatched pair — and before this check the only thing
+    // that refused it was save/load, which meant an in-memory document
+    // could hold a parameter no file could ever carry. `measures()` is
+    // the same predicate the notation door and the validator ask.
+    if let DocParam::Continuous {
+        dim, display_unit, ..
+    } = value
+    {
+        let measured = display_unit.measures();
+        if measured != dim {
+            return Err(EditError::DocParamUnitMismatch {
+                name: name.clone(),
+                unit: measured,
+                declared: dim,
+            });
+        }
+    }
     let structural = matches!(value, DocParam::Count { .. });
     new.params.insert(name.clone(), value);
     // A (re)declaration can change the dimension out from under
@@ -1420,6 +1612,9 @@ fn check_node_inputs<P: crate::ProfilePayload>(
                 first,
                 again,
             })
+        }
+        Some(crate::node::InputFault::SelectionNotCanonical { at }) => {
+            Err(EditError::SelectionNotCanonical { node: id, at })
         }
     }
 }
@@ -1589,8 +1784,12 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // validates under the CURRENT param env, refusing typed
             // here rather than at first evaluation.
             if let Node::Profile(p) = node {
-                p.check(&new.param_env::<f64>(), tol)
-                    .map_err(|refusal| EditError::ProfileProgramRefused { node: id, refusal })?;
+                p.check(&new.param_env::<f64>(), tol).map_err(|refusal| {
+                    EditError::ProfileProgramRefused {
+                        node: id,
+                        refusal: Box::new(refusal),
+                    }
+                })?;
             }
             new.next_id += 1;
             new.nodes.insert(id, node.clone());
@@ -1725,7 +1924,10 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
         DocEdit::SetDocParam { name, value } => write_doc_param(&mut new, name, value.clone())?,
         DocEdit::SetDocParamValue { name, value } => {
             let Some(declared) = new.params.get(name) else {
-                return Err(EditError::DocParamNotDeclared { name: name.clone() });
+                return Err(EditError::DocParamNotDeclared {
+                    name: name.clone(),
+                    door: CarryForwardDoor::Value,
+                });
             };
             // THE carry-forward: the declaration is read off the
             // document and reused whole, so the dimension and the
@@ -1737,6 +1939,32 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
                     offered: *value,
                 });
             };
+            write_doc_param(&mut new, name, written)?
+        }
+        DocEdit::SetDocParamUnit { name, unit } => {
+            let Some(declared) = new.params.get(name) else {
+                return Err(EditError::DocParamNotDeclared {
+                    name: name.clone(),
+                    door: CarryForwardDoor::Notation,
+                });
+            };
+            // THE carry-forward, over the other field: the declaration
+            // is read off the document and reused whole, so the value
+            // and the distribution cannot be dropped by an omission
+            // here. Both reasons it can refuse are the DOOR's — this
+            // routes them, and decides neither.
+            let written = declared.with_display_unit(*unit).map_err(|why| match why {
+                DisplayUnitRefusal::CountHasNoNotation => {
+                    EditError::DocParamCountHasNoUnit { name: name.clone() }
+                }
+                DisplayUnitRefusal::Mismatch { unit, declared } => {
+                    EditError::DocParamUnitMismatch {
+                        name: name.clone(),
+                        unit,
+                        declared,
+                    }
+                }
+            })?;
             write_doc_param(&mut new, name, written)?
         }
         DocEdit::Rebind { from, to } => {
@@ -2094,8 +2322,12 @@ fn check_profile_after_slot_edit<P: crate::ProfilePayload>(
     if matches!(slot, SlotId::Profile { .. })
         && let Some(Node::Profile(p)) = new.nodes.get(&id)
     {
-        p.check(&new.param_env::<f64>(), tol)
-            .map_err(|refusal| EditError::ProfileProgramRefused { node: id, refusal })?;
+        p.check(&new.param_env::<f64>(), tol).map_err(|refusal| {
+            EditError::ProfileProgramRefused {
+                node: id,
+                refusal: Box::new(refusal),
+            }
+        })?;
     }
     Ok(())
 }

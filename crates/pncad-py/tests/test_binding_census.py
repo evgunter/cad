@@ -1952,6 +1952,22 @@ NOT_BOUND = {
     # rows and the `Datum.direction` bullet's `UnitVec3Error` record,
     # one level in.
     "DirectionRefusal": SHAPE,
+    # `EditError::DocParamNotDeclared`'s second field: WHICH of the two
+    # carry-forward doors was refused. It is `DirectionRefusal`'s row
+    # one carrier over, and flattened for a reason of its own: a Python
+    # caller holds the edit it just submitted, so `set_doc_param_value`
+    # versus `set_doc_param_unit` is answered by the call site together
+    # with the `doc_param_not_declared` tag. The field exists so the
+    # RUST sentence can name the door rather than say "a carry-forward
+    # edit" and leave a reader to work out which.
+    "CarryForwardDoor": SHAPE,
+    # `DocParam::with_display_unit`'s `Err`: which of the two reasons a
+    # notation cannot be written. It is flattened because no Python
+    # door answers in it — the binding's notation edit goes through
+    # `Doc.apply`, where the kernel has already mapped these two to
+    # `doc_param_count_has_no_unit` and `doc_param_unit_mismatch`, and
+    # those are the words a caller branches on.
+    "DisplayUnitRefusal": SHAPE,
     "EdgeKey": SHAPE,
     "EditRecord": SHAPE,
     "EvalOptions": SHAPE,
@@ -2905,6 +2921,7 @@ MEMBERS_BOUND_AS = {
     "EditError::WouldCycle": "EditError.variant",
     "EditError::DuplicateInput": "EditError.variant",
     "EditError::RepeatedDesignation": "EditError.variant",
+    "EditError::SelectionNotCanonical": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
     "EditError::TooFewMembers": "EditError.variant",
     "EditError::DeleteWouldDangle": "EditError.variant",
@@ -2923,6 +2940,8 @@ MEMBERS_BOUND_AS = {
     "EditError::ContinuousParamCannotBeCount": "EditError.variant",
     "EditError::DocParamNotDeclared": "EditError.variant",
     "EditError::DocParamValueKindMismatch": "EditError.variant",
+    "EditError::DocParamCountHasNoUnit": "EditError.variant",
+    "EditError::DocParamUnitMismatch": "EditError.variant",
     "EditError::PathOffTree": "EditError.variant",
     "EditError::Dimension": "EditError.variant",
     "EditError::DeclareNamesMissingNode": "EditError.variant",
@@ -2938,6 +2957,7 @@ MEMBERS_BOUND_AS = {
     "EditError::DuplicateWitnessEntry": "EditError.variant",
     "EditError::EmptyWitnessBulk": "EditError.variant",
     "EditError::NameUnresolvedInEvaluation": "EditError.variant",
+    "EditError::EvaluationOfAnotherDocument": "EditError.variant",
     "EditError::RebindAppearanceCollision": "EditError.variant",
     "EditError::AppearanceWrongKind": "EditError.variant",
     "EditError::AppearanceNamesMissingNode": "EditError.variant",

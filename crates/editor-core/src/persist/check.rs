@@ -175,16 +175,14 @@ pub(crate) fn validate_document(
 fn first_display_unit_fault(
     snapshot: &ProfileDoc,
 ) -> Option<(ParamName, crate::expr::Dimension, crate::expr::Dimension)> {
-    use crate::expr::Dimension;
     snapshot.params.iter().find_map(|(name, p)| match p {
         DocParam::Continuous {
             dim, display_unit, ..
         } => {
-            let measured = match display_unit.def().quantity() {
-                quantity::UnitQuantity::Length => Dimension::Length,
-                quantity::UnitQuantity::Angle => Dimension::Angle,
-                quantity::UnitQuantity::Scalar => Dimension::Scalar,
-            };
+            // The SAME reading the edit door and the literal
+            // constructor make (`UnitSym::measures`): what a unit
+            // measures is one fact, stated once.
+            let measured = display_unit.measures();
             (measured != *dim).then(|| (name.clone(), measured, *dim))
         }
         DocParam::Count { .. } => None,
@@ -334,6 +332,8 @@ fn edit_non_finite(edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
         // - The `Node` vocabulary is not closed here: this match is
         //   exhaustive on `DocEdit`, not on `Node`.
         DocEdit::SetDocParamValue { .. }
+        // A notation is a table code, not a float.
+        | DocEdit::SetDocParamUnit { .. }
         | DocEdit::InsertNode { .. }
         // A list of node ids carries no float.
         | DocEdit::SetMembers { .. }
@@ -360,13 +360,6 @@ pub enum SnapshotError {
     /// `order` and the node map disagree (missing, extra, or
     /// duplicated ids).
     OrderMismatch,
-    /// A blend node's selection is not in canonical form (sorted
-    /// and deduplicated) — a corrupt file, refused rather than
-    /// repaired (M6-5).
-    BlendSelectionNotCanonical {
-        /// The offending fillet or chamfer node.
-        node: RecipeNodeId,
-    },
     /// An id at or beyond the mint counter appears in the document.
     IdBeyondCounter {
         /// The offending id.
@@ -472,8 +465,11 @@ pub enum SnapshotError {
         /// What is wrong with it.
         fault: crate::node::MeasureNodeFault,
     },
-    /// A node whose inputs are not pairwise distinct, or whose LIST
-    /// input holds fewer than two entries (DM5). Both edit doors
+    /// A node whose structural content is invalid (DM5): inputs that
+    /// are not pairwise distinct, a LIST input holding fewer than two
+    /// entries, or a name designation outside the canonical form its
+    /// construction door establishes — a shell's repeated `open` entry,
+    /// a blend's unsorted or repeating `selection`. Both edit doors
     /// refuse them, so a file carrying one is corrupt — refused,
     /// never repaired.
     InputList {
@@ -522,12 +518,6 @@ impl core::fmt::Display for SnapshotError {
             Self::OrderMismatch => f.write_str(
                 "the `order` list and the node map disagree — an id is missing, extra or \
                  duplicated",
-            ),
-            Self::BlendSelectionNotCanonical { node } => write!(
-                f,
-                "blend node {}'s selection is not sorted and deduplicated — a corrupt \
-                 selection is refused, never repaired",
-                node.0
             ),
             Self::IdBeyondCounter { id, next_id } => write!(
                 f,
@@ -697,17 +687,6 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         for at in node.payload_read_sites() {
             check_id(at)?;
         }
-        // A blend's selection carries one check of its own (M6-5): the
-        // canonical form. `Node::fillet`/`Node::chamfer` are the only
-        // construction doors and they canonicalize, so a non-canonical
-        // selection on the wire is a CORRUPT file — refused, never
-        // quietly re-sorted (a repair would change the node's content
-        // key behind the caller's back).
-        if let Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } = node
-            && selection.windows(2).any(|w| w[0] >= w[1])
-        {
-            return Err(SnapshotError::BlendSelectionNotCanonical { node: id });
-        }
         // The placement RULE (GROUP-BOOLEAN-DESIGN), re-checked for the
         // same reason the A11 registry is below: a saved file is DATA,
         // and every rule on the wire must be one the edit door would
@@ -722,6 +701,11 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         // log replays through the doors and is covered by them; the
         // snapshot beside it is not, so the rule is asked here, of the
         // same function, in this door's vocabulary.
+        //
+        // That covers the name designations too — a shell's `open`, a
+        // blend's `selection`. A payload has ONE canonical form, held by
+        // every door that admits a node, so the question is asked in one
+        // place and this door only names the answer.
         if let Some(fault) = node.input_fault() {
             return Err(SnapshotError::InputList { node: id, fault });
         }
