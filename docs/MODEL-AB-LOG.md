@@ -3326,6 +3326,19 @@ fixed, disclosed), R2 isolated from R1, briefs symmetric, no
 relaxations granted. Implementer difficulty M (pre-logged at the spec,
 pre-draw). Sample number at merge; row in the docs PR after the merge.
 
+BOOL-5 (PR #2748) ordinal FIXED AT DISPATCH (2026-09-16):
+**ordinal 1109** (S-BOOL band 1100–1199). v6 dual: parity byte **111**,
+parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `2fbec9f0a`
+(run 35066381956 verified at dispatch: head SHA matches, 39 checks —
+36 success + 3 skipped; not narrowed), R2 isolated from R1, briefs
+symmetric (HARD RULES written fresh for this unit), no relaxations
+granted. Implementer difficulty M (pre-logged at the spec, pre-draw);
+implementer arm FABLE (block BOOL-B4 slot 0, byte 189 — quoted from
+the private draw file before the arm was named). Sample number at
+merge; the row rides the unit branch as its last commit. Filed at
+dispatch from the unit's forward list:
+`work/props/coplanar-sphere-arm-cannot-tell-opposite-from-coincident-meridians.md`.
+
 BOOL-10 (PR #2135) ordinal FIXED AT DISPATCH (2026-09-08):
 **ordinal 1108** (S-BOOL band 1100–1199). v6 dual: parity byte **24**,
 parity 0 ⇒ **R1 OPUS + R2 FABLE**; CONCURRENT on frozen `3f8163dd8`
