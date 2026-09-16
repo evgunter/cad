@@ -5,40 +5,51 @@
 //! `profile`'s `transition_table!` declares each authoring verb once
 //! and projects four artifacts from that declaration — but all four
 //! are INSIDE `profile`. `editor-core` re-spells the same vocabulary
-//! twice more, because `profile` has neither expressions nor serde and
-//! by G1 layering must not gain them: `ProgramStep` (the Expr-valued
-//! document form) and `persist::wire`'s `WireStep` (the persisted
-//! form).
+//! ONCE more, because `profile` has neither expressions nor serde and
+//! by G1 layering must not gain them: `ProgramStep`, the Expr-valued
+//! document form, which is also the PERSISTED form — it derives serde
+//! where it is declared, so there is no third spelling to keep in step
+//! and no mapping between two of them to get wrong.
 //!
-//! Two of the three hops need no test, because the compiler already
-//! refuses them:
-//!
-//! - `WireStep` is produced and consumed by matches that are
-//!   exhaustive on `ProgramStep` and on `WireStep`, so neither can
-//!   gain a variant the other lacks;
-//! - `eval::feed_step`, `eval::feed_lane_step` and
-//!   `LoopProgram::from_recorded` are exhaustive on `profile::Step`, so
-//!   a verb the table gains breaks `editor-core` at compile —
-//!   measured: one added table verb, and exactly those THREE sites.
-//!   `feed_lane_step` (M10-P) is the lift's second key feed and joined
-//!   the list when it landed; it is named here rather than left to be
-//!   rediscovered, since the whole point of this list is that it is the
-//!   set a reader can trust to be complete.
+//! The kernel→document hop needs no test, because the compiler already
+//! refuses it: `eval::feed_step`, `eval::feed_lane_step` and
+//! `LoopProgram::from_recorded` are exhaustive on `profile::Step`, so
+//! a verb the table gains breaks `editor-core` at compile — measured:
+//! one added table verb, and exactly those THREE sites.
+//! `feed_lane_step` (M10-P) is the lift's second key feed and joined
+//! the list when it landed; it is named here rather than left to be
+//! rediscovered, since the whole point of this list is that it is the
+//! set a reader can trust to be complete.
 //!
 //! The hop the compiler does NOT check is the one that CONSTRUCTS.
-//! `res_step` matches `ProgramStep` and builds a `Step`, so both
+//! `res_step` matches `ProgramStep` and builds a `Step`, so the
 //! compile errors above can be discharged without the document
 //! vocabulary ever learning the verb — a refusal arm in
 //! `from_recorded`, a tag in `feed_step` and one in `feed_lane_step`,
-//! and the wire and the
-//! expression-slot vocabularies are quietly short. This suite is that
-//! hop's census, anchored on `profile::Verb::ALL`: the same anchor
-//! `profile`'s own replay-coverage census uses, read from the same
-//! declaration.
+//! and the document and expression-slot vocabularies are quietly
+//! short. This suite is that hop's census, anchored on
+//! `profile::Verb::ALL`: the same anchor `profile`'s own
+//! replay-coverage census uses, read from the same declaration.
+//!
+//! # The spelling, now that the document form is the format
+//!
+//! A verb added to `ProgramStep` still breaks the compile at three
+//! sites in `program.rs` — `step_slots`, `res_step` and `step_bit_eq`
+//! (measured: one added document verb, exactly those three) — so it
+//! cannot arrive unnoticed, and what carries it into the corpus, the
+//! round trip and the pin below is the `ALL_NAMES` census rather than
+//! any of them.
+//!
+//! What no match anywhere reports is a verb RENAMED. Every census here
+//! compares one projection of a declaration against another projection
+//! of the same declaration, so a rename moves both sides at once; and
+//! since the document form is the serde type, that rename is a change
+//! to the persisted format. `PERSISTED_SPELLING` at the foot of this
+//! file is the literal pin that a rename cannot move with itself.
 //!
 //! # The arc modes, one level down
 //!
-//! The same three spellings carry a second vocabulary INSIDE the
+//! The same two spellings carry a second vocabulary INSIDE the
 //! steps — the §2c arc modes — and a verb-keyed census is blind to
 //! it: every mode travels inside `ArcTo` and the three fused verbs,
 //! so the verb census above is green whatever the modes do.
@@ -47,7 +58,7 @@
 //! and both content-key hashers are exhaustive on `profile::ArcData`,
 //! so a mode the kernel gains breaks this crate at compile — and, as
 //! above, each break can be discharged where it stands while
-//! `res_spec` keeps constructing and the document, wire and slot
+//! `res_spec` keeps constructing and the document and slot
 //! vocabularies stay short. `profile` declares the mode set once and
 //! projects `ArcMode::ALL` from that declaration; the mode census
 //! below is keyed on it, and its witness is a MATCH on the tag, so a
@@ -138,8 +149,9 @@ fn point(x: f64, y: f64) -> ProgramTarget {
 /// point: a mode the kernel vocabulary gains has no arm here, so this
 /// function stops compiling until the document vocabulary learns the
 /// mode too. Every downstream spelling follows from that one addition
-/// by exhaustiveness — the wire's two conversions, `spec_slots`'
-/// roles, and the kernel construction in `res_spec`.
+/// by exhaustiveness — `spec_slots`' roles, `spec_bit_eq`, and the
+/// kernel construction in `res_spec`. The wire needs no arm: the
+/// document type is the serde type.
 ///
 /// The witnesses spread the forms an arc spec can target across the
 /// modes that take one, so the corpus reaches them without a second
@@ -1166,9 +1178,8 @@ fn persisted_tokens(program: &ProfileProgram) -> BTreeSet<String> {
             serde_json::Value::String(s) => {
                 out.insert(s.clone());
             }
-            serde_json::Value::Null
-            | serde_json::Value::Bool(_)
-            | serde_json::Value::Number(_) => {}
+            serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::Number(_) => {
+            }
         }
     }
     let mut out = BTreeSet::new();
@@ -1278,7 +1289,10 @@ const PERSISTED_SPELLING: &[&str] = &[
 #[test]
 fn the_persisted_spelling_of_the_program_is_pinned() {
     let found = persisted_tokens(&corpus());
-    let pinned: BTreeSet<String> = PERSISTED_SPELLING.iter().map(|s| (*s).to_string()).collect();
+    let pinned: BTreeSet<String> = PERSISTED_SPELLING
+        .iter()
+        .map(|s| (*s).to_string())
+        .collect();
     let added: Vec<&String> = found.difference(&pinned).collect();
     let gone: Vec<&String> = pinned.difference(&found).collect();
     assert!(

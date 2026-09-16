@@ -174,8 +174,10 @@ document_vocabulary! {
 /// [`profile::Target`], so a form added here alone can be resolved into
 /// an existing kernel form and never be seen. [`Self::ALL_NAMES`] is
 /// what forces it to reach a witness instead.
+// No `deny_unknown_fields`: no variant here has a NAMED field, so the
+// attribute would have nothing to deny (`work/census/`'s rule; the
+// repo-wide census in `test-utils` reds on an inert one).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub enum ProgramTarget {
     /// An authored absolute point in the profile frame.
     Point([Expr; 2]),
