@@ -63,3 +63,24 @@ this door's shape. A sweep of every `Band::new` site coupled to a K found
 two more that are the shape exactly, both in
 `crates/geom-brep/tests/curved_torus_arc_residual.rs`. Five sites
 converted, not four.
+
+
+## At the fix pass (2026-09-16)
+
+The dispatch ruling that `review_fillet_h6_r2_probes.rs` should take the
+door was **withdrawn** on the review's evidence: the conversion would
+break that row twice, not once. `worst_rim_verdict` builds the band AND
+the adversarial vector `worst_admitted_w(eps, k)` from the same `k`, so
+converting only the band silently decouples the two — on top of making
+the row's "at K = 1.2" claim follow whatever K the run committed.
+
+`Band::from_zero_threshold` is retired with this unit. Once the public
+door existed the private one was byte-identical to it — same signature,
+same body — so `linear` and `angular_at` now call `Band::linear_at`, and
+the pure `Band::from_thresholds(zero, k)` (k as a number, not off a
+witness) stays as the scaling policy the lib tests can reach without the
+global.
+
+`Band::linear_at` is `#[doc(hidden)]`, on `geom-brep`'s `offset_fit`
+precedent for the same `_at` shape: an instrument, not a door. Every
+consumer is a suite pinning a scale its row is about.

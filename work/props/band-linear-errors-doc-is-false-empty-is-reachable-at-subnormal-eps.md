@@ -64,7 +64,7 @@ The `# Errors` sentence made true — both arms named, with the honest
 "unreachable for any physically meaningful tolerance" kept for the
 overflow one, since that part is still right. Optionally a validator
 row pinning the two reachable arms; PR 2378 pins them at the
-`editor-core` end (`crates/editor-core/tests/display_contract.rs`,
+`editor-core` end (`crates/editor-core/tests/wire_band_cause.rs`,
 `band_refusals_name_which_band_failure_they_caught`) as assertions over
 the validator's invariants, and the home for a `geom-core` version is
 `predicate.rs`'s own `mod tests`.
@@ -158,3 +158,27 @@ named and not the two this file names: θ can also underflow to 0 (at
 ε ≤ about 4.4e-16 with an arm near `f64::MAX`), which surfaces as
 `InvalidValue` on `zero` and wants the arm changed rather than ε. All
 three are named in the fix.
+
+
+## At the fix pass (2026-09-16)
+
+The row above cited `display_contract.rs`; the pinning row lives in
+`crates/editor-core/tests/wire_band_cause.rs` and the citation is
+corrected in place.
+
+**One home, and the citing sites link to it.** The derivation was in
+three places: `Band::linear`'s `# Errors` (this row's subject) and, in
+full, `SelectRefusal::Band`'s doc
+(`crates/editor-core/src/names/geompred.rs`) and `EmissionFault::Band`'s
+(`crates/editor-core/src/names/emit.rs`) — none naming the others, and
+the class had already drifted: this file's amendment carried the wrong
+boundary while both editor-core copies carried the right one. The two
+copies now state the two arms and link the conditions to
+`Band::linear`. Weaker siblings in the same class: `profile`'s
+`ArcTrimRefusal::Band` ("only for a misconfigured ε") and
+`ProfileError::Band` ("misconfigured ε — see `BandError`") both named ε
+alone and now link; `profile`'s `TrimRefusal::Band` ("unreachable for
+the built-in band") is TRUE as written — its band is
+`Band::new(f64::from_bits(1), f64::from_bits(2))`, two constants — and
+is left; `pncad`'s prelude `BandField` argument is scoped to
+`InvalidValue` and stays true.
