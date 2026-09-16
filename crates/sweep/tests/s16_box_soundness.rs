@@ -154,16 +154,15 @@ fn a_body_nested_inside_a_curved_solid_is_never_silently_cleared() {
         );
         let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
             .expect_err("a nested instance must refuse, never clear");
+        // The material test decides it: the cylinder is a served face
+        // kind, the box's vertices are strictly inside its material,
+        // and the verdict is the typed interference — not an
+        // undecidable refusal of any wording.
         assert!(
-            errors.iter().any(|e| matches!(
-                e,
-                ValidationError::CensusUndecidable {
-                    a: EntityId::Solid(_),
-                    b: EntityId::Solid(_),
-                    ..
-                }
-            )),
-            "probe at {cx}: the containment arm must name the solid pair, got {errors:?}"
+            errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::InstanceInterference { .. })),
+            "probe at {cx}: the containment arm must decide the nested pair, got {errors:?}"
         );
     }
 }

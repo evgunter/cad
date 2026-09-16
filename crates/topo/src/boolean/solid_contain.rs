@@ -3632,3 +3632,152 @@ mod r1_generic_poses;
 #[cfg(test)]
 #[path = "torus_predicate_rows.rs"]
 mod torus_predicate_rows;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod per_solid_entry_tests {
+    //! The per-solid entry's own refusals, on states only an in-crate
+    //! hand can build: a surface key shared across the selection
+    //! boundary on a group-read kind, and a solid with no faces.
+
+    use super::*;
+    use crate::euler::FaceSurface;
+    use crate::splitting::reassembly::quad_prism;
+
+    fn two_cubes() -> Body<f64> {
+        let tol = Tol::witness();
+        let mut body = quad_prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0, tol);
+        let other = quad_prism(&[(3.0, 0.0), (4.0, 0.0), (4.0, 1.0), (3.0, 1.0)], 1.0, tol);
+        crate::instance::graft_disjoint(&mut body, &other, tol).unwrap();
+        body
+    }
+
+    fn solids(body: &Body<f64>) -> (SolidKey, SolidKey) {
+        let v: Vec<SolidKey> = body.solids().map(|(k, _)| k).collect();
+        (v[0], v[1])
+    }
+
+    fn faces_of(body: &Body<f64>, solid: SolidKey) -> Vec<FaceKey> {
+        body.faces()
+            .filter(|&(k, d)| body.get_shell(d.shell).unwrap().solid == solid && k == k)
+            .map(|(k, _)| k)
+            .collect()
+    }
+
+    /// A sphere key on one face of each solid — the SAME key, written
+    /// into the second solid's face arena by hand (no public door
+    /// produces this: instance placement mints a fresh key per placed
+    /// face) — refuses the per-solid query typed before any predicate
+    /// runs. The same key on PLANES is served: no group is read.
+    #[test]
+    fn a_group_read_key_shared_across_the_selection_refuses_typed() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = two_cubes();
+        let (a, b) = solids(&body);
+        let fa = faces_of(&body, a)[0];
+        let fb = faces_of(&body, b)[0];
+        let sphere = Surface::Sphere {
+            center: Point3::new(0.5, 0.5, 0.5),
+            radius: 0.5,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let key = body.set_face_surface(fa, FaceSurface::New(sphere)).unwrap();
+        body.faces[fb].surface = key;
+        let q = Point3::new(0.5, 0.5, 0.5);
+        match point_in_solid_of(&body, a, q, band, tol) {
+            Err(PointInSolidError::SurfaceSharedOutsideSolid { face, other }) => {
+                assert_eq!((face, other), (fa, fb));
+            }
+            other => panic!("the typed guard: {other:?}"),
+        }
+        // Asked of `b`, the same shared key names `fa` as the foreign face.
+        match point_in_solid_of(&body, b, q, band, tol) {
+            Err(PointInSolidError::SurfaceSharedOutsideSolid { face, other }) => {
+                assert_eq!((face, other), (fb, fa));
+            }
+            other => panic!("the typed guard, other side: {other:?}"),
+        }
+        let text = PointInSolidError::SurfaceSharedOutsideSolid {
+            face: fa,
+            other: fb,
+        }
+        .to_string();
+        assert!(text.contains("shares its surface key"), "{text}");
+        assert!(!text.contains("SurfaceSharedOutsideSolid {"), "{text}");
+    }
+
+    /// A PLANE key shared across the boundary is not a group read and
+    /// is served: the query decides on the selection's own faces.
+    #[test]
+    fn a_shared_plane_key_is_served() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = two_cubes();
+        let (a, b) = solids(&body);
+        let fa = faces_of(&body, a)[0];
+        let fb = faces_of(&body, b)[0];
+        let key = body.get_face(fa).unwrap().surface;
+        // Re-point a face of `b` at `a`'s plane key: `b` is no longer a
+        // sound body, but `a`'s query never reads `b`'s faces.
+        body.faces[fb].surface = key;
+        assert_eq!(
+            point_in_solid_of(&body, a, Point3::new(0.5, 0.5, 0.5), band, tol).unwrap(),
+            SolidContainment::In
+        );
+    }
+
+    /// The entries agree with each other where the body IS one solid,
+    /// and the per-solid entry answers for one solid where it is two.
+    #[test]
+    fn the_two_entries_agree_on_a_single_solid_and_split_a_pair() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let body = two_cubes();
+        let (a, b) = solids(&body);
+        for (q, in_a, in_b) in [
+            (
+                Point3::new(0.5, 0.5, 0.5),
+                SolidContainment::In,
+                SolidContainment::Out,
+            ),
+            (
+                Point3::new(3.5, 0.5, 0.5),
+                SolidContainment::Out,
+                SolidContainment::In,
+            ),
+            (
+                Point3::new(2.0, 0.5, 0.5),
+                SolidContainment::Out,
+                SolidContainment::Out,
+            ),
+            (
+                Point3::new(1.0, 0.5, 0.5),
+                SolidContainment::OnBoundary,
+                SolidContainment::Out,
+            ),
+        ] {
+            assert_eq!(
+                point_in_solid_of(&body, a, q, band, tol).unwrap(),
+                in_a,
+                "{q:?}"
+            );
+            assert_eq!(
+                point_in_solid_of(&body, b, q, band, tol).unwrap(),
+                in_b,
+                "{q:?}"
+            );
+            // The whole-body door sees both.
+            let whole = point_in_solid(&body, q, band, tol).unwrap();
+            let expected = match (in_a, in_b) {
+                (SolidContainment::In, _) | (_, SolidContainment::In) => SolidContainment::In,
+                (SolidContainment::OnBoundary, _) | (_, SolidContainment::OnBoundary) => {
+                    SolidContainment::OnBoundary
+                }
+                _ => SolidContainment::Out,
+            };
+            assert_eq!(whole, expected, "{q:?}");
+        }
+    }
+}
