@@ -2,10 +2,11 @@
 id: doc-param-distribution-edit-has-no-door
 kind: issue
 title: No DocEdit annotates a standing document parameter — SetDocParam would drop the notation
-status: review
+status: closed
 opened: 2026-09-16
 pr: 2774
 branch: edit/doc-param-distribution
+closed: 2026-09-16
 ---
 
 
@@ -168,3 +169,25 @@ Branch `edit/doc-param-distribution`.
 - The suite's F6 row keeps only what the `display_contract.rs` census
   does not say — that the parameter name is interpolated, and that
   `DistributionRefusal` renders on its own.
+
+## Closed (2026-09-16, EDIT orchestrator)
+
+Built and merged as PR #2774 after one opus style review (MERGEABLE:
+three doc-level MINOR, two NOTE, nine style findings; every one taken
+or argued with a measurement in the fix pass). The third carry-forward
+door mirrors the unit door exactly where it should
+(`DocParam::with_distribution`, `DocEdit::SetDocParamDistribution`,
+`CarryForwardDoor::Annotation`) and differs only where the field does;
+`None` clears through the same door, ruled on this row; the
+create-or-replace door and this one classify a distribution fault
+through one function. Red first (the notation reverting from mm to m
+through `SetDocParam`), five mutants each redding rows. The one
+disclosed deviation (the non-finite offset reached through `save` of
+an in-memory log, since JSON cannot spell one) is right. Residue in its
+own files: `work/lib/doc-param-edit-doors-drop-the-python-dimension`
+(the Python wrapper's dimension is dropped at the door because the
+kernel `Distribution` carries none — LIB's call) and
+`work/chrome/props-header-says-no-door-between-create-or-replace-and-value`
+(a viewer header premise both carry-forward doors falsified). One
+baseline moved: the kitchen sink's persisted-text hash, for one inert
+metadata edit added to it; its name-tables digest did not.
