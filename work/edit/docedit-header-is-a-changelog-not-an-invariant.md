@@ -2,8 +2,9 @@
 id: docedit-header-is-a-changelog-not-an-invariant
 kind: issue
 title: DocEdit's header documents which milestone added which arm — history where the comment rule wants the invariant
-status: open
+status: closed
 opened: 2026-09-16
+closed: 2026-09-16
 ---
 
 
@@ -49,3 +50,13 @@ untouched by that unit, so it was filed rather than fixed there: the
 notation arm's own doc is present-tense, and rewriting the header in a
 PR about a new door would have hidden a prose decision inside a
 feature diff.
+
+## Closed (2026-09-16, EDIT orchestrator) — E-class
+
+The header is rewritten to what the vocabulary is: a closed set of
+recorded intents over a document value, every arm data, `apply` pure,
+the three shapes named (structural edits; the parameter family's one
+create-or-replace door and its carry-forward doors; the explicit
+repairs and presentation state). The milestone citations are gone;
+the clause ids (D2, D6, D7, N5, W4) stay as references. No behaviour
+change, no row moves; merged on green CI and the orchestrator's read.
