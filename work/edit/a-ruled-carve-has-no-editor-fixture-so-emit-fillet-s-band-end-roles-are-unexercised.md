@@ -2,8 +2,9 @@
 id: a-ruled-carve-has-no-editor-fixture-so-emit-fillet-s-band-end-roles-are-unexercised
 kind: issue
 title: No editor row drives a ruled carve, so emit_fillet's band-end roles (CornerArc, FootVertex, BandCut) have never been minted through the document layer
-status: dispatched
+status: review
 opened: 2026-09-15
+branch: edit/ruled-carve-fixture
 ---
 
 
@@ -99,3 +100,39 @@ written so it can go red.
 5. Nothing in `crates/sweep` changes; `crates/editor-core/src/names/*`
    is EDIT's ground and changes only if the fixture proves a name
    wrong — then that is the finding, filed or fixed with the reason.
+
+## Built (2026-09-16)
+
+`crates/editor-core/tests/edit_ruled_carve.rs` — a suite of its own,
+not a corpus registration (the reason is in its module header: the
+registry buys an interval lane, a round trip, a latency baseline row
+and name-digest goldens that this row asserts nothing about, and
+`blend5_rim_support.rs` already set the shape for the annulus). Two
+documents, both authored as recipes through `DocEdit`: the D-profile
+rod (convex) and a rod's section standing on a block's top edge
+(concave), each a frame, a chain profile with one bulge arc, an extrude
+and a `Node::Fillet` naming the two ruling creases by their extrude
+`LateralEdge` names.
+
+Four rows, each reading a role's ARGUMENTS against the runtime entity
+the name resolves to: the cut-off arc (`RoleSeg::EndArc`) runs between
+the two feet of the cap vertex it is keyed by; a foot
+(`RoleSeg::FootVertex`) lies at the height of the source cap vertex its
+`vertex` argument names and on the wall its `support` argument names; a
+trimline (`RoleSeg::TrimEdge`) runs between its own support's two feet;
+the surviving rim piece (`RoleSeg::BandCut`) carries the cap rim it was
+cut from and runs between whatever cut it — foot to foot on a rim both
+creases reached, foot to surviving source vertex on one only a single
+crease reached (the concave twin's segments 2 and 4).
+
+Redness measured by mutating `names/emit_blend.rs` three ways and
+restoring: dropping the `FootVertex` mint (all four rows red, at
+`check_total`), permuting a foot's `support` across the two feet of one
+cap (three rows red on geometry, the `EndArc` row blind because the
+pair of feet is unchanged), permuting `BandCut`'s source argument
+across the remnants (only the rim row red). No mutant went unseen.
+
+Not done here, filed instead:
+`bandfoot-and-bandcross-arguments-are-read-by-no-document-row` — the
+ladder rim phase's other two mints still ride `check_total` with no row
+reading their arguments.
