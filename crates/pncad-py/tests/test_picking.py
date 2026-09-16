@@ -26,6 +26,7 @@ import pncad
 from pncad import (
     CapEnd,
     Doc,
+    DocEdit,
     EntityKind,
     Expr,
     HitTestError,
@@ -626,11 +627,28 @@ class TestThePickIndexPairsWithItsDocument(unittest.TestCase):
         )
 
     def test_a_later_evaluation_of_the_same_document_is_admitted(self):
-        # The document is EDITED — a second solid inserted — so this is
-        # a different run of the same identity, which is what the
-        # pairing admits.
-        unit_cube(self.doc, at=(5.0, 0.0))
+        # The INDEXED node is edited — its own extrusion distance — so
+        # the later run recomputes and re-tessellates the very body the
+        # index was built from and the index is a picture behind. That
+        # is the stale case the pairing admits, and the Rust row
+        # `a_later_evaluation_of_the_same_document_is_admitted` draws it
+        # the same way; a second, unrelated solid would leave this
+        # node's value untouched and prove nothing about staleness.
+        self.doc.apply(
+            DocEdit.set_param(self.cube, "distance", Expr.length_in(2, m))
+        )
         later = evaluate(self.doc)
+        # The premise, through the doors: the node's own body moved, so
+        # an index built on the later run hits the cap at t = 1 where
+        # the stale one still hits it at t = 2.
+        rebuilt = NodePick.build(later, self.cube, 0, DELTA)
+        self.assertAlmostEqual(
+            later.pick_face([rebuilt], straight_down()).t, 1.0, places=12
+        )
+        self.assertAlmostEqual(
+            later.pick_face([self.pick], straight_down()).t, 2.0, places=12,
+            msg="the admitted index is a picture behind, and says so",
+        )
         self.assertEqual(
             self.pick.patch_names(later), self.pick.patch_names(self.ev)
         )

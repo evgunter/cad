@@ -62,6 +62,21 @@ pub enum HitTestError {
     },
 }
 
+/// **The pairing predicate's finding, in this door's vocabulary.**
+///
+/// A2a's rule is one predicate (`ident::mispaired`) and one arm per
+/// error type over it. The projection lives HERE, at the type that
+/// owns the arm, so a door that runs the predicate writes `?` or
+/// `m.into()` and no site re-spells which field goes where.
+impl From<crate::ident::Mispaired> for HitTestError {
+    fn from(m: crate::ident::Mispaired) -> Self {
+        Self::EvaluationOfAnotherDocument {
+            expected: m.expected,
+            found: m.found,
+        }
+    }
+}
+
 // LIB-DOORS F6: the human-readable rendering a consumer prints instead
 // of composing a sentence about somebody else's refusal. Each arm
 // states the PROBLEM in this layer's vocabulary — which node, and what

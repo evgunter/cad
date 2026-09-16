@@ -954,6 +954,21 @@ pub enum EditError {
     },
 }
 
+/// **The pairing predicate's finding, in this door's vocabulary.**
+///
+/// A2a's rule is one predicate (`ident::mispaired`) and one arm per
+/// error type over it. The projection lives HERE, at the type that
+/// owns the arm, so a door that runs the predicate writes `?` or
+/// `m.into()` and no site re-spells which field goes where.
+impl From<crate::ident::Mispaired> for EditError {
+    fn from(m: crate::ident::Mispaired) -> Self {
+        Self::EvaluationOfAnotherDocument {
+            expected: m.expected,
+            found: m.found,
+        }
+    }
+}
+
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the
 // bindings' exception messages consume. The comment-style rule
 // applies — each arm states the PROBLEM (and where it is), not the

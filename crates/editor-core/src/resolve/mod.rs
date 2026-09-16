@@ -1160,10 +1160,7 @@ pub fn apply_with_names<T: Decide>(
     use crate::edit::{DocEdit, EditError};
     // The pairing, before any name is read (why: this fn's docs).
     if let Some(m) = crate::ident::mispaired(doc.id(), eval.document) {
-        return Err(EditError::EvaluationOfAnotherDocument {
-            expected: m.expected,
-            found: m.found,
-        });
+        return Err(m.into());
     }
     let mut names: Vec<&StableName> = Vec::new();
     // EXHAUSTIVE on purpose (the `walk_names` rule): the three groups

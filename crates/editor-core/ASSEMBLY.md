@@ -58,7 +58,20 @@ A door that takes a document — or a value OF a document — plus a
 second value that must be of that same document refuses a mismatch
 typed, before reading anything of the second. The comparison is the
 one predicate `ident::mispaired`, and each door carries its own arm
-over it, in its own error vocabulary. The doors that do so:
+over it, in its own error vocabulary.
+
+**The rule binds only where BOTH halves carry an identity to compare**
+— a `Doc`, or a value stamped with one: an `Evaluation`, a
+`SolvedPoses`, a `NodePick` and the `PickTarget` it mints. A value with
+no provenance of its own is outside the clause, because there is
+nothing to run the predicate on rather than because a check was
+declined: `resolve::hit`'s `face_name` / `edge_name` / `vertex_name`
+take a raw arena key beside an evaluation, and a bare `StableName` is
+text. Those are #1098's raw-key class, and the door that closes them is
+a stamped value to hand instead — which is what `NodePick` is for the
+pick doors below.
+
+The doors that refuse:
 
 - `product` (with `product_named` and `product_recorded`,
   `ProductError::EvaluationOfAnotherDocument`), and `assemble`
@@ -106,13 +119,21 @@ pick index's doors as by the rest — because a pairing is about
 identity and never about a version (DI3); whether anything may be
 reused across such a run is the content keys' business.
 
-The pick doors' stamp does not reach the NODE half. Arena keys
-collide numerically across sibling nodes of one document, so a
-`PickTarget` hand-assembled with the wrong node of the right document
-still answers a plausible wrong name; that is `PickTarget`'s stated
-contract and issue #1098's residual raw-assembly class, and
-`NodePick`, whose `(node, body)` ↔ mesh pairing is true by
-construction, is the door that closes it.
+The pick doors' stamp does not reach a HAND-ASSEMBLED target, in any
+half. A `PickTarget`'s fields are private and it has exactly two
+mints — `NodePick::target`, where the document, the node, the body and
+the mesh all come from one tessellation, and `PickTarget::new`, where
+the caller declares them over a mesh index of its own. A minted target
+cannot be taken apart and re-stamped, so what the door checks is a
+claim a raw caller made: the node half cannot be checked even in
+principle (arena keys collide numerically across sibling nodes of one
+document, so the wrong node of the right document still answers a
+plausible wrong name), and the document half is checked against the
+handed evaluation, which catches every honestly-stamped target paired
+with the wrong run and not a caller who declared another document's
+mesh. That is `PickTarget`'s stated contract and issue #1098's residual
+raw-assembly class, and `NodePick`, whose `(document, node, body)` ↔
+mesh pairing is true by construction, is the door that closes it.
 
 Other doors that take such a pair — `stackup` and `sensitivities`,
 `drive::certifying` — do NOT check it today; `assembly::mint` is

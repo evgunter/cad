@@ -346,9 +346,15 @@ pub enum PickIndexError {
         body: u32,
     },
     /// A part's name doors refused the evaluation this index is being
-    /// built against — the pairing refusal, forwarded. Every part here
-    /// is built from that same evaluation, so this is unreachable; it
-    /// is a refusal rather than an assumption for
+    /// built against — the pairing refusal, forwarded.
+    ///
+    /// Unreachable ON THIS PATH, and the condition is worth stating
+    /// rather than the conclusion: every part here is built from the
+    /// evaluation it is then read against, and the memo the build goes
+    /// through refuses a prior of another document (the row is
+    /// `editor_core`'s `edit_pair_apply_names::the_memo_refuses_a_prior_of_another_document`),
+    /// so no part of another document can reach this loop. It is a
+    /// refusal rather than an assumption for
     /// [`PickIndexError::DrawnTwice`]'s reason, and because a future
     /// caller that assembled parts elsewhere would otherwise get the
     /// wrong document's names in window order.
@@ -1095,7 +1101,13 @@ impl PickIndex {
     ///
     /// # Errors
     ///
-    /// [`HitTestError`], verbatim from `pick_face`.
+    /// [`HitTestError`], verbatim from `pick_face` — including
+    /// [`HitTestError::EvaluationOfAnotherDocument`] when `eval` is an
+    /// evaluation of a document this index's parts are not of, refused
+    /// before any triangle or any node's standing is read (A2a). The
+    /// parts carry the stamp of the evaluation they were built from,
+    /// so the caller that hands a different one is the caller this
+    /// arm is about.
     pub fn pick(&self, eval: &Evaluation<f64>, ray: &Ray) -> Result<Option<PickHit>, HitTestError> {
         self.pick_for(eval, ray, &DisplayView::none())
     }
@@ -1118,7 +1130,9 @@ impl PickIndex {
     ///
     /// # Errors
     ///
-    /// [`HitTestError`], verbatim from `pick_face`.
+    /// [`HitTestError`], verbatim from `pick_face` — the pairing arm
+    /// ([`PickIndex::pick`]) included, and refused for the whole call
+    /// before either batch is offered.
     pub fn pick_for(
         &self,
         eval: &Evaluation<f64>,

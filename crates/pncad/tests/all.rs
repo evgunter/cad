@@ -4272,11 +4272,12 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///
 ///   **`MeshPick` stays, and that is what closes the raw-target lane
 ///   at the façade.** It is the raw index a hand-assembled
-///   `PickTarget` needs, and `PickTarget::pick` is a `&MeshPick` — so
-///   with the index unnameable here, the target whose contract warns
-///   of a confidently wrong name has no constructor a façade consumer
-///   can reach, and `NodePick` is not merely the preferred door but
-///   the only one. `PickTarget` is carried because `pick_face`'s
+///   `PickTarget` needs, and `PickTarget`'s raw mint
+///   (`PickTarget::new`) takes a `&MeshPick` — so with the index
+///   unnameable here, the target whose contract warns of a
+///   confidently wrong name has no constructor a façade consumer can
+///   reach, and `NodePick` is not merely the preferred door but the
+///   only one. `PickTarget` is carried because `pick_face`'s
 ///   signature names it, not because it can be built.
 ///
 ///   **`MeshPickError` left this list, and the construction argument
