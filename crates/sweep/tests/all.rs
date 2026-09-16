@@ -73,6 +73,16 @@ mod bool3_r1_probes;
 mod bool3_torus_doors;
 #[path = "bool3_torus_doors_interval.rs"]
 mod bool3_torus_doors_interval;
+#[path = "bool5r2_wedge_reach.rs"]
+mod bool5r2_wedge_reach;
+#[path = "bool6_per_slab_stacking.rs"]
+mod bool6_per_slab_stacking;
+#[path = "bool6_r2_probes.rs"]
+mod bool6_r2_probes;
+#[path = "bool6r1_probes.rs"]
+mod bool6r1_probes;
+#[path = "bool6r1_probes_interval.rs"]
+mod bool6r1_probes_interval;
 #[path = "offb_r1_loft_probes.rs"]
 mod offb_r1_loft_probes;
 #[path = "offc_r1_probes.rs"]
@@ -154,6 +164,8 @@ mod blend_margin_payload_interval;
 mod blend_seam_split_rim;
 #[path = "blend_tworims.rs"]
 mod blend_tworims;
+#[path = "bool5r1_probes.rs"]
+mod bool5r1_probes;
 #[path = "cert5_offgrid_knot_rational.rs"]
 mod cert5_offgrid_knot_rational;
 #[path = "cert8_r1_probes.rs"]

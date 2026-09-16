@@ -310,11 +310,7 @@ fn dyadic_battery_pins_faces_edges_corners_and_tiebreak() {
     }
     let scaled_meshes = [(0usize, &scaled)];
     let scaled_pick = MeshPick::build(&scaled).expect("scaled mesh builds");
-    let scaled_targets = [PickTarget {
-        node: ext,
-        body: 0,
-        pick: &scaled_pick,
-    }];
+    let scaled_targets = [PickTarget::new(&ev, ext, 0, &scaled_pick)];
     for (ci, (o, d)) in cases.iter().enumerate() {
         let o2 = [
             (o[0] * 2.0) as i128,
@@ -366,16 +362,8 @@ fn coplanar_cross_target_tie_resolves_by_target_position() {
     let mesh_b = mesh_of(&ev, b);
     let pick_a = MeshPick::build(&mesh_a).expect("mesh a");
     let pick_b = MeshPick::build(&mesh_b).expect("mesh b");
-    let ta = PickTarget {
-        node: a,
-        body: 0,
-        pick: &pick_a,
-    };
-    let tb = PickTarget {
-        node: b,
-        body: 0,
-        pick: &pick_b,
-    };
+    let ta = PickTarget::new(&ev, a, 0, &pick_a);
+    let tb = PickTarget::new(&ev, b, 0, &pick_b);
     // In the x = 1 plane, aimed at the shared edge point (1, 0, 1/2),
     // reaching it at t = 1 for both bodies' y = 0 faces.
     let r = ray([1.0, -1.0, 0.5], [0.0, 1.0, 0.0]);
@@ -423,11 +411,7 @@ fn random_integer_rays_match_the_exact_oracle() {
     let ev = run(&doc);
     let mesh = mesh_of(&ev, ext);
     let pick = MeshPick::build(&mesh).expect("well-formed mesh");
-    let targets = [PickTarget {
-        node: ext,
-        body: 0,
-        pick: &pick,
-    }];
+    let targets = [PickTarget::new(&ev, ext, 0, &pick)];
     let meshes = [(0usize, &mesh)];
 
     let mut rng = fuzz::start("review r1: pick_face exact-oracle sweep");

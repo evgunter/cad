@@ -52,7 +52,10 @@ struct Side<'a, T: Decide> {
 /// negation), so no new numeric decision enters here, and every face
 /// this build mints has `sense: true` — the fold is the identity and
 /// no name moves.
-fn face_plane<T: Decide>(body: &Body<T>, f: FaceKey) -> Result<(Point3<T>, Vec3<T>), NamingError> {
+pub(super) fn face_plane<T: Decide>(
+    body: &Body<T>,
+    f: FaceKey,
+) -> Result<(Point3<T>, Vec3<T>), NamingError> {
     let bug = |what| NamingError::Emission { what };
     let face = body
         .get_face(f)

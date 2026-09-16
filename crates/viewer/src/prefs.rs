@@ -357,7 +357,7 @@ impl std::error::Error for StoreError {}
 /// keeps nothing. The reason is what the field IS: the backing store's
 /// own words, exactly as [`StoreError::because`] is, and a store need
 /// not know them statically — a browser store refused by a privacy
-/// mode is handed a message. [`crate::frame::ChooserBackend`] is
+/// mode is handed a message. [`crate::platform::ChooserBackend`] is
 /// `Copy` over the same shape of fact and is NOT the precedent here,
 /// because it is a probe over a closed three-value vocabulary whose
 /// reason is a const the value never carries; that a store carries its
@@ -423,7 +423,7 @@ impl Unusable {
 /// silently dropped.
 ///
 /// **Annotated, not disabled**, and that is where this parts company
-/// with [`crate::frame::chooser_backend`]'s posture for Open…/Save As…. A file
+/// with [`crate::platform::chooser_backend`]'s posture for Open…/Save As…. A file
 /// dialog with no backend can do nothing at all, so the control is
 /// disabled with a reason. The palette picker still works: the theme
 /// applies to the screen on the frame it is chosen and only the
@@ -482,7 +482,7 @@ pub mod file {
         /// **The path is handed in, never discovered here.** Finding
         /// it means reading the environment, and every ambient read
         /// this crate performs lives in `crate::frame`
-        /// (`crate::frame::prefs_path`) — the one-door ruling in
+        /// (`crate::platform::prefs_path`) — the one-door ruling in
         /// `scripts/gates/no-ambient-env.sh`. It also keeps this
         /// module a pure value over a document and a store, which is
         /// what lets the suite exercise the real read and write

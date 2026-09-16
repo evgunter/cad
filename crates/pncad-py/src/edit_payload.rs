@@ -358,8 +358,13 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             ..none
         },
         EditError::ContinuousParamCannotBeCount { name }
-        | EditError::DocParamNotDeclared { name }
-        | EditError::NonFiniteDocParam { name }
+        | EditError::DocParamNotDeclared { name, door: _ }
+        | EditError::DocParamCountHasNoUnit { name }
+        | EditError::DocParamCountHasNoDistribution { name }
+        // The field the refusal names does not cross: a caller holds
+        // the parameter it just submitted, and `non_finite_doc_param`
+        // plus the Rust sentence say which float it was.
+        | EditError::NonFiniteDocParam { name, field: _ }
         | EditError::InvalidDistribution { name, fault: _ } => EditPayload {
             param: Some(name),
             ..none
@@ -372,6 +377,20 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             param: Some(name),
             expected: Some(dim(*declared)),
             offered: Some(*offered),
+            ..none
+        },
+        // The notation door's dimension fault: `expected` is the
+        // declaration's dimension and `found` what the offered unit
+        // measures — the pair `doc_param_dimension_mismatch` already
+        // spells, over a unit rather than over a reference.
+        EditError::DocParamUnitMismatch {
+            name,
+            unit,
+            declared,
+        } => EditPayload {
+            param: Some(name),
+            expected: Some(dim(*declared)),
+            found: Some(dim(*unit)),
             ..none
         },
         // The expression address decomposes into the two attributes

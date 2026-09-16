@@ -95,3 +95,45 @@ closes the last of those; the first three are still open.
 array form is the persisted shape and is D7/D9 territory. The ask is a
 door in the direction the crate already has doors in every other
 direction.
+
+## The inverse direction at `Affine3`: six twelve-by-name READOUT walks
+
+Added by the affine-try-map lane (`Affine3::try_map`), which mints the
+LIFTING door for a placement and leaves the READING one absent. The
+evidence was folded into
+`affine3-try-map-the-fallible-walk-has-no-kernel-door`, which closes
+when that door lands; it belongs on this row, whose subject is exactly
+the array↔geometry direction the crate has no doors in.
+
+`Affine3` has no `components() -> [T; 12]` and no
+`cols() -> [Vec3<T>; 4]`, so every site that wants to READ a placement
+out names its parts itself. Six of them, verified at `2f0db2793`, and
+they split by which of the two doors they want:
+
+Twelve scalars by name (`components()`):
+
+- `crates/editor-core/src/placement.rs` — `Frame::from_affine`
+- `crates/profile/src/lib.rs` — `SketchPlane::bit_eq`
+- `crates/profile/tests/sketch_plane.rs` — the suite's `bits` helper
+
+The four columns by name (`cols()`):
+
+- `crates/editor-core/src/mate/coset.rs` — `Coset::eq`
+- `crates/editor-core/tests/fixture/seat.rs` — its `cols` closure
+- `crates/topo/src/separation.rs` — the three LINEAR columns only,
+  which is the case a four-element `cols()` does not serve and a
+  `Mat3::cols()` beneath it would
+
+and the affine-try-map lane added two more of the twelve-scalar shape
+in its test rows (`geom-core`'s `affine.rs` `components`,
+`eval/wire.rs`'s `pinned_plane_tests::bits`), because there was nothing
+to call.
+
+The argument is the one the lifting door was minted on: **a transposed
+`c1`/`c2` is invisible in review and identical in every copy but one.**
+It applies to reading exactly as it applies to lifting, and reading now
+has six copies where lifting has one. Note the counter-pressure from
+`SketchPlane::bit_eq`, which spells the twelve out through irrefutable
+`let` PATTERNS precisely so a new stored field is an E0027 — a door
+returning a fixed-length array gives that up unless the door itself is
+the pattern site.

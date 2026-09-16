@@ -19,7 +19,7 @@ The crate now answers *"can this facility do anything?"* two ways:
 
 - `prefs::PrefsStore::unusable(&self) -> Option<prefs::Unusable>` —
   `None` when it can, and otherwise the store's own words for why not.
-- `frame::ChooserBackend::usable(self) -> bool` — true when it can,
+- `platform::ChooserBackend::usable(self) -> bool` — true when it can,
   and no words at all.
 
 A reader of `app.rs` meets both: `chooser.usable()` gating the two
@@ -36,7 +36,7 @@ to say it to was the caller, so the sentence a reader saw had to be
 composed somewhere that did not know it."*
 
 That is `ChooserBackend`'s situation. Its reason lives in
-`frame::NO_CHOOSER_BACKEND`, a `const` composed away from the value and
+`platform::NO_CHOOSER_BACKEND`, a `const` composed away from the value and
 handed to `on_disabled_hover_text` by the two call sites; the value
 that KNOWS the environment carries none of it. `crates/viewer/README.md`
 already records that the sweep for that fact has to range over reads of
@@ -59,11 +59,11 @@ environment offers**, not every `-> bool` and not every use of the word
 `usable` — the claim is about a fact having a reason a reader needs,
 so the rule ranges over the facts:
 
-- `frame::ChooserBackend` — the instance above.
-- `frame::Zenity` and `frame::SessionBus`, the two probe readings
+- `platform::ChooserBackend` — the instance above.
+- `platform::Zenity` and `platform::SessionBus`, the two probe readings
   `chooser_backend_of` folds; they feed a value rather than a reader,
   so they may well owe nothing.
-- `frame::prefs_path() -> Option<PathBuf>`, whose `None` is the native
+- `platform::prefs_path() -> Option<PathBuf>`, whose `None` is the native
   half of the store case; its reason is already prose in its doc and
   reaches no reader.
 - the WSL probe.

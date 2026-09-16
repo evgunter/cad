@@ -345,6 +345,20 @@ pub enum PickIndexError {
         /// The output body drawn twice.
         body: u32,
     },
+    /// A part's name doors refused the evaluation this index is being
+    /// built against — the pairing refusal, forwarded.
+    ///
+    /// Unreachable ON THIS PATH, and the condition is worth stating
+    /// rather than the conclusion: every part here is built from the
+    /// evaluation it is then read against, and the memo the build goes
+    /// through refuses a prior of another document (the row is
+    /// `editor_core`'s `edit_pair_apply_names::the_memo_refuses_a_prior_of_another_document`),
+    /// so no part of another document can reach this loop. It is a
+    /// refusal rather than an assumption for
+    /// [`PickIndexError::DrawnTwice`]'s reason, and because a future
+    /// caller that assembled parts elsewhere would otherwise get the
+    /// wrong document's names in window order.
+    Names(HitTestError),
 }
 
 impl core::fmt::Display for IdMapError {
@@ -386,6 +400,7 @@ impl core::fmt::Display for PickIndexError {
                 "body {} of node {} is drawn by two parts; one drawn body is one part",
                 body, node.0
             ),
+            Self::Names(error) => write!(f, "{error}"),
         }
     }
 }
@@ -418,7 +433,15 @@ trait DrawnKind {
     /// what say how long it is. Pairing the kind with its own name
     /// source here is also what stops a caller handing patch names to
     /// the edge window.
-    fn names_of(part: &NodePick, eval: &Evaluation<f64>) -> Vec<Result<StableName, HitTestError>>;
+    ///
+    /// # Errors
+    ///
+    /// [`HitTestError`] when the part is not of `eval`'s document —
+    /// the door's own pairing refusal, verbatim.
+    fn names_of(
+        part: &NodePick,
+        eval: &Evaluation<f64>,
+    ) -> Result<Vec<Result<StableName, HitTestError>>, HitTestError>;
 
     /// The address of the entity at `position` in the part drawing
     /// `(node, body)`, which is at `flat` in the whole index.
@@ -433,7 +456,10 @@ struct Patches;
 impl DrawnKind for Patches {
     type Id = u32;
 
-    fn names_of(part: &NodePick, eval: &Evaluation<f64>) -> Vec<Result<StableName, HitTestError>> {
+    fn names_of(
+        part: &NodePick,
+        eval: &Evaluation<f64>,
+    ) -> Result<Vec<Result<StableName, HitTestError>>, HitTestError> {
         part.patch_names(eval)
     }
 
@@ -455,7 +481,10 @@ struct Edges;
 impl DrawnKind for Edges {
     type Id = EdgeId;
 
-    fn names_of(part: &NodePick, eval: &Evaluation<f64>) -> Vec<Result<StableName, HitTestError>> {
+    fn names_of(
+        part: &NodePick,
+        eval: &Evaluation<f64>,
+    ) -> Result<Vec<Result<StableName, HitTestError>>, HitTestError> {
         part.boundary_names(eval)
     }
 
@@ -553,9 +582,11 @@ impl<K: DrawnKind> PartWindows<K> {
     /// # Errors
     ///
     /// [`PickIndexError::DrawnTwice`] when a part for that
-    /// (node, body) is already here.
+    /// (node, body) is already here; [`PickIndexError::Names`] when
+    /// the part is not of `eval`'s document.
     fn push(&mut self, part: &NodePick, eval: &Evaluation<f64>) -> Result<(), PickIndexError> {
-        self.push_names(part.node(), part.body(), K::names_of(part, eval))
+        let names = K::names_of(part, eval).map_err(PickIndexError::Names)?;
+        self.push_names(part.node(), part.body(), names)
     }
 
     /// [`Self::push`] over a name list directly — the seam a row can
@@ -730,7 +761,7 @@ impl PartWindows<Patches> {
 ///   — the question the budget is being paid to answer — not the δ a
 ///   picture was built at, so the two values mean different things and
 ///   an answer for one is no answer for the other.
-/// - [`crate::frame::IdSubject`] carries the scene revision and the
+/// - [`crate::idpass::IdSubject`] carries the scene revision and the
 ///   index's generation, with no δ. That is not half of this key; it
 ///   is a different key over a different pair, and its own doc holds
 ///   the argument for both of its halves.
@@ -893,7 +924,7 @@ impl PickIndex {
     /// The generation this index was built under.
     ///
     /// **Half a key, and legitimately so**: the id query's subject
-    /// ([`crate::frame::IdSubject`]) names the alphabet a GPU answer
+    /// ([`crate::idpass::IdSubject`]) names the alphabet a GPU answer
     /// was read through, which is the index's identity and not the
     /// picture's. Anything asking whether two PICTURES are the same
     /// wants [`PickIndex::key`].
@@ -1070,7 +1101,13 @@ impl PickIndex {
     ///
     /// # Errors
     ///
-    /// [`HitTestError`], verbatim from `pick_face`.
+    /// [`HitTestError`], verbatim from `pick_face` — including
+    /// [`HitTestError::EvaluationOfAnotherDocument`] when `eval` is an
+    /// evaluation of a document this index's parts are not of, refused
+    /// before any triangle or any node's standing is read (A2a). The
+    /// parts carry the stamp of the evaluation they were built from,
+    /// so the caller that hands a different one is the caller this
+    /// arm is about.
     pub fn pick(&self, eval: &Evaluation<f64>, ray: &Ray) -> Result<Option<PickHit>, HitTestError> {
         self.pick_for(eval, ray, &DisplayView::none())
     }
@@ -1093,7 +1130,9 @@ impl PickIndex {
     ///
     /// # Errors
     ///
-    /// [`HitTestError`], verbatim from `pick_face`.
+    /// [`HitTestError`], verbatim from `pick_face` — the pairing arm
+    /// ([`PickIndex::pick`]) included, and refused for the whole call
+    /// before either batch is offered.
     pub fn pick_for(
         &self,
         eval: &Evaluation<f64>,
@@ -1337,7 +1376,7 @@ impl PickIndex {
     /// would answer with — the ray path's own answer, un-narrowed.
     ///
     /// The door the GPU id buffer's cross-check reads
-    /// (`crate::frame::disagreement`): that comparison's subject is the
+    /// (`crate::idpass::disagreement`): that comparison's subject is the
     /// PATCH under the cursor, because a patch id is the only thing an
     /// id buffer can answer, so the ray side has to answer the same
     /// question. The hover cannot stand in for it — once the priority
