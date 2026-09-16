@@ -3326,6 +3326,20 @@ fixed, disclosed), R2 isolated from R1, briefs symmetric, no
 relaxations granted. Implementer difficulty M (pre-logged at the spec,
 pre-draw). Sample number at merge; row in the docs PR after the merge.
 
+BOOL-4 (PR #2767) ordinal FIXED AT DISPATCH (2026-09-16):
+**ordinal 1112** (S-BOOL band 1100–1199). v6 dual: parity byte **46**,
+parity 0 ⇒ **R1 OPUS + R2 FABLE**; CONCURRENT on frozen `078e008be`
+(run 35096850105 verified at dispatch: head SHA matches, 39 checks —
+36 success + 3 skipped, 0 neutral; not narrowed: 12 `test (…)` rows and
+5 `k-lint (gate, …)` rows), R2 isolated from R1, briefs symmetric (HARD
+RULES written fresh for this unit), no relaxations granted. Implementer
+difficulty L (pre-logged at the spec, pre-draw); implementer arm FABLE
+(block BOOL-B5 slot 0, byte 105 — quoted from the private draw file
+before the arm was named). Sample number at merge; the row rides the
+unit branch as its last commit. Each reviewer gets its OWN target
+directory this time: BOOL-7's shared-target experiment served a stale
+library across worktrees (recorded at BOOL-7's row).
+
 BOOL-7 (PR #2755) ordinal FIXED AT DISPATCH (2026-09-16):
 **ordinal 1111** (S-BOOL band 1100–1199). v6 dual: parity byte **131**,
 parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `4c23a978f`
