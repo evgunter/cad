@@ -2,10 +2,11 @@
 id: cut-off-arc-persists-as-a-corner-arc
 kind: issue
 title: names: a ruled band's cut-off arc persists under RoleSeg::CornerArc
-status: review
+status: closed
 opened: 2026-09-05
 pr: 2717
 branch: edit/cutoff-arc-rename
+closed: 2026-09-16
 ---
 
 ## Finding
@@ -221,3 +222,9 @@ The band-end roles are still unexercised through the document layer, so
 this row's premise (no consumer to be wrong for) still holds.
 
 No rows filed: the sweep turned up no defect outside the fence.
+
+## Closed (2026-09-16, EDIT orchestrator)
+
+Merged as PR #2717 on green CI (run 35046820507, full matrix) and the
+orchestrator's read: the diff is the ruling and nothing else. The
+fixture row stands on its own.

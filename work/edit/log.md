@@ -102,3 +102,13 @@ Next: the `[ev]` PR (decisions 2 and 5 above), then the first wave —
 the cut-off-arc rename (E-class), the doc-param door (middle tier),
 and the error-surface hygiene unit (E-class) — while the specs for the
 three kernel units are written.
+
+## 2026-09-16 — cut-off-arc rename merged (E-class, PR #2717)
+
+`RoleSeg::CornerArc` is `RoleSeg::EndArc`; the three docs state the
+structural role; `CornerFace` keeps its word. The lane read V3 first
+and judged the axis different (corner → structural, not fillet →
+blend); the orchestrator agrees. Four computed name-table digests
+re-baselined on the four blend-bearing documents; the persisted text
+of all 28 registry documents byte-identical. One rotted literal in a
+test header corrected in passing. No rows filed.
