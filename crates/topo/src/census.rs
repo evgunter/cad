@@ -2724,7 +2724,7 @@ fn span_pts<T: Decide>(s: crate::boolean::boxes::SpanBox<T>) -> (Point3<T>, Poin
 ///    axis each way. Otherwise the material test runs in BOTH orderings
 ///    with no gate on either: every vertex of each instance is probed
 ///    against the other's material through the per-solid point-in-solid
-///    door ([`point_in_solid_faces`], at the run band, through that
+///    door ([`crate::boolean::point_in_solid_faces`], at the run band, through that
 ///    door's own predicates — no comparand of this arm's), and:
 ///    - any vertex strictly `In` the other's material ⇒
 ///      [`ValidationError::InstanceInterference`] (`outer` holds the
