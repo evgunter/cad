@@ -185,3 +185,78 @@ from this PR (outside EDIT's fence, disclosed in the body): its
 end-state count gains the store's keys by the same definition, and for
 this carrier the pre-click and post-click numbers coincide, because no
 cascade deletes the store.
+
+### After the review (2026-09-16)
+
+The style review returned APPROVE-WITH-FIXES. Every finding was taken;
+one was refused with a measurement and became a filed row instead.
+
+**The strand→cluster boundary is now actually pinned.**
+`Applied::maintenance`'s doc named
+`a_mates_head_strands_and_its_read_site_does_not` as the second
+pinning row, and that row paints nothing — so a walk that appended the
+store's rows after `reconcile` passed the whole suite. The review's
+probe is adopted as a unit row,
+`an_appearance_strand_precedes_the_cluster_acts_of_the_same_delete`
+in `dm7_delete_strands.rs` (authorship noted in the row's doc): one
+edit producing a stranded mate head, a stranded painted instance face
+and the registry act the deleted instance forced. The field's doc now
+names three rows, one per boundary it actually holds. Re-measured: the
+mutant that appends the store's rows behind the reconcile reds exactly
+that row, where before it red nothing across the whole binary.
+
+**"The store is untouched" is now a statement about the store.** The
+two rows that asserted `contains_key` on the names they painted
+compare the whole `AppearanceMap` against its pre-delete value
+instead, which is what "DM7 reports, it never repairs" claims. The
+mutant that empties the stranded records' `attrs` reds four rows where
+it reached two, and the mutant that drops an unrelated key reds four.
+
+**The negative row carries tension both ways.**
+`an_appearance_key_minted_by_a_live_node_is_never_reported` paints a
+key on the live node AND one on the deleted node, and asserts the
+deleted one is reported and the live one is not. It was green under
+the drop-the-walk mutant; it now reds under that one, under the
+unfiltered walk and under the inverted filter.
+
+**The rendered sentence.** `Maintenance::StrandedAppearance`'s
+`Display` composed badly with `StableName`'s own — "carries an
+attachment ON a face name" — and reads "the appearance store holds an
+attachment under a face name minted by node 7; this edit deleted node
+7, so the name resolves to nothing until it is rebound or cleared".
+The F6 case's content words moved with it.
+
+**Refused, measured: the Python row cannot be written.** The review
+asked for a row in `test_assembly_author.py` painting a face through
+`DocEdit.set_appearance` and reading a `stranded_appearance` off the
+delete. **There is no such door.** `crates/pncad/src/document.rs`
+leaves `Attr`, `AttrSet` and the appearance record types off the
+curated list, so `DocEdit::{SetAppearance, SetAppearanceMeta}` have no
+payload a Python constructor can take — the census dispositions both
+as `different-shape`, `py/doc.rs`'s `DocEdit` doc says so under "What
+is NOT here", and `work/lib/five-doc-edit-arms-have-no-python-door`
+closed on that sentence. So the arm is bound, tagged and readable from
+Python, and no Python program can make one appear. Filed as
+`work/lib/stranded-appearance-is-bound-but-unreachable-from-python`,
+and the measurement is recorded beside the variant map's row in
+`test_binding_census.py`, where the same file already makes it for
+`SetAppearanceMeta`.
+
+**Filed on this slate**:
+`work/edit/document-stablename-carriers-have-no-enumeration` — four
+sites now spell "which of the document's fields hold a `StableName`"
+by hand (`edit.rs`'s two DM7 walks, `refactor.rs`'s split and inline
+classifications, `persist/check.rs`'s snapshot validator), and nothing
+fails when a fifth spells three of four. The shape is one exhaustive
+answer, the way the census's `Walk` became on PR #2780.
+
+**Also taken**: the CHROME paragraph no longer tells the panel what it
+"has to offer" — it states the kernel's two repairs for the row and
+leaves the affordance to CHROME. The DM7 rows and
+`m4_pr7_appearance::deleting_the_minting_node_strands_the_attribute_loudly`
+cite each other (the report at the door vs the typed loss at the next
+evaluation). `stranded_appearance_keys`' doc keeps its cost paragraph
+and one sentence on why the walk reads `&new`; the re-argument of the
+inert mutant is gone, and lives in this row and the PR body.
+`rv_dm7_probes.rs`'s header says what the file holds and what makes a
+case a probe rather than a unit row.
