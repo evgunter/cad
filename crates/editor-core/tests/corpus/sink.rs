@@ -11,7 +11,7 @@
 //!
 //! Edit kinds: `InsertNode`, `DeleteNode`, `SetParam`,
 //! `SetStructuralParam`, `SetExpression`, `SetDocParam`,
-//! `SetDocParamValue`, `Rebind`,
+//! `SetDocParamValue`, `SetDocParamUnit`, `Rebind`,
 //! `ReWitness`, `ReWitnessBulk`, `SetAppearance`, `ClearAppearance`,
 //! `SetTolerance`, `SetAppearanceMeta`, `ClearAppearanceMeta`.
 //!
@@ -31,7 +31,7 @@ use std::collections::BTreeMap;
 use editor_core::{
     Attr, AttrKind, Axis3, BooleanOp, BranchCertification, Datum, Dimension, DocEdit, DocParam,
     DocParamValue, EntityKind, Expr, ExprPath, MetaValue, Node, ParamName, PatternKind, Rgba8,
-    RoleSeg, SlotId, StableName, WitnessDatum,
+    RoleSeg, SlotId, StableName, UnitSym, WitnessDatum,
 };
 
 use crate::fixture::{ang, axis_in_plane, declare_x_offset_flush, len, scl};
@@ -56,6 +56,16 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetDocParamValue {
         name: ParamName::new("h"),
         value: DocParamValue::Continuous(1.25),
+    });
+    // The NOTATION door, the value door's mirror over the other field
+    // of the same declaration: `h` is now written in millimetres and
+    // keeps its dimension, its exact value and any annotation. The
+    // edit is invisible to `bit_eq` by ruling (`display_unit` is
+    // presentation metadata), so the round-trip rows read it as the
+    // same document and the FILE is where it has to survive.
+    r.push(DocEdit::SetDocParamUnit {
+        name: ParamName::new("h"),
+        unit: UnitSym::from_def(&quantity::MM.def()),
     });
     r.push(DocEdit::SetDocParam {
         name: ParamName::new("n"),

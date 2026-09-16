@@ -386,6 +386,31 @@ impl UnitSym {
         *row
     }
 
+    /// The dimension this unit MEASURES — the other half of the
+    /// pairing [`Self::canonical_for`] makes, read in the opposite
+    /// direction.
+    ///
+    /// **The one place that reading is spelled.** Every door that has
+    /// to decide whether a unit belongs beside a dimension asks here:
+    /// [`Expr::literal_with_unit`] at construction,
+    /// [`crate::DocParam::with_display_unit`] at the parameter's
+    /// notation door, and the save/load validator's parameter walk
+    /// (`persist::check`). Three callers restating one `match` is three
+    /// chances for them to disagree about what `mm` measures.
+    ///
+    /// Total: the table's quantity column has three rows and
+    /// [`Dimension`] has a variant for each. `Count` is not among them
+    /// — a count is an integer and names no notation — which is why a
+    /// `Count` parameter has no unit door rather than a unit that
+    /// measures counts.
+    pub fn measures(self) -> Dimension {
+        match self.def().quantity() {
+            quantity::UnitQuantity::Length => Dimension::Length,
+            quantity::UnitQuantity::Angle => Dimension::Angle,
+            quantity::UnitQuantity::Scalar => Dimension::Scalar,
+        }
+    }
+
     /// The unit a value of `dim` is written in when nothing else was
     /// authored: metres, radians, or the dimensionless row.
     ///
@@ -683,20 +708,16 @@ impl Expr {
         dim: Dimension,
         unit: quantity::UnitDef,
     ) -> Result<Self, DimensionError> {
-        let unit_dim = match unit.quantity() {
-            quantity::UnitQuantity::Length => Dimension::Length,
-            quantity::UnitQuantity::Angle => Dimension::Angle,
-            quantity::UnitQuantity::Scalar => Dimension::Scalar,
-        };
+        // Total since the #650 seal: a `UnitDef` is a table row, so
+        // it has a code (see `UnitSym::from_def`).
+        let sym = UnitSym::from_def(&unit);
+        let unit_dim = sym.measures();
         if unit_dim != dim {
             return Err(DimensionError::DisplayUnitMismatch {
                 unit: unit_dim,
                 literal: dim,
             });
         }
-        // Total since the #650 seal: a `UnitDef` is a table row, so
-        // it has a code (see `UnitSym::from_def`).
-        let sym = UnitSym::from_def(&unit);
         // Run literal()'s refusal doors, then attach the unit.
         let mut e = Self::literal(value, dim)?;
         if let ExprKind::Literal(ref mut lit) = e.kind {

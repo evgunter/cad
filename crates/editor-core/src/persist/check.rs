@@ -175,16 +175,14 @@ pub(crate) fn validate_document(
 fn first_display_unit_fault(
     snapshot: &ProfileDoc,
 ) -> Option<(ParamName, crate::expr::Dimension, crate::expr::Dimension)> {
-    use crate::expr::Dimension;
     snapshot.params.iter().find_map(|(name, p)| match p {
         DocParam::Continuous {
             dim, display_unit, ..
         } => {
-            let measured = match display_unit.def().quantity() {
-                quantity::UnitQuantity::Length => Dimension::Length,
-                quantity::UnitQuantity::Angle => Dimension::Angle,
-                quantity::UnitQuantity::Scalar => Dimension::Scalar,
-            };
+            // The SAME reading the edit door and the literal
+            // constructor make (`UnitSym::measures`): what a unit
+            // measures is one fact, stated once.
+            let measured = display_unit.measures();
             (measured != *dim).then(|| (name.clone(), measured, *dim))
         }
         DocParam::Count { .. } => None,
@@ -334,6 +332,8 @@ fn edit_non_finite(edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
         // - The `Node` vocabulary is not closed here: this match is
         //   exhaustive on `DocEdit`, not on `Node`.
         DocEdit::SetDocParamValue { .. }
+        // A notation is a table code, not a float.
+        | DocEdit::SetDocParamUnit { .. }
         | DocEdit::InsertNode { .. }
         // A list of node ids carries no float.
         | DocEdit::SetMembers { .. }

@@ -238,6 +238,55 @@ impl DocParam {
         }
     }
 
+    /// This parameter written in `unit`, keeping the whole rest of the
+    /// DECLARATION — the dimension, the exact value and the optional
+    /// distribution — untouched. [`Self::with_value`]'s mirror over the
+    /// other field, and the carry-forward for a NOTATION change in one
+    /// place: every unit door goes through here rather than rebuilding
+    /// a parameter from parts, so no door can drop an annotation it
+    /// never mentioned.
+    ///
+    /// **Changing a parameter's NOTATION is not a redeclaration**, and
+    /// that is why this door exists at all. Changing its KIND is one —
+    /// [`Self::with_value`]'s argument — but [`Self::bit_eq`] already
+    /// EXCLUDES `display_unit` as presentation metadata, the same
+    /// ruling `Expr::bit_eq` makes about a literal's. A unit edit
+    /// therefore changes nothing bit-semantic equality sees, so there
+    /// is nothing about the parameter for a caller to restate; the
+    /// create-or-replace door would make them restate it all, and
+    /// silently delete whatever they forgot.
+    ///
+    /// `None` in the two cases the edit door refuses typed:
+    ///
+    /// - a [`Self::Count`] — a count is an integer, not a quantity, and
+    ///   names no notation. There is no field here to write into.
+    /// - a unit that does not MEASURE the declared dimension. That is
+    ///   the pairing the save/load validator refuses a document for
+    ///   (`persist::check`) and the one
+    ///   [`Self::written_length`]/[`Self::written_angle`] make
+    ///   unreachable by construction; the predicate is
+    ///   [`crate::UnitSym::measures`], asked rather than restated.
+    ///
+    /// EXHAUSTIVE on both arms as [`Self::with_value`] is: a new
+    /// `DocParam` variant must say how a notation edit reaches it, or
+    /// the compile breaks.
+    pub fn with_display_unit(&self, unit: crate::expr::UnitSym) -> Option<Self> {
+        match self {
+            Self::Continuous {
+                dim,
+                value,
+                display_unit: _,
+                distribution,
+            } => (unit.measures() == *dim).then_some(Self::Continuous {
+                dim: *dim,
+                value: *value,
+                display_unit: unit,
+                distribution: *distribution,
+            }),
+            Self::Count { .. } => None,
+        }
+    }
+
     /// Bit-semantic equality (spec D7): continuous values compare by
     /// BITS (`0.0` ≠ `-0.0` here), everything else structurally.
     ///

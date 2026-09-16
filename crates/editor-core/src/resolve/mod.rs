@@ -1177,6 +1177,7 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::SetExpression { .. }
         | DocEdit::SetDocParam { .. }
         | DocEdit::SetDocParamValue { .. }
+        | DocEdit::SetDocParamUnit { .. }
         | DocEdit::ReWitness { .. }
         | DocEdit::ReWitnessBulk { .. }
         | DocEdit::SetTolerance { .. }

@@ -3110,6 +3110,36 @@ pub(crate) struct DocEdit {
     pub(crate) inner: d::DocEdit<d::ProfileProgram>,
 }
 
+/// The notations `DocEdit.set_doc_param_unit` accepts: the two typed
+/// unit objects a caller already writes quantities with.
+///
+/// A typed unit rather than a symbol STRING, for
+/// `DocParam.written_length`'s reason: a `LengthUnit` is an index into
+/// a Length row of the table, so an off-table notation cannot be spelled
+/// at all and the boundary extraction is the check. What remains for
+/// the kernel to refuse is the pairing — `mm` on an angle — which is a
+/// fact about the parameter rather than about the argument.
+///
+/// No `Scalar` arm: the dimensionless row is the only notation a
+/// scalar parameter has, so a door to write it would be a door to
+/// write what is already there.
+#[derive(FromPyObject, Clone, Copy)]
+enum DisplayUnitSpec {
+    Length(super::quantity::LengthUnit),
+    Angle(super::quantity::AngleUnit),
+}
+
+impl DisplayUnitSpec {
+    /// The table code the kernel edit carries. Total both ways: every
+    /// arm holds a table row (`UnitSym::from_def`).
+    fn sym(self) -> d::UnitSym {
+        match self {
+            Self::Length(u) => d::UnitSym::from_def(&u.0.def()),
+            Self::Angle(u) => d::UnitSym::from_def(&u.0.def()),
+        }
+    }
+}
+
 #[pymethods]
 impl DocEdit {
     /// Insert a node.
@@ -3266,6 +3296,42 @@ impl DocEdit {
             inner: d::DocEdit::SetDocParamValue {
                 name: name.0.clone(),
                 value: value.0,
+            },
+        }
+    }
+
+    /// Write a new NOTATION onto an already-declared document
+    /// parameter, keeping its declaration — its dimension, its exact
+    /// value and, if it has one, its distribution.
+    ///
+    /// `set_doc_param_value`'s mirror over the other field of the same
+    /// declaration, and preferable over `set_doc_param` for the same
+    /// reason: create-or-replace makes the caller restate the whole
+    /// declaration to re-spell one unit, and whatever they leave out
+    /// — the annotation, every time — is deleted with no refusal.
+    ///
+    /// A notation change is NOT a redeclaration: `display_unit` is
+    /// presentation metadata, excluded from `DocParam.bit_eq`, so this
+    /// edit changes nothing bit semantics see. It still enters the
+    /// history and still persists.
+    ///
+    /// The unit is a `LengthUnit` or an `AngleUnit` — the same objects
+    /// `25 * mm` is written with — so an off-table notation is a
+    /// `TypeError` at the boundary rather than a refusal from the
+    /// kernel. `Scalar` parameters take no argument here: the
+    /// dimensionless row is the only notation they have.
+    ///
+    /// Refuses typed on a name the document does not declare
+    /// (`doc_param_not_declared`), on a `Count` parameter
+    /// (`doc_param_count_has_no_unit` — a count is an integer, not a
+    /// quantity) and on a unit that does not measure the declared
+    /// dimension (`doc_param_unit_mismatch`).
+    #[staticmethod]
+    fn set_doc_param_unit(name: &ParamName, unit: DisplayUnitSpec) -> Self {
+        Self {
+            inner: d::DocEdit::SetDocParamUnit {
+                name: name.0.clone(),
+                unit: unit.sym(),
             },
         }
     }

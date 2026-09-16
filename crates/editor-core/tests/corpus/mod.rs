@@ -368,7 +368,7 @@ pub const NODE_KINDS: [&str; 21] = [
 ];
 
 /// The edit kinds a document exercises (the coverage tally's domain).
-pub const EDIT_KINDS: [&str; 15] = [
+pub const EDIT_KINDS: [&str; 16] = [
     "InsertNode",
     "DeleteNode",
     "SetParam",
@@ -376,6 +376,7 @@ pub const EDIT_KINDS: [&str; 15] = [
     "SetExpression",
     "SetDocParam",
     "SetDocParamValue",
+    "SetDocParamUnit",
     "Rebind",
     "ReWitness",
     "ReWitnessBulk",
@@ -557,6 +558,7 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::SetExpression { .. } => "SetExpression",
         DocEdit::SetDocParam { .. } => "SetDocParam",
         DocEdit::SetDocParamValue { .. } => "SetDocParamValue",
+        DocEdit::SetDocParamUnit { .. } => "SetDocParamUnit",
         DocEdit::Rebind { .. } => "Rebind",
         DocEdit::ReWitness { .. } => "ReWitness",
         DocEdit::ReWitnessBulk { .. } => "ReWitnessBulk",
