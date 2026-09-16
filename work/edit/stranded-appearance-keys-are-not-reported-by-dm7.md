@@ -5,6 +5,7 @@ title: A stranded appearance key is not in DM7's report: the walk is Node::paylo
 status: review
 opened: 2026-09-16
 refs: [2753]
+pr: 2784
 branch: edit/appearance-strands
 ---
 
