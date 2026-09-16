@@ -171,6 +171,27 @@ impl core::fmt::Display for DisplayUnitRefusal {
 impl core::error::Error for DisplayUnitRefusal {}
 
 impl DocParam {
+    /// **A declaration the document cannot hold, stated once**: the
+    /// `Continuous` arm carries a continuous dimension, so declaring it
+    /// with `Count` is the structural/continuous divide spelled two
+    /// ways at once (spec D3).
+    ///
+    /// One predicate with one home, asked by the create-or-replace
+    /// edit door ([`crate::DocEdit::SetDocParam`]) and by the
+    /// save/load validator's snapshot walk, each naming the answer in
+    /// its own vocabulary. The `pub` payload is what makes the state
+    /// reachable at all, which is why the question exists twice and
+    /// must be decided once.
+    pub(crate) fn is_continuous_count(&self) -> bool {
+        matches!(
+            self,
+            Self::Continuous {
+                dim: Dimension::Count,
+                ..
+            }
+        )
+    }
+
     /// The parameter's dimension.
     pub fn dim(&self) -> Dimension {
         match self {
@@ -721,6 +742,19 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
     }
 }
 
+// ---------------------------------------------------------------
+// The document's REGISTRY KEYS, and what a key may name.
+//
+// `Doc` carries two maps keyed by node id — the A11 placement registry
+// and the witness store — and each holds its key to a NODE KIND: a
+// placement names an instance, a witness names a sketch. Both rules are
+// asked twice, by the edit door that writes the row and by the
+// save/load validator that re-reads it, so both live here, beside the
+// maps they are about and where a `Doc` is in scope. A predicate that
+// needs only the node is a `Node` method instead (`Node::input_fault`
+// and its siblings); these need the document to resolve the key at all.
+// ---------------------------------------------------------------
+
 /// What makes an A11 placement row inadmissible
 /// ([`placement_fault`]) — one vocabulary for the edit door and the
 /// load door's re-check of the registry.
@@ -765,12 +799,62 @@ pub(crate) fn placement_fault<P>(
     if !matches!(doc.nodes.get(&node), Some(Node::InstantiatePart { .. })) {
         return Some(PlacementFault::NotAnInstance);
     }
-    if !frame.is_finite() {
-        return Some(PlacementFault::NonFiniteFrame);
+    // The frame half is the frame's own rule
+    // ([`crate::placement::Frame::admission_fault`]), so a cluster
+    // frame and a placement rule's listed frames are held to one
+    // standard rather than to two spellings of one.
+    Some(match frame.admission_fault()? {
+        crate::placement::FrameFault::NonFinite => PlacementFault::NonFiniteFrame,
+        crate::placement::FrameFault::Improper { determinant } => {
+            PlacementFault::ImproperFrame { determinant }
+        }
+    })
+}
+
+/// What makes a witness row's KEY inadmissible ([`witness_site_fault`])
+/// — one vocabulary for the witness edit doors and the load door's
+/// re-check of the store.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum WitnessSiteFault {
+    /// The key names no live node at all.
+    NoSuchNode,
+    /// The key names a live node that bears no sketch, so there is no
+    /// branch for a witness to record a choice about.
+    NotSketchBearing,
+}
+
+/// **The witness store's key rule, stated once**: a witness is
+/// attached to a live node that bears a sketch ([`Node::Profile`] —
+/// the v1 sketch node kind; mates extend this at their milestone).
+///
+/// One predicate with one home, asked by every door that writes a row
+/// — [`crate::DocEdit::ReWitness`] and
+/// [`crate::DocEdit::ReWitnessBulk`] — and by the load door's walk over
+/// the store, each naming the answer in its own vocabulary. It is the
+/// same shape as [`placement_fault`]'s first arm, and for the same
+/// reason: a registry key names a node of a required kind, and the two
+/// doors must agree on which keys exist.
+pub(crate) fn witness_site_fault<P>(doc: &Doc<P>, node: RecipeNodeId) -> Option<WitnessSiteFault> {
+    match doc.nodes.get(&node) {
+        None => Some(WitnessSiteFault::NoSuchNode),
+        Some(Node::Profile(_)) => None,
+        Some(_) => Some(WitnessSiteFault::NotSketchBearing),
     }
-    let determinant = frame.determinant();
-    if determinant <= 0.0 {
-        return Some(PlacementFault::ImproperFrame { determinant });
-    }
-    None
+}
+
+/// **The recorded ε's admission rule, stated once**: finite and
+/// strictly positive.
+///
+/// One predicate with one home, asked by the edit door that records an
+/// ε ([`crate::DocEdit::SetTolerance`]) and by the save/load
+/// validator's snapshot walk, each naming the answer in its own
+/// vocabulary. ε parameterizes every predicate band in the document, so
+/// a value the two doors disagreed about would be a document whose
+/// every geometric answer depends on which door it came through.
+///
+/// A free function beside the field rather than a `Doc` method: the
+/// edit door decides the value BEFORE it is a document's ε, and a
+/// method would have nothing to be called on there.
+pub(crate) fn epsilon_admissible(eps: f64) -> bool {
+    eps.is_finite() && eps > 0.0
 }

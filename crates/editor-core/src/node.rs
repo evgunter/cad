@@ -1205,6 +1205,31 @@ pub(crate) enum AssertionBoundFault {
     },
 }
 
+impl AssertionBoundFault {
+    /// **E10's agreement itself, stated once**: an assertion compares
+    /// one quantity, so the bound's declared dimension is the one the
+    /// measure yields.
+    ///
+    /// The entry point for a caller that already HAS the measured
+    /// dimension and cannot reach the measure node —
+    /// [`crate::eval::wire`]'s assertion backstop, which reads it off
+    /// the evaluated payload, the dimension the measure node's own
+    /// expression put there. [`Node::assertion_bound_fault`] is the
+    /// entry point for a caller holding the document, and reaches this
+    /// one once it has resolved the reference.
+    pub(crate) fn against(
+        measure: RecipeNodeId,
+        measured: Dimension,
+        bound: Dimension,
+    ) -> Option<Self> {
+        (measured != bound).then_some(Self::DimensionMismatch {
+            measure,
+            measured,
+            bound,
+        })
+    }
+}
+
 /// What makes a placement-rule node's rule unusable
 /// ([`Node::placement_rule_fault`]) — one vocabulary for the edit
 /// door, the persist re-check and the evaluation backstop.
@@ -1249,12 +1274,23 @@ impl core::fmt::Display for PlacementRuleFault {
                 "the placement list is empty — a group needs at least one placement, exactly \
                  as a stepped rule needs a count of at least 1",
             ),
+            // The frame clause is the frame rule's own
+            // ([`crate::placement::FrameFault`]); this arm supplies
+            // only the subject, so the sentence a reader sees about a
+            // frame is the same one wherever the frame was refused.
             Self::NonFiniteFrame { index } => {
-                write!(f, "placement {index} has a non-finite coordinate")
+                write!(
+                    f,
+                    "placement {index} {}",
+                    crate::placement::FrameFault::NonFinite
+                )
             }
             Self::ImproperFrame { index, determinant } => write!(
                 f,
-                "placement {index} is improper (mirroring): determinant {determinant}"
+                "placement {index} {}",
+                crate::placement::FrameFault::Improper {
+                    determinant: *determinant
+                }
             ),
         }
     }
@@ -2318,12 +2354,7 @@ impl<P> Node<P> {
         let (measure, bound) = (*measure, bound.dim());
         match doc.nodes.get(&measure) {
             Some(Node::Measure { expr, .. }) => {
-                let measured = expr.dim();
-                (measured != bound).then_some(AssertionBoundFault::DimensionMismatch {
-                    measure,
-                    measured,
-                    bound,
-                })
+                AssertionBoundFault::against(measure, expr.dim(), bound)
             }
             _ => Some(AssertionBoundFault::TargetNotMeasure { measure, bound }),
         }
@@ -3039,21 +3070,23 @@ impl<P> Node<P> {
             return Some(PlacementRuleFault::NoPlacements);
         }
         // A11/A6 parity: a placement frame is held to exactly what
-        // `SetPlacement` holds a cluster frame to — finite, and proper
-        // (det > 0; admitting mirrors is gated on R4's equivariance
-        // audit). Checked HERE so the refusal lands at the edit door
+        // `SetPlacement` holds a cluster frame to, because it is held
+        // to it by the same predicate — `Frame::admission_fault`, whose
+        // home is the frame. This arm says only WHICH frame in the list
+        // answered. Checked HERE so the refusal lands at the edit door
         // with the best diagnostics, not at the kernel's rigidity
         // re-check downstream.
-        for (index, frame) in frames.iter().enumerate() {
-            if !frame.is_finite() {
-                return Some(PlacementRuleFault::NonFiniteFrame { index });
-            }
-            let determinant = frame.determinant();
-            if determinant <= 0.0 {
-                return Some(PlacementRuleFault::ImproperFrame { index, determinant });
-            }
-        }
-        None
+        frames
+            .iter()
+            .enumerate()
+            .find_map(|(index, frame)| match frame.admission_fault()? {
+                crate::placement::FrameFault::NonFinite => {
+                    Some(PlacementRuleFault::NonFiniteFrame { index })
+                }
+                crate::placement::FrameFault::Improper { determinant } => {
+                    Some(PlacementRuleFault::ImproperFrame { index, determinant })
+                }
+            })
     }
 
     /// A `Declare` node whose every pair asserts the CONFORMAL class

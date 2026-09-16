@@ -1674,6 +1674,7 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::ForwardInput { .. } => "forward_input",
         SnapshotError::DeclareInput { .. } => "declare_input",
         SnapshotError::WitnessSite { .. } => "witness_site",
+        SnapshotError::WitnessOnMissingNode { .. } => "witness_on_missing_node",
         SnapshotError::CountContinuous { .. } => "count_continuous",
         SnapshotError::EpsilonInvalid { .. } => "epsilon_invalid",
         // The product-root list's own invariant vocabulary, carried

@@ -1,29 +1,38 @@
-//! **Review probe (lane `onepred-rv`, PR 2772).** Reproduces the
-//! measurement the unit's sweep filed as
-//! `load-door-checks-slot-dimensions-for-profile-nodes-only`: the load
-//! door asks the slot-dimension predicate of `Node::Profile` nodes
-//! only, so a saved document whose EXTRUDE distance literal is retyped
-//! on the wire from a length to an angle loads clean, while the edit
-//! door refuses the same node.
+//! **The load door decides a slot's dimension for profile nodes only,
+//! and that is the measurement of a known gap.**
 //!
-//! Kept as a red-on-fix probe rather than a row: it asserts the
-//! ASYMMETRY that exists today, so closing the filed row turns the
-//! `Ok(_)` arm into the refusal and this file is rewritten with it.
+//! `check_node_slots` asks the slot-dimension rule (`SlotId::dimension`,
+//! spec D6) of every node kind; `first_program_fault` re-spells it for
+//! `Node::Profile` programs alone. So a saved document whose EXTRUDE
+//! distance literal is retyped on the wire from a length to an angle
+//! LOADS CLEAN, while the edit door refuses the same node — a document
+//! the load door admits that the edit doors could not have produced.
+//!
+//! **This row is green on the asymmetry, not on the fix**, which is
+//! what makes it a measurement rather than a pin: it asserts the load
+//! door's `Ok(_)` beside the edit door's refusal. Closing
+//! `work/edit/load-door-checks-slot-dimensions-for-profile-nodes-only`
+//! — the unit that gives the two doors one predicate — turns that
+//! `Ok(_)` into the refusal and reds this file, which is the signal
+//! that the row landed and this file is rewritten with it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
 
 use editor_core::{DocEdit, EditError, Node, ProfileDoc, apply, load, save};
-use geom_core::Tol;
 use fixture::{ang, len, on_frame, square, step};
+use geom_core::Tol;
 
 /// A one-extrude document saved, its distance literal retyped from
 /// `Length`/`m` to `Angle`/`rad` on the wire (both halves moved, so the
 /// literal stays well-formed), and offered to both doors.
 #[test]
-fn onepred_rv_a_retyped_extrude_distance_loads_clean_but_the_edit_door_refuses() {
-    let doc = ProfileDoc::empty(editor_core::DocumentId::derive("onepred-rv"), Tol::witness());
+fn a_retyped_extrude_distance_loads_clean_but_the_edit_door_refuses() {
+    let doc = ProfileDoc::empty(
+        editor_core::DocumentId::derive("slot-dim-asymmetry"),
+        Tol::witness(),
+    );
     let (doc, profile) = on_frame(
         doc,
         [0.0, 0.0, 0.0],

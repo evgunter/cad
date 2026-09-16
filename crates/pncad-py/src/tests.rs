@@ -4950,6 +4950,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_not_gauge",
             "placement_rule",
             "placement_site",
+            "witness_on_missing_node",
             "witness_site",
         ],
         delegates: &["root_fault_tag"],

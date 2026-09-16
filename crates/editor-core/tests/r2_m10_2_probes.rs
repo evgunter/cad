@@ -18,9 +18,10 @@ use editor_core::UnitSym;
 use editor_core::{
     AssertionDir, AssertionVerdict, Axis3, BooleanOp, CancelToken, Dimension, DocEdit, DocParam,
     DocParamValue, DocumentId, EntityKind, EvalOptions, Evaluation, Expr, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, ParamName, ProfileDoc,
-    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef,
-    StableName, SurfaceKindSet, ValuePayload, apply, evaluate, select_where,
+    MeasureExpr, MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, ParamName,
+    PersistError, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecipeNodeId, Selector, SitedRef, SnapshotError, StableName, SurfaceKindSet, ValuePayload,
+    apply, evaluate, select_where,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -1289,13 +1290,15 @@ fn r2_e2e_ball_in_socket_authored_and_saved() {
     }
 }
 
-/// **`SnapshotError::AssertionBound` reached from a corrupt file.**
+/// **The load door's two assertion refusals, reached from a corrupt
+/// file.**
 ///
 /// The shipped suites refuse both assertion faults at the EDIT door
-/// only; `AssertionBound` — a new public error with two distinct
-/// `Display` arms — is named nowhere outside its own definition. This
-/// row corrupts the saved bytes so the load-door arm actually runs, in
-/// both of its shapes.
+/// only. This row corrupts the saved bytes so the load-door arms
+/// actually run: a retyped bound is `SnapshotError::AssertionBound`,
+/// carrying both dimensions, and a target repointed at a non-measure
+/// is `SnapshotError::AssertionTarget`, which carries the bound's
+/// dimension and no measured one because there is no measure.
 #[test]
 fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
     let d0 = empty("r2-assert-load");
@@ -1320,15 +1323,19 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
     let text = editor_core::save(&doc, &[], Tol::witness()).expect("saves");
 
     // (a) the bound's DIMENSION retyped to Angle: the measure is a
-    // Length, so `measured: Some(Length)` against `bound: Angle`. The
+    // Length, so `measured: Length` against `bound: Angle`. The
     // assertion is the LAST node, so its literal is the last one.
     let at = text.rfind("\"Length\"").expect("a Length literal exists");
     let mut dim_corrupt = text.clone();
     dim_corrupt.replace_range(at..at + "\"Length\"".len(), "\"Angle\"");
     assert_ne!(dim_corrupt, text, "the dimension corruption must land");
     match editor_core::load(&dim_corrupt, Tol::witness()) {
-        Err(e) => eprintln!("R2/assert-load: retyped bound refused: {e}"),
-        Ok(_) => panic!("a dimension-mismatched assertion bound LOADED"),
+        Err(PersistError::Snapshot(SnapshotError::AssertionBound {
+            measured: Dimension::Length,
+            bound: Dimension::Angle,
+            ..
+        })) => {}
+        other => panic!("a dimension-mismatched assertion bound must refuse typed, got {other:?}"),
     }
 
     // (b) the assertion's target repointed at a non-measure node.
@@ -1339,8 +1346,12 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
     );
     assert_ne!(tgt_corrupt, text, "the target corruption must land");
     match editor_core::load(&tgt_corrupt, Tol::witness()) {
-        Err(e) => eprintln!("R2/assert-load: non-measure target refused: {e}"),
-        Ok(_) => panic!("an assertion over a non-measure LOADED"),
+        Err(PersistError::Snapshot(SnapshotError::AssertionTarget {
+            measure,
+            bound: Dimension::Length,
+            ..
+        })) => assert_eq!(measure, b),
+        other => panic!("an assertion over a non-measure must refuse typed, got {other:?}"),
     }
 }
 

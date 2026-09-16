@@ -130,8 +130,6 @@ mod edit_blend_canonical;
 mod edit_doc_param_unit;
 #[path = "edit_one_predicate.rs"]
 mod edit_one_predicate;
-#[path = "onepred_rv_probe.rs"]
-mod onepred_rv_probe;
 #[path = "edit_pair_apply_names.rs"]
 mod edit_pair_apply_names;
 #[path = "edit_step_segments.rs"]
@@ -185,6 +183,8 @@ mod lib_sel2_flush;
 mod lib_u5_interrogate;
 #[path = "lib_u7_select.rs"]
 mod lib_u7_select;
+#[path = "load_door_slot_dimension.rs"]
+mod load_door_slot_dimension;
 #[path = "m10_1_analysis.rs"]
 mod m10_1_analysis;
 #[path = "m10_1_distribution_wire.rs"]

@@ -1,12 +1,24 @@
-//! **Three document predicates, one home each, asked by both doors.**
+//! **Document predicates with one home each, asked by both doors.**
 //!
 //! An assertion's bound against the measure it constrains, a mate's
-//! alignment datum, and an A11 placement row: each rule is stated once
-//! — `Node::assertion_bound_fault`, `Node::has_non_finite_alignment`,
-//! `doc::placement_fault` — and the edit door and the persistence
-//! door each render the one answer in their own vocabulary. A
-//! document the edit door accepts is therefore a document that saves,
-//! and a file that loads is a file the edit door could have produced.
+//! alignment datum, an A11 placement row, a witness row's key, the
+//! recorded ε, and a document parameter's declaration: each rule is
+//! stated once — `Node::assertion_bound_fault`,
+//! `Node::has_non_finite_alignment`, `doc::placement_fault`,
+//! `doc::witness_site_fault`, `doc::epsilon_admissible`,
+//! `DocParam::is_continuous_count` — and the edit door and the
+//! persistence door each render the one answer in their own
+//! vocabulary.
+//!
+//! **What that buys, stated exactly**: for each rule below, the two
+//! doors cannot come to disagree about it, because there is one
+//! decision and two renderings of its answer. It is NOT the claim that
+//! a file which loads is a file the edit door could have produced —
+//! the load door still decides a slot's dimension for profile nodes
+//! only, so a retyped extrude distance loads clean and the edit door
+//! refuses it. That gap is filed as
+//! `work/edit/load-door-checks-slot-dimensions-for-profile-nodes-only`
+//! and measured by `load_door_slot_dimension` in this binary.
 //!
 //! One row per FACT, naming both doors' refusals for it: the pairing
 //! is the property a shared predicate buys, and a row that asked only
@@ -18,16 +30,18 @@
 //! and are pinned at the save door instead, in-crate
 //! (`persist::check`'s unit rows): JSON carries no non-finite token, so
 //! a non-finite alignment or placement coordinate can only reach
-//! `validate_document` from memory.
+//! `validate_document` from memory. Every other rule below is
+//! reachable from a file and is paired here.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
 
 use editor_core::{
-    Alignment, AxisSense, ContactClass, Dimension, DocEdit, DocumentId, EditError, EntityKind,
-    Expr, Frame, MateFrame, MatePrimitive, MeasureExpr, Node, PersistError, ProfileDoc,
-    ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, SnapshotError, StableName, apply, load, save,
+    Alignment, AxisSense, ContactClass, Dimension, DocEdit, DocParam, DocumentId, EditError,
+    EntityKind, Expr, Frame, MateFrame, MatePrimitive, MeasureExpr, Node, ParamName, PersistError,
+    ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, SnapshotError, StableName, apply,
+    load, save,
 };
 use fixture::resolver::{PART_BODY, PartStore};
 use fixture::{insert, len, on_frame, square, step};
@@ -91,8 +105,8 @@ fn an_assertion_over_a_non_measure_is_refused_at_both_doors() {
 
     // The same fact at the load door: a file whose assertion is
     // re-pointed at the frame.
-    let text = saved_assertion(&doc, measure, len(1.0));
-    let corrupt = repoint_measure(&text, measure, frame_node);
+    let (text, id) = saved_assertion(&doc, measure, len(1.0));
+    let corrupt = repoint_measure(&text, id, measure, frame_node);
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::AssertionTarget {
             measure: m,
@@ -127,8 +141,8 @@ fn an_assertion_bound_of_the_wrong_dimension_is_refused_at_both_doors() {
 
     // The load door's half: the same assertion, saved with a LENGTH
     // bound and then retyped on the wire.
-    let text = saved_assertion(&doc, measure, len(0.5));
-    let corrupt = retype_bound(&text);
+    let (text, id) = saved_assertion(&doc, measure, len(0.5));
+    let corrupt = retype_bound(&text, id);
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::AssertionBound {
             measured: Dimension::Length,
@@ -139,55 +153,92 @@ fn an_assertion_bound_of_the_wrong_dimension_is_refused_at_both_doors() {
     }
 }
 
-/// The saved text of `doc` plus one well-formed assertion, which the
-/// rows above then corrupt — so a refusal they read is the surgery's
-/// and not the fixture's.
-fn saved_assertion(doc: &ProfileDoc, measure: RecipeNodeId, bound: Expr) -> String {
-    let doc = apply(
+/// The saved text of `doc` plus one well-formed assertion, and that
+/// assertion's id — the rows above corrupt the text BY PATH, so they
+/// need the id to aim with.
+fn saved_assertion(doc: &ProfileDoc, measure: RecipeNodeId, bound: Expr) -> (String, RecipeNodeId) {
+    let applied = apply(
         doc,
         &DocEdit::InsertNode {
             node: assertion(measure, bound),
         },
         Tol::witness(),
     )
-    .expect("a well-dimensioned assertion inserts")
-    .doc;
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    .expect("a well-dimensioned assertion inserts");
+    let id = applied.record.minted.expect("the insert minted an id");
+    let text = save(&applied.doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
-    text
+    (text, id)
 }
 
-/// Re-points the assertion's `measure` field — the unique `"measure":`
-/// key, since the fixture carries one assertion.
-fn repoint_measure(text: &str, from: RecipeNodeId, to: RecipeNodeId) -> String {
-    let needle = format!("\"measure\": {}", from.0);
-    assert_eq!(
-        text.matches(&needle).count(),
-        1,
-        "{needle:?} must be unique"
-    );
-    text.replace(&needle, &format!("\"measure\": {}", to.0))
+/// **Wire surgery BY PATH.** The saved file is split at its id header,
+/// the body is parsed, `edit` moves the named field, and the body is
+/// re-serialized under the same header.
+///
+/// A byte substitution proves only that a byte moved; this proves the
+/// INTENDED field moved, because the path names it and `edit` asserts
+/// what it found there. A fixture or field-order change then breaks
+/// the surgery loudly instead of silently landing it on a neighbour.
+fn doctored(text: &str, edit: impl FnOnce(&mut serde_json::Value)) -> String {
+    let split = text.find('{').expect("the JSON body follows the id header");
+    let (header, body) = text.split_at(split);
+    let mut wire: serde_json::Value = serde_json::from_str(body).expect("the body parses");
+    edit(&mut wire);
+    let out = format!("{header}{wire}");
+    assert_ne!(out, text, "the corruption really landed");
+    out
+}
+
+/// Re-points the assertion's `measure` field.
+fn repoint_measure(
+    text: &str,
+    assertion: RecipeNodeId,
+    from: RecipeNodeId,
+    to: RecipeNodeId,
+) -> String {
+    doctored(text, |wire| {
+        let field = &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["measure"];
+        assert_eq!(
+            *field,
+            serde_json::json!(from.0),
+            "the surgery is aimed at the assertion's target"
+        );
+        *field = serde_json::json!(to.0);
+    })
 }
 
 /// Retypes the assertion's BOUND literal from a length to an angle,
-/// unit and all — the last literal in the file, the assertion being
-/// the last node.
-fn retype_bound(text: &str) -> String {
-    let at = text
-        .rfind("\"dim\": \"Length\"")
-        .expect("the bound is a length");
-    let end = text[at..].find('}').expect("the literal closes") + at;
-    let tail = text[at..end]
-        .replace("\"Length\"", "\"Angle\"")
-        .replace("\"m\"", "\"rad\"");
-    format!("{}{tail}{}", &text[..at], &text[end..])
+/// unit and all — both halves, so the literal is still one the load
+/// door's `Expr::literal_with_unit` rebuild accepts and the refusal
+/// read is the DIMENSION rule's.
+fn retype_bound(text: &str, assertion: RecipeNodeId) -> String {
+    doctored(text, |wire| {
+        let lit = &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["bound"]["Literal"];
+        assert_eq!(
+            lit["dim"],
+            serde_json::json!("Length"),
+            "the surgery is aimed at a length bound"
+        );
+        lit["dim"] = serde_json::json!("Angle");
+        lit["unit"] = serde_json::json!("rad");
+    })
 }
 
 // ---- A mate's alignment ----
 
-/// An assembly of `n` instances of one part, and the frames a mate
-/// between two of them needs.
-fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>) {
+/// **`n` instances of a part document that exists**: the reference is
+/// minted by inserting a real part into a [`PartStore`], so its content
+/// pin is that part's digest and the faces `in_part` names are faces
+/// the part actually has.
+///
+/// That is what distinguishes it from the same-shaped fixture beside
+/// `persist::check`'s in-crate rows, which mints a `DocRef` by hand
+/// over no part at all: this seat builds mate HEADS, which name a face
+/// inside the referenced part, and the validator's seat does not. The
+/// two cannot be one function — an integration suite cannot reach a
+/// `#[cfg(test)]` item in the library, and the library cannot reach
+/// `tests/fixture` — so they are two, named for the difference.
+fn instances_of_a_stored_part(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut store = PartStore::default();
     let doc_ref = store.insert(part(&format!("{label}-part")), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
@@ -268,7 +319,7 @@ fn mate(a: RecipeNodeId, b: RecipeNodeId, origin: [f64; 3]) -> Node<ProfileProgr
 /// pinned in-crate beside the validator.
 #[test]
 fn a_non_finite_alignment_is_refused_at_the_edit_door() {
-    let (doc, ids) = assembly("onepred-align", 2);
+    let (doc, ids) = instances_of_a_stored_part("onepred-align", 2);
     // Finite, the same mate is accepted — so the refusal below is the
     // coordinate's and not the fixture's.
     let (doc, _) = insert(doc, mate(ids[0], ids[1], [0.0, 0.0, 0.0]));
@@ -292,7 +343,7 @@ fn a_non_finite_alignment_is_refused_at_the_edit_door() {
 /// door `PlacementSite`.
 #[test]
 fn a_placement_on_a_non_instance_is_refused_at_both_doors() {
-    let (doc, ids) = assembly("onepred-site", 1);
+    let (doc, ids) = instances_of_a_stored_part("onepred-site", 1);
     // A live NON-instance node, so the refusal is the placement rule's
     // and not a dangling id's.
     let (doc, other) = on_frame(
@@ -330,7 +381,7 @@ fn a_placement_on_a_non_instance_is_refused_at_both_doors() {
 /// with a coordinate no predicate can read.
 #[test]
 fn an_improper_placement_is_refused_at_both_doors() {
-    let (doc, ids) = assembly("onepred-improper", 1);
+    let (doc, ids) = instances_of_a_stored_part("onepred-improper", 1);
     let mirror = Frame {
         columns: [[-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
         translation: [0.0, 0.0, 0.0],
@@ -353,7 +404,7 @@ fn an_improper_placement_is_refused_at_both_doors() {
     // The load door's half: a proper frame on the wire, mirrored by
     // flipping the first column's sign.
     let text = saved_placement(&doc, ids[0], Frame::translation([1.0, 0.0, 0.0]));
-    let corrupt = mirror_first_column(&text);
+    let corrupt = mirror_first_column(&text, ids[0]);
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::PlacementImproper { node, determinant })) => {
             assert_eq!(node, ids[0]);
@@ -374,7 +425,7 @@ fn an_improper_placement_is_refused_at_both_doors() {
 /// and normalises.
 #[test]
 fn a_placement_off_the_gauge_is_keyed_on_it_rather_than_refused() {
-    let (doc, ids) = assembly("onepred-gauge", 2);
+    let (doc, ids) = instances_of_a_stored_part("onepred-gauge", 2);
     // Mate the two instances: one cluster, whose gauge is its
     // document-order-first member.
     let (doc, _) = insert(doc, mate(ids[0], ids[1], [0.0, 0.0, 0.0]));
@@ -421,30 +472,236 @@ fn saved_placement(doc: &ProfileDoc, node: RecipeNodeId, frame: Frame) -> String
 
 /// Negates the first entry of the placement frame's first column,
 /// which flips the determinant's sign and nothing else.
-fn mirror_first_column(text: &str) -> String {
-    let at = text
-        .find("\"columns\"")
-        .expect("the frame reaches the wire");
-    let one = at
-        + text[at..]
-            .find("1.0")
-            .expect("the first column starts at 1");
-    let out = format!("{}-1.0{}", &text[..one], &text[one + 3..]);
-    assert_ne!(out, text, "the corruption really landed");
-    out
+fn mirror_first_column(text: &str, node: RecipeNodeId) -> String {
+    doctored(text, |wire| {
+        let entry = &mut wire["snapshot"]["placements"][node.0.to_string()]["columns"][0][0];
+        assert_eq!(
+            *entry,
+            serde_json::json!(1.0),
+            "the surgery is aimed at the first column's own axis"
+        );
+        *entry = serde_json::json!(-1.0);
+    })
 }
 
 /// Re-keys the single placement row.
 fn rekey_placement(text: &str, from: RecipeNodeId, to: RecipeNodeId) -> String {
-    let needle = format!("\"{}\": {{", from.0);
-    let at = text
-        .find("\"placements\"")
-        .expect("the registry reaches the wire");
-    let key = at + text[at..].find(&needle).expect("the row is keyed");
-    format!(
-        "{}\"{}\": {{{}",
-        &text[..key],
-        to.0,
-        &text[key + needle.len()..]
-    )
+    doctored(text, |wire| {
+        let registry = wire["snapshot"]["placements"]
+            .as_object_mut()
+            .expect("the registry is a map on the wire");
+        let row = registry
+            .remove(&from.0.to_string())
+            .expect("the row is keyed by the node it was authored on");
+        registry.insert(to.0.to_string(), row);
+    })
+}
+
+// ---- A witness row's key ----
+
+/// The witness these rows attach — bytes with a schema, which is all a
+/// datum is at this layer.
+fn witness() -> editor_core::WitnessDatum {
+    editor_core::WitnessDatum {
+        schema: 1,
+        bytes: b"onepred".to_vec(),
+    }
+}
+
+/// The saved text of `doc` carrying one witness on `node`, which the
+/// rows below then re-key.
+fn saved_witness(doc: &ProfileDoc, node: RecipeNodeId) -> String {
+    let (doc, _) = step(
+        doc.clone(),
+        DocEdit::ReWitness {
+            node,
+            witness: witness(),
+        },
+    );
+    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    load(&text, Tol::witness()).expect("the fixture loads");
+    text
+}
+
+/// Re-keys the single witness row.
+fn rekey_witness(text: &str, from: RecipeNodeId, to: RecipeNodeId) -> String {
+    doctored(text, |wire| {
+        let store = wire["snapshot"]["witnesses"]
+            .as_object_mut()
+            .expect("the store is a map on the wire");
+        let row = store
+            .remove(&from.0.to_string())
+            .expect("the row is keyed by the node it was authored on");
+        store.insert(to.0.to_string(), row);
+    })
+}
+
+/// **A witness on a node that bears no sketch — both doors.** A witness
+/// records a choice about a sketch's branch, so a node with no sketch
+/// has no branch for it to be about; the edit door names it
+/// `WitnessOnNonSketch` and the load door `SnapshotError::WitnessSite`.
+#[test]
+fn a_witness_on_a_non_sketch_node_is_refused_at_both_doors() {
+    // `with_measure` lays down a frame (0), a profile (1), an extrude
+    // (2) and a measure (3): the profile is the only sketch-bearing
+    // node in it, and the extrude is a live node that is not one.
+    let (doc, _) = with_measure();
+    let (sketch, non_sketch) = (RecipeNodeId(1), RecipeNodeId(2));
+    match apply(
+        &doc,
+        &DocEdit::ReWitness {
+            node: non_sketch,
+            witness: witness(),
+        },
+        Tol::witness(),
+    ) {
+        Err(EditError::WitnessOnNonSketch { node }) => assert_eq!(node, non_sketch),
+        other => panic!("a witness on a non-sketch must refuse typed, got {other:?}"),
+    }
+
+    let text = saved_witness(&doc, sketch);
+    let corrupt = rekey_witness(&text, sketch, non_sketch);
+    match load(&corrupt, Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::WitnessSite { node })) => {
+            assert_eq!(node, non_sketch);
+        }
+        other => panic!("a witness on a non-sketch must refuse typed at load, got {other:?}"),
+    }
+}
+
+/// **A witness on a node that is not live — both doors.** Its own
+/// refusal at each, rather than folded in with the non-sketch case: one
+/// is repaired by moving the witness, the other has no node to move it
+/// to. The edit door names it `UnknownNode` and the load door
+/// `SnapshotError::WitnessOnMissingNode`.
+#[test]
+fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
+    let (doc, _) = with_measure();
+    let (sketch, gone) = (RecipeNodeId(1), RecipeNodeId(2));
+    // Deleted rather than invented, so the id stays BELOW the mint
+    // counter and the load door's id walk passes it — the refusal read
+    // is then the site rule's and not `IdBeyondCounter`.
+    let doc = apply(&doc, &DocEdit::DeleteNode { id: gone }, Tol::witness())
+        .expect("the extrude has no consumer")
+        .doc;
+    match apply(
+        &doc,
+        &DocEdit::ReWitness {
+            node: gone,
+            witness: witness(),
+        },
+        Tol::witness(),
+    ) {
+        Err(EditError::UnknownNode { id }) => assert_eq!(id, gone),
+        other => panic!("a witness on a missing node must refuse typed, got {other:?}"),
+    }
+
+    let text = saved_witness(&doc, sketch);
+    let corrupt = rekey_witness(&text, sketch, gone);
+    match load(&corrupt, Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::WitnessOnMissingNode { node })) => {
+            assert_eq!(node, gone);
+        }
+        other => panic!("a witness on a missing node must refuse typed at load, got {other:?}"),
+    }
+}
+
+// ---- The recorded ε ----
+
+/// **An ε that is not strictly positive — both doors.** ε parameterizes
+/// every predicate band the document is read through, so a zero or
+/// negative one leaves every geometric answer undefined. The edit door
+/// names it `InvalidTolerance` and the load door
+/// `SnapshotError::EpsilonInvalid`.
+///
+/// The NON-FINITE half of the same rule is unreachable from a file —
+/// JSON carries no such token — and in memory it refuses one walk
+/// earlier, as `PersistError::NonFinite` at `NonFiniteSite::Epsilon`.
+#[test]
+fn a_non_positive_epsilon_is_refused_at_both_doors() {
+    let (doc, _) = with_measure();
+    match apply(&doc, &DocEdit::SetTolerance { eps: 0.0 }, Tol::witness()) {
+        Err(EditError::InvalidTolerance { value }) => assert_eq!(value, 0.0),
+        other => panic!("a zero ε must refuse typed, got {other:?}"),
+    }
+
+    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    load(&text, Tol::witness()).expect("the fixture loads");
+    let corrupt = doctored(&text, |wire| {
+        let eps = &mut wire["snapshot"]["epsilon"];
+        assert!(
+            eps.as_f64().is_some_and(|v| v > 0.0),
+            "the surgery is aimed at a live ε"
+        );
+        *eps = serde_json::json!(0.0);
+    });
+    match load(&corrupt, Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::EpsilonInvalid { value })) => {
+            assert_eq!(value, 0.0);
+        }
+        other => panic!("a zero ε must refuse typed at load, got {other:?}"),
+    }
+}
+
+// ---- A document parameter's declaration ----
+
+/// **A continuous parameter declared with the count dimension — the
+/// edit door, and what the load door actually answers.**
+///
+/// `DocParam::is_continuous_count` is the one rule and both doors ask
+/// it; this row pins the edit door's answer
+/// (`ContinuousParamCannotBeCount`).
+///
+/// At the load door the same document refuses EARLIER and by another
+/// name: the display-unit walk runs before the snapshot walk, and no
+/// unit in the table measures a count (`UnitSym::measures` answers
+/// Length, Angle or Scalar), so a `Continuous` parameter declared
+/// `Count` fails that walk whatever notation it carries.
+/// `SnapshotError::CountContinuous` is therefore unreachable through
+/// `validate_document` — measured here, and filed as
+/// `work/edit/count-continuous-arm-is-shadowed-by-the-display-unit-walk`.
+#[test]
+fn a_continuous_parameter_declared_count_is_refused_at_both_doors() {
+    let (doc, _) = with_measure();
+    let name = ParamName::new("n");
+    match apply(
+        &doc,
+        &DocEdit::SetDocParam {
+            name: name.clone(),
+            value: DocParam::continuous(Dimension::Count, 3.0),
+        },
+        Tol::witness(),
+    ) {
+        Err(EditError::ContinuousParamCannotBeCount { name: n }) => assert_eq!(n, name),
+        other => panic!("a count-dimensioned continuous param must refuse typed, got {other:?}"),
+    }
+
+    // The load door's half: a well-formed LENGTH parameter, retyped to
+    // a count on the wire.
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetDocParam {
+            name: name.clone(),
+            value: DocParam::continuous(Dimension::Length, 3.0),
+        },
+    );
+    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    load(&text, Tol::witness()).expect("the fixture loads");
+    let corrupt = doctored(&text, |wire| {
+        let dim = &mut wire["snapshot"]["params"][&name.0]["Continuous"]["dim"];
+        assert_eq!(
+            *dim,
+            serde_json::json!("Length"),
+            "the surgery is aimed at the declared dimension"
+        );
+        *dim = serde_json::json!("Count");
+    });
+    match load(&corrupt, Tol::witness()) {
+        Err(PersistError::DisplayUnit {
+            declared: Dimension::Count,
+            name: n,
+            ..
+        }) => assert_eq!(n, name),
+        other => panic!("a count-dimensioned continuous param must refuse at load, got {other:?}"),
+    }
 }
