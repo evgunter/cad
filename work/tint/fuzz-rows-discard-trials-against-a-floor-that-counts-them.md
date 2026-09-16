@@ -4,7 +4,6 @@ kind: issue
 title: A fuzz row's continue shrinks its own sample while its coverage floor is written against the attempted trial count: twelve candidate files
 status: open
 opened: 2026-09-11
-refs: [mesh-cert10-fold-fuzz-row-flakes-on-a-fresh-seed]
 ---
 
 
@@ -193,3 +192,5 @@ discard is invisible precisely because the first was fixed. Any sweep
 keyed on "does this row count its discards" answers yes here. The
 instrument has to be "does it count ALL of them", which is a read and
 not a grep — and that is this row's blind spot, now stated.
+
+The row this rode on, `mesh-cert10-fold-fuzz-row-flakes-on-a-fresh-seed` (closed on S-MESH's slate), left the tracker with `work/mesh/` at DOC-LEDGER sweep 16; it is recoverable at `git show 9f043ec2712b:work/mesh/mesh-cert10-fold-fuzz-row-flakes-on-a-fresh-seed.md`.

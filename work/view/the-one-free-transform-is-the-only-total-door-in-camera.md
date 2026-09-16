@@ -27,7 +27,7 @@ all call `finite(…)` before doing arithmetic, and `ray_through`
 explicitly refuses rather than "hand back a poisoned ray as if it were
 an answer".
 
-`cursor_projection` (`camera.rs:914-928`) checks nothing. A NaN cursor
+`cursor_projection` (`camera.rs:908-922`) checks nothing. A NaN cursor
 poisons the returned matrix, `viewport_px = [0.0, 0.0]` returns a
 degenerate one, and both come back as an answer. That was consistent
 where it lived before — `marks` is total by construction, a mark is a

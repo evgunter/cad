@@ -194,7 +194,8 @@ pub use product::{
 };
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
-    ProgramStep, ProgramTarget, RecordedProgramError, StepSegmentsError, resolve_loops,
+    ProgramStep, ProgramTarget, RecordedNotation, RecordedProgramError, StepSegmentsError,
+    resolve_loops,
 };
 #[cfg(feature = "interval")]
 pub use range::{
