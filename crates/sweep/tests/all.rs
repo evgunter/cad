@@ -154,6 +154,8 @@ mod blend_margin_payload_interval;
 mod blend_seam_split_rim;
 #[path = "blend_tworims.rs"]
 mod blend_tworims;
+#[path = "bool5r1_probes.rs"]
+mod bool5r1_probes;
 #[path = "cert5_offgrid_knot_rational.rs"]
 mod cert5_offgrid_knot_rational;
 #[path = "cert8_r1_probes.rs"]
@@ -206,8 +208,6 @@ mod m5_pr9_boss_union;
 mod m5_pr9_cosurface_merge;
 #[path = "m5_pr9_sector2.rs"]
 mod m5_pr9_sector2;
-#[path = "bool5r1_probes.rs"]
-mod bool5r1_probes;
 #[path = "m5_pr9c_sphere_doors.rs"]
 mod m5_pr9c_sphere_doors;
 #[path = "m5_pr9c_sphere_doors_interval.rs"]
