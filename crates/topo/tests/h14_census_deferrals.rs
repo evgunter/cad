@@ -83,20 +83,11 @@ fn the_face(body: &Body<f64>, pick: impl Fn(Point3<f64>) -> bool) -> FaceKey {
     hits[0]
 }
 
-/// Does some `CensusUndecidable` name the two SOLIDS of a two-instance
-/// arena with the given verdict? Arm 2 is the only arm that reports at
-/// solid granularity, so such a finding IS the containment arm's — but
-/// it mints THREE distinct verdicts (definite containment, in-band, and
-/// an unclaimable container extent), and a row that accepts any of them
-/// gets easier as the guarantee degrades. `want` is matched as a
-/// substring of the refusal's `what`, so each row names the verdict it
-/// means.
-fn containment_refused(errors: &[ValidationError], want: &str) -> bool {
-    any_solid_pair_undecidable(errors, |what| what.contains(want))
-}
-
 /// Does some `CensusUndecidable` name two SOLIDS with a `what` that
-/// satisfies `pick`? `|_| true` asks for any solid-pair refusal at all.
+/// satisfies `pick`? Arm 2 is the only arm that reports at solid
+/// granularity, so such a finding IS the containment arm's — and it
+/// mints several verdicts, so a row names the one it means through
+/// `pick`; `|_| true` asks for any solid-pair refusal at all.
 fn any_solid_pair_undecidable(errors: &[ValidationError], pick: impl Fn(&str) -> bool) -> bool {
     errors.iter().any(|e| {
         matches!(
