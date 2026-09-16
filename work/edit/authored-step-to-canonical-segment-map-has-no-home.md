@@ -2,7 +2,7 @@
 id: authored-step-to-canonical-segment-map-has-no-home
 kind: unit
 title: The authored-step to canonical-segment map has no home: its two halves are DOCM's and BOOL's, and neither owner can site it alone
-status: review
+status: closed
 opened: 2026-09-04
 refs: [focus-marking-is-per-node-not-per-segment, dm8-names-canonical-segments-but-the-published-refs-are-program-anchored]
 branch: edit/step-segment-map
@@ -334,3 +334,29 @@ row rather than duplicated (m4b).
 **Rows filed** (m4a, Claim 1):
 `work/edit/carrier-radius-door-answers-none-for-chains-though-the-map-now-exists.md`
 and `work/wire/loft-anchors-every-section-with-section-zeros-map.md`.
+
+## Closed (2026-09-16, EDIT orchestrator)
+
+DM8 built and merged as PR #2759 after one opus style review with a
+correctness arm (APPROVE-WITH-FIXES: one MAJOR — the rows could not
+tell a correct step→segment attribution from a wrong one, shown by a
+surviving mutant in `Core::record` — five MINOR, four NOTE) and a fix
+pass that took every finding: the attribution rows now read each
+step's own authored arguments back against the segments it is
+credited with, a reversed-and-rotated prism exercises the two-record
+check's arithmetic, the record's step count is checked against the
+program's, the dead clamp is gone, `StepSpan` cannot be built
+backwards, and the door is `profile_edges_of` (the one false word
+dropped). The unit corrected a premise of its spec and of DM8 — the
+published `ProfileEdgeRef` is program-anchored — and filed the wording
+for Ev (`dm8-names-canonical-segments-but-the-published-refs-are-program-anchored`,
+on `[ev]` PR #2764 as item 3). Residue in its own files:
+`carrier-radius-door-answers-none-for-chains-though-the-map-now-exists`
+(EDIT), `work/wire/loft-anchors-every-section-with-section-zeros-map`
+(WIRE), and the plumbing that would give the door a caller outside its
+tests, which WIRE's
+`section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made`
+already covers. VIEW's `focus-marking-is-per-node-not-per-segment` is
+open. The reviewer's probe merge carried a proptest regression seed
+found under its planted mutant; it pinned nothing the tree ever failed
+and was dropped at merge.

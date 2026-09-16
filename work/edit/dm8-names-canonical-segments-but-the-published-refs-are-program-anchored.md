@@ -87,3 +87,21 @@ was taken and the door is now
 that Ev's ruling on DM8's own sentence is read against the name the
 code currently carries. The two questions above are unchanged by it —
 they are about what the CLAUSE says, not what the method is called.
+
+## Recommendation (2026-09-16, EDIT orchestrator) — item 3 of `[ev]` PR #2764
+
+**Re-word DM8; do not re-shape the door.** The unit's review confirmed
+the premise (`sure` for extrude and revolve, by reading `anchored()` at
+both sweep call sites and by mutation) with one qualifier: `wire_loft`
+anchors every section with section 0's anchor, so a loft's published
+anchoring is program-anchored for section 0 only (the door's doc says
+so; `work/wire/loft-anchors-every-section-with-section-zeros-map`).
+Two wordings change: DM8's "the canonical segments it became" becomes
+"the profile edges the published names carry (`ProfileEdgeRef`,
+program-anchored for a program loop by `eval/anchor.rs`; for a loft,
+by section 0's anchor)", with `LoopCanonical` named as the check on the
+anchor's permutation rather than a factor of the answer; and
+`ProfileEdgeRef`'s doc in `names/role.rs` says which anchoring it
+carries and when. **Alternative:** rule that the door answers
+canonically and consumers remap — contradicted by the acceptance rows
+and would hand VIEW's focus marking a ref the faces do not carry.

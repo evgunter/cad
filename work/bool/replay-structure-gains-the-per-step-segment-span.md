@@ -2,9 +2,8 @@
 id: replay-structure-gains-the-per-step-segment-span
 kind: issue
 title: ReplayStructure gains the per-step segment span: DM8's profile half, built by EDIT by announcement
-status: parked
+status: closed
 opened: 2026-09-16
-blocked_on: [authored-step-to-canonical-segment-map-has-no-home]
 ---
 
 
@@ -22,3 +21,11 @@ recorded where the fillet decisions are, verified by the guided pass
 the way they are. This row exists so the crossing is visible from
 S-BOOL's side; it closes when that unit merges. Re-home or object on
 that unit's PR if the reading is wrong.
+
+## Closed (2026-09-16, EDIT orchestrator)
+
+The unit merged (PR #2759): `ReplayStructure` carries `steps:
+Vec<StepSpan>`, recorded by `Core::record` as the chain lowers and
+verified by `replay_guided` (`Decision::RecordShape` on a count
+mismatch, `Decision::StepSpan { step }` per step). Closed by this row's
+own text; the S-BOOL-side reading is unchanged.
