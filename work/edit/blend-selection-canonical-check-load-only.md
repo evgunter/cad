@@ -80,9 +80,10 @@ against the tree: `crates/editor-core/src/edit.rs` (`InsertNode`) and
 The predicate has one home. `InputFault::SelectionNotCanonical { at }`
 answers for a `Fillet`/`Chamfer` selection whose entries do not
 strictly increase — "sorted and deduplicated" is one predicate, so a
-swap and a repeat are one fault at one position — and `input_fault`'s
-three callers (`InsertNode`, `SetMembers` on the rewritten node, the
-load validator) all ask it. `check.rs`'s `windows(2)` line and
+swap and a repeat are one fault at one position — and every caller of
+`input_fault` asks it. The doors it is REACHABLE at are two, not
+three: `SetMembers` is a caller but refuses `SetMembersOnNonList`
+first, since no designation-carrying kind has a list input. `check.rs`'s `windows(2)` line and
 `SnapshotError::BlendSelectionNotCanonical` are gone; the load door
 refuses the same document through `SnapshotError::InputList`, the arm
 that already carried every other `input_fault` answer. The edit doors
@@ -129,3 +130,45 @@ Filed: `three-door-predicates-are-hand-copied-not-shared` (this
 program's slate) — the sweep found the assertion bound, a mate's
 alignment and the placement registry spelled twice, once per door, with
 the placement pair not even refusing the same set.
+
+## Fix pass (2026-09-16, after the style review)
+
+Verdict was MERGEABLE, no MAJOR; twelve findings, all taken except the
+two the orchestrator ruled pre-existing.
+
+- **The establisher now has one home too.** `sort(); dedup();` was
+  spelled three times — `Node::fillet`, `Node::chamfer`,
+  `rebind_payload_names`. `canonicalize_selection` is the named door,
+  the `dedup_keeping_first` precedent for the ordered twin, and
+  `Rebind`'s repair therefore re-establishes exactly the form the
+  predicate checks. `a_rebind_leaves_a_canonical_selection` pins it.
+- **`at` is pinned away from zero.** The reviewer's probe rows
+  (adopted through a merge of `review/blend-rv`, folded into
+  `edit_blend_canonical.rs`) drive both faults at positions 0 and 1,
+  both at once in either order, and both doors reporting `at == 1`.
+  The mutant `at: 0` now reds four rows; it survived the whole suite
+  before.
+- **Both door rows go through a door.** `both_doors_forward_one_sentence`
+  built its fault by hand and so could not catch a door forwarding the
+  wrong index; it now drives `apply` and `load` over a real refused
+  node and reads the rendered sentence.
+- **The empty selection evaluates.** The row named
+  `BlendSelectionEmpty` without ever asking for it; it now evaluates
+  and takes that refusal.
+- **Prose corrections.** "every door" → "every door that ADMITS a
+  node" (`Rebind` repairs, and that is not an exception); the
+  hand-synced arm count in `tags.rs` is gone; the `at + 1` rendering
+  and the one-index payload are reconciled in the field's own doc;
+  `pncad.pyi` and `edit_payload.rs` now say the VARIANT decides what
+  `first` means.
+
+Filed in this pass:
+`load-shaped-doors-outside-check-rs-may-duplicate-edit-predicates` —
+the sweep's blind spot as a row rather than a sentence in a PR body.
+`three-door-predicates-are-hand-copied-not-shared` re-points its
+assertion-bound citation at the inline block in `check_node_slots`
+(there is no `check_assertion_bound`).
+
+Not taken, ruled pre-existing classes: the `as u32` narrowing in
+`input_fault`, and the phantom `RecipeNodeId(next_id)` that reaches
+Python as `EditPayload.node` on an `InsertNode` refusal.

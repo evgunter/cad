@@ -1049,7 +1049,11 @@ impl SitedRef {
 /// a hand-built variant or a corrupt file can arrive without. Which
 /// form is the payload's own — ORDERED for a shell's `open`, SORTED for
 /// a blend's `selection` — and either way a node that does not hold it
-/// is refused at every door rather than repaired at one.
+/// is refused at every door that ADMITS a node rather than repaired at
+/// one. [`crate::DocEdit::Rebind`] repairs, and that is not an
+/// exception: it rewrites through the same canonicalizer the
+/// construction doors use, so what it writes is a node these doors
+/// accept.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InputFault {
     /// One node is reached twice through this node's edges. It covers
@@ -1095,7 +1099,12 @@ pub enum InputFault {
     /// back.
     SelectionNotCanonical {
         /// The position of the entry that does not sort strictly
-        /// before the one after it.
+        /// before the one after it. ONE index is the whole content:
+        /// the break is between this entry and its successor, so the
+        /// successor's position is this one plus one. The rendered
+        /// sentence spells both out because a reader comparing two
+        /// entries wants both numbers in front of them; the payload
+        /// carries the one that is data.
         at: u32,
     },
 }
@@ -2320,9 +2329,12 @@ impl<P> Node<P> {
         }
         // The name designations, each against the canonical form its
         // own construction door establishes. Asked here, once, so every
-        // door that admits a node refuses the same shapes: the two edit
-        // doors and the load door are the three callers, and neither
-        // form is repaired at any of them.
+        // door that admits a node refuses the same shapes, and neither
+        // form is repaired at any of them. `SetMembers` is a caller but
+        // reaches neither clause: it refuses `SetMembersOnNonList`
+        // first, since no designation-carrying kind has a list input.
+        // The doors a designation fault is REACHABLE at are the insert
+        // door and the load door.
         //
         // The ORDERED payload — a shell's `open` — carries only the
         // rule the sorted payloads state by their order: no entry
@@ -2757,13 +2769,17 @@ impl<P> Node<P> {
                     hits += rewrite(name, from, to);
                 }
             }
+            // A SORTED payload re-canonicalizes through the same door
+            // that established the form: the repair re-establishes it,
+            // so what a rebind writes is what `Node::input_fault`
+            // accepts and there is no shape a repair can leave behind
+            // that an edit door would refuse.
             Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => {
                 for name in selection.iter_mut() {
                     hits += rewrite(name, from, to);
                 }
                 if hits > 0 {
-                    selection.sort();
-                    selection.dedup();
+                    canonicalize_selection(selection);
                 }
             }
             // An ORDERED payload re-canonicalizes to its own form: the
@@ -3019,11 +3035,12 @@ impl<P> Node<P> {
 
     /// Builds a [`Node::Fillet`] with a CANONICAL selection (sorted,
     /// deduplicated) — the one construction door, so a recipe's bits
-    /// do not depend on the order a user clicked in.
+    /// do not depend on the order a user clicked in. The form comes
+    /// from [`canonicalize_selection`], which every site that
+    /// establishes it shares.
     pub fn fillet(target: RecipeNodeId, radius: Expr, selection: Vec<StableName>) -> Self {
         let mut selection = selection;
-        selection.sort();
-        selection.dedup();
+        canonicalize_selection(&mut selection);
         Node::Fillet {
             target,
             radius,
@@ -3037,8 +3054,7 @@ impl<P> Node<P> {
     /// order a user clicked in.
     pub fn chamfer(target: RecipeNodeId, distance: Expr, selection: Vec<StableName>) -> Self {
         let mut selection = selection;
-        selection.sort();
-        selection.dedup();
+        canonicalize_selection(&mut selection);
         Node::Chamfer {
             target,
             distance,
@@ -3062,6 +3078,21 @@ impl<P> Node<P> {
             open,
         }
     }
+}
+
+/// Sorts a name designation and drops its repeats — the canonical form
+/// of a SORTED designation ([`InputFault::SelectionNotCanonical`]),
+/// shared by the two construction doors and the rebind rewrite so the
+/// three cannot disagree about it, exactly as
+/// [`dedup_keeping_first`] is shared for the ordered twin.
+///
+/// It is the establisher of the form [`Node::input_fault`] checks:
+/// what comes back from here always answers `None` there, which is
+/// what makes `Rebind` a repair rather than a second authoring of a
+/// shape the doors would refuse.
+fn canonicalize_selection(names: &mut Vec<StableName>) {
+    names.sort();
+    names.dedup();
 }
 
 /// Drops every repeat of a name, keeping the FIRST occurrence and the

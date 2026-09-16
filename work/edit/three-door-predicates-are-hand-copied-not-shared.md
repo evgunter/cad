@@ -21,14 +21,18 @@ three have an edit-door twin that spells the same rule a second time:
 
 - **The assertion's bound dimension.** `check.rs`'s `AssertionBound`
   arm reads `doc.nodes.get(measure)`, takes `expr.dim()` and compares
-  it to `bound.dim()`. `edit.rs`'s `check_assertion_bound` does the
-  same walk and splits the answer into `EditError::AssertionTarget`
-  (the reference is not a `Measure`) and
-  `EditError::AssertionDimension` (it is, and the dimensions differ) —
-  where the load door folds both into one arm with
+  it to `bound.dim()`. `edit.rs`'s `check_node_slots` ends with an
+  inline `if let Node::Assertion { measure, bound, .. }` block — no
+  function of its own — that does the same walk and splits the answer
+  into `EditError::AssertionTarget` (the reference is not a `Measure`)
+  and `EditError::AssertionDimension` (it is, and the dimensions
+  differ), where the load door folds both into one arm with
   `measured: Option<Dimension>`. Two spellings, and the load door's is
-  the one that cannot say which of the two happened without the
-  reader decoding a `None`.
+  the one that cannot say which of the two happened without the reader
+  decoding a `None`. Its comment says the check "needs the DOCUMENT,
+  which is why it lands here and not on the node" — that is the reason
+  it is not already a `Node::*_fault`, and the shared home this row
+  wants is therefore a function over `(&Doc, &Node)`, not a method.
 - **A mate's alignment is finite.** `edit.rs`'s `InsertNode` arm tests
   `!alignment.is_finite()` inline for `EditError::NonFiniteAlignment`;
   `check.rs` runs a second node walk of its own, after the main loop,

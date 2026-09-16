@@ -17,11 +17,12 @@
 use crate::fixture;
 
 use editor_core::{
-    CapEnd, DocEdit, EditError, EntityKind, InputFault, Node, PersistError, ProfileDoc,
-    ProfileEdgeRef, ProfileProgram, RecipeNodeId, RoleSeg, SnapshotError, StableName, apply, load,
-    save,
+    CancelToken, CapEnd, DocEdit, EditError, EntityKind, EvalOptions, InputFault, Node,
+    NodeErrorKind, NodeResult, PersistError, ProfileDoc, ProfileEdgeRef, ProfileProgram,
+    RecipeNodeId, RoleSeg, SnapshotError, StableName, apply, evaluate, load, save,
 };
 use geom_core::Tol;
+use sweep::blend::BlendKind;
 
 /// A square prism: an XY frame (0), a unit-square profile (1) and the
 /// extrude (2) whose edges the blends name.
@@ -56,9 +57,20 @@ fn edge(node: RecipeNodeId, segment: u32) -> StableName {
     }
 }
 
-/// The saved text of a prism carrying one canonical two-edge fillet,
-/// plus the two segment spellings that reach the wire in that order.
-fn saved_fillet() -> String {
+/// A hand-built `Node::Fillet` over the prism's END-cap rims, by
+/// profile segment — the shape `Node::fillet` would have
+/// canonicalized, handed to a door raw.
+fn raw_fillet(solid: RecipeNodeId, segments: &[u32]) -> Node<ProfileProgram> {
+    Node::Fillet {
+        target: solid,
+        radius: fixture::len(0.0625),
+        selection: segments.iter().map(|s| edge(solid, *s)).collect(),
+    }
+}
+
+/// The saved text of a prism carrying one canonical fillet over the
+/// named segments, which reach the wire in that order.
+fn saved_fillet(segments: &[u32]) -> String {
     let (doc, solid) = prism();
     let doc = apply(
         &doc,
@@ -66,7 +78,7 @@ fn saved_fillet() -> String {
             node: Node::fillet(
                 solid,
                 fixture::len(0.0625),
-                vec![edge(solid, 0), edge(solid, 2)],
+                segments.iter().map(|s| edge(solid, *s)).collect(),
             ),
         },
         Tol::witness(),
@@ -103,24 +115,21 @@ fn corrupt_selection(text: &str, from: u32, to: u32) -> String {
 #[test]
 fn an_unsorted_selection_is_refused_at_the_insert_door() {
     let (doc, solid) = prism();
-    let raw: Node<ProfileProgram> = Node::Fillet {
-        target: solid,
-        radius: fixture::len(0.0625),
-        selection: vec![edge(solid, 2), edge(solid, 0)],
-    };
+    let raw = raw_fillet(solid, &[2, 0]);
     match apply(&doc, &DocEdit::InsertNode { node: raw }, Tol::witness()) {
         Err(EditError::SelectionNotCanonical { at: 0, .. }) => {}
         other => panic!("an unsorted selection must refuse typed, got {other:?}"),
     }
     // Sorted, the same two names are accepted — so the refusal above is
     // the order's and not the fixture's.
-    let raw: Node<ProfileProgram> = Node::Fillet {
-        target: solid,
-        radius: fixture::len(0.0625),
-        selection: vec![edge(solid, 0), edge(solid, 2)],
-    };
-    apply(&doc, &DocEdit::InsertNode { node: raw }, Tol::witness())
-        .expect("a canonical selection inserts");
+    apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: raw_fillet(solid, &[0, 2]),
+        },
+        Tol::witness(),
+    )
+    .expect("a canonical selection inserts");
 }
 
 /// **The chamfer's twin**: the rule reads the selection, not the blend,
@@ -145,11 +154,7 @@ fn an_unsorted_chamfer_selection_is_refused_at_the_insert_door() {
 #[test]
 fn a_repeated_selection_entry_is_refused_at_the_insert_door() {
     let (doc, solid) = prism();
-    let raw: Node<ProfileProgram> = Node::Fillet {
-        target: solid,
-        radius: fixture::len(0.0625),
-        selection: vec![edge(solid, 0), edge(solid, 0), edge(solid, 2)],
-    };
+    let raw = raw_fillet(solid, &[0, 0, 2]);
     match apply(&doc, &DocEdit::InsertNode { node: raw }, Tol::witness()) {
         Err(EditError::SelectionNotCanonical { at: 0, .. }) => {}
         other => panic!("a repeated selection entry must refuse typed, got {other:?}"),
@@ -162,7 +167,7 @@ fn a_repeated_selection_entry_is_refused_at_the_insert_door() {
 /// canonical form has no refusal of its own any more.
 #[test]
 fn an_unsorted_selection_is_refused_at_the_load_door() {
-    let text = saved_fillet();
+    let text = saved_fillet(&[0, 2]);
     // The uncorrupted text loads, so the refusal below is the surgery's
     // and not the fixture's.
     load(&text, Tol::witness()).expect("the canonical fixture loads");
@@ -182,7 +187,7 @@ fn an_unsorted_selection_is_refused_at_the_load_door() {
 /// "a duplicate is refused at both doors".
 #[test]
 fn a_repeated_selection_entry_is_refused_at_the_load_door() {
-    let text = saved_fillet();
+    let text = saved_fillet(&[0, 2]);
     // `[seg 0, seg 2]` → `[seg 0, seg 0]`.
     let corrupt = corrupt_selection(&text, 2, 0);
     match load(&corrupt, Tol::witness()) {
@@ -219,9 +224,11 @@ fn the_construction_doors_canonicalize() {
 }
 
 /// **An EMPTY selection is canonical**, and stays a different refusal:
-/// a blend of nothing is an unfinished recipe, which evaluation names
-/// (`NodeErrorKind::BlendSelectionEmpty`), not a corrupt form the
-/// authoring door can diagnose.
+/// a blend of nothing is an unfinished recipe, which EVALUATION names,
+/// not a corrupt form the authoring door can diagnose. The row admits
+/// it at the insert door and then takes the refusal it does get, so
+/// the sentence in `input_fault`'s comment is evidence and not a
+/// claim.
 #[test]
 fn an_empty_selection_is_canonical() {
     let (doc, solid) = prism();
@@ -231,31 +238,187 @@ fn an_empty_selection_is_canonical() {
         selection: Vec::new(),
     };
     assert!(empty.input_fault().is_none());
-    apply(&doc, &DocEdit::InsertNode { node: empty }, Tol::witness())
-        .expect("an empty selection is not this door's refusal");
+    let doc = apply(&doc, &DocEdit::InsertNode { node: empty }, Tol::witness())
+        .expect("an empty selection is not this door's refusal")
+        .doc;
+    let fillet = *doc.order().last().expect("the fillet is the last node");
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    match ev.nodes.get(&fillet) {
+        Some(NodeResult::Failed(e)) => assert!(
+            matches!(
+                e.kind,
+                NodeErrorKind::BlendSelectionEmpty {
+                    verb: BlendKind::Fillet
+                }
+            ),
+            "the empty blend refuses at evaluation, not at a door: {:?}",
+            e.kind
+        ),
+        other => panic!("expected an evaluation refusal, got {other:?}"),
+    }
 }
 
-/// The refusal's PROSE, at both doors: the load door forwards the
-/// fault's own sentence and the edit door frames it, so the two say the
-/// same thing about the same document and neither invents a second
-/// vocabulary for it.
+/// The refusal's PROSE **as each door actually renders it**, over a
+/// real node each door actually refuses, at a position that is not
+/// zero. A door that forwarded the wrong `at` — its own loop index, a
+/// hard-coded zero, the successor's position — reds here, which is
+/// what building the fault by hand could not catch.
 #[test]
 fn both_doors_forward_one_sentence() {
-    let fault = InputFault::SelectionNotCanonical { at: 3 };
-    let said = fault.to_string();
-    assert!(said.contains("entry 3"), "it names the position: {said}");
+    // `[0, 4, 2]`: the break is between entries 1 and 2.
+    let expected = InputFault::SelectionNotCanonical { at: 1 }.to_string();
+    assert!(
+        expected.contains("entry 1") && expected.contains("entry 2"),
+        "the sentence names the entry and its successor: {expected}"
+    );
 
-    let at_load = SnapshotError::InputList {
-        node: RecipeNodeId(7),
-        fault,
-    }
-    .to_string();
-    assert!(at_load.contains(&said), "the load door forwards: {at_load}");
+    let (doc, solid) = prism();
+    let at_edit = match apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: raw_fillet(solid, &[0, 4, 2]),
+        },
+        Tol::witness(),
+    ) {
+        Err(e @ EditError::SelectionNotCanonical { .. }) => e.to_string(),
+        other => panic!("expected the edit door's refusal, got {other:?}"),
+    };
+    assert!(
+        at_edit.contains(&expected),
+        "the edit door forwards the fault's own sentence: {at_edit}"
+    );
 
-    let at_edit = EditError::SelectionNotCanonical {
-        node: RecipeNodeId(7),
-        at: 3,
+    // The same break, through the load door: `[0, 2, 4]` → `[0, 9, 4]`.
+    let text = saved_fillet(&[0, 2, 4]);
+    let at_load = match load(&corrupt_selection(&text, 2, 9), Tol::witness()) {
+        Err(e @ PersistError::Snapshot(SnapshotError::InputList { .. })) => e.to_string(),
+        other => panic!("expected the load door's refusal, got {other:?}"),
+    };
+    assert!(
+        at_load.contains(&expected),
+        "the load door forwards the same sentence: {at_load}"
+    );
+}
+
+// ---------------------------------------------------------------
+// Adopted from the style review's probe lane (`review/blend-rv`):
+// every row above named `at: 0`, so the computed index was never
+// compared against a non-zero expectation and the mutant `at: 0`
+// survived the suite. These rows kill it.
+// ---------------------------------------------------------------
+
+/// `input_fault` directly, at each position of a three-name selection,
+/// and with both faults present at once — the answer is the FIRST
+/// break, whichever kind it is.
+#[test]
+fn at_names_each_position() {
+    let solid = RecipeNodeId(2);
+    let cases: &[(&str, Vec<u32>, Option<u32>)] = &[
+        ("canonical", vec![0, 2, 4], None),
+        ("swap at 0", vec![2, 0, 4], Some(0)),
+        ("swap at 1", vec![0, 4, 2], Some(1)),
+        ("repeat at 0", vec![0, 0, 4], Some(0)),
+        ("repeat at 1", vec![0, 2, 2], Some(1)),
+        // Both faults present, the repeat LATER than the swap.
+        ("swap at 0 + repeat at 2", vec![2, 0, 4, 4], Some(0)),
+        // Both faults present, the repeat EARLIER than the swap.
+        ("repeat at 0 + swap at 2", vec![0, 0, 4, 2], Some(0)),
+    ];
+    for (what, segs, want) in cases {
+        let got = match raw_fillet(solid, segs).input_fault() {
+            Some(InputFault::SelectionNotCanonical { at }) => Some(at),
+            None => None,
+            other => panic!("{what}: unexpected fault {other:?}"),
+        };
+        assert_eq!(got, *want, "{what}");
     }
-    .to_string();
-    assert!(at_edit.contains(&said), "the edit door forwards: {at_edit}");
+}
+
+/// The same non-zero position, reported by the INSERT door.
+#[test]
+fn the_insert_door_reports_a_non_zero_position() {
+    let (doc, solid) = prism();
+    match apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: raw_fillet(solid, &[0, 4, 2]),
+        },
+        Tol::witness(),
+    ) {
+        Err(EditError::SelectionNotCanonical { at, .. }) => {
+            assert_eq!(at, 1, "the break is between entries 1 and 2");
+        }
+        other => panic!("expected a typed refusal, got {other:?}"),
+    }
+}
+
+/// The same non-zero position, reported by the LOAD door.
+#[test]
+fn the_load_door_reports_a_non_zero_position() {
+    let text = saved_fillet(&[0, 2, 4]);
+    load(&text, Tol::witness()).expect("the canonical fixture loads");
+    // `[0, 2, 4]` → `[0, 9, 4]`: the break moves to entry 1.
+    match load(&corrupt_selection(&text, 2, 9), Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::InputList {
+            fault: InputFault::SelectionNotCanonical { at },
+            ..
+        })) => assert_eq!(at, 1, "the load door names the same entry"),
+        other => panic!("expected a typed refusal, got {other:?}"),
+    }
+}
+
+/// **`Rebind` re-establishes the form it repairs.** The rewrite goes
+/// through the same canonicalizer the construction doors use, so a
+/// rebind onto an already-selected edge shrinks the set by one and
+/// what it writes answers `input_fault` with `None` — the repair
+/// cannot leave behind a shape a door would refuse.
+#[test]
+fn a_rebind_leaves_a_canonical_selection() {
+    let (doc, solid) = prism();
+    let (doc, fillet) = {
+        let applied = apply(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Node::fillet(
+                    solid,
+                    fixture::len(0.0625),
+                    vec![edge(solid, 0), edge(solid, 2), edge(solid, 4)],
+                ),
+            },
+            Tol::witness(),
+        )
+        .expect("a canonical three-edge fillet inserts");
+        let id = applied.record.minted.expect("the fillet is minted");
+        (applied.doc, id)
+    };
+    // Entry 2 onto entry 0's name: the set shrinks to two and re-sorts.
+    let doc = apply(
+        &doc,
+        &DocEdit::Rebind {
+            from: edge(solid, 4),
+            to: edge(solid, 0),
+        },
+        Tol::witness(),
+    )
+    .expect("the rebind applies")
+    .doc;
+    let Some(Node::Fillet { selection, .. }) = doc.node(fillet) else {
+        panic!("the fillet survives the rebind")
+    };
+    assert_eq!(
+        selection,
+        &vec![edge(solid, 0), edge(solid, 2)],
+        "the repair re-establishes the canonical form, shrinking by one"
+    );
+    let node = doc.node(fillet).expect("the fillet is live");
+    assert!(
+        node.input_fault().is_none(),
+        "so the repaired node passes the predicate every door asks"
+    );
 }

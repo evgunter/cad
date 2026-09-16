@@ -1658,8 +1658,8 @@ pub fn program_fault_tag(fault: &ProgramFault) -> &'static str {
 /// The stable tag for a document-snapshot invariant refusal — the
 /// inner arm of [`PersistError::Snapshot`].
 ///
-/// Eighteen arms, each naming a different invariant the parsed (or
-/// in-memory) snapshot broke. The arm's own payload is node ids,
+/// One arm per invariant the parsed (or in-memory) snapshot can break,
+/// each naming a different one. The arm's own payload is node ids,
 /// names and counts the snapshot door owns; the word is what the
 /// persistence door carries out.
 pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
