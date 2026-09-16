@@ -80,7 +80,6 @@ fn embed_step<T: Real>(step: &Step<f64>) -> Step<T> {
         Step::ContinueTo(t) => Step::ContinueTo(tgt(t)),
         Step::ArcTo(s) => Step::ArcTo(spec(s)),
         Step::TangentArcTo(t) => Step::TangentArcTo(tgt(t)),
-        Step::ArcContinue(p) => Step::ArcContinue(pt(p)),
         Step::Fillet { radius } => Step::Fillet {
             radius: T::from_f64(radius),
         },

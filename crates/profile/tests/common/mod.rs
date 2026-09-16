@@ -488,7 +488,9 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         .line_to(Start, Tol::witness())
         .unwrap();
 
-    // 6. The declared-subdivision step on an arc carrier.
+    // 6. Two quarter arcs on one carrier — the half-disc equator —
+    //    the second through the lattice's own declared-joint
+    //    spelling, `.tangent().tangent_arc_to(p)`.
     let subdivided = Open
         .at(p2(0.0, -0.5))
         .arc_to(
@@ -499,7 +501,8 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
             Tol::witness(),
         )
         .unwrap()
-        .arc_continue(p2(0.0, 0.5), Tol::witness())
+        .tangent()
+        .tangent_arc_to(p2(0.0, 0.5), Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness())
         .unwrap();
