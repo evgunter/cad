@@ -127,7 +127,7 @@ volume_pad=0x0 area_pad=0x0`. Off-origin box:
 
 Section by section over the derived dump — `solids`, `shells`, `faces`,
 `loops`, `half_edges`, `vertices`, `points`, `surfaces`, `pcurves`,
-`null_faces`, all eight provenance maps, `point_origins`,
+`null_faces`, all seven provenance maps, `point_origins`,
 `curve_origins`, `surface_origins`, `surface_field_sources`, `surgery`
 — **byte-identical**, keys and arena order included. Face surfaces are
 `[7v1, 2v1, 3v1, 4v1, 5v1, 6v1]` in face-arena order on both sides and
