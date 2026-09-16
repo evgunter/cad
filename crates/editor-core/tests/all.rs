@@ -142,6 +142,8 @@ mod edit_one_predicate;
 mod edit_pair_apply_names;
 #[path = "edit_recorded_notation.rs"]
 mod edit_recorded_notation;
+#[path = "edit_ladder_rim.rs"]
+mod edit_ladder_rim;
 #[path = "edit_ruled_carve.rs"]
 mod edit_ruled_carve;
 #[path = "edit_step_segments.rs"]
