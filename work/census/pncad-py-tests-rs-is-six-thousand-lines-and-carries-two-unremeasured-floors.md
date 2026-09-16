@@ -1,7 +1,7 @@
 ---
 id: pncad-py-tests-rs-is-six-thousand-lines-and-carries-two-unremeasured-floors
 kind: issue
-title: pncad-py tests.rs is 9133 lines and its two vacuity floors are numbers nothing re-measures
+title: pncad-py tests.rs is 9162 lines and its two vacuity floors are numbers nothing re-measures
 status: open
 opened: 2026-09-15
 ---
@@ -13,9 +13,9 @@ it.
 
 ## What is in one file
 
-`crates/pncad-py/src/tests.rs` is **9133 lines**, re-derivable by
+`crates/pncad-py/src/tests.rs` is **9162 lines**, re-derivable by
 `git show <sha>:crates/pncad-py/src/tests.rs | wc -l` and measured at
-`024f75815`, the commit that writes this sentence (6317 when this row
+`c9c007ef6`, the commit that writes this sentence (6317 when this row
 was written at `census/tag-reach`, 6064 before that unit's fix pass
 added the reader's shape rosters, 6798 at the merge base `cc6fb870c`,
 7805 on `main` at `370bd6f41`). It holds the error-class
@@ -31,7 +31,7 @@ The four recognisers, three over Rust and one over a Python stub:
   `TopForm`);
 * the literal-attribution one (`read_minting_items`, `scope_spans`,
   `declaration_heads`, `SCOPE_WALK_BLIND_SPOTS` and their helpers),
-  **658 lines** at `024f75815` — lines 6733 to 7390, of which 262 are
+  **658 lines** at `c9c007ef6` — lines 6733 to 7390, of which 262 are
   doc comments;
 * `declares_test`/`attribute_run`, which reads this file's OWN source
   for a `#[test] fn` of a given name, so that the two committed lists
@@ -75,9 +75,9 @@ reached `main`, this row's title, `plan.md`'s slate and the spec of the
 next unit. What a count in a tracker row is about is the TREE, and a
 merge-only repo moves the tree between the measurement and the landing.
 
-**CENSUS-ARRIVAL-RESIDUE grew it 1328 lines, 17.0%** (9133 at
-`024f75815`, against 7805 on `main` at `370bd6f41`; **1512 added and
-184 removed**, of which 627 of the additions are doc comments —
+**CENSUS-ARRIVAL-RESIDUE grew it 1357 lines, 17.4%** (9162 at
+`c9c007ef6`, against 7805 on `main` at `370bd6f41`; **1544 added and
+187 removed**, of which 637 of the additions are doc comments —
 `git diff --numstat origin/main -- crates/pncad-py/src/tests.rs`, taken
 after the last edit to the file). Its subject was the residue of the
 instrument that grew this file last, so it is the same recogniser
@@ -85,9 +85,10 @@ growing again: a per-entry blind-spot list on the scope walk, now data
 rather than prose with every probe re-derived; a scope walk over
 `trait` and `fn` as well as `impl` and `mod`; a declaration walk that
 finds its keywords instead of its lines; eight new tests, taking the
-file's own count from 116 to 124, and four new rows in the reader's
-fixture; a `held_by` column restructured from prose into holders a
-reader re-derives; and a stub reader with its own fixture guard.
+file's own count from 116 to 124, and six new rows in the reader's
+fixture (19 to 25, with two more keys renamed by the wider scope walk);
+a `held_by` column restructured from prose into holders a reader
+re-derives; and a stub reader with its own fixture guard.
 
 **Its own count arithmetic was wrong too, and in the direction this row
 warns about.** The unit's first size-row edit said `867 added / 129
