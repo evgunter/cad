@@ -1366,13 +1366,14 @@ pub struct Crossing {
 impl Crossing {
     /// `|det| / (|e1|·|e2|·|d|)` — up to a constant the sine of the
     /// angle between the ray and the plane, and so the conditioning of
-    /// the whole test on this pair. Not derivable from the fields
-    /// alone, which is why it takes the operands again.
-    pub fn conditioning(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<f64> {
-        let c = crossing(ray, tri)?;
+    /// the whole test on this pair. A method rather than a second
+    /// door: it needs the operands' magnitudes, which the struct does
+    /// not carry, but it must read THIS crossing's determinant and
+    /// not recompute one.
+    pub fn conditioning(&self, ray: &Ray, tri: &[Point3<f64>; 3]) -> f64 {
         let e1: Vec3<f64> = tri[1] - tri[0];
         let e2: Vec3<f64> = tri[2] - tri[0];
-        Some(c.det.abs() / (e1.norm() * e2.norm() * ray.dir.norm()))
+        self.det.abs() / (e1.norm() * e2.norm() * ray.dir.norm())
     }
 }
 

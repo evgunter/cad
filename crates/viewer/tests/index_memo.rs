@@ -23,7 +23,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use bvh::{Aabb, Bvh, Ray};
-use editor_core::resolve::{Crossing, crossing, ray_triangle};
+use editor_core::resolve::{crossing, ray_triangle};
 use editor_core::{
     Dimension, DocEdit, Expr, HitTestError, NodePick, ProfileDoc, RecipeNodeId, SlotId, StableName,
     unparse,
@@ -1301,8 +1301,7 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
     // The winner's own numbers, which are why the acceptance takes it.
     let winner = &reference.parts[hit.part].corners[hit.item];
     let c = crossing(&ray, winner).expect("the winner's determinant is certified");
-    let conditioning =
-        Crossing::conditioning(&ray, winner).expect("the winner's determinant is certified");
+    let conditioning = c.conditioning(&ray, winner);
     let margin = c.det.abs() / c.bound_det;
     println!(
         "# the ring's wide-candidate winner: det {:e}, conditioning {conditioning:e}, \
