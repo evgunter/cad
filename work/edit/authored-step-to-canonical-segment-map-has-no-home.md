@@ -7,6 +7,7 @@ opened: 2026-09-04
 refs: [focus-marking-is-per-node-not-per-segment, dm8-names-canonical-segments-but-the-published-refs-are-program-anchored]
 branch: edit/step-segment-map
 pr: 2759
+closed: 2026-09-16
 ---
 
 The announce VIEW's plan item 4 has owed since 2026-09-03, written as

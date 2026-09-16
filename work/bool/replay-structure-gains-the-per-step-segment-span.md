@@ -4,6 +4,7 @@ kind: issue
 title: ReplayStructure gains the per-step segment span: DM8's profile half, built by EDIT by announcement
 status: closed
 opened: 2026-09-16
+closed: 2026-09-16
 ---
 
 
