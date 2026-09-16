@@ -86,13 +86,15 @@ fn point_of(body: &Body<f64>, v: topo::VertexKey) -> Point3<f64> {
 /// crossing curve lies on an edge of one body inside a face of the
 /// other.
 ///
-/// Every one of the part's eight vertices lies on the bracket's top
-/// or bottom face, so the arm cannot decide the placement from them
-/// and refuses typed ("every vertex … on the containing instance's
-/// boundary"); the reverse ordering's vertices are outside or on the
-/// part. The pair is REFUSED, not cleared and not decided.
+/// Every vertex of each instance is outside-or-on the other (the
+/// part's `(1.5, 3, z)` corners float in the concavity), so the clear
+/// is what the touches decide — and two of the part's vertices,
+/// `(1.5, 1, z)`, sit on the bracket's face-boundary EDGE `y = 1`, a
+/// vertex-on-edge touch with no local side analysis yet. The arm
+/// blocks on it typed. The pair is REFUSED, not cleared and not
+/// decided.
 #[test]
-fn a_straddling_part_with_touch_only_crossings_is_refused_on_its_vertices() {
+fn a_straddling_part_with_touch_only_crossings_is_blocked_on_an_unanalysed_touch() {
     let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0);
     let part = common::brick::<f64>((0.5, 1.5), (1.0, 3.0), (0.0, 1.0));
     let body = assembly(&l.body, &part);
@@ -128,7 +130,7 @@ fn a_straddling_part_with_touch_only_crossings_is_refused_on_its_vertices() {
         matches!(
             placements[0],
             ValidationError::CensusUndecidable { what, .. }
-                if what.contains("every vertex of the contained instance lies on")
+                if what.contains("no local side analysis yet")
         ),
         "{placements:?}"
     );

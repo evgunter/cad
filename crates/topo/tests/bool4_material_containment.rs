@@ -362,7 +362,10 @@ fn every_vertex_on_the_boundary_refuses_typed() {
 /// a distance inside the run's ambiguity band — within ε of the
 /// container's boundary, not on it. The vertex-face and edge-face
 /// sweeps escalate on that residual, and the material test's own
-/// boundary pre-pass escalates on it too: the witness is refused typed
+/// boundary pre-pass escalates on it in BOTH orderings — the part's
+/// vertices against the wall's plane, and the wall's vertices against
+/// the part's near face's plane (the pre-pass decides a plane residual
+/// before it asks the region) — so each ordering refuses typed
 /// ("escalated in band"), with no clear and no interference. `delta`
 /// is taken from the run's band, so the row is the same statement at
 /// every `CAD_TOLERANCE_EPS` row of the matrix (default, 1e-6, 1e-12).
@@ -382,9 +385,11 @@ fn a_witness_at_the_band_edge_refuses_typed_at_this_eps() {
         "the sweeps escalate on the in-band residual: {errors:?}"
     );
     let placements = placement_findings(&errors);
-    assert_eq!(placements.len(), 1, "{errors:?}");
-    let what = undecidable_what(placements[0]).expect("the typed refusal");
-    assert!(what.contains("escalated in band"), "{what}");
+    assert_eq!(placements.len(), 2, "{errors:?}");
+    for p in placements {
+        let what = undecidable_what(p).expect("the typed refusal");
+        assert!(what.contains("escalated in band"), "{what}");
+    }
     // And just past the band the part floats in the concavity and
     // clears — the refusal above is the band's, not the placement's.
     let (body, _) = lbracket(false, 10.0 * band.escalate());
@@ -434,25 +439,25 @@ fn the_per_solid_door_answers_for_one_solid_of_the_arena() {
     ));
 }
 
-/// **A brick straddling the wall, split AT the wall.** The part spans
-/// `x ∈ [0, 2]` through the bracket's tall arm, `y ∈ [1.5, 2.5]`,
-/// `z ∈ [0.25, 0.75]`, built as a prism whose profile carries a vertex
-/// at `x = 1`: its four vertices at `x = 1` lie in the wall's region and
-/// its two vertical edges there lie in the wall, its four vertices at
-/// `x = 0` lie in the bracket's outer face, and its vertices at `x = 2`
-/// float in the concavity. No vertex of either instance is strictly
-/// inside the other, and nothing pierces: the wall is crossed AT the
-/// part's vertices and edges. The materials overlap in
-/// `[0, 1] × [1.5, 2.5] × [0.25, 0.75]`.
+/// **A hexagonal prism straddling the wall with its waist AT the
+/// wall.** The part spans `x ∈ [0, 2]` through the bracket's tall arm,
+/// `z ∈ [0.25, 0.75]`, its profile a hexagon whose two waist corners
+/// sit at `x = 1` (`y = 1.4` and `y = 2.6`, inside the wall's region):
+/// its four vertices at `x = 1` lie in the wall and its two vertical
+/// edges there lie in the wall, its four vertices at `x = 0` lie in the
+/// bracket's outer face, and its vertices at `x = 2` float in the
+/// concavity. No vertex of either instance is strictly inside the
+/// other, and nothing pierces: the wall is crossed AT the part's
+/// vertices and edges. The materials overlap over `x ∈ [0, 1]`.
 fn split_straddle() -> (Body<f64>, ContactRecords) {
     let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0);
     let part = common::prism_z::<f64>(
         &[
             (0.0, 1.5),
-            (1.0, 1.5),
+            (1.0, 1.4),
             (2.0, 1.5),
             (2.0, 2.5),
-            (1.0, 2.5),
+            (1.0, 2.6),
             (0.0, 2.5),
         ],
         0.25,
@@ -496,8 +501,9 @@ fn a_mixed_side_touch_blocks_the_clear_declared_or_not() {
         ("undeclared", ContactRecords::default()),
         ("declared", records),
     ] {
-        let errors = validate_pseudomanifold(&body, &recs, Tol::witness())
-            .unwrap_or_else(|_| panic!("{name}: the straddle must not certify"));
+        let Err(errors) = validate_pseudomanifold(&body, &recs, Tol::witness()) else {
+            panic!("{name}: the straddle must not certify");
+        };
         let placements = placement_findings(&errors);
         assert_eq!(placements.len(), 1, "{name}: {errors:?}");
         let what = undecidable_what(placements[0]).expect("the typed refusal");
