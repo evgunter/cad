@@ -5,6 +5,7 @@ title: No editor row drives a ruled carve, so emit_fillet's band-end roles (Corn
 status: review
 opened: 2026-09-15
 branch: edit/ruled-carve-fixture
+pr: 2778
 ---
 
 
