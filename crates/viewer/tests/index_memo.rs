@@ -23,7 +23,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use bvh::{Aabb, Bvh, Ray};
-use editor_core::resolve::{certified_determinant, ray_triangle};
+use editor_core::resolve::{barycentric_intervals, certified_determinant, ray_triangle};
 use editor_core::{
     Dimension, DocEdit, Expr, HitTestError, NodePick, ProfileDoc, RecipeNodeId, SlotId, StableName,
     unparse,
@@ -563,13 +563,27 @@ fn tie_rays_for(index: &PickIndex) -> Vec<Ray> {
     rays
 }
 
-/// The reference's answer to every ray, walked once — and **the
-/// early-out does not change the answer**: the reference walked with
-/// the service's early-out ([`Walk::Pruned`]) names the same triangle
-/// at the same `t` bits as the reference proper. The runtime value
-/// that reds this row is a ray on which the pruned walk broke before
-/// a candidate that would have won: a near-tie the rounding of `t`
-/// decides (`pick_face`'s docs).
+/// The reference's answer to every ray, walked once, and two claims
+/// about every answer it gives.
+///
+/// **The early-out does not change the answer**: the reference walked
+/// with the service's early-out ([`Walk::Pruned`]) names the same
+/// triangle at the same `t` bits as the reference proper. The runtime
+/// value that reds this is a ray on which the pruned walk broke
+/// before a candidate that would have won: a near-tie the rounding of
+/// `t` decides (`pick_face`'s docs), or an acceptance that admits a
+/// barycentric outside `[0, 1]` and so places its hit point off the
+/// triangle, before the parameter at which the ray enters the
+/// triangle's own box.
+///
+/// **No winner's barycentric carries a bound of `1` or more.** A
+/// value inside `[0, 1]` whose interval is that wide covers the range
+/// and is refused at the exact test (`ray_triangle`'s INFORM half), so
+/// zero is the only count this can have; it is asserted here, over
+/// every ray of every landing, rather than pinned as a number, because
+/// the count is derivable and a pinned `0` would read as a baseline.
+/// Re-derive the whole picture with
+/// `cargo test -p viewer --test all -- index_memo`.
 fn reference_answers(
     name: &str,
     step: &str,
@@ -587,6 +601,20 @@ fn reference_answers(
                 "{name} after {step}: ray {i} ({ray:?}) answers {pruned:?} with the early-out and \
                  {expected:?} over every candidate — the early-out changed the answer"
             );
+            if let Some(hit) = expected {
+                let tri = &reference.parts[hit.part].corners[hit.item];
+                let widest = barycentric_intervals(ray, tri)
+                    .expect("a winner's determinant is certified")
+                    .iter()
+                    .map(|&(_, err)| err)
+                    .fold(0.0f64, f64::max);
+                assert!(
+                    widest < 1.0,
+                    "{name} after {step}: ray {i} ({ray:?}) is answered by {hit:?} whose widest \
+                     barycentric bound is {widest} — an interval that wide covers [0, 1] and the \
+                     exact test refuses it"
+                );
+            }
             (expected, tied)
         })
         .collect()
@@ -1197,6 +1225,133 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
         picked.point
     );
 }
+
+/// **A wide but informative candidate answers before the vertex the
+/// ray is aimed at — measured, not fixed.** After the gallery ring's
+/// bump, the `−y` ray through the tube vertex `(0.2452, 0, 0.0488)`
+/// at `reach = 1.48` meets a flat face of the ring so nearly edge-on
+/// that its determinant is `1.66e-19` (conditioning `2.7e-11`: the
+/// ray lies in that triangle's plane to eleven digits). The
+/// certification vouches for the determinant's SIGN, and the
+/// barycentrics it divides out land inside `[0, 1]` with intervals
+/// of `±0.47`, `±0.22` and `±0.68` — wide, but not wide enough to
+/// cover the admissible range, so INFORM admits them and the
+/// candidate answers `0.031` short of the vertex. Two triangles that
+/// cross the ray transversally (`|det| ≈ 2.8e-5`) answer AT the
+/// vertex, `t = 1.48` to the bit, and lose the tie-break on `t`.
+///
+/// This row pins that answer as the class this door does NOT close:
+/// `work/edit/pick-a-wide-but-informative-barycentric-wins-over-the-transversal-neighbour`
+/// carries it, and closing it is a ruling about `t`'s own interval,
+/// not about which barycentrics are admitted. What the row is FOR is
+/// that the class stays visible and stays measured: the runtime value
+/// that reds it is a change to what this candidate's intervals are or
+/// to which of the two answers wins, either of which is the thing the
+/// row above it would be deciding.
+#[test]
+fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
+    let tol = Tol::witness();
+    let text = common::gallery_ring_at(tol);
+    let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
+    let doc = loaded.snapshot;
+    let (node, slot, expr) = first_length_slot(&doc);
+    let bump = Edit {
+        node,
+        slot,
+        text: unparse(&expr),
+    };
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let outcome = session.perform(bump.op());
+    assert!(
+        outcome.refusal.is_none(),
+        "the bump lands: {:?}",
+        outcome.refusal
+    );
+    session.pump();
+    let index = fresh_index(&session).expect("the bumped ring indexes");
+    let vertex = Point3::new(0.245_196_320_100_807_58, 0.0, 0.048_772_580_504_032_18);
+    let reach = 1.48;
+    let ray = Ray {
+        origin: Point3::new(vertex.x, vertex.y + reach, vertex.z),
+        dir: Vec3::new(0.0, -1.0, 0.0),
+    };
+    assert!(
+        index.parts().iter().any(|part| {
+            part.mesh().positions.iter().any(|p| {
+                (p.x.to_bits(), p.y.to_bits(), p.z.to_bits())
+                    == (vertex.x.to_bits(), vertex.y.to_bits(), vertex.z.to_bits())
+            })
+        }),
+        "the probe's premise: the aimed point is a vertex of the bumped ring's mesh, so the ray \
+         through it is a graze"
+    );
+    let reference = FlatReference::of(&index);
+    let (hit, _) = reference.pick(&ray);
+    let hit = hit.expect("the ray meets the ring");
+    assert_eq!(
+        hit.t.to_bits(),
+        RING_WIDE_CANDIDATE_T.to_bits(),
+        "the measured answer moved: {hit:?}"
+    );
+    // The winner's own numbers, which are why the acceptance takes it.
+    let winner = &reference.parts[hit.part].corners[hit.item];
+    let det = certified_determinant(&ray, winner).expect("the winner's determinant is certified");
+    assert!(
+        det.abs() < 1e-18,
+        "the winner is the near-coplanar candidate, det = {det:e}"
+    );
+    let intervals = barycentric_intervals(&ray, winner).expect("a certified determinant");
+    for (what, (x, err)) in ["u", "v", "u + v"].into_iter().zip(intervals) {
+        assert!(
+            (0.0..=1.0).contains(&x),
+            "{what} = {x} is inside the closed range"
+        );
+        assert!(
+            x - err > 0.0 || x + err < 1.0,
+            "{what}: the interval {x} ± {err} does not cover the admissible range, so INFORM \
+             admits it"
+        );
+        assert!(
+            err > 0.1,
+            "{what}: the interval {x} ± {err} is wide all the same — this is the class the row \
+             above names"
+        );
+    }
+    // The transversal neighbours that answer at the vertex and lose.
+    let at_vertex: Vec<f64> = reference
+        .parts
+        .iter()
+        .flat_map(|flat| {
+            flat.tree.ray(&ray).into_iter().filter_map(move |cand| {
+                let tri = &flat.corners[cand.item];
+                let det = certified_determinant(&ray, tri)?;
+                (det.abs() > 1e-6).then_some(())?;
+                ray_triangle(&ray, tri)
+            })
+        })
+        .collect();
+    assert!(
+        at_vertex.iter().any(|t| t.to_bits() == reach.to_bits()),
+        "a transversally crossing candidate answers the aimed vertex at t = {reach} exactly, and \
+         loses the tie-break on t: {at_vertex:?}"
+    );
+    let (_, eval) = session.landed_pair().expect("a landed pair");
+    let picked = index
+        .pick(eval, &ray)
+        .expect("the pick resolves")
+        .expect("the service meets the ring");
+    assert_eq!(
+        picked.t.to_bits(),
+        hit.t.to_bits(),
+        "the service answers the reference's t: {picked:?} against {hit:?}"
+    );
+}
+
+/// The measured answer to the ring's wide-candidate probe. Re-derive
+/// from the probe's failure message; a move here is a change in the
+/// class the row above carries, not a baseline to restore.
+const RING_WIDE_CANDIDATE_T: f64 = 1.448_765_272_489_762_4;
 
 /// The ring probe's answer: the chord point's parameter as the
 /// winning triangle's exact test rounds it. Re-derive from the
