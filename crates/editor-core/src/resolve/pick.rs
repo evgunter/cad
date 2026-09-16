@@ -5,9 +5,11 @@
 //! The chain: [`bvh::Bvh::ray`] over the patches' boxes, then over
 //! the candidate patches' per-triangle boxes, merged into one
 //! candidate sequence ([`MeshPick`]) → exact ray/triangle tests in
-//! plain `f64`, each on a determinant certified non-zero
-//! ([`ray_triangle`]) → nearest hit by `t` with a total, documented
-//! tie-break
+//! plain `f64`, each on a determinant certified non-zero AND on
+//! barycentrics certified to say something — a candidate whose
+//! rounding interval covers the whole admissible range is refused
+//! rather than answered from ([`ray_triangle`], [`crossing`]) →
+//! nearest hit by `t` with a total, documented tie-break
 //! → the winning patch's [`mesh::FacePatch::face`] back-reference →
 //! [`super::hit::entity_name`] → [`StableName`]. **No arena key crosses the layer-2/3 boundary as
 //! a selection value**: the service's public answer is a name (plus
@@ -1279,7 +1281,7 @@ pub fn pick_face<T: Decide>(
 
 /// The exact ray/triangle test (Möller–Trumbore, both-sided, plain
 /// `f64`): `Some(t)` iff the ray meets the CLOSED triangle at `t ≥ 0`
-/// on a determinant certified non-zero ([`certified_determinant`]),
+/// on a determinant certified non-zero ([`crossing`]),
 /// with `t` the parameter of the hit point `a + u·e1 + v·e2` along
 /// the ray rather than Möller–Trumbore's quotient `e2·q / det` — the
 /// two agree to rounding on a well-conditioned crossing, and only
@@ -1296,17 +1298,24 @@ pub fn pick_face<T: Decide>(
 /// candidate box the nearest hit already precedes.
 ///
 /// A value inside those bounds is not enough. Each barycentric also
-/// carries the forward bound on its own rounding
-/// ([`barycentric_intervals`]), and a candidate is refused when that
+/// carries the forward bound on its own rounding ([`crossing`], where
+/// the derivation lives), and a candidate is refused when that
 /// interval COVERS the whole of `[0, 1]`: a quotient by a
 /// certified-but-small determinant can land in range by chance while
-/// its interval is consistent with every point of the triangle AND
-/// with every point outside it, and such a number says nothing about
-/// where — or whether — the ray met the triangle. Refusing it is the
-/// determinant's own posture one level down, and it costs no graze,
-/// because a graze's `u` and `v` are `0` against a numerator bound
-/// that vanishes with them. A refused candidate is answered by its
-/// better-conditioned neighbours or not at all. A determinant that is
+/// its interval says nothing about where — or whether — the ray met
+/// the triangle. Refusing it is the determinant's own posture one
+/// level down, and **it is not free**. The bound is a function of
+/// `|s|`, `|d|` and the edges, not of the numerator's value, so it
+/// does not vanish where the barycentric does: a genuine graze
+/// through a corner of a candidate at the certification's floor is
+/// refused too, unless the ray's components happen to zero the
+/// triple bound. Such a graze is answered by the candidate's
+/// better-conditioned neighbours or not at all — the same trade the
+/// certification already makes one level down, stated here because
+/// the corpus pays it (`work/edit/pick-closed-acceptance-loses-a-graze-to-rounding`,
+/// and the labelling asymmetry it exposes,
+/// `work/edit/pick-a-corner-graze-verdict-depends-on-the-corner-labelling`).
+/// A determinant that is
 /// not certifiably non-zero — the ray parallel or near-parallel to
 /// the plane, a degenerate triangle, any NaN — is a miss, and so is a
 /// NON-FINITE `t`: a hit the service cannot place at a finite point is
@@ -1318,11 +1327,11 @@ pub fn pick_face<T: Decide>(
 /// (`viewer`'s `index_memo`) calls it rather than restating it, which
 /// is why it is public at this module and nowhere else.
 pub fn ray_triangle(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<f64> {
-    let intervals = barycentric_intervals(ray, tri)?;
-    if !intervals.iter().all(|&(x, err)| admits(x, err)) {
+    let Crossing { barycentrics, .. } = crossing(ray, tri)?;
+    if !barycentrics.iter().all(|&(x, err)| admits(x, err)) {
         return None;
     }
-    let [(u, _), (v, _), _] = intervals;
+    let [(u, _), (v, _), _] = barycentrics;
     let e1: Vec3<f64> = tri[1] - tri[0];
     let e2: Vec3<f64> = tri[2] - tri[0];
     // The parameter of the hit POINT `a + u·e1 + v·e2` along the ray,
@@ -1336,41 +1345,78 @@ pub fn ray_triangle(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<f64> {
     forward_and_finite.then_some(t)
 }
 
-/// Möller–Trumbore's determinant `e1 · (d × e2)` for the ray against
-/// the triangle, `Some` iff its computed magnitude exceeds the forward
-/// rounding-error bound of its own evaluation — so its sign, and the
-/// fact that the ray crosses the plane at all, are certified. `None`
-/// is a ray in or within rounding of the triangle's plane (or a
-/// degenerate triangle, or a NaN): there the barycentrics and `t`
-/// would be quotients of rounding noise by rounding noise, which is
-/// the answer [`ray_triangle`] refuses to give.
-pub fn certified_determinant(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<f64> {
-    let e1: Vec3<f64> = tri[1] - tri[0];
-    let e2: Vec3<f64> = tri[2] - tri[0];
-    certify(e1, e2, ray.dir, ray.dir.cross(e2)).map(|(det, _)| det)
+/// Everything the arithmetic can certify about one ray/triangle
+/// crossing, from one evaluation of it: the answer [`crossing`] gives
+/// and the only door the exact test and the corpus rows read.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Crossing {
+    /// Möller–Trumbore's determinant `e1 · (d × e2)`, computed. Its
+    /// magnitude exceeds [`Crossing::bound_det`] — that is what makes
+    /// it a `Crossing` at all — so its SIGN, and the fact that the ray
+    /// crosses the plane, are certified.
+    pub det: f64,
+    /// The forward rounding bound on that evaluation of the
+    /// determinant.
+    pub bound_det: f64,
+    /// `[(u, err_u), (v, err_v), (u + v, err_sum)]` — each barycentric
+    /// as computed, with the forward bound on ITS OWN rounding.
+    pub barycentrics: [(f64, f64); 3],
 }
 
-/// The crossing's barycentrics, each with the forward bound on its
-/// own rounding: `[(u, err_u), (v, err_v), (u + v, err_sum)]`, the
-/// three intervals [`ray_triangle`]'s acceptance reads, or `None` on
-/// a determinant the certification cannot vouch for. Public for the
-/// reason the exact test is: a row measuring what the acceptance
-/// refuses over a corpus reads the door's own numbers rather than an
-/// oracle of its own.
+impl Crossing {
+    /// `|det| / (|e1|·|e2|·|d|)` — up to a constant the sine of the
+    /// angle between the ray and the plane, and so the conditioning of
+    /// the whole test on this pair. Not derivable from the fields
+    /// alone, which is why it takes the operands again.
+    pub fn conditioning(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<f64> {
+        let c = crossing(ray, tri)?;
+        let e1: Vec3<f64> = tri[1] - tri[0];
+        let e2: Vec3<f64> = tri[2] - tri[0];
+        Some(c.det.abs() / (e1.norm() * e2.norm() * ray.dir.norm()))
+    }
+}
+
+/// **The one door onto the crossing**: `None` when the determinant is
+/// not certifiably non-zero — the ray parallel or within rounding of
+/// the triangle's plane, a degenerate triangle, any NaN — where the
+/// barycentrics and `t` would be quotients of rounding noise by
+/// rounding noise, which is the answer [`ray_triangle`] refuses to
+/// give. Otherwise the determinant, its bound, and the three
+/// barycentrics with theirs, computed ONCE. [`ray_triangle`] reads
+/// it, and so do the corpus rows that measure what the acceptance
+/// refuses: one evaluation, one set of numbers, no second spelling to
+/// drift.
+///
+/// # What the bounds bound
+///
+/// `err` bounds `|computed − true|` for that barycentric **given the
+/// operands `e1`, `e2`, `d`, `s` as exact**. It is a bound on this
+/// evaluation's rounding, not on the mesh's own coordinates: a
+/// triangle whose corners are themselves approximations is a question
+/// for whoever tessellated it, and nothing here can see it.
+///
+/// # The derivation (the one site; [`ray_triangle`] cites it)
 ///
 /// `u = fl(fl(s·p) · fl(1/det))` with `p = d × e2`, so its error is
 /// the numerator's forward bound, plus the determinant's scaled by
 /// `|u|`, plus the two roundings of the quotient, all over the
 /// smallest magnitude the true determinant can have. Writing `ũ`,
 /// `Ñ`, `D̃` for the computed values and `u = N/D` for the true
-/// quotient, `ũ − N/D = (ũ − Ñ/D̃) + [(Ñ − N) − u·(D̃ − D)]/D̃`, and
+/// quotient,
+/// `ũ − N/D = (ũ − Ñ/D̃) + [(Ñ − N) − u·(D̃ − D)]/D̃`, and
 /// `|u| ≤ |ũ| + |ũ − u|` closes the recursion into
 /// `err = (γ₂|Ñ| + bound_N + |ũ|·bound_D) / (|D̃| − bound_D)`, whose
 /// denominator is positive exactly because the determinant is
 /// certified. `v`'s numerator `d·(s × e1)` is the same triple product
-/// with different operands and takes the same bound; the sum carries
-/// both, plus the one rounding of the addition (`≤ u_r·|fl(u + v)|`).
-pub fn barycentric_intervals(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<[(f64, f64); 3]> {
+/// with different operands and takes the same bound
+/// ([`DETERMINANT_ERROR_UNITS`]).
+///
+/// The sum carries both, plus one more term for the rounding of the
+/// ADDITION `fl(u + v)` itself: that rounding is bounded by
+/// `u_r·|fl(u + v)|` — relative to the computed sum, which is the
+/// value in hand — hence [`SUM_ERROR_UNITS`] over `sum.abs()` and not
+/// over the true sum.
+pub fn crossing(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<Crossing> {
     let e1: Vec3<f64> = tri[1] - tri[0];
     let e2: Vec3<f64> = tri[2] - tri[0];
     let p = ray.dir.cross(e2);
@@ -1387,12 +1433,24 @@ pub fn barycentric_intervals(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<[(f64,
         bound_det,
     );
     let sum = u + v;
-    let err_sum = err_u + err_v + 0.5 * f64::EPSILON * sum.abs();
-    Some([(u, err_u), (v, err_v), (sum, err_sum)])
+    let err_sum = err_u + err_v + SUM_ERROR_UNITS * f64::EPSILON * sum.abs();
+    Some(Crossing {
+        det,
+        bound_det,
+        barycentrics: [(u, err_u), (v, err_v), (sum, err_sum)],
+    })
 }
 
 /// One barycentric from its numerator and the certified determinant,
-/// with the bound [`barycentric_intervals`] derives.
+/// with the bound [`crossing`] derives.
+///
+/// The bound is itself computed in `f64`, so it carries its own
+/// roundings — at most four over the numerator's terms and one on the
+/// division, `γ₅ < 11·u` relative. They are covered by the slack in
+/// [`DETERMINANT_ERROR_UNITS`] and [`QUOTIENT_ERROR_UNITS`], which
+/// round `5.01·u` up to `6·u` and `γ₂ < 2.0000000000000004·u` up to
+/// `4·u`: a `1.2×` and a `2×` margin on terms that are already the
+/// whole of `err`, against a `1 + 11·u` shortfall.
 fn quotient(num: f64, bound_num: f64, inv: f64, det: f64, bound_det: f64) -> (f64, f64) {
     let x = num * inv;
     let err = (QUOTIENT_ERROR_UNITS * f64::EPSILON * num.abs() + bound_num + x.abs() * bound_det)
@@ -1402,16 +1460,16 @@ fn quotient(num: f64, bound_num: f64, inv: f64, det: f64, bound_det: f64) -> (f6
 
 /// The ruling on one barycentric: admitted iff the computed value is
 /// in the closed range `[0, 1]` AND its interval does not COVER that
-/// range. The closed comparison is the boundary semantics above — a
-/// hit exactly on a shared edge or vertex is a hit for every incident
-/// triangle. Not covering is the demand that the number carry
-/// information: an interval spanning the whole range is consistent
-/// with every point of the triangle and with every point outside it,
-/// and so answers nothing, which is the determinant's own posture one
-/// level down. The two compose: a value inside the range whose bound
-/// is `1` or more necessarily covers it, so no admitted barycentric
-/// carries a bound that wide. Both halves are affirmative
-/// comparisons, so a NaN is refused.
+/// range. The closed comparison is the boundary semantics
+/// [`ray_triangle`] documents — a hit exactly on a shared edge or
+/// vertex is a hit for every incident triangle. Not covering is the
+/// demand that the number carry information: an interval spanning the
+/// whole range is consistent with every point of the triangle and
+/// with every point outside it, and so answers nothing. The two
+/// compose: a value inside the range whose bound is `1` or more
+/// necessarily covers it, so no admitted barycentric carries a bound
+/// that wide. Both halves are affirmative comparisons, so a NaN is
+/// refused.
 fn admits(x: f64, err: f64) -> bool {
     let inside = (0.0..=1.0).contains(&x);
     let informs = x - err > 0.0 || x + err < 1.0;
@@ -1439,6 +1497,11 @@ fn admits(x: f64, err: f64) -> bool {
 /// 6·u` clears `5.01·u / (1 − γ_7)` with margin. Not a tuned number:
 /// change the arithmetic and re-count.
 const DETERMINANT_ERROR_UNITS: f64 = 3.0;
+
+/// The sum's constant, same units and same style: `fl(u + v)` is ONE
+/// rounding, bounded by `u_r·|fl(u + v)|` with `u_r = EPSILON / 2`.
+/// Not a tuned number: add the two differently and re-count.
+const SUM_ERROR_UNITS: f64 = 0.5;
 
 /// The quotient's constant, same units and same style: `fl(1/D̃)` and
 /// then one multiply is two roundings, so the quotient's own
@@ -1485,8 +1548,7 @@ mod tests {
     use topo::Body;
 
     use super::{
-        MeshPick, MeshPickError, PickMemo, PickTable, barycentric_intervals, certified_determinant,
-        ray_triangle,
+        MeshPick, MeshPickError, PickMemo, PickTable, crossing, ray_triangle,
     };
 
     fn unit_prism() -> Body<f64> {
@@ -1616,40 +1678,63 @@ mod tests {
         );
     }
 
-    /// The three doors the rows below separate: the exact test's
-    /// acceptance — the CLOSED comparison and INFORM on each of the
-    /// three barycentrics — and the two wrong ones a fixture below
-    /// catches. Spelled here because a mutant is the row's business;
-    /// what ties this spelling to the door it mutates is that every
-    /// case also asserts [`Door::Exact`]'s verdict is
-    /// [`ray_triangle`]'s.
+    /// The doors the rows below separate: the exact test's acceptance
+    /// and the four wrong ones a fixture here catches. **Each is the
+    /// REAL [`admits`] over a mis-read bound**, never a second
+    /// spelling of the predicate — a door that ignores the interval
+    /// reads every bound as `0`, a door that mis-derives it reads
+    /// `err/2` or `2·err`, a door that applies INFORM to `u` and `v`
+    /// but not to their sum reads the sum's as `0`. So the mutants
+    /// cannot drift from the acceptance they mutate: the tie is by
+    /// construction, not by an assertion.
+    ///
+    /// The fifth wrong door, MEET — accept when the interval REACHES
+    /// `[0, 1]` rather than when the value is in it — is not a bound
+    /// mis-read and has no arm here. It is killed by
+    /// [`the_closed_boundaries_are_pinned_one_ulp_each_way`]'s misses:
+    /// `u` one ULP above `1` carries a bound of eight ULP, so MEET
+    /// admits it and the door does not.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     enum Door {
         Exact,
         /// Take any value inside the range, however wide its interval.
         NoInform,
-        /// The exact rule over a bound half the derived one.
+        /// The bound derived at half its size.
         HalfBound,
+        /// The bound derived at twice its size.
+        DoubleBound,
+        /// INFORM on `u` and `v`, and not on their sum.
+        NoSumInform,
+    }
+
+    impl Door {
+        /// What this door reads the `i`th derived bound as.
+        fn bound(self, i: usize, err: f64) -> f64 {
+            match self {
+                Door::Exact => err,
+                Door::NoInform => 0.0,
+                Door::HalfBound => err * 0.5,
+                Door::DoubleBound => err * 2.0,
+                Door::NoSumInform => {
+                    if i == 2 {
+                        0.0
+                    } else {
+                        err
+                    }
+                }
+            }
+        }
     }
 
     /// Whether `door` admits the crossing's three barycentrics.
     fn admits_under(door: Door, ray: &Ray, tri: &[Point3<f64>; 3]) -> bool {
-        let Some(intervals) = barycentric_intervals(ray, tri) else {
+        let Some(c) = crossing(ray, tri) else {
             return false;
         };
-        intervals.into_iter().all(|(x, err)| {
-            let err = if door == Door::HalfBound {
-                err * 0.5
-            } else {
-                err
-            };
-            let inside = (0.0..=1.0).contains(&x);
-            let informs = x - err > 0.0 || x + err < 1.0;
-            match door {
-                Door::NoInform => inside,
-                Door::Exact | Door::HalfBound => inside && informs,
-            }
-        })
+        c.barycentrics
+            .into_iter()
+            .enumerate()
+            .all(|(i, (x, err))| super::admits(x, door.bound(i, err)))
     }
 
     /// **The closed boundaries, pinned one ULP each way.** An
@@ -1731,11 +1816,10 @@ mod tests {
             dir: Vec3::new(1.0, 0.0, 0.0),
         };
         assert_eq!(
-            certified_determinant(&in_plane, &tri),
+            crossing(&in_plane, &tri),
             None,
-            "a ray in the plane has no certified determinant"
+            "a ray in the plane has no certified determinant, so no crossing"
         );
-        assert_eq!(barycentric_intervals(&in_plane, &tri), None);
         assert_eq!(ray_triangle(&in_plane, &tri), None);
     }
 
@@ -1781,13 +1865,12 @@ mod tests {
     fn a_candidate_whose_barycentrics_carry_no_information_is_refused() {
         let (ray, tri) = near_tangent(8.0);
         let xi = 8.0 * 2f64.powi(-20) * f64::EPSILON;
+        let c = crossing(&ray, &tri).expect("a certified determinant");
         assert_eq!(
-            certified_determinant(&ray, &tri),
-            Some(xi),
+            c.det, xi,
             "the determinant is certified, and is the fixture's ξ exactly"
         );
-        let [(u, err_u), (v, err_v), (sum, err_sum)] =
-            barycentric_intervals(&ray, &tri).expect("a certified determinant");
+        let [(u, err_u), (v, err_v), (sum, err_sum)] = c.barycentrics;
         assert_eq!((u, v, sum), (0.5, 0.5, 1.0), "the fixture's barycentrics");
         for (what, x, err) in [("u", u, err_u), ("v", v, err_v), ("u + v", sum, err_sum)] {
             assert!(
@@ -1823,8 +1906,9 @@ mod tests {
     #[test]
     fn halving_the_derived_bound_admits_a_candidate_the_door_refuses() {
         let (ray, tri) = near_tangent(32.0);
-        let [_, (v, err_v), _] =
-            barycentric_intervals(&ray, &tri).expect("a certified determinant");
+        let [_, (v, err_v), _] = crossing(&ray, &tri)
+            .expect("a certified determinant")
+            .barycentrics;
         assert_eq!(v, 0.5, "the fixture's v");
         assert!(
             v - err_v <= 0.0 && v + err_v >= 1.0,
@@ -1847,16 +1931,63 @@ mod tests {
         );
     }
 
-    /// REVIEW PROBE (lane pick2-r2). **INFORM on `u + v` alone refuses
-    /// a candidate whose `u` and `v` each inform.** The
-    /// [`near_tangent`] shape with the origin moved so the exact hit
-    /// has barycentrics near `(0.25, 0.125)`, at `k = 18`: `u` and `v`
-    /// each pass [`admits`] (their intervals reach below `1`), the sum
-    /// is inside `[0, 1]` and its interval covers it. Green on the
-    /// head; red under a door that applies INFORM to `u` and `v` but
-    /// not to their sum — the mutant no row of this module catches.
+    /// **The bound INFORM reads is the derived one, not twice it.**
+    /// The bound is pinned from the loose side by the row above; this
+    /// is the tight side. At `k = 64` the [`near_tangent`] fixture's
+    /// intervals are `u = 0.5 ± 9/58`, `v = 0.5 ± 15/58` and
+    /// `u + v = 1 ± 24/58`: every one informs, so the door takes the
+    /// candidate — while at TWICE the derived bound `v`'s interval
+    /// reaches `0.5 ± 15/29`, which covers `[0, 1]`, and a door
+    /// reading the bound that loosely refuses a crossing the
+    /// arithmetic can vouch for. A bound quietly inflated throws away
+    /// answers, which is the same defect as one quietly tightened and
+    /// was invisible to the rows until this one.
     #[test]
-    fn review_probe_inform_on_the_sum_alone_refuses() {
+    fn doubling_the_derived_bound_refuses_a_candidate_the_door_admits() {
+        let (ray, tri) = near_tangent(64.0);
+        let [(u, err_u), (v, err_v), (sum, err_sum)] = crossing(&ray, &tri)
+            .expect("a certified determinant")
+            .barycentrics;
+        assert_eq!((u, v, sum), (0.5, 0.5, 1.0), "the fixture's barycentrics");
+        for (what, x, err) in [("u", u, err_u), ("v", v, err_v), ("u + v", sum, err_sum)] {
+            assert!(
+                x - err > 0.0 || x + err < 1.0,
+                "{what}: the interval {x} ± {err} informs at the derived bound"
+            );
+        }
+        assert!(
+            v - 2.0 * err_v <= 0.0 && v + 2.0 * err_v >= 1.0,
+            "at twice the bound, v's interval {v} ± {} covers the range",
+            2.0 * err_v
+        );
+        assert_eq!(
+            ray_triangle(&ray, &tri),
+            Some(1.5),
+            "the candidate is admitted, at the hit point's own parameter"
+        );
+        assert!(
+            admits_under(Door::Exact, &ray, &tri),
+            "the row's spelling of the acceptance is the door's"
+        );
+        assert!(
+            !admits_under(Door::DoubleBound, &ray, &tri),
+            "a door reading twice the derived bound refuses it"
+        );
+    }
+
+    /// **INFORM on `u + v` is not implied by INFORM on `u` and `v`.**
+    /// Adopted from review lane pick2-r2. The [`near_tangent`] shape
+    /// at `k = 18` with the origin moved so the exact hit is near
+    /// `(0.25, 0.125)`: `u` and `v` each inform — their intervals
+    /// reach below `1` — while the sum is inside `[0, 1]` and its
+    /// interval, which carries BOTH their bounds, covers it. So the
+    /// sum is the deciding arm here, which `near_tangent`'s own
+    /// `u = v = 0.5` fixtures cannot show: there the sum is the widest
+    /// interval but never the only covering one. A door that applied
+    /// INFORM to the two barycentrics and not to their sum takes this
+    /// candidate.
+    #[test]
+    fn inform_on_the_sum_alone_refuses_a_candidate_whose_parts_inform() {
         let zeta = 2f64.powi(-20);
         let xi = 18.0 * zeta * f64::EPSILON;
         let tri = [
@@ -1872,8 +2003,9 @@ mod tests {
             origin: target - dir,
             dir,
         };
-        let [(u, err_u), (v, err_v), (sum, err_sum)] =
-            barycentric_intervals(&ray, &tri).expect("a certified determinant");
+        let [(u, err_u), (v, err_v), (sum, err_sum)] = crossing(&ray, &tri)
+            .expect("a certified determinant")
+            .barycentrics;
         assert!(
             super::admits(u, err_u),
             "u = {u} ± {err_u} is admitted on its own"
@@ -1895,25 +2027,53 @@ mod tests {
             None,
             "the door refuses on the sum's interval alone"
         );
+        assert!(
+            admits_under(Door::NoSumInform, &ray, &tri),
+            "a door that applied INFORM to u and v but not to their sum admits it"
+        );
     }
 
-    /// REVIEW PROBE (lane pick2-r2). **INFORM's "costs no graze" is
-    /// corner-labelling dependent.** `ray_triangle`'s doc says a
-    /// graze's `u` and `v` are `0` "against a numerator bound that
-    /// vanishes with them"; the numerator bound is
-    /// `triple_bound(s, d, e2)`, a function of `|s|`, `|d|`, `|e2|`
-    /// and not of the numerator's value, so it vanishes only when `s`
-    /// does. On the [`near_tangent`] triangle at `k = 32` a ray
-    /// through corner `b` is admitted with the corners labelled
-    /// `(a, b, c)` and REFUSED with the same triangle labelled
-    /// `(b, c, a)` — the same geometric graze, the same certified
-    /// determinant magnitude, two verdicts. At `k = 8` every corner
-    /// graze is refused. The corpus instance is `cut_cylinder`, `+z`
-    /// through `(-0.4843, 0.1243, 0.0595)`: `main` answers the aimed
-    /// vertex at `t = reach`, the head answers `0.5356` further up the
-    /// ruling (`review_pick2_r2`).
+    /// **The acceptance's bits at the ends.** Adopted from review lane
+    /// pick2-r2. `admits` is read by the door on every candidate, so
+    /// its edges are worth a static row of their own: a bound of
+    /// exactly `1` covers `[0, 1]` from anywhere inside it and
+    /// refuses; one ULP below `1` does not cover from either endpoint
+    /// and admits; and a NaN or an infinite bound refuses, because
+    /// both halves are affirmative comparisons.
     #[test]
-    fn review_probe_a_corner_graze_is_admitted_or_refused_by_its_label() {
+    fn the_acceptance_at_its_ends() {
+        assert!(!super::admits(0.0, 1.0));
+        assert!(!super::admits(1.0, 1.0));
+        assert!(!super::admits(0.5, 1.0));
+        assert!(super::admits(0.0, 1.0f64.next_down()));
+        assert!(super::admits(1.0, 1.0f64.next_down()));
+        assert!(!super::admits(0.5, f64::NAN));
+        assert!(!super::admits(f64::NAN, 0.0));
+        assert!(!super::admits(0.5, f64::INFINITY));
+    }
+
+    /// **A corner graze's verdict depends on which corner the
+    /// tessellator labelled `tri[0]`.** Adopted from review lane
+    /// pick2-r2, and the measurement row for
+    /// `work/edit/pick-a-corner-graze-verdict-depends-on-the-corner-labelling`.
+    ///
+    /// INFORM refuses a candidate whose interval covers the range, and
+    /// the interval's width is `triple_bound(s, d, e2)`-driven — a
+    /// function of `|s|`, `|d|` and the edges, NOT of the numerator.
+    /// So it does not shrink to nothing where the barycentric does,
+    /// and whether a genuine graze survives depends on which of `s`'s
+    /// components the labelling happens to zero. On the
+    /// [`near_tangent`] triangle at `k = 32` a ray through corner `b`
+    /// is admitted labelled `(a, b, c)` and refused labelled
+    /// `(b, c, a)`: one geometry, one determinant to the bit, two
+    /// verdicts. At `k = 8` no labelling admits a corner graze at all.
+    ///
+    /// This row asserts the asymmetry rather than a fix, because the
+    /// fix is a ruling (the filed row above). The runtime value that
+    /// reds it is the asymmetry going away — which is the outcome the
+    /// row wants.
+    #[test]
+    fn a_corner_graze_is_admitted_or_refused_by_its_label() {
         let zeta = 2f64.powi(-20);
         let xi = 32.0 * zeta * f64::EPSILON;
         let a = Point3::new(0.0, 0.0, 0.0);
@@ -1926,20 +2086,20 @@ mod tests {
         };
         let abc = [a, b, c];
         let bca = [b, c, a];
-        let det_abc = certified_determinant(&ray, &abc).expect("certified");
-        let det_bca = certified_determinant(&ray, &bca).expect("certified");
+        let det_abc = crossing(&ray, &abc).expect("certified").det;
+        let det_bca = crossing(&ray, &bca).expect("certified").det;
         assert_eq!(
             det_abc.to_bits(),
             det_bca.to_bits(),
             "one determinant, two labellings"
         );
-        let [(u, _), (v, _), _] = barycentric_intervals(&ray, &abc).expect("certified");
+        let [(u, _), (v, _), _] = crossing(&ray, &abc).expect("certified").barycentrics;
         assert_eq!(
             (u, v),
             (1.0, 0.0),
             "the graze is corner b: u = 1, v = 0 exactly"
         );
-        let [(u2, _), (v2, _), _] = barycentric_intervals(&ray, &bca).expect("certified");
+        let [(u2, _), (v2, _), _] = crossing(&ray, &bca).expect("certified").barycentrics;
         assert_eq!(
             (u2, v2),
             (0.0, 0.0),
@@ -1967,30 +2127,13 @@ mod tests {
                 origin: corner - dir,
                 dir,
             };
-            assert!(certified_determinant(&ray, &tri).is_some());
+            assert!(crossing(&ray, &tri).is_some());
             assert_eq!(
                 ray_triangle(&ray, &tri),
                 None,
                 "k = 8: the graze at corner {label} is refused"
             );
         }
-    }
-
-    /// REVIEW PROBE (lane pick2-r2). The acceptance's bits at the ends:
-    /// `x = 0, err = 1` and `x = 1, err = 1` refuse; `err` one ULP
-    /// below `1` admits at both ends; NaN and `+∞` bounds refuse.
-    #[test]
-    fn review_probe_admits_at_the_ends() {
-        assert!(!super::admits(0.0, 1.0));
-        assert!(!super::admits(1.0, 1.0));
-        assert!(!super::admits(0.5, 1.0));
-        assert!(super::admits(0.0, 1.0f64.next_down()));
-        assert!(super::admits(1.0, 1.0f64.next_down()));
-        assert!(!super::admits(0.5, f64::NAN));
-        assert!(!super::admits(0.5, f64::INFINITY));
-        assert!(!super::admits(f64::NAN, 0.0));
-        assert!(!super::admits((-0.0f64).next_down(), 0.0));
-        assert!(super::admits(-0.0, 0.0));
     }
 
     /// **A well-conditioned interior hit is accepted, general

@@ -11,7 +11,7 @@
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
 use bvh::{Aabb, Bvh, Ray};
-use editor_core::resolve::{barycentric_intervals, certified_determinant, ray_triangle};
+use editor_core::resolve::{crossing, ray_triangle};
 use editor_core::{Dimension, DocEdit, Expr, ProfileDoc, RecipeNodeId, SlotId, unparse};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use viewer::pickindex::{PickIndex, PictureKey};
@@ -114,7 +114,7 @@ fn flatten(index: &PickIndex) -> Vec<FlatPart> {
 /// projection — restated over the head's own intervals so the only
 /// difference from `ray_triangle` is INFORM.
 fn ray_triangle_closed_only(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<f64> {
-    let intervals = barycentric_intervals(ray, tri)?;
+    let intervals = crossing(ray, tri)?.barycentrics;
     if !intervals.iter().all(|&(x, _)| (0.0..=1.0).contains(&x)) {
         return None;
     }
@@ -324,13 +324,13 @@ fn dump_candidates(
     for flat in &parts {
         for cand in flat.tree.ray(&ray) {
             let tri = &flat.corners[cand.item];
-            let Some(det) = certified_determinant(&ray, tri) else {
+            let Some(det) = crossing(&ray, tri).map(|c| c.det) else {
                 continue;
             };
             let e1: Vec3<f64> = tri[1] - tri[0];
             let e2: Vec3<f64> = tri[2] - tri[0];
             let cond = det.abs() / (e1.norm() * e2.norm() * ray.dir.norm());
-            let iv = barycentric_intervals(&ray, tri);
+            let iv = crossing(&ray, tri).map(|c| c.barycentrics);
             let t = ray_triangle(&ray, tri);
             let corner = tri.iter().position(|p| {
                 (p.x.to_bits(), p.y.to_bits(), p.z.to_bits())

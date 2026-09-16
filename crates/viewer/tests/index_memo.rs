@@ -23,7 +23,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use bvh::{Aabb, Bvh, Ray};
-use editor_core::resolve::{barycentric_intervals, certified_determinant, ray_triangle};
+use editor_core::resolve::{Crossing, crossing, ray_triangle};
 use editor_core::{
     Dimension, DocEdit, Expr, HitTestError, NodePick, ProfileDoc, RecipeNodeId, SlotId, StableName,
     unparse,
@@ -603,16 +603,17 @@ fn reference_answers(
             );
             if let Some(hit) = expected {
                 let tri = &reference.parts[hit.part].corners[hit.item];
-                let widest = barycentric_intervals(ray, tri)
+                let bounds = crossing(ray, tri)
                     .expect("a winner's determinant is certified")
-                    .iter()
-                    .map(|&(_, err)| err)
-                    .fold(0.0f64, f64::max);
+                    .barycentrics
+                    .map(|(_, err)| err);
+                // `!(b < 1.0)` rather than `b >= 1.0`: a NaN bound is
+                // not a bound and must red this row, not pass it.
                 assert!(
-                    widest < 1.0,
+                    !bounds.iter().any(|&b| !(b < 1.0)),
                     "{name} after {step}: ray {i} ({ray:?}) is answered by {hit:?} whose widest \
-                     barycentric bound is {widest} — an interval that wide covers [0, 1] and the \
-                     exact test refuses it"
+                     barycentric bounds are {bounds:?} — an interval that wide covers [0, 1] and \
+                     the exact test refuses it"
                 );
             }
             (expected, tied)
@@ -1186,7 +1187,7 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
                 if !same(&tri[0], &corner) {
                     return None;
                 }
-                let det = certified_determinant(&ray, tri)?;
+                let det = crossing(&ray, tri)?.det;
                 let e1: Vec3<f64> = tri[1] - tri[0];
                 let e2: Vec3<f64> = tri[2] - tri[0];
                 let q = (ray.origin - tri[0]).cross(e1);
@@ -1230,15 +1231,18 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
 /// ray is aimed at — measured, not fixed.** After the gallery ring's
 /// bump, the `−y` ray through the tube vertex `(0.2452, 0, 0.0488)`
 /// at `reach = 1.48` meets a flat face of the ring so nearly edge-on
-/// that its determinant is `1.66e-19` (conditioning `2.7e-11`: the
-/// ray lies in that triangle's plane to eleven digits). The
-/// certification vouches for the determinant's SIGN, and the
-/// barycentrics it divides out land inside `[0, 1]` with intervals
-/// of `±0.47`, `±0.22` and `±0.68` — wide, but not wide enough to
-/// cover the admissible range, so INFORM admits them and the
-/// candidate answers `0.031` short of the vertex. Two triangles that
-/// cross the ray transversally (`|det| ≈ 2.8e-5`) answer AT the
-/// vertex, `t = 1.48` to the bit, and lose the tie-break on `t`.
+/// that its determinant is `1.66e-19` and its conditioning
+/// `7.19e-16` — the ray lies in that triangle's plane to within a
+/// rounding, and `|det|` is `5.72` times its own certification bound.
+/// The candidate sits ON the certification's noise floor, which is
+/// the interesting thing about it: the determinant's SIGN is
+/// vouched for and nothing else is, and the barycentrics divided out
+/// of it land inside `[0, 1]` with intervals of `±0.47`, `±0.22` and
+/// `±0.68` — wide, but not wide enough to COVER the admissible
+/// range, so INFORM admits them and the candidate answers `0.031`
+/// short of the vertex. Two triangles that cross the ray
+/// transversally (`|det| ≈ 2.8e-5`) answer AT the vertex, `t = 1.48`
+/// to the bit, and lose the tie-break on `t`.
 ///
 /// This row pins that answer as the class this door does NOT close:
 /// `work/edit/pick-a-wide-but-informative-barycentric-wins-over-the-transversal-neighbour`
@@ -1296,13 +1300,26 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
     );
     // The winner's own numbers, which are why the acceptance takes it.
     let winner = &reference.parts[hit.part].corners[hit.item];
-    let det = certified_determinant(&ray, winner).expect("the winner's determinant is certified");
-    assert!(
-        det.abs() < 1e-18,
-        "the winner is the near-coplanar candidate, det = {det:e}"
+    let c = crossing(&ray, winner).expect("the winner's determinant is certified");
+    let conditioning =
+        Crossing::conditioning(&ray, winner).expect("the winner's determinant is certified");
+    let margin = c.det.abs() / c.bound_det;
+    println!(
+        "# the ring's wide-candidate winner: det {:e}, conditioning {conditioning:e}, \
+         |det|/bound_det {margin}, intervals {:?}",
+        c.det, c.barycentrics
     );
-    let intervals = barycentric_intervals(&ray, winner).expect("a certified determinant");
-    for (what, (x, err)) in ["u", "v", "u + v"].into_iter().zip(intervals) {
+    assert!(
+        (conditioning - RING_WIDE_CANDIDATE_CONDITIONING).abs()
+            < 0.01 * RING_WIDE_CANDIDATE_CONDITIONING,
+        "the winner's conditioning moved from {RING_WIDE_CANDIDATE_CONDITIONING:e}: \
+         {conditioning:e}"
+    );
+    assert!(
+        (1.0..10.0).contains(&margin),
+        "the winner sits at the certification's own floor: |det| is {margin} times its bound"
+    );
+    for (what, (x, err)) in ["u", "v", "u + v"].into_iter().zip(c.barycentrics) {
         assert!(
             (0.0..=1.0).contains(&x),
             "{what} = {x} is inside the closed range"
@@ -1325,7 +1342,7 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
         .flat_map(|flat| {
             flat.tree.ray(&ray).into_iter().filter_map(move |cand| {
                 let tri = &flat.corners[cand.item];
-                let det = certified_determinant(&ray, tri)?;
+                let det = crossing(&ray, tri)?.det;
                 (det.abs() > 1e-6).then_some(())?;
                 ray_triangle(&ray, tri)
             })
@@ -1352,6 +1369,13 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
 /// from the probe's failure message; a move here is a change in the
 /// class the row above carries, not a baseline to restore.
 const RING_WIDE_CANDIDATE_T: f64 = 1.448_765_272_489_762_4;
+
+/// The winner's conditioning `|det| / (|e1|·|e2|·|d|)`, as
+/// [`Crossing::conditioning`] computes it. The number the row is named
+/// for: it is the certification's own noise floor, not a decade above
+/// it. Re-derive with
+/// `cargo test -p viewer --test all -- index_memo::a_wide_but --nocapture`.
+const RING_WIDE_CANDIDATE_CONDITIONING: f64 = 7.19e-16;
 
 /// The ring probe's answer: the chord point's parameter as the
 /// winning triangle's exact test rounds it. Re-derive from the
