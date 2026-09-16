@@ -822,10 +822,10 @@ BOUND_AS = {
     # THE MEASUREMENT, because a category is a claim. All three were
     # `different-shape`, and that reading was true when written: the
     # persistence door carried one attribute, so there was no Python
-    # shape to point at. There is one now. `SnapshotError`'s
-    # nineteen arms and `ProgramFault`'s two mint a word apiece from
-    # an exhaustive match, so a kernel arm added without one stops the
-    # bindings compiling, and the word rides `inner_variant` beside
+    # shape to point at. There is one now. `SnapshotError`'s arms and
+    # `ProgramFault`'s two mint a word apiece from an exhaustive match,
+    # so a kernel arm added without one stops the bindings compiling,
+    # and the word rides `inner_variant` beside
     # the stage's own. `NonFiniteSite` is the one that does NOT cross
     # as a word: it is a RECURSIVE descriptor (an edit's index
     # wrapping the site inside that edit's payload), so it crosses as

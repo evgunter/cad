@@ -16,10 +16,11 @@
 use editor_core::{
     AssemblyError, CapEnd, CarriedRefusal, ClusterMaintenance, ContactClass, DeclareError,
     Diagnosis, Dimension, DimensionError, DocParamValue, EditError, EntityKind, EvalError,
-    HitTestError, InterrogateError, Maintenance, MateFault, MateSide, MeshPickError, MintRefusal,
-    NamingError, NodeErrorKind, NodePickError, ParamName, ParseError, ProgramFault, RecipeNodeId,
-    RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, Route, SelectRefusal,
-    SlotId, SnapshotError, StableName, StepArg, StepSegmentsError,
+    HitTestError, InputFault, InterrogateError, Maintenance, MateFault, MateSide, MeasureNodeFault,
+    MeshPickError, MetaVersionError, MintRefusal, NamingError, NodeErrorKind, NodePickError,
+    ParamName, ParseError, PlacementRuleFault, ProgramFault, RecipeNodeId, RefusedRef,
+    ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId,
+    SnapshotError, StableName, StepArg, StepSegmentsError,
 };
 use geom_core::BandError;
 
@@ -776,22 +777,205 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
         &SnapshotError::AssertionBound {
             node: RecipeNodeId(5),
             measure: RecipeNodeId(4),
-            measured: Some(Dimension::Length),
+            measured: Dimension::Length,
             bound: Dimension::Angle,
         },
         &["bounds a length measure", "with an angle expression"],
         &dumps,
     );
     assert_f6(
-        &SnapshotError::AssertionBound {
+        &SnapshotError::AssertionTarget {
             node: RecipeNodeId(5),
             measure: RecipeNodeId(4),
-            measured: None,
             bound: Dimension::Count,
         },
         &["carries a count bound", "which is not a measure"],
         &dumps,
     );
+}
+
+test_utils::f6_variants! {
+    /// `SnapshotError`'s census — see [`NODE_PICK_ERROR`]. This is the
+    /// load door's whole persisted-refusal vocabulary, so a new
+    /// invariant that earns an arm earns a rendered case with it.
+    const SNAPSHOT_ERROR: SnapshotError = [
+        OrderMismatch,
+        IdBeyondCounter,
+        DanglingInput,
+        ForwardInput,
+        DeclareInput,
+        WitnessSite,
+        WitnessOnMissingNode,
+        CountContinuous,
+        EpsilonInvalid,
+        Roots,
+        PlacementSite,
+        PlacementNonFinite,
+        PlacementImproper,
+        PlacementNotGauge,
+        MateAlignment,
+        PlacementRule,
+        MeasureRefs,
+        InputList,
+        AssertionTarget,
+        AssertionBound,
+        MetadataUnversioned,
+    ];
+}
+
+/// Every arm of the persistence door's snapshot vocabulary states what
+/// is wrong with the document and where, and none of them reads as the
+/// `Debug` dump.
+///
+/// The payload-carrying arms forward their payload's own `Display`
+/// (`RootFault`, `PlacementRuleFault`, `MeasureNodeFault`,
+/// `InputFault`, `MetaVersionError`) rather than restating it, and the
+/// two placement-frame arms forward the frame rule's clause — so each
+/// case below asks for the payload's words, which is what proves the
+/// forwarding happened.
+#[test]
+fn snapshot_error_display_names_its_content_not_its_struct() {
+    let node = RecipeNodeId(5);
+    let cases = [
+        (
+            SnapshotError::OrderMismatch,
+            vec!["`order` list", "disagree"],
+        ),
+        (
+            SnapshotError::IdBeyondCounter {
+                id: node,
+                next_id: 4,
+            },
+            vec!["node id 5", "mint counter 4"],
+        ),
+        (
+            SnapshotError::DanglingInput {
+                node,
+                input: RecipeNodeId(9),
+            },
+            vec!["node 5", "node 9", "not live"],
+        ),
+        (
+            SnapshotError::ForwardInput {
+                node,
+                input: RecipeNodeId(9),
+            },
+            vec!["node 5", "does not precede it"],
+        ),
+        (
+            SnapshotError::DeclareInput {
+                node,
+                input: RecipeNodeId(9),
+            },
+            vec!["declare input", "not a declaration"],
+        ),
+        (
+            SnapshotError::WitnessSite { node },
+            vec!["a witness is attached to node 5", "bears no sketch"],
+        ),
+        (
+            SnapshotError::WitnessOnMissingNode { node },
+            vec!["a witness is attached to node 5", "not live"],
+        ),
+        (
+            SnapshotError::CountContinuous {
+                name: ParamName::new("rows"),
+            },
+            vec!["continuous parameter", "rows", "count dimension"],
+        ),
+        (
+            SnapshotError::EpsilonInvalid { value: 0.0 },
+            vec!["recorded ε", "finite and strictly positive"],
+        ),
+        (
+            SnapshotError::Roots(RootFault::Ancestor {
+                ancestor: RecipeNodeId(1),
+                descendant: RecipeNodeId(2),
+            }),
+            vec!["product root"],
+        ),
+        (
+            SnapshotError::PlacementSite { node },
+            vec!["keyed by node 5", "does not instantiate a part"],
+        ),
+        (
+            SnapshotError::PlacementNonFinite { node },
+            vec!["placement frame on node 5", "non-finite coordinate"],
+        ),
+        (
+            SnapshotError::PlacementImproper {
+                node,
+                determinant: -1.0,
+            },
+            vec!["placement frame on node 5", "improper (mirroring)"],
+        ),
+        (
+            SnapshotError::PlacementNotGauge {
+                node,
+                gauge: RecipeNodeId(2),
+            },
+            vec!["cluster's gauge, node 2"],
+        ),
+        (
+            SnapshotError::MateAlignment { node },
+            vec!["mate node 5", "alignment datum", "non-finite coordinate"],
+        ),
+        (
+            SnapshotError::PlacementRule {
+                node,
+                fault: PlacementRuleFault::NoPlacements,
+            },
+            vec!["placement-rule node 5", "placement list is empty"],
+        ),
+        (
+            SnapshotError::MeasureRefs {
+                node,
+                fault: MeasureNodeFault::RefIndexOutOfRange {
+                    verb: "distance",
+                    index: 3,
+                    refs: 2,
+                },
+            },
+            vec!["measure node 5", "reads reference 3"],
+        ),
+        (
+            SnapshotError::InputList {
+                node,
+                fault: InputFault::TooFew { found: 1 },
+            },
+            vec!["node 5"],
+        ),
+        (
+            SnapshotError::AssertionTarget {
+                node,
+                measure: RecipeNodeId(4),
+                bound: Dimension::Count,
+            },
+            vec!["carries a count bound", "which is not a measure"],
+        ),
+        (
+            SnapshotError::AssertionBound {
+                node,
+                measure: RecipeNodeId(4),
+                measured: Dimension::Length,
+                bound: Dimension::Angle,
+            },
+            vec!["bounds a length measure", "with an angle expression"],
+        ),
+        (
+            SnapshotError::MetadataUnversioned {
+                name: StableName {
+                    kind: EntityKind::Face,
+                    node,
+                    path: vec![RoleSeg::Cap(CapEnd::Start)],
+                },
+                key: "swatch".to_string(),
+                error: MetaVersionError::MissingVersion,
+            },
+            vec!["metadata", "swatch", "\"v\" version field"],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &SNAPSHOT_ERROR, &[]);
 }
 
 /// A predicate flip names the two signs as words: `Sign` has a
