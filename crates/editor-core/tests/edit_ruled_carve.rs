@@ -579,3 +579,75 @@ fn a_surviving_rim_piece_carries_the_rim_it_was_cut_from() {
         );
     }
 }
+
+// ---------------------------------------------------------------- //
+// REVIEW PROBES (lane carve-rv, PR #2778). Each records a measured
+// blind spot of the rows above; none of them is a row.
+// ---------------------------------------------------------------- //
+
+/// **Row 2 cannot tell the sunk rod's two coplanar walls apart.** The
+/// doc on `a_cap_foot_lies_in_the_cap_and_on_the_support_its_name_carries`
+/// says "both fixtures' walls are told apart by `Ruled::residual`". On
+/// `sunk_rod` walls 2 and 4 are two faces of ONE plane (`residual` is
+/// `p.y` for both), so a `FootVertex` whose `support` argument named the
+/// far wall of the block's top would pass BOTH of that row's checks:
+/// the crossed foot is in the same cap plane and has residual zero on
+/// the wall it is not on. Rows 3 and 4 are what catch it.
+#[test]
+fn probe_rv_row2_is_blind_across_the_sunk_rod_s_two_coplanar_walls() {
+    let f = sunk_rod();
+    let ev = run(&f.doc);
+    let (t, source) = (table(&ev, f.fillet), table(&ev, f.rod));
+    let (body, rod) = (corpus::body_of(&ev, f.fillet), corpus::body_of(&ev, f.rod));
+    for end in CAPS {
+        let what = format!("{}: cap {end:?}", f.what);
+        // The foot of crease 4 on wall 4, offered where the foot of
+        // crease 3 on wall 2 belongs.
+        let crossed = point(body, vertex_of(t, &what, &foot_name(&f, end, 4, 4)));
+        let z = point(rod, vertex_of(source, &what, &cap_vertex(f.rod, end, 3))).z;
+        assert!(
+            (crossed.z - z).abs() < NEAR && (f.residual)(2, crossed).abs() < NEAR,
+            "{what}: the crossed foot {crossed:?} was expected to satisfy row 2's \
+             two checks against (crease 3, wall 2); z want {z}, residual {}",
+            (f.residual)(2, crossed)
+        );
+    }
+}
+
+/// **The `NEAR` comment's closest pair is not the one the fixtures
+/// produce.** It says the closest pair the rows must tell apart is "a
+/// foot and the source vertex it was retracted from, `ROD_FILLET`
+/// apart". Measured, the separations run 0.0431 … 0.0599 m, not
+/// `ROD_FILLET` = 0.1 m — the window is still four orders clear of the
+/// true minimum, but the stated number is not it.
+#[test]
+fn probe_rv_the_foot_to_source_separation_is_not_rod_fillet() {
+    let mut min = f64::INFINITY;
+    for f in fixtures() {
+        let ev = run(&f.doc);
+        let (t, source) = (table(&ev, f.fillet), table(&ev, f.rod));
+        let (body, rod) = (corpus::body_of(&ev, f.fillet), corpus::body_of(&ev, f.rod));
+        for end in CAPS {
+            for &(crease, supports) in f.creases {
+                let what = format!("{}: cap {end:?}, crease {crease}", f.what);
+                let sv = point(
+                    rod,
+                    vertex_of(source, &what, &cap_vertex(f.rod, end, crease)),
+                );
+                for support in supports {
+                    let p = point(
+                        body,
+                        vertex_of(t, &what, &foot_name(&f, end, crease, support)),
+                    );
+                    let d =
+                        ((p.x - sv.x).powi(2) + (p.y - sv.y).powi(2) + (p.z - sv.z).powi(2)).sqrt();
+                    min = min.min(d);
+                }
+            }
+        }
+    }
+    assert!(
+        (min - 0.043_099_918_793_752_2).abs() < 1e-12 && min < ROD_FILLET,
+        "the closest foot-to-source separation measures {min}, not ROD_FILLET = {ROD_FILLET}"
+    );
+}
