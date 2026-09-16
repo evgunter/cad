@@ -3062,11 +3062,14 @@ class Doc:
         Identity survives every edit; it is not a content hash."""
     def apply(self, edit: DocEdit) -> Optional[NodeId]: ...
     @property
-    def last_maintenance(self) -> list[ClusterMaintenance]:
-        """The cluster-record maintenance the LAST accepted edit
-        performed. Empty after an edit that moved no mate graph, and
-        on a document that has applied none; a REFUSED edit leaves it
-        untouched, as it leaves the document untouched.
+    def last_maintenance(self) -> list[Maintenance]:
+        """The maintenance the LAST accepted edit performed: its
+        cluster-record acts, and the payload names its delete
+        stranded. The strands lead and the cluster acts follow, so
+        read `variant`, never a position. Empty after an edit that
+        moved no mate graph and stranded no name, and on a document
+        that has applied none; a REFUSED edit leaves it untouched, as
+        it leaves the document untouched.
 
         The reading begins at the load boundary: a Doc from
         `Loaded.doc`, `Loaded.snapshot` or `Workspace.resolve` starts
@@ -5122,22 +5125,28 @@ def relative_freedom_components(doc: Doc) -> list[list[NodeId]]:
     union reading edges, so mates couple what they constrain. Coarser
     than `clusters`, which partitions instances alone."""
 
-class ClusterMaintenance:
-    """One recorded act of cluster-record maintenance: what an
-    ordinary edit's motion of the mate graph forced on the placement
-    registry.
+class Maintenance:
+    """One act of automatic maintenance an accepted edit performed:
+    what an ordinary edit's motion of the mate graph forced on the
+    placement registry, or a payload name its delete stranded.
 
     It rides the accepted edit rather than being an edit of its own —
     deterministic from the edit, so a replay reproduces it and undo
     restores it exactly. What the record adds is VISIBILITY: an
-    absorbed cluster's frame is consumed here.
+    absorbed cluster's frame is consumed here, and a stranded name is
+    said at the delete rather than at the next evaluation.
+
+    A `strand` names a node that survived the delete carrying a name
+    whose minting node did not. The name is not a DAG edge, so the
+    delete is legal; the name now resolves to nothing, and
+    `DocEdit.rebind` is the repair.
 
     `source` and `target` rather than `from`/`to`: `from` is a Python
     keyword."""
 
     @property
     def variant(self) -> str:
-        """`join`, `split`, `gauge_rewrite`, or `drop`."""
+        """`join`, `split`, `gauge_rewrite`, `drop`, or `strand`."""
 
     @property
     def survived(self) -> Optional[NodeId]: ...
@@ -5153,6 +5162,10 @@ class ClusterMaintenance:
     def frame(self) -> Optional[Frame]: ...
     @property
     def gauge(self) -> Optional[NodeId]: ...
+    @property
+    def node(self) -> Optional[NodeId]: ...
+    @property
+    def name(self) -> Optional[str]: ...
 
 # --- the gather and the at-rest gate ----------------------------------
 

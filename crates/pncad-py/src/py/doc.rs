@@ -731,7 +731,7 @@ pub(crate) struct Doc {
     /// is held here for the same span the document it describes is —
     /// an invariant [`Doc::accept`] holds by being the only place
     /// either of the two is written.
-    pub(crate) maintenance: Vec<d::ClusterMaintenance>,
+    pub(crate) maintenance: Vec<d::Maintenance>,
 }
 
 /// The wrapper's own plumbing: the ONE place an accepted edit is taken
@@ -795,7 +795,8 @@ impl Doc {
     /// The declare doors' shared body: the kernel's own declare sugar
     /// (`pncad::select::declare_all`), whose acceptance — the new
     /// document, its record and the maintenance the insert performed
-    /// — is taken up whole through the swap point. The id comes back
+    /// (an insert strands nothing, so that is cluster acts alone) — is
+    /// taken up whole through the swap point. The id comes back
     /// beside it already checked, so the `NoMintedId` arm is the
     /// sugar's to raise; every `DeclareError` arm reaches Python
     /// through the same `declare_err`.
@@ -875,24 +876,28 @@ impl Doc {
     /// On refusal the document is unchanged and a typed `EditError` is
     /// raised.
     ///
-    /// An accepted edit may also have performed **cluster-record
-    /// maintenance** — joins, splits, gauge rewrites and drops the
-    /// mate graph's motion forced on the placement registry. That
-    /// rides the edit rather than being a second edit, so it is read
-    /// off `last_maintenance` instead of returned here: the common
-    /// case is an empty list, and widening every caller's return type
-    /// for it would be paying for mates in documents that have none.
+    /// An accepted edit may also have performed **maintenance** — the
+    /// joins, splits, gauge rewrites and drops the mate graph's motion
+    /// forced on the placement registry, and the payload names a
+    /// delete stranded. That rides the edit rather than being a second
+    /// edit, so it is read off `last_maintenance` instead of returned
+    /// here: the common case is an empty list, and widening every
+    /// caller's return type for it would be paying for mates and
+    /// strands in documents that have neither.
     fn apply(&mut self, py: Python<'_>, edit: &DocEdit) -> PyResult<Option<NodeId>> {
         let tol = Tol::witness();
         let applied = d::apply(&self.inner, &edit.inner, tol).map_err(|err| edit_err(py, &err))?;
         Ok(self.accept(applied).minted.map(NodeId))
     }
 
-    /// The cluster-record maintenance the LAST accepted edit
-    /// performed, in the order it was performed.
+    /// The maintenance the LAST accepted edit performed, in the order
+    /// it was performed: its cluster-record acts, and the payload
+    /// names its delete stranded. The strands lead and the cluster
+    /// acts follow, which is the kernel's contract on the column — so
+    /// a caller reads an entry's `variant`, never its position.
     ///
-    /// Empty after any edit that moved no mate graph, and empty on a
-    /// fresh document — a document that has never applied an edit has
+    /// Empty after any edit that moved no mate graph and stranded no
+    /// name, and empty on a fresh document — a document that has never applied an edit has
     /// no last edit to report about. A REFUSED edit leaves this
     /// untouched, exactly as it leaves the document untouched.
     ///
@@ -917,11 +922,11 @@ impl Doc {
     /// absorbed cluster's frame is consumed here, where a caller can
     /// read what was consumed.
     #[getter]
-    fn last_maintenance(&self) -> Vec<super::mate::ClusterMaintenance> {
+    fn last_maintenance(&self) -> Vec<super::mate::Maintenance> {
         self.maintenance
             .iter()
             .cloned()
-            .map(super::mate::ClusterMaintenance)
+            .map(super::mate::Maintenance)
             .collect()
     }
 
