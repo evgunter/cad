@@ -111,6 +111,8 @@ mod offa_r1_probes;
 mod offb_r1_probes;
 #[path = "onb_c_payoff_interval.rs"]
 mod onb_c_payoff_interval;
+#[path = "props_sphere_pole_side.rs"]
+mod props_sphere_pole_side;
 #[path = "r2_probe_sphere_polar.rs"]
 mod r2_probe_sphere_polar;
 

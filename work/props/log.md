@@ -1424,3 +1424,24 @@ a row that can fail. The transposed-column mutation now reds eleven
 rows where it red eight. The lane also recorded how its earlier clippy
 errors reached CI: a `tail` on the output truncated one crate's errors
 behind another's.
+
+**Sphere-pole-side MERGED (2026-09-16).** PR #2741, ordinal 2406,
+sample #214, tally +0. Three items closed, the fourth half closed with
+its measurement, spec into the ledger. The unit fixes two things a user
+would call bugs — a ball cut by one plane refusing as degenerate, and a
+sphere split into two faces measuring zero volume — and the dual caught
+that its first landing had traded those for a third: a pole folded
+against a rim that does not close, which answered a half rim at half
+the cap's area where it had refused. The spec asserted that premise
+instead of requiring a decide, so the orchestrator authored it; the fix
+pass decides it now, metering the arc the rim fails to close by.
+
+Two lessons for the next unit on this file. The spec's amendment — the
+one that told the lane in advance not to let a new predicate's recorded
+sign depend on cycle order — did its job: the predicate is a face fact
+under re-anchoring, and the dual only had to find the narrower case of
+a REFUSING face, which the fix pass closed too. And an arm was simply
+right where the other was wrong: the sentence about the
+certified-quadrature lane being the recourse is false, because the
+dispatch is structural, and only one reviewer read the dispatch rather
+than repeating the sentence.
