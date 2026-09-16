@@ -16,8 +16,8 @@ opened: 2026-09-16
   (`triangle_prism`, ~`:48`) — against
   `crates/topo/tests/common/mod.rs`'s `prism_z` (~`:335`).
 - **Importance**: medium
-- **Confidence**: sure they are the same construction; **unmeasured**
-  whether any two produce equal bodies
+- **Confidence**: sure they are the same construction **by shape, not
+  by execution**; **unmeasured** whether any two produce equal bodies
 - **Raised by**: the `dup-cube-seq` lane (S-DUP), 2026-09-16
 
 All four are `prism_z`'s construction: profile corners lifted to two
@@ -50,7 +50,29 @@ to `prism_z` exactly what `mapped_cube` is to `geometric_cube`, and
   (`Point2` + place), not from a profile list, and returns the `mef`
   bundle.
 
-So the honest shape is probably `prism_z`'s own `cube_ops` treatment:
+## This row owes a measurement before a fix
+
+**The equality above is read off call-site counts and control flow, not
+executed.** Nothing here has been run. That is exactly the unverified
+claim `brick-has-two-constructions-and-two-homes` was opened to fix, and
+the reason that row refused to be dispatched before its measurement is
+that the answer **inverts the remedy**: the same construction means
+share it, a different one means name them apart and retire the
+duplication claim as false.
+
+The instrument is cheap and has been run twice in this family already:
+build each body and compare `format!("{body:#?}")` — `Body`'s derived
+`Debug`, so every arena, key, slot version and `free_head` is in the
+comparison and nothing is left out by the author choosing what to look
+at. `crates/topo/tests/cube_doors_agree.rs` does it as a standing row
+for the cube doors, and PR #2727's measurement did it as a throwaway for
+the six-door group. Compare at more than one profile and more than one
+z-range: two builders can agree at a square at the origin and disagree
+on a reflex corner or an off-origin range, and `triangle_prism` is not
+even in the other three's domain.
+
+So the honest shape, **if the measurement comes back equal**, is
+probably `prism_z`'s own `cube_ops` treatment:
 one sequence taking a body, a corner map and a z-range, with the
 describe step and the key bundle at the caller. That is the same
 factoring the `dup/cube-sequence-reconcile` unit landed for the cube
