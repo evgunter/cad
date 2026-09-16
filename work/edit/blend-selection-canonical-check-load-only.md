@@ -5,7 +5,7 @@ title: A blend's non-canonical selection is refused at load only: the insert doo
 status: review
 opened: 2026-09-08
 branch: edit/blend-canonical
-pr: 0
+pr: 2724
 ---
 
 `Node::Fillet` and `Node::Chamfer` are public variants; `Node::fillet`
