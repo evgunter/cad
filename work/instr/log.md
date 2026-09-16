@@ -177,6 +177,61 @@ branch has no corpus — `props_quad_last_round` emits zero rows in all
 nine committed baselines, measured before dispatch. The lane was
 briefed on the corrected shape rather than the plan's.
 
+## Unit 0 closes; the sweep found more than the row it closed (2026-09-16)
+
+`baseline-sizing-census-pointers-stale` is CLOSED. Four of its seven
+cited mentions had resolved **by deletion** — every `work/meter/` row
+went with METER's closing sweep — so the live list was three, and the
+lane re-swept rather than trusting the row. The headline count is kept
+as the figure the row reported on the day it reported it, with a dated
+re-sweep section carrying the live list; the repair for the four is a
+`docs/DOC-LEDGER.md` sweep-10 citation plus the SHA the ledger
+publishes, so the line numbers resolve at the tree they were taken from
+instead of nowhere.
+
+**The review found the unit breaking its own rule.** The lane edited
+one dated record's body on the doctrine *"the FIGURES are frozen; the
+PATHS are not"* and left five of that same record's pointers dangling,
+one of them pointing at the lane's own row. Fixed on the rule rather
+than around it.
+
+**Three things outlived the unit.**
+
+`docs/TESS-BUDGET.md`'s four sizing figures are not merely a second
+copy — they are WRONG. The baseline was re-cut on 2026-09-15 and the
+prose did not follow. Summed from the committed CSV at adjudication:
+`grid_cells` 88,036, `patch_cells` 147,960, `opt_cells` 127,966,
+`span_opt_cells` 76,599, 1605 rows, 362,154 triangles, against the
+document's 46,019 / 110,811 / 93,066 / 44,162 / 1353. This is the
+failure `baseline-sizing-census-second-copy` PREDICTED in as many words
+— *"the alarm fires and the document stays wrong"* — and that row does
+not know it has happened; the row is also stale about itself, naming
+the superseded sums and greping for them. **Unit 1 goes next and carries
+the verified figures rather than the item's.**
+
+The dangling-`work/meter/` class is live in `tools/` **code doc**, not
+just in the tracker: thirteen citations across five files, one of them
+inside an assertion string. Filed as
+`tools-doc-prose-cites-thirteen-dead-work-meter-paths`. The crates-side
+half went as evidence onto the existing
+`work/issues/dead-work-citations-from-shipped-code-and-docs` rather than
+a new row, and carries two things that row needed — its proposed gate
+is scoped to `crates/**`, so it would have caught none of the thirteen,
+and `tools` is `exclude`d from the workspace, so a gate written as a
+workspace test cannot see them even with the glob widened.
+
+A `mergeable_state: dirty` PR gets **no Actions run at all** — no
+failing check, no error, twenty minutes of polling a silence. CIW
+already owns it (`dirty-pr-gets-no-actions-run`); evidence added there
+rather than as a fourth row, and the duplicate open row CIW opened the
+same day is named on it for its owner to judge.
+
+**Two corrections to the orchestrator, both upheld.** The tools/ file
+count was five, not the four I briefed (`tools/README.md` missed), and
+the crates-side finding belonged on an existing row rather than the new
+one I asked for — the discipline's grep-first rule pointed at a row
+open since 2026-09-13 with a live design argument the evidence bears on.
+
 ## Unit 4 closes; the review caught the fix reproducing its own defect twice (2026-09-16)
 
 `baseline-census-partition-assert-cannot-fail` is CLOSED. The
