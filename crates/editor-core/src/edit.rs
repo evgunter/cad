@@ -36,8 +36,12 @@ pub enum DocEdit<P> {
         /// The node payload (data only, spec D3).
         node: Node<P>,
     },
-    /// Delete a node. Refused while any live node references it
-    /// (typed, spec D3/D6); the id is never reused afterwards.
+    /// Delete a node. Refused while any live node holds it as an
+    /// INPUT (typed, spec D3/D6); the id is never reused afterwards.
+    ///
+    /// A payload NAME of the node is not an input and does not refuse
+    /// (DM7, the §0 carve-out): the edit is accepted and every name it
+    /// stranded rides the record as a [`Maintenance::Strand`].
     DeleteNode {
         /// The node to delete.
         id: RecipeNodeId,
@@ -1375,6 +1379,111 @@ pub struct EditRecord {
     pub structural: bool,
 }
 
+/// One act of **automatic maintenance** an accepted edit performed:
+/// bookkeeping the edit forced, or a consequence it left behind, that
+/// the caller never asked for by name.
+///
+/// Every act rides the accepted edit rather than being a second edit
+/// of its own — the A10 root-list precedent, verbatim: maintenance is
+/// deterministic from the edit, so a replay reproduces it and undo
+/// (keeping the prior document value) restores it exactly. What the
+/// record adds is VISIBILITY, at the door where the consequence
+/// happened rather than at the next evaluation.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Maintenance {
+    /// **The A11 cluster-record maintenance** (ASM-R2a D-3): the
+    /// joins, splits, gauge rewrites and drops the mate graph's
+    /// motion forced on the placement registry. An absorbed cluster's
+    /// frame is CONSUMED into the record, where a caller can read
+    /// what was consumed.
+    Cluster(crate::mate::ClusterMaintenance),
+    /// **A payload name this edit stranded** (DM7): `node` survives
+    /// and carries `name`, whose minting node the edit deleted.
+    ///
+    /// The name still says exactly what it always said; what is gone
+    /// is the node that minted it, so evaluation answers
+    /// [`crate::resolve::ResolveError::NodeGone`] — rung 1 of the N5
+    /// ladder — and [`DocEdit::Rebind`] is the repair. A name is not
+    /// a DAG edge (the D3 carve-out), so the delete is legal: this
+    /// row is what the door owes instead of a refusal.
+    ///
+    /// The deleted minting node is `name.node` and is not repeated as
+    /// a field of its own: a second copy is a disagreement waiting to
+    /// happen.
+    Strand {
+        /// The surviving node whose payload carries the name.
+        node: RecipeNodeId,
+        /// The name it carries. Its `node` is the id this edit
+        /// deleted.
+        name: StableName,
+    },
+}
+
+impl core::fmt::Display for Maintenance {
+    /// The cluster arm DELEGATES: a registry act's sentence belongs to
+    /// the type that knows what the act is, so each enum renders its
+    /// own arms and the F6 census guards each list where it lives.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Cluster(act) => write!(f, "{act}"),
+            // The relative clause binds to the NODE, not to the name:
+            // "a face name minted by node 7, which this edit deleted"
+            // reads as though the name were deleted, and the name is
+            // exactly what survives.
+            Self::Strand { node, name } => write!(
+                f,
+                "node {} carries a {}; this edit deleted node {}, so the name resolves to \
+                 nothing until it is rebound",
+                node.0, name, name.node.0
+            ),
+        }
+    }
+}
+
+/// **DM7's report**: every payload name a `DeleteNode` just stranded —
+/// one row per `(carrier, name)` whose minting node is `deleted`.
+///
+/// `doc` is the document AFTER the removal, so the nodes walked are
+/// exactly the survivors and a name that left with its own carrier is
+/// not reported: nothing is stranded when nothing is left to carry it.
+/// Rows come in document order, and within one node in
+/// [`Node::payload_names`]' order, which is meaning for the ordered
+/// payloads (a shell's rim, a measure's arguments).
+///
+/// The walk is [`Node::payload_names`] — the same single answer to
+/// "which payloads carry a name" that the insert door checks with, so
+/// a payload kind cannot be live at one door and invisible at the
+/// other.
+///
+/// [`Node::payload_read_sites`] — a mate's two operands — are NOT
+/// here. A read site is a node id rather than a name: no N5 ladder
+/// resolves it and `Rebind` cannot repair it, so a delete that strands
+/// one is the solve's to refuse (A12), not this door's to report.
+///
+/// **Cost.** One pass over the document's payload names per accepted
+/// delete, so a cascade of `n` nodes pays `n` passes. That is the
+/// price of reporting at the door rather than once at the end, and it
+/// is what makes the rows TRUE of the document each step produced;
+/// `cascade_delete_order` is a walk of the same shape already, and a
+/// caller who wants one number for the whole cascade computes it from
+/// the doomed set instead of from these rows (the transients cancel —
+/// `rv_a_cascade_reports_strands_on_carriers_it_then_deletes`).
+fn stranded_names<P>(doc: &Doc<P>, deleted: RecipeNodeId) -> Vec<Maintenance> {
+    let mut out = Vec::new();
+    for &id in doc.order() {
+        let Some(node) = doc.node(id) else { continue };
+        for name in node.payload_names() {
+            if name.node == deleted {
+                out.push(Maintenance::Strand {
+                    node: id,
+                    name: name.clone(),
+                });
+            }
+        }
+    }
+    out
+}
+
 /// An accepted edit: the NEW document (the input untouched, spec D2)
 /// plus the [`EditRecord`].
 #[derive(Debug, Clone, PartialEq)]
@@ -1383,18 +1492,21 @@ pub struct Applied<P> {
     pub doc: Doc<P>,
     /// What the edit did.
     pub record: EditRecord,
-    /// **The A11 cluster-record maintenance** this edit performed
-    /// (ASM-R2a D-3): the joins, splits, gauge rewrites and drops the
-    /// mate graph's motion forced on the placement registry.
+    /// **What the edit did that the caller did not ask for**: the A11
+    /// cluster-record maintenance it forced, and the payload names it
+    /// stranded (DM7). See [`Maintenance`].
     ///
-    /// It rides the accepted edit rather than being a second edit of
-    /// its own — the A10 root-list precedent, verbatim: automatic
-    /// maintenance is the invariant's own bookkeeping, deterministic
-    /// from the edit, so a replay reproduces it and undo (keeping the
-    /// prior document value) restores it exactly. What the record
-    /// adds is VISIBILITY: an absorbed cluster's frame is consumed
-    /// here, where a caller can read what was consumed.
-    pub maintenance: Vec<crate::mate::ClusterMaintenance>,
+    /// **The order is a CONTRACT, not an accident of the
+    /// implementation**: the strands come first — read at the door,
+    /// out of the document the edit had just produced — and the
+    /// cluster acts follow, reconciling the registry against it
+    /// afterwards. A consumer may rely on that; it is pinned by
+    /// `dm7_delete_strands::a_mates_head_strands_and_its_read_site_does_not`,
+    /// the one edit that produces both kinds at once. What a consumer
+    /// may NOT do is read position 0 as a kind: a delete that strands
+    /// nothing puts a cluster act there, so an arm is found by
+    /// matching, never by index.
+    pub maintenance: Vec<Maintenance>,
 }
 
 /// Validate one expression's document-parameter refs against the
@@ -1738,6 +1850,10 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
     // edits that can move it are exactly those that change the
     // instance set, the mate set, or a mate's heads.
     let mut reconcile = false;
+    // DM7's strands, read at the door that made them. Only
+    // `DeleteNode` can strand a name: no other edit removes a node,
+    // and `Rebind` moves references onto a live one.
+    let mut strands: Vec<Maintenance> = Vec::new();
     let record = match edit {
         DocEdit::InsertNode { node } => {
             for input in node.inputs() {
@@ -1824,6 +1940,12 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             };
             let inputs = node.inputs();
             new.order.retain(|&n| n != *id);
+            // DM7: a payload name of this node is not a DAG edge, so
+            // the check above never saw one and the edit stands. What
+            // the door owes is the report — every surviving name whose
+            // minting node just left, read out of the document as it
+            // now stands.
+            strands = stranded_names(&new, *id);
             crate::roots::on_delete(&mut new, *id, &inputs);
             reconcile = true;
             // The node's witness (if any) dies with it — ids are
@@ -2287,11 +2409,14 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             }
         }
     }
-    let maintenance = if reconcile {
-        crate::mate::solve::reconcile(doc, &mut new, tol)
-    } else {
-        Vec::new()
-    };
+    let mut maintenance = strands;
+    if reconcile {
+        maintenance.extend(
+            crate::mate::solve::reconcile(doc, &mut new, tol)
+                .into_iter()
+                .map(Maintenance::Cluster),
+        );
+    }
     Ok(Applied {
         doc: new,
         record,

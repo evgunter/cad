@@ -3538,6 +3538,24 @@ rider: single style review, no A/B row.
 
 - `PROPS-BAND-DOORS-SPEC.md` — PROPS band-doors, the error documentation made true and the constructor five suites hand-rolled (#2729)
 
+## Per-merge deletion — PROPS affine-try-map's spec (2026-09-16)
+
+Recoverable at `git show c6a8bc33d:docs/PROPS-AFFINE-TRY-MAP-SPEC.md` (the
+merge of main into the unit head, before the state-sync commit that
+deleted it). It held as written, including the seam it named: the
+unmerged unit that rewrites `orthonormal_basis` in the same file merges
+textually, executed rather than assumed. Its one open call — how `map`
+is spelled once `try_map` exists — was left to the unit and the unit
+argued it in the PR. What the spec did not anticipate is where the
+evidence would come from: it asked that a transposed column be shown
+red, and the mutation that proves it also caught a row of the unit's
+own that could not fail for the reason it was named after. The rule
+above; the unit's record is the two items' `## Closed` sections and the
+MERGED entry in `work/props/log.md`. An E rider: single style review,
+no A/B row.
+
+- `PROPS-AFFINE-TRY-MAP-SPEC.md` — PROPS affine-try-map, the kernel owns the fallible per-coordinate walk too (#2743)
+
 ## Per-merge deletion — PROPS sphere-pole-side's spec (2026-09-16)
 
 Recoverable at `git show 1b7cfb766:docs/PROPS-SPHERE-POLE-SIDE-SPEC.md` (the
