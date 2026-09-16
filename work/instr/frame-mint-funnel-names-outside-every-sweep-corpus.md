@@ -3,7 +3,6 @@ id: frame-mint-funnel-names-outside-every-sweep-corpus
 kind: issue
 title: Two frame-mint funnel names, one of them production, reach no k-lint sweep corpus
 status: open
-needs_ev: true
 opened: 2026-09-15
 ---
 
@@ -134,3 +133,51 @@ wrong and has to follow it.
 
 Unit 16 is late in lane C, and the coverage-honesty half for
 `sketch_plane_frame_norm` lands under either answer.
+
+## RULED (Ev, 2026-09-16): (a) — the roster records decisions the kernel can be ASKED to make
+
+*"ok, (a) makes sense then!"* — PR #2733, after the re-framing above.
+
+**What the ruling settles, and what it hands unit 16.**
+
+1. **The `cfg` gate decides membership.** `fixture_frame_axis` is minted
+   in `crates/sweep/src/test_support.rs`, whose module declaration is
+   `#[cfg(any(test, feature = "test-support"))] #[doc(hidden)]` — no
+   default build can reach it, so nobody outside our own test harness
+   can ask for that decision. **It leaves the roster**, with a line
+   saying why, in the shape the row's third option described.
+2. **`sketch_plane_frame_norm` stays, and its gap is the finding.** It
+   ships on the Python binding's value road and decides two lengths per
+   call — the authored `u`'s own length and the authored `v`'s residual
+   perpendicular to `u`, both through `OrthoFrame::gram_schmidt` under
+   `Tol::witness()`'s band — and no corpus watches. Under (a) that is
+   exactly what the roster is for: a decision the kernel can be asked to
+   make, with the coverage column saying honestly that nothing samples
+   it. The fix is the honest note or a corpus that reaches the binding,
+   **not** removing the name.
+3. **`tour_frame_axis` is unaffected.** It is rostered and sampled
+   either way.
+
+**The ruling's real scope is larger than the two names, and this is the
+part unit 16 must not skip.** `docs/K-REPORT.md` states a membership
+rule that is now wrong:
+
+> *"A predicate name is in scope if it reaches the `geom_core::k_stats`
+> funnel … from anywhere **the sweep can execute**, however it is
+> spelled at the call site."*
+
+That is reading (b), which the ruling rejects. Reading (a) is what the
+`chart_bound_*` paragraph already practises — *"the roster's code half
+reaches them and its behavioural half does not"* — so the document's
+two statements now disagree in a way the ruling decides. **Unit 16
+rewrites the stated rule to (a)** and keeps the coverage column as the
+behavioural half. `docs/K-REPORT.md` is `Reference` in
+`docs/DESIGN.md`'s companion table, so that edit is not a second design
+conversation; it is this ruling landing.
+
+**Why (a), in one line, so a later reader does not reopen it**: under
+(b) the roster is re-derivable only by running everything, and a reader
+cannot tell *"we do not decide this"* from *"we did not run it this
+week"*.
+
+`needs_ev` cleared. Unit 16 is unblocked and stays where it is in lane C.
