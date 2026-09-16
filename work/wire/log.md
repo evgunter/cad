@@ -5541,12 +5541,16 @@ reason (S5), not by design.
 variant with a category and a `sampled` arm but no row leaves
 `every_variant_names_its_subject` GREEN, because `covered ==
 (0..rows.len())` only proves the rows cover a contiguous prefix. Ran
-`NamingError` through `tests/display_contract.rs`'s
-`assert_f6_every_variant`, the set-difference harness every other enum
-in that file uses, and measured what it does and does not catch: a
-roster entry with no case FAILS; a variant with neither roster entry nor
-case still passes, which is the hole that harness's own doc states.
-Both facts are now written where the claim is.
+`NamingError` through `tests/display_contract.rs`'s census harness and
+measured the whole chain, twice — once against the hand-written
+`(token, roster)` pair, where a variant with neither roster entry nor
+case still passed, and again after merging forward onto
+`f6_variants!`, which landed on `main` mid-round and writes the
+wildcard-free `match` and the roster from ONE ident list. Under the
+macro no step is green: the probe stops that file compiling, the only
+fix is to add the ident, adding the ident adds it to the roster, and the
+set difference reds until it has a case. That is what is written where
+the claim is.
 
 Also: the dropped `!contains(" { ")` assertion is back and applies to
 EVERY variant rather than being hand-spelled per row; `EMISSION_FRAMING`

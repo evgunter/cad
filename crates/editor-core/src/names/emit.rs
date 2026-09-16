@@ -54,21 +54,21 @@ use crate::node::RecipeNodeId;
 /// off it. That residue is
 /// `work/wire/three-emission-bugs-do-not-speak-the-framing-written-once-for-them.md`.
 ///
-/// What is machine-checked, and what is not, measured rather than
-/// asserted. `display_tests`' `every_variant_names_its_subject` maps
-/// every variant to its framing through an exhaustive match — so a new
-/// variant must CHOOSE a category to compile — and asserts each sample
-/// speaks that framing and not the other's. Its coverage check compares
+/// What is machine-checked, measured rather than asserted — by adding
+/// a probe variant and watching what each guard did.
+/// `display_tests`' `every_variant_names_its_subject` maps every
+/// variant to its framing through an exhaustive match, so a new variant
+/// must CHOOSE a category to compile, and asserts each sample speaks
+/// that framing and not the other's. Its coverage check compares
 /// sampled indices against `0..rows.len()`, which catches a row deleted
-/// from the middle and does NOT catch a variant appended past the end.
-/// `crates/editor-core/tests/display_contract.rs`'s
-/// `naming_error_display_names_its_content_not_its_struct` closes that
-/// by welding a written roster to the rendered cases with a set
-/// difference: a roster entry with no case, a case outside the roster
-/// and a misspelling in either all fail. The residual hole is the one
-/// `assert_f6_every_variant`'s own doc states — a variant given its
-/// exhaustiveness arm and NEITHER a case NOR a roster entry — which
-/// safe Rust cannot close over a type that crate does not own.
+/// from the middle and **stays green for a variant appended past the
+/// end** — measured. `crates/editor-core/tests/display_contract.rs`'s
+/// `NAMING_ERROR` census closes exactly that: the `f6_variants!` ident
+/// list writes the wildcard-free `match` AND the roster, so the probe
+/// stops that file compiling, the only fix is to add the ident, adding
+/// the ident adds it to the roster, and the set difference then reds
+/// until it has a rendered case. No step of that chain is green —
+/// measured too.
 #[derive(Debug)]
 pub enum NamingError {
     /// A would-be duplicate name outside the tie path (the

@@ -1237,36 +1237,32 @@ fn a_non_finite_clash_that_is_not_the_empty_set_does_not_claim_to_be() {
     );
 }
 
-/// `NamingError`'s exhaustiveness token; wildcard-free, as
-/// [`node_pick_error_is_exhaustive`].
-fn naming_error_is_exhaustive(e: &NamingError) {
-    match e {
-        NamingError::Duplicate { .. }
-        | NamingError::Unnamed { .. }
-        | NamingError::MissingUpstream { .. }
-        | NamingError::Emission { .. }
-        | NamingError::SplitLineage(_)
-        | NamingError::FragmentLineage { .. }
-        | NamingError::SeamVertexParentage { .. }
-        | NamingError::SharedRim { .. }
-        | NamingError::Band(_)
-        | NamingError::Escalated { .. } => (),
-    }
+test_utils::f6_variants! {
+    /// `NamingError`'s census: one ident per variant, feeding both the
+    /// wildcard-free `match` rustc checks and the identifier roster the
+    /// weld compares against the rendered cases.
+    ///
+    /// This enum's sentences are checked in its own crate
+    /// (`names::emit`'s `display_tests`), which is where the framing a
+    /// variant must open with lives. What that suite cannot do is
+    /// notice a variant with no sample at all: its coverage check
+    /// compares sampled indices against `0..rows.len()`, which a
+    /// variant APPENDED past the end satisfies — measured, by adding a
+    /// probe variant and watching it stay green. This census is what
+    /// closes that.
+    const NAMING_ERROR: NamingError = [
+        Duplicate,
+        Unnamed,
+        MissingUpstream,
+        Emission,
+        SplitLineage,
+        FragmentLineage,
+        SeamVertexParentage,
+        SharedRim,
+        Band,
+        Escalated,
+    ];
 }
-
-/// The identifier roster; welded by the set difference.
-const NAMING_ERROR_VARIANTS: &[&str] = &[
-    "Duplicate",
-    "Unnamed",
-    "MissingUpstream",
-    "Emission",
-    "SplitLineage",
-    "FragmentLineage",
-    "SeamVertexParentage",
-    "SharedRim",
-    "Band",
-    "Escalated",
-];
 
 /// Two distinct keys of each kind, out of ONE real arena — slotmap keys
 /// have no hand constructor, and two bodies hand out the same index
@@ -1295,13 +1291,10 @@ fn keys() -> (topo::EdgeKey, topo::FaceKey, topo::VertexKey) {
 /// The emitter's refusals are the one route by which a naming failure
 /// reaches a human (Python's typed exception text is exactly this
 /// string), and this crate's own `display_tests` check what each
-/// SENTENCE says. What they cannot check is that every variant has a
-/// sample at all: their coverage test compares the sampled indices
-/// against `0..rows.len()`, which a variant appended past the end
-/// satisfies. This harness welds the sampled set to a written roster by
-/// set difference, which is the check that fails for the appended
-/// variant — so the two live together rather than one replacing the
-/// other.
+/// SENTENCE says — which framing it opens with, that it leaks no braced
+/// payload, that it carries its subject. What they cannot check is that
+/// every variant has a sample at all. This does, and the two live
+/// together rather than one replacing the other.
 #[test]
 fn naming_error_display_names_its_content_not_its_struct() {
     let (edge, face, vertex) = keys();
@@ -1375,10 +1368,5 @@ fn naming_error_display_names_its_content_not_its_struct() {
             vec!["side_of_plane", "escalated"],
         ),
     ];
-    assert_f6_every_variant(
-        &cases,
-        naming_error_is_exhaustive,
-        NAMING_ERROR_VARIANTS,
-        &[],
-    );
+    assert_f6_every_variant(&cases, &NAMING_ERROR, &[]);
 }
