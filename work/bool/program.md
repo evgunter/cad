@@ -16,8 +16,11 @@ Operand gates and containment doors that refuse or mis-admit legal inputs —
 `topo/boolean`, `splitting`, containment — plus the PATHS lattice work the
 Q1 ruling chain produced (the straight continuation, the point-target
 continuation, the declared arrival at the seam, the RawLoop demotion and the
-`arc_continue` retirement), and SMELL track Q's topo rows. BOOL-1/2/3/8/11/13
-are merged; BOOL-12 is under review, BOOL-9/10 are specced behind it, and
-BOOL-4/5/6/7 and the Q-track lanes queue on the shared lane budget. Charter,
+`arc_continue` retirement), and SMELL track Q's topo rows. BOOL-1/2/3/8/11/13/12/9/10/5/6/7
+are merged and BOOL-4 lands last; the exit walk is proposed
+(`docs/S-BOOL-EXIT-WALK.md`) and the slate is re-homed — the lattice
+items to the successor PATHS, the rest to CURVED/TOPO/BLEND/GUARD/LIB/
+WIRE/PRED/S-TINT/PROPS by file — so this directory closes at the
+walk's ratification. Charter,
 ratified ground, the three rulings and the unit list: `work/bool/plan.md`;
 narrative in `work/bool/log.md`. Same orchestrator as S-MESH.
