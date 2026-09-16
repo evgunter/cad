@@ -2,11 +2,12 @@
 id: nodepick-name-doors-take-a-second-evaluation-unpaired
 kind: issue
 title: NodePick::patch_names and boundary_names take a second evaluation and check no pairing
-status: review
+status: closed
 opened: 2026-09-16
 refs: [2723, 1098]
 branch: edit/nodepick-pairing
 pr: 2773
+closed: 2026-09-16
 ---
 
 ## What
@@ -192,3 +193,21 @@ the raw-key class, not this one. Not taken from the review: splitting
 `pick.rs` (a TINT-shaped row if anyone wants it) and a public
 `PickTarget::document()` accessor (no caller, and one would re-open the
 mint the private fields closed).
+
+## Closed (2026-09-16, EDIT orchestrator)
+
+Built and merged as PR #2773 after one opus style review (MERGEABLE:
+three MINOR, two NOTE, ten style findings, every one taken in the fix
+pass). `NodePick` carries its document's identity from the evaluation
+that built it; `patch_names`, `boundary_names` and `pick_face` refuse a
+mispaired evaluation through `ident::mispaired` before reading it, in
+`HitTestError`'s own arm; the memo's document comparison has its first
+row; `PickTarget` cannot be re-stamped (its fields are private, its two
+mints read the document off the evaluation); the six-then-eight hand
+copies of the mispairing projection are `From<Mispaired>` impls. A2a's
+list gains the three doors and its rule gains the qualifier it always
+meant — both halves must carry a stamp — recorded as a description
+moved by the change, with `git log -S` finding no ratification of the
+sentence replaced. Residue in its own file:
+`pick-face-raw-target-path-survives-only-for-rows` (the raw target
+path stays for four rows and is a claim in every half, measured).
