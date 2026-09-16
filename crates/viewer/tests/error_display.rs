@@ -141,6 +141,17 @@ fn scene_error_names_the_counts_it_carries() {
     assert!(delta.contains("-1"), "{delta}");
     prose(&delta, "InvalidDisplayTolerance");
 
+    // The second δ arm, whose whole point is that it is NOT the first:
+    // the value it names is a finite, strictly positive length, and
+    // what it lacks is a millimetre reading.
+    let coarse = SceneError::DisplayToleranceOverflowsMillimetres { delta: 1.0e306 }.to_string();
+    assert!(coarse.contains("1e306"), "{coarse}");
+    assert!(
+        coarse.contains("millimetre"),
+        "the arm says what the δ lacks, not that it is not a length: {coarse}"
+    );
+    prose(&coarse, "DisplayToleranceOverflowsMillimetres");
+
     prose(&SceneError::EmptyMesh.to_string(), "EmptyMesh");
 
     let mispaired = SceneError::MispairedIds { ids: 2, patches: 3 }.to_string();
