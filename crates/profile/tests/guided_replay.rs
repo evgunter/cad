@@ -273,6 +273,7 @@ fn guided_replay_consumes_the_recorded_pick_rather_than_ranking() {
             candidate: 1 - d.candidate,
             ..d.clone()
         }],
+        ..structure.clone()
     };
     let flipped = replay_guided(&program, &other, tol())
         .expect("the other pocket is a valid fillet of the same legs");
@@ -392,6 +393,7 @@ fn the_hairline_lens_at_interval_consumes_the_recorded_pick() {
             candidate: 1 - d.candidate,
             ..d.clone()
         }],
+        ..structure.clone()
     };
     match replay_guided(&lifted, &other, tol()) {
         // The other pocket built: same arity, and the two are
@@ -454,6 +456,7 @@ fn a_flipped_fit_sign_refuses_typed_naming_it() {
             },
             ..d.clone()
         }],
+        ..structure.clone()
     };
     let err = replay_guided(&program, &lie, tol()).expect_err("the fit sign is contradicted");
     let ReplayErrorKind::Path(PathError::Structure(refusal)) = err.kind else {
@@ -471,6 +474,60 @@ fn a_flipped_fit_sign_refuses_typed_naming_it() {
             found: DecisionValue::Sign(_),
         }
     ));
+}
+
+/// **A record whose per-step segment span this pass did not reproduce
+/// refuses TYPED, naming the step** — the span is consumed the way a
+/// fillet decision is, not carried along unread.
+///
+/// The span a lane could actually move is the one a fit gate decides
+/// (an exact fit emits the arc alone where an overrun emits a straight
+/// leg before it), and under guidance the fit signs come from the
+/// record, so the elaboration cannot drift there on its own. What this
+/// row pins is that the comparison HAPPENS: a record claiming a step
+/// reached one more segment than it did is refused rather than
+/// accepted, which is the state in which a future arm could emit a
+/// different chain under a record that says otherwise.
+#[test]
+fn a_lying_step_span_refuses_typed_naming_the_step() {
+    let program = vesica_lens(0.0);
+    let (_, structure) = replay_recording(&program, tol()).expect("the lens replays");
+    let step = structure
+        .steps
+        .iter()
+        .position(|s| !s.is_empty())
+        .expect("some step of the lens produced a segment");
+    let mut lie = structure.clone();
+    lie.steps[step] = profile::StepSpan::new(
+        structure.steps[step].start,
+        structure.steps[step].end + 1,
+    );
+    let err = replay_guided(&program, &lie, tol()).expect_err("the span is contradicted");
+    let ReplayErrorKind::Path(PathError::Structure(refusal)) = err.kind else {
+        panic!("expected a structure refusal, got {:?}", err.kind);
+    };
+    assert_eq!(refusal.decision, Decision::StepSpan { step });
+    assert!(matches!(
+        refusal.kind,
+        StructureRefusalKind::Flipped {
+            recorded: DecisionValue::Span(_),
+            found: DecisionValue::Span(_),
+        }
+    ));
+    // Both sides reach the sentence as words, through the span's own
+    // `Display` — the vocabulary rule the refusal payloads all follow.
+    let rendered = refusal.to_string();
+    for want in [
+        format!("the segments step {step} produced"),
+        structure.steps[step].to_string(),
+        lie.steps[step].to_string(),
+    ] {
+        assert!(rendered.contains(&want), "{rendered:?} is missing {want:?}");
+    }
+    assert!(
+        !rendered.contains("StepSpan"),
+        "the Debug spelling leaked into the sentence: {rendered}"
+    );
 }
 
 /// A record from a DIFFERENT program is refused at its own shape: no

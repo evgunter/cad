@@ -103,12 +103,95 @@ pub struct FilletDecision {
     pub fit_out: Sign,
 }
 
+/// The segments one authored step produced: a half-open range of
+/// PRE-CANONICAL segment indices, in the chain the replay emitted.
+///
+/// A step is not one segment. An entry verb and a verb that only binds
+/// a direction produce none; a fillet arrival produces the trimmed
+/// straight leg AND the arc; a complete-loop carrier form produces the
+/// whole loop. The range is the honest shape for all three, and it is
+/// contiguous because the chain grows only at its head: segment `k`
+/// leaves vertex `k`, so a step produces exactly the segments whose
+/// end vertices it pushed, plus the seam segment when it is the
+/// closing step.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct StepSpan {
+    /// The first segment index this step produced.
+    pub start: usize,
+    /// One past the last — equal to `start` where the step produced no
+    /// segment at all.
+    pub end: usize,
+}
+
+impl StepSpan {
+    /// The span `start..end`.
+    #[must_use]
+    pub fn new(start: usize, end: usize) -> Self {
+        Self { start, end }
+    }
+
+    /// How many segments the step produced.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.end.saturating_sub(self.start)
+    }
+
+    /// Whether the step produced no segment.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.end <= self.start
+    }
+
+    /// The segment indices, ascending.
+    pub fn iter(&self) -> impl Iterator<Item = usize> + use<> {
+        self.start..self.end
+    }
+}
+
+impl core::fmt::Display for StepSpan {
+    /// The span as prose — the spelling a user-facing message uses, so
+    /// a rendered span never leans on `Debug`. An empty span says so in
+    /// words: a printed `3..3` reads as a range rather than as nothing.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if self.is_empty() {
+            f.write_str("no segment")
+        } else if self.len() == 1 {
+            write!(f, "segment {}", self.start)
+        } else {
+            write!(f, "segments {}..{}", self.start, self.end)
+        }
+    }
+}
+
 /// The structure one replay selected, for one loop: its fillet
-/// resolutions in the order the program reached them.
+/// resolutions in the order the program reached them, and which
+/// segments each authored step became.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ReplayStructure {
     /// The fillet resolutions, in resolution order.
     pub fillets: Vec<FilletDecision>,
+    /// Per authored step, in program order, the segments it produced.
+    ///
+    /// A decision like the fillets beside it rather than a measurement:
+    /// WHICH arm of the transition table ran, and so how many segments
+    /// it emitted, is structure — a fit gate that suppresses a
+    /// zero-length straight piece is exactly where the count moves — so
+    /// a guided pass re-verifies the span at its own scalar instead of
+    /// re-deriving it.
+    pub steps: Vec<StepSpan>,
+}
+
+impl ReplayStructure {
+    /// The record of a COMPLETE-LOOP CARRIER form (`circle`,
+    /// `circle_split`): one authored step that produced every segment
+    /// of the loop, and no fillet resolution anywhere in the form.
+    #[must_use]
+    pub fn carrier(segments: usize) -> Self {
+        Self {
+            fillets: Vec::new(),
+            steps: vec![StepSpan::new(0, segments)],
+        }
+    }
 }
 
 /// A segment's structural shape — the part of a classification that is
@@ -258,6 +341,11 @@ pub enum Decision {
         /// The canonical segment index.
         segment: usize,
     },
+    /// The segments one authored step produced.
+    StepSpan {
+        /// The step's index in program order.
+        step: usize,
+    },
     /// A loop's declared tangent-joint set after canonicalization.
     TangentJoints {
         /// The loop's input index.
@@ -306,6 +394,8 @@ pub enum DecisionValue {
     Set(Vec<usize>),
     /// A loop role.
     Role(LoopRole),
+    /// The segments one authored step produced.
+    Span(StepSpan),
 }
 
 /// Why a guided pass could not reproduce the recorded structure.
@@ -414,6 +504,7 @@ impl core::fmt::Display for Decision {
             Self::SegmentShape { loop_, segment } => {
                 write!(f, "loop {loop_}'s canonical segment {segment}")
             }
+            Self::StepSpan { step } => write!(f, "the segments step {step} produced"),
             Self::TangentJoints { loop_ } => write!(f, "loop {loop_}'s declared tangent joints"),
             Self::GuideNotInstalled => {
                 write!(f, "the guide's installation into the chain's core")
@@ -442,6 +533,7 @@ impl core::fmt::Display for DecisionValue {
             Self::Inside(b) => write!(f, "inside = {b}"),
             Self::Set(v) => write!(f, "indices {v:?}"),
             Self::Role(r) => write!(f, "{r}"),
+            Self::Span(s) => write!(f, "{s}"),
         }
     }
 }
@@ -591,13 +683,22 @@ impl<T: Real> Guide<T> {
     /// the prefix of its input the elaboration genuinely reached, so a
     /// program with fewer resolutions than the record describes is
     /// visible to the caller as the shorter record it produced.
-    pub(crate) fn into_record(self) -> ReplayStructure {
+    ///
+    /// `spans` is what THIS pass emitted, whichever arm it ran under:
+    /// a guided pass reports the spans it reproduced rather than the
+    /// ones it was handed, because the caller's comparison is only
+    /// worth making against a value the pass actually produced.
+    pub(crate) fn into_record(self, spans: Vec<StepSpan>) -> ReplayStructure {
         match self {
-            Self::Recording(s) => s,
+            Self::Recording(mut s) => {
+                s.steps = spans;
+                s
+            }
             Self::Guided {
                 mut record, next, ..
             } => {
                 record.fillets.truncate(next);
+                record.steps = spans;
                 record
             }
         }

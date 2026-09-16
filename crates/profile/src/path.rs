@@ -2227,6 +2227,13 @@ pub struct Core<T: Real> {
     /// they lower. Each binder pushes exactly its own step, so one
     /// chain yields both the lowered loop and its program.
     program: Vec<Step<T>>,
+    /// The chain length each recorded step found, parallel to
+    /// `program`: `step_starts[j]` is `verts.len()` at the moment step
+    /// `j` was recorded, which is BEFORE its own emission (every row
+    /// records, then constructs). Two consecutive entries bracket the
+    /// vertices one step pushed, and so the segments it produced —
+    /// [`Core::step_spans`] does that arithmetic once, at the close.
+    step_starts: Vec<usize>,
     /// How this lowering treats the discrete decisions inside it:
     /// selecting freely and recording what it selected, or consuming a
     /// prior elaboration's selections and re-verifying each at this
@@ -2247,6 +2254,7 @@ impl<T: Real> Core<T> {
             pending_meta: None,
             fillet_arcs: Vec::new(),
             program: Vec::new(),
+            step_starts: Vec::new(),
             guide: crate::structure::Guide::recording(),
         }
     }
@@ -2269,9 +2277,38 @@ impl<T: Real> Core<T> {
         &mut self.guide
     }
 
-    /// Records one authoring verb (record-as-you-lower).
+    /// Records one authoring verb (record-as-you-lower), with the
+    /// chain length it starts from — the left end of the span it is
+    /// about to produce.
     fn record(&mut self, step: Step<T>) {
         self.program.push(step);
+        self.step_starts.push(self.verts.len());
+    }
+
+    /// Which segments each recorded step produced, in program order.
+    ///
+    /// Segment `k` leaves vertex `k`, so pushing vertex `v` completes
+    /// segment `v - 1`: a step that ran while the chain grew from `a`
+    /// to `b` vertices produced segments `a-1 .. b-1`. The CLOSING step
+    /// produces one more — the seam segment, which leaves the chain's
+    /// last vertex and needs no vertex of its own — so the final span
+    /// ends at the vertex count rather than one below it. An entry verb
+    /// starts from an empty chain and produces nothing; `saturating_sub`
+    /// is that case and not a guess.
+    fn step_spans(&self) -> Vec<crate::structure::StepSpan> {
+        let closed = self.verts.len();
+        self.step_starts
+            .iter()
+            .enumerate()
+            .map(|(j, &a)| {
+                let end = match self.step_starts.get(j + 1) {
+                    Some(&b) => b.saturating_sub(1),
+                    None => closed,
+                };
+                let start = a.saturating_sub(1);
+                crate::structure::StepSpan::new(start, end.max(start))
+            })
+            .collect()
     }
 
     /// Seeds the entry vertex (the chain's provisional first vertex —
@@ -2383,6 +2420,7 @@ impl<T: Real> Core<T> {
     /// Finishes the loop, returning it PAIRED with the program that
     /// produced it (see [`ClosedLoop`]).
     fn finish(mut self) -> ClosedLoop<T> {
+        let spans = self.step_spans();
         let structure = self.take_structure();
         ClosedLoop {
             loop_: ProfileLoop {
@@ -2390,7 +2428,7 @@ impl<T: Real> Core<T> {
                 tangent_joints: self.tangent,
             },
             program: self.program,
-            structure: structure.into_record(),
+            structure: structure.into_record(spans),
         }
     }
 }
