@@ -904,3 +904,80 @@ rather than a duplicate.
 
 **Territory**: `crates/editor-core/src/persist/*` is EDIT's and
 `crates/pncad-py/*` is LIB's; both announced on the PR.
+
+### Fix pass (2026-09-16)
+
+The full review returned no MAJOR, two MINORs and one style finding the
+orchestrator escalated to a must-fix because the repo has a written
+standard for it. Six things moved.
+
+**The refusal channel is a type now, not a paragraph.**
+`docs/PERF-SCAN-2026-08.md` §2.4 sets the bar for a production value
+delivered by thread-local side effect — RAII, loud re-entrancy,
+type-enforced thread confinement, coupling visible at both ends — and
+`work/scalar/D283.md` records `k_stats`'s outcome in one line: *"The
+thread-local stays; its correctness is now a type."* The first draft's
+slot met none of the four; its clear-before-parse made re-entrancy safe
+by silently discarding the outer refusal, which is criterion 2
+inverted. It is now `refusal::Parse`, a `!Send`, `Drop`-closed frame
+stack — `Bracket`'s shape one frame deep. Re-entrancy composes rather
+than overwrites, and `record` outside a parse is a no-op, which is
+strictly better than the clear-before it replaces: a `from_str` of one
+wire type can no longer arm anything. **All four met**, with one
+qualification: the `compile_fail` doctest that pins `!Send` for
+`Bracket` cannot run for a private module, so what stands is the bound
+and the type's single construction site.
+
+**One fault, one arm.** An off-table display-unit symbol on an
+expression literal arrived typed with no recourse; the same symbol on a
+document PARAMETER went through `UnitSym`'s own `Deserialize` and
+arrived `unreadable` with *"regenerate the file from its source
+recipe"* — advice that reproduces the refusal. The unit's own sweep had
+dispositioned that site **(b), correct**, which was defensible before
+this diff and is exactly what this diff changed. `UnitSym` now records
+into the frame, so both routes are `PersistError::Dimension` with
+`inner_variant == "unknown_display_unit"`. A `test_notation.py` row had
+pinned the split; it now pins the union and says what it used to say.
+
+**The door count was wrong three ways** — four in one file, three in
+two others, four implied in a fourth. It is **six doors, four classes,
+three attribute spellings**, and the count is now stated ONCE
+(`ErrorClass::DIMENSION_DOORS`) with the other three pointing at it,
+because each carrying its own is how they diverged.
+
+**The defect survived at a sibling route through this unit's own
+door.** `py/doc.rs`'s `EditReplay` arm projects `edit_error_tag` only,
+so a replayed `SetExpression` refusal reaches Python as
+`inner_variant='dimension'` with the actual check surviving in the
+message — and the PR called that arm *"the model the new one copies"*.
+It is one rung short. Filed rather than fixed (`persist_err`'s tuple
+has one `inner_variant` slot and this arm nests two levels, so the fix
+is a public payload decision), with a kernel-side row proving
+reachability: it has to be a TAMPERED file, because `save` replays the
+log through the same doors.
+
+**Two premises in this crate's own files were false after the diff**
+and are corrected: `persist/mod.rs`'s header said the arm is decided by
+serde_json's classification *"and by nothing else"*, and framed
+`Unreadable` as the one door for `Data`.
+
+**The "first refusal wins" premise is a gate**, not a reading:
+`scripts/gates/persist-no-backtracking.sh` refuses `untagged`, `other`,
+`flatten`, an unallowlisted `deserialize_with` and a
+`serde_json::Value` intermediate across `editor-core`, with nine
+self-test cases. The review named two blind spots the first draft's
+prose had missed (`flatten` and a `Value` intermediate — plus a
+backtracking `deserialize_with` and a retrying visitor); all are in the
+matcher or in the stated gaps.
+
+**And the disclosed cost named the wrong precedent.** `product.rs`'s
+gather counter is a `cfg(debug_assertions)` counter and the least like
+this of the nine thread-locals in `crates/`. The family is
+`geom-core/src/sym/report.rs` and `sym/profile.rs` — the same
+install/record/take scaffold spelled twice, each saying so at its copy
+— plus `k_stats`. `refusal.rs` names them.
+
+Rows filed: two more on LIB
+(`persist-inner-variant-stops-one-rung-above-the-check`,
+`literalerror-publishes-its-tag-under-two-names`), bringing this unit's
+§6 total to four.
