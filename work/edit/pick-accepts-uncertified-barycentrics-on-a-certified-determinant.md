@@ -70,59 +70,59 @@ not COVER it. `docs/EDIT-PICK2-SPEC.md` binds the unit; block EDIT-B1
 slot 1. This row and `pick-closed-acceptance-loses-a-graze-to-rounding`
 close together.
 
-## Built (2026-09-16) — the ruled conjunction, built, measured and REVERTED
 
-The ruling was implemented in full and executed; three of
-`docs/EDIT-PICK2-SPEC.md`'s six acceptances are unreachable under it,
-and the spec's premise 1 is false on the tree. Nothing of the
-acceptance change landed. The implementation is recoverable at
-`git show f096d84c5` (this branch): the derived interval
-(`barycentric_intervals`, one forward bound per barycentric in the
-`DETERMINANT_ERROR_UNITS` style, sharing the triple product's bound
-with the certification), the MEET ∧ INFORM acceptance, the re-stated
-boundary pins with their three mutants, the uninformative fixture and
-the example ray's row.
+## RE-RULED (EDIT orchestrator, 2026-09-16) — the closed comparison ∧ INFORM
 
-**Premise 1 is false.** The spec says the example candidate carries
-"a barycentric error bound near 100" and "refuses at INFORM". It does
-not. On the bumped gallery ring the `−y` ray through the vertex
-`(0.24519632010080758, 0, 0.04877258050403218)` at `reach = 1.48` has
-flat triangle 35 as its winner, `det = 1.66e-19`, and the derived
-intervals are `u = 0.367 ± 0.466`, `v = 0.459 ± 0.218`,
-`u + v = 0.827 ± 0.684`. None of the three covers `[0, 1]`, so the
-candidate is INFORMATIVE by the ruling's own definition and is
-admitted; the ray still answers `t = 1.4487652724897624`, `0.031`
-before the vertex. No reading of INFORM as ruled refuses a bound of
-`0.47`, so acceptance 1 is unreachable under the conjunction, under
-INFORM alone and under MEET alone.
+The conjunction above was built, executed and measured; MEET trades
+order independence and the spec's example was mis-stated. The
+orchestrator re-ruled on the measurement to the item's THIRD shape,
+alone: a candidate is admitted iff each of `u`, `v` and `u + v` is in
+the closed range AND its interval does not cover it. The amendment is
+`docs/EDIT-PICK2-SPEC.md` §"Amended at the fix pass (2026-09-16)".
+This row no longer closes with
+`pick-closed-acceptance-loses-a-graze-to-rounding`, whose carry is
+dropped.
 
-**The three rules measured**, over `index_memo`'s tie-break aim at
-every landing of the corpus and the gallery ring (19 296 rays;
-`git show f096d84c5:crates/viewer/tests/index_memo.rs`, `probe_tie_aim`):
+## Built (2026-09-16)
 
-| acceptance | aimed rays answering beyond the aim or missing | `Pruned` ≠ `Every` | winners with a bound ≥ 1 | widest winner bound |
-| --- | --- | --- | --- | --- |
-| the closed comparison (`main`) | 149 | 0 | 45 | 7.35 |
-| MEET ∧ INFORM (ruled) | 129 | **2** | **3** | 1.99 |
-| the closed comparison ∧ INFORM | 149 | 0 | 0 | 0.684 |
+**Landed.** `ray_triangle` reads each barycentric as the interval its
+own rounding bound gives it and refuses any whose interval COVERS
+`[0, 1]`. What that buys, in the item's own terms: a value inside the
+range whose bound is `1` or more necessarily covers it, so **no
+admitted barycentric — and so no winner — carries a bound that wide**,
+which is the defect this row was opened for. The item's counts of
+winners at a bound of 1 or more (44 over the tie-break aim, 203 over
+the wide aim) are zero by construction, asserted per ray rather than
+pinned as a number.
 
-So: acceptance 3 (`Pruned == Every`, "order independence is not
-traded") is broken BY the ruling — MEET admits a barycentric outside
-`[0, 1]` and the hit point then leaves the triangle, filed as
+- `barycentric_intervals` is a third public door beside `ray_triangle`
+  and `certified_determinant`, answering
+  `[(u, err_u), (v, err_v), (u + v, err_sum)]` so a corpus row reads
+  the door's own numbers instead of an oracle of its own.
+- the bound is derived at the site and shares the certification's
+  arithmetic: `triple_bound(a, b, c)` serves all three triple products
+  the test evaluates (`e1·(d × e2)`, `s·(d × e2)`, `d·(s × e1)`) and
+  `certify` now answers the determinant WITH its bound. One further
+  counted constant, `QUOTIENT_ERROR_UNITS = 2`, for the division's two
+  roundings. No tuned number.
+- the acceptance is spelled once, in `admits(x, err)`.
+- rows: the closed boundary pins keep their one-ULP-each-way shape
+  (nothing on an exact fixture is uninformative); a static `ζ = 2⁻²⁰`
+  near-tangent fixture whose `k` dial moves the intervals without
+  moving `u = v = 0.5`, at `k = 8` killing the drop-INFORM mutant and
+  at `k = 32` killing halve-the-bound; `index_memo`'s
+  `reference_answers` asserting per ray that no winner's bound reaches
+  `1`, beside the `Pruned == Every` claim it already carried.
+- `review_pick_r2`'s tally re-baselined: rays answered at the aimed
+  vertex `141 094` → `141 106`. The other three columns do not move —
+  they count refusals AT the determinant, which this change does not
+  touch, so the spec's premise 2 was mis-stated as well.
+
+**What did not land, and where it went.** The example ray is a
+measurement row, not a fix: its candidate's intervals are
+`0.367 ± 0.466`, `0.459 ± 0.218`, `0.827 ± 0.684` — wide but
+informative, admitted by every shape of the ruling — and the class is
+`pick-a-wide-but-informative-barycentric-wins-over-the-transversal-neighbour`,
+a ruling about `t`'s own interval. MEET's own cost is
 `pick-hit-point-from-an-out-of-range-barycentric-leaves-the-triangle`.
-Acceptance 5 ("zero winners with bound ≥ 1") is false under the
-conjunction and true only under the closed comparison ∧ INFORM, where
-a value inside `[0, 1]` with a bound ≥ 1 necessarily covers the range.
-MEET's own gain is real but small: 20 of 149 aimed rays recovered,
-so the carried row `pick-closed-acceptance-loses-a-graze-to-rounding`
-does not close either.
-
-**What the measurement says the ruling should be**, as a
-recommendation and not a decision: the two halves do not compose the
-way the ruling assumed. INFORM is the half that removes the noise
-class, and it does so only while the comparison that bounds `u` and
-`v` keeps them inside the range — MEET is what lets a wide interval
-sit outside `[0, 1]` and still win. Closing the graze row as well
-needs MEET plus an answer to the box-entry row above, and closing
-THIS row needs a line on the bound that `0.47` falls the wrong side
-of, which the ruling's "covers the admissible range" is not.
+The graze-loss row stays open with its carry cleared.

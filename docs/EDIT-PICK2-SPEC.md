@@ -108,3 +108,85 @@ nothing in `bvh`.
   neighbour answers (a hit becomes a miss on the tie-break aim): stop,
   push, report the ray and the intervals.
 - The bound cannot be derived without a constant you would tune.
+
+## Amended at the fix pass (2026-09-16)
+
+The ruling above falls and is replaced. The lane built it, executed
+it, and measured two things it does not do; the orchestrator re-ruled
+on that measurement. The amended ruling is **the closed comparison ∧
+INFORM** — the item's third shape, which this spec rejected on
+reasoning the table below overturns:
+
+> a candidate is admitted iff each of `u`, `v` and `u + v` is in the
+> closed range `[0, 1]` AND its interval does not COVER that range
+> (`x − err > 0` or `x + err < 1`). One derived bound, one predicate,
+> spelled once.
+
+The two halves compose where MEET and INFORM did not: a value inside
+`[0, 1]` whose bound is `1` or more necessarily covers the range, so
+**no admitted barycentric carries a bound that wide** — which is the
+property the item was opened for, and which the conjunction above did
+not deliver.
+
+### The measurement that forced it
+
+`index_memo`'s tie-break aim at every landing of the corpus and the
+gallery ring, 19 296 rays, one run per rule with only the acceptance
+predicate changed between them:
+
+| acceptance | aimed rays answering beyond the aim or missing | `Pruned` ≠ `Every` | winners with a bound ≥ 1 | widest winner bound |
+| --- | --- | --- | --- | --- |
+| the closed comparison (`main`) | 149 | 0 | 45 | 7.35 |
+| MEET ∧ INFORM (the ruling above) | 129 | **2** | **3** | 1.99 |
+| the closed comparison ∧ INFORM (amended) | 149 | 0 | **0** | 0.684 |
+
+MEET admits a barycentric outside `[0, 1]`; the hit point
+`a + u·e1 + v·e2` then leaves the closed triangle and its projected
+`t` can precede the parameter at which the ray enters the candidate's
+own box, so the caller's early-out stops before a candidate that would
+have won (`hollow_tube_elbow` after the first edit, ray 136: `9.567`
+pruned against `9.5208` over every candidate). That is the order
+independence acceptance 3 said was not for trading, and it is filed as
+`work/edit/pick-hit-point-from-an-out-of-range-barycentric-leaves-the-triangle`.
+
+### Premise 1 was mis-stated
+
+"What I verified" (1) says the example candidate carries "a
+barycentric error bound near 100" and refuses at INFORM. Under this
+unit's derived bound its intervals are `u = 0.367 ± 0.466`,
+`v = 0.459 ± 0.218`, `u + v = 0.827 ± 0.684` — wide, but informative,
+and admitted by every shape of the ruling. Nor is its class this row's:
+a certified-but-near-coplanar candidate whose barycentrics are
+informative but wide, winning on `t` over the transversal neighbour at
+the aimed vertex, is filed as
+`work/edit/pick-a-wide-but-informative-barycentric-wins-over-the-transversal-neighbour`
+and is a ruling about `t`'s own interval.
+
+Premise 2 is mis-stated too: the ruling moves neither "candidates
+refused" nor "rays with a refusal", which count refusals AT the
+determinant and are untouched. The column that moves is the third
+claim's — rays answered at the aimed vertex, `141 094` → `141 106`.
+
+### The acceptances, as amended
+
+1. **The example ray is a MEASUREMENT row, not a red probe**: it pins
+   today's answer (`t = 1.4487652724897624`, the near-coplanar
+   candidate, its three intervals, and the transversal neighbour that
+   answers at `1.48` and loses) as the class this unit does NOT close,
+   with the row above carrying it.
+2. **The graze-loss row stays open** and is dropped from this unit's
+   carry: MEET is what would close it, and MEET was measured to trade
+   order independence.
+3. **Order independence holds**: `Pruned == Every` on every landing,
+   and no winner's barycentric carries a bound of `1` or more —
+   both asserted per ray in `index_memo`'s `reference_answers`.
+4. **The boundary pins**: a hit exactly on a boundary (accepted), one
+   ULP outside (refused, closed), and an uninformative candidate
+   INSIDE the range (refused at INFORM), each with the mutant it
+   kills — drop-INFORM and halve-the-bound, on a static `ζ = 2⁻²⁰`
+   fixture whose `k` dial moves the intervals without moving `u`, `v`
+   or `u + v`.
+5. **Zero winners with a bound ≥ 1**, asserted rather than pinned:
+   the count is derivable from the acceptance, and a pinned `0` would
+   read as a baseline.
+6. The derivation at the site, one paragraph in `ray_triangle`'s doc.

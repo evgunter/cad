@@ -54,4 +54,11 @@ untried:
 
 The first is a change to what `ray_triangle` answers, not to what it
 admits, so it is a ruling of its own and not resolved by implementing
-it.
+it. It is the same ruling
+`pick-a-wide-but-informative-barycentric-wins-over-the-transversal-neighbour`
+waits on — what the door answers for `t`, and with what width — and
+`pick-closed-acceptance-loses-a-graze-to-rounding` waits on both,
+since MEET is what would close it.
+
+EDIT-PICK2 landed the half that does not need this row (the closed
+comparison ∧ INFORM); this row is why the other half did not land.
