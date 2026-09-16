@@ -140,6 +140,10 @@ mod edit_doc_param_unit;
 mod edit_one_predicate;
 #[path = "edit_pair_apply_names.rs"]
 mod edit_pair_apply_names;
+#[path = "edit_recorded_notation.rs"]
+mod edit_recorded_notation;
+#[path = "edit_ruled_carve.rs"]
+mod edit_ruled_carve;
 #[path = "edit_step_segments.rs"]
 mod edit_step_segments;
 #[path = "eval10_section_reads_the_nominal.rs"]
@@ -437,6 +441,8 @@ mod review_m6_5_pr2_probes;
 mod review_pick_r2_probes;
 #[path = "ring_r1_names_probe.rs"]
 mod ring_r1_names_probe;
+#[path = "rv_onepred3_probes.rs"]
+mod rv_onepred3_probes;
 #[path = "scalar_frame_r1_probes.rs"]
 mod scalar_frame_r1_probes;
 #[path = "seat4_verb_lowering.rs"]

@@ -12104,3 +12104,76 @@ names, all this crate's own resolving; five of them arrived with this
 unit.
 
 Signed (VIEW implementer lane `view/supersession-lifetime`).
+
+## 2026-09-16 — `view/datums-basis`: the datum basis takes the kernel's door
+
+Two rows, one unit:
+`datums-basis-hand-rolls-the-least-aligned-axis-basis` and
+`datums-unit-helper-normalizes-with-a-silent-x-fallback`.
+`crates/viewer/src/datums.rs`'s `basis` is now
+`UnitVec3::orthonormal_basis`, and the local `dot`, `cross` and `unit`
+helpers are deleted with the seed rule that needed them. The sweep's
+one other in-fence hit, `camera::up` spelling a cross by hand beside
+`Vec3::cross`, is bit-identical and taken here too.
+
+**The ruling was to adopt the door, and the measurement it turned on
+was whether the drawn axis moves. It does.** Over the world axes, the
+equator from both sides of the signed zero, the `<=` ties the local
+rule breaks, and 20,000 random unit normals, the pair turns about the
+normal for every normal sampled — none agreed to within 1e-9°. What a
+reader sees is less: a square grid is symmetric under a quarter turn
+and a tick under a half, so the six world axes (which move by exact
+multiples of 90°) leave the three default PLANES drawing the same
+picture — **while `MAX_GRID_LINES` does not bind; the review of #2783
+measured it binding at 2560 px and the row carries the correction** —
+while an axis datum along ±y or ±z has its end ticks turned 90° about
+itself. Every other normal's grid turns visibly, up to 45°.
+
+Not a cost to weigh: the pair is a display convention with no document
+meaning — the module says so itself, and `a_frames_grid_follows_its_
+own_axes` is the row that exists because a frame must NOT be drawn
+through it. What the trade buys is measured too: the replaced rule is
+discontinuous at each of its three magnitude ties and the kernel's
+door at one seam, the equator, which it states. Three conditions for
+one circle. **The per-crossing figures this entry first carried were
+seam samples read as seam values and are corrected on the row**: all
+three local ties share one profile (grid 0°→30°), and the door's
+equator costs up to 45° of grid, which is worse per crossing, not
+better.
+
+**The dispatch's premise was half wrong and the item's was right.**
+The brief called the overflowed-norm-to-paint-path a live defect that
+nothing catches. Transcribed and executed, `unit` really does return
+`[0,0,0]` for `[1e200; 3]` and `[1,0,0]` for `[1e-200; 3]` — but its
+only two call sites were in `basis`, whose only parameter is a
+`UnitVec3<f64>`, so neither input could arrive. The item's own body
+said so; the dispatch strengthened it. The ruling survives on the
+other two legs (a prose-unreachable fallback is the shape the charter
+rejects, and the viewer was maintaining a conditioning argument for a
+policy it did not decide) — and the correction changes the repair:
+what an unreachable defect justifies is deleting the code that needs
+the argument, not adding a finiteness question to it.
+
+**Base-tree red**, taken from a committed tree at `27d0571b09`, not by
+checkout gymnastics: `a_planes_ruling_runs_along_the_kernels_
+orthonormal_basis` and `an_axis_datums_ticks_run_along_the_kernels_
+first_basis_axis` fail on `origin/main` with the seed rule's directions
+printed; the other two rows are green on both and are labelled as
+standing guards rather than receipts. Four mutations on the fixed tree
+red each row by name — swapping the pair reds the axis row ALONE
+(a grid cannot tell `b1` from `b2`, and the plane row correctly does
+not claim it can), a 30° turn reds the three direction rows, and a
+planted zero axis reds `no_normal_makes_a_datum_draw_something_that_is
+_not_a_drawing` through the axis tick only, because `rule_patch`'s
+`span > 0.0` arm already refuses a collapsed ruling.
+
+**Filed:** `sketch-headings-guard-zero-length-but-not-an-infinite-one`
+(VIEW's own — two `hypot` sites the `sqrt()` pattern could not see,
+both guarding `> 0.0` and both handing back a zero vector for an
+infinite length) and, on MESH's slate,
+`degenerate-normal-rows-model-resolution-cites-a-deleted-helper` — its
+worked resolution cites `datums::unit`'s fallback as the model, and
+the subject is deleted rather than moved, so the sentence cannot be
+repointed.
+
+Signed (VIEW implementer lane `view/datums-basis`).

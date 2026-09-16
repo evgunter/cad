@@ -244,13 +244,20 @@ pub fn corner_reason_tag(reason: &CornerReason<f64>) -> &'static str {
 }
 
 /// The stable tag for a recorded-program lift refusal
-/// (`LoopProgram::from_recorded`). The literal arm carries
-/// the expression layer's own tag through rather than flattening it.
+/// (`LoopProgram::from_recorded` and its notation-bearing twin). The
+/// literal arm carries the expression layer's own tag through rather
+/// than flattening it.
+///
+/// `notation_off_program` flattens its two fields: which step and
+/// which argument role the notation named. Nothing is lost that a
+/// Python caller could not say for itself — it wrote the entry — and
+/// the Rust sentence still names both.
 pub fn recorded_program_error_tag(err: &RecordedProgramError) -> &'static str {
     match err {
         RecordedProgramError::Literal(inner) => expr_dimension_error_tag(inner),
         RecordedProgramError::SubdivisionCount(_) => "subdivision_count",
         RecordedProgramError::CarrierInChain => "carrier_in_chain",
+        RecordedProgramError::NotationOffProgram { .. } => "notation_off_program",
     }
 }
 
@@ -1656,7 +1663,6 @@ pub fn part_fault_tag(fault: &pncad::document::PartFault) -> &'static str {
 /// message; what crosses here is the word a caller branches on.
 pub fn program_fault_tag(fault: &ProgramFault) -> &'static str {
     match fault {
-        ProgramFault::SlotDimension { .. } => "slot_dimension",
         ProgramFault::Lattice { .. } => "lattice",
     }
 }
@@ -1677,7 +1683,9 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::DeclareInput { .. } => "declare_input",
         SnapshotError::WitnessSite { .. } => "witness_site",
         SnapshotError::WitnessOnMissingNode { .. } => "witness_on_missing_node",
-        SnapshotError::CountContinuous { .. } => "count_continuous",
+        SnapshotError::SlotDimension { .. } => "slot_dimension",
+        SnapshotError::SlotUnknownDocParam { .. } => "slot_unknown_doc_param",
+        SnapshotError::SlotDocParamDimension { .. } => "slot_doc_param_dimension",
         SnapshotError::EpsilonInvalid { .. } => "epsilon_invalid",
         // The product-root list's own invariant vocabulary, carried
         // through: a root fault is the same fact here as at the edit

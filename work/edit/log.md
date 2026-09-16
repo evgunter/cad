@@ -354,8 +354,10 @@ applied, and a disagreement asserts. Wave 4, all middle tier: the
 ruled-carve document fixture; one-predicate round three (the load
 door's slot-dimension walk over every node kind, the unreachable
 count/continuous arm deleted, one float predicate for a document
-parameter); the recorded program's argument notation, ruled by D7 and
-the doc-param precedent. The appearance-key unit and the pick-`t`
+parameter); the recorded program's argument notation, ruled by
+DESIGN.md D6 ¶2 and the doc-param precedent (the dispatch said D7; the
+correction is on the item, and the class is
+`work/issues/design-d7-cited-for-the-display-unit-clause-that-is-d6`). The appearance-key unit and the pick-`t`
 kernel unit (block EDIT-B1 slot 2) follow once #2764 merges.
 
 ## 2026-09-16 — third `[ev]` sitting opened: the pick door's `t`, DM7's boundary
@@ -382,3 +384,35 @@ units are spec'd to dispatch as wave-4 slots free: EDIT-PICK3
 (`docs/EDIT-PICK3-SPEC.md`; kernel unit, v6 dual, block EDIT-B1 slot
 2), the appearance-strand arm (middle tier), and DM8's E-class
 follow-through (the assertion, the two docs, one tag retired).
+
+## 2026-09-16 — wave 4 on main: one-predicate round three (PR #2780), the ruled carve (PR #2778), the recorded notation (PR #2779)
+
+Three middle-tier units, each one opus style review and a fix pass.
+Round three closed the load-door trio (`load-door-checks-slot-dimensions-
+for-profile-nodes-only`, `count-continuous-arm-…`, `doc-param-float-
+walk-…`): the review's MAJOR was the hand-written census undercounting
+for the second round running, and the fix pass made the census the
+code's — `persist::check::Walk` is iterated by `validate_document`
+and an exhaustive match places every `SnapshotError` arm, so a new arm
+fails to compile until placed. The ruled carve (`a-ruled-carve-has-no-
+editor-fixture-…`) drives `Node::Fillet` through two documents (convex
+rod, concave rod-on-block) and reads every band-end role's ARGUMENTS
+against the entity its name resolves to, five named mutants; the copied
+D-profile derivation now has one home in S-BOOL/FILLET's test support.
+The recorded notation (`recorded-program-arguments-carry-no-notation`)
+carries a recorded argument's notation beside the recording
+(`RecordedNotation`) and meets it at one door; the unit corrected the
+spec's D7 citation to D6, and the review's D7-for-D6 miscitation class
+is filed cross-program (`work/issues/design-d7-cited-for-the-display-
+unit-clause-that-is-d6`). LIB's `path-legs-erase-the-authored-
+notation-one-layer-down` unparked at the notation merge. Residue rows:
+`load-door-does-not-check-payload-expression-param-refs`,
+`bandfoot-and-bandcross-arguments-are-read-by-no-document-row`,
+`recorded-notation-makes-a-rust-author-count-step-indices`. Wave 5's
+three lanes were dispatched as the slots freed; the DM8 follow-through
+is already merged (E-class, PR #2785: `ProfileEdgeRef` says which
+anchoring it carries, the two-record check asserts, `RecordsDisagree`
+retired; the spec's `pncad-py` half was a wrong premise — no
+per-variant tag exists — and the sweep filed LIB's Python mirror),
+the appearance-strand arm (PR #2784) is in its style review, and
+EDIT-PICK3 is building.

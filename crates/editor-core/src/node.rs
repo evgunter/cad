@@ -496,6 +496,23 @@ impl SlotId {
         }
     }
 
+    /// **Spec D6's slot rule over ONE address and one candidate
+    /// expression**: the comparison itself, with nowhere else to write
+    /// it down.
+    ///
+    /// Every door that decides whether an expression may sit in a slot
+    /// asks this — [`Node::slot_dimension_fault`] per slot of a node
+    /// the document already holds, and `edit`'s `set_slot` of an
+    /// expression the node does not hold YET, which is why the subject
+    /// is a `(slot, expr)` pair rather than a node.
+    pub(crate) fn dimension_fault(self, expr: &Expr) -> Option<SlotDimensionFault> {
+        (expr.dim() != self.dimension()).then(|| SlotDimensionFault {
+            slot: self,
+            expected: self.dimension(),
+            found: expr.dim(),
+        })
+    }
+
     /// Whether this slot is a STRUCTURAL parameter (spec D3: the
     /// structural/continuous distinction is typed, not emergent —
     /// structural slots are exactly the Count-dimensioned ones).
@@ -1174,6 +1191,56 @@ impl core::fmt::Display for MeasureNodeFault {
 }
 
 impl core::error::Error for MeasureNodeFault {}
+
+/// **What makes a node's SLOT unusable** ([`Node::slot_dimension_fault`];
+/// spec D6) — one vocabulary for the edit doors and the load door, so
+/// the rule "a slot's expression carries the dimension the slot
+/// address fixes" has one definition rather than one per door.
+///
+/// The domain is [`Node::slots`], which is EVERY node kind: a profile
+/// program's step arguments, an extrude's distance, a datum's
+/// coordinates and a pattern's count are the same question asked of
+/// different addresses, and a door that asks it of one kind admits
+/// files the other doors could not have produced.
+/// ONE fact, so a struct: the dimensions disagree. A slot
+/// [`Node::slots`] names and [`Node::expr`] cannot answer for is not a
+/// property of the document at all — it is a disagreement between two
+/// matches in this module, which [`Node::slot_dimension_fault`]
+/// asserts against at the site rather than routing to a door as a
+/// refusal.
+///
+/// Its [`Display`](core::fmt::Display) is the refusal's one CLAUSE,
+/// which each door forwards into its own subject — the shape
+/// [`crate::placement::Frame::admission_fault`] carries for the frame
+/// rule. The sentence is written here and reaches a reader as
+/// "node 7: slot radius needs …" from the load door and as
+/// "slot radius needs …" from the edit door.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct SlotDimensionFault {
+    /// The offending slot.
+    pub slot: SlotId,
+    /// The dimension the address fixes.
+    pub expected: Dimension,
+    /// The expression's dimension.
+    pub found: Dimension,
+}
+
+impl core::fmt::Display for SlotDimensionFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            slot,
+            expected,
+            found,
+        } = self;
+        write!(
+            f,
+            "slot {} needs {} {expected} expression, got {} {found}",
+            slot.label(),
+            expected.article(),
+            found.article()
+        )
+    }
+}
 
 /// What makes a [`Node::Assertion`]'s bound unusable
 /// ([`Node::assertion_bound_fault`]) — one vocabulary for the edit
@@ -2102,6 +2169,31 @@ fn comp2_mut(v: &mut [Expr; 2], axis: Axis3) -> Option<&mut Expr> {
 /// `Explicit` answers `None` for EVERY slot including `Count`: its
 /// placements are the count and carry no expressions, which is exactly
 /// what [`Node::slots`] reports for it.
+/// A placement-rule node's slot LIST, the domain of [`rule_expr`]
+/// above the same two nodes — `has_count` says whether the node holds
+/// a count expression at all, which only [`Node::PlacedUnion`] can
+/// answer `false` to.
+///
+/// The two are one mapping read two ways, so a slot listed here is a
+/// slot `rule_expr` answers for: `Explicit` carries listed placements
+/// rather than a rule, so it has no count slot (the list's length IS
+/// the count) and no expressions (the frames are structural data, D8);
+/// and a parametric rule with no count is a node
+/// [`Node::placement_rule_fault`] refuses, not a node with a count
+/// slot nothing can read.
+fn rule_slots(has_count: bool, kind: &PatternKind) -> Vec<SlotId> {
+    let count = has_count.then_some(SlotId::Count);
+    match kind {
+        PatternKind::Linear { .. } => count
+            .into_iter()
+            .chain(Axis3::ALL.map(SlotId::Direction))
+            .chain([SlotId::Spacing])
+            .collect(),
+        PatternKind::Circular { .. } => count.into_iter().chain([SlotId::Step]).collect(),
+        PatternKind::Explicit(_) => Vec::new(),
+    }
+}
+
 fn rule_expr<'a>(count: Option<&'a Expr>, kind: &'a PatternKind, slot: SlotId) -> Option<&'a Expr> {
     match (kind, slot) {
         (PatternKind::Explicit(_), _) => None,
@@ -2605,19 +2697,14 @@ impl<P> Node<P> {
                 s.push(SlotId::RotationAngle);
                 s
             }
-            Node::Pattern { kind, .. } | Node::PlacedUnion { kind, .. } => match kind {
-                PatternKind::Linear { .. } => {
-                    let mut s = vec![SlotId::Count];
-                    s.extend(vec3(SlotId::Direction));
-                    s.push(SlotId::Spacing);
-                    s
-                }
-                PatternKind::Circular { .. } => vec![SlotId::Count, SlotId::Step],
-                // The listed placements ARE the rule: no count slot
-                // (the list's length is the count) and no expressions
-                // (the frames are structural data, D8).
-                PatternKind::Explicit(_) => Vec::new(),
-            },
+            // A pattern's count is a field, so it is always there; a
+            // placed union's is an `Option`, and a rule missing the
+            // count it needs carries no count SLOT either — the
+            // mismatch is `PlacementRuleFault::CountSpelling`, refused
+            // at both doors, and not a slot address that answers
+            // nothing.
+            Node::Pattern { kind, .. } => rule_slots(true, kind),
+            Node::PlacedUnion { count, kind, .. } => rule_slots(count.is_some(), kind),
             // A half is recipe payload, not a number anyone sets; an
             // index is the one structural slot the projection carries.
             Node::Part { select, .. } => match select {
@@ -3118,6 +3205,39 @@ impl<P> Node<P> {
             Some(fault) => Err(fault),
             None => Ok(node),
         }
+    }
+
+    /// **The slot-dimension rule, asked of this node** (spec D6):
+    /// every slot [`Node::slots`] names answers an expression, and
+    /// that expression carries the dimension [`SlotId::dimension`]
+    /// fixes for the address. `None` when the node carries no slot at
+    /// all, which is most of the assembly vocabulary.
+    ///
+    /// One home for the question, read by the edit doors
+    /// (`check_node_slots`) and by the load door's walk, each naming
+    /// the answer in its own vocabulary. The `pub` payloads are what
+    /// make a violation reachable: a hand-built node and a corrupt
+    /// file can both state one, and neither may reach a document the
+    /// edit doors could not have produced.
+    pub(crate) fn slot_dimension_fault(&self) -> Option<SlotDimensionFault>
+    where
+        P: crate::ProfilePayload,
+    {
+        self.slots().into_iter().find_map(|slot| {
+            // `slots()` IS `expr()`'s domain — the two matches answer
+            // for the same payload — so a slot with no expression is a
+            // bug in this module, not a document a door may refuse.
+            // Pinned for every node kind by
+            // `switch_slots::every_node_kinds_slots_are_all_readable`.
+            let Some(expr) = self.expr(slot) else {
+                unreachable!(
+                    "slot {}: `Node::slots` names it and `Node::expr` does not answer for it — \
+                     the two matches in this module disagree",
+                    slot.label()
+                )
+            };
+            slot.dimension_fault(expr)
+        })
     }
 
     /// What is wrong with this node's measured expression, if anything
