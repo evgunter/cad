@@ -312,6 +312,21 @@ watching the gate fire.
    the two really are one door. Also in this unit: the file-level
    `#![allow(unwrap_used, expect_used, panic)]` that is unremarkable in
    `tests/` lands inside the library tree on the move.
+   A fifth member of the family that neither this row nor the
+   measurement listed surfaced during link 1:
+   `crates/topo/src/cert_m3r1_probes.rs` holds a **verbatim in-src copy
+   of `GeoCube`, `line`, `plane`, `geometric_cube` and
+   `describe_as_intersections`** — its own doc says so twice, and it
+   cannot be fixed from `tests/` because nothing in `src/` can name
+   `tests/common` and its header explains that it must be in-crate
+   (`Body::surfaces` is `pub(crate)`). **It unblocks with this link
+   exactly**, which is the strongest argument yet that the move is
+   worth making: `work/dup/topo-src-cert-m3r1-probes-holds-a-fifth-copy-of-the-cube-family.md`.
+   Carry also link 1's own residue — `cube_ops` is generic in the
+   scalar while `cube_into` stays `f64`-only so that no call site had
+   to annotate, and that asymmetry is worth revisiting once the family
+   has a home in `src/`.
+
 3. **Move, then unify.** The family goes to
    `crates/topo/src/test_support_impl.rs`; `sweep::test_support::brick`
    delegates to it or is deleted, and `stl` and `step-export` follow

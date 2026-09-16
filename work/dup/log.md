@@ -222,3 +222,61 @@ moved a duplication into a new home and met the first gate at the
 
 **Next unit dispatched**: `topo-tests-geometric-cube-and-cube-into-are-one-sequence-twice`,
 claimed onto this slate, full review tier.
+
+### Link 1 ran (2026-09-16, PR #2727) — and X4 was done right this time
+
+`geometric_cube` and `cube_into` now share one private `cube_ops`;
+`geometric_cube` calls it without `describe_as_intersections` and
+`cube_into` with it. **The lane's factoring beat the orchestrator's
+suggestion and the argument is worth keeping**: a `describe: bool`
+parameter would make the difference between the two doors *a literal at
+a call site* rather than a line, and the whole risk in this unit was a
+reader not noticing that step. A brief's suggested shape is a
+hypothesis; the lane is closer to the code.
+
+**The full-tier concern was discharged by measurement, not assertion.**
+Thirteen bodies dumped as `format!("{body:#?}")` and compared by
+SHA-256 before and after: all thirteen byte-identical.
+`geometric_cube` still carries 12/12 `Scaffold(ExtrudedPoint …)`/
+`Declared` and everything else 12/12 `Intersection`/`Derived`. That is
+the axis the unit could have silently destroyed while staying green.
+
+**X4, done the way the previous unit's failure taught.** Not "check the
+neighbour I was thinking about" but *enumerate every sibling door and
+group them by hash*. Result: **six doors, one body** — `brick`,
+`prism`, `prism_z`, `mapped_cube`, `cube_into` into a fresh body, and
+`review_m2_pr7`'s private copy. Checked away from the unit ranges
+(`brick((1,3),(0,3),(-0.5,0.5))` against an affine `mapped_cube`) so
+the agreement is a fact about the domain rather than an artifact of one
+fixture. `review_m2_pr7`'s copy folded in and was deleted.
+
+**A finding that changes link 3's value.** `crates/topo/src/cert_m3r1_probes.rs`
+holds a verbatim in-src copy of `GeoCube`, `line`, `plane`,
+`geometric_cube` and `describe_as_intersections`, and says so in its own
+doc twice. It cannot be reached from `tests/`, and it **unblocks with
+link 3 exactly** — so the move down is now worth more than one brick:
+it closes an in-`src` copy that no test-side unit can touch. Recorded
+against the brick-homes row's move set, which had not listed it.
+
+**Adjudications on the lane's open questions**, recorded because two of
+them are general:
+
+- **Closing a row your own diff resolved is right**, even on another
+  program's slate, when your program filed it there. An `open` finding
+  that is fixed is a lie on the board, and the board is the only record
+  of what is left. The row moves to the closing program's slate so the
+  board also says who closed it.
+- **A claim widened past its measurement owes a guard, not a
+  narrowing.** The lane widened `brick`'s doc from "at the unit ranges"
+  to "wherever their domains meet" and flagged it as stronger than what
+  it measured. The remedy is not to weaken the sentence but to make it
+  falsifiable: a row pinning the six-door identity at several boxes,
+  **with `geometric_cube` as the negative row in the same test** — a
+  test that only pins agreement goes green if someone makes all six
+  doors identical by deleting the distinction, which is this unit's
+  nearest failure mode. Sent back as a fix pass.
+- **A row that asserts an equality it established by shape rather than
+  by execution carries the defect this program exists to remove.** The
+  lane's own new prism row does; it is now required to say so and to
+  name the instrument it owes. The next lane must not inherit a
+  confidence nobody earned.
