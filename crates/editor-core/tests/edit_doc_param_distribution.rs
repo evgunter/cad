@@ -394,8 +394,12 @@ fn the_annotation_door_refuses_typed() {
                 hi: 0.0
             })
         ),
-        EditError::NonFiniteDocParam { name: p("wall") },
-        "a non-finite offset joins the ruled non-finite class, as it does at the other door"
+        EditError::NonFiniteDocParam {
+            name: p("wall"),
+            field: editor_core::DocParamField::Offset(editor_core::DistributionField::Lo),
+        },
+        "a non-finite offset joins the ruled non-finite class, naming the offset, as it does at \
+         the other door"
     );
     // The undeclared-name sentence says WHICH door, so the three
     // carry-forward edits do not render one indistinguishable refusal.

@@ -2385,7 +2385,13 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         },
         &["param"],
     );
-    carries(&E::NonFiniteDocParam { name: param() }, &["param"]);
+    carries(
+        &E::NonFiniteDocParam {
+            name: param(),
+            field: pncad::document::DocParamField::Nominal,
+        },
+        &["param"],
+    );
     carries(
         &E::DocParamValueKindMismatch {
             name: param(),
@@ -4710,7 +4716,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "program_fault_tag",
-        values: &["lattice", "slot_dimension"],
+        values: &["lattice"],
         delegates: &[],
     },
     TagEntry {
@@ -4947,7 +4953,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "assertion_bound",
             "assertion_target",
-            "count_continuous",
             "dangling_input",
             "declare_input",
             "epsilon_invalid",
@@ -4963,6 +4968,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_not_gauge",
             "placement_rule",
             "placement_site",
+            "slot_dimension",
+            "slot_doc_param_dimension",
+            "slot_unknown_doc_param",
             "witness_on_missing_node",
             "witness_site",
         ],

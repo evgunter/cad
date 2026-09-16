@@ -361,7 +361,10 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         | EditError::DocParamNotDeclared { name, door: _ }
         | EditError::DocParamCountHasNoUnit { name }
         | EditError::DocParamCountHasNoDistribution { name }
-        | EditError::NonFiniteDocParam { name }
+        // The field the refusal names does not cross: a caller holds
+        // the parameter it just submitted, and `non_finite_doc_param`
+        // plus the Rust sentence say which float it was.
+        | EditError::NonFiniteDocParam { name, field: _ }
         | EditError::InvalidDistribution { name, fault: _ } => EditPayload {
             param: Some(name),
             ..none

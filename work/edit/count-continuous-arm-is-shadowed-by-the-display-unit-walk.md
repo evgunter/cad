@@ -2,9 +2,12 @@
 id: count-continuous-arm-is-shadowed-by-the-display-unit-walk
 kind: issue
 title: SnapshotError::CountContinuous is unreachable: the display-unit walk refuses first
-status: dispatched
+status: closed
+pr: 2780
+branch: edit/one-predicate-round-three
 opened: 2026-09-16
 refs: [three-door-predicates-are-hand-copied-not-shared]
+closed: 2026-09-16
 ---
 
 
@@ -29,7 +32,7 @@ either persistence door.
 
 **Measured, not inferred.**
 `crates/editor-core/tests/edit_one_predicate.rs`'s
-`a_continuous_parameter_declared_count_is_refused_at_both_doors` saves
+`a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_words` saves
 a well-formed LENGTH parameter, retypes its `dim` to `Count` on the
 wire, and reads back `PersistError::DisplayUnit { declared: Count, .. }`.
 That row is green and is this finding's measurement; its doc says so
@@ -59,3 +62,32 @@ that refusal is reachable and pinned.
 Built by the unit `edit/one-predicate-round-three`, whose spec is the
 `## Spec` section of `load-door-checks-slot-dimensions-for-profile-nodes-only`;
 this row's decision is ruled there.
+
+## Built (2026-09-16, `edit/one-predicate-round-three`)
+
+`SnapshotError::CountContinuous` and the `validate_snapshot` walk that
+raised it are deleted, and the `count_continuous` tag is retired —
+the first of the three readings this row listed, ruled by the
+implementer discipline's own rule that a guard nothing can reach is
+documentation whose repair is deletion.
+
+The row that measured the shadow keeps asserting what the load door
+actually answers, `PersistError::DisplayUnit { declared: Count, .. }`,
+and its doc now states the divide's one home rather than pointing at a
+filed gap. It is named for what it asserts —
+`edit_one_predicate::a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_words`
+— because that is the property the deletion leaves: same verdict,
+different word, and only the edit door can name the
+structural/continuous divide as the reason. `write_doc_param`'s doc
+says so at the site, where it previously claimed "the same fault
+whichever door refuses it". The edit door's
+half is untouched and still reachable: `DocParam::is_continuous_count`
+is asked by `SetDocParam`, and its rustdoc says why that is the only
+door where it can fire.
+
+Outside EDIT's fence, mechanical: `crates/pncad-py/src/tags.rs` and
+`src/tests.rs` lose the tag word. LIB's files.
+## Closed (2026-09-16, EDIT orchestrator)
+
+Built and merged as PR #2780; the record is on
+`load-door-checks-slot-dimensions-for-profile-nodes-only`'s `## Closed`.
