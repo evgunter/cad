@@ -2028,6 +2028,14 @@ NOT_BOUND = {
     # `doc_param_count_has_no_distribution` and to the distribution
     # fault's own tags, and those are the words a caller branches on.
     "DistributionRefusal": SHAPE,
+    # `DocParam::first_non_finite`'s answer: WHICH float of a
+    # continuous parameter is not a number — the nominal, or the
+    # offset `DistributionField` names. It is `DistributionRefusal`'s
+    # row one concept over and flattened for its reason: no Python
+    # door answers in it. Both refusals that carry it cross as their
+    # own tags (`non_finite_doc_param`, `PersistError.site`'s
+    # sentence), and those are the words a caller branches on.
+    "DocParamField": SHAPE,
     "EdgeKey": SHAPE,
     "EditRecord": SHAPE,
     "EvalOptions": SHAPE,
