@@ -96,3 +96,43 @@ Both tracker-side citations of the same item — in
 `work/chrome/add-parameter-form-authors-canonical-only.md` — were
 re-pointed to `work/edit/…` by that pass. The two source files are
 outside its fence and are recorded here instead.
+
+## The `work/docm/…` family, now dead (2026-09-16, EDIT's `edit/error-prose`)
+
+The second fuse this row names — a program closing — has fired.
+DOCM closed on 2026-09-13 (`docs/DOC-LEDGER.md`, sweep 14) and its
+directory was deleted, so every shipped `work/docm/…` citation is now a
+path that does not resolve. `rg -n 'work/docm/' crates/` at this SHA:
+
+| citing file | cited item |
+| --- | --- |
+| `crates/pncad-py/src/prose_census.rs` (two roster reasons) | `debug-in-prose-residue-after-finding-sink` |
+| `crates/viewer/tests/index_memo.rs` | `pick-grazing-ray-answer-depends-on-candidate-order` |
+| `crates/editor-core/tests/docm7_union_declare.rs` | `the-pair-verbs-declared-merge-is-asymmetric-in-its-operands` |
+| `crates/editor-core/tests/wire_operand_door.rs` | `the-third-datum-axis-phrase-lives-in-mate-member` |
+| `crates/editor-core/ASSEMBLY.md` | `pair-doors-outside-the-three-do-not-check-document-identity` |
+| `crates/editor-core/src/program.rs` | `a-document-vocabulary-declared-outside-the-macro-is-uncensused` |
+| `crates/editor-core/src/eval/mod.rs` | `pair-doors-outside-the-three-do-not-check-document-identity` |
+| `crates/editor-core/src/eval/wire.rs` | `member-space-look-through-stops-at-splits-containment-and-fragmented-merges` |
+| `crates/editor-core/src/names/role.rs` | `the-pair-verbs-declared-merge-is-asymmetric-in-its-operands` |
+
+Ten citations in nine files. Every one is the CHEAP sub-case the
+2026-09-15 correction identified: the items were claimed, not resolved,
+and all seven distinct items live today under `work/edit/`,
+`work/wire/`, `work/door/` or `work/census/`. Nothing was deleted; only
+the directory moved.
+
+A repair is still not mechanical on the program name. DOCM's rows went
+to four different successors — `the-third-datum-axis-phrase-lives-in-mate-member`
+is DOOR's, not EDIT's or WIRE's — so each citation has to be resolved
+against the tracker rather than rewritten by pattern.
+
+The two in `prose_census.rs` are repaired in `edit/error-prose`, which
+was editing that file anyway. The other eight span three programs'
+fences and are left here.
+
+This is a sharper argument for the gate (shape 1) than the row had
+before: ten dead citations appeared at one commit, on files the closing
+program could not edit, and nothing in CI said so. The gate needed to
+catch them is the weak one — assert that a cited path resolves — because
+all nine paths are simply absent.

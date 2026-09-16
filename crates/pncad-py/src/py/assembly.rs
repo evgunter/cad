@@ -267,7 +267,7 @@ impl RefusedRef {
     #[getter]
     fn kind(&self) -> Option<&'static str> {
         match self.0 {
-            d::RefusedRef::NotAFace { kind } => Some(entity_kind_tag(kind)),
+            d::RefusedRef::NotAFace { found } => Some(entity_kind_tag(found)),
             d::RefusedRef::Vanished
             | d::RefusedRef::ReadBelowARoot { .. }
             | d::RefusedRef::Ambiguous { .. } => None,
