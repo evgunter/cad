@@ -104,11 +104,17 @@ fn containment_refused(errors: &[ValidationError], want: &str) -> bool {
     })
 }
 
-/// The verdict the embedded fixture must draw: its extents are in a
-/// containment relation the arm cannot definitely separate. Not the
-/// weaker "unclaimable extent" verdict, which would mean the arm never
-/// compared the two solids at all.
-const IN_BAND: &str = "not definitely separable from containment";
+/// The verdict the embedded fixture must draw: the DECIDED
+/// interference. Its extents are flush at `z = 0`, so the box gate
+/// cannot separate them (an in-band margin), and the material test
+/// then finds an inner vertex strictly inside the outer's material.
+/// Not a `CensusUndecidable` of any wording — the arm decides this
+/// placement.
+fn interference_decided(errors: &[ValidationError]) -> bool {
+    errors
+        .iter()
+        .any(|e| matches!(e, ValidationError::InstanceInterference { .. }))
+}
 
 /// **The embedded-instance fixture.** A 1 m cube sitting wholly inside
 /// a 4 m cube, flush at `z = 0`, with its four bottom corners declared
@@ -117,8 +123,10 @@ const IN_BAND: &str = "not definitely separable from containment";
 /// confirm pass has nothing to say about any of them, which is what
 /// makes this fixture different from a bogus bridge.
 ///
-/// The inner cube is inside the outer's MATERIAL. The census cannot
-/// decide that (interference is C6's class); arm 2 is what says so.
+/// The inner cube is inside the outer's MATERIAL. Arm 2's material
+/// test decides that — the four bottom corners are on the boundary and
+/// skipped, the first top corner is strictly inside — and refuses it
+/// typed as the interference it is.
 fn embedded() -> (Body<f64>, ContactRecords) {
     let body = assembly(&cube(4.0, 0.0, 0.0, 0.0), &cube(1.0, 1.0, 1.0, 0.0));
     // The 4 m cube's bottom face: the only face whose four corners all
@@ -174,9 +182,13 @@ fn an_embedded_instance_is_examined_though_its_contact_is_declared() {
          loudness cannot be borrowed from a refuted record: {errors:?}"
     );
     assert!(
-        containment_refused(&errors, IN_BAND),
-        "the containment arm must name the solid pair, with the verdict about \
-         THESE two extents rather than a weaker one: {errors:?}"
+        interference_decided(&errors),
+        "the containment arm must decide the embedded pair as an interference, \
+         not refuse it as undecidable: {errors:?}"
+    );
+    assert!(
+        !containment_refused(&errors, ""),
+        "no undecidable verdict rides beside the decided one: {errors:?}"
     );
     // And the declaration did its own job: the four corner rests it
     // names are no longer reported as undeclared contacts, so the
@@ -204,9 +216,9 @@ fn the_embedded_pair_is_refused_undeclared_too() {
     let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
         .expect_err("the undeclared twin refuses");
     assert!(
-        containment_refused(&errors, IN_BAND),
-        "the containment arm names the solid pair, same verdict, with no records \
-         at all: {errors:?}"
+        interference_decided(&errors),
+        "the containment arm decides the pair the same way with no records at \
+         all: {errors:?}"
     );
 }
 

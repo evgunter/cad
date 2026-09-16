@@ -44,7 +44,10 @@ fn lbracket(declared: bool, dx: f64) -> (Body<f64>, ContactRecords) {
         for v in vertices_where(&body, |p| {
             (p.x - (1.0 + dx)).abs() < 1e-12 && (1.1..2.1).contains(&p.y)
         }) {
-            records.b_on_a.push(VfContact { vertex: v, face: wall });
+            records.b_on_a.push(VfContact {
+                vertex: v,
+                face: wall,
+            });
         }
         assert_eq!(records.b_on_a.len(), 4);
     }
@@ -148,7 +151,12 @@ fn report(name: &str, body: &Body<f64>, records: &ContactRecords) {
 fn probe_base_verdicts() {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
-    println!("eps={} zero={} escalate={}", tol.eps(), band.zero(), band.escalate());
+    println!(
+        "eps={} zero={} escalate={}",
+        tol.eps(),
+        band.zero(),
+        band.escalate()
+    );
     let (b, r) = lbracket(true, 0.0);
     report("lbracket declared", &b, &r);
     let (b, r) = lbracket(false, 0.0);
@@ -157,7 +165,11 @@ fn probe_base_verdicts() {
     report("embedded declared", &b, &r);
     report("cavity", &cavity(), &ContactRecords::default());
     report("pocket", &pocket(), &ContactRecords::default());
-    report("all_on_boundary", &all_on_boundary(), &ContactRecords::default());
+    report(
+        "all_on_boundary",
+        &all_on_boundary(),
+        &ContactRecords::default(),
+    );
     let delta = (band.zero() * band.escalate()).sqrt();
     let (b, r) = lbracket(false, delta);
     report(&format!("band edge delta={delta}"), &b, &r);

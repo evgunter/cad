@@ -3576,38 +3576,39 @@ fn at_infinity_side<T: Decide>(
     // ill-conditioned operand at this ε (with a predicate name and a
     // band the caller can act on), and the corruption-shaped arms are
     // arena claims about a BROKEN body. Each keeps its own door.
-    let props = crate::props::mass_properties_closed_form_of(body, faces, band, tol).map_err(|e| {
-        match e {
-            // An escalation stays an escalation, carrying its
-            // diagnostics and the face it happened on.
-            crate::props::MassPropsError::Face {
-                face,
-                source: geom_brep::props::PropsError::Escalated { cause },
-            } => PointInSolidError::Escalated { face, diag: cause },
-            // Corruption-shaped: a face whose area enclosure will not
-            // certify a positive extent, a key the props walk could not
-            // resolve, or null scaffolding in a body being classified
-            // AT REST. None of these is "healthy body, missing
-            // capability".
-            crate::props::MassPropsError::Face {
-                face,
-                source: geom_brep::props::PropsError::DegenerateFace,
-            } => PointInSolidError::CorruptFace { face },
-            crate::props::MassPropsError::Corrupt { .. }
-            | crate::props::MassPropsError::NullScaffoldEdge { .. } => {
-                PointInSolidError::CorruptFace { face: faces[0] }
+    let props =
+        crate::props::mass_properties_closed_form_of(body, faces, band, tol).map_err(|e| {
+            match e {
+                // An escalation stays an escalation, carrying its
+                // diagnostics and the face it happened on.
+                crate::props::MassPropsError::Face {
+                    face,
+                    source: geom_brep::props::PropsError::Escalated { cause },
+                } => PointInSolidError::Escalated { face, diag: cause },
+                // Corruption-shaped: a face whose area enclosure will not
+                // certify a positive extent, a key the props walk could not
+                // resolve, or null scaffolding in a body being classified
+                // AT REST. None of these is "healthy body, missing
+                // capability".
+                crate::props::MassPropsError::Face {
+                    face,
+                    source: geom_brep::props::PropsError::DegenerateFace,
+                } => PointInSolidError::CorruptFace { face },
+                crate::props::MassPropsError::Corrupt { .. }
+                | crate::props::MassPropsError::NullScaffoldEdge { .. } => {
+                    PointInSolidError::CorruptFace { face: faces[0] }
+                }
+                // The remainder IS the capability gap the variant
+                // describes: a boundary outside the iso-rectangle
+                // inventory (the standing rimless-lune case), a ring on a
+                // curved face, an unimplemented kind, a quadrature that
+                // would not converge inside its budget, a band that would
+                // not construct. A HEALTHY body, and a missing volume.
+                crate::props::MassPropsError::Band { .. }
+                | crate::props::MassPropsError::RingOnCurvedFace { .. }
+                | crate::props::MassPropsError::Face { .. } => PointInSolidError::VolumeUncertified,
             }
-            // The remainder IS the capability gap the variant
-            // describes: a boundary outside the iso-rectangle
-            // inventory (the standing rimless-lune case), a ring on a
-            // curved face, an unimplemented kind, a quadrature that
-            // would not converge inside its budget, a band that would
-            // not construct. A HEALTHY body, and a missing volume.
-            crate::props::MassPropsError::Band { .. }
-            | crate::props::MassPropsError::RingOnCurvedFace { .. }
-            | crate::props::MassPropsError::Face { .. } => PointInSolidError::VolumeUncertified,
-        }
-    })?;
+        })?;
     let margin = Margin::over_lever(props.volume, props.surface_area);
     match decide("bool_point_in_solid_infinity", margin, band).map_err(|diag| {
         PointInSolidError::Escalated {

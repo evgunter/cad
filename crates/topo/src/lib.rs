@@ -288,8 +288,7 @@ pub use boolean::{
     boolean_reduce_declared, carrier_eq, contfp, curved_face_containment, face_carrier,
     flush_pair_relation, insert_void, insert_voids, intersect, intersect_with, oriented_plane_eq,
     point_in_solid, point_in_solid_of, subtract, subtract_with, tangent_locus,
-    tangent_pair_relation, union,
-    union_with,
+    tangent_pair_relation, union, union_with,
 };
 pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate

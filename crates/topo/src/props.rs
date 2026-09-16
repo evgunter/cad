@@ -3084,7 +3084,11 @@ mod face_list_door_tests {
             let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
             let listed = mass_properties_closed_form_of(&body, &faces, band, tol).unwrap();
             assert_eq!(listed.volume.to_bits(), whole.volume.to_bits(), "{name}");
-            assert_eq!(listed.surface_area.to_bits(), whole.surface_area.to_bits(), "{name}");
+            assert_eq!(
+                listed.surface_area.to_bits(),
+                whole.surface_area.to_bits(),
+                "{name}"
+            );
         }
     }
 

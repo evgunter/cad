@@ -606,7 +606,15 @@ pub(crate) fn census_and_certify<T: Decide + Bounds + crate::chart_region::Chart
     band: Band,
     tol: Tol,
 ) -> Vec<ValidationError> {
-    census_with(body, contacts, band, tol, CensusStrategy::Realized, None, None)
+    census_with(
+        body,
+        contacts,
+        band,
+        tol,
+        CensusStrategy::Realized,
+        None,
+        None,
+    )
 }
 
 /// The differential door: the census under `strategy`, with every
@@ -3287,9 +3295,7 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
             ValidationError::CensusUnsupported { subject, .. }
             | ValidationError::CensusLaneUnsupported { subject } => match subject {
                 CensusSubject::Entity(id) => names(&[*id]),
-                CensusSubject::FacePair(f, g) => {
-                    names(&[EntityId::Face(*f), EntityId::Face(*g)])
-                }
+                CensusSubject::FacePair(f, g) => names(&[EntityId::Face(*f), EntityId::Face(*g)]),
             },
             ValidationError::CensusUndecidable { a, b, .. } => names(&[*a, *b]),
             ValidationError::ContactContradicted { declaration, .. } => {
@@ -3432,13 +3438,11 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
                     probed = true;
                     finding = Some(match point_in_solid_of(body, outer, p, band, tol) {
                         Ok(SolidContainment::Out) => None,
-                        Ok(SolidContainment::In) => {
-                            Some(ValidationError::InstanceInterference {
-                                outer,
-                                inner,
-                                witness: v,
-                            })
-                        }
+                        Ok(SolidContainment::In) => Some(ValidationError::InstanceInterference {
+                            outer,
+                            inner,
+                            witness: v,
+                        }),
                         Ok(SolidContainment::OnBoundary) => continue,
                         Err(e) => Some(ValidationError::CensusUndecidable {
                             a: EntityId::Solid(outer),
@@ -4168,7 +4172,8 @@ mod tests {
         );
         // And the ARM stays quiet on the aligned pair: SameOriented
         // is flush, not a conformal candidate.
-        let arm_only = census_and_certify(&body, &ContactRecords::default(), band(), Tol::witness());
+        let arm_only =
+            census_and_certify(&body, &ContactRecords::default(), band(), Tol::witness());
         assert!(
             !arm_only.iter().any(|e| matches!(
                 e,
@@ -4438,10 +4443,11 @@ mod tests {
                 let b = crate::boolean::boxes::face_box(&body, f, 1e-9);
                 reaches.push(format!("face_box: {b:?}"));
             }
-            let errs = census_and_certify(&body, &ContactRecords::default(), band(), Tol::witness())
-                .into_iter()
-                .map(|e| format!("{e:?}"))
-                .collect();
+            let errs =
+                census_and_certify(&body, &ContactRecords::default(), band(), Tol::witness())
+                    .into_iter()
+                    .map(|e| format!("{e:?}"))
+                    .collect();
             (reaches, errs)
         };
         let (near_reach, near) = run(0.3, 0.7);
@@ -4670,9 +4676,20 @@ mod tests {
     /// product body.
     fn pin(body: &Body<f64>) -> usize {
         let records = ContactRecords::default();
-        let (real_errors, real) = census_traces(body, &records, band(), Tol::witness(), CensusStrategy::Realized);
-        let (ideal_errors, ideal) =
-            census_traces(body, &records, band(), Tol::witness(), CensusStrategy::Idealized);
+        let (real_errors, real) = census_traces(
+            body,
+            &records,
+            band(),
+            Tol::witness(),
+            CensusStrategy::Realized,
+        );
+        let (ideal_errors, ideal) = census_traces(
+            body,
+            &records,
+            band(),
+            Tol::witness(),
+            CensusStrategy::Idealized,
+        );
         assert_eq!(rendered(&real_errors), rendered(&ideal_errors));
         let mut pruned = 0;
         for ((name, r), (_, i)) in real.sweeps().iter().zip(ideal.sweeps().iter()) {
@@ -4697,7 +4714,13 @@ mod tests {
         // x = 1 face: a vertex-on-face event, undeclared.
         let flush = two_cubes(Vec3::new(1.0, 0.25, 0.25));
         let records = ContactRecords::default();
-        let (_, ideal) = census_traces(&flush, &records, band(), Tol::witness(), CensusStrategy::Idealized);
+        let (_, ideal) = census_traces(
+            &flush,
+            &records,
+            band(),
+            Tol::witness(),
+            CensusStrategy::Idealized,
+        );
         let &(_, EntityId::Face(face)) = ideal
             .vf
             .accepted
@@ -4707,8 +4730,14 @@ mod tests {
             panic!("a vf pair names a face");
         };
         let plant = crate::boolean::PlantedDegradation { face };
-        let (_, real) =
-            census_traces_planted(&flush, &records, band(), Tol::witness(), CensusStrategy::Realized, plant);
+        let (_, real) = census_traces_planted(
+            &flush,
+            &records,
+            band(),
+            Tol::witness(),
+            CensusStrategy::Realized,
+            plant,
+        );
         let lost = real.vf.lost_accepted(&ideal.vf);
         assert!(
             lost.iter().any(|&(_, f)| f == EntityId::Face(face)),
@@ -4835,8 +4864,20 @@ mod tests {
             })
             .expect("a near face off the nulled edge");
         let records = ContactRecords::default();
-        let (real_errors, real) = census_traces(&body, &records, band(), Tol::witness(), CensusStrategy::Realized);
-        let (ideal_errors, _) = census_traces(&body, &records, band(), Tol::witness(), CensusStrategy::Idealized);
+        let (real_errors, real) = census_traces(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            CensusStrategy::Realized,
+        );
+        let (ideal_errors, _) = census_traces(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            CensusStrategy::Idealized,
+        );
         assert_eq!(rendered(&real_errors), rendered(&ideal_errors));
         for &v in &far_vertices {
             for f in [f_plus, f_minus] {
@@ -4872,9 +4913,20 @@ mod tests {
         // examination is the exact one restricted.
         let body = two_cubes(Vec3::new(10.0, 5e-9, 0.0));
         let records = ContactRecords::default();
-        let (real_errors, real) = census_traces(&body, &records, band(), Tol::witness(), CensusStrategy::Realized);
-        let (ideal_errors, ideal) =
-            census_traces(&body, &records, band(), Tol::witness(), CensusStrategy::Idealized);
+        let (real_errors, real) = census_traces(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            CensusStrategy::Realized,
+        );
+        let (ideal_errors, ideal) = census_traces(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            CensusStrategy::Idealized,
+        );
         assert!(real_errors.is_empty(), "{real_errors:?}");
         assert!(!ideal_errors.is_empty());
         let mut predicates = BTreeSet::new();
@@ -4913,9 +4965,20 @@ mod tests {
         // The class's angle member.
         let body = two_cubes_turned(Vec3::new(10.0, 0.0, 0.0), 5e-9);
         let records = ContactRecords::default();
-        let (real_errors, real) = census_traces(&body, &records, band(), Tol::witness(), CensusStrategy::Realized);
-        let (ideal_errors, ideal) =
-            census_traces(&body, &records, band(), Tol::witness(), CensusStrategy::Idealized);
+        let (real_errors, real) = census_traces(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            CensusStrategy::Realized,
+        );
+        let (ideal_errors, ideal) = census_traces(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            CensusStrategy::Idealized,
+        );
         assert!(real_errors.is_empty(), "{real_errors:?}");
         let mut predicates = BTreeSet::new();
         for e in &ideal_errors {
@@ -4946,9 +5009,20 @@ mod tests {
         // subject.)
         let body = half_disc_cap_and_far_cube();
         let records = ContactRecords::default();
-        let (real_errors, real) = census_traces(&body, &records, band(), Tol::witness(), CensusStrategy::Realized);
-        let (ideal_errors, ideal) =
-            census_traces(&body, &records, band(), Tol::witness(), CensusStrategy::Idealized);
+        let (real_errors, real) = census_traces(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            CensusStrategy::Realized,
+        );
+        let (ideal_errors, ideal) = census_traces(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            CensusStrategy::Idealized,
+        );
         let is_refusal = |e: &ValidationError| {
             matches!(
                 e,
