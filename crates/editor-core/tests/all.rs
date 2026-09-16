@@ -435,6 +435,8 @@ mod review_m5_pr9_doc_probe;
 mod review_m6_5_pr2_probes;
 #[path = "review_pick_r2_probes.rs"]
 mod review_pick_r2_probes;
+#[path = "review_pick3_r2_probes.rs"]
+mod review_pick3_r2_probes;
 #[path = "ring_r1_names_probe.rs"]
 mod ring_r1_names_probe;
 #[path = "rv_onepred3_probes.rs"]
