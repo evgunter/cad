@@ -11826,3 +11826,43 @@ about when it reaches the chrome, so this unit touches no clause it
 decides.
 
 Signed (VIEW implementer lane `view/style-installs`).
+
+## 2026-09-16 — `view/startup-notices`: the third consumer was the second level misread
+
+`startup-notices-join-on-a-mark-a-prefs-notice-contains` closed. Unlike
+its two siblings the defect was live, so the red is on the base tree
+rather than a post-hoc mutation: a preferences file naming a theme and
+an input preset the registries do not hold renders
+``preferences: no theme called `aurora`; using `dark-neutral`;
+preferences: no input preset called `modal`; using the default`` — four
+`"; "`-delimited pieces for two notices, no error path involved.
+
+None of the item's three candidate fixes was taken and the reason is
+one fact: two of `prefs::Notice`'s four arms echo a TOML key out of the
+user's own file, so there is no mark out of band here and no type that
+bounds the sentences. `withdrawal-causes-…` rejected its own option 2
+because one level in there is no mark that is never legitimate in band;
+the objection is stronger at this level, not weaker.
+
+What was wrong was the classification. A `Withdrawal`'s causes are the
+items a counted preamble introduces; the startup notices have no
+preamble and nothing counts them, so they are several notices and take
+the boundary mark. `startup_notices` now builds one `Message` per
+element and joins with `Message::joined`, which puts the startup line
+under the hold `frame_status`'s line already has.
+
+The door's own doc claimed three types and named the wrong three:
+`resolve_theme` and `resolve_keys` return `Option<Notice>`, the same
+type `from_toml` yields; the unnamed third is `prefs::StoreError`.
+Corrected at the door and in the README, whose *"NOT held this way"*
+paragraph this change falsified and replaces.
+
+Two findings filed outside the fence, both the same class:
+`work/exch/step-import-joins-rendered-refusals-on-a-mark-they-may-contain`
+and
+`work/props/stackup-report-joins-rendered-blockers-on-a-mark-they-may-contain`.
+`seat-line-spells-the-list-mark-as-a-literal` is NOT subsumed and stays
+open: its argument is about a constant spelled twice, not about a mark
+an element may carry.
+
+Signed (VIEW implementer lane `view/startup-notices`).

@@ -506,7 +506,9 @@ fn a_startup_line_splits_back_into_the_preferences_notices_it_was_made_from() {
 
     let line = frame::startup_notices(&notices).expect("two notices are news");
     assert_eq!(
-        line.text().split(frame::NOTICE_SEPARATOR).collect::<Vec<_>>(),
+        line.text()
+            .split(frame::NOTICE_SEPARATOR)
+            .collect::<Vec<_>>(),
         notices.iter().map(String::as_str).collect::<Vec<_>>(),
         "the join is invertible: each piece is one notice's own rendering, \
          whole, and there are as many pieces as there were notices"
@@ -530,7 +532,9 @@ fn a_startup_notice_echoing_a_key_that_holds_the_boundary_mark_still_splits_back
     let notices: Vec<String> = parsed.iter().map(ToString::to_string).collect();
     assert_eq!(notices.len(), 2, "two unknown keys are two notices");
     assert!(
-        notices.iter().all(|notice| notice.contains(frame::NOTICE_MARK)),
+        notices
+            .iter()
+            .all(|notice| notice.contains(frame::NOTICE_MARK)),
         "each echoes the user's key, boundary mark and all: {notices:?}"
     );
 
