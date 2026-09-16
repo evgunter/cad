@@ -45,14 +45,15 @@ posture under §Process.
    doors; kernel unit), `recorded-program-arguments-carry-no-notation`
    (a shape question with LIB parked on it),
    `replay-and-load-keep-the-document-without-its-maintenance`.
-4. **The resolver's doors** —
-   `pick-grazing-ray-answer-depends-on-candidate-order` (kernel unit;
-   re-baselines `viewer`'s reference loop by announcement) and
-   `nodepick-name-doors-take-a-second-evaluation-unpaired`, which the
-   pairing unit's review found on the same file: whether the fix is a
-   `DocumentId` on `NodePick`, a typed refusal or a signature that
-   never takes the second evaluation is open, so it is an issue before
-   it is a unit.
+4. **The resolver's doors** — `pick-grazing-…` merged (EDIT-PICK);
+   its residue is EDIT-PICK2,
+   `pick-accepts-uncertified-barycentrics-on-a-certified-determinant`
+   (kernel unit, block EDIT-B1 slot 1; the ruling is on the row), which
+   carries `pick-closed-acceptance-loses-a-graze-to-rounding`;
+   `pick-refuses-a-crossing-within-rounding-of-a-plane` stands as the
+   mechanism's stated class; `nodepick-name-doors-take-a-second-evaluation-unpaired`
+   (found by the pair-apply review) is the next door on this ground.
+   The pairing row went to PROPS with EDIT's door built.
 5. **Error-surface hygiene** — one E-class unit over
    `persist-check-renders-enum-variants-through-debug-into-user-prose`,
    `debug-in-prose-residue-after-finding-sink` and

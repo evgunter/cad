@@ -4,6 +4,7 @@ kind: issue
 title: the exact ray/triangle test loses a vertex or edge graze to rounding in u and v on near-tangent hits
 status: open
 opened: 2026-09-16
+rides_with: pick-accepts-uncertified-barycentrics-on-a-certified-determinant
 ---
 
 
