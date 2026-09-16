@@ -66,6 +66,8 @@ its fence in the PR that lands it and announces it to the owners; the
 | `the-field-brace-fingerprint-is-spelled-at-eight-sites-in-six-crates` | **M** | From CENSUS-ERRORS-ARRIVAL (2026-09-15); class estimated by that lane's fix pass, order not yet placed. `reads_as_prose` states the Display-vs-Debug rule with two fingerprints; the `" { "` half is re-spelled at **seven executable sites in five crates** outside it (thirteen raw hits, the rest prose) and **none of the seven carries the other half**, so each is a silently weaker test than the rule it quotes. `prose_census.rs`'s needle set is where the sweep's own blind spot is. | `crates/{topo,viewer,sweep,editor-core,pncad-py}/…` — seven checks; `crates/pncad-py/src/prose_census.rs` |
 | `the-errors-arrival-blind-spot-list-claimed-exclusivity-and-was-short` | **E** | From CENSUS-ERRORS-ARRIVAL (2026-09-15); class estimated by that lane's fix pass, order not yet placed. The **fourth consecutive** short exclusivity list (standing finding 2), wrong in two executed places. Both closed; what the row carries is the four-item residue, each executed — an item spelling no literal, a within-item word swap, an `impl` at indentation losing its qualifier, and a `held_by` column nothing re-derives. | `crates/pncad-py/src/tests.rs`, `crates/pncad-py/src/errors.rs` |
 | `validation-error-reason-is-raised-and-the-stub-declares-only-door` | **E** | From CENSUS-ARRIVAL-RESIDUE (2026-09-15); class estimated by that lane. `ValidationError` is raised with `reason` on its measurement refusal and with `door` on its four validator refusals, and `pncad.pyi` declares `door`, `failure_count` and `findings` unconditionally and `reason` not at all — so the stub is short by one attribute AND promises three on raises that carry one. Adding the line is trivial; deciding whether four unconditional declarations should be `Optional` is the row. Held in the meantime by `the_discriminant_attribute_names_are_declared_in_the_stub`, whose gap column reds if the stub gains the declaration. | `crates/pncad-py/pncad.pyi`, `crates/pncad-py/src/errors.rs`, `crates/pncad-py/src/tests.rs` |
+| `one-stub-convention-has-two-readers-in-two-languages` | **E** | From CENSUS-ARRIVAL-RESIDUE's style review (2026-09-15). `pncad.pyi`'s `Final`-vs-bare convention has a Python reader (`tests/test_stubs.py`, `ast`) and a Rust reader (`src/tests.rs`, line prefixes and triple-quote parity), held equal by nothing — and **they had already drifted**: a bare `Final` read as class-level in one and instance-level in the other. The drift is closed and tested; the pair that produced it is not. The unit weighed moving the check to Python and kept it in Rust with the reason at the site, so the row is the pair, not the placement. | `crates/pncad-py/src/tests.rs`, `crates/pncad-py/tests/test_stubs.py`, `crates/pncad-py/pncad.pyi` |
+| `the-mint-reader-hosts-three-lexer-operations-of-its-own` | **E** | From CENSUS-ARRIVAL-RESIDUE (2026-09-15), disclosing what it took rather than leaving it in a PR body — the unit's spec said to file a wanted widening rather than take it. `balanced_open` (the inverse of `test_utils::source::balanced_end`), `item_start` and `strip_modifier` live inside the census that consumes them, which is the siting unit 6's close-out moved four operations OUT of. `item_start` is the sharper half: the sibling census answers the same question with `boundary_before` alone, which admits an `impl` in type position. | `crates/pncad-py/src/tests.rs`, `crates/test-utils/src/source.rs` (TCOST's and TINT's — a move needs their assent) |
 | `prose-counts-of-a-populations-size-in-pncad-py-doc-comments` | **M** | From CENSUS-PY-RAISE-LITERALS (2026-09-15). A doc comment stating how many arms, words or maps a population has, with nothing re-deriving it. 195 raw hits, seven repaired in the unit, ten named unverified — and one (`step_import_error_tag`'s "twenty-two arms") was **never right**, `git log -S` putting the sentence at a commit where the map already had 23. | `crates/pncad-py/src/**` |
 | `both-unclassified-crossings-are-unreachable-and-so-is-the-repair-on-one` | **E** | From CENSUS-PY-RAISE-LITERALS. `SelectRefusal`'s eight arms are all matched above the forced wildcard and `ContactClass` has exactly two, both matched — so `unclassified` is the only inventoried word nothing can make the binding emit, **and the `AttributeError` repair sits on that same dead path**, so it cannot go red either. | `crates/pncad-py/src/py/{flush.rs,select.rs}`, `crates/pncad-py/src/tags.rs` |
 | `dimension-error-op-carries-twelve-words-minted-at-call-sites` | **M** | From CENSUS-PY-RAISE-LITERALS. Twelve `DimensionError.op` words minted at call sites of two `&'static str` parameters; six asserted, six not. `MeasureUnavailableAt.door` takes one from a kernel struct-field literal in `editor-core`. | `crates/pncad-py/src/py/{quantity.rs,analysis.rs,doc.rs,measure.rs}` |
@@ -110,6 +112,25 @@ lane that has read that unit can do all five; a lane arriving cold in a
 month re-derives the argument from scratch, and two of the rows record
 facts with a shelf life (which words have a second spelling, which
 doors have no enum).
+
+**The four rows CENSUS-ARRIVAL-RESIDUE filed, and the two that are not
+CENSUS's.** `validation-error-reason-…` goes first of them: it is the
+only row on this slate naming a **live, user-visible** defect rather
+than a missing instrument — `ValidationError` is raised with `reason`
+and `pncad.pyi` does not declare it — and it is held in the meantime by
+a suppression that reds when the stub gains the line, so closing it is
+loud. `one-stub-convention-…` follows it, being the same file and the
+pair that produced that gap. `the-mint-reader-hosts-three-lexer-operations-…`
+wants TCOST's and TINT's assent to move anything, so its readiness is
+not this program's to decide alone.
+
+**Two of that unit's findings went to other programs' slates and are
+NOT CENSUS's to schedule**:
+`work/tint/item-body-takes-a-const-generic-brace-for-an-item-body.md`
+and
+`work/ciw/doc-gate-cannot-see-a-broken-link-inside-a-cfg-test-module.md`.
+Both are recorded here only so a later reader does not go looking for
+them on this slate.
 
 `tag-vocabularies-restated-in-py-doc-comments` and
 `ring-contact-and-census-contact-share-two-words-by-prose-alone` join
