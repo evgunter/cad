@@ -843,8 +843,9 @@ fn two_records_describing_different_loops_assert() {
     let ValuePayload::Profile(pv) = &value.payload else {
         panic!("carries a profile");
     };
-    // An anchor for the same loop, reversed the other way: one of the
-    // two records is not about this loop and the door cannot tell which.
+    // An anchor for the same loop, reversed the other way: the two
+    // records now describe different permutations of one loop, which
+    // one evaluation cannot have produced.
     let mut naming = pv.naming.clone();
     naming.loops[0].reversed = !naming.loops[0].reversed;
     let _ = program.profile_edges_of(&structure, &naming, 0, 0);

@@ -2,10 +2,11 @@
 id: dm8-names-canonical-segments-but-the-published-refs-are-program-anchored
 kind: issue
 title: DM8 says 'canonical segments' but a program loop's published ProfileEdgeRef is program-anchored
-status: review
+status: closed
 pr: 2785
 branch: edit/dm8-follow-through
 opened: 2026-09-16
+closed: 2026-09-16
 refs: [authored-step-to-canonical-segment-map-has-no-home]
 ---
 
@@ -192,3 +193,21 @@ Three things the spec did not name, each argued in the PR body:
 
 Nothing else moved: no golden, no stored bit, no behaviour beyond the
 refusal that became an assertion.
+
+## Closed (2026-09-16, EDIT orchestrator)
+
+Built and merged as PR #2785 (E-class: green CI and the orchestrator's
+read; no review lane). The three edits the ruling named landed as the
+`## Built` section records, with the sweep's three further prose sites
+in `names/` taken as the same class. The orchestrator's rulings on the
+lane's three questions: the `crates/pncad-py` half of the spec was a
+wrong premise (there is no per-variant tag; the type is dispositioned
+whole as `gap: B-STEP-SEGMENTS`), so nothing under `crates/pncad*`
+moves and the spec is corrected by this note; the three sweep sites
+stay; the closed row `authored-step-to-canonical-segment-map-has-no-home`
+keeps its `m3` note naming `RecordsDisagree`, since it records a
+mutation whose branch still exists and now asserts. One stale inline
+comment in the `should_panic` row (it still said the door "cannot tell
+which" record lied) was re-worded at close-out to match the row's doc.
+Residue for LIB in its own file:
+`work/lib/python-selection-builder-docs-call-the-profile-index-canonical`.
