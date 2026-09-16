@@ -1229,16 +1229,21 @@ impl core::fmt::Display for EditError {
             Self::UnknownSlot { id, slot } => {
                 write!(f, "node {} has no slot {}", id.0, slot.label())
             }
+            // The rule's own clause, forwarded rather than restated:
+            // this door's subject IS the slot, so the sentence is the
+            // clause and nothing more.
             Self::SlotDimensionMismatch {
                 slot,
                 expected,
                 found,
             } => write!(
                 f,
-                "slot {} needs {} {expected} expression, got {} {found}",
-                slot.label(),
-                expected.article(),
-                found.article()
+                "{}",
+                SlotDimensionFault {
+                    slot: *slot,
+                    expected: *expected,
+                    found: *found
+                }
             ),
             Self::StructuralSlotNeedsStructuralEdit { slot } => {
                 write!(
@@ -1729,10 +1734,19 @@ fn distribution_fault_error(name: &ParamName, fault: DistributionFault) -> EditE
 ///
 /// **The check order is the LOAD door's** (`persist::check`'s
 /// `validate_document`): floats first, then the distribution's shape,
-/// then the notation walk. A document broken in two ways at once
-/// therefore names the same fault whichever door refuses it, which is
-/// the property a caller comparing an edit refusal against a load
-/// refusal actually relies on.
+/// then the notation walk. A parameter broken in two ways at once
+/// therefore gets the same VERDICT whichever door refuses it, and
+/// names the same one of its two faults — which is the property a
+/// caller comparing an edit refusal against a load refusal relies on.
+///
+/// For one declaration the two doors reach that verdict by different
+/// rules, and say so in different words: a CONTINUOUS parameter
+/// declared `Count` is refused here as
+/// [`EditError::ContinuousParamCannotBeCount`], and at the load door
+/// by the notation walk one step earlier
+/// (`PersistError::DisplayUnit`), because no unit in the table
+/// measures a count. Both refuse the same declarations; only this door
+/// can name the structural/continuous divide as the reason.
 fn write_doc_param<P: Clone + crate::ProfilePayload>(
     new: &mut Doc<P>,
     name: &ParamName,
@@ -1815,18 +1829,22 @@ fn check_node_slots<P: crate::ProfilePayload>(
     // D6's slot rule, from the ONE home the load door reads it from
     // too (`Node::slot_dimension_fault`); this is the door's name for
     // its answer.
-    if let Some(fault) = node.slot_dimension_fault() {
-        return Err(match fault {
-            SlotDimensionFault::MissingExpression { slot } => EditError::UnknownSlot { id, slot },
-            SlotDimensionFault::Mismatch {
-                slot,
-                expected,
-                found,
-            } => EditError::SlotDimensionMismatch {
-                slot,
-                expected,
-                found,
-            },
+    //
+    // It is a walk over ALL the node's slots, and it runs before the
+    // param-table walk below rather than interleaved with it slot by
+    // slot: a node broken in both ways at once names the dimension its
+    // address fixes, which is the answer the load door gives for the
+    // same node (`persist::check`'s walk order).
+    if let Some(SlotDimensionFault {
+        slot,
+        expected,
+        found,
+    }) = node.slot_dimension_fault()
+    {
+        return Err(EditError::SlotDimensionMismatch {
+            slot,
+            expected,
+            found,
         });
     }
     // The param table, against the slot expressions the rule above has
@@ -2705,14 +2723,26 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
     let Some(node) = new.nodes.get(&id) else {
         return Err(EditError::UnknownNode { id });
     };
+    // Whether the node HAS the slot is this door's own question: the
+    // subject is an address a caller named, and `SetParam` aimed at a
+    // radius on an extrude is a reachable mistake rather than the
+    // node-layer invariant `Node::slot_dimension_fault` asserts.
     if node.expr(slot).is_none() {
         return Err(EditError::UnknownSlot { id, slot });
     }
-    if expr.dim() != slot.dimension() {
+    // D6's comparison, from its one home (`SlotId::dimension_fault`) —
+    // the same rule the node-wide walk asks, of an expression the node
+    // does not hold yet.
+    if let Some(SlotDimensionFault {
+        slot,
+        expected,
+        found,
+    }) = slot.dimension_fault(expr)
+    {
         return Err(EditError::SlotDimensionMismatch {
             slot,
-            expected: slot.dimension(),
-            found: expr.dim(),
+            expected,
+            found,
         });
     }
     check_param_refs(new, id, slot, expr)?;

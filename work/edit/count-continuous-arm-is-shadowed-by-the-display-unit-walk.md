@@ -31,7 +31,7 @@ either persistence door.
 
 **Measured, not inferred.**
 `crates/editor-core/tests/edit_one_predicate.rs`'s
-`a_continuous_parameter_declared_count_is_refused_at_both_doors` saves
+`a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_words` saves
 a well-formed LENGTH parameter, retypes its `dim` to `Count` on the
 wire, and reads back `PersistError::DisplayUnit { declared: Count, .. }`.
 That row is green and is this finding's measurement; its doc says so
@@ -70,11 +70,16 @@ the first of the three readings this row listed, ruled by the
 implementer discipline's own rule that a guard nothing can reach is
 documentation whose repair is deletion.
 
-The row that measured the shadow
-(`edit_one_predicate::a_continuous_parameter_declared_count_is_refused_at_both_doors`)
-keeps asserting what the load door actually answers, `PersistError::
-DisplayUnit { declared: Count, .. }`, and its doc now states the
-divide's one home rather than pointing at a filed gap. The edit door's
+The row that measured the shadow keeps asserting what the load door
+actually answers, `PersistError::DisplayUnit { declared: Count, .. }`,
+and its doc now states the divide's one home rather than pointing at a
+filed gap. It is named for what it asserts —
+`edit_one_predicate::a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_words`
+— because that is the property the deletion leaves: same verdict,
+different word, and only the edit door can name the
+structural/continuous divide as the reason. `write_doc_param`'s doc
+says so at the site, where it previously claimed "the same fault
+whichever door refuses it". The edit door's
 half is untouched and still reachable: `DocParam::is_continuous_count`
 is asked by `SetDocParam`, and its rustdoc says why that is the only
 door where it can fire.

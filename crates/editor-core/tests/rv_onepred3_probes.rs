@@ -1,6 +1,17 @@
-//! **Review probes for `edit/one-predicate-round-three`** (lane
-//! `onepred3-rv`). Not part of the unit's acceptance — these exist to
-//! falsify the PR's claims, and are kept so a fix pass can adopt them.
+//! **The slot walks' third node kind, the payload-expression residue,
+//! and the walk ORDER** — written by the review lane `onepred3-rv` to
+//! falsify the unit's claims, and adopted by it: each row measures
+//! something no other row in the suite does.
+//!
+//! - A Count-dimensioned STRUCTURAL slot on a third node kind, refused
+//!   at both doors.
+//! - The residue `work/edit/load-door-does-not-check-payload-expression-param-refs`
+//!   names, MEASURED: the row is green because the load door admits
+//!   what the edit door refuses, and it reds — as a compile-clean
+//!   failure naming this sentence — on the day that row is built.
+//! - The walk ORDER as a contract: a file broken twice reads the
+//!   EARLIER walk's refusal, which is what makes a re-ordering a
+//!   change to every such file's diagnosis.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -86,14 +97,6 @@ fn rv_a_retyped_pattern_count_is_refused_at_both_doors() {
 
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
-    eprintln!(
-        "RV-PROBE1 count literal on the wire: {}",
-        serde_json::to_string(
-            &serde_json::from_str::<serde_json::Value>(&text[text.find('{').unwrap()..]).unwrap()
-                ["snapshot"]["nodes"][pattern.0.to_string()]["Pattern"]["count"]
-        )
-        .unwrap()
-    );
     // A Count expression is `{"Count": n}` on the wire, not a
     // `Literal`; the surgery swaps in a well-formed LENGTH literal, so
     // the only rule left to refuse it is the slot's own.
@@ -185,26 +188,32 @@ fn rv_a_measure_expression_reading_an_undeclared_parameter_still_loads() {
         assert!(params.remove(&name.0).is_some());
     });
     let verdict = load(&corrupt, Tol::witness());
-    eprintln!("RV-PROBE2 measure node {measure:?}: load verdict {verdict:?}");
     assert!(
         verdict.is_ok(),
-        "MEASURED: the residue is real — the load door admits a measure expression reading an \
-         undeclared parameter, which the edit door refuses. Got {verdict:?}"
+        "MEASURED: the residue is real — the load door admits measure node {measure:?}, whose \
+         expression reads an undeclared parameter, and the edit door refuses the same node. \
+         This row reds when `load-door-does-not-check-payload-expression-param-refs` is built, \
+         and that is what it is for. Got {verdict:?}"
     );
 }
 
-/// PROBE 3 — the diagnostics shift the re-order could cause. A file
-/// broken BOTH in a non-profile slot and in a way `validate_snapshot`
-/// reports now reads the slot refusal; before the re-order it read the
-/// structural one.
+/// **The walk order is a contract**: a document broken in two ways at
+/// once is refused by the EARLIER walk, so that walk's refusal is the
+/// one every caller comparing the two doors reads.
+///
+/// This file is broken in a non-profile slot AND in its recorded ε,
+/// and it reads the SLOT refusal — `validate_document`'s slot walk
+/// runs before `validate_snapshot`, which is the order its docs name.
+/// Moving a walk changes the diagnosis of every file broken both ways,
+/// and this row is what says so out loud.
 #[test]
 fn rv_the_slot_walk_shadows_a_structural_refusal_it_did_not_shadow_before() {
     let (doc, pattern) = patterned();
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     let corrupt = doctored(&text, |wire| {
         // (a) a non-profile slot retyped: spacing Length -> Angle.
-        let lit = &mut wire["snapshot"]["nodes"][pattern.0.to_string()]["Pattern"]["kind"]
-            ["Linear"]["spacing"]["Literal"];
+        let lit = &mut wire["snapshot"]["nodes"][pattern.0.to_string()]["Pattern"]["kind"]["Linear"]
+            ["spacing"]["Literal"];
         assert_eq!(lit["dim"], serde_json::json!("Length"));
         lit["dim"] = serde_json::json!("Angle");
         lit["unit"] = serde_json::json!("rad");
@@ -212,6 +221,25 @@ fn rv_the_slot_walk_shadows_a_structural_refusal_it_did_not_shadow_before() {
         // `validate_snapshot` refusal.
         wire["snapshot"]["epsilon"] = serde_json::json!(-1.0);
     });
-    let verdict = load(&corrupt, Tol::witness());
-    eprintln!("RV-PROBE3 verdict {verdict:?}");
+    match load(&corrupt, Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::SlotDimension {
+            node,
+            slot,
+            expected,
+            found,
+        })) => assert_eq!(
+            (node, slot, expected, found),
+            (
+                pattern,
+                SlotId::Spacing,
+                Dimension::Length,
+                Dimension::Angle
+            ),
+            "the earlier walk's refusal, at the address it is about"
+        ),
+        other => panic!(
+            "a file broken in a slot AND in its ε must read the slot walk's refusal — the walk \
+             order `validate_document` documents. Got {other:?}"
+        ),
+    }
 }

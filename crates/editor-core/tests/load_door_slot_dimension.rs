@@ -168,6 +168,7 @@ fn a_retyped_frame_origin_is_refused_at_both_doors() {
     }
 
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    load(&text, Tol::witness()).expect("the fixture loads");
     let corrupt = doctored(&text, |wire| {
         retype_to_angle(
             &mut wire["snapshot"]["nodes"][frame.0.to_string()]["Datum"]["Frame"]["origin"][0],
@@ -298,6 +299,7 @@ fn a_slot_reading_a_parameter_at_the_wrong_dimension_is_refused_at_both_doors() 
     }
 
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    load(&text, Tol::witness()).expect("the fixture loads");
     let corrupt = doctored(&text, |wire| {
         let decl = &mut wire["snapshot"]["params"][&name.0]["Continuous"];
         assert_eq!(

@@ -809,7 +809,6 @@ test_utils::f6_variants! {
         WitnessSite,
         WitnessOnMissingNode,
         SlotDimension,
-        SlotExpressionMissing,
         SlotUnknownDocParam,
         SlotDocParamDimension,
         EpsilonInvalid,
@@ -890,13 +889,6 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 found: Dimension::Angle,
             },
             vec!["node 5", "slot distance", "needs a length expression"],
-        ),
-        (
-            SnapshotError::SlotExpressionMissing {
-                node,
-                slot: SlotId::Radius,
-            },
-            vec!["node 5", "slot radius", "carries no expression"],
         ),
         (
             SnapshotError::SlotUnknownDocParam {
@@ -1668,6 +1660,13 @@ test_utils::f6_variants! {
 /// — for every slot address alike, because one predicate decides them
 /// (`Node::slot_dimension_fault`) and one arm renders them.
 ///
+/// **And the sentence is ONE clause.** The rule's own answer carries
+/// its `Display` (`SlotDimensionFault`), and each door forwards it
+/// into its own subject, so the last case below reads the load door's
+/// rendering as the edit door's under "node 7: ". A door that
+/// restated the sentence — as the two of them did, three times over,
+/// with a program slot spelled two ways — reds there.
+///
 /// **What the ban list holds.** What a reverted arm would leak is a
 /// `SlotId` or a `StepArg` identifier. Those are read off the very
 /// values the cases carry ([`test_utils::f6::variant_identifier`]) so
@@ -1702,7 +1701,7 @@ fn a_slot_refusal_addresses_its_slot_in_the_slot_vocabulary() {
         },
         &[
             "node 7",
-            "loop 1 step 3's centre x argument",
+            "loop 1 step 3 · centre x",
             "needs a length expression",
             "got an angle",
         ],
@@ -1728,18 +1727,22 @@ fn a_slot_refusal_addresses_its_slot_in_the_slot_vocabulary() {
         &["slot origin x", "got a scalar"],
         &also_banned,
     );
-    assert_f6(
-        &SnapshotError::SlotExpressionMissing {
+    // One clause, two subjects: whatever the sentence says, the two
+    // doors say it in the same words about the same address.
+    for slot in [profile_slot, scalar_slot, component_slot] {
+        let at_load = SnapshotError::SlotDimension {
             node,
-            slot: profile_slot,
-        },
-        &[
-            "node 7",
-            "loop 1 step 3 · centre x",
-            "carries no expression",
-        ],
-        &also_banned,
-    );
+            slot,
+            expected: Dimension::Length,
+            found: Dimension::Angle,
+        };
+        let at_edit = EditError::SlotDimensionMismatch {
+            slot,
+            expected: Dimension::Length,
+            found: Dimension::Angle,
+        };
+        assert_eq!(at_load.to_string(), format!("node 7: {at_edit}"));
+    }
 }
 
 /// A program fault states the transition table's coordinate, not its

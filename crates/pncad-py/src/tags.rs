@@ -1677,7 +1677,6 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::WitnessSite { .. } => "witness_site",
         SnapshotError::WitnessOnMissingNode { .. } => "witness_on_missing_node",
         SnapshotError::SlotDimension { .. } => "slot_dimension",
-        SnapshotError::SlotExpressionMissing { .. } => "slot_expression_missing",
         SnapshotError::SlotUnknownDocParam { .. } => "slot_unknown_doc_param",
         SnapshotError::SlotDocParamDimension { .. } => "slot_doc_param_dimension",
         SnapshotError::EpsilonInvalid { .. } => "epsilon_invalid",

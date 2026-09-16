@@ -4970,7 +4970,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_site",
             "slot_dimension",
             "slot_doc_param_dimension",
-            "slot_expression_missing",
             "slot_unknown_doc_param",
             "witness_on_missing_node",
             "witness_site",

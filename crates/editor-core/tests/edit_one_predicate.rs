@@ -732,7 +732,7 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
 /// two doors' answers differ in WORD and agree in verdict, which is
 /// the property a caller comparing them relies on.
 #[test]
-fn a_continuous_parameter_declared_count_is_refused_at_both_doors() {
+fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_words() {
     let (doc, _) = with_measure();
     let name = ParamName::new("n");
     match apply(

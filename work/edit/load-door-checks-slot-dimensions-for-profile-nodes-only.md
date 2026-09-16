@@ -117,18 +117,45 @@ is documentation whose repair is deletion
 ## Built (2026-09-16, `edit/one-predicate-round-three`)
 
 One predicate, one home: `Node::slot_dimension_fault` walks
-`Node::slots()` for EVERY node kind and answers `SlotDimensionFault`
-(`Mismatch`, or `MissingExpression` — the edit door's `UnknownSlot`
-reading, a fault at both doors rather than a `continue`). Both doors
-name that answer: `check_node_slots` as `EditError::SlotDimensionMismatch`
-/ `UnknownSlot`, and `validate_document`'s new `first_slot_fault` walk
-as `SnapshotError::SlotDimension { node, slot, expected, found }` /
-`SlotExpressionMissing { node, slot }`, with their tags and their F6
-rows.
+`Node::slots()` for EVERY node kind and answers `SlotDimensionFault`,
+one comparison per slot through `SlotId::dimension_fault`. Both doors
+name that answer — `check_node_slots` and `set_slot` as
+`EditError::SlotDimensionMismatch`, and `validate_document`'s
+`first_slot_fault` walk as
+`SnapshotError::SlotDimension { node, slot, expected, found }`, with
+its tag and its F6 row — and both RENDER it the same way: the fault's
+own `Display` is one clause, forwarded into each door's subject, so a
+profile step's address reads `loop 0 step 2 · centre x` at both
+(`SlotId::label`, its one home).
+
+**The missing-expression case is an INVARIANT, not a refusal** (the
+fix pass, measuring what the spec assumed): `Node::slots()` is
+`Node::expr()`'s domain, so a slot with no expression is a
+disagreement between two matches in `node.rs` rather than a document a
+door may refuse. `slot_dimension_fault` asserts against it at the
+site; `SnapshotError::SlotExpressionMissing` and its tag are deleted,
+and `check_node_slots` no longer maps one (`EditError::UnknownSlot`
+stays for `set_slot`, where a caller CAN name a slot the node does not
+carry). `switch_slots::every_node_kinds_slots_are_all_readable` pins
+the invariant over every node kind and every payload shape that
+answers a different slot list, welded by two `f6_variants!` rosters.
+
+It found one violation, fixed here: a `Node::PlacedUnion` with no
+count listed `SlotId::Count` among its slots while `Node::expr`
+answered nothing for it. The count spelling and the rule disagreeing
+is `PlacementRuleFault::CountSpelling`, refused at both doors through
+`Node::placement_rule_fault` — so `Node::slots` now reports the slots
+the node actually carries (`rule_slots`, the domain of the `rule_expr`
+mapping it already shared with `Node::Pattern`), and the slot walks
+pass over a node whose rule is broken rather than answering for an
+address nothing can read.
 
 The walk runs BEFORE the program walk, because the program walk probes
 the replay and a step whose argument is the wrong quantity is not a
-walk worth probing. Measured there: `ProgramFault::SlotDimension` is
+walk worth probing — and `validate_document` now runs its walks BY the
+roster that names them (`Walk::ORDER`), so the order is data rather
+than a sequence of `if let`s with a comment over them. Measured there:
+`ProgramFault::SlotDimension` is
 then unreachable, so it is deleted and its tag retired — a program
 slot is a slot like any other, and the profile-only spelling was the
 narrowing this row named.
@@ -145,11 +172,16 @@ class 2 and still passes every door here.
 
 The PAYLOAD expressions' half of the param-table rule (a measure's
 expression, an assertion's bound) stays edit-door-only and is filed as
-`load-door-does-not-check-payload-expression-param-refs`.
+`load-door-does-not-check-payload-expression-param-refs`, MEASURED by
+`rv_onepred3_probes::rv_a_measure_expression_reading_an_undeclared_parameter_still_loads`
+— green because the load door admits what the edit door refuses, and
+red on the day that row is built.
 
 The measured file — a saved one-extrude document whose distance
 literal is retyped from `Length`/`m` to `Angle`/`rad` on the wire — is
 now refused at both doors, and `load_door_slot_dimension` is the
 red-then-green row for it, with a frame datum's origin component
-beside it as a second node kind. `m4_pr6_refusal`'s program row reads
-the new refusal.
+beside it as a second node kind and a pattern's Count slot as a third
+(`rv_onepred3_probes::rv_a_retyped_pattern_count_is_refused_at_both_doors`,
+the review lane's). `m4_pr6_refusal`'s program row reads the new
+refusal.

@@ -2,8 +2,11 @@
 id: set-slot-spells-the-slot-rule-a-third-time
 kind: issue
 title: set_slot restates both arms of the slot rule a third time, and the refusal SENTENCE lives at three sites
-status: open
+status: closed
 opened: 2026-09-16
+branch: edit/one-predicate-round-three
+pr: 2780
+closed: 2026-09-16
 ---
 
 
@@ -52,3 +55,25 @@ same fact: the load door renders `loop 0 step 2's centre-x argument`
 **Not a correctness defect**: both doors refuse the same documents,
 which the round-three rows pin. This is the Q1 residue the unit's own
 move leaves behind.
+
+## Closed (2026-09-16, `edit/one-predicate-round-three`'s fix pass)
+
+**The predicate.** `SlotId::dimension_fault(self, &Expr)` is D6's
+comparison over one address and one candidate expression, and it is
+the only place the comparison is written: `Node::slot_dimension_fault`
+asks it per slot of a node the document holds, and `set_slot` asks it
+of an expression the node does not hold yet. The vocabulary-bug arm is
+not restated because it no longer exists — `slots()` is `expr()`'s
+domain, asserted at the site and pinned for every node kind
+(`switch_slots::every_node_kinds_slots_are_all_readable`), so what
+`set_slot` still decides for itself is whether the node HAS the slot a
+caller named, which is its own question and a reachable mistake.
+
+**The sentence.** `SlotDimensionFault`'s `Display` is the one clause,
+forwarded into each door's subject — `EditError::SlotDimensionMismatch`
+renders it bare, `SnapshotError::SlotDimension` under "node 7: " —
+the `Frame::admission_fault` shape round two built. The load door's
+separate spelling of a PROFILE slot address is gone with it: both
+doors render `SlotId::label`, so one fact reads as one sentence.
+`display_contract::a_slot_refusal_addresses_its_slot_in_the_slot_vocabulary`
+asserts the two renderings against each other for three slot shapes.

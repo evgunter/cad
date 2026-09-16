@@ -150,12 +150,110 @@ impl core::fmt::Display for NonFiniteSite {
     }
 }
 
+/// **The roster of [`validate_document`]'s walks, in the order it runs
+/// them** — the census of this door's refusals, in code rather than in
+/// prose beside it.
+///
+/// A hand-written table of "which walk produces which refusal"
+/// undercounted twice in three rounds, once by a whole walk. Nothing
+/// here is written twice: [`Walk::ORDER`] is what
+/// [`validate_document`] iterates, [`Walk::run`] is the exhaustive map
+/// from a walk to the function behind it, and
+/// `tests::every_snapshot_error_arm_names_the_walk_that_produces_it`
+/// places every [`SnapshotError`] arm in the walk that raises it —
+/// each of the three stops compiling when a walk or an arm is added
+/// and not placed. What the code cannot know — the EDIT-door twin each
+/// refusal has, and whether its predicate is shared — stays in the
+/// tracker beside this roster.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Walk {
+    /// [`first_non_finite`] over ε, the params, the nodes, the
+    /// appearance records and the edit log.
+    NonFinite,
+    /// [`first_distribution_fault`] over the param table.
+    Distribution,
+    /// [`first_display_unit_fault`] over the param table.
+    DisplayUnit,
+    /// [`first_slot_fault`] over every node's slots.
+    SlotDimension,
+    /// [`first_slot_param_ref_fault`] over every slot expression's
+    /// document-parameter references.
+    SlotParamRef,
+    /// [`first_program_fault`] over the profile programs' replay.
+    Program,
+    /// [`validate_snapshot`] over the document's structural
+    /// invariants.
+    Snapshot,
+}
+
+impl Walk {
+    /// Every walk, in the order [`validate_document`] runs them —
+    /// which it runs them BY, so this is the order rather than a
+    /// description of it.
+    pub(crate) const ORDER: [Walk; 7] = [
+        Walk::NonFinite,
+        Walk::Distribution,
+        Walk::DisplayUnit,
+        Walk::SlotDimension,
+        Walk::SlotParamRef,
+        Walk::Program,
+        Walk::Snapshot,
+    ];
+
+    /// **This walk over one document**, or `None` when it finds
+    /// nothing — the map from a walk to the function behind it and to
+    /// the refusal it raises.
+    ///
+    /// Exhaustive with no wildcard arm, which is what makes [`Walk`]
+    /// the census rather than a comment beside one: a walk added to
+    /// the enum does not compile until it says what it runs, and one
+    /// missing from [`Walk::ORDER`] never executes — which
+    /// `tests::every_snapshot_error_arm_names_the_walk_that_produces_it`
+    /// reds on.
+    fn run(
+        self,
+        snapshot: &ProfileDoc,
+        edits: &[DocEdit<ProfileProgram>],
+        tol: Tol,
+    ) -> Option<super::PersistError> {
+        match self {
+            Walk::NonFinite => first_non_finite(snapshot, edits)
+                .map(|site| super::PersistError::NonFinite { site }),
+            Walk::Distribution => first_distribution_fault(snapshot)
+                .map(|(name, fault)| super::PersistError::Distribution { name, fault }),
+            Walk::DisplayUnit => {
+                first_display_unit_fault(snapshot).map(|(name, unit, declared)| {
+                    super::PersistError::DisplayUnit {
+                        name,
+                        unit,
+                        declared,
+                    }
+                })
+            }
+            Walk::SlotDimension => first_slot_fault(snapshot).map(slot_refusal),
+            Walk::SlotParamRef => first_slot_param_ref_fault(snapshot).map(slot_param_ref_refusal),
+            Walk::Program => first_program_fault(snapshot, tol)
+                .map(|(node, fault)| super::PersistError::ProfileProgram { node, fault }),
+            Walk::Snapshot => validate_snapshot(snapshot)
+                .err()
+                .map(super::PersistError::Snapshot),
+        }
+    }
+}
+
 /// The shared validator (module docs): every direction-independent
-/// document check, in one place, invoked by both doors. Check order
-/// is float walk → distribution walk → display-unit walk → SLOT walks
-/// (dimension, then param refs) → program walk → structural
-/// invariants (the save door's historical precedence, pinned by the
-/// refusal suite).
+/// document check, in one place, invoked by both doors. The walks it
+/// runs are [`Walk`]'s variants, in that order — float walk →
+/// distribution walk → display-unit walk → SLOT walks (dimension,
+/// then param refs) → program walk → structural invariants (the save
+/// door's historical precedence, pinned by the refusal suite).
+///
+/// **The order is a CONTRACT, not an implementation detail**: a
+/// document broken in two ways at once is refused by the EARLIER walk,
+/// so that is the refusal every caller comparing two doors' answers
+/// reads, and moving a walk changes the diagnosis of every file broken
+/// both ways. `rv_onepred3_probes::rv_the_slot_walk_shadows_a_structural_refusal_it_did_not_shadow_before`
+/// is the row that pins the class.
 ///
 /// The slot walk runs before the program walk because the program
 /// walk PROBES the replay: a step whose argument is an angle where the
@@ -166,58 +264,49 @@ pub(crate) fn validate_document(
     edits: &[DocEdit<ProfileProgram>],
     tol: Tol,
 ) -> Result<(), super::PersistError> {
-    if let Some(site) = first_non_finite(snapshot, edits) {
-        return Err(super::PersistError::NonFinite { site });
+    for walk in Walk::ORDER {
+        if let Some(refusal) = walk.run(snapshot, edits, tol) {
+            return Err(refusal);
+        }
     }
-    if let Some((name, fault)) = first_distribution_fault(snapshot) {
-        return Err(super::PersistError::Distribution { name, fault });
-    }
-    if let Some((name, unit, declared)) = first_display_unit_fault(snapshot) {
-        return Err(super::PersistError::DisplayUnit {
+    Ok(())
+}
+
+/// The slot walk's answer, in the load door's vocabulary.
+fn slot_refusal((node, fault): (RecipeNodeId, SlotDimensionFault)) -> super::PersistError {
+    let SlotDimensionFault {
+        slot,
+        expected,
+        found,
+    } = fault;
+    super::PersistError::Snapshot(SnapshotError::SlotDimension {
+        node,
+        slot,
+        expected,
+        found,
+    })
+}
+
+/// The slot param-ref walk's answer, in the load door's vocabulary.
+fn slot_param_ref_refusal(
+    (node, slot, fault): (RecipeNodeId, SlotId, crate::doc::ParamRefFault),
+) -> super::PersistError {
+    super::PersistError::Snapshot(match fault {
+        crate::doc::ParamRefFault::Unknown { name } => {
+            SnapshotError::SlotUnknownDocParam { node, slot, name }
+        }
+        crate::doc::ParamRefFault::Dimension {
             name,
-            unit,
             declared,
-        });
-    }
-    if let Some((node, fault)) = first_slot_fault(snapshot) {
-        return Err(super::PersistError::Snapshot(match fault {
-            SlotDimensionFault::MissingExpression { slot } => {
-                SnapshotError::SlotExpressionMissing { node, slot }
-            }
-            SlotDimensionFault::Mismatch {
-                slot,
-                expected,
-                found,
-            } => SnapshotError::SlotDimension {
-                node,
-                slot,
-                expected,
-                found,
-            },
-        }));
-    }
-    if let Some((node, slot, fault)) = first_slot_param_ref_fault(snapshot) {
-        return Err(super::PersistError::Snapshot(match fault {
-            crate::doc::ParamRefFault::Unknown { name } => {
-                SnapshotError::SlotUnknownDocParam { node, slot, name }
-            }
-            crate::doc::ParamRefFault::Dimension {
-                name,
-                declared,
-                referenced,
-            } => SnapshotError::SlotDocParamDimension {
-                node,
-                slot,
-                name,
-                declared,
-                referenced,
-            },
-        }));
-    }
-    if let Some((node, fault)) = first_program_fault(snapshot, tol) {
-        return Err(super::PersistError::ProfileProgram { node, fault });
-    }
-    validate_snapshot(snapshot).map_err(super::PersistError::Snapshot)
+            referenced,
+        } => SnapshotError::SlotDocParamDimension {
+            node,
+            slot,
+            name,
+            declared,
+            referenced,
+        },
+    })
 }
 
 /// The first document parameter whose authored display unit does not
@@ -380,6 +469,13 @@ fn edit_non_finite(edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
         // The value door carries no distribution of its own — the
         // declaration it writes into supplies that — but its
         // continuous arm IS a raw float the format writes.
+        //
+        // It is the one float site here that cannot delegate to
+        // `DocParam::first_non_finite`: the payload is a bare `f64`,
+        // not a `DocParam`, so there is no parameter for the shared
+        // predicate to read. What it shares with the walk over the
+        // table is the SITE vocabulary, which is what a reader
+        // comparing the two refusals sees.
         DocEdit::SetDocParamValue {
             name,
             value: crate::doc::DocParamValue::Continuous(v),
@@ -610,18 +706,6 @@ pub enum SnapshotError {
         /// The dimension the expression reads it at.
         referenced: crate::expr::Dimension,
     },
-    /// A node that names a slot it cannot answer for. `Node::slots`
-    /// and `Node::expr` agree by construction, so this is a vocabulary
-    /// bug in the node layer rather than a property of the file —
-    /// surfaced rather than skipped, at this door as at the edit door
-    /// ([`crate::EditError::UnknownSlot`]), because a slot that cannot
-    /// be read is a slot no rule above can decide.
-    SlotExpressionMissing {
-        /// The offending node.
-        node: RecipeNodeId,
-        /// The slot with no expression behind it.
-        slot: SlotId,
-    },
     /// A measure node whose expression reads a reference the node does
     /// not carry (E3). The expression indexes the reference list
     /// positionally, so this is a corrupt file, not a stale reference:
@@ -771,24 +855,12 @@ impl core::fmt::Display for SnapshotError {
             Self::PlacementRule { node, fault } => {
                 write!(f, "placement-rule node {}: {fault}", node.0)
             }
-            // A PROGRAM slot's address is spelled out rather than
-            // dumped: `SlotId::Profile`'s three fields are the
-            // location, and a derived rendering would put the struct's
-            // own braces in a user's message.
-            Self::SlotDimension {
-                node,
-                slot: SlotId::Profile { loop_, step, arg },
-                expected,
-                found,
-            } => write!(
-                f,
-                "node {}: loop {loop_} step {step}'s {} argument needs {} {expected} \
-                 expression, got {} {found}",
-                node.0,
-                arg.label(),
-                expected.article(),
-                found.article()
-            ),
+            // The rule's own clause (`SlotDimensionFault`), forwarded
+            // into this door's subject. Every slot address alike,
+            // including a program step's: `SlotId::label` is where an
+            // address is put into words, so a reader who sees
+            // "loop 0 step 2 · centre x" from the edit door sees the
+            // same address here.
             Self::SlotDimension {
                 node,
                 slot,
@@ -796,11 +868,13 @@ impl core::fmt::Display for SnapshotError {
                 found,
             } => write!(
                 f,
-                "node {}: slot {} needs {} {expected} expression, got {} {found}",
+                "node {}: {}",
                 node.0,
-                slot.label(),
-                expected.article(),
-                found.article()
+                crate::node::SlotDimensionFault {
+                    slot: *slot,
+                    expected: *expected,
+                    found: *found
+                }
             ),
             Self::SlotUnknownDocParam { node, slot, name } => write!(
                 f,
@@ -823,12 +897,6 @@ impl core::fmt::Display for SnapshotError {
                 slot.label(),
                 name.0,
                 referenced.article()
-            ),
-            Self::SlotExpressionMissing { node, slot } => write!(
-                f,
-                "node {} names the slot {} and carries no expression for it",
-                node.0,
-                slot.label()
             ),
             Self::MeasureRefs { node, fault } => {
                 write!(f, "measure node {}: {fault}", node.0)
@@ -1178,10 +1246,277 @@ fn first_program_fault(snapshot: &ProfileDoc, tol: Tol) -> Option<(RecipeNodeId,
 mod tests {
     #![allow(clippy::panic, clippy::expect_used)]
 
-    use crate::node::{Node, RecipeNodeId};
+    use super::Walk;
+    use crate::doc::ParamName;
+    use crate::expr::Dimension;
+    use crate::node::{Node, RecipeNodeId, SlotId};
     use crate::persist::{PersistError, SnapshotError, save};
     use crate::program::ProfileDoc;
     use geom_core::Tol;
+
+    test_utils::f6_variants! {
+        /// **`validate_document`'s walks**, welded to [`Walk`] by the
+        /// match the macro writes: a walk added to the enum leaves it
+        /// non-exhaustive, and the census below compares this roster
+        /// against [`WALKS_IN_CALL_ORDER`] in both directions.
+        const WALK: Walk = [
+            NonFinite,
+            Distribution,
+            DisplayUnit,
+            SlotDimension,
+            SlotParamRef,
+            Program,
+            Snapshot,
+        ];
+    }
+
+    /// Whether a walk's refusal is a [`SnapshotError`] — the rest
+    /// raise a [`PersistError`](crate::PersistError) arm of their own.
+    ///
+    /// Exhaustive with no wildcard arm, for the same reason
+    /// [`Walk::run`] is: a walk added to the enum is placed here too,
+    /// or this does not compile.
+    const fn raises_snapshot_error(walk: Walk) -> bool {
+        match walk {
+            Walk::NonFinite | Walk::Distribution | Walk::DisplayUnit | Walk::Program => false,
+            Walk::SlotDimension | Walk::SlotParamRef | Walk::Snapshot => true,
+        }
+    }
+
+    test_utils::f6_variants! {
+        /// **The load door's snapshot vocabulary**, welded to the enum
+        /// by the match the macro writes — the roster half of the
+        /// census below. See [`test_utils::f6::VariantCensus`] for what
+        /// that weld does and does not buy.
+        const SNAPSHOT_ERROR: SnapshotError = [
+            OrderMismatch,
+            IdBeyondCounter,
+            DanglingInput,
+            ForwardInput,
+            DeclareInput,
+            WitnessSite,
+            WitnessOnMissingNode,
+            SlotDimension,
+            SlotUnknownDocParam,
+            SlotDocParamDimension,
+            EpsilonInvalid,
+            Roots,
+            PlacementSite,
+            PlacementNonFinite,
+            PlacementImproper,
+            PlacementNotGauge,
+            MateAlignment,
+            PlacementRule,
+            MeasureRefs,
+            InputList,
+            AssertionTarget,
+            AssertionBound,
+            MetadataUnversioned,
+        ];
+    }
+
+    /// **The walk each refusal comes out of**, as an exhaustive match
+    /// with no wildcard arm: a [`SnapshotError`] arm added tomorrow
+    /// does not compile until it says which walk raises it.
+    fn walk_of(err: &SnapshotError) -> Walk {
+        match err {
+            // `validate_document` itself, from the two slot walks it
+            // maps into this vocabulary.
+            SnapshotError::SlotDimension { .. } => Walk::SlotDimension,
+            SnapshotError::SlotUnknownDocParam { .. }
+            | SnapshotError::SlotDocParamDimension { .. } => Walk::SlotParamRef,
+            // `validate_snapshot`, which is where the rest live.
+            SnapshotError::OrderMismatch
+            | SnapshotError::IdBeyondCounter { .. }
+            | SnapshotError::DanglingInput { .. }
+            | SnapshotError::ForwardInput { .. }
+            | SnapshotError::DeclareInput { .. }
+            | SnapshotError::WitnessSite { .. }
+            | SnapshotError::WitnessOnMissingNode { .. }
+            | SnapshotError::EpsilonInvalid { .. }
+            | SnapshotError::Roots(_)
+            | SnapshotError::PlacementSite { .. }
+            | SnapshotError::PlacementNonFinite { .. }
+            | SnapshotError::PlacementImproper { .. }
+            | SnapshotError::PlacementNotGauge { .. }
+            | SnapshotError::MateAlignment { .. }
+            | SnapshotError::PlacementRule { .. }
+            | SnapshotError::MeasureRefs { .. }
+            | SnapshotError::InputList { .. }
+            | SnapshotError::AssertionTarget { .. }
+            | SnapshotError::AssertionBound { .. }
+            | SnapshotError::MetadataUnversioned { .. } => Walk::Snapshot,
+        }
+    }
+
+    /// **`validate_document`'s census, in code.** Three rounds of
+    /// one-predicate work read this door's refusals off a table
+    /// maintained by hand in the tracker, and the table undercounted
+    /// twice — the second time by an entire walk and its two refusals.
+    /// Nothing here is maintained by hand:
+    ///
+    /// - a walk added to [`Walk`] does not compile until
+    ///   [`Walk::raises_snapshot_error`] places it;
+    /// - a [`SnapshotError`] arm added does not compile until
+    ///   [`walk_of`] and the [`SNAPSHOT_ERROR`] roster place it;
+    /// - and the two sides are compared below, in both directions, so
+    ///   an arm that names a walk which refuses in another vocabulary
+    ///   — or a snapshot-refusing walk no arm comes out of — is red.
+    ///
+    /// What stays in the tracker beside this row is the column the
+    /// code cannot know: the EDIT-door twin of each refusal, and
+    /// whether the predicate behind it is shared or hand-copied.
+    #[test]
+    fn every_snapshot_error_arm_names_the_walk_that_produces_it() {
+        let node = RecipeNodeId(5);
+        // One value per arm, welded to the roster below: a case list
+        // that fell behind the enum would name fewer identifiers than
+        // the roster holds and red in the comparison.
+        let cases = [
+            SnapshotError::OrderMismatch,
+            SnapshotError::IdBeyondCounter {
+                id: node,
+                next_id: 4,
+            },
+            SnapshotError::DanglingInput {
+                node,
+                input: RecipeNodeId(9),
+            },
+            SnapshotError::ForwardInput {
+                node,
+                input: RecipeNodeId(9),
+            },
+            SnapshotError::DeclareInput {
+                node,
+                input: RecipeNodeId(9),
+            },
+            SnapshotError::WitnessSite { node },
+            SnapshotError::WitnessOnMissingNode { node },
+            SnapshotError::SlotDimension {
+                node,
+                slot: SlotId::Distance,
+                expected: Dimension::Length,
+                found: Dimension::Angle,
+            },
+            SnapshotError::SlotUnknownDocParam {
+                node,
+                slot: SlotId::Radius,
+                name: ParamName::new("fillet"),
+            },
+            SnapshotError::SlotDocParamDimension {
+                node,
+                slot: SlotId::Distance,
+                name: ParamName::new("depth"),
+                declared: Dimension::Angle,
+                referenced: Dimension::Length,
+            },
+            SnapshotError::EpsilonInvalid { value: 0.0 },
+            SnapshotError::Roots(crate::roots::RootFault::Ancestor {
+                ancestor: RecipeNodeId(1),
+                descendant: RecipeNodeId(2),
+            }),
+            SnapshotError::PlacementSite { node },
+            SnapshotError::PlacementNonFinite { node },
+            SnapshotError::PlacementImproper {
+                node,
+                determinant: -1.0,
+            },
+            SnapshotError::PlacementNotGauge {
+                node,
+                gauge: RecipeNodeId(2),
+            },
+            SnapshotError::MateAlignment { node },
+            SnapshotError::PlacementRule {
+                node,
+                fault: crate::node::PlacementRuleFault::NoPlacements,
+            },
+            SnapshotError::MeasureRefs {
+                node,
+                fault: crate::node::MeasureNodeFault::RefIndexOutOfRange {
+                    verb: "distance",
+                    index: 3,
+                    refs: 2,
+                },
+            },
+            SnapshotError::InputList {
+                node,
+                fault: crate::node::InputFault::TooFew { found: 1 },
+            },
+            SnapshotError::AssertionTarget {
+                node,
+                measure: RecipeNodeId(4),
+                bound: Dimension::Count,
+            },
+            SnapshotError::AssertionBound {
+                node,
+                measure: RecipeNodeId(4),
+                measured: Dimension::Length,
+                bound: Dimension::Angle,
+            },
+            SnapshotError::MetadataUnversioned {
+                name: crate::names::StableName {
+                    kind: crate::names::EntityKind::Face,
+                    node,
+                    path: Vec::new(),
+                },
+                key: "swatch".to_owned(),
+                error: crate::meta::MetaVersionError::MissingVersion,
+            },
+        ];
+
+        let covered: Vec<String> = cases
+            .iter()
+            .map(test_utils::f6::variant_identifier)
+            .collect();
+        let covered: Vec<&str> = covered.iter().map(String::as_str).collect();
+        if let Some(report) = test_utils::census::set_difference(
+            SNAPSHOT_ERROR.identifiers(),
+            &covered,
+            "the `SnapshotError` roster and the cases this census walks disagree",
+            "carried by a case and absent from the roster — add it, spelled as `Debug` \
+             renders it",
+            "in the roster and carried by no case — give it a case, and place it in `walk_of`",
+        ) {
+            panic!("{report}");
+        }
+
+        let walks: Vec<String> = Walk::ORDER
+            .iter()
+            .map(test_utils::f6::variant_identifier)
+            .collect();
+        let walks: Vec<&str> = walks.iter().map(String::as_str).collect();
+        if let Some(report) = test_utils::census::set_difference(
+            WALK.identifiers(),
+            &walks,
+            "the `Walk` roster and `Walk::ORDER` disagree",
+            "in `Walk::ORDER` and absent from the roster",
+            "in the roster and absent from `Walk::ORDER`, which is what `validate_document` \
+             runs — so this walk never executes",
+        ) {
+            panic!("{report}");
+        }
+
+        // The two sides against each other: every arm comes out of a
+        // walk that refuses in THIS vocabulary, and every such walk is
+        // reached by an arm. A walk whose refusals stopped being
+        // `SnapshotError`s, or one whose arms were folded into
+        // another's, reds here rather than in the tracker.
+        for err in &cases {
+            let walk = walk_of(err);
+            assert!(
+                raises_snapshot_error(walk),
+                "{err:?} is placed in {walk:?}, a walk that refuses in another vocabulary"
+            );
+        }
+        for walk in Walk::ORDER {
+            assert_eq!(
+                raises_snapshot_error(walk),
+                cases.iter().any(|err| walk_of(err) == walk),
+                "{walk:?} and the arms placed in it disagree about whether it refuses with a \
+                 `SnapshotError`"
+            );
+        }
+    }
 
     /// Convention 2's point, pinned at the unit level: a document
     /// that would refuse to load cannot be saved. Both corruptions

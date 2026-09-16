@@ -419,8 +419,6 @@ mod r2_m10_di_probes;
 mod rev_fix_xsplit_unreachable;
 #[path = "review_gui1_r1.rs"]
 mod review_gui1_r1;
-#[path = "rv_onepred3_probes.rs"]
-mod rv_onepred3_probes;
 #[path = "review_m4_pr1.rs"]
 mod review_m4_pr1;
 #[path = "review_m4_pr1_die.rs"]
@@ -439,6 +437,8 @@ mod review_m6_5_pr2_probes;
 mod review_pick_r2_probes;
 #[path = "ring_r1_names_probe.rs"]
 mod ring_r1_names_probe;
+#[path = "rv_onepred3_probes.rs"]
+mod rv_onepred3_probes;
 #[path = "scalar_frame_r1_probes.rs"]
 mod scalar_frame_r1_probes;
 #[path = "seat4_verb_lowering.rs"]

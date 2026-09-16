@@ -31,9 +31,16 @@ same node: the same "a document the load door admits that the edit
 doors could not have produced" class the round-three spec ruled on for
 slot expressions.
 
-Not measured by a row yet — the finding is read off the call sites,
-not off a fixture — so a unit taking it should measure it first, as
-the slot half was measured.
+**Measured** by
+`crates/editor-core/tests/rv_onepred3_probes.rs`'s
+`rv_a_measure_expression_reading_an_undeclared_parameter_still_loads`
+(written by the round-three review lane, adopted by its fix pass): a
+saved document whose measure expression reads a declared parameter,
+with that declaration removed on the wire, LOADS — and the same node
+offered to `InsertNode` refuses as
+`EditError::UnknownPayloadParam`. The row is green because the gap is
+real; it reds, naming this row, on the day the gap is closed, which is
+what a unit taking this row should expect to see first.
 
 **Why it was not done there.** Round three's spec named slot
 expressions (`check_param_refs`) and ruled that half. The payload half
