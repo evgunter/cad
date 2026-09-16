@@ -180,7 +180,9 @@ claim's — rays answered at the aimed vertex, `141 094` → `141 106`.
    order independence.
 3. **Order independence holds**: `Pruned == Every` on every landing,
    and no winner's barycentric carries a bound of `1` or more —
-   both asserted per ray in `index_memo`'s `reference_answers`.
+   both asserted per ray — `Pruned == Every` and the bound in
+   `index_memo`'s `reference_answers`, the bound again over the wide
+   aim in `review_pick_r2`'s sweep.
 4. **The boundary pins**: a hit exactly on a boundary (accepted), one
    ULP outside (refused, closed), and an uninformative candidate
    INSIDE the range (refused at INFORM), each with the mutant it
@@ -191,3 +193,37 @@ claim's — rays answered at the aimed vertex, `141 094` → `141 106`.
    the count is derivable from the acceptance, and a pinned `0` would
    read as a baseline.
 6. The derivation at the site, one paragraph in `ray_triangle`'s doc.
+
+### Corrected at the fix pass (2026-09-16, two independent reviews)
+
+Three things this amendment said, or let the tree say, were wrong, and
+are corrected in the same PR:
+
+1. **INFORM is not free.** `ray_triangle`'s doc claimed the refusal
+   "costs no graze, because a graze's `u` and `v` are `0` against a
+   numerator bound that vanishes with them". The bound is
+   `triple_bound`, a sum of operand MAGNITUDES, so it does not vanish
+   where the barycentric does: a corner graze on a candidate at the
+   certification's floor is refused too. Measured over the wide aim:
+   133 answers moved against `main`, every one farther, and the `+12`
+   above is a NET of `+15` aims gained and `−3` lost — three reaches
+   of one `cut_cylinder` ray, `0.5356` farther. The door now states
+   the cost, the graze row carries the measurement, and the labelling
+   asymmetry the refusal exposes is filed
+   (`pick-a-corner-graze-verdict-depends-on-the-corner-labelling`).
+2. **The example's conditioning is `7.19e-16`, not `2.7e-11`**, with
+   `|det| / bound_det = 5.72`: the candidate sits ON the
+   certification's noise floor rather than a decade above it, which
+   makes its row the EDGE of
+   `pick-refuses-a-crossing-within-rounding-of-a-plane` rather than a
+   separate country. Pinned as a row.
+3. **The bound was pinned only from the tight side.** `err * 2` and
+   INFORM-without-the-sum both survived every unit row. Two fixtures
+   now kill them.
+
+Acceptance 3's `Pruned == Every` and acceptance 5's bound claim are
+also asserted over the wide aim, not only the tie-break one; the
+three public doors onto one evaluation collapsed to one (`crossing`);
+and the residue ruling this unit leaves is scheduled as
+`work/edit/what-t-the-pick-door-answers-and-with-what-width`, with the
+three rows that wait on it parked there.
