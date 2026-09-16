@@ -2,8 +2,9 @@
 id: load-door-does-not-check-payload-expression-param-refs
 kind: issue
 title: The load door asks the param-table rule of slot expressions only; a measure's or an assertion's payload expression is edit-door-only
-status: spec
+status: review
 opened: 2026-09-16
+branch: edit/load-door-payload-refs
 ---
 
 
@@ -108,3 +109,34 @@ re-check them.
 `crates/pncad-py/src/tags.rs`, `src/tests.rs` (LIB, mechanical).
 Middle tier: one opus style review with a correctness arm, then a fix
 pass.
+
+## Built (2026-09-16)
+
+The load door asks the param-table rule of a node's PAYLOAD
+expressions as well as its slots.
+
+`persist::check::first_payload_param_ref_fault` walks
+`node::payload_exprs` of every node and asks the same
+`Doc::param_ref_fault` the edit door asks — one spelling of the rule,
+three callers still. Its answer is named by two `SnapshotError` arms
+whose address is the NODE, `PayloadUnknownDocParam` and
+`PayloadDocParamDimension`, placed on a new walk
+`Walk::PayloadParamRef` that runs after `Walk::SlotParamRef`: a
+document broken in both a slot and a payload is diagnosed at the slot.
+The exhaustive map places both arms, so neither the walk nor the arms
+compile until they are placed; the F6 census in `display_contract.rs`
+renders both, and `pncad-py`'s tag map and tag inventory carry
+`payload_unknown_doc_param` / `payload_doc_param_dimension`.
+
+The measurement that disclosed the gap flipped: its row is gone from
+`rv_onepred3_probes.rs` and the payload contract lives in
+`crates/editor-core/tests/load_door_payload_param_ref.rs` — the
+undeclared-parameter row over a measure (both doors, one fixture), its
+dimension twin, an assertion-bound row, a round-trip row, and the
+slot-before-payload order row.
+
+What did not land: nothing from the spec. The spec's option of
+renaming `Walk::SlotParamRef` to `Walk::ParamRef` and placing both
+pairs on it was not taken — slot and payload are two walks because
+their refusals carry different addresses, and the order between them
+is a contract a single walk could not state.

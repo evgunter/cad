@@ -179,6 +179,9 @@ pub(crate) enum Walk {
     /// [`first_slot_param_ref_fault`] over every slot expression's
     /// document-parameter references.
     SlotParamRef,
+    /// [`first_payload_param_ref_fault`] over the document-parameter
+    /// references of every expression no slot addresses.
+    PayloadParamRef,
     /// [`first_program_fault`] over the profile programs' replay.
     Program,
     /// [`validate_snapshot`] over the document's structural
@@ -190,12 +193,13 @@ impl Walk {
     /// Every walk, in the order [`validate_document`] runs them —
     /// which it runs them BY, so this is the order rather than a
     /// description of it.
-    pub(crate) const ORDER: [Walk; 7] = [
+    pub(crate) const ORDER: [Walk; 8] = [
         Walk::NonFinite,
         Walk::Distribution,
         Walk::DisplayUnit,
         Walk::SlotDimension,
         Walk::SlotParamRef,
+        Walk::PayloadParamRef,
         Walk::Program,
         Walk::Snapshot,
     ];
@@ -232,6 +236,9 @@ impl Walk {
             }
             Walk::SlotDimension => first_slot_fault(snapshot).map(slot_refusal),
             Walk::SlotParamRef => first_slot_param_ref_fault(snapshot).map(slot_param_ref_refusal),
+            Walk::PayloadParamRef => {
+                first_payload_param_ref_fault(snapshot).map(payload_param_ref_refusal)
+            }
             Walk::Program => first_program_fault(snapshot, tol)
                 .map(|(node, fault)| super::PersistError::ProfileProgram { node, fault }),
             Walk::Snapshot => validate_snapshot(snapshot)
@@ -245,8 +252,9 @@ impl Walk {
 /// document check, in one place, invoked by both doors. The walks it
 /// runs are [`Walk`]'s variants, in that order — float walk →
 /// distribution walk → display-unit walk → SLOT walks (dimension,
-/// then param refs) → program walk → structural invariants (the save
-/// door's historical precedence, pinned by the refusal suite).
+/// then param refs) → the PAYLOAD param-ref walk → program walk →
+/// structural invariants (the save door's historical precedence,
+/// pinned by the refusal suite).
 ///
 /// **The order is a CONTRACT, not an implementation detail**: a
 /// document broken in two ways at once is refused by the EARLIER walk,
@@ -302,6 +310,29 @@ fn slot_param_ref_refusal(
         } => SnapshotError::SlotDocParamDimension {
             node,
             slot,
+            name,
+            declared,
+            referenced,
+        },
+    })
+}
+
+/// The payload param-ref walk's answer, in the load door's vocabulary
+/// — the payload vocabulary's shape, which names the NODE because
+/// there is no slot to name.
+fn payload_param_ref_refusal(
+    (node, fault): (RecipeNodeId, crate::doc::ParamRefFault),
+) -> super::PersistError {
+    super::PersistError::Snapshot(match fault {
+        crate::doc::ParamRefFault::Unknown { name } => {
+            SnapshotError::PayloadUnknownDocParam { node, name }
+        }
+        crate::doc::ParamRefFault::Dimension {
+            name,
+            declared,
+            referenced,
+        } => SnapshotError::PayloadDocParamDimension {
+            node,
             name,
             declared,
             referenced,
@@ -374,6 +405,38 @@ fn first_slot_param_ref_fault(
             let fault = snapshot.param_ref_fault(node.expr(slot)?)?;
             Some((id, slot, fault))
         })
+    })
+}
+
+/// The first PAYLOAD expression whose document-parameter references
+/// the param table cannot answer, as `(node, fault)`, by the ONE
+/// predicate the edit doors ask ([`crate::Doc::param_ref_fault`]).
+///
+/// The expressions no slot addresses ([`crate::node::payload_exprs`]):
+/// a [`Node::Measure`](crate::Node::Measure)'s measured expression
+/// leaves and a [`Node::Assertion`](crate::Node::Assertion)'s bound.
+/// The address reported is the NODE, because that is the address the
+/// expression has — which is why this is its own pair of refusal arms
+/// rather than a wider domain for the slot walk's.
+///
+/// Runs after the slot param-ref walk, so a document broken in a slot
+/// AND in a payload is diagnosed at the slot, which is the address
+/// that carries more.
+///
+/// Their DIMENSIONS are not this walk's subject and are checked
+/// nowhere here: a `MeasureExpr` runs the F1 checker at every
+/// constructor, and an assertion's bound is checked against its
+/// measure's dimension by [`Node::assertion_bound_fault`], whose
+/// refusal is [`SnapshotError::AssertionBound`]. What is left for this
+/// walk is the param TABLE, exactly as for a slot expression.
+fn first_payload_param_ref_fault(
+    snapshot: &ProfileDoc,
+) -> Option<(RecipeNodeId, crate::doc::ParamRefFault)> {
+    snapshot.nodes.iter().find_map(|(&id, node)| {
+        crate::node::payload_exprs(node)
+            .into_iter()
+            .flatten()
+            .find_map(|expr| Some((id, snapshot.param_ref_fault(expr)?)))
     })
 }
 
@@ -706,6 +769,35 @@ pub enum SnapshotError {
         /// The dimension the expression reads it at.
         referenced: crate::expr::Dimension,
     },
+    /// A node whose PAYLOAD expression — a measured expression's value
+    /// leaf or an assertion's bound, the expressions no slot addresses
+    /// ([`crate::node::payload_exprs`]) — reads a document parameter
+    /// the document does not declare. The edit door refuses it through
+    /// the same predicate (`Doc::param_ref_fault`), so a file carrying
+    /// one is data the edit doors could not have produced.
+    ///
+    /// The address is the NODE rather than a slot, which is what
+    /// separates this from [`SnapshotError::SlotUnknownDocParam`]:
+    /// there is no slot to name.
+    PayloadUnknownDocParam {
+        /// The offending node.
+        node: RecipeNodeId,
+        /// The name its payload reads.
+        name: ParamName,
+    },
+    /// A node whose PAYLOAD expression reads a declared parameter at
+    /// another dimension than it was declared with — the pairing a
+    /// (re)declaration can break, at the address no slot names.
+    PayloadDocParamDimension {
+        /// The offending node.
+        node: RecipeNodeId,
+        /// The name its payload reads.
+        name: ParamName,
+        /// The dimension the declaration carries.
+        declared: crate::expr::Dimension,
+        /// The dimension the expression reads it at.
+        referenced: crate::expr::Dimension,
+    },
     /// A measure node whose expression reads a reference the node does
     /// not carry (E3). The expression indexes the reference list
     /// positionally, so this is a corrupt file, not a stale reference:
@@ -895,6 +987,25 @@ impl core::fmt::Display for SnapshotError {
                  declared {declared}",
                 node.0,
                 slot.label(),
+                name.0,
+                referenced.article()
+            ),
+            Self::PayloadUnknownDocParam { node, name } => write!(
+                f,
+                "node {}: its measurement payload reads the parameter {:?}, which the \
+                 document does not declare",
+                node.0, name.0
+            ),
+            Self::PayloadDocParamDimension {
+                node,
+                name,
+                declared,
+                referenced,
+            } => write!(
+                f,
+                "node {}: its measurement payload reads the parameter {:?} as {} \
+                 {referenced}, and it is declared {declared}",
+                node.0,
                 name.0,
                 referenced.article()
             ),
@@ -1265,6 +1376,7 @@ mod tests {
             DisplayUnit,
             SlotDimension,
             SlotParamRef,
+            PayloadParamRef,
             Program,
             Snapshot,
         ];
@@ -1279,7 +1391,9 @@ mod tests {
     const fn raises_snapshot_error(walk: Walk) -> bool {
         match walk {
             Walk::NonFinite | Walk::Distribution | Walk::DisplayUnit | Walk::Program => false,
-            Walk::SlotDimension | Walk::SlotParamRef | Walk::Snapshot => true,
+            Walk::SlotDimension | Walk::SlotParamRef | Walk::PayloadParamRef | Walk::Snapshot => {
+                true
+            }
         }
     }
 
@@ -1299,6 +1413,8 @@ mod tests {
             SlotDimension,
             SlotUnknownDocParam,
             SlotDocParamDimension,
+            PayloadUnknownDocParam,
+            PayloadDocParamDimension,
             EpsilonInvalid,
             Roots,
             PlacementSite,
@@ -1320,11 +1436,13 @@ mod tests {
     /// does not compile until it says which walk raises it.
     fn walk_of(err: &SnapshotError) -> Walk {
         match err {
-            // `validate_document` itself, from the two slot walks it
+            // `validate_document` itself, from the expression walks it
             // maps into this vocabulary.
             SnapshotError::SlotDimension { .. } => Walk::SlotDimension,
             SnapshotError::SlotUnknownDocParam { .. }
             | SnapshotError::SlotDocParamDimension { .. } => Walk::SlotParamRef,
+            SnapshotError::PayloadUnknownDocParam { .. }
+            | SnapshotError::PayloadDocParamDimension { .. } => Walk::PayloadParamRef,
             // `validate_snapshot`, which is where the rest live.
             SnapshotError::OrderMismatch
             | SnapshotError::IdBeyondCounter { .. }
@@ -1406,6 +1524,16 @@ mod tests {
             SnapshotError::SlotDocParamDimension {
                 node,
                 slot: SlotId::Distance,
+                name: ParamName::new("depth"),
+                declared: Dimension::Angle,
+                referenced: Dimension::Length,
+            },
+            SnapshotError::PayloadUnknownDocParam {
+                node,
+                name: ParamName::new("depth"),
+            },
+            SnapshotError::PayloadDocParamDimension {
+                node,
                 name: ParamName::new("depth"),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
