@@ -115,15 +115,53 @@ which would have caught **none** of the thirteen above, and
 `tools/` is excluded from `Cargo.toml`'s workspace, so a gate written
 as a workspace test does not see it either.
 
-## One of the thirteen is gone (INSTR unit 1, 2026-09-16)
+## Six of the thirteen closed by INSTR unit 12 (2026-09-16)
+
+Unit 12's sweep reached the same class from `tools/k-lint`'s side and
+repaired its own six in the PR that found them — the five in
+`tools/k-lint/tests/predicate_roster.rs` (including the one **inside an
+assertion string**) and the one in `tools/k-lint/src/lib.rs`. Re-counted
+on that branch after the merge:
+
+| file | citations left |
+|---|---|
+| `tools/tess-lint/tests/baseline_census.rs` | 5 |
+| `tools/README.md` | 1 |
+| `tools/tess-meter/src/lib.rs` | 1 |
+
+**Seven live, across three files.** The eighth occurrence in
+`baseline_census.rs` — *"in the tracker-wide cut of 2026-09-06"* — names
+the directory as a FORMER home and is a record, not a pointer; it is
+excluded here for the same reason this row excludes `work/instr/plan.md`.
+
+**The argument unit 12 contributed, and it is the one that decides the
+repair.** `docs/DOC-LEDGER.md`'s *A note on inbound references* settles
+citations to **deleted** files: recover them at the SHA the ledger
+names. These are not that. Every one of the seven names a row that
+**moved and is open today**, so the ledger's recovery recipe yields a
+*superseded snapshot* of a live row — worse than a dangling pointer,
+because it resolves and lies. The repair is to re-point at where the
+row lives now, and it is not uniform: the rows landed on `work/instr/`
+and one on `work/props/`, and `D201` exists nowhere at all.
+
+**`baseline_census.rs`'s two are the sharp case**, and unit 12 first
+mis-filed them as historical prose before adopting this row's reading:
+`work/meter/C15.md` and `work/meter/D201.md` sit inside the worked
+example of the doctrine paragraph whose own sentence says *"the PATHS
+are not [frozen] … and the pointers here followed them"*. They are live
+pointers in the doctrine's own demonstration that pointers follow.
+
+## One of the seven is gone (INSTR unit 1, 2026-09-16)
 
 `baseline_census.rs`'s `work/meter/baseline-sizing-census-second-copy`
 citation went with the paragraph that carried it: that paragraph said
 `docs/TESS-BUDGET.md` *"still carries four of the sizing figures
 asserted below in present-tense prose"*, which unit 1's fix made
 false, so it was rewritten and the pointer had nothing left to point
-at. **This is not the remedy this row asks for** — the citation was
+at. **That is not the repair this row asks for** — the citation was
 deleted as collateral, not re-pointed — and the other four in that
 file (`work/meter/C15.md` x2, `work/meter/D201.md`,
-`work/meter/tess-lint-ungated-columns-fold-silently`) are untouched.
-The table's `baseline_census.rs` row is 4, not 5, from this PR on.
+`work/meter/tess-lint-ungated-columns-fold-silently`) are untouched,
+including the two in the doctrine's own worked example. From this PR
+on the count above reads `baseline_census.rs` 4, **six live across
+three files**.
