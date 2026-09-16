@@ -372,3 +372,13 @@ step-segment-map lane filed
 joins the same PR once that unit's review confirms its premise; until
 then it rides the unit's branch. Recommendations on the rows; the
 decision document is the PR body.
+
+## 2026-09-16 — the third `[ev]` PR merged; wave 5 spec'd behind wave 4
+
+`[ev]` #2764 merged with all three rulings recorded beside the code:
+DM7 covers appearance keys, DM8 says the permutation is checked and a
+disagreement asserts, and the pick door's `t` is an interval. Three
+units are spec'd to dispatch as wave-4 slots free: EDIT-PICK3
+(`docs/EDIT-PICK3-SPEC.md`; kernel unit, v6 dual, block EDIT-B1 slot
+2), the appearance-strand arm (middle tier), and DM8's E-class
+follow-through (the assertion, the two docs, one tag retired).
