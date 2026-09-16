@@ -550,7 +550,7 @@ pub fn reattach_certifies_at(body: &Body<f64>, edge: EdgeKey, eps: f64) -> bool 
         param_start,
         param_end,
     };
-    let Ok(band) = geom_core::Band::new(eps, Tol::witness().get().k * eps) else {
+    let Ok(band) = geom_core::Band::linear_at(Tol::witness(), eps) else {
         return false;
     };
     geom_brep::EdgeCurve::certify(spec, start, end, |k| body.get_surface(k).cloned(), band).is_ok()

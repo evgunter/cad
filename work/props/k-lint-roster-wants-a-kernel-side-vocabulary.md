@@ -94,3 +94,38 @@ The move is authorised by Ev on 2026-09-16 (*"if the item would be
 better sited in props itself then you can just move it there"*), and
 the move is the notification: the row reaches PROPS' board through
 `work/STATUS.md` rather than through a message.
+
+## Evidence from INSTR unit 12 (2026-09-16): the tooling side now carries TWO hand-maintained lists
+
+`k-lint-last-round-is-eps-coupled-but-unrostered` ruled that
+`props_quad_last_round` stays off rule (4), and recording that ruling
+mechanically meant adding a second roster beside the first:
+`k_lint::EPS_COUPLED_UNRULED`, names ε-coupled by the criterion's
+spelling and deliberately not under rule (4)'s floor, each with its
+reason. It moved out of `tools/k-lint/tests/predicate_roster.rs`'s
+`NOT_ROSTERED` and into `tools/k-lint/src/lib.rs` because the CLI reads
+it too.
+
+**That list exists only because the tooling side cannot evaluate the
+criterion.** The two lists are a partition of one kernel property — the
+names metered against an ε-derived target — into "under rule (4)" and
+"ruled out of it", and both halves have to be maintained by hand in a
+workspace-excluded crate because nothing on the kernel side declares
+the property. The `const` slice this row proposes, *"declared beside
+which of its names are ε-metered"*, does not merely shrink the parser:
+it makes the partition's DOMAIN checkable, so a name that acquires the
+property lands in one list or reds instead of being invisible to both.
+
+`tools/k-lint/tests/predicate_roster.rs`'s
+`every_target_len_mint_is_rostered_or_excused` is the current stand-in
+and it is bounded by the same spelling the parser is: `target_len`, in
+`MINT_SOURCES`, and nothing wider.
+
+**One correction to this row's Confidence line while it is being read.**
+*"unsure whether `k_stats`' `&'static str` signature is load-bearing
+somewhere that makes a slice awkward"* — a slice and the signature do
+not conflict: `k-lint`'s own `EPS_COUPLED_PREDICATES` is a
+`[&str; 1]` matched against the recorded name by string compare, and
+the ruling above added a `[(&str, &str); 1]` beside it the same way. A
+kernel-side `const` slice of `&'static str` would be imported and
+compared identically, with `decide`'s signature untouched.
