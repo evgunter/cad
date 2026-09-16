@@ -151,6 +151,20 @@ slate); LIB's row parked on the residue row unparked since its trigger
 fired. A closed FIX row's "no `Dimension` reaches a user through
 `Debug`" claim was found false at one door and the door repaired.
 
+## 2026-09-16 — blend canonical predicate merged (middle tier, PR #2724)
+
+`InputFault::SelectionNotCanonical { at }` is the one predicate, asked
+by every door that admits a node; `SnapshotError::BlendSelectionNotCanonical`
+retired; the establisher (`canonicalize_selection`) has one home,
+called by both construction doors and the rebind repair. The lane
+corrected the spec's premise: no evaluation site ever asked
+`input_fault`, so an unsorted selection used to evaluate silently and
+only save/load objected. Review (opus, style + correctness) found the
+`at` index pinned only at zero and a dead symbol citation in a filed
+row; both fixed, with rows that name the mutant each kills. Two
+residue rows filed on EDIT's slate (three hand-copied door predicates
+in `check.rs`; the load-shaped doors outside `check.rs` the sweep could
+not see).
 ## 2026-09-16 — EDIT-PICK merged (kernel unit, v6 dual, PR #2721)
 
 The program's first kernel unit, and the spec was wrong at its centre:
