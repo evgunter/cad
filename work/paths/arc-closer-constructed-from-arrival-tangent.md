@@ -5,7 +5,7 @@ title: "paths: a construct-from-arrival tangent closer — the arc through the d
 status: open
 opened: 2026-09-02
 github: 1578
-refs: [1573, 433, BOOL-10, BOOL-12]
+refs: [1573, 433]
 ---
 
 ## From GitHub issue 1578

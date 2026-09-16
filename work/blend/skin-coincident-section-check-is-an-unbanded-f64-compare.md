@@ -4,7 +4,7 @@ kind: issue
 title: skin.rs refuses coincident loft sections by a bare f64 strict comparison (params[j-1] < params[j] → DegenerateSection) — per-pair and named, but unbanded
 status: open
 opened: 2026-09-16
-refs: [BOOL-6, 2752]
+refs: [2752]
 ---
 
 Found by BOOL-6 (PR 2752) while placing the per-slab stacking fold's

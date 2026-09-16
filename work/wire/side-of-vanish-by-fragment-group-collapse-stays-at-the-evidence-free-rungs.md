@@ -4,7 +4,7 @@ kind: issue
 title: A SideOf fragment name that vanishes because its fragment GROUP collapsed (the partners unmoved) is not recovered by the shadow-exec rung and falls to the evidence-free RecipeEdit fallback
 status: open
 opened: 2026-09-16
-refs: [BOOL-7, 2755, 134]
+refs: [2755, 134]
 ---
 
 Found by BOOL-7's R1 review (PR 2755) and filed by the S-BOOL

@@ -4,7 +4,7 @@ kind: issue
 title: docs/guide/north-star-audit.md's verb list still names arc_continue after BOOL-10 retires it
 status: open
 opened: 2026-09-08
-refs: [BOOL-10, 2135]
+refs: [2135]
 ---
 
 Reported by BOOL-10's class sweep (PR 2135; the guide is LIB's, so the

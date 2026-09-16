@@ -5,7 +5,7 @@ title: "paths: the declared seam arrival for the Via and Center arc closers (arc
 status: open
 opened: 2026-09-02
 github: 1579
-refs: [1573, 433, BOOL-12]
+refs: [1573, 433]
 ---
 
 ## From GitHub issue 1579

@@ -4,7 +4,7 @@ kind: issue
 title: family.rs's carriers_are_identical (key path_carrier_identity) decides whether two carriers are the same inside the fillet family's arc extension — a lattice question the sixth-round ruling retires
 status: open
 opened: 2026-09-08
-refs: [BOOL-10, 2135, BOOL-12]
+refs: [2135]
 ---
 
 Found by BOOL-10's seal measurement (PR 2135): after `arc_continue`'s

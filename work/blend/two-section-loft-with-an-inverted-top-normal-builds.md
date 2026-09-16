@@ -4,7 +4,7 @@ kind: issue
 title: A two-section loft whose top section's plane normal points DOWN (against the stacking) builds and tier 3 says Ok — nothing checks the last section's normal against the stacking direction
 status: open
 opened: 2026-09-16
-refs: [BOOL-6, 2752]
+refs: [2752]
 ---
 
 Found by BOOL-6's R2 review (PR 2752), pre-existing at the merge base,

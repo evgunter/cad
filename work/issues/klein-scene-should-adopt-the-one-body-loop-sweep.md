@@ -4,7 +4,7 @@ kind: issue
 title: demos/tour klein scene still draws its U-turn spine as two elbows although the one-body loop sweep now builds (wall 5 retired by BOOL-6)
 status: open
 opened: 2026-09-16
-refs: [BOOL-6, 2752, 368]
+refs: [2752, 368]
 ---
 
 Filed by the S-BOOL orchestrator from BOOL-6 (PR 2752). The Klein
