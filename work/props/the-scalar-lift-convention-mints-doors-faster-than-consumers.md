@@ -155,3 +155,52 @@ doors with no production consumer outside their crate — is unchanged,
 and now holds of `Mat3::map` for a plainer reason than before. Nothing
 in `geom-core` was edited by PR 2487; the disposition of these doors is
 this row's call.
+
+## Four more members, minted 2026-09-15 (PROPS' affine-try-map, PR 2743)
+
+The convention now names a THIRD spelling, `try_map`, and the lane that
+minted it added two members with no consumer outside the ladder itself
+— which is exactly the population this row measures, so they are
+appended here rather than left for the next census to rediscover.
+
+The full census at that lane's head, by grep over
+`crates/geom-core/src`, `crates/geom/src` and `crates/profile/src`:
+
+- **`map` — six leaves plus two geometry types.** `Point2::map`,
+  `Point3::map`, `Vec2::map`, `Vec3::map`, `Mat3::map`, `Affine3::map`;
+  `ProfileVertex::map` and `SketchPlane::map`.
+- **`try_map` — three leaves plus one geometry type.** `Vec3::try_map`,
+  `Mat3::try_map`, `Affine3::try_map`; `SketchPlane::try_map`.
+
+Dispositions of the four new members against this row's question:
+
+- `Affine3::try_map` and `SketchPlane::try_map` have a production
+  consumer the day they land: `editor-core`'s `pinned_plane`, which is
+  what the deleted private `map_affine` was written for. Consumed, not
+  speculative.
+- **`Vec3::try_map` and `Mat3::try_map` have no consumer outside the
+  ladder itself** — `Affine3::try_map` calls `Mat3::try_map` and
+  `Vec3::try_map`, and nothing else calls either. They are the same
+  shape as this row's `Vec2::map` and `Mat3::map` bullets, with one
+  difference worth recording: they are *structurally* required, because
+  the fallible walk descends the same three levels the infallible one
+  does and the alternative is `Affine3::try_map` spelling twelve
+  components itself — the copy the whole unit exists to remove. So they
+  are an in-ladder consumer rather than a convention-only mint, which
+  is a distinction this row's instrument (level B, `pub` →
+  `pub(crate)`) cannot draw: demoting either would report clean, and
+  the answer would still be that the ladder wants them.
+
+That distinction is the thing to carry into the decision: "no consumer
+outside the crate" and "no consumer but the rung above" are different
+verdicts, and this row's table currently spells them the same way (see
+the 2026-09-12 retraction, which is the same instrument limit seen from
+the other side).
+
+The convention's own text was corrected at the same time — the
+`scalar_lift.rs` module docs now say `try_map` is deliberately partial
+and name the four types that have it, instead of implying the third
+name is owed on every type. Takeable without Ev: checked again on that
+branch, the convention was written by an agent in a fix pass
+(`b61d25ddc`) and `docs/DESIGN.md` still has zero occurrences of
+`scalar_lift` or `map_scalar`.
