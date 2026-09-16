@@ -222,3 +222,47 @@ fn the_pairing_is_identity_and_survives_a_new_version_of_the_document() {
         "a stale-but-own evaluation still pairs: the stamp is the id"
     );
 }
+
+/// REVIEW PROBE (lane `pair-rv`, claim 5): a door the PR's sweep
+/// pattern could not match and did not go looking for by hand.
+/// `NodePick` is built FROM one evaluation and then handed ANOTHER at
+/// [`NodePick::patch_names`] / `boundary_names`; the index carries no
+/// `DocumentId`, so nothing can run `ident::mispaired` there. Against
+/// a twin's evaluation the door answers with the TWIN's names — no
+/// refusal, no `Unnamed`, just other geometry's names in patch order.
+/// Kept as a documentation row: it asserts what happens today.
+#[test]
+fn nodepick_patch_names_answers_out_of_a_twins_tables() {
+    let tol = Tol::witness();
+    let (square, sq) = prism("edit-pair-pick-square", 4);
+    let (triangle, _tri) = prism("edit-pair-pick-triangle", 3);
+    let ev_square = run(&square);
+    let ev_triangle = run(&triangle);
+
+    let pick = editor_core::NodePick::build(&ev_square, sq, 0, 0.1, tol)
+        .expect("the square prism tessellates");
+    let own = pick.patch_names(&ev_square);
+    let foreign = pick.patch_names(&ev_triangle);
+
+    assert_eq!(own.len(), foreign.len(), "same index, same patch order");
+    assert!(
+        own.iter().all(Result::is_ok),
+        "the premise: every patch of the square is named by its own run"
+    );
+    let named_by_the_twin = foreign.iter().filter(|r| r.is_ok()).count();
+    let differs = own
+        .iter()
+        .zip(foreign.iter())
+        .filter(|(a, b)| a != b)
+        .count();
+    assert_ne!(
+        differs, 0,
+        "the finding: a foreign evaluation changes the answer, silently"
+    );
+    println!(
+        "PROBE NodePick::patch_names: {} patches, {} named by the twin, {} answers differ",
+        own.len(),
+        named_by_the_twin,
+        differs
+    );
+}
