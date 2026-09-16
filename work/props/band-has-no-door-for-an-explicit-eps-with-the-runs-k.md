@@ -4,6 +4,7 @@ kind: issue
 title: Band has no door for an explicit eps with the run's K — four suites open-code Band::new(eps, k*eps)
 status: review
 branch: props/band-doors
+pr: 2729
 opened: 2026-09-11
 ---
 

@@ -4,6 +4,7 @@ kind: issue
 title: Band::linear's AND Band::angular_at's # Errors both say BandError arises only on K-epsilon overflow; BandError::Empty is reachable from a validated tolerance with no overflow, and angular_at reaches it at an ORDINARY epsilon
 status: review
 branch: props/band-doors
+pr: 2729
 opened: 2026-09-11
 refs: [2378]
 ---
