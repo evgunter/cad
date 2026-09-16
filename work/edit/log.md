@@ -236,6 +236,23 @@ on the item and in the PR; the real cause was a conflicting PR, which
 GitHub does not run. The lane then reproduced the Python suite locally
 and caught a stale census row before pushing. Two residue rows filed.
 
+## 2026-09-16 — DM7 built: the delete door reports what it strands (middle tier, PR #2753)
+
+`Applied::maintenance` is one column, `Maintenance::{Cluster, Strand}`,
+strands leading; `DeleteNode` reports every surviving payload name whose
+minting node it removed, computed after the removal by the one
+`Node::payload_names` walk. The review found the count definition this
+unit wrote into CHROME's row disagreeing with the door on DOCM-7's own
+cascade (the door reports per edit, transients included; the affordance
+counts survivors) — both now written down and pinned; the carrier
+census in the test is derived by an exhaustive match, and the
+"after the removal" choice has the one row that can see it. One
+clause-scope residue filed for Ev: stranded appearance keys are the
+same shape one door over and DM7's letter does not reach them. The
+lane hit a push that produced no run and re-rolled the right way
+(merge main, real commit); the Python `Maintenance` union class is
+filed as LIB's question.
+
 ## 2026-09-16 — EDIT-PICK2 merged (kernel unit, v6 dual, PR #2746); the t-width question goes to Ev
 
 The orchestrator's ruling (MEET ∧ INFORM) was measured false by the

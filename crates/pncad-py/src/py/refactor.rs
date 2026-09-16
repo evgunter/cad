@@ -314,9 +314,9 @@ pub(crate) struct SplitOutcome {
     remainder: d::ProfileDoc,
     part: d::ProfileDoc,
     remainder_edits: Vec<d::DocEdit<d::ProfileProgram>>,
-    remainder_maintenance: Vec<d::ClusterMaintenance>,
+    remainder_maintenance: Vec<d::Maintenance>,
     part_edits: Vec<d::DocEdit<d::ProfileProgram>>,
-    part_maintenance: Vec<d::ClusterMaintenance>,
+    part_maintenance: Vec<d::Maintenance>,
     instance: NodeId,
     node_map: Vec<(NodeId, NodeId)>,
 }
@@ -582,7 +582,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
 pub(crate) struct InlineOutcome {
     doc: d::ProfileDoc,
     edits: Vec<d::DocEdit<d::ProfileProgram>>,
-    maintenance: Vec<d::ClusterMaintenance>,
+    maintenance: Vec<d::Maintenance>,
     node_map: Vec<(NodeId, NodeId)>,
 }
 

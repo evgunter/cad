@@ -548,6 +548,14 @@ BOUND_AS = {
     # consumer matching the class of a refusal that is neither `Clone`
     # nor `PartialEq`.
     "ProductErrorKind": "ProductError.variant",
+    # The four cluster-record acts are one arm of `Maintenance`, the
+    # row `Doc.last_maintenance` answers in, and they cross as that
+    # row's tag and payload attributes rather than as a class of their
+    # own: Python reads `r.variant == "join"` and `r.absorbed_frame`
+    # off the same object it reads a strand off. The `NodeErrorKind`
+    # row's shape — a curated enum flattened onto its carrier's
+    # attribute.
+    "ClusterMaintenance": "Maintenance.variant",
     # `VerbKind`/`Arity` are `NodeErrorKind::VerbArity`'s payload — an
     # internal wiring-bug refusal — and cross exactly as their carrier
     # does: flattened to the `verb_arity` tag `EvaluationError.kind`
@@ -1541,7 +1549,7 @@ FAMILIES: dict[str, str] = {
 #: `MintedDeclaration`, `RefusedRef`), mates and the solve
 #: (`Alignment`, `MateFrame`, `MatePrimitive`, `MateRole`, `MateSide`,
 #: `AxisSense`, `SolvedPoses`, `Subgroup`, `MateFault`,
-#: `ClusterMaintenance`, `clusters`, `gauge_of`, `reading_edges`,
+#: `Maintenance`, `clusters`, `gauge_of`, `reading_edges`,
 #: `relative_freedom_components`, `solve_document`, `ClassAdmission`,
 #: `class_admission`), instantiated parts (`PlacementRuleFault`),
 #: split and inline (`split`, `inline`, `SplitOutcome`,
@@ -2884,12 +2892,11 @@ MEMBERS_BOUND_AS = {
     # the other two are the word.
     "ClassAdmission::NoAtRestRecord": "ClassAdmission.variant",
     "ClassAdmission::NotAdmitted": "ClassAdmission.variant",
-    # What an accepted edit did to the placement registry, read off
-    # `Doc.last_maintenance`.
-    "ClusterMaintenance::Join": "ClusterMaintenance.variant",
-    "ClusterMaintenance::Split": "ClusterMaintenance.variant",
-    "ClusterMaintenance::GaugeRewrite": "ClusterMaintenance.variant",
-    "ClusterMaintenance::Drop": "ClusterMaintenance.variant",
+    # What an accepted edit did that the caller did not ask for, read
+    # off `Doc.last_maintenance`: the four cluster-record acts, and the
+    # payload names a delete stranded.
+    "Maintenance::Cluster": "Maintenance.variant",
+    "Maintenance::Strand": "Maintenance.variant",
     # THE SECOND SAME-SPELLED PAIR, and this rule is what found it.
     # `pncad.pyi`'s `DimensionError` is the QUANTITY boundary's refusal —
     # `1 * m + 1 * rad`, with `op`/`left`/`right` — while the curated
