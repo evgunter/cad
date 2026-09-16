@@ -17,7 +17,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::EdgeCurveSpec;
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use topo::{Body, FaceSurface, MefSite, MevSite};
@@ -62,13 +62,21 @@ fn cut_circle(z: f64) -> Curve3<f64> {
 
 /// A unit ball cut by the plane `Z = z`, as two faces sharing the cut
 /// circle: `seed` carries `seed_surface` and the rim traversed `+u`,
-/// `made` carries `made_surface` and the same rim traversed `−u`.
+/// `made` carries `made_surface` (or the seed's own, when `None`) and
+/// the same rim traversed `−u`.
 ///
 /// The circle is stated as two half-arcs because the Euler doors mint
 /// an edge between two vertices; `du_of_rims` sums their spans back to
 /// the full `2π`, which is one of the things the rows below check by
 /// getting the area right.
-fn cut_ball(z: f64, seed_surface: Surface<f64>, made_surface: Surface<f64>) -> Body<f64> {
+///
+/// Both edges come to REST between two faces, so each is described
+/// where it rests rather than left on the scaffolding door (D3's
+/// transience fence): intrinsically, as the transverse intersection of
+/// the two surfaces, where the pair determines the locus; and
+/// conventionally, in the one chart, where the same sphere lies on
+/// both sides and determines nothing.
+fn cut_ball(z: f64, seed_surface: Surface<f64>, made_surface: Option<Surface<f64>>) -> Body<f64> {
     let tol = Tol::witness();
     let r = (1.0 - z * z).sqrt();
     let (a, b) = (p3(r, 0.0, z), p3(-r, 0.0, z));
@@ -87,16 +95,45 @@ fn cut_ball(z: f64, seed_surface: Surface<f64>, made_surface: Surface<f64>) -> B
             tol,
         )
         .unwrap();
-    body.mef(
-        MefSite::Chords {
-            he1: e_rim.he_minus,
-            he2: e_rim.he_plus,
-        },
-        EdgeCurveSpec::arc_of_circle(cut_circle(z), pi, core::f64::consts::TAU).unwrap(),
-        FaceSurface::New(made_surface),
-        tol,
-    )
-    .unwrap();
+    let transverse = made_surface.is_some();
+    let made = body
+        .mef(
+            MefSite::Chords {
+                he1: e_rim.he_minus,
+                he2: e_rim.he_plus,
+            },
+            EdgeCurveSpec::arc_of_circle(cut_circle(z), pi, core::f64::consts::TAU).unwrap(),
+            made_surface.map_or(FaceSurface::Inherit, FaceSurface::New),
+            tol,
+        )
+        .unwrap();
+    let s_seed = body.get_face(seed.face).unwrap().surface;
+    let s_made = body.get_face(made.face).unwrap().surface;
+    for (edge, witness) in [
+        (e_rim.edge, p3(0.0, r, z)),
+        (made.edge, p3(0.0, -r, z)),
+    ] {
+        if transverse {
+            let curve = body.get_edge(edge).unwrap().curve;
+            let spec = body
+                .get_curve_geom(curve)
+                .unwrap()
+                .certified()
+                .unwrap()
+                .restated_spec();
+            let spec = EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    s1: s_seed,
+                    s2: s_made,
+                    witness,
+                },
+                ..spec
+            };
+            body.set_edge_curve(edge, spec, tol).unwrap();
+        } else {
+            body.describe_at_rest(edge, s_seed, tol).unwrap();
+        }
+    }
     body
 }
 
@@ -130,7 +167,7 @@ fn a_ball_cut_by_one_plane_weighs_the_spherical_cap() {
     for z in [0.5_f64, 0.0, -0.5, 0.9] {
         // The disc caps the solid from BELOW, so its outward normal
         // points down.
-        let body = cut_ball(z, unit_sphere(), cut_plane(z, false));
+        let body = cut_ball(z, unit_sphere(), Some(cut_plane(z, false)));
         let got = certified_volume(&format!("cap above z={z}"), &body);
         let want = cap_volume(1.0 - z);
         assert!(
@@ -151,7 +188,7 @@ fn the_other_traversal_of_the_same_rim_weighs_the_rest_of_the_ball() {
     for z in [0.5_f64, 0.0, -0.5, 0.9] {
         // Now the DISC is the seed face (rim `+u`, outward normal up)
         // and the sphere is the `−u` face.
-        let body = cut_ball(z, cut_plane(z, true), unit_sphere());
+        let body = cut_ball(z, cut_plane(z, true), Some(unit_sphere()));
         let got = certified_volume(&format!("ball below z={z}"), &body);
         let want = ball - cap_volume(1.0 - z);
         assert!(
@@ -168,7 +205,7 @@ fn the_other_traversal_of_the_same_rim_weighs_the_rest_of_the_ball() {
 #[test]
 fn a_sphere_split_into_two_rim_only_caps_weighs_the_ball() {
     for z in [0.5_f64, 0.0, -0.75] {
-        let body = cut_ball(z, unit_sphere(), unit_sphere());
+        let body = cut_ball(z, unit_sphere(), None);
         let got = certified_volume(&format!("two caps at z={z}"), &body);
         let want = 4.0 * core::f64::consts::PI / 3.0;
         assert!(
