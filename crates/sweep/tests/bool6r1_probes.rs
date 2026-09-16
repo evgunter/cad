@@ -208,14 +208,14 @@ fn a_rotated_top_traversal_decides_identically() {
     let tol = Tol::witness();
     for (zs, tag) in [(vec![0.0, 1.0], "forward"), (vec![0.0, -1.0], "reversed")] {
         let places = stacked_at(&zs);
-        let straight = loft_body::<f64>(&vec![sq(), sq()], &places, 1, tol).map(|_| ());
-        let rotated = loft_body::<f64>(&vec![sq(), sq_rotated()], &places, 1, tol).map(|_| ());
+        let straight = loft_body::<f64>(&[sq(), sq()], &places, 1, tol).map(|_| ());
+        let rotated = loft_body::<f64>(&[sq(), sq_rotated()], &places, 1, tol).map(|_| ());
         let (a, b) = (
             stacking_verdicts(|| {
-                let _ = loft_body::<f64>(&vec![sq(), sq()], &places, 1, tol);
+                let _ = loft_body::<f64>(&[sq(), sq()], &places, 1, tol);
             }),
             stacking_verdicts(|| {
-                let _ = loft_body::<f64>(&vec![sq(), sq_rotated()], &places, 1, tol);
+                let _ = loft_body::<f64>(&[sq(), sq_rotated()], &places, 1, tol);
             }),
         );
         assert_eq!(
