@@ -20,9 +20,9 @@ closest without replacing it.
 `crates/viewer/README.md:35-46` tells a reader what they will see: the
 dialogs are disabled and the reason names **three** remedies — install
 `zenity`, install `xdg-desktop-portal`, or pass a document path on the
-command line. `frame::NO_CHOOSER_BACKEND` (`frame.rs:1830-1832`) is
+command line. `platform::NO_CHOOSER_BACKEND` (`crates/viewer/src/platform.rs`) is
 that sentence, and its two readers are
-`.on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)` at `app.rs:1197`
+`.on_disabled_hover_text(platform::NO_CHOOSER_BACKEND)` at `app.rs:1197`
 and `:1227`.
 
 **Nothing asserts either half.** No test in `crates/viewer/tests`
