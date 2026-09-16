@@ -461,32 +461,86 @@ fn nurbs_wall(y: (f64, f64), z: (f64, f64)) -> geom::Surface<f64> {
     geom::Surface::Nurbs(std::sync::Arc::new(n))
 }
 
-/// PROBE: what the tiers say about a container carrying a face kind
-/// the point-in-solid door does not serve, through the public door.
-#[test]
-fn probe_unserved_kind() {
+/// The L-bracket with its far wall on the NURBS net, the wall's four
+/// edges re-described on the NURBS lane (the M7-8 recipe
+/// `m4_pr2_transform.rs` builds): the one way a described spline face
+/// reaches the public door at all.
+fn nurbs_walled_bracket() -> Body<f64> {
     let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0);
     let far_wall: FaceKey = l.side_faces[5];
-    let mut container = l.body;
-    container
+    let mut body = l.body;
+    let wall = body
         .set_face_surface(
             far_wall,
             topo::FaceSurface::New(nurbs_wall((0.0, 3.0), (0.0, 1.0))),
         )
         .unwrap();
-    println!("tier1-2: {:?}", topo::validate_closed(&container));
-    println!(
-        "tier3: {:?}",
-        topo::validate_geometric(&container, Tol::witness())
-    );
+    let face_surface_of_he = |body: &Body<f64>, he: topo::HalfEdgeKey| {
+        let he_data = body.get_half_edge(he).unwrap();
+        let loop_data = body.get_loop(he_data.parent_loop).unwrap();
+        body.get_face(loop_data.face).unwrap().surface
+    };
+    let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
+    let mut lane_edges = 0;
+    for (edge_key, edge) in edges {
+        let s1 = face_surface_of_he(&body, edge.he_plus);
+        let s2 = face_surface_of_he(&body, edge.he_minus);
+        if s1 != wall && s2 != wall {
+            continue;
+        }
+        let start = body.get_half_edge(edge.he_plus).unwrap().start;
+        let end = body.half_edge_end(edge.he_plus).unwrap();
+        let p0 = point_of(&body, start);
+        let p1 = point_of(&body, end);
+        let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(kv, vec![p0, p1], vec![1.0, 1.0]).unwrap(),
+        ));
+        body.set_edge_curve_nurbs_lane(
+            edge_key,
+            geom_brep::EdgeCurveSpec {
+                description: geom_brep::EdgeDescriptionSpec::Intersection {
+                    s1,
+                    s2,
+                    witness: p0.lerp(p1, 0.5),
+                },
+                carrier,
+                param_start: 0.0,
+                param_end: 1.0,
+            },
+            Tol::witness(),
+        )
+        .unwrap();
+        lane_edges += 1;
+    }
+    assert_eq!(lane_edges, 4, "the far wall has four M7-8 edges");
+    topo::mint_pcurves(&mut body, Tol::witness()).unwrap();
+    body
+}
+
+/// **A container carrying a face kind the material test does not
+/// serve — measured at the public door.** The spline-walled bracket
+/// is refused at tier 3 (check 7 cannot integrate the spline face:
+/// `VolumeUncomputable`), so no body carrying a described spline face
+/// reaches the census through `validate_pseudomanifold` today, and the
+/// arm's own typed cause for the kind is pinned one door down, through
+/// `census_and_certify`, in `census.rs`'s
+/// `an_unserved_face_kind_on_the_container_refuses_naming_the_cause`.
+/// This row pins the public-door fact so that the day check 7 admits
+/// such a face, the census row is what a reader is sent to.
+#[test]
+fn a_spline_walled_container_is_refused_at_tier_3_before_the_census() {
+    let container = nurbs_walled_bracket();
+    assert_eq!(topo::validate_closed(&container), Ok(()));
     let part = common::brick::<f64>((1.2, 1.8), (1.5, 2.5), (0.2, 0.8));
     let body = assembly(&container, &part);
-    match validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()) {
-        Ok(()) => println!("3': Ok"),
-        Err(errs) => {
-            for e in &errs {
-                println!("3': {e:?}");
-            }
-        }
-    }
+    let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
+        .expect_err("tier 3 refuses the spline face's quadrature");
+    assert!(
+        errors
+            .iter()
+            .all(|e| matches!(e, ValidationError::VolumeUncomputable { .. })),
+        "nothing from the census, only check 7: {errors:?}"
+    );
+    assert!(placement_findings(&errors).is_empty(), "{errors:?}");
 }

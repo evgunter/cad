@@ -4025,6 +4025,89 @@ mod tests {
         );
     }
 
+    /// **A container carrying a face kind the material test does not
+    /// serve.** A 3 m box whose far wall (`x = 0`) is a described
+    /// NURBS net, with a 0.6 m box floating inside: arm 1 clears every
+    /// pair the spline face is in (its reach box is two metres from
+    /// the part), the extent gate cannot separate the pair, and the
+    /// material test's pre-pass meets the spline face and refuses
+    /// `KindUnsupported` — which arm 2 reports as `CensusUndecidable`
+    /// naming the cause, on BOTH orderings (the part's own material
+    /// test of the box is the reverse ordering, and it clears on its
+    /// gate: the box's hull is not inside the part's reach). Through
+    /// `census_and_certify` directly, because the public door refuses
+    /// the re-described wall at tier 3 first (`DescriptionNotAdjacent`
+    /// on its edges, or the M7-8 edge lane's own certification); this
+    /// is the door below that bar.
+    #[test]
+    fn an_unserved_face_kind_on_the_container_refuses_naming_the_cause() {
+        use crate::euler::FaceSurface;
+        use crate::splitting::reassembly::quad_prism;
+        let tol = Tol::witness();
+        let mut body = quad_prism(&[(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)], 3.0, tol);
+        let far_wall = body
+            .faces()
+            .find(|&(f, _)| {
+                let face = body.get_face(f).unwrap();
+                face_cycles(&body, face)
+                    .filter_map(Result::ok)
+                    .flatten()
+                    .all(|he| {
+                        let v = body.half_edges.get(he).unwrap().start;
+                        body.points[body.vertices[v].point].x.abs() < 1e-12
+                    })
+            })
+            .map(|(f, _)| f)
+            .unwrap();
+        let k =
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let ticks = [-1.0, 1.5, 4.0];
+        let (mut control, mut weights) = (Vec::new(), Vec::new());
+        for &y in &ticks {
+            for &z in &ticks {
+                control.push(Point3::new(0.0, y, z));
+                weights.push(1.0);
+            }
+        }
+        let net = geom::NurbsSurface::new(k.clone(), k, control, weights).unwrap();
+        assert!(!net.is_placeholder());
+        body.set_face_surface(
+            far_wall,
+            FaceSurface::New(geom::Surface::Nurbs(std::sync::Arc::new(net))),
+        )
+        .unwrap();
+        let part = quad_prism(&[(1.2, 1.2), (1.8, 1.2), (1.8, 1.8), (1.2, 1.8)], 0.6, tol);
+        // Lift the part off the floor: z ∈ [1.2, 1.8].
+        let mut part = part;
+        for (_, p) in part.points.iter_mut() {
+            p.z += 1.2;
+        }
+        crate::instance::graft_disjoint(&mut body, &part, tol).unwrap();
+        let errors = census_and_certify(&body, &ContactRecords::default(), band(), tol);
+        let whats: Vec<&str> = errors
+            .iter()
+            .filter_map(|e| match e {
+                ValidationError::CensusUndecidable {
+                    a: EntityId::Solid(_),
+                    b: EntityId::Solid(_),
+                    what,
+                } => Some(*what),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(whats.len(), 1, "{errors:?}");
+        assert!(
+            whats[0].contains("a face kind the point-in-solid door does not serve"),
+            "{whats:?}"
+        );
+        assert!(
+            !errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::InstanceInterference { .. })),
+            "{errors:?}"
+        );
+    }
+
     #[test]
     fn a_patch_record_backs_the_pair_and_confirms_through_both_doors() {
         let (body, w1, w2) = conformal_pair();

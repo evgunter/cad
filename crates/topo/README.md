@@ -170,9 +170,13 @@ makes the disjointness/containment/extent gates skip the pair as a
 refuse by default with an explicit opt-in subtracting closed-form overlap
 volumes; booleans are unchanged; STEP export drops the declaration. Not
 implemented: the variant lands with its first consumer, and until then
-the nested-instance class (one instance's extent box inside another's)
-refuses at the backstop. Invariant: an undeclared interference is always
-a typed error; no blanket "disable interference checking" exists.
+the backstop's containment arm DECIDES the nested-instance class by a
+material test — a nested placement sharing no material clears, an
+instance inside another's material refuses typed
+(`ValidationError::InstanceInterference`), and the gate-skip's deferral,
+when it lands, is keyed on the recorded verdict and never on a contact
+record. Invariant: an undeclared interference is always a typed error;
+no blanket "disable interference checking" exists.
 
 **C7 — The join lane.** At the curved coplanar-lump sites (`vtxfac.rs`,
 `recl.rs`) an undeclared tangent pair refuses `CurvedBooleanUnsupported`;

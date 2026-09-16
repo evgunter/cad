@@ -1320,22 +1320,21 @@ pub enum ValidationError {
     /// a cross-solid candidate pair the census can neither examine
     /// nor definitely clear — refused loudly as UNDECIDABLE instead
     /// of silently not looked at (A5's letter: decide or refuse,
-    /// never silently not-examine). Two classes fire it today: a
+    /// never silently not-examine). Two arms fire it: arm 1, on a
     /// cross-solid curved face pair within reach of each other (the
     /// C9-ring conformal-rest/proximity class — the exclusion ring
-    /// is the certified excluder this backstop stands in for), and
-    /// one instance's vertex hull inside another's REACH box (C6's
-    /// interference class — representable only through recorded
-    /// gate-skips, which do not exist yet; the containing side must be
-    /// a superset of its locus or a nested body clears silently).
-    ///
-    /// Arm 2's box test is the GATE, not the verdict: a pair no margin
-    /// definitely separates goes to the material test, and what this
-    /// variant carries from that arm is only what the material test
-    /// could not answer — a standing crossing or unexamined finding on
-    /// the pair, a witness the point-in-solid door refused, or an
-    /// instance whose every vertex lies on the container's boundary. A
-    /// decided interference is [`ValidationError::InstanceInterference`].
+    /// is the certified excluder this backstop stands in for); and
+    /// arm 2, the instance-containment arm, on what its MATERIAL test
+    /// could not answer. Arm 2's box test is the gate, not the
+    /// verdict: a pair no extent margin definitely separates goes to
+    /// the material test (the contained instance's vertices against
+    /// the container's material through the per-solid point-in-solid
+    /// door), and this variant carries only its residue — a standing
+    /// crossing or unexamined finding on the pair, a witness the door
+    /// refused, a container whose extent no sound box claims, or an
+    /// instance whose every vertex lies on the container's boundary.
+    /// A decided interference is
+    /// [`ValidationError::InstanceInterference`], never this.
     CensusUndecidable {
         /// One side of the pair the census cannot clear.
         a: EntityId,

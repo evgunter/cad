@@ -59,8 +59,8 @@ use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use std::collections::BTreeSet;
 use sweep::{Extrusion, extrude};
 use topo::{
-    Body, BooleanError, ContactRecords, EntityId, SweepStrategy, SweepTrace, ValidationError,
-    sweep_traces, validate_pseudomanifold,
+    Body, BooleanError, BooleanResult, ContactRecords, EntityId, FaceKey, SweepStrategy,
+    SweepTrace, ValidationError, sweep_traces, validate_pseudomanifold,
 };
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -91,6 +91,28 @@ fn cylinder() -> Body<f64> {
 
 /// A small axis-aligned box of half-width `h` centred at `(cx, 0, ·)`,
 /// spanning `z in [z0, z0 + 0.4]`.
+/// [`cylinder`] with its base at `z0` and height `height` — the tool a
+/// blind bore is cut with.
+fn cylinder_at(z0: f64, height: f64) -> Body<f64> {
+    let b120 = (core::f64::consts::PI / 6.0).tan();
+    let at = |deg: f64| {
+        let th: f64 = deg.to_radians();
+        p2(0.5 * th.cos(), 0.5 * th.sin())
+    };
+    let lp = ProfileLoop::new(vec![
+        ProfileVertex::new(at(0.0), b120),
+        ProfileVertex::new(at(120.0), b120),
+        ProfileVertex::new(at(240.0), b120),
+    ]);
+    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+    let profile = Profile::new(plane, vec![lp])
+        .validate(Tol::witness())
+        .unwrap();
+    extrude(&profile, Extrusion::Distance(height), Tol::witness())
+        .unwrap()
+        .body
+}
+
 fn small_box(cx: f64, h: f64, z0: f64) -> Body<f64> {
     let lp = ProfileLoop::new(
         [(cx - h, -h), (cx + h, -h), (cx + h, h), (cx - h, h)]
@@ -124,7 +146,7 @@ fn assembly(outer: &Body<f64>, inner: &Body<f64>) -> Body<f64> {
 
 /// **The regression row.** A body wholly inside the cylinder, but
 /// outside the hull of the cylinder's six vertices, must be REFUSED as
-/// the C6 interference class — never cleared.
+/// the decided interference — never cleared.
 ///
 /// `cx` is swept across the whole annulus between the inscribed hull's
 /// face (x = −0.25) and the true wall (x = −0.5), so the row goes red
@@ -154,17 +176,151 @@ fn a_body_nested_inside_a_curved_solid_is_never_silently_cleared() {
         );
         let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
             .expect_err("a nested instance must refuse, never clear");
-        // The material test decides it: the cylinder is a served face
-        // kind, the box's vertices are strictly inside its material,
-        // and the verdict is the typed interference — not an
-        // undecidable refusal of any wording.
+        // MEASURED, not the interference verdict: the box sits inside
+        // the cylinder wall's REACH, so arm 1 refuses the wall × box-face
+        // pairs first (the proximity class, the exclusion ring's), and
+        // arm 2 then refuses its material test to a pair whose
+        // boundaries are not certified crossing-free — the typed
+        // precondition refusal, naming the solid pair. The material
+        // test never runs here; the day the ring clears the wall pairs,
+        // this row is what moves to `InstanceInterference`.
         assert!(
-            errors
+            errors.iter().any(|e| matches!(
+                e,
+                ValidationError::CensusUndecidable {
+                    a: EntityId::Face(_),
+                    b: EntityId::Face(_),
+                    what,
+                } if what.contains("curved carrier or a curved boundary")
+            )),
+            "probe at {cx}: arm 1 refuses the wall pairs first, got {errors:?}"
+        );
+        assert!(
+            errors.iter().any(|e| matches!(
+                e,
+                ValidationError::CensusUndecidable {
+                    a: EntityId::Solid(_),
+                    b: EntityId::Solid(_),
+                    what,
+                } if what.contains("not certified crossing-free")
+            )),
+            "probe at {cx}: the containment arm names the solid pair with the \
+             precondition's refusal, got {errors:?}"
+        );
+        assert!(
+            !errors
                 .iter()
                 .any(|e| matches!(e, ValidationError::InstanceInterference { .. })),
-            "probe at {cx}: the containment arm must decide the nested pair, got {errors:?}"
+            "probe at {cx}: no witness was probed, so no interference is claimed: {errors:?}"
         );
     }
+}
+
+/// **A part in a blind BORE** (issue 750's fourth placement), MEASURED
+/// against arm 1 rather than claimed: a 2 m block with a 0.5 m-radius
+/// bore cut 0.5 m deep from its top, and a 0.2 m box floating in the
+/// bore — inside the block's box, outside its material. The box's
+/// planar faces and the bore's cylindrical wall are cross-solid faces
+/// within reach with a curved side, which is arm 1's proximity class
+/// and refuses before any material test; arm 2 then reads those
+/// standing face-pair refusals as "this pair is not certified
+/// crossing-free" and refuses its own examination typed. So the bore
+/// does NOT clear today, and this row pins exactly that shape: arm
+/// 1's face-pair refusals name the bore's wall, arm 2's refusal is
+/// the precondition's, and no interference verdict and no clear
+/// appear. The bore stays the exclusion ring's case (arm 1's), and
+/// this row is what moves the day that ring lands.
+#[test]
+fn a_part_in_a_blind_bore_is_refused_by_arm_1_before_the_material_test() {
+    let block = plate((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0));
+    let tool = cylinder_at(0.5, 1.0);
+    let BooleanResult::Body(bored) = topo::subtract(&block, &tool, Tol::witness()).unwrap() else {
+        panic!("the bore cuts a body");
+    };
+    let bored = bored.body;
+    assert_eq!(
+        topo::validate_geometric(&bored, Tol::witness()),
+        Ok(()),
+        "the bored block is a sound single solid"
+    );
+    let bore_walls: Vec<FaceKey> = bored
+        .faces()
+        .filter(|(_, f)| {
+            matches!(
+                bored.get_surface(f.surface),
+                Some(geom::Surface::Cylinder { .. })
+            )
+        })
+        .map(|(k, _)| k)
+        .collect();
+    assert!(!bore_walls.is_empty(), "the bore has a cylindrical wall");
+    let part = small_box(0.0, 0.1, 0.6);
+    let body = assembly(&bored, &part);
+    let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
+        .expect_err("measured: the bore refuses today");
+    let arm1: Vec<&ValidationError> = errors
+        .iter()
+        .filter(|e| {
+            matches!(
+                e,
+                ValidationError::CensusUndecidable {
+                    a: EntityId::Face(_),
+                    b: EntityId::Face(_),
+                    ..
+                }
+            )
+        })
+        .collect();
+    // Every arm-1 refusal is the proximity class, and the bore's
+    // cylindrical wall is among the faces named (the block's planar
+    // top and the bore's floor carry the bore's arc rims, so they are
+    // arm 1's too and are named beside it).
+    assert!(
+        !arm1.is_empty()
+            && arm1.iter().all(|e| match e {
+                ValidationError::CensusUndecidable { what, .. } => {
+                    what.contains("curved carrier or a curved boundary")
+                }
+                _ => false,
+            })
+            && arm1.iter().any(|e| match e {
+                ValidationError::CensusUndecidable {
+                    a: EntityId::Face(a),
+                    b: EntityId::Face(b),
+                    ..
+                } => bore_walls.contains(a) || bore_walls.contains(b),
+                _ => false,
+            }),
+        "arm 1 refuses the wall × part-face pairs first: {errors:?}"
+    );
+    let arm2: Vec<&'static str> = errors
+        .iter()
+        .filter_map(|e| match e {
+            ValidationError::CensusUndecidable {
+                a: EntityId::Solid(_),
+                b: EntityId::Solid(_),
+                what,
+            } => Some(*what),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(arm2.len(), 1, "{errors:?}");
+    assert!(
+        arm2[0].contains("not certified crossing-free"),
+        "{}",
+        arm2[0]
+    );
+    assert!(
+        !errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::InstanceInterference { .. })),
+        "{errors:?}"
+    );
+    assert_eq!(
+        errors.len(),
+        arm1.len() + 1,
+        "nothing else refuses: {errors:?}"
+    );
 }
 
 /// The other direction, so the row above cannot pass by refusing
