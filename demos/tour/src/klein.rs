@@ -233,7 +233,7 @@ use pncad::geom_core::{Affine3, CertifiedBounds, Mat3, OrthoFrame, Point3, Tol};
 use pncad::prelude::{Open, ProfileLoop, Start, SurfaceKindSet, circle, query};
 use pncad::profile::SketchPlane;
 use pncad::sweep::blend::{BlendError, fillet_edges};
-use pncad::sweep::{LoftError, Revolution, RevolveAxis, revolve};
+use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::{Body, BooleanError, BooleanOp, EdgeKey, Operand};
 
 use crate::scalar::{Scalar, sketch_frame};
