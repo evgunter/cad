@@ -74,7 +74,7 @@ pub(crate) fn side_of_face<T: Decide>(
 ///
 /// Written once and called twice, deliberately: [`side_of_face`] calls
 /// it when the emission mints the qualifier, and
-/// [`crate::resolve`]'s shadow-execution rung calls it when it
+/// `resolve`'s shadow-execution rung calls it when it
 /// re-derives that same qualifier at diagnosis time. A second spelling
 /// would let the two disagree about what a fragment's side IS, and the
 /// rung's whole claim is that it recovers the verdict the emission
