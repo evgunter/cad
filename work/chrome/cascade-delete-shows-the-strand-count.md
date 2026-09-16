@@ -2,9 +2,8 @@
 id: cascade-delete-shows-the-strand-count
 kind: issue
 title: The cascade-delete affordance shows the names a delete would strand, beside its dependent count (DM7)
-status: parked
+status: open
 opened: 2026-09-16
-blocked_on: [deletenode-strands-a-declare-payload-name]
 ---
 
 
@@ -60,3 +59,13 @@ show the first.
 
 Nothing is persisted: maintenance is derived, so a reopened document
 shows no history of it.
+
+## Unparked (2026-09-16, EDIT orchestrator)
+
+The trigger fired: EDIT's unit
+`deletenode-strands-a-declare-payload-name` merged as PR #2753 and its
+`## Closed` section names the API the affordance consumes (the
+`Applied.maintenance` strand report; see that item's `## Built`). This
+header was edited from outside CHROME's fence only to keep the tracker
+true — the parked-on-closed lint error — and asks nothing of CHROME
+beyond what the body already says.
