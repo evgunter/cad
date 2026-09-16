@@ -2939,6 +2939,7 @@ MEMBERS_BOUND_AS = {
     "EditError::DuplicateWitnessEntry": "EditError.variant",
     "EditError::EmptyWitnessBulk": "EditError.variant",
     "EditError::NameUnresolvedInEvaluation": "EditError.variant",
+    "EditError::EvaluationOfAnotherDocument": "EditError.variant",
     "EditError::RebindAppearanceCollision": "EditError.variant",
     "EditError::AppearanceWrongKind": "EditError.variant",
     "EditError::AppearanceNamesMissingNode": "EditError.variant",
