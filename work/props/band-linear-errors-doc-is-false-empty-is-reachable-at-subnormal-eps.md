@@ -2,7 +2,8 @@
 id: band-linear-errors-doc-is-false-empty-is-reachable-at-subnormal-eps
 kind: issue
 title: Band::linear's AND Band::angular_at's # Errors both say BandError arises only on K-epsilon overflow; BandError::Empty is reachable from a validated tolerance with no overflow, and angular_at reaches it at an ORDINARY epsilon
-status: review
+status: closed
+closed: 2026-09-16
 branch: props/band-doors
 pr: 2729
 opened: 2026-09-11
@@ -182,3 +183,31 @@ the built-in band") is TRUE as written — its band is
 `Band::new(f64::from_bits(1), f64::from_bits(2))`, two constants — and
 is left; `pncad`'s prelude `BandField` argument is scoped to
 `InvalidValue` and stays true.
+
+## Closed
+
+Landed on PR #2729 (run 35072003347 green on the fix head). Both
+`# Errors` sections name every arm they can reach, and `Band::linear`'s
+is stated as the one home for the derivation, with the citing sites
+linking to it rather than restating it.
+
+The arithmetic was re-derived rather than quoted, and **this item's own
+amendment was off by one tie case**: the collapse condition is
+`fl(K·ε) == ε`, and at ε = 2⁻¹⁰²³ exactly (n = 2⁵¹) with the least
+admitted K the product is n + ½ with n even, so half-to-even rounds it
+back and that ε DOES collapse. The sharp bound is ε ≤ 2⁻¹⁰²³, both
+endpoints pinned, and the review lane added an exhaustive scan of both
+ends of every normal binade confirming no normal ε collapses.
+
+`Band::angular_at` has a **third** arm neither this item nor the spec
+named: θ = ε/arm underflowing to zero, which surfaces as an invalid
+zero threshold and wants the lever arm fixed rather than ε. Its
+counterpart — θ overflowing to infinity at a tiny arm — is named too.
+Both are stated at the pair as rules over `lever_arm`, with the
+largest-arm figures as illustrations.
+
+The rows live in `crates/geom-core/tests/band_tolerance.rs`, committing
+each pathological pair through the real `Tolerance::init` in its own
+process rather than through a local copy of the validator's conditions,
+which would have been a premise that rots silently. `Tolerance::validate`
+is untouched, as this item asked.

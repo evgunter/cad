@@ -2,7 +2,8 @@
 id: band-has-no-door-for-an-explicit-eps-with-the-runs-k
 kind: issue
 title: Band has no door for an explicit eps with the run's K — four suites open-code Band::new(eps, k*eps)
-status: review
+status: closed
+closed: 2026-09-16
 branch: props/band-doors
 pr: 2729
 opened: 2026-09-11
@@ -84,3 +85,32 @@ global.
 `Band::linear_at` is `#[doc(hidden)]`, on `geom-brep`'s `offset_fit`
 precedent for the same `_at` shape: an instrument, not a door. Every
 consumer is a suite pinning a scale its row is about.
+
+## Closed
+
+Landed on PR #2729 (run 35072003347 green on the fix head). The door is
+`Band::linear_at(tol, eps)` — the witness first, as every other
+tolerance-coupled `Band` constructor takes it — and
+`from_zero_threshold`, which it made byte-identical, is retired.
+`from_thresholds(zero, escalate)` stays: it takes its second operand as
+a NUMBER rather than off a witness, which is what lets a lib row
+exercise the scaling without touching the global.
+
+The door is `#[doc(hidden)]` on `offset_fit`'s precedent for the `_at`
+suffix — an instrument rather than a door, since naming your own ε
+beside the run's is exactly what D4 ¶1's witness rule exists to stop in
+production. It stays `pub` because the five consumers are suites
+outside the crate, and its doc names them and points a production
+caller at `Band::linear`.
+
+**Five sites converted, not four, and one refutation.** The sweep found
+two the item did not list (`crates/geom-brep/tests/curved_torus_arc_residual.rs`,
+twice). And `crates/sweep/tests/review_fillet_h6_r2_probes.rs` does NOT
+want this door: `worst_rim_verdict(eps, k, arm)` takes K as a
+parameter, and its callers pass named values deliberately because the
+row's claim is about the classifier AT that K. The review lane found a
+second break the first did not — the same `k` builds the adversarial
+vector `worst_admitted_w(eps, k)` as well as the band, so converting
+only the band would decouple the vector from the band it is the worst
+case for. The orchestrator had ruled that site in; the ruling is
+withdrawn on that evidence.
