@@ -4,7 +4,7 @@ kind: issue
 title: sphere()'s wedge arm reads a two-edge boundary and refuses a meridian that arrives in lineage pieces, where the torus arm folds pieces by lineage
 status: open
 opened: 2026-09-16
-refs: [BOOL-5, 2748, 542]
+refs: [2748, 542]
 ---
 
 Found by BOOL-5's dual review (PR 2748) and filed by the S-BOOL

@@ -2,7 +2,7 @@
 id: load-door-checks-slot-dimensions-for-profile-nodes-only
 kind: issue
 title: The load door re-spells the slot-dimension predicate and asks it of profile nodes only
-status: open
+status: dispatched
 opened: 2026-09-16
 ---
 
@@ -62,3 +62,52 @@ QUESTION and unifying them is a decision:
 
 Each of those changes what a file is allowed to carry, so the row is a
 unit of its own rather than a follow-through.
+
+## Spec (2026-09-16, EDIT orchestrator) — middle tier: one opus style review with a correctness arm, no A/B row
+
+Branch `edit/one-predicate-round-three`. Round three of the move the
+blend unit made and round two made six times: one predicate, one home,
+both doors, each naming the answer in its own vocabulary. Three rows in
+one unit, with the decisions each row said it needed RULED here — by
+the precedent that a document the load door admits and the edit doors
+could not have produced is the defect, and a guard nothing can reach
+is documentation whose repair is deletion
+(`docs/prompts/implementer-discipline.md`).
+
+1. **Slot dimensions** (`load-door-checks-slot-dimensions-for-profile-nodes-only`).
+   One predicate over a node's slots — `Node::slot_dimension_fault(&self)`
+   beside the other `*_fault` methods — walking `Node::slots()` for
+   EVERY node kind, asked by `check_node_slots` and by the load door.
+   The missing-expression case is a fault at BOTH doors (the edit door's
+   `UnknownSlot` reading: a vocabulary bug surfaced, never skipped).
+   The load door also asks `check_param_refs` (a slot expression naming
+   an undeclared parameter, or one of another dimension, is a document
+   the edit door refuses — same class). Vocabulary: measure whether
+   `ProgramFault::SlotDimension` stays reachable once the node-level
+   walk runs first; if it is shadowed, delete it and retire its tag
+   (LIB's, mechanical); the load door's refusal for a non-profile slot
+   is a `SnapshotError` arm naming node and slot, with its tag and F6
+   row. The measured file (the retyped extrude distance) is the red
+   row, and the green documentation row the round-two fix pass left
+   (`load_door_slot_dimension.rs`) flips to red-then-green here as its
+   header promises.
+2. **The count/continuous shadow** (`count-continuous-arm-is-shadowed-by-the-display-unit-walk`).
+   Delete `SnapshotError::CountContinuous` and its tag: unreachable
+   through either persistence door because the display-unit walk
+   refuses first, measured by the row that exists. The row that pins
+   the divide keeps asserting what the load door actually answers. LIB's
+   tag inventory follows mechanically; say so in the PR body.
+3. **The doc-param float walk** (`doc-param-float-walk-is-hand-written-at-both-doors`).
+   One predicate beside `DocParam` — `DocParam::first_non_finite() ->
+   Option<DocParamField>` (the nominal, or which distribution offset) —
+   asked by `SetDocParam`'s arm and by the load door's `param_site`.
+   The edit door's refusal carries the field too
+   (`EditError::NonFiniteDocParam { name, field }`): the move is toward
+   the richer answer, as the row says; the F6 row and the tag follow.
+4. **Rows**: per predicate, one fixture the edit door refuses and the
+   load door refuses for the same fact, both refusals asserted by name;
+   the mutant that breaks the shared predicate reds both; the arm-swap
+   mutant (a door mis-mapping the shared answer) reds the row. Re-run
+   the `validate_document` census on `three-door-predicates-are-hand-copied-not-shared`
+   at your head and update it in place (the census is that row's
+   `## Census`); the three rows close on it.

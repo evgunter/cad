@@ -4,7 +4,7 @@ kind: issue
 title: Qualifier::OrderAlong records rank and of but no partner name, so a pruned-pair vanish of an OrderAlong fragment name cannot be shadow-executed and falls to the evidence-free RecipeEdit fallback
 status: open
 opened: 2026-09-16
-refs: [BOOL-7, 2755, 134]
+refs: [2755, 134]
 ---
 
 Found by BOOL-7 (PR 2755) and filed by the S-BOOL orchestrator on

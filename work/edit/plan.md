@@ -26,9 +26,9 @@ Reviewed against the tree and Ev's answers at the first sitting
 posture under §Process.
 
 1. **Ruled and ready** — `cut-off-arc-persists-as-a-corner-arc`
-   (Ev's (b′), 2026-09-15; the V3 read first) and, after it, the
-   fixture it was split from,
-   `a-ruled-carve-has-no-editor-fixture-…`. E-class, then a unit.
+   merged (E-class, PR #2717); the fixture it was split from,
+   `a-ruled-carve-has-no-editor-fixture-…`, is **dispatched**, middle
+   tier.
 2. **The edit vocabulary's missing doors** —
    `doc-param-unit-edit-has-no-door` is a unit, not a fork: the
    carry-forward mirror of `with_value`, on the reading the document
@@ -48,10 +48,14 @@ posture under §Process.
    `load-shaped-doors-outside-check-rs-may-duplicate-edit-predicates`,
    is **dispatched**, middle tier. `doc-param-distribution-edit-has-no-door`
    (the unit door's mirror) is **dispatched**, middle tier.
-   `recorded-program-arguments-carry-no-notation` (a shape question
-   with LIB parked on it) and
-   `replay-and-load-keep-the-document-without-its-maintenance` (a
-   ruling by the documented load boundary, E-class) follow.
+   Round two merged (PR #2772) and left three load-door rows, now
+   **dispatched** together as round three, middle tier
+   (`load-door-checks-slot-dimensions-for-profile-nodes-only` carries
+   the spec). `recorded-program-arguments-carry-no-notation` is
+   **dispatched**, middle tier, ruled by D7 and the doc-param precedent
+   (LIB's Python half parked on it).
+   `replay-and-load-keep-the-document-without-its-maintenance` was
+   ruled and closed (E-class, PR #2771).
 4. **The resolver's doors** — EDIT-PICK and EDIT-PICK2 merged. Three
    residue rows (`pick-closed-acceptance-loses-a-graze-to-rounding`,
    `pick-hit-point-from-an-out-of-range-barycentric-leaves-the-triangle`,
