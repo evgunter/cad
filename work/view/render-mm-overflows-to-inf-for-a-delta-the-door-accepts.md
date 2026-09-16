@@ -6,6 +6,8 @@ status: closed
 opened: 2026-09-16
 closed: 2026-09-16
 refs: [the-scientific-arm-rounds-out-of-the-type, renders-that-multiply-a-finite-guarded-length-spell-the-product-inf]
+pr: 2737
+branch: view/render-mm-inf
 ---
 
 
