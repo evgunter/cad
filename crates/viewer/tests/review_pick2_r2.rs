@@ -267,8 +267,18 @@ fn the_wide_aim_under_both_acceptances() {
         if c.name == "cut_cylinder" {
             // The one physical ray of the wide aim whose at-the-aim
             // answer INFORM loses: +z up a ruling of the wall.
-            let vertex = Point3::new(-0.484_291_580_564_315_5, 0.124_344_943_582_427_67, 0.059_515_284_073_164_7);
-            dump_candidates("cut_cylinder open, +z through the ruling vertex", &index, vertex, Vec3::new(0.0, 0.0, 1.0), 1.48);
+            let vertex = Point3::new(
+                -0.484_291_580_564_315_5,
+                0.124_344_943_582_427_67,
+                0.059_515_284_073_164_7,
+            );
+            dump_candidates(
+                "cut_cylinder open, +z through the ruling vertex",
+                &index,
+                vertex,
+                Vec3::new(0.0, 0.0, 1.0),
+                1.48,
+            );
         }
         let outcome = session.perform(bump);
         if outcome.refusal.is_some() {
@@ -287,13 +297,25 @@ fn the_wide_aim_under_both_acceptances() {
 /// The ring example's numbers, from the door's own doors.
 fn ring_example(index: &PickIndex) {
     let vertex = Point3::new(0.245_196_320_100_807_58, 0.0, 0.048_772_580_504_032_18);
-    dump_candidates("ring example", index, vertex, Vec3::new(0.0, -1.0, 0.0), 1.48);
+    dump_candidates(
+        "ring example",
+        index,
+        vertex,
+        Vec3::new(0.0, -1.0, 0.0),
+        1.48,
+    );
 }
 
 /// Every certified candidate of the axis ray through `vertex`: its
 /// determinant, conditioning, the three intervals, the door's `t`,
 /// and which corner (if any) IS the aimed vertex.
-fn dump_candidates(label: &str, index: &PickIndex, vertex: Point3<f64>, dir: Vec3<f64>, reach: f64) {
+fn dump_candidates(
+    label: &str,
+    index: &PickIndex,
+    vertex: Point3<f64>,
+    dir: Vec3<f64>,
+    reach: f64,
+) {
     let parts = flatten(index);
     let ray = Ray {
         origin: vertex - dir * reach,

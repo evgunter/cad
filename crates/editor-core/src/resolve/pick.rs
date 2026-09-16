@@ -1874,9 +1874,18 @@ mod tests {
         };
         let [(u, err_u), (v, err_v), (sum, err_sum)] =
             barycentric_intervals(&ray, &tri).expect("a certified determinant");
-        assert!(super::admits(u, err_u), "u = {u} ± {err_u} is admitted on its own");
-        assert!(super::admits(v, err_v), "v = {v} ± {err_v} is admitted on its own");
-        assert!((0.0..=1.0).contains(&sum), "u + v = {sum} is inside the closed range");
+        assert!(
+            super::admits(u, err_u),
+            "u = {u} ± {err_u} is admitted on its own"
+        );
+        assert!(
+            super::admits(v, err_v),
+            "v = {v} ± {err_v} is admitted on its own"
+        );
+        assert!(
+            (0.0..=1.0).contains(&sum),
+            "u + v = {sum} is inside the closed range"
+        );
         assert!(
             sum - err_sum <= 0.0 && sum + err_sum >= 1.0,
             "u + v = {sum} ± {err_sum} covers the admissible range"
@@ -1919,11 +1928,23 @@ mod tests {
         let bca = [b, c, a];
         let det_abc = certified_determinant(&ray, &abc).expect("certified");
         let det_bca = certified_determinant(&ray, &bca).expect("certified");
-        assert_eq!(det_abc.to_bits(), det_bca.to_bits(), "one determinant, two labellings");
+        assert_eq!(
+            det_abc.to_bits(),
+            det_bca.to_bits(),
+            "one determinant, two labellings"
+        );
         let [(u, _), (v, _), _] = barycentric_intervals(&ray, &abc).expect("certified");
-        assert_eq!((u, v), (1.0, 0.0), "the graze is corner b: u = 1, v = 0 exactly");
+        assert_eq!(
+            (u, v),
+            (1.0, 0.0),
+            "the graze is corner b: u = 1, v = 0 exactly"
+        );
         let [(u2, _), (v2, _), _] = barycentric_intervals(&ray, &bca).expect("certified");
-        assert_eq!((u2, v2), (0.0, 0.0), "relabelled, the graze is corner a: u = v = 0 exactly");
+        assert_eq!(
+            (u2, v2),
+            (0.0, 0.0),
+            "relabelled, the graze is corner a: u = v = 0 exactly"
+        );
         assert_eq!(
             ray_triangle(&ray, &abc),
             Some(1.0),
