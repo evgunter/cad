@@ -2,8 +2,9 @@
 id: stranded-appearance-keys-are-not-reported-by-dm7
 kind: issue
 title: A stranded appearance key is not in DM7's report: the walk is Node::payload_names and the appearance store is not a carrier
-status: review
+status: closed
 opened: 2026-09-16
+closed: 2026-09-16
 refs: [2753]
 pr: 2784
 branch: edit/appearance-strands
@@ -260,3 +261,26 @@ and one sentence on why the walk reads `&new`; the re-argument of the
 inert mutant is gone, and lives in this row and the PR body.
 `rv_dm7_probes.rs`'s header says what the file holds and what makes a
 case a probe rather than a unit row.
+
+## Closed (2026-09-16, EDIT orchestrator)
+
+Built and merged as PR #2784 after one opus style review
+(APPROVE-WITH-FIXES: one MAJOR — the strand→cluster boundary for the
+new arm was documented as pinned by a row that paints nothing, and the
+mutant that emits appearance strands after the cluster acts survived
+the whole suite; the reviewer's row now holds it — one MINOR, three
+NOTE, nine style findings, every one taken or refused with a
+measurement). DM7's second carrier: `Maintenance::StrandedAppearance
+{ name }` rides `Applied::maintenance` after the payload strands, one
+row per appearance-store key whose minting node the delete removed,
+read out of the document the edit produced; the store itself is
+untouched (asserted as whole-map equality), `Rebind` and
+`ClearAppearance` are the repairs. The one refusal, ruled at close-out:
+no Python row reads a `stranded_appearance` because Python has no
+`set_appearance` door — the arm is bound and unreachable, measured and
+filed for LIB as `stranded-appearance-is-bound-but-unreachable-from-python`;
+the `## Built` section's "two pinning rows" sentence is corrected by
+**After the review** in place and stands as the record. Residue in its
+own file: `document-stablename-carriers-have-no-enumeration` (the
+fourth site spelling the two-loop walk; an exhaustive carrier
+enumeration is the shape, per the census's `Walk` on PR #2780).
