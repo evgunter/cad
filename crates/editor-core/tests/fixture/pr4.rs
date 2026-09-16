@@ -24,10 +24,8 @@ use geom_core::Tol;
 /// semantics: the disjoint run's pair space is pruned, the flip
 /// evidence is never computed, and the row diagnoses to the
 /// documented evidence-free minting-node fallback (NAMING-DESIGN N5
-/// as amended). The shadow-execution rung does NOT move this row: it
-/// recovers a pair the name writes down, and a ranked fragment's
-/// `OrderAlong` qualifier records no partner (`m4_pr4_ci`'s pin
-/// comment carries the argument). Engine-behavior tests
+/// as amended). The shadow-execution rung leaves this row where it is
+/// — `resolve::shadow_exec_flip`'s docs say why. Engine-behavior tests
 /// that are genuinely about behavior-GIVEN-verdicts stay under the
 /// idealized sweep (`m4_pr4_diff`, `m4_pr4_resolve` — see their
 /// headers); `m4_pr4_banked` pins both strategies side by side.

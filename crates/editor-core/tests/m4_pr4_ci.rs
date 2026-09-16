@@ -46,14 +46,9 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 // unchanged (cascade → Cascade, structural-param, node-gone,
 // ambiguous).
 // NOT MOVED by the shadow-execution rung: this row is the OrderAlong
-// half of issue 134, which the rung does not recover. A ranked
-// fragment's qualifier records `rank` and `of` and NO partner, so the
-// pair it was ranked against cannot be read back out of the name —
-// and the pruned run has no sibling left to rank against either.
-// Recovering it needs the naming vocabulary to carry the partner,
-// which is the names lane's design surface. The rung's own row for
-// the recovered (SideOf) half is in `bool7_shadow_exec`, and this
-// digest is unchanged BECAUSE the two halves are different.
+// half, which `resolve::shadow_exec_flip`'s docs record as
+// unrecoverable and say why. The rung's own row for the recovered
+// (SideOf) half is in `bool7_shadow_exec`.
 // RE-PINNED for the sketch-frame node: a profile's plane is a document
 // node, so every corpus scenario gained one and the ids inside the
 // diagnosed names shifted. The five row SHAPES are unchanged and were

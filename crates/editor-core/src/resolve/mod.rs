@@ -38,44 +38,36 @@
 //! # Low-evidence diagnosis (reported)
 //!
 //! `Vanished`'s diagnosis diffs the last-good run against the current
-//! one. When those lanes are silent — no prior run, the diff
-//! engine's population-cancel blind spot (`vdiff` module docs), or
-//! **sweep pruning** (ratified 2026-07-29, N5 as amended): the
-//! realized boolean sweep records no verdicts for pairs its candidate
+//! one. Two things can make that diff silent about the name, and they
+//! are answered at different points of the ladder.
+//!
+//! **Inside the flip stage**, before any fallback: the diff engine's
+//! population-cancel blind spot (`vdiff` module docs), and **sweep
+//! pruning** (ratified 2026-07-29, N5 as amended) — the realized
+//! boolean sweep records no verdicts for pairs its candidate
 //! generation pruned, so a vanish whose flip evidence lived on a
-//! now-pruned pair (an interaction-boundary edit — overlapping ↔
-//! disjoint) has no recorded flip to cite — three
-//! honest rungs remain, in order: `Cascade` when an embedded operand
-//! name itself fails to resolve; the SHADOW-EXECUTION rung
-//! ([`shadow_exec_flip`]); and the QUALIFIER-DELTA rung
+//! now-pruned pair has no recorded flip to cite. The SHADOW-EXECUTION
+//! rung ([`shadow_exec_flip`], issue 134) sits there: it fires on the
+//! empty pair population, re-runs the vanished name's own
+//! discriminator pairs against both contexts, and outranks the
+//! incidental flips a disjointing edit leaves at the same node. Its
+//! answer is marked [`FlipSource::ShadowExec`], so no reader mistakes
+//! it for a line of a log. The front door N5's amended text pointed
+//! at — the recovery rung that did not exist yet — is that rung.
+//!
+//! **After the flip and doc-diff lanes come up empty**, two honest
+//! rungs remain, in order: `Cascade` when an embedded operand name
+//! itself fails to resolve, and the QUALIFIER-DELTA rung
 //! ([`qualifier_delta`]): the N2 discriminator verdicts recorded in
 //! the names themselves yield a `PredicateFlip` derived from recorded
 //! data when a same-shape sibling differs by exactly one pure-sign
-//! `SideOf` entry. If those too find nothing, the total fallback is
+//! `SideOf` entry. If that too finds nothing, the total fallback is
 //! [`Diagnosis::cause_not_in_evidence`], which carries that reading at
 //! the value rather than in prose here.
 //!
-//! **The front door N5's amended text pointed at now exists** (issue
-//! 134, Ev's option (a); the amendment called it the recovery rung
-//! that does not exist yet). When the pruned pair is a
-//! `name_frag_side_of` pair — one the name WRITES DOWN, as the
-//! partner list of its own `SideOf` qualifier — the rung re-executes
-//! exactly that pair against the prior and the current context and
-//! reports the flip, marked [`FlipSource::ShadowExec`] so no reader
-//! mistakes it for a line of a log. Nothing is written anywhere and
-//! the work is bounded by the pair's own width.
-//!
-//! **Two limits of that door, stated here because they are what a
-//! reader will otherwise assume away.** The population-cancel blind
-//! spot is UNTOUCHED: a cancelling exchange records a population — the
-//! same one in both runs — so the rung's trigger is false there by
-//! construction and re-executing the pair would reproduce the zero
-//! (`vdiff` module docs carry the argument). And the `OrderAlong`
-//! half of the pruned-pair case is NOT recovered: that qualifier
-//! records a rank and a group size and no partner, so the pair it was
-//! ranked against cannot be read back out of the name. The diagnosis
-//! corpus's own pruned-pair row is an `OrderAlong` edge fragment and
-//! still lands on the evidence-free fallback.
+//! The shadow rung's limits — the cancelling exchange it does not
+//! address, the collapse half it cannot, the `OrderAlong` half it has
+//! no pair for — are stated once, at [`shadow_exec_flip`].
 
 mod hit;
 mod pick;
@@ -360,9 +352,16 @@ impl core::fmt::Display for ShadowExecRefusal {
 /// `ceiling + 1` partners and cannot name that width otherwise.
 pub const SHADOW_EXEC_MAX_PAIRS: usize = 32;
 
-/// Why a name vanished — N5 verbatim plus the reserved
-/// `WitnessBifurcation` arm (SOLVER-DESIGN W3; constructed by the M6
-/// solver).
+/// Why a name vanished.
+///
+/// N5's four arms verbatim, plus two additions and one field that are
+/// NOT N5's and are marked as such wherever they are read: the
+/// reserved `WitnessBifurcation` arm (SOLVER-DESIGN W3, constructed
+/// by the M6 solver), [`Self::ShadowExecDeclined`], and
+/// [`Self::PredicateFlip`]'s `source`, which says whether the flip was
+/// read out of a log or recomputed at diagnosis time. A consumer
+/// matching this enum is matching more than N5 wrote, and the
+/// difference is where a flip's provenance lives.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Diagnosis {
     /// A recorded predicate flip on the name's derivation path — the
@@ -427,11 +426,9 @@ impl Diagnosis {
     /// blind spot (`vdiff` module docs) or through SWEEP PRUNING (the
     /// realized sweep records no verdicts for pruned pairs, so an
     /// interaction-boundary vanish can land here — ratified
-    /// 2026-07-29, NAMING-DESIGN N5 as amended). The pruned-pair half
-    /// of that is narrower than it was: [`shadow_exec_flip`] recovers
-    /// it wherever the name writes its own pair down, and what still
-    /// arrives here is a pruned `OrderAlong` rank, whose partners the
-    /// qualifier does not record.
+    /// 2026-07-29, NAMING-DESIGN N5 as amended). [`shadow_exec_flip`]
+    /// answers part of that case before this one is reached; its docs
+    /// say which part.
     pub(crate) fn cause_not_in_evidence(node: RecipeNodeId) -> Self {
         Self::RecipeEdit {
             edit: RecipeEditRef::NodeChanged { node },
@@ -826,14 +823,11 @@ struct NoPrior;
 /// The last-good run AND the band the ladder decides at — what a
 /// with-history diagnosis needs and a single-run resolution does not.
 ///
-/// The band rides HERE rather than on [`RunCtx`] because it is the
-/// with-prior ladder's own requirement: the shadow-exec rung
-/// re-executes a predicate, and D4's calling convention says a band
-/// is taken at the operation's entry, not minted inside it. A
-/// single-run resolve has no second run to diff, re-runs nothing, and
-/// therefore needs no band — which is exactly why `resolve` and
-/// `enrich_appearance_loss` keep their signatures while their
-/// with-prior twins take a [`Tol`].
+/// [`Tol`] is a zero-sized witness that the process committed a
+/// tolerance (D4), so it carries no per-run band and cannot: "the
+/// prior at ε_a, the current at ε_b" is unrepresentable in one
+/// process. It rides here rather than on [`RunCtx`] because only the
+/// with-prior ladder re-executes a predicate and so needs it at all.
 #[derive(Clone, Copy)]
 struct Prior<'a, U: Decide> {
     ctx: RunCtx<'a, U>,

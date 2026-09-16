@@ -572,19 +572,20 @@ fn a_pair_wider_than_the_ceiling_declines_typed() {
             hand_diagnosis(&at, vec![], vec![]),
             Diagnosis::ShadowExecDeclined { .. }
         ),
-        "the ceiling is inclusive"
+        "the decline is STRICTLY above the ceiling: a pair of exactly \
+         {SHADOW_EXEC_MAX_PAIRS} partners still runs"
     );
 }
 
 #[test]
-fn the_corpus_widest_pair_is_well_under_the_ceiling() {
+fn the_corpus_widest_pair_is_twelve() {
     // The reason [`SHADOW_EXEC_MAX_PAIRS`] is the number it is, kept
     // as a row rather than as a sentence: a fragment group's partners
     // are the faces meeting it across seam edges, and the widest the
-    // evaluation corpus mints is what sets the headroom. If a
-    // document ever mints a wider one, the rung starts declining
-    // where it used to recover — and this row says so rather than the
-    // decline going unnoticed.
+    // evaluation corpus mints is what sets the headroom. Pinned to the
+    // measured value and its document, not to an inequality — a
+    // corpus that grows a wider group is a fact someone should read,
+    // and `< 32` would hide every step of that growth until the last.
     let mut widest = 0usize;
     let mut at = "";
     for cd in crate::corpus::documents() {
@@ -605,12 +606,16 @@ fn the_corpus_widest_pair_is_well_under_the_ceiling() {
             }
         }
     }
-    assert!(widest > 0, "the corpus does mint discriminated fragments");
+    assert_eq!(
+        (widest, at),
+        (12, "nested_islands_106_depth2"),
+        "the corpus's widest SideOf vector moved; the ceiling's headroom \
+         ({SHADOW_EXEC_MAX_PAIRS}) was chosen against this number"
+    );
     assert!(
-        widest < SHADOW_EXEC_MAX_PAIRS,
-        "the widest corpus pair ({widest}, at {at}) has reached the rung's ceiling \
-         ({SHADOW_EXEC_MAX_PAIRS}): every group at or above it now declines instead \
-         of recovering, and the ceiling's reason needs re-deciding"
+        widest <= SHADOW_EXEC_MAX_PAIRS,
+        "and the rung declines STRICTLY above the ceiling, so a pair of exactly \
+         {SHADOW_EXEC_MAX_PAIRS} still runs"
     );
 }
 
