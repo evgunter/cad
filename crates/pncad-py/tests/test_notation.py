@@ -377,11 +377,29 @@ class TestAMisDimensionedRowRefusesAtLoad(unittest.TestCase):
         self.assertIsNone(refusal.inner_variant)
 
     def test_an_off_table_symbol_refuses_earlier_and_differently(self):
-        # A different fault: the token is not a row of the table at
-        # all, so it never reaches the dimension walk.
+        """A different fault, and it keeps its own arm.
+
+        The row above is a document INVARIANT: both units are real, and
+        an angle parameter may not declare a length one. This is not —
+        the token is no row of the table at all, so it is refused at
+        the token, before any dimension can be compared.
+
+        It arrives as `dimension` with the check's own tag, which is
+        the SAME answer an off-table symbol on an expression literal
+        earns (`test_document.py`'s load-door rows). That is the point
+        of the row: one fault, one arm, whichever of the two places in
+        a file the symbol sits. It used to be `unreadable` here and
+        `dimension` there — one fault under two classes, one of them
+        advising a caller to regenerate a file whose symbol would be
+        just as absent the second time.
+        """
         with self.assertRaises(PersistError) as raised:
             load(self.tampered("furlong"))
-        self.assertEqual(raised.exception.variant, "unreadable")
+        refusal = raised.exception
+        self.assertEqual(refusal.variant, "dimension")
+        self.assertEqual(refusal.inner_variant, "unknown_display_unit")
+        self.assertIn("furlong", str(refusal))
+        self.assertNotIn("regenerate", str(refusal))
 
 
 class TestANodeSlotRecordsTheAuthoredNotation(unittest.TestCase):
