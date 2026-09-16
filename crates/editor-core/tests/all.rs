@@ -132,6 +132,8 @@ mod dsc_checks;
 mod e4_dual_door;
 #[path = "edit_blend_canonical.rs"]
 mod edit_blend_canonical;
+#[path = "edit_doc_param_distribution.rs"]
+mod edit_doc_param_distribution;
 #[path = "edit_doc_param_unit.rs"]
 mod edit_doc_param_unit;
 #[path = "edit_pair_apply_names.rs"]

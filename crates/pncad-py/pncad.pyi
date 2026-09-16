@@ -2796,9 +2796,10 @@ class DocParam:
         records the canonical metre row.
 
         No `distribution=`: the kernel's own notation door carries no
-        annotation, so neither does this. Annotate through `length`,
-        or restate the notation once the kernel offers a door that
-        takes both."""
+        annotation, so neither does this. Annotate a parameter declared
+        here with `DocEdit.set_doc_param_distribution`, which carries
+        the notation forward; `length` takes both at once and records
+        the canonical metre row."""
 
     @staticmethod
     def written_angle(value: WrittenAngle) -> DocParam:
@@ -2945,6 +2946,35 @@ class DocEdit:
         (`doc_param_not_declared`), on a `Count`
         (`doc_param_count_has_no_unit`) and on a unit that does not
         measure the declared dimension (`doc_param_unit_mismatch`)."""
+    @staticmethod
+    def set_doc_param_distribution(
+        name: ParamName, distribution: Distribution | None
+    ) -> DocEdit:
+        """Write an E1/E2 ANNOTATION onto an already-declared parameter,
+        keeping its declaration — dimension, exact value and notation
+        alike.
+
+        The third of the carry-forward doors, one per field of the
+        declaration, and preferable over `set_doc_param` for its
+        siblings' reason: the annotated authoring spelling writes the
+        CANONICAL notation, so annotating through create-or-replace
+        re-spells a parameter authored in millimetres.
+
+        `None` CLEARS the annotation, through this same door: the field
+        is optional and "no annotation" is a value of the declaration,
+        not a row removed from a map.
+
+        The distribution's own dimension is not checked here: a kernel
+        distribution is dimension-free offsets, so the `dim` this value
+        carries is dropped at the door, as `set_doc_param_value` drops
+        its quantity's (LIB's
+        `doc-param-edit-doors-drop-the-python-dimension`).
+
+        Refuses typed on an undeclared name (`doc_param_not_declared`),
+        on a `Count` (`doc_param_count_has_no_distribution` — a count
+        takes no annotation, for the reason `DocParam.count` gives) and
+        on a broken E2 invariant (`invalid_distribution`,
+        `non_finite_doc_param`)."""
     @staticmethod
     def set_roots(roots: list[NodeId]) -> DocEdit:
         """Set the document's ordered PRODUCT ROOTS outright.

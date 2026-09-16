@@ -2,8 +2,11 @@
 id: doc-param-distribution-edit-has-no-door
 kind: issue
 title: No DocEdit annotates a standing document parameter — SetDocParam would drop the notation
-status: dispatched
+status: closed
 opened: 2026-09-16
+pr: 2774
+branch: edit/doc-param-distribution
+closed: 2026-09-16
 ---
 
 
@@ -103,3 +106,88 @@ over the third field.
 5. The `pncad-py` follow-through (the `DocEdit` payload, `.pyi`, tags,
    binding census) is LIB's, mechanical, taken here as the unit door
    took it; say so in the PR body.
+
+## Built (2026-09-16)
+
+Branch `edit/doc-param-distribution`.
+
+- `DocParam::with_distribution(&self, Option<Distribution>) ->
+  Result<Self, DistributionRefusal>` in `doc.rs`, exhaustive on both
+  arms, carrying `dim`, `value` and `display_unit` forward. Its two
+  refusals are `DistributionRefusal::CountHasNoAnnotation` and
+  `::Invalid { fault }` from the same `Distribution::check` the
+  persistence doors run.
+- `DocEdit::SetDocParamDistribution { name, distribution }` in
+  `edit.rs`, routing through it, with `CarryForwardDoor::Annotation`
+  ("an annotation edit") and a new
+  `EditError::DocParamCountHasNoDistribution`. The E2 fault maps
+  through `distribution_fault_error`, extracted from `write_doc_param`
+  so both doors report one answer.
+- The clearing question is ruled as the spec ruled it: ONE door,
+  `None` clears, and the reason is written once in
+  `with_distribution`'s rustdoc. Nothing in the tree contradicted it.
+- `persist::check`'s `edit_non_finite` learned the new arm — it is a
+  real float carrier, unlike the notation door — reporting the
+  offending field through the existing `NonFiniteSite::DocParam`.
+- Nine rows in `crates/editor-core/tests/edit_doc_param_distribution.rs`;
+  the F6 prose contract for the new refusal is `display_contract.rs`'s
+  census, and the suite row holds only the residue.
+  The corpus sink exercises the new kind (`EDIT_KINDS` is 17).
+- The `pncad-py` follow-through is LIB's, taken here mechanically:
+  the façade re-export, `DocEdit.set_doc_param_distribution`, the
+  `.pyi` stub, the tag `doc_param_count_has_no_distribution`, the
+  payload arm and the two census rows.
+- Filed on LIB's slate:
+  `work/lib/doc-param-edit-doors-drop-the-python-dimension.md`.
+
+## After the review (2026-09-16)
+
+- `write_doc_param`'s and `check_node_slots`' rustdoc, which the
+  extraction of `distribution_fault_error` had stacked above the
+  extracted function, are re-homed. The sweep behind it — every free
+  `fn` in `edit.rs` and `persist/check.rs` against the doc block
+  immediately above it — found no other instance.
+- `write_doc_param`'s header names its four callers (create-or-replace
+  plus the three carry-forward doors), `DocEdit`'s header and
+  `EditError::DocParamNotDeclared` name the third door, and the two
+  `use crate::distribution::` lines are one.
+- E11.3 ("a count is a structural parameter, fixed under any error
+  analysis") has ONE declared home, a section of
+  `DocParam::with_distribution`'s rustdoc; five other sites cite it in
+  a clause. The Python pair cites `DocParam.count`, which already
+  declares it in that language.
+- The doubled `Distribution::check` stays doubled, with the reason
+  written at the door: `SetDocParam` reaches the shared write path
+  without `with_distribution`, and `with_distribution` is a `pub` door
+  reachable without `apply`.
+- The Python door's reason for dropping the annotation's dimension is
+  the true one (a kernel `Distribution` is dimension-free, so the
+  wrapper's `dim` is discarded building the payload), pointing at
+  `work/lib/doc-param-edit-doors-drop-the-python-dimension.md`; the
+  two LIB doc sites that told a caller to wait for this door are
+  present tense.
+- The suite's F6 row keeps only what the `display_contract.rs` census
+  does not say — that the parameter name is interpolated, and that
+  `DistributionRefusal` renders on its own.
+
+## Closed (2026-09-16, EDIT orchestrator)
+
+Built and merged as PR #2774 after one opus style review (MERGEABLE:
+three doc-level MINOR, two NOTE, nine style findings; every one taken
+or argued with a measurement in the fix pass). The third carry-forward
+door mirrors the unit door exactly where it should
+(`DocParam::with_distribution`, `DocEdit::SetDocParamDistribution`,
+`CarryForwardDoor::Annotation`) and differs only where the field does;
+`None` clears through the same door, ruled on this row; the
+create-or-replace door and this one classify a distribution fault
+through one function. Red first (the notation reverting from mm to m
+through `SetDocParam`), five mutants each redding rows. The one
+disclosed deviation (the non-finite offset reached through `save` of
+an in-memory log, since JSON cannot spell one) is right. Residue in its
+own files: `work/lib/doc-param-edit-doors-drop-the-python-dimension`
+(the Python wrapper's dimension is dropped at the door because the
+kernel `Distribution` carries none — LIB's call) and
+`work/chrome/props-header-says-no-door-between-create-or-replace-and-value`
+(a viewer header premise both carry-forward doors falsified). One
+baseline moved: the kitchen sink's persisted-text hash, for one inert
+metadata edit added to it; its name-tables digest did not.

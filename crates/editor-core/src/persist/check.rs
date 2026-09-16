@@ -302,6 +302,17 @@ fn edit_non_finite(edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
             name: name.clone(),
             field: None,
         }),
+        // The annotation door's whole payload is a distribution, so
+        // its offsets are floats the format writes and they belong to
+        // THIS walk — the same site vocabulary `SetDocParam`'s
+        // declaration goes through, offending field and all.
+        DocEdit::SetDocParamDistribution {
+            name,
+            distribution: Some(d),
+        } if d.first_non_finite().is_some() => Some(NonFiniteSite::DocParam {
+            name: name.clone(),
+            field: d.first_non_finite(),
+        }),
         DocEdit::SetAppearanceMeta { name, key, value } => {
             value
                 .first_non_finite()
@@ -334,6 +345,9 @@ fn edit_non_finite(edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
         DocEdit::SetDocParamValue { .. }
         // A notation is a table code, not a float.
         | DocEdit::SetDocParamUnit { .. }
+        // The guarded arm above, unguarded: a cleared annotation
+        // carries no float, and a finite one has nothing to report.
+        | DocEdit::SetDocParamDistribution { .. }
         | DocEdit::InsertNode { .. }
         // A list of node ids carries no float.
         | DocEdit::SetMembers { .. }

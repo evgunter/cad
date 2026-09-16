@@ -5,8 +5,10 @@
 //! this layer (spec D2).
 
 use crate::appearance::{Attr, AttrKind};
-use crate::distribution::DistributionFault;
-use crate::doc::{DisplayUnitRefusal, Doc, DocParam, DocParamValue, ParamName};
+use crate::distribution::{Distribution, DistributionFault};
+use crate::doc::{
+    DisplayUnitRefusal, DistributionRefusal, Doc, DocParam, DocParamValue, ParamName,
+};
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
 use crate::meta::{MetaValue, MetaVersionError};
 use crate::names::EntityKind;
@@ -25,8 +27,9 @@ use geom_core::Tol;
 /// `UpdateReference`). The document-parameter family: one
 /// create-or-replace door (`SetDocParam`) and the carry-forward doors,
 /// each moving ONE field of a standing declaration and keeping the
-/// rest (`SetDocParamValue`, `SetDocParamUnit`; [`CarryForwardDoor`]
-/// names them in a refusal). The explicit repairs and the document's
+/// rest (`SetDocParamValue`, `SetDocParamUnit`,
+/// `SetDocParamDistribution`; [`CarryForwardDoor`] names them in a
+/// refusal). The explicit repairs and the document's
 /// presentation state: `Rebind`, the ONLY name repair — the
 /// automatic-rebinding policy menu is empty by ratified decision
 /// (NAMING-DESIGN N5); `ReWitness`/`ReWitnessBulk`, the recorded
@@ -178,6 +181,41 @@ pub enum DocEdit<P> {
         /// The notation to write, which must MEASURE the declared
         /// dimension.
         unit: crate::expr::UnitSym,
+    },
+    /// Write an E1/E2 ANNOTATION onto an already-declared document
+    /// parameter, keeping its declaration: its dimension, its exact
+    /// value and its authored display unit ride through untouched
+    /// ([`DocParam::with_distribution`]).
+    ///
+    /// The third of the carry-forward doors, one per field of the
+    /// declaration a narrow edit can move, and it exists for its
+    /// siblings' reason. The only other way to annotate a standing
+    /// parameter is [`Self::SetDocParam`] — create-or-replace — with a
+    /// `DocParam` the caller assembled, and the authoring spelling for
+    /// an annotated parameter ([`DocParam::continuous_with`]) writes
+    /// the CANONICAL notation: a parameter authored in millimetres
+    /// reverts to metres the moment anyone annotates it. There is
+    /// nothing to restate here.
+    ///
+    /// **`None` CLEARS the annotation**, through this same door; the
+    /// argument is [`DocParam::with_distribution`]'s rustdoc.
+    ///
+    /// Refuses typed on a name the document does not declare
+    /// ([`EditError::DocParamNotDeclared`] — there is no declaration to
+    /// carry forward), on a `Count`
+    /// ([`EditError::DocParamCountHasNoDistribution`] — a count takes
+    /// no annotation, the argument again being
+    /// [`DocParam::with_distribution`]'s rustdoc) and on a
+    /// distribution that breaks an E2 invariant
+    /// ([`EditError::NonFiniteDocParam`],
+    /// [`EditError::InvalidDistribution`] — the invariants the
+    /// save/load validator refuses a document for).
+    SetDocParamDistribution {
+        /// The parameter name — must already be declared, and must not
+        /// be a `Count`.
+        name: ParamName,
+        /// The annotation to write, or `None` to clear it.
+        distribution: Option<Distribution>,
     },
     /// The explicit name repair (N5, spec D3): rewrite every document
     /// site that references `from` EXACTLY (Declare pairs and
@@ -342,13 +380,13 @@ pub enum DocEdit<P> {
     },
 }
 
-/// Which of the two CARRY-FORWARD doors an edit came through — the
-/// edits that write one field of a standing declaration and carry the
-/// rest untouched.
+/// Which CARRY-FORWARD door an edit came through — the edits that
+/// write one field of a standing declaration and carry the rest
+/// untouched.
 ///
-/// It exists so a refusal both doors share can name the one the caller
-/// actually used ([`EditError::DocParamNotDeclared`]). A third door
-/// over a third field adds an arm here and the compile names every
+/// It exists so a refusal every such door shares can name the one the
+/// caller actually used ([`EditError::DocParamNotDeclared`]). A door
+/// over a further field adds an arm here and the compile names every
 /// sentence that has to learn the word.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CarryForwardDoor {
@@ -356,6 +394,8 @@ pub enum CarryForwardDoor {
     Value,
     /// [`DocEdit::SetDocParamUnit`] — the notation.
     Notation,
+    /// [`DocEdit::SetDocParamDistribution`] — the E1/E2 annotation.
+    Annotation,
 }
 
 // The door as it appears inside a refusal's sentence, in the user's
@@ -365,6 +405,7 @@ impl core::fmt::Display for CarryForwardDoor {
         f.write_str(match self {
             Self::Value => "a value edit",
             Self::Notation => "a notation edit",
+            Self::Annotation => "an annotation edit",
         })
     }
 }
@@ -601,18 +642,19 @@ pub enum EditError {
         /// The parameter.
         name: ParamName,
     },
-    /// A carry-forward edit — [`DocEdit::SetDocParamValue`] or
-    /// [`DocEdit::SetDocParamUnit`] — named a parameter this document
-    /// does not declare. Both doors carry an existing declaration
-    /// forward, so there has to be one; declaring a parameter is
-    /// [`DocEdit::SetDocParam`]'s job.
+    /// A carry-forward edit — [`DocEdit::SetDocParamValue`],
+    /// [`DocEdit::SetDocParamUnit`] or
+    /// [`DocEdit::SetDocParamDistribution`] — named a parameter this
+    /// document does not declare. All three carry an existing
+    /// declaration forward, so there has to be one; declaring a
+    /// parameter is [`DocEdit::SetDocParam`]'s job.
     ///
-    /// ONE arm for both doors because the FAULT is one — the missing
+    /// ONE arm for all of them because the FAULT is one — the missing
     /// declaration, which neither door is about — and so is the
     /// recourse. What differs is which edit the user submitted, and
     /// that rides along in `door` so the sentence can say it: a
     /// refusal that read "a carry-forward edit" would make a reader
-    /// work out which of their two edits it was talking about.
+    /// work out which of their edits it was talking about.
     DocParamNotDeclared {
         /// The undeclared parameter.
         name: ParamName,
@@ -628,6 +670,23 @@ pub enum EditError {
     /// Nothing is being redeclared here — there is no notation for a
     /// count under ANY declaration.
     DocParamCountHasNoUnit {
+        /// The count parameter.
+        name: ParamName,
+    },
+    /// An annotation edit ([`DocEdit::SetDocParamDistribution`]) named
+    /// a `Count` parameter, which takes no distribution and carries no
+    /// field to write one into — the argument is
+    /// [`DocParam::with_distribution`]'s rustdoc (E11.3).
+    ///
+    /// [`Self::DocParamCountHasNoUnit`]'s sibling at the third field,
+    /// and separate from it for the same reason the two doors are
+    /// separate — the fault is what the count has no room for, and a
+    /// caller branching on it is told which of their edits to
+    /// withdraw. Raised for a CLEARING edit too: a caller aiming an
+    /// annotation edit at a count has the wrong parameter, and
+    /// answering `Ok` because the field happened to be absent would
+    /// hide that.
+    DocParamCountHasNoDistribution {
         /// The count parameter.
         name: ParamName,
     },
@@ -1214,6 +1273,12 @@ impl core::fmt::Display for EditError {
                  it has no display unit to change",
                 name.0
             ),
+            Self::DocParamCountHasNoDistribution { name } => write!(
+                f,
+                "parameter {} is a count, and a count is a structural parameter that is fixed \
+                 under any error analysis — it has no distribution to change",
+                name.0
+            ),
             Self::DocParamUnitMismatch {
                 name,
                 unit,
@@ -1564,11 +1629,33 @@ fn check_param_refs<P>(
     Ok(())
 }
 
-/// Validate every slot of a node payload against slot dimensions and
-/// the param table, keyed as `id` for error reporting.
+/// A broken E2 invariant as the edit door reports it, in ONE place.
+///
+/// The split is by CLASS, not by door: a non-finite offset is a
+/// non-finite float on a document parameter and joins the ruled
+/// non-finite policy's own refusal (door 1), the rest are distribution
+/// shape faults. Both the create-or-replace door and the annotation
+/// door reach it, so a caller comparing their refusals reads one
+/// answer rather than two spellings of it.
+fn distribution_fault_error(name: &ParamName, fault: DistributionFault) -> EditError {
+    match fault {
+        DistributionFault::NonFinite { .. } => EditError::NonFiniteDocParam { name: name.clone() },
+        DistributionFault::SigmaNotPositive { .. }
+        | DistributionFault::NominalOutsideSupport { .. } => EditError::InvalidDistribution {
+            name: name.clone(),
+            fault,
+        },
+    }
+}
+
 /// Write a fully-formed [`DocParam`] into the document: the shared
-/// tail of both parameter doors, so the create-or-replace door and the
-/// value door cannot come to disagree about what a legal parameter is.
+/// tail of every parameter door, so no two of them can come to
+/// disagree about what a legal parameter is. Four doors reach it —
+/// the create-or-replace door ([`DocEdit::SetDocParam`]) and the three
+/// carry-forward doors, one per movable field of the declaration:
+/// [`DocEdit::SetDocParamValue`], [`DocEdit::SetDocParamUnit`] and
+/// [`DocEdit::SetDocParamDistribution`]. A fifth door writing a
+/// declaration routes through here too, and adds itself to that list.
 ///
 /// **The check order is the LOAD door's** (`persist::check`'s
 /// `validate_document`): floats first, then the distribution's shape,
@@ -1595,16 +1682,7 @@ fn write_doc_param<P: Clone + crate::ProfilePayload>(
     if let Some(d) = value.distribution()
         && let Err(fault) = d.check()
     {
-        return Err(match fault {
-            DistributionFault::NonFinite { .. } => {
-                EditError::NonFiniteDocParam { name: name.clone() }
-            }
-            DistributionFault::SigmaNotPositive { .. }
-            | DistributionFault::NominalOutsideSupport { .. } => EditError::InvalidDistribution {
-                name: name.clone(),
-                fault,
-            },
-        });
+        return Err(distribution_fault_error(name, fault));
     }
     if let DocParam::Continuous {
         dim: Dimension::Count,
@@ -1650,6 +1728,8 @@ fn write_doc_param<P: Clone + crate::ProfilePayload>(
     })
 }
 
+/// Validate every slot of a node payload against slot dimensions and
+/// the param table, keyed as `id` for error reporting.
 fn check_node_slots<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     id: RecipeNodeId,
@@ -2113,6 +2193,28 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
                     }
                 }
             })?;
+            write_doc_param(&mut new, name, written)?
+        }
+        DocEdit::SetDocParamDistribution { name, distribution } => {
+            let Some(declared) = new.params.get(name) else {
+                return Err(EditError::DocParamNotDeclared {
+                    name: name.clone(),
+                    door: CarryForwardDoor::Annotation,
+                });
+            };
+            // THE carry-forward, over the third field: the declaration
+            // is read off the document and reused whole, so the value
+            // and the NOTATION cannot be dropped by an omission here.
+            // Both reasons it can refuse are the DOOR's — this routes
+            // them, and decides neither.
+            let written = declared
+                .with_distribution(*distribution)
+                .map_err(|why| match why {
+                    DistributionRefusal::CountHasNoAnnotation => {
+                        EditError::DocParamCountHasNoDistribution { name: name.clone() }
+                    }
+                    DistributionRefusal::Invalid { fault } => distribution_fault_error(name, fault),
+                })?;
             write_doc_param(&mut new, name, written)?
         }
         DocEdit::Rebind { from, to } => {
