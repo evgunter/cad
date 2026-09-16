@@ -1321,7 +1321,9 @@ fn a_world_axis_planes_ruling_stays_on_the_other_two_world_axes() {
             let along = world
                 .iter()
                 .position(|w| parallel(d, *w))
-                .unwrap_or_else(|| panic!("the {v:?} plane ruled along ({}, {}, {})", d.x, d.y, d.z));
+                .unwrap_or_else(|| {
+                    panic!("the {v:?} plane ruled along ({}, {}, {})", d.x, d.y, d.z)
+                });
             if along == axis_index {
                 // The normal tick, which is the one mark that is
                 // allowed to leave the plane.
