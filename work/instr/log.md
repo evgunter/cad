@@ -126,3 +126,53 @@ wrong slate.
 Net: unit 17 stops being two rows describing one PROPS unit, and
 becomes one row waiting on one. The plan's unit 17 is rewritten to say
 so.
+
+## Unit 4 lands its review; two corrections travel further than the unit (2026-09-16)
+
+**The unit.** `baseline_census`'s `constant.len() + discriminating.len()
+== IDENTITY_COLUMNS.len()` is deleted rather than replaced. The item
+offered a replacement — *"that `distinct` has no zero entry"* — and the
+lane established on the code that the same `assert!(!sized.is_empty())`
+guard makes BOTH unfailable, so the replacement would have been the
+defect with a new message. Style review upheld both claims `sure`.
+
+**The review caught the trap in the assertion the unit KEPT.** Given
+`distinct[i] >= 1`, once the `constant` assert passes the
+`discriminating` one is forced — `IDENTITY_COLUMNS` minus those five, in
+order — so no re-cut can red it alone. It stays reachable under a source
+edit adding an eighth column, so it is not dead; what it owed was the
+disclosure this file already gives three times over for exactly this
+shape. The PR body's *"say strictly more"* was half-false. This is the
+precise shape `docs/REVIEW-STYLE-DISPATCH.md` §2 names and the reviewer
+brief says only a non-author has ever caught, and it was worth the
+review on its own.
+
+**Two findings reach past this unit.**
+
+`cut_line_pin.rs`'s Class-section precedent is half wrong, and the
+review verified the correction independently: PR 2151's deletion is
+real, but a DIFFERENT `TABLE.iter().any(…)` survives today in
+`the_committed_baselines_own_cut_line_is_a_row_of_the_table`, reading
+`BASELINE`'s first line at runtime and failable on a re-cut. **Unit 9
+is briefed on this as fact** — reading the precedent as "none survives
+there" would have deleted a live guard in the file unit 9 edits.
+
+The item's stated sweep pattern cannot match the item's own instance:
+two passes written faithfully to *"operands are `const` items or derived
+from them alone"* returned the defect not at all, because
+`constant`/`discriminating` descend from `parse(BASELINE)` at runtime
+and the defect is a tautology rather than a compile-time constant. A
+lane running the stated pattern gets a clean result over the very defect
+it was dispatched for, and a clean sweep reads as a negative result
+rather than as a wrong instrument. Filed on META's slate as
+`an-items-stated-sweep-pattern-may-not-match-its-own-instance`, because
+`docs/prompts/*` is META's and the two fixes that would close it are
+`[ev]` conversations.
+
+**Unit 12's plan entry was wrong and is corrected here.** It called the
+row *"one name … the cheapest evidence that the roster's ADDED direction
+is unpinned"*. It is not: the omission is already loud via
+`NOT_ROSTERED` plus a guard, and what is left is a ruling whose sample
+branch has no corpus — `props_quad_last_round` emits zero rows in all
+nine committed baselines, measured before dispatch. The lane was
+briefed on the corrected shape rather than the plan's.
