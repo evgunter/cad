@@ -273,6 +273,10 @@ cites the slot-dimension gap as the known exception.
 | `is_continuous_count` → `false` | the count row |
 | `moves_the_mate_graph` with `UpdateReference` removed | **does not compile** (`E0004`, the arm named) |
 
+**CI**: run 35119197792 on head `ecf9fa0de` — success, 39 jobs, twelve
+`test (…)` and five `k-lint (gate, …)`, the python suite green, zero
+non-success step conclusions.
+
 **Filed by the fix pass**, on this program's slate:
 `mate-head-entity-kind-is-decided-only-at-assembly` (the review's
 NOTE-4 — a V1 class-2 gap, not a duplication),
