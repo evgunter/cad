@@ -51,3 +51,49 @@ sweep the same day (`3a8dd05fe`) by putting the closing PR's number in the
 citing row. The five ids map to PRs 2167, 2151, 2115, 2140 and 2179, derived
 twice; the row carries the mapping and the derivation. The sweep makes the
 substitutions in its own commit, as GATES' did across three programs' rows.
+
+## Orchestrator handover and the plan re-cut (2026-09-16)
+
+New orchestrator on the program; nothing had been dispatched since it
+opened, so the resting state was twenty-five rows all `open`, no
+`instr/*` branch on origin and no PR. Four rulings from Ev on the
+handover, all recorded in `plan.md` rather than here, because they bind
+the lanes and this file is narrative:
+
+1. **No A/B protocol, style review per unit, three full reviews** —
+   units 7, 15 and 18. The question METER's walk §8 left open is now
+   answered rather than inherited. Unit 5 was weighed for a fourth full
+   review and ruled style-only: *"no need to include
+   tess-lint-ungated-columns-fold-silently"*.
+2. **S-MESH is reachable but not in active development**, so unit 10's
+   producer-side column may be written here: *"for s-mesh you may be
+   able to just do it since it won't collide with anything"*. The
+   crossing is announced, not claimed — `crates/mesh/*` stays S-MESH's
+   `paths` and `program.md`'s `keep_out` clause says so in its new form.
+3. **PROPS is live.** Ev can carry a message, and *"if the item would be
+   better sited in props itself then you can just move it there"* — so
+   unit 17's ask either rides an `[ev]` message or `git mv`s onto
+   PROPS' slate, and does not park.
+4. **`[ev]` PRs open early and the rest of the work does not wait on
+   them**: *"i'd suggest you open them sooner and just work on
+   everything that doesn't wait on them until i reply."* Unit 16's
+   roster-membership question is the first one that qualifies.
+
+**The five rows that arrived after the plan was written are placed.**
+`pin-table-has-no-whitespace-tail-row` joins unit 9 (both read the cut
+line, and the second is one truth-table row in a file the first is
+already editing); `k-report-bit-identity-claim-has-no-citation` joins
+unit 13 (one document lane against `docs/K-REPORT.md`);
+`no-guard-reds-a-decide-name-missing-from-the-k-report` and
+`frame-mint-funnel-names-outside-every-sweep-corpus` become units 15 and
+16 of lane C; `c15-is-dischargeable-now-that-a-sized-scene-carries-names`
+joins `C15` itself.
+
+**`C15` stops being "last, and not in a lane".** Its own evidence row
+says the corpus change it waited on has landed: the teapot's spout is a
+lofted canal, the first sized scene carrying durable per-face names, and
+four pairs of its laterals are indistinguishable by every
+`IDENTITY_COLUMNS` entry and separated by their names. So the charter
+sentence in `program.md` and `plan.md` saying it *"waits on a corpus
+change no lane here makes"* was false on the tree and is rewritten in
+this commit. It is lane D, with the full review.
