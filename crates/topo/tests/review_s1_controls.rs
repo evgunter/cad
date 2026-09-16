@@ -18,13 +18,9 @@
 
 use crate::common;
 
-use common::{flush_declarations, prism_z};
+use common::{brick, flush_declarations};
 use geom_core::Tol;
 use topo::{Body, BooleanResult, mass_properties, subtract, union_with};
-
-fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    prism_z::<f64>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
-}
 
 fn checked_mesh_volume(body: &Body<f64>) -> f64 {
     let mesh = mesh::tessellate(body, 1e-2, Tol::witness()).expect("tessellate");

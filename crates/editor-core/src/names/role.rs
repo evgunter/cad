@@ -829,18 +829,29 @@ pub enum RoleSeg {
         support: NameRef,
     },
     /// A blend foot: where a support's two trimlines meet, retracted
-    /// from a source corner vertex. One source vertex yields one foot
-    /// per incident support.
+    /// from the source vertex where the band ends. One such vertex
+    /// yields one foot per incident support, whether the band ends at
+    /// a corner or at a transverse cap.
     FootVertex {
-        /// The source corner vertex.
+        /// The source vertex the band ends at.
         vertex: NameRef,
         /// The support face the foot lies in.
         support: NameRef,
     },
-    /// A corner arc: where an octant meets one of its three incident
-    /// blends.
-    CornerArc {
-        /// The source corner vertex the octant rounds.
+    /// **The arc where a blend band closes at a source vertex**, keyed
+    /// by the source edge whose blend it bounds.
+    ///
+    /// A structural role, not a geometric classification. The octant
+    /// seam — three convex edges, the arc parting the band from the
+    /// octant [`RoleSeg::CornerFace`] names — and the transverse
+    /// cut-off — a ruled band meeting a cap, the arc parting the band
+    /// from the cap — are two CONFIGURATIONS of the one role, told
+    /// apart by the body and by the minting node rather than by this
+    /// word, the reading [`RimSupport`] states for its own pair.
+    /// `(vertex, edge)` is unique under both: a source vertex is one
+    /// configuration or the other and never both.
+    EndArc {
+        /// The source vertex the band closes at.
         vertex: NameRef,
         /// The source edge whose blend the arc bounds.
         edge: NameRef,
@@ -866,8 +877,8 @@ pub enum RoleSeg {
     /// The vertex where the band's MATE-side trimline crossed a source
     /// edge running off the rim (on a ladder rim, a cap meridian).
     BandCross(NameRef),
-    /// The surviving piece of a source edge the band's trimline cut
-    /// (the shortened meridian).
+    /// The surviving piece of a source edge the band's trimline cut —
+    /// on a ladder rim a cap meridian, on a ruled band a cap rim edge.
     BandCut(NameRef),
     /// A band's SLIT: the double-traversed torus meridian that keeps
     /// the annular band RING-FREE (`sweep::blend::surgery`'s donut
@@ -1061,7 +1072,7 @@ pub(crate) fn member_edge(seg: &RoleSeg) -> Option<RecipeNodeId> {
         | RoleSeg::CornerFace(_)
         | RoleSeg::TrimEdge { .. }
         | RoleSeg::FootVertex { .. }
-        | RoleSeg::CornerArc { .. }
+        | RoleSeg::EndArc { .. }
         | RoleSeg::BandFace(_)
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)
@@ -1168,7 +1179,7 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::CornerFace(_)
             | $crate::names::RoleSeg::TrimEdge { .. }
             | $crate::names::RoleSeg::FootVertex { .. }
-            | $crate::names::RoleSeg::CornerArc { .. }
+            | $crate::names::RoleSeg::EndArc { .. }
             | $crate::names::RoleSeg::BandFace(_)
             | $crate::names::RoleSeg::BandTrim { .. }
             | $crate::names::RoleSeg::BandFoot(_)

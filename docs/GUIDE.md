@@ -1257,11 +1257,15 @@ square = doc.insert(
 )
 cube = doc.insert(Node.extrude(square, Expr.length_in(1, m)))
 
-# A ball, revolved as two quarter arcs, sunk H into the top face.
+# A ball, revolved as two quarter arcs on one carrier, sunk H into the
+# top face: the second arc leaves along the first's tangent (a declared
+# tangent joint at the equator) and is derived from that tangent and
+# its target.
 half = (
     Open.at((0 * m, -R * m))
     .arc_to(Bulge((R * m, 0 * m), math.tan(math.pi / 8)))
-    .arc_continue((0 * m, R * m))
+    .tangent()
+    .tangent_arc_to((0 * m, R * m))
     .line_to(Start)
 )
 frame = doc.sketch_frame(

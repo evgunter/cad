@@ -363,6 +363,21 @@ pub enum EditError {
         /// The position at which it is named again.
         again: u32,
     },
+    /// The node this edit writes carries a blend selection that is not
+    /// canonical — sorted and deduplicated
+    /// ([`crate::node::InputFault::SelectionNotCanonical`]): a
+    /// hand-built `Node::Fillet` or `Node::Chamfer` that bypassed
+    /// [`Node::fillet`]/[`Node::chamfer`], which sort and dedup.
+    /// Refused rather than repaired, at this door as at the load door,
+    /// because re-sorting would move the node's content key behind the
+    /// caller's back.
+    SelectionNotCanonical {
+        /// The node whose selection is out of canonical form.
+        node: RecipeNodeId,
+        /// The position of the entry that does not sort strictly
+        /// before the one after it.
+        at: u32,
+    },
     /// `SetMembers` aimed at a node that has no list input
     /// ([`Node::list_input`]) — a boolean's operands are named slots,
     /// and replacing "the list" of a node that has none is not a
@@ -935,6 +950,12 @@ impl core::fmt::Display for EditError {
                     again: *again,
                 }
             ),
+            Self::SelectionNotCanonical { at, .. } => write!(
+                f,
+                "the node this edit writes would be invalid: {}. Build it through \
+                 `Node::fillet` or `Node::chamfer`, which sort and deduplicate.",
+                crate::node::InputFault::SelectionNotCanonical { at: *at }
+            ),
             Self::DeleteWouldDangle { id, referenced_by } => write!(
                 f,
                 "node {} is still an input to node {} — delete node {} first, \
@@ -1444,6 +1465,9 @@ fn check_node_inputs<P: crate::ProfilePayload>(
                 first,
                 again,
             })
+        }
+        Some(crate::node::InputFault::SelectionNotCanonical { at }) => {
+            Err(EditError::SelectionNotCanonical { node: id, at })
         }
     }
 }

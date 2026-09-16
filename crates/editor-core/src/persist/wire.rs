@@ -287,8 +287,6 @@ enum WireStep {
     ArcTo(WireArcData),
     /// `tangent_arc_to(target)`.
     TangentArcTo(WireTarget),
-    /// `arc_continue(target)` — the declared-subdivision step.
-    ArcContinue([Expr; 2]),
     /// `.fillet(r)`.
     Fillet(Expr),
     /// `fillet_arc(r, spec)`.
@@ -469,7 +467,6 @@ impl WireStep {
             P::ContinueTo(t) => WireStep::ContinueTo(WireTarget::from_target(t)),
             P::ArcTo(spec) => WireStep::ArcTo(WireArcData::from_spec(spec)),
             P::TangentArcTo(t) => WireStep::TangentArcTo(WireTarget::from_target(t)),
-            P::ArcContinue(p) => WireStep::ArcContinue(p.clone()),
             P::Fillet(e) => WireStep::Fillet(e.clone()),
             P::FilletArc { radius, spec } => WireStep::FilletArc {
                 radius: radius.clone(),
@@ -507,7 +504,6 @@ impl WireStep {
             WireStep::ContinueTo(t) => P::ContinueTo(t.into_target()),
             WireStep::ArcTo(spec) => P::ArcTo(spec.into_spec()),
             WireStep::TangentArcTo(t) => P::TangentArcTo(t.into_target()),
-            WireStep::ArcContinue(p) => P::ArcContinue(p),
             WireStep::Fillet(e) => P::Fillet(e),
             WireStep::FilletArc { radius, spec } => P::FilletArc {
                 radius,

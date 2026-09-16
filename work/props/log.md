@@ -1251,3 +1251,26 @@ census that costs the suite nothing. Filed on other slates: the
 TRIM (`Box3::speed_sup`, where the extraction's own doc settles the
 rounding difference the wrong way — "folding them into one would move
 bits" is the reading discipline section 3 forbids as a justification).
+
+**Sign-hull HOLDS on Ev's ruling (2026-09-15).** The dual's fix pass
+landed all twelve items and left three rows red that are SYM/M10's, not
+this unit's to re-bless: a frame chosen by a decision is opaque to the
+symbolic tier, and SYM-5's tilted-derived-boss acceptance row refuses.
+Measured before the fork was put: the plain numeric lane is unchanged
+under both constructions (identical refusal set and first enclosure),
+and removing the decision atom does NOT clear the rows — it moves the
+refusal one face earlier and ~45% wider, so the opacity is the
+candidate's form and not the atom. Ev ruled, in chat, that the tier
+learns the fold and the construction stands; PR #2468 holds rather than
+landing red, and the land-now-and-re-aim-their-pin path is rejected
+explicitly. Recorded on the item and put to SYM on its log.
+
+**Orchestrator process correction (Ev, in chat, 2026-09-15).** The fork
+above went to Ev in chat and in a seam note, and Ev did not see it until
+after it had been sitting: *"it would have been ideal to open an [ev]
+pr, though, since as it is i didn't see this until now"*. CLAUDE.md
+already says it — anything for Ev goes in a PR titled `[ev] …` — and
+this orchestrator did not follow it for a design fork. Standing from
+here: a fork, a ruling request or anything else needing Ev's decision
+gets its `[ev]` PR **at the moment it is put**, not after it is
+answered; chat is the notification, the PR is the artifact.

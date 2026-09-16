@@ -334,7 +334,7 @@ fn remap_seg(naming: &ProfileNaming, seg: RoleSeg) -> RoleSeg {
         | R::CornerFace(..)
         | R::TrimEdge { .. }
         | R::FootVertex { .. }
-        | R::CornerArc { .. }
+        | R::EndArc { .. }
         | R::BandFace(..)
         | R::BandTrim { .. }
         | R::BandFoot(..)

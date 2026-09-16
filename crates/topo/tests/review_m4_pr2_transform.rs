@@ -9,17 +9,13 @@ use crate::common;
 
 use std::f64::consts::{FRAC_PI_2, FRAC_PI_3};
 
-use common::{describe_as_intersections, prism_z};
+use common::{brick, describe_as_intersections};
 use geom_core::Tol;
 use geom_core::{Affine3, Mat3, Vec3};
 use topo::{
     Body, TransformError, mass_properties, transform_rigid, validate, validate_closed,
     validate_geometric,
 };
-
-fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    prism_z::<f64>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
-}
 
 fn tiers_ok(b: &Body<f64>) {
     assert_eq!(validate(b), Ok(()));
