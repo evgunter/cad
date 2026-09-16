@@ -637,6 +637,29 @@ pub enum EditError {
         /// The name no table carries.
         name: StableName,
     },
+    /// The supplied evaluation is of ANOTHER document (DI3, A2a).
+    ///
+    /// Raised by [`crate::resolve::apply_with_names`] before any name
+    /// is read, and for the reason the pairing doors exist: node ids
+    /// are minted by a per-document counter, so a foreign evaluation
+    /// of one recipe satisfies the carve-out on every name and answers
+    /// every table lookup — a name the edited document does not carry
+    /// is admitted, or one it does carry is refused
+    /// [`EditError::NameUnresolvedInEvaluation`], with nothing missing
+    /// to say which.
+    ///
+    /// Its own arm rather than a shared refusal type: the one
+    /// predicate is [`crate::ident::mispaired`] and the vocabulary is
+    /// each door's, so an authoring caller matches this beside the
+    /// rest of `EditError` instead of importing another enum
+    /// (`ProductError`, `MateFault` and `ChecksError` each carry their
+    /// own arm over the same predicate).
+    EvaluationOfAnotherDocument {
+        /// The document the edit is being applied to.
+        expected: crate::ident::DocumentId,
+        /// The document the supplied evaluation is of.
+        found: crate::ident::DocumentId,
+    },
     /// A `Rebind` whose appearance-key rewrite would land two
     /// attributes of the same kind on the target name (`from`'s
     /// attribute set collides with one already attached to `to`).
@@ -1096,6 +1119,12 @@ impl core::fmt::Display for EditError {
                 f,
                 "the {name} does not resolve in the supplied evaluation — recording the \
                  reference would strand it"
+            ),
+            Self::EvaluationOfAnotherDocument { expected, found } => write!(
+                f,
+                "the supplied evaluation is of document {found}, not of document \
+                 {expected} — its names would be checked against another document's \
+                 tables"
             ),
             Self::RebindAppearanceCollision { name, kind } => write!(
                 f,
