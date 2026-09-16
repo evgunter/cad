@@ -2,9 +2,11 @@
 id: nodepick-name-doors-take-a-second-evaluation-unpaired
 kind: issue
 title: NodePick::patch_names and boundary_names take a second evaluation and check no pairing
-status: dispatched
+status: review
 opened: 2026-09-16
 refs: [2723, 1098]
+branch: edit/nodepick-pairing
+pr: 0
 ---
 
 ## What
@@ -110,3 +112,49 @@ and this unit keeps that line.
    content key's business — and one row says so, so the boundary is
    pinned rather than implied. A mutant that drops the stamp
    comparison reds every refusal row.
+
+## Built (2026-09-16)
+
+`NodePick` carries `document: DocumentId`, stamped from `eval.document`
+at `build` and `build_with` (`build_all` / `build_all_with` enumerate
+through them, so all four constructors stamp). `PickMemo`'s
+`PickEntry.document` field is gone: the memo's document half of the key
+is now the memoised pick's own stamp, so the two cannot drift.
+
+`patch_names` and `boundary_names` return
+`Result<Vec<Result<StableName, HitTestError>>, HitTestError>` and refuse
+`HitTestError::EvaluationOfAnotherDocument { expected, found }` through
+`ident::mispaired`, before any table is read. The refusal is of the
+CALL — one fact about the arguments, outside the vector — and the
+per-entity `Unnamed` lane keeps its own meaning.
+
+Item 3's sweep also reached `pick_face`, which could mispair and now
+cannot: `PickTarget` gained a public `document` field, `NodePick::target`
+stamps it, and `pick_face` refuses the same arm for the first offending
+target BEFORE the standing loop (a twin mints the same node ids, so
+standing admits it). The node half of `PickTarget`'s provenance contract
+is untouched — arena keys collide across sibling nodes of ONE document
+and there is nothing to compare — and stays #1098's residual raw-assembly
+class, still witnessed by the ignored row
+`gui1_pick_r2::a_mesh_paired_with_the_wrong_node_does_not_answer_a_name`.
+
+A2a's door list and its closing paragraph re-worded for the three new
+doors and for what the stamp does not decide (the description an
+approved change moved, not a second decision). DI3 unedited.
+
+Rows, in `crates/editor-core/tests/edit_pair_apply_names.rs`: the
+`pair-rv` probe becomes `the_name_doors_refuse_a_twins_evaluation`
+(both doors, plus the shape assertion that a per-slot spelling would
+fail), `pick_face_refuses_a_target_of_another_document`, and
+`a_later_evaluation_of_the_same_document_is_admitted` (the prism's own
+extrusion distance edited between the runs, content key asserted moved).
+A mutant that drops the stamp comparison reds the first two and leaves
+the third green. Python mirrors in
+`crates/pncad-py/tests/test_picking.py`
+(`TestThePickIndexPairsWithItsDocument`, five rows including the premise
+that the twin's tables would have answered).
+
+Not done here: `face_name` / `edge_name` / `vertex_name` (`resolve/hit.rs`)
+take a raw arena key beside the evaluation and carry no provenance at
+all, so there is no stamped value for `ident::mispaired` to run on —
+the raw-key class, not this one.
