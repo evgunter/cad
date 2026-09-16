@@ -375,14 +375,14 @@ pub const NODE_KINDS: [&str; 21] = [
 /// corpus document authors, and listing them here would report four
 /// permanent misses rather than covering anything. What guards the
 /// vocabulary itself is not this list but [`edit_kind`]'s match, which
-/// is exhaustive with no wildcard: a twenty-first `DocEdit` arm fails
-/// the BUILD there and its author then decides whether the corpus
-/// should exercise it, rather than the arm slipping in unnamed.
+/// is exhaustive with no wildcard: a further `DocEdit` arm fails the
+/// BUILD there and its author then decides whether the corpus should
+/// exercise it, rather than the arm slipping in unnamed.
 ///
 /// `m4_pr8_corpus`'s `vocabulary_coverage_is_total` reads this list and
 /// the tally in both directions, so a kind listed and never exercised
 /// is as red as a kind exercised and never listed.
-pub const EDIT_KINDS: [&str; 16] = [
+pub const EDIT_KINDS: [&str; 17] = [
     "InsertNode",
     "DeleteNode",
     "SetParam",
@@ -391,6 +391,7 @@ pub const EDIT_KINDS: [&str; 16] = [
     "SetDocParam",
     "SetDocParamValue",
     "SetDocParamUnit",
+    "SetDocParamDistribution",
     "Rebind",
     "ReWitness",
     "ReWitnessBulk",
@@ -573,6 +574,7 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::SetDocParam { .. } => "SetDocParam",
         DocEdit::SetDocParamValue { .. } => "SetDocParamValue",
         DocEdit::SetDocParamUnit { .. } => "SetDocParamUnit",
+        DocEdit::SetDocParamDistribution { .. } => "SetDocParamDistribution",
         DocEdit::Rebind { .. } => "Rebind",
         DocEdit::ReWitness { .. } => "ReWitness",
         DocEdit::ReWitnessBulk { .. } => "ReWitnessBulk",
