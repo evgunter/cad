@@ -23,6 +23,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use bvh::{Aabb, Bvh, Ray};
+use editor_core::resolve::{certified_determinant, ray_triangle};
 use editor_core::{
     Dimension, DocEdit, Expr, HitTestError, NodePick, ProfileDoc, RecipeNodeId, SlotId, StableName,
     unparse,
@@ -378,17 +379,18 @@ fn rays_for(index: &PickIndex) -> Vec<Ray> {
 
 /// **The single-level reference.** One flat tree per part over EVERY
 /// triangle of its mesh, patch-major in the mesh's patch order, and
-/// the pick service's own loop over it verbatim: candidates in the
-/// tree's order (ascending conservative entry, then flat position),
-/// the early-out once the best hit is strictly below a candidate's
-/// entry, the exact test, nearest `t` with ties to the lower
-/// `(part, flat triangle)` position. Test-only. Whatever shape the
-/// production index takes — one tree per mesh, a tree per patch under
-/// a tree over the patches — its answer to every ray is this one's,
-/// hit for hit, and the early-out is part of the definition: the
-/// exact test can answer a `t` outside a grazed triangle's own box
-/// (a ray in the triangle's plane), and which of those the loop
-/// reaches before it breaks is decided by the candidate order.
+/// the exact test on every candidate the tree hands back — no
+/// early-out — nearest `t` with ties to the lower `(part, flat
+/// triangle)` position. Test-only. Whatever shape the production
+/// index takes — one tree per mesh, a tree per patch under a tree
+/// over the patches — its answer to every ray is this one's, hit for
+/// hit: the minimum over the per-triangle tests, each of which reads
+/// the ray and the triangle alone. The service's early-out on the
+/// conservative entry is a cost measure, and [`Walk::Pruned`] is how
+/// `reference_answers` says on every ray that it did not change the
+/// minimum: what it can change in principle is a near-tie decided by
+/// the rounding of `t` (`pick_face`'s docs), and the row is where
+/// that would show.
 struct FlatPart {
     tree: Bvh,
     corners: Vec<[Point3<f64>; 3]>,
@@ -408,6 +410,25 @@ struct FlatHit {
     item: usize,
     patch: usize,
     t: f64,
+}
+
+impl FlatHit {
+    /// The hit's identity, as comparable bits.
+    fn key(hit: Option<Self>) -> Option<(usize, usize, u64)> {
+        hit.map(|h| (h.part, h.item, h.t.to_bits()))
+    }
+}
+
+/// How [`FlatReference::walk`] visits a part's candidates.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Walk {
+    /// The tree's order, every candidate tested: the reference proper
+    /// ([`FlatReference::pick`]).
+    Every,
+    /// The tree's order with the service's early-out — the walk
+    /// `pick_face` runs — which may test fewer candidates and must
+    /// answer the same.
+    Pruned,
 }
 
 impl FlatReference {
@@ -442,11 +463,17 @@ impl FlatReference {
     /// `t` — the second is what says a ray of the tie-break row
     /// actually tied.
     fn pick(&self, ray: &Ray) -> (Option<FlatHit>, usize) {
+        self.walk(ray, Walk::Every)
+    }
+
+    /// [`FlatReference::pick`] under a [`Walk`].
+    fn walk(&self, ray: &Ray, walk: Walk) -> (Option<FlatHit>, usize) {
         let mut best: Option<FlatHit> = None;
         let mut tied = 0;
         for (part, flat) in self.parts.iter().enumerate() {
             for cand in flat.tree.ray(ray) {
-                if let Some(b) = &best
+                if walk == Walk::Pruned
+                    && let Some(b) = &best
                     && b.t < cand.t_enter
                 {
                     break;
@@ -478,36 +505,6 @@ impl FlatReference {
         }
         (best, tied)
     }
-}
-
-/// The exact ray/triangle test the pick service runs (Möller–Trumbore,
-/// both-sided, closed boundaries, non-finite `t` refused), restated
-/// here so the reference is a whole pick and not a call into the
-/// service it checks. A change to the service's test — the guard
-/// `work/docm/pick-grazing-ray-answer-depends-on-candidate-order.md`
-/// asks for — must change both copies, or this pin reds on the rays
-/// whose answer the guard moves.
-fn ray_triangle(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<f64> {
-    let e1: Vec3<f64> = tri[1] - tri[0];
-    let e2: Vec3<f64> = tri[2] - tri[0];
-    let p = ray.dir.cross(e2);
-    let det = e1.dot(p);
-    if det == 0.0 {
-        return None;
-    }
-    let inv = 1.0 / det;
-    let s = ray.origin - tri[0];
-    let u = s.dot(p) * inv;
-    if !(0.0..=1.0).contains(&u) {
-        return None;
-    }
-    let q = s.cross(e1);
-    let v = ray.dir.dot(q) * inv;
-    if !(v >= 0.0 && u + v <= 1.0) {
-        return None;
-    }
-    let t = e2.dot(q) * inv;
-    (t >= 0.0 && t.is_finite()).then_some(t)
 }
 
 /// **The tie-break row**: rays aimed exactly at the points two or more
@@ -566,6 +563,35 @@ fn tie_rays_for(index: &PickIndex) -> Vec<Ray> {
     rays
 }
 
+/// The reference's answer to every ray, walked once — and **the
+/// early-out does not change the answer**: the reference walked with
+/// the service's early-out ([`Walk::Pruned`]) names the same triangle
+/// at the same `t` bits as the reference proper. The runtime value
+/// that reds this row is a ray on which the pruned walk broke before
+/// a candidate that would have won: a near-tie the rounding of `t`
+/// decides (`pick_face`'s docs).
+fn reference_answers(
+    name: &str,
+    step: &str,
+    reference: &FlatReference,
+    rays: &[Ray],
+) -> Vec<(Option<FlatHit>, usize)> {
+    rays.iter()
+        .enumerate()
+        .map(|(i, ray)| {
+            let (expected, tied) = reference.pick(ray);
+            let (pruned, _) = reference.walk(ray, Walk::Pruned);
+            assert_eq!(
+                FlatHit::key(pruned),
+                FlatHit::key(expected),
+                "{name} after {step}: ray {i} ({ray:?}) answers {pruned:?} with the early-out and \
+                 {expected:?} over every candidate — the early-out changed the answer"
+            );
+            (expected, tied)
+        })
+        .collect()
+}
+
 /// **Every pick answer is the single-level reference's, hit for hit**:
 /// the same triangle (through its patch's name), the same `t` bits,
 /// the same point bits, the same miss. Answers how many of `rays`
@@ -574,7 +600,7 @@ fn assert_flat_reference(
     name: &str,
     step: &str,
     index: &PickIndex,
-    reference: &FlatReference,
+    answers: &[(Option<FlatHit>, usize)],
     session: &DocSession,
     rays: &[Ray],
 ) -> usize {
@@ -586,7 +612,7 @@ fn assert_flat_reference(
         .collect();
     let mut ties = 0;
     for (i, ray) in rays.iter().enumerate() {
-        let (expected, tied) = reference.pick(ray);
+        let (expected, tied) = answers[i];
         if tied >= 2 {
             ties += 1;
         }
@@ -762,8 +788,9 @@ fn assert_same_picture(
     // reference over the fresh meshes is the reference for both.
     rays.extend(tie_rays_for(fresh));
     let reference = FlatReference::of(fresh);
-    let fresh_ties = assert_flat_reference(name, step, fresh, &reference, session, &rays);
-    let ties = assert_flat_reference(name, step, seam, &reference, session, &rays);
+    let answers = reference_answers(name, step, &reference, &rays);
+    let fresh_ties = assert_flat_reference(name, step, fresh, &answers, session, &rays);
+    let ties = assert_flat_reference(name, step, seam, &answers, session, &rays);
     assert_eq!(ties, fresh_ties);
     println!(
         "# {name} after {step}: {} rays against the single-level reference, {ties} tied",
@@ -1055,6 +1082,126 @@ fn the_gallery_ring_indexes_the_same_through_the_seam_across_edits() {
     let edits = sequence(&doc, bump, revert);
     drive("gallery_ring", doc, &edits, tol);
 }
+
+/// **A grazing ray answers the corner it grazes, not a noise `t`.**
+/// After the gallery ring's bump, the tie-break row aims a ray along
+/// +y at a chord point of the tube. The ray lies in the plane of a
+/// triangle of the face it does NOT cross there: Möller–Trumbore's
+/// determinant for that triangle is rounding noise (~2e-19), and its
+/// its quotient `t = e2·q / det` cancels to `1.476`, 0.004 BELOW the
+/// corner, while its `u` and `v` are exactly `0`: in exact arithmetic
+/// over the mesh's rounded corners the ray passes through that
+/// triangle's own corner `a` — the chord point — and its true `t` is
+/// `1.480`. The exact test now takes `t` from the hit point
+/// `a + u·e1 + v·e2` projected onto the ray, so the answer is the corner,
+/// `t = 1.480` to the bit, from the reference and the service alike.
+/// Two premise rows keep the probe honest against a retessellation:
+/// the chord point is still a mesh vertex (so the ray is still a
+/// graze), and the candidate set still holds a triangle with the
+/// chord point as a corner whose Möller–Trumbore quotient is off the
+/// corner by more than 1e-6 (so the class the projection exists for
+/// is still there). Parked here rather than beside `pick.rs`'s own
+/// rows because it needs the gallery ring, which only the viewer's
+/// test corpus loads.
+#[test]
+fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
+    let tol = Tol::witness();
+    let text = common::gallery_ring_at(tol);
+    let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
+    let doc = loaded.snapshot;
+    let (node, slot, expr) = first_length_slot(&doc);
+    let bump = Edit {
+        node,
+        slot,
+        text: unparse(&expr),
+    };
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let outcome = session.perform(bump.op());
+    assert!(
+        outcome.refusal.is_none(),
+        "the bump lands: {:?}",
+        outcome.refusal
+    );
+    session.pump();
+    let index = fresh_index(&session).expect("the bumped ring indexes");
+    let corner = Point3::new(0.3628905537491952, 0.0, 0.07218341914596763);
+    let reach = 1.48;
+    let ray = Ray {
+        origin: Point3::new(corner.x, corner.y - reach, corner.z),
+        dir: Vec3::new(0.0, 1.0, 0.0),
+    };
+    let same = |p: &Point3<f64>, q: &Point3<f64>| {
+        (p.x.to_bits(), p.y.to_bits(), p.z.to_bits())
+            == (q.x.to_bits(), q.y.to_bits(), q.z.to_bits())
+    };
+    assert!(
+        index
+            .parts()
+            .iter()
+            .any(|part| part.mesh().positions.iter().any(|p| same(p, &corner))),
+        "the probe's premise: the chord point is a vertex of the bumped ring's mesh, so the ray \
+         through it is a graze"
+    );
+    let reference = FlatReference::of(&index);
+    // Möller–Trumbore's own `t` quotient for each candidate that has
+    // the chord point as its first corner (so `s = origin − a` is
+    // exactly `−reach · dir` and `u = v = 0` exactly): the quotient
+    // the old exact test answered, and the number the projection
+    // replaces.
+    let quotients: Vec<f64> = reference
+        .parts
+        .iter()
+        .flat_map(|flat| {
+            flat.tree.ray(&ray).into_iter().filter_map(move |cand| {
+                let tri = &flat.corners[cand.item];
+                if !same(&tri[0], &corner) {
+                    return None;
+                }
+                let det = certified_determinant(&ray, tri)?;
+                let e1: Vec3<f64> = tri[1] - tri[0];
+                let e2: Vec3<f64> = tri[2] - tri[0];
+                let q = (ray.origin - tri[0]).cross(e1);
+                Some(e2.dot(q) / det)
+            })
+        })
+        .collect();
+    assert!(
+        quotients.iter().any(|t| (t - reach).abs() > 1e-6),
+        "the probe's premise: a candidate with the chord point as its corner whose \
+         Möller–Trumbore quotient is off the corner is in the ray's candidate set: {quotients:?}"
+    );
+    let (hit, _) = reference.pick(&ray);
+    let hit = hit.expect("the ray meets the ring");
+    assert_eq!(
+        hit.t.to_bits(),
+        RING_CORNER_T.to_bits(),
+        "the reference answers the corner at t = {RING_CORNER_T} (reach {reach}), not a noise \
+         t of a triangle the ray only lies in the plane of: {hit:?}"
+    );
+    let (_, eval) = session.landed_pair().expect("a landed pair");
+    let picked = index
+        .pick(eval, &ray)
+        .expect("the pick resolves")
+        .expect("the service meets the ring");
+    assert_eq!(
+        picked.t.to_bits(),
+        hit.t.to_bits(),
+        "the service answers the reference's t: {picked:?} against {hit:?}"
+    );
+    let expected_point = ray.origin + ray.dir * hit.t;
+    assert_eq!(
+        [picked.point.x, picked.point.y, picked.point.z].map(f64::to_bits),
+        [expected_point.x, expected_point.y, expected_point.z].map(f64::to_bits),
+        "the hit point is the chord point as the ray reaches it: {:?}",
+        picked.point
+    );
+}
+
+/// The ring probe's answer: the chord point's parameter as the
+/// winning triangle's exact test rounds it. Re-derive from the
+/// probe's failure message if the ring's tessellation changes.
+const RING_CORNER_T: f64 = 1.48;
 
 /// The last extrude distance or revolve angle in the document, scaled
 /// — the gallery ring's own bump.

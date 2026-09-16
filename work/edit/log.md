@@ -150,3 +150,74 @@ here, `node-error-kind-renders-the-slot-id-through-debug` on WIRE's
 slate); LIB's row parked on the residue row unparked since its trigger
 fired. A closed FIX row's "no `Dimension` reaches a user through
 `Debug`" claim was found false at one door and the door repaired.
+
+## 2026-09-16 — blend canonical predicate merged (middle tier, PR #2724)
+
+`InputFault::SelectionNotCanonical { at }` is the one predicate, asked
+by every door that admits a node; `SnapshotError::BlendSelectionNotCanonical`
+retired; the establisher (`canonicalize_selection`) has one home,
+called by both construction doors and the rebind repair. The lane
+corrected the spec's premise: no evaluation site ever asked
+`input_fault`, so an unsorted selection used to evaluate silently and
+only save/load objected. Review (opus, style + correctness) found the
+`at` index pinned only at zero and a dead symbol citation in a filed
+row; both fixed, with rows that name the mutant each kills. Two
+residue rows filed on EDIT's slate (three hand-copied door predicates
+in `check.rs`; the load-shaped doors outside `check.rs` the sweep could
+not see).
+## 2026-09-16 — EDIT-PICK merged (kernel unit, v6 dual, PR #2721)
+
+The program's first kernel unit, and the spec was wrong at its centre:
+the box-entry guard the orchestrator recommended is unsound in `f64`,
+and both reviewers proved it by execution (R1 on a fan-triangulated cap,
+R2 on `cut_cylinder`, where the service answered a wall above the rim).
+A bilateral MAJOR, so the pair adds nothing to the v6 tally. The fix
+pass withdrew the guard for a certified determinant with a derived
+bound — and found that alone insufficient for the item's own ring case,
+where the determinant is certified, the barycentrics are exactly zero,
+and the quotient for `t` cancels; `t` now comes from the hit point's
+projection onto the ray, a disclosed and measured deviation. The answer
+is now `Pruned == Every` on every landing. Residue: three rows on the
+slate, one asking for a ruling on how far the acceptance certifies its
+barycentrics. Lesson for the orchestrator's next spec: a guard that
+compares a rounded value against a certified bound needs the value's
+own error accounted for, and the reviewers' differently-aimed sweeps
+(interior hits, vertex grazes across the whole corpus) are the
+instruments the spec should have demanded.
+
+## 2026-09-16 — pair-apply merged (middle tier, PR #2723); EDIT-PICK2 spec'd
+
+`resolve::apply_with_names` is the fourth pairing door over the one
+predicate `ident::mispaired`, its arm `EditError::EvaluationOfAnotherDocument`;
+`ASSEMBLY.md` A2a is the one list of pairing doors and four sites point
+at it. The lane boxed `ProfileProgramRefused`'s payload to clear the
+enum-size lint the new arm tripped — argued, measured, and the reviewer
+would have taken the same call. The review (opus, style + correctness)
+found a fifth stale door count, the moved row's header wrong for
+PROPS's board, an unratified "beats" sentence written into A2a (made
+descriptive), and — the finding worth the review — two `NodePick` name
+doors that take a second evaluation unpaired and answer out of a
+twin's tables, filed on EDIT's slate. The pairing row moved to PROPS
+with EDIT's half built.
+
+EDIT-PICK2 spec'd: the barycentric residual the pick unit filed is
+ruled as the conjunction of "meet" and "inform" over one derived
+bound (`docs/EDIT-PICK2-SPEC.md`); block EDIT-B1 slot 1, dispatched
+when disk allows. Lanes live: doc-param, WireStep collapse.
+
+## 2026-09-16 — C6's `WireStep` member merged (middle tier, PR #2738)
+
+`WireStep`, `WireTarget`, `WireArcData`, `WireLoopProgram` and, at the
+fix pass, `WireProfile` are gone: the document form IS the persisted
+form, serde derives on the declarations, two kernel-foreign tags through
+one `foreign_tag!` adapter. The wire is byte-identical (three `.pncad`
+pins unchanged; the reviewer's every-variant program hashed the same on
+both trees). Two pins now guard the format: the spelling set and a
+frozen every-variant byte corpus (`PNCAD_BLESS=1` to regenerate), the
+second being what sees a swapped tag or a reordered field. The review
+found `WireProfile` removable by the PR's own mechanism and the set pin
+blind to permutation; both fixed. A lesson for adopting review probes:
+one was written at default ε and failed at the other two rows when
+adopted, because `load` reconciles the file's recorded ε — the full
+matrix caught it. Filed: a CHROME row on `viewer/src/sketch.rs`'s false
+compile-break claim; evidence on LIB's short-vocabulary row.

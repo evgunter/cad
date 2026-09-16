@@ -57,6 +57,14 @@ a clause pointing at the parse refusal for the case they used to cover.
 `docs/TESS-BUDGET.md`'s own standing rule applies to the fix — the
 document is not the census's home, so name the list, not a count.
 
+## A sibling row, on a different quantity (INSTR unit 4, 2026-09-16)
+
+`work/instr/c15-transcribes-the-sized-row-identity-split.md` covers the
+other prose copy of an identity-column fact this unit's sweep turned
+up — the five-plus-two SPLIT among the sized rows, in `work/instr/C15.md`.
+Different quantity, different file, different closer; named here only so
+this row's lane knows the sibling exists.
+
 ## Moved to INSTR (2026-09-08)
 
 Moved from `work/meter/` to `work/instr/` by `git mv` when METER's exit
