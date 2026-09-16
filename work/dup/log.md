@@ -165,3 +165,60 @@ overshoot — a genuinely wrong bound — so **fixing that bound will not
 stop this row reddening other programs' PRs**. Evidence added to
 `work/mesh/nurbs-face-bound-unsound-on-a-random-rational.md` rather
 than a second file. Flagged to Ev; S-MESH's to fix.
+
+### The measurement unit B owed, and why B is now three units (2026-09-16)
+
+**Answer: one fixture, not two.** `topo`'s Euler-built box and
+`sweep`'s extrude-built box are the same solid — same counts, same
+keys, same arena order in every topological arena, same face surfaces
+and senses, same `mass_properties` bits. Two axes differ and neither is
+geometry: the curve arena holds the same key set permuted, and four of
+twelve edges carry `Intersection`'s `(s1, s2)` swapped. Nothing in the
+tree reads either; `validate.rs` and `boolean/ops.rs` both accept
+either arrangement. So the row's "equal" branch applies and the remedy
+is the move down.
+
+**The measurement was worth more than its answer**, which is the
+argument for the row's own rule that a measurement comes before a fix.
+Three things it found that no amount of reading the row would have:
+
+- **A kernel finding.** `describe_as_intersections`' rule
+  (`s1 = surface(face(he_plus))`) holds on 12/12 edges of the Euler
+  body and **8/12** of the extruded one, with `he_plus`/`he_minus`
+  identical between them — so extrude names the pair by something other
+  than the edge's own direction on the cap it closes, and the pair has
+  no ratified order to violate. Filed on BLEND's ground as
+  `intersection-pair-order-is-unpinned-and-extrude-disagrees-with-itself`.
+  It is an unordered pair carried in two ordered fields, with three
+  consumers that each check both ways — Q7's shape exactly.
+- **Two gates in front of the move, both MEASURED.**
+  `scripts/gates/witness-not-ambient.sh` puts
+  `test_support_impl.rs` in its production set (the `any(...)` mount is
+  explicitly excluded from `GATE_CFG_TEST_NOT_RE`'s test-only
+  narrowing), and the family calls `Tol::witness()` 24 times. The lane
+  established this by **planting a violation and watching the gate
+  fire**, then reverting — method item 4, on a gate rather than a
+  constant. Plus the `#![allow(unwrap_used, expect_used, panic)]` that
+  is unremarkable in `tests/` and is not in `src/`.
+- **The honest set is the whole file**, including three members the row
+  had not listed (`straddle_seat`, `flush_declarations`,
+  `assert_every_chord_named_by_both_rules`).
+
+**So B decomposes into three, and B is the last of them**: reconcile
+`geometric_cube`/`cube_into`; thread `tol: Tol` through the family;
+then move and unify. Each link is worth doing on its own merits whether
+or not the next happens — which is the test that a decomposition is
+real rather than a large unit made to look small. Threading the
+tolerance also lands `prism_z`'s signature on
+`sweep::test_support::brick`'s, convergent evidence that the two are
+one door.
+
+Ev ratified "A now, B next unit" before the measurement existed. Taken
+as a sequencing decision with a recommendation rather than put back to
+him (`memories/orchestration-model.md`), and reported in the same
+sitting. The alternative was dispatching B as specced, which would have
+moved a duplication into a new home and met the first gate at the
+24th `Tol::witness()`.
+
+**Next unit dispatched**: `topo-tests-geometric-cube-and-cube-into-are-one-sequence-twice`,
+claimed onto this slate, full review tier.

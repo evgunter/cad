@@ -2,9 +2,10 @@
 id: brick-has-two-constructions-and-two-homes
 kind: issue
 title: The axis-aligned box is built two ways in two homes; the shared home is topo's, not sweep's
-status: open
+status: parked
 opened: 2026-09-16
 refs: [topo-tests-brick-copies]
+blocked_on: [topo-tests-geometric-cube-and-cube-into-are-one-sequence-twice]
 ---
 
 
@@ -263,3 +264,67 @@ budget for.
 - **Nothing downstream of the body.** No STL, STEP or mesh output was
   compared; the claim is about the arenas and the mass-property
   certificate, not about what an exporter makes of them.
+
+## Adjudicated (2026-09-16): the "equal" branch, and the unit is three
+
+**The measurement above settles the fork this row was opened on.** The
+two builders produce the same solid — same counts, same keys, same
+arena order in every topological arena, same face surfaces and senses,
+same `mass_properties` bits. They differ on two axes and neither is
+geometry: the curve arena holds the same key set permuted, and four of
+twelve edges carry `Intersection`'s `(s1, s2)` swapped. **Nothing in
+the tree reads either.** So this is one fixture, not two, and the
+remedy is the move down rather than a rename.
+
+The pair-order asymmetry is a finding about the kernel, not about
+fixtures, and it outlives this row: filed as
+`work/blend/intersection-pair-order-is-unpinned-and-extrude-disagrees-with-itself.md`
+on the ground it lands on.
+
+**But the move is three units, not one**, and the measurement is what
+shows that. The row imagined moving `prism_z`/`Prism`; the honest set
+is the whole of `crates/topo/tests/common/mod.rs`, and two gates sit in
+front of it that this row did not anticipate — both of which the lane
+**measured rather than guessed**, one by planting a violation and
+watching the gate fire.
+
+1. **Reconcile first.** `geometric_cube` and `cube_into` are the same
+   ninety-line Euler sequence written twice
+   (`work/tint/topo-tests-geometric-cube-and-cube-into-are-one-sequence-twice.md`).
+   `line`, `plane` and `describe_as_intersections` are called by all
+   three builders, so moving `prism_z` alone already drags them down
+   and leaves the duplication behind at a second address. **Relocating
+   a duplication is not a move, it is a second copy with a forwarding
+   address.** This reconciles before or with the move.
+2. **Thread the tolerance.** `scripts/gates/witness-not-ambient.sh`
+   forbids `Tol::witness()` under `crates/*/src`, exempting only
+   `#[cfg(test)]` — and `gate_test_only_mounts`' `GATE_CFG_TEST_NOT_RE`
+   explicitly excludes an `any(...)` cfg from that narrowing, so
+   `test_support_impl.rs`'s
+   `#[cfg(any(debug_assertions, test, feature = "test-support"))]`
+   mount puts it squarely in the gate's production set. The family
+   calls `Tol::witness()` **24 times**. A mover threads `tol: Tol`
+   through every one of those doors or argues for a new exemption.
+   **Thread it**: it is right on its own merits — a fixture should not
+   reach for an ambient tolerance, which is what the gate exists to
+   say — and it lands `prism_z`'s signature on
+   `sweep::test_support::brick`'s, which is convergent evidence that
+   the two really are one door. Also in this unit: the file-level
+   `#![allow(unwrap_used, expect_used, panic)]` that is unremarkable in
+   `tests/` lands inside the library tree on the move.
+3. **Move, then unify.** The family goes to
+   `crates/topo/src/test_support_impl.rs`; `sweep::test_support::brick`
+   delegates to it or is deleted, and `stl` and `step-export` follow
+   their `pub use`. No manifest edge is added at any step — every
+   consumer already depends on `topo`.
+
+Each link stands on its own merits whether or not the next one
+happens, which is the test that the decomposition is real rather than
+a way of making a large unit look small.
+
+**Sequencing.** Ev ratified "A now, B next unit" on 2026-09-16, before
+the measurement existed. B is now the third link of three; the first
+link is an existing row on S-TINT's slate. Taken as a sequencing
+decision with a recommendation rather than put back to Ev, per
+`memories/orchestration-model.md`, and reported to him in the same
+sitting.
