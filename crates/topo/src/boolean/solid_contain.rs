@@ -3659,7 +3659,7 @@ mod per_solid_entry_tests {
 
     fn faces_of(body: &Body<f64>, solid: SolidKey) -> Vec<FaceKey> {
         body.faces()
-            .filter(|&(k, d)| body.get_shell(d.shell).unwrap().solid == solid && k == k)
+            .filter(|(_, d)| body.get_shell(d.shell).unwrap().solid == solid)
             .map(|(k, _)| k)
             .collect()
     }
