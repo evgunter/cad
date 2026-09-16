@@ -1485,8 +1485,8 @@ mod tests {
     use topo::Body;
 
     use super::{
-        MeshPick, MeshPickError, PickMemo, PickTable, barycentric_intervals,
-        certified_determinant, ray_triangle,
+        MeshPick, MeshPickError, PickMemo, PickTable, barycentric_intervals, certified_determinant,
+        ray_triangle,
     };
 
     fn unit_prism() -> Body<f64> {
@@ -1638,7 +1638,11 @@ mod tests {
             return false;
         };
         intervals.into_iter().all(|(x, err)| {
-            let err = if door == Door::HalfBound { err * 0.5 } else { err };
+            let err = if door == Door::HalfBound {
+                err * 0.5
+            } else {
+                err
+            };
             let inside = (0.0..=1.0).contains(&x);
             let informs = x - err > 0.0 || x + err < 1.0;
             match door {
