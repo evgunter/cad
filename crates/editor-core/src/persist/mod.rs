@@ -347,8 +347,8 @@ impl core::fmt::Display for PersistError {
                 declared,
             } => write!(
                 f,
-                "persist: document parameter {:?} is declared {declared:?} but its display \
-                 unit measures {unit:?}",
+                "persist: document parameter {:?} is declared {declared} but its display \
+                 unit measures {unit}",
                 name.0
             ),
             Self::Serialize { message } => write!(f, "persist: serializer failed: {message}"),

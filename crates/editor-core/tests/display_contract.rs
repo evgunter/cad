@@ -909,7 +909,7 @@ fn an_entity_kind_carries_the_article_that_agrees_with_it() {
         side: MateSide::A,
         name: Box::new(edge_name.clone()),
         why: RefusedRef::NotAFace {
-            kind: EntityKind::Edge,
+            found: EntityKind::Edge,
         },
     });
     let shown = reference.to_string();
@@ -923,7 +923,7 @@ fn an_entity_kind_carries_the_article_that_agrees_with_it() {
         side: MateSide::A,
         name: Box::new(face_name()),
         why: RefusedRef::NotAFace {
-            kind: EntityKind::Vertex,
+            found: EntityKind::Vertex,
         },
     });
     let shown = face.to_string();
@@ -1369,4 +1369,92 @@ fn naming_error_display_names_its_content_not_its_struct() {
         ),
     ];
     assert_f6_every_variant(&cases, &NAMING_ERROR, &[]);
+}
+
+test_utils::f6_variants! {
+    /// `ProgramFault`'s census — see [`NODE_PICK_ERROR`]. The load
+    /// door's own refusal over a persisted profile program, whose
+    /// payload is a slot ADDRESS: the fingerprint that reaches a reader
+    /// here is one level down, in [`SlotId`] and [`StepArg`], so the
+    /// case list below bans those two vocabularies' identifiers on top
+    /// of this enum's own.
+    const PROGRAM_FAULT: ProgramFault = [SlotDimension, Lattice];
+}
+
+/// A program fault addresses its slot in the slot vocabulary's own
+/// words ([`SlotId::label`], [`StepArg::label`]), not in the enum's.
+///
+/// **What the ban list holds.** `assert_f6_every_variant` bans
+/// `ProgramFault`'s own two identifiers and the universal brace; the
+/// renderings at risk here carry neither, because what a reverted arm
+/// would leak is a `SlotId` or a `StepArg` identifier. Those are added
+/// through `also_banned`, read off the very values the cases carry
+/// ([`test_utils::f6::variant_identifier`]) so a variant renamed in
+/// `src/` cannot leave this list saying the old name. `SlotId::Profile`
+/// carries a brace in its `Debug` as well, so that arm is held twice.
+///
+/// **What it deliberately does not ban.** The `Lattice` arm renders its
+/// tip state and verb through `Debug`: the pair is the transition
+/// table's own coordinate, which `profile`'s `ReplayError` and this
+/// arm's comment both say, and `Verb`'s `Display` — the authoring
+/// spelling — is a different sentence from the coordinate. Banning
+/// those identifiers here would be this suite deciding a question
+/// settled the other way beside the code.
+#[test]
+fn a_program_fault_addresses_its_slot_in_the_slot_vocabulary() {
+    let profile_slot = SlotId::Profile {
+        loop_: 1,
+        step: 3,
+        arg: StepArg::CenterX,
+    };
+    let scalar_slot = SlotId::Radius;
+    let component_slot = SlotId::Origin(editor_core::Axis3::X);
+    let banned = [
+        test_utils::f6::variant_identifier(&profile_slot),
+        test_utils::f6::variant_identifier(&StepArg::CenterX),
+        test_utils::f6::variant_identifier(&scalar_slot),
+        test_utils::f6::variant_identifier(&component_slot),
+    ];
+    let also_banned = as_strs(&banned);
+
+    let cases = [
+        (
+            ProgramFault::SlotDimension {
+                slot: profile_slot,
+                expected: Dimension::Length,
+                found: Dimension::Angle,
+            },
+            vec![
+                "loop 1 step 3's centre x argument",
+                "needs a length expression",
+                "got an angle",
+            ],
+        ),
+        (
+            ProgramFault::SlotDimension {
+                slot: scalar_slot,
+                expected: Dimension::Length,
+                found: Dimension::Count,
+            },
+            vec!["slot radius", "needs a length expression", "got a count"],
+        ),
+        (
+            ProgramFault::SlotDimension {
+                slot: component_slot,
+                expected: Dimension::Length,
+                found: Dimension::Scalar,
+            },
+            vec!["slot origin x", "got a scalar"],
+        ),
+        (
+            ProgramFault::Lattice {
+                loop_: 0,
+                step: 2,
+                state: profile::TipState::Entry,
+                verb: None,
+            },
+            vec!["loop 0 step 2", "not a legal chain-lattice walk", "unclosed"],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &PROGRAM_FAULT, &also_banned);
 }

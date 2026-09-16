@@ -559,7 +559,11 @@ impl core::fmt::Display for ProgramRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Resolve { slot, .. } => {
-                write!(f, "a program expression failed to resolve at slot {slot:?}")
+                write!(
+                    f,
+                    "a program expression failed to resolve at slot {}",
+                    slot.label()
+                )
             }
             Self::Transition { loop_, step, .. } => write!(
                 f,
