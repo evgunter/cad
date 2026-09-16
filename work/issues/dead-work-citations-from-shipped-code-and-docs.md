@@ -136,3 +136,62 @@ before: ten dead citations appeared at one commit, on files the closing
 program could not edit, and nothing in CI said so. The gate needed to
 catch them is the weak one — assert that a cited path resolves — because
 all nine paths are simply absent.
+
+## The `work/meter/…` family, and the first sweep of `crates/` outside `docm` (2026-09-16, INSTR unit 0)
+
+**A third family has fired.** METER closed on 2026-09-08 and its
+directory left the tracker at sweep 10, so `work/meter/…` joins
+`work/docm/…` above. `grep -rn "work/meter/" tools/` finds **thirteen
+live citations across five files** — six in `tess-lint`, six in
+`k-lint`, one in `tess-meter`, counting `tools/README.md` — with the
+file-by-file breakdown, the non-uniform repair and the scheduling on
+`work/instr/tools-doc-prose-cites-thirteen-dead-work-meter-paths`,
+which is INSTR's ground and where that half is owned. Two points from
+it belong to this row rather than to that one:
+
+1. **The gate as this row proposes it would have caught none of the
+   thirteen.** Shape (1) is scoped to `crates/**/*.rs` and
+   `crates/*/README.md`. Every one of the thirteen is under `tools/`,
+   and `tools` is `exclude`d from the workspace `Cargo.toml`, so a
+   gate written as a workspace test does not see them even if the glob
+   is widened. `scripts/doc-gate.sh --print-roots` derives the real
+   root list.
+2. **One of the thirteen sits inside an assertion string**
+   (`tools/k-lint/tests/predicate_roster.rs`), so a failing test hands
+   a dead path to the reader at the moment they are least able to
+   check it. That is an argument for shape (2) independent of the
+   gate: prose that states the reading cannot do this.
+
+**And the wider `crates/` sweep this row implies had never been run.**
+`grep -rno "work/[a-z0-9-]\+/" crates/*/src crates/*/tests`, with each
+prefix tested against the live tree, finds — beyond the `work/docm/`
+family already listed — **five citations in four files, in three
+further dead families**:
+
+| citing file | cited path | where the row is now |
+| --- | --- | --- |
+| `crates/profile/src/path.rs` | `work/seat/two-d-director-doors-skip-the-finiteness-question` | `work/fix/` |
+| `crates/topo/src/boolean/rest.rs` | `work/seat/flush-pair-relation-has-no-caller.md` | `work/bool/` |
+| `crates/topo/src/validate.rs` | `work/verbs/verbs-1031b-assigner-checker-divergence.md` | `work/curved/` |
+| `crates/sweep/src/blend/mod.rs` (two citations) | `work/code-quality/corner-config-tag-all-concave-trihedron.md` | nowhere |
+
+Four of the five are the CHEAP sub-case the 2026-09-15 correction
+named — claimed, not resolved, and each landing in a DIFFERENT
+successor, so again not rewritable by pattern. The fifth
+(`corner-config-tag-all-concave-trihedron`, cited twice from one file)
+resolves nowhere and needs the reading stated or a SHA named.
+
+**One near-miss, recorded so a later sweeper does not re-file it.**
+`crates/editor-core/src/mate/member.rs` names
+`work/seat/direction-normalization-two-doors-one-home` but cites it AS
+`docs/DOC-LEDGER.md`'s entry for it, not as a live path. That is shape
+(2) already done correctly, and it is the only instance in the tree of
+the convention this row recommends — worth reading before writing the
+convention down.
+
+**What this sweep could not match**: a citation naming a row by id
+with no `work/<program>/` prefix; a paraphrase; a prefix for a program
+that has not closed yet (unlit fuse, and the tree holds many); and
+anything outside `crates/*/src`, `crates/*/tests` and `tools/` — in
+particular `crates/*/README.md` and `crates/*/ASSEMBLY.md`, which the
+`work/docm/` table above reached but this pass did not.

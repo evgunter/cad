@@ -111,18 +111,23 @@ Live, and in this row: `docs/TESS-BUDGET.md:332`, `:371`, `:377`,
 reading rather than by this pattern — it names `64`, a face count from
 the OTHER census, and its own figure "Six" is spelled as a word).
 
-Dated tracker records, NOT in this row and deliberately:
-`work/meter/tess-budget-doc-finding-block-stale.md` (`:23`, `:24`,
-`:95`, `:97`, `:139`-`:141`, `:147`-`:149`, `:179`),
-`work/meter/report-header-column-phrases-unqualified.md` (`:19`,
-`:103`, `:104`), `work/meter/log.md:49` and `:316`, and
-`work/meter/fold-the-two-baseline-census-files.md:111-112`. Each
-reports what its unit read on the day it read it, and
-`baseline_census.rs`'s own doctrine is explicit that a dated record
-may keep the FIGURES it reported — editing them would make the record
-say something the unit did not say. **Only their POINTERS have to
-follow**, which is what
-`work/meter/baseline-sizing-census-pointers-stale` is for.
+Dated tracker records, NOT in this row and deliberately. Four were
+METER's own and **exist nowhere on the live tree**: METER's directory
+left the tracker whole at `docs/DOC-LEDGER.md` sweep 10, which is
+their done-state of record and names the SHA they stay recoverable at
+(`git show 2723839067e80198bec2889d041e490000f02275:work/meter/<FILE>`,
+the line numbers below being that tree's) —
+`tess-budget-doc-finding-block-stale.md` (`:23`, `:24`, `:95`, `:97`,
+`:139`-`:141`, `:147`-`:149`, `:179`),
+`report-header-column-phrases-unqualified.md` (`:19`, `:103`, `:104`),
+`log.md:49` and `:316`, and
+`fold-the-two-baseline-census-files.md:111-112`. Each reports what its
+unit read on the day it read it, and `baseline_census.rs`'s own
+doctrine is explicit that a dated record may keep the FIGURES it
+reported — editing them would make the record say something the unit
+did not say. **Only their POINTERS have to follow**, which is what
+`work/instr/baseline-sizing-census-pointers-stale` — moved out of
+`work/meter/` alongside this row, and still open — is for.
 
 ## Moved to INSTR (2026-09-08)
 

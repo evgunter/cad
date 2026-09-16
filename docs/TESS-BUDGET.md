@@ -529,9 +529,10 @@ reads is every other column**: `cells`, `bands`, `cap_bands`,
 `dev_samples`, and the per-face
 `nu`/`nv`/`muu`/`muv`/`mvv`/`mu1`/`mv1` values (`nu`/`nv` are read only
 for whether they separate rows, never for what they are). A re-sweep
-that moves those alone passes both tests silently — `79420738f` records
-exactly such a move, four `nonuniform_loft` rows shifting in their last
-ulps, and it was caught by a human reading the diff, not by a test.
+that moves those alone passes both censuses silently — `79420738f`
+records exactly such a move, four `nonuniform_loft` rows shifting in
+their last ulps, and it was caught by a human reading the diff, not by
+a test.
 Neither number is a target to preserve: read the new one, decide whether
 the new corpus is what you meant, and write it in with the re-cut. They
 exist so that no prose can go on describing a file it no longer

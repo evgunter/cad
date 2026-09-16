@@ -149,8 +149,12 @@ follows is the live list.
 Re-run at merge base `f8fbf916e`, with the pattern this row states:
 `grep -rn "baseline_sizing_census\|baseline_census"` over `*.rs`
 `*.md` `*.toml` `*.py` `*.yml` `*.yaml` `*.sh` from the repo root,
-plus the framing pattern. Four sites named the deleted path outside
-this row itself, and the framing at `docs/TESS-BUDGET.md` named none:
+plus the framing pattern. **Counted in the headline's own unit —
+mentions, and the files carrying them — the live figure is five
+mentions across four files**, plus the two path-free framing sentences
+(both in `docs/TESS-BUDGET.md`, which the four already counts). Every
+one of the five is fixed here. The bullets below group them by repair,
+so a bullet is not a mention:
 
 - `tools/tess-lint/tests/report_columns_pin.rs` — the one in code —
   and `docs/TESS-BUDGET.md`'s two, all three re-pointed at
@@ -169,10 +173,20 @@ this row itself, and the framing at `docs/TESS-BUDGET.md` named none:
   provenance claim is unchanged; the path now names where the sentence
   went.
 
-**Two sites are NOT stale and are listed so a later reader does not
-re-file them.** `work/instr/plan.md` names the deleted file as
-deleted, which is a record and not a pointer; and `work/STATUS.md` is
-generated from this row's own title.
+Three further files carry the stem and are **NOT stale**, listed so a
+later reader does not re-file them: `work/instr/plan.md` names the
+deleted file AS DELETED, which is a record and not a pointer;
+`work/STATUS.md` is generated from this row's own title; and this row's
+own body names it nine times because the deleted path is its subject.
+None of the three is counted in the five.
+
+One further change rides here and is a NOUN, not a pointer.
+`docs/TESS-BUDGET.md`'s *"passes both tests silently"* is listed above
+as still true and still is — there are still two censuses. But
+`baseline_census.rs` holds seven `#[test]`s, so after the fold *"both
+tests"* reads correctly only to someone who already knows "test" means
+"census"; it now says *"both censuses"*, matching the two sentences
+this row re-pointed beside it.
 
 The line-citation half of this row —
 `work/instr/baseline-census-partition-assert-cannot-fail`'s

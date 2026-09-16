@@ -1,0 +1,113 @@
+---
+id: tools-doc-prose-cites-thirteen-dead-work-meter-paths
+kind: issue
+title: tools/ doc prose cites thirteen work/meter/ paths that resolve nowhere, two of them in the list whose own sentence claims its pointers followed
+status: open
+opened: 2026-09-16
+---
+
+
+
+## Was
+
+found by unit 0's style review, on the fix that re-pointed the sites
+naming the census file METER's unit 10 folded away. Unit 0's sweep was
+shaped by the census FILENAME, so it found the tracker copies and could
+not see this: the same defect, in live code doc, keyed on the tracker
+DIRECTORY instead.
+
+## Finding
+
+METER closed and its directory left the tracker whole
+(`docs/DOC-LEDGER.md` sweep 10; recoverable at
+`2723839067e80198bec2889d041e490000f02275`). **Thirteen citations in
+`tools/` still name a `work/meter/<row>` path.** None is a `keep_out`
+clause and none is a dated record: each is live prose telling a reader
+to go and read a row, and the reader arrives nowhere.
+
+| file | citations | rows named |
+| --- | --- | --- |
+| `tools/tess-lint/tests/baseline_census.rs` | 5 | `C15` (x2), `D201`, `baseline-sizing-census-second-copy`, `tess-lint-ungated-columns-fold-silently` |
+| `tools/k-lint/tests/predicate_roster.rs` | 5 | `k-lint-eps-coupled-criterion-unwritten` (x3), `k-lint-roster-wants-a-kernel-side-vocabulary`, `k-lint-last-round-is-eps-coupled-but-unrostered` |
+| `tools/k-lint/src/lib.rs` | 1 | `k-lint-eps-coupled-criterion-unwritten` |
+| `tools/tess-meter/src/lib.rs` | 1 | `tess-meter-sampled-retune-figure-unreproducible` |
+| `tools/README.md` | 1 | `tess-lint-zero-certificate-two-meanings` |
+
+A fourteenth occurrence, `baseline_census.rs`'s *"re-homed from
+`work/code-quality/` to `work/meter/` in the tracker-wide cut"*, names
+the directory as a FORMER home and is a record, not a pointer. It is
+excluded from the thirteen on the same reasoning that excludes
+`work/instr/plan.md`'s *"has just deleted …"*.
+
+**Two of the thirteen are inside the doctrine's own worked example.**
+`baseline_census.rs:84-85` are the `work/meter/C15.md` and
+`work/meter/D201.md` entries of the four-item list at `:78-92`, and the
+paragraph immediately under it (`:94-101`) is the sentence this whole
+class is adjudicated by: *"The FIGURES in that list are frozen; the
+PATHS are not. The first two rows were re-homed from
+`work/code-quality/` to `work/meter/` … and the pointers here followed
+them."* They followed once and have not followed since. The file that
+states the rule is the file that breaks it, in the list the rule is
+about.
+
+**One is inside an assertion string.** `predicate_roster.rs:146` puts
+the path in the message a failing test prints, so the defect is not
+merely read — it is handed to whoever the test reds on, at the moment
+they are least able to check it.
+
+## The repair is not uniform, which is why this is a row and not a sed
+
+Three destinations, and they have to be resolved against the tracker
+one citation at a time:
+
+- **Nine** name rows now open on `work/instr/`.
+- **`k-lint-roster-wants-a-kernel-side-vocabulary`** moved again: it is
+  on `work/props/` as of 2026-09-16, and was still on `work/instr/` at
+  this row's own merge base (`f8fbf916e`). A pattern rewrite keyed on
+  the program name gets this one wrong.
+- **`D201`** exists nowhere. It closed with METER and is recoverable
+  only at the ledger's sweep SHA, so its citation needs the reading
+  stated or the SHA named, not a path.
+
+## Not fixed here, deliberately
+
+`predicate_roster.rs` and `k-lint/src/lib.rs` are unit 12's live
+ground and `baseline_census.rs` is unit 4's. One-file-one-item makes a
+second editor a merge conflict by design, so this is filed at the
+moment of disclosure rather than scheduled into unit 0's fix pass.
+
+**A form is already settled and does not need re-deciding.** METER's
+own closed row `sweep-deleting-work-meter-dangles-six-refs-on-instr-rows`
+answered the `refs:` FRONTMATTER half of this at the sweep, adopting
+GATES' shape: replace the dying id with its closing PR number and carry
+one prose clause naming the sweep. That row's scope was the header
+field `scripts/work.py` lints, so it never looked at prose, and prose
+is where all thirteen of these are. The same two-part form applies.
+
+## Sweep
+
+`grep -rn "work/meter/" tools/` at `f8fbf916e`, then every named row
+resolved with `find work -name '<id>.md'` against `origin/main` rather
+than against the merge base — which is how the `work/props/` move
+above was caught.
+
+**What the pattern could not match**: a citation that names a row by
+id without its `work/<program>/` prefix; one that paraphrases the row
+instead of naming it; a `work/<program>/` prefix for a program that
+has not closed yet, which is the same defect with its fuse unlit
+(`tools/` cites live programs too, and those citations rot the day
+those programs close); and a dead path under a directory this grep did
+not walk.
+
+## The same class outside `tools/`, and where it belongs
+
+`work/issues/dead-work-citations-from-shipped-code-and-docs` is the
+class row — no single owner, spanning crates — and it already carries
+the `work/docm/` family. Running its question over `crates/*/src` and
+`crates/*/tests`, which **nobody had run**, adds five citations in
+three further dead families; the evidence is appended there rather
+than restated here. Two things that row should hear from this one: its
+proposed gate is scoped to `crates/**/*.rs` and `crates/*/README.md`,
+which would have caught **none** of the thirteen above, and
+`tools/` is excluded from `Cargo.toml`'s workspace, so a gate written
+as a workspace test does not see it either.
