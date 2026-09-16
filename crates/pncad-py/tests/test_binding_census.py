@@ -1293,6 +1293,26 @@ FAMILIES: dict[str, str] = {
         "run's four summaries out of the draws and hold them to the "
         "report's."
     ),
+    # THE FOURTH ARRIVED WITH ITS DOOR, the same way B-EDGE-KIND did.
+    # `ProfileProgram::profile_edges_of` (DM8) landed on the Rust
+    # side with EDIT's `authored-step-to-canonical-segment-map-has-no-home`;
+    # its refusal reached the façade with it and the binding did not
+    # move, because `crates/pncad-py/*` is LIB's ground. A Python
+    # caller can author a profile program and cannot ask which profile
+    # edges one of its steps became.
+    # `work/lib/python-has-no-step-to-profile-edge-door` carries the
+    # finding.
+    "B-STEP-SEGMENTS": (
+        "the authored-step to profile-edge map — "
+        "`ProfileProgram::profile_edges_of`, which answers which "
+        "`ProfileEdgeRef`s one step of a loop program became. Closing "
+        "it needs the two records the door reads to be reachable from "
+        "Python first (the replay/canonical structure record is not on "
+        "`ProfileValue` at all today, so this waits on the Rust-side "
+        "siting), then the method with its typed refusal, a `pncad.pyi` "
+        "entry, and one Python row asking a reversed loop for a step's "
+        "edges and naming the wall each addresses."
+    ),
 }
 
 #: Curated names with no Python spelling at all, by family.
@@ -2413,6 +2433,8 @@ NOT_BOUND = {
     "RunOutPolicy": INTERIOR,
     "SegmentKind": INTERIOR,
     "StepArg": INTERIOR,
+    "StepSegmentsError": f"{GAP}: B-STEP-SEGMENTS the refusal of the door "
+    "that says which profile edges an authored step became",
     "Surface": INTERIOR,
     "ValidatedLoop": INTERIOR,
     "ValidatedProfile": INTERIOR,
