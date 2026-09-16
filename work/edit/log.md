@@ -204,3 +204,20 @@ EDIT-PICK2 spec'd: the barycentric residual the pick unit filed is
 ruled as the conjunction of "meet" and "inform" over one derived
 bound (`docs/EDIT-PICK2-SPEC.md`); block EDIT-B1 slot 1, dispatched
 when disk allows. Lanes live: doc-param, WireStep collapse.
+
+## 2026-09-16 — C6's `WireStep` member merged (middle tier, PR #2738)
+
+`WireStep`, `WireTarget`, `WireArcData`, `WireLoopProgram` and, at the
+fix pass, `WireProfile` are gone: the document form IS the persisted
+form, serde derives on the declarations, two kernel-foreign tags through
+one `foreign_tag!` adapter. The wire is byte-identical (three `.pncad`
+pins unchanged; the reviewer's every-variant program hashed the same on
+both trees). Two pins now guard the format: the spelling set and a
+frozen every-variant byte corpus (`PNCAD_BLESS=1` to regenerate), the
+second being what sees a swapped tag or a reordered field. The review
+found `WireProfile` removable by the PR's own mechanism and the set pin
+blind to permutation; both fixed. A lesson for adopting review probes:
+one was written at default ε and failed at the other two rows when
+adopted, because `load` reconciles the file's recorded ε — the full
+matrix caught it. Filed: a CHROME row on `viewer/src/sketch.rs`'s false
+compile-break claim; evidence on LIB's short-vocabulary row.
