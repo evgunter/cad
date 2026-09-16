@@ -138,3 +138,41 @@ same file — two test names there DO encode readings a re-cut moves
 (`five_of_the_seven_identity_entries_discriminate_nothing_among_the_sized_rows`
 and `the_name_column_separates_pairs_in_exactly_this_scene`), and both
 are cited from elsewhere.
+
+## Arm B gets a partial instrument (INSTR unit 1, 2026-09-16, PR 2757)
+
+This row's arm-B analysis — *"migrating a path citation to a name
+citation trades a loud failure for a silent one"* — was handed to INSTR
+unit 1 as a constraint, and the unit had to add four such citations. It
+answered with a guard rather than a disclosure, and the shape may be
+reusable wherever arm B bites:
+`the_sites_that_cite_this_census_cite_names_it_has`, in
+`tools/tess-lint/tests/baseline_census.rs`, writes each cited test name
+**twice** —
+
+- as a **path expression** (`test: the_committed_baseline_sizes_this_much`),
+  which stops compiling the instant the test is renamed. This is the
+  half that answers this row: it needs no link, crosses no cargo root,
+  and covers every citation anywhere, because it never looks at the
+  citing site;
+- as a **string** asserted still present in the citing text, which
+  catches the citation being edited off the name.
+
+**What it does not solve, and the asymmetry is the point.** The second
+arm reaches `docs/TESS-BUDGET.md` and stops there. It cannot read
+`tools/tess-lint/src/lib.rs` or `tests/report_columns_pin.rs`: an
+`include_str!` on either makes the reading file a site that reads Rust
+source as text, which `crates/test-utils`' reader census ledgers, and
+`tools/tess-lint` is a dependency-free cargo root that cannot reach the
+shared lexer — so the honest ledger line would be `Unconverted`, new
+debt bought for the weaker half. It also excludes tracker rows, which
+are deleted with their program and would red the test on an ordinary
+edit.
+
+**So the first arm is the general one and it is cheap**: any file that
+can name a test as a path expression gets rename-safety for free,
+including across the `#[cfg(test)]` boundary this row says a link
+cannot cross. The second arm is only available where the citing text is
+prose the guarding file may read. If this row's "inversion" lands as a
+general instrument, the split between those two is the thing to carry
+over.

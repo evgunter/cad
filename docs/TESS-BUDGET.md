@@ -355,10 +355,10 @@ is what to sum: 1353 rows, 64 of them sized. Follow the cut's own SHA
 instead and the check fails against the wrong file.
 
 It is not re-taken against the baseline as it stands: the corpus has
-grown sized faces since — 64 there, 80 now — so a comparison against
-today's columns would carry that growth as well as the two fixes, and
-separate nothing. What the committed file reads NOW is the census's,
-under "The census today".
+grown sized faces since that cut's 64, so a comparison against today's
+columns would carry that growth as well as the two fixes, and separate
+nothing. How many there are now is the census's, under "The census
+today", and is deliberately not written here.
 
 At that cut: the two columns that are pure OPTIMA over the certified
 ellipse — `opt_cells` and `span_opt_cells` — are schedule-INDEPENDENT,
@@ -418,9 +418,10 @@ knot-span cell` against that cut's `grid_cells` 46,019, **3.35x** — and
 it decomposes exactly: per-cell sizing sat 3.47x above the per-cell
 optimum under the AM-GM split (154,129 / 44,457) and 1.042x above it
 at that cut (46,019 / 44,162), and 3.47 / 1.042 = 3.33 against the
-3.35 the two grids give directly. **The 0.7% residual is the two DENOMINATORS, not
-the schedule**: the two readings measure the per-cell optimum with
-different scans, and the decomposition is exact only where they agree.
+3.35 the two grids give directly. **The 0.7% residual is the two
+DENOMINATORS, not the schedule**: the two readings measure the
+per-cell optimum with different scans, and the decomposition is exact
+only where they agree.
 That closing of the recoverable factor is TESS-SPLIT, on the schedule
 the lane actually ships.
 

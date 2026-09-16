@@ -198,11 +198,26 @@ reads.** No live figure from either census is restated outside
 - A citation-by-name is guarded rather than trusted:
   `the_sites_that_cite_this_census_cite_names_it_has` names each cited
   test as a path expression — so a rename is a COMPILE error in the
-  census file — and asserts the citing PROSE still spells it. Both
-  halves executed red-then-green. The prose side covers
-  `docs/TESS-BUDGET.md` only: reading `tools/tess-lint/src/lib.rs`
-  would make the census a site that reads Rust source as text, which
+  census file, and that arm covers every citation anywhere — and
+  asserts the citing PROSE still spells it, which reaches
+  `docs/TESS-BUDGET.md` alone. Both halves executed red-then-green.
+  **Named as unguarded by the prose arm**: `tools/tess-lint/src/lib.rs`
+  and `tests/report_columns_pin.rs`, because reading either would make
+  the census a site that reads Rust source as text, which
   `crates/test-utils`' reader-census ledger governs and which this
-  dependency-free cargo root could only do with a hand-rolled reader.
-  `lib.rs` cites the file path beside the name, and a dead path greps
-  distinctively.
+  dependency-free cargo root could only do with a hand-rolled reader;
+  and the tracker rows under `work/instr/` and `work/meta/`, which are
+  deleted with their program and would red the test on an ordinary
+  edit. The guard shape is recorded on
+  `work/meta/doc-citations-no-gate-checks-rot-silently`, whose arm B is
+  the class it answers.
+- **The residue now has a row.** Nothing reds when an unlabelled
+  current figure arrives in the document, nothing counts the
+  frozen-exception enumeration, and nothing re-checks a label against
+  the cut it names:
+  `work/instr/no-guard-reds-on-an-unlabelled-figure-in-the-budget-doc`.
+  Its first measured instance is this unit's own first push, which
+  wrote *"64 there, 80 now"* into the passage explaining why the
+  comparison had to be pinned — a current reading, unlabelled, in the
+  document whose rule forbids exactly that, invisible to this unit's
+  re-derived sweep and caught by a reviewer. Corrected in the fix pass.

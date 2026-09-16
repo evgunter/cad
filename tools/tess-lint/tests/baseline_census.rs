@@ -32,12 +32,33 @@
 //! no test can see one arrive.
 //!
 //! **Where a site cites a test by NAME, the name is guarded rather
-//! than trusted.** `the_sites_that_cite_this_census_cite_names_it_has`
-//! below holds every such citation: it names each cited test as a
-//! path expression, so a rename is a COMPILE error in this file, and
-//! asserts the citing text still spells it, so a doc that drifts off
-//! the name reds. A path citation greps distinctively when it dies; a
-//! test name resolves forever while rotting, so it gets a guard.
+//! than trusted — and the guard is not uniform, which is said rather
+//! than implied.** `the_sites_that_cite_this_census_cite_names_it_has`
+//! below names each cited test as a path expression, so a RENAME is a
+//! compile error in this file wherever the citation lives; that arm
+//! covers every site. The second arm asserts that the citing text
+//! still spells the name, and it reaches `docs/TESS-BUDGET.md` alone.
+//!
+//! **What the second arm does not reach, named because an unguarded
+//! citation nobody has listed is a different thing from one nobody
+//! knew about.** Two `tools/tess-lint` sites —
+//! `src/lib.rs`'s doc on the split bound and
+//! `tests/report_columns_pin.rs`'s module docs — cite a test here by
+//! name, and reading either would make this file a site that reads
+//! Rust source as text, which `crates/test-utils`' reader census
+//! ledgers and which this dependency-free cargo root could only do
+//! with a hand-rolled reader. Both carry the FILE path beside the
+//! name, and a dead path greps distinctively. Tracker rows under
+//! `work/instr/` and `work/meta/` cite them too, and those are
+//! excluded on a different ground: a tracker row is a dated record
+//! that gets DELETED with its program, so wiring one in would red
+//! this file on an ordinary tracker edit and again the day the
+//! program closes. Neither exclusion is an accident and neither is
+//! free — a citation at any of those sites can drift off a name with
+//! nothing reddening, and only the rename arm reaches them.
+//!
+//! A path citation greps distinctively when it dies; a test name
+//! resolves forever while rotting, so it gets what guard there is.
 //!
 //! **No figure is asserted twice, and the split is which function
 //! asserts what.** The corpus counts — rows, sized rows, the scenes
@@ -187,16 +208,23 @@
 //!
 //! ## What it is for
 //!
-//! **A re-cut alarm, and the citation it guards is still live.**
-//! `docs/TESS-BUDGET.md` carries `grid_cells`, `patch_cells`,
-//! `opt_cells` and `span_opt_cells` — every one of them asserted
-//! below — in present-tense prose. So this census does the job a
-//! pointer cannot: go RED when a re-cut moves the tour's mesh or its
-//! sizing, so the move is read rather than folded in silently. **What
-//! it cannot do is finish the job.** A re-cut reds here and leaves
-//! those sentences standing, wrong, until somebody reads them; the
-//! alarm is the prompt to go and read them, not a guarantee they were
-//! read.
+//! **A re-cut alarm, and the reason every other site can point rather
+//! than transcribe.** `docs/TESS-BUDGET.md` carries no current figure
+//! from this census: it cites the command and the tests, and the
+//! absolutes left in its prose are labelled with the cut each one
+//! reads. That is only available because the figures are asserted
+//! somewhere — a pointer needs a home to point at, and this is the
+//! home. So the census goes RED when a re-cut moves the tour's mesh
+//! or its sizing, and the move is read rather than folded in
+//! silently.
+//!
+//! **What it still cannot do is finish the job**, and the residue
+//! changed shape rather than going away. A re-cut reds here and
+//! leaves the document's LABELLED passages standing. Those stay TRUE,
+//! because each names the cut it reads — but nothing re-reads them,
+//! and nothing sees a new UNLABELLED absolute arrive. That second
+//! half is stated at the head of this file and carries its own row,
+//! `work/instr/no-guard-reds-on-an-unlabelled-figure-in-the-budget-doc`.
 //!
 //! It does not fire on everything a re-cut can move.
 //! `docs/TESS-BUDGET.md`'s "Re-cutting the baseline" says what the two
@@ -286,8 +314,9 @@
 //! regression.
 //!
 //! **"Only movers" is a condition this census cannot check, and that
-//! re-cut did not meet it.** Nine columns moved on it, not two: `muv`, `mvv`, `mu1`, `mv1`,
-//! `worst_cert`, `worst_dev` and `realized_aspect` moved on 8-16 rows
+//! re-cut did not meet it.** Nine columns moved on it, not two:
+//! `muv`, `mvv`, `mu1`, `mv1`, `worst_cert`, `worst_dev` and
+//! `realized_aspect` moved on 8-16 rows
 //! each, four days of `crates/` drift folded in by the same cut. This
 //! census reads totals — triangles, the four cell columns and the two
 //! factors — so all seven are invisible to it, and so is any future
@@ -985,11 +1014,15 @@ fn the_committed_baseline_sizes_this_much() {
 ///
 /// **What it discriminates, and what it does not.** It is over the
 /// sized rows, whose count is the face-identity census's and is not
-/// restated here, so this asserts the numerator alone. A re-cut that
-/// moves a face onto or off the bound reds it and no other assertion
-/// in this file: the four cell sums move by the difference between
-/// `opt_cells` and `patch_cells` on that row, which is zero at the
-/// moment of crossing.
+/// restated here, so this asserts the numerator alone. What it adds
+/// over the four cell sums is the case they cannot see: a face moving
+/// ONTO or OFF the bound changes `opt_cells` by its distance from
+/// `patch_cells`, which is zero at the crossing, so a crossing in
+/// isolation reds here and nowhere else. **No real re-cut is that
+/// isolated** — every one so far moved several rows at once and moved
+/// the sums too, so in practice this reds alongside them rather than
+/// alone. The claim is about what the assertion COVERS, not a
+/// prediction about re-cuts.
 #[test]
 fn the_committed_baseline_meets_the_split_bound_on_this_many_rows() {
     let rows = parse(BASELINE).expect("the committed baseline parses");
@@ -1011,74 +1044,81 @@ fn the_committed_baseline_meets_the_split_bound_on_this_many_rows() {
     );
 }
 
-/// Every site that cites one of these tests BY NAME, guarded from both
-/// sides.
+/// The tests cited elsewhere BY NAME, and the two unequal arms that
+/// guard those names.
 ///
 /// **A path citation fails loudly and a name citation does not.** A
 /// dead path greps distinctively and a reader looking for the file
 /// finds nothing; a renamed test leaves its citing file resolving
 /// perfectly, with only the name token rotting, and nothing anywhere
-/// reds. So each cited name appears here twice: as a PATH EXPRESSION,
-/// which is a compile error in this file the moment the test is
-/// renamed, and as the string this test asserts the citing text still
-/// spells. Rename a test and this file does not build; edit the name
-/// out of a citing document and this test reds naming it.
+/// reds. So each name is written twice below:
 ///
-/// **`sites` holds prose OUTSIDE this crate's source, and that is
-/// deliberate.** `tools/tess-lint/src/lib.rs` cites the split-bound
-/// row by name too and is not listed: reading it here would make this
-/// file a site that reads Rust source as text, which
-/// `crates/test-utils`' reader census ledgers and which this
-/// dependency-free cargo root could only do with a hand-rolled reader.
-/// That citation carries the FILE path beside the name, and a dead
-/// path greps distinctively; the name half of it is covered by the
-/// compile-time arm below like every other.
+/// * as a PATH EXPRESSION in [`Citation::test`], which stops
+///   compiling the moment the test is renamed. **This arm covers
+///   every citation there is**, wherever it lives, because it does not
+///   look at the citing site at all.
+/// * as the string in [`Citation::prose`], asserted still present in
+///   the citing text. **This arm reaches `docs/TESS-BUDGET.md`
+///   alone**, so `prose` is EMPTY on any entry cited only from
+///   somewhere it cannot read, and that is a real gap rather than a
+///   formality.
 ///
-/// **What it does not check** is that a citation still says something
-/// true about the test it names, or that a NEW citation was added to
-/// this list — a site may cite a test correctly and describe it
-/// wrongly, and a site added tomorrow is not here until someone adds
-/// it. It guards the name, which is the half that rots silently.
+/// The module docs name what `prose` cannot reach and why — two
+/// `tools/tess-lint` Rust sites, which this file must not read as
+/// text, and the tracker rows, which are deleted with their program.
+///
+/// **What neither arm checks** is that a citation still says
+/// something TRUE about the test it names, or that a citation added
+/// tomorrow was added to this list. They guard the name, which is the
+/// half that rots silently.
 #[test]
 fn the_sites_that_cite_this_census_cite_names_it_has() {
     const BUDGET_DOC: &str = include_str!("../../../docs/TESS-BUDGET.md");
 
-    /// One cited test: the path expression is the compile-time half,
-    /// the name is what the citing text has to still spell.
     struct Citation {
+        /// The test itself, named as a path expression. Writing it is
+        /// the whole of the rename arm.
         test: fn(),
+        /// The same name as text, for the prose arm to look for.
         name: &'static str,
-        sites: &'static [(&'static str, &'static str)],
+        /// The citing prose this file is able to read, `(path, text)`.
+        /// EMPTY means every citation of this test is somewhere the
+        /// prose arm cannot reach — see this test's docs.
+        prose: &'static [(&'static str, &'static str)],
     }
 
     let cited = [
         Citation {
             test: the_committed_baseline_sizes_this_much,
             name: "the_committed_baseline_sizes_this_much",
-            sites: &[("docs/TESS-BUDGET.md", BUDGET_DOC)],
+            prose: &[("docs/TESS-BUDGET.md", BUDGET_DOC)],
         },
         Citation {
             test: no_scene_carrying_a_sized_row_carries_a_name,
             name: "no_scene_carrying_a_sized_row_carries_a_name",
-            sites: &[("docs/TESS-BUDGET.md", BUDGET_DOC)],
+            prose: &[("docs/TESS-BUDGET.md", BUDGET_DOC)],
         },
         Citation {
             test: the_name_column_separates_pairs_in_exactly_this_scene,
             name: "the_name_column_separates_pairs_in_exactly_this_scene",
-            sites: &[("docs/TESS-BUDGET.md", BUDGET_DOC)],
+            prose: &[("docs/TESS-BUDGET.md", BUDGET_DOC)],
         },
         Citation {
             test: the_committed_baseline_meets_the_split_bound_on_this_many_rows,
             name: "the_committed_baseline_meets_the_split_bound_on_this_many_rows",
-            sites: &[],
+            // Cited only from `src/lib.rs`, which the prose arm
+            // cannot read. The rename arm above still covers it.
+            prose: &[],
         },
     ];
 
     for c in cited {
-        // The path expression is the guard; this consumes it so the
-        // reference is not a dead binding.
+        // The rename arm is already discharged: it is the path
+        // expression in each literal above, which the compiler
+        // resolved or did not. This read exists only so `test` is not
+        // a field nothing reads.
         let _: fn() = c.test;
-        for (path, text) in c.sites {
+        for (path, text) in c.prose {
             assert!(
                 text.contains(c.name),
                 "{path} no longer spells `{}`. Either the citation moved off the \
