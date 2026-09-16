@@ -1277,12 +1277,22 @@ impl PartialEq for ProfileProgram {
     /// BIT equality (struct docs): the frame by node identity,
     /// expressions by [`Expr::bit_eq`], structure structurally.
     fn eq(&self, other: &Self) -> bool {
-        self.plane == other.plane
-            && self.loops.len() == other.loops.len()
-            && self
-                .loops
+        // A field added to `ProfileProgram` is an E0027 at the two
+        // patterns below. The vocabulary underneath is held the same
+        // way and by the compiler alone: `loop_bit_eq` and the three
+        // functions below it match every variant by name and bind
+        // every field of each, so a new loop shape is an E0004 and a
+        // new field on an existing one an E0027, at each of them.
+        let Self { plane, loops } = self;
+        let Self {
+            plane: other_plane,
+            loops: other_loops,
+        } = other;
+        plane == other_plane
+            && loops.len() == other_loops.len()
+            && loops
                 .iter()
-                .zip(&other.loops)
+                .zip(other_loops)
                 .all(|(a, b)| loop_bit_eq(a, b))
     }
 }

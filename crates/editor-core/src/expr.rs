@@ -522,7 +522,19 @@ impl PartialEq for Lit {
     /// (D7; two literals differing only in display unit are the same
     /// expression).
     fn eq(&self, other: &Self) -> bool {
-        self.value == other.value
+        // Bound by name on both sides so the omission is the
+        // compiler's business: a third field on `Lit` is an E0027
+        // here and has to be given a reason or a comparison.
+        let Self {
+            value,
+            // Presentation metadata, outside expression identity (D7).
+            display_unit: _,
+        } = self;
+        let Self {
+            value: other_value,
+            display_unit: _,
+        } = other;
+        value == other_value
     }
 }
 

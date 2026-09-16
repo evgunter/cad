@@ -491,12 +491,50 @@ pub struct SignCertificate<'b, T: Decide> {
 impl<T: Decide + geom_core::CertifiedBounds> fmt::Debug for SignCertificate<'_, T> {
     /// The certificate, not the body it reads: the bracket, the rounds
     /// its faces reached, and whether a number is still refused.
+    ///
+    /// # Why this does not render in braced struct shape
+    ///
+    /// **Not one of the four things below is a field of this type, and
+    /// not one of this type's five fields is rendered under its own
+    /// name.** The bracket and the surface area are folded out of
+    /// `runs`, the open round is a maximum over a field of `FaceRun`,
+    /// and the refusal comes through [`Self::target_refusal`]. So the
+    /// question a braced shape raises — what happens to this render
+    /// when a field is added — has no useful answer: `Type { a: …, b:
+    /// … }` is what `derive(Debug)` and `debug_struct(…).finish()`
+    /// emit, and `finish_non_exhaustive` exists to say when such a
+    /// dump is partial, so the braces tell a reader these ARE the
+    /// fields. That is already false of every element here, and a
+    /// sixth field could not make it any falser. There is no omission
+    /// for a tie to catch, because there is no correspondence to be
+    /// short of: the defect is the shape claiming one. The braces are
+    /// what goes, and a reading of the certificate is what this says
+    /// it is.
+    ///
+    /// The pattern below is a separate obligation and stays: `runs` is
+    /// read by name, so a sixth field is an E0027 here and has to be
+    /// given a rendering or a reason.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self {
+            // The body is what the certificate READS; rendering it
+            // here would be a dump of the model, not of this.
+            body: _,
+            // The bracket below is the answer these two settled; the
+            // settings themselves are the caller's, not the
+            // certificate's.
+            band: _,
+            tol: _,
+            runs,
+            // Rendered through `Self::target_refusal`, which is where
+            // the rule for reading it — first refusing face in arena
+            // order — is stated.
+            refused: _,
+        } = self;
         let e = self.enclosure();
         write!(
             f,
-            "SignCertificate {{ volume in [{:?}, {:?}], surface_area {:?}, \
-             open_at {:?}, target_refusal {:?} }}",
+            "SignCertificate: volume in [{:?}, {:?}], surface area {:?}, \
+             rounds still open {:?}, target refusal {:?}",
             e.volume_lo,
             e.volume_hi,
             e.surface_area,
@@ -505,7 +543,7 @@ impl<T: Decide + geom_core::CertifiedBounds> fmt::Debug for SignCertificate<'_, 
             // schedule, or is closed-form), which is what a certificate
             // stopped at round 0 looks like and must not read as "no
             // rounds".
-            self.runs.iter().filter_map(|r| r.open_at).max(),
+            runs.iter().filter_map(|r| r.open_at).max(),
             self.target_refusal(),
         )
     }

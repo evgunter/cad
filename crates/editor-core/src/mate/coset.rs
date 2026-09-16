@@ -146,11 +146,31 @@ impl PartialEq for Subgroup {
 
 impl PartialEq for Coset {
     fn eq(&self, other: &Self) -> bool {
-        let m = |x: &Affine3<f64>| [x.linear.c0, x.linear.c1, x.linear.c2, x.translation];
-        self.subgroup == other.subgroup
-            && m(&self.representative)
+        // Both levels are bound by name: a field added to `Coset` is
+        // an E0027 at the two patterns below, and one added to the
+        // placement it carries is an E0027 inside `m`. The tie and the
+        // reading are the same lines, so neither can drift from the
+        // other.
+        let m = |x: &Affine3<f64>| {
+            let Affine3 {
+                linear,
+                translation,
+            } = x;
+            let Mat3 { c0, c1, c2 } = linear;
+            [*c0, *c1, *c2, *translation]
+        };
+        let Self {
+            subgroup,
+            representative,
+        } = self;
+        let Self {
+            subgroup: other_subgroup,
+            representative: other_representative,
+        } = other;
+        subgroup == other_subgroup
+            && m(representative)
                 .into_iter()
-                .zip(m(&other.representative))
+                .zip(m(other_representative))
                 .all(|(a, b)| vec_eq(a, b))
     }
 }
