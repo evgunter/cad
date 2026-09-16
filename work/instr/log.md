@@ -231,3 +231,119 @@ count was five, not the four I briefed (`tools/README.md` missed), and
 the crates-side finding belonged on an existing row rather than the new
 one I asked for — the discipline's grep-first rule pointed at a row
 open since 2026-09-13 with a live design argument the evidence bears on.
+
+## Unit 4 closes; the review caught the fix reproducing its own defect twice (2026-09-16)
+
+`baseline-census-partition-assert-cannot-fail` is CLOSED. The
+partition assert is DELETED rather than replaced: the item offered
+*"assert that `distinct` has no zero entry"*, and the same
+`!sized.is_empty()` guard three lines above makes both unfailable, so
+the replacement would have been the defect with a new message.
+
+**The style review earned its dispatch twice over, and both times on
+the assertion or the prose the unit KEPT rather than on what it wrote.**
+
+First: given `distinct[i] >= 1`, once the `constant` assert passes the
+`discriminating` one is forced to be the rest of `IDENTITY_COLUMNS` in
+order, so **no re-cut of the baseline can red it alone** — the pair is
+one assertion against a change in the DATA, not two. The PR body's
+*"say strictly more"* was half-false for exactly the reason the deleted
+assert said nothing. It stays (a source edit adding or removing a
+column still reds it), and it now carries the disclosure this file
+already gives at three other sites.
+
+Second, and this is the one worth remembering: the fix pass's FIRST
+reword of the doc comment moved the partition claim from the assert
+into prose — *"between them they name the whole of `IDENTITY_COLUMNS`"*
+— a static claim about two literals that no code computes, in a file
+whose own module docs say *"a number transcribed into prose is a number
+nothing can check"*. The lane did not catch that re-reading its own
+diff. `docs/REVIEW-STYLE-DISPATCH.md` §2 predicts exactly this and the
+reviewer brief says only a non-author has ever caught it; both held.
+
+**Six rows filed, one of them a correction to this orchestrator's
+adjudication.** I told the lane to add the `C15.md` evidence to
+`tess-budget-doc-identity-column-list` rather than open a row; the lane
+flagged that the subjects differ (membership of the identity list
+versus the split among sized rows) and asked me to re-check. It was
+right, and for a reason neither of us had named at first: **that row is
+unit 2's and closes when unit 2 lands**, unit 2 will never touch
+`C15.md`, and `work/README.md` holds that a residue inside a closed
+item's prose *"reads as a record of work done, not as an open thread …
+and dies with the directory"*. Split into
+`c15-transcribes-the-sized-row-identity-split`, with a pointer left on
+the membership row.
+
+The lane also corrected a count I had passed through from the review
+without checking: the scene-set derivation has THREE sites, not five —
+`by_totals` derives recoverable-`SceneTotals` scenes and `scenes`
+derives every scene, different sets in the same idiom. Filing my
+framing verbatim would have put a wrong count in the tracker. The
+dispatcher's own exposure, exactly as `docs/REVIEW-STYLE-DISPATCH.md`
+§3 states it.
+
+## Unit 12 closes, and the full review it was upgraded to caught two shipped falsehoods (2026-09-16)
+
+`k-lint-last-round-is-eps-coupled-but-unrostered` is CLOSED.
+`props_quad_last_round` stays off rule (4); the ground is that it has
+**no draws**, and that is now measured rather than inferred.
+
+**The plan called this unit "one name, the cheapest evidence", and the
+posture called it style-only. Both were wrong, and the unit was
+upgraded to a full falsification review mid-flight.** It earned it: the
+review falsified two arguments the unit had already SHIPPED, one inside
+a `const` string that goes out in the library and one in
+`docs/K-REPORT.md`.
+
+- **The second-floor asymmetry was false about the family it contrasts
+  with.** The unit argued `props_quad_last_round` is distinguished by a
+  refusal side unbounded below, where the rostered family's headroom is
+  bounded by the target. `props_quad_converged` carries 12 positive and
+  **24 negative** rows at `m7-eps-1e-9` and 12/**48** at 1e-12, reaching
+  `|m| = 1.83e-4` ≈ 1.8e8·ε — and the P0 the floor is cut from is
+  itself a negative row. The property named as distinguishing is one
+  both families have. The ruling survives on the no-draws ground alone;
+  the argument was deleted from all three homes.
+- **The residue's justification was contradicted by the kernel in the
+  kernel's own words.** The unit wrote that a purely-refusal population
+  needs no guard because a definite negative refuses the face, so it
+  would be a red suite long before a lint row.
+  `crates/topo/src/props.rs` says a face refusing on BUDGET *"has an
+  enclosure, and the sum keeps it — so the refusal rides on the
+  certificate, and whether it is REPORTED is the caller's decision,
+  taken by `last_word`"*, and `last_word` is asked only when `settle`
+  never accepted. Negatives can accumulate on a fully green suite.
+
+**The fix took the stronger branch than the one adjudicated.** Rather
+than correcting the sentence and filing the hole, the lane made a row
+for an `EPS_COUPLED_UNRULED` name a **finding that fails the run**,
+riding with rules (2) and (3) on the demotable side so the E6 driver
+row still works. Gating on the NAME is the only statement independent
+of a row's sign or magnitude, so one change closes the refusal-side
+hole and the unstated `last_round_len >= 0` premise together, and the
+two rows that branch would have owed collapse into one narrower row on
+PROPS' slate. The verdict names the ruling and says outright that
+re-deriving `BASELINE_FLOOR_MARGIN` is NOT the recourse.
+
+**"Three guards" was two guards and an unexercised printer.** The
+review found `Scan::unruled` and its CLI note had no test anywhere, in
+a crate where every other rule, cap and threshold is pinned. It is now
+pinned twice, and the phrase is gone from every document. The roster
+guard also read `EPS_COUPLED_UNRULED[0]`, so a second entry would have
+had no guard at all; it iterates now.
+
+**The gate inference and the measurement's framing were both narrowed.**
+A green says something about the three gated `k-fresh` files and nothing
+about the M2 dump (read by nothing) or the driver dump (demoted); and
+the zero is structurally determined — the mint is reachable only from
+the two patch lanes, and in the committed era the round-0 failures sit
+in the lane without it — so 1.26M samples is the run's scale, not its
+coverage.
+
+**Bookkeeping this closed.** Unit 12 repaired six of the thirteen
+dangling `work/meter/` citations unit 0 filed, withdrew its own
+duplicate row, and contributed the argument that decides the repair for
+the remaining seven: the ledger's *A note on inbound references*
+settles DELETED files, while these name rows that moved and are open,
+where the recovery recipe yields a superseded snapshot — a pointer that
+resolves and lies.
