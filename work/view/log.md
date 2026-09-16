@@ -12637,6 +12637,45 @@ rendered as a number.
 
 Item **closed**. **VIEW stands at 78 open / 104 closed.**
 
+## 2026-09-16 — `view/scientific-arm`: the render's last resort is truth
+
+`readout::number`'s scientific fallback was the one arm not held to the
+module's own rule, and it rounds. It now falls through to the exact
+spelling exactly where the four-figure one does not read back — which
+measurement says is only the band `[1.7975000000000001e308, f64::MAX]`,
+about 9.7·10¹¹ `f64` values each sign. Over `1.0e-320`..`1.0e300`
+stepped by 1.05, **no render changes**.
+
+`the-scientific-arm-rounds-out-of-the-type` **closed**. Its three
+producer claims were measured and all three fail as bounds: every
+producer's guard is `is_finite()` and every one then multiplies toward
+the top of the type (δ by `1.0e3`, a camera distance by `1.0e5`, a
+probed bound by up to `1.0e3`), so the headroom is three to five decades
+rather than the three hundred the carve-out claimed. A δ in
+`[1.7975e305, 1.7976931348623156e305]` is accepted by
+`DisplayTolerance::new` and lands *inside* the band.
+
+Not an Ev question: `git log -S` on every sentence of the carve-out and
+of `MAX_CHARS`'s bound returns four agent commits of 2026-09-12, and
+`docs/DESIGN.md`, `crates/viewer/GUI-DESIGN.md` and
+`crates/viewer/README.md` name `readout` nowhere at all.
+
+Two residues filed, both on this slate:
+`render-mm-overflows-to-inf-for-a-delta-the-door-accepts` (the δ door's
+millimetre product overflows for a δ the door accepts, and
+`no_delta_renders_as_a_number_a_delta_cannot_be`'s sweep stops at a
+kilometre so it cannot see it) and
+`the-fields-door-has-no-width-bound-at-all` (`number_text` returns the
+widget's own spelling at any width — 311 characters at the top of the
+type, and a twelve-character text that an existing row already asserts).
+
+`the_field_shows_the_longest_render` renamed to
+`the_field_shows_every_render_the_bound_covers`: it measures the bound,
+not the render's worst case, and those stopped being the same thing.
+Its two citations outside `log.md` were repointed.
+
+Signed (VIEW implementer lane `view/scientific-arm`).
+
 ## 2026-09-16 — `view/startup-notices`: the third consumer was the second level misread
 
 `startup-notices-join-on-a-mark-a-prefs-notice-contains` closed (#2710). Unlike
@@ -12756,3 +12795,79 @@ proceeded and said where it looked, which is `CLAUDE.md`'s rule working
 as intended for the third time this week.
 
 Item **closed**. **VIEW stands at 77 open / 105 closed.**
+
+## 2026-09-16 — #2713 merged; the carve-out was not safe, and all three of its supporting claims fail
+
+**#2713 merged** (`136a658bff`), verified from the job list on the
+merged head `cf72021cb0`: code tier, **39 check runs, 12 `test (…)`,
+5 `k-lint (gate, …)`, `gate ok` success**, all four render-lane rows
+success, six skipped, nothing failed. Conflicted on `log.md` against the
+startup-notices entry; `plan.md` auto-merged.
+
+**The unit was framed as a design question and it was not one.** The
+item described the rounding fallback as a deliberate, argued carve-out
+with a test pinning it, and asked whether a render owes a width bound
+at all. Both of the reasons to leave it alone turned out to be false.
+
+**All three producer claims fail, measured.** The carve-out rested on
+*"no length this chrome shows is within three hundred decades of it"*.
+Every producer guards with `is_finite()` and then multiplies **up**;
+real headroom is three to five decades.
+
+- **δ is false outright, and I confirmed the code myself**:
+  `DisplayTolerance::new` is `delta.is_finite() && delta > 0.0` with
+  **no upper bound** (`scene.rs:76`). Every δ in
+  `[1.7975e305, 1.7976931348623156e305]` survives `* 1.0e3` and lands
+  inside the failing band; above it the product is `inf` and
+  `render_mm` returns `"inf"` **for a finite δ** — the same rule failing
+  earlier and harder. Filed as its own row.
+- **Camera**: `Camera::new` checks finite and `>= f64::MIN_POSITIVE`,
+  no upper bound, and `mm(max_distance)` is `scene_radius * 1.0e5`.
+- **Probe**: the three `f64` `number_field` sites carry **no
+  `.range()`** — only the integer pattern count does — so the origin is
+  whatever a user typed.
+
+**And the row pinning the exception had a false NAME.** Bisecting on
+*does `{:.3e}` read back* gives the band
+`[1.7975000000000001e308, f64::MAX]` — **9.68·10¹¹ `f64` values per
+sign**, not one. The row's comment *"an exception rather than a
+region"* was false of the tree when it was written. A test can pin the
+wrong shape of a defect and still pass.
+
+**The Ev question resolved by the rule rather than by deference.**
+`git log -S` over five sentences returns `readout.rs`'s **entire
+history: four commits, all Claude, all 2026-09-12** — I confirmed the
+log — and `docs/DESIGN.md`, `GUI-DESIGN.md` and `README.md` name
+`readout`, `MAX_CHARS` and the read-back rule **nowhere at all**. So
+nothing was ratified and nothing waited. Third time this week that
+`CLAUDE.md`'s *check that Ev ever agreed before you wait for Ev* turned
+a would-be block into work.
+
+**What it did NOT overturn is as careful as what it did.** The
+caller-named-width rejection still holds untouched — no caller names a
+width — and the lane left that paragraph alone. What the third arm
+costs is `MAX_CHARS`'s *consequence* sentence, which was **already
+false** of the crate's other two number renders: `props::render_number`
+spells `f64::MAX` in 22 characters in a field today. And the decisive
+line was already in the module: `reads_back`'s doc says *"a wide text
+that names this value is not improved by a narrow one that does not"* —
+which is exactly what the old fallback did.
+
+**Surgical, and held**: over `1.0e-320`..`1.0e300` by 1.05, ~65 000
+renders, **not one text changes**, with
+`the_four_figure_arm_still_carries_everything_below_the_band` as the
+row. Two mutation receipts, both reverted.
+
+**The sweep's stated blind spot is the useful one**: the population is
+RENDERS, not the values reaching them — so the reachability half was
+done by reading each producer's validation, *"which is why the δ window
+turned up and no grep would have found it."* That is the
+check-the-producer rule from #2638 applied without being told.
+
+Item **closed**, two rows filed:
+`render-mm-overflows-to-inf-for-a-delta-the-door-accepts` (whose
+existing row *"asserts exactly the broken property and is green because
+its sweep ends at a kilometre"*) and
+`the-fields-door-has-no-width-bound-at-all`.
+
+**VIEW stands at 78 open / 106 closed.**

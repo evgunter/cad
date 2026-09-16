@@ -334,7 +334,7 @@ at ~7.33 points per digit — about **six and a half characters**, so it
 could not display `0.001667` even before any render change. A fix to a
 render that leaves the width alone is delivered clipped, and a clipped
 render reads as a different value, which is the defect again. The field
-is now 88 points with `the_field_shows_the_longest_render` measuring
+is now 88 points with `the_field_shows_every_render_the_bound_covers` measuring
 both numbers through egui's own font metrics (the crate sets no text
 styles, so headless metrics are the app's) and going red at 56.
 
@@ -1223,6 +1223,22 @@ working receipt, and it certifies the WRONG repair. So the test of a
 suggested read is not "does it red today" but **"does it distinguish the
 fixed tree from the broken one"** — which means running it against both,
 and means the fix shape and the assertion have to be chosen together.
+
+**A test can pin the wrong SHAPE of a defect and still pass.**
+`readout.rs`'s `the_top_of_the_type_is_the_one_value_that_does_not_read_back`
+asserted the right text for the right value and was green — and its name
+and comment (*"an exception rather than a region"*) were false of the
+tree when written: the band where `{:.3e}` fails to read back is
+`[1.7975000000000001e308, f64::MAX]`, about **9.68·10¹¹ values per
+sign**. A row that pins one point of a region documents the region as a
+point, and every later reader inherits that. So when a row exists to
+record a deliberate exception, the thing to check is not that it passes
+but **that the exception is the size the row says it is** — bisect the
+predicate rather than trusting the name. Related and worth pairing: the
+carve-out this row defended rested on three claims about three
+producers, and all three failed because each guard was `is_finite()`
+followed by a multiplication UP. A guard that admits everything finite
+is not a bound.
 
 ## Exit shape
 
