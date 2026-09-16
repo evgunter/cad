@@ -80,7 +80,7 @@ seventeen. That is the reason it stays a render and never a commit
 path, and the reason the field is now 88 points rather than 56: a
 ten-character render needs 73.3 points of text area and the old field
 offered 48, so a render past six digits was clipped, and a clipped
-render reads as a different δ (`the_field_shows_the_longest_render`
+render reads as a different δ (`the_field_shows_every_render_the_bound_covers`
 measures both numbers through egui's font metrics).
 
 **The commit path.** A draft that reads as the render commits nothing.
