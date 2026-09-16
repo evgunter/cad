@@ -1757,6 +1757,7 @@ fn cone_arm<T: Real>(rims: &[Rim<T>], sin_a: T) -> T {
 ///   its poles still folds to `[−1, 1]`. The extent derivation is a
 ///   fact about the levels, not about this exemption — do not read
 ///   the exemption as "the domain is verified a rectangle".
+///
 /// **The rim-bearing branch's own premise, and why it is not in that
 /// list.** The three bullets above are the RIMLESS branch's; this one
 /// is the other branch's, established by the rims' TRAVERSAL: *the
