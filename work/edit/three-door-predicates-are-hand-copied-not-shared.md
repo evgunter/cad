@@ -2,8 +2,9 @@
 id: three-door-predicates-are-hand-copied-not-shared
 kind: issue
 title: Three more node predicates are hand-copied at both doors instead of shared: the assertion bound, a mate's alignment, a placement's frame
-status: dispatched
+status: review
 opened: 2026-09-16
+branch: edit/one-predicate-round-two
 refs: [blend-selection-canonical-check-load-only]
 ---
 
@@ -108,3 +109,84 @@ and closes it with its table.
    name; and a mutant that breaks the shared predicate reds BOTH doors'
    rows — that is the property the move buys, and the row that shows
    it is the acceptance. Corpus goldens unmoved.
+
+## Built (2026-09-16)
+
+Three predicates, one home each, asked by both doors; each door names
+the answer in its own vocabulary.
+
+- **The assertion's bound** is `Node::assertion_bound_fault(&self, doc)`
+  with a two-arm answer (`TargetNotMeasure`, `DimensionMismatch`).
+  `check_node_slots`'s inline block and `validate_snapshot`'s
+  `AssertionBound` arm both call it. The load door's
+  `measured: Option<Dimension>` fold is gone: `SnapshotError` now has
+  `AssertionTarget` beside `AssertionBound`, carrying the dimensions it
+  actually knows, so nothing has to decode an absent one.
+- **A mate's alignment** is `Node::has_non_finite_alignment`, over
+  `Alignment::is_finite` (which was already the one rule — what was
+  duplicated was the node-level destructuring and the walk). `check.rs`'s
+  second pass over `doc.nodes` is gone; the question is asked in the
+  main loop.
+- **The placement registry** is `doc::placement_fault(doc, node, frame)`
+  — site, finiteness, determinant sign — asked by `SetPlacement` and by
+  the load door's walk. The load door's `PlacementFrame` fold is gone
+  too: `PlacementNonFinite` and `PlacementImproper` name the two facts
+  the edit door has always named apart.
+
+**The gauge, decided by measurement, not by this unit.** `SetPlacement`
+cannot accept a placement `validate_document` then refuses as
+`PlacementNotGauge`, and not because reconciliation repairs it after
+the fact: the edit door does not REFUSE a non-gauge key at all, it KEYS
+THE ROW ON THE GAUGE (`crate::mate::gauge_of`), and
+`mate::solve::reconcile` re-keys the whole registry on every edit that
+moves the mate graph. A non-gauge row is therefore unrepresentable
+through the edit doors, and an edit-time refusal would refuse a
+placement the edit door instead accepts and normalises. Said at both
+sites in the present tense; the load door's rule stays alone. The
+fixture that decided it is
+`a_placement_off_the_gauge_is_keyed_on_it_rather_than_refused`: two
+mated instances, `SetPlacement` authored against the LATER one, the row
+landing on the gauge, and the file that carries the key the edit door
+rewrote refusing `PlacementNotGauge` at load.
+
+**Rows**, in `crates/editor-core/tests/edit_one_predicate.rs` — one per
+FACT, naming both doors' refusals for it, since a row that asked one
+door could not see the two drift. Five facts: a non-measure target, a
+mismatched bound dimension, a non-finite alignment, a placement on a
+non-instance, an improper frame; plus the gauge measurement above.
+Two arms are unreachable from a FILE — JSON carries no non-finite token
+— so their save-door halves are pinned in-crate beside the validator
+(`persist::check`'s `non_finite_alignment_and_placement_refuse_at_save`,
+which builds through `apply` and then breaks one coordinate).
+
+Mutants run, each reverted: `assertion_bound_fault` answering `None`
+reds both assertion rows; `has_non_finite_alignment` answering `false`
+reds the alignment row AND the in-crate save row; `placement_fault`
+answering `None` reds both placement rows AND the in-crate save row.
+
+**Deviations from the spec**, both argued rather than scheduled:
+
+1. The spec asks for the assertion predicate as "one function over
+   `(&Doc, &Node)` — a method cannot, the check needs the document".
+   The premise is false, and the row's own evidence says so:
+   `Node::bad_declare_input(&self, doc)` is one of the four DELEGATED
+   predicates the row lists, and it is a method that takes the
+   document. Built as a method for that reason — the four shared
+   node predicates now have one shape between them.
+2. The spec's point 3 says "each naming its arms" for the placement but
+   does not say the load door's `PlacementFrame` fold goes. It does:
+   folding "a coordinate no predicate can read" into "a mirror this
+   build declines to admit" is the same defect as the assertion's
+   `Option`, and it renders `determinant NaN` for the first. Split into
+   `PlacementNonFinite` and `PlacementImproper`.
+
+**Outside EDIT's fence, mechanical:** `crates/pncad-py/src/tags.rs`
+(three tag words for the three new arms, one retired),
+`crates/pncad-py/src/tests.rs` (the committed tag inventory) and
+`crates/pncad-py/tests/test_binding_census.py` (a hand-carried arm
+count in prose, which was already stale by one before this change —
+deleted rather than re-counted, the exhaustive match being what
+enforces it). Those are LIB's files.
+
+**Filed:** `load-door-checks-slot-dimensions-for-profile-nodes-only`
+(this program's slate) — the sweep's one hit.
