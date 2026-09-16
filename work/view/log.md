@@ -11905,3 +11905,44 @@ open: its argument is about a constant spelled twice, not about a mark
 an element may carry.
 
 Signed (VIEW implementer lane `view/startup-notices`).
+
+## 2026-09-16 — the δ door gets an upper bound (`view/render-mm-inf`)
+
+`render-mm-overflows-to-inf-for-a-delta-the-door-accepts` closed.
+`DisplayTolerance::new` accepted any finite δ > 0 and `render_mm` is
+`readout::number(δ * 1.0e3)`, so a δ the door accepted rendered as
+`"inf"`. The item's table was re-measured rather than believed and
+holds in every row; the bisection adds the edge it did not name, which
+is `f64::MAX * 1.0e-3` — the coarsest δ whose millimetre product is
+finite, and also, exactly, the coarsest δ the field's `mm * 1.0e-3`
+commit path can name.
+
+Answered at the door rather than in the render, because past that edge
+the millimetre value is not an `f64` and no text of it reads back as
+one: answering in `render_mm` means a second carve-out at the top of
+the type, which is what the previous unit had just removed a level
+down. `MM_PER_METRE` is now the one factor the door and the render
+both read, and
+`SceneError::DisplayToleranceOverflowsMillimetres` is the typed
+refusal — its own arm because the δ it names IS finite and strictly
+positive and `mesh::tessellate` would take it.
+
+The row over it owed an end regardless and has one: the sweep reaches
+the top of the type, the character bound moved out of the property (the
+band above `1.7975e305` is spelled exactly, at twenty-two characters),
+and past the bound the row asks the door's own answer, so it reds on a
+tree whose door has none. **Base-tree red on both new rows at
+`bfc577bbdd`**, green with the fix — stronger than a planted mutation
+and taken because the defect was live.
+
+Sweep residue filed:
+`renders-that-multiply-a-finite-guarded-length-spell-the-product-inf`
+— the camera readout, `Bounds::wording` and `props::field_text`, all
+three the same *finite guard, multiplication up, render of the
+product* shape and none of them with a door of its own to narrow.
+
+`readout` and `DisplayTolerance` are named in no README roster table
+and in neither design doc; checked rather than assumed, so nothing was
+owed there.
+
+Signed (VIEW implementer lane `view/render-mm-inf`).
