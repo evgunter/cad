@@ -426,8 +426,9 @@ since its revision counter is the chrome's rebuild key and must not go
 backwards; its own `clear` closes the same hazard inside it. `gesture`
 is cleared by nothing and must not be, and the refusal runs the other
 way round from the sentence one reaches for: while a value drag is in
-flight the DOOR is refused (`permitted_during_value_gesture`, checked
-once in `perform`) and the drag is left untouched, because a gesture
+flight the DOOR is refused (`Open` and `NewDocument` are two of the
+rows `permitted_during_value_gesture` says no to, checked once in
+`perform`) and the drag is left untouched, because a gesture
 dissolved under the pointer is the half-acted state that refusal
 exists to prevent. So the precondition is established before either
 door writes anything, and the reset re-checks nothing — a check there
@@ -1233,10 +1234,22 @@ script through both.
 
 The mid-gesture policy is one exhaustive value,
 `SessionOp::permitted_during_value_gesture`, checked once in `perform`
-before dispatch: 26 operations refuse while a value gesture is open and
-15 are permitted. A forty-second operation cannot be added without
+before dispatch: 24 operations refuse while a value gesture is open and
+17 are permitted. A forty-second operation cannot be added without
 answering for it, and the whole policy is readable in one place rather
 than inferred from every dispatch target.
+
+**What the table does not decide is rule 1.** A begin that arrives
+under an open gesture is refused by that gesture's own door —
+`g1::Slot::begin`, reached through `DocSession::start` for the value
+drag and `DisplayState::begin_free_move` for the probe — so
+`BeginGesture` and `BeginParamGesture` are permitted by this table and
+refused anyway, one layer down, with the same `GestureInFlight` a row
+here would raise off the same state. A row would be a second spelling
+of one answer and would leave the door's own arm unreachable through
+`perform`. The set of operations a value drag refuses is therefore this
+table plus that one rule, and the rule is held once for both drags
+rather than per gesture and per table.
 
 It says nothing about the free-move gesture, which is a different value
 with a different owner (`display::DisplayState`) and has a table of its
@@ -1266,7 +1279,9 @@ layer down: `DisplayState::begin_free_move` answers a second begin off
 its own state with the same `FreeMoveInFlight`, through `g1::Slot`'s
 first rule. A row in the table
 would be a second spelling of one answer, and the test that exercises
-the doors says so rather than smoothing it over.
+the doors says so rather than smoothing it over. The value table's two
+begins say the same about the other drag, so this is one rule about
+rule 1 rather than one table's exception.
 
 The table records behaviour rather than deciding it — `save` is
 permitted mid-gesture and `open` is refused, which is what the code did

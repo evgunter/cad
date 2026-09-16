@@ -2,8 +2,9 @@
 id: topo-tests-geometric-cube-and-cube-into-are-one-sequence-twice
 kind: issue
 title: geometric_cube and cube_into are the same ninety-line Euler sequence written twice, in S-DUP's own working file
-status: open
+status: spec
 opened: 2026-09-16
+branch: dup/cube-sequence-reconcile
 ---
 
 ## Finding
@@ -54,3 +55,26 @@ family, not three.
 **This is S-DUP's charter shape inside S-DUP's own working file.** The
 `dup-brick` PR named it only as a stated blind spot; a stated blind spot
 is a work order, not an absolution.
+
+## Claimed by S-DUP (2026-09-16), and promoted to the next unit
+
+Claimed off S-TINT's slate because it is the **first link of three** in
+`work/dup/brick-has-two-constructions-and-two-homes.md`'s adjudication,
+not merely because it is a duplication. The measurement that row now
+carries established that `line`, `plane` and `describe_as_intersections`
+are called by all three of this file's builders, so any move of the
+fixture family down into `crates/topo/src/test_support_impl.rs` drags
+them along — and moving `geometric_cube`/`cube_into` as they stand
+would relocate this duplication rather than close it. **A relocated
+duplication is a second copy with a forwarding address.**
+
+So this reconciles first, and it is worth doing whether or not the move
+ever happens.
+
+**Full review tier** (`work/dup/plan.md`): it reconciles rather than
+merges. `geometric_cube` stops before `describe_as_intersections` and
+`cube_into` does not, and `geometric_cube`'s rows assert on exactly
+that absence — `assert_every_chord_named_by_both_rules` is about the
+conventional chords a body keeps when the step is skipped. So a
+careless unification changes what those rows measure, which is the
+definition of a unit whose diff can be green and wrong.
