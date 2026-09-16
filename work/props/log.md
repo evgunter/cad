@@ -1285,3 +1285,31 @@ amendment folds in as the trap to avoid rather than a deliverable. The
 dispatch carries this machine's build-mutex rules, which the
 orchestrator's earlier briefs omitted, and tells the lane to expect to
 lose the slot and let hosted CI be the record.
+
+**Band-doors in review (2026-09-15).** PR #2729 at `08262efef` (run
+35057977716 green, nothing narrowed), an E rider: single style review,
+no ordinal, no A/B row. The lane did three things worth the record
+before its review even starts. It re-derived the collapse arithmetic
+instead of quoting the item and found the item's own amendment off by
+one tie case, correcting it in place with a sharp bound (ε ≤ 2⁻¹⁰²³,
+both endpoints pinned as rows). It found a THIRD reachable arm in
+`angular_at` that neither the item nor the spec named — θ = ε/arm
+underflowing to zero, which wants the arm fixed rather than ε. And it
+REFUTED part of the orchestrator's ruling with evidence: one of the
+sites the ruling counted takes K as a deliberate parameter, so
+converting it would make the row follow the run's K and destroy what it
+asserts. That refutation is right on its face and the review lane
+adjudicates it; a ruling pushed back on with evidence is a finding, not
+a deviation, and this is the shape that should happen more often. Two
+further sites were found by its sweep, so five converted rather than
+four. Argument order `(tol, eps)` against the spec's `(eps, tol)`, for
+consistency with every other tolerance-coupled constructor.
+
+**REST works where GraphQL refuses (2026-09-15).** `gh pr create` and
+`gh pr merge` have been failing all session with "API rate limit
+already exceeded for user ID …" while `gh api rate_limit` reports the
+full quota — a secondary content-creation limit, not the documented
+one, on an account many sessions share. The band-doors lane found that
+`gh api repos/<o>/<r>/pulls -X POST` and
+`gh api -X PUT …/pulls/<n>/merge` go through unaffected. Recorded here
+because every lane on this machine will hit it.
