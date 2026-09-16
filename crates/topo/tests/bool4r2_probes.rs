@@ -56,7 +56,8 @@ fn crossings(errors: &[ValidationError]) -> Vec<&ValidationError> {
             matches!(
                 e,
                 ValidationError::UndeclaredContact {
-                    contact: CensusContact::EdgeFacePierce { .. } | CensusContact::EdgeEdgeCross { .. },
+                    contact: CensusContact::EdgeFacePierce { .. }
+                        | CensusContact::EdgeEdgeCross { .. },
                     ..
                 }
             )
@@ -152,7 +153,10 @@ fn the_straddle_declared_as_far_as_the_vocabulary_reaches() {
         }
     }
     let residue = validate_pseudomanifold(&body, &records, Tol::witness());
-    println!("straddle declared ({} v-on-f records): {residue:?}", records.b_on_a.len());
+    println!(
+        "straddle declared ({} v-on-f records): {residue:?}",
+        records.b_on_a.len()
+    );
     let kinds: Vec<String> = match &residue {
         Ok(()) => vec![],
         Err(errs) => errs
@@ -284,7 +288,9 @@ fn the_per_solid_door_reads_the_container_s_own_sign_at_infinity() {
         .unwrap();
     let far = common::brick::<f64>((50.0, 53.0), (50.0, 53.0), (50.0, 53.0));
     let body = assembly(&complement, &far);
-    let [comp, _] = solids(&body)[..] else { panic!() };
+    let [comp, _] = solids(&body)[..] else {
+        panic!()
+    };
     let whole_props = topo::mass_properties(&body, tol).unwrap();
     println!("total volume {}", whole_props.volume);
     assert!(whole_props.volume > 0.0);
