@@ -41,7 +41,9 @@ body is not a slate: the blind spot outlives the unit that disclosed it.
 
 ## Closed (2026-09-16, `edit/one-predicate-round-two`)
 
-The pattern the row asks for, run at merge base `3648067fd`: for every
+The pattern the row asks for, run at merge base `3648067fd` and
+re-checked at the merge of `662380075` (which moved `edit.rs`'s and
+`persist/mod.rs`'s doc prose only — no refusal moved): for every
 door that admits a document or a node from OUTSIDE the edit log, every
 refusal it can produce, and whether an edit door decides the same
 predicate.
