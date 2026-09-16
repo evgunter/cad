@@ -297,6 +297,19 @@ pub fn sup_dist(a: Point3<f64>, b: Point3<f64>) -> f64 {
         .max((a.z - b.z).abs())
 }
 
+/// **A margin strictly inside the run's ambiguity band** — the
+/// midpoint of `(ε, K·ε)`, which is the number a row reaches for when
+/// it wants a classification that can neither be accepted nor refused.
+///
+/// One spelling. `0.5·(1 + K)·ε` was hand-written at each site that
+/// wanted it, and a band whose edges are read off the run's tolerance
+/// deserves better than a formula re-derived per suite: a row that
+/// wrote `0.5·K·ε` by slip would sit inside the band for `K = 10` and
+/// outside it for `K = 2`, and nothing would say so.
+pub fn band_midpoint(tol: Tol) -> f64 {
+    0.5 * (1.0 + tol.k()) * tol.eps()
+}
+
 /// **The certified quadrature's rounds, counted rather than timed** —
 /// the number of `props_quad_*` classifications the kernel's one
 /// recording funnel made while `run` executed. One certificate over

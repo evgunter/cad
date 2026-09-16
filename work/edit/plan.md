@@ -34,12 +34,13 @@ posture under §Process.
    carry-forward mirror of `with_value`, on the reading the document
    already makes (a unit is presentation metadata, outside `bit_eq`);
    the PR body states that reading. Middle tier.
-   `deletenode-strands-a-declare-payload-name` is the one real
-   question of the three and goes to Ev as an `[ev]` PR with a
-   recommendation, carrying
-   `authored-step-to-canonical-segment-map-has-no-home` as a second
-   short decision. `no-docedit-splices-a-deleted-node` is deferred
-   on DM6 and is not work.
+   `deletenode-strands-a-declare-payload-name` (DM7) and
+   `authored-step-to-canonical-segment-map-has-no-home` (DM8) were
+   ruled on the first `[ev]` PR and are **built** (PRs #2753, #2759,
+   middle tier). DM7's boundary (appearance keys) and DM8's word
+   "canonical" are on the third `[ev]` PR (#2764) with the pick door's
+   `t`. `no-docedit-splices-a-deleted-node` is deferred on DM6 and is
+   not work.
 3. **The persisted recipe's honesty** —
    `blend-selection-canonical-check-load-only` (one predicate, two
    doors; kernel unit), `recorded-program-arguments-carry-no-notation`

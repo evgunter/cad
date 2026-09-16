@@ -623,3 +623,17 @@ found by both arms and closed in the fix pass through
 it). Re-scoped: `work/props/sphere-flux-arm-refuses-partial-bands.md`
 (part 1 closed). Filed forward on PROPS: the sphere wedge arm's
 missing lineage fold; the file's two D9 readings. Lane reclaimed.
+
+## BOOL-6 merged (2026-09-16)
+
+PR #2752 merged at the fix-pass head 2666bcae0 plus one landing merge
+of main (a `crates/sweep/tests/all.rs` registration conflict with
+BOOL-5's adopted probe suite, resolved by keeping both; CI re-run on
+the merged head). A/B row BOOL6, ordinal 1110, sample #215, no tally
+candidate (no MAJOR either arm). Items closed: BOOL-6 and issue 368
+(`loft-stacking-trilean-is-end-to-end`). Filed forward on sweep
+ground: `self-overlapping-spines-build-and-validate`,
+`two-section-loft-with-an-inverted-top-normal-builds`; the BLEND skin
+item re-scoped with the measured hand-off (its `what` is false below
+~1e-16 normalised). The klein one-body scene was filed at dispatch on
+`work/issues/`. Lane reclaimed.

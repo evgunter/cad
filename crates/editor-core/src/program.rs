@@ -39,7 +39,9 @@ use profile::{ArcSweep, Step, Target};
 use serde::{Deserialize, Serialize};
 
 use crate::doc::ParamName;
+use crate::eval::ProfileNaming;
 use crate::expr::{Dimension, DimensionError, EvalError, Expr, ParamEnv, eval};
+use crate::names::ProfileEdgeRef;
 use crate::node::{RecipeNodeId, SlotId, StepArg};
 use geom_core::Tol;
 
@@ -609,6 +611,130 @@ impl core::fmt::Display for ProgramRefusal {
 
 impl core::error::Error for ProgramRefusal {}
 
+/// Why [`ProfileProgram::profile_edges_of`] could not name a
+/// step's profile edges.
+///
+/// Every arm is a question the door cannot answer, not a geometry that
+/// refused: an address this program does not have, a record that does
+/// not describe this program, or two records that describe it
+/// differently. There is no arm for "probably these" — a map that
+/// guessed would be exactly the second derivation the door exists to
+/// replace.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StepSegmentsError {
+    /// The program has no such loop.
+    NoSuchLoop {
+        /// How many loops it does have.
+        loops: usize,
+    },
+    /// The loop has no such step. Carrier forms (`circle`,
+    /// `circle_split`) have exactly one, numbered 0 — the same step the
+    /// slot vocabulary addresses their arguments at.
+    NoSuchStep {
+        /// How many steps the loop's record describes.
+        steps: usize,
+    },
+    /// The structure record does not cover this loop at all: it
+    /// describes a different program, or a shorter one.
+    NoRecord {
+        /// The program loop asked about.
+        loop_: u32,
+    },
+    /// The record describes a different NUMBER of authored steps than
+    /// the loop's program has, so no step index means the same thing on
+    /// both sides and a step-addressed answer would be an answer about
+    /// somebody else's program. The profile side refuses a record of
+    /// the wrong shape the same way (`StructureRefusal::shape`).
+    RecordShape {
+        /// The program loop asked about.
+        loop_: u32,
+        /// How many steps the loop's program authors.
+        authored: usize,
+        /// How many the record describes.
+        recorded: usize,
+    },
+    /// The naming anchor carries no entry for this program loop, so
+    /// nothing says which refs its walls were named with.
+    NoAnchor {
+        /// The program loop asked about.
+        loop_: u32,
+    },
+    /// Canonicalization's recorded permutation and the naming anchor's
+    /// bit-matched one are not the same permutation. One of the two
+    /// does not describe this loop, and the door cannot tell which.
+    RecordsDisagree {
+        /// The program loop asked about.
+        loop_: u32,
+    },
+    /// The step's recorded span reaches past the end of the loop —
+    /// the replay record and the canonical record disagree about how
+    /// long the chain is.
+    SpanOffTheLoop {
+        /// The step asked about.
+        step: u32,
+        /// One past the last segment the span claims.
+        end: usize,
+        /// How many segments the loop has.
+        segments: usize,
+    },
+}
+
+impl core::fmt::Display for StepSegmentsError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NoSuchLoop { loops } => {
+                write!(f, "the program has {loops} loops")
+            }
+            Self::NoSuchStep { steps } => {
+                write!(f, "the loop's program has {steps} steps")
+            }
+            Self::NoRecord { loop_ } => {
+                write!(f, "the structure record does not describe loop {loop_}")
+            }
+            Self::RecordShape {
+                loop_,
+                authored,
+                recorded,
+            } => write!(
+                f,
+                concat!(
+                    "loop {} authors {} steps and its structure record ",
+                    "describes {}, so the two are not about the same program"
+                ),
+                loop_, authored, recorded
+            ),
+            Self::NoAnchor { loop_ } => write!(
+                f,
+                concat!(
+                    "the naming anchor does not describe loop {}, so nothing ",
+                    "says which refs its entities were named with"
+                ),
+                loop_
+            ),
+            Self::RecordsDisagree { loop_ } => write!(
+                f,
+                concat!(
+                    "loop {}'s canonicalization record and its naming anchor ",
+                    "are two different permutations, so the segments a step ",
+                    "produced and the refs its entities carry cannot be the ",
+                    "same answer"
+                ),
+                loop_
+            ),
+            Self::SpanOffTheLoop {
+                step,
+                end,
+                segments,
+            } => write!(
+                f,
+                "step {step} claims segments up to {end} on a loop with {segments} of them"
+            ),
+        }
+    }
+}
+
+impl core::error::Error for StepSegmentsError {}
+
 // ------------------------------------------------------------------
 // Slot access
 // ------------------------------------------------------------------
@@ -828,6 +954,20 @@ fn step_expr_mut(step: &mut ProgramStep, arg: StepArg) -> Option<&mut Expr> {
 }
 
 impl LoopProgram {
+    /// **How many authored steps this loop has** — the length of the
+    /// step axis of `SlotId::Profile { loop_, step, .. }`.
+    ///
+    /// A carrier form authors ONE step, numbered 0: that is the step
+    /// the slot vocabulary addresses its centre and radius at, and the
+    /// step the replay's record describes.
+    #[must_use]
+    pub fn authored_steps(&self) -> usize {
+        match self {
+            LoopProgram::Chain(steps) => steps.len(),
+            LoopProgram::Circle { .. } | LoopProgram::CircleSplit { .. } => 1,
+        }
+    }
+
     /// **The one radius every edge of this loop is drawn at**, where
     /// the loop is a CARRIER form and has one.
     ///
@@ -842,10 +982,9 @@ impl LoopProgram {
     /// A CHAIN loop answers `None`, and that is a scope statement, not
     /// an omission: a chain's arc steps carry their own radii
     /// (`StepArg::CarrierRadius` and the arrival spec's twin), each
-    /// addressing one segment, and pairing those with swept walls
-    /// needs the step→segment map that the replay owns. Nothing today
-    /// reads a chain's radii, so the map stays unbuilt rather than
-    /// guessed at.
+    /// addressing one segment. Pairing those with swept walls is
+    /// [`ProfileProgram::profile_edges_of`]'s answer; what keeps this
+    /// door per-loop is the attach obligation below.
     ///
     /// **The obligation that `None` carries.** The memo's guard on
     /// this channel is scoped at the ATTACH, not at the key: the
@@ -858,7 +997,9 @@ impl LoopProgram {
     /// re-spelled value-preservingly would be attached to a wall
     /// while its key still says the value alone. So chain radii enter
     /// the key in the same change that attaches them, and the feed at
-    /// `eval::content_key` carries the same sentence.
+    /// `eval::content_key` carries the same sentence. That is why the
+    /// map existing does not widen this door: the two are separate
+    /// changes and only the second one is safe on its own.
     ///
     /// The address is the loop's `Radius` slot
     /// (`SlotId::Profile { loop_, step: 0, arg: StepArg::Radius }`);
@@ -1253,6 +1394,162 @@ impl ProfileProgram {
         env: &ParamEnv<T>,
     ) -> Result<Vec<Vec<Step<T>>>, (SlotId, EvalError)> {
         resolve_loops(&self.loops, env)
+    }
+
+    /// **Which profile edges one authored step became** (DM8).
+    ///
+    /// The map from a document slot's `(loop_, step)` — the coordinates
+    /// of `SlotId::Profile` — to the [`ProfileEdgeRef`]s that name the
+    /// entities those segments swept. Composed from two records the
+    /// evaluation already produced, never re-derived from the geometry:
+    /// a second derivation can disagree with the one the geometry came
+    /// from, which is the defect this door exists to not be.
+    ///
+    /// The name says what it answers: [`ProfileEdgeRef`]s, the published
+    /// coordinate a consumer holds. It does NOT answer canonical
+    /// segments — see the anchoring section below — so a name saying
+    /// "canonical" would be the one word in it that is false.
+    ///
+    /// # What it composes
+    ///
+    /// 1. **The replay's per-step segment span**
+    ///    (`profile::ReplayStructure::steps`): which segments of the
+    ///    PROGRAM-ORDER chain this step emitted. A step is not one
+    ///    segment — an entry verb emits none, a fillet arrival emits
+    ///    its straight leg and its arc, and a carrier form's single
+    ///    step emits the whole loop, which is how `circle` and
+    ///    `circle_split` answer here with no arm of their own.
+    /// 2. **The permutation canonicalization applied**
+    ///    (`profile::LoopCanonical`'s `reversed` and `start`): the
+    ///    reversal that turns program vertex `i` of `n` into oriented
+    ///    vertex `n-i`, then the rotation that makes oriented vertex
+    ///    `start` canonical vertex 0.
+    ///
+    /// # Why the answer is in PROGRAM indices
+    ///
+    /// A profile ref reaches a name table already rewritten canonical →
+    /// program (`eval::anchor`, `LoopAnchor`): for a program loop, the
+    /// published [`ProfileEdgeRef`] names the segment the program's step
+    /// order authored, precisely so a parameter edit cannot renumber it.
+    /// So the two permutations — the one canonicalization applied and
+    /// the one the rewrite undoes — compose to the identity, and the
+    /// segments a step produced ARE the refs its walls carry.
+    ///
+    /// That is a statement about two records, so it is checked rather
+    /// than assumed. The permutation is derived here from `(2)`, the
+    /// decision canonicalization recorded; the anchor is derived
+    /// independently, by bit-matching the canonical loop against the
+    /// replayed one. Two derivations of one permutation that disagree
+    /// mean the geometry a name points at is not the geometry this map
+    /// describes, so the door refuses
+    /// [`StepSegmentsError::RecordsDisagree`] instead of answering from
+    /// whichever it happened to read.
+    ///
+    /// Not persisted, and not a cache: it is rebuilt from the records
+    /// beside the geometry they describe.
+    ///
+    /// # The LOFT limitation the published anchoring carries
+    ///
+    /// "Program-anchored" is a claim about the table the emitter's refs
+    /// were rewritten through, and a loft has only ONE:
+    /// `eval::wire::wire_loft` anchors the whole emitted table on the
+    /// FIRST section's `LoopAnchor`, because the loft emitter's refs
+    /// are canonical indices of the section combinatorics and the
+    /// sections must correspond. So for a loft this door's answer is
+    /// program-anchored for SECTION 0 and section-0-anchored for every
+    /// other section: a later section authored rotated or reversed
+    /// relative to section 0 is named by section 0's permutation, not
+    /// its own, and a consumer asking about one of ITS steps is off by
+    /// that permutation. The limitation is pinned in
+    /// `work/wire/loft-anchors-every-section-with-section-zeros-map.md`;
+    /// nothing here can repair it, because the refs the names carry are
+    /// the ones the rewrite published.
+    ///
+    /// # Errors
+    ///
+    /// [`StepSegmentsError`] — a loop or step this program does not
+    /// have, a record that does not describe it, or two records that
+    /// describe it differently. It refuses rather than guessing at any
+    /// of them.
+    pub fn profile_edges_of(
+        &self,
+        structure: &profile::ProfileStructure,
+        naming: &ProfileNaming,
+        loop_: u32,
+        step: u32,
+    ) -> Result<Vec<ProfileEdgeRef>, StepSegmentsError> {
+        let li = loop_ as usize;
+        let program = self.loops.get(li).ok_or(StepSegmentsError::NoSuchLoop {
+            loops: self.loops.len(),
+        })?;
+        let replay = structure
+            .replay
+            .get(li)
+            .ok_or(StepSegmentsError::NoRecord { loop_ })?;
+        let canonical = structure
+            .canonical
+            .loops
+            .get(li)
+            .ok_or(StepSegmentsError::NoRecord { loop_ })?;
+        // A record of the right LENGTH is what makes a step index mean
+        // the same thing on both sides; a record from another program
+        // can have the right loop count and the wrong step count, and
+        // then every answer below is about somebody else's program.
+        // The profile side guards its own records this way
+        // (`StructureRefusal::shape`).
+        let authored = program.authored_steps();
+        if replay.steps.len() != authored {
+            return Err(StepSegmentsError::RecordShape {
+                loop_,
+                authored,
+                recorded: replay.steps.len(),
+            });
+        }
+        let span = *replay
+            .steps
+            .get(step as usize)
+            .ok_or(StepSegmentsError::NoSuchStep { steps: authored })?;
+        let anchor = naming
+            .loops
+            .iter()
+            .find(|a| a.program_loop == loop_)
+            .ok_or(StepSegmentsError::NoAnchor { loop_ })?;
+
+        // The two records must be ONE permutation. `start` counts on
+        // the ORIENTED chain (after any reversal) while `offset` counts
+        // on the program chain, so the reversed case compares
+        // `n - start`: `reversed()` sends oriented vertex k to program
+        // vertex (n − k) mod n, and canonical vertex 0 is oriented
+        // vertex `start`.
+        let n = canonical.segments.len();
+        let offset = anchor.offset as usize;
+        let same = anchor.len as usize == n
+            && n != 0
+            && anchor.reversed == canonical.reversed
+            && canonical.start < n
+            && offset
+                == if canonical.reversed {
+                    (n - canonical.start) % n
+                } else {
+                    canonical.start
+                };
+        if !same {
+            return Err(StepSegmentsError::RecordsDisagree { loop_ });
+        }
+        if span.end() > n {
+            return Err(StepSegmentsError::SpanOffTheLoop {
+                step,
+                end: span.end(),
+                segments: n,
+            });
+        }
+        Ok(span
+            .iter()
+            .map(|s| ProfileEdgeRef {
+                loop_index: loop_,
+                segment: s as u32,
+            })
+            .collect())
     }
 
     /// The authoring-time check's body (VQ9): resolve under `env`,
