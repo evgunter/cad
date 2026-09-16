@@ -1,11 +1,11 @@
 ---
 id: authored-step-to-canonical-segment-map-has-no-home
-kind: issue
+kind: unit
 title: The authored-step to canonical-segment map has no home: its two halves are DOCM's and BOOL's, and neither owner can site it alone
-status: open
+status: spec
 opened: 2026-09-04
 refs: [focus-marking-is-per-node-not-per-segment]
-needs_ev: true
+branch: edit/step-segment-map
 ---
 
 The announce VIEW's plan item 4 has owed since 2026-09-03, written as
@@ -131,3 +131,44 @@ authored step and would grow one for a consumer two layers up.
 **Cost and seam.** Item 1 is one field in BOOL's crate, announced to
 S-BOOL and built by whichever side lands first; item 2 and the door
 are EDIT's. VIEW's row unparks when the door merges.
+
+## RULED (Ev, on the `[ev]` PR, 2026-09-16): the recommendation stands — DM8
+
+Recorded as **DM8** in `crates/editor-core/REFERENCES.md`: the map is
+composed in `editor-core` from the replay's per-step segment span and
+canonicalization's recorded permutation.
+
+## Spec (2026-09-16, EDIT orchestrator) — middle tier: one opus style review with a correctness arm, no A/B row
+
+Branch `edit/step-segment-map`. Both halves in one PR, the profile
+half by announcement (`work/bool/replay-structure-gains-the-per-step-segment-span.md`
+says so; S-BOOL was not asked).
+
+1. `crates/profile`: `ReplayStructure` gains the per-step segment span
+   — for each authored step in program order, the range of
+   pre-canonical segment indices it produced (a fillet leg or a
+   `circle_split` is where a step is not one segment). Recorded where
+   the replay already records its fillet decisions; the guided pass
+   (a recorded structure replayed under a lane scalar) verifies the
+   span it reproduces exactly as it verifies the fillet decisions.
+2. `crates/editor-core/src/program.rs`: a door `canonical_segments_of(
+   loop_, step) -> Result<set of segment, refusal>` composing (1) with
+   `LoopCanonical { reversed, start }` (`crates/profile/src/structure.rs`)
+   — reversal maps index `i` of `n` to `n-1-i` on the oriented chain,
+   then the rotation by `start`; derive it, do not guess, and pin it
+   against the geometry (acceptance 4). Refuses typed for a loop with
+   no record or a step out of range. Carrier forms (`circle`,
+   `circle_split`) pin `step` to 0 and map to every segment.
+3. Re-read the `LoopProgram` radius-door doc that says the map is
+   unbuilt; make it true again (present tense only). Do NOT widen the
+   radius door to chains — that doc states why (the content-key
+   attach obligation) and it is a separate row.
+4. Rows that go red: for every gallery document, every `(loop, step)`
+   maps to segments whose canonical `ProfileEdgeRef` names appear on
+   faces the step's authored geometry actually bounds — checked by
+   geometry (the wall's boundary contains the step's authored
+   endpoints, transformed), not by index arithmetic; a mutant that
+   drops the reversal or the rotation is caught by a loop that is
+   reversed and one that is rotated.
+5. On merge, VIEW's row `work/view/focus-marking-is-per-node-not-per-segment.md`
+   unparks — say so there in a `## Unblocked` section in this PR.

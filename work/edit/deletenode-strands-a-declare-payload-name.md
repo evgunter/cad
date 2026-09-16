@@ -1,11 +1,11 @@
 ---
 id: deletenode-strands-a-declare-payload-name
-kind: issue
+kind: unit
 title: DeleteNode leaves a Declare whose payload names a dead node: DeleteWouldDangle reads inputs only
-status: open
+status: spec
 opened: 2026-09-06
 refs: [2028, 2028]
-needs_ev: true
+branch: edit/delete-strands
 ---
 
 
@@ -117,3 +117,41 @@ end.
 when a strand goes unreported; a CHROME row to render it (filed on
 their slate when this lands). No schema change: maintenance is
 derived, not persisted.
+
+## RULED (Ev, on the `[ev]` PR, 2026-09-16): the recommendation stands — DM7
+
+Recorded as **DM7** in `crates/editor-core/REFERENCES.md`: a name is
+not an edge, `DeleteNode` stays legal, and the accepted edit's
+`Applied.maintenance` carries a typed row per stranded `(node, name)`.
+
+## Spec (2026-09-16, EDIT orchestrator) — middle tier: one opus style review with a correctness arm, no A/B row
+
+Branch `edit/delete-strands`.
+
+1. Read `Applied`'s maintenance column (`crates/editor-core/src/edit.rs`,
+   the A11 cluster-record maintenance and EVAL-4's shape) and extend
+   it — one typed row per stranded name: the node that carries the
+   name, the name, and the deleted minting node. Computed at the
+   `DeleteNode` door from `Node::payload_names` over every surviving
+   node (the same walk the insert door checks with — ONE home for
+   "which payloads carry a name"; do not write a fifth list, C6's S4
+   table names the four that exist). `payload_read_sites` (a mate's
+   operands) are the solve's to refuse and are NOT strands — say so
+   at the site.
+2. Replay reproduces it: maintenance is deterministic from the edit,
+   so `Doc::replay` and `persist::load` produce the same rows (or the
+   documented load boundary discards them — read
+   `replay-and-load-keep-the-document-without-its-maintenance` and
+   state which; do not close that row here).
+3. `Display` in prose, F6-shaped; the `pncad-py` façade's maintenance
+   surface gains the row if it renders maintenance today (LIB's file,
+   mechanical, said in the PR).
+4. Rows that go red: DOCM-7's R1 probe shape (delete a declared union;
+   the report names every pair of its `Declare`) lifted from
+   `origin/docm/7-review-r1` if it survives; a fillet whose target is
+   deleted under a cascade that keeps the fillet's own name-space
+   consumer; a delete that strands nothing reports nothing; a mutant
+   that skips one payload kind is caught.
+5. File the CHROME affordance (the strand count beside the cascade
+   count) on `work/chrome/` in this PR — it is this ruling's chrome
+   consequence and CHROME has not been asked.
