@@ -121,16 +121,13 @@
 //!    cannot be trimmed; what changed is that the reason is a pair
 //!    the reader can look at.
 //! 5. **`sweep_body` CAN carry a section around a U-turn — RETIRED
-//!    by the per-slab stacking fold** (wall 5, issue 368). The gate
-//!    compared only the LAST placement against the FIRST section's
-//!    plane normal, so a path that ended behind where it started
-//!    refused `ReversedStacking` wholesale however well every
-//!    consecutive pair stacked. The statement is now a fold over the
-//!    consecutive pairs, each decided against its own base section's
-//!    normal, and the loop's whole spine sweeps as one body — wall 5
-//!    asserts that build. The SCENE still draws the loop as two
-//!    elbows: adopting the one-body sweep is a scene change, and it
-//!    is the shape of the follow-up this retirement leaves.
+//!    by the per-slab stacking fold** (wall 5, issue 368). The loft's
+//!    stacking statement is a fold over adjacent section pairs, each
+//!    decided against its own base section's normal, and the loop's
+//!    whole spine sweeps as ONE body; wall 5 asserts that build. The
+//!    SCENE still draws the loop as two elbows — adopting the one-body
+//!    sweep is a scene change, and the shape of the follow-up this
+//!    retirement leaves.
 //! 6. **`tube_along_arc` WAS solid-only — RETIRED by VERBS-TUBEWALL.**
 //!    The torus door took a `minor_radius` and no wall, so a hollow
 //!    tube had to be re-said as a revolve of an annulus and gave up
@@ -896,12 +893,10 @@ pub fn wall_probes<S: Scalar + CertifiedBounds>(tol: Tol) {
             .expect("inner")
             .into(),
     ];
-    // RETIRED as a refusal by the per-slab stacking fold (issue 368):
-    // the U-turn is a wall no longer, so the probe asserts the build it
-    // used to pin as a refusal. Every consecutive pair of stations on
-    // this spine advances along the earlier one's own plane normal;
-    // only the SUMMARY of the last station against the first ran
-    // backwards, and the loft no longer takes that summary.
+    // RETIRED as a refusal by the per-slab stacking fold (issue 368),
+    // so the probe asserts the build. The loft's stacking statement is
+    // per-slab, and every consecutive pair of stations on this spine
+    // advances along the earlier one's own plane normal.
     let one_body = pncad::sweep::sweep_body::<f64>(
         &annulus,
         Affine3::from_parts(

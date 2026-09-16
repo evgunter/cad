@@ -1065,9 +1065,13 @@ impl Plan {
 /// base section's normal and refuses `ReversedStacking` naming itself.
 /// So the bound is on `curl / (stations − 1)`, not on `curl`: a blade
 /// may coil as far as its sampling supports.
+///
+/// `review_probes::the_spine_curl_wall_re_measured` pins both sides of
+/// that wall (13.0 rad coils at 17 stations; 10.0 rad refuses at 4).
+/// Past a full turn the spine returns through its own body and the
+/// kernel has no gate that says so — see the sweep crate's
+/// `bool6_per_slab_stacking::a_curl_past_a_full_turn_builds_a_spine_that_revisits_itself`.
 #[allow(clippy::too_many_arguments)] // the 8th is the run-tolerance witness
-/// `review_probes::the_spine_curl_wall_re_measured` pins both sides
-/// of that wall (6.0 rad coils at 17 stations; 11.0 rad refuses at 4).
 fn lofted_blade<S: Scalar>(
     base: Point3<f64>,
     dir: Vec3<f64>,
