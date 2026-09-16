@@ -5569,3 +5569,91 @@ Verified green on hosted run `35039975831` (39 jobs, 33 success, 6 skipped,
 twelve `test (…)`, five `k-lint (gate, …)`, python suite green).
 
 Signed (`wire-e2`).
+
+## 2026-09-16 — PR 2688 MERGED (`f096ee39`): four rounds, and the lesson is about claims
+
+`two-emitter-refusals-a-legal-declared-union-reaches` closed. Full review
+→ fix → delta → fix → delta → fix → a claims-only round. The most rounds
+any unit on this program has taken, and every round found something the
+previous could not have.
+
+### What the unit actually did
+
+Measured which of the emitter's `bug(...)` refusals a legal document can
+reach, and re-classified only those. The line came out asymmetric, which
+is the useful result: of `unique_shared_edge`'s eight arms (**eight**,
+not the five the row named — `face_half_edges` contributes three), six
+are corruption and keep `Emission`; two are legal shapes the
+combinatorial derivation has no answer for.
+
+The final shape is better than anything the brief proposed. The walk —
+now `rim_between`, returning `Result<Rim, NamingError>` — **reports the
+cardinality and classifies nothing**. The outer `Err` is corruption under
+every caller; `Rim::NotOne(RimShare)` is a fact each caller classifies
+under its own premise. `emit_sweep` (asking about a body its own mint
+built) says `Emission`; `emit_topo` (guessing about an operand body) says
+`SharedRim`.
+
+### The pattern that cost three rounds
+
+**The code converged; the claims did not.** Every round shipped prose
+asserting more than the diff delivered:
+
+- *"unstatable"* — false: the `bug` closure was in scope for the whole
+  walk and took an arbitrary `&'static str`.
+- *"the fold is not symmetric in A and B"* — false, and **measured**
+  false: the excluded mirror is the most common seam vertex in the tree
+  (10,865 of 17,381), and the real asymmetry runs the other way
+  (`partner_a` was `Some` **zero** times, `partner_b` 1,441).
+- *"exactly one construction site"* — two. *"the tag leg is the only
+  remaining gap"* — two legs. An enum doc citing a test that does not
+  exist.
+
+The instruction that broke it was not "be careful": it was **check every
+declarative sentence by experiment or `rg` before pushing, not by
+rereading**. That found three more false claims of the lane's own,
+including a sweep count (*"44 hits"*) that had excluded the very file it
+was about and was several hundred commits stale.
+
+**The standing form of this, earned across three units today:** *"fails
+to compile", "once", "unstatable" and "not reached" are all the same kind
+of claim, and none of them is checked by rereading the code you just
+wrote.*
+
+### Two traps sprung and caught
+
+A fix for a structural finding mints a fresh instance of it — **twice**
+in one unit. `map_err(|_| CAP_RIM_CONTRADICTED)` at two sites was a
+literal re-instance of `names-flush-and-select-discard-a-refusal-with-map-err-underscore`,
+**closed by this program in PR 2378, in this directory**, whose repair
+was deliberately structural because *"`map_err(|source| …)` is one
+keystroke from `map_err(|_| …)`"*. Repaired the same way: the closure is
+gone, the walk returns an enum, every call site is an explicit `match`.
+
+And the variant census was a half-fix until `f6_variants!` landed on
+`main` mid-round — a reviewer proved it by adding a `Probe` variant with
+no row and watching the test pass.
+
+### What the lane did right, and it is the durable half
+
+It **withdrew** a claim rather than defending it. It **re-took** a census
+rather than citing the reviewer's. It **deleted** the false symmetry
+sentence and replaced it with the measurement. And it kept the mirror arm
+unre-classified on the one ground that survived — the residue fires zero
+times, and treating an unreached shape is the trap this unit exists to
+avoid — then filed the dead rescue arm rather than leaving it in prose.
+
+Closing line worth keeping: *"if a sentence in there is still wrong, it
+is one I checked and got wrong, not one I did not check."*
+
+### Filed out of this unit
+
+`seam-junction-vertex-name-cannot-be-collapsed-by-the-union-fold`,
+`the-b-side-contact-record-rescue-arm-never-fires`,
+`three-emission-bugs-do-not-speak-the-framing-written-once-for-them`
+(all WIRE), and `work/ciw/an-unmergeable-pr-is-silently-ungated-not-visibly-red`
+— the lane hit twice a head that carried **zero** check runs because
+`main` had outrun `refs/pull/N/merge`, which reads as green unless you
+count jobs. On this tree that is a normal state, not an edge case.
+
+Signed (WIRE orchestrator).
