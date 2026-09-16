@@ -120,13 +120,17 @@
 //!    place a Klein bottle MUST cross itself in 3-space — still
 //!    cannot be trimmed; what changed is that the reason is a pair
 //!    the reader can look at.
-//! 5. **`sweep_body` cannot carry a section around a U-turn**
-//!    (wall 5). The loop's whole spine is one path and would be ONE
-//!    body, but the loft's stacking trilean compares only the LAST
-//!    placement against the FIRST section's plane normal; a path that
-//!    ends behind where it started refuses `ReversedStacking`
-//!    wholesale, however well every consecutive pair stacks. That
-//!    gate is what makes the loop two bodies rather than one.
+//! 5. **`sweep_body` CAN carry a section around a U-turn — RETIRED
+//!    by the per-slab stacking fold** (wall 5, issue 368). The gate
+//!    compared only the LAST placement against the FIRST section's
+//!    plane normal, so a path that ended behind where it started
+//!    refused `ReversedStacking` wholesale however well every
+//!    consecutive pair stacked. The statement is now a fold over the
+//!    consecutive pairs, each decided against its own base section's
+//!    normal, and the loop's whole spine sweeps as one body — wall 5
+//!    asserts that build. The SCENE still draws the loop as two
+//!    elbows: adopting the one-body sweep is a scene change, and it
+//!    is the shape of the follow-up this retirement leaves.
 //! 6. **`tube_along_arc` WAS solid-only — RETIRED by VERBS-TUBEWALL.**
 //!    The torus door took a `minor_radius` and no wall, so a hollow
 //!    tube had to be re-said as a revolve of an annulus and gave up
@@ -892,23 +896,39 @@ pub fn wall_probes<S: Scalar + CertifiedBounds>(tol: Tol) {
             .expect("inner")
             .into(),
     ];
-    crate::walls::wall(
-        "bottle",
-        5,
-        "sweep the annulus along the loop's WHOLE spine, one body",
-        pncad::sweep::sweep_body::<f64>(
-            &annulus,
-            Affine3::from_parts(
-                Mat3::from_cols(v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), v3(0.0, 0.0, 1.0)),
-                v3(0.0, 0.0, ZTOP),
-            ),
-            &path,
-            33,
-            3,
-            tol,
+    // RETIRED as a refusal by the per-slab stacking fold (issue 368):
+    // the U-turn is a wall no longer, so the probe asserts the build it
+    // used to pin as a refusal. Every consecutive pair of stations on
+    // this spine advances along the earlier one's own plane normal;
+    // only the SUMMARY of the last station against the first ran
+    // backwards, and the loft no longer takes that summary.
+    let one_body = pncad::sweep::sweep_body::<f64>(
+        &annulus,
+        Affine3::from_parts(
+            Mat3::from_cols(v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), v3(0.0, 0.0, 1.0)),
+            v3(0.0, 0.0, ZTOP),
         ),
-        |e| matches!(e, LoftError::ReversedStacking),
-        "build the loop as ONE body and drop the two-elbow split",
+        &path,
+        33,
+        3,
+        tol,
+    )
+    .expect("the loop's whole spine sweeps as ONE body (issue 368)");
+    assert_eq!(
+        pncad::topo::validate(&one_body.body),
+        Ok(()),
+        "the one-body loop is tier-1 valid"
+    );
+    assert_eq!(
+        pncad::topo::validate_closed(&one_body.body),
+        Ok(()),
+        "and closed"
+    );
+    println!(
+        "   wall 5 — RETIRED as a refusal: the annulus sweeps along the loop's \
+         WHOLE spine as ONE body (issue 368, the per-slab stacking fold). The \
+         SCENE still draws the loop as two elbows; adopting the one-body sweep \
+         is a scene change this unit does not make."
     );
 
     // Wall 6 (RE-BASELINED by VERBS-RING): the one-call hollow ring —
