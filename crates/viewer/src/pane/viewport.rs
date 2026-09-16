@@ -11,8 +11,9 @@ use eframe::egui;
 use crate::app::{ViewerBehavior, chrome, to_f32};
 use crate::camera::{self, Camera, CameraOp};
 use crate::datums::{self, datum_view};
-use crate::frame::{self, IdStep};
+use crate::frame;
 use crate::gpu::{IdQuery, ViewportCallback};
+use crate::idpass::{self, IdStep};
 use crate::input::{self, PointerButton, ViewportEvent, ViewportSize};
 use crate::marks;
 use crate::pickcache;
@@ -411,9 +412,9 @@ impl ViewerBehavior<'_> {
         // depends on the picture the id pass reads — which a hidden
         // part changes without moving the generation — and on the
         // index that resolves its ids, which a landing over a refused
-        // rebuild changes without moving the picture. `frame::IdSubject`
+        // rebuild changes without moving the picture. `idpass::IdSubject`
         // carries the argument for both.
-        let subject = frame::IdSubject {
+        let subject = idpass::IdSubject {
             revision: self.revision,
             generation: self.index.map(PickIndex::generation),
         };
@@ -669,7 +670,7 @@ impl ViewerBehavior<'_> {
                 .flatten()
         });
         if let Some(report) = on_screen.and_then(|index| {
-            frame::disagreement(
+            idpass::disagreement(
                 index,
                 self.id_answer.load(Ordering::Relaxed),
                 outstanding,
@@ -739,6 +740,7 @@ mod tests {
     };
     use crate::camera::{Camera, CameraOp, fold_recorded};
     use crate::frame::{self, product_badge};
+    use crate::idpass;
     use crate::input::{self, InputMap, PointerButton, ViewportEvent};
     use crate::pickcache::{self, NotIndexed};
     use crate::pickindex::{IdMap, PickIndex, PictureKey};
@@ -1183,7 +1185,7 @@ mod tests {
     /// A picture no index minted ids for — the startup mesh, whose
     /// corners all carry [`IdMap::NOTHING`] — makes the id pass answer
     /// *nothing* everywhere. Compared against a ray that names a face,
-    /// that is a disagreement, and [`frame::Disagreement`] writes it to
+    /// that is a disagreement, and [`idpass::Disagreement`] writes it to
     /// the status line as *the two picking paths disagree*, which issue
     /// #1097 §4 tells an operator to read as an `R32Uint` clear fault.
     ///
@@ -1208,7 +1210,7 @@ mod tests {
 
         let serial = 7u32;
         let nothing = (u64::from(serial) << 32) | u64::from(IdMap::NOTHING);
-        let report = frame::disagreement(&index, nothing, Some(serial), Some(&named))
+        let report = idpass::disagreement(&index, nothing, Some(serial), Some(&named))
             .expect("nothing-under-the-cursor against a named face is a disagreement");
         assert_eq!(report.from_gpu, None, "the id pass answered nothing");
         assert_eq!(report.from_ray, Some(named), "the ray answered a face");

@@ -11940,3 +11940,40 @@ Its calibration paragraph was re-measured on this tree rather than
 carried forward.
 
 Signed (VIEW implementer lane `view/two-spellings`).
+
+## 2026-09-16 — `frame.rs` split in three (lane `view/frame-split`)
+
+`frame-module-has-eight-concerns-and-no-holds-row` is closed. The
+orchestrator's rule was the module's own first sentence — *"the
+per-frame policies the viewport runs, as values, so they are
+replayable"* — and it removes two things: the environment probes, which
+take the machine as their argument and cannot be replayed from any
+value a test builds (`platform.rs`), and the id pass's query
+bookkeeping, which is state carried ACROSS frames because a query and
+its answer sit on different ones (`idpass.rs`). 2,996 lines became
+2,582 + 257 + 253. A move: no test assertion changed, and the only test
+edits are import paths.
+
+**The membership was checked against the ruling rather than taken from
+it, and five things moved that neither list names** — `Zenity`,
+`SessionBus`, `PREFS_DIR`, `PREFS_FILE` and `NO_CHOOSER_BACKEND`, the
+last of which the item files under concern 4 and the ruling omits. The
+item's own span, `frame.rs:1671-1878`, was wrong at the merge base and
+not merely stale: the probes are at `1856-2076`, so the range's start
+was two hundred lines short and its end landed inside
+`ChooserBackend`'s variants. Recorded in the item's closing section
+with the rest.
+
+`scripts/gates/no-ambient-env.sh`'s allowlist entry moved with the
+code. `git log -S` on *"ONE file on purpose: every ambient read the
+viewer performs"* over that path returns exactly one commit,
+`cf2164600f`, the merge of **#1717** from `m10/m10-7-spec` — an agent
+program branch, and every commit in this repo carries `evgunter`'s
+signature, so authorship is not evidence either way. No ratification by
+Ev turns up, and `work/README.md` says Ev does not edit files. The
+entry moved and the sentence was re-worded to name `platform.rs`; what
+the gate DECIDES is untouched. Territory names `scripts/gates/*` as
+GUARD's, the same warning VIEW already carries for
+`viewer-vocab-declared-once.sh`.
+
+Signed (VIEW implementer lane `view/frame-split`).

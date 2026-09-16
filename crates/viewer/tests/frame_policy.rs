@@ -35,11 +35,13 @@ use viewer::evalseam::{
     EvalDone, EvalRequest, EvalService, IndexDone, IndexRequest, IndexService, InlineIndexer,
     MemoReport,
 };
-use viewer::frame::{self, IdQueryLog, IdStep, IdSubject, StatusUpdate};
+use viewer::frame::{self, StatusUpdate};
 use viewer::generation::Generation;
+use viewer::idpass::{self, IdQueryLog, IdStep, IdSubject};
 use viewer::input::{self, InputMap, ViewportSize};
 use viewer::pickcache::{self, CacheStep, IndexLanding, PickCache};
 use viewer::pickindex::{self, IdMap, PickIndex, PictureKey};
+use viewer::platform;
 use viewer::prefs::{Absent, Prefs, PrefsStore};
 use viewer::props::SlotValue;
 use viewer::scene::{self, DisplayTolerance, FittedDelta, PLATE_EXTENT};
@@ -564,7 +566,7 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
     let projection = camera
         .view_projection(0.0)
         .expect_err("a zero aspect has no projection");
-    let disagreement = frame::Disagreement {
+    let disagreement = idpass::Disagreement {
         from_gpu: None,
         from_ray: None,
     };
@@ -1183,23 +1185,23 @@ fn the_chooser_probe_is_confident_only_with_neither_backend_reading() {
     // nothing". The probe's decision logic is a pure function of the
     // two readings, so these rows hold whatever is on the CI box's
     // PATH.
-    use frame::{ChooserBackend, SessionBus, Zenity};
+    use platform::{ChooserBackend, SessionBus, Zenity};
     assert_eq!(
-        frame::chooser_backend_of(Zenity::OnPath, SessionBus::NotAdvertised),
+        platform::chooser_backend_of(Zenity::OnPath, SessionBus::NotAdvertised),
         ChooserBackend::ZenityPresent
     );
     assert_eq!(
-        frame::chooser_backend_of(Zenity::OnPath, SessionBus::Advertised),
+        platform::chooser_backend_of(Zenity::OnPath, SessionBus::Advertised),
         ChooserBackend::ZenityPresent,
         "zenity needs no portal"
     );
     assert_eq!(
-        frame::chooser_backend_of(Zenity::NotOnPath, SessionBus::Advertised),
+        platform::chooser_backend_of(Zenity::NotOnPath, SessionBus::Advertised),
         ChooserBackend::PortalPossible,
         "a session bus makes a portal POSSIBLE — a hint, never a verdict"
     );
     assert_eq!(
-        frame::chooser_backend_of(Zenity::NotOnPath, SessionBus::NotAdvertised),
+        platform::chooser_backend_of(Zenity::NotOnPath, SessionBus::NotAdvertised),
         ChooserBackend::Absent
     );
     assert!(ChooserBackend::ZenityPresent.usable());
@@ -1381,23 +1383,23 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
 
     // Agreement: same face, no verdict.
     assert_eq!(
-        frame::disagreement(&index, answer(7, id), Some(7), Some(&hit.name)),
+        idpass::disagreement(&index, answer(7, id), Some(7), Some(&hit.name)),
         None
     );
     // A stale answer is not a verdict at all — nor is one with nothing
     // outstanding, which is the leave case.
     assert_eq!(
-        frame::disagreement(&index, answer(6, id), Some(7), None),
+        idpass::disagreement(&index, answer(6, id), Some(7), None),
         None
     );
-    assert_eq!(frame::disagreement(&index, answer(7, id), None, None), None);
+    assert_eq!(idpass::disagreement(&index, answer(7, id), None, None), None);
     // Nothing under the cursor on both sides is agreement.
     assert_eq!(
-        frame::disagreement(&index, answer(7, IdMap::NOTHING), Some(7), None),
+        idpass::disagreement(&index, answer(7, IdMap::NOTHING), Some(7), None),
         None
     );
     // A real disagreement reports both sides.
-    let report = frame::disagreement(&index, answer(7, IdMap::NOTHING), Some(7), Some(&hit.name))
+    let report = idpass::disagreement(&index, answer(7, IdMap::NOTHING), Some(7), Some(&hit.name))
         .expect("nothing vs a face is a disagreement");
     assert_eq!(report.from_gpu, None);
     assert_eq!(report.from_ray.as_ref(), Some(&hit.name));
@@ -1464,12 +1466,12 @@ fn an_edge_hover_is_not_a_disagreement_because_the_face_is_what_is_compared() {
 
     // The defect, pinned: the hover's name against the patch's.
     assert!(
-        frame::disagreement(&index, answer(7, id), Some(7), Some(&edge.name)).is_some(),
+        idpass::disagreement(&index, answer(7, id), Some(7), Some(&edge.name)).is_some(),
         "an edge name against a patch name is two questions, and the check cannot know it"
     );
     // The fix: the ray side answers the question the id buffer asked.
     assert_eq!(
-        frame::disagreement(&index, answer(7, id), Some(7), Some(&face.name)),
+        idpass::disagreement(&index, answer(7, id), Some(7), Some(&face.name)),
         None,
         "the face under the cursor is what the id buffer named"
     );
@@ -1502,7 +1504,7 @@ fn one_name_drawn_twice_is_not_a_disagreement() {
         .find(|id| !index.ids_of_target(&face_of(&hit)).contains(id))
         .expect("a second occurrence");
     assert_eq!(
-        frame::disagreement(&index, answer(3, other), Some(3), Some(&hit.name)),
+        idpass::disagreement(&index, answer(3, other), Some(3), Some(&hit.name)),
         None,
         "two ids of one name are the same answer"
     );
@@ -2431,7 +2433,7 @@ fn the_preferences_path_follows_the_xdg_rules() {
     use std::path::PathBuf;
 
     let xdg = |c: Option<&str>, h: Option<&str>| {
-        frame::prefs_path_in(c.map(OsStr::new), h.map(OsStr::new))
+        platform::prefs_path_in(c.map(OsStr::new), h.map(OsStr::new))
     };
     let tail = PathBuf::from("pncad").join("viewer.toml");
 
