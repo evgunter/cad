@@ -458,4 +458,15 @@ fn the_tie_break_aims_unchanged_count_is_not_an_unchanged_set() {
         tie_sweep(doc.name, "the first edit", &fresh_index(&session), &mut a);
     }
     println!("# pick2-r1 tie-break aim: {a:#?}");
+    // The claim the probe was written to make: the amendment's
+    // `149 -> 149` is the same SET, not two counts that happen to
+    // agree. A ray that swapped sides would leave the total where it
+    // is and still be a change in what the door answers on the graze
+    // class — which is exactly the class this unit moves.
+    assert_eq!(
+        (a.newly_beyond_or_miss, a.newly_aimed),
+        (0, 0),
+        "aimed rays swapped sides between the two acceptances while the total stayed at {}: {a:#?}",
+        a.beyond_or_miss_landed
+    );
 }
