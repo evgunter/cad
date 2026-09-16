@@ -336,8 +336,8 @@ fn stacking_fold<T: Decide>(
     if places.len() < 2 || places.len() != geometry.canonical.len() {
         return Err(LoftError::SectionStructure);
     }
-    let mut base = outer_world::<T>(&geometry.canonical[0], &places[0])
-        .ok_or(LoftError::SectionStructure)?;
+    let mut base =
+        outer_world::<T>(&geometry.canonical[0], &places[0]).ok_or(LoftError::SectionStructure)?;
     for slab in 0..places.len() - 1 {
         let next = outer_world::<T>(&geometry.canonical[slab + 1], &places[slab + 1])
             .ok_or(LoftError::SectionStructure)?;
