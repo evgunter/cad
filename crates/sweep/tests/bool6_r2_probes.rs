@@ -90,7 +90,10 @@ fn r2_middle_slab_band_edges_at_interval() {
         loft_body::<Interval>(&four_squares(), &stacked_at(&[-1.0, 0.0, s, 1.0]), 2, tol)
             .map(|_| ())
     };
-    assert!(matches!(run(eps), Err(LoftError::DegenerateStacking { slab: 1 })));
+    assert!(matches!(
+        run(eps),
+        Err(LoftError::DegenerateStacking { slab: 1 })
+    ));
     assert!(matches!(
         run(next_up(eps)),
         Err(LoftError::StackingEscalated { slab: 1, .. })
@@ -134,7 +137,12 @@ fn r2_a_rotated_top_loop_still_measures_the_centroid() {
     // And a 45° turn of a square (a twisted loft), three sections.
     let h = core::f64::consts::FRAC_1_SQRT_2;
     let sq = quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]);
-    let diamond = quad([(0.0, -h * 2.0), (h * 2.0, 0.0), (0.0, h * 2.0), (-h * 2.0, 0.0)]);
+    let diamond = quad([
+        (0.0, -h * 2.0),
+        (h * 2.0, 0.0),
+        (0.0, h * 2.0),
+        (-h * 2.0, 0.0),
+    ]);
     let twisted = vec![sq.clone(), diamond, sq];
     let t = loft_body::<f64>(&twisted, &stacked_at(&[0.0, 1.0, 2.0]), 2, tol);
     assert!(t.is_ok(), "twisted: {:?}", t.err());
@@ -147,9 +155,15 @@ fn r2_a_rotated_top_loop_still_measures_the_centroid() {
 #[test]
 fn r2_differing_vertex_counts_are_the_skins_refusal() {
     let pent = vec![ProfileLoop::polygon(
-        [(1.0, 0.0), (0.3, 0.95), (-0.8, 0.59), (-0.8, -0.59), (0.3, -0.95)]
-            .iter()
-            .map(|&(x, y)| Point2::new(x, y)),
+        [
+            (1.0, 0.0),
+            (0.3, 0.95),
+            (-0.8, 0.59),
+            (-0.8, -0.59),
+            (0.3, -0.95),
+        ]
+        .iter()
+        .map(|&(x, y)| Point2::new(x, y)),
     )];
     let sections = vec![loft_prism_sections()[0].clone(), pent];
     match loft_body::<f64>(&sections, &stacked_at(&[0.0, 1.0]), 1, Tol::witness()) {
