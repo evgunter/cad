@@ -284,3 +284,13 @@ thirteen.
   incomplete (both doors do), and the PR body says so.
 - **S6**, `DocEdit`'s stale-changelog header: pre-existing, filed as
   `work/edit/docedit-header-is-a-changelog-not-an-invariant`.
+
+### Verified after the fix pass (2026-09-16)
+
+CI run **35071911459** on head `6890d83f9`, **success**: 39 checks —
+twelve `test (…)` jobs, five `k-lint (gate, …)` unifications, `python
+suite (wheel + guide + north-star)`, the render lanes, `gate ok`; the
+routine three skips. The python suite was also reproduced LOCALLY this
+pass (maturin wheel into a venv, `unittest discover` as the job runs
+it: 833 tests, OK), so its two censuses were satisfied before the push
+rather than discovered red on CI as they were the first time.
