@@ -11951,7 +11951,7 @@ take the machine as their argument and cannot be replayed from any
 value a test builds (`platform.rs`), and the id pass's query
 bookkeeping, which is state carried ACROSS frames because a query and
 its answer sit on different ones (`idpass.rs`). 2,996 lines became
-2,582 + 257 + 253. A move: no test assertion changed, and the only test
+2,583 + 257 + 254. A move: no test assertion changed, and the only test
 edits are import paths.
 
 **The membership was checked against the ruling rather than taken from

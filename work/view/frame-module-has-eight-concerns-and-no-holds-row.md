@@ -210,10 +210,11 @@ it.
 
 984 lines when this was filed, 1,131 at #1886, 2,037 at #1933, 2,298 at
 #1957, 2,475 at #2026, 2,536 after the `dialog_status` deletion, 2,996
-when the rule above was written. **After the cut: `frame.rs` 2,582,
-`platform.rs` 257, `idpass.rs` 253** — 3,092 over three files against
-2,996 over one, the difference being two module headers and two `use`
-blocks. Nothing was deleted and no behaviour changed.
+when the rule above was written. **After the cut: `frame.rs` 2,583,
+`platform.rs` 257, `idpass.rs` 254** — 3,094 over three files against
+2,996 over one, the difference being two module headers, two `use`
+blocks and three doc links that had to be spelled across the new
+boundary. Nothing was deleted and no behaviour changed.
 
 **The membership, checked rather than taken.** The ruling's two OUT
 sets are right about what leaves; the item's own lists under them were
