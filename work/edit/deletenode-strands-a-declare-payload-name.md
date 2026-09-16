@@ -2,10 +2,12 @@
 id: deletenode-strands-a-declare-payload-name
 kind: unit
 title: DeleteNode leaves a Declare whose payload names a dead node: DeleteWouldDangle reads inputs only
-status: spec
+status: closed
+pr: 2753
 opened: 2026-09-06
 refs: [2028, 2028]
 branch: edit/delete-strands
+closed: 2026-09-16
 ---
 
 
@@ -155,3 +157,70 @@ Branch `edit/delete-strands`.
 5. File the CHROME affordance (the strand count beside the cascade
    count) on `work/chrome/` in this PR — it is this ruling's chrome
    consequence and CHROME has not been asked.
+
+## Built (2026-09-16)
+
+PR 2753, branch `edit/delete-strands`. DM7 is built.
+
+**Landed.** `Applied.maintenance` is a `Vec<Maintenance>` — a new enum
+in `edit.rs` whose two arms are `Cluster(ClusterMaintenance)`, the A11
+registry acts unchanged, and `Strand { node, name }`, one row per
+surviving payload name whose minting node the edit removed. The
+`DeleteNode` arm of `apply` computes the strands after the removal,
+over the document as it then stands, through `Node::payload_names` —
+the same single answer the insert door checks with, so no fifth list.
+The strands lead the column and the reconciliation appends after them;
+that order is stated as a CONTRACT on the field, with its pinning row
+named. `ClusterMaintenance` gained a prose `Display` beside its own
+type in `mate/solve.rs` and `Maintenance` delegates to it, so each
+enum's arms are guarded by their own F6 census.
+`Node::payload_read_sites` is deliberately not walked, and the
+function says why at the site, with the walk's per-delete cost under a
+cascade stated beside it.
+
+The façade follows mechanically: `pncad::document` carries
+`Maintenance` beside `Applied`; `pncad-py`'s `ClusterMaintenance`
+pyclass becomes `Maintenance` with a `strand` tag and `node`/`name`
+getters, with the stub, the tag inventory, the census and the `ty`
+fixture in step. Every sentence promising a cluster-only column was
+swept (`py/doc.rs`, `pncad.pyi`, `refactor.rs`, `eval4`'s header,
+`docs/guide/selecting.md`).
+
+Rows: `crates/editor-core/tests/dm7_delete_strands.rs` (seven,
+including DOCM-7's R1 probe shape lifted from `origin/docm/7-review-r1`
+into an assertion, and a carrier row whose expectation is DERIVED by an
+exhaustive `match` over `Node` so a new name-carrying variant fails to
+compile), plus one `display_contract` row per enum, plus the review's
+four probes adopted from `review/strands-rv` authorship-preserving
+(`rv_dm7_probes.rs`).
+
+**Did not land, deliberately.** The strand row carries `(node, name)`
+alone: the deleted minting node is `name.node` by construction, and a
+third field repeating it is a disagreement waiting to happen. The
+spec's CHROME filing was not made as a new file — the row already
+existed as `work/chrome/cascade-delete-shows-the-strand-count`, parked
+on this unit, and this PR corrects its count definition in place rather
+than opening a second file (`work/README.md` "One file, one item";
+`docs/prompts/implementer-discipline.md` §6, "add your evidence to it
+rather than opening a second").
+`replay-and-load-keep-the-document-without-its-maintenance` is NOT
+closed: replay and load discard the column by the documented load
+boundary, which the PR states, and the new round-trip row asserts only
+what makes the discard lossless.
+
+**Filed by this unit.**
+`work/edit/stranded-appearance-keys-are-not-reported-by-dm7` — an
+appearance attachment is the same N5 shape one door over and DM7's
+walk does not see it; a clause-scope question for Ev, measured by an
+adopted probe, not built here.
+`work/lib/maintenance-crosses-python-as-a-nine-attribute-union-class`
+— the façade's union class, recorded as an instance of a class whose
+every LIB row is closed.
+
+## Closed (2026-09-16, EDIT orchestrator)
+
+DM7 built and merged as PR #2753 after one opus style review with a
+correctness arm (APPROVE-WITH-FIXES, three MINORs, all built at the fix
+pass) and the orchestrator's read. Residue in its own files:
+`stranded-appearance-keys-are-not-reported-by-dm7` (a clause-scope
+question for Ev), the CHROME affordance row unparks at this merge.

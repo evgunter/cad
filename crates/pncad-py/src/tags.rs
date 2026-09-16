@@ -128,9 +128,9 @@ use pncad::analysis::{
 use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission,
     ClusterMaintenance, DimensionError, Distribution, DistributionFault, DistributionField,
-    EditError, EvalError, InlineError, InterfaceCrossing, LeverRefusal, MateFault, MatePrimitive,
-    MeasureNodeFault, MeasureUnavailableAt, MetaVersionError, MintRefusal, NodeErrorKind,
-    ParseError, PersistError, PlacementRuleFault, ProgramFault, ProgramRefusal,
+    EditError, EvalError, InlineError, InterfaceCrossing, LeverRefusal, Maintenance, MateFault,
+    MatePrimitive, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError, MintRefusal,
+    NodeErrorKind, ParseError, PersistError, PlacementRuleFault, ProgramFault, ProgramRefusal,
     RecordedProgramError, RefusedRef, Relation, RootFault, ShellClassifyError, SlotId,
     SnapshotError, SplitError, Subgroup, UpdateError,
 };
@@ -2825,20 +2825,23 @@ pub fn subgroup_tag(subgroup: &Subgroup) -> &'static str {
     }
 }
 
-/// The stable tag for one recorded act of cluster-record maintenance
-/// — what an ordinary edit's motion of the mate graph forced on the
-/// placement registry.
+/// The stable tag for one act of maintenance an accepted edit
+/// performed — what the mate graph's motion forced on the placement
+/// registry, or a payload name the edit stranded.
 ///
 /// The word decides which payload attributes carry: a `join` names
 /// the gauge that survived and the one absorbed, a `split` the two
 /// gauges it left behind, a `gauge_rewrite` the cluster whose gauge
-/// moved, and a `drop` the registry row that went away.
-pub fn cluster_maintenance_tag(maintenance: &ClusterMaintenance) -> &'static str {
+/// moved, a `drop` the registry row that went away, and a `strand`
+/// the surviving node and the name whose minting node the edit
+/// deleted.
+pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
     match maintenance {
-        ClusterMaintenance::Join { .. } => "join",
-        ClusterMaintenance::Split { .. } => "split",
-        ClusterMaintenance::GaugeRewrite { .. } => "gauge_rewrite",
-        ClusterMaintenance::Drop { .. } => "drop",
+        Maintenance::Cluster(ClusterMaintenance::Join { .. }) => "join",
+        Maintenance::Cluster(ClusterMaintenance::Split { .. }) => "split",
+        Maintenance::Cluster(ClusterMaintenance::GaugeRewrite { .. }) => "gauge_rewrite",
+        Maintenance::Cluster(ClusterMaintenance::Drop { .. }) => "drop",
+        Maintenance::Strand { .. } => "strand",
     }
 }
 
