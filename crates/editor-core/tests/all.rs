@@ -419,6 +419,8 @@ mod r2_m10_di_probes;
 mod rev_fix_xsplit_unreachable;
 #[path = "review_gui1_r1.rs"]
 mod review_gui1_r1;
+#[path = "rv_onepred3_probes.rs"]
+mod rv_onepred3_probes;
 #[path = "review_m4_pr1.rs"]
 mod review_m4_pr1;
 #[path = "review_m4_pr1_die.rs"]
