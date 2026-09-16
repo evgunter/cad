@@ -23,9 +23,10 @@
 //!   carried-datum arm covers the off-axis one-cap shape, and the
 //!   off-axis-circle mint carries the moved rim (a plane cuts a
 //!   sphere in a circle, always). What still stands between the lune
-//!   and `shell` is the PROPS inventory — the sphere flux arm's
-//!   `props_band_coplanar` premise refuses the OPERAND's own wall
-//!   today — and that wall is pinned with its payload below;
+//!   and `shell` is the PROPS inventory — the CAVITY's lens face,
+//!   bounded by the moved caps' off-centre sections, has no closed
+//!   form (`props_meridian_great`) — and that wall is pinned with its
+//!   payload below;
 //! - the KLEIN ELBOW (torus wall) now refuses one door deeper than
 //!   its old `TogetherAxialCorner`: its corners solve through the
 //!   carried-datum arm, and the rim EDGE has no carrier — the moved

@@ -1724,7 +1724,10 @@ impl SphereFluxSide {
 /// ```
 ///
 /// — the carrier axis itself, signed by the sense bit and the forward
-/// bit, and nothing else. The face covers the azimuthal arc that
+/// bit, and nothing else (the code executes the cross product as
+/// written, with the sense bit folded through
+/// [`crate::enters::OutwardNormal::from_chart`], the one door that
+/// may fold it). The face covers the azimuthal arc that
 /// leaves `d_A` in the direction `I_A` and ends at `d_B`, so with
 /// `(d_A, I_A)` an orthonormal frame of the equatorial plane its width
 /// is the polar angle of `d_B` in that frame,
@@ -1788,18 +1791,26 @@ fn sphere_wedge_azimuth<T: Decide>(
                    the two-band face nor a wedge)",
         });
     };
+    let inv_r = T::one() / radius;
     // Half-plane directions: the stored parameterisation's departure
     // direction at each arc's `t0` pole (fn docs).
-    let d_a = n_a.cross(a.p0() - center) * (T::one() / radius);
-    let d_b = n_b.cross(b.p0() - center) * (T::one() / radius);
-    // The interior direction at arc A — the carrier axis, signed by
-    // the sense bit and the forward bit (fn docs).
-    let i_a = *n_a
-        * if sense == a.forward {
-            T::one()
-        } else {
-            -T::one()
-        };
+    let w_a = a.p0() - center;
+    let d_a = n_a.cross(w_a) * inv_r;
+    let d_b = n_b.cross(b.p0() - center) * inv_r;
+    // The interior direction at arc A, executed as interior-left
+    // states it: the outward normal at the arc's stored start — the
+    // radial chart normal folded by the sense bit through the one door
+    // that may fold it — crossed with the traversal tangent there
+    // (`dP/dt = n × (P − c)`, reversed with the forward bit). The
+    // product is `ν·f_A·n_A` scaled by R (fn docs); `inv_r` restores
+    // the unit direction.
+    let outward = crate::enters::OutwardNormal::from_chart(w_a * inv_r, sense).vec();
+    let tangent = if a.forward {
+        n_a.cross(w_a)
+    } else {
+        w_a.cross(*n_a)
+    };
+    let i_a = outward.cross(tangent) * inv_r;
     let phi = d_b.dot(i_a).atan2(d_b.dot(d_a));
     match classify("props_wedge_azimuth", Margin::levered(phi, radius), band)? {
         Sign::Positive => Ok(phi),
