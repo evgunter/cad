@@ -54,6 +54,14 @@
 mod common;
 mod fixture;
 
+#[path = "bool4_material_containment.rs"]
+mod bool4_material_containment;
+#[path = "bool4r1_probes.rs"]
+mod bool4r1_probes;
+#[path = "bool4r2_base_probe.rs"]
+mod bool4r2_base_probe;
+#[path = "bool4r2_probes.rs"]
+mod bool4r2_probes;
 #[path = "box_with_hole.rs"]
 mod box_with_hole;
 #[path = "census_g2_carrier.rs"]

@@ -795,6 +795,21 @@ pub enum ChecksError {
     },
 }
 
+/// **The pairing predicate's finding, in this door's vocabulary.**
+///
+/// A2a's rule is one predicate (`ident::mispaired`) and one arm per
+/// error type over it. The projection lives HERE, at the type that
+/// owns the arm, so a door that runs the predicate writes `?` or
+/// `m.into()` and no site re-spells which field goes where.
+impl From<crate::ident::Mispaired> for ChecksError {
+    fn from(m: crate::ident::Mispaired) -> Self {
+        Self::EvaluationOfAnotherDocument {
+            expected: m.expected,
+            found: m.found,
+        }
+    }
+}
+
 impl ChecksError {
     /// [`ChecksError::Product`] built from ONE subject: the class a
     /// consumer matches and the sentence a reader reads travel
@@ -1014,12 +1029,7 @@ pub fn run_checks_on<P, T: Decide + AtRestPolicy + CertifiedBounds + ChartCohere
     cfg: &ChecksConfig,
     tol: Tol,
 ) -> Result<ChecksReport, ChecksError> {
-    let pairing = |found| {
-        crate::ident::mispaired(doc.id(), found).map(|m| ChecksError::EvaluationOfAnotherDocument {
-            expected: m.expected,
-            found: m.found,
-        })
-    };
+    let pairing = |found| crate::ident::mispaired(doc.id(), found).map(ChecksError::from);
     if let Some(refusal) = pairing(ev.document) {
         return Err(refusal);
     }

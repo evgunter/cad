@@ -1365,7 +1365,10 @@ fn attribute(
         // a pair the records declare (in both orientations) and leaves
         // it to the confirm pass, so a declared pair never reaches it;
         // the instance-containment arm names SOLIDS, which no lookup
-        // over face keys can match.
+        // over face keys can match. `InstanceInterference` is that
+        // arm's decided verdict — two solids and a vertex, a statement
+        // about placement that no contact record makes and no mate
+        // answers for (recorded gate-skips do not exist).
         ValidationError::UndeclaredContact { .. }
         | ValidationError::StaleContactDeclaration {
             declaration:
@@ -1386,7 +1389,8 @@ fn attribute(
                 ),
             ..
         }
-        | ValidationError::CensusUndecidable { .. } => Attribution::Unattributed,
+        | ValidationError::CensusUndecidable { .. }
+        | ValidationError::InstanceInterference { .. } => Attribution::Unattributed,
         // Everything the tier-1/2/3 passes find: the body's own
         // structure and geometry. None of these is a statement about
         // a contact record, so none can be a verdict on a

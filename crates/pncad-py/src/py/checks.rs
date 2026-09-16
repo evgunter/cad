@@ -675,13 +675,7 @@ pub(crate) fn run_checks(
 
 /// A mispaired `(doc, evaluation)` as this door's own refusal.
 fn mispaired_checks(py: Python<'_>, m: d::Mispaired) -> PyErr {
-    checks_err(
-        py,
-        &d::ChecksError::EvaluationOfAnotherDocument {
-            expected: m.expected,
-            found: m.found,
-        },
-    )
+    checks_err(py, &m.into())
 }
 
 /// **The registry's one refusing path.** Refuses iff `report` carries a
