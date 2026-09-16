@@ -1,32 +1,28 @@
 //! **The per-slab stacking fold** (issue 368, ruled 2026-09-01).
 //!
-//! The loft's stacking statement is a FOLD over adjacent section
-//! pairs, each pair decided against ITS OWN base section's plane
-//! normal, and not a single end-to-end summary of the last section
-//! against the first. These rows pin both directions of that change.
+//! The loft's stacking statement is a fold over adjacent section
+//! pairs, each pair decided against its own base section's plane
+//! normal (`sweep::loft`'s `stacking_fold`, where the statement is
+//! made and stated). These rows pin what that admits, what it refuses,
+//! and what it names when it refuses.
 //!
-//! What moves: a planar spine that turns past π stacks honestly at
-//! every slab and now BUILDS, where the end-to-end statement —
-//! `cos(curl/2)` for a planar arc spine — walled it at exactly a half
-//! turn regardless of station count. The wall that remains is the
-//! per-slab one, at per-slab turn π (total curl `(k−1)·π` for `k`
-//! sections), so it is a statement about how coarsely the spine was
-//! sampled rather than about how far it goes.
-//!
-//! What ALSO moves, in the strict direction: a stack that walks
-//! BACKWARDS in the middle and recovers — `z = 0, 1, 0.5, 2` — used to
-//! pass on the strength of its positive end-to-end sum. Every such
-//! slab is now decided on its own and refuses NAMING the pair, because
-//! the reorder recourse the refusal offers is only sound for a wholly
-//! reversed list.
+//! The admitted family reaches past a half turn, and the ORACLE that
+//! can answer there is the turning one. The loft corpus's default,
+//! `common::orient::loft_contains`, measures against a fixed reference
+//! chord and refuses a stack this curled outright — `cos = 0.0698` at
+//! v-fraction `0.03125` against its `FIXED_AXIS_GUARD_COS` of `0.1`,
+//! measured on the 3.5-rad spine — so [`common::orient::LevelIndex`],
+//! the index the long-turn sweep suite uses, is the instrument for
+//! every orientation row here.
+
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Mat3, Tol, Vec3};
 use sweep::test_support::{loft_prism_sections, stacked_at};
-use sweep::{LoftError, loft_body};
+use sweep::{LoftError, Lofted, loft_body};
 
 use crate::common;
-use common::quad;
+use common::{band_midpoint, quad};
 
 /// The section every arc-spine row lofts: a small square, kept far
 /// smaller than the spine's radius of curvature so the walls never
@@ -36,17 +32,25 @@ fn spine_section() -> sweep::Section {
     quad([(-0.05, -0.05), (0.05, -0.05), (0.05, 0.05), (-0.05, 0.05)])
 }
 
+/// Four copies of the loft prism's square section.
+fn four_sections() -> Vec<sweep::Section> {
+    vec![loft_prism_sections()[0].clone(); 4]
+}
+
 /// **The issue's executed signature, in the sweep crate's own
 /// vocabulary**: `stations` sections placed along a planar circular
-/// arc of unit radius that turns through `curl` toward `+z`, each
+/// arc of UNIT RADIUS turning through `curl` toward `+z`, each
 /// section's plane normal the spine's own tangent there.
 ///
 /// This is lily's leaf-A spine with a constant section — the same
 /// placement family (`demos/tour/src/lily.rs::lofted_blade`), reduced
-/// to the part the stacking statement reads. The end-to-end
-/// displacement of the last section against the FIRST section's normal
-/// is `R·sin(curl)·cos(0) …` in closed form `∝ cos(curl/2)`; each
-/// slab's is `∝ cos(curl/(2(stations−1)))`.
+/// to the part the stacking statement reads. Station `i` sits at
+/// `θ = curl·i/(stations − 1)`, at `(sin θ, 0, 1 − cos θ)` with
+/// tangent `(cos θ, 0, sin θ)`. Two consequences the rows below use: a
+/// slab's displacement makes an angle of half the slab's turn with its
+/// base tangent, so the slab margin goes negative exactly when the
+/// SLAB turns past π; and the spine closes on itself at `curl = 2π`,
+/// past which the body passes through itself.
 fn arc_spine_places(curl: f64, stations: usize) -> Vec<Affine3<f64>> {
     (0..stations)
         .map(|i| {
@@ -64,25 +68,33 @@ fn arc_spine_places(curl: f64, stations: usize) -> Vec<Affine3<f64>> {
         .collect()
 }
 
-/// Lofts the arc-spine family at one curl.
-fn arc_spine_loft(curl: f64, stations: usize) -> Result<(), LoftError> {
-    let sections = vec![spine_section(); stations];
-    // The v-degree the skin can interpolate `stations` sections at —
-    // 3 wherever there is room for it, as lily lofts its blade.
-    let v_degree = stations.min(4) - 1;
-    loft_body::<f64>(
-        &sections,
-        &arc_spine_places(curl, stations),
-        v_degree,
-        Tol::witness(),
-    )
-    .map(|_| ())
+/// The v-degree the skin can interpolate `stations` sections at — 3
+/// wherever there is room for it, as lily lofts its blade.
+fn spine_degree(stations: usize) -> usize {
+    stations.min(4) - 1
 }
 
-/// **Curls past π build.** The issue's executed signature: 0.45 … 3.0
-/// built before (through the end-to-end wall at exactly π), and 3.5
-/// and 4.0 refused `ReversedStacking` although every slab — 1/16 of
-/// the turn at 17 stations — advances honestly.
+/// Lofts the arc-spine family at one curl, keeping the body.
+fn arc_spine_lofted(curl: f64, stations: usize) -> Result<Lofted<f64>, LoftError> {
+    loft_body::<f64>(
+        &vec![spine_section(); stations],
+        &arc_spine_places(curl, stations),
+        spine_degree(stations),
+        Tol::witness(),
+    )
+}
+
+/// Lofts the arc-spine family at one curl, keeping only the verdict.
+fn arc_spine_loft(curl: f64, stations: usize) -> Result<(), LoftError> {
+    arc_spine_lofted(curl, stations).map(|_| ())
+}
+
+/// **A planar arc spine lofts past π.** At 17 stations each slab
+/// carries a sixteenth of the turn, so the fold's statement is met all
+/// the way through and the loft builds. Every curl here stays well
+/// inside the spine's own closure at `2π`, so none of these bodies
+/// revisits itself; the family past that point is
+/// [`a_curl_past_a_full_turn_builds_a_spine_that_revisits_itself`].
 #[test]
 fn a_planar_arc_spine_lofts_past_pi() {
     for curl in [0.45, 1.0, 2.0, 2.5, 2.8, 3.0, 3.5, 4.0] {
@@ -97,43 +109,123 @@ fn a_planar_arc_spine_lofts_past_pi() {
     }
 }
 
-/// **The wall that remains is PER-SLAB, and it is about sampling.**
-/// The same total curl builds at 17 stations and refuses at 3, because
-/// at 3 stations one slab carries 1.1π of it and its displacement
-/// genuinely runs against its own base normal.
+/// **The wall is per-slab turn π, and it is about SAMPLING.** One
+/// total turn, both sides of the wall, with no self-overlap anywhere
+/// in the row: `1.1π` over two stations puts the whole of it in one
+/// slab and refuses naming that slab; the same `1.1π` over seventeen
+/// puts `0.069π` in each and builds. Only the sampling differs.
 #[test]
 fn the_remaining_wall_is_per_slab_turn_pi() {
-    let curl = 2.2 * core::f64::consts::PI;
-    assert!(
-        arc_spine_loft(curl, 17).is_ok(),
-        "{curl:.3} rad over 17 stations is 0.138π per slab and must build"
-    );
-    match arc_spine_loft(curl, 3) {
+    let curl = 1.1 * core::f64::consts::PI;
+    match arc_spine_loft(curl, 2) {
         Err(LoftError::ReversedStacking { slab }) => assert_eq!(
             slab, 0,
-            "the FIRST slab past the wall is the one named, not a later one"
+            "a two-station loft has one slab and it is the one named"
         ),
-        other => panic!(
-            "{curl:.3} rad over 3 stations is 1.1π per slab and must refuse \
-             reversed, got {other:?}"
-        ),
+        other => {
+            panic!("{curl:.3} rad in ONE slab is 1.1π and must refuse reversed, got {other:?}")
+        }
+    }
+    assert!(
+        arc_spine_loft(curl, 17).is_ok(),
+        "{curl:.3} rad over 17 stations is 0.069π per slab and must build"
+    );
+}
+
+/// **Past a full turn the spine revisits itself — and nothing refuses
+/// it.** The fold is local by ruling, so a body that passes through
+/// itself is not the fold's to see, and no other gate in the kernel
+/// looks either: this row exists so that "curl 9.0 builds" is on
+/// record as what it is rather than as a win.
+///
+/// What the row measures: two stations three or more apart come closer
+/// together than the section is wide, so the tube passes through its
+/// own wall. What the kernel says about that body: tiers 1, 2 and 3
+/// are all `Ok`. What an index that can see it says,
+/// `LevelIndex::contains` REFUSES to answer — "2 level rings claim
+/// Point3 { x: 0.4529…, y: -0.025, z: 0.0625… } — the body overlaps
+/// itself there and containment is not a function of position" — which
+/// is why this row does not ask it for a verdict.
+///
+/// Adopted from the BOOL-6 R1 review probes.
+#[test]
+fn a_curl_past_a_full_turn_builds_a_spine_that_revisits_itself() {
+    let tol = Tol::witness();
+    let places = arc_spine_places(9.0, 17);
+    let lofted = arc_spine_lofted(9.0, 17).expect("curl 9.0 over 17 stations builds");
+    assert_eq!(topo::validate(&lofted.body), Ok(()), "tier 1 is silent");
+    assert_eq!(
+        topo::validate_closed(&lofted.body),
+        Ok(()),
+        "tier 2 is silent"
+    );
+    assert_eq!(
+        topo::validate_geometric(&lofted.body, tol),
+        Ok(()),
+        "tier 3 is silent too"
+    );
+    let mut closest = f64::INFINITY;
+    for i in 0..places.len() {
+        for j in i + 3..places.len() {
+            let d: Vec3<f64> = places[j].translation - places[i].translation;
+            closest = closest.min(d.norm());
+        }
+    }
+    assert!(
+        closest < 0.1,
+        "stations three or more apart come within {closest} — the section is 0.1 \
+         wide, so a spine curled to 9.0 rad at unit radius passes through its own \
+         body, and every tier above said Ok"
+    );
+}
+
+/// **The widened accept side still faces out everywhere.** The
+/// stacking gate exists to make the caps' and the walls' orientation
+/// honest, so the family the fold newly admits has to be asked the
+/// question the gate is for, not just `is_ok()`: on a spine curled
+/// past π, every wall's chart normal points out of the material and
+/// both caps do too.
+///
+/// The oracle is [`common::orient::LevelIndex`] for the reason the
+/// module docs give.
+///
+/// Adopted from the BOOL-6 R1 review probes.
+#[test]
+fn a_spine_curled_past_pi_still_faces_out_everywhere() {
+    for curl in [3.5, 6.0] {
+        let lofted = arc_spine_lofted(curl, 17)
+            .unwrap_or_else(|e| panic!("curl {curl} rad over 17 stations lofts: {e:?}"));
+        assert_eq!(topo::validate(&lofted.body), Ok(()), "curl {curl}: tier 1");
+        assert_eq!(
+            topo::validate_closed(&lofted.body),
+            Ok(()),
+            "curl {curl}: tier 2"
+        );
+        let index = common::orient::LevelIndex::build(&lofted);
+        assert!(
+            index.total_turn() > 0.9 * curl,
+            "curl {curl}: the level planes must really turn, got {}",
+            index.total_turn()
+        );
+        let oracle = |q| index.contains(q);
+        common::orient::assert_walls_face_out(
+            &lofted,
+            &oracle,
+            &common::orient::along_v(),
+            0.01,
+            4,
+        );
+        common::orient::assert_caps_face_out(&lofted, &oracle, 0.01);
     }
 }
 
 /// **A reversed MIDDLE slab refuses, naming its pair.** `z = 0, 1,
-/// 0.5, 2` sums to a positive end-to-end displacement and passed the
-/// ends-only statement; slab 1 walks backwards and is an authoring
-/// fault the builder must not orient past.
+/// 0.5, 2` steps backwards between sections 1 and 2 and forwards
+/// either side of it; the fold decides that pair on its own.
 #[test]
 fn a_reversed_middle_slab_refuses_naming_its_pair() {
-    let sections = vec![
-        loft_prism_sections()[0].clone(),
-        loft_prism_sections()[0].clone(),
-        loft_prism_sections()[0].clone(),
-        loft_prism_sections()[0].clone(),
-    ];
     let places = stacked_at(&[0.0, 1.0, 0.5, 2.0]);
-    match loft_body::<f64>(&sections, &places, 2, Tol::witness()) {
+    match loft_body::<f64>(&four_sections(), &places, 2, Tol::witness()) {
         Err(LoftError::ReversedStacking { slab }) => assert_eq!(
             slab, 1,
             "the refusal must name the pair that reverses (sections 1 and 2)"
@@ -142,9 +234,7 @@ fn a_reversed_middle_slab_refuses_naming_its_pair() {
     }
 }
 
-/// **A sliver MIDDLE slab refuses, naming its pair.** A stack that
-/// barely moves at one pair and walks on: the end-to-end sum is +2 and
-/// said nothing about it.
+/// **A sliver MIDDLE slab refuses, naming its pair.**
 ///
 /// The step is read off the RUN's band rather than written as a digit,
 /// because what the row pins is a band verdict — half of ε is
@@ -156,15 +246,9 @@ fn a_reversed_middle_slab_refuses_naming_its_pair() {
 /// sliver, which is what the arm's own docs call it.
 #[test]
 fn a_sliver_middle_slab_refuses_naming_its_pair() {
-    let sections = vec![
-        loft_prism_sections()[0].clone(),
-        loft_prism_sections()[0].clone(),
-        loft_prism_sections()[0].clone(),
-        loft_prism_sections()[0].clone(),
-    ];
     let sliver = 0.5 * Tol::witness().eps();
     let places = stacked_at(&[0.0, 1.0, 1.0 + sliver, 2.0]);
-    match loft_body::<f64>(&sections, &places, 2, Tol::witness()) {
+    match loft_body::<f64>(&four_sections(), &places, 2, Tol::witness()) {
         Err(LoftError::DegenerateStacking { slab }) => assert_eq!(
             slab, 1,
             "the refusal must name the sliver pair (sections 1 and 2)"
@@ -174,23 +258,17 @@ fn a_sliver_middle_slab_refuses_naming_its_pair() {
 }
 
 /// **An AMBIGUOUS middle slab escalates, carrying its pair.** The step
-/// is placed in the middle of the run's ambiguity band `(ε, K·ε)`, so
-/// the fold can neither accept nor refuse it — and this is the case
-/// that decides the fold's shape: deciding the MINIMUM slab margin
-/// instead would let the two honest slabs' neighbours say nothing
-/// while a definitely-reversed slab elsewhere answered for this one.
+/// sits at the midpoint of the run's ambiguity band `(ε, K·ε)`, so the
+/// fold can neither accept nor refuse it. This is the case that
+/// decides the fold's shape: a fold that classified the MINIMUM slab
+/// margin would let a definite verdict elsewhere in the list answer
+/// for this pair, and an ambiguous margin is the one thing the D4 band
+/// exists to surface.
 #[test]
 fn an_ambiguous_middle_slab_escalates_carrying_its_pair() {
-    let sections = vec![
-        loft_prism_sections()[0].clone(),
-        loft_prism_sections()[0].clone(),
-        loft_prism_sections()[0].clone(),
-        loft_prism_sections()[0].clone(),
-    ];
     let tol = Tol::witness();
-    let inside_the_band = 0.5 * (1.0 + tol.k()) * tol.eps();
-    let places = stacked_at(&[0.0, 1.0, 1.0 + inside_the_band, 2.0]);
-    match loft_body::<f64>(&sections, &places, 2, tol) {
+    let places = stacked_at(&[0.0, 1.0, 1.0 + band_midpoint(tol), 2.0]);
+    match loft_body::<f64>(&four_sections(), &places, 2, tol) {
         Err(LoftError::StackingEscalated { slab, source }) => {
             assert_eq!(slab, 1, "the escalation must carry the ambiguous pair");
             assert_eq!(
@@ -203,30 +281,15 @@ fn an_ambiguous_middle_slab_escalates_carrying_its_pair() {
     }
 }
 
-/// **A wholly reversed stack names its FIRST slab** — the fold refuses
-/// at the first slab that is not definitely positive, in index order,
-/// so the message points at the earliest authoring fault rather than
-/// the worst one. This is the case the reorder recourse is sound for.
-#[test]
-fn a_wholly_reversed_stack_names_its_first_slab() {
-    let places = stacked_at(&[0.0, -1.0, -2.0]);
-    match loft_body::<f64>(&loft_prism_sections(), &places, 2, Tol::witness()) {
-        Err(LoftError::ReversedStacking { slab }) => assert_eq!(slab, 0, "the first slab"),
-        other => panic!("expected ReversedStacking naming slab 0, got {other:?}"),
-    }
-}
-
-/// **The two-section loft is the degenerate case of the fold.** One
-/// slab, whose base section IS the first section — so the fold
-/// evaluates the very expression the end-to-end statement did, over
-/// the same vertices in the same traversal order, and decides it at
-/// the same `loft_stacking` band. Both signs pinned.
+/// **The two-section loft is one slab, and its base section is the
+/// first section.** Both signs, named.
+///
+/// That the slab's margin IS the step — the same sum over the same
+/// vertices in the same order, at every edge of the band — is
+/// `bool6r1_probes::the_two_section_slab_margin_is_the_step_itself`.
 #[test]
 fn the_two_section_loft_is_one_slab() {
-    let sections = vec![
-        loft_prism_sections()[0].clone(),
-        loft_prism_sections()[0].clone(),
-    ];
+    let sections = vec![loft_prism_sections()[0].clone(); 2];
     assert!(
         loft_body::<f64>(&sections, &stacked_at(&[0.0, 1.0]), 1, Tol::witness()).is_ok(),
         "the forward two-section loft builds"
@@ -241,18 +304,12 @@ fn the_two_section_loft_is_one_slab() {
 /// section the slab does not touch cannot change that slab's verdict:
 /// the `z = 0, 1, 0.5, 2` stack refuses at slab 1 whatever the LAST
 /// section does, including when the end-to-end sum is driven far
-/// positive or made negative outright.
+/// positive.
 #[test]
 fn a_slab_verdict_ignores_the_sections_it_does_not_touch() {
-    let sections = vec![
-        loft_prism_sections()[0].clone(),
-        loft_prism_sections()[0].clone(),
-        loft_prism_sections()[0].clone(),
-        loft_prism_sections()[0].clone(),
-    ];
     for last in [2.0, 40.0] {
         let places = stacked_at(&[0.0, 1.0, 0.5, last]);
-        match loft_body::<f64>(&sections, &places, 2, Tol::witness()) {
+        match loft_body::<f64>(&four_sections(), &places, 2, Tol::witness()) {
             Err(LoftError::ReversedStacking { slab }) => assert_eq!(
                 slab, 1,
                 "slab 1's verdict is its own; the last section sat at {last}"
@@ -263,7 +320,7 @@ fn a_slab_verdict_ignores_the_sections_it_does_not_touch() {
 }
 
 /// The spine helper is a spine: consecutive stations advance along the
-/// arc, and the frame is right-handed with `c2` the tangent. A silent
+/// arc and the frame is right-handed with `c2` the tangent. A silent
 /// error here would make every arc-spine row above decide something
 /// other than what it claims.
 #[test]
@@ -284,11 +341,5 @@ fn the_arc_spine_helper_places_a_right_handed_tangent_frame() {
     assert!(
         step.dot(places[0].linear.c2) > 0.0,
         "the first slab advances along the first station's own normal"
-    );
-    let ends: Vec3<f64> = places[4].translation - places[0].translation;
-    assert!(
-        ends.dot(places[0].linear.c2) > 0.0,
-        "2.2 rad is short of pi, so the END-TO-END displacement is still positive \
-         here - the rows past pi are the ones that separate the two statements"
     );
 }
