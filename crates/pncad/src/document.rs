@@ -191,8 +191,9 @@ pub use editor_core::{Distribution, DistributionFault, DistributionField};
 // `Mispaired` rides with `Evaluation` by the same rule: it is
 // `Evaluation::prior_refused`'s payload, so a consumer cannot read why
 // a memo was refused without naming it. The name is not the memo's —
-// it is the one payload all three pairing doors carry (DI3), which is
-// why it is spelled for the QUESTION rather than for any one door.
+// it is the one payload every pairing door carries (DI3; which doors
+// those are is `editor-core`'s `ASSEMBLY.md` A2a), which is why it is
+// spelled for the QUESTION rather than for any one door.
 // `Found` rides with `NodeErrorKind` by the same rule: it is the
 // `found` field of the four entity-kind refusals, so a consumer can
 // match those variants but not name what they say was there instead.
