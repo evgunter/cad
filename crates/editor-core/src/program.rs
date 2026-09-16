@@ -1015,8 +1015,15 @@ impl LoopProgram {
         }
     }
 
-    /// This loop's argument roles per step, deterministic order.
-    fn step_args(&self) -> Vec<(u32, StepArg)> {
+    /// This loop's argument roles per step, deterministic order — every
+    /// address this program holds an expression at, and nothing else.
+    ///
+    /// The enumerator the slot walk already ran on, made public so a
+    /// caller asking "which arguments does this program have?" — a
+    /// notation being checked, a suite covering every role — asks the
+    /// program rather than re-deriving the answer from the verb table.
+    #[must_use]
+    pub fn step_args(&self) -> Vec<(u32, StepArg)> {
         let mut out = Vec::new();
         match self {
             LoopProgram::Chain(steps) => {
@@ -1894,6 +1901,11 @@ fn target_lit(t: &Target<f64>) -> Result<ProgramTarget, DimensionError> {
 /// a caller can also hand-build. The fourth is reachable from any
 /// caller, because a notation is written against a recording the door
 /// does not make the caller hand over at the same time.
+///
+/// **A variant added here breaks `crates/pncad-py/src/tags.rs`**, whose
+/// tag map is an exhaustive match over this enum, and the tag inventory
+/// beside it: the binding names every refusal a caller can catch, so a
+/// new arm is a compile break there and a new word there.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RecordedProgramError {
     /// A literal argument the expression layer refused.
@@ -1955,14 +1967,31 @@ impl core::error::Error for RecordedProgramError {}
 ///
 /// # Why it travels beside the recording and not inside it
 ///
-/// D6's two halves meet here. Kernel-internal code is raw `T` in
-/// metres and radians with no dimensional types inside, and G1
-/// layering puts `quantity` and [`UnitSym`] ABOVE `profile` rather
-/// than in it, so a recorded [`profile::Step`] holds bare `f64`s and
-/// cannot hold anything else. But a value crossing INTO a document
-/// carries the unit it was written in, never a bare number. The
-/// crossing is [`LoopProgram::from_recorded_with_notation`], and this
-/// is what an author hands it there.
+/// **A recorded value cannot carry its own unit, and the reason is a
+/// type bound rather than a layering preference.** [`profile::Step`] is
+/// `Step<T: Real>`, and `Real` is an ARITHMETIC bound — `Add + Sub +
+/// Mul + Div + Neg`, `sqrt`, `pi` — because the same recording is
+/// replayed at interval and derivative scalars, not only at `f64`. A
+/// `(f64, UnitSym)` pair does not implement it, so pairing the unit
+/// with the number inside a step does not compile; and widening the
+/// step's own fields instead would put [`UnitSym`] inside `profile`,
+/// which is what D6's first paragraph and G1 layering forbid. Either
+/// way the recording holds bare numbers.
+///
+/// But a value crossing INTO a document carries the unit it was
+/// written in, never a bare number (DESIGN.md D6 ¶2). The crossing is
+/// [`LoopProgram::from_recorded_with_notation`], and this is what an
+/// author hands it there.
+///
+/// # A whole notation, at the one crossing
+///
+/// The notation is handed over as a BATCH at the lift rather than
+/// written argument by argument onto a lifted program, because an
+/// entry can only be checked against the program it describes: a
+/// per-argument door would have to be a second public mutation door
+/// onto [`LoopProgram`]'s expressions, and would raise
+/// [`RecordedProgramError::NotationOffProgram`] after the program a
+/// caller already holds is minted rather than instead of minting it.
 ///
 /// # The key is the document's own address
 ///
@@ -1993,11 +2022,17 @@ impl core::error::Error for RecordedProgramError {}
 /// through save and load exactly as every literal's does. Two recordings
 /// of one leg written in different units lift to [`Expr::bit_eq`]
 /// programs and evaluate to one geometry — the unit is presentation
-/// metadata (D6), outside expression identity.
+/// metadata (DESIGN.md D6), outside expression identity.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RecordedNotation {
-    /// Ordered so the lift applies entries deterministically, which is
-    /// what makes the door's answer a function of its arguments.
+    /// Ordered because the LIFT'S REFUSAL is order-dependent. The
+    /// writes themselves commute — each entry has its own
+    /// `(step, StepArg)` address and writes one argument — but a
+    /// notation with two entries off the program stops at the first
+    /// one, so an unordered map would name a different
+    /// [`RecordedProgramError::NotationOffProgram`] run to run. Key
+    /// order makes the sentence a caller reads a function of what they
+    /// wrote.
     units: std::collections::BTreeMap<(u32, StepArg), UnitSym>,
 }
 
@@ -2023,14 +2058,10 @@ impl RecordedNotation {
         arg: StepArg,
         unit: quantity::UnitDef,
     ) -> Result<(), DimensionError> {
-        let sym = UnitSym::from_def(&unit);
-        let measured = sym.measures();
-        if measured != arg.dimension() {
-            return Err(DimensionError::DisplayUnitMismatch {
-                unit: measured,
-                literal: arg.dimension(),
-            });
-        }
+        // The same predicate `Expr::literal_with_unit` asks, asked here
+        // because this door writes a notation down BEFORE any literal
+        // exists to refuse it.
+        let sym = UnitSym::checked_for(arg.dimension(), unit)?;
         self.units.insert((step, arg), sym);
         Ok(())
     }

@@ -12,17 +12,20 @@
 //!
 //! **What these rows pin, and where the claim is stated.** The reading
 //! is written once, on `RecordedNotation`'s own rustdoc — the notation
-//! is presentation metadata under D6, it is keyed by the document's own
-//! `(step, StepArg)` address, and it is consumed at the lift rather than
-//! stored. Here it is executed: the read-back, the bit-blindness of
-//! identity and of evaluation, the round trip through save and load, and
-//! the four refusals.
+//! is presentation metadata under DESIGN.md D6, it is keyed by the
+//! document's own `(step, StepArg)` address, and it is consumed at the
+//! lift rather than stored. Here it is executed: the read-back, the
+//! bit-blindness of identity and of evaluation, the round trip through
+//! the SAVED TEXT and back, both halves of the address, and the
+//! refusals.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 test_utils::gated_to![
-    "crates/editor-core/src/program.rs",
+    "crates/editor-core/src/expr.rs",
     "crates/editor-core/src/node.rs",
+    "crates/editor-core/src/persist/",
+    "crates/editor-core/src/program.rs",
     "crates/editor-core/tests/fixture/",
 ];
 
@@ -132,27 +135,33 @@ fn read_back(doc: &ProfileDoc, step: u32, arg: StepArg) -> (f64, &'static str) {
 
 /// Every addressable argument of a lifted program, with the value and
 /// the notation the document reads back for it.
+///
+/// Enumerated through `LoopProgram::step_args` — the program's OWN walk
+/// over its roles, the same one the slot doors answer at — so a row
+/// built on this covers every argument the program has. A hand-written
+/// list of roles would cover the ones the author thought of, which is
+/// how a mutant remapping a role the suite never names survives.
+///
+/// It also asserts what it enumerated: every address `step_args` hands
+/// back holds an expression, so a role the walk claims and the document
+/// cannot answer is a failure here rather than a silently shorter list.
 fn arg_bits(program: LoopProgram) -> Vec<(u32, StepArg, Option<f64>, Option<&'static str>)> {
+    let addresses = program.step_args();
     let doc = doc_of(program);
-    let mut out = Vec::new();
-    for step in 0..4 {
-        for arg in [
-            StepArg::PointX,
-            StepArg::PointY,
-            StepArg::TargetX,
-            StepArg::TargetY,
-        ] {
-            if let Some(e) = doc.expr_at(&slot(step, arg)) {
-                out.push((
-                    step,
-                    arg,
-                    e.literal_value(),
-                    e.display_unit().map(|u| u.symbol()),
-                ));
-            }
-        }
-    }
-    out
+    addresses
+        .into_iter()
+        .map(|(step, arg)| {
+            let Some(e) = doc.expr_at(&slot(step, arg)) else {
+                panic!("step_args names ({step}, {arg:?}), so the document addresses it")
+            };
+            (
+                step,
+                arg,
+                e.literal_value(),
+                e.display_unit().map(|u| u.symbol()),
+            )
+        })
+        .collect()
 }
 
 /// The replayed loop's vertices, bit for bit — what "one geometry"
@@ -240,7 +249,15 @@ fn an_empty_notation_lifts_to_the_program_from_recorded_mints() {
         RecordedNotation::new().is_empty(),
         "the default notation writes nothing down"
     );
-    assert_eq!(arg_bits(plain.clone()), arg_bits(empty.clone()));
+    let bits = arg_bits(plain.clone());
+    assert_eq!(
+        bits.len(),
+        8,
+        "the square's addressable arguments: the opening point's two \
+         coordinates and a target pair per LineTo that names a point — \
+         the closer names `Start` and carries none"
+    );
+    assert_eq!(bits, arg_bits(empty.clone()));
     assert!(
         plain == empty,
         "and the two programs are bit-identical as programs"
@@ -299,6 +316,26 @@ fn a_recorded_notation_round_trips_through_save_and_load() {
     let base = ProfileDoc::empty(DocumentId::derive("edit-recorded-notation"), Tol::witness());
     let edits = edits_of(program.clone());
     let text = save(&base, &edits, Tol::witness()).expect("the log saves");
+    // The STORED FORM, before any load: a save that dropped the symbol
+    // and a load that re-derived it from the dimension would satisfy
+    // every assertion below, and would lose the notation the moment a
+    // file was read by anything else.
+    assert!(
+        text.contains("mm"),
+        "the persisted text names the notation; got:\n{text}"
+    );
+    let plain = save(
+        &base,
+        &edits_of(LoopProgram::from_recorded(&square(0.025)).expect("lifts")),
+        Tol::witness(),
+    )
+    .expect("the log saves");
+    assert!(
+        !plain.contains("mm"),
+        "and a recording with no notation stores none"
+    );
+    assert_ne!(text, plain, "so the two recordings save to different text");
+
     let loaded = load(&text, Tol::witness()).expect("and loads");
     assert_eq!(
         read_back(&loaded.doc, LEG, StepArg::TargetX),
@@ -337,96 +374,18 @@ fn a_carrier_form_takes_its_notation_at_step_zero() {
 }
 
 // ------------------------------------------------------------------
-// The refusals
+// The address: one role, and the roles outside the point-shaped verbs
 // ------------------------------------------------------------------
 
-/// A unit must measure what its role holds, and the refusal lands at
-/// the door where the caller writes it rather than at the lift.
-///
-/// The Scalar roles are where this bites: a bulge and a director
-/// component are ratios, so the only unit they admit is the
-/// dimensionless row every Scalar literal already carries — which is
-/// what "a scalar argument carries no notation" means, executed.
-#[test]
-fn a_unit_must_measure_what_its_role_holds() {
-    let mut n = RecordedNotation::new();
-    for (arg, unit) in [
-        (StepArg::Bulge, quantity::MM.def()),
-        (StepArg::DirX, quantity::DEG.def()),
-        (StepArg::TargetX, quantity::DEG.def()),
-        (StepArg::TurnVal, quantity::MM.def()),
-    ] {
-        let refused = n
-            .set(0, arg, unit)
-            .expect_err("the unit does not measure what the role holds");
-        assert_eq!(
-            refused.to_string(),
-            format!(
-                "the display unit measures {} but the literal is {}",
-                editor_core::UnitSym::from_def(&unit).measures(),
-                arg.dimension()
-            )
-        );
-        assert!(n.is_empty(), "and nothing was written down");
-    }
-    // The pairings that DO agree are written, and the Scalar row's own
-    // unit is one of them.
-    n.set(0, StepArg::Bulge, quantity::ONE.def())
-        .expect("a ratio is written in the dimensionless row");
-    n.set(0, StepArg::TurnVal, quantity::DEG.def())
-        .expect("a turn is an angle");
-    assert_eq!(n.len(), 2);
-    assert_eq!(n.get(0, StepArg::TurnVal).map(|u| u.symbol()), Some("deg"));
-    assert_eq!(n.get(0, StepArg::Radius), None);
-}
-
-/// A notation entry addressing an argument the recording has none of
-/// refuses, naming the step and the role — it is not dropped.
-///
-/// A notation is a caller's SECOND description of a recording, so the
-/// two can disagree: a step past the program's end, or a role this
-/// verb does not carry. Both are the caller's own mistake and both are
-/// told.
-#[test]
-fn a_notation_entry_off_the_program_refuses() {
-    let steps = square(0.025);
-    for (step, arg, why) in [
-        (99, StepArg::TargetX, "a step past the program's end"),
-        (LEG, StepArg::ViaX, "a role a LineTo does not carry"),
-        (0, StepArg::TargetX, "a role the entry step does not carry"),
-    ] {
-        let mut n = RecordedNotation::new();
-        n.set(step, arg, quantity::MM.def()).expect("a length");
-        let refused = LoopProgram::from_recorded_with_notation(&steps, &n)
-            .expect_err("the entry addresses nothing");
-        assert_eq!(
-            refused,
-            RecordedProgramError::NotationOffProgram { step, arg },
-            "{why}"
-        );
-        assert_eq!(
-            refused.to_string(),
-            format!(
-                "the notation names the {} of step {step}, which this recording has no argument at",
-                arg.label()
-            )
-        );
-    }
-}
-
-// ------------------------------------------------------------------
-// REVIEW PROBES (lane `notation-rv`) — rows the suite does not have.
-// Adoptable as-is by a fix pass.
-// ------------------------------------------------------------------
-
-/// **Probe 1 — the role address is per role, not per step.**
+/// One role of a pair takes the notation ALONE — the address is per
+/// role, not per step.
 ///
 /// `in_millimetres` writes BOTH `TargetX` and `TargetY` of the leg, so
-/// the headline row survives a mutant that swaps the two roles inside
-/// `from_recorded_with_notation`'s loop. Writing ONE of the pair gives
-/// the role map its own tension.
+/// every row above it survives a lift that swapped the two roles on
+/// its way through. Writing one of the pair is what gives the role half
+/// of the address its own tension.
 #[test]
-fn probe_one_role_of_a_pair_takes_the_notation_alone() {
+fn one_role_of_a_pair_takes_the_notation_alone() {
     let mut n = RecordedNotation::new();
     n.set(LEG, StepArg::TargetX, quantity::MM.def())
         .expect("mm measures a length");
@@ -441,42 +400,17 @@ fn probe_one_role_of_a_pair_takes_the_notation_alone() {
     );
 }
 
-/// **Probe 2 — the round trip read off the PERSISTED TEXT.**
+/// An angle role and a length role on ONE program, neither of them a
+/// coordinate.
 ///
-/// `a_recorded_notation_round_trips_through_save_and_load` asserts on
-/// the RELOADED document; a save that dropped the symbol and a load
-/// that re-derived it would pass it. This reads the stored form.
+/// Every other row addresses `PointX/Y`, `TargetX/Y`, `CenterX` and
+/// `Radius` — six of the twenty-nine roles [`StepArg`] declares, all
+/// reached through the point-shaped verbs. A `line`/`turn` square is
+/// authored in the other half of the vocabulary: a scalar leg length
+/// and a scalar corner, so a lift that mapped one role to a neighbour
+/// of the same dimension has somewhere to be caught.
 #[test]
-fn probe_the_saved_text_carries_the_symbol() {
-    let program =
-        LoopProgram::from_recorded_with_notation(&square(0.025), &in_millimetres()).expect("lifts");
-    let base = ProfileDoc::empty(DocumentId::derive("edit-recorded-notation"), Tol::witness());
-    let text = save(&base, &edits_of(program), Tol::witness()).expect("the log saves");
-    assert!(
-        text.contains("mm"),
-        "the persisted text names the notation; got:\n{text}"
-    );
-    let plain = save(
-        &base,
-        &edits_of(LoopProgram::from_recorded(&square(0.025)).expect("lifts")),
-        Tol::witness(),
-    )
-    .expect("the log saves");
-    assert!(
-        !plain.contains("mm"),
-        "and a recording with no notation stores none"
-    );
-    assert_ne!(text, plain, "the two save to different text");
-}
-
-/// **Probe 3 — roles outside the four the suite exercises.**
-///
-/// Every row above addresses `PointX/Y`, `TargetX/Y`, `CenterX`,
-/// `Radius`. A mutant remapping `StepArg::Length` to `StepArg::Radius`
-/// inside the notation loop survives all eight. A `line`/`turn` square
-/// puts a `Length` role and an `AngleVal`/`TurnVal` role on one program.
-#[test]
-fn probe_an_angle_role_and_a_length_role_on_one_program() {
+fn an_angle_role_and_a_length_role_on_one_program() {
     let t = Tol::witness();
     let l = 0.025;
     let q = std::f64::consts::FRAC_PI_2;
@@ -502,8 +436,7 @@ fn probe_an_angle_role_and_a_length_role_on_one_program() {
         .expect("a leg length is a length");
     n.set(3, StepArg::TurnVal, quantity::DEG.def())
         .expect("a turn is an angle");
-    let program =
-        LoopProgram::from_recorded_with_notation(&steps, &n).expect("the square lifts");
+    let program = LoopProgram::from_recorded_with_notation(&steps, &n).expect("the square lifts");
     let doc = doc_of(program);
     assert_eq!(read_back(&doc, 2, StepArg::Length), (l, "mm"));
     assert_eq!(
@@ -516,4 +449,100 @@ fn probe_an_angle_role_and_a_length_role_on_one_program() {
         (l, "m"),
         "the next side was written with no notation"
     );
+}
+
+// ------------------------------------------------------------------
+// The refusals
+// ------------------------------------------------------------------
+
+/// A unit must measure what its role holds, and the refusal lands at
+/// the door where the caller writes it rather than at the lift.
+///
+/// The Scalar roles are where this bites: a bulge and a director
+/// component are ratios, so the only unit they admit is the
+/// dimensionless row every Scalar literal already carries — which is
+/// what "a scalar argument carries no notation" means, executed.
+#[test]
+fn a_unit_must_measure_what_its_role_holds() {
+    let mut n = RecordedNotation::new();
+    for (arg, unit, sentence) in [
+        (
+            StepArg::Bulge,
+            quantity::MM.def(),
+            "the display unit measures length but the literal is scalar",
+        ),
+        (
+            StepArg::DirX,
+            quantity::DEG.def(),
+            "the display unit measures angle but the literal is scalar",
+        ),
+        (
+            StepArg::TargetX,
+            quantity::DEG.def(),
+            "the display unit measures angle but the literal is length",
+        ),
+        (
+            StepArg::TurnVal,
+            quantity::MM.def(),
+            "the display unit measures length but the literal is angle",
+        ),
+    ] {
+        let refused = n
+            .set(0, arg, unit)
+            .expect_err("the unit does not measure what the role holds");
+        assert_eq!(refused.to_string(), sentence);
+        assert!(n.is_empty(), "and nothing was written down");
+    }
+    // The pairings that DO agree are written, and the Scalar row's own
+    // unit is one of them.
+    n.set(0, StepArg::Bulge, quantity::ONE.def())
+        .expect("a ratio is written in the dimensionless row");
+    n.set(0, StepArg::TurnVal, quantity::DEG.def())
+        .expect("a turn is an angle");
+    assert_eq!(n.len(), 2);
+    assert_eq!(n.get(0, StepArg::TurnVal).map(|u| u.symbol()), Some("deg"));
+    assert_eq!(n.get(0, StepArg::Radius), None);
+}
+
+/// A notation entry addressing an argument the recording has none of
+/// refuses, naming the step and the role — it is not dropped.
+///
+/// A notation is a caller's SECOND description of a recording, so the
+/// two can disagree: a step past the program's end, or a role this
+/// verb does not carry. Both are the caller's own mistake and both are
+/// told.
+#[test]
+fn a_notation_entry_off_the_program_refuses() {
+    let steps = square(0.025);
+    for (step, arg, why, sentence) in [
+        (
+            99,
+            StepArg::TargetX,
+            "a step past the program's end",
+            "the notation names the target x of step 99, which this recording has no argument at",
+        ),
+        (
+            LEG,
+            StepArg::ViaX,
+            "a role a LineTo does not carry",
+            "the notation names the via x of step 1, which this recording has no argument at",
+        ),
+        (
+            0,
+            StepArg::TargetX,
+            "a role the entry step does not carry",
+            "the notation names the target x of step 0, which this recording has no argument at",
+        ),
+    ] {
+        let mut n = RecordedNotation::new();
+        n.set(step, arg, quantity::MM.def()).expect("a length");
+        let refused = LoopProgram::from_recorded_with_notation(&steps, &n)
+            .expect_err("the entry addresses nothing");
+        assert_eq!(
+            refused,
+            RecordedProgramError::NotationOffProgram { step, arg },
+            "{why}"
+        );
+        assert_eq!(refused.to_string(), sentence);
+    }
 }

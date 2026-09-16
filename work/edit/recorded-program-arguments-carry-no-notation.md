@@ -86,6 +86,33 @@ recorded program's notation).
    move — say so). The sweep: every producer of `Step<f64>` and every
    consumer of a recorded argument, with what the pattern cannot match.
 
+## Correction (2026-09-16, the style review's finding)
+
+**The clause is D6, not D7.** The finding above ("presentation metadata
+under D7") and the Spec ("D7 makes a unit presentation metadata outside
+`bit_eq`"; "`docs/DESIGN.md` D7") cite the wrong one.
+`docs/DESIGN.md` D7 is *"Import is adoption, not admission"* and says
+nothing about notation; the clause that rules this row is **D6 ¶2**,
+*"A stored literal always names its notation … presentation metadata
+excluded from expression identity, keys and evaluation … A value
+crossing into a document carries the unit it was written in, never a
+bare number."* Nothing about the spec's ruling changes — the precedent
+and the shape it asked for are D6's — only which paragraph is being
+executed.
+
+The miscitation is a CLASS, filed as
+`work/issues/design-d7-cited-for-the-display-unit-clause-that-is-d6`:
+ten live sites say D7 for the display-unit rule, and a second family of
+bare `D7`s means replay identity, which is neither D6 nor any D7 clause.
+Corrected inside EDIT's fence by the unit's PR: this file, the two lines
+above, `work/edit/plan.md`, `work/edit/log.md`, and the display-unit
+sites in `crates/editor-core/src/expr.rs` (`Lit`'s declaration, `Lit`'s
+`PartialEq`, `literal_with_unit`'s rustdoc, the evaluator's literal
+arm), now spelled `DESIGN.md D6` on the `doc.rs` precedent. Left to the
+filed issue: the replay-identity family, the "spec D7" milestone family,
+`crates/editor-core/src/param_source.rs`, `src/eval/mod.rs`, the viewer's
+two sites, `work/lib/`'s parked row and `work/census/`'s row.
+
 ## Built (2026-09-16)
 
 `RecordedNotation` in `crates/editor-core/src/program.rs` and
@@ -94,12 +121,17 @@ recorded program's notation).
 
 **The spec's shape moved, and the spec's own clause 3 asked for the
 measurement.** Clause 1 put an `Option<UnitSym>` beside each `f64` in
-`Step<f64>`; `Step<T>` is `profile`'s, `profile` depends on `geom-core`
-alone, and D6's first paragraph is that kernel-internal code carries no
-dimensional types (G1 layering keeps `quantity` and `UnitSym` above
-`profile`). So the notation travels BESIDE the recording and meets it at
-the crossing D6's second paragraph names: a value entering a document
-carries the unit it was written in. Same precedent, same shape as
+`Step<f64>`. **That does not compile, and the reason is a type bound
+rather than a layering preference:** `profile::Step` is `Step<T: Real>`,
+and `Real` is an arithmetic bound (`Add + Sub + Mul + Div + Neg`,
+`sqrt`, `pi`) because the same recording is replayed at interval and
+derivative scalars, not only at `f64` — so a `(f64, UnitSym)` payload
+does not satisfy it. Widening the step's own fields instead would put
+`UnitSym` inside `profile`, which D6 ¶1 and G1 layering forbid
+(`profile` depends on `geom-core` alone). Either way the recording holds
+bare numbers. So the notation travels BESIDE the recording and meets it
+at the crossing D6 ¶2 names: a value entering a document carries the
+unit it was written in. Same precedent, same shape as
 `DocParam::display_unit`, one door.
 
 The notation is keyed by `(step, StepArg)` — the pair
@@ -134,3 +166,39 @@ CI: run `35133793584` on `388213ed5`, SUCCESS — 38 jobs, twelve
 read. One red round before it (`35132552404`), from the two
 follow-throughs above being invisible to a `-p editor-core` check; the
 PR body carries that record.
+
+## After the style review (2026-09-16)
+
+Every finding taken; the PR body's **After the review** section is the
+paragraph-per-finding record and carries the mutant table and the CI run
+for the fixed head.
+
+- **The premise is sharpened** (above, and on `RecordedNotation`'s
+  rustdoc): the notation cannot ride `Step<f64>` because `Real` is an
+  arithmetic bound, which is a compile error rather than a layering
+  choice. The layering argument is the second half, not the first.
+- **The role map has rows that red a mis-map.** The review's two probes
+  are adopted as `one_role_of_a_pair_takes_the_notation_alone` and
+  `an_angle_role_and_a_length_role_on_one_program`; its third is folded
+  into the round-trip row, which now reads the SAVED TEXT before the
+  load. Ten rows, and the two role mis-maps (`Length → Radius`,
+  `TargetX ↔ TargetY`) that survived all eight now red.
+- **One home for "a unit measures what its value holds"**:
+  `UnitSym::checked_for`, which `Expr::literal_with_unit` and
+  `RecordedNotation::set` both call.
+- `LoopProgram::step_args` is public, so the suite's coverage row walks
+  the program's own enumerator and asserts what it enumerated; the two
+  refusal rows pin literal sentences; the `BTreeMap` says what ordering
+  actually fixes (which `NotationOffProgram` fires first — the writes
+  themselves commute); `RecordedProgramError`'s declaration names the
+  downstream exhaustive match; `crates/pncad/src/prelude.rs` carries
+  `RecordedNotation` beside `LoopProgram`; the suite's `gated_to!` names
+  `src/expr.rs` and `src/persist/`.
+- **Filed by the review, cited here**:
+  `work/edit/recorded-notation-makes-a-rust-author-count-step-indices`
+  — a notation entry is keyed by a step index the path algebra never
+  hands its caller, and a miscount onto the same role at another step is
+  accepted silently. It needs a recorder-side door, which is `profile`'s
+  ground, so it is not this unit's.
+  `work/issues/design-d7-cited-for-the-display-unit-clause-that-is-d6`
+  is the miscitation class (see the Correction above).
