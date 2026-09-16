@@ -310,7 +310,7 @@ fn the_l_shaped_complement_refuses_by_its_own_name() {
 #[test]
 fn the_gate_exempts_a_face_whose_rims_encode_different_sides() {
     let (lo, hi) = (-0.3_f64, 0.5_f64);
-    let stair = vec![
+    let stair = [
         rim(lo, 0.0, PI, 0, 1),
         great(PI, lo, hi, 1, 2),
         rim(hi, PI, TAU, 2, 3),
