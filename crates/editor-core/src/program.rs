@@ -2262,12 +2262,12 @@ impl LoopProgram {
             let Some(slot) = program.expr_mut(step, arg) else {
                 return Err(RecordedProgramError::NotationOffProgram { step, arg });
             };
-            // D2 addendum row 4. `from_recorded` mints every argument
-            // through `Expr::literal`, three lines up and in this
-            // function alone, so a non-literal in a slot it just built
-            // is a kernel bug and not a caller's input — a typed
-            // refusal here would be a guard for a state the
-            // construction excludes.
+            // D2 addendum row 4. A recorded program is literal by
+            // construction: every argument of the program this line
+            // reads was minted by `from_recorded` through
+            // `Expr::literal`. So a non-literal here is a kernel bug
+            // rather than a caller's input, and a typed refusal would
+            // be a guard for a state the construction excludes.
             let Some(value) = slot.literal_value() else {
                 unreachable!(
                     "the {} of step {step} is not a literal, yet `from_recorded` minted every \
