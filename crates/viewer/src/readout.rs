@@ -318,7 +318,10 @@ mod tests {
             fits_and_reads_back(value);
             value *= 1.05;
         }
-        assert!(scientific > 1_000, "only {scientific} values took a scientific arm");
+        assert!(
+            scientific > 1_000,
+            "only {scientific} values took a scientific arm"
+        );
     }
 
     /// **Zero is the value the δ door's own predicate could not have
