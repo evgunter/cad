@@ -371,7 +371,8 @@ pub fn assert_spans_partition(closed: &ClosedLoop<f64>) {
             "step {j}'s span runs backwards: {span}"
         );
         assert_eq!(
-            span.start, next,
+            span.start,
+            next,
             "step {j}'s span starts where step {} left off",
             j.wrapping_sub(1)
         );

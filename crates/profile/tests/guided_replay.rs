@@ -498,10 +498,8 @@ fn a_lying_step_span_refuses_typed_naming_the_step() {
         .position(|s| !s.is_empty())
         .expect("some step of the lens produced a segment");
     let mut lie = structure.clone();
-    lie.steps[step] = profile::StepSpan::new(
-        structure.steps[step].start,
-        structure.steps[step].end + 1,
-    );
+    lie.steps[step] =
+        profile::StepSpan::new(structure.steps[step].start, structure.steps[step].end + 1);
     let err = replay_guided(&program, &lie, tol()).expect_err("the span is contradicted");
     let ReplayErrorKind::Path(PathError::Structure(refusal)) = err.kind else {
         panic!("expected a structure refusal, got {:?}", err.kind);
