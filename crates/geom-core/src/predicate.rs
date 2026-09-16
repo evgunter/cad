@@ -439,9 +439,12 @@ impl Band {
     /// # Errors
     ///
     /// The two arms [`Band::linear`] documents, read at the given ε
-    /// rather than the run's: [`BandError::InvalidValue`] if `eps` is not
-    /// finite and strictly positive or if K·`eps` overflows, and
-    /// [`BandError::Empty`] if K·`eps` rounds back onto `eps`.
+    /// rather than the run's — [`BandError::InvalidValue`] on `escalate`
+    /// if K·`eps` overflows, [`BandError::Empty`] if K·`eps` rounds back
+    /// onto `eps` — plus one `Band::linear` cannot have:
+    /// [`BandError::InvalidValue`] on `zero` if `eps` is not itself
+    /// finite and strictly positive. The run's ε is validated at commit;
+    /// this one is the caller's and is validated here.
     pub fn linear_at(tol: Tol, eps: f64) -> Result<Self, BandError> {
         Self::from_zero_threshold(tol, eps)
     }
@@ -1555,6 +1558,21 @@ mod tests {
         // differs from `Band::linear` in where ε comes from, nothing
         // else.
         assert_eq!(Band::linear_at(tol, tol.eps()), Band::linear(tol));
+
+        // The ε is the CALLER's, so unlike `Band::linear` this door can
+        // be handed one no tolerance would have committed — refused on
+        // `zero`, and refused identically by the spelling it replaces.
+        for bad in [0.0, -1.0, f64::INFINITY] {
+            assert_eq!(
+                Band::linear_at(tol, bad),
+                Err(BandError::InvalidValue {
+                    field: BandField::Zero,
+                    value: bad,
+                }),
+                "eps = {bad:?}"
+            );
+            assert_eq!(Band::linear_at(tol, bad), Band::new(bad, k * bad));
+        }
     }
 
     /// `Band::angular_at` validates the lever arm *before* it reads the
