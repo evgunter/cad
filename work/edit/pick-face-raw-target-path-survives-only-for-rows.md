@@ -48,8 +48,8 @@ documenting it.
 
 Four rows, none re-expressible through `NodePick::target`:
 
-- `review_gui1_r1::random_integer_rays_match_the_exact_oracle` pairs a
-  mesh scaled ×2 BY HAND with its node so the ray oracle can run in
+- `review_gui1_r1::dyadic_battery_pins_faces_edges_corners_and_tiebreak`
+  pairs a mesh scaled ×2 BY HAND with its node so the ray oracle can run in
   exact integers. A `NodePick` only ever indexes the node's own
   tessellation.
 - `gui1_pick::unusable_nodes_surface_typed_errors` builds targets
