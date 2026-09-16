@@ -132,7 +132,10 @@ fn m1_probe() {
         node: sub,
         path: vec![RoleSeg::FromA(end.clone().into())],
     };
-    eprintln!("BASE in new table: {:?}", ev2.value(sub).map(|v| v.name_table.lookup(&base).is_some()));
+    eprintln!(
+        "BASE in new table: {:?}",
+        ev2.value(sub).map(|v| v.name_table.lookup(&base).is_some())
+    );
     eprintln!("new sub table rows:");
     if let Some(v) = ev2.value(sub) {
         for (n, e) in v.name_table.iter().take(40) {
@@ -192,8 +195,14 @@ fn m2_probe_union_like_corpus() {
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
-    let new = RunCtx { doc: &doc2, eval: &ev2 };
-    let prior = RunCtx { doc: &doc, eval: &ev1 };
+    let new = RunCtx {
+        doc: &doc2,
+        eval: &ev2,
+    };
+    let prior = RunCtx {
+        doc: &doc,
+        eval: &ev1,
+    };
     for (label, ev) in [("prior", &ev1), ("new", &ev2)] {
         let mut m: std::collections::BTreeMap<&str, usize> = Default::default();
         if let Some(v) = ev.value(u) {
@@ -206,7 +215,10 @@ fn m2_probe_union_like_corpus() {
     let fs = diff_verdicts(&ev1, &ev2);
     eprintln!("FLIPSET nodes: {:?}", fs.nodes.keys().collect::<Vec<_>>());
     for (id, d) in &fs.nodes {
-        eprintln!("  node {id:?} flips={:?} diverged={:?}", d.flips, d.diverged);
+        eprintln!(
+            "  node {id:?} flips={:?} diverged={:?}",
+            d.flips, d.diverged
+        );
     }
     for n in &sideof {
         eprintln!("--- {n:?}");
@@ -235,11 +247,19 @@ fn slot_scenario(op: BooleanOp, axis: Axis3, delta: f64) {
     );
     let (doc, sub) = insert(
         doc,
-        Node::Boolean { op, a, b: tr, declare: None },
+        Node::Boolean {
+            op,
+            a,
+            b: tr,
+            declare: None,
+        },
     );
     let ev1 = run(&doc, None);
     let Some(v1) = ev1.value(sub) else {
-        eprintln!("[{op:?} {axis:?} {delta}] prior did not evaluate: {:?}", ev1.nodes.get(&sub));
+        eprintln!(
+            "[{op:?} {axis:?} {delta}] prior did not evaluate: {:?}",
+            ev1.nodes.get(&sub)
+        );
         return;
     };
     let sideof: Vec<StableName> = v1
@@ -255,20 +275,37 @@ fn slot_scenario(op: BooleanOp, axis: Axis3, delta: f64) {
         .collect();
     let (doc2, _) = step(
         doc.clone(),
-        DocEdit::SetParam { node: tr, slot: SlotId::Translation(axis), expr: len(delta) },
+        DocEdit::SetParam {
+            node: tr,
+            slot: SlotId::Translation(axis),
+            expr: len(delta),
+        },
     );
     let ev2 = run(&doc2, Some(&ev1));
-    let new = RunCtx { doc: &doc2, eval: &ev2 };
-    let prior = RunCtx { doc: &doc, eval: &ev1 };
+    let new = RunCtx {
+        doc: &doc2,
+        eval: &ev2,
+    };
+    let prior = RunCtx {
+        doc: &doc,
+        eval: &ev1,
+    };
     let fs = diff_verdicts(&ev1, &ev2);
     let pop = |ev: &Evaluation<f64>| {
         ev.value(sub)
-            .map(|v| v.verdicts.iter().filter(|w| w.predicate == "name_frag_side_of").count())
+            .map(|v| {
+                v.verdicts
+                    .iter()
+                    .filter(|w| w.predicate == "name_frag_side_of")
+                    .count()
+            })
             .unwrap_or(0)
     };
     eprintln!(
         "[{op:?} {axis:?} {delta}] sideof_names={} side_of_pop prior={} new={}",
-        sideof.len(), pop(&ev1), pop(&ev2)
+        sideof.len(),
+        pop(&ev1),
+        pop(&ev2)
     );
     for (id, d) in &fs.nodes {
         eprintln!("   node {id:?} flips={:?}", d.flips);
