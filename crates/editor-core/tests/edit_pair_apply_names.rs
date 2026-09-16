@@ -458,3 +458,254 @@ fn a_later_evaluation_of_the_same_document_is_admitted() {
         "and so does the ray door"
     );
 }
+
+// ---------------------------------------------------------------
+// REVIEW PROBES (lane `nodepick-rv`, PR #2773). Kept together at the
+// end of the file so the unit's own rows above read as one block.
+// ---------------------------------------------------------------
+
+/// REVIEW PROBE (lane `nodepick-rv`, claim 2): the MEMO's document
+/// half of its key, which the PR rewrote from `entry.document` to
+/// `entry.pick.document` and left with no row.
+///
+/// Two documents of ONE recipe mint the same node ids AND the same
+/// content and naming keys, so every other half of the memo's key
+/// matches: only the document comparison stands between a second
+/// document's build and the first document's `NodePick`. The seam
+/// owns one memo across builds (`viewer::evalseam::build_index`), so
+/// this is not a hypothetical shape.
+///
+/// Green on the PR head; reds when the comparison is dropped.
+#[test]
+fn probe_the_memo_refuses_a_prior_of_another_document() {
+    let tol = Tol::witness();
+    let (a, na) = prism("edit-pair-memo-a", 4);
+    let (b, nb) = prism("edit-pair-memo-b", 4);
+    assert_ne!(a.id(), b.id(), "two documents");
+    assert_eq!(na, nb, "the premise: one recipe, so the same node ids");
+    let ev_a = run(&a);
+    let ev_b = run(&b);
+    assert_eq!(
+        ev_a.value(na).expect("a evaluated").content_key,
+        ev_b.value(nb).expect("b evaluated").content_key,
+        "the premise: identical recipes, so the CONTENT key half of the \
+         memo's key matches and only the document half can refuse"
+    );
+    assert_eq!(
+        ev_a.value(na).expect("a evaluated").naming_key,
+        ev_b.value(nb).expect("b evaluated").naming_key,
+        "the premise: the naming key half matches too"
+    );
+
+    let mut memo = editor_core::PickMemo::new();
+    let _first = editor_core::NodePick::build_with(&ev_a, na, 0, 0.1, tol, &mut memo)
+        .expect("a's prism tessellates");
+    memo.end_picture();
+    let second = editor_core::NodePick::build_with(&ev_b, nb, 0, 0.1, tol, &mut memo)
+        .expect("b's prism tessellates");
+    memo.end_picture();
+
+    // The observable: a pick served out of a's entry carries a's
+    // stamp, so b's own evaluation would not pair with it.
+    assert!(
+        second.patch_names(&ev_b).is_ok(),
+        "the memo served a prior of ANOTHER document: the pick handed \
+         back is stamped with the first document and refuses the \
+         evaluation it was just built for"
+    );
+    assert_eq!(
+        second.patch_names(&ev_a).expect_err("a is the other document"),
+        HitTestError::EvaluationOfAnotherDocument {
+            expected: b.id(),
+            found: a.id(),
+        },
+        "and the pick b got is b's, not a's"
+    );
+}
+
+/// REVIEW PROBE (lane `nodepick-rv`, claim 3): WHICH refusal wins in
+/// `pick_face` when both would fire.
+///
+/// A2a says the pairing refuses "before reading anything of the
+/// value". The unit's own rows use a twin whose node stands `Ok`, so
+/// they cannot tell the two loops apart by their ANSWER — both orders
+/// give the pairing arm there only because standing does not refuse.
+/// This row hands a foreign evaluation in which the target's node
+/// does not exist at all: the pairing arm is the answer iff the
+/// pairing loop runs first.
+#[test]
+fn probe_the_pairing_refusal_wins_over_standing() {
+    let tol = Tol::witness();
+    let (square, sq) = prism("edit-pair-order-square", 4);
+    // A second document that is only a profile: the square's extrude
+    // node id has no value in it at all.
+    let bare = ProfileDoc::empty(DocumentId::derive("edit-pair-order-bare"), tol);
+    let (bare, _p) = on_frame(
+        bare,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![ngon(4)],
+    );
+    let ev_square = run(&square);
+    let ev_bare = run(&bare);
+    assert!(
+        ev_bare.value(sq).is_none(),
+        "the premise: the other document has NO value for this node, so \
+         the standing loop would refuse it too"
+    );
+
+    let pick = editor_core::NodePick::build(&ev_square, sq, 0, 0.1, tol)
+        .expect("the square prism tessellates");
+    let targets = [pick.target()];
+    let ray = editor_core::Ray {
+        origin: geom_core::Point3::new(0.0, 0.0, 5.0),
+        dir: geom_core::Vec3::new(0.0, 0.0, -1.0),
+    };
+    assert_eq!(
+        editor_core::pick_face(&ev_bare, &targets, &ray).expect_err("refused"),
+        HitTestError::EvaluationOfAnotherDocument {
+            expected: square.id(),
+            found: bare.id(),
+        },
+        "the pairing is read before the node's standing (A2a: before \
+         reading anything of the value)"
+    );
+}
+
+/// REVIEW PROBE (lane `nodepick-rv`, claim 5): what the CHECKED half
+/// of `PickTarget` checks.
+///
+/// `PickTarget::document` is a `pub` field on a `pub` struct, so a
+/// hand-assembled target can carry any document — including the one
+/// the handed evaluation is of, beside a `pick` of quite another.
+/// `pick_face` compares `target.document` against `eval.document` and
+/// never against the index the target holds, so the stamp defends the
+/// path that mints it (`NodePick::target`) and is caller convention
+/// on every other path, exactly as the NODE half is. This row
+/// measures that: a forged target answers a confidently wrong name.
+#[test]
+fn probe_a_forged_target_document_passes_the_checked_half() {
+    let tol = Tol::witness();
+    let (square, sq) = prism("edit-pair-forge-square", 4);
+    let (triangle, tri) = prism("edit-pair-forge-triangle", 3);
+    let ev_square = run(&square);
+    let ev_triangle = run(&triangle);
+    assert_eq!(sq, tri, "the premise: one recipe shape, the same node ids");
+
+    let pick = editor_core::NodePick::build(&ev_square, sq, 0, 0.1, tol)
+        .expect("the square prism tessellates");
+    let honest = pick.target();
+    let forged = editor_core::PickTarget {
+        document: ev_triangle.document,
+        ..honest
+    };
+    let ray = editor_core::Ray {
+        origin: geom_core::Point3::new(0.0, 0.0, 5.0),
+        dir: geom_core::Vec3::new(0.0, 0.0, -1.0),
+    };
+    assert_eq!(
+        editor_core::pick_face(&ev_triangle, &[honest], &ray).expect_err("honest target refuses"),
+        HitTestError::EvaluationOfAnotherDocument {
+            expected: square.id(),
+            found: triangle.id(),
+        },
+        "the minted target carries the index's document and refuses"
+    );
+    let hit = editor_core::pick_face(&ev_triangle, &[forged], &ray)
+        .expect("the forged target passes the pairing check");
+    println!(
+        "PROBE forged PickTarget.document: pick_face answers {:?} out of \
+         the TWIN's tables (square's index, triangle's evaluation)",
+        hit.as_ref().map(|h| format!("{:?}", h.name))
+    );
+    assert!(
+        hit.is_some(),
+        "a hand-assembled target whose document field disagrees with the \
+         index it holds is not checked: the door answers a name out of \
+         the other document's tables"
+    );
+}
+
+/// REVIEW PROBE (lane `nodepick-rv`, Q3 on the Display roster): what
+/// the new arm's Display row in `m4_pr4_hit.rs` asserts is the pair
+/// `["document", "not"]`, both of which survive a message that names
+/// NEITHER document. The ids do render; this row says so where the
+/// census row does not.
+#[test]
+fn probe_the_pairing_arm_renders_both_documents() {
+    let expected = DocumentId::derive("probe-render-expected");
+    let found = DocumentId::derive("probe-render-found");
+    let text = HitTestError::EvaluationOfAnotherDocument { expected, found }.to_string();
+    println!("PROBE Display: {text}");
+    assert!(
+        text.contains(&expected.to_string()) && text.contains(&found.to_string()),
+        "both documents are named: {text}"
+    );
+}
+
+/// REVIEW PROBE (lane `nodepick-rv`, claim 6): what the ADMITTED case
+/// costs, measured rather than argued.
+///
+/// `a_later_evaluation_of_the_same_document_is_admitted` asserts the
+/// doors answer and that the patch COUNT is unchanged; it does not
+/// say what the answers are. This row says both halves: how many of
+/// the stale index's slots the later run answers differently, and
+/// that a caller going through `PickMemo` never holds that index
+/// against the later run at all — the content key moved, so the memo
+/// MISSES and rebuilds.
+#[test]
+fn probe_what_the_admitted_later_evaluation_answers() {
+    let tol = Tol::witness();
+    let (doc, ext) = prism("edit-pair-probe-later", 4);
+    let before = run(&doc);
+    let mut memo = editor_core::PickMemo::new();
+    let pick = editor_core::NodePick::build_with(&before, ext, 0, 0.1, tol, &mut memo)
+        .expect("the prism tessellates");
+    memo.end_picture();
+    let misses_after_first = memo.node_misses();
+
+    let edited = doc
+        .apply(
+            &DocEdit::SetParam {
+                node: ext,
+                slot: SlotId::Distance,
+                expr: len(2.0),
+            },
+            tol,
+        )
+        .expect("a length goes into the extrusion distance")
+        .doc;
+    let after = run(&edited);
+
+    let old_names = pick.patch_names(&before).expect("own run");
+    let new_names = pick.patch_names(&after).expect("admitted");
+    let differ = old_names
+        .iter()
+        .zip(new_names.iter())
+        .filter(|(a, b)| a != b)
+        .count();
+    println!(
+        "PROBE admitted: {} patches, {differ} slots differ between the runs",
+        old_names.len()
+    );
+
+    // What a live caller does with the later run: the memo's content
+    // key half moved, so the stale index is not served — it is rebuilt.
+    let _rebuilt = editor_core::NodePick::build_with(&after, ext, 0, 0.1, tol, &mut memo)
+        .expect("the prism tessellates again");
+    memo.end_picture();
+    println!(
+        "PROBE memo: first picture misses {misses_after_first}, second \
+         picture hits {} misses {}",
+        memo.node_hits(),
+        memo.node_misses()
+    );
+    assert_eq!(
+        memo.node_hits(),
+        0,
+        "the content key moved, so the memo does NOT serve the stale \
+         index: a live caller never pairs one"
+    );
+    assert_eq!(memo.node_misses(), 1, "it rebuilt instead");
+}
