@@ -485,8 +485,8 @@ fn a_rotated_loop_names_the_walls_its_steps_bound() {
 /// expression with `start` and every other row here still passes: an
 /// identity and a rotation never reach the branch, and a 4-gon reversed
 /// at `start = 2` has `(4 - 2) % 4 = 2`. Here the two differ (1 against
-/// 4), so the mutant turns the door's answer into `RecordsDisagree` and
-/// the row reds.
+/// 4), so the mutant makes the door read its two records as different
+/// permutations, the two-record assertion fires and the row reds.
 #[test]
 fn a_reversed_and_rotated_loop_names_the_walls_its_steps_bound() {
     assert_steps_bound_their_walls(
@@ -813,14 +813,23 @@ fn a_line_to_step_is_answered_with_the_segment_that_ends_where_it_says() {
 // 4. The refusals
 // ------------------------------------------------------------------
 
-/// **A naming anchor from another profile is refused, not read.**
+/// **Two records of one permutation that disagree assert, naming both
+/// of them.**
 ///
 /// The permutation is recorded twice — once by canonicalization, once
-/// by the bit-match that anchors the names — and the door composes both.
-/// Handed two that describe different loops it says so, rather than
-/// answering from whichever it read first.
+/// by the bit-match that anchors the names — and ONE evaluation
+/// produces both. So a disagreement is not a question the caller asked
+/// badly, it is the evaluation contradicting itself, and DM8 rules
+/// that it panics. The `expected` text is the whole message: the
+/// invariant in words, then both records' values, which is what a
+/// reader of the panic needs in order to tell which of the two lied.
 #[test]
-fn two_records_describing_different_loops_refuse() {
+#[should_panic(expected = "the evaluation's two records of loop 0's permutation \
+     disagree: canonicalization recorded reversed=false start=0 over 4 segments, \
+     the naming anchor recorded reversed=true offset=0 over 4 vertices. One \
+     evaluation produces both, so they describe one permutation or the kernel \
+     has contradicted itself")]
+fn two_records_describing_different_loops_assert() {
     let (doc, profile, _) = prism(
         "step-segments-refusal",
         vec![(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
@@ -834,15 +843,32 @@ fn two_records_describing_different_loops_refuse() {
     let ValuePayload::Profile(pv) = &value.payload else {
         panic!("carries a profile");
     };
-    // An anchor for the same loop, reversed the other way: one of the
-    // two records is not about this loop and the door cannot tell which.
+    // An anchor for the same loop, reversed the other way: the two
+    // records now describe different permutations of one loop, which
+    // one evaluation cannot have produced.
     let mut naming = pv.naming.clone();
     naming.loops[0].reversed = !naming.loops[0].reversed;
-    assert_eq!(
-        program.profile_edges_of(&structure, &naming, 0, 0),
-        Err(StepSegmentsError::RecordsDisagree { loop_: 0 })
+    let _ = program.profile_edges_of(&structure, &naming, 0, 0);
+}
+
+/// **A naming that does not mention the loop at all refuses typed.**
+///
+/// The sibling of the row above, and the reason the two are separate:
+/// an ABSENT anchor is a record the caller did not supply, not two
+/// records of one evaluation contradicting each other, so the door
+/// answers the caller rather than panicking.
+#[test]
+fn a_naming_without_this_loop_refuses_rather_than_asserting() {
+    let (doc, profile, _) = prism(
+        "step-segments-no-anchor",
+        vec![(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
     );
-    // An anchor that does not mention the loop at all.
+    let ev = run(&doc);
+    let Some(Node::Profile(program)) = doc.node(profile) else {
+        panic!("the profile node is a program");
+    };
+    let structure = records(&doc, program).structure;
+    ev.value(profile).expect("evaluates");
     let empty = ProfileNaming::default();
     assert_eq!(
         program.profile_edges_of(&structure, &empty, 0, 0),
