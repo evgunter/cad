@@ -1047,7 +1047,10 @@ fn a_dead_seam_badges_its_own_worker_with_the_recourse_in_its_own_words() {
         labels[2],
     );
     assert_eq!(
-        labels.iter().collect::<std::collections::BTreeSet<_>>().len(),
+        labels
+            .iter()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
         3,
         "three seams, three sentences",
     );
@@ -1065,8 +1068,8 @@ fn the_dead_index_badge_is_not_the_refused_build_badge() {
         body: 0,
     }))
     .expect("a refused build badges");
-    let dead = frame::dead_seam_badge(Some(&WorkerGone::of(Worker::Index)))
-        .expect("a dead worker badges");
+    let dead =
+        frame::dead_seam_badge(Some(&WorkerGone::of(Worker::Index))).expect("a dead worker badges");
     assert_eq!(
         refused.subject(),
         dead.subject(),

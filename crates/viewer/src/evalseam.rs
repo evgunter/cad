@@ -1457,6 +1457,12 @@ mod threaded {
     /// loop is private and has no door to inject a failure through.
     #[cfg(test)]
     mod tests {
+        // Panicking is a test's failure mechanism (workspace lint
+        // note), and here it is also the SUBJECT: a worker dies by
+        // panicking or not at all.
+        #![allow(clippy::expect_used)]
+        #![allow(clippy::panic)]
+
         use super::{Coalescing, Job, Worker, WorkerGone};
 
         /// A job with nothing in it: these rows are about the handle's

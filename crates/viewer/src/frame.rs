@@ -1827,7 +1827,7 @@ pub fn prefs_badge(unusable: Option<&Unusable>) -> Option<Badge> {
 /// window). (Ev, in-chat, 2026-09-16.)
 ///
 /// The words are [`WorkerGone`]'s own, rendered unaltered; the
-/// "<seam> worker: " opening is this badge naming itself, as its
+/// `<seam> worker: ` opening is this badge naming itself, as its
 /// siblings do. It names the WORKER and not the seam's product, so it
 /// cannot be read as a second [`index_badge`] — that one says a build
 /// refused, this one says no build will ever be attempted again.
