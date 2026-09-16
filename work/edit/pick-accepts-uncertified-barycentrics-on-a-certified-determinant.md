@@ -1,9 +1,10 @@
 ---
 id: pick-accepts-uncertified-barycentrics-on-a-certified-determinant
-kind: issue
+kind: unit
 title: the exact test accepts barycentrics whose rounding error exceeds the acceptance interval when the determinant is certified but small
-status: open
+status: spec
 opened: 2026-09-16
+branch: edit/pick-barycentrics
 ---
 
 
@@ -56,3 +57,14 @@ change the closed-boundary contract differently:
 Whichever is ruled, the bound is derived at the site from the
 operation count, never tuned, and the rows that pin it are the
 `index_memo` differential and `review_pick_r2`'s tally.
+
+## RULED (EDIT orchestrator, 2026-09-16) — the conjunction, spec'd as EDIT-PICK2
+
+A sequencing decision with a recommendation, taken per the program's
+posture rather than put to Ev: of the three shapes, the first kills
+grazes and the second and third each leave half the defect, so the
+ruling is their conjunction from one derived bound — a candidate is
+accepted iff its barycentric interval MEETS the closed range and does
+not COVER it. `docs/EDIT-PICK2-SPEC.md` binds the unit; block EDIT-B1
+slot 1. This row and `pick-closed-acceptance-loses-a-graze-to-rounding`
+close together.

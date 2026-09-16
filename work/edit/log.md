@@ -184,3 +184,23 @@ compares a rounded value against a certified bound needs the value's
 own error accounted for, and the reviewers' differently-aimed sweeps
 (interior hits, vertex grazes across the whole corpus) are the
 instruments the spec should have demanded.
+
+## 2026-09-16 — pair-apply merged (middle tier, PR #2723); EDIT-PICK2 spec'd
+
+`resolve::apply_with_names` is the fourth pairing door over the one
+predicate `ident::mispaired`, its arm `EditError::EvaluationOfAnotherDocument`;
+`ASSEMBLY.md` A2a is the one list of pairing doors and four sites point
+at it. The lane boxed `ProfileProgramRefused`'s payload to clear the
+enum-size lint the new arm tripped — argued, measured, and the reviewer
+would have taken the same call. The review (opus, style + correctness)
+found a fifth stale door count, the moved row's header wrong for
+PROPS's board, an unratified "beats" sentence written into A2a (made
+descriptive), and — the finding worth the review — two `NodePick` name
+doors that take a second evaluation unpaired and answer out of a
+twin's tables, filed on EDIT's slate. The pairing row moved to PROPS
+with EDIT's half built.
+
+EDIT-PICK2 spec'd: the barycentric residual the pick unit filed is
+ruled as the conjunction of "meet" and "inform" over one derived
+bound (`docs/EDIT-PICK2-SPEC.md`); block EDIT-B1 slot 1, dispatched
+when disk allows. Lanes live: doc-param, WireStep collapse.
