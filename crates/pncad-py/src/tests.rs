@@ -4094,6 +4094,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "declare_names_missing_node",
             "delete_would_dangle",
             "dimension",
+            "doc_param_count_has_no_distribution",
             "doc_param_count_has_no_unit",
             "doc_param_dimension_mismatch",
             "doc_param_not_declared",

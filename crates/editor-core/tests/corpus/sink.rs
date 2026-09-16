@@ -1,8 +1,8 @@
 //! Corpus document **kitchen_sink** — every v1 node kind and every
 //! REQUIRED `DocEdit` kind in ONE document (M4 PR 8a spec D1's
 //! "touching everything at once"); "required" is `EDIT_KINDS`, which
-//! is sixteen of the twenty arms and says at its own definition which
-//! four stand outside it and why. It grew out of the M4 PR 6 round-trip
+//! is every arm but four and says at its own definition which four
+//! stand outside it and why. It grew out of the M4 PR 6 round-trip
 //! fixture, which now consumes it from here so the persistence rows
 //! and the corpus rows can never drift apart.
 //!
@@ -11,13 +11,14 @@
 //! Split, Boolean (Union, with a Declare operand), Transform, Pattern
 //! (Linear and Circular), Declare.
 //!
-//! Edit kinds — the sixteen `EDIT_KINDS` names, which is every arm the
-//! corpus is required to cover and NOT every arm `DocEdit` has (that
-//! list's own doc says which four stand outside it and what guards a
-//! new one):
+//! Edit kinds — the `EDIT_KINDS` names, which is every arm the corpus
+//! is required to cover and NOT every arm `DocEdit` has (that list's
+//! own doc says which four stand outside it and what guards a new
+//! one):
 //! `InsertNode`, `DeleteNode`, `SetParam`,
 //! `SetStructuralParam`, `SetExpression`, `SetDocParam`,
-//! `SetDocParamValue`, `SetDocParamUnit`, `Rebind`,
+//! `SetDocParamValue`, `SetDocParamUnit`,
+//! `SetDocParamDistribution`, `Rebind`,
 //! `ReWitness`, `ReWitnessBulk`, `SetAppearance`, `ClearAppearance`,
 //! `SetTolerance`, `SetAppearanceMeta`, `ClearAppearanceMeta`.
 //!
@@ -35,9 +36,9 @@
 use std::collections::BTreeMap;
 
 use editor_core::{
-    Attr, AttrKind, Axis3, BooleanOp, BranchCertification, Datum, Dimension, DocEdit, DocParam,
-    DocParamValue, EntityKind, Expr, ExprPath, MetaValue, Node, ParamName, PatternKind, Rgba8,
-    RoleSeg, SlotId, StableName, UnitSym, WitnessDatum,
+    Attr, AttrKind, Axis3, BooleanOp, BranchCertification, Datum, Dimension, Distribution, DocEdit,
+    DocParam, DocParamValue, EntityKind, Expr, ExprPath, MetaValue, Node, ParamName, PatternKind,
+    Rgba8, RoleSeg, SlotId, StableName, UnitSym, WitnessDatum,
 };
 
 use crate::fixture::{ang, axis_in_plane, declare_x_offset_flush, len, scl};
@@ -72,6 +73,18 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetDocParamUnit {
         name: ParamName::new("h"),
         unit: UnitSym::from_def(&quantity::MM.def()),
+    });
+    // The ANNOTATION door, the third field of the same declaration:
+    // `h` acquires an E1/E2 tolerance and keeps the millimetres the
+    // edit above wrote. Through create-or-replace this pair reverts
+    // the notation, which is the trap the door removes; here the FILE
+    // carries both, so the round-trip rows read them back together.
+    r.push(DocEdit::SetDocParamDistribution {
+        name: ParamName::new("h"),
+        distribution: Some(Distribution::Band {
+            lo: -0.0001,
+            hi: 0.0001,
+        }),
     });
     r.push(DocEdit::SetDocParam {
         name: ParamName::new("n"),

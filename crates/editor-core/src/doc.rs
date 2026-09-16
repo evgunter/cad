@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 use geom_core::Real;
 
 use crate::appearance::{AppearanceMap, AppearanceRecord};
-use crate::distribution::Distribution;
+use crate::distribution::{Distribution, DistributionFault};
 use crate::expr::{Dimension, Expr, ExprPath, ParamEnv, ParamValue};
 use crate::ident::DocumentId;
 use crate::names::StableName;
@@ -79,9 +79,9 @@ pub enum DocParam {
     },
     /// An integer Count parameter (structural material, spec D3).
     ///
-    /// Carries NO distribution, and cannot: structural parameters are
-    /// fixed under any error analysis (E11.3), which comes out
-    /// UNREPRESENTABLE here rather than as a refusal — there is no
+    /// Carries NO distribution, and cannot — the argument is
+    /// [`Self::with_distribution`]'s rustdoc (E11.3). It comes out
+    /// UNREPRESENTABLE here rather than as a refusal: there is no
     /// spelling to refuse.
     Count {
         /// The exact value.
@@ -169,6 +169,50 @@ impl core::fmt::Display for DisplayUnitRefusal {
 }
 
 impl core::error::Error for DisplayUnitRefusal {}
+
+/// Why an E1/E2 annotation cannot be written onto a declaration
+/// ([`DocParam::with_distribution`]).
+///
+/// [`DisplayUnitRefusal`]'s shape at the third field, and for its
+/// reason: the two ways the annotation door can refuse, decided in ONE
+/// place — the door — so that its callers only route them. The edit
+/// vocabulary maps these to
+/// [`crate::EditError::DocParamCountHasNoDistribution`] and to the
+/// fault's own refusals ([`crate::EditError::NonFiniteDocParam`],
+/// [`crate::EditError::InvalidDistribution`]); nothing re-derives
+/// which applies.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DistributionRefusal {
+    /// The parameter is a [`DocParam::Count`], which takes no
+    /// annotation and carries no field to write one into — the
+    /// argument is [`DocParam::with_distribution`]'s rustdoc (E11.3).
+    CountHasNoAnnotation,
+    /// The offered distribution breaks an E2 invariant — the same
+    /// [`Distribution::check`] the persistence doors run, so an
+    /// annotation a file could not carry cannot be written by an edit
+    /// either.
+    Invalid {
+        /// The invariant that failed.
+        fault: DistributionFault,
+    },
+}
+
+// The refusal's own prose, for a caller holding the door's `Err`
+// without an `EditError` around it — [`DisplayUnitRefusal`]'s
+// convention. The fault half defers to `DistributionFault`'s sentence
+// rather than minting a second spelling of the same invariant.
+impl core::fmt::Display for DistributionRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::CountHasNoAnnotation => f.write_str(
+                "a count is a structural parameter, fixed under any error analysis, so it takes no distribution",
+            ),
+            Self::Invalid { fault } => write!(f, "{fault}"),
+        }
+    }
+}
+
+impl core::error::Error for DistributionRefusal {}
 
 impl DocParam {
     /// **A declaration the document cannot hold, stated once**: the
@@ -375,6 +419,99 @@ impl DocParam {
                 })
             }
             Self::Count { .. } => Err(DisplayUnitRefusal::CountHasNoNotation),
+        }
+    }
+
+    /// This parameter carrying `distribution`, keeping the whole rest
+    /// of the DECLARATION — the dimension, the exact value and the
+    /// authored display unit — untouched. [`Self::with_value`]'s and
+    /// [`Self::with_display_unit`]'s mirror over the third field, and
+    /// the ANNOTATION carry-forward in one place: every door that
+    /// writes an E1/E2 annotation goes through here rather than
+    /// rebuilding a parameter from parts, so no door can drop a field
+    /// it never mentioned. [`Self::continuous_with`], the authoring
+    /// spelling, writes the CANONICAL notation, so annotating through
+    /// create-or-replace re-spells a parameter authored in
+    /// millimetres; there is nothing to restate here.
+    ///
+    /// # `None` clears, and clearing is this door
+    ///
+    /// There is ONE annotation door, not a set/clear pair. The field
+    /// is an `Option<Distribution>` and "no annotation" is a VALUE of
+    /// the declaration — E1/E2's reading that an absent distribution
+    /// means no error analysis applies to the parameter — so writing
+    /// `None` is the same carry-forward edit as writing `Some`.
+    /// [`crate::DocEdit::SetAppearanceMeta`]/`ClearAppearanceMeta` are
+    /// two arms because a meta entry is a ROW IN A MAP, where clearing
+    /// removes the row rather than writing a value; that is a
+    /// different shape, and this is the one sentence that says so.
+    ///
+    /// # A COUNT takes no annotation (E11.3)
+    ///
+    /// **This is the home of that argument**; everywhere else that
+    /// needs it cites this paragraph rather than restating it, the
+    /// convention [`Self::with_display_unit`] follows for its own.
+    ///
+    /// A count is a STRUCTURAL parameter — it says how many of a
+    /// thing there are — and an error analysis prices the spread of a
+    /// continuous quantity, so a count is fixed under any of them.
+    /// That is why [`Self::Count`] carries no field to hang a
+    /// distribution on, which makes the rule UNREPRESENTABLE in the
+    /// declaration rather than refused at it; and it is why every door
+    /// that can be handed a count and an annotation TOGETHER refuses
+    /// instead of ignoring one of them.
+    ///
+    /// # Errors
+    ///
+    /// A TYPED reason rather than a bare `None`, for
+    /// [`Self::with_display_unit`]'s reason: there are two of them and
+    /// the edit door reports them as different refusals.
+    /// [`DistributionRefusal::CountHasNoAnnotation`] for a
+    /// [`Self::Count`] (the section above) and
+    /// [`DistributionRefusal::Invalid`] for an
+    /// offered distribution [`Distribution::check`] refuses, the SAME
+    /// check the persistence doors run.
+    ///
+    /// [`crate::DocEdit::SetDocParam`] reaches that same
+    /// [`Distribution::check`] without this door, so the shared write
+    /// path runs it again rather than trusting this one; neither copy
+    /// is the other's fallback, and a door that leaned on the tail
+    /// would hand a caller OUTSIDE `apply` a parameter no file could
+    /// carry. [`Self::with_display_unit`] and the pairing check are
+    /// doubled the same way, for the same reason.
+    ///
+    /// Clearing a `Count`'s annotation is refused too, rather than
+    /// accepted as a no-op: a caller aiming an annotation edit at a
+    /// count has the wrong parameter, and a door that answered `Ok`
+    /// because the field happened to be absent would hide that.
+    ///
+    /// EXHAUSTIVE on both arms as its two siblings are: a new
+    /// `DocParam` variant must say how an annotation edit reaches it,
+    /// or the compile breaks.
+    pub fn with_distribution(
+        &self,
+        distribution: Option<Distribution>,
+    ) -> Result<Self, DistributionRefusal> {
+        match self {
+            Self::Continuous {
+                dim,
+                value,
+                display_unit,
+                distribution: _,
+            } => {
+                if let Some(d) = &distribution
+                    && let Err(fault) = d.check()
+                {
+                    return Err(DistributionRefusal::Invalid { fault });
+                }
+                Ok(Self::Continuous {
+                    dim: *dim,
+                    value: *value,
+                    display_unit: *display_unit,
+                    distribution,
+                })
+            }
+            Self::Count { .. } => Err(DistributionRefusal::CountHasNoAnnotation),
         }
     }
 

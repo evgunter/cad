@@ -667,6 +667,11 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
         &["is declared length"],
         &dumps,
     );
+    assert_f6(
+        &EditError::DocParamCountHasNoDistribution { name: name.clone() },
+        &["is a count", "structural parameter", "no distribution"],
+        &dumps,
+    );
 
     // The construction-time dimension checker.
     assert_f6(

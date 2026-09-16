@@ -166,7 +166,11 @@ pub use editor_core::expr::{EvalError, eval, eval_count};
 // when a notation cannot be written — the same `VerbKind` rule: it is
 // that door's `Err`, and a consumer calling the door on a `DocParam`
 // it holds could otherwise read the reason only out of prose.
-pub use editor_core::{DisplayUnitRefusal, DocParam, DocParamValue, ParamName, UnitSym};
+// `DistributionRefusal` is the same thing at the third field, for
+// `DocParam::with_distribution`.
+pub use editor_core::{
+    DisplayUnitRefusal, DistributionRefusal, DocParam, DocParamValue, ParamName, UnitSym,
+};
 
 // A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the
 // typed refusals its invariants raise at the edit and persistence
