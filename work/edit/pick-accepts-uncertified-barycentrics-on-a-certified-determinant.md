@@ -118,6 +118,9 @@ pinned as a number.
   they count refusals AT the determinant, which this change does not
   touch, so the spec's premise 2 was mis-stated as well.
 
+Verified by CI run `35066248937` on head `7d6222b4c`: a code-tier
+run, twelve `test (…)` jobs and five `k-lint (gate, …)` jobs, green.
+
 **What did not land, and where it went.** The example ray is a
 measurement row, not a fix: its candidate's intervals are
 `0.367 ± 0.466`, `0.459 ± 0.218`, `0.827 ± 0.684` — wide but
