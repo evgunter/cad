@@ -1366,3 +1366,34 @@ here by the author rather than the reviewer, which is the cheaper place
 to catch it. Two findings that were not this unit's deliverables were
 filed rather than folded in — one new, one APPENDED to the row whose
 subject it already was, with a correction to that row's own site list.
+
+**Sphere-pole-side dual dispatched (2026-09-16).** PR #2741 at
+`53a9bee9e` (run 35068825589 green, 36 checks). Ordinal 2406, byte 86
+parity 0 ⇒ R1 opus / R2 fable, concurrent on the frozen head, briefs
+stored with sha256 before dispatch. What the unit delivered, for the
+record before its review lands: the rim-only cap measures
+`2πR²(1 ∓ sin v₀)` at `rel < 1e-12` and certifies at all three tiers
+through the public doors against `πh²(3R − h)/3` with both pads zero;
+the half-cap's complement refuses `props_rim_interior_side` while its
+partner still measures exactly, and which of the pair refuses is the
+sense bit's call, pinned both ways round; the three-face sphere whose
+face C is a rim-only cap now reports `4π/3` where the two-face split
+reported `0.0`; `Rim`'s duplicated direction is retired outright, which
+closes half the cycle-order row, and the anchoring-invariance row the
+spec's amendment demanded is green — the new predicate's recorded signs
+do not move under a re-anchoring.
+
+Three things the unit reported that the spec had wrong or left open,
+all disclosed rather than quietly absorbed. **The die's pips were never
+the rim-only shape** — a pip ball is revolved, so it carries a seam
+meridian and its cap has a meridian's levels; there was no
+quadrature-to-closed-form flip to pin, and the public-door evidence was
+built in `topo` instead. **The cone apex sibling is not the same change**
+— no second candidate for the missing extreme, and `fn cone` takes no
+sense bit — so it is measured and filed rather than served. And the
+**`boundary_material_sign` deviation**: the spec said that arm should
+take the predicate; the unit argues it cannot, because check 6 compares
+the boundary's encoding against the sense bit and σ reads that bit, so
+the comparison would become a tautology. That argument is the first
+thing both reviewers are told to adjudicate, and it is the one place
+the spec is not treated as settled.
