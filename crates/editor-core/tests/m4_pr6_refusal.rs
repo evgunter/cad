@@ -229,6 +229,164 @@ fn a_dimension_refusal_does_not_advise_regenerating_the_file() {
     );
 }
 
+/// **One fault, one arm, whichever route it takes.** An off-table
+/// display-unit symbol reaches the load door two ways — on an
+/// expression literal, through `WireExpr::rebuild`'s closed-table
+/// lookup, and on a document PARAMETER, through `UnitSym`'s own
+/// `Deserialize` — and it is the same fault both times.
+///
+/// This is the row that would red if the two ever diverged again. They
+/// did: the parameter route used to answer `Unreadable` with the
+/// regenerate recourse, which is advice that reproduces the refusal,
+/// while the expression route answered typed with none.
+#[test]
+fn an_off_table_display_unit_refuses_the_same_way_on_either_route() {
+    let (doc, _) = small();
+    // A document parameter carries a display unit of its own, so its
+    // symbol is on the wire beside the expression literals'.
+    let doc = apply(
+        &doc,
+        &DocEdit::SetDocParam {
+            name: ParamName::new("bore"),
+            value: DocParam::continuous(Dimension::Length, 0.01),
+        },
+        Tol::witness(),
+    )
+    .expect("the parameter applies")
+    .doc;
+    let text = save(&doc, &[], Tol::witness()).expect("save");
+    let unknown = DimensionError::UnknownDisplayUnit {
+        symbol: "furlong".to_owned(),
+    };
+
+    // Route 1: the parameter's own display unit, refused at the token.
+    let on_param = text.replace(r#""display_unit": "m""#, r#""display_unit": "furlong""#);
+    assert_ne!(on_param, text, "the parameter's unit must be on the wire");
+    match load(&on_param, Tol::witness()) {
+        Err(PersistError::Dimension { error, .. }) => assert_eq!(error, unknown),
+        other => panic!("a parameter's off-table unit must refuse typed, got {other:?}"),
+    }
+
+    // Route 2: an expression literal's, refused at the rebuild.
+    let on_literal = with_distance(&text, wire_literal("Length", "furlong"));
+    match load(&on_literal, Tol::witness()) {
+        Err(PersistError::Dimension { error, .. }) => assert_eq!(error, unknown),
+        other => panic!("a literal's off-table unit must refuse typed, got {other:?}"),
+    }
+
+    // And neither sends the caller to regenerate a file whose symbol
+    // would be just as absent from the table the second time.
+    for bad in [&on_param, &on_literal] {
+        let message = load(bad, Tol::witness())
+            .expect_err("must refuse")
+            .to_string();
+        assert!(!message.contains("regenerate"), "{message}");
+    }
+}
+
+/// **The sibling route, and what it costs one rung up.** A save file's
+/// `edits` list is DATA, so a hand-edited one can carry an edit whose
+/// replay the document layer's dimension checker refuses. That reaches
+/// the load door too — as `EditReplay` wrapping the `EditError` the
+/// replay raised, which for `SetExpression` is `EditError::Dimension`
+/// carrying the same `DimensionError` the `Dimension` arm above does.
+///
+/// It has to be TAMPERED rather than handed to `save`: the save door
+/// replays the log through the same apply doors
+/// ([`unreplayable_edit_log_refuses_at_save`]), so a log this bad never
+/// gets written. The hand-edited file is the only way in, which is
+/// exactly what the load-door re-check is for.
+///
+/// The kernel loses nothing — both levels are on the value, matchable.
+/// What is one rung short is the PYTHON projection: `pncad-py`'s
+/// `persist_err` gives `PersistError.inner_variant` the `EditError`'s
+/// own word (`dimension`) and drops the check's (`mismatch`), which
+/// `crate::tags::edit_inner_variant_tag` would supply and which it
+/// calls at its other two sites. Filed as
+/// `work/lib/persist-inner-variant-stops-one-rung-above-the-check.md`;
+/// this row is the kernel-side fact that one rests on.
+#[test]
+fn a_replayed_edits_dimension_refusal_reaches_the_load_door() {
+    use editor_core::{EditError, ExprPath, SlotId};
+    let tol = Tol::witness();
+    // A distance that is an OPERATOR node, so replacing one leaf can
+    // make the rebuild ill-dimensioned. A bare literal could not.
+    let doc = ProfileDoc::empty_derived("m4_pr6_replay_dimension", tol);
+    let (doc, p) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+    );
+    let (doc, extrude) = insert(
+        doc,
+        Node::Extrude {
+            profile: p,
+            distance: Expr::add(len(1.0), len(1.0)).expect("Length + Length"),
+        },
+    );
+    // A log the save door accepts: same dimension, so the replay is
+    // clean and the file is written.
+    let legal = DocEdit::SetExpression {
+        path: ExprPath {
+            node: extrude,
+            slot: SlotId::Distance,
+            path: vec![1],
+        },
+        expr: len(2.0),
+    };
+    let text = save(&doc, &[legal], tol).expect("a replayable log is written");
+
+    // Now the hand edit: the logged replacement becomes an Angle.
+    let (header, body_text) = text.split_once('\n').expect("a header line");
+    let mut body: serde_json::Value = serde_json::from_str(body_text).expect("a JSON body");
+    let edits = body["edits"].as_array_mut().expect("an edit list");
+    assert_eq!(edits.len(), 1, "the fixture logs exactly one edit");
+    edits[0]["SetExpression"]["expr"] =
+        serde_json::json!({ "Literal": { "value": 1.0, "dim": "Angle", "unit": "rad" } });
+    let tampered = format!(
+        "{header}\n{}",
+        serde_json::to_string(&body).expect("re-emit")
+    );
+
+    match load(&tampered, tol) {
+        Err(PersistError::EditReplay {
+            index: 0,
+            error: EditError::Dimension(inner),
+        }) => assert_eq!(
+            inner,
+            DimensionError::Mismatch {
+                op: "add",
+                left: Dimension::Length,
+                right: Dimension::Angle,
+            },
+            "the replay refuses with the checker's own value, two levels deep"
+        ),
+        other => panic!("expected an EditReplay dimension refusal, got {other:?}"),
+    }
+}
+
+/// A `Deserialize` impl driven from somewhere other than the load door
+/// records NOTHING, because the refusal frame belongs to a parse and
+/// there is no parse open.
+///
+/// Without that, a bare `from_str` of one wire type would arm the
+/// channel for whatever this thread loaded next — the hazard the guard
+/// exists to make unreachable rather than to document.
+#[test]
+fn a_refusal_outside_a_parse_arms_nothing() {
+    let bad = r#"{"Add":[{"Literal":{"value":1.0,"dim":"Length","unit":"m"}},"#.to_owned()
+        + r#"{"Literal":{"value":1.0,"dim":"Angle","unit":"rad"}}]}"#;
+    let refused: Result<Expr, _> = serde_json::from_str(&bad);
+    assert!(refused.is_err(), "the tree is ill-dimensioned");
+    // Now a clean load on the same thread. If that refusal had been
+    // recorded anywhere a later parse could read, this would answer a
+    // dimension refusal for a document that has nothing wrong with it.
+    let (_, text) = small();
+    load(&text, Tol::witness()).expect("the clean document still loads");
+}
+
 /// A load after one that refused does not inherit the refusal: the
 /// channel the structure crosses on belongs to ONE parse
 /// (`persist::refusal`), and a slot left dirty would make the next load

@@ -549,14 +549,30 @@ BOUND_AS = {
     # (`QuantityOpMismatch`), so no Python class shares this spelling
     # and rule 1 has nothing to match — the name is argued whole, here.
     #
-    # Its ten arms cross at three doors, each class named for the DOOR
-    # and each carrying this type's own tag beside it: `ParseError`
-    # with `variant == "dimension"` and the tag as `kind` from
-    # `Doc.parse_expr`, `LiteralError` with the tag as `kind` from
-    # literal construction, and `PersistError` with `variant ==
-    # "dimension"` and the tag as `inner_variant` from `load`. One
-    # attribute is named here because a row takes one; the tag
-    # vocabulary is the same at all three.
+    # Its ten arms cross at SIX doors under four class names, each
+    # class named for the DOOR and each carrying this type's own tag
+    # beside it. The roster, with the attribute each door spells the
+    # tag as, is on `ErrorClass::DIMENSION_DOORS` in
+    # `crates/pncad-py/src/errors.rs` — ONE statement of the count,
+    # because this comment and three others each carried their own and
+    # they disagreed. One attribute is named in the row below because a
+    # row takes one; it is not the only spelling, and the roster says
+    # which are which.
+    #
+    # WHAT THIS ROW COST THE CENSUS, stated rather than filed as
+    # bookkeeping: it replaced TEN member rows
+    # (`DimensionError::Mismatch` and its nine siblings) with one
+    # whole-name row. That was mechanically forced — the member rule
+    # only reaches a curated name the stub declares top-level, and
+    # `pncad.pyi` declares no `DimensionError` any more — but the
+    # effect is real. Before, a new arm on the kernel type showed up
+    # here as an unaccounted member; now it does not. What pins the
+    # arms instead is `crate::tags::expr_dimension_error_tag`'s own
+    # exhaustive match — a new arm stops the BUILD — and
+    # `TAG_INVENTORY`'s row for it, held by
+    # `tests::the_whole_tag_table_matches_its_committed_inventory`. The
+    # census sees LESS than it did; those two are why that is
+    # survivable, not why it did not happen.
     "DimensionError": "ParseError.kind",
     "NodeErrorKind": "EvaluationError.kind",
     "NodeValue": "Value",

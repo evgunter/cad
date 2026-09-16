@@ -108,12 +108,15 @@ pyo3::create_exception!(
      The class is the Rust type's own name. The quantity boundary's \
      operator check is not the library's only dimension check, and \
      the document layer's own refusal type reaches Python under \
-     three DOOR names rather than one type name: `LiteralError` from \
-     literal construction, `ParseError` with `variant == \
-     \"dimension\"` from `Doc.parse_expr`, and `PersistError` with \
-     `variant == \"dimension\"` from `load`. Each of those carries \
-     the failing check's own tag, so which check refused is \
-     branchable at all three."
+     DOOR names rather than one type name: `LiteralError` from \
+     literal construction, from the measurement constructors and from \
+     the recorded-program lift; `ParseError` with `variant == \
+     \"dimension\"` from `Doc.parse_expr`; `EditError` from \
+     `Doc.apply`; and `PersistError` with `variant == \"dimension\"` \
+     from `load`. Six doors, four classes — the roster with each \
+     one's attribute is on `ErrorClass::DIMENSION_DOORS` in \
+     `crate::errors`. Each carries the failing check's own tag, so \
+     which check refused is branchable at every one."
 );
 pyo3::create_exception!(
     pncad,
@@ -140,12 +143,13 @@ pyo3::create_exception!(
      of the refusing arm.\n\n\
      Not `QuantityOpMismatch`: that one is the quantity boundary's \
      operator check, a different type. The expression layer's refusal \
-     type has dimension-mismatch arms too, and two other doors reach \
-     them — `load` from a hand-edited save file (as `PersistError` \
-     with `variant == \"dimension\"` and the check's own tag as \
-     `inner_variant`) and `Doc.parse_expr` from source text (as \
-     `ParseError`). Every `kind` raised on THIS class is a \
-     literal-value refusal."
+     type has dimension-mismatch arms too, and it reaches Python at \
+     six doors under four class names — the roster is on \
+     `ErrorClass::DIMENSION_DOORS` in `crate::errors`. THIS class is \
+     three of those six: literal construction, the measurement \
+     arithmetic constructors, and the recorded-program lift (which \
+     spells its tag `variant` rather than `kind` — filed, not \
+     decided)."
 );
 pyo3::create_exception!(
     pncad,

@@ -130,8 +130,8 @@ pub const fn canonical_unit(dim: Dimension) -> Option<&'static str> {
 ///
 /// Raised to Python under this type's own name. The document layer's
 /// own `DimensionError` is a different type entirely — the expression
-/// layer's ten-arm refusal — and it crosses on three doors of its own,
-/// under each door's name.
+/// layer's ten-arm refusal — and it crosses on six doors of its own,
+/// under each door's name ([`DIMENSION_DOORS`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct QuantityOpMismatch {
     /// The operator that was attempted, e.g. `"+"`.
@@ -248,12 +248,12 @@ pub enum ErrorClass {
     /// class with the mismatch's own tag as `kind` — they are the same
     /// kernel type refusing at the same layer, because that language
     /// asks `Expr`'s own constructors for its dimensions rather than
-    /// restating the F1 table. So the type crosses at four doors under
-    /// three class names, each naming the DOOR, and every one of them
-    /// carries the failing check's own tag beside it: which check
-    /// refused is branchable everywhere, and the word comes from one
-    /// map (`crate::tags::expr_dimension_error_tag`). Nothing anywhere
-    /// is routed to [`ErrorClass::QuantityOp`], which is the quantity
+    /// restating the F1 table. The full roster is on
+    /// [`DIMENSION_DOORS`] — SIX doors under four class names, each
+    /// naming the DOOR — and every one of them carries the failing
+    /// check's own tag beside it, from one map
+    /// (`crate::tags::expr_dimension_error_tag`). Nothing anywhere is
+    /// routed to [`ErrorClass::QuantityOp`], which is the quantity
     /// boundary's own check and a different type.
     ///
     /// So `value` is the offending number where the refusing door had
@@ -489,6 +489,36 @@ pub enum ErrorClass {
     /// same word from either door.
     Mc,
 }
+
+/// **Six doors, four classes.** The document layer's `DimensionError`
+/// is not a one-door refusal, and the roster is mechanical — it is the
+/// set of sites that mint [`crate::tags::expr_dimension_error_tag`]'s
+/// word into a Python attribute, directly or through the two helpers
+/// that forward it:
+///
+/// | door | class | attribute |
+/// |---|---|---|
+/// | literal construction | `LiteralError` | `kind` |
+/// | measurement arithmetic | `LiteralError` | `kind` |
+/// | the recorded-program lift | `LiteralError` | `variant` |
+/// | `Doc.parse_expr` | `ParseError` | `kind` |
+/// | `Doc.apply` | `EditError` | `inner_variant` |
+/// | `load` | `PersistError` | `inner_variant` |
+///
+/// Every class names the DOOR; none names the type. That is the rule
+/// [`ErrorClass::QuantityOp`] is the other side of, and the reason the
+/// name `DimensionError` is published by no Python class at all.
+///
+/// Two things this roster does NOT claim, because they are open and
+/// filed rather than decided here: the third row's `variant` where its
+/// two siblings say `kind`
+/// (`work/lib/literalerror-publishes-its-tag-under-two-names.md`), and
+/// a SEVENTH route — a replayed edit at `load` — which reaches
+/// `PersistError` with `inner_variant == "dimension"` and stops one
+/// rung above the check
+/// (`work/lib/persist-inner-variant-stops-one-rung-above-the-check.md`).
+#[doc(hidden)]
+pub const DIMENSION_DOORS: () = ();
 
 impl ErrorClass {
     /// The Python class name this maps to.

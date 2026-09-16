@@ -299,12 +299,14 @@ class QuantityOpMismatch(PncadError):
 
     The class is the Rust type's own name. This is the quantity
     boundary only, and not the library's only dimension check: the
-    document layer's own refusal type reaches Python under three DOOR
-    names rather than one type name — LiteralError from literal
-    construction, ParseError with `variant == "dimension"` from
-    `Doc.parse_expr`, and PersistError with `variant == "dimension"`
-    from `load`. Each carries the failing check's own tag, so which
-    check refused is branchable at all three."""
+    document layer's own refusal type reaches Python at SIX doors
+    under four DOOR names rather than one type name — LiteralError
+    (literal construction, the MeasureExpr arithmetic constructors,
+    and the recorded-program lift), ParseError with `variant ==
+    "dimension"` (`Doc.parse_expr`), EditError (`Doc.apply`), and
+    PersistError with `variant == "dimension"` (`load`). Each carries
+    the failing check's own tag, so which check refused is branchable
+    at every one."""
 
     op: str
     left: str
@@ -334,10 +336,11 @@ class LiteralError(PncadError):
 
     Not QuantityOpMismatch, which is the quantity boundary's operator
     check and a different type. The expression layer's refusal type has
-    dimension-mismatch arms too, and three other doors reach them:
-    `load` does, from a hand-edited save file, and they arrive as
-    PersistError with `variant == "dimension"` and the check's own tag
-    as `inner_variant`; `Doc.parse_expr` does, and they
+    dimension-mismatch arms too, and reaches Python at six doors under
+    four class names in all: `load` does, from a hand-edited save file,
+    and they arrive as PersistError with `variant == "dimension"` and
+    the check's own tag as `inner_variant`; `Doc.apply` does, as
+    EditError; `Doc.parse_expr` does, and they
     arrive as ParseError; and the MEASUREMENT sublanguage's arithmetic
     constructors do (`MeasureExpr.add` and its siblings), arriving on
     THIS class with the mismatch's own tag as `kind` — the same kernel

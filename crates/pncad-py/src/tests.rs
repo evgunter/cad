@@ -5241,12 +5241,18 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("corrupt", 3),
     ("cosurface_escalated", 2),
     ("dangling_geometry", 2),
-    // Three, and two of them are ONE FACT: `parse_error_tag` and
-    // `persist_error_tag` both mean "the document layer's dimension
-    // checker refused", at the text door and at the load door, and both
-    // carry that refusal's own tag beside the word. `edit_error_tag`'s
-    // is a different question — a slot's declared dimension against the
-    // expression handed to it.
+    // Three, and ALL THREE are one fact: `parse_error_tag`,
+    // `persist_error_tag` and `edit_error_tag` each mean "the document
+    // layer's dimension checker refused", at the text door, the load
+    // door and the edit door, and each carries that refusal's own tag
+    // beside the word — `EditError::Dimension` holds the very same
+    // `DimensionError` the other two do
+    // (`crate::tags::edit_inner_variant_tag`). An earlier reading of
+    // this row had `edit_error_tag`'s down as a DIFFERENT question — a
+    // slot's declared dimension against the expression handed to it,
+    // which is `SlotDimensionMismatch`, a different arm — and calling
+    // them different is what made the three-door divergence in
+    // `PersistError`'s `EditReplay` projection invisible.
     ("dimension", 3),
     ("edge", 2),
     ("empty", 2),
