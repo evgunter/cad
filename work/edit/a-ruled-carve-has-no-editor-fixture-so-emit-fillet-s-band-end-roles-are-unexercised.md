@@ -2,10 +2,11 @@
 id: a-ruled-carve-has-no-editor-fixture-so-emit-fillet-s-band-end-roles-are-unexercised
 kind: issue
 title: No editor row drives a ruled carve, so emit_fillet's band-end roles (EndArc, FootVertex, BandCut) have never been minted through the document layer
-status: review
+status: closed
 opened: 2026-09-15
 branch: edit/ruled-carve-fixture
 pr: 2778
+closed: 2026-09-16
 ---
 
 
@@ -155,3 +156,25 @@ Not done here, filed instead:
 `bandfoot-and-bandcross-arguments-are-read-by-no-document-row` — the
 ladder rim phase's other two mints still ride `check_total` with no row
 reading their arguments.
+
+## Closed (2026-09-16, EDIT orchestrator)
+
+Built and merged as PR #2778 after one opus style review (MERGEABLE:
+four MINOR, four NOTE, every one taken in the fix pass, one widened by
+the lane's own measurement). Six rows drive a ruled carve through
+`Node::Fillet` on two documents — the D-profile rod (convex) and a
+rod's section on a block's top edge (concave, two plane supports, cap
+rims cut by one crease each) — and read each band-end role's ARGUMENTS
+against the entity the name resolves to: the cut-off arc between its
+two feet, a foot in its cap plane (exact, a stored coordinate) and on
+the face its support names (by the face's own boundary, which is what
+tells two coplanar walls apart), the trimline between the feet on its
+support, the surviving rim piece's ends, the material side by `ΔV`'s
+sign, and the closest separation a row must resolve, from which the
+one window the suite uses is derived. Five mutants, each named with the
+rows it reds; the arc row's blindness to a swapped support is stated at
+the claim site. The copied D-profile derivation has one home
+(`sweep::test_support::rod_chord_at`, S-BOOL/FILLET's test support,
+value-identical, disclosed). Residue in its own file:
+`bandfoot-and-bandcross-arguments-are-read-by-no-document-row`
+(widened to four mints).
