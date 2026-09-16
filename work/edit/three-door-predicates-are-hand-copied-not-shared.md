@@ -2,11 +2,12 @@
 id: three-door-predicates-are-hand-copied-not-shared
 kind: issue
 title: Three more node predicates are hand-copied at both doors instead of shared: the assertion bound, a mate's alignment, a placement's frame
-status: review
+status: closed
 opened: 2026-09-16
 branch: edit/one-predicate-round-two
 pr: 2772
 refs: [blend-selection-canonical-check-load-only, check-rs-hand-copied-predicate-sweep-undercounts]
+closed: 2026-09-16
 ---
 
 Found by the sweep behind `blend-selection-canonical-check-load-only`,
@@ -344,3 +345,24 @@ entry 2 (the doc-param float walk, hand-written at both doors) is
 `doc-param-float-walk-is-hand-written-at-both-doors`; entry 9's shadow
 is `count-continuous-arm-is-shadowed-by-the-display-unit-walk`; entry
 7 remains `load-door-checks-slot-dimensions-for-profile-nodes-only`.
+
+## Closed (2026-09-16, EDIT orchestrator)
+
+Built and merged as PR #2772 after one opus style review
+(APPROVE-WITH-FIXES: one MAJOR — the sweep's closing table undercounted
+the load door's hand-copied predicates by three — three MINOR, four
+NOTE, eight style findings; every one taken in the fix pass, two argued
+with a measurement). Six predicates now have one home each, asked by
+both doors — the assertion bound, the mate alignment, the placement
+registry, the witness site, the recorded ε, the structural/continuous
+divide — with the frame rule stated once beside `Frame`; the gauge's
+second leg is an exhaustive match over `DocEdit` rather than a hand-set
+flag; `SnapshotError` has an exhaustive F6 census; the evaluation
+backstop reaches the shared assertion rule; and `validate_document`'s
+refusals are a fresh census on this row (`## Census`), which is what
+let the sweep row and the review's undercount row close. Two pairs
+measured irreducible and said so at both sites. Residue in its own
+files: `load-door-checks-slot-dimensions-for-profile-nodes-only`,
+`count-continuous-arm-is-shadowed-by-the-display-unit-walk`,
+`doc-param-float-walk-is-hand-written-at-both-doors`,
+`mate-head-entity-kind-is-decided-only-at-assembly`.
