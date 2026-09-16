@@ -112,3 +112,56 @@ not left in a PR body.
 **Operational note**: `work.py territory --base main` fails with "no
 merge base" inside a fresh agent worktree; `--base origin/main` is what
 to pass there.
+
+### Unit A closed (2026-09-16, PR #2720) — and what the first unit taught
+
+**66 spellings, not 24.** Final tally in the row. The census was wrong
+high on the pattern and wrong low on the population by nearly 3x, and
+three different instruments were needed to find the class: a
+word-bounded name grep (23), a construction grep on `prism_z` (17), and
+the reviewer's shape — *parse every rectangle-profile site, then check
+whether the binding is ever read for anything but `.body`* (26). **No
+one of the three would have found half of it.** That is the sharpest
+form yet of method items 1–3, and it belongs in any brief this program
+writes from here: name the instrument, not just the pattern and the
+scope.
+
+**X4 fired inside the paragraph naming it, exactly as item 5 predicts.**
+The lane proved `brick ≠ geometric_cube` and stopped, in a file with
+three cube doors. `mapped_cube(Point3::new)` and `brick` at the unit
+ranges are **arena-identical** — proved by execution on the fix pass,
+after the reviewer proved it by reading. The unit's own new door was a
+fourth spelling of a builder already in its file, and its doc asserted
+a partition that was false. **Only the reader who did not write the fix
+caught it**, for the sixth time across SUITE and S-DUP. The rule holds
+with no exceptions recorded against it.
+
+Method item 5 should be read as stronger than it is written: it is not
+that a lane *might* mint a fresh instance, it is that **the X4 check
+itself is where the instance hides**, because a lane checks the
+neighbour it was thinking about. The instruction to a lane is therefore
+not "check for a fresh copy" but "**enumerate every sibling door in the
+file and check each**".
+
+**Review tier confirmed by outcome.** This was a style-only unit by the
+`plan.md` tiering and the style lane returned thirteen findings, four
+of them structural, none of them a correctness MAJOR. The tier was
+right and the review was not a formality: Q1 (a differently-shaped
+sweep) found the 26 leaked sites, and Q8 (read the whole file once)
+found the `geometric_cube`/`cube_into` duplication that nothing else
+would have.
+
+### A cross-program hazard surfaced by this unit, on S-MESH's ground
+
+`crates/mesh/src/nurbs_cert_fuzz.rs`'s
+`r1_random_rational_soundness_sweep` **draws a fresh seed every run**,
+so any lane's PR can draw a failing one. This unit's second CI run did,
+at `0x5ca58da03160d407`, with `crates/mesh` byte-identical to main on
+the branch. The lane reproduced it deterministically instead of
+re-running it away, and found the assertion's `{:.3e}` formatting hides
+the margin it fails on: sampled `wuu` exceeds the certificate's `muu`
+by **two ULPs**. The existing row's recorded instance is a 1.7 %
+overshoot — a genuinely wrong bound — so **fixing that bound will not
+stop this row reddening other programs' PRs**. Evidence added to
+`work/mesh/nurbs-face-bound-unsound-on-a-random-rational.md` rather
+than a second file. Flagged to Ev; S-MESH's to fix.

@@ -2,9 +2,11 @@
 id: topo-tests-brick-copies
 kind: issue
 title: Twenty-four private brick fixtures in crates/topo/tests, all of them one line over common::prism_z
-status: spec
+status: closed
 opened: 2026-09-15
 branch: dup/topo-brick-copies
+closed: 2026-09-16
+pr: 2720
 ---
 
 ## Finding
@@ -125,3 +127,53 @@ reaches. Move A is compatible with either answer and turns that later
 decision from a 24-site edit into a one-line one.
 
 Sequencing ratified by Ev in chat, 2026-09-16: "A now, B next unit".
+
+## Closed (2026-09-16, PR #2720)
+
+**66 box spellings removed**, cross-checked mechanically rather than
+counted: the diff removes 67 `prism_z`/`prism` call openings under
+`crates/topo/tests/` and adds one, the one inside `brick`.
+
+| | |
+| --- | --- |
+| named `fn brick` | 23, across 23 files |
+| renamed or inline, found by the construction sweep | 17 |
+| let-bound `Prism`s read only for `.body`, found by the reviewer's differently-shaped sweep | 26 |
+
+The row's own figure was 24 across 22 suites. It was wrong **high** on
+the pattern (`brick_with_torus_face_at` is a different fixture) and
+wrong **low** on the population by a factor of nearly three, and the
+two errors had different causes: an unbounded grep, and a name-shaped
+census over a class whose members are mostly not named.
+
+**X4 fired, and was caught by the reader rather than the author.** The
+first pass proved `brick ≠ geometric_cube` and stopped, in a file with
+**three** cube doors; the style review found that `mapped_cube` →
+`cube_into` also ends with `describe_as_intersections`. Executed on the
+fix pass with the same instrument, `mapped_cube(Point3::new)` and
+`brick::<f64>((0.0,1.0),(0.0,1.0),(0.0,1.0))` are **arena-identical** —
+vertices, edges, faces, half-edges, loops, surfaces, curves and points
+all equal. So the unit's own new door was a fourth spelling of a
+builder already in its file, and the doc it shipped with asserted a
+two-door partition that was false. Both are fixed; the finding that
+`geometric_cube` and `cube_into` are one ninety-line sequence written
+twice is filed, not fixed, because it reconciles rather than merges.
+
+`review_m3_pr6.rs`'s `mapped_cube(Point3::new)` + `cube_into(…)` pair
+was left standing on the orchestrator's ruling: the pair is one
+deliberate idiom seeding a second shell in the same body, converting
+half of it would split that, and it now reads honestly against a doc
+that says the two builders agree.
+
+### Residue, each with its own file
+
+- `work/tint/topo-tests-geometric-cube-and-cube-into-are-one-sequence-twice.md` — full-review unit
+- `work/tint/topo-tests-review-m2-pr7-rederives-the-shared-cube.md`
+- `work/tint/topo-tests-unit-cube-has-fifty-spellings.md` — 49 spellings, and the three nullary-wrapper conventions this unit's own three decisions created
+- `work/tint/topo-tests-notched-beams-fixture-is-verbatim-in-two-files.md`
+- `work/tint/topo-tests-straddle-seat-hand-copies.md`
+- `work/tint/topo-tests-self-declared-fixture-copies-census.md`
+- `work/tint/topo-tests-scaled-probe-box-five-spellings.md` — widened in place to its class rather than duplicated
+
+And on another program's ground, evidence added to an existing row
+rather than a second file: `work/mesh/nurbs-face-bound-unsound-on-a-random-rational.md`.
