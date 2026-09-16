@@ -526,3 +526,5 @@ mod wire_operand_door;
 mod wire_product_gather_tie;
 #[path = "wire_rv_bytes.rs"]
 mod wire_rv_bytes;
+#[path = "wire_rv_unknown.rs"]
+mod wire_rv_unknown;
