@@ -1300,3 +1300,156 @@ fn first_length_slot(doc: &ProfileDoc) -> (RecipeNodeId, SlotId, Expr) {
     }
     panic!("no extrude or revolve in the document")
 }
+
+#[test]
+#[ignore]
+fn probe_ring_candidates() {
+    let tol = Tol::witness();
+    let text = common::gallery_ring_at(tol);
+    let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
+    let doc = loaded.snapshot;
+    let (node, slot, expr) = first_length_slot(&doc);
+    let bump = Edit {
+        node,
+        slot,
+        text: unparse(&expr),
+    };
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let outcome = session.perform(bump.op());
+    assert!(outcome.refusal.is_none());
+    session.pump();
+    let index = fresh_index(&session).expect("indexes");
+    let vertex = Point3::new(0.245_196_320_100_807_58, 0.0, 0.048_772_580_504_032_18);
+    let reach = 1.48;
+    let ray = Ray {
+        origin: Point3::new(vertex.x, vertex.y + reach, vertex.z),
+        dir: Vec3::new(0.0, -1.0, 0.0),
+    };
+    let reference = FlatReference::of(&index);
+    for (pi, flat) in reference.parts.iter().enumerate() {
+        for cand in flat.tree.ray(&ray) {
+            let tri = &flat.corners[cand.item];
+            let iv = editor_core::resolve::barycentric_intervals(&ray, tri);
+            let t = ray_triangle(&ray, tri);
+            if t.is_some() || iv.is_some() {
+                println!(
+                    "PROBE part {pi} item {} t_enter {:?} det {:?} iv {iv:?} t {t:?}",
+                    cand.item,
+                    cand.t_enter,
+                    certified_determinant(&ray, tri)
+                );
+            }
+        }
+    }
+}
+
+#[test]
+#[ignore]
+fn probe_tie_aim() {
+    let tol = Tol::witness();
+    let mut landings: Vec<(String, PickIndex)> = Vec::new();
+    {
+        let text = common::gallery_ring_at(tol);
+        let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
+        let doc = loaded.snapshot;
+        let (node, slot, expr) = first_length_slot(&doc);
+        let bump = Edit {
+            node,
+            slot,
+            text: unparse(&expr),
+        };
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        landings.push((
+            "gallery_ring open".into(),
+            fresh_index(&session).expect("ix"),
+        ));
+        let outcome = session.perform(bump.op());
+        assert!(outcome.refusal.is_none());
+        session.pump();
+        landings.push((
+            "gallery_ring bumped".into(),
+            fresh_index(&session).expect("ix"),
+        ));
+    }
+    for c in corpus::documents() {
+        let Some((bump, _)) = bump_of(&c) else {
+            continue;
+        };
+        let mut session = DocSession::inline(c.doc.clone(), tol);
+        session.pump();
+        if session.evaluation().is_none() {
+            continue;
+        }
+        let Ok(ix) = fresh_index(&session) else {
+            continue;
+        };
+        landings.push((format!("{} open", c.name), ix));
+        let outcome = session.perform(bump.op());
+        if outcome.refusal.is_some() {
+            continue;
+        }
+        session.pump();
+        if let Ok(ix) = fresh_index(&session) {
+            landings.push((format!("{} bumped", c.name), ix));
+        }
+    }
+    let (mut rays, mut beyond_or_miss, mut disagree, mut wide) = (0usize, 0usize, 0usize, 0usize);
+    let mut worst = 0.0f64;
+    for (name, index) in &landings {
+        let reference = FlatReference::of(index);
+        let tie = tie_rays_for(index);
+        // reach: the aim's own, restated
+        let mut ext = 0.0f64;
+        for part in index.parts() {
+            for p in &part.mesh().positions {
+                ext = ext.max(p.x.abs()).max(p.y.abs()).max(p.z.abs());
+            }
+        }
+        let reach = 4.0 * ext.max(1e-3);
+        let mut here = 0usize;
+        for ray in &tie {
+            rays += 1;
+            let (every, _) = reference.pick(ray);
+            let (pruned, _) = reference.walk(ray, Walk::Pruned);
+            if FlatHit::key(pruned) != FlatHit::key(every) {
+                disagree += 1;
+            }
+            match every {
+                None => {
+                    beyond_or_miss += 1;
+                    here += 1;
+                }
+                Some(h) if h.t > reach * (1.0 + 1e-9) => {
+                    beyond_or_miss += 1;
+                    here += 1;
+                }
+                Some(h) => {
+                    // the winner's widest interval
+                    for flat in &reference.parts {
+                        for cand in flat.tree.ray(ray) {
+                            if cand.item == h.item
+                                && let Some(iv) =
+                                    editor_core::resolve::barycentric_intervals(ray, &flat.corners[cand.item])
+                            {
+                                let m = iv.iter().map(|&(_, e)| e).fold(0.0f64, f64::max);
+                                worst = worst.max(m);
+                                if m >= 1.0 {
+                                    wide += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if here > 0 {
+            println!("PROBE {name}: {here} of {} beyond or miss", tie.len());
+        }
+    }
+    println!(
+        "PROBE TOTAL rays {rays} beyond-or-miss {beyond_or_miss} pruned-disagree {disagree} \
+         winners-with-bound-ge-1 {wide} widest-winner-bound {worst:e}"
+    );
+}
