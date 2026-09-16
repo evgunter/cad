@@ -5,7 +5,9 @@
 //! The chain: [`bvh::Bvh::ray`] over the patches' boxes, then over
 //! the candidate patches' per-triangle boxes, merged into one
 //! candidate sequence ([`MeshPick`]) → exact ray/triangle tests in
-//! plain `f64` → nearest hit by `t` with a total, documented tie-break
+//! plain `f64`, each refused below its own box's certified entry
+//! ([`ray_triangle`]) → nearest hit by `t` with a total, documented
+//! tie-break
 //! → the winning patch's [`mesh::FacePatch::face`] back-reference →
 //! [`super::hit::entity_name`] → [`StableName`]. **No arena key crosses the layer-2/3 boundary as
 //! a selection value**: the service's public answer is a name (plus
@@ -235,13 +237,15 @@ impl core::error::Error for MeshPickError {}
 /// # Why the two-level query answers exactly as one tree over every
 /// triangle would
 ///
-/// A pick is a function of the candidate SEQUENCE the tree hands the
-/// exact test — not only of the set: the loop early-outs on the
-/// conservative entry parameter, and the exact test can answer a `t`
-/// outside a grazed triangle's own box (a ray in the triangle's
-/// plane), so which such answers the loop reaches is decided by the
-/// order. [`MeshPick::candidates`] therefore reproduces the single-
-/// tree sequence verbatim:
+/// A pick is a function of the candidate SET and of each candidate's
+/// own box: the exact test refuses a `t` below the box's certified
+/// entry ([`ray_triangle`]), so the loop's early-out on that entry
+/// prunes only candidates that could not win ([`pick_face`]), and
+/// the answer is the same in every candidate order. What the order
+/// still decides is the WORK — which candidates are tested before
+/// the early-out fires — so [`MeshPick::candidates`] reproduces the
+/// single-tree sequence verbatim, and the two-level index costs what
+/// one tree would:
 ///
 /// - **Same set.** `bvh`'s contract: a query's candidates are a
 ///   function of the item boxes alone, independent of tree shape, and
@@ -257,7 +261,8 @@ impl core::error::Error for MeshPickError {}
 ///   formula by ~2 ULP; it is reached only when a bound and the ray
 ///   origin differ by more than `f64::MAX`, which no mesh does.)
 /// - **Same values.** Each candidate's `t_enter` is the same function
-///   of the same triangle box.
+///   of the same triangle box — and it is the bound the exact test
+///   refuses below, so each candidate's test answers the same.
 /// - **Same order.** The merged list is sorted by
 ///   `(t_enter under total_cmp, flat position)`, the single tree's
 ///   documented order.
@@ -265,7 +270,8 @@ impl core::error::Error for MeshPickError {}
 /// So the loop in [`pick_face`] sees the sequence one tree over all
 /// the triangles would give it, and answers bit-identically — the
 /// invariant `viewer`'s `index_memo` differential pins against a
-/// single-level reference, tie-break row included.
+/// single-level reference that tests every candidate in every order,
+/// tie-break row included.
 ///
 /// # The two doors, and why they answer the same index
 ///
@@ -1156,14 +1162,21 @@ pub struct PickHit {
 /// edge/vertex graze is a hit for every incident triangle and the
 /// tie-break, not chance, picks the answer.
 ///
-/// The traversal early-outs on [`bvh::RayCandidate::t_enter`] (a
-/// conservative lower bound on any hit in that box): candidates are
+/// **The answer is the lexicographic minimum over every candidate's
+/// exact test, and nothing else.** The traversal early-outs on
+/// [`bvh::RayCandidate::t_enter`] for cost alone: candidates are
 /// visited in ascending `t_enter` ([`MeshPick::candidates`], the
-/// single-tree sequence), and once the confirmed best `t` is strictly
-/// below a candidate's `t_enter` the rest of that target's list cannot
-/// improve on it. A poisoned/NaN ray is legal input: the
-/// tree returns everything, every exact test misses, and the answer
-/// is the typed miss.
+/// single-tree sequence), and every accepted hit satisfies
+/// `t ≥ t_enter` of its own box ([`ray_triangle`] refuses the rest),
+/// so once the confirmed best `t` is strictly below a candidate's
+/// `t_enter`, every remaining candidate's accepted `t` is at least
+/// that `t_enter` — strictly worse, never a tie — and the rest of
+/// that target's list cannot change the answer. Without the guard a
+/// grazing ray's noise `t` (a candidate whose exact test answers
+/// below its own box) could win or lose by where the loop broke,
+/// which is what made the answer a function of the candidate order.
+/// A poisoned/NaN ray is legal input: the tree returns everything,
+/// every exact test misses, and the answer is the typed miss.
 ///
 /// # Errors
 ///
@@ -1211,8 +1224,9 @@ pub fn pick_face<T: Decide>(
             if let Some(b) = &best
                 && b.t < cand.t_enter
             {
-                // Candidates ascend in t_enter, a lower bound on any
-                // hit in their box: nothing further can improve.
+                // Candidates ascend in t_enter, and every accepted
+                // hit is at or above its own: nothing further can
+                // reach `b.t`, let alone improve on it.
                 break;
             }
             let Some((tri, face)) = target.pick.triangle(&cand) else {
@@ -1220,7 +1234,7 @@ pub fn pick_face<T: Decide>(
                 // patches' triangles.
                 continue;
             };
-            if let Some(t) = ray_triangle(ray, tri) {
+            if let Some(t) = ray_triangle(ray, &[tri.a, tri.b, tri.c], cand.t_enter) {
                 let better = match &best {
                     None => true,
                     // Plain f64 compare is total here: `t` is never
@@ -1263,8 +1277,13 @@ pub fn pick_face<T: Decide>(
     }))
 }
 
-/// The exact ray/triangle test (Möller–Trumbore, both-sided, plain
-/// `f64`): `Some(t)` iff the ray meets the CLOSED triangle at `t ≥ 0`.
+/// The exact ray/triangle test the pick runs (Möller–Trumbore,
+/// both-sided, plain `f64`), under the triangle's own box: `Some(t)`
+/// iff the ray meets the CLOSED triangle `[a, b, c]` at `t ≥ 0` and
+/// `t` is not below `t_enter`, the certified lower bound on any
+/// point of the ray inside the triangle's box
+/// ([`bvh::RayCandidate::t_enter`] of the box [`bvh::Aabb::from_points`]
+/// spans over the corners).
 ///
 /// Boundary semantics, stated: `u ∈ [0, 1]`, `v ≥ 0`, `u + v ≤ 1`,
 /// `t ≥ 0` — all closed, so a hit exactly on a shared edge or vertex
@@ -1278,9 +1297,41 @@ pub fn pick_face<T: Decide>(
 /// near-degenerate determinant) is refused by the final guard: a hit
 /// the service cannot place at a finite point is a miss, never a
 /// `PickHit` whose `point` would be `0 · ∞ = NaN`.
-fn ray_triangle(ray: &Ray, tri: &PickTri) -> Option<f64> {
-    let e1: Vec3<f64> = tri.b - tri.a;
-    let e2: Vec3<f64> = tri.c - tri.a;
+///
+/// **The box-entry guard, `t < t_enter` on the bits — no tolerance,
+/// no `≤`.** A ray lying in the triangle's plane has a determinant
+/// that is rounding noise (~1e-19 on a unit-scale mesh), and `u`, `v`
+/// and `t` are then noise too; a noise `t` can pass every closed
+/// acceptance above while lying OUTSIDE the triangle's own box. Every
+/// true hit lies inside that box, and `t_enter` never exceeds the
+/// parameter of any point of the ray inside it, so a `t` strictly
+/// below `t_enter` is already proven wrong and is refused; a `t` at
+/// or above it is left to the acceptance conditions, exactly as
+/// before, so an edge or vertex graze at the box's own entry keeps
+/// its closed-boundary answer. This is what makes [`pick_face`]'s
+/// answer a function of the per-triangle tests and not of the order
+/// its early-out visits them in.
+///
+/// Two things the guard does not do. A noise `t` that lands above
+/// `t_enter` and inside the box is not refused here; the
+/// order-independence row of `viewer`'s `index_memo` differential is
+/// where that would show. And the guard reads the ROUNDED `t`: a
+/// genuine graze at the box's own entry face whose test is
+/// ill-conditioned (a near-tangent hit, determinant ~1e-4 on a
+/// unit-scale mesh) can round below the entry by more than the
+/// entry's own widening and is refused too; the point is then
+/// answered by another triangle sharing it, at the same `t` to
+/// within ULPs. A graze every sharing triangle refuses falls through
+/// — the loss the closed acceptance's own rounding in `u` and `v`
+/// already produces on such hits, which the guard neither causes nor
+/// cures.
+///
+/// Public so the reference loop that pins the pick can run the same
+/// predicate rather than restate it; a consumer with a `Bvh` over
+/// triangle boxes has everything it takes.
+pub fn ray_triangle(ray: &Ray, tri: &[Point3<f64>; 3], t_enter: f64) -> Option<f64> {
+    let e1: Vec3<f64> = tri[1] - tri[0];
+    let e2: Vec3<f64> = tri[2] - tri[0];
     let p = ray.dir.cross(e2);
     let det = e1.dot(p);
     if det == 0.0 {
@@ -1289,7 +1340,7 @@ fn ray_triangle(ray: &Ray, tri: &PickTri) -> Option<f64> {
         return None;
     }
     let inv = 1.0 / det;
-    let s = ray.origin - tri.a;
+    let s = ray.origin - tri[0];
     let u = s.dot(p) * inv;
     let u_inside = (0.0..=1.0).contains(&u);
     if !u_inside {
@@ -1303,7 +1354,12 @@ fn ray_triangle(ray: &Ray, tri: &PickTri) -> Option<f64> {
     }
     let t = e2.dot(q) * inv;
     let forward_and_finite = t >= 0.0 && t.is_finite();
-    forward_and_finite.then_some(t)
+    // The box-entry guard (docs): a true hit is never below the
+    // certified entry of the triangle's own box. `t` is finite here
+    // and `t_enter` is never NaN (`bvh`'s contract), so this is
+    // exactly the refusal of `t < t_enter`.
+    let inside_its_box = t >= t_enter;
+    (forward_and_finite && inside_its_box).then_some(t)
 }
 
 #[cfg(test)]

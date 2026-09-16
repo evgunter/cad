@@ -2,7 +2,9 @@
 //! one, the documented candidate order, determinism, and a randomized
 //! sweep holding the conservative-superset contract two ways —
 //! realized (tree) == idealized (per-item slab test, same set and
-//! order), and a constructed TRUE intersection is never dropped.
+//! order), and a constructed TRUE intersection is never dropped — and
+//! the entry bound held below exact true hits, the premise a
+//! consumer's early-out and box-entry guard rest on.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -363,4 +365,227 @@ fn sweep_matches_brute_force_and_never_misses_true_hits() {
         16,
         "the realized == idealized row needs nonempty sets to compare",
     );
+}
+
+/// A dyadic rational `m · 2^e`, exact over the magnitudes
+/// [`entry_bound_never_exceeds_a_true_hits_t`] draws: values in
+/// `[2⁻⁶, 8)` carry 53-bit mantissas, so a product is ≤ 106 bits and
+/// an alignment shifts by ≤ ~62, inside `i128`. Every shift and
+/// product is checked, so a draw outside that envelope is a loud test
+/// bug, never a wrong verdict.
+#[derive(Clone, Copy, Debug)]
+struct Dyadic {
+    m: i128,
+    e: i32,
+}
+
+impl Dyadic {
+    fn of(x: f64) -> Self {
+        assert!(x.is_finite(), "a finite operand");
+        if x == 0.0 {
+            return Self { m: 0, e: 0 };
+        }
+        let bits = x.to_bits();
+        let sign: i128 = if bits >> 63 == 1 { -1 } else { 1 };
+        let exp = ((bits >> 52) & 0x7ff) as i32;
+        let frac = (bits & ((1u64 << 52) - 1)) as i128;
+        let (m, e) = if exp == 0 {
+            (frac, -1074)
+        } else {
+            (frac | (1i128 << 52), exp - 1075)
+        };
+        Self { m: sign * m, e }
+    }
+
+    fn mul(self, o: Self) -> Self {
+        Self {
+            m: self.m.checked_mul(o.m).expect("an exact product fits i128"),
+            e: self.e + o.e,
+        }
+    }
+
+    /// Both mantissas at the lower of the two exponents.
+    fn aligned(self, o: Self) -> (i128, i128, i32) {
+        let e = self.e.min(o.e);
+        let lift = |v: Self| {
+            let shift = v.e - e;
+            assert!((0..127).contains(&shift), "an alignment inside i128");
+            v.m.checked_mul(1i128 << shift)
+                .expect("an exact alignment fits i128")
+        };
+        (lift(self), lift(o), e)
+    }
+
+    fn add(self, o: Self) -> Self {
+        let (a, b, e) = self.aligned(o);
+        Self {
+            m: a.checked_add(b).expect("an exact sum fits i128"),
+            e,
+        }
+    }
+
+    fn cmp(self, o: Self) -> std::cmp::Ordering {
+        let (a, b, _) = self.aligned(o);
+        a.cmp(&b)
+    }
+}
+
+/// The greatest `f64` at or below the exact `p`, starting the walk at
+/// `approx` (a rounding of `p`, within a few ULP).
+fn floor_f64(p: Dyadic, approx: f64) -> f64 {
+    let mut x = approx;
+    while Dyadic::of(x).cmp(p).is_gt() {
+        x = x.next_down();
+    }
+    while Dyadic::of(x.next_up()).cmp(p).is_le() {
+        x = x.next_up();
+    }
+    x
+}
+
+/// [`floor_f64`]'s dual: the least `f64` at or above the exact `p`.
+fn ceil_f64(p: Dyadic, approx: f64) -> f64 {
+    let mut x = approx;
+    while Dyadic::of(x).cmp(p).is_lt() {
+        x = x.next_up();
+    }
+    while Dyadic::of(x.next_down()).cmp(p).is_ge() {
+        x = x.next_down();
+    }
+    x
+}
+
+/// **`t_enter` never exceeds the parameter of a true point of the ray
+/// inside the box** — the premise every consumer early-out rests on,
+/// and the premise of `editor-core`'s box-entry guard on its exact
+/// ray/triangle test (a hit below its own box's entry is refused as
+/// proven wrong, so this bound had better be one).
+///
+/// Shape: counterexample search (varying seed, counts on the effort
+/// dial, per `memories/test-suite-cost.md`). Per draw an origin `O`, a
+/// direction `d` (each component zero with probability 1/4 — the
+/// exact `d = 0` arm) and a parameter `t ≥ 0` (zero with probability
+/// 1/8) are `f64`s, and the point `P = O + t·d` is formed EXACTLY as
+/// a dyadic rational — a true point of the ray at exactly `t`, whether
+/// or not any `f64` is. A box is drawn around `P` with each bound an
+/// `f64` on the correct side of `P`'s exact coordinate: TIGHT (the
+/// nearest `f64` on that side, where the slab endpoint's own rounding
+/// is what the widening has to cover — in exact arithmetic an
+/// unwidened endpoint lands above `t` on ~1% of such draws) with
+/// probability 1/2 per axis, loose otherwise; and with probability 1/4
+/// the box is widened to hold the origin too, where the bound must be
+/// exactly `0`. The box therefore truly contains a point of the ray at
+/// `t`, so it is a candidate and its entry bound is at most `t`. The
+/// runtime value that reds the row: a draw whose `t_enter` is above
+/// `t`, or an origin-holding box whose `t_enter` is not `0`.
+#[test]
+fn entry_bound_never_exceeds_a_true_hits_t() {
+    let mut rng = fuzz::start("bvh::ray entry bound against exact true hits");
+    let mut exposure = test_utils::vacuity::Exposure::new("bvh::ray entry bound");
+    fn signed(rng: &mut fuzz::Rng) -> f64 {
+        let v = rng.range(0.5, 8.0);
+        if rng.below(2) == 0 { v } else { -v }
+    }
+    for case in 0..fuzz::scaled(500) {
+        let o = [signed(&mut rng), signed(&mut rng), signed(&mut rng)];
+        let mut d = [signed(&mut rng), signed(&mut rng), signed(&mut rng)];
+        for v in &mut d {
+            if rng.below(4) == 0 {
+                *v = 0.0;
+            }
+        }
+        let t = if rng.below(8) == 0 {
+            0.0
+        } else {
+            rng.range(1.0 / 64.0, 8.0)
+        };
+        let holds_origin = rng.below(4) == 0;
+        let mut lo = [0.0; 3];
+        let mut hi = [0.0; 3];
+        for a in 0..3 {
+            let p = Dyadic::of(o[a]).add(Dyadic::of(t).mul(Dyadic::of(d[a])));
+            let approx = t.mul_add(d[a], o[a]);
+            let (floor, ceil) = (floor_f64(p, approx), ceil_f64(p, approx));
+            // Tight: the nearest f64 on the correct side; loose: a
+            // step of random size beyond it.
+            let tight_lo = rng.below(2) == 0;
+            let tight_hi = rng.below(2) == 0;
+            lo[a] = if tight_lo {
+                floor
+            } else {
+                floor - rng.range(0.0, 4.0)
+            };
+            hi[a] = if tight_hi {
+                ceil
+            } else {
+                ceil + rng.range(0.0, 4.0)
+            };
+            if holds_origin {
+                lo[a] = lo[a].min(o[a]);
+                hi[a] = hi[a].max(o[a]);
+            }
+            if tight_lo || tight_hi {
+                exposure.note("tight bound");
+            }
+            if floor == ceil {
+                exposure.note("representable coordinate");
+            } else {
+                exposure.note("unrepresentable coordinate");
+            }
+        }
+        let b = boxed(lo, hi);
+        let r = ray(o, d);
+        if d.contains(&0.0) {
+            exposure.note("axis-parallel ray");
+        }
+        if t == 0.0 {
+            exposure.note("t = 0");
+        }
+        let t_enter = r.slab_enter(&b).unwrap_or_else(|| {
+            panic!(
+                "case {case}: the box holds a true point of the ray at t = {t} and was refused \
+                 ({r:?}, {b:?}); {}",
+                fuzz::replay()
+            )
+        });
+        assert!(
+            t_enter <= t,
+            "case {case}: t_enter = {t_enter:e} exceeds the true hit's t = {t:e} ({r:?}, {b:?}); {}",
+            fuzz::replay()
+        );
+        if holds_origin {
+            exposure.note("origin inside the box");
+            assert_eq!(
+                t_enter,
+                0.0,
+                "case {case}: a box holding the origin enters at exactly 0 ({r:?}, {b:?}); {}",
+                fuzz::replay()
+            );
+        }
+    }
+    exposure.report();
+    // Anti-vacuity floors against the effort-1 draw (500 cases): each
+    // arm's expected count is in the hundreds, so a run below these
+    // did not exercise the arm rather than got unlucky.
+    exposure.require(
+        "tight bound",
+        200,
+        "the widening is only tested by a bound the rounding can cross",
+    );
+    exposure.require(
+        "unrepresentable coordinate",
+        200,
+        "a true hit no f64 can name is where the bound and the hit's rounding disagree",
+    );
+    exposure.require(
+        "axis-parallel ray",
+        50,
+        "the exact d = 0 arm has to be reached",
+    );
+    exposure.require(
+        "origin inside the box",
+        50,
+        "the entry-at-zero claim needs origin-holding boxes",
+    );
+    exposure.require("t = 0", 20, "the t = 0 corner has to be reached");
 }

@@ -2,7 +2,7 @@
 id: pick-grazing-ray-answer-depends-on-candidate-order
 kind: unit
 title: a grazing ray's pick answer is decided by the candidate order, not the geometry
-status: spec
+status: review
 opened: 2026-09-12
 branch: edit/pick-grazing
 ---
@@ -48,3 +48,32 @@ Moved from `work/docm/` to `work/edit/` at DOCM's exit sweep (`docs/DOC-LEDGER.m
 sweep 14): EDIT is DOCM's successor on the document-model ground (persist, the edit vocabulary, the node and resolver doors). Id, body and header are unchanged; the directory is the
 claim (`work/README.md`). Any `## Home` section above is superseded by
 this line and is kept as the record of why the file was where it was.
+
+## Built (2026-09-16)
+
+`ray_triangle` (`crates/editor-core/src/resolve/pick.rs`) is now the
+exact test AND the box-entry guard, one public predicate over
+`(ray, corners, t_enter)`: a `t` strictly below the candidate's own
+box entry is refused on the bits, no tolerance. `pick_face` calls it
+with each candidate's `t_enter`; its early-out is kept for cost and
+documented as unable to change the answer (every accepted hit is at
+or above its own entry, candidates ascend in entry). `viewer`'s
+`index_memo` reference loop drops its early-out and its private copy
+of the test, calls the shared predicate, and asserts on every ray of
+every landing that the pruned walk and the reversed walk answer the
+reference's triangle at the reference's `t` bits (acceptance 2). The
+ring's grazing ray is a probe that was red on the no-early-out
+reference (`t = 1.476` on patch 0) and answers the corner at
+`t = 1.480`. `crates/bvh/tests/ray.rs` gained the entry-bound row
+against exact dyadic true hits (acceptance 5).
+
+Measured: 83 answers moved over the corpus landings — 74 were noise
+hits (determinant < 1e-15) replaced by the true hit; 9 were genuine
+near-tangent grazes whose rounded `t` fell 1–15 ULP below their box's
+entry, each answered by a sibling triangle at the same point within
+ULPs. No aimed graze was lost by the guard; the 273 aimed rays that
+miss their point on `main` are unchanged and filed as
+`pick-closed-acceptance-loses-a-graze-to-rounding`. The residual
+order dependence the spec asked to measure (a noise `t` above its
+entry, inside the box) did not occur over the corpus, so the
+determinant bound was not added.

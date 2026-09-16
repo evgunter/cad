@@ -25,7 +25,7 @@ use std::sync::Arc;
 use bvh::{Aabb, Bvh, Ray};
 use editor_core::{
     Dimension, DocEdit, Expr, HitTestError, NodePick, ProfileDoc, RecipeNodeId, SlotId, StableName,
-    unparse,
+    ray_triangle, unparse,
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::mesh::Mesh;
@@ -484,7 +484,7 @@ impl FlatReference {
                 {
                     break;
                 }
-                let Some(t) = ray_triangle(ray, &flat.corners[cand.item]) else {
+                let Some(t) = ray_triangle(ray, &flat.corners[cand.item], cand.t_enter) else {
                     continue;
                 };
                 let (patch, _) = flat.owner[cand.item];
@@ -511,36 +511,6 @@ impl FlatReference {
         }
         (best, tied)
     }
-}
-
-/// The exact ray/triangle test the pick service runs (Möller–Trumbore,
-/// both-sided, closed boundaries, non-finite `t` refused), restated
-/// here so the reference is a whole pick and not a call into the
-/// service it checks. A change to the service's test — the guard
-/// `work/docm/pick-grazing-ray-answer-depends-on-candidate-order.md`
-/// asks for — must change both copies, or this pin reds on the rays
-/// whose answer the guard moves.
-fn ray_triangle(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<f64> {
-    let e1: Vec3<f64> = tri[1] - tri[0];
-    let e2: Vec3<f64> = tri[2] - tri[0];
-    let p = ray.dir.cross(e2);
-    let det = e1.dot(p);
-    if det == 0.0 {
-        return None;
-    }
-    let inv = 1.0 / det;
-    let s = ray.origin - tri[0];
-    let u = s.dot(p) * inv;
-    if !(0.0..=1.0).contains(&u) {
-        return None;
-    }
-    let q = s.cross(e1);
-    let v = ray.dir.dot(q) * inv;
-    if !(v >= 0.0 && u + v <= 1.0) {
-        return None;
-    }
-    let t = e2.dot(q) * inv;
-    (t >= 0.0 && t.is_finite()).then_some(t)
 }
 
 /// **The tie-break row**: rays aimed exactly at the points two or more
