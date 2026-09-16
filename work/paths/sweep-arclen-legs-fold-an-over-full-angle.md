@@ -4,7 +4,7 @@ kind: issue
 title: the tangent arc legs Sweep and ArcLen gate the angle positive only — θ ≥ 2π is admitted and FOLDED (a zero-chord vertex at 2π; tan(3π/4) = −1, a CW semicircle, at 3π)
 status: open
 opened: 2026-09-16
-refs: [BOOL-10, 2135]
+refs: [2135]
 ---
 
 Found by BOOL-10's second review (PR 2135, R2 MINOR-5) on the split-form

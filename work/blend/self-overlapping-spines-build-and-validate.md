@@ -4,7 +4,7 @@ kind: issue
 title: A loft or sweep whose spine revisits itself (a planar arc past a full turn) builds a self-overlapping body and every validation tier says Ok
 status: open
 opened: 2026-09-16
-refs: [BOOL-6, 2752, 368]
+refs: [2752, 368]
 ---
 
 Found by both of BOOL-6's reviews (PR 2752) and filed by the S-BOOL

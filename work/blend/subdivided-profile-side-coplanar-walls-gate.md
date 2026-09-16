@@ -5,7 +5,7 @@ title: "sweep/topo: a subdivided profile side lowers to two coplanar walls — o
 status: open
 opened: 2026-09-02
 github: 1568
-refs: [1508, 1520, 433, BOOL-12]
+refs: [1508, 1520, 433]
 ---
 
 ## From GitHub issue 1568

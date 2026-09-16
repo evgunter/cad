@@ -4,7 +4,7 @@ kind: issue
 title: props/curved.rs answers a kernel-bug-only state two ways — unreachable! at the wedge helper, a poison value at unreachable_zero "rather than panicking (D9)"
 status: open
 opened: 2026-09-16
-refs: [BOOL-5, 2748]
+refs: [2748]
 ---
 
 Found by BOOL-5's R2 review (PR 2748) and filed by the S-BOOL

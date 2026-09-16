@@ -4,7 +4,7 @@ kind: issue
 title: VertexVertex, VertexOnEdge, EdgeEdgeOverlap and ConformalPatch touches between two solids block the census's material test because only the vertex-on-face and edge-in-face kinds have a local side analysis
 status: open
 opened: 2026-09-16
-refs: [BOOL-4, 2767, 750]
+refs: [2767, 750]
 ---
 
 Filed by the S-BOOL orchestrator at BOOL-4's merge (PR 2767) on
