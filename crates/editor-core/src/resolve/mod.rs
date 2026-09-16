@@ -1098,14 +1098,9 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
 /// [`StableName`], so the vanished name names its own partners. For
 /// each of them, in the qualifier's order:
 ///
-/// - the vertex set is the PRIOR FRAGMENT's own boundary, on both
-///   sides. The question the qualifier answers is "which side of this
-///   partner is this fragment on", and a side verdict is only
-///   comparable between two runs when it is taken over the same
-///   vertices. Probing the prior fragment against one carrier and the
-///   current survivor — a different face, with a different boundary —
-///   against another answers a different question, and its residual is
-///   dominated by whichever face has more seam vertices.
+/// - the FACE is the vanished fragment in the prior run and the
+///   SURVIVOR — the same name without its trailing qualifier — in the
+///   current one. Those are the two faces the qualifier is about.
 /// - the PARTNER is resolved at the boolean's OPERAND in each run:
 ///   the body the minting node actually consumed, found by walking
 ///   the minting node's recipe inputs to the one whose table carries
@@ -1118,16 +1113,21 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
 ///   through the emission's OWN rule
 ///   ([`crate::names::aggregate_side`]) — one door, so the rung
 ///   cannot disagree with the emitter about what a fragment's side is.
-/// - the two streams go through THE population diff
-///   ([`vdiff::shadow_flips`], the one core): a pair whose per-vertex
-///   populations are identical did not move at all and is skipped
-///   before its verdicts are aggregated.
+/// - the prior side is CALIBRATED against the verdict the qualifier
+///   recorded: the rung just asked the run's own question of the run's
+///   own face, so the answer must be the record or, if the probe read
+///   the carrier from the other side of the same plane, its exact
+///   negation. Anything else and the rung is not probing the pair the
+///   name recorded, and it says nothing. This is what makes the
+///   reported `from` the qualifier's own verdict rather than the
+///   probe's convention, and what makes two faces with different
+///   boundaries comparable at all: a side is not a vertex count.
 ///
 /// Every input is already in hand — the bodies ride the node values,
 /// the faces come from the same table lookup resolution itself uses,
 /// and the partner's plane is read through the emission's own
-/// `face_plane` door. **Nothing replays the op**; the probe is a pure
-/// function of the two contexts.
+/// `face_plane` door. The recipe is read for ONE thing, the minting
+/// node's input EDGES; **nothing replays the op**.
 ///
 /// # What it costs, and what it refuses
 ///
@@ -1138,25 +1138,29 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
 /// the rung answers [`Diagnosis::ShadowExecDeclined`] rather than
 /// falling through silently.
 ///
-/// It declines TO THE NEXT RUNG, reporting nothing, in four cases,
+/// It declines TO THE NEXT RUNG, reporting nothing, in five cases,
 /// and each is an absence of evidence rather than a refusal: the name
-/// carries no `SideOf` qualifier; the prior run does not hold the
-/// fragment's face or a run does not hold the partner's operand body;
-/// a partner's verdict has no single [`Sign`] on one side
-/// (`SideVerdict::Mixed` — definite probes on both sides is not one
-/// sign, the R9 honesty pin); and **no partner's verdict changed**.
+/// carries no `SideOf` qualifier; a run does not hold the face or the
+/// partner's operand body; a partner's verdict has no single [`Sign`]
+/// on one side (`SideVerdict::Mixed` — definite probes on both sides
+/// is not one sign, the R9 honesty pin); the prior side does not
+/// calibrate against the record; and **no partner's verdict
+/// changed**.
 ///
 /// # The two halves of the SideOf vanish, and only one is recovered
 ///
-/// That last case is the COLLAPSE half and it is a limit, not a gap.
-/// A fragment group stops being multi-fragment when the partner walls
-/// stop CUTTING the face — the bar lands short of the far edge — and
-/// the walls have not moved relative to the fragment at all, so every
-/// side verdict is what it was. There is no flip, the rung honestly
-/// finds none, and the vanish rests on the later rungs. What this
-/// rung recovers is the PRUNED half: the partner moved, the sweep
-/// pruned the pair, and the verdict that re-qualified the name was
-/// never written down.
+/// The last two cases are the COLLAPSE half, and it is a limit, not a
+/// gap. A fragment group stops being multi-fragment whenever the
+/// partner walls stop CUTTING the face — the bar lands short of the
+/// far edge, or withdraws on the side it was already on — and the
+/// walls have not crossed the fragment, so every side verdict is what
+/// it was and the survivor still satisfies the vanished name's own
+/// vector. There is no flip; the rung finds none and the vanish rests
+/// on the later rungs. What this rung recovers is the half where a
+/// side MOVED: the partner crossed, the sweep pruned the pair, and
+/// the verdict that re-qualified the name was never written down.
+/// Pruning the pair and re-qualifying the name are different events,
+/// and only the second is a flip.
 ///
 /// The `OrderAlong` half of the same issue is not recovered either,
 /// for a different reason: `Qualifier::OrderAlong { rank, of }`
