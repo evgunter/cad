@@ -6,7 +6,7 @@ status: review
 opened: 2026-09-16
 refs: [2723, 1098]
 branch: edit/nodepick-pairing
-pr: 0
+pr: 2773
 ---
 
 ## What
