@@ -1313,3 +1313,33 @@ one, on an account many sessions share. The band-doors lane found that
 `gh api repos/<o>/<r>/pulls -X POST` and
 `gh api -X PUT …/pulls/<n>/merge` go through unaffected. Recorded here
 because every lane on this machine will hit it.
+
+**Band-doors review adjudicated (2026-09-15).** Single style review,
+APPROVE-WITH-FIXES, no MAJOR, rubric 4/3/3. Every load-bearing claim
+survived independent execution: the tie analysis and the sharp
+ε ≤ 2⁻¹⁰²³ boundary (the reviewer added an exhaustive scan of both ends
+of every normal binade — no normal ε collapses), the third arm at
+ε = 1e-16 with the largest arm, the sweep's count and, probed rather
+than accepted, its declared blind spot, which hides nothing.
+**The lane's refutation is upheld and the orchestrator's ruling is
+withdrawn**: the reviewer found the conversion would break that row TWO
+ways, the band and the adversarial vector being built from the same
+`k`, so converting only the band decouples them on top of making the
+"at K = 1.2" claim follow the run's K. A ruling pushed back on with
+evidence, confirmed by a third party — the shape the review lane exists
+for.
+
+The sharpest finding is the unit's own defect class: the derivation now
+has THREE homes (the door's `# Errors` and two editor-core variant
+docs), none naming the others, and the class has already drifted once —
+the item's amendment carried the wrong boundary while both editor-core
+copies carried the right one. The fix for a doc duplication minted a
+third copy, which is CLAUDE.md's standing warning about structural
+fixes, caught here by the reader who did not write it. Fix pass
+dispatched with ten items, including one home for the derivation, the
+retirement of the now-byte-identical private helper, and a ruling
+against the reviewer on the door's NAME: `_at` is right because
+`offset_fit`'s module doc already fixes that suffix to mean an
+instrument rather than a door — which carries the obligation to weigh
+`#[doc(hidden)]` on the same precedent, since all five consumers are
+suites pinning a chosen ε.
