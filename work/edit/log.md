@@ -64,3 +64,41 @@ mis-description, and the only one that would notice if the rename broke
 an emitting arm.
 
 Signed (WIRE orchestrator).
+
+## 2026-09-16 — first sitting: five questions to Ev, the slate re-cut, the band recorded
+
+The EDIT orchestrator read the slate against the tree and put five
+questions to Ev in chat, each with a recommendation. The answers:
+
+1. **Splice** — the plan listed `no-docedit-splices-a-deleted-node` as
+   an `[ev]` conversation, but DM6 already rules it and names this row
+   as its reopen trigger; the plan was written before DM6 and not
+   updated. Ev: no conversation. Row **deferred** citing DM6.
+2. **Doc-param unit edit** — a unit, not a fork (the carry-forward
+   mirror of `with_value`, on the document's own reading that a unit
+   is presentation metadata). Ev agreed. That leaves
+   `deletenode-strands-a-declare-payload-name` as the one real `[ev]`
+   question of the plan's item 1.
+3. **Review posture** — Ev: units that are easy but not trivially so
+   leave the A/B protocol and get one opus style review. Three tiers
+   now in `plan.md` §Process and in the band record.
+4. **`C6` / `D366`** — Ev's judgement left to the orchestrator: `C6`'s
+   `WireStep` member is unblocked (BOOL-12 closed 2026-09-03) and is an
+   E-class unit; the rest stays as visibility rows.
+5. **The two-crate map** — rides the `[ev]` PR as a second decision.
+
+Also at this sitting: the charter row from PORT closed (the
+parenthetical corrected, `persist/wire.rs` named in the PORT clause);
+`crates/editor-core/src/names/emit_blend.rs` claimed — the ruled
+cut-off-arc row lands on it and no program listed it (WIRE's explicit
+list names `emit.rs` and `emit_topo.rs` only; the other `emit_*.rs`
+under `names/` stay unclaimed, said in `keep_out`); EDIT's band
+4800–4899 recorded in `docs/MODEL-AB-LOG.md`, which still read "4800+
+unallocated" three days after the program's opening commit claimed it
+on `program.md` alone. Ev also released the orchestrator from the
+assigned session branch: any branch under `edit/` is fine.
+
+Next: the `[ev]` PR (decisions 2 and 5 above), then the first wave —
+the cut-off-arc rename (E-class), the doc-param door (middle tier),
+and the error-surface hygiene unit (E-class) — while the specs for the
+three kernel units are written.

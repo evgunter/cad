@@ -296,7 +296,7 @@ amended:
      argument. **M10's own band 500–599 stays claimed and closed**, on
      the VIEW and S-TCOST precedent: its thirteen recorded rows keep
      their ordinals for life and nothing renumbers),
-     with **4800+ unallocated** — the orchestrator opening the next
+     · EDIT 4800–4899 (claimed in `work/edit/program.md` when DOCM's exit sweep opened it on 2026-09-13, recorded here 2026-09-16 by the EDIT orchestrator at its first sitting — the opening commit wrote the band on the program and not here; EDIT is DOCM's successor and inherits its posture: the full v6 dual on a kernel unit, drawing from 4800 on; a style review with a correctness arm and no row for a unit that is easy but not trivially so, per Ev in chat 2026-09-16; no review and no row for an E-class rename or prose row that merges on green CI and the orchestrator's read — `work/edit/plan.md` §Process states the tiers), with **4900+ unallocated** — the orchestrator opening the next
      program takes the next free band and records it HERE in the
      same commit that opens the program. **1–99 is CLOSED
      HISTORY**: the pre-banding global sequence, which reached 85.

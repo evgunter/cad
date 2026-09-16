@@ -21,31 +21,64 @@ is an `[ev]` PR, never a unit.
 
 ## The slate, in the order that unblocks the most
 
-1. **The edit vocabulary's missing doors** — design conversations
-   first, each its own `[ev]` PR with a recommendation:
-   `no-docedit-splices-a-deleted-node` (DM6 says no rewire; the
-   question is whether a splice is a new persisted edit),
-   `deletenode-strands-a-declare-payload-name` (is a payload reference
-   a weaker edge than no edge?), `doc-param-unit-edit-has-no-door`.
-2. **The persisted recipe's honesty** —
-   `replay-and-load-keep-the-document-without-its-maintenance`,
-   `recorded-program-arguments-carry-no-notation`,
+Reviewed against the tree and Ev's answers at the first sitting
+(2026-09-16, `log.md`); the tier beside each row is the review
+posture under §Process.
+
+1. **Ruled and ready** — `cut-off-arc-persists-as-a-corner-arc`
+   (Ev's (b′), 2026-09-15; the V3 read first) and, after it, the
+   fixture it was split from,
+   `a-ruled-carve-has-no-editor-fixture-…`. E-class, then a unit.
+2. **The edit vocabulary's missing doors** —
+   `doc-param-unit-edit-has-no-door` is a unit, not a fork: the
+   carry-forward mirror of `with_value`, on the reading the document
+   already makes (a unit is presentation metadata, outside `bit_eq`);
+   the PR body states that reading. Middle tier.
+   `deletenode-strands-a-declare-payload-name` is the one real
+   question of the three and goes to Ev as an `[ev]` PR with a
+   recommendation, carrying
+   `authored-step-to-canonical-segment-map-has-no-home` as a second
+   short decision. `no-docedit-splices-a-deleted-node` is deferred
+   on DM6 and is not work.
+3. **The persisted recipe's honesty** —
    `blend-selection-canonical-check-load-only` (one predicate, two
-   doors), `authored-step-to-canonical-segment-map-has-no-home`
-   (with BOOL, by announced seam).
-3. **The resolver's doors** —
+   doors; kernel unit), `recorded-program-arguments-carry-no-notation`
+   (a shape question with LIB parked on it),
+   `replay-and-load-keep-the-document-without-its-maintenance`.
+4. **The resolver's doors** —
+   `pick-grazing-ray-answer-depends-on-candidate-order` (kernel unit;
+   re-baselines `viewer`'s reference loop by announcement),
    `pair-doors-outside-the-three-do-not-check-document-identity`
-   (DI3's residue), `pick-grazing-ray-answer-depends-on-candidate-order`.
-4. **The Track V mirrors DOCM inherited** — `C6`, `D366` (LIB answers
-   the Python side), `debug-in-prose-residue-after-finding-sink`.
+   (EDIT builds the `apply_with_names` door; the `stackup` and
+   `drive` doors are PROPS's, announced to it).
+5. **Error-surface hygiene** — one E-class unit over
+   `persist-check-renders-enum-variants-through-debug-into-user-prose`,
+   `debug-in-prose-residue-after-finding-sink` and
+   `assembly-mint-spells-the-entity-kind-refusal-a-seventh-way`.
+6. **The Track V mirrors DOCM inherited** — `C6`'s `WireStep` member
+   is unblocked (BOOL-12 closed) and is an E-class unit; the rest of
+   `C6` and `D366` stay as visibility rows, their live work being in
+   `pncad-py` (LIB's) or behind blockers that are not items.
 
 ## Process
 
-Standard v6 for kernel units (spec → one implementer + the
-cross-model dual → union fix pass; ordinals claimed on main at review
-dispatch from the band above; record at merge; blinding verbatim);
-E-class rows merge on green CI and the orchestrator's read, no A/B
-row. Issues are files; anything for Ev is an `[ev]` PR.
+Three tiers, by the row's weight (Ev, in chat, 2026-09-16):
+
+- **Kernel unit** — standard v6: spec → one implementer drawn from a
+  {opus, opus, fable} block + the cross-model dual on a frozen head →
+  union fix pass; ordinals claimed on main at review dispatch from
+  the band above; recorded at merge; blinding verbatim.
+- **Easy but not trivially so** — excluded from the A/B protocol: one
+  implementer, one style review with a correctness arm (an opus
+  lane), no row recorded.
+- **E-class** (a ruled rename, a prose fix, a one-predicate move
+  whose shape is written in the row) — merges on green CI and the
+  orchestrator's read, no review lane, no row.
+
+The tier is named in the row when it is dispatched. Issues are files;
+anything for Ev is an `[ev]` PR. This program runs from a remote
+session: lanes are agent worktrees with private target directories,
+and `[ev]` answers arrive by PR subscription.
 
 ## What is out
 
