@@ -4207,6 +4207,7 @@ dependencies = [
  "pncad",
  "pollster 1.0.1",
  "profile",
+ "quantity",
  "rfd",
  "sweep",
  "test-utils",

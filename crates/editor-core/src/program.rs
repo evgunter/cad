@@ -36,6 +36,7 @@
 
 use geom_core::{Decide, Point2};
 use profile::{ArcSweep, Step, Target};
+use serde::{Deserialize, Serialize};
 
 use crate::doc::ParamName;
 use crate::expr::{Dimension, DimensionError, EvalError, Expr, ParamEnv, eval};
@@ -149,7 +150,7 @@ macro_rules! document_vocabulary {
         /// Closing the general case needs a walk over the file's
         /// declarations, which is a text scan, which is what this macro
         /// replaced and for a reason. Filed:
-        /// `work/docm/a-document-vocabulary-declared-outside-the-macro-is-uncensused.md`.
+        /// `work/census/a-document-vocabulary-declared-outside-the-macro-is-uncensused.md`.
         ///
         /// **Cost, stated:** rustfmt does not format the body of a macro
         /// invocation, so every declaration below is outside its reach
@@ -173,7 +174,10 @@ document_vocabulary! {
 /// [`profile::Target`], so a form added here alone can be resolved into
 /// an existing kernel form and never be seen. [`Self::ALL_NAMES`] is
 /// what forces it to reach a witness instead.
-#[derive(Debug, Clone, PartialEq)]
+// No `deny_unknown_fields`: no variant here has a NAMED field, so the
+// attribute would have nothing to deny (`work/census/`'s rule; the
+// repo-wide census in `test-utils` reds on an inert one).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ProgramTarget {
     /// An authored absolute point in the profile frame.
     Point([Expr; 2]),
@@ -192,7 +196,12 @@ pub enum ProgramTarget {
 ///
 /// It is a second spelling of a vocabulary `profile` declares once,
 /// and it has to be: a step here carries `Expr`s and serializes, and
-/// G1 layering keeps both out of the kernel crate.
+/// G1 layering keeps both out of the kernel crate. It is the SECOND
+/// and last: this type is also the persisted form, so a verb added
+/// here is a FORMAT change and the persisted spelling of every verb
+/// is pinned as literals in `tests/switch_program_vocabulary.rs` —
+/// the one thing on this wire that renaming a variant does not move
+/// with itself.
 /// [`LoopProgram::from_recorded`] below
 /// is exhaustive on [`profile::Step`], so a verb the transition table
 /// gains breaks this file at compile, and
@@ -209,7 +218,8 @@ pub enum ProgramTarget {
 /// THIS vocabulary and constructs [`profile::Step`], so a verb added
 /// here alone can be resolved into an existing kernel verb, leaving
 /// `Verb::ALL` fully witnessed and the document verb unexercised.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum ProgramStep {
     /// `.at(p)`.
     At([Expr; 2]),
@@ -282,8 +292,8 @@ pub enum ProgramStep {
 /// gains does break this crate at compile — `spec_lit` and the two
 /// content-key hashers are exhaustive on `profile::ArcData` — but
 /// each of those breaks can be discharged where it stands, with a
-/// refusal arm and a tag, while this enum, the wire and the
-/// expression-slot roles stay short: the hop that would need them,
+/// refusal arm and a tag, while this enum — which is the wire — and
+/// the expression-slot roles stay short: the hop that would need them,
 /// `res_spec`, matches THIS type and CONSTRUCTS the kernel one, so it
 /// keeps compiling. What forces arrival is the mode census in
 /// `tests/switch_program_vocabulary.rs`, keyed on
@@ -294,13 +304,15 @@ pub enum ProgramStep {
 /// a mode added HERE alone — `res_spec` would resolve it into an
 /// existing kernel mode and every clause keyed on `ArcMode::ALL` would
 /// stay green. [`Self::ALL_NAMES`] is that direction's anchor.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum ProgramArcData {
     /// `Radius { r, side }` — arrival mode, centre derived.
     Radius {
         /// The carrier radius.
         r: Expr,
         /// Which side of the tangent the centre sits on (structural).
+        #[serde(with = "crate::persist::wire::arc_side")]
         side: profile::ArcSide,
     },
     /// `Bulge { p, b }` — the bulge is AUTHORED data.
@@ -322,6 +334,7 @@ pub enum ProgramArcData {
         /// The carrier centre.
         c: [Expr; 2],
         /// Travel sense (structural).
+        #[serde(with = "crate::persist::wire::arc_sweep")]
         winding: ArcSweep,
         /// The authored anchor/endpoint (`Start` closes).
         target: ProgramTarget,
@@ -331,6 +344,7 @@ pub enum ProgramArcData {
         /// The carrier radius.
         r: Expr,
         /// Which side the centre sits on (structural).
+        #[serde(with = "crate::persist::wire::arc_side")]
         side: profile::ArcSide,
         /// The swept central angle.
         angle: Expr,
@@ -340,6 +354,7 @@ pub enum ProgramArcData {
         /// The carrier radius.
         r: Expr,
         /// Which side the centre sits on (structural).
+        #[serde(with = "crate::persist::wire::arc_side")]
         side: profile::ArcSide,
         /// The arc length.
         len: Expr,
@@ -358,7 +373,8 @@ pub enum ProgramArcData {
 /// alone can be resolved into an existing kernel step and never be
 /// seen. That is [`ProgramStep`]'s hazard one level out, and
 /// [`Self::ALL_NAMES`] is its anchor for the same reason.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum LoopProgram {
     /// A chain-vocabulary step list (must end in a `Start`-targeting
     /// verb — checked by replay, not representation).
@@ -417,7 +433,8 @@ pub enum LoopProgram {
 /// coincide today are two different documents, because editing one
 /// frame moves only one of them. Display units are invisible to it
 /// (they are invisible to `bit_eq` itself, D7).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ProfileProgram {
     /// The frame node this profile is drawn on — a
     /// [`crate::Datum::Frame`] or a [`crate::Datum::FaceFrame`], either
@@ -429,6 +446,19 @@ pub struct ProfileProgram {
     /// what a reference DENOTES is the evaluator's question, answered
     /// once at the door with a typed refusal, not the recipe
     /// vocabulary's.
+    ///
+    /// **It reads through a door, not through `u64`'s own
+    /// `Deserialize`.** A document written before the sketch plane
+    /// became a node carries a twelve-float placement OBJECT here, and
+    /// serde's own report for that — `invalid type: map, expected u64`
+    /// — says nothing about which field of which node changed shape,
+    /// which is the whole job of an `Unreadable` refusal. `plane_ref`'s
+    /// visitor names the placement in its `expecting`. `deny_unknown_fields`
+    /// above is not what fires: `plane` is a field this build knows, so
+    /// the refusal is the field type's. No migration, by `persist`'s
+    /// ruling — nothing has shipped and every checked-in document is
+    /// regenerable.
+    #[serde(deserialize_with = "crate::persist::wire::plane_ref")]
     pub plane: RecipeNodeId,
     /// The loop programs.
     pub loops: Vec<LoopProgram>,

@@ -730,7 +730,7 @@ impl PartWindows<Patches> {
 ///   — the question the budget is being paid to answer — not the δ a
 ///   picture was built at, so the two values mean different things and
 ///   an answer for one is no answer for the other.
-/// - [`crate::frame::IdSubject`] carries the scene revision and the
+/// - [`crate::idpass::IdSubject`] carries the scene revision and the
 ///   index's generation, with no δ. That is not half of this key; it
 ///   is a different key over a different pair, and its own doc holds
 ///   the argument for both of its halves.
@@ -893,7 +893,7 @@ impl PickIndex {
     /// The generation this index was built under.
     ///
     /// **Half a key, and legitimately so**: the id query's subject
-    /// ([`crate::frame::IdSubject`]) names the alphabet a GPU answer
+    /// ([`crate::idpass::IdSubject`]) names the alphabet a GPU answer
     /// was read through, which is the index's identity and not the
     /// picture's. Anything asking whether two PICTURES are the same
     /// wants [`PickIndex::key`].
@@ -1337,7 +1337,7 @@ impl PickIndex {
     /// would answer with — the ray path's own answer, un-narrowed.
     ///
     /// The door the GPU id buffer's cross-check reads
-    /// (`crate::frame::disagreement`): that comparison's subject is the
+    /// (`crate::idpass::disagreement`): that comparison's subject is the
     /// PATCH under the cursor, because a patch id is the only thing an
     /// id buffer can answer, so the ray side has to answer the same
     /// question. The hover cannot stand in for it — once the priority

@@ -45,20 +45,28 @@ posture under §Process.
    doors; kernel unit), `recorded-program-arguments-carry-no-notation`
    (a shape question with LIB parked on it),
    `replay-and-load-keep-the-document-without-its-maintenance`.
-4. **The resolver's doors** —
-   `pick-grazing-ray-answer-depends-on-candidate-order` (kernel unit;
-   re-baselines `viewer`'s reference loop by announcement),
-   `pair-doors-outside-the-three-do-not-check-document-identity`
-   (EDIT builds the `apply_with_names` door; the `stackup` and
-   `drive` doors are PROPS's, announced to it).
+4. **The resolver's doors** — `pick-grazing-…` merged (EDIT-PICK);
+   its residue is EDIT-PICK2,
+   `pick-accepts-uncertified-barycentrics-on-a-certified-determinant`
+   (kernel unit, block EDIT-B1 slot 1; the ruling is on the row), which
+   carries `pick-closed-acceptance-loses-a-graze-to-rounding`;
+   `pick-refuses-a-crossing-within-rounding-of-a-plane` stands as the
+   mechanism's stated class; `nodepick-name-doors-take-a-second-evaluation-unpaired`
+   (found by the pair-apply review) is the next door on this ground.
+   The pairing row went to PROPS with EDIT's door built.
 5. **Error-surface hygiene** — one E-class unit over
    `persist-check-renders-enum-variants-through-debug-into-user-prose`,
    `debug-in-prose-residue-after-finding-sink` and
    `assembly-mint-spells-the-entity-kind-refusal-a-seventh-way`.
 6. **The Track V mirrors DOCM inherited** — `C6`'s `WireStep` member
-   is unblocked (BOOL-12 closed) and is an E-class unit; the rest of
-   `C6` and `D366` stay as visibility rows, their live work being in
-   `pncad-py` (LIB's) or behind blockers that are not items.
+   is **built** (PR #2738, dispatched middle tier rather than the
+   E-class this line first guessed: the collapse crossed the persisted
+   format and earned a style review with a correctness arm).
+   `editor-core`'s document step vocabulary is now its persisted one.
+   The rest of `C6` stands — the `SegTag` member behind the
+   workspace's first proc-macro crate, the "no usable value" core —
+   and `C6` and `D366` stay as visibility rows for it, their live work
+   being in `pncad-py` (LIB's) or behind blockers that are not items.
 
 ## Process
 

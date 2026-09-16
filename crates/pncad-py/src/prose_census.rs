@@ -1946,7 +1946,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "a positional `{:?}` over an expression this census does not type",
     ),
     (
-        "crates/viewer/src/frame.rs",
+        "crates/viewer/src/idpass.rs",
         "Disagreement",
         POSITIONAL,
         1,

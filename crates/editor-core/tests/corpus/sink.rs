@@ -1,6 +1,8 @@
 //! Corpus document **kitchen_sink** — every v1 node kind and every
-//! `DocEdit` kind in ONE document (M4 PR 8a spec D1's "touching
-//! everything at once"). It grew out of the M4 PR 6 round-trip
+//! REQUIRED `DocEdit` kind in ONE document (M4 PR 8a spec D1's
+//! "touching everything at once"); "required" is `EDIT_KINDS`, which
+//! is sixteen of the twenty arms and says at its own definition which
+//! four stand outside it and why. It grew out of the M4 PR 6 round-trip
 //! fixture, which now consumes it from here so the persistence rows
 //! and the corpus rows can never drift apart.
 //!
@@ -9,9 +11,13 @@
 //! Split, Boolean (Union, with a Declare operand), Transform, Pattern
 //! (Linear and Circular), Declare.
 //!
-//! Edit kinds: `InsertNode`, `DeleteNode`, `SetParam`,
+//! Edit kinds — the sixteen `EDIT_KINDS` names, which is every arm the
+//! corpus is required to cover and NOT every arm `DocEdit` has (that
+//! list's own doc says which four stand outside it and what guards a
+//! new one):
+//! `InsertNode`, `DeleteNode`, `SetParam`,
 //! `SetStructuralParam`, `SetExpression`, `SetDocParam`,
-//! `SetDocParamValue`, `Rebind`,
+//! `SetDocParamValue`, `SetDocParamUnit`, `Rebind`,
 //! `ReWitness`, `ReWitnessBulk`, `SetAppearance`, `ClearAppearance`,
 //! `SetTolerance`, `SetAppearanceMeta`, `ClearAppearanceMeta`.
 //!
@@ -31,7 +37,7 @@ use std::collections::BTreeMap;
 use editor_core::{
     Attr, AttrKind, Axis3, BooleanOp, BranchCertification, Datum, Dimension, DocEdit, DocParam,
     DocParamValue, EntityKind, Expr, ExprPath, MetaValue, Node, ParamName, PatternKind, Rgba8,
-    RoleSeg, SlotId, StableName, WitnessDatum,
+    RoleSeg, SlotId, StableName, UnitSym, WitnessDatum,
 };
 
 use crate::fixture::{ang, axis_in_plane, declare_x_offset_flush, len, scl};
@@ -56,6 +62,16 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetDocParamValue {
         name: ParamName::new("h"),
         value: DocParamValue::Continuous(1.25),
+    });
+    // The NOTATION door, the value door's mirror over the other field
+    // of the same declaration: `h` is now written in millimetres and
+    // keeps its dimension, its exact value and any annotation. The
+    // edit is invisible to `bit_eq` by ruling (`display_unit` is
+    // presentation metadata), so the round-trip rows read it as the
+    // same document and the FILE is where it has to survive.
+    r.push(DocEdit::SetDocParamUnit {
+        name: ParamName::new("h"),
+        unit: UnitSym::from_def(&quantity::MM.def()),
     });
     r.push(DocEdit::SetDocParam {
         name: ParamName::new("n"),

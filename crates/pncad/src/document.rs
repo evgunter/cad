@@ -62,8 +62,13 @@
 // an integer — is the whole of what that arm says beyond the name and
 // the key. Carrying the refusal is not carrying the value tree:
 // `MetaValue` and `MetaError` stay out, because the arm names neither.
+// `CarryForwardDoor` rides with `EditError` by that same rule at the
+// carry-forward arm: it is what `EditError::DocParamNotDeclared`
+// carries beside the name, and which of the two doors was refused is
+// the whole of what that arm says beyond the parameter.
 pub use editor_core::{
-    Applied, AttrKind, Doc, DocEdit, EditError, EditRecord, MetaVersionError, ProgramRefusal, apply,
+    Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, MetaVersionError,
+    ProgramRefusal, apply,
 };
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states
@@ -152,7 +157,11 @@ pub use editor_core::expr::{EvalError, eval, eval_count};
 // façade that could not spell its TYPE could not build the struct at
 // all, and `UnitSym::canonical_for` is how a caller authoring in
 // metres says so.
-pub use editor_core::{DocParam, DocParamValue, ParamName, UnitSym};
+// `DisplayUnitRefusal` is what `DocParam::with_display_unit` answers
+// when a notation cannot be written — the same `VerbKind` rule: it is
+// that door's `Err`, and a consumer calling the door on a `DocParam`
+// it holds could otherwise read the reason only out of prose.
+pub use editor_core::{DisplayUnitRefusal, DocParam, DocParamValue, ParamName, UnitSym};
 
 // A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the
 // typed refusals its invariants raise at the edit and persistence
@@ -191,8 +200,9 @@ pub use editor_core::{Distribution, DistributionFault, DistributionField};
 // `Mispaired` rides with `Evaluation` by the same rule: it is
 // `Evaluation::prior_refused`'s payload, so a consumer cannot read why
 // a memo was refused without naming it. The name is not the memo's —
-// it is the one payload all three pairing doors carry (DI3), which is
-// why it is spelled for the QUESTION rather than for any one door.
+// it is the one payload every pairing door carries (DI3; which doors
+// those are is `editor-core`'s `ASSEMBLY.md` A2a), which is why it is
+// spelled for the QUESTION rather than for any one door.
 // `Found` rides with `NodeErrorKind` by the same rule: it is the
 // `found` field of the four entity-kind refusals, so a consumer can
 // match those variants but not name what they say was there instead.
