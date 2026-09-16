@@ -817,8 +817,8 @@ chrome adds is its own subject.
 **The line is composed at two levels and they are two marks.**
 `frame::NOTICE_SEPARATOR` goes between two of a frame's notices;
 `frame::LIST_SEPARATOR` goes between the items of a list ONE notice
-carries — a `Withdrawal`'s causes, the preferences path's startup
-notices. One spelling served both until a frame could hold two
+carries — a `Withdrawal`'s causes, which its counted preamble
+introduces. One spelling served both until a frame could hold two
 notices, and then a reader could not tell a boundary from the notice
 talking, because a notice is free to write the mark inside its own
 sentence and two of them do. The boundary is
@@ -851,11 +851,30 @@ can reach. The claim over that population is
 invertibility is `a_withdrawals_cause_list_splits_back_into_its_causes`
 (`crates/viewer/tests/frame_policy.rs`).
 
-`frame::startup_notices` is `LIST_SEPARATOR`'s other consumer and is
-NOT held this way: it takes `&[String]` from three types by choice,
-three `prefs::Notice` arms write a `"; "` inside one sentence, and two
-startup notices are an ordinary state
-(`work/view/startup-notices-join-on-a-mark-a-prefs-notice-contains.md`).
+**The third consumer was the second level misread.** The preferences
+file's startup notices were joined with `LIST_SEPARATOR` as though they
+were one notice's list. They are not: nothing counts them and no
+preamble introduces them, so there is no enclosing sentence for them to
+be the items of — an unknown key, an unresolved theme name and an
+unresolved preset name are separate pieces of news that happen to share
+a subject. Neither hold above was available to them either. Three of
+`prefs::Notice`'s four arms write a `LIST_SEPARATOR` inside one
+sentence, so no claim about the sentences holds; and two of the four
+echo a TOML key straight out of the user's file, which may contain any
+character, so no second mark could have been out of band. So
+`frame::startup_notices` builds one `frame::Message` per notice and
+joins them with `frame::Message::joined`, which puts the startup line
+under the same hold as a frame's: the boundary is the bullet, the door
+takes it out of every text that reaches it, and the line splits back
+into the notices it was made from. The claim is
+`a_startup_line_splits_back_into_the_preferences_notices_it_was_made_from`
+and `a_startup_notice_echoing_a_key_that_holds_the_boundary_mark_still_splits_back`
+(`crates/viewer/tests/frame_policy.rs`). The door still takes
+`&[String]` from three types — `prefs::Notice`, which is what both the
+file's own complaints and the theme and preset resolutions produce,
+`prefs::PrefsError` and `prefs::StoreError` — because what holds the
+line is the door each string passes through and not the type it arrived
+as.
 
 ### The app driver, split for size
 
