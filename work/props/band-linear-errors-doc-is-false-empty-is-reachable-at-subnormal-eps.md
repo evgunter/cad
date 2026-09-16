@@ -2,7 +2,8 @@
 id: band-linear-errors-doc-is-false-empty-is-reachable-at-subnormal-eps
 kind: issue
 title: Band::linear's AND Band::angular_at's # Errors both say BandError arises only on K-epsilon overflow; BandError::Empty is reachable from a validated tolerance with no overflow, and angular_at reaches it at an ORDINARY epsilon
-status: open
+status: review
+branch: props/band-doors
 opened: 2026-09-11
 refs: [2378]
 ---
@@ -134,3 +135,25 @@ to need.
 section to decide what their variant owes. That is the reach of the
 defect, and it is the argument for fixing the sentence at its home
 rather than at the sites that cite it.
+
+
+## Correction at the fix (2026-09-15, `props/band-doors`)
+
+The amendment's boundary is off by one tie case. It states the region as
+"ε subnormal with ε < 2⁻¹⁰²³". Re-derived at the fix: writing ε =
+n·2⁻¹⁰⁷⁴, the product K·ε is rounded onto the subnormal grid, so the
+condition is the exact product K·n rounding back to n under
+round-half-to-even. At n = 2⁵¹ (ε = 2⁻¹⁰²³ exactly) with the least
+admitted K = 1 + 2⁻⁵² the exact product is n + ½ and n is even, so it
+rounds back to n and **that ε collapses too**; n = 2⁵¹ + 1 is the first
+that does not. The sharp bound is ε ≤ 2⁻¹⁰²³, and both endpoints are
+pinned by `both_band_error_arms_are_reachable_from_an_admitted_tolerance`
+in `predicate.rs`'s `mod tests`. Everything else in the amendment holds,
+the two-knobs framing included.
+
+`Band::angular_at` turned out to have **three** reachable `Band::new`
+residues over its derived threshold θ = ε/arm, not the one the old text
+named and not the two this file names: θ can also underflow to 0 (at
+ε ≤ about 4.4e-16 with an arm near `f64::MAX`), which surfaces as
+`InvalidValue` on `zero` and wants the arm changed rather than ε. All
+three are named in the fix.

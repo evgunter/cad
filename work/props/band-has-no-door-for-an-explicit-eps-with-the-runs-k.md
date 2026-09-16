@@ -2,7 +2,8 @@
 id: band-has-no-door-for-an-explicit-eps-with-the-runs-k
 kind: issue
 title: Band has no door for an explicit eps with the run's K — four suites open-code Band::new(eps, k*eps)
-status: open
+status: review
+branch: props/band-doors
 opened: 2026-09-11
 ---
 
@@ -44,3 +45,20 @@ sites establish is that the question has an audience.
 
 Not urgent and blocking nothing: every site works today and now says
 what it means.
+
+
+## Answered at the fix (2026-09-15, `props/band-doors`)
+
+`Band::linear_at(tol, eps)` — the named constructor, per the dispatch
+ruling; `from_zero_threshold` stays private. Witness-first, matching
+`linear(tol)` / `angular_at(tol, lever_arm)`.
+
+The count moved in both directions. `crates/sweep/tests/review_fillet_h6_r2_probes.rs`
+is **not** one of the door's sites: its `worst_rim_verdict(eps, k, arm)`
+takes `k` as a parameter and its callers pass the literals 10.0 and 1.2
+deliberately — the row asserts what the classifier does *at a named K*,
+with the run's ε and a K that is not the run's, which is the inverse of
+this door's shape. A sweep of every `Band::new` site coupled to a K found
+two more that are the shape exactly, both in
+`crates/geom-brep/tests/curved_torus_arc_residual.rs`. Five sites
+converted, not four.
