@@ -2,7 +2,8 @@
 id: two-face-sphere-split-measures-zero-volume
 kind: issue
 title: "props: a closed sphere split into two faces by the same two meridian arcs measures volume 0.0 — one parse hands both faces the same levels"
-status: review
+status: closed
+closed: 2026-09-16
 pr: 2741
 branch: props/sphere-pole-side
 opened: 2026-09-02
@@ -102,3 +103,34 @@ iso-rectangles — the three-face split of this same sphere measures
 ADMITTED input answered wrongly — has no row in the addendum at all;
 that gap is filed as
 `d2-addendum-has-no-row-for-an-admitted-input-answered-wrongly`.
+
+## Closed
+
+Landed on PR #2741 (run 35081606164 green). The half-cap and its
+L-shaped complement parsed to the same levels, so their flux
+contributions cancelled and a closed sphere measured `0.0`. They no
+longer do: `props_rim_interior_side` requires every rim's interior side
+to point INTO the face's extent, which the complement's does not, so it
+refuses typed while its partner still measures exactly. Which of the
+pair refuses is the sense bit's call, pinned both ways round. The
+three-face sphere whose third face is a rim-only cap now reports
+`4π/3`.
+
+**There is no recourse lane, and the docs that said otherwise are
+corrected at five sites.** `topo::props` dispatches structurally — only
+an ellipse- or NURBS-trimmed boundary or a spline chart reaches the
+quadrature lane — so a circle-bounded sphere face refused by
+`curved_face` is final. D2 addendum row 2 is still the classification,
+but what it costs here is the whole answer rather than a wider pad.
+What a caller does instead is STATE the face as iso-rectangles: split
+the notch out with a meridian, which is what the three-face sphere
+does.
+
+The dual also found a face neither this item nor the unit had claimed:
+a staircase with two rims whose traversals contradict, which the closed
+form answered at 57% of the truth with a zero pad. It refuses now, and
+the material-sign gate — which cannot read σ, since σ carries the sense
+bit that gate's own check compares against — takes the sense-free
+residue instead: every rim's boundary-encoded side must agree. That
+removes an anchor-relative definite ANSWER from the gate, not merely an
+anchor-relative recorded verdict.

@@ -88,3 +88,26 @@ population as much as the sphere's, since `linear_rim_side` is shared,
 and one that re-baselines k-lint and the census digests again for a
 reason unrelated to either issue this unit closed. Nothing in the
 sphere work forced the choice; it is still the call the row describes.
+
+## Half closed by the sphere-pole-side unit (PR #2741, 2026-09-16)
+
+`props_rim_dir_group` is **retired outright** — `Rim` no longer stores
+the scalar direction it compared, so that half of this row is gone.
+
+`props_rim_side` stays, and the unit measured it rather than closing
+it: under a pure re-anchoring of a loop its recorded sign still flips
+(`Positive` at some rotations, `Negative` at others) while every
+reading, area and flux stays bit-identical. Its closing shape — pick
+the reference rim by a property of the face rather than by cycle order
+— did not fall out of this work and would re-baseline the cylinder's
+and the cone's recorded populations for a reason unrelated to either
+issue the unit closed, so it is left here with the measurement.
+
+Two things this unit establishes that a taker should not re-derive.
+The new `props_rim_interior_side` is per rim and reads no reference
+rim, so its verdicts are a face fact under re-anchoring — including on
+a REFUSING face, since every rim is decided before any refusal is
+returned (an escalation still short-circuits, as everywhere else in
+the module). And the material-sign gate now reads the sense-free
+residue of the same question — every rim's encoded side agreeing —
+which removed an anchor-relative definite ANSWER from that arm.

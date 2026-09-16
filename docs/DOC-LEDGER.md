@@ -3537,3 +3537,24 @@ process each. The rule above; the unit's record is the two items'
 rider: single style review, no A/B row.
 
 - `PROPS-BAND-DOORS-SPEC.md` — PROPS band-doors, the error documentation made true and the constructor five suites hand-rolled (#2729)
+
+## Per-merge deletion — PROPS sphere-pole-side's spec (2026-09-16)
+
+Recoverable at `git show 1b7cfb766:docs/PROPS-SPHERE-POLE-SIDE-SPEC.md` (the
+merge of main into the unit head, before the state-sync commit that
+deleted it), including its 2026-09-14 amendment. Its construction held
+and its amendment did its job — the new predicate's recorded verdicts
+are a face fact under re-anchoring, which the amendment demanded in
+advance precisely because two neighbouring predicates are not. Three
+of its sentences did not survive. It asserted that `du_of_rims` already
+sums a full rim to `τ`, which is where the unit's own MAJOR came from,
+so the spec is the first author of that defect. It said the
+material-sign gate should take the predicate, which the unit showed it
+cannot and the dual showed it can in a weaker sense-free form. And it
+named the die's pips as the rim-only shape to pin, which they are not —
+a pip ball is revolved and carries a seam meridian. The rule above; the
+unit's record is its three items' `## Closed` sections, the measurement
+left on the fourth, its row in `MODEL-AB-LOG.md` (ordinal 2406, sample
+#214) and the MERGED entry in `work/props/log.md`.
+
+- `PROPS-SPHERE-POLE-SIDE-SPEC.md` — PROPS sphere-pole-side, a rim's traversal names the side its face's interior lies on (#2741)

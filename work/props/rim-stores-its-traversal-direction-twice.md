@@ -2,7 +2,8 @@
 id: rim-stores-its-traversal-direction-twice
 kind: issue
 title: Rim stores the traversal direction twice (d_u: T and d_u_sign: Sign) and du_of_rims compares the exact one through the tolerance funnel
-status: review
+status: closed
+closed: 2026-09-16
 pr: 2741
 branch: props/sphere-pole-side
 opened: 2026-09-11
@@ -67,3 +68,20 @@ Moved with it: `voided_rod`'s recorded verdict multiset loses
 `shell-census-digest/eps-*.txt` rows move on that body's channel alone,
 `verdicts n=40 h=c40da6c25f7ffe61` → `verdicts n=38 h=30974de0c3cd1571`,
 identically at every ε. Every reading is bitwise unchanged.
+
+## Closed
+
+Landed on PR #2741. `Rim` carried the traversal direction twice, as a
+scalar `d_u: T` beside the discrete `d_u_sign: Sign`, and `du_of_rims`
+compared the exact one through the tolerance funnel. The scalar is
+gone, with no reader left anywhere, and the grouping compares the
+discrete sign directly, which retires `props_rim_dir_group`.
+
+The retirement is strictly stricter rather than equivalent, and the
+unit says so: the old margin was `±2·arms.azimuth`, which lands in the
+zero band whenever `2·azimuth < K·ε`, so on a gasket-scale torus the
+old code merged OPPOSITELY traversed rims where the sign compare never
+does. That is the direction a premise may move without re-deciding what
+it admits. Two recorded-verdict populations lost that name — the census
+digests' `voided_rod` (40 verdicts to 38) and `bulged_extrusion` (19 to
+18), identically at all three ε, with every reading bitwise unchanged.
